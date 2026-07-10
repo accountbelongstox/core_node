@@ -30,15 +30,13 @@ import {
   Globe, Cpu, Sparkles, Chrome, Users, Save, Server, Wifi, WifiOff,
   History, CheckCircle2, XCircle, MinusCircle, Trash2,
 } from 'lucide-react';
-import { pycoreApi, loadQueueCache } from '../../../core/api-libs/pycore';
+import { pycoreApi, loadQueueCache, loadOverviewCache, saveOverviewCache } from '../../../core/api-libs/pycore';
 import type {
   AssistStatus, AssistCapabilities, TtsStatus,
   PcQueueOverview, PcQueueCategory, PcQueueWorker, PcQueueHandler,
   PcCapabilitySettings, PcCapabilityBlock, PcCapabilityKey,
-  PcTaskRecord, PcTaskRecentStats,
+  PcTaskRecord, PcTaskRecentStats, SentenceAudioAutoStatus,
 } from '../../../core/api-libs/pycore';
-import { api } from '../../../core/api';
-import type { SentenceAudioClaimSummary } from '../../../core/api/modules/AppQyV1';
 import PcQueueManagerPanel from './PcQueueManagerPage';
 import PcTaskQueuePanel from './PcTaskQueuePage';
 import PcTranslationQueuePanel from './PcTranslationQueuePage';
@@ -467,27 +465,28 @@ const PcTtsEnginesStrip: React.FC = () => {
 };
 
 // --------------------------------------------------------------------------
-// Sentence Audio strip: counts of the shared sentence library's auxiliary
-// audio queue (pending / leased), read from the laravel_main claim summary
-// (POST …/tts/sentence/claim with limit=0 → counts only, no rows leased).
-// There is no dashboard-side "run once" trigger — the pycore worker owns the
-// real claim (limit > 0); this strip is read-only status on the same cadence
-// as its neighbors. Polls laravel (api.appQyV1), NOT pycore.
+// Sentence Audio strip: Laravel queue counts + pycore auto-start toggle.
+// One poll to pycore /sentence-audio/status (includes cached Laravel counts).
 // --------------------------------------------------------------------------
-const PcSentenceAudioStrip: React.FC = () => {
-  const [summary, setSummary] = useState<SentenceAudioClaimSummary | null>(null);
+const PcSentenceAudioStrip: React.FC<{ refreshTick?: number }> = ({ refreshTick = 0 }) => {
+  const { t } = useTranslation('pc');
+  const [status, setStatus] = useState<SentenceAudioAutoStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
 
-  const fetchSummary = useCallback(async () => {
+  const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await api.appQyV1.getSentenceAudioSummary();
+      const s = await pycoreApi.getSentenceAudioAutoStatus();
       if (!mounted.current) return;
-      if (r?.success && r.data) { setSummary(r.data); setErr(null); }
-      else setErr(r?.error || 'sentence audio status unavailable');
+      if (s && typeof s.auto_start === 'boolean') {
+        setStatus(s); setErr(null);
+      } else {
+        setErr((s as any)?.error || 'sentence audio status unavailable');
+      }
     } catch (e: any) {
       if (mounted.current) setErr(e?.message || 'sentence audio status unavailable');
     } finally {
@@ -496,48 +495,116 @@ const PcSentenceAudioStrip: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    fetchSummary();
-    const id = window.setInterval(fetchSummary, SENTENCE_AUDIO_POLL_MS);
+    fetchStatus();
+    const id = window.setInterval(fetchStatus, SENTENCE_AUDIO_POLL_MS);
     return () => window.clearInterval(id);
-  }, [fetchSummary]);
+  }, [fetchStatus, refreshTick]);
 
-  if (!summary) {
+  const toggleAuto = async () => {
+    if (!status || busy) return;
+    setBusy(true);
+    try {
+      const next = !status.auto_start;
+      const s = await pycoreApi.setSentenceAudioAutoConfig(next);
+      if (mounted.current && s && typeof s.auto_start === 'boolean') setStatus(s);
+    } catch (e: any) {
+      if (mounted.current) setErr(e?.message || 'toggle failed');
+    } finally {
+      if (mounted.current) setBusy(false);
+    }
+  };
+
+  const runOnce = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await pycoreApi.runSentenceAudioOnce();
+      await fetchStatus();
+    } catch (e: any) {
+      if (mounted.current) setErr(e?.message || 'run-once failed');
+    } finally {
+      if (mounted.current) setBusy(false);
+    }
+  };
+
+  const pending = status?.laravel?.pending ?? 0;
+  const leased = status?.laravel?.leased ?? 0;
+  const localQueued = status?.worker?.queued ?? 0;
+  const autoOn = !!status?.auto_start;
+
+  if (!status) {
     return (
       <section className="pc-glass p-3 flex items-center gap-2 text-xs text-slate-500">
         <MessageSquareText className="w-4 h-4 text-teal-400 shrink-0" />
-        <span className="font-bold text-slate-600 dark:text-slate-300">Sentence Audio</span>
+        <span className="font-bold text-slate-600 dark:text-slate-300">{t('queueCenter.sentenceAudio.title')}</span>
         {err ? (
-          <span className="truncate text-slate-400" title={err}>status unavailable ({err})</span>
+          <span className="truncate text-slate-400" title={err}>{err}</span>
         ) : (
-          <span className="text-slate-400">loading…</span>
+          <span className="text-slate-400">{t('queueCenter.overview.loading')}</span>
         )}
-        <button onClick={fetchSummary} disabled={loading}
-          className="ml-auto p-1.5 rounded-lg pc-glass hover:bg-teal-500/10 text-teal-500 transition disabled:opacity-50 shrink-0" title="Refresh sentence audio status">
+        <button onClick={fetchStatus} disabled={loading}
+          className="ml-auto p-1.5 rounded-lg pc-glass hover:bg-teal-500/10 text-teal-500 transition disabled:opacity-50 shrink-0"
+          title={t('queueCenter.refreshActive')}>
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </section>
     );
   }
 
-  const pending = summary.pending ?? 0;
-  const leased = summary.leased ?? 0;
-
   return (
-    <section className="pc-glass p-3 flex items-center gap-2 flex-wrap">
-      <MessageSquareText className="w-4 h-4 text-teal-400 shrink-0" />
-      <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Sentence Audio</span>
-      <span className="text-[10px] text-slate-400" title="Shared sentence-library auxiliary audio generation queue">
-        shared library
-      </span>
-      <span className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-500" title="Sentences awaiting audio (not leased)">
-        <AudioLines className="w-3 h-3 text-teal-400" />
-        <b className="text-sky-500">{pending}</b> pending
-        {' · '}<b className="text-violet-500">{leased}</b> leased
-      </span>
-      <button onClick={fetchSummary} disabled={loading}
-        className="ml-auto p-1.5 rounded-lg pc-glass hover:bg-teal-500/10 text-teal-500 transition disabled:opacity-50 shrink-0" title="Refresh sentence audio status">
-        <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-      </button>
+    <section className="pc-glass p-3 space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <MessageSquareText className="w-4 h-4 text-teal-400 shrink-0" />
+        <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{t('queueCenter.sentenceAudio.title')}</span>
+        <span className="text-[10px] text-slate-400">{t('queueCenter.sentenceAudio.subtitle')}</span>
+        <span className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-500" title="Laravel sentence library queue">
+          <AudioLines className="w-3 h-3 text-teal-400" />
+          <b className="text-sky-500">{pending}</b> {t('queueCenter.overview.pending')}
+          {' · '}<b className="text-violet-500">{leased}</b> {t('queueCenter.overview.leased')}
+          {localQueued > 0 && (
+            <span title="In-process priority heap on pycore">
+              {' · '}<b className="text-amber-500">{localQueued}</b> local
+            </span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={toggleAuto}
+          disabled={busy}
+          title={autoOn ? t('queueCenter.sentenceAudio.autoOffTitle') : t('queueCenter.sentenceAudio.autoOnTitle')}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold transition disabled:opacity-50 ${
+            autoOn
+              ? 'bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25'
+              : 'pc-glass text-slate-500 hover:bg-teal-500/10 hover:text-teal-500'
+          }`}>
+          {autoOn ? <Check className="w-3.5 h-3.5 shrink-0" /> : <Power className="w-3.5 h-3.5 shrink-0" />}
+          {t('queueCenter.sentenceAudio.autoStart')} {autoOn ? t('queueCenter.autoOn') : t('queueCenter.autoOff')}
+        </button>
+        <button
+          type="button"
+          onClick={runOnce}
+          disabled={busy}
+          title={t('queueCenter.sentenceAudio.runOnceTitle')}
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold pc-glass text-teal-600 hover:bg-teal-500/10 transition disabled:opacity-50">
+          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+          {t('queueCenter.sentenceAudio.runOnce')}
+        </button>
+        <button onClick={fetchStatus} disabled={loading || busy}
+          className="ml-auto p-1.5 rounded-lg pc-glass hover:bg-teal-500/10 text-teal-500 transition disabled:opacity-50 shrink-0"
+          title={t('queueCenter.refreshActive')}>
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+      {status.worker?.processing && (
+        <p className="text-[10px] font-mono text-slate-400 truncate">
+          {t('queueCenter.sentenceAudio.processing')}: {status.worker.processing}
+        </p>
+      )}
+      {err && (
+        <p className="text-[11px] text-rose-500 break-words">
+          <AlertTriangle className="w-3 h-3 inline mr-1 -mt-0.5" />{err}
+        </p>
+      )}
     </section>
   );
 };
@@ -561,8 +628,8 @@ const PcQueueOverviewPanel: React.FC<{
   onMeta: (m: { count: number | null; loading: boolean }) => void;
 }> = ({ refreshTick, onMeta }) => {
   const { t } = useTranslation('pc');
-  const [data, setData] = useState<PcQueueOverview | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<PcQueueOverview | null>(() => loadOverviewCache());
+  const [loading, setLoading] = useState(() => !loadOverviewCache());
   const [err, setErr] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const mounted = useRef(true);
@@ -576,6 +643,7 @@ const PcQueueOverviewPanel: React.FC<{
       if (!mounted.current) return;
       if (r && (r as any).success !== false && Array.isArray(r.categories)) {
         setData(r); setErr(null);
+        saveOverviewCache(r);
         const pending = r.categories.reduce((s, c) => s + (c.pending || 0), 0);
         onMeta({ count: pending, loading: false });
       } else {
@@ -1518,8 +1586,8 @@ const PcQueueCenterPage: React.FC = () => {
           {/* TTS engines: active engine + fallback chain + edge cooldown countdown */}
           <PcTtsEnginesStrip />
 
-          {/* Sentence-library auxiliary audio queue counts (laravel claim summary) */}
-          <PcSentenceAudioStrip />
+          {/* Sentence-library auxiliary audio queue + auto-start */}
+          <PcSentenceAudioStrip refreshTick={tick} />
         </>
       )}
 

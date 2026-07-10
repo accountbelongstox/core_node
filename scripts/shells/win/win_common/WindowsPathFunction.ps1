@@ -35,7 +35,7 @@ if (-not $Global:HAS_ADMIN_RIGHTS) {
     Write-Log "ERROR: This script requires Administrator privileges" -color "Red"
     Write-Log "Please run PowerShell as Administrator and try again" -color "Yellow"
     Write-Log "Right-click PowerShell -> Run as Administrator" -color "Yellow"
-    exit 1
+    return
 }
 
 if ($winBuild -ge 22000) {
@@ -266,6 +266,7 @@ function Backup-Environment {
 
 function Add-Path {
     param (
+        [Alias('PathToAdd')]
         [string]$newPath
     )
 

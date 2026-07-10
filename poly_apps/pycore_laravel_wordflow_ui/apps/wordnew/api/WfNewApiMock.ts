@@ -629,4 +629,22 @@ export const wfNewApiMock: WfNewApi = {
       ukPhonetic: undefined,
     });
   },
+
+  async resolveSentenceAudio(text: string, language: string) {
+    const key = `${language}:${text.slice(0, 32)}`;
+    const n = (MOCK_WORD_MEDIA_CALLS.get(key) ?? 0) + 1;
+    MOCK_WORD_MEDIA_CALLS.set(key, n);
+    const ready = n > 2;
+    return delay({
+      exists: ready,
+      url: ready ? `https://example.test/mock-sentence/${encodeURIComponent(language)}.mp3` : null,
+      queued: !ready,
+      content_id: mockMd5(text),
+      hash: mockMd5(text),
+    });
+  },
+
+  async bumpSentenceAudio(contentId: string, _language: string) {
+    return delay({ success: true, task_id: `mock-${contentId}` });
+  },
 };

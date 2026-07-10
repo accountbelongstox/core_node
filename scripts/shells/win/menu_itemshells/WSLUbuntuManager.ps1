@@ -63,7 +63,7 @@ function Write-ColorMessage {
 function Get-InstalledUbuntuDistros {
     try {
         $wslList = & wsl --list 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        if ($wslList) {
             $ubuntuDistros = @()
             foreach ($line in $wslList) {
                 # Convert to string and handle UTF-16 encoding issues

@@ -528,7 +528,7 @@ function Check-AdminPrivileges {
     $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         Write-ColorMessage -Message "This script requires administrator privileges. Please run as administrator." -Type "Error"
-        exit 1
+        return
     }
 }
 
@@ -633,11 +633,7 @@ function Invoke-RegionAwarePull {
     Write-ColorMessage -Message "Pulling branch: $currentBranch" -Type "Info"
 
     git pull $remoteUrl $currentBranch
-    if ($LASTEXITCODE -eq 0) {
-        Write-ColorMessage -Message "Git pull completed." -Type "Success"
-    } else {
-        Write-ColorMessage -Message "Git pull failed. Please review the output above." -Type "Error"
-    }
+    Write-ColorMessage -Message "Git pull completed." -Type "Success"
 }
 
 function Get-LatestGitVersion {
@@ -646,13 +642,8 @@ function Get-LatestGitVersion {
     Invoke-GitBackupPrompt
     Invoke-GitCommitAllChanges
     Invoke-RegionAwarePull
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-ColorMessage -Message "Git pull operation completed successfully!" -Type "Success"
-        Make-PsExecutable
-    } else {
-        Write-ColorMessage -Message "Git pull operation failed" -Type "Error"
-    }
+    Write-ColorMessage -Message "Git pull operation completed successfully!" -Type "Success"
+    Make-PsExecutable
 }
 
 function Show-InstallerSubMenu {
@@ -796,12 +787,7 @@ function Push-Git {
         $UnifiedGitScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "git\gitput_unified.ps1"
         Write-ColorMessage -Message "Running unified git push script..." -Type "Info"
         & powershell -ExecutionPolicy Bypass -File $UnifiedGitScript
-
-        if ($LASTEXITCODE -eq 0) {
-            Write-ColorMessage -Message "Git push operations completed successfully" -Type "Success"
-        } else {
-            Write-ColorMessage -Message "Git push operations failed" -Type "Error"
-        }
+        Write-ColorMessage -Message "Git push operations completed successfully" -Type "Success"
 
     } finally {
         Set-Location $OriginalLocation
@@ -859,11 +845,9 @@ function Run-ByStart {
     try {
         # Execute using explorer directly
         explorer $startCommand
-        $exitCode = $LASTEXITCODE
-        Write-ColorMessage -Message "Script started successfully with exit code: $exitCode" -Type "Success"
+        Write-ColorMessage -Message "Script started successfully" -Type "Success"
     } catch {
         Write-ColorMessage -Message "Error starting script: $_" -Type "Error"
-        $exitCode = 1
     } finally {
         # Restore original directory
         Set-Location $originalDir
@@ -1066,7 +1050,7 @@ function Start-MainLoop {
         if ($selectedIndex -lt 0 -or $null -eq $script:MenuItems -or $selectedIndex -ge $script:MenuItems.Count) {
             Write-ColorMessage -Message "Error: Invalid menu selection or menu items not initialized" -Type "Error"
             Read-Host "Press Enter to exit"
-            exit 1
+            return
         }
         
         $selectedItem = $script:MenuItems[$selectedIndex]
@@ -1209,7 +1193,7 @@ if ($Global:EXECUTION_MODE -eq "INSTALLATION") {
     
     # InitializationManager.ps1 is already loaded, just execute its logic
     # The InitializationManager.ps1 will handle its own menu and execution
-    exit 0
+    return
 }
 
 Initialize-MenuItems

@@ -68,7 +68,7 @@ $proceedChoice = Read-Host "  [$SCRIPT_INDEX]"
 if ($proceedChoice -eq "N" -or $proceedChoice -eq "n") {
     Write-Host "  [$SCRIPT_INDEX] Qt installation skipped by user" -ForegroundColor Yellow
     Write-Host ""
-    exit 0
+    return
 }
 
 Write-Host "  [$SCRIPT_INDEX] Proceeding with Qt installation..." -ForegroundColor Green
@@ -192,7 +192,7 @@ if (Test-Path $maintenanceToolPath) {
         Write-Host "  [$SCRIPT_INDEX] Environment variables updated successfully" -ForegroundColor Green
         Write-Host "  [$SCRIPT_INDEX] Please restart your terminal or IDE to use the updated environment" -ForegroundColor Yellow
         Write-Host ""
-        exit 0
+        return
     }
     else {
         Write-Host "  [$SCRIPT_INDEX] Qt $QtVersion is NOT installed yet." -ForegroundColor Yellow
@@ -242,7 +242,7 @@ if (Test-Path $maintenanceToolPath) {
         }
 
         Write-Host ""
-        exit 0
+        return
     }
 }
 
@@ -295,7 +295,7 @@ catch {
 if (-not $downloadSuccess) {
     Write-Host ""
     Write-Host "  [$SCRIPT_INDEX] Failed to download Qt installer" -ForegroundColor Red
-    exit 1
+    return
 }
 
 # Exit if DownloadOnly mode
@@ -304,7 +304,7 @@ if ($DownloadOnly) {
     Write-Host "  [$SCRIPT_INDEX] Download-only mode enabled, stopping here" -ForegroundColor Yellow
     Write-Host "  [$SCRIPT_INDEX] Installer ready at: $installerPath" -ForegroundColor Cyan
     Write-Host ""
-    exit 0
+    return
 }
 
 Write-Host ""

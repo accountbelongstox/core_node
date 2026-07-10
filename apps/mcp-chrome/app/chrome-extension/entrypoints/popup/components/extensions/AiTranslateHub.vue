@@ -1,17 +1,7 @@
 <template>
   <div class="ai-translate-hub flex flex-col gap-2.5">
     <!-- ═══ Puter AI Worker Section ═══ -->
-    <div class="ba-header" style="padding: 8px 10px;">
-      <div class="ba-brand">
-        <span class="ba-logo">🤖</span>
-        <div class="ba-brand-text">
-          <span class="ba-title">Puter AI Translate</span>
-          <span class="ba-subtitle">
-            <span :class="['ba-live-dot', workerState.isRunning ? 'on' : 'off']"></span>
-            {{ workerState.isRunning ? 'Translating via Puter AI' : 'Idle — not translating' }}
-          </span>
-        </div>
-      </div>
+    <div class="ba-toolbar">
       <button
         class="service-toggle"
         :class="workerState.isRunning ? 'on' : (prepared ? 'ready' : 'off')"
@@ -56,7 +46,6 @@
       <div class="flex items-center gap-2 mb-2">
         <span class="text-sm">🔊</span>
         <span class="text-[11px] font-semibold" style="color: var(--text)">Free Dictionary</span>
-        <span class="text-[8px]" style="color: var(--text-faint)">pronunciation + definitions</span>
       </div>
 
       <!-- Search box -->
@@ -200,3 +189,5 @@ onMounted(async () => {
   await initPanel();
 });
 </script>
+
+<style scoped src="./bing-dictionary/client-mode-styles.css"></style>

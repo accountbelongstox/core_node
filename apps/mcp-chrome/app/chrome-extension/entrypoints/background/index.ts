@@ -25,6 +25,8 @@ import { taskCenter } from './services/task-center/TaskCenter';
 import { initializeProcessors } from './services/task-center/init-processors';
 import { initTaskCenterListener } from './task-center-listener';
 import { initPuterTranslateListener } from './puter-translate-listener';
+import { initDuoreaderImporterListener } from './duoreader-importer-listener';
+import { logger } from '@/utils/logger';
 
 /**
  * Background script entry point
@@ -108,6 +110,9 @@ export default defineBackground(() => {
   initApiHealthListener();
   // Puter AI translate worker bridge for the popup AI Translate Hub panel.
   initPuterTranslateListener();
+  // Duoreader → Laravel Books import (scrape + upload with shared API endpoint).
+  initDuoreaderImporterListener();
+  void logger.init().catch(() => {});
 
   // Initialize DeepSeek polling service
   getDeepSeekPollingService()

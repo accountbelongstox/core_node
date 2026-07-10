@@ -3,19 +3,20 @@
  * chosen pycore node and manage that client.
  *
  * Three target modes (state + persistence in core/api-libs/pycore/pycoreTarget):
- *   - Current URL (origin, DEFAULT): the page's own origin via the /pyapi proxy.
- *   - Local (this machine): the page host on :59000 (direct cross-port call).
- *   - Remote: an explicit host/IP on :59000 (manage another node).
+ *   - Current URL (origin, DEFAULT): direct to <page-host>:59000 (no proxy).
+ *   - Local (this machine): same as Current URL - <page-host>:59000 direct.
+ *   - Remote: an explicit host/IP on :59000 (e.g. 127.0.0.1 when the browser is
+ *     on the pycore machine, or the machine's LAN/Tailscale/public IP).
  * Picking any re-points every pycore transport (HTTP / RPC WS / SSE / health) and
  * reloads the page so the entire UI manages the chosen node. Fixed quick-connect
  * presets (Localhost / Public IP / Tailscale LAN) plus Recent history and a custom
  * add input are offered. This is pure UI.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Server, ChevronDown, Check, Plus, MonitorSmartphone, Globe, Link as LinkIcon } from 'lucide-react';
+import { Server, ChevronDown, Check, Plus, MonitorSmartphone, Globe, Link as LinkIcon, AlertTriangle } from 'lucide-react';
 import {
   getPycoreTarget, getPycoreTargetRecent, getPycoreTargetPresets, normalizePycoreHost, setPycoreTarget,
-  localPycoreHost, localPycoreOrigin,
+  localPycoreHost, localPycoreOrigin, isPycoreSecureContext, pnaBlockedReason,
 } from '../../../core/api-libs/pycore';
 
 interface Props {
@@ -34,6 +35,11 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   const label = mode === 'remote' ? (target.host as string)
     : mode === 'local' ? 'Local'
       : 'Current URL';
+  // Private Network Access: a non-secure-context page (HTTP on a public IP) is
+  // blocked by the browser from reaching loopback/private pycore hosts directly.
+  const secureCtx = isPycoreSecureContext();
+  const activeHost = mode === 'remote' ? (target.host as string) : localHost;
+  const pnaReason = pnaBlockedReason(activeHost);
 
   const [open, setOpen] = useState(false);
   const [host, setHost] = useState('');
@@ -82,7 +88,22 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
             <Server className="w-3.5 h-3.5" /> Managed pycore node
           </div>
 
-          {/* Current URL (origin, default) - page origin via the /pyapi proxy */}
+          {/* PNA warning: non-secure-context page cannot directly reach a
+              loopback/private pycore host. Tell the user the three workarounds. */}
+          {pnaReason && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>{pnaReason}</span>
+            </div>
+          )}
+          {!pnaReason && !secureCtx && (
+            <div className="flex items-start gap-2 rounded-xl border border-slate-200 dark:border-white/5 px-3 py-1.5 text-[10px] leading-relaxed text-slate-400">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>Not a secure context (HTTP public IP): direct access to <b>127.0.0.1</b> or private IPs will be blocked by Private Network Access. Current target ({activeHost}:59000) is reachable because it is in the same address space.</span>
+            </div>
+          )}
+
+          {/* Current URL (origin, default) - direct to <page-host>:59000 */}
           <button
             onClick={goOrigin}
             className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all ${
@@ -91,7 +112,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
           >
             <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
               <span className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-indigo-500" /> Current URL</span>
-              <span className="text-[10px] font-mono text-slate-400 pl-6">{pageOrigin.split(':')[0]}:59000 (direct)</span>
+              <span className="text-[10px] font-mono text-slate-400 pl-6">{localHost}:59000 (direct)</span>
             </span>
             {mode === 'origin' && <Check className="w-4 h-4 text-indigo-500" />}
           </button>
@@ -105,7 +126,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
           >
             <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
               <span className="flex items-center gap-2"><MonitorSmartphone className="w-4 h-4 text-indigo-500" /> Local (this machine)</span>
-              <span className="text-[10px] font-mono text-slate-400 pl-6">{localHost}:59000</span>
+              <span className="text-[10px] font-mono text-slate-400 pl-6">{localHost}:59000 (direct)</span>
             </span>
             {mode === 'local' && <Check className="w-4 h-4 text-indigo-500" />}
           </button>
@@ -181,10 +202,13 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
               </button>
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              Current URL = page host :59000 ({localHost}:59000) - direct to pycore backend (NOT
-              Laravel's :9000). Local = same as Current URL. Remote = host:59000. Switching reloads
-              the UI so it controls that node's pycore (CodeSync, queues, AI, settings). The remote
-              must allow this origin.
+              All modes connect DIRECTLY to <b>host:59000</b> (no reverse proxy). Current URL / Local
+              = this page's host ({localHost}:59000) - the pycore backend (NOT Laravel's :9000).
+              Remote = any host:59000 (use 127.0.0.1 when the browser runs on the pycore machine,
+              or the machine's LAN/Tailscale/public IP). Switching reloads so the UI controls that
+              node's pycore (CodeSync, queues, AI, settings). Private Network Access blocks
+              127.0.0.1/private hosts from a non-secure (HTTP public IP) page - use HTTPS, localhost,
+              or the Chrome flag shown above.
             </p>
           </div>
         </div>

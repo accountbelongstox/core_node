@@ -479,7 +479,6 @@ if ($installSuccess) {
     }
 } else {
     Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Node.js installation failed" -Type "Error"
-    exit 1
 }
 
 Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Info"

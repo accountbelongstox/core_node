@@ -88,10 +88,11 @@ function Configure-GemSettings {
             $addOutput = & $gemPath sources --add $gemSource 2>&1
             Write-Host "$LogPrefix Add output: $addOutput" -ForegroundColor Gray
 
-            if ($LASTEXITCODE -eq 0) {
+            $sourceList = & $gemPath sources --list 2>&1
+            if ("$sourceList" -match [regex]::Escape($gemSource)) {
                 Write-Host "$LogPrefix Gem mirror configured successfully" -ForegroundColor Green
             } else {
-                Write-Host "$LogPrefix Warning: Gem mirror configuration may have issues (exit code: $LASTEXITCODE)" -ForegroundColor Yellow
+                Write-Host "$LogPrefix Warning: Gem mirror configuration may have issues" -ForegroundColor Yellow
             }
 
             # List current sources for verification
@@ -160,7 +161,8 @@ function Install-EssentialGems {
             Write-Host "$LogPrefix Installing gem: $gem..." -ForegroundColor Yellow
             try {
                 & $gemPath install $gem 2>&1 | Out-Null
-                if ($LASTEXITCODE -eq 0) {
+                $gemList = & $gemPath list $gem 2>&1
+                if ("$gemList" -match [regex]::Escape($gem)) {
                     Write-Host "$LogPrefix $gem installed successfully" -ForegroundColor Green
                 } else {
                     Write-Host "$LogPrefix Failed to install $gem" -ForegroundColor Yellow
@@ -204,13 +206,15 @@ function Setup-BundlerConfig {
     try {
         # Configure bundler to use parallel jobs
         & $bundlerPath config --global jobs 4 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) {
+        $jobsConfig = & $bundlerPath config --global jobs 2>&1
+        if ("$jobsConfig" -match '4') {
             Write-Host "$LogPrefix Configured Bundler to use 4 parallel jobs" -ForegroundColor Green
         }
         
         # Configure bundler to retry failed downloads
         & $bundlerPath config --global retry 3 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) {
+        $retryConfig = & $bundlerPath config --global retry 2>&1
+        if ("$retryConfig" -match '3') {
             Write-Host "$LogPrefix Configured Bundler to retry failed downloads 3 times" -ForegroundColor Green
         }
         
@@ -234,7 +238,7 @@ function Test-RubyInstallation {
     try {
         # Test Ruby version
         $rubyVersion = & $RubyPath --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        if ("$rubyVersion" -match 'ruby') {
             Write-Host "$LogPrefix Ruby version check passed" -ForegroundColor Green
             $versionLine = ($rubyVersion | Select-Object -First 1).ToString()
             Write-Host "$LogPrefix $versionLine" -ForegroundColor Cyan
@@ -251,7 +255,7 @@ function Test-RubyInstallation {
         
         if (Test-Path $gemPath) {
             $gemVersion = & $gemPath --version 2>&1
-            if ($LASTEXITCODE -eq 0) {
+            if ("$gemVersion" -match '\d') {
                 Write-Host "$LogPrefix Gem check passed" -ForegroundColor Green
                 $gemVersionLine = ($gemVersion | Select-Object -First 1).ToString()
                 Write-Host "$LogPrefix Gem version: $gemVersionLine" -ForegroundColor Cyan

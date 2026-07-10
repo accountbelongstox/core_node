@@ -72,7 +72,7 @@ $proceedChoice = Read-Host "  [$SCRIPT_INDEX]"
 if ($proceedChoice -ne "Y" -and $proceedChoice -ne "y") {
     Write-Host "  [$SCRIPT_INDEX] Qt installation skipped by user" -ForegroundColor Yellow
     Write-Host ""
-    exit 0
+    return
 }
 
 Write-Host "  [$SCRIPT_INDEX] Proceeding with Qt installation..." -ForegroundColor Green
@@ -279,7 +279,7 @@ if (Test-Path $maintenanceToolPath) {
     Write-Host "  [$SCRIPT_INDEX] Environment variables updated" -ForegroundColor Green
     Write-Host "  [$SCRIPT_INDEX] Please restart your terminal or IDE to use the updated environment" -ForegroundColor Yellow
     Write-Host ""
-    exit 0
+    return
 }
 
 # Check if Qt is already installed (built from source)
@@ -339,7 +339,7 @@ if (Test-Path $qtExePath) {
     Write-Host "  [$SCRIPT_INDEX] Qt installation verified and environment variables updated" -ForegroundColor Green
     Write-Host "  [$SCRIPT_INDEX] Please restart your terminal or IDE to use the updated environment" -ForegroundColor Yellow
     Write-Host ""
-    exit 0
+    return
 }
 
 Write-Host "  [$SCRIPT_INDEX] Qt not found, proceeding with installation..." -ForegroundColor Yellow
@@ -486,7 +486,7 @@ if ($qtInstallMethod -eq "installer") {
         Write-Host ""
     }
 
-    exit 0
+    return
 }
 elseif ($qtInstallMethod -eq "source") {
     Write-Host "  [$SCRIPT_INDEX] ===========================================" -ForegroundColor Cyan
@@ -497,7 +497,7 @@ elseif ($qtInstallMethod -eq "source") {
 }
 else {
     Write-Host "  [$SCRIPT_INDEX] ERROR: Invalid installation method: $qtInstallMethod" -ForegroundColor Red
-    exit 1
+    return
 }
 
 # Source build continues below...
@@ -558,9 +558,9 @@ if ($missingTools.Count -gt 0) {
     Write-Host "  [$SCRIPT_INDEX] Please install these tools before running this script:" -ForegroundColor Red
     Write-Host "  [$SCRIPT_INDEX]   - CMake: winget install Kitware.CMake" -ForegroundColor Yellow
     Write-Host "  [$SCRIPT_INDEX]   - Ninja: winget install Ninja-build.Ninja" -ForegroundColor Yellow
-    Write-Host "  [$SCRIPT_INDEX]   - Python: winget install Python.Python.3" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX]   - Python: winget install Python.Python.3.13" -ForegroundColor Yellow
     Write-Host ""
-    exit 1
+    return
 }
 
 Write-Host "  [$SCRIPT_INDEX] All required tools are available" -ForegroundColor Green
@@ -623,7 +623,7 @@ else {
     if (-not (Test-Path $qtSrcDownloadPath)) {
         Write-Host "  [$SCRIPT_INDEX] ERROR: Failed to download Qt source code" -ForegroundColor Red
         Write-Host "  [$SCRIPT_INDEX] Please check your internet connection and try again" -ForegroundColor Yellow
-        exit 1
+        return
     }
 }
 Write-Host ""
@@ -640,7 +640,7 @@ else {
     if (-not (Test-Path $qtSrcDownloadPath)) {
         Write-Host "  [$SCRIPT_INDEX] ERROR: Downloaded file not found: $qtSrcDownloadPath" -ForegroundColor Red
         Write-Host "  [$SCRIPT_INDEX] Please re-run the script to download again" -ForegroundColor Yellow
-        exit 1
+        return
     }
 
     $fileSize = (Get-Item $qtSrcDownloadPath).Length
@@ -654,7 +654,7 @@ else {
         Write-Host "  [$SCRIPT_INDEX] The download may have failed or been interrupted" -ForegroundColor Yellow
         Write-Host "  [$SCRIPT_INDEX] Removing corrupted file and exiting..." -ForegroundColor Yellow
         Remove-Item $qtSrcDownloadPath -Force
-        exit 1
+        return
     }
 
     try {
@@ -689,12 +689,12 @@ else {
             try {
                 $extractArgs = @("x", "`"$qtSrcDownloadPath`"", "-o`"$qtSrcExtractDir`"", "-y")
                 $extractProcess = Start-Process -FilePath $sevenZipPath -ArgumentList $extractArgs -Wait -NoNewWindow -PassThru
-                
-                if ($extractProcess.ExitCode -eq 0) {
+
+                if (Test-Path $qtSrcDir) {
                     Write-Host "  [$SCRIPT_INDEX] Extraction completed successfully with 7-Zip" -ForegroundColor Green
                 }
                 else {
-                    Write-Host "  [$SCRIPT_INDEX] ERROR: 7-Zip extraction failed with exit code: $($extractProcess.ExitCode)" -ForegroundColor Red
+                    Write-Host "  [$SCRIPT_INDEX] ERROR: 7-Zip extraction failed" -ForegroundColor Red
                     throw "7-Zip extraction failed"
                 }
             }
@@ -716,7 +716,7 @@ else {
         Write-Host "  [$SCRIPT_INDEX] ERROR: Extraction verification failed - Qt source directory not found" -ForegroundColor Red
         Write-Host "  [$SCRIPT_INDEX] Expected directory: $qtSrcDir" -ForegroundColor Red
         Write-Host "  [$SCRIPT_INDEX] Please check the downloaded file and try again" -ForegroundColor Yellow
-        exit 1
+        return
     }
     else {
         Write-Host "  [$SCRIPT_INDEX] Extraction verification successful" -ForegroundColor Green
@@ -730,7 +730,7 @@ if ($SkipBuild) {
     Write-Host "  [$SCRIPT_INDEX] SkipBuild flag is set, stopping before build process" -ForegroundColor Yellow
     Write-Host "  [$SCRIPT_INDEX] Qt source is ready at: $qtSrcDir" -ForegroundColor Cyan
     Write-Host ""
-    exit 0
+    return
 }
 
 Write-Host "  [$SCRIPT_INDEX] ==========================================" -ForegroundColor Magenta
@@ -756,7 +756,7 @@ $userConfirm = Read-Host "  [$SCRIPT_INDEX] Do you want to continue with Qt comp
 if ($userConfirm -ne "Y" -and $userConfirm -ne "y") {
     Write-Host "  [$SCRIPT_INDEX] Build cancelled by user" -ForegroundColor Yellow
     Write-Host ""
-    exit 0
+    return
 }
 Write-Host ""
 
@@ -858,14 +858,14 @@ try {
 
     $configureProcess = Start-Process -FilePath $configureBat -ArgumentList $configureArgs -Wait -NoNewWindow -PassThru
 
-    if ($configureProcess.ExitCode -ne 0) {
-        Write-Host "  [$SCRIPT_INDEX] WARNING: Qt configure failed with exit code: $($configureProcess.ExitCode)" -ForegroundColor Yellow
+    if (Test-Path (Join-Path $qtBuildDir "CMakeCache.txt")) {
+        Write-Host "  [$SCRIPT_INDEX] Qt configure completed successfully" -ForegroundColor Green
+    }
+    else {
+        Write-Host "  [$SCRIPT_INDEX] WARNING: Qt configure may have failed" -ForegroundColor Yellow
         Write-Host "  [$SCRIPT_INDEX] This may be due to missing Visual Studio or other prerequisites" -ForegroundColor Yellow
         Write-Host "  [$SCRIPT_INDEX] Attempting to continue with build process..." -ForegroundColor Cyan
         Write-Host "  [$SCRIPT_INDEX] Note: Build may fail if configure step was critical" -ForegroundColor Yellow
-    }
-    else {
-        Write-Host "  [$SCRIPT_INDEX] Qt configure completed successfully" -ForegroundColor Green
     }
     Write-Host ""
 
@@ -876,10 +876,11 @@ try {
 
     $buildProcess = Start-Process -FilePath "cmake" -ArgumentList "--build", ".", "--parallel" -Wait -NoNewWindow -PassThru
 
-    if ($buildProcess.ExitCode -ne 0) {
+    $qmakeInBuild = Get-ChildItem -Path $qtBuildDir -Recurse -Filter "qmake.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $qmakeInBuild) {
         Write-Host "" -ForegroundColor Red
         Write-Host "  [$SCRIPT_INDEX] ============================================" -ForegroundColor Red
-        Write-Host "  [$SCRIPT_INDEX] ERROR: Qt build failed (exit code: $($buildProcess.ExitCode))" -ForegroundColor Red
+        Write-Host "  [$SCRIPT_INDEX] ERROR: Qt build failed" -ForegroundColor Red
         Write-Host "  [$SCRIPT_INDEX] ============================================" -ForegroundColor Red
         Write-Host ""
         Write-Host "  [$SCRIPT_INDEX] Common causes:" -ForegroundColor Yellow
@@ -906,8 +907,8 @@ try {
 
     $installProcess = Start-Process -FilePath "cmake" -ArgumentList "--install", "." -Wait -NoNewWindow -PassThru
 
-    if ($installProcess.ExitCode -ne 0) {
-        Write-Host "  [$SCRIPT_INDEX] WARNING: Qt installation failed with exit code: $($installProcess.ExitCode)" -ForegroundColor Yellow
+    if (-not (Test-Path (Join-Path $qtInstallDir "bin\qmake.exe"))) {
+        Write-Host "  [$SCRIPT_INDEX] WARNING: Qt installation may have failed" -ForegroundColor Yellow
         Write-Host "  [$SCRIPT_INDEX] This may be due to missing Visual Studio or other prerequisites" -ForegroundColor Yellow
         Write-Host "  [$SCRIPT_INDEX] Attempting to continue with environment setup..." -ForegroundColor Cyan
         Write-Host "  [$SCRIPT_INDEX] Note: Qt may not be fully functional if installation failed" -ForegroundColor Yellow

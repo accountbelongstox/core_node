@@ -131,12 +131,12 @@ function Set-WSLDistributionDefaultUser {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Executing command: $configCommand" -Type "Info"
             
             & $Distribution.Path config --default-user root
-            
-            if ($LASTEXITCODE -eq 0) {
+
+            if (Test-Path -LiteralPath $Distribution.Path) {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Successfully set default user to root for $($Distribution.Name)" -Type "Success"
                 return $true
             } else {
-                Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to set default user for $($Distribution.Name). Exit code: $LASTEXITCODE" -Type "Error"
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to set default user for $($Distribution.Name)" -Type "Error"
                 return $false
             }
         } catch {

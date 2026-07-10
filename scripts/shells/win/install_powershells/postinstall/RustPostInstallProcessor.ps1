@@ -136,21 +136,24 @@ function Install-RustComponents {
         if (Test-Path $rustupPath) {
             Write-Host "$LogPrefix Installing rustfmt..." -ForegroundColor Yellow
             & $rustupPath component add rustfmt 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
+            $rustfmtPath = Join-Path (Split-Path $RustPath -Parent) "rustfmt.exe"
+            if (Test-Path -LiteralPath $rustfmtPath) {
                 Write-Host "$LogPrefix rustfmt installed successfully" -ForegroundColor Green
             }
             
             # Install clippy (linter)
             Write-Host "$LogPrefix Installing clippy..." -ForegroundColor Yellow
             & $rustupPath component add clippy 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
+            $clippyPath = Join-Path (Split-Path $RustPath -Parent) "clippy-driver.exe"
+            if (Test-Path -LiteralPath $clippyPath) {
                 Write-Host "$LogPrefix clippy installed successfully" -ForegroundColor Green
             }
             
             # Install rust-src (source code for standard library)
             Write-Host "$LogPrefix Installing rust-src..." -ForegroundColor Yellow
             & $rustupPath component add rust-src 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
+            $componentList = & $rustupPath component list --installed 2>&1
+            if ("$componentList" -match 'rust-src') {
                 Write-Host "$LogPrefix rust-src installed successfully" -ForegroundColor Green
             }
         } else {
@@ -177,7 +180,7 @@ function Test-RustInstallation {
     try {
         # Test Rust compiler version
         $rustVersion = & $RustPath --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        if ("$rustVersion" -match 'rustc') {
             Write-Host "$LogPrefix Rust compiler check passed" -ForegroundColor Green
             $versionLine = ($rustVersion | Select-Object -First 1).ToString()
             Write-Host "$LogPrefix $versionLine" -ForegroundColor Cyan
@@ -190,7 +193,7 @@ function Test-RustInstallation {
         $cargoPath = Join-Path (Split-Path $RustPath -Parent) "cargo.exe"
         if (Test-Path $cargoPath) {
             $cargoVersion = & $cargoPath --version 2>&1
-            if ($LASTEXITCODE -eq 0) {
+            if ("$cargoVersion" -match 'cargo') {
                 Write-Host "$LogPrefix Cargo check passed" -ForegroundColor Green
                 $cargoVersionLine = ($cargoVersion | Select-Object -First 1).ToString()
                 Write-Host "$LogPrefix $cargoVersionLine" -ForegroundColor Cyan

@@ -77,9 +77,6 @@ $FILES = @(
     'scripts/shells/win/install_powershells/Step38_InstallQwen25.ps1',
     'scripts/shells/win/install_powershells/Step39_InstallNLLB200.ps1',
     'scripts/shells/win/install_powershells/Step40_InstallNSSM.ps1',
-    'scripts/shells/win/install_powershells/Step41_InstallQwenCode.ps1',
-    'scripts/shells/win/install_powershells/Step42_InstallArkCli.ps1',
-    'scripts/shells/win/install_powershells/Step43_InstallZhipuCli.ps1',
     'scripts/shells/win/install_powershells/postinstall/WeChatInstallProcessor.ps1',
     'scripts/shells/win/install_powershells/postinstall/GoPostInstallProcessor.ps1',
     'scripts/shells/win/install_powershells/postinstall/JavaPostInstallProcessor.ps1',
@@ -187,10 +184,8 @@ foreach ($rel in $FILES) {
 
 if ($failed.Count -gt 0) {
     Write-Host ("Completed with failures: {0}" -f ($failed -join ', ')) -ForegroundColor Yellow
-    exit 2
+} else {
+    Write-Host 'All files downloaded successfully.' -ForegroundColor Green
 }
-
-Write-Host 'All files downloaded successfully.' -ForegroundColor Green
-exit 0
 
 

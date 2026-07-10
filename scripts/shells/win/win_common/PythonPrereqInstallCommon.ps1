@@ -3,6 +3,8 @@
 # CUDA wheel indexes mirror linux/common/base_libs/cuda_index.sh (PyTorch + PaddlePaddle 3.3 docs).
 
 . (Join-Path $PSScriptRoot 'CudaIndex.ps1')
+. (Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1')
+. (Join-Path $PSScriptRoot 'PythonDependencyMapInstallCommon.ps1')
 . (Join-Path $PSScriptRoot 'TorchCpuGuard.ps1')
 . (Join-Path $PSScriptRoot 'PaddleCpuGuard.ps1')
 
@@ -12,80 +14,35 @@ $script:BackendBundle = @(
     'numpy', 'scipy', 'pyclipper', 'shapely', 'websocket-client',
     'pyautogui', 'pydirectinput', 'mss'
 )
-$script:TorchProbe = 'import torch, torchvision, torchaudio, ultralytics'
-$script:DepsProbe = 'import paddle, paddleocr, paddlex, fastapi, uvicorn, psutil, cv2, PIL, numpy, scipy, pyclipper, shapely, websocket, pyautogui, pydirectinput, mss'
-$script:AllProbe = 'import torch, torchvision, torchaudio, ultralytics, paddle, paddleocr, paddlex, fastapi, uvicorn, psutil, cv2, PIL, numpy, scipy, pyclipper, shapely, websocket, pyautogui, pydirectinput, mss'
+$script:TorchDistPrefixes = @('torch', 'torchvision', 'torchaudio', 'ultralytics')
+$script:DepsDistPrefixes = @('paddleocr', 'paddlex', 'fastapi', 'uvicorn', 'psutil', 'opencv_contrib_python', 'pillow', 'numpy', 'scipy', 'pyclipper', 'shapely', 'websocket_client', 'pyautogui', 'pydirectinput', 'mss')
 $script:PypiDefaultIndex = 'https://pypi.org/simple'
 
 function Get-PythonPrereqBundles {
     return @{
-        OcrBundle     = $script:OcrBundle
-        BackendBundle = $script:BackendBundle
-        TorchProbe    = $script:TorchProbe
-        DepsProbe     = $script:DepsProbe
-        AllProbe      = $script:AllProbe
+        OcrBundle          = $script:OcrBundle
+        BackendBundle      = $script:BackendBundle
+        TorchDistPrefixes  = $script:TorchDistPrefixes
+        DepsDistPrefixes   = $script:DepsDistPrefixes
     }
 }
 
-function Resolve-PrereqPythonCmd {
-    param(
-        [string]$PreferredPath
-    )
-    if ($PreferredPath -and (Test-Path $PreferredPath)) {
-        try {
-            & $PreferredPath -c 'import sys; sys.exit(0 if sys.version_info[:2] in ((3, 12), (3, 13)) else 1)' 2>$null
-            if ($LASTEXITCODE -eq 0) { return $PreferredPath }
-        } catch { }
-    }
-
-    foreach ($candidate in @('python3.13', 'python3.12', 'python3', 'python')) {
-        $found = Get-Command $candidate -ErrorAction SilentlyContinue
-        if (-not $found) { continue }
-        try {
-            & $found.Source -c 'import sys; sys.exit(0 if sys.version_info[:2] in ((3, 12), (3, 13)) else 1)' 2>$null
-            if ($LASTEXITCODE -eq 0) { return $found.Source }
-        } catch { }
-    }
-
-    $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
-    if ($pyLauncher) {
-        foreach ($ver in @('-3.13', '-3.12')) {
-            try {
-                & $pyLauncher.Source $ver -c 'import sys; sys.exit(0 if sys.version_info[:2] in ((3, 12), (3, 13)) else 1)' 2>$null
-                if ($LASTEXITCODE -eq 0) { return $pyLauncher.Source }
-            } catch { }
-        }
-    }
-    return $null
+function Test-TorchBundleInstalled {
+    param([string]$PythonExe)
+    return Test-PythonDistInfoPresent -PythonExe $PythonExe -DistPrefixes $script:TorchDistPrefixes
 }
 
-function Get-PythonRunArgs {
-    param([string]$PythonCmd)
-    if ($PythonCmd -match '\\py\.exe$') {
-        foreach ($ver in @('-3.13', '-3.12')) {
-            try {
-                & $PythonCmd $ver -c 'import sys; sys.exit(0 if sys.version_info[:2] in ((3, 12), (3, 13)) else 1)' 2>$null
-                if ($LASTEXITCODE -eq 0) { return @($PythonCmd, $ver) }
-            } catch { }
-        }
-        return @($PythonCmd, '-3.13')
+function Test-DepsBundleInstalled {
+    param([string]$PythonExe)
+    if (-not (Test-PaddleDistInfoPresent -PythonExe $PythonExe)) {
+        return $false
     }
-    return @($PythonCmd)
+    return Test-PythonDistInfoPresent -PythonExe $PythonExe -DistPrefixes $script:DepsDistPrefixes
 }
 
-function Test-PythonImportProbe {
-    param(
-        [string[]]$PyRun,
-        [string]$Probe
-    )
-    & $PyRun -c $Probe 2>$null | Out-Null
-    return $LASTEXITCODE -eq 0
-}
-
-function Test-PythonPipReady {
-    param([string[]]$PyRun)
-    & $PyRun -m pip --version 2>$null | Out-Null
-    return $LASTEXITCODE -eq 0
+function Test-AllPrereqBundleInstalled {
+    param([string]$PythonExe)
+    return (Test-TorchBundleInstalled -PythonExe $PythonExe) -and (Test-DepsBundleInstalled -PythonExe $PythonExe)
 }
 
 function Get-TorchExtraIndexArgs {
@@ -98,58 +55,56 @@ function Get-TorchExtraIndexArgs {
 function Install-TorchYoloBundle {
     param(
         [string]$PythonCmd,
-        [string[]]$PyRun,
+        [string]$PipExe,
         [string]$LogPrefix = '[python-prereq]'
     )
-    if (Test-PythonImportProbe -PyRun $PyRun -Probe $script:TorchProbe) {
-        Write-Host "$LogPrefix [SKIP] torch/torchvision/torchaudio/ultralytics already importable" -ForegroundColor Green
-        return $true
+    if (Test-TorchBundleInstalled -PythonExe $PythonCmd) {
+        Write-Host "$LogPrefix [SKIP] torch/torchvision/torchaudio/ultralytics already installed" -ForegroundColor Green
+        return
     }
 
     Write-Host "$LogPrefix Ensuring torch build (CPU/GPU guard)..." -ForegroundColor Yellow
-    Ensure-TorchBuild -PythonCmd $PythonCmd -PyRun $PyRun
+    Ensure-TorchBuild -PythonCmd $PythonCmd -PipExe $PipExe
 
     Write-Host "$LogPrefix Installing ultralytics (YOLO) with torch bundle..." -ForegroundColor Yellow
     $torchExtra = Get-TorchExtraIndexArgs
-    & $PyRun -m pip install --upgrade @torchExtra ultralytics
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "$LogPrefix [ERROR] ultralytics install failed." -ForegroundColor Red
-        return $false
+    & $PipExe install --upgrade @torchExtra ultralytics
+
+    if (-not (Test-TorchBundleInstalled -PythonExe $PythonCmd)) {
+        Write-Host "$LogPrefix Upgrading torch/torchvision/torchaudio together (version sync)..." -ForegroundColor Yellow
+        & $PipExe install --upgrade @torchExtra torch torchvision torchaudio ultralytics
     }
 
-    if (-not (Test-PythonImportProbe -PyRun $PyRun -Probe $script:TorchProbe)) {
-        Write-Host "$LogPrefix Upgrading torch/torchvision/torchaudio together (version sync)..." -ForegroundColor Yellow
-        & $PyRun -m pip install --upgrade @torchExtra torch torchvision torchaudio ultralytics
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "$LogPrefix [ERROR] torch bundle install failed." -ForegroundColor Red
-            return $false
-        }
+    if (Test-TorchBundleInstalled -PythonExe $PythonCmd) {
+        Write-Host "$LogPrefix [OK] torch bundle installed" -ForegroundColor Green
+    } else {
+        Write-Host "$LogPrefix [ERROR] torch bundle still missing after install." -ForegroundColor Red
     }
-    return $true
 }
 
 function Install-PaddleOcrBundle {
     param(
         [string]$PythonCmd,
-        [string[]]$PyRun,
+        [string]$PipExe,
         [string]$LogPrefix = '[python-prereq]'
     )
-    if (Test-PythonImportProbe -PyRun $PyRun -Probe $script:DepsProbe) {
-        Write-Host "$LogPrefix [SKIP] paddle ecosystem + backend deps already importable" -ForegroundColor Green
-        return $true
+    if (Test-DepsBundleInstalled -PythonExe $PythonCmd) {
+        Write-Host "$LogPrefix [SKIP] paddle ecosystem + backend deps already installed" -ForegroundColor Green
+        return
     }
 
     Write-Host "$LogPrefix Ensuring paddle build (CPU/GPU guard)..." -ForegroundColor Yellow
-    Ensure-PaddleBuild -PythonCmd $PythonCmd -PyRun $PyRun
+    Ensure-PaddleBuild -PythonCmd $PythonCmd -PipExe $PipExe
 
     Write-Host "$LogPrefix Installing paddleocr + paddlex + backend deps (single resolver pass from PyPI)..." -ForegroundColor Yellow
     $packages = $script:OcrBundle + $script:BackendBundle
-    & $PyRun -m pip install -i $script:PypiDefaultIndex @packages
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "$LogPrefix [ERROR] paddleocr/backend bundle install failed." -ForegroundColor Red
-        return $false
+    & $PipExe install -i $script:PypiDefaultIndex @packages
+
+    if (Test-DepsBundleInstalled -PythonExe $PythonCmd) {
+        Write-Host "$LogPrefix [OK] paddle ecosystem + backend deps installed" -ForegroundColor Green
+    } else {
+        Write-Host "$LogPrefix [ERROR] paddleocr/backend bundle still missing after install." -ForegroundColor Red
     }
-    return $true
 }
 
 function Invoke-PythonPrereqInstall {
@@ -157,25 +112,34 @@ function Invoke-PythonPrereqInstall {
         [string]$PreferredPythonPath,
         [string]$LogPrefix = '[python-prereq]'
     )
-    $PythonCmd = Resolve-PrereqPythonCmd -PreferredPath $PreferredPythonPath
+    $PythonCmd = Resolve-PrereqPythonExe -PreferredPath $PreferredPythonPath
     if (-not $PythonCmd) {
-        Write-Host "$LogPrefix [ERROR] no Python 3.12/3.13 found." -ForegroundColor Red
+        Write-Host "$LogPrefix [ERROR] no Python $($Global:PYTHON_VERSION) found at $($Global:PYTHON_EXE_PATH)." -ForegroundColor Red
         Write-Host "$LogPrefix        Run Step8_InstallPython.ps1 first." -ForegroundColor Red
-        return 1
+        return
     }
 
-    $PyRun = Get-PythonRunArgs -PythonCmd $PythonCmd
-    $version = (& $PyRun --version 2>&1 | Out-String).Trim()
+    if ($PythonCmd -match '\\py\.exe$' -and $Global:PYTHON_EXE_PATH -and (Test-Path -LiteralPath $Global:PYTHON_EXE_PATH)) {
+        $PythonCmd = (Resolve-Path -LiteralPath $Global:PYTHON_EXE_PATH).Path
+    }
+
+    $PipExe = if ($Global:PIP_EXE_PATH -and (Test-Path -LiteralPath $Global:PIP_EXE_PATH)) {
+        $Global:PIP_EXE_PATH
+    } else {
+        Resolve-InstallerPipExe -PythonExe $PythonCmd
+    }
+
+    $version = Get-PythonVersionTextFromExe -PythonExe $PythonCmd
     Write-Host "$LogPrefix Target interpreter: $PythonCmd ($version)" -ForegroundColor White
 
-    if (-not (Test-PythonPipReady -PyRun $PyRun)) {
+    if (-not $PipExe -or -not (Test-Path -LiteralPath $PipExe)) {
         Write-Host "$LogPrefix [ERROR] pip is not available for $PythonCmd." -ForegroundColor Red
         Write-Host "$LogPrefix        Run Step8_InstallPython.ps1 first." -ForegroundColor Red
-        return 1
+        return
     }
 
-    $pipVer = (& $PyRun -m pip --version 2>&1 | Out-String).Trim()
-    Write-Host "$LogPrefix pip ready: $pipVer"
+    & $PipExe --version
+    Write-Host "$LogPrefix pip ready: $PipExe"
 
     if (Test-TcgGpuPresent) {
         $cudaLine = Get-NvidiaDriverCudaVersionLine
@@ -189,21 +153,28 @@ function Invoke-PythonPrereqInstall {
     }
     Write-Host ''
 
-    if (-not (Install-TorchYoloBundle -PythonCmd $PythonCmd -PyRun $PyRun -LogPrefix $LogPrefix)) { return 1 }
+    Install-TorchYoloBundle -PythonCmd $PythonCmd -PipExe $PipExe -LogPrefix $LogPrefix
     Write-Host ''
 
-    if (-not (Install-PaddleOcrBundle -PythonCmd $PythonCmd -PyRun $PyRun -LogPrefix $LogPrefix)) { return 1 }
+    Install-PaddleOcrBundle -PythonCmd $PythonCmd -PipExe $PipExe -LogPrefix $LogPrefix
     Write-Host ''
 
-    Write-Host "$LogPrefix Verifying all imports..." -ForegroundColor Cyan
-    if (Test-PythonImportProbe -PyRun $PyRun -Probe $script:AllProbe) {
-        Write-Host "$LogPrefix [OK] all prerequisite packages importable in $PythonCmd" -ForegroundColor Green
+    Install-PycoreDependencyMapPackages -PipExe $PipExe -PythonExe $PythonCmd -LogPrefix $LogPrefix
+    Write-Host ''
+
+    Write-Host "$LogPrefix Verifying installed packages (site-packages dist-info)..." -ForegroundColor Cyan
+    if (Test-AllPrereqBundleInstalled -PythonExe $PythonCmd) {
+        Write-Host "$LogPrefix [OK] all prerequisite packages present in $PythonCmd" -ForegroundColor Green
     } else {
-        Write-Host "$LogPrefix [WARN] some imports failed; re-run or install the missing package manually." -ForegroundColor Yellow
-        & $PyRun -c $script:AllProbe 2>&1 | Select-Object -Last 8
+        Write-Host "$LogPrefix [WARN] some packages missing; re-run or install manually." -ForegroundColor Yellow
+        if (-not (Test-TorchBundleInstalled -PythonExe $PythonCmd)) {
+            Write-Host "$LogPrefix        missing torch bundle: $($script:TorchDistPrefixes -join ', ')" -ForegroundColor Yellow
+        }
+        if (-not (Test-DepsBundleInstalled -PythonExe $PythonCmd)) {
+            Write-Host "$LogPrefix        missing deps bundle (incl. paddle): $($script:DepsDistPrefixes -join ', ')" -ForegroundColor Yellow
+        }
     }
 
     Write-Host ''
     Write-Host "$LogPrefix Python prerequisite packages step completed." -ForegroundColor Green
-    return 0
 }

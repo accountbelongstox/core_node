@@ -942,6 +942,81 @@ export interface SpeechHistoryResponse {
   error?: string;
 }
 
+/** Local AI agent history — Claude/Codex/Cursor/Gemini txt store (/api/local/agent-history). */
+export interface AgentHistorySessionSummary {
+  id: string;
+  raw_id?: string;
+  tool: string;
+  os_user: string;
+  project: string;
+  title: string;
+  started_at: string;
+  ended_at: string;
+  started_ts: number;
+  prompt_count: number;
+  message_count: number;
+  has_subagent: boolean;
+  models?: string[];
+  bytes?: number;
+  file?: string;
+}
+
+export interface AgentHistoryTurn {
+  ts: number;
+  time: string;
+  role: 'user' | 'assistant' | 'thinking' | 'tool_use' | 'tool_result' | 'system';
+  is_subagent: boolean;
+  model?: string | null;
+  name?: string | null;
+  text: string;
+}
+
+export interface AgentHistorySessionDetail extends AgentHistorySessionSummary {
+  prompts: Array<{ id: string; ts: number; text: string; edited?: boolean }>;
+  turns: AgentHistoryTurn[];
+}
+
+export interface AgentHistoryIndex {
+  is_dev_machine: boolean;
+  generated_at: string;
+  tools: string[];
+  users: string[];
+  langs?: string[];
+  sessions: AgentHistorySessionSummary[];
+  counts?: Record<string, number>;
+}
+
+export interface AgentHistoryPrompt {
+  id: string;
+  tool: string;
+  os_user: string;
+  project: string;
+  session_id: string;
+  ts: number;
+  time: string;
+  text: string;
+  lang?: string;
+  edited?: boolean;
+}
+
+export interface AgentHistoryPromptsResponse {
+  success: boolean;
+  data: { items: AgentHistoryPrompt[]; total: number; limit?: number; offset?: number } | null;
+  error: string | null;
+}
+
+export interface AgentHistoryIndexResponse {
+  success: boolean;
+  data: AgentHistoryIndex | null;
+  error: string | null;
+}
+
+export interface AgentHistorySessionResponse {
+  success: boolean;
+  data: AgentHistorySessionDetail | null;
+  error: string | null;
+}
+
 /** POST …/reveal — opened the file's folder in the OS file manager. */
 export interface RevealResponse {
   success: boolean;
@@ -1585,6 +1660,28 @@ export interface PcQueueOverview {
   workers: PcQueueWorker[];
   engines: PcQueueEngines;
   error?: string;
+}
+
+/** GET /api/local/sentence-audio/status — auto-start toggle + worker + Laravel counts. */
+export interface SentenceAudioAutoStatus {
+  auto_start: boolean;
+  heartbeat_enabled: boolean;
+  sentence_audio_capability: boolean;
+  laravel?: {
+    pending?: number;
+    leased?: number;
+    cached_at?: string;
+  };
+  worker?: {
+    queued?: number;
+    leased?: number;
+    processing?: string | null;
+    cycle_running?: boolean;
+    total_claimed?: number;
+    total_succeeded?: number;
+    total_failed?: number;
+    last_cycle?: Record<string, unknown>;
+  };
 }
 
 // --- Queue Center: capability settings (contract B) ------------------------ #

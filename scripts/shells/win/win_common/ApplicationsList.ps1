@@ -1271,6 +1271,60 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
             }
         )
     }
+    QwenCode = @{
+        PackageId           = "@qwen-code/qwen-code"
+        Exec                = "qwen"
+        Name                = "QwenCode"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description         = "Qwen Code - Alibaba QwenLM coding agent CLI"
+        # Official: https://github.com/QwenLM/qwen-code
+        InstallType         = "npm"
+        ForceToInstallDir   = $false
+        VerifySuffix        = "--version"
+        AdditionalKeywords  = @("qwen", "qwen-code", "qwen.cmd")
+        DesktopShortcuts    = @()
+        EnvVars             = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+    }
+    ArkCli = @{
+        PackageId           = "@volcengine/ark-cli"
+        Exec                = "arkcli"
+        Name                = "ArkCli"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description         = "Volcano Engine Ark CLI - Ark MaaS toolbox"
+        # Official: https://github.com/volcengine/ark-cli
+        InstallType         = "npm"
+        ForceToInstallDir   = $false
+        VerifySuffix        = "--version"
+        AdditionalKeywords  = @("arkcli", "ark-cli", "arkcli.cmd")
+        DesktopShortcuts    = @()
+        EnvVars             = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+    }
+    ZhipuAI = @{
+        PackageId           = "zhipuai"
+        Exec                = "zhipuai"
+        Name                = "ZhipuAI"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description         = "Zhipu AI official Python SDK (PyPI: zhipuai; no first-party CLI)"
+        # Official: https://open.bigmodel.cn
+        InstallType         = "pip"
+        ForceToInstallDir   = $false
+        VerifySuffix        = ""
+        AdditionalKeywords  = @("zhipuai", "zhipu")
+        DesktopShortcuts    = @()
+        EnvVars             = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+    }
     Tabby = @{
         PackageId           = "Eugeny.Tabby"
         Exec               = "Tabby.exe"
@@ -1910,6 +1964,6 @@ if ($OutputApplicationsList) {
     # Also output to stdout for compatibility
     Write-Output $jsonOutput
 
-    # Exit immediately to prevent loading rest of the script
-    exit 0
+    # Stop here to prevent loading rest of the script
+    return
 }

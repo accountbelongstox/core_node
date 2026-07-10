@@ -1,6 +1,7 @@
 # Idempotent PyTorch CPU/GPU build guard (Windows). Mirrors linux/common/torch_cpu_guard.sh.
 
 . (Join-Path $PSScriptRoot 'CudaIndex.ps1')
+. (Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1')
 
 $script:TorchCpuIndexUrl = 'https://download.pytorch.org/whl/cpu'
 
@@ -12,71 +13,70 @@ function Get-TcgPython {
 }
 
 function Test-TcgGpuPresent {
-    if ($env:TORCH_FORCE_CUDA -eq '1') { return $true }
-    $nvidiaSmi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
-    if (-not $nvidiaSmi) { return $false }
-    & nvidia-smi -L 2>$null | Out-Null
-    return $LASTEXITCODE -eq 0
+    return Test-NvidiaGpuPresent
 }
 
 function Get-TorchCudaState {
-    param([string]$PythonCmd, [string[]]$PyRun)
-    $code = @'
-import sys
-try:
-    import torch
-    sys.stdout.write(str(torch.version.cuda))
-except Exception:
-    sys.stdout.write("")
-'@
-    return (& $PyRun -c $code 2>$null | Out-String).Trim()
+    param([string]$PythonCmd)
+    if (-not (Test-PythonDistInfoPresent -PythonExe $PythonCmd -DistPrefixes @('torch'))) {
+        return ''
+    }
+
+    $out = & $PythonCmd -c "import torch; print(str(torch.version.cuda))" 2>&1
+    $text = ("$out").Trim()
+    if ($text -match 'Error|Traceback|No module') {
+        return ''
+    }
+
+    return $text
 }
 
 function Test-TorchCudaUsable {
-    param([string[]]$PyRun)
-    $code = @'
-import sys
-try:
-    import torch
-    sys.exit(0 if torch.cuda.is_available() else 1)
-except Exception:
-    sys.exit(1)
-'@
-    & $PyRun -c $code 2>$null | Out-Null
-    return $LASTEXITCODE -eq 0
+    param([string]$PythonCmd)
+    $out = & $PythonCmd -c "import torch; print('__CUDA_OK__' if torch.cuda.is_available() else '__CUDA_FAIL__')" 2>&1
+    return ("$out" -match '__CUDA_OK__')
 }
 
 function Remove-OrphanNvidiaWheels {
-    param([string[]]$PyRun)
-    $listCode = @'
-import subprocess, sys
-try:
-    out = subprocess.check_output([sys.executable, "-m", "pip", "list", "--format=freeze"], text=True)
-except Exception:
-    sys.exit(0)
-for line in out.splitlines():
-    name = line.split("==", 1)[0]
-    lower = name.lower()
-    if lower.startswith("nvidia-") or lower == "triton":
-        print(name)
-'@
-    $pkgs = @(& $PyRun -c $listCode 2>$null)
-    if ($pkgs.Count -gt 0) {
-        Write-Host "[torch-guard] Removing orphaned CUDA wheels: $($pkgs -join ' ')"
-        & $PyRun -m pip uninstall -y @pkgs 2>$null | Out-Null
+    param(
+        [string]$PythonCmd,
+        [string]$PipExe
+    )
+
+    if (-not $PipExe) {
+        return
+    }
+
+    $listOutput = & $PipExe list --format=freeze 2>&1
+    $pkgNames = @()
+    foreach ($line in ("$listOutput" -split "`n")) {
+        $line = $line.Trim()
+        if ($line -match '^([^=]+)==') {
+            $name = $Matches[1]
+            $lower = $name.ToLower()
+            if ($lower.StartsWith('nvidia-') -or $lower -eq 'triton') {
+                $pkgNames += $name
+            }
+        }
+    }
+
+    if ($pkgNames.Count -gt 0) {
+        Write-Host "[torch-guard] Removing orphaned CUDA wheels: $($pkgNames -join ' ')"
+        & $PipExe uninstall -y @pkgNames
     }
 }
 
 function Install-CpuTorch {
-    param([string[]]$PyRun)
-    & $PyRun -m pip install --ignore-installed --force-reinstall `
-        --index-url $script:TorchCpuIndexUrl torch torchvision torchaudio 2>$null | Out-Null
+    param(
+        [string]$PipExe
+    )
+    & $PipExe install --ignore-installed --force-reinstall --index-url $script:TorchCpuIndexUrl torch torchvision torchaudio
 }
 
 function Ensure-TorchBuild {
     param(
         [string]$PythonCmd,
-        [string[]]$PyRun,
+        [string]$PipExe,
         [switch]$RepairOnly
     )
     if (-not $PythonCmd) {
@@ -84,7 +84,16 @@ function Ensure-TorchBuild {
         return
     }
 
-    $state = Get-TorchCudaState -PythonCmd $PythonCmd -PyRun $PyRun
+    if (-not $PipExe) {
+        $PipExe = Resolve-InstallerPipExe -PythonExe $PythonCmd
+    }
+
+    if (-not $PipExe) {
+        Write-Host '[torch-guard] pip.exe not found; skipping.' -ForegroundColor Yellow
+        return
+    }
+
+    $state = Get-TorchCudaState -PythonCmd $PythonCmd
 
     if (Test-TcgGpuPresent) {
         if (-not $state) {
@@ -93,7 +102,7 @@ function Ensure-TorchBuild {
             } else {
                 $idx = Get-TorchCudaIndexUrl
                 Write-Host "[torch-guard] GPU present, torch missing -> installing driver-matched CUDA build ($idx)."
-                & $PyRun -m pip install --ignore-installed --index-url $idx torch torchvision torchaudio 2>$null | Out-Null
+                & $PipExe install --ignore-installed --index-url $idx torch torchvision torchaudio
             }
             return
         }
@@ -101,13 +110,13 @@ function Ensure-TorchBuild {
             Write-Host '[torch-guard] GPU present, torch is CPU build; no change (CPU build runs on GPU hosts too).'
             return
         }
-        if (Test-TorchCudaUsable -PyRun $PyRun) {
+        if (Test-TorchCudaUsable -PythonCmd $PythonCmd) {
             Write-Host "[torch-guard] GPU present, torch cuda=$state usable on this driver; no change."
         } else {
             $idx = Get-TorchCudaIndexUrl
             Write-Host "[torch-guard] GPU present but torch cuda=$state cannot init on this driver -> reinstalling ($idx)."
-            & $PyRun -m pip uninstall -y torch torchvision torchaudio 2>$null | Out-Null
-            & $PyRun -m pip install --ignore-installed --force-reinstall --index-url $idx torch torchvision torchaudio 2>$null | Out-Null
+            & $PipExe uninstall -y torch torchvision torchaudio
+            & $PipExe install --ignore-installed --force-reinstall --index-url $idx torch torchvision torchaudio
         }
         return
     }
@@ -118,7 +127,7 @@ function Ensure-TorchBuild {
                 Write-Host '[torch-guard] No GPU, torch not installed -> nothing to repair.'
             } else {
                 Write-Host '[torch-guard] No GPU, torch missing -> installing CPU build (avoids large nvidia-* wheels).'
-                Install-CpuTorch -PyRun $PyRun
+                Install-CpuTorch -PipExe $PipExe
             }
         }
         'None' {
@@ -126,8 +135,8 @@ function Ensure-TorchBuild {
         }
         default {
             Write-Host "[torch-guard] No GPU but CUDA torch (cuda=$state) -> switching to CPU build + purging nvidia-*."
-            Install-CpuTorch -PyRun $PyRun
-            Remove-OrphanNvidiaWheels -PyRun $PyRun
+            Install-CpuTorch -PipExe $PipExe
+            Remove-OrphanNvidiaWheels -PythonCmd $PythonCmd -PipExe $PipExe
         }
     }
 }

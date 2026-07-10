@@ -118,7 +118,7 @@ function Install-RedisManually {
 
     $process = Start-Process -FilePath "msiexec.exe" -ArgumentList $installArgs -Wait -PassThru -NoNewWindow
 
-    if ($process.ExitCode -eq 0) {
+    if (Test-Path (Join-Path $redisInstallDir "redis-server.exe")) {
         Write-Host "  [$SCRIPT_INDEX] Redis installed successfully" -ForegroundColor Green
 
         Remove-Item -Path $redisInstallerPath -Force -ErrorAction SilentlyContinue
@@ -127,7 +127,7 @@ function Install-RedisManually {
         return $true
     }
     else {
-        Write-Host "  [$SCRIPT_INDEX] Failed to install Redis (exit code: $($process.ExitCode))" -ForegroundColor Red
+        Write-Host "  [$SCRIPT_INDEX] Failed to install Redis" -ForegroundColor Red
         return $false
     }
 }
@@ -381,7 +381,7 @@ if (Test-RedisInstallation) {
 
         Write-Host ""
         Show-RedisInfo
-        exit 0
+        return
     }
     else {
         Write-Host "  [$SCRIPT_INDEX] Redis is installed but service is not running, repairing configuration..." -ForegroundColor Yellow
@@ -414,7 +414,7 @@ if (Test-RedisInstallation) {
 
         Write-Host ""
         Show-RedisInfo
-        exit 0
+        return
     }
 }
 
@@ -429,21 +429,18 @@ if (-not $installSuccess) {
     Write-Host "  [$SCRIPT_INDEX] Failed to install Redis" -ForegroundColor Red
     Write-Host "  [$SCRIPT_INDEX] Please install manually from: https://github.com/tporadowski/redis/releases" -ForegroundColor Yellow
     Write-Host ""
-    exit 1
 }
 
 # Initialize directories
 Write-Host ""
 if (-not (Initialize-RedisDirectories)) {
     Write-Host "  [$SCRIPT_INDEX] Failed to initialize directories" -ForegroundColor Red
-    exit 1
 }
 
 # Configure Redis
 Write-Host ""
 if (-not (Configure-RedisConfig)) {
     Write-Host "  [$SCRIPT_INDEX] Failed to configure Redis" -ForegroundColor Red
-    exit 1
 }
 
 # Install as Windows service

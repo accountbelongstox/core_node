@@ -268,6 +268,8 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
         Route::get('subtitles/{source_key}', [\App\Http\Controllers\MediaBrowseController::class, 'subtitleDetail']);
         // Books v3.1: ordered chapter list (book -> chapter -> verses navigation).
         Route::get('books/{source_key}/chapters', [\App\Http\Controllers\MediaBrowseController::class, 'bookChapters']);
+        // Per-chapter ingest completeness (slot_count vs sentence_count) for idempotent importers.
+        Route::get('books/{source_key}/ingest-status', [\App\Http\Controllers\MediaBrowseController::class, 'bookIngestStatus']);
         Route::get('books/{source_key}', [\App\Http\Controllers\MediaBrowseController::class, 'bookDetail']);
         Route::get('clip/{source_key}/{name}', [\App\Http\Controllers\MediaBrowseController::class, 'clip'])
             ->where('name', '.*');

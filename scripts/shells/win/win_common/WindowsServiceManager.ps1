@@ -129,8 +129,10 @@ function Remove-WindowsService {
             
             Write-ServiceLog "Removing service $fullServiceName..." -Color "Yellow"
             & sc.exe delete $fullServiceName
-            
-            if ($LASTEXITCODE -eq 0) {
+            Start-Sleep -Seconds 1
+
+            $stillExists = Get-Service -Name $fullServiceName -ErrorAction SilentlyContinue
+            if (-not $stillExists) {
                 Write-ServiceLog "Windows service removed successfully: $fullServiceName" -Color "Green"
                 Increment-ServiceOperationCount
                 return $true

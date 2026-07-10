@@ -12,8 +12,9 @@
 
 'use strict';
 
+const crypto = require('crypto');
 const logger = require('#@logger');
-const { v4: uuidv4 } = require('uuid');
+const uuidv4 = () => crypto.randomUUID();
 
 class Session {
     constructor(id, config = {}) {

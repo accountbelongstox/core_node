@@ -1,10 +1,5 @@
 <template>
   <div class="max-w-full overflow-x-hidden">
-    <!-- Header -->
-    <div class="px-3 py-2 bg-gradient-to-r from-purple-600 to-purple-800 text-white rounded-lg mb-2">
-      <h3 class="text-xs font-bold">Settings Center</h3>
-    </div>
-
     <div class="grid grid-cols-2 gap-2">
       <!-- Server Settings -->
       <div class="tk-card rounded-lg p-2.5 overflow-hidden border">

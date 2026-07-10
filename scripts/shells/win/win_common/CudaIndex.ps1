@@ -1,15 +1,33 @@
 # Driver-matched CUDA wheel index URLs (Windows). Mirrors linux/common/base_libs/cuda_index.sh.
 
+if (-not (Get-Command Resolve-NvidiaSmiExe -ErrorAction SilentlyContinue)) {
+    . (Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1')
+}
+
+function Resolve-CudaIndexNvidiaSmiExe {
+    param([string]$SmiPath = 'nvidia-smi')
+
+    if ($SmiPath -and (Test-Path -LiteralPath $SmiPath)) {
+        return (Resolve-Path -LiteralPath $SmiPath).Path
+    }
+
+    $cmd = Get-Command $SmiPath -ErrorAction SilentlyContinue
+    if ($cmd -and $cmd.Source -and (Test-Path -LiteralPath $cmd.Source)) {
+        return $cmd.Source
+    }
+
+    if (Get-Command Resolve-NvidiaSmiExe -ErrorAction SilentlyContinue) {
+        return Resolve-NvidiaSmiExe
+    }
+
+    return $null
+}
+
 function Get-NvidiaSmiOutputText {
     param([string]$SmiPath = 'nvidia-smi')
-    if (-not $SmiPath) { return '' }
-    try {
-        $cmd = Get-Command $SmiPath -ErrorAction SilentlyContinue
-        $exe = if ($cmd) { $cmd.Source } else { $SmiPath }
-        return ((& $exe 2>&1 | Out-String)).Trim()
-    } catch {
-        return ''
-    }
+    $exe = Resolve-CudaIndexNvidiaSmiExe -SmiPath $SmiPath
+    if (-not $exe) { return '' }
+    return ("$(& $exe 2>&1)").Trim()
 }
 
 function Get-NvidiaSmiCudaVersionString {
@@ -35,16 +53,12 @@ function Get-NvidiaDriverCudaVersionLine {
 
 function Get-NvidiaSmiFirstGpuLine {
     param([string]$SmiPath = 'nvidia-smi')
-    if (-not $SmiPath) { return '' }
-    try {
-        $cmd = Get-Command $SmiPath -ErrorAction SilentlyContinue
-        $exe = if ($cmd) { $cmd.Source } else { $SmiPath }
-        $line = & $exe -L 2>&1 | Select-Object -First 1
-        if ($null -eq $line) { return '' }
-        return ([string]$line).Trim()
-    } catch {
-        return ''
-    }
+    $exe = Resolve-CudaIndexNvidiaSmiExe -SmiPath $SmiPath
+    if (-not $exe) { return '' }
+    $output = & $exe -L 2>&1
+    $line = ("$output" -split "`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
+    if ($null -eq $line) { return '' }
+    return ([string]$line).Trim()
 }
 
 function Get-CudaDriverCv {

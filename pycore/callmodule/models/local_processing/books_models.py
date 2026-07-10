@@ -274,6 +274,12 @@ class BooksListRequest(BaseModel):
                           "(otherwise derived from kind: cues=>cue, else sentence).")
     refresh: bool = Field(False, description="Rebuild the cached lists from the source.")
     max_files: int = Field(25, ge=1, le=500)
+    sort_order: Optional[str] = Field(
+        None, description="Word list order: 'asc' | 'desc' by occurrence count (default desc).")
+    query: Optional[str] = Field(
+        None, description="Case-insensitive substring filter for sentence/cue/slot lists.")
+    view_language: Optional[str] = Field(
+        None, description="When chapter-scoped: flatten slots to sentences for one language code.")
 
 
 class BooksListResponse(BaseModel):
@@ -294,4 +300,6 @@ class BooksListResponse(BaseModel):
                     "grain,seq,chapter_index,primary_language,langs:{code:text|null}}]")
     totals: dict = Field(default_factory=dict,
                          description="{words, unique_words, sentences, unique_sentences, chars, chapters}.")
+    selected_languages: Optional[List[str]] = Field(
+        None, description="Checked correspondence languages echoed for multi-lang sentence views.")
     error: Optional[str] = None

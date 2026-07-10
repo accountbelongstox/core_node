@@ -58,6 +58,40 @@ WS_PATH = RPC_CONSTANTS.WS_PATH
 HTTP_PATH_PREFIX = RPC_CONSTANTS.HTTP_PATH_PREFIX
 
 
+class _PrivateNetworkAccessMiddleware:
+    """Pure-ASGI middleware: stamp `Access-Control-Allow-Private-Network: true`
+    on every HTTP response (including CORS preflight) so a browser in a SECURE
+    CONTEXT can reach this loopback/private pycore service from a public or
+    less-private origin (Private Network Access / PNA).
+
+    WebSocket upgrades pass through untouched (scope type != "http"); the PNA
+    preflight Chrome sends before a WS handshake is an HTTP OPTIONS that DOES go
+    through here, so the header is added to it as well.
+
+    This does NOT help a non-secure-context origin (plain HTTP on a public IP):
+    the browser blocks public->loopback/private BEFORE any preflight, so no
+    header can rescue it. For that path use an HTTPS origin, a localhost origin,
+    or the `block-insecure-private-network-requests` Chrome flag.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def _send(message):
+            if message.get("type") == "http.response.start":
+                headers = list(message.get("headers") or [])
+                headers.append((b"access-control-allow-private-network", b"true"))
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, _send)
+
+
 class FastAPIRPCServer:
     """Main FastAPI RPC server (orchestrator + facade)."""
 
@@ -127,35 +161,6 @@ class FastAPIRPCServer:
             docs_url=None,
             redoc_url=None,
         )
-
-        # Custom middleware for Private Network Access (PNA)
-        # This handles the Access-Control-Request-Private-Network preflight header
-        @self.app.middleware("http")
-        async def private_network_access_middleware(request: Request, call_next):
-            # Handle preflight OPTIONS requests for PNA
-            if request.method == "OPTIONS":
-                # Check if this is a PNA preflight
-                if request.headers.get("Access-Control-Request-Private-Network") == "true":
-                    from fastapi.responses import Response
-                    response = Response(status_code=204)
-                    response.headers["Access-Control-Allow-Private-Network"] = "true"
-                    response.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "*")
-                    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-                    response.headers["Access-Control-Allow-Headers"] = "*"
-                    response.headers["Access-Control-Allow-Credentials"] = "true"
-                    return response
-
-            response = await call_next(request)
-
-            # Add PNA header to regular responses too
-            origin = request.headers.get("Origin")
-            if origin:
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Access-Control-Allow-Private-Network"] = "true"
-                response.headers["Vary"] = "Origin"
-
-            return response
-
         self.app.add_middleware(
             CORSMiddleware,
             allow_origins=self.allow_origins,
@@ -163,6 +168,10 @@ class FastAPIRPCServer:
             allow_headers=["*"],
             allow_credentials=True,
         )
+        # PNA middleware added AFTER CORS so it wraps it (outermost): CORS handles
+        # the OPTIONS preflight short-circuit, this outer layer then stamps the
+        # Private-Network header onto that preflight response (and every other).
+        self.app.add_middleware(_PrivateNetworkAccessMiddleware)
 
         # Windows asyncio (Proactor) raises a benign ConnectionResetError
         # ([WinError 10054]) from _ProactorBasePipeTransport._call_connection_lost

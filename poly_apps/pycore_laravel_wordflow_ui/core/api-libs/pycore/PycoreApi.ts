@@ -36,10 +36,11 @@ import type {
   SubtitleCacheStats, SubtitleCacheClearResponse,
   WordAudioStatus, WordAudioTestResponse,
   TranslateHistoryResponse, TranslateHistoryDeleteResponse, TranslateHistoryClearResponse,
+  AgentHistoryIndexResponse, AgentHistoryPromptsResponse, AgentHistorySessionResponse,
   PcQueueOverview, PcCapabilitySettings, PcCapabilityKey,
   PcCapabilitySaveResponse, PcCapabilityOptions,
   PcTaskRecentResponse, PcTaskClearResponse,
-  DictionaryStatus, DictionaryEntry,
+  DictionaryStatus, DictionaryEntry, SentenceAudioAutoStatus,
 } from './pycoreTypes';
 
 import { MasterApiClient } from '../base';
@@ -149,7 +150,7 @@ export function mapQueueSnapshot(data: any): QueueResponse {
     // item is still being processed (no more hardcoded "completed").
     status: it?.audio_path ? 'completed' : 'processing',
     audioUrl: it?.audio_path
-      ? rewritePycoreEndpoint(`/pyapi/voice-subtitle/audio?path=${encodeURIComponent(it.audio_path)}`)
+      ? `/pyapi/voice-subtitle/audio?path=${encodeURIComponent(it.audio_path)}`
       : undefined,
     metadata: {
       lang: it?.lang,
@@ -360,11 +361,10 @@ export const pycoreApi = {
   ping: () => getJSON<{ success?: boolean; status?: string }>('/pyapi/ping'),
 
   // --- runtime (backend WS url + api base) -------------------------------- #
-  // No server round-trip: the WS connects directly to the backend port and the
-  // REST base is either /pyapi proxy (sandbox) or direct :59000.
+  // No server round-trip: DIRECT to the backend port (no /pyapi proxy outside
+  // the sandbox). The REST base mirrors rewritePycoreEndpoint; WS mirrors
+  // PycoreWs.resolveWsUrl.
   getRuntime: (): Promise<RuntimeInfo> => {
-    // Honor the whole-UI pycore target (origin/local/remote); fall back to the
-    // local/sandbox default when no override is set (local mode).
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const http = location.protocol === 'https:' ? 'https' : 'http';
     const isSandbox = location.hostname.includes('asia-southeast1.run.app') || location.hostname.includes('run.app') || location.port === '3000';
@@ -468,7 +468,8 @@ export const pycoreApi = {
   booksList: (
     path: string, kind: string, start = 0, limit = 100,
     opts: { formats?: string[]; refresh?: boolean; max_files?: number;
-            chapter_index?: number; languages?: string[] } = {},
+            chapter_index?: number; languages?: string[]; grain?: string;
+            sort_order?: 'asc' | 'desc'; query?: string; view_language?: string } = {},
   ) => postJSON<BooksListResponse>('/pyapi/api/local/books/list', { path, kind, start, limit, ...opts }),
   // Drag-drop fallback for sandboxed browsers (no File.path): upload the bytes;
   // the backend stages them to disk and returns staged paths + analysis.
@@ -482,7 +483,7 @@ export const pycoreApi = {
     const fd = new FormData();
     files.forEach((f) => fd.append('files', f, f.name));
     if (opts.language) fd.append('language', opts.language);
-    (opts.languages || []).forEach((l) => fd.append('languages[]', l));
+    (opts.languages || []).forEach((l) => fd.append('languages', l));
     if (opts.preview_chars != null) fd.append('preview_chars', String(opts.preview_chars));
     if (opts.persist) fd.append('persist', 'true');
     if (opts.source_type) fd.append('source_type', opts.source_type);
@@ -656,7 +657,7 @@ export const pycoreApi = {
     getJSON<ImageHistoryResponse>(`/pyapi/api/local/ai/image/history?limit=${encodeURIComponent(String(limit))}`),
   /** Raw-bytes URL for one history entry's image (use directly in an <img src>). */
   imageHistoryFileUrl: (id: string): string =>
-    rewritePycoreEndpoint(`/pyapi/api/local/ai/image/history/file/${encodeURIComponent(id)}`),
+    `/pyapi/api/local/ai/image/history/file/${encodeURIComponent(id)}`,
   deleteImageHistory: (id: string) =>
     deleteJSON<ImageHistoryDeleteResponse>(`/pyapi/api/local/ai/image/history/${encodeURIComponent(id)}`),
   clearImageHistory: () =>
@@ -670,7 +671,7 @@ export const pycoreApi = {
     getJSON<SpeechHistoryResponse>(`/pyapi/api/local/speech/history?limit=${encodeURIComponent(String(limit))}`),
   /** Raw-bytes URL for one clip (use directly in an <audio src>). */
   speechHistoryFileUrl: (id: string): string =>
-    rewritePycoreEndpoint(`/pyapi/api/local/speech/history/file/${encodeURIComponent(id)}`),
+    `/pyapi/api/local/speech/history/file/${encodeURIComponent(id)}`,
   deleteSpeechHistory: (id: string) =>
     deleteJSON<{ success: boolean }>(`/pyapi/api/local/speech/history/${encodeURIComponent(id)}`),
   clearSpeechHistory: () =>
@@ -857,6 +858,36 @@ export const pycoreApi = {
   clearTranslateHistory: () =>
     postJSON<TranslateHistoryClearResponse>('/pyapi/api/local/translate/history/clear', {}),
 
+  // --- Agent history (local Claude/Codex/Cursor/Gemini txt store) ---------- #
+  getAgentHistoryIndex: () =>
+    getJSON<AgentHistoryIndexResponse>('/pyapi/api/local/agent-history/index'),
+  getAgentHistoryPrompts: (params?: {
+    tool?: string; user?: string; q?: string; lang?: string;
+    limit?: number; offset?: number; page?: number; pageSize?: number;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.tool) qs.set('tool', params.tool);
+    if (params?.user) qs.set('user', params.user);
+    if (params?.q) qs.set('q', params.q);
+    if (params?.lang) qs.set('lang', params.lang);
+    if (params?.limit != null) qs.set('limit', String(params.limit));
+    if (params?.offset != null) qs.set('offset', String(params.offset));
+    if (params?.page != null) qs.set('page', String(params.page));
+    if (params?.pageSize != null) qs.set('pageSize', String(params.pageSize));
+    const tail = qs.toString();
+    return getJSON<AgentHistoryPromptsResponse>(`/pyapi/api/local/agent-history/prompts${tail ? `?${tail}` : ''}`);
+  },
+  getAgentHistorySession: (id: string) =>
+    getJSON<AgentHistorySessionResponse>(`/pyapi/api/local/agent-history/sessions/${encodeURIComponent(id)}`),
+  refreshAgentHistory: () =>
+    postJSON<{ success: boolean; data?: Record<string, unknown>; error?: string | null }>(
+      '/pyapi/api/local/agent-history/refresh', {},
+    ),
+  updateAgentHistoryPrompt: (id: string, text: string) =>
+    postJSON<{ success: boolean; data?: { id: string; text: string; edited: boolean }; error?: string | null }>(
+      '/pyapi/api/local/agent-history/prompts/update', { id, text },
+    ),
+
   // --- Queue Center: unified overview (contract A) ------------------------ #
   // pycore is the hub: it fans out to the selected Laravel endpoint for the
   // per-category counts + worker registry and merges its own engine status. All
@@ -864,6 +895,14 @@ export const pycoreApi = {
   // means the counts are zeroed but the categories + local engines still report.
   getQueueOverview: () =>
     getJSON<PcQueueOverview>('/pyapi/api/local/queue/overview'),
+
+  // --- Sentence-audio auto-start (Queue Center strip) --------------------- #
+  getSentenceAudioAutoStatus: () =>
+    getJSON<SentenceAudioAutoStatus>('/pyapi/api/local/sentence-audio/status'),
+  setSentenceAudioAutoConfig: (autoStart: boolean) =>
+    postJSON<SentenceAudioAutoStatus>('/pyapi/api/local/sentence-audio/config', { auto_start: autoStart }),
+  runSentenceAudioOnce: () =>
+    postJSON<{ ok: boolean; error?: string }>('/pyapi/api/local/sentence-audio/run-once', {}),
 
   // --- Queue Center: capability settings (contract B) --------------------- #
   // Read all four capability blocks (priority + availability + options).

@@ -74,7 +74,7 @@ if (-not $pythonExe) {
     Write-Host ""
     Write-Host "Press any key to exit..." -ForegroundColor Yellow
     $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-    exit 1
+    return
 }
 Write-Host "Using Python: $pythonExe" -ForegroundColor Gray
 Write-Host ""
@@ -86,7 +86,7 @@ if (-not (Test-Path $script:MAIN_SCRIPT)) {
     Write-Host ""
     Write-Host "Press any key to exit..." -ForegroundColor Yellow
     $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-    exit 1
+    return
 }
 
 # Run the Python script
@@ -99,6 +99,6 @@ try {
     Write-Host ""
     Write-Host "Press any key to exit..." -ForegroundColor Yellow
     $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-    exit 1
+    return
 }
 #endregion

@@ -1007,7 +1007,7 @@ if ([string]::IsNullOrWhiteSpace(`$sshConnection)) {
     Write-Host "[ERROR] SSH connection string is empty" -ForegroundColor Red
     Write-Host "Press any key to exit..." -ForegroundColor Yellow
     `$null = `$host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-    exit 1
+    return
 }
 
 Write-Host "Executing: ssh `$sshConnection" -ForegroundColor White

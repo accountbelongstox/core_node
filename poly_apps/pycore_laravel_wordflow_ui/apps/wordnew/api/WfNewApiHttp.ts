@@ -525,4 +525,25 @@ export const wfNewApiHttp: WfNewApi = {
       ukPhonetic: res?.uk_phonetic ?? undefined,
     };
   },
+
+  async resolveSentenceAudio(text: string, language: string) {
+    const res = await getJSON<any>(WfNewApiPaths.sentenceAudio(text, language));
+    return {
+      exists: !!res?.exists,
+      url: res?.url ?? null,
+      queued: !!res?.queued,
+      content_id: res?.content_id ?? res?.hash ?? undefined,
+      hash: res?.hash ?? res?.content_id ?? undefined,
+    };
+  },
+
+  async bumpSentenceAudio(contentId: string, language: string) {
+    const res = await postJSON<any>(WfNewApiPaths.sentenceAudioBump, {
+      content_id: contentId,
+      language,
+      interactive: true,
+      create_task: true,
+    });
+    return { success: !!(res?.success ?? res?.ok), task_id: res?.task_id ?? null };
+  },
 };

@@ -26,6 +26,10 @@ from .ai_rate_reset_service import (
     AiRateResetService,
     get_ai_rate_reset_service,
 )
+from .agent_history_tick_service import (
+    AgentHistoryTickService,
+    get_agent_history_tick_service,
+)
 
 __all__ = [
     'ModuleCallService',
@@ -42,4 +46,6 @@ __all__ = [
     'get_translation_ws_client',
     'AiRateResetService',
     'get_ai_rate_reset_service',
+    'AgentHistoryTickService',
+    'get_agent_history_tick_service',
 ]

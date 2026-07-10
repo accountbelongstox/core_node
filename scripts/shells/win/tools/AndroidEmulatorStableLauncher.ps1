@@ -420,21 +420,21 @@ if (-not (Test-Path $script:SDK_PATH)) {
     Write-Log "Android SDK not found at: $script:SDK_PATH" "ERROR"
     Write-Log "Please install Android Studio or Android SDK" "ERROR"
     Read-Host "Press Enter to exit"
-    exit 1
+    return
 }
 Write-Log "Android SDK found" "SUCCESS"
 
 if (-not (Test-Path $script:EMULATOR_PATH)) {
     Write-Log "Emulator binary not found at: $script:EMULATOR_PATH" "ERROR"
     Read-Host "Press Enter to exit"
-    exit 1
+    return
 }
 Write-Log "Emulator binary found" "SUCCESS"
 
 if (-not (Test-Path $script:ADB_PATH)) {
     Write-Log "ADB binary not found at: $script:ADB_PATH" "ERROR"
     Read-Host "Press Enter to exit"
-    exit 1
+    return
 }
 Write-Log "ADB binary found" "SUCCESS"
 
@@ -447,7 +447,7 @@ if (Test-EmulatorRunning) {
     } else {
         Write-Log "Using existing emulator instance" "INFO"
         Read-Host "Press Enter to exit"
-        exit 0
+        return
     }
 }
 Write-Log "No emulator currently running" "SUCCESS"
@@ -477,7 +477,7 @@ if ($avds.Count -eq 0) {
     Write-Log "No AVDs found" "ERROR"
     Write-Log "Please create an AVD using Android Studio or avdmanager" "ERROR"
     Read-Host "Press Enter to exit"
-    exit 1
+    return
 }
 
 Write-Log "Available AVDs:" "INFO"
@@ -520,7 +520,7 @@ if (-not $deviceId) {
     Write-Log "Failed to detect emulator device" "ERROR"
     Write-Log "Check emulator window for errors" "ERROR"
     Read-Host "Press Enter to exit"
-    exit 1
+    return
 }
 
 Write-Host ""

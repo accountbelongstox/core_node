@@ -17,7 +17,7 @@
  *   const off2 = onWsStatus((connected) => { ... });
  */
 
-import { pycoreWsUrlOverride } from './pycoreTarget';
+import { pycoreWsUrlOverride, isPycoreSecureContext, pnaBlockedReason } from './pycoreTarget';
 
 type EventHandler = (data: any) => void;
 type StatusHandler = (connected: boolean) => void;
@@ -230,6 +230,13 @@ function resolveWsUrl(): string {
 function logUnreachableHintOnce() {
   if (unreachableHintLogged) return;
   unreachableHintLogged = true;
+  // Private Network Access: a non-secure-context page is blocked from reaching a
+  // loopback/private WS - the most common reason for a silent connect failure
+  // when the browser is NOT on the pycore machine, or the page is plain HTTP.
+  const pnaReason = pnaBlockedReason(location.hostname);
+  const secureNote = (!isPycoreSecureContext() && !pnaReason)
+    ? ' Page is not a secure context (HTTP public IP); if the target is 127.0.0.1 or a private IP, Private Network Access blocks it - use HTTPS, localhost, or the Chrome flag chrome://flags/#block-insecure-private-network-requests.'
+    : (pnaReason ? ` ${pnaReason}` : '');
   import('../../logstore/logStore')
     .then(({ logWarn }) => {
       let apiHostNote = '';
@@ -247,11 +254,11 @@ function logUnreachableHintOnce() {
           }
           logWarn(
             'pycore',
-            `pycore WS (ws://${location.hostname}:59000/rpc/ws) unreachable after repeated retries — pycore features need the pycore service running on this machine.${apiHostNote}`
+            `pycore WS (ws://${location.hostname}:59000/rpc/ws) unreachable after repeated retries — pycore features need the pycore service running on this machine.${apiHostNote}${secureNote}`
           );
         });
       } catch {
-        logWarn('pycore', `pycore WS (ws://${location.hostname}:59000/rpc/ws) unreachable after repeated retries.`);
+        logWarn('pycore', `pycore WS (ws://${location.hostname}:59000/rpc/ws) unreachable after repeated retries.${secureNote}`);
         return undefined;
       }
     })

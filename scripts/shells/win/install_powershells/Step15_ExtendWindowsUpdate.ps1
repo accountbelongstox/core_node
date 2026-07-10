@@ -91,13 +91,21 @@ function Extend-WindowsUpdatePauseDays {
                 
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Setting $valueName to $valueData ..." -Type "Info"
                 $result = cmd /c $regCommand 2>&1
-                
-                if ($LASTEXITCODE -eq 0) {
+
+                $verifyAfterSet = Get-ItemProperty -Path $regPath -Name $valueName -ErrorAction SilentlyContinue
+                $actualAfterSet = if ($verifyAfterSet) { $verifyAfterSet.$valueName } else { $null }
+                $valueMatches = if ($valueType -eq "REG_DWORD") {
+                    $null -ne $actualAfterSet -and [int]$actualAfterSet -eq [int]$valueData
+                } else {
+                    $null -ne $actualAfterSet -and "$actualAfterSet" -eq "$valueData"
+                }
+
+                if ($valueMatches) {
                     $successCount++
                     Write-ColorMessage -Message "[Step $STEP_NUMBER] Successfully set $valueName to $valueData" -Type "Success"
                 } else {
                     $failCount++
-                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to set $valueName . Exit code: $LASTEXITCODE" -Type "Error"
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to set $valueName" -Type "Error"
                     if ($result) {
                         Write-ColorMessage -Message "[Step $STEP_NUMBER] Error output: $result" -Type "Error"
                     }

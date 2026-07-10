@@ -344,6 +344,12 @@ export const WfNewAdminPaths = {
 
   // ---- queues (PUBLIC) ----
   /** Unified TTS queue statistics snapshot. */
+  /** POST /ai_tools/tts/sentence/bump */
+  sentenceAudioBump: p('/ai_tools/tts/sentence/bump'),
+  /** GET /ai_tools/tts/sentence/audio — file-first sentence audio resolve. */
+  sentenceAudio: (text: string, language: string): string =>
+    p(`/ai_tools/tts/sentence/audio?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}`),
+
   ttsQueueStats: p('/ai_tools/tts/queue/stats'),
   /** Paginated TTS queue items: ?status=&type=&start=&limit=. */
   ttsQueueItems: (opts: { status?: string; type?: string; start?: number; limit?: number } = {}): string => {

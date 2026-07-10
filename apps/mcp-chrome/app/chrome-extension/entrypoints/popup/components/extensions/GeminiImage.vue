@@ -1,15 +1,5 @@
 <template>
   <div class="gemini-image">
-    <div class="gi-header">
-      <div class="gi-brand">
-        <span class="gi-logo">🎨</span>
-        <div class="gi-brand-text">
-          <span class="gi-title">Gemini Image</span>
-          <span class="gi-sub">Generate an image on gemini.google.com & capture it</span>
-        </div>
-      </div>
-    </div>
-
     <label class="gi-label">Prompt</label>
     <textarea
       v-model="prompt"
@@ -83,40 +73,6 @@ const copyDataUrl = async () => {
   border-radius: 14px;
   padding: 14px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px -16px rgba(0, 0, 0, 0.25);
-}
-.gi-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.gi-brand {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.gi-logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  background: var(--accent-soft);
-  font-size: 16px;
-}
-.gi-brand-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.gi-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-}
-.gi-sub {
-  font-size: 10px;
-  color: var(--text-muted);
 }
 .gi-label {
   display: block;

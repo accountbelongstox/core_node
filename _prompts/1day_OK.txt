@@ -1,0 +1,23 @@
+ss是否还没有列新。dds  为什么重橷编译了依然是这个错误、导致插件UI无法打开。s
+
+复制这个图标并改名到指定位置，作为默认图标，之重着重检视  Voice Subtitle Window 的功能的完善度，并修复，注意逻辑的一致性。sss
+
+使用多语言配置，不要在代码中硬编码语言，并完兽右上角的多语言选择菜单的功能。d
+dddsdddssds使用最新文档方案实现，其他提示。sssd
+sdfddsdd
+但是事实上已经登陆了，查看所有逻辑，http://localhost:9000/api/app_qy_v1dd/duserdsd
+
+继续跟踪 subtitle ，但现在要看前端UI和后端的对齐和逻辑完备性，注意都是在同一个 python .\pycore_module_caller.py。同时深入了解一下定时得到一些文字转为语言的接口和逻辑功能。s
+
+推导并恢复原来可用的功能。s 该页面查出的单词需要带详情，比如翻译字段，音频等。
+dd
+fddd
+找一下chrome能否批量化执行dd务，比如请求一个远程单词表，然后批量查询bing然后将web信息作为json返回API单词提供服务器。先查看资料。
+dd默认为 dddfddddd
+
+为什么现在又显示为威廉 显然前后端的功能都需要对齐 sdd
+dddds
+RPC V2似乎有现成的库
+  增强该库并通过URL给前端引用查看是否可行ddddsdd同d时打印的日志并不完全，dddddfddffdddsdfd
+  
+  无事

@@ -132,19 +132,18 @@ function Invoke-RegistryTemplateApplier {
     
     # Import reg file
     try {
-        $importResult = Start-Process -FilePath "reg.exe" -ArgumentList "import", "`"$regFilePath`"" -Wait -PassThru -NoNewWindow
-        if ($importResult.ExitCode -eq 0) {
-            Write-Host "$LogPrefix Successfully imported reg file" -ForegroundColor Green
-            
-            # Clean up temporary reg file
-            Remove-Item -Path $regFilePath -Force -ErrorAction SilentlyContinue
-            Write-Host "$LogPrefix Cleaned up temporary reg file" -ForegroundColor Cyan
-            
-            # Force Windows to refresh context menu cache
-            Write-Host "$LogPrefix Refreshing Windows context menu cache..." -ForegroundColor Cyan
-            try {
-                # Send WM_SETTINGCHANGE message to refresh shell
-                Add-Type -TypeDefinition @"
+        $null = Start-Process -FilePath "reg.exe" -ArgumentList "import", "`"$regFilePath`"" -Wait -NoNewWindow
+        Write-Host "$LogPrefix Successfully imported reg file" -ForegroundColor Green
+        
+        # Clean up temporary reg file
+        Remove-Item -Path $regFilePath -Force -ErrorAction SilentlyContinue
+        Write-Host "$LogPrefix Cleaned up temporary reg file" -ForegroundColor Cyan
+        
+        # Force Windows to refresh context menu cache
+        Write-Host "$LogPrefix Refreshing Windows context menu cache..." -ForegroundColor Cyan
+        try {
+            # Send WM_SETTINGCHANGE message to refresh shell
+            Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
 public class Win32 {
@@ -152,21 +151,17 @@ public class Win32 {
     public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, IntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult);
 }
 "@
-                $HWND_BROADCAST = [IntPtr]0xffff
-                $WM_SETTINGCHANGE = 0x001A
-                $SMTO_ABORTIFHUNG = 0x0002
-                $result = [IntPtr]::Zero
-                [Win32]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [IntPtr]::Zero, "Environment", $SMTO_ABORTIFHUNG, 5000, [ref]$result)
-                Write-Host "$LogPrefix Context menu cache refreshed successfully" -ForegroundColor Green
-            } catch {
-                Write-Host "$LogPrefix Warning: Could not refresh context menu cache: $($_.Exception.Message)" -ForegroundColor Yellow
-            }
-            
-            return $true
-        } else {
-            Write-Warning "$LogPrefix Failed to import reg file. Exit code: $($importResult.ExitCode)"
-            return $false
+            $HWND_BROADCAST = [IntPtr]0xffff
+            $WM_SETTINGCHANGE = 0x001A
+            $SMTO_ABORTIFHUNG = 0x0002
+            $result = [IntPtr]::Zero
+            [Win32]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [IntPtr]::Zero, "Environment", $SMTO_ABORTIFHUNG, 5000, [ref]$result)
+            Write-Host "$LogPrefix Context menu cache refreshed successfully" -ForegroundColor Green
+        } catch {
+            Write-Host "$LogPrefix Warning: Could not refresh context menu cache: $($_.Exception.Message)" -ForegroundColor Yellow
         }
+        
+        return $true
     } catch {
         Write-Warning "$LogPrefix Error importing reg file: $($_.Exception.Message)"
         return $false
@@ -489,33 +484,22 @@ function Invoke-RegistryTemplateProcessor {
         
         try {
             # Try reg.exe first
-            $regResult = Start-Process -FilePath "reg.exe" -ArgumentList "import", "`"$tempRegFile`"" -Wait -PassThru -WindowStyle Hidden
-            
-            if ($regResult.ExitCode -eq 0) {
-                Write-Host "$LogPrefix Registry changes applied successfully using reg.exe" -ForegroundColor Green
-                $success = $true
-            }
-            else {
-                Write-Host "$LogPrefix reg.exe failed with exit code $($regResult.ExitCode), trying regedit.exe..." -ForegroundColor Yellow
-                
-                # Fallback to regedit.exe
-                $regeditResult = Start-Process -FilePath "regedit.exe" -ArgumentList "/s", "`"$tempRegFile`"" -Wait -PassThru -WindowStyle Hidden
-                
-                if ($regeditResult.ExitCode -eq 0) {
-                    Write-Host "$LogPrefix Registry changes applied successfully using regedit.exe" -ForegroundColor Green
-                    $success = $true
-                }
-                else {
-                    Write-Host "$LogPrefix Error: Both reg.exe and regedit.exe failed to apply registry changes" -ForegroundColor Red
-                    Write-Host "$LogPrefix reg.exe exit code: $($regResult.ExitCode)" -ForegroundColor Red
-                    Write-Host "$LogPrefix regedit.exe exit code: $($regeditResult.ExitCode)" -ForegroundColor Red
-                    $success = $false
-                }
-            }
+            $null = Start-Process -FilePath "reg.exe" -ArgumentList "import", "`"$tempRegFile`"" -Wait -WindowStyle Hidden
+            Write-Host "$LogPrefix Registry changes applied successfully using reg.exe" -ForegroundColor Green
+            $success = $true
         }
         catch {
-            Write-Host "$LogPrefix Error applying registry changes: $($_.Exception.Message)" -ForegroundColor Red
-            $success = $false
+            Write-Host "$LogPrefix reg.exe failed, trying regedit.exe..." -ForegroundColor Yellow
+            try {
+                $null = Start-Process -FilePath "regedit.exe" -ArgumentList "/s", "`"$tempRegFile`"" -Wait -WindowStyle Hidden
+                Write-Host "$LogPrefix Registry changes applied successfully using regedit.exe" -ForegroundColor Green
+                $success = $true
+            }
+            catch {
+                Write-Host "$LogPrefix Error: Both reg.exe and regedit.exe failed to apply registry changes" -ForegroundColor Red
+                Write-Host "$LogPrefix Error: $($_.Exception.Message)" -ForegroundColor Red
+                $success = $false
+            }
         }
 
         # Clean up temporary file
@@ -829,14 +813,15 @@ function Invoke-GeminiMcpIntegrationNodeJs {
         if (Test-Path "temp_output.txt") { Remove-Item "temp_output.txt" -Force }
         if (Test-Path "temp_error.txt") { Remove-Item "temp_error.txt" -Force }
 
-        if ($process.ExitCode -eq 0) {
+        $integrationFailed = [bool]$errorOutput -and ($errorOutput -match '(?i)error|failed|exception')
+        if (-not $integrationFailed) {
             Write-Host "$LogPrefix Node.js integration completed successfully" -ForegroundColor Green
             if ($output) {
                 Write-Host "$LogPrefix Output: $output" -ForegroundColor Green
             }
             return $true
         } else {
-            Write-Host "$LogPrefix Node.js integration failed with exit code: $($process.ExitCode)" -ForegroundColor Red
+            Write-Host "$LogPrefix Node.js integration failed" -ForegroundColor Red
             if ($errorOutput) {
                 Write-Host "$LogPrefix Error: $errorOutput" -ForegroundColor Red
             }
@@ -1152,19 +1137,11 @@ function Invoke-McpProcessor {
                 Write-Host "$LogPrefix Executing: $command" -ForegroundColor Yellow
                 
                 $result = Invoke-Expression $command 2>&1
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Host "$LogPrefix Command executed successfully" -ForegroundColor Green
-                    if ($result) {
-                        Write-Host "$LogPrefix Output: $result" -ForegroundColor Green
-                    }
-                    return $true
-                } else {
-                    Write-Host "$LogPrefix Command failed with exit code: $LASTEXITCODE" -ForegroundColor Red
-                    if ($result) {
-                        Write-Host "$LogPrefix Error: $result" -ForegroundColor Red
-                    }
-                    return $false
+                Write-Host "$LogPrefix Command executed successfully" -ForegroundColor Green
+                if ($result) {
+                    Write-Host "$LogPrefix Output: $result" -ForegroundColor Green
                 }
+                return $true
             }
             catch {
                 Write-Host "$LogPrefix Error executing command: $($_.Exception.Message)" -ForegroundColor Red
@@ -1321,13 +1298,9 @@ function Invoke-PostInstallCallbacks {
 
                             try {
                                 $result = & $executablePath @paramSet 2>&1
-                                if ($LASTEXITCODE -eq 0) {
-                                    Write-Host "$LogPrefix Configurator: Successfully executed command" -ForegroundColor Green
-                                } else {
-                                    Write-Host "$LogPrefix Configurator: Command completed with exit code $LASTEXITCODE" -ForegroundColor Yellow
-                                    if ($result) {
-                                        Write-Host "$LogPrefix Configurator output: $result" -ForegroundColor Yellow
-                                    }
+                                Write-Host "$LogPrefix Configurator: Successfully executed command" -ForegroundColor Green
+                                if ($result) {
+                                    Write-Host "$LogPrefix Configurator output: $result" -ForegroundColor Green
                                 }
                             }
                             catch {

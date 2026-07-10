@@ -65,7 +65,7 @@ Write-Host ""
 $cmakeWingetId = "Kitware.CMake"
 $ninjaWingetId = "Ninja-build.Ninja"
 
-# Python paths from GlobalVars (Python 3.12 standalone)
+# Python paths from GlobalVars (Python standalone)
 $pythonExePathGlobal = $Global:PYTHON_EXE_PATH
 
 # Check Visual Studio 2022 installation
@@ -99,7 +99,7 @@ else {
         if ($userContinue -ne "Y" -and $userContinue -ne "y") {
             Write-Host "  [$SCRIPT_INDEX] Installation cancelled by user" -ForegroundColor Yellow
             Write-Host ""
-            exit 0
+            return
         }
     }
 }
@@ -122,23 +122,15 @@ else {
 
     $cmakeInstallProcess = Start-Process -FilePath "winget" -ArgumentList "install --id $cmakeWingetId --silent --accept-package-agreements --accept-source-agreements" -Wait -NoNewWindow -PassThru
 
-    if ($cmakeInstallProcess.ExitCode -eq 0) {
+    $cmakeExePath = Get-Command cmake -ErrorAction SilentlyContinue
+    if ($cmakeExePath) {
         Write-Host "  [$SCRIPT_INDEX] CMake installed successfully" -ForegroundColor Green
         $cmakeInstalled = $true
-
-        # Verify installation
-        $cmakeExePath = Get-Command cmake -ErrorAction SilentlyContinue
-        if ($cmakeExePath) {
-            $cmakeVersion = & cmake --version 2>&1 | Select-Object -First 1
-            Write-Host "  [$SCRIPT_INDEX] CMake version: $cmakeVersion" -ForegroundColor Green
-        }
-        else {
-            Write-Host "  [$SCRIPT_INDEX] WARNING: CMake installed but not found in PATH" -ForegroundColor Yellow
-            Write-Host "  [$SCRIPT_INDEX] You may need to restart your terminal" -ForegroundColor Yellow
-        }
+        $cmakeVersion = & cmake --version 2>&1 | Select-Object -First 1
+        Write-Host "  [$SCRIPT_INDEX] CMake version: $cmakeVersion" -ForegroundColor Green
     }
     else {
-        Write-Host "  [$SCRIPT_INDEX] ERROR: Failed to install CMake (Exit Code: $($cmakeInstallProcess.ExitCode))" -ForegroundColor Red
+        Write-Host "  [$SCRIPT_INDEX] ERROR: Failed to install CMake" -ForegroundColor Red
         $cmakeInstalled = $false
     }
 }
@@ -161,55 +153,37 @@ else {
 
     $ninjaInstallProcess = Start-Process -FilePath "winget" -ArgumentList "install --id $ninjaWingetId --silent --accept-package-agreements --accept-source-agreements" -Wait -NoNewWindow -PassThru
 
-    if ($ninjaInstallProcess.ExitCode -eq 0) {
+    $ninjaExePath = Get-Command ninja -ErrorAction SilentlyContinue
+    if ($ninjaExePath) {
         Write-Host "  [$SCRIPT_INDEX] Ninja installed successfully" -ForegroundColor Green
         $ninjaInstalled = $true
-
-        # Verify installation
-        $ninjaExePath = Get-Command ninja -ErrorAction SilentlyContinue
-        if ($ninjaExePath) {
-            $ninjaVersion = & ninja --version 2>&1
-            Write-Host "  [$SCRIPT_INDEX] Ninja version: v$ninjaVersion" -ForegroundColor Green
-        }
-        else {
-            Write-Host "  [$SCRIPT_INDEX] WARNING: Ninja installed but not found in PATH" -ForegroundColor Yellow
-            Write-Host "  [$SCRIPT_INDEX] You may need to restart your terminal" -ForegroundColor Yellow
-        }
+        $ninjaVersion = & ninja --version 2>&1
+        Write-Host "  [$SCRIPT_INDEX] Ninja version: v$ninjaVersion" -ForegroundColor Green
     }
     else {
-        Write-Host "  [$SCRIPT_INDEX] ERROR: Failed to install Ninja (Exit Code: $($ninjaInstallProcess.ExitCode))" -ForegroundColor Red
+        Write-Host "  [$SCRIPT_INDEX] ERROR: Failed to install Ninja" -ForegroundColor Red
         $ninjaInstalled = $false
     }
 }
 Write-Host ""
 
-# Check Python (uses Python 3.12 standalone from GlobalVars)
+# Check Python (uses Python standalone from GlobalVars)
 Write-Host "  [$SCRIPT_INDEX] ================================================" -ForegroundColor Cyan
-Write-Host "  [$SCRIPT_INDEX] Checking Python 3 (Python 3.12)" -ForegroundColor Cyan
+Write-Host "  [$SCRIPT_INDEX] Checking Python 3 ($($Global:PYTHON_VERSION))" -ForegroundColor Cyan
 Write-Host "  [$SCRIPT_INDEX] ================================================" -ForegroundColor Cyan
 
 # Priority 1: Check absolute path from GlobalVars
-if ($pythonExePathGlobal -and (Test-Path $pythonExePathGlobal)) {
-    $pythonVersion = & $pythonExePathGlobal --version 2>&1
-    Write-Host "  [$SCRIPT_INDEX] Python is installed (Python 3.12): $pythonVersion" -ForegroundColor Green
+if ($pythonExePathGlobal -and (Test-Path -LiteralPath $pythonExePathGlobal)) {
+    $pythonVersion = ((& $pythonExePathGlobal --version 2>&1) | Out-String).Trim()
+    Write-Host "  [$SCRIPT_INDEX] Python is installed ($($Global:PYTHON_VERSION)): $pythonVersion" -ForegroundColor Green
     Write-Host "  [$SCRIPT_INDEX] Path: $pythonExePathGlobal" -ForegroundColor Gray
     $pythonInstalled = $true
 }
 else {
-    # Priority 2: Check if python is in PATH
-    $pythonInPath = Get-Command python -ErrorAction SilentlyContinue
-    if ($pythonInPath) {
-        $pythonVersion = & python --version 2>&1
-        Write-Host "  [$SCRIPT_INDEX] Python is installed: $pythonVersion" -ForegroundColor Green
-        Write-Host "  [$SCRIPT_INDEX] Path: $($pythonInPath.Source)" -ForegroundColor Gray
-        $pythonInstalled = $true
-    }
-    else {
-        Write-Host "  [$SCRIPT_INDEX] Python not found" -ForegroundColor Yellow
-        Write-Host "  [$SCRIPT_INDEX] Please run Step8_InstallPython.ps1 to install Python 3.12" -ForegroundColor Yellow
-        Write-Host "  [$SCRIPT_INDEX] Expected path: $pythonExePathGlobal" -ForegroundColor Gray
-        $pythonInstalled = $false
-    }
+    Write-Host "  [$SCRIPT_INDEX] Python not found at $pythonExePathGlobal" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX] Please run Step8_InstallPython.ps1 to install Python $($Global:PYTHON_VERSION)" -ForegroundColor Yellow
+    Write-Host "  [$SCRIPT_INDEX] Expected path: $pythonExePathGlobal" -ForegroundColor Gray
+    $pythonInstalled = $false
 }
 Write-Host ""
 
@@ -274,7 +248,7 @@ else {
         Write-Host "  [$SCRIPT_INDEX]   Ninja:  winget install Ninja-build.Ninja" -ForegroundColor Gray
     }
     if (-not $pythonInstalled) {
-        Write-Host "  [$SCRIPT_INDEX]   Python: Run Step8_InstallPython.ps1 to install Python 3.12" -ForegroundColor Gray
+        Write-Host "  [$SCRIPT_INDEX]   Python: Run Step8_InstallPython.ps1 to install Python $($Global:PYTHON_VERSION)" -ForegroundColor Gray
     }
 }
 

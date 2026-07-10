@@ -118,6 +118,9 @@ def callmodule_main_entry():
     # Register AI rate-budget auto-reset callback (idempotent)
     _register_ai_rate_reset()
 
+    # Register local AI agent history extractor (idempotent)
+    _register_agent_history_extraction()
+
 
 def _ensure_heartbeat_running():
     """
@@ -358,6 +361,40 @@ def _register_ai_rate_reset():
     ColorPrint.blue(f"  - Interval: {interval} seconds")
     ColorPrint.blue(f"  - Initial state: {'enabled' if enabled else 'disabled'}")
     ColorPrint.blue("  - Control: POST /api/heartbeat/disable/ai_rate_reset")
+
+
+def _register_agent_history_extraction():
+    """
+    Register the local AI agent history extractor to PyHeartbeat (idempotent).
+
+    Architecture:
+    - Callback name: 'agent_history_extraction'
+    - Interval: PYCORE_AGENT_HISTORY_INTERVAL env (default 10s)
+    - Initial state: ENABLED by default
+    - Store: <core_node>/.data/.ai_state/agent_history/*.txt
+    - Control: POST /api/heartbeat/enable|disable/agent_history_extraction
+    """
+    import os
+    from pycore.pyheartbeat import get_heartbeat_system
+    from pycore.callmodule.services import get_agent_history_tick_service
+
+    heartbeat = get_heartbeat_system()
+    service = get_agent_history_tick_service()
+    interval = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
+    enabled = os.environ.get("PYCORE_AGENT_HISTORY_ENABLED", "1").strip().lower() not in ("0", "false", "no")
+
+    heartbeat.register_callback(
+        name='agent_history_extraction',
+        callback=service.tick,
+        interval=interval,
+        enabled=enabled,
+    )
+
+    ColorPrint.green("[Callmodule] Registered agent history extraction callback")
+    ColorPrint.blue("  - Callback name: agent_history_extraction")
+    ColorPrint.blue(f"  - Interval: {interval} seconds")
+    ColorPrint.blue(f"  - Initial state: {'enabled' if enabled else 'disabled'}")
+    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/agent_history_extraction")
 
 
 def _register_queue_monitor():

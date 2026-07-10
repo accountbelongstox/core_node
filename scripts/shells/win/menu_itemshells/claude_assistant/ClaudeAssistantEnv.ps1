@@ -67,15 +67,15 @@ function Invoke-ClaudeJsonMerge {
     $py = Get-ClaudeAssistantPythonExecutable
     if ($null -eq $py) {
         Write-Host "[X] Python not found. Install Python or configure GlobalVars PYTHON_EXE_PATH." -ForegroundColor Red
-        return 1
+        return $false
     }
     if (-not (Test-Path -LiteralPath $script:CLAUDE_JSON_MERGE_PY)) {
         Write-Host "[X] Missing script: $($script:CLAUDE_JSON_MERGE_PY)" -ForegroundColor Red
-        return 1
+        return $false
     }
     $allArgs = @($script:CLAUDE_JSON_MERGE_PY) + $Arguments
     & $py $allArgs
-    return $LASTEXITCODE
+    return $true
 }
 #endregion
 

@@ -29,7 +29,7 @@ param(
 
 # Variable Declarations (all globals at top, per rule 5)
 $ErrorActionPreference = 'Stop'
-$SCRIPT_INDEX          = '[Step17-FasterWhisper]'
+$SCRIPT_INDEX          = '[Step 11]'
 $MinRamGB              = 1
 $MinFreeDiskGB         = 100
 $resolvedPython        = $null
@@ -39,47 +39,14 @@ $freeGB                = $null
 $hasGpu                = $false
 $reasons               = @()
 
-# Resolve a REAL Python interpreter (skip the Windows Store alias stub). Mirrors
-# the resolution policy used by pyservice.ps1 so behaviour stays consistent.
-function Resolve-PythonInterpreter {
-    param([string]$Preferred = '')
-
-    if ($Preferred -and (Test-Path $Preferred)) {
-        try {
-            $v = & $Preferred --version 2>&1
-            if ($LASTEXITCODE -eq 0 -and "$v" -match 'Python\s+3') { return $Preferred }
-        } catch { }
-    }
-
-    $candidates = New-Object System.Collections.Generic.List[string]
-    foreach ($name in 'python', 'python3', 'py') {
-        Get-Command $name -All -ErrorAction SilentlyContinue | ForEach-Object {
-            if ($_.Source -and $_.Source -notmatch 'WindowsApps') { $candidates.Add($_.Source) }
-        }
-    }
-    foreach ($p in @(
-        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python313\python.exe'),
-        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'),
-        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python311\python.exe'),
-        'C:\Python313\python.exe', 'C:\Python312\python.exe', 'C:\Python311\python.exe',
-        (Join-Path $env:USERPROFILE 'scoop\shims\python.exe')
-    )) { $candidates.Add($p) }
-
-    foreach ($c in $candidates) {
-        if ($c -and (Test-Path $c)) {
-            try {
-                $v = & $c --version 2>&1
-                if ($LASTEXITCODE -eq 0 -and "$v" -match 'Python\s+3') { return $c }
-            } catch { }
-        }
-    }
-    return $null
-}
+$winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
+. (Join-Path $winCommonDir 'GlobalVars.ps1')
+. (Join-Path $winCommonDir 'PythonRuntimeCommon.ps1')
 
 function Test-PyModule {
-    param([string]$Py, [string]$Module)
-    & $Py -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$Module') else 1)" 2>$null
-    return ($LASTEXITCODE -eq 0)
+    param([string]$Py, [string]$PackageName)
+    $pipExe = if ($Global:PIP_EXE_PATH -and (Test-Path -LiteralPath $Global:PIP_EXE_PATH)) { $Global:PIP_EXE_PATH } else { Resolve-InstallerPipExe -PythonExe $Py }
+    return Test-PipPackageInstalled -PipExe $pipExe -PackageName $PackageName
 }
 
 Write-Host '============================================================' -ForegroundColor Cyan
@@ -87,10 +54,10 @@ Write-Host " $SCRIPT_INDEX Installing faster-whisper (default STT for Video Extr
 Write-Host '============================================================' -ForegroundColor Cyan
 
 # --- 0) resolve python (Step8_InstallPython has already run in the installer flow) --- #
-$resolvedPython = Resolve-PythonInterpreter -Preferred $Python
+$resolvedPython = Resolve-InstallerPythonExe -PreferredPath $Python
 if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [X] Python 3 was NOT found. Run Step8_InstallPython first, or pass -Python <path>." -ForegroundColor Red
-    exit 1
+    return
 }
 Write-Host ("$SCRIPT_INDEX python : {0}" -f $resolvedPython) -ForegroundColor DarkGray
 
@@ -109,40 +76,53 @@ if (-not $Force) {
     if ($null -ne $freeGB -and $freeGB -lt $MinFreeDiskGB) { $reasons += ("free disk {0} GB < {1} GB" -f $freeGB, $MinFreeDiskGB) }
     if ($reasons.Count -gt 0) {
         Write-Host ("$SCRIPT_INDEX [skip] System too small for faster-whisper ({0}); skipping. Use -Force to override." -f ($reasons -join '; ')) -ForegroundColor DarkYellow
-        exit 0
+        return
     }
 }
 
 # --- 2) faster-whisper (idempotent) -------------------------------------- #
-if ((Test-PyModule -Py $resolvedPython -Module 'faster_whisper') -and -not $Force) {
+if ((Test-PyModule -Py $resolvedPython -PackageName 'faster-whisper') -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [OK] faster-whisper already installed; skipping pip." -ForegroundColor Green
 } else {
     Write-Host "$SCRIPT_INDEX [..] pip install --upgrade faster-whisper ..." -ForegroundColor Yellow
-    & $resolvedPython -m pip install --upgrade faster-whisper
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "$SCRIPT_INDEX [X] faster-whisper install failed." -ForegroundColor Red
-        exit 1
-    }
-    if (-not (Test-PyModule -Py $resolvedPython -Module 'faster_whisper')) {
+    & $Global:PIP_EXE_PATH install --upgrade faster-whisper
+    if (Test-PyModule -Py $resolvedPython -PackageName 'faster-whisper') {
+        Write-Host "$SCRIPT_INDEX [OK] faster-whisper installed." -ForegroundColor Green
+    } else {
         Write-Host "$SCRIPT_INDEX [X] faster-whisper still not importable after install." -ForegroundColor Red
-        exit 1
     }
-    Write-Host "$SCRIPT_INDEX [OK] faster-whisper installed." -ForegroundColor Green
 }
 
-# --- 3) GPU runtime libs (CUDA 12 + cuDNN 9), only if a GPU is present ---- #
-# No --upgrade on purpose: cuDNN/cuBLAS wheels are ~700 MB; if a compatible
-# version is present pip says "already satisfied" and downloads nothing.
-if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
-    try { & nvidia-smi | Out-Null; if ($LASTEXITCODE -eq 0) { $hasGpu = $true } } catch { }
-}
+# --- 3) GPU runtime libs (CUDA 12 + cuDNN 9 for CTranslate2), only if GPU present -
+# Step 10 torch cu130 pulls nvidia-cublas-cu13 / nvidia-cudnn-cu13 (PyTorch stack).
+# faster-whisper uses CTranslate2, which needs cuBLAS+cuDNN for CUDA *12* per official docs:
+#   https://github.com/SYSTRAN/faster-whisper — pip install nvidia-cublas-cu12 nvidia-cudnn-cu12==9.*
+# That is a separate user-space stack from torch cu130; not a duplicate Step 9 driver install.
+$hasGpu = Test-NvidiaGpuPresent
 if ($hasGpu) {
-    Write-Host "$SCRIPT_INDEX [..] NVIDIA GPU detected -> pip install nvidia-cublas-cu12 nvidia-cudnn-cu12==9.* ..." -ForegroundColor Yellow
-    & $resolvedPython -m pip install 'nvidia-cublas-cu12' 'nvidia-cudnn-cu12==9.*'
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "$SCRIPT_INDEX [!] GPU lib install failed; whisper will fall back to CPU (int8)." -ForegroundColor DarkYellow
+    $pipExe = if ($Global:PIP_EXE_PATH -and (Test-Path -LiteralPath $Global:PIP_EXE_PATH)) {
+        $Global:PIP_EXE_PATH
     } else {
-        Write-Host "$SCRIPT_INDEX [OK] GPU runtime libs present." -ForegroundColor Green
+        Resolve-InstallerPipExe -PythonExe $resolvedPython
+    }
+    $cu12Ready = (Test-PipPackageInstalled -PipExe $pipExe -PackageName 'nvidia-cublas-cu12') -and
+        (Test-PipPackageInstalled -PipExe $pipExe -PackageName 'nvidia-cudnn-cu12')
+
+    if ($cu12Ready -and -not $Force) {
+        Write-Host "$SCRIPT_INDEX [OK] GPU runtime libs (nvidia-cublas-cu12, nvidia-cudnn-cu12) already present; skipping." -ForegroundColor Green
+        Write-Host "$SCRIPT_INDEX [i] Note: torch cu130 uses cu13 wheels from Step 10; CTranslate2 still needs cu12 libs above." -ForegroundColor DarkGray
+    } else {
+        Write-Host "$SCRIPT_INDEX [..] NVIDIA GPU detected -> pip install nvidia-cublas-cu12 nvidia-cudnn-cu12==9.* ..." -ForegroundColor Yellow
+        Write-Host "$SCRIPT_INDEX [i] CTranslate2 (faster-whisper backend) requires CUDA 12 cuBLAS/cuDNN pip wheels (official faster-whisper README)." -ForegroundColor DarkGray
+        Write-Host "$SCRIPT_INDEX [i] Separate from Step 10 torch cu130 (nvidia-*-cu13); first GPU host download can be ~700MB." -ForegroundColor DarkGray
+        & $pipExe install nvidia-cublas-cu12 'nvidia-cudnn-cu12==9.*'
+        $cu12Ready = (Test-PipPackageInstalled -PipExe $pipExe -PackageName 'nvidia-cublas-cu12') -and
+            (Test-PipPackageInstalled -PipExe $pipExe -PackageName 'nvidia-cudnn-cu12')
+        if ($cu12Ready) {
+            Write-Host "$SCRIPT_INDEX [OK] GPU runtime libs (cu12 cublas/cudnn) present." -ForegroundColor Green
+        } else {
+            Write-Host "$SCRIPT_INDEX [!] GPU lib install incomplete; faster-whisper will fall back to CPU (int8)." -ForegroundColor Yellow
+        }
     }
 } else {
     Write-Host "$SCRIPT_INDEX [i] No NVIDIA GPU detected -> CPU (int8) inference." -ForegroundColor DarkGray
@@ -151,12 +131,11 @@ if ($hasGpu) {
 # --- 4) optional model pre-download -------------------------------------- #
 if ($Model -and $Model -ne 'auto') {
     Write-Host ("$SCRIPT_INDEX [..] Pre-downloading faster-whisper model '{0}' ..." -f $Model) -ForegroundColor Yellow
-    & $resolvedPython -c "from faster_whisper import download_model; download_model('$Model'); print('cached')"
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready." -f $Model) -ForegroundColor Green
+    & $resolvedPython -c "from faster_whisper import download_model; download_model('$Model')"
+    $modelDir = Join-Path $env:USERPROFILE '.cache\huggingface\hub'
+    if (Test-Path -LiteralPath $modelDir) {
+        Write-Host ("$SCRIPT_INDEX [OK] model '{0}' download attempted (cache under {1})." -f $Model, $modelDir) -ForegroundColor Green
     } else {
         Write-Host "$SCRIPT_INDEX [!] model download did not complete; it will download on first use." -ForegroundColor DarkYellow
     }
 }
-
-exit 0

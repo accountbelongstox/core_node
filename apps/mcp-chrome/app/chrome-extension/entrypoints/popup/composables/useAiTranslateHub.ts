@@ -6,8 +6,9 @@
  * client-side dictionary lookup with audio playback.
  */
 
-import { ref, onUnmounted } from 'vue';
+import { ref, onUnmounted, watch } from 'vue';
 import { apiManager } from '@/services/ApiManager';
+import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
 import { formatTimestamp } from '@/utils/time-helpers';
 
@@ -68,7 +69,7 @@ const DICT_API_BASE = 'https://api.dictionaryapi.dev/api/v2/entries/en';
 export function useAiTranslateHub() {
   // Worker state
   const workerState = ref<WorkerState>({ isRunning: false, stats: null });
-  const currentEndpoint = ref('');
+  const { apiBaseUrl: currentEndpoint } = useApiEndpoint();
   const connectionStatus = ref<{ state: 'idle' | 'testing' | 'ok' | 'fail'; message: string }>({
     state: 'idle',
     message: '',
@@ -97,17 +98,9 @@ export function useAiTranslateHub() {
 
   const prepared = ref(false);
 
-  // ── Sync endpoint from Settings ────────────────────────────────────
-
-  const syncEndpointFromSettings = () => {
-    const url = apiManager.getCurrentBaseUrl();
-    currentEndpoint.value = url;
-  };
-
   // ── Worker control ─────────────────────────────────────────────────
 
   const toggleWorker = async () => {
-    syncEndpointFromSettings();
     if (!currentEndpoint.value) {
       error.value = 'No endpoint configured in Settings';
       return;
@@ -238,7 +231,6 @@ export function useAiTranslateHub() {
   // ── Queue overview (via Task Center) ───────────────────────────────
 
   const loadQueueOverview = async () => {
-    syncEndpointFromSettings();
     if (!currentEndpoint.value) {
       queueOverview.value.error = 'No endpoint configured';
       return;
@@ -281,7 +273,6 @@ export function useAiTranslateHub() {
   const initPanel = async () => {
     await logger.init();
     await apiManager.initialize({ autoDetect: false });
-    syncEndpointFromSettings();
     await loadStats();
     startStatsPolling();
   };

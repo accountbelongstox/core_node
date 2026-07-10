@@ -34,7 +34,7 @@ if (-not $RootDir) {
         $RootDir = $currentDir
     } else {
         Write-Host "Cannot find core_node root directory, please specify -RootDir parameter manually" -ForegroundColor Red
-        exit 1
+        return
     }
 }
 
@@ -262,7 +262,7 @@ try {
     
     if (-not (Test-Path $ScriptsDir)) {
         Write-ColorMessage "Scripts directory does not exist: $ScriptsDir" -Type "Error"
-        exit 1
+        return
     }
     
     Write-ColorMessage "Scanning script files..." -Type "Info"
@@ -270,7 +270,7 @@ try {
     
     if ($allScripts.Count -eq 0) {
         Write-ColorMessage "No script files found" -Type "Warning"
-        exit 0
+        return
     }
     
     Write-ColorMessage "Found $($allScripts.Count) script files" -Type "Success"
@@ -281,5 +281,4 @@ try {
 }
 catch {
     Write-ColorMessage "Program execution error: $_" -Type "Error"
-    exit 1
 }

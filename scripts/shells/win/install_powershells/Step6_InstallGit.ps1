@@ -227,7 +227,7 @@ function PringInstallResult {
 
     try {
         $gitVersion = & $GIT_EXE_PATH --version 2>&1
-        if ($LASTEXITCODE -eq 0 -and $gitVersion) {
+        if ($gitVersion -match 'git version') {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Git version: $gitVersion" -Type "Success"
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Git installation path: $GIT_EXE_PATH" -Type "Success"
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Current Git configuration:" -Type "Info"

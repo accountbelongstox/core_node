@@ -50,7 +50,7 @@ if (-not (Get-Variable -Name "Global:CORE_NODE_DIR" -ErrorAction SilentlyContinu
         . $globalVarsPath
     } else {
         Write-Error "ERROR: GlobalVars.ps1 not found. Cannot determine cache directory."
-        exit 1
+        return
     }
 }
 

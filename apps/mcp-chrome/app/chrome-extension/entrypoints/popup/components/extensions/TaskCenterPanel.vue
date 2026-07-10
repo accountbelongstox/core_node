@@ -1,7 +1,6 @@
 <template>
   <div class="rounded-xl p-3 shadow-sm space-y-3" style="background: var(--surface); border: 1px solid var(--border)">
-    <div class="flex items-center justify-between">
-      <h3 class="text-base font-bold" style="color: var(--text)">🎯 Local Task Center</h3>
+    <div class="flex items-center justify-end">
       <div class="flex items-center gap-3">
         <span
           class="px-3 py-1 text-xs font-bold rounded-full"

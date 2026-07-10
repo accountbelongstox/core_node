@@ -58,6 +58,7 @@ import {
   shortId,
   type GlobalTasksSnapshot,
 } from './shared';
+import MissingSentenceAudioPanel from './MissingSentenceAudioPanel';
 
 interface QueuePanelProps {
   lang: Language;
@@ -436,6 +437,8 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
 
   return (
     <div className="flex flex-col gap-4">
+      <MissingSentenceAudioPanel lang={lang} refreshToken={refreshToken} />
+
       {/* Transient error / action notice banners */}
       {error && snapshot && <AlertBox variant="error">{error}</AlertBox>}
       {notice && (

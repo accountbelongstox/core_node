@@ -74,6 +74,23 @@ from ._torch_cuda import (
     _ensure_torch_cuda_build_first,
 )
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
+
+from ._dep_check import check_and_install_dependencies
+
+# BEFORE optional getters are imported/re-exported: modules such as window_finder.py
+# import get_third_package_win32gui during this __init__ and call it at module level.
+# The footer dep-check ran too late (after all getters loaded). Run once here; the
+# footer call is guarded by ENCYCLOPEDIA and becomes a no-op.
+if os.environ.get('PYCORE_SKIP_DEP_CHECK') != '1':
+    try:
+        check_and_install_dependencies()
+    except Exception as e:
+        ColorPrint.red(f"[ERROR] Failed to check dependencies during import: {e}")
+        ColorPrint.yellow("[WARNING] Attempting to continue, but some packages may be missing")
+        ENCYCLOPEDIA.add("pycore_dependencies_checking", False)
+
 from ._getters_core import (
     get_third_package_aiohttp,
     get_third_package_aiohttp_web,
@@ -248,11 +265,8 @@ from ._ocr_initializer import (
     init_third_party_cnocr,
 )
 
-# _dep_check imported LAST (it is the heaviest dependency on the others).
+# _dep_check re-exported for callers; import-time run is above (before getters).
 from ._dep_check import check_and_install_dependencies
-
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 
 
 # ---------------------------------------------------------------------------

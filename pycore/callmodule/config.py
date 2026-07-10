@@ -36,6 +36,7 @@ from pycore.callmodule.rpc_routes import (
     register_thread_bus_routes,
     register_video_extract_routes,
     register_media_routes,
+    register_corebook_routes,
     register_laravel_api_routes,
 )
 
@@ -68,6 +69,7 @@ from pycore.callmodule.routers.local import (
     system_resources_router,
     user_data_router,
     books_router,
+    corebook_router,
     ai_probe_router,
     ai_chat_router,
     ai_image_router,
@@ -82,8 +84,11 @@ from pycore.callmodule.routers.local import (
     task_history_router,
     assist_router,
     poster_router,
+    image_search_router,
+    sentence_audio_router,
     dictionary_router,
     word_audio_router,
+    agent_history_router,
 )
 
 # Import upload layer routers (NEW)
@@ -270,6 +275,7 @@ def _init_rpc_routes(server):
         register_thread_bus_routes(server)
         register_video_extract_routes(server)
         register_media_routes(server)
+        register_corebook_routes(server)
         register_laravel_api_routes(server)
 
         # Boot the Code Sync manager now (the tray no longer instantiates it):
@@ -390,6 +396,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 system_resources_router, # Live CPU/memory/GPU snapshot (/api/local/system/resources)
                 user_data_router,        # Unified user data: system settings + video-extract history
                 books_router,            # Books document analyze/preview (/api/local/books): scan + multi-language stats + preview
+                corebook_router,         # CoreBook portable bundles (/api/local/corebook): convert/enrich/submit
                 ai_probe_router,         # AI provider probe (/api/local/ai/probe): configured/available/models
                 ai_chat_router,          # AI chat confirm (/api/local/ai/chat): send a message, get the reply
                 ai_image_router,         # AI image generation (/api/local/ai/image): prompt -> base64 image via gateway
@@ -403,9 +410,12 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 queue_overview_router,   # Unified queue overview — never-blind category catalog incl ai_translate+subtitle_search (/api/local/queue/overview)
                 task_history_router,     # Recent-task cross-end log + clear (/api/local/tasks/recent, /clear)
                 assist_router,           # Assist-Laravel worker control (/api/local/assist): status/config/cycle for cover+tts generation
-                poster_router,           # Movie/TV poster status+config+test (/api/local/poster): TMDB/OMDB key status + fetch toggle + lookup preview
+                poster_router,           # Movie/TV poster status+config+test (/api/local/poster): TMDB/OMDB/SerpApi key status + fetch toggle + lookup preview
+                image_search_router,     # SerpApi Google-Images search + AI compare + history (/api/local/image-search)
+                sentence_audio_router,   # Sentence-library audio auto-start + run-once (/api/local/sentence-audio)
                 dictionary_router,       # Offline ECDICT+WordNet word dictionary (/api/local/dictionary): lookup + status
                 word_audio_router,       # Real word pronunciation chain status+test (/api/local/word-audio): free-dict/cambridge/forvo + base64 audio
+                agent_history_router,    # Local AI agent history (/api/local/agent-history): Claude/Codex/Cursor/Gemini txt store
 
                 # === Upload Layer Routers ===
                 upload_router,           # Upload task management and server config

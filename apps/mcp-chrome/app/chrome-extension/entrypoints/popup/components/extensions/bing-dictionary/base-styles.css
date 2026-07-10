@@ -15,8 +15,14 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.dictionary-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
 /* ==========================================================================
-   Header
+   Header (legacy — toolbar replaces title row)
    ========================================================================== */
 
 .dictionary-header {

@@ -14,10 +14,12 @@
 #
 # Runs immediately AFTER Step8_InstallPython.ps1 (pip confirmed) and
 # Step9_InstallCudaNvidiaPrereq.ps1 (CUDA/driver when GPU present).
-# Installs captcha/AI backend deps into the core_node Windows Python:
+# Installs everything pyservice's third_party.py and prepare.ps1 pip steps need:
 #   - torch + torchvision + torchaudio + ultralytics (YOLO) — driver-matched index
 #   - paddlepaddle (CPU or GPU) + paddleocr + paddlex
 #   - shared backend deps (fastapi, opencv, numpy, …) + Windows-only pyautogui/mss
+#   - pycore DEPENDENCY_MAP + WinRT OCR + document-parsing extras (absl, PyQt5, …)
+# TTS/STT heavy stacks (faster-whisper, edge-tts, sherpa-onnx, MeloTTS opt-in) → Step11-13.
 #
 # GPU/CPU: TorchCpuGuard.ps1 and PaddleCpuGuard.ps1 auto-select the correct wheel
 # index from nvidia-smi; CPU-only hosts never pull CUDA/nvidia-* stacks.
@@ -44,5 +46,4 @@ if (-not ($preferredPython -and (Test-Path $preferredPython))) {
     $preferredPython = $null
 }
 
-$exitCode = Invoke-PythonPrereqInstall -PreferredPythonPath $preferredPython -LogPrefix $SCRIPT_INDEX
-exit $exitCode
+Invoke-PythonPrereqInstall -PreferredPythonPath $preferredPython -LogPrefix $SCRIPT_INDEX

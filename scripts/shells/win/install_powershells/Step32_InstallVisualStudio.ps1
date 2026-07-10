@@ -91,46 +91,27 @@ function Step32_InstallVisualStudio {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Executing command: $wingetCommand" -Type "Warning"
         
         $process = Start-Process -FilePath "winget" -ArgumentList "install --id $($versionDetails.WingetId) --override `"$installArgs`" --accept-package-agreements --accept-source-agreements" -Wait -NoNewWindow -PassThru
-        
-        if ($process.ExitCode -eq 0) {
+
+        if (Test-Path $vsExePath) {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Successfully installed Visual Studio 2022" -Type "Success"
             $installationSuccess = $true
-            
-            # Verify installation
-            if (Test-Path $vsExePath) {
-                Write-ColorMessage -Message "[Step $STEP_NUMBER] Visual Studio installation verified" -Type "Success"
-            }
-            else {
-                Write-ColorMessage -Message "[Step $STEP_NUMBER] Warning: Visual Studio installation verification failed" -Type "Warning"
-            }
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Visual Studio installation verified" -Type "Success"
         }
         else {
-            $exitCode = $process.ExitCode
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to install Visual Studio 2022 (Exit Code: $exitCode)" -Type "Error"
-            
-            # Handle specific error codes
-            switch ($exitCode) {
-                2147942512 { # 0x80070070 - Not enough disk space
-                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Error: Insufficient disk space. Trying minimal installation..." -Type "Error"
-                    if ($Global:VS2022_DEFAULT_VERSION -ne "2022-minimal") {
-                        $Global:VS2022_DEFAULT_VERSION = "2022-minimal"
-                        $versionDetails = $VS2022_VERSIONS[$VS2022_DEFAULT_VERSION]
-                        $workloads = $versionDetails.Workloads -join " "
-                        $components = $versionDetails.Components -join " "
-                        $installArgs = "--wait --quiet --add $workloads $components"
-                        Write-ColorMessage -Message "[Step $STEP_NUMBER] Switched to minimal installation configuration" -Type "Info"
-                        $retryCount++
-                        continue
-                    }
-                }
-                2147942402 { # 0x80070002 - File not found
-                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Error: Installation file not found. This may be a network issue." -Type "Error"
-                }
-                default {
-                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Error: Unknown installation error (Code: $exitCode)" -Type "Error"
-                }
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to install Visual Studio 2022" -Type "Error"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Visual Studio executable not found at: $vsExePath" -Type "Error"
+
+            if ($Global:VS2022_DEFAULT_VERSION -ne "2022-minimal") {
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Retrying with minimal installation configuration..." -Type "Warning"
+                $Global:VS2022_DEFAULT_VERSION = "2022-minimal"
+                $versionDetails = $VS2022_VERSIONS[$VS2022_DEFAULT_VERSION]
+                $workloads = $versionDetails.Workloads -join " "
+                $components = $versionDetails.Components -join " "
+                $installArgs = "--wait --quiet --add $workloads $components"
+                $retryCount++
+                continue
             }
-            
+
             $retryCount++
         }
     }

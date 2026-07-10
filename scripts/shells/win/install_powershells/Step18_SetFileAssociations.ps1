@@ -23,7 +23,6 @@ if (Test-Path $GlobalVarsPath) {
     . $GlobalVarsPath
 } else {
     Write-Host "$SCRIPT_INDEX ERROR: GlobalVars.ps1 not found at: $GlobalVarsPath" -ForegroundColor Red
-    exit 1
 }
 
 # Declare variables
@@ -188,7 +187,6 @@ if (-not $isAdmin) {
 # Check PowerShell executable
 if (-not (Test-PowerShellExecutable)) {
     Write-ColorMessage -Message "PowerShell executable not found. Cannot proceed." -Type "Error"
-    exit 1
 }
 
 # Set execution policy

@@ -6,7 +6,7 @@
 import React, { lazy } from 'react';
 import {
   Volume2, ListOrdered, AppWindow, FolderSync,
-  Settings, Library, Sparkles, type LucideIcon,
+  Settings, Library, Sparkles, History, type LucideIcon,
 } from 'lucide-react';
 
 export const PcVoiceSubtitlePage = lazy(() => import('./pages/PcVoiceSubtitlePage'));
@@ -27,6 +27,7 @@ export const PcContentPage = lazy(() => import('./pages/PcContentPage'));
 // (see PcApp.tsx). PcAiPage imports those three page components directly — they
 // no longer have their own sidebar entry or route here.
 export const PcAiPage = lazy(() => import('./pages/PcAiPage'));
+export const PcAgentHistoryPage = lazy(() => import('./pages/PcAgentHistoryPage'));
 // OKX market data lives ONLY in /vortex (apps/vortex/OkxBacktestPanel.tsx, the
 // "OKX 回测" tab). It is intentionally NOT surfaced in /pycore-manager — the crypto
 // backtest belongs to the Vortex app, not the operator panel. Do not re-add a
@@ -56,6 +57,7 @@ export const PC_PAGES: PcPageDef[] = [
   // now sub-tabs inside this page (+ a unified usage-History tab), not separate
   // sidebar entries; their old routes redirect to /ai?tab=… (see PcApp.tsx).
   { id: 'ai', labelKey: 'nav.ai', Icon: Sparkles, Component: PcAiPage },
+  { id: 'agent-history', labelKey: 'nav.agentHistory', Icon: History, Component: PcAgentHistoryPage },
   // NOTE: no OKX entry here — OKX market/backtest lives only in /vortex (see comment above).
   { id: 'settings', labelKey: 'nav.settings', Icon: Settings, Component: PcSettingsPage, bottom: true },
 ];

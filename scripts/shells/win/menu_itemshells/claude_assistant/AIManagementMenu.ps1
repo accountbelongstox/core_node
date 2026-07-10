@@ -29,7 +29,7 @@ $script:COLOR_HIGHLIGHT = "Cyan"
 # AI & MCP menu can reuse them without duplicating the wizard.
 if (-not (Test-Path -LiteralPath $script:AI_ACTIONS_PS1)) {
     Write-Host "[X] AIManagementActions.ps1 not found." -ForegroundColor $script:COLOR_ERROR
-    exit 1
+    return
 }
 . $script:AI_ACTIONS_PS1
 #endregion

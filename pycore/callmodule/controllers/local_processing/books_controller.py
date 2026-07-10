@@ -44,6 +44,8 @@ from pycore.callmodule.services.sync.laravel_media_sync import (
     sync_book_source,
     SYNC_EVENT,
 )
+from pycore.callmodule.services.sync.book_poster_retry import schedule_book_poster_retry
+from pycore.pyutils.external_apis.movie_poster_client import parse_title_year
 # On-disk drill-down list cache plumbing (extracted from this controller).
 # Re-exported here via thin delegating methods so the public BooksController API
 # and all internal call sites stay unchanged.
@@ -344,6 +346,13 @@ class BooksController:
         aggregate = TextStats(**merge_stats(stat_dicts)) if stat_dicts else None
         ok_files = sum(1 for a in analyses if a.path)
         ColorPrint.blue(f"[BooksController] staged + analyzed {ok_files}/{len(uploads)} upload(s)")
+        for a in analyses:
+            if not a.path:
+                continue
+            stem = os.path.splitext(a.name or os.path.basename(a.path))[0]
+            poster_title, poster_year = parse_title_year(stem)
+            schedule_book_poster_retry(
+                a.path, title=poster_title, year=poster_year, source_type=source_type)
         if persist:
             # Each staged file is its own tracked 'file' source (single-file summary).
             section = self._section()
@@ -557,6 +566,11 @@ class BooksController:
                 path=abs_path, files=len(files), sentences=src_sent,
                 words=src_word, chapters=src_chap, slots=src_slot,
                 selected_languages=src_selected, success=src_ok, errors=errs or None))
+            if src_ok:
+                stem = os.path.splitext(os.path.basename(abs_path))[0]
+                poster_title, poster_year = parse_title_year(stem)
+                schedule_book_poster_retry(
+                    abs_path, title=poster_title, year=poster_year, source_type=src_type)
 
         self._save_section(section)
         ColorPrint.blue(
@@ -650,13 +664,57 @@ class BooksController:
     # 'cues' -> grain 'cue'; 'sentences'/'unique_sentences' -> grain 'sentence'.
     _GRAIN_KINDS = {"sentences": "sentence", "unique_sentences": "sentence", "cues": "cue"}
 
+    @staticmethod
+    def _apply_query(items: List[dict], query: Optional[str], text_key: str = "text") -> List[dict]:
+        q = (query or "").strip().lower()
+        if not q:
+            return items
+        out: List[dict] = []
+        for row in items:
+            txt = row.get(text_key) or ""
+            if q in str(txt).lower():
+                out.append(row)
+        return out
+
+    @staticmethod
+    def _apply_slot_query(slots: List[dict], query: Optional[str],
+                          view_language: Optional[str] = None) -> List[dict]:
+        q = (query or "").strip().lower()
+        view = (view_language or "").strip().lower()
+        out: List[dict] = []
+        for slot in slots:
+            langs = slot.get("langs") or {}
+            if view:
+                txt = langs.get(view)
+                if not (txt and str(txt).strip()):
+                    continue
+                if q and q not in str(txt).lower():
+                    continue
+                out.append({
+                    "seq": slot.get("seq"),
+                    "text": txt,
+                    "chapter_index": slot.get("chapter_index"),
+                    "corr_id": slot.get("corr_id"),
+                    "language": view,
+                    "grain": slot.get("grain"),
+                })
+                continue
+            if q:
+                if not any(q in str(v).lower() for v in langs.values() if v):
+                    continue
+            out.append(slot)
+        return out
+
     def list_items(self, path: str, kind: str = "words", start: int = 0,
                    limit: int = 100, formats: Optional[List[str]] = None,
                    language: Optional[str] = None, refresh: bool = False,
                    max_files: int = 25,
                    chapter_index: Optional[int] = None,
                    languages: Optional[List[str]] = None,
-                   grain: Optional[str] = None) -> BooksListResponse:
+                   grain: Optional[str] = None,
+                   sort_order: Optional[str] = None,
+                   query: Optional[str] = None,
+                   view_language: Optional[str] = None) -> BooksListResponse:
         """One page of a source's drill-down list (fingerprint-validated cache).
 
         Supports the v3 chapter tree:
@@ -718,22 +776,45 @@ class BooksController:
         if chapter_index is not None and want_grain in ("cue", "sentence"):
             slots = self._chapter_slots(
                 data, path, int(chapter_index), want_grain, languages, language)
+            primary = (language or "").strip() or (data.get("primary_language") or "en")
+            selected = normalize_language_codes(languages, primary) or [primary]
+            slots = self._apply_slot_query(slots, query, view_language)
+            if view_language:
+                kind = f"sentences_{view_language}"
             total = len(slots)
             page = slots[start:start + limit]
             return BooksListResponse(
                 success=True, kind=kind, total=total, start=start, limit=limit,
                 chapter_index=int(chapter_index), items=page,
+                selected_languages=selected,
                 totals=data.get("totals") or {})
 
         # 'words' and 'unique_words' share the distinct-frequency list; 'chapters'
         # serves the chapter tree directly.
         list_key = {"unique_words": "words"}.get(kind, kind)
-        items = data.get(list_key) or []
+        items = list(data.get(list_key) or [])
+        if chapter_index is not None and kind in ("sentences", "unique_sentences", "cues"):
+            ci = int(chapter_index)
+            items = [i for i in items if int(i.get("chapter_index", 0) or 0) == ci]
+        if kind in ("sentences", "unique_sentences", "cues"):
+            items = self._apply_query(items, query)
+        if kind in ("words", "unique_words"):
+            order = (sort_order or "desc").strip().lower()
+            if order == "asc":
+                items.sort(key=lambda w: int(w.get("count", 0) or 0))
+            elif order == "desc":
+                items.sort(key=lambda w: int(w.get("count", 0) or 0), reverse=True)
         total = len(items)
         page = items[start:start + limit]
+        sel = None
+        if kind == "chapters":
+            primary = (language or "").strip() or (data.get("primary_language") or "en")
+            sel = normalize_language_codes(languages, primary) or [primary]
         return BooksListResponse(
             success=True, kind=kind, total=total, start=start, limit=limit,
-            chapter_index=None, items=page, totals=data.get("totals") or {})
+            chapter_index=int(chapter_index) if chapter_index is not None else None,
+            items=page, selected_languages=sel,
+            totals=data.get("totals") or {})
 
     def _chapter_slots(self, data: dict, path: str, chapter_index: int,
                        grain: str, languages: Optional[List[str]],

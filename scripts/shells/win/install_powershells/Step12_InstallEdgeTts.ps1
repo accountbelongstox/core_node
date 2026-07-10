@@ -39,95 +39,59 @@ $ErrorActionPreference = 'Stop'
 $SCRIPT_INDEX          = '[Step19-EdgeTts]'
 $MIN_VERSION           = '7.2.4'
 $resolvedPython        = $null
+$pipExePath            = $null
 $currentVersion        = $null
 $pipArgs               = $null
 
-# Resolve a REAL Python interpreter (skip the Windows Store alias stub). Mirrors
-# the resolution policy used by pyservice.ps1 / Step17 so behaviour stays consistent.
-function Resolve-PythonInterpreter {
-    param([string]$Preferred = '')
+$winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
+. (Join-Path $winCommonDir 'GlobalVars.ps1')
+. (Join-Path $winCommonDir 'PythonRuntimeCommon.ps1')
 
-    if ($Preferred -and (Test-Path $Preferred)) {
-        try {
-            $v = & $Preferred --version 2>&1
-            if ($LASTEXITCODE -eq 0 -and "$v" -match 'Python\s+3') { return $Preferred }
-        } catch { }
-    }
-
-    $candidates = New-Object System.Collections.Generic.List[string]
-    foreach ($name in 'python', 'python3', 'py') {
-        Get-Command $name -All -ErrorAction SilentlyContinue | ForEach-Object {
-            if ($_.Source -and $_.Source -notmatch 'WindowsApps') { $candidates.Add($_.Source) }
-        }
-    }
-    foreach ($p in @(
-        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python313\python.exe'),
-        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'),
-        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python311\python.exe'),
-        'C:\Python313\python.exe', 'C:\Python312\python.exe', 'C:\Python311\python.exe',
-        (Join-Path $env:USERPROFILE 'scoop\shims\python.exe')
-    )) { $candidates.Add($p) }
-
-    foreach ($c in $candidates) {
-        if ($c -and (Test-Path $c)) {
-            try {
-                $v = & $c --version 2>&1
-                if ($LASTEXITCODE -eq 0 -and "$v" -match 'Python\s+3') { return $c }
-            } catch { }
-        }
-    }
-    return $null
-}
-
-# Installed edge_tts version, or '' when not importable. Swallows errors in
-# Python so no stderr traceback becomes a NativeCommandError under -EA Stop.
 function Get-EdgeTtsVersion {
-    param([string]$Py)
-    $code = "import sys`ntry:`n    import edge_tts`n    sys.stdout.write(getattr(edge_tts,'__version__',''))`nexcept Exception:`n    pass"
-    $out = & $Py -c $code 2>$null
-    return ("$out").Trim()
+    param([string]$PipExe)
+    return Get-PipPackageVersion -PipExe $PipExe -PackageName 'edge-tts'
 }
 
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host " $SCRIPT_INDEX Installing edge-tts (text-to-speech, latest >= $MIN_VERSION)" -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
 
-# --- 0) resolve python (Step8_InstallPython has already run in the installer flow) --- #
-$resolvedPython = Resolve-PythonInterpreter -Preferred $Python
+$resolvedPython = Resolve-InstallerPythonExe -PreferredPath $Python
 if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [X] Python 3 was NOT found. Run Step8_InstallPython first, or pass -Python <path>." -ForegroundColor Red
-    exit 1
+    return
 }
 Write-Host ("$SCRIPT_INDEX python : {0}" -f $resolvedPython) -ForegroundColor DarkGray
 
-# --- 1) edge-tts latest install (idempotent) ----------------------------- #
-$currentVersion = Get-EdgeTtsVersion -Py $resolvedPython
+$pipExePath = if ($Global:PIP_EXE_PATH -and (Test-Path -LiteralPath $Global:PIP_EXE_PATH)) {
+    $Global:PIP_EXE_PATH
+} else {
+    Resolve-InstallerPipExe -PythonExe $resolvedPython
+}
+if (-not $pipExePath) {
+    Write-Host "$SCRIPT_INDEX [X] pip.exe not found. Run Step8_InstallPython first." -ForegroundColor Red
+    return
+}
+
+$currentVersion = Get-EdgeTtsVersion -PipExe $pipExePath
 if ($currentVersion -and -not $Force) {
     try {
         if ([version]$currentVersion -ge [version]$MIN_VERSION) {
             Write-Host ("$SCRIPT_INDEX [OK] edge-tts {0} is current (>= {1}); skipping pip." -f $currentVersion, $MIN_VERSION) -ForegroundColor Green
-            exit 0
+            return
         }
-    } catch { }   # unparseable version -> fall through and upgrade
+    } catch { }
     Write-Host ("$SCRIPT_INDEX [!] edge-tts {0} is too old (< {1}); upgrading to latest (old versions 403 on a stale handshake)." -f $currentVersion, $MIN_VERSION) -ForegroundColor DarkYellow
 }
 
 Write-Host "$SCRIPT_INDEX [..] pip install --upgrade edge-tts ..." -ForegroundColor Yellow
-$pipArgs = @('-m', 'pip', 'install', '--upgrade', 'edge-tts')
+$pipArgs = @('install', '--upgrade', 'edge-tts')
 if ($Force) { $pipArgs += '--force-reinstall' }
-try {
-    & $resolvedPython @pipArgs
-    $rc = $LASTEXITCODE
-} catch {
-    Write-Host ("$SCRIPT_INDEX [!] pip threw: {0}" -f $_.Exception.Message) -ForegroundColor DarkYellow
-    $rc = 1
-}
-if ($rc -ne 0) {
+& $pipExePath @pipArgs
+
+$currentVersion = Get-EdgeTtsVersion -PipExe $pipExePath
+if ($currentVersion) {
+    Write-Host ("$SCRIPT_INDEX [OK] edge-tts {0} installed." -f $currentVersion) -ForegroundColor Green
+} else {
     Write-Host "$SCRIPT_INDEX [!] edge-tts install did not complete cleanly; pycore will install it at import time." -ForegroundColor DarkYellow
-    exit 0
 }
-
-$currentVersion = Get-EdgeTtsVersion -Py $resolvedPython
-Write-Host ("$SCRIPT_INDEX [OK] edge-tts {0} installed." -f $currentVersion) -ForegroundColor Green
-
-exit 0

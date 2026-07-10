@@ -44,7 +44,6 @@ function Download-SSHKeys {
     }
     catch {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to download public key: $_" -Type "Error"
-        exit 1
     }
     # Download private key
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Downloading private key..." -Type "Warning"
@@ -60,7 +59,6 @@ function Download-SSHKeys {
     }
     catch {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to download private key: $_" -Type "Error"
-        exit 1
     }
 }
 
@@ -97,24 +95,22 @@ function Decrypt-SSHKeys {
     [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
     if ($plainPassword -ne $plainConfirmPassword) {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Passwords do not match. Please try again." -Type "Error"
-        exit 1
+        return
     }
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Decrypting SSH key files..." -Type "Info"
     try {
         & $Global:NODE_EXE_PATH $Global:SSH_PUB_PATH pwd $plainPassword $Global:SSH_DIR
-        if ($LASTEXITCODE -ne 0) { throw "Failed to decrypt public key" }
+        if (-not (Test-Path $Global:SSH_PUB_PATH)) { throw "Failed to decrypt public key" }
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Public key decrypted successfully" -Type "Success"
     } catch {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Error decrypting public key: $_" -Type "Error"
-        exit 1
     }
     try {
         & $Global:NODE_EXE_PATH $Global:SSH_KEY_PATH pwd $plainPassword $Global:SSH_DIR
-        if ($LASTEXITCODE -ne 0) { throw "Failed to decrypt private key" }
+        if (-not (Test-Path $Global:SSH_KEY_PATH)) { throw "Failed to decrypt private key" }
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Private key decrypted successfully" -Type "Success"
     } catch {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Error decrypting private key: $_" -Type "Error"
-        exit 1
     }
 }
 
@@ -134,7 +130,6 @@ function Set-SSHKeyPermissions {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] File permissions set successfully" -Type "Success"
     } catch {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Error setting file permissions: $_" -Type "Error"
-        exit 1
     }
 }
 

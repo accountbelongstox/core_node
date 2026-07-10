@@ -105,7 +105,7 @@ function Test-WSLInstallation {
         $feature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -ErrorAction SilentlyContinue
         if ($feature.State -eq "Enabled") {
             $distros = & wsl.exe --list --quiet 2>$null
-            if ($LASTEXITCODE -eq 0) {
+            if ($distros) {
                 return ($distros -join ", ")
             }
             return "Enabled (no distro listed)"
@@ -115,7 +115,7 @@ function Test-WSLInstallation {
     try {
         $wslOutput = & wsl --status 2>&1
         $output = $wslOutput -join "`n"
-        if ($LASTEXITCODE -eq 0 -and $output -notmatch "not installed") {
+        if ($output -and $output -notmatch "not installed") {
             return "Detected via command"
         }
     } catch {}

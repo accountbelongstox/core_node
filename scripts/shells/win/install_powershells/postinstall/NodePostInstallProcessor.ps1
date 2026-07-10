@@ -119,7 +119,7 @@ function Test-NodeConfiguration {
     try {
         # Test Node.js version
         $versionOutput = & $NodePath --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        if ("$versionOutput" -match '^v?\d') {
             Write-Host "$LogPrefix Node.js version: $versionOutput" -ForegroundColor Green
         } else {
             Write-Host "$LogPrefix Node.js version check failed: $versionOutput" -ForegroundColor Red
@@ -130,7 +130,7 @@ function Test-NodeConfiguration {
         $npmPath = Join-Path (Split-Path -Parent $NodePath) "npm.cmd"
         if (Test-Path $npmPath) {
             $npmVersion = & $npmPath --version 2>&1
-            if ($LASTEXITCODE -eq 0) {
+            if ("$npmVersion" -match '\d') {
                 Write-Host "$LogPrefix npm version: $npmVersion" -ForegroundColor Green
             }
         }
@@ -139,7 +139,7 @@ function Test-NodeConfiguration {
         $pnpmPath = Join-Path (Split-Path -Parent $NodePath) "pnpm.cmd"
         if (Test-Path $pnpmPath) {
             $pnpmVersion = & $pnpmPath --version 2>&1
-            if ($LASTEXITCODE -eq 0) {
+            if ("$pnpmVersion" -match '\d') {
                 Write-Host "$LogPrefix pnpm version: $pnpmVersion" -ForegroundColor Green
             }
         } else {
@@ -150,7 +150,7 @@ function Test-NodeConfiguration {
         $yarnPath = Join-Path (Split-Path -Parent $NodePath) "yarn.cmd"
         if (Test-Path $yarnPath) {
             $yarnVersion = & $yarnPath --version 2>&1
-            if ($LASTEXITCODE -eq 0) {
+            if ("$yarnVersion" -match '\d') {
                 Write-Host "$LogPrefix yarn version: $yarnVersion" -ForegroundColor Green
             }
         } else {

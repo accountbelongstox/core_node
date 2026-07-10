@@ -77,7 +77,7 @@ function Test-WSL2Support {
 function Get-WSLVersion {
     try {
         $wslStatus = & wsl --status 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        if ("$wslStatus" -notmatch "not installed") {
             if ($wslStatus -match "Default Version: 2") {
                 $script:WSLVersion = "WSL2"
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL2 is the default version" -Type "Success"
@@ -169,7 +169,8 @@ function Enable-RequiredWindowsFeatures {
         try {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Enabling Windows feature: $feature" -Type "Warning"
             Enable-WindowsOptionalFeature -Online -FeatureName $feature -NoRestart -All
-            if ($LASTEXITCODE -eq 0) {
+            $featureState = Get-WindowsOptionalFeature -Online -FeatureName $feature -ErrorAction SilentlyContinue
+            if ($featureState -and $featureState.State -eq "Enabled") {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Successfully enabled feature: $feature" -Type "Success"
             } else {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to enable feature: $feature" -Type "Error"
@@ -235,12 +236,13 @@ function Invoke-WSLUpgradeProcessor {
         try {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Executing upgrade script: $($script:UpgradeScriptPath)" -Type "Info"
             & $script:UpgradeScriptPath -WindowsVersion $WindowsVersion -CurrentWSLVersion $CurrentWSLVersion -Step80ScriptPath $script:CurrentScriptPath
-            
-            if ($LASTEXITCODE -eq 0) {
+
+            $upgradeStateFile = Join-Path $env:TEMP "wsl_upgrade_state.json"
+            if ((Test-Path $upgradeStateFile) -or (Test-Path (Join-Path $Global:USER_CACHE_DIR "ContinueWSLInstallation.ps1"))) {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Upgrade process completed. System restart initiated." -Type "Success"
                 return $true
             } else {
-                Write-ColorMessage -Message "[Step $STEP_NUMBER] Upgrade process returned non-zero exit code. Continuing with normal installation." -Type "Warning"
+                Write-ColorMessage -Message "[Step $STEP_NUMBER] Upgrade process did not require restart. Continuing with normal installation." -Type "Warning"
                 return $false
             }
         } catch {
@@ -261,7 +263,7 @@ function Is-WSLInstalled {
     }
     try {
         $wslOutput = & wsl --status 2>&1
-        if ($LASTEXITCODE -eq 0 -and $wslOutput -notmatch "not installed") {
+        if ("$wslOutput" -notmatch "not installed") {
             return $true
         }
     } catch {
@@ -442,7 +444,8 @@ function Step29_InstallWSL {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing WSL2 (system supports it)..." -Type "Info"
             try {
                 & wsl --install --no-launch
-                if ($LASTEXITCODE -eq 0) {
+                $wslStatusAfterInstall = & wsl --status 2>&1
+                if ("$wslStatusAfterInstall" -notmatch "not installed") {
                     Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL2 installation completed." -Type "Success"
                 } else {
                     Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL2 installation failed, trying legacy method..." -Type "Warning"
@@ -457,7 +460,8 @@ function Step29_InstallWSL {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing WSL1 (system doesn't support WSL2)..." -Type "Warning"
             try {
                 & dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
-                if ($LASTEXITCODE -eq 0) {
+                $wslFeatureState = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -ErrorAction SilentlyContinue
+                if ($wslFeatureState -and $wslFeatureState.State -eq "Enabled") {
                     Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL1 installation completed." -Type "Success"
                 } else {
                     Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL1 installation failed." -Type "Error"
@@ -478,7 +482,8 @@ function Step29_InstallWSL {
             # Set WSL2 as default version
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Setting WSL2 as default version..." -Type "Info"
             & wsl --set-default-version 2
-            if ($LASTEXITCODE -eq 0) {
+            $wslStatusAfterDefault = & wsl --status 2>&1
+            if ("$wslStatusAfterDefault" -match "Default Version: 2") {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL2 set as default version" -Type "Success"
             } else {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to set WSL2 as default version" -Type "Error"
@@ -491,7 +496,8 @@ function Step29_InstallWSL {
                 if ($distro -and $distro.Trim()) {
                     Write-ColorMessage -Message "[Step $STEP_NUMBER] Converting distribution '$distro' to WSL2..." -Type "Info"
                     & wsl --set-version $distro 2
-                    if ($LASTEXITCODE -eq 0) {
+                    $distroListAfter = & wsl --list --verbose 2>&1
+                    if ("$distroListAfter" -match "$([regex]::Escape($distro.Trim())).*\b2\b") {
                         Write-ColorMessage -Message "[Step $STEP_NUMBER] Successfully converted '$distro' to WSL2" -Type "Success"
                     } else {
                         Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to convert '$distro' to WSL2" -Type "Warning"
@@ -547,8 +553,9 @@ function Step29_InstallWSL {
                     
                     # Create or update wsl.conf with root as default user
                     & wsl -d $distroName bash -c "echo -e '[user]\ndefault=root' > /etc/wsl.conf"
-                    
-                    if ($LASTEXITCODE -eq 0) {
+
+                    $wslConfAfter = & wsl -d $distroName cat /etc/wsl.conf 2>&1
+                    if ("$wslConfAfter" -match "default=root") {
                         Write-ColorMessage -Message "[Step $STEP_NUMBER] Default user set to root for $distroName." -Type "Success"
                     } else {
                         Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to set default user for $distroName." -Type "Warning"

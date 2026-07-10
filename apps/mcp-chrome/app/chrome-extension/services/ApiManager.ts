@@ -30,6 +30,23 @@ export class ApiManager {
   // is reachable, upgrading back automatically as better endpoints recover.
   private autoMode = false;
   private storageKey = 'api_settings';
+  private endpointChangeListeners = new Set<() => void>();
+
+  /** Subscribe to endpoint URL changes (same popup + after storage writes). */
+  onEndpointChange(listener: () => void): () => void {
+    this.endpointChangeListeners.add(listener);
+    return () => this.endpointChangeListeners.delete(listener);
+  }
+
+  private notifyEndpointChange(): void {
+    for (const listener of this.endpointChangeListeners) {
+      try {
+        listener();
+      } catch {
+        // ignore listener errors
+      }
+    }
+  }
 
   async initialize(options: { autoDetect?: boolean; timeout?: number } = {}) {
     const { autoDetect = true, timeout = 3000 } = options;
@@ -187,6 +204,7 @@ export class ApiManager {
           autoDetectedEndpointId: endpoint.id,
         });
 
+        this.notifyEndpointChange();
         return endpoint;
       }
     }
@@ -221,6 +239,7 @@ export class ApiManager {
           console.log(
             `[API Manager] Auto-selected best endpoint: ${endpoint.id} (${status.responseTime}ms)`,
           );
+          this.notifyEndpointChange();
         }
         return endpoint;
       }
@@ -264,6 +283,7 @@ export class ApiManager {
     });
 
     console.log('[API Manager] Endpoint manually set to:', endpointId);
+    this.notifyEndpointChange();
     return true;
   }
 

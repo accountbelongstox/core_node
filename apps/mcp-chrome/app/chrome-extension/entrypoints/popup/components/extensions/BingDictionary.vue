@@ -23,14 +23,9 @@
       @set-queue-page="setQueuePage"
     />
 
-    <!-- Header -->
-    <div class="dictionary-header">
-      <h4 class="dictionary-title">Bing Dictionary</h4>
-      <div class="header-actions">
-        <button class="icon-button" @click="handleClearHistory" title="Clear history">
-          [CLEAR]
-        </button>
-      </div>
+    <!-- Search + clear -->
+    <div class="dictionary-toolbar">
+      <button class="icon-button" @click="handleClearHistory" title="Clear history">[CLEAR]</button>
     </div>
 
     <!-- Search Box -->

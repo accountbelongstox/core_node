@@ -205,7 +205,7 @@ function Install-PECL {
             else {
                 $peclVersion = & $PhpPath $peclPhpPath version 2>&1
             }
-            if ($LASTEXITCODE -eq 0 -or $peclVersion -match "PECL|PEAR") {
+            if ($peclVersion -match "PECL|PEAR") {
                 Write-Host "$LogPrefix PECL is working correctly (verified)" -ForegroundColor Green
                 return $peclPath
             }
@@ -279,7 +279,7 @@ function Install-PECL {
                 # Try normal installation first; go-pear.phar uses current directory as default $prefix
                 $installOutput = & $PhpPath $goPearPath 2>&1
                 # If signature error, try with phar.require_hash=0
-                if ($installOutput -match "signature|hash" -or $LASTEXITCODE -ne 0) {
+                if (-not (($installOutput -match "signature|hash") -or (Test-Path $peclBatPath) -or (Test-Path $peclPhpPath))) {
                     Write-Host "$LogPrefix Retrying with phar.require_hash=0 flag..." -ForegroundColor Yellow
                     $installOutput = & $PhpPath -d phar.require_hash=0 $goPearPath 2>&1
                 }
@@ -326,7 +326,7 @@ function Install-PECL {
                 $peclTest = & $PhpPath $peclPath version 2>&1
             }
             
-            if ($LASTEXITCODE -eq 0 -or $peclTest -match "PECL|PEAR") {
+            if ($peclTest -match "PECL|PEAR") {
                 Write-Host "$LogPrefix PECL installation verified successfully" -ForegroundColor Green
                 return $peclPath
             }
@@ -449,26 +449,22 @@ function Install-SwooleExtension {
                 $peclOutput = & $PhpPath $peclPhpPath install swoole 2>&1
             }
             
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "$LogPrefix Swoole installed successfully via PECL" -ForegroundColor Green
-                
-                # Verify installation
-                $phpModulesCheck = & $PhpPath -m 2>&1 | Out-String
-                $modulesCheckList = $phpModulesCheck -split "`n" | ForEach-Object { $_.Trim() }
-                $swooleFound = $false
-                foreach ($module in $modulesCheckList) {
-                    if ($module -eq "swoole") {
-                        $swooleFound = $true
-                        break
-                    }
-                }
-                if ($swooleFound) {
-                    Write-Host "$LogPrefix Swoole extension verified and enabled" -ForegroundColor Green
-                    return $true
+            $phpModulesCheck = & $PhpPath -m 2>&1 | Out-String
+            $modulesCheckList = $phpModulesCheck -split "`n" | ForEach-Object { $_.Trim() }
+            $swooleFound = $false
+            foreach ($module in $modulesCheckList) {
+                if ($module -eq "swoole") {
+                    $swooleFound = $true
+                    break
                 }
             }
+            if ($swooleFound) {
+                Write-Host "$LogPrefix Swoole installed successfully via PECL" -ForegroundColor Green
+                Write-Host "$LogPrefix Swoole extension verified and enabled" -ForegroundColor Green
+                return $true
+            }
             else {
-                Write-Host "$LogPrefix PECL installation failed with exit code: $LASTEXITCODE" -ForegroundColor Yellow
+                Write-Host "$LogPrefix PECL installation did not enable swoole module" -ForegroundColor Yellow
                 Write-Host "$LogPrefix PECL output: $peclOutput" -ForegroundColor Yellow
             }
         }
@@ -635,26 +631,22 @@ function Install-SwooleExtension {
                 $peclOutput = & $PhpPath $peclPhpPath install openswoole 2>&1
             }
             
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "$LogPrefix Open Swoole installed successfully via PECL" -ForegroundColor Green
-                
-                # Verify installation
-                $phpModulesCheck = & $PhpPath -m 2>&1 | Out-String
-                $modulesCheckList = $phpModulesCheck -split "`n" | ForEach-Object { $_.Trim() }
-                $openswooleFound = $false
-                foreach ($module in $modulesCheckList) {
-                    if ($module -eq "openswoole") {
-                        $openswooleFound = $true
-                        break
-                    }
-                }
-                if ($openswooleFound) {
-                    Write-Host "$LogPrefix Open Swoole extension verified and enabled (compatible with Swoole)" -ForegroundColor Green
-                    return $true
+            $phpModulesCheck = & $PhpPath -m 2>&1 | Out-String
+            $modulesCheckList = $phpModulesCheck -split "`n" | ForEach-Object { $_.Trim() }
+            $openswooleFound = $false
+            foreach ($module in $modulesCheckList) {
+                if ($module -eq "openswoole") {
+                    $openswooleFound = $true
+                    break
                 }
             }
+            if ($openswooleFound) {
+                Write-Host "$LogPrefix Open Swoole installed successfully via PECL" -ForegroundColor Green
+                Write-Host "$LogPrefix Open Swoole extension verified and enabled (compatible with Swoole)" -ForegroundColor Green
+                return $true
+            }
             else {
-                Write-Host "$LogPrefix Open Swoole PECL installation failed with exit code: $LASTEXITCODE" -ForegroundColor Yellow
+                Write-Host "$LogPrefix Open Swoole PECL installation did not enable openswoole module" -ForegroundColor Yellow
             }
         }
         catch {

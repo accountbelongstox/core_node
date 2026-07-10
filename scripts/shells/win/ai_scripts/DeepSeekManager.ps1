@@ -236,35 +236,8 @@ function Get-DeepSeekConfig {
     String - Python command
 #>
 function Get-PythonCommand {
-    # Priority 1: Use absolute path from GlobalVars (Python 3.12 standalone)
-    if ($Global:PYTHON_EXE_PATH -and (Test-Path $Global:PYTHON_EXE_PATH)) {
+    if ($Global:PYTHON_EXE_PATH -and (Test-Path -LiteralPath $Global:PYTHON_EXE_PATH)) {
         return $Global:PYTHON_EXE_PATH
-    }
-
-    # Priority 2: Try python command in PATH
-    $pythonCmd = if ($script:IS_WINDOWS) { "python" } else { "python3" }
-
-    try {
-        $pythonVersion = & $pythonCmd --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            return $pythonCmd
-        }
-    }
-    catch {
-        Write-Host "Python not found with command: $pythonCmd" -ForegroundColor Yellow
-    }
-
-    # Priority 3: Try py launcher on Windows
-    if ($script:IS_WINDOWS) {
-        try {
-            $pythonVersion = & "py" --version 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                return "py"
-            }
-        }
-        catch {
-            Write-Host "Python not found with command: py" -ForegroundColor Yellow
-        }
     }
 
     return $null

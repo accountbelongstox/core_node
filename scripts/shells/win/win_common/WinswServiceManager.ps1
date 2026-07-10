@@ -143,12 +143,12 @@ $envLines$logDirective</service>
         Write-Host "[WinswServiceManager] Installing service: $ServiceName" -ForegroundColor Cyan
     }
     & $serviceExe install
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "[WinswServiceManager] winsw install failed for $ServiceName (exit $LASTEXITCODE)" -ForegroundColor Red
-        return $false
-    }
 
     $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if (-not $svc) {
+        Write-Host "[WinswServiceManager] winsw install failed for $ServiceName (service not registered)" -ForegroundColor Red
+        return $false
+    }
     if (-not $svc) {
         Write-Host "[WinswServiceManager] Service $ServiceName not found after registration." -ForegroundColor Red
         return $false

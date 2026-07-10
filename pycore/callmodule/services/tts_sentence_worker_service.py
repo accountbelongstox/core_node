@@ -313,26 +313,62 @@ class TTSSentenceWorkerService:
         data = body.get("data") if isinstance(body.get("data"), dict) else body
         return list((data or {}).get("tasks") or [])
 
+    def fetch_queue_summary(self) -> Dict[str, Any]:
+        """POST /tts/sentence/claim with limit=0 — Laravel pending/leased counts."""
+        base = self._base_url()
+        if not base:
+            return {}
+        requests = self._requests()
+        try:
+            resp = requests.post(
+                base + CLAIM_PATH,
+                json={"worker_id": self.worker_id, "limit": 0},
+                timeout=_CLAIM_TIMEOUT,
+            )
+        except Exception:
+            return {}
+        if resp.status_code != 200:
+            return {}
+        try:
+            body = resp.json() or {}
+        except ValueError:
+            return {}
+        data = body.get("data") if isinstance(body.get("data"), dict) else body
+        if not isinstance(data, dict):
+            return {}
+        return {
+            "pending": int(data.get("pending") or 0),
+            "leased": int(data.get("leased") or 0),
+            "count": int(data.get("count") or 0),
+        }
+
     def _report(
         self,
         base: str,
-        task_id: Any,
-        sentence_id: str,
+        task: Dict[str, Any],
         success: bool,
         provider: str,
         error: str = "",
         audio_path: str = "",
+        variant_key: str = "",
     ) -> Tuple[bool, str]:
         """POST /tts/sentence/report (multipart upload on success, fields-only on
         failure). Returns ``(accepted, detail)``; never raises."""
         requests = self._requests()
+        content_id = (task.get("content_id") or task.get("sentence_id") or "").strip()
+        language = (task.get("language") or "en").strip() or "en"
+        task_id = task.get("task_id")
         fields = {
             "task_id": str(task_id),
             "worker_id": self.worker_id,
-            "sentence_id": sentence_id or "",
+            "content_id": content_id,
+            "language": language,
+            "sentence_id": (task.get("sentence_id") or content_id or ""),
             "success": "true" if success else "false",
             "provider": provider or "none",
         }
+        if variant_key:
+            fields["variant_key"] = variant_key
         if not success:
             fields["error"] = (error or "unknown error")[:500]
         try:
@@ -360,25 +396,31 @@ class TTSSentenceWorkerService:
 
     # -------------------- task processing (SEQUENTIAL, by priority) --------------------
 
-    def _synthesize_task(self, task: Dict[str, Any]) -> Tuple[bool, str, str, str]:
-        """Generate + locally validate one sentence's MP3.
-
-        Returns ``(ok, audio_path, provider, error)``. ``audio_path`` is a temp
-        file the caller must clean up. Local validation REUSES the word worker's
-        ``_validate_mp3`` so invalid output becomes a failure REPORT, not a
-        doomed upload.
-        """
+    def _synthesize_variant(
+        self,
+        task: Dict[str, Any],
+        variant: Dict[str, Any],
+    ) -> Tuple[bool, str, str, str]:
+        """Generate one variant MP3. Returns (ok, path, provider, error)."""
         content = (task.get("content") or "").strip()
         language = (task.get("language") or "en").strip() or "en"
         if not content:
             return False, "", "none", "task has empty content"
 
+        accent = variant.get("accent")
+        gender = variant.get("gender") or "female"
+        vkey = (variant.get("key") or "").strip()
         os.makedirs(self._tmp_dir, exist_ok=True)
-        key = task.get("sentence_id") or task.get("task_id") or "audio"
-        name = f"{task.get('task_id')}_{key}.mp3"
+        key = task.get("content_id") or task.get("sentence_id") or "audio"
+        suffix = f"_{vkey}" if vkey else ""
+        name = f"{task.get('task_id')}_{key}{suffix}.mp3"
         out_path = os.path.join(self._tmp_dir, name)
 
-        result = tts_orchestrator.synthesize(content, language, Path(out_path))
+        result = tts_orchestrator.synthesize(
+            content, language, Path(out_path),
+            accent=accent if accent else None,
+            gender=gender,
+        )
         provider = result.get("engine") or ((result.get("tried") or ["none"])[-1])
         if not result.get("success"):
             return False, out_path, provider, result.get("error") or "synthesis failed"
@@ -388,57 +430,62 @@ class TTSSentenceWorkerService:
             return False, out_path, provider, f"invalid audio from {provider}: {why}"
         return True, out_path, provider, ""
 
+    def _synthesize_task(self, task: Dict[str, Any]) -> Tuple[bool, str, str, str]:
+        """Generate the primary sentence MP3 (first variant only)."""
+        variants = task.get("variants") or [{"key": "", "accent": None, "gender": "female"}]
+        primary = variants[0] if variants else {"key": "", "accent": None, "gender": "female"}
+        return self._synthesize_variant(task, primary)
+
     def _process_one(self, base: str, task: Dict[str, Any]) -> bool:
-        """Synthesize + report ONE task. Returns True on a confirmed success."""
+        """Synthesize + report ONE task (all language variants). Returns True on primary success."""
         task_id = task.get("task_id")
-        sentence_id = task.get("sentence_id") or ""
-        audio_path = ""
+        variants = task.get("variants") or [{"key": "", "accent": None, "gender": "female"}]
+        primary_ok = False
+        audio_paths: List[str] = []
         with self._cycle_lock:
             self._processing += 1
         try:
-            ok, audio_path, provider, err = self._synthesize_task(task)
-            if ok:
-                accepted, detail = self._report(
-                    base, task_id, sentence_id, True, provider, audio_path=audio_path
-                )
-                if accepted:
-                    ColorPrint.green(
-                        f"[TTSSentenceWorker] Task {task_id} "
-                        f"'{(task.get('content') or '')[:30]}' "
-                        f"(p={task.get('priority')}) done via {provider}"
+            for variant in variants:
+                ok, audio_path, provider, err = self._synthesize_variant(task, variant)
+                if audio_path:
+                    audio_paths.append(audio_path)
+                vkey = (variant.get("key") or "").strip()
+                if ok:
+                    accepted, detail = self._report(
+                        base, task, True, provider, audio_path=audio_path, variant_key=vkey
                     )
-                    return True
-                # Upload refused (e.g. 422) — follow up with an explicit failure
-                # report so the task fails fast instead of waiting out the lock.
-                ColorPrint.yellow(
-                    f"[TTSSentenceWorker] Task {task_id} upload rejected ({detail})"
-                )
-                self._report(
-                    base, task_id, sentence_id, False, provider,
-                    error=f"audio upload rejected: {detail}",
-                )
+                    if accepted and not vkey:
+                        primary_ok = True
+                        ColorPrint.green(
+                            f"[TTSSentenceWorker] Task {task_id} "
+                            f"'{(task.get('content') or '')[:30]}' "
+                            f"(p={task.get('priority')}) done via {provider}"
+                        )
+                    elif not accepted:
+                        ColorPrint.yellow(
+                            f"[TTSSentenceWorker] Task {task_id} variant '{vkey or 'primary'}' "
+                            f"upload rejected ({detail})"
+                        )
+                else:
+                    ColorPrint.yellow(
+                        f"[TTSSentenceWorker] Task {task_id} variant '{vkey or 'primary'}' failed: {err}"
+                    )
+                    self._report(base, task, False, provider, error=err, variant_key=vkey)
+            if not primary_ok and variants:
                 return False
-            ColorPrint.yellow(f"[TTSSentenceWorker] Task {task_id} failed: {err}")
-            accepted, detail = self._report(
-                base, task_id, sentence_id, False, provider, error=err
-            )
-            if not accepted:
-                ColorPrint.yellow(
-                    f"[TTSSentenceWorker] Failure report for task {task_id} "
-                    f"not accepted ({detail}); lock will re-pend it"
-                )
-            return False
+            return primary_ok
         except Exception as e:  # noqa: BLE001 — one task must not kill the cycle
             ColorPrint.red(f"[TTSSentenceWorker] Task {task_id} error: {e}")
             return False
         finally:
             with self._cycle_lock:
                 self._processing = max(0, self._processing - 1)
-            if audio_path:
-                try:
-                    os.remove(audio_path)
-                except OSError:
-                    pass
+            for audio_path in audio_paths:
+                if audio_path:
+                    try:
+                        os.remove(audio_path)
+                    except OSError:
+                        pass
 
     def _run_cycle(self) -> None:
         """One claim + priority-drain cycle. Claims a batch, merges it into the

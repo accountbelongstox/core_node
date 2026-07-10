@@ -16,8 +16,8 @@
 
 .DESCRIPTION
     Launches Claude Code via Volcano Ark (Doubao) coding endpoint with the model
-    forced to glm-5.2 everywhere, and experimental agent teams + ultracode
-    force-enabled (like claudeteam).
+    forced to glm-5.2 everywhere, experimental agent teams force-enabled,
+    and ultracode opt-in (default No).
     API key is read from .secret_keys/.secret_ignore/ARK_API_KEY_1 (written by
     the Special Software Environment Variables Manager, dd.sh / dd.cmd).
     Volcano Ark /api/coding is the Anthropic-compatible endpoint and serves
@@ -48,8 +48,8 @@ $winCommonDirPath = $null
 $windowsPathFunctionScript = $null
 $claudeLaunchCommonScript = $null
 $claudeExecutable = $null
-$forceModelChoice = $null
-$forceModelEnabled = $false
+$ultraChoice = $null
+$enableUltra = $false
 
 # Ensure DISABLE_AUTOUPDATER is set for Claude Code
 $env:DISABLE_AUTOUPDATER = "1"
@@ -61,17 +61,14 @@ $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
 # Windows default: run experimental agent teams in-process (like claudeteam).
 $teammateMode = 'in-process'
 
-# Ultracode via temp settings FILE (Windows PowerShell 5.1 strips the double
-# quotes when handing a JSON literal to a native exe, so `claude --settings
-# {"ultracode":true}` arrives as `{ultracode:true}` -> invalid JSON. --settings
-# also accepts a file path, which sidesteps all shell quoting).
+# Ultracode via temp settings FILE when opted in (Windows PowerShell 5.1 strips
+# double quotes when handing a JSON literal to a native exe).
 $ultraSettingsJson = '{"ultracode":true}'
 $ultraSettingsFile = Join-Path $env:TEMP "claudevolc_ultracode_settings.json"
-[System.IO.File]::WriteAllText($ultraSettingsFile, $ultraSettingsJson)
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Claude AI (Volcano Ark / Doubao) - v4 [glm-5.2 + team + ultracode]" -ForegroundColor Yellow
+Write-Host "Claude AI (Volcano Ark / Doubao) - v4 [glm-5.2 + team + opt-in ultracode]" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -139,33 +136,22 @@ if (-not $volcBaseUrl) {
     $volcBaseUrl = "https://ark.cn-beijing.volces.com/api/coding"
 }
 
-# Set the Claude Code environment variables (gateway always; model slots opt-in below).
+# Set the Claude Code environment variables (gateway + glm-5.2 forced everywhere).
 $env:ANTHROPIC_BASE_URL = $volcBaseUrl
 if ($volcApiKey) {
     $env:ANTHROPIC_AUTH_TOKEN = $volcApiKey
 }
-
-# Optional: force glm-5.2 everywhere. Opt-in prompt, default No (like claudeteam).
-$forceModelChoice = Read-Host "Force model $volcModel everywhere (main + subagents + background)? [y/N]"
-$forceModelEnabled = (($forceModelChoice -eq 'y') -or ($forceModelChoice -eq 'Y'))
-
-if ($forceModelEnabled) {
-    $env:ANTHROPIC_MODEL = $volcModel
-    $env:CLAUDE_CODE_SUBAGENT_MODEL = $volcModel
-    $env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $volcModel
-    $env:ANTHROPIC_DEFAULT_SONNET_MODEL = $volcModel
-    Write-Host "[NOTE] $volcModel forced for main session, subagents and background (Haiku/Sonnet) slots." -ForegroundColor Yellow
-}
+$env:ANTHROPIC_MODEL = $volcModel
+# Force glm-5.2 into every slot so agent-teams / subagents / background tasks
+# also run through the Coding Plan gateway (official model ID: glm-5.2).
+$env:CLAUDE_CODE_SUBAGENT_MODEL = $volcModel
+$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $volcModel
+$env:ANTHROPIC_DEFAULT_SONNET_MODEL = $volcModel
 
 # Configuration summary
 Write-Host "API Endpoint: $env:ANTHROPIC_BASE_URL" -ForegroundColor White
-if ($forceModelEnabled) {
-    Write-Host "Model: $volcModel (forced: main + subagents + background)" -ForegroundColor White
-} else {
-    Write-Host "Model: off (default N) - using the account default model" -ForegroundColor White
-}
+Write-Host "Model: $volcModel (forced: main + subagents + background)" -ForegroundColor White
 Write-Host "Agent Teams: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (force-enabled)" -ForegroundColor White
-Write-Host "Ultracode: --settings $ultraSettingsJson (via temp file $ultraSettingsFile)" -ForegroundColor White
 
 if (-not $volcApiKey) {
     Write-Host ""
@@ -181,7 +167,7 @@ if (-not $volcApiKey) {
     Write-Host "  $secretDir\ARK_API_KEY_1" -ForegroundColor Gray
     Write-Host ""
     $null = Read-Host "Press Enter to exit"
-    if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
+    if ($enableUltra -and (-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
         Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
     }
     exit 1
@@ -192,17 +178,27 @@ else {
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Build claude args: ultracode settings always on; teammate-mode in-process;
-# skip-permissions (Windows default, like claudeteam); --model only when opted in.
-if ($forceModelEnabled) {
-    $claudeArgs = @("--model", $volcModel, "--settings", $ultraSettingsFile, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+# Build claude args: glm-5.2 always on; teammate-mode in-process;
+# skip-permissions (Windows default, like claudeteam); ultracode opt-in.
+$claudeArgs = @("--model", $volcModel, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+
+# Ultracode: opt-in prompt (default No).
+$ultraChoice = Read-Host "Enable ultracode? [y/N]"
+if ($ultraChoice -eq 'y' -or $ultraChoice -eq 'Y') {
+    $enableUltra = $true
+    [System.IO.File]::WriteAllText($ultraSettingsFile, $ultraSettingsJson)
+    $claudeArgs += @("--settings", $ultraSettingsFile)
+}
+
+if ($enableUltra) {
+    Write-Host "Ultracode: enabled (--settings via $ultraSettingsFile)" -ForegroundColor White
 } else {
-    $claudeArgs = @("--settings", $ultraSettingsFile, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+    Write-Host "Ultracode: off (default N)" -ForegroundColor White
 }
 
 # Launch tool
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Press Enter to start Claude AI (Volcano Ark) [glm-5.2 + team + ultracode]..." -ForegroundColor Yellow
+Write-Host "Press Enter to start Claude AI (Volcano Ark) [glm-5.2 + team + opt-in ultracode]..." -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 $null = Read-Host "Press Enter to continue"
 
@@ -213,7 +209,7 @@ if (-not $claudeExecutable) {
     Write-Host "Install via: npm install -g @anthropic-ai/claude-code" -ForegroundColor Yellow
     Write-Host "Or ensure $env:USERPROFILE\.local\bin\claude.exe exists." -ForegroundColor Yellow
     Write-Host ""
-    if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
+    if ($enableUltra -and (-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
         Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
     }
     exit 1
@@ -222,7 +218,7 @@ if (-not $claudeExecutable) {
 Write-Host ""
 Write-Host "Executing: $claudeExecutable $($claudeArgs -join ' ')" -ForegroundColor White
 Write-Host ""
-Write-Host "Environment: ANTHROPIC_BASE_URL='$($env:ANTHROPIC_BASE_URL)'$(if ($forceModelEnabled) { ", ANTHROPIC_MODEL='$volcModel'" } else { '' })" -ForegroundColor White
+Write-Host "Environment: ANTHROPIC_BASE_URL='$($env:ANTHROPIC_BASE_URL)', ANTHROPIC_MODEL='$volcModel'" -ForegroundColor White
 Write-Host ""
 
 & $claudeExecutable @claudeArgs @args
@@ -232,7 +228,7 @@ if ($null -eq $exitCode) {
 }
 
 # Remove the temp settings file (claude reads it only at startup).
-if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
+if ($enableUltra -and (-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
     Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
 }
 

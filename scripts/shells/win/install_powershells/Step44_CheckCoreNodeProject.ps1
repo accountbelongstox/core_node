@@ -77,7 +77,7 @@ if (-not (Test-Path $PROJECT_DIR)) {
 if (-not $NEEDS_CLONE) {
     Write-Host "$SCRIPT_INDEX Core_node project is already present and has content" -ForegroundColor Green
     Write-Host "$SCRIPT_INDEX Step13 completed successfully" -ForegroundColor Green
-    exit 0
+    return
 }
 
 # Get selected region and clone URL
@@ -161,7 +161,7 @@ if ($USER_CHOICE -ne "Y") {
     Write-Host "$SCRIPT_INDEX You can manually clone the project later using:" -ForegroundColor Cyan
     Write-Host "$SCRIPT_INDEX   git clone $CLONE_URL $PROJECT_DIR" -ForegroundColor White
     Write-Host "$SCRIPT_INDEX Step13 completed (skipped)" -ForegroundColor Yellow
-    exit 0
+    return
 }
 
 # Proceed with cloning
@@ -176,7 +176,6 @@ if (-not (Test-Path $PROJECT_PARENT_DIR)) {
         Write-Host "$SCRIPT_INDEX Parent directory created successfully" -ForegroundColor Green
     } catch {
         Write-Host "$SCRIPT_INDEX Error creating parent directory: $($_.Exception.Message)" -ForegroundColor Red
-        exit 1
     }
 }
 
@@ -194,39 +193,28 @@ try {
     
     # Execute git clone
     Write-Host "$SCRIPT_INDEX Executing: git clone $CLONE_URL" -ForegroundColor Cyan
-    $CLONE_PROCESS = Start-Process -FilePath "git" -ArgumentList "clone", $CLONE_URL -Wait -NoNewWindow -PassThru -RedirectStandardOutput "git_clone_output.log" -RedirectStandardError "git_clone_error.log"
-    
-    if ($CLONE_PROCESS.ExitCode -eq 0) {
-        Write-Host "$SCRIPT_INDEX Git clone completed successfully" -ForegroundColor Green
-        
-        # Verify clone success
-        if (Test-Path $PROJECT_DIR) {
-            $CLONED_ITEMS = Get-ChildItem -Path $PROJECT_DIR -Force -ErrorAction SilentlyContinue
-            if ($CLONED_ITEMS -and $CLONED_ITEMS.Count -gt 0) {
-                Write-Host "$SCRIPT_INDEX Clone verification successful: $($CLONED_ITEMS.Count) items found" -ForegroundColor Green
-                Write-Host "$SCRIPT_INDEX Core_node project setup completed" -ForegroundColor Green
-            } else {
-                Write-Host "$SCRIPT_INDEX Warning: Clone completed but directory appears empty" -ForegroundColor Yellow
-            }
+    Start-Process -FilePath "git" -ArgumentList "clone", $CLONE_URL -Wait -NoNewWindow -RedirectStandardOutput "git_clone_output.log" -RedirectStandardError "git_clone_error.log" | Out-Null
+
+    if (Test-Path $PROJECT_DIR) {
+        $CLONED_ITEMS = Get-ChildItem -Path $PROJECT_DIR -Force -ErrorAction SilentlyContinue
+        if ($CLONED_ITEMS -and $CLONED_ITEMS.Count -gt 0) {
+            Write-Host "$SCRIPT_INDEX Clone verification successful: $($CLONED_ITEMS.Count) items found" -ForegroundColor Green
+            Write-Host "$SCRIPT_INDEX Core_node project setup completed" -ForegroundColor Green
         } else {
-            Write-Host "$SCRIPT_INDEX Error: Project directory not found after clone" -ForegroundColor Red
-            exit 1
+            Write-Host "$SCRIPT_INDEX Warning: Clone completed but directory appears empty" -ForegroundColor Yellow
         }
     } else {
-        Write-Host "$SCRIPT_INDEX Git clone failed with exit code: $($CLONE_PROCESS.ExitCode)" -ForegroundColor Red
-        
-        # Show error details if available
+        Write-Host "$SCRIPT_INDEX Error: Project directory not found after clone" -ForegroundColor Red
+
         if (Test-Path "git_clone_error.log") {
             $ERROR_CONTENT = Get-Content "git_clone_error.log" -Raw -ErrorAction SilentlyContinue
             if ($ERROR_CONTENT) {
                 Write-Host "$SCRIPT_INDEX Error details: $ERROR_CONTENT" -ForegroundColor Red
             }
         }
-        exit 1
     }
 } catch {
     Write-Host "$SCRIPT_INDEX Exception during clone operation: $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
 } finally {
     # Restore original location
     Set-Location $ORIGINAL_LOCATION

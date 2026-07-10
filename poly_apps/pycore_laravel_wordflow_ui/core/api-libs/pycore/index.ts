@@ -27,6 +27,7 @@ export {
   getPycoreTarget, isPycoreRemote, pycoreTargetHost,
   getPycoreTargetRecent, getPycoreTargetPresets, normalizePycoreHost, setPycoreTarget,
   localPycoreHost, localPycoreOrigin, pycoreEffectiveHost,
+  isPycoreSecureContext, pnaBlockedReason,
 } from './pycoreTarget';
 export type { PycoreTarget, PycorePresetHost } from './pycoreTarget';
 
@@ -41,6 +42,7 @@ export type {
 export {
   loadSettings, saveSettings,
   loadQueueCache, saveQueueCache, queueCacheAgeMs,
+  loadOverviewCache, saveOverviewCache, overviewCacheAgeMs,
 } from './PycoreCache';
 
 export {

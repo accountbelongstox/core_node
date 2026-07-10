@@ -11,17 +11,20 @@ Route Modules:
 - thread_bus_routes: thread_bus.trigger_event + THREAD_BUS broadcast listeners
 - video_extract_routes: video_extract.sync_source / backend_status / sync_all
 - media_routes: book.sync_source + media.enrich
+- corebook_routes: corebook.autoflow
 - laravel_api_routes: laravel_api.list/add/remove/select/probe
 """
 
 from pycore.callmodule.rpc_routes.thread_bus_routes import register_thread_bus_routes
 from pycore.callmodule.rpc_routes.video_extract_routes import register_video_extract_routes
 from pycore.callmodule.rpc_routes.media_routes import register_media_routes
+from pycore.callmodule.rpc_routes.corebook_routes import register_corebook_routes
 from pycore.callmodule.rpc_routes.laravel_api_routes import register_laravel_api_routes
 
 __all__ = [
     'register_thread_bus_routes',
     'register_video_extract_routes',
     'register_media_routes',
+    'register_corebook_routes',
     'register_laravel_api_routes',
 ]

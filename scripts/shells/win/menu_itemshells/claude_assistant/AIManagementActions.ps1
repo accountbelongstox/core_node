@@ -141,8 +141,8 @@ function Invoke-OneClickSetupWizard {
         "--claude-json-path", $globalPath,
         "--teammate-mode", $mode
     )
-    if ($exitCode -ne 0) {
-        Write-AIMessage -Message "Setup failed (exit $exitCode)." -Type "Error"
+    if (-not $exitCode) {
+        Write-AIMessage -Message "Setup failed." -Type "Error"
     }
     else {
         Write-Host ""
@@ -167,7 +167,7 @@ function Invoke-OneClickSetupWizard {
         $proj = if ([string]::IsNullOrWhiteSpace($line)) { $def } else { $line.Trim() }
         if (Test-Path -LiteralPath $proj) {
             $pExit = Invoke-ClaudeJsonMerge -Arguments @("merge-project", "--project-dir", $proj)
-            if ($pExit -eq 0) {
+            if ($pExit) {
                 Write-AIMessage -Message "Project settings merged: $proj" -Type "Success"
             }
             else {

@@ -1,24 +1,10 @@
 <template>
   <div class="bsg-panel">
-    <!-- Header -->
-    <div class="bsg-header">
-      <div class="bsg-brand">
-        <span class="bsg-logo">📚</span>
-        <div class="bsg-brand-text">
-          <span class="bsg-title">Book Study Generator</span>
-          <span class="bsg-sub">Generate multi-language comparison sentences, explanations, phrases & grammar per ~500-char segment</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Endpoint hint -->
     <div class="bsg-endpoint">
       <span class="bsg-endpoint-label">Endpoint</span>
       <code class="bsg-endpoint-url">{{ apiBaseUrl || '(resolving…)' }}</code>
-      <span class="bsg-endpoint-note">Long auto-runs are best in the header's "open in a tab" window (a tab never blurs, so the popup can't be destroyed mid-run).</span>
     </div>
 
-    <!-- Provider -->
     <label class="bsg-label">Provider</label>
     <div class="bsg-provider-row">
       <button
@@ -283,40 +269,6 @@ onMounted(async () => {
   padding: 14px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px -16px rgba(0, 0, 0, 0.25);
 }
-.bsg-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.bsg-brand {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.bsg-logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  background: var(--accent-soft);
-  font-size: 16px;
-}
-.bsg-brand-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.bsg-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-}
-.bsg-sub {
-  font-size: 10px;
-  color: var(--text-muted);
-}
 .bsg-endpoint {
   display: flex;
   flex-wrap: wrap;
@@ -338,12 +290,6 @@ onMounted(async () => {
   font-size: 10px;
   color: var(--text);
   word-break: break-all;
-}
-.bsg-endpoint-note {
-  font-size: 9px;
-  color: var(--text-faint);
-  line-height: 1.4;
-  flex-basis: 100%;
 }
 .bsg-label {
   display: block;

@@ -201,6 +201,7 @@ const customPort = ref<number | undefined>(undefined);
 let autoDetectTimer: ReturnType<typeof setTimeout> | null = null;
 let currentBackoff = BASE_INTERVAL_MS;
 let disposed = false;
+let unsubEndpoint: (() => void) | null = null;
 
 const sortedEndpoints = computed(() =>
   [...apiManager.getAllEndpoints()].sort((a, b) => a.priority - b.priority),
@@ -416,11 +417,15 @@ onMounted(async () => {
     }
   }
   document.addEventListener('click', onDocumentClick);
+  unsubEndpoint = apiManager.onEndpointChange(() => {
+    currentEndpoint.value = apiManager.getCurrentEndpoint();
+  });
   scheduleNext();
 });
 
 onUnmounted(() => {
   disposed = true;
+  unsubEndpoint?.();
   document.removeEventListener('click', onDocumentClick);
   if (autoDetectTimer !== null) {
     clearTimeout(autoDetectTimer);

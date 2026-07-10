@@ -16,12 +16,14 @@ $winCommonDir = Join-Path $shellsWinRoot "win_common"
 $globalVarsPath = Join-Path $winCommonDir "GlobalVars.ps1"
 
 . $globalVarsPath
+. (Join-Path $winCommonDir "CudaIndex.ps1")
+. (Join-Path $winCommonDir "PythonRuntimeCommon.ps1")
 
 $SCRIPT_INDEX = "[Step 37]"
 $MODEL_NAME = "DeepSeek-OCR"
 $REPO_URL = "https://github.com/deepseek-ai/DeepSeek-OCR.git"
 $MODEL_PATH = "deepseek-ai/DeepSeek-OCR"
-$REQUIRED_PYTHON_VERSION = "3.12"
+$REQUIRED_PYTHON_VERSION = "3.13"
 $VLLM_VERSION = "0.8.5"
 
 function Get-BaseDirectory {
@@ -91,17 +93,9 @@ function Test-GitAvailable {
 }
 
 function Test-PythonAvailable {
-    $pythonCommand = $Global:PYTHON_EXE_PATH
-
-    if (-not $pythonCommand -or -not (Test-Path $pythonCommand)) {
-        $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
-        if ($pythonCommand) {
-            $pythonCommand = $pythonCommand.Source
-        }
-    }
-
+    $pythonCommand = Resolve-InstallerPythonExe
     if (-not $pythonCommand) {
-        Write-Host "$SCRIPT_INDEX Python not found. Run Step8_InstallPython.ps1" -ForegroundColor Red
+        Write-Host "$SCRIPT_INDEX Python not found at $($Global:PYTHON_EXE_PATH). Run Step8_InstallPython.ps1" -ForegroundColor Red
         return @{ Available = $false; Command = "" }
     }
 
@@ -167,19 +161,40 @@ function Install-DeepSeekOCRDependencies {
     try {
         Push-Location $InstallDirectory
 
-        Write-Host "$SCRIPT_INDEX Step 1: Installing PyTorch (latest) with CUDA 12.6..." -ForegroundColor Cyan
+        $torchIndex = Get-TorchCudaIndexUrl
+        Write-Host "$SCRIPT_INDEX Step 1: Installing PyTorch (latest) with CUDA index: $torchIndex" -ForegroundColor Cyan
         Write-Host ""
-        & $PythonCommand -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+        & $Global:PIP_EXE_PATH install torch torchvision torchaudio --index-url $torchIndex
         Write-Host ""
 
         Write-Host "$SCRIPT_INDEX Step 2: Installing core dependencies..." -ForegroundColor Cyan
         Write-Host ""
-        & $PythonCommand -m pip install transformers accelerate pillow einops timm sentencepiece protobuf
+        & $Global:PIP_EXE_PATH install transformers accelerate pillow einops timm sentencepiece protobuf
         Write-Host ""
 
-        Write-Host "$SCRIPT_INDEX Step 3: Installing flash-attn (latest)..." -ForegroundColor Cyan
+        Write-Host "$SCRIPT_INDEX Step 3: Installing flash-attn (optional on Windows)..." -ForegroundColor Cyan
+        Write-Host "$SCRIPT_INDEX Official: https://github.com/Dao-AILab/flash-attention (pip install flash-attn --no-build-isolation)" -ForegroundColor White
+        Write-Host "$SCRIPT_INDEX Note: Linux is officially supported; Windows may require source build or a community wheel." -ForegroundColor Yellow
         Write-Host ""
-        & $PythonCommand -m pip install flash-attn --no-build-isolation
+
+        if (Test-PythonDistInfoPresent -PythonExe $PythonCommand -DistPrefixes @('flash_attn')) {
+            Write-Host "$SCRIPT_INDEX [SKIP] flash-attn already installed" -ForegroundColor Green
+        }
+        else {
+            & $Global:PIP_EXE_PATH install packaging ninja psutil
+            Write-Host ""
+            $env:MAX_JOBS = "4"
+            & $Global:PIP_EXE_PATH install flash-attn --no-build-isolation
+            Write-Host ""
+
+            if (Test-PythonDistInfoPresent -PythonExe $PythonCommand -DistPrefixes @('flash_attn')) {
+                Write-Host "$SCRIPT_INDEX [OK] flash-attn installed" -ForegroundColor Green
+            }
+            else {
+                Write-Host "$SCRIPT_INDEX [WARN] flash-attn not installed; DeepSeek-OCR may still run without it" -ForegroundColor Yellow
+                Write-Host "$SCRIPT_INDEX Manual: MAX_JOBS=4 pip install flash-attn --no-build-isolation (after CUDA + torch)" -ForegroundColor Yellow
+            }
+        }
         Write-Host ""
 
         Pop-Location
@@ -414,7 +429,7 @@ function Install-DeepSeekOCR {
 
     $pythonStatus = Test-PythonAvailable
     if (-not $pythonStatus.Available) {
-        Write-Host "$SCRIPT_INDEX ERROR: Python 3.12+ is required but not found" -ForegroundColor Red
+        Write-Host "$SCRIPT_INDEX ERROR: Python $($Global:PYTHON_VERSION) is required but not found" -ForegroundColor Red
         Write-Host "$SCRIPT_INDEX Please install Python from: https://python.org/" -ForegroundColor Yellow
         return $false
     }
@@ -471,17 +486,8 @@ function Install-DeepSeekOCR {
 }
 
 try {
-    $result = Install-DeepSeekOCR
-    if ($result) {
-        Write-Host "`n$SCRIPT_INDEX Installation completed successfully!" -ForegroundColor Green
-        exit 0
-    }
-    else {
-        Write-Host "`n$SCRIPT_INDEX Installation failed!" -ForegroundColor Red
-        exit 1
-    }
+    Install-DeepSeekOCR
 }
 catch {
     Write-Host "`n$SCRIPT_INDEX Fatal error: $_" -ForegroundColor Red
-    exit 1
 }

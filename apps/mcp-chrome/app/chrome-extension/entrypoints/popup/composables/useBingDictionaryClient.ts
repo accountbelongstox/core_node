@@ -3,8 +3,9 @@
  * Handles client service control and configuration (under 200 lines)
  */
 
-import { ref, onUnmounted } from 'vue';
+import { ref, onUnmounted, watch } from 'vue';
 import { apiManager } from '@/services/ApiManager';
+import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
 import { formatTimestamp } from '@/utils/time-helpers';
 import { readJson, writeJson } from './useCacheStore';
@@ -76,14 +77,17 @@ export function useBingDictionaryClient() {
   });
 
   // The worker pulls the untranslated queue from laravel_main using the SINGLE
-  // endpoint configured in Settings (the shared ApiManager). There is no separate
-  // endpoint list here — that was redundant. `currentEndpoint` mirrors Settings.
-  const currentEndpoint = ref('');
-  const syncEndpointFromSettings = () => {
-    const url = apiManager.getCurrentBaseUrl();
-    currentEndpoint.value = url;
-    clientConfig.value.apiUrl = url;
-  };
+  // endpoint configured in the header EndpointDropdown (shared useApiEndpoint).
+  const { apiBaseUrl: currentEndpoint } = useApiEndpoint();
+
+  watch(
+    currentEndpoint,
+    (url) => {
+      const normalized = (url || '').replace(/\/+$/, '');
+      clientConfig.value.apiUrl = normalized;
+    },
+    { immediate: true },
+  );
 
   // Ad-hoc Bing scrape test (default word "hello").
   const testWords = ref('hello');
@@ -127,7 +131,6 @@ export function useBingDictionaryClient() {
   // Fetch ONE page of the untranslated/pending queue from laravel_main (via the
   // worker service). Called on Start (page 1) and by the pager.
   const loadQueueOverview = async (page = 1) => {
-    syncEndpointFromSettings();
     if (!clientConfig.value.apiUrl) {
       queueOverview.value.error = 'No endpoint configured in Settings';
       connectionStatus.value = { state: 'fail', message: 'No endpoint configured in Settings' };
@@ -250,7 +253,6 @@ export function useBingDictionaryClient() {
 
   // Ping the endpoint configured in Settings so the user gets reachability feedback.
   const testConnection = async () => {
-    syncEndpointFromSettings();
     if (!clientConfig.value.apiUrl) {
       connectionStatus.value = { state: 'fail', message: 'No endpoint configured in Settings' };
       return;
@@ -289,7 +291,6 @@ export function useBingDictionaryClient() {
     testing.value = true;
     testResults.value = [];
     try {
-      syncEndpointFromSettings();
       const response = await chrome.runtime.sendMessage({
         type: 'bing_dictionary_worker_service',
         action: 'test_scrape',
@@ -317,7 +318,6 @@ export function useBingDictionaryClient() {
     await logger.init();
     await loadClientConfig();
     await apiManager.initialize({ autoDetect: false });
-    syncEndpointFromSettings();
     // Restore the last scrape-test results from cache so they're visible again.
     const cached = await readJson<any[]>('dictionary', SCRAPE_CACHE_KEY);
     if (Array.isArray(cached) && cached.length) {
@@ -350,7 +350,6 @@ export function useBingDictionaryClient() {
   // First click LOADS + shows the queue (no start); second click CONFIRMS + starts.
   const prepareQueue = async () => {
     error.value = '';
-    syncEndpointFromSettings();
     await loadQueueOverview(1);
     // Ready to confirm only when the queue actually loaded (reachable backend).
     prepared.value = !queueOverview.value.error;
@@ -386,7 +385,6 @@ export function useBingDictionaryClient() {
       }
 
       // Step 2: confirmed — start crawling per settings.
-      syncEndpointFromSettings();
       const resp = await chrome.runtime.sendMessage({
         type: 'bing_dictionary_worker_service',
         action: 'start',
@@ -473,7 +471,6 @@ export function useBingDictionaryClient() {
     saveClientConfig,
     updateConfig,
     testConnection,
-    syncEndpointFromSettings,
     runScrapeTest,
     toggleClientService,
     formatTimestamp,

@@ -233,7 +233,7 @@ function Main-FixProjectLocation {
                 Write-ColorMessage -Message "$SCRIPT_INDEX   cd /d $TARGET_PROJECT_DIR" -Type "Info"
                 Write-ColorMessage -Message "$SCRIPT_INDEX   dd.cmd" -Type "Info"
                 Read-Host "Press Enter to exit"
-                exit 0
+                return
             } else {
                 Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Failed to clone project" -Type "Error"
             }
@@ -370,7 +370,7 @@ function Main-FixProjectLocation {
         Write-ColorMessage -Message "$SCRIPT_INDEX   cd /d $TARGET_PROJECT_DIR" -Type "Info"
         Write-ColorMessage -Message "$SCRIPT_INDEX   dd.cmd" -Type "Info"
         Read-Host "Press Enter to exit"
-        exit 0
+        return
     } else {
         Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Error"
         Write-ColorMessage -Message "$SCRIPT_INDEX   Failed to fix project location" -Type "Error"

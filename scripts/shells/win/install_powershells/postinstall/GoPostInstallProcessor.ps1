@@ -106,7 +106,10 @@ function Install-GoTools {
             Write-Host "$LogPrefix Installing $tool..." -ForegroundColor Yellow
             try {
                 & $GoPath install "$tool@latest" 2>&1 | Out-Null
-                if ($LASTEXITCODE -eq 0) {
+                $toolName = Split-Path $tool -Leaf
+                $goPathValue = (& $GoPath env GOPATH 2>&1 | Select-Object -First 1).ToString().Trim()
+                $toolBinPath = Join-Path $goPathValue "bin\$toolName.exe"
+                if (Test-Path -LiteralPath $toolBinPath) {
                     Write-Host "$LogPrefix $tool installed successfully" -ForegroundColor Green
                 } else {
                     Write-Host "$LogPrefix Failed to install $tool" -ForegroundColor Yellow
@@ -137,7 +140,7 @@ function Test-GoInstallation {
     try {
         # Test Go version
         $goVersion = & $GoPath version 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        if ("$goVersion" -match 'go version') {
             Write-Host "$LogPrefix Go version check passed" -ForegroundColor Green
             $versionLine = ($goVersion | Select-Object -First 1).ToString()
             Write-Host "$LogPrefix $versionLine" -ForegroundColor Cyan
@@ -148,7 +151,7 @@ function Test-GoInstallation {
         
         # Test Go environment
         $goEnv = & $GoPath env GOROOT GOPATH GOPROXY 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        if ("$goEnv" -match 'GOROOT=') {
             Write-Host "$LogPrefix Go environment check passed" -ForegroundColor Green
             foreach ($line in $goEnv) {
                 Write-Host "$LogPrefix $line" -ForegroundColor Cyan

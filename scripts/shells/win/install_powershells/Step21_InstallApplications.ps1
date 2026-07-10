@@ -48,7 +48,7 @@ param(
     PACKAGE NAME FILTERING:
     - Use -PackageName to filter packages by name (supports partial matching)
     - Examples: -PackageName "VSCode" (matches VSCodium, VSCode, etc.)
-    - Examples: -PackageName "Python" (matches Python313, Python312, etc.)
+    - Examples: -PackageName "Python" (matches Python313 from Step8 / GlobalVars)
 
     PACKAGE GROUP FILTERING:
     - Use -PackageGroup to filter entire package groups (supports partial matching)

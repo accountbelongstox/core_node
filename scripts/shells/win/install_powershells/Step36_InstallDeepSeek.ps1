@@ -24,7 +24,7 @@
 .NOTES
     Step Number: 95
     Category: AI Tools
-    Dependencies: Git, Python 3.8+
+    Dependencies: Git, Python 3.13 (Step8 / $Global:PYTHON_EXE_PATH)
 #>
 
 $scriptRoot = $PSScriptRoot
@@ -36,6 +36,7 @@ $deepSeekManagerPath = Join-Path $shellsWinRoot "ai_scripts\DeepSeekManager.ps1"
 
 . $globalVarsPath
 . $commonFuncPath
+. (Join-Path $winCommonDir "PythonRuntimeCommon.ps1")
 . $deepSeekManagerPath
 
 $SCRIPT_INDEX = "[Step 36]"
@@ -200,7 +201,7 @@ function Install-DeepSeekDependencies {
 
         Write-Host "$SCRIPT_INDEX Installing core dependencies..." -ForegroundColor White
         Write-Host ""
-        & $PythonCommand -m pip install torch transformers pillow numpy einops timm accelerate attrdict
+        & $Global:PIP_EXE_PATH install torch transformers pillow numpy einops timm accelerate attrdict
         Write-Host ""
 
         Pop-Location
@@ -485,19 +486,9 @@ pause
 
 # Main execution
 try {
-    $result = Install-DeepSeek
-
-    if ($result) {
-        Write-Host "`n$SCRIPT_INDEX DeepSeek-VL installation completed successfully" -ForegroundColor Green
-        exit 0
-    }
-    else {
-        Write-Host "`n$SCRIPT_INDEX DeepSeek-VL installation failed" -ForegroundColor Red
-        exit 1
-    }
+    Install-DeepSeek
 }
 catch {
     Write-Host "`n$SCRIPT_INDEX Unexpected error: $_" -ForegroundColor Red
     Write-Host $_.ScriptStackTrace -ForegroundColor Red
-    exit 1
 }

@@ -226,4 +226,13 @@ export interface WfNewApi {
     word: string,
     opts?: { accent?: WfNewWordAccent },
   ): Promise<WfNewWordMedia>;
+
+  /** Resolve sentence-library audio (file-first). On miss, backend bumps priority. */
+  resolveSentenceAudio(
+    text: string,
+    language: string,
+  ): Promise<{ exists: boolean; url?: string | null; queued?: boolean; content_id?: string; hash?: string }>;
+
+  /** Explicit priority bump + fast task for one sentence (book-reader retry). */
+  bumpSentenceAudio(contentId: string, language: string): Promise<{ success: boolean; task_id?: string | null }>;
 }

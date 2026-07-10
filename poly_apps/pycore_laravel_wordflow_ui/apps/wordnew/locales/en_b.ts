@@ -376,6 +376,7 @@ export const enLocaleB: Record<string, string> = {
     'reader.modeSimul': 'Simultaneous',
     'reader.playAudio': 'Play audio',
     'reader.audioGenerating': 'Audio not generated yet',
+    'reader.retryAudio': 'Retry audio generation',
     'reader.playSettings': 'Play settings',
     'reader.speed': 'Speed',
     'reader.playLanguage': 'Play language',

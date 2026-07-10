@@ -317,6 +317,65 @@ class MediaBrowseController extends Controller
     }
 
     /**
+     * GET /api/app_qy_v1/media/books/{source_key}/ingest-status
+     * Per-chapter ingest completeness for idempotent importers: compares the
+     * chapter metadata sentence_count with actual source_sentences slot rows.
+     * A chapter is `complete` when sentence_count > 0 and slot_count >= sentence_count.
+     * Partial chapters should be re-ingested (backend ingest is fill-missing).
+     */
+    public function bookIngestStatus(Request $request, string $source_key): JsonResponse
+    {
+        if (!$this->isValidSourceKey($source_key)) {
+            return $this->error('Invalid source key', 404);
+        }
+
+        $book = Book::where('source_key', $source_key)->first();
+        if (!$book) {
+            return $this->success([
+                'source_key' => $source_key,
+                'book_exists' => false,
+                'total_slots' => 0,
+                'chapters' => [],
+            ]);
+        }
+
+        $languages = $this->sourceLanguages('book', $book);
+        $chapterRows = $this->buildChaptersList('book', $source_key, $languages);
+
+        $slotCounts = SourceSentence::where('source_key', $source_key)
+            ->where('grain', 'sentence')
+            ->selectRaw('chapter_index, COUNT(*) as slot_count')
+            ->groupBy('chapter_index')
+            ->pluck('slot_count', 'chapter_index');
+
+        $chapters = [];
+        foreach ($chapterRows as $row) {
+            $ci = (int) $row['chapter_index'];
+            $sentenceCount = (int) ($row['sentence_count'] ?? 0);
+            $slotCount = (int) ($slotCounts[$ci] ?? 0);
+            $chapters[] = [
+                'chapter_index' => $ci,
+                'sentence_count' => $sentenceCount,
+                'slot_count' => $slotCount,
+                'complete' => $sentenceCount > 0 && $slotCount >= $sentenceCount,
+            ];
+        }
+
+        // Chapterless slot rows (legacy) are ignored; importers scope by chapter_index.
+
+        $totalSlots = (int) SourceSentence::where('source_key', $source_key)
+            ->where('grain', 'sentence')
+            ->count();
+
+        return $this->success([
+            'source_key' => $source_key,
+            'book_exists' => true,
+            'total_slots' => $totalSlots,
+            'chapters' => $chapters,
+        ]);
+    }
+
+    /**
      * GET /api/app_qy_v1/media/documents/{id}
      * Detail: uploaded-document meta + ordered sentences, for the reader.
      *

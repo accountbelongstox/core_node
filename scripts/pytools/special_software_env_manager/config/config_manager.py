@@ -596,7 +596,7 @@ class ConfigManager:
                     {
                         'Name': 'ARK_BASE_URL',
                         'DisplayName': 'Ark Base URL',
-                        'Description': 'Ark API Base URL (default: https://ark.cn-beijing.volces.com/api/v3)',
+                        'Description': 'Ark Coding Plan Base URL for Claude Code (default: https://ark.cn-beijing.volces.com/api/coding; glm-5.2 model ID)',
                         'InputType': 'Url',
                         'Required': False
                     },
@@ -1158,6 +1158,22 @@ class ConfigManager:
                         'Name': 'OMDB_API_KEY',
                         'DisplayName': 'OMDB API Key',
                         'Description': 'OMDB API Key (omdbapi.com, free tier; fallback movie/TV poster lookup)',
+                        'InputType': 'Token',
+                        'Required': True
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'SerpApi (Google Images)': {
+                'Common': 'serpapi',
+                'DisplayName': 'SerpApi (Google Images)',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'SERPAPI_API_KEY',
+                        'DisplayName': 'SerpApi API Key',
+                        'Description': 'SerpApi API key (serpapi.com; Google Images search + preferred book/movie poster source)',
                         'InputType': 'Token',
                         'Required': True
                     }

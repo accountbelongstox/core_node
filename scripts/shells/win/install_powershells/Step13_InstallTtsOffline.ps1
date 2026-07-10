@@ -53,36 +53,13 @@ $tmpExtract       = $null
 $sherpaCudaSpec   = $env:SHERPA_ONNX_CUDA_SPEC
 $sherpaCudaIndex  = if ($env:SOG_CUDA_INDEX_URL) { $env:SOG_CUDA_INDEX_URL } else { 'https://k2-fsa.github.io/sherpa/onnx/cuda.html' }
 
-function Resolve-PythonInterpreter {
-    param([string]$Preferred = '')
-    if ($Preferred -and (Test-Path $Preferred)) {
-        try { $v = & $Preferred --version 2>&1; if ($LASTEXITCODE -eq 0 -and "$v" -match 'Python\s+3') { return $Preferred } } catch { }
-    }
-    $candidates = New-Object System.Collections.Generic.List[string]
-    foreach ($name in 'python', 'python3', 'py') {
-        Get-Command $name -All -ErrorAction SilentlyContinue | ForEach-Object {
-            if ($_.Source -and $_.Source -notmatch 'WindowsApps') { $candidates.Add($_.Source) }
-        }
-    }
-    foreach ($p in @(
-        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python313\python.exe'),
-        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'),
-        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python311\python.exe'),
-        'C:\Python313\python.exe', 'C:\Python312\python.exe', 'C:\Python311\python.exe'
-    )) { $candidates.Add($p) }
-    foreach ($c in $candidates) {
-        if ($c -and (Test-Path $c)) {
-            try { $v = & $c --version 2>&1; if ($LASTEXITCODE -eq 0 -and "$v" -match 'Python\s+3') { return $c } } catch { }
-        }
-    }
-    return $null
-}
+$winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
+. (Join-Path $winCommonDir 'GlobalVars.ps1')
+. (Join-Path $winCommonDir 'PythonRuntimeCommon.ps1')
 
 function Test-PyModule {
-    param([string]$Py, [string]$Module)
-    $code = "import importlib.util, sys`ntry:`n    ok = importlib.util.find_spec('$Module') is not None`nexcept Exception:`n    ok = False`nsys.exit(0 if ok else 1)"
-    & $Py -c $code 2>$null
-    return ($LASTEXITCODE -eq 0)
+    param([string]$PipExe, [string]$PackageName)
+    return Test-PipPackageInstalled -PipExe $PipExe -PackageName $PackageName
 }
 
 # Extract $Archive (.tar.bz2) into $ModelDir and write $Sentinel on success.
@@ -95,26 +72,20 @@ function Install-SherpaModel {
     if (Test-Path $Tmp) { Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue }
     New-Item -ItemType Directory -Force -Path $Tmp | Out-Null
     Write-Host ("$Idx [..] Extracting {0} -> {1} (python tarfile)" -f $Archive, $Tmp) -ForegroundColor Yellow
-    $pyExtract = "import tarfile,sys`nt=tarfile.open(sys.argv[1],'r:bz2')`nt.extractall(sys.argv[2])`nt.close()"
-    & $Py -c $pyExtract $Archive $Tmp
-    $extractOk = ($LASTEXITCODE -eq 0)
+    & $Py -c "import tarfile,sys;t=tarfile.open(sys.argv[1],'r:bz2');t.extractall(sys.argv[2]);t.close()" $Archive $Tmp
     $installed = $false
-    if ($extractOk) {
-        $inner = Get-ChildItem -Path $Tmp -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
-        $src = if ($inner) { $inner.FullName } else { $Tmp }
-        Write-Host ("$Idx [..] Installing {0}\* -> {1}" -f $src, $ModelDir) -ForegroundColor Yellow
-        Copy-Item -Path (Join-Path $src '*') -Destination $ModelDir -Recurse -Force
-        $verify = Get-ChildItem -Path $ModelDir -Recurse -Filter '*.onnx' -File -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($verify) {
-            Set-Content -Path $Sentinel -Value $Url -Encoding utf8
-            Write-Host ("$Idx [OK] Model installed: {0}" -f $verify.FullName) -ForegroundColor Green
-            Write-Host ("$Idx      sentinel written: {0}; cached archive KEPT at {1} for reuse." -f $Sentinel, $Archive) -ForegroundColor DarkGray
-            $installed = $true
-        } else {
-            Write-Host "$Idx [!] Extract produced no .onnx (archive may be partial)." -ForegroundColor DarkYellow
-        }
+    $inner = Get-ChildItem -Path $Tmp -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+    $src = if ($inner) { $inner.FullName } else { $Tmp }
+    Write-Host ("$Idx [..] Installing {0}\* -> {1}" -f $src, $ModelDir) -ForegroundColor Yellow
+    Copy-Item -Path (Join-Path $src '*') -Destination $ModelDir -Recurse -Force
+    $verify = Get-ChildItem -Path $ModelDir -Recurse -Filter '*.onnx' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($verify) {
+        Set-Content -Path $Sentinel -Value $Url -Encoding utf8
+        Write-Host ("$Idx [OK] Model installed: {0}" -f $verify.FullName) -ForegroundColor Green
+        Write-Host ("$Idx      sentinel written: {0}; cached archive KEPT at {1} for reuse." -f $Sentinel, $Archive) -ForegroundColor DarkGray
+        $installed = $true
     } else {
-        Write-Host "$Idx [!] Extract failed (archive incomplete/invalid)." -ForegroundColor DarkYellow
+        Write-Host "$Idx [!] Extract produced no .onnx (archive may be partial)." -ForegroundColor DarkYellow
     }
     Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue
     return $installed
@@ -122,21 +93,12 @@ function Install-SherpaModel {
 
 # 0 if an NVIDIA GPU is usable (or forced via TORCH_FORCE_CUDA / SOG_FORCE_GPU).
 function Get-NvidiaGpuPresent {
-    if ($env:TORCH_FORCE_CUDA -eq '1' -or $env:SOG_FORCE_GPU -eq '1') { return $true }
-    $smi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
-    if (-not $smi) { return $false }
-    try { & $smi.Source -L *> $null; return ($LASTEXITCODE -eq 0) } catch { return $false }
+    return Test-NvidiaGpuPresent
 }
 
-# Installed sherpa-onnx version string (e.g. '1.13.3+cuda12.cudnn9'), or '' if absent.
 function Get-SherpaOnnxVersion {
-    param([string]$Py)
-    try {
-        $out  = & $Py -m pip show sherpa-onnx 2>$null
-        $line = $out | Where-Object { $_ -match '^Version:' } | Select-Object -First 1
-        if ($line) { return ($line -replace '^Version:\s*', '').Trim() }
-    } catch { }
-    return ''
+    param([string]$PipExe)
+    return Get-PipPackageVersion -PipExe $PipExe -PackageName 'sherpa-onnx'
 }
 
 # Idempotent CPU/GPU build guard for sherpa-onnx:
@@ -145,9 +107,9 @@ function Get-SherpaOnnxVersion {
 #   GPU, no spec -> install CPU when missing, else keep current (we never guess a
 #                   CUDA/cuDNN-specific wheel version).
 function Set-SherpaOnnxBuild {
-    param([string]$Py)
+    param([string]$PipExe)
     $gpu       = Get-NvidiaGpuPresent
-    $ver       = Get-SherpaOnnxVersion -Py $Py
+    $ver       = Get-SherpaOnnxVersion -PipExe $PipExe
     $installed = [bool]$ver
     $isCuda    = ($ver -match '\+cuda')
     if ($gpu) {
@@ -156,23 +118,22 @@ function Set-SherpaOnnxBuild {
                 Write-Host "$SCRIPT_INDEX [OK] GPU present, sherpa-onnx already '$sherpaCudaSpec'." -ForegroundColor Green
             } else {
                 Write-Host ("$SCRIPT_INDEX [..] GPU present -> installing CUDA build '{0}' from {1}" -f $sherpaCudaSpec, $sherpaCudaIndex) -ForegroundColor Yellow
-                & $Py -m pip install ("sherpa-onnx=={0}" -f $sherpaCudaSpec) -f $sherpaCudaIndex
+                & $PipExe install ("sherpa-onnx=={0}" -f $sherpaCudaSpec) -f $sherpaCudaIndex
             }
         } elseif (-not $installed) {
             Write-Host "$SCRIPT_INDEX [..] GPU present, no SHERPA_ONNX_CUDA_SPEC -> installing CPU build (set the env var for the GPU wheel)." -ForegroundColor Yellow
-            & $Py -m pip install --upgrade sherpa-onnx
+            & $PipExe install --upgrade sherpa-onnx
         } else {
             Write-Host "$SCRIPT_INDEX [i] GPU present, no SHERPA_ONNX_CUDA_SPEC -> keeping current build (CPU build runs on GPU too)." -ForegroundColor DarkGray
         }
         return
     }
-    # No GPU -> the CPU build is the only valid one.
     if ($isCuda) {
         Write-Host ("$SCRIPT_INDEX [!] No GPU but sherpa-onnx is a CUDA build ({0}) -> switching to the CPU wheel." -f $ver) -ForegroundColor DarkYellow
-        & $Py -m pip install sherpa-onnx --force-reinstall
+        & $PipExe install sherpa-onnx --force-reinstall
     } elseif (-not $installed) {
         Write-Host "$SCRIPT_INDEX [..] No GPU, sherpa-onnx missing -> installing the CPU build." -ForegroundColor Yellow
-        & $Py -m pip install --upgrade sherpa-onnx
+        & $PipExe install --upgrade sherpa-onnx
     } else {
         Write-Host "$SCRIPT_INDEX [OK] No GPU, sherpa-onnx is the CPU build." -ForegroundColor Green
     }
@@ -182,21 +143,25 @@ Write-Host '============================================================' -Foreg
 Write-Host " $SCRIPT_INDEX Installing offline TTS engines (sherpa-onnx + model)" -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
 
-$resolvedPython = Resolve-PythonInterpreter -Preferred $Python
+$resolvedPython = Resolve-InstallerPythonExe -PreferredPath $Python
 if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [X] Python 3 was NOT found. Run Step8_InstallPython first, or pass -Python <path>." -ForegroundColor Red
-    exit 1
+    return
 }
 Write-Host ("$SCRIPT_INDEX python : {0}" -f $resolvedPython) -ForegroundColor DarkGray
 
+$pipExePath = if ($Global:PIP_EXE_PATH -and (Test-Path -LiteralPath $Global:PIP_EXE_PATH)) {
+    $Global:PIP_EXE_PATH
+} else {
+    Resolve-InstallerPipExe -PythonExe $resolvedPython
+}
+
 # --- 1) sherpa-onnx (CPU build by default; GPU build opt-in, CPU-guarded) - #
-# The CPU/GPU build choice goes through the guard so a CPU host never ends up on a
-# '+cuda' build, and a GPU host with SHERPA_ONNX_CUDA_SPEC gets the GPU wheel.
-if ((Test-PyModule -Py $resolvedPython -Module 'sherpa_onnx') -and -not $Force) {
+if ((Test-PyModule -PipExe $pipExePath -PackageName 'sherpa-onnx') -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [OK] sherpa-onnx already installed; verifying CPU/GPU build ..." -ForegroundColor Green
 }
-Set-SherpaOnnxBuild -Py $resolvedPython
-if (Test-PyModule -Py $resolvedPython -Module 'sherpa_onnx') {
+Set-SherpaOnnxBuild -PipExe $pipExePath
+if (Test-PyModule -PipExe $pipExePath -PackageName 'sherpa-onnx') {
     Write-Host "$SCRIPT_INDEX [OK] sherpa-onnx present (build guarded)." -ForegroundColor Green
 } else {
     Write-Host "$SCRIPT_INDEX [!] sherpa-onnx not importable; offline TTS will fall back to edge/ai." -ForegroundColor DarkYellow
@@ -256,15 +221,8 @@ if ($existingOnnx -and (Test-Path $modelSentinel) -and -not $Force) {
         try {
             $downloaded = $false
             if ($curl) {
-                # -C - resumes the partial; curl's progress goes to STDERR which,
-                # under -EA Stop, becomes a terminating error -> silence it and
-                # relax EAP around the native call. 0=ok, 33=already complete.
-                $prevEAP = $ErrorActionPreference
-                $ErrorActionPreference = 'Continue'
-                & curl.exe -L -C - --retry 3 --connect-timeout 30 --no-progress-meter -o $modelArchive $modelUrl 2>$null
-                $rc = $LASTEXITCODE
-                $ErrorActionPreference = $prevEAP
-                $downloaded = ($rc -eq 0 -or $rc -eq 33)
+                & $curl.Source -L -C - --retry 3 --connect-timeout 30 -o $modelArchive $modelUrl
+                $downloaded = (Test-Path -LiteralPath $modelArchive) -and ((Get-Item -LiteralPath $modelArchive).Length -gt 1MB)
             } else {
                 $ProgressPreference = 'SilentlyContinue'
                 Invoke-WebRequest -Uri $modelUrl -OutFile $modelArchive -UseBasicParsing -ErrorAction Stop
@@ -289,15 +247,15 @@ if ($existingOnnx -and (Test-Path $modelSentinel) -and -not $Force) {
 }
 
 # --- 3) MeloTTS (OPT-IN; transformers==4.27.4 can clash with shared env) -- #
-if ($Melotts -and (Test-PyModule -Py $resolvedPython -Module 'melo') -and -not $Force) {
+if ($Melotts -and (Test-PyModule -PipExe $pipExePath -PackageName 'MeloTTS') -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [OK] MeloTTS already installed; skipping." -ForegroundColor Green
 } elseif ($Melotts) {
     Write-Host "$SCRIPT_INDEX [..] (opt-in) pip install MeloTTS + unidic-lite ..." -ForegroundColor Yellow
     Write-Host "$SCRIPT_INDEX [!] MeloTTS pins transformers==4.27.4 which may downgrade the shared env." -ForegroundColor DarkYellow
     try {
-        & $resolvedPython -m pip install 'unidic-lite'
-        & $resolvedPython -m pip install 'git+https://github.com/myshell-ai/MeloTTS.git'
-        if (Test-PyModule -Py $resolvedPython -Module 'melo') {
+        & $pipExePath install unidic-lite
+        & $pipExePath install 'git+https://github.com/myshell-ai/MeloTTS.git'
+        if (Test-PyModule -PipExe $pipExePath -PackageName 'MeloTTS') {
             Write-Host "$SCRIPT_INDEX [OK] MeloTTS installed." -ForegroundColor Green
         } else {
             Write-Host "$SCRIPT_INDEX [!] MeloTTS not importable after install." -ForegroundColor DarkYellow
@@ -308,5 +266,3 @@ if ($Melotts -and (Test-PyModule -Py $resolvedPython -Module 'melo') -and -not $
 } else {
     Write-Host "$SCRIPT_INDEX [i] MeloTTS skipped (pass -Melotts to install; GPT-SoVITS is manual, see docs)." -ForegroundColor DarkGray
 }
-
-exit 0

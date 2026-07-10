@@ -20,6 +20,48 @@ export interface ApiEndpointsConfig {
   retryAttempts: number;
 }
 
+/** Selection TYPE token for the dynamic current-page-origin endpoint. */
+export const CURRENT_URL_TYPE = 'current-url';
+
+/** Laravel Octane API port — independent of the FE shell port (e.g. :13054). */
+export const FIXED_API_PORT = 9000;
+
+/** True for the stable type token or a host-qualified runtime id. */
+export function isCurrentUrlId(id: string | null | undefined): boolean {
+  return id === CURRENT_URL_TYPE || (typeof id === 'string' && id.startsWith(`${CURRENT_URL_TYPE}:`));
+}
+
+/**
+ * Build the current-page-origin endpoint: host + protocol from `window.location`,
+ * port pinned to FIXED_API_PORT (:9000). Null off-web or on non-http(s) origins.
+ */
+export function getCurrentOriginEndpoint(): ApiEndpoint | null {
+  if (typeof window === 'undefined' || !window.location) return null;
+
+  const { protocol, hostname } = window.location;
+  if (protocol !== 'http:' && protocol !== 'https:') return null;
+  if (!hostname) return null;
+
+  const proto: 'http' | 'https' = protocol === 'https:' ? 'https' : 'http';
+  const isLocal =
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    /^192\.168\./.test(hostname) ||
+    /^10\./.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+    /^100\./.test(hostname);
+
+  return {
+    id: `${CURRENT_URL_TYPE}:${hostname}`,
+    url: hostname,
+    protocol: proto,
+    port: FIXED_API_PORT,
+    priority: 0,
+    isLocal,
+    description: `Current URL — this site (${proto}://${hostname}:${FIXED_API_PORT})`,
+  };
+}
+
 /**
  * Global API endpoints configuration
  */
@@ -53,10 +95,19 @@ export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
       description: 'Local IP 192.168.50.2'
     },
     {
+      id: 'remote-cloud-43',
+      url: '43.163.112.77',
+      protocol: 'http',
+      port: 9000,
+      priority: 4,
+      isLocal: false,
+      description: 'Remote API Server 43.163.112.77'
+    },
+    {
       id: 'primary-remote',
       url: 'api.si.12gm.com',
       protocol: 'https',
-      priority: 4,
+      priority: 5,
       isLocal: false,
       description: 'Primary Remote API Server'
     },
@@ -64,7 +115,7 @@ export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
       id: 'secondary-remote',
       url: 'api.si.gm15.com',
       protocol: 'https',
-      priority: 5,
+      priority: 6,
       isLocal: false,
       description: 'Secondary Remote API Server'
     }
@@ -230,15 +281,31 @@ export function removeCustomEndpoint(id: string): boolean {
 }
 
 /**
- * Get an endpoint by ID (built-in or custom).
+ * Get an endpoint by ID (built-in, custom, or current-url type).
+ * The 'current-url' type re-resolves live from window.location on every call.
  */
 export function getEndpointById(id: string): ApiEndpoint | undefined {
-  return getMergedEndpoints().find(e => e.id === id);
+  if (isCurrentUrlId(id)) return getCurrentOriginEndpoint() ?? undefined;
+  return getAllEndpoints().find(e => e.id === id);
 }
 
 /**
- * Get all endpoints — built-in + custom, de-duplicated, sorted by priority.
+ * Get all endpoints — built-in + custom + current-url, de-duplicated, sorted by priority.
+ * When the current-url target matches a static/custom entry, the static row is
+ * dropped so the list shows one "Current URL" row for that host:port.
  */
 export function getAllEndpoints(): ApiEndpoint[] {
-  return getMergedEndpoints();
+  const list = getMergedEndpoints();
+  const current = getCurrentOriginEndpoint();
+  if (!current) return list;
+
+  const sameTarget = (e: ApiEndpoint) =>
+    e.id !== current.id &&
+    e.protocol === current.protocol &&
+    e.url === current.url &&
+    (e.port ?? null) === (current.port ?? null);
+
+  const filtered = list.filter(e => !sameTarget(e));
+  filtered.push(current);
+  return filtered.sort((a, b) => a.priority - b.priority);
 }

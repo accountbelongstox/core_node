@@ -16,24 +16,17 @@ $winCommonDir = Join-Path $shellsWinRoot "win_common"
 $globalVarsPath = Join-Path $winCommonDir "GlobalVars.ps1"
 
 . $globalVarsPath
+. (Join-Path $winCommonDir "PythonRuntimeCommon.ps1")
 
 $SCRIPT_INDEX = "[Step 39]"
 $MODEL_NAME = "NLLB-200"
 $MODEL_PATH = "facebook/nllb-200-distilled-600M"
-$REQUIRED_PYTHON_VERSION = "3.8"
+$REQUIRED_PYTHON_VERSION = $Global:PYTHON_VERSION
 
 function Test-PythonAvailable {
-    $pythonCommand = $Global:PYTHON_EXE_PATH
-
-    if (-not $pythonCommand -or -not (Test-Path $pythonCommand)) {
-        $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
-        if ($pythonCommand) {
-            $pythonCommand = $pythonCommand.Source
-        }
-    }
-
+    $pythonCommand = Resolve-InstallerPythonExe
     if (-not $pythonCommand) {
-        Write-Host "$SCRIPT_INDEX Python not found. Run Step8_InstallPython.ps1" -ForegroundColor Red
+        Write-Host "$SCRIPT_INDEX Python not found at $($Global:PYTHON_EXE_PATH). Run Step8_InstallPython.ps1" -ForegroundColor Red
         return @{ Available = $false; Command = "" }
     }
 
@@ -52,7 +45,7 @@ function Install-NLLB200Dependencies {
     try {
         Write-Host "$SCRIPT_INDEX Installing transformers, sentencepiece, and protobuf..." -ForegroundColor Cyan
         Write-Host ""
-        & $PythonCommand -m pip install --upgrade transformers sentencepiece protobuf sacremoses
+        & $Global:PIP_EXE_PATH install --upgrade transformers sentencepiece protobuf sacremoses
         Write-Host ""
 
         Write-Host "$SCRIPT_INDEX Verifying installation..." -ForegroundColor Yellow
@@ -233,19 +226,8 @@ function Install-NLLB200 {
 }
 
 try {
-    $result = Install-NLLB200
-    if ($result) {
-        Write-Host "`n$SCRIPT_INDEX Installation completed successfully!" -ForegroundColor Green
-        Write-Host "$SCRIPT_INDEX You can run the translator anytime from:" -ForegroundColor Cyan
-        Write-Host "$SCRIPT_INDEX   $env:USERPROFILE\\.core_node\\.cache\\nllb200_translate.bat" -ForegroundColor White
-        exit 0
-    }
-    else {
-        Write-Host "`n$SCRIPT_INDEX Installation failed!" -ForegroundColor Red
-        exit 1
-    }
+    Install-NLLB200
 }
 catch {
     Write-Host "`n$SCRIPT_INDEX Fatal error: $_" -ForegroundColor Red
-    exit 1
 }

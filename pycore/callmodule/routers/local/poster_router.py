@@ -27,6 +27,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.system_paths import get_user_data_store
 from pycore.pyutils.external_apis.movie_poster_client import find_poster
+from pycore.pyutils.external_apis.image_search_client import serpapi_configured
 
 router = fastapi.APIRouter(prefix="/api/local/poster", tags=["Local Processing - Poster"])
 
@@ -72,6 +73,11 @@ def _build_status() -> Dict[str, Any]:
         "enabled": _enabled(),
         "providers": [
             {
+                "name": "serpapi",
+                "configured": serpapi_configured(),
+                "engine": "google_images",
+            },
+            {
                 "name": "tmdb",
                 # Configured when EITHER a v3 key or a v4 read token is present.
                 "configured": bool(tmdb_key or tmdb_token),
@@ -83,6 +89,7 @@ def _build_status() -> Dict[str, Any]:
             },
         ],
         "keys": {
+            "SERPAPI_API_KEY": _mask((get_secret_key_indexed("SERPAPI_API_KEY") or "").strip()),
             "TMDB_API_KEY": _mask(tmdb_key),
             "TMDB_API_READ_ACCESS_TOKEN": _mask(tmdb_token),
             "OMDB_API_KEY": _mask(omdb_key),

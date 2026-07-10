@@ -103,16 +103,23 @@ def _poster_enabled() -> bool:
     return True
 
 
-def _attach_poster(source: Dict[str, Any], title: str, year: Optional[int] = None) -> None:
-    """Best-effort: fetch a movie/TV poster for ``title`` and attach it to
+def _attach_poster(
+    source: Dict[str, Any],
+    title: str,
+    year: Optional[int] = None,
+    kind: str = "movie",
+) -> None:
+    """Best-effort: fetch a poster for ``title`` and attach it to
     ``source['poster']`` (the §4 ingest payload addition). Omits the key entirely
     when no poster is found or fetch is disabled. NEVER raises - a poster failure
     must not break ingest.
+
+    ``kind`` is ``"movie"`` (default) or ``"book"`` — SerpApi query suffix differs.
     """
     if not (title and title.strip()) or not _poster_enabled():
         return
     try:
-        poster = find_poster(title.strip(), year=year)
+        poster = find_poster(title.strip(), year=year, kind=kind)
         if poster:
             source["poster"] = poster
     except Exception as exc:  # noqa: BLE001 - best-effort, never break ingest

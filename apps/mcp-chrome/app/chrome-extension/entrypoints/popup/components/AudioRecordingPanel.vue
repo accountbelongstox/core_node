@@ -1,14 +1,5 @@
 <template>
   <div class="space-y-2">
-    <!-- Header -->
-    <div class="flex items-center justify-between">
-      <h3 class="text-xs font-bold text-slate-200">{{ getMessage('audioRecordingLabel') }}</h3>
-      <button class="text-[9px] text-slate-500 hover:text-slate-300 px-1.5 py-0.5 rounded hover:bg-slate-800" @click="collapsed = !collapsed">
-        {{ collapsed ? '[ + ]' : '[ - ]' }}
-      </button>
-    </div>
-
-    <div v-if="!collapsed" class="space-y-2">
       <!-- Recording Status -->
       <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-2.5">
         <div class="flex items-center justify-between mb-1.5">
@@ -166,7 +157,6 @@
         </div>
         <p class="text-[8px] text-slate-500 mt-1">{{ getMessage('backgroundStreamingDescription') }}</p>
       </div>
-    </div>
   </div>
 </template>
 
@@ -209,7 +199,6 @@ const isFirefox = import.meta.env.FIREFOX;
 const firefoxUnsupportedMessage =
   'Audio recording is not available on Firefox: it requires the Chrome-only tabCapture and offscreen APIs.';
 
-const collapsed = ref(false);
 const sessionMetadataText = ref('');
 const sessionMetadata = ref<Record<string, any>>({});
 const sessionMetadataError = ref('');

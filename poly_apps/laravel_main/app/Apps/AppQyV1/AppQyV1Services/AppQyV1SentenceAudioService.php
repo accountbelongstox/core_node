@@ -8,6 +8,8 @@ use App\Models\LangSentence;
 use App\Providers\PathMapper;
 use App\Services\MediaIngestService;
 use App\Utils\FileSystemManager;
+use App\Models\GlobalTask;
+use App\Services\TaskManagerService;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -28,6 +30,12 @@ use Illuminate\Support\Facades\Log;
  */
 class AppQyV1SentenceAudioService
 {
+    /** User-facing / book-reader priority bump (mirrors word-media front). */
+    public const PRIORITY_FRONT = 100;
+
+    /** Default backfill priority when no explicit bump occurred. */
+    public const PRIORITY_DEFAULT = 0;
+
     /** A local worker's processing lease is stale after this many minutes. */
     public const LOCK_STALE_MINUTES = 10;
 
@@ -159,6 +167,28 @@ class AppQyV1SentenceAudioService
             'language' => $lang,
             'audio_relative_path' => $lang . '/' . $contentId . '.mp3',
             'priority' => max(0, (int) ($sentence->tts_priority ?? 0)),
+            'variants' => $this->variantsForLanguage($lang),
+        ];
+    }
+
+    /**
+     * TTS variant specs the pycore worker should synthesize per language.
+     * English: US female (primary), UK female, US male. Others: one voice.
+     *
+     * @return array<int,array{key:string,accent:?string,gender:string}>
+     */
+    public function variantsForLanguage(string $lang): array
+    {
+        $lang = AppQyV1TableMaps::normalizeLangCode($lang);
+        if ($lang === 'en') {
+            return [
+                ['key' => '', 'accent' => 'us', 'gender' => 'female'],
+                ['key' => 'uk_f', 'accent' => 'uk', 'gender' => 'female'],
+                ['key' => 'us_m', 'accent' => 'us', 'gender' => 'male'],
+            ];
+        }
+        return [
+            ['key' => '', 'accent' => null, 'gender' => 'female'],
         ];
     }
 
@@ -186,7 +216,8 @@ class AppQyV1SentenceAudioService
         bool $success,
         ?string $audioBinary,
         ?string $provider,
-        ?string $error
+        ?string $error,
+        ?string $variantKey = null
     ): array {
         $language = AppQyV1TableMaps::normalizeLangCode($language);
         if ($language === '' || !$this->tableExists($language)) {
@@ -198,7 +229,7 @@ class AppQyV1SentenceAudioService
             return ['ok' => false, 'status' => 'not_found', 'error' => 'Sentence not found', 'http_status' => 404];
         }
 
-        $relativePath = $language . '/' . $contentId . '.mp3';
+        $relativePath = $this->relativePathFor($language, $contentId, $variantKey);
         $fullPath = PathMapper::getAppQyV1SentenceSoundsDir($relativePath);
 
         // --- Failure path: clear the lease, record the error, re-queueable ---
@@ -248,7 +279,18 @@ class AppQyV1SentenceAudioService
         }
 
         $sentence->has_audio = true;
-        $sentence->audio = $relativePath;
+        if ($variantKey === null || $variantKey === '') {
+            $sentence->audio = $relativePath;
+        } else {
+            $metadata = is_array($sentence->metadata) ? $sentence->metadata : [];
+            $variants = is_array($metadata['audio_variants'] ?? null) ? $metadata['audio_variants'] : [];
+            $variants[$variantKey] = $relativePath;
+            $metadata['audio_variants'] = $variants;
+            $sentence->metadata = $metadata;
+            if (!$sentence->audio) {
+                $sentence->audio = $this->relativePathFor($language, $contentId, null);
+            }
+        }
         $sentence->tts_status = 'completed';
         $sentence->tts_completed_at = now();
         $this->recordProvider($sentence, $provider ?: ('worker:' . $workerId));
@@ -317,11 +359,14 @@ class AppQyV1SentenceAudioService
             ];
         }
 
-        // Missing on disk: mark the cache false and signal the caller to queue.
-        if ($sentence && ($sentence->has_audio || $sentence->audio !== null)) {
-            $sentence->has_audio = false;
-            $sentence->audio = null;
-            $sentence->save();
+        // Missing on disk: mark the cache false and bump priority so workers pick it up.
+        if ($sentence) {
+            if ($sentence->has_audio || $sentence->audio !== null) {
+                $sentence->has_audio = false;
+                $sentence->audio = null;
+                $sentence->save();
+            }
+            $this->bumpPriority($resolvedHash, $resolvedLang, true, true);
         }
 
         return [
@@ -332,6 +377,163 @@ class AppQyV1SentenceAudioService
             'content_id' => $resolvedHash,
             'language' => $resolvedLang,
         ];
+    }
+
+    /**
+     * Raise a sentence's audio priority (book-reader / manual retry). Optionally
+     * creates a deduped interactive global_task so the fast lane can claim it.
+     *
+     * @return array{ok:bool,tts_priority?:int,task_id?:string,error?:string}
+     */
+    public function bumpPriority(
+        string $contentId,
+        string $language,
+        bool $createTask = true,
+        bool $interactive = true
+    ): array {
+        $language = AppQyV1TableMaps::normalizeLangCode($language);
+        if ($language === '' || !$this->tableExists($language)) {
+            return ['ok' => false, 'error' => 'Unknown or missing language'];
+        }
+        $sentence = LangSentence::onLang($language)->where('content_id', $contentId)->first();
+        if (!$sentence) {
+            return ['ok' => false, 'error' => 'Sentence not found'];
+        }
+        if ($sentence->has_audio) {
+            return ['ok' => true, 'tts_priority' => (int) ($sentence->tts_priority ?? 0), 'already_done' => true];
+        }
+
+        $sentence->tts_priority = self::PRIORITY_FRONT;
+        $sentence->tts_requested_at = now();
+        if ($sentence->tts_status !== 'processing') {
+            $sentence->tts_status = 'pending';
+        }
+        $sentence->save();
+
+        $taskId = null;
+        if ($createTask) {
+            try {
+                $existing = GlobalTask::query()
+                    ->where('app_name', 'AppQyV1')
+                    ->where('task_type', 'sentence_audio')
+                    ->whereIn('status', ['pending', 'processing'])
+                    ->where('payload->content_id', $contentId)
+                    ->where('payload->language', $language)
+                    ->first();
+                if ($existing) {
+                    if ($interactive && !$existing->is_fast_tier) {
+                        $existing->execution_type = GlobalTask::EXECUTION_REMOTE_FAST;
+                        $existing->priority = max((int) $existing->priority, GlobalTask::PRIORITY_FAST);
+                        $existing->is_fast_tier = true;
+                        $existing->save();
+                    }
+                    $taskId = (string) $existing->task_id;
+                } else {
+                    /** @var TaskManagerService $taskManager */
+                    $taskManager = app(TaskManagerService::class);
+                    $task = $taskManager->createTask(
+                        'AppQyV1',
+                        'sentence_audio',
+                        GlobalTask::EXECUTION_REMOTE_SENTENCE_AUDIO,
+                        [
+                            'content_id' => $contentId,
+                            'language' => $language,
+                            'content' => (string) $sentence->text,
+                        ],
+                        120,
+                        self::PRIORITY_FRONT,
+                        3,
+                        $interactive,
+                        GlobalTask::CAPABILITY_SENTENCE_AUDIO
+                    );
+                    $taskId = (string) $task->task_id;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('[SentenceAudio] bump task create failed', [
+                    'content_id' => $contentId,
+                    'language' => $language,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return [
+            'ok' => true,
+            'tts_priority' => self::PRIORITY_FRONT,
+            'task_id' => $taskId,
+        ];
+    }
+
+    /**
+     * Paginated list of sentences missing audio (task-center / queue UI).
+     *
+     * @return array{total:int,page:int,per_page:int,items:array<int,array<string,mixed>>}
+     */
+    public function listMissing(?string $language, int $page, int $perPage): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+        $items = [];
+        $total = 0;
+
+        foreach ($this->languagesFor($language) as $lang) {
+            if (!$this->tableExists($lang)) {
+                continue;
+            }
+            $total += (int) LangSentence::onLang($lang)->where('has_audio', false)->count();
+        }
+
+        $skip = ($page - 1) * $perPage;
+        $remaining = $perPage;
+
+        foreach ($this->languagesFor($language) as $lang) {
+            if ($remaining <= 0) {
+                break;
+            }
+            if (!$this->tableExists($lang)) {
+                continue;
+            }
+            $langTotal = (int) LangSentence::onLang($lang)->where('has_audio', false)->count();
+            if ($skip >= $langTotal) {
+                $skip -= $langTotal;
+                continue;
+            }
+            $rows = LangSentence::onLang($lang)
+                ->where('has_audio', false)
+                ->orderByDesc('tts_priority')
+                ->orderByDesc('occurrence_count')
+                ->orderBy('id')
+                ->skip($skip)
+                ->take($remaining)
+                ->get(['content_id', 'text', 'language', 'tts_priority', 'tts_status', 'tts_locked_by', 'occurrence_count']);
+            $skip = 0;
+            foreach ($rows as $row) {
+                $items[] = [
+                    'content_id' => (string) $row->content_id,
+                    'text' => (string) $row->text,
+                    'language' => $lang,
+                    'tts_priority' => (int) ($row->tts_priority ?? 0),
+                    'tts_status' => (string) ($row->tts_status ?? 'pending'),
+                    'tts_locked_by' => $row->tts_locked_by,
+                    'occurrence_count' => (int) ($row->occurrence_count ?? 0),
+                ];
+                $remaining--;
+            }
+        }
+
+        return [
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'items' => $items,
+        ];
+    }
+
+    /** Relative audio path for a content_id + optional variant suffix. */
+    public function relativePathFor(string $language, string $contentId, ?string $variantKey = null): string
+    {
+        $suffix = ($variantKey !== null && $variantKey !== '') ? ('_' . $variantKey) : '';
+        return $language . '/' . $contentId . $suffix . '.mp3';
     }
 
     /**

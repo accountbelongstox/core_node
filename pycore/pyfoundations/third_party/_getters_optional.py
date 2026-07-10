@@ -273,62 +273,37 @@ def get_third_package_pyside6():
 # Windows-only packages
 def get_third_package_win32gui():
     """Get win32gui package (lazy load, Windows only)"""
-    if 'win32gui' not in _PACKAGE_CACHE:
-        current_platform = platform.system()
-        if current_platform == 'Windows':
-            import win32gui
-            _PACKAGE_CACHE['win32gui'] = win32gui
-        else:
-            _PACKAGE_CACHE['win32gui'] = None
-    return _PACKAGE_CACHE['win32gui']
+    if platform.system() != 'Windows':
+        return None
+    return _lazy_import('win32gui', 'import win32gui')
 
 
 def get_third_package_win32con():
     """Get win32con package (lazy load, Windows only)"""
-    if 'win32con' not in _PACKAGE_CACHE:
-        current_platform = platform.system()
-        if current_platform == 'Windows':
-            import win32con
-            _PACKAGE_CACHE['win32con'] = win32con
-        else:
-            _PACKAGE_CACHE['win32con'] = None
-    return _PACKAGE_CACHE['win32con']
+    if platform.system() != 'Windows':
+        return None
+    return _lazy_import('win32con', 'import win32con')
 
 
 def get_third_package_win32api():
     """Get win32api package (lazy load, Windows only)"""
-    if 'win32api' not in _PACKAGE_CACHE:
-        current_platform = platform.system()
-        if current_platform == 'Windows':
-            import win32api
-            _PACKAGE_CACHE['win32api'] = win32api
-        else:
-            _PACKAGE_CACHE['win32api'] = None
-    return _PACKAGE_CACHE['win32api']
+    if platform.system() != 'Windows':
+        return None
+    return _lazy_import('win32api', 'import win32api')
 
 
 def get_third_package_win32process():
     """Get win32process package (lazy load, Windows only)"""
-    if 'win32process' not in _PACKAGE_CACHE:
-        current_platform = platform.system()
-        if current_platform == 'Windows':
-            import win32process
-            _PACKAGE_CACHE['win32process'] = win32process
-        else:
-            _PACKAGE_CACHE['win32process'] = None
-    return _PACKAGE_CACHE['win32process']
+    if platform.system() != 'Windows':
+        return None
+    return _lazy_import('win32process', 'import win32process')
 
 
 def get_third_package_win32ui():
     """Get win32ui package (lazy load, Windows only)"""
-    if 'win32ui' not in _PACKAGE_CACHE:
-        current_platform = platform.system()
-        if current_platform == 'Windows':
-            import win32ui
-            _PACKAGE_CACHE['win32ui'] = win32ui
-        else:
-            _PACKAGE_CACHE['win32ui'] = None
-    return _PACKAGE_CACHE['win32ui']
+    if platform.system() != 'Windows':
+        return None
+    return _lazy_import('win32ui', 'import win32ui')
 
 
 def get_third_package_windows_ocr():

@@ -1,14 +1,12 @@
 <template>
   <div class="flex flex-col gap-2.5 h-[420px]">
-    <!-- ============================================================ -->
-    <!-- Horizontal extension tabs -->
-    <!-- ============================================================ -->
-    <div class="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5 shrink-0">
+    <!-- Extension menu: 2-row grid -->
+    <div class="grid grid-cols-3 gap-1 shrink-0">
       <button
         v-for="extension in extensions"
         :key="extension.id"
         @click="activeExtId = extension.id"
-        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] font-bold whitespace-nowrap transition-colors shrink-0"
+        class="flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 rounded-md text-[9px] font-bold leading-tight text-center transition-colors min-h-[44px]"
         :style="
           activeExtId === extension.id
             ? 'background: var(--accent-soft); color: var(--accent-fg); border: 1px solid var(--accent)'
@@ -16,52 +14,35 @@
         "
       >
         <span class="text-sm leading-none">{{ extension.icon }}</span>
-        {{ extension.name }}
+        <span class="line-clamp-2">{{ extension.name }}</span>
       </button>
     </div>
 
-    <!-- ============================================================ -->
+    <div v-if="activeExtension" class="flex items-center justify-end gap-1.5 shrink-0">
+      <span class="text-[8px] font-bold uppercase" style="color: var(--text-faint)">Enabled</span>
+      <button
+        @click="toggleExtension(activeExtension.id)"
+        :class="[
+          'relative inline-flex h-4 w-7 items-center rounded-full transition-colors shrink-0',
+          activeExtension.enabled ? 'bg-indigo-600' : 'bg-slate-500',
+        ]"
+        :aria-pressed="activeExtension.enabled"
+      >
+        <span
+          :class="[
+            'inline-block h-3 w-3 rounded-full bg-white transition-transform',
+            activeExtension.enabled ? 'translate-x-3.5' : 'translate-x-0.5',
+          ]"
+        />
+      </button>
+    </div>
+
     <!-- Active extension panel -->
-    <!-- ============================================================ -->
     <div
       v-if="activeExtension"
       class="flex-1 min-h-0 overflow-y-auto no-scrollbar rounded-lg"
       style="background: var(--surface); border: 1px solid var(--border)"
     >
-      <!-- Panel header: name + enable toggle -->
-      <div
-        class="flex items-center justify-between px-3 py-2 sticky top-0 z-10"
-        style="background: var(--surface); border-bottom: 1px solid var(--border)"
-      >
-        <div class="flex items-center gap-2 min-w-0">
-          <span class="text-sm leading-none">{{ activeExtension.icon }}</span>
-          <div class="min-w-0">
-            <div class="text-[11px] font-semibold truncate" style="color: var(--text)">
-              {{ activeExtension.name }}
-            </div>
-            <div class="text-[9px] truncate" style="color: var(--text-faint)">
-              {{ activeExtension.description }}
-            </div>
-          </div>
-        </div>
-        <button
-          @click="toggleExtension(activeExtension.id)"
-          :class="[
-            'relative inline-flex h-4 w-7 items-center rounded-full transition-colors shrink-0',
-            activeExtension.enabled ? 'bg-indigo-600' : 'bg-slate-500',
-          ]"
-          :aria-pressed="activeExtension.enabled"
-        >
-          <span
-            :class="[
-              'inline-block h-3 w-3 rounded-full bg-white transition-transform',
-              activeExtension.enabled ? 'translate-x-3.5' : 'translate-x-0.5',
-            ]"
-          />
-        </button>
-      </div>
-
-      <!-- Active component -->
       <div class="p-2.5">
         <component v-if="activeExtension.component" :is="activeExtension.component" />
         <div v-else class="text-[10px]" style="color: var(--text-faint)">

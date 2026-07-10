@@ -13,3 +13,4 @@ export { default as AudioIcon } from './AudioIcon.vue';
 export { default as SettingsIcon } from './SettingsIcon.vue';
 export { default as DebugIcon } from './DebugIcon.vue';
 export { default as TaskCenterIcon } from './TaskCenterIcon.vue';
+export { default as ImportIcon } from './ImportIcon.vue';

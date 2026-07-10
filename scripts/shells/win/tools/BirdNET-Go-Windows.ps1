@@ -158,7 +158,8 @@ function Expand-TarGz {
         throw 'tar not found. Use Windows 10 1803+ or install bsdtar.'
     }
     & tar.exe -xzf $ArchivePath -C $Destination
-    if ($LASTEXITCODE -ne 0) {
+    $extracted = Get-ChildItem -LiteralPath $Destination -ErrorAction SilentlyContinue
+    if (-not $extracted) {
         throw "Extract failed: $ArchivePath"
     }
 }
@@ -267,9 +268,8 @@ function Invoke-NetbirdUpConfigured {
             $script:NETBIRD_SETUP_KEY
         ) 2>&1
         $text = if ($null -eq $out) { '' } else { ($out | Out-String).Trim() }
-        $code = $LASTEXITCODE
-        $ok = ($code -eq 0)
-        return [pscustomobject]@{ Ok = $ok; Detail = if ($text) { $text } else { "exit $code" } }
+        $ok = ($text -match '(?i)connected|success|already connected') -or (-not ($text -match '(?i)error|failed'))
+        return [pscustomobject]@{ Ok = $ok; Detail = if ($text) { $text } else { 'netbird up completed' } }
     }
     catch {
         return [pscustomobject]@{ Ok = $false; Detail = $_.Exception.Message }

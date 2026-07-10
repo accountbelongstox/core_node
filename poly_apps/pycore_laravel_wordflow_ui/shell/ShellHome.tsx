@@ -72,6 +72,8 @@ export const ShellHome: React.FC = () => {
     let alive = true;
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 4000);
+    // DIRECT to the pycore backend (no /pyapi proxy). The sandbox has no
+    // reachable :59000, so there fall back to the same-origin /pyapi proxy.
     const isSandbox = location.hostname.includes('run.app') || location.port === '3000';
     const pingUrl = isSandbox ? '/pyapi/ping' : `${location.protocol}//${location.hostname}:59000/ping`;
     fetch(pingUrl, { signal: ctrl.signal })

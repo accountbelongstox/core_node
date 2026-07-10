@@ -106,6 +106,7 @@ class AppQyV1SentenceAudioController extends Controller
             'provider' => 'nullable|string|max:100',
             'error' => 'nullable|string|max:2000',
             'audio_base64' => 'nullable|string',
+            'variant_key' => 'nullable|string|max:32',
         ]);
 
         if ($validator->fails()) {
@@ -161,7 +162,8 @@ class AppQyV1SentenceAudioController extends Controller
                 $success,
                 $audioBinary,
                 $request->input('provider'),
-                $request->input('error')
+                $request->input('error'),
+                $request->input('variant_key')
             );
         } catch (\Throwable $e) {
             Log::error('[SentenceAudio] report failed', [
@@ -221,6 +223,74 @@ class AppQyV1SentenceAudioController extends Controller
         $status = ($result['success'] ?? false) ? 200 : 422;
 
         return response()->json($result, $status);
+    }
+
+    /**
+     * POST /api/app_qy_v1/ai_tools/tts/sentence/bump
+     * Body: { content_id|hash, language, interactive?: bool, create_task?: bool }
+     */
+    public function bump(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'content_id' => 'nullable|string|max:64',
+            'hash' => 'nullable|string|max:64',
+            'language' => 'required|string|max:20',
+            'interactive' => 'nullable|boolean',
+            'create_task' => 'nullable|boolean',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation failed: ' . $validator->errors()->first(),
+            ], 422);
+        }
+        $contentId = $request->input('content_id') ?? $request->input('hash');
+        if (!$contentId) {
+            return response()->json(['success' => false, 'error' => 'content_id or hash is required'], 422);
+        }
+        try {
+            $result = $this->service->bumpPriority(
+                (string) $contentId,
+                (string) $request->input('language'),
+                filter_var($request->input('create_task', true), FILTER_VALIDATE_BOOLEAN),
+                filter_var($request->input('interactive', true), FILTER_VALIDATE_BOOLEAN)
+            );
+        } catch (\Throwable $e) {
+            Log::error('[SentenceAudio] bump failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'error' => 'Internal error during bump'], 500);
+        }
+        $ok = (bool) ($result['ok'] ?? false);
+        return response()->json(array_merge(['success' => $ok], $result), $ok ? 200 : 422);
+    }
+
+    /**
+     * GET /api/app_qy_v1/ai_tools/tts/sentence/missing
+     * Query: language?, page?, per_page?
+     */
+    public function missing(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'language' => 'nullable|string|max:20',
+            'page' => 'nullable|integer|min:1',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation failed: ' . $validator->errors()->first(),
+            ], 422);
+        }
+        try {
+            $data = $this->service->listMissing(
+                $request->query('language'),
+                (int) $request->query('page', 1),
+                (int) $request->query('per_page', 50)
+            );
+        } catch (\Throwable $e) {
+            Log::error('[SentenceAudio] missing list failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'error' => 'Internal error'], 500);
+        }
+        return response()->json(['success' => true, 'data' => $data]);
     }
 
     /**

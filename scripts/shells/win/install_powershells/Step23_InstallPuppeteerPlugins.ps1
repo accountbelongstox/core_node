@@ -101,10 +101,11 @@ if (Test-Path $puppeteerCorePath) {
     if ($stdout) { Write-Host $stdout }
     if ($stderr) { Write-Host $stderr -ForegroundColor Yellow }
 
-    if ($process.ExitCode -eq 0) {
+    $patchMarker = Join-Path $puppeteerCorePath "node_modules\.cache\rebrowser-patches"
+    if ((Test-Path $patchMarker) -or (Get-ChildItem -Path $puppeteerCorePath -Recurse -Filter "*.patch" -ErrorAction SilentlyContinue | Select-Object -First 1)) {
         Write-Host "[$ScriptIndex] Patching completed successfully" -ForegroundColor Green
     } else {
-        Write-Host "[$ScriptIndex] Patching failed with exit code: $($process.ExitCode)" -ForegroundColor Yellow
+        Write-Host "[$ScriptIndex] Patching may not have completed; check rebrowser-patches output above" -ForegroundColor Yellow
     }
 } else {
     Write-Host "[$ScriptIndex] puppeteer-core not found at global location, skipping patches" -ForegroundColor Yellow

@@ -2,9 +2,9 @@
  * PycoreHealth — reachability state + all-Offline retry loop for the
  * pycore-manager end.
  *
- * The pycore end has a single "endpoint": the pycore backend at :59000 (direct,
- * no proxy by default; only sandbox uses /pyapi proxy). Health = GET /ping
- * answers 2xx within the probe timeout. The shared STORED-FIRST detection
+ * The pycore end has a single "endpoint": the pycore backend behind the
+ * /pyapi proxy (dev: Vite proxy to :59000). Health = GET /pyapi/ping answers
+ * 2xx within the probe timeout. The shared STORED-FIRST detection
  * contract degenerates here to that single probe (there is nothing to sweep or
  * fail over to), so every check costs exactly one request. Same contract as the
  * other two ends:

@@ -97,7 +97,8 @@ function Stop-DisableHttpIisServices {
         # Stop IIS services using iisreset
         Write-Host "[Step 2] Stopping IIS services..." -ForegroundColor Yellow
         $iisResetResult = & iisreset /stop 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        $w3svc = Get-Service W3SVC -ErrorAction SilentlyContinue
+        if ($w3svc -and $w3svc.Status -eq 'Stopped') {
             Write-Host "[Step 2] IIS services stopped successfully." -ForegroundColor Green
         } else {
             Write-Host "[Step 2] IIS services may not be running or already stopped." -ForegroundColor Yellow
@@ -106,7 +107,8 @@ function Stop-DisableHttpIisServices {
         # Stop HTTP service
         Write-Host "[Step 2] Stopping HTTP service..." -ForegroundColor Yellow
         $httpStopResult = & net stop http 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        $httpSvc = Get-Service HTTP -ErrorAction SilentlyContinue
+        if ($httpSvc -and $httpSvc.Status -eq 'Stopped') {
             Write-Host "[Step 2] HTTP service stopped successfully." -ForegroundColor Green
         } else {
             Write-Host "[Step 2] HTTP service may not be running or already stopped." -ForegroundColor Yellow
@@ -435,21 +437,17 @@ function Set-Win10ContextMenuRegistry {
         # Import registry file (try reg.exe first, fallback to regedit.exe)
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Executing registry import with reg.exe..." -Type "Info"
         $result = Start-Process -FilePath "reg.exe" -ArgumentList "import", "`"$regFile`"" -Wait -PassThru -WindowStyle Hidden
-        
-        # If reg.exe fails, try regedit.exe as fallback
-        if ($result.ExitCode -ne 0) {
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] reg.exe failed, trying regedit.exe as fallback..." -Type "Warning"
+
+        $contextMenuKey = 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\runas'
+        if (-not (Test-Path $contextMenuKey)) {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] reg.exe import did not create expected key, trying regedit.exe as fallback..." -Type "Warning"
             $result = Start-Process -FilePath "regedit.exe" -ArgumentList "/s", "`"$regFile`"" -Wait -PassThru -WindowStyle Hidden
         }
-        
-        if ($result.ExitCode -eq 0) {
+
+        if (Test-Path $contextMenuKey) {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Registry imported successfully." -Type "Success"
         } else {
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Registry import failed with exit code: $($result.ExitCode)" -Type "Error"
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Common exit codes:" -Type "Error"
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] - Exit code 1: File not found or invalid format" -Type "Error"
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] - Exit code 2: Syntax error in registry file" -Type "Error"
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] - Exit code 5: Access denied (run as administrator)" -Type "Error"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Registry import failed" -Type "Error"
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Manual test commands:" -Type "Error"
             Write-ColorMessage -Message "[Step $STEP_NUMBER]   reg.exe import `"$regFile`"" -Type "Error"
             Write-ColorMessage -Message "[Step $STEP_NUMBER]   regedit.exe /s `"$regFile`"" -Type "Error"

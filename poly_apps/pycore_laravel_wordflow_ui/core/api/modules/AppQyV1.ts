@@ -463,6 +463,32 @@ export class AppQyV1API extends BaseAPI {
     return this.post<SentenceAudioClaimSummary>('/ai_tools/tts/sentence/claim', { limit: 0, language: language ?? null });
   }
 
+  /** POST /ai_tools/tts/sentence/bump — raise tts_priority + optional fast task. */
+  async bumpSentenceAudio(contentId: string, language: string, interactive = true): Promise<APIResponse> {
+    return this.post('/ai_tools/tts/sentence/bump', {
+      content_id: contentId,
+      language,
+      interactive,
+      create_task: true,
+    });
+  }
+
+  /** GET /ai_tools/tts/sentence/missing — paginated sentences awaiting audio. */
+  async listMissingSentenceAudio(opts?: {
+    language?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<APIResponse<{ total: number; page: number; per_page: number; items: Array<{
+    content_id: string;
+    text: string;
+    language: string;
+    tts_priority: number;
+    tts_status: string;
+    occurrence_count: number;
+  }> }>> {
+    return this.get('/ai_tools/tts/sentence/missing', opts as Record<string, any>, false);
+  }
+
   // ========== Image Generation ==========
   async generateImage(data: { prompt: string; style?: string; size?: string; quality?: string }): Promise<APIResponse> {
     return this.post('/ai_tools/image/generate', data);

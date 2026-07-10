@@ -58,29 +58,25 @@ function Test-WSL2Version {
         # Test basic WSL command
         $wslVersionOutput = & wsl --version 2>&1
 
-        if ($LASTEXITCODE -eq 0) {
-            # Check if output contains WSL version info
-            $outputString = $wslVersionOutput -join " "
-            if ($outputString -like "*WSL version*") {
-                Write-StepMessage -Message "WSL2 is properly installed and working" -Type "Success"
+        # Check if output contains WSL version info
+        $outputString = $wslVersionOutput -join " "
+        if ($outputString -like "*WSL version*") {
+            Write-StepMessage -Message "WSL2 is properly installed and working" -Type "Success"
 
-                # Try to extract version number
-                foreach ($line in $wslVersionOutput) {
-                    if ($line -like "*WSL version*") {
-                        $versionLine = $line.ToString().Trim()
-                        if ($versionLine -match "(\d+\.\d+\.\d+\.\d+)") {
-                            Write-StepMessage -Message "WSL version: $($matches[1])" -Type "Info"
-                        }
-                        break
+            # Try to extract version number
+            foreach ($line in $wslVersionOutput) {
+                if ($line -like "*WSL version*") {
+                    $versionLine = $line.ToString().Trim()
+                    if ($versionLine -match "(\d+\.\d+\.\d+\.\d+)") {
+                        Write-StepMessage -Message "WSL version: $($matches[1])" -Type "Info"
                     }
+                    break
                 }
-
-                return $true
-            } else {
-                Write-StepMessage -Message "WSL command succeeded but no version info found" -Type "Warning"
             }
+
+            return $true
         } else {
-            Write-StepMessage -Message "WSL version command failed (Exit code: $LASTEXITCODE)" -Type "Warning"
+            Write-StepMessage -Message "WSL command succeeded but no version info found" -Type "Warning"
         }
     } catch {
         Write-StepMessage -Message "WSL2 version check failed: $_" -Type "Warning"
@@ -89,12 +85,12 @@ function Test-WSL2Version {
     # Try alternative check - test if WSL2 is available
     try {
         Write-StepMessage -Message "Trying alternative WSL check..." -Type "Info"
-        & wsl --list --verbose 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) {
+        $wslListOutput = & wsl --list --verbose 2>&1
+        if ("$wslListOutput" -match '(?m)^\s*\*?\s*\S') {
             Write-StepMessage -Message "WSL is available and working" -Type "Success"
             return $true
         } else {
-            Write-StepMessage -Message "WSL list command failed (Exit code: $LASTEXITCODE)" -Type "Warning"
+            Write-StepMessage -Message "WSL list command returned no distributions" -Type "Warning"
         }
     } catch {
         Write-StepMessage -Message "WSL list command also failed: $_" -Type "Warning"
@@ -314,7 +310,8 @@ function Install-UbuntuWSL {
             }
             
             & wsl --import $script:UBUNTU_DISTRO_NAME $Global:WSL_UBUNTU_DISK_DIR $WSLFilePath
-            if ($LASTEXITCODE -eq 0) {
+            $wslListAfterImport = & wsl --list --verbose 2>&1
+            if (("$wslListAfterImport" -match [regex]::Escape($script:UBUNTU_DISTRO_NAME)) -and (Test-Path $Global:WSL_UBUNTU_DISK_DIR)) {
                 Write-StepMessage -Message "Ubuntu installed successfully from downloaded file to: $Global:WSL_UBUNTU_DISK_DIR" -Type "Success"
                 return $true
             }
@@ -327,7 +324,8 @@ function Install-UbuntuWSL {
     Write-StepMessage -Message "Using WSL2 native installation method..." -Type "Info"
     try {
         & wsl --install -d Ubuntu-24.04
-        if ($LASTEXITCODE -eq 0) {
+        $wslListAfterInstall = & wsl --list --verbose 2>&1
+        if ("$wslListAfterInstall" -match 'Ubuntu-24\.04|Ubuntu 24\.04') {
             Write-StepMessage -Message "Ubuntu installed successfully using native method" -Type "Success"
             return $true
         }
@@ -399,28 +397,24 @@ function Restart-UbuntuWSL {
             Write-Host "  -> Starting $distroName..." -ForegroundColor Yellow
             & wsl -d $distroName echo "Ubuntu WSL started successfully" 2>&1 | Out-Null
 
-            if ($LASTEXITCODE -eq 0) {
-                # Verify it's running
-                Write-Host "  -> Verifying startup..." -ForegroundColor Yellow
-                Start-Sleep -Seconds 2
-                $verifyOutput = & wsl --list --verbose 2>&1
-                $isRunning = $false
-                foreach ($line in $verifyOutput) {
-                    $cleanLine = $line.ToString() -replace '\x00', '' | ForEach-Object { $_.Trim() }
-                    if ($cleanLine.IndexOf($distroName) -ge 0 -and $cleanLine.IndexOf("Running") -ge 0) {
-                        $isRunning = $true
-                        break
-                    }
+            # Verify it's running
+            Write-Host "  -> Verifying startup..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 2
+            $verifyOutput = & wsl --list --verbose 2>&1
+            $isRunning = $false
+            foreach ($line in $verifyOutput) {
+                $cleanLine = $line.ToString() -replace '\x00', '' | ForEach-Object { $_.Trim() }
+                if ($cleanLine.IndexOf($distroName) -ge 0 -and $cleanLine.IndexOf("Running") -ge 0) {
+                    $isRunning = $true
+                    break
                 }
+            }
 
-                if ($isRunning) {
-                    Write-Host "  -> Confirmed: $distroName is running" -ForegroundColor Green
-                    Write-StepMessage -Message "$distroName restarted successfully" -Type "Success"
-                } else {
-                    Write-Host "  -> Warning: $distroName may not be running properly" -ForegroundColor Yellow
-                    Write-StepMessage -Message "$distroName started but status unclear" -Type "Warning"
-                }
+            if ($isRunning) {
+                Write-Host "  -> Confirmed: $distroName is running" -ForegroundColor Green
+                Write-StepMessage -Message "$distroName restarted successfully" -Type "Success"
             } else {
+                Write-Host "  -> Warning: $distroName may not be running properly" -ForegroundColor Yellow
                 Write-StepMessage -Message "Failed to start $distroName" -Type "Error"
                 $allRestarted = $false
             }
@@ -445,7 +439,7 @@ function Get-InstalledUbuntu24Distros {
 
     try {
         $wslList = & wsl --list 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        if ("$wslList" -match '(?m)^\s*\*?\s*\S') {
             $ubuntu24Distros = @()
             foreach ($line in $wslList) {
                 # Convert to string and handle UTF-16 encoding issues
@@ -496,7 +490,8 @@ function Uninstall-UbuntuWSL {
 
             # Unregister the distro
             & wsl --unregister $distroName
-            if ($LASTEXITCODE -eq 0) {
+            $wslListAfterUnregister = & wsl --list --verbose 2>&1
+            if ("$wslListAfterUnregister" -notmatch [regex]::Escape($distroName)) {
                 Write-StepMessage -Message "Successfully uninstalled: $distroName" -Type "Success"
             } else {
                 Write-StepMessage -Message "Failed to uninstall: $distroName" -Type "Error"
@@ -626,17 +621,8 @@ function Invoke-WSLUbuntuAction {
 
 # Main execution
 try {
-    $result = Invoke-WSLUbuntuAction -ActionType $Action
-
-    if ($result) {
-        Write-StepMessage -Message "WSL Ubuntu 24 action '$Action' completed successfully" -Type "Success"
-        exit 0
-    } else {
-        Write-StepMessage -Message "WSL Ubuntu 24 action '$Action' failed" -Type "Error"
-        exit 1
-    }
+    Invoke-WSLUbuntuAction -ActionType $Action
 } catch {
     Write-StepMessage -Message "An error occurred during execution: $_" -Type "Error"
-    exit 1
 }
 #endregion

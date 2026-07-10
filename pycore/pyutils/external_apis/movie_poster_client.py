@@ -12,11 +12,13 @@ Flow (see find_poster):
      DBs index by English/original titles. Uses pycore's existing async
      GoogleTranslator (same as the translation worker), run on a private event
      loop because this can execute on any thread.
-  2. Query TMDB ``search/multi`` (v4 Bearer token preferred, else v3 api_key),
+  2. Query SerpApi Google Images (engine=google_images) and download the FIRST
+     result image (preferred for real books/documents; also used for movies).
+  3. Query TMDB ``search/multi`` (v4 Bearer token preferred, else v3 api_key),
      pick the first result with a poster_path, download w780 poster bytes.
-  3. On TMDB miss / no key / error, fall back to OMDB (?apikey=&t=&y=) and
+  4. On TMDB miss / no key / error, fall back to OMDB (?apikey=&t=&y=) and
      download the ``Poster`` URL (unless "N/A").
-  4. Return the poster result object (§3 of the contract) or None.
+  5. Return the poster result object (§3 of the contract) or None.
 
 pycore rules honored here:
   * Networking ONLY via get_third_package_requests (never ``import requests``).
@@ -39,6 +41,10 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyutils.translator.google_translator import GoogleTranslator
+from pycore.pyutils.external_apis.image_search_client import (
+    build_poster_query,
+    find_first_image_poster,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -418,13 +424,17 @@ def find_poster(
     title: str,
     year: Optional[int] = None,
     language: str = "en",
+    kind: str = "movie",
 ) -> Optional[Dict[str, Any]]:
-    """Find a movie/TV poster for ``title`` (+ optional ``year``).
+    """Find a movie/TV/book poster for ``title`` (+ optional ``year``).
 
-    CJK / non-Latin titles are translated to English first. Tries TMDB
-    (v4 Bearer token preferred, else v3 api_key); on miss / no key / error falls
-    back to OMDB. Returns the §3 poster result object
-    ``{provider, source_id, mime, image_base64, meta}`` or None.
+    CJK / non-Latin titles are translated to English first. Tries SerpApi Google
+    Images (first result), then TMDB (v4 Bearer token preferred, else v3
+    api_key); on miss / no key / error falls back to OMDB. Returns the §3 poster
+    result object ``{provider, source_id, mime, image_base64, meta}`` or None.
+
+    ``kind`` is ``"movie"`` (default) or ``"book"`` — controls the image-search
+    query suffix ("movie poster" vs "book cover").
 
     NEVER raises — any failure logs via ColorPrint and returns None.
     """
@@ -436,6 +446,15 @@ def find_poster(
         query_title = clean
         if _looks_non_latin(clean):
             query_title = _translate_to_english(clean)
+
+        poster_kind = kind if kind in ("book", "movie") else "movie"
+        image_query = build_poster_query(query_title, year, kind=poster_kind)
+        if image_query:
+            result = find_first_image_poster(image_query)
+            if result:
+                ColorPrint.green(
+                    f"[MoviePoster] SerpApi poster for '{clean}' -> {result['source_id']}")
+                return result
 
         result = _tmdb_find(query_title, year, language)
         if result:

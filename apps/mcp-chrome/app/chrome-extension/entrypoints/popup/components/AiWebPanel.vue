@@ -2,10 +2,7 @@
   <div class="space-y-2">
     <!-- Provider + one-click assist -->
     <div class="tk-card rounded-lg p-2.5 border">
-      <div class="flex items-center justify-between mb-2">
-        <h4 class="text-[9px] font-bold uppercase tracking-tight" style="color: var(--text-muted)">
-          Web AI Assist (ChatGPT / Gemini)
-        </h4>
+      <div class="flex items-center justify-end mb-2">
         <span
           :class="[
             'text-[9px] font-bold px-1.5 py-0.5 rounded',
@@ -84,14 +81,18 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted } from 'vue';
-import { apiManager } from '@/services/ApiManager';
+import { ref, onMounted, watch } from 'vue';
+import { useApiEndpoint } from '@/composables/useApiEndpoint';
 
 type Provider = 'chatgpt' | 'gemini';
 const providers: Provider[] = ['chatgpt', 'gemini'];
 
 const provider = ref<Provider>('chatgpt');
+const { apiBaseUrl } = useApiEndpoint();
 const apiUrl = ref('');
+watch(apiBaseUrl, (url) => {
+  if (url) apiUrl.value = url;
+}, { immediate: true });
 const prompt = ref('');
 const withAudio = ref(false);
 const running = ref(false);
@@ -154,11 +155,6 @@ const runTest = async () => {
 };
 
 onMounted(async () => {
-  try {
-    apiUrl.value = apiManager.getCurrentBaseUrl() || 'http://localhost:9000';
-  } catch {
-    apiUrl.value = 'http://localhost:9000';
-  }
   const p = await send('get_provider');
   if (p && p.success && p.provider) provider.value = p.provider;
   await refreshStatus();

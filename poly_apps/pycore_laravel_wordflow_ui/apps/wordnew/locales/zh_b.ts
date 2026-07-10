@@ -375,6 +375,7 @@ export const zhLocaleB: Record<string, string> = {
     'reader.modeSimul': '对照',
     'reader.playAudio': '播放音频',
     'reader.audioGenerating': '音频尚未生成',
+    'reader.retryAudio': '重试生成音频',
     'reader.playSettings': '播放设置',
     'reader.speed': '播放速度',
     'reader.playLanguage': '播放语言',

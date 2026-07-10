@@ -53,6 +53,12 @@
   background: var(--surface);
 }
 
+.ba-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
 /* --------------------------------------------------------------------------
    Header: brand + live status + primary action.
    -------------------------------------------------------------------------- */

@@ -28,7 +28,6 @@ if (-not (Test-Path $APKTOOL_INSTALL_DIR)) {
         Write-ColorMessage -Message "Installation directory created successfully." -Type "Success"
     } catch {
         Write-ColorMessage -Message "Failed to create installation directory: $_" -Type "Error"
-        exit 1
     }
 } else {
     Write-ColorMessage -Message "Installation directory already exists." -Type "Info"
@@ -123,7 +122,6 @@ try {
     Write-ColorMessage -Message "apktool.ps1 created successfully." -Type "Success"
 } catch {
     Write-ColorMessage -Message "Failed to create apktool.ps1: $_" -Type "Error"
-    exit 1
 }
 
 # Apktool.bat content: always call the ps1 in the same directory
@@ -142,7 +140,6 @@ try {
     Write-ColorMessage -Message "apktool.bat created successfully." -Type "Success"
 } catch {
     Write-ColorMessage -Message "Failed to create apktool.bat: $_" -Type "Error"
-    exit 1
 }
 
 # 3. Download apktool.jar
@@ -153,7 +150,6 @@ if (-not (Test-Path $APKTOOL_JAR_PATH)) {
         Write-ColorMessage -Message "apktool.jar downloaded successfully." -Type "Success"
     } catch {
         Write-ColorMessage -Message "Failed to download apktool.jar: $_" -Type "Error"
-        exit 1
     }
 } else {
     Write-ColorMessage -Message "apktool.jar already exists." -Type "Success"
@@ -164,7 +160,6 @@ if ((Test-Path $APKTOOL_BAT_PATH) -and (Test-Path $APKTOOL_JAR_PATH) -and (Test-
     Write-ColorMessage -Message "Apktool installation successful (bat, ps1, jar all exist)" -Type "Success"
 } else {
     Write-ColorMessage -Message "Apktool installation incomplete (please check bat/ps1/jar)" -Type "Error"
-    exit 1
 }
 
 # Update PATH environment variable if needed

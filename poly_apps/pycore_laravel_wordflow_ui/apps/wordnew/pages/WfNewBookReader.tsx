@@ -76,6 +76,8 @@ interface RowProps {
   /** Fire an on-demand resolve/enqueue for a cell that lacks audio or a translation
    *  (mirrors WfNewLibraryPage.requestWordMedia; deduped once per cell upstream). */
   onNeedMedia: (verse: WfNewBookVerse, lang: string, text: string | null, hasAudio: boolean) => void;
+  /** Manual retry when user taps play on a cell still generating audio. */
+  onRetryAudio: (verse: WfNewBookVerse, lang: string, text: string) => void;
 }
 
 const keyOf = (v: WfNewBookVerse, lang: string) => `${v.grain}-${v.seq}-${lang}`;
@@ -85,7 +87,7 @@ const keyOf = (v: WfNewBookVerse, lang: string) => `${v.grain}-${v.seq}-${lang}`
 // longer overlap the next verse. Each chapter page is capped to PER_PAGE verses,
 // so a plain flow list stays performant.
 const VerseRow: React.FC<RowProps & { verse: WfNewBookVerse; index: number }> = ({
-  verse: v, index, selectedLangs, trans, langName, playingKey, onPlay, onNeedMedia,
+  verse: v, index, selectedLangs, trans, langName, playingKey, onPlay, onNeedMedia, onRetryAudio,
 }) => {
   // On render, for every selected language cell that is genuinely missing content
   // (text present but no audio, OR no translation at all), fire ONE on-demand
@@ -131,17 +133,20 @@ const VerseRow: React.FC<RowProps & { verse: WfNewBookVerse; index: number }> = 
                 {/* per-cell audio play */}
                 <button
                   type="button"
-                  disabled={!text || !hasAudio}
-                  onClick={() => onPlay(v, lang)}
-                  title={!text ? '' : hasAudio ? trans('reader.playAudio') : trans('reader.audioGenerating')}
+                  disabled={!text}
+                  onClick={() => {
+                    if (hasAudio) onPlay(v, lang);
+                    else if (text?.trim()) onRetryAudio(v, lang, text);
+                  }}
+                  title={!text ? '' : hasAudio ? trans('reader.playAudio') : trans('reader.retryAudio')}
                   className={`shrink-0 mt-0.5 p-1 rounded transition-all cursor-pointer ${
                     !text
                       ? 'opacity-0 pointer-events-none'
                       : hasAudio
                         ? (isPlaying ? 'text-amber-300' : 'text-zinc-500 hover:text-amber-300 opacity-0 group-hover:opacity-100')
-                        : 'text-zinc-700 cursor-not-allowed opacity-50'
+                        : 'text-amber-500/70 hover:text-amber-300 opacity-100 animate-pulse'
                   }`}
-                  aria-label={trans('reader.playAudio')}
+                  aria-label={hasAudio ? trans('reader.playAudio') : trans('reader.retryAudio')}
                 >
                   {hasAudio ? <Volume2 className={`w-3.5 h-3.5 ${isPlaying ? 'animate-pulse' : ''}`} /> : <VolumeX className="w-3.5 h-3.5" />}
                 </button>
@@ -213,42 +218,27 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const reloadRef = useRef<() => void>(() => {});
 
   const requestCellMedia = useCallback(
-    (verse: WfNewBookVerse, lang: string, text: string | null, _hasAudio: boolean) => {
+    (verse: WfNewBookVerse, lang: string, text: string | null, hasAudio: boolean) => {
       const cellKey = `${keyOf(verse, lang)}:${(text || '').slice(0, 64)}`;
       if (requestedCellKeys.current.has(cellKey)) return;
+      if (!text || !text.trim()) return;
       requestedCellKeys.current.add(cellKey);
 
-      // Batch this cell's words (the sentence split on whitespace) through the SAME
-      // api the library page uses. The first word's resolve is enough to create the
-      // fast task; we resolve a small, de-duplicated set to cover the sentence.
-      const words = (text || '')
-        .split(/\s+/)
-        .map((w) => w.replace(/[^\p{L}\p{N}'-]/gu, ''))
-        .filter(Boolean);
-      const uniqueWords = Array.from(new Set(words)).slice(0, 8);
-      // Translation-only cells (no source text) still need a task: fall back to the
-      // verse's primary-language text so the backend has something to resolve.
-      const fallback = (verse.text || '').trim();
-      const targets = uniqueWords.length ? uniqueWords : (fallback ? [fallback] : []);
-      if (!targets.length) return;
-
-      const maxTries = 3;
+      const maxTries = 5;
       const intervalMs = 4000;
 
-      const fireOnce = () => Promise.allSettled(
-        targets.map((w) => wfNewApi.getWordMedia(lang, w)),
-      );
-
       const attempt = (tries: number): void => {
-        fireOnce()
-          .then((results) => {
-            const anyReady = results.some(
-              (r) => r.status === 'fulfilled'
-                && (r.value.audioStatus === 'ready' || r.value.imageStatus === 'ready'),
-            );
-            // Refresh the page so a now-ready cell flips from "generating" to playable.
-            if (anyReady) reloadRef.current();
-            if (!anyReady && tries < maxTries) {
+        wfNewApi.resolveSentenceAudio(text, lang)
+          .then(async (r) => {
+            if (r.exists && r.url) {
+              reloadRef.current();
+              return;
+            }
+            const cid = r.content_id || r.hash;
+            if (cid && tries === 1) {
+              try { await wfNewApi.bumpSentenceAudio(cid, lang); } catch { /* best-effort */ }
+            }
+            if (tries < maxTries) {
               const t = setTimeout(() => {
                 mediaPollTimers.current.delete(t);
                 attempt(tries + 1);
@@ -257,13 +247,31 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
             }
           })
           .catch(() => {
-            // Allow a later render to retry after a transient failure.
             requestedCellKeys.current.delete(cellKey);
           });
       };
       attempt(1);
     },
     [],
+  );
+
+  const retryCellAudio = useCallback(
+    (verse: WfNewBookVerse, lang: string, text: string) => {
+      const cellKey = `${keyOf(verse, lang)}:${text.slice(0, 64)}`;
+      requestedCellKeys.current.delete(cellKey);
+      void wfNewApi.resolveSentenceAudio(text, lang)
+        .then(async (r) => {
+          const cid = r.content_id || r.hash;
+          if (cid) {
+            try { await wfNewApi.bumpSentenceAudio(cid, lang); } catch { /* best-effort */ }
+          }
+          requestCellMedia(verse, lang, text, false);
+        })
+        .catch(() => {
+          requestCellMedia(verse, lang, text, false);
+        });
+    },
+    [requestCellMedia],
   );
 
   // --- load verses for a chapter (or flat) at a given page ----------------- #
@@ -460,7 +468,10 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   );
 
   // Shared per-row props (a plain flow list — no fixed row height to overflow).
-  const rowProps: RowProps = { selectedLangs, trans, langName, playingKey, onPlay: playCell, onNeedMedia: requestCellMedia };
+  const rowProps: RowProps = {
+    selectedLangs, trans, langName, playingKey, onPlay: playCell,
+    onNeedMedia: requestCellMedia, onRetryAudio: retryCellAudio,
+  };
 
   return (
     <div className="space-y-5">

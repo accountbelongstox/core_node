@@ -67,13 +67,7 @@
     <!-- Main Content -->
     <main class="flex-1 p-3 overflow-hidden relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-500/5 via-slate-950 to-slate-950">
       <div class="h-full flex flex-col">
-        <div class="flex items-center justify-between mb-2 shrink-0">
-          <h2 class="text-sm font-black text-white tracking-tight flex items-center gap-2">
-            {{ tabs.find(t => t.id === activeTab)?.label }}
-            <span class="h-0.5 w-8 bg-indigo-500/30 rounded-full"></span>
-          </h2>
-        </div>
-        <div class="flex-1 overflow-y-auto pr-1 no-scrollbar">
+        <div class="flex-1 overflow-y-auto pr-1 no-scrollbar min-h-0">
       <!-- Server Tab -->
       <div v-show="activeTab === 'server'" class="space-y-2">
         <div class="flex items-center justify-between p-3 bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg border border-slate-700 shadow-lg">
@@ -171,6 +165,11 @@
       <!-- Tasks Tab: unified local Task Center (global queue live + history). -->
       <div v-show="activeTab === 'tasks'">
         <TaskCenterPanel />
+      </div>
+
+      <!-- Import Tab -->
+      <div v-show="activeTab === 'import'">
+        <ImportToolsPanel />
       </div>
 
       <!-- Extensions Tab -->
@@ -280,6 +279,7 @@ import AiWebPanel from './components/AiWebPanel.vue';
 import LanguageSelector from './components/LanguageSelector.vue';
 import SettingsCenter from './components/SettingsCenter.vue';
 import TaskCenterPanel from './components/extensions/TaskCenterPanel.vue';
+import ImportToolsPanel from './components/ImportToolsPanel.vue';
 import EndpointDropdown from './components/EndpointDropdown.vue';
 import {
   DocumentIcon,
@@ -296,6 +296,7 @@ import {
   SettingsIcon,
   DebugIcon,
   TaskCenterIcon,
+  ImportIcon,
 } from './components/icons';
 import { useAppStore } from '@/composables/useAppStore';
 import { usePersistedRef } from '@/composables/usePersistedRef';
@@ -342,6 +343,7 @@ const tabs = [
   { id: 'server', label: 'Server', iconComponent: ServerIcon },
   { id: 'data', label: 'Data', iconComponent: DataIcon },
   { id: 'tasks', label: 'Tasks', iconComponent: TaskCenterIcon },
+  { id: 'import', label: 'Import', iconComponent: ImportIcon },
   { id: 'extensions', label: 'Extensions', iconComponent: ExtensionIcon },
   { id: 'aiweb', label: 'Web AI', iconComponent: ExtensionIcon },
   { id: 'audio', label: 'Audio', iconComponent: AudioIcon },

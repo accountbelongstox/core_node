@@ -48,8 +48,7 @@ if (-not (Get-Command Get-CoreNodeDir -ErrorAction SilentlyContinue)) {
     if (Test-Path $globalVarsPath) {
         . $globalVarsPath
     } else {
-        Write-Error "ERROR: GlobalVars.ps1 not found. Cannot determine core_node directory."
-        exit 1
+        throw "ERROR: GlobalVars.ps1 not found. Cannot determine core_node directory."
     }
 }
 
@@ -253,7 +252,17 @@ function Invoke-SecretDecryptAll {
     try {
         $result = & $Global:NODE_EXE_PATH $batchDecryptJs $allArgs 2>&1
 
-        if ($LASTEXITCODE -eq 0) {
+        $allDecrypted = $true
+        foreach ($encryptedFile in $encryptedFiles) {
+            $baseName = [System.IO.Path]::GetFileNameWithoutExtension($encryptedFile.Name)
+            $decryptedPath = Join-Path $OutputDir $baseName
+            if (-not ((Test-Path $decryptedPath) -and ((Get-Item $decryptedPath).Length -gt 0))) {
+                $allDecrypted = $false
+                break
+            }
+        }
+
+        if ($allDecrypted) {
             Write-Host $result
 
             # Keep each decrypted raw file's timestamp in sync with its encrypted

@@ -112,7 +112,8 @@ async def list_items(request: BooksListRequest):
     return await asyncio.to_thread(
         controller.list_items, request.path, request.kind, request.start,
         request.limit, request.formats, request.language, request.refresh,
-        request.max_files, request.chapter_index, request.languages, request.grain)
+        request.max_files, request.chapter_index, request.languages, request.grain,
+        request.sort_order, request.query, request.view_language)
 
 
 @router.post("/analyze-upload", response_model=BooksAnalyzeResponse)

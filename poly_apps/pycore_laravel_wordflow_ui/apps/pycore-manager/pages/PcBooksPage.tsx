@@ -36,6 +36,8 @@ import type {
 } from '../../../core/api-libs/pycore';
 import { WF_SUPPORTED_LANGUAGES } from '../../../core/api-libs/wordflow/wordflowLanguages';
 import { PcCoreBookPanel } from './PcCoreBookPage';
+import PcSentenceAudioPanel from '../components/PcSentenceAudioPanel';
+import PcBookSourceExplorer from '../components/PcBookSourceExplorer';
 
 // i18n labels (single source; the pages use literals, not a `t` object).
 const L = {
@@ -170,6 +172,10 @@ const L = {
   flAudio: 'Synthesizing audio',                      // 合成语音
   flAudioUpload: 'Uploading audio',                   // 上传语音
   flSubmit: 'Submitting',                             // 提交中
+  explore: 'Explore',                                  // 浏览
+  exploreHint: 'Languages · sentences · chapters · sortable words · searchable sentences',
+  metaLangs: 'languages',                              // 语言
+  metaChapters: 'chapters',                            // 章
   flDone: 'Done',                                     // 完成
   flError: 'Error',                                   // 错误
 };
@@ -220,6 +226,8 @@ const PcBooksPage: React.FC = () => {
   >(null);
   // Persisted per-source state (submission_state etc.) keyed by path.
   const [sourceStates, setSourceStates] = useState<Record<string, BookSourceState>>({});
+  // Cached list totals (chapters etc.) keyed by path — filled after analyze.
+  const [bookMeta, setBookMeta] = useState<Record<string, Record<string, number>>>({});
 
   // --- language multi-select (>=1; primary auto-checked + locked) ---------- #
   // `selectedLangs` is the checked correspondence set submitted to the backend.
@@ -390,6 +398,14 @@ const PcBooksPage: React.FC = () => {
       const r = await pycoreApi.booksAnalyze(path, { formats: activeFormats(), languages: selectedLangList(), preview_chars: 1200, persist: true });
       if (r && r.success) {
         setAnalyses((prev) => ({ ...prev, [path]: r }));
+        // Light totals fetch (chapter count lives in totals.chapters).
+        pycoreApi.booksList(path, 'chapters', 0, 1, { languages: selectedLangList() })
+          .then((lr) => {
+            if (lr?.totals) {
+              setBookMeta((prev) => ({ ...prev, [path]: lr.totals as Record<string, number> }));
+            }
+          })
+          .catch(() => { /* offline */ });
         // Refine the entry's folder/file badge from the analysis result.
         if (r.mode === 'file' || r.mode === 'folder') {
           setEntries((prev) => prev.map((e) => (e.path === path ? { ...e, mode: r.mode as VideoExtractMode } : e)));
@@ -487,7 +503,9 @@ const PcBooksPage: React.FC = () => {
     setUploading(true);
     setNotice(null);
     try {
-      const r = await pycoreApi.booksAnalyzeUpload(files, { preview_chars: 1200, persist: true });
+      const r = await pycoreApi.booksAnalyzeUpload(files, {
+        preview_chars: 1200, persist: true, languages: selectedLangList(),
+      });
       if (!r || !r.success) { setNotice(`${L.analyzeFailed}${r?.error ? ': ' + r.error : ''}`); return; }
       let added = 0;
       const errs: string[] = [];
@@ -510,7 +528,7 @@ const PcBooksPage: React.FC = () => {
     } finally {
       setUploading(false);
     }
-  }, [addEntry]);
+  }, [addEntry, selectedLangList]);
 
   // --- drag & drop ------------------------------------------------------- #
   // Desktop webviews / Electron expose the dropped item's absolute path on
@@ -988,6 +1006,22 @@ const PcBooksPage: React.FC = () => {
     );
   };
 
+  const renderSourceMeta = (path: string) => {
+    const a = analyses[path]?.aggregate;
+    if (!a) return null;
+    const meta = bookMeta[path];
+    const langN = selectedLangList().length;
+    return (
+      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
+        <span className="inline-flex items-center gap-1"><Languages className="w-3 h-3" />{langN} {L.metaLangs}</span>
+        <span className="inline-flex items-center gap-1"><AlignLeft className="w-3 h-3" />{nf(a.sentence_count)} {L.sentences.toLowerCase()}</span>
+        {meta?.chapters != null && (
+          <span className="inline-flex items-center gap-1"><BookMarked className="w-3 h-3" />{nf(meta.chapters)} {L.metaChapters}</span>
+        )}
+      </div>
+    );
+  };
+
   const renderAnalysis = (path: string) => {
     const a = analyses[path];
     if (!a) return null;
@@ -1004,9 +1038,10 @@ const PcBooksPage: React.FC = () => {
           {a.truncated_files && <span className="text-amber-500">· {L.capHit}</span>}
           <button onClick={() => setDetailPath(path)}
             className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/20 transition">
-            <ListChecks className="w-3 h-3" /> {L.details}
+            <ListChecks className="w-3 h-3" /> {L.explore}
           </button>
         </div>
+        {renderSourceMeta(path)}
         {a.aggregate && renderStats(a.aggregate, path)}
         {a.aggregate && renderLangChips(a.aggregate)}
         {a.aggregate && renderTopWords(a.aggregate)}
@@ -1316,6 +1351,12 @@ const PcBooksPage: React.FC = () => {
         )}
       </section>
 
+      {/* Sentence Audio - idempotent TTS generation for every library sentence,
+          with progress persisted to localStorage (survives refresh/reopen).
+          Drives the existing `media.enrich` RPC (-> laravel_main
+          SentenceEnrichmentService: fill-missing audio saved locally). */}
+      <PcSentenceAudioPanel entries={entries} sourceStates={sourceStates} />
+
       {/* Advanced — embedded CoreBook panel (collapsible, default collapsed).
           Mounted once opened and only HIDDEN when collapsed, so its in-progress
           state (library selection, convert/enrich forms) survives toggling. */}
@@ -1395,112 +1436,21 @@ const PcBooksPage: React.FC = () => {
         </div>
       )}
 
-      {/* details modal — full per-source inspection (stats / languages / top words / per-file / preview) */}
-      {detailPath && (() => {
-        const a = analyses[detailPath];
-        const fname = detailPath.split(/[\\/]/).pop();
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => setDetailPath(null)}>
-            <div className="w-full max-w-3xl max-h-[85vh] overflow-auto rounded-3xl p-6 border bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 shadow-xl"
-              onClick={(ev) => ev.stopPropagation()}>
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="text-sm font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-                  <ListChecks className="w-4 h-4 text-indigo-500" /> {L.detailsTitle}
-                </h3>
-                <button onClick={() => setDetailPath(null)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-4 h-4" /></button>
-              </div>
-              <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400 break-all mb-3">{detailPath}</p>
+      {/* source explorer — words / sentences / chapters */}
+      {detailPath && (
+        <PcBookSourceExplorer
+          path={detailPath}
+          analysis={analyses[detailPath] || null}
+          selectedLangs={selectedLangList()}
+          lockedLang={lockedLang}
+          sourceKey={sourceStates[detailPath]?.source_key}
+          onClose={() => setDetailPath(null)}
+        />
+      )}
 
-              {!a ? (
-                <p className="text-xs text-slate-500 py-6 text-center">{L.noAnalysis}</p>
-              ) : (
-                <div className="space-y-4">
-                  {/* aggregate stats (tiles open the paginated drill-down list) */}
-                  {a.aggregate && renderStats(a.aggregate, detailPath)}
+      {/* legacy details modal removed — explorer replaces it */}
 
-                  {/* all languages with chars + ratio */}
-                  {a.aggregate && a.aggregate.languages.length > 0 && (
-                    <div>
-                      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">{L.allLanguages}</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {a.aggregate.languages.map((l) => (
-                          <span key={l.script} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                            <span className="font-bold">{l.code.toUpperCase()}</span>
-                            {Math.round(l.ratio * 100)}% · {nf(l.chars)} {L.chars}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* full top words */}
-                  {a.aggregate && a.aggregate.top_words.length > 0 && (
-                    <div>
-                      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">{L.allTopWords}</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {a.aggregate.top_words.map((w) => (
-                          <span key={w.word} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-slate-200/70 dark:bg-white/5 text-slate-600 dark:text-slate-300">
-                            {w.word} <span className="text-slate-400">×{nf(w.count)}</span>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* per-file breakdown */}
-                  {a.files.length > 0 && (
-                    <div>
-                      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
-                        {L.perFile} ({nf(a.analyzed)}{a.mode === 'folder' ? ` / ${nf(a.scanned)}` : ''})
-                      </div>
-                      <div className="space-y-1.5">
-                        {a.files.map((f, i) => {
-                          const key = `${detailPath}#${i}`;
-                          const open = openPreview.has(key);
-                          const s = f.stats;
-                          return (
-                            <div key={key} className="rounded-xl border border-slate-200/60 dark:border-white/5 bg-slate-100/40 dark:bg-white/[0.02] p-2.5">
-                              <div className="flex items-center gap-2 text-[11px]">
-                                <FileText className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                                <span className="font-mono text-slate-700 dark:text-slate-200 truncate flex-1" title={f.name}>{f.name}</span>
-                                {f.error
-                                  ? <span className="text-amber-500 shrink-0">{f.error}</span>
-                                  : s && (
-                                    <span className="text-slate-400 shrink-0">
-                                      {nf(s.word_count)}w · {nf(s.unique_word_count)}u · {nf(s.sentence_count)}s · {(s.primary_language || 'und').toUpperCase()}
-                                    </span>
-                                  )}
-                                {f.preview && (
-                                  <button onClick={() => togglePreview(key)} className="shrink-0 text-rose-500 hover:text-rose-400">
-                                    {open ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                  </button>
-                                )}
-                              </div>
-                              {open && f.preview && (
-                                <pre className="mt-1.5 max-h-40 overflow-auto text-[11px] leading-relaxed whitespace-pre-wrap break-words rounded-lg p-2.5 bg-slate-100 dark:bg-black/40 border border-slate-200/60 dark:border-white/5 text-slate-600 dark:text-slate-300">{f.preview}</pre>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="flex justify-end mt-5">
-                <button onClick={() => setDetailPath(null)}
-                  className="px-5 py-2 text-xs font-bold rounded-xl bg-slate-200/50 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white transition">
-                  {L.close}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* drill-down list modal — paginated words / sentences / languages */}
+      {/* drill-down list modal — paginated words / sentences / languages (quick tiles) */}
       {listView && (() => {
         const lv = listView;
         const KIND_LABEL: Record<string, string> = {

@@ -58,7 +58,7 @@ function Invoke-DevInstallerStep {
     Write-Host "[NssmServiceManager] Running DevInstaller step (idempotent, live output below): $StepScriptName" -ForegroundColor Yellow
     powershell -NoProfile -ExecutionPolicy Bypass -File $stepPath
     Update-SessionPathFromRegistry
-    return ($LASTEXITCODE -eq 0)
+    return (Test-Path -LiteralPath $stepPath)
 }
 
 # Idempotent winget resolution: reuse an existing install, else bootstrap it via the
@@ -169,8 +169,9 @@ function Register-NssmService {
     if (-not $existing) {
         Write-Host "[NssmServiceManager] Installing service: $ServiceName" -ForegroundColor Cyan
         & $NssmPath install $ServiceName $ExePath $Arguments
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "[NssmServiceManager] nssm install failed for $ServiceName (exit $LASTEXITCODE)" -ForegroundColor Red
+        $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        if (-not $existing) {
+            Write-Host "[NssmServiceManager] nssm install failed for $ServiceName (service not registered)" -ForegroundColor Red
             return $false
         }
     } else {

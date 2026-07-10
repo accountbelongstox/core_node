@@ -145,12 +145,16 @@ def _engine_actual_accent(engine: str, lang: Optional[str], accent: Optional[str
     return "unknown"
 
 
-def _edge_voice(lang: Optional[str], accent: Optional[str] = None) -> str:
+def _edge_voice(lang: Optional[str], accent: Optional[str] = None,
+                gender: Optional[str] = None) -> str:
     locale = _LOCALE_BY_LANG.get((lang or "en").lower(), "en-US")
     # Accent "uk" on an English locale -> British voice (en-GB-SoniaNeural).
     if accent == "uk" and locale.startswith("en-"):
         locale = "en-GB"
-    voice = TTSConfig.get_voice(locale, "female")
+    g = (gender or "female").strip().lower()
+    if g not in ("female", "male"):
+        g = "female"
+    voice = TTSConfig.get_voice(locale, g)
     if not voice:
         # Unmapped locale -> get_voice returns "" and edge-tts would fail with no
         # audio. Fall back to a known-good English voice (offline engines still take
@@ -239,11 +243,11 @@ def tts_status() -> Dict[str, Any]:
 
 
 def _synth_edge(text: str, lang: Optional[str], output_path: Path, rate: Optional[str],
-                accent: Optional[str] = None) -> bool:
+                accent: Optional[str] = None, gender: Optional[str] = None) -> bool:
     client = get_edge_tts_client()
     if not client.initialize():
         return False
-    voice = _edge_voice(lang, accent)
+    voice = _edge_voice(lang, accent, gender)
     return client.synthesize(text, voice, output_path, rate=rate)
 
 
@@ -288,6 +292,7 @@ def synthesize(
     output_path: Path,
     rate: Optional[str] = None,
     accent: Optional[str] = None,
+    gender: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Synthesize ``text`` to ``output_path`` (.mp3) using the best available engine.
@@ -324,7 +329,10 @@ def synthesize(
             continue
         tried.append(name)
         try:
-            ok = synth(cleaned, language, output_path, rate, want_accent)
+            if name == "edge":
+                ok = _synth_edge(cleaned, language, output_path, rate, want_accent, gender)
+            else:
+                ok = synth(cleaned, language, output_path, rate, want_accent)
         except Exception as e:  # noqa: BLE001 — fall through to next engine
             last_error = f"{name}: {e}"
             ColorPrint.yellow(f"[tts] {name} failed ({e}); trying next engine")

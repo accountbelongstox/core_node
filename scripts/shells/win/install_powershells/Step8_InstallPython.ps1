@@ -15,6 +15,7 @@ $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common"
 . (Join-Path $winCommonDir "GlobalVars.ps1")
 . (Join-Path $winCommonDir "CommonFunc.ps1")
 . (Join-Path $winCommonDir "WindowsPathFunction.ps1")
+. (Join-Path $winCommonDir "PythonRuntimeCommon.ps1")
 
 $STEP_NUMBER = 8
 $SCRIPT_INDEX = "[Step 8]"
@@ -24,6 +25,7 @@ $SCRIPT_INDEX = "[Step 8]"
 $PythonVersion = $Global:PYTHON_VERSION
 $PythonWingetId = $Global:PYTHON_WINGET_ID
 $PythonInstallDir = $Global:PYTHON_DIR
+$PythonScriptsDir = $Global:PYTHON_SCRIPTS_DIR
 $PythonExePath = $Global:PYTHON_EXE_PATH
 $PipExePath = $Global:PIP_EXE_PATH
 $UvExePath = $Global:UV_EXE_PATH
@@ -121,149 +123,40 @@ function Get-PipMirrorConfig {
     }
 }
 
-function Remove-PythonPathEntries {
-    param (
-        [string]$Scope
-    )
-
-    $currentPath = [Environment]::GetEnvironmentVariable("Path", $Scope)
-    if (-not $currentPath) {
-        return 0
-    }
-
-    $pathArray = $currentPath -split ';'
-    $cleanedPath = @()
-    $removedCount = 0
-    $currentPythonDir = Normalize-WindowsPath $PythonInstallDir
-    $currentScriptsDir = Normalize-WindowsPath (Join-Path $PythonInstallDir "Scripts")
-
-    foreach ($pathEntry in $pathArray) {
-        if ([string]::IsNullOrWhiteSpace($pathEntry)) {
-            continue
-        }
-
-        $normalizedEntry = Normalize-WindowsPath $pathEntry
-
-        if ($normalizedEntry -eq $currentPythonDir -or $normalizedEntry -eq $currentScriptsDir) {
-            $cleanedPath += $pathEntry
-            continue
-        }
-
-        if ($pathEntry -match 'python\d+' -or $pathEntry -match '\\Python\d+' -or $pathEntry -match '\\Python\\') {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   Removing from $Scope PATH: $pathEntry" -Type "Warning"
-            $removedCount++
-        } else {
-            $cleanedPath += $pathEntry
-        }
-    }
-
-    if ($removedCount -gt 0) {
-        $newPath = $cleanedPath -join ';'
-
-        if ($Scope -eq "Machine") {
-            Backup-Environment
-            Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name "Path" -Value $newPath -ErrorAction Stop
-        } else {
-            [Environment]::SetEnvironmentVariable("Path", $newPath, $Scope)
-        }
-
-        Write-ColorMessage -Message "$SCRIPT_INDEX Removed $removedCount old Python PATH entries from $Scope PATH" -Type "Success"
-    }
-
-    return $removedCount
-}
-
-function Remove-OldPythonVersions {
-    Write-ColorMessage -Message "$SCRIPT_INDEX Checking for old Python versions..." -Type "Info"
+function Prepare-PythonEnvironment {
+    Write-ColorMessage -Message "$SCRIPT_INDEX Preparing Python $PythonVersion environment..." -Type "Info"
 
     $langCompilerDir = $Global:LANG_COMPILER_DIR
-    if (-not (Test-Path $langCompilerDir)) {
-        Write-ColorMessage -Message "$SCRIPT_INDEX No previous installations found" -Type "Info"
-        return
-    }
-
-    Write-ColorMessage -Message "$SCRIPT_INDEX Cleaning all old Python PATH entries..." -Type "Info"
-
-    $machineRemoved = Remove-PythonPathEntries -Scope "Machine"
-    $userRemoved = Remove-PythonPathEntries -Scope "User"
-
-    if ($machineRemoved -eq 0 -and $userRemoved -eq 0) {
-        Write-ColorMessage -Message "$SCRIPT_INDEX No old Python PATH entries found" -Type "Info"
-    }
-
-    $oldPythonDirs = @(Get-ChildItem -Path $langCompilerDir -Directory -ErrorAction SilentlyContinue | Where-Object {
-        $_.Name -match '^python\d+$' -and $_.FullName -ne $PythonInstallDir
-    })
-
-    if (-not $oldPythonDirs -or $oldPythonDirs.Count -eq 0) {
-        Write-ColorMessage -Message "$SCRIPT_INDEX No old Python versions found" -Type "Info"
-        Write-RefreshBatch
-        return
-    }
-
-    Write-ColorMessage -Message "$SCRIPT_INDEX Found $($oldPythonDirs.Count) old Python installation(s):" -Type "Warning"
-    foreach ($oldDir in $oldPythonDirs) {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   - $($oldDir.FullName)" -Type "Warning"
-
-        Remove-Path -PathToRemove $oldDir.FullName
-
-        $oldScriptsDir = Join-Path $oldDir.FullName "Scripts"
-        if (Test-Path $oldScriptsDir) {
-            Remove-Path -PathToRemove $oldScriptsDir
-        }
-
-        Write-ColorMessage -Message "$SCRIPT_INDEX   Delete old installation? (y/N, timeout 5s, default: N, press Enter to continue)" -Type "Warning"
-        $stopWatch = [System.Diagnostics.Stopwatch]::StartNew()
-        $timeout = 5
-        $shouldDelete = $false
-
-        while ($stopWatch.Elapsed.TotalSeconds -lt $timeout -and !$host.UI.RawUI.KeyAvailable) {
-            Start-Sleep -Milliseconds 200
-        }
-
-        if ($host.UI.RawUI.KeyAvailable) {
-            $key = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown").Character
-            if ($key -eq 'y' -or $key -eq 'Y') {
-                $shouldDelete = $true
-            }
-        }
-
-        $stopWatch.Stop()
-
-        if ($shouldDelete) {
-            try {
-                Remove-Item -Path $oldDir.FullName -Recurse -Force -ErrorAction Stop
-                Write-ColorMessage -Message "$SCRIPT_INDEX   Deleted: $($oldDir.FullName)" -Type "Success"
-            } catch {
-                Write-ColorMessage -Message "$SCRIPT_INDEX   Failed to delete: $($_.Exception.Message)" -Type "Error"
-            }
-        } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX   Kept old installation" -Type "Info"
+    if (Test-Path -LiteralPath $langCompilerDir) {
+        $existingDirs = @(Get-ChildItem -Path $langCompilerDir -Directory -ErrorAction SilentlyContinue | Where-Object {
+            $_.Name -match '^python\d+$' -and $_.FullName -ne $PythonInstallDir
+        })
+        foreach ($oldDir in $existingDirs) {
+            Write-ColorMessage -Message "$SCRIPT_INDEX Found older Python install (kept on disk): $($oldDir.FullName)" -Type "Info"
         }
     }
 
-    Write-ColorMessage -Message "$SCRIPT_INDEX Refreshing environment variables..." -Type "Info"
+    Ensure-CoreNodePythonPath -LogPrefix $SCRIPT_INDEX
     Write-RefreshBatch
 }
 
 function Install-Python {
     Write-ColorMessage -Message "$SCRIPT_INDEX Installing Python $PythonVersion..." -Type "Info"
 
-    # Remove old versions first
-    Remove-OldPythonVersions
+    Prepare-PythonEnvironment
 
-    # Check if current version already installed
-    if (Test-Path $PythonExePath) {
+    if (Test-Path -LiteralPath $PythonExePath) {
         Write-ColorMessage -Message "$SCRIPT_INDEX Python already installed" -Type "Success"
-        & $PythonExePath --version
+        $installedVersion = Get-PythonVersionTextFromExe -PythonExe $PythonExePath
+        if ($installedVersion) {
+            Write-ColorMessage -Message "$SCRIPT_INDEX $installedVersion" -Type "Info"
+        }
         Write-ColorMessage -Message "$SCRIPT_INDEX Path: $PythonExePath" -Type "Info"
 
-        # Ensure it's in PATH using absolute paths
-        Write-ColorMessage -Message "$SCRIPT_INDEX Adding Python to PATH..." -Type "Info"
-        Add-Path -PathToAdd $PythonInstallDir
-        Add-Path -PathToAdd (Join-Path $PythonInstallDir "Scripts")
+        Write-ColorMessage -Message "$SCRIPT_INDEX Ensuring Python PATH priority..." -Type "Info"
+        Ensure-CoreNodePythonPath -LogPrefix $SCRIPT_INDEX
 
-        return $true
+        return
     }
 
     # Install Python using winget
@@ -287,32 +180,29 @@ function Install-Python {
         )
 
         Write-ColorMessage -Message "$SCRIPT_INDEX Command: winget $($wingetArgs -join ' ')" -Type "Info"
-        Start-Process -FilePath "winget" -ArgumentList $wingetArgs -Wait -NoNewWindow | Out-Null
+        & winget @wingetArgs
 
         # Verify installation using absolute path
-        if (Test-Path $PythonExePath) {
+        if (Test-Path -LiteralPath $PythonExePath) {
             Write-ColorMessage -Message "$SCRIPT_INDEX Python installed successfully" -Type "Success"
-            & $PythonExePath --version
+            $installedVersion = Get-PythonVersionTextFromExe -PythonExe $PythonExePath
+            if ($installedVersion) {
+                Write-ColorMessage -Message "$SCRIPT_INDEX $installedVersion" -Type "Info"
+            }
             Write-ColorMessage -Message "$SCRIPT_INDEX Python path: $PythonExePath" -Type "Info"
             Write-ColorMessage -Message "$SCRIPT_INDEX Pip path: $PipExePath" -Type "Info"
 
-            # Add to PATH using absolute paths
-            Write-ColorMessage -Message "$SCRIPT_INDEX Adding Python to PATH..." -Type "Info"
-            Add-Path -PathToAdd $PythonInstallDir
-            Add-Path -PathToAdd (Join-Path $PythonInstallDir "Scripts")
+            Write-ColorMessage -Message "$SCRIPT_INDEX Ensuring Python PATH priority..." -Type "Info"
+            Ensure-CoreNodePythonPath -LogPrefix $SCRIPT_INDEX
 
-            # Create flag file
             New-Item -ItemType File -Path $PythonFlagFile -Force | Out-Null
-
-            return $true
-        } else {
-            Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Python executable not found at $PythonExePath" -Type "Error"
-            return $false
+            return
         }
+
+        Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Python executable not found at $PythonExePath" -Type "Error"
 
     } catch {
         Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Failed to install Python: $($_.Exception.Message)" -Type "Error"
-        return $false
     }
 }
 
@@ -348,9 +238,9 @@ function Install-PipTools {
         $pipArgs += @("-i", $mirrorConfig.IndexUrl, "--trusted-host", $mirrorConfig.TrustedHost)
     }
 
-    $command = "$PythonExePath -m pip $($pipArgs -join ' ')"
+    $command = "$PipExePath $($pipArgs -join ' ')"
     Write-ColorMessage -Message "$SCRIPT_INDEX Command: $command" -Type "Info"
-    & $PythonExePath -m pip @pipArgs
+    & $PipExePath @pipArgs
 }
 
 function Install-UV {
@@ -472,27 +362,35 @@ function Install-OptionalPythonPackages {
 function Test-PythonInstallation {
     Write-ColorMessage -Message "$SCRIPT_INDEX Testing Python installation..." -Type "Info"
 
-    if (Test-Path $PythonExePath) {
-        & $PythonExePath --version
+    if (Test-Path -LiteralPath $PythonExePath) {
+        $versionText = Get-PythonVersionTextFromExe -PythonExe $PythonExePath
+        if ($versionText) {
+            Write-ColorMessage -Message "$SCRIPT_INDEX $versionText" -Type "Info"
+        }
+    } else {
+        Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: python.exe missing at $PythonExePath" -Type "Error"
+        return $false
     }
 
-    if (Test-Path $PipExePath) {
-        & $PipExePath --version
+    if (Test-Path -LiteralPath $PipExePath) {
+        $pipText = ((& $PipExePath --version 2>&1) | Out-String).Trim()
+        if ($pipText) {
+            Write-ColorMessage -Message "$SCRIPT_INDEX $pipText" -Type "Info"
+        }
+    } else {
+        Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: pip.exe missing at $PipExePath" -Type "Warning"
     }
 
-    if (Test-Path $UvExePath) {
-        & $UvExePath --version
+    foreach ($toolPath in @($UvExePath, $PipxExePath, $PoetryExePath)) {
+        if (Test-Path -LiteralPath $toolPath) {
+            $toolVersion = ((& $toolPath --version 2>&1) | Out-String).Trim()
+            if ($toolVersion) {
+                Write-ColorMessage -Message "$SCRIPT_INDEX $toolVersion" -Type "Info"
+            }
+        }
     }
 
-    if (Test-Path $PipxExePath) {
-        & $PipxExePath --version
-    }
-
-    if (Test-Path $PoetryExePath) {
-        & $PoetryExePath --version
-    }
-
-    return $true
+    return (Test-Path -LiteralPath $PythonExePath)
 }
 
 # Main execution
@@ -500,35 +398,28 @@ Write-ColorMessage -Message "$SCRIPT_INDEX =====================================
 Write-ColorMessage -Message "$SCRIPT_INDEX   Python Installation (Step $STEP_NUMBER)" -Type "Info"
 Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Info"
 
-$installSuccess = Install-Python
+Install-Python
 
-if ($installSuccess) {
+if (Test-Path -LiteralPath $PythonExePath) {
     Write-ColorMessage -Message "$SCRIPT_INDEX Python installation completed successfully" -Type "Success"
 
-    # Configure mirror if in China region
     Configure-PipMirror
 
-    # Install/update pip and tools (basic only: pip, uv, pipx, poetry)
     Write-ColorMessage -Message "$SCRIPT_INDEX Installing Python package managers..." -Type "Info"
     Install-PipTools
     Install-UV
     Install-Pipx
     Install-Poetry
 
-    # Install common packages (requests, urllib3 only)
     Install-CommonPackages
 
-    # Test installation
-    $testSuccess = Test-PythonInstallation
-
-    if ($testSuccess) {
+    if (Test-PythonInstallation) {
         Write-ColorMessage -Message "$SCRIPT_INDEX All Python components verified successfully" -Type "Success"
     } else {
         Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: Some Python components failed verification" -Type "Warning"
     }
 } else {
     Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Python installation failed" -Type "Error"
-    exit 1
 }
 
 Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Info"

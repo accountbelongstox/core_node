@@ -1,27 +1,15 @@
 <#
 .SYNOPSIS
-    Offline Vosk STT prerequisite — pip package + a model, auto-run by prepare.ps1
-    (pyservice). CPU-fallback model selection: small on a CPU-only host, the large
-    gigaspeech model when CUDA is present.
+    Thin delegator for offline Vosk STT (pip + model download).
 
 .DESCRIPTION
-    Vosk is a FREE, fully-offline speech recognizer (Kaldi/onnx; CPU inference only
-    — it has no CUDA inference path). The CPU/GPU principle therefore selects MODEL
-    SIZE, not a GPU binary:
-      * no CUDA  -> vosk-model-small-en-us-0.15  (~40MB, fast, lower accuracy)
-      * CUDA     -> vosk-model-en-us-0.42-gigaspeech (~2.3GB, most accurate)
-    The model is unzipped into <USERPROFILE>\.core_node\cache\stt\vosk\<name>\,
-    which pycore.pyutils.stt.stt_orchestrator scans (it looks for */conf there).
-    Docs: https://alphacephei.com/vosk/models
-
-    Discovered + run by prepare.ps1 -> pyservice.ps1 (every installer gets -Python).
-    Idempotent: a model with a conf/ dir already present is left alone; the .zip is
-    resumed if a partial one exists.
+    Vosk pip is installed by DevInstaller Step10 (DEPENDENCY_MAP). Model download
+    remains here (large). prepare.ps1 runs this idempotently on pyservice boot.
 
 .PARAMETER Python
-    python.exe to install the vosk pip package into. Default: 'python' on PATH.
+    python.exe to install into. Default: 'python' on PATH.
 .PARAMETER Model
-    'auto' (default; CUDA->large, else small) | 'small' | 'large'.
+    'auto' (default) | 'small' | 'large'.
 .PARAMETER Force
     Re-download / re-extract even if a model is already present.
 #>
@@ -37,6 +25,7 @@ $ErrorActionPreference = 'Stop'
 
 # Variable declarations (all at top)
 $SCRIPT_INDEX   = '[install_vosk]'
+$repoRoot       = Split-Path (Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent) -Parent
 $resolvedPython = $null
 $modelRoot      = Join-Path $env:USERPROFILE '.core_node\cache\stt\vosk'
 $SMALL_NAME     = 'vosk-model-small-en-us-0.15'
@@ -69,8 +58,7 @@ function Test-PyModule {
     return ($LASTEXITCODE -eq 0)
 }
 
-# GPU detection comes from the ONE shared helper (canonical: CUDADetector).
-. (Join-Path $PSScriptRoot '..\base_libs\lib_gpu.ps1')   # provides Test-CudaPresent
+. (Join-Path $PSScriptRoot '..\base_libs\lib_gpu.ps1')
 
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host " $SCRIPT_INDEX Installing offline Vosk STT (pip + model)" -ForegroundColor Cyan
@@ -79,11 +67,11 @@ Write-Host '============================================================' -Foreg
 $resolvedPython = Resolve-PythonInterpreter -Preferred $Python
 if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [X] Python 3 not found. Run Step8_InstallPython first, or pass -Python <path>." -ForegroundColor Red
-    exit 1
+    return
 }
 Write-Host ("$SCRIPT_INDEX python : {0}" -f $resolvedPython) -ForegroundColor DarkGray
 
-# --- 1) vosk pip package (pure-pip, CPU) --------------------------------- #
+# --- 1) vosk pip package --------------------------------------------------- #
 if ((Test-PyModule -Py $resolvedPython -ModuleName 'vosk') -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [OK] vosk already installed; skipping pip." -ForegroundColor Green
 } else {
@@ -120,18 +108,12 @@ Write-Host ("$SCRIPT_INDEX  model dir : {0}" -f $modelDir) -ForegroundColor Dark
 Write-Host ("$SCRIPT_INDEX  source    : {0}" -f $modelUrl) -ForegroundColor DarkGray
 Write-Host ("$SCRIPT_INDEX  existing  : {0}" -f $(if ($existingConf) { $existingConf.FullName } else { 'none' })) -ForegroundColor DarkGray
 
-# IDEMPOTENT: any model with a conf/ dir already present -> done (unless -Force).
 if ($existingConf -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [OK] A Vosk model is already installed (conf/ present) -> skipping download." -ForegroundColor Green
-    exit 0
+    return
 }
 
-# --- 3) download (resume until BYTES complete) + extract ----------------- #
-# Completeness is decided by BYTES-ON-DISK vs the remote Content-Length, NEVER by
-# curl's exit code. -C - resumes the partial .zip, so a re-run continues instead of
-# restarting; --progress-bar shows a live bar each attempt.
 $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
-
 $expectedBytes = 0
 try {
     $head = Invoke-WebRequest -Uri $modelUrl -Method Head -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
@@ -160,16 +142,15 @@ while (-not $complete -and $attempt -lt 6) {
         if ($now -ge $expectedBytes) { $complete = $true }
         elseif ($now -le $have) { Write-Host "$SCRIPT_INDEX [!] no progress this attempt (network); will resume." -ForegroundColor DarkYellow }
     } else {
-        $complete = $true   # unknown size -> single pass, verify by extraction below
+        $complete = $true
     }
 }
 
 if (-not $complete) {
-    Write-Host ("$SCRIPT_INDEX [!] still incomplete after {0} attempts; partial .zip KEPT to RESUME next run (continues, never restarts). whisper/azure STT still work." -f $attempt) -ForegroundColor DarkYellow
-    exit 0
+    Write-Host ("$SCRIPT_INDEX [!] still incomplete after {0} attempts; partial .zip KEPT to RESUME next run." -f $attempt) -ForegroundColor DarkYellow
+    return
 }
 
-# extract — success is judged by the conf/ dir appearing (file-based, not exit code)
 Write-Host "$SCRIPT_INDEX [..] extracting model ..." -ForegroundColor Yellow
 try {
     if (Test-Path $tmpExtract) { Remove-Item -Recurse -Force $tmpExtract -ErrorAction SilentlyContinue }
@@ -183,12 +164,11 @@ try {
 } catch {
     Write-Host ("$SCRIPT_INDEX [!] extract failed ({0}); .zip KEPT to RESUME next run." -f $_.Exception.Message) -ForegroundColor DarkYellow
     Remove-Item -Recurse -Force $tmpExtract -ErrorAction SilentlyContinue
-    exit 0
+    return
 }
 
 if (Test-Path (Join-Path $modelDir 'conf')) {
-    Write-Host ("$SCRIPT_INDEX [OK] Vosk model installed: {0} (free, offline). .zip KEPT at {1}." -f $modelDir, $archivePath) -ForegroundColor Green
+    Write-Host ("$SCRIPT_INDEX [OK] Vosk model installed: {0} (free, offline)." -f $modelDir) -ForegroundColor Green
 } else {
     Write-Host "$SCRIPT_INDEX [!] Extract produced no conf/ (archive may be partial); .zip KEPT to RESUME." -ForegroundColor DarkYellow
 }
-exit 0

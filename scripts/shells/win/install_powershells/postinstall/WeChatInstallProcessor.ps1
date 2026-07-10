@@ -122,9 +122,6 @@ function Install-WeChatFromWeb {
     Write-Host "       [$SCRIPT_INDEX] Running installer: $localPath" -ForegroundColor Cyan
     try {
         $process = Start-Process -FilePath $localPath -ArgumentList "/S" -Wait -PassThru
-        if ($process.ExitCode -ne 0 -and $process.ExitCode -ne $null) {
-            Write-Host "       [$SCRIPT_INDEX] Installer exited with code: $($process.ExitCode) (silent may not be supported)" -ForegroundColor Yellow
-        }
     }
     catch {
         Write-Host "       [$SCRIPT_INDEX] Installer failed: $($_.Exception.Message)" -ForegroundColor Red

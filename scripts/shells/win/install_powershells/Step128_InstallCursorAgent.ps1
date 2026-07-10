@@ -21,14 +21,9 @@ Write-Host "$SCRIPT_INDEX Cursor Agent standalone (agent CLI + RipGrep, no Curso
 
 if (-not (Test-Path $script:PROCESSOR_SCRIPT)) {
     Write-Host "$SCRIPT_INDEX Error: Processor not found: $script:PROCESSOR_SCRIPT" -ForegroundColor Red
-    exit 1
+    return
 }
 
 . $script:PROCESSOR_SCRIPT
 $dummyPath = $env:USERPROFILE
-$success = Invoke-CursorAgentPostInstallProcessor -CursorAgentCallback @{} -PackageName "CursorAgent" -ExecutablePath $dummyPath -InstallDir $dummyPath -LogPrefix $SCRIPT_INDEX
-if (-not $success) {
-    Write-Host "$SCRIPT_INDEX One or more components could not be ensured." -ForegroundColor Red
-    exit 1
-}
-exit 0
+Invoke-CursorAgentPostInstallProcessor -CursorAgentCallback @{} -PackageName "CursorAgent" -ExecutablePath $dummyPath -InstallDir $dummyPath -LogPrefix $SCRIPT_INDEX

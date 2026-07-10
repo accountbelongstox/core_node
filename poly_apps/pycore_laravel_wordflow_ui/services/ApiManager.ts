@@ -8,7 +8,10 @@ import {
   GLOBAL_API_ENDPOINTS,
   buildApiUrl,
   getEndpointById,
-  getAllEndpoints
+  getAllEndpoints,
+  getCurrentOriginEndpoint,
+  isCurrentUrlId,
+  CURRENT_URL_TYPE,
 } from '../config/api-endpoints';
 import { clampRecheckInterval } from '../core/health/OfflineRecheckScheduler';
 import { setSharedBaseURL } from '../core/api/base/BaseAPI';
@@ -90,7 +93,8 @@ class ApiManager {
    *   1. api_user_modified  (the manual switcher's choice — highest trust)
    *   2. api_current_endpoint
    *   3. api_auto_detected
-   *   4. first endpoint by priority index (config order)
+   *   4. Current URL (:9000) when no localStorage preference exists yet
+   *   5. first endpoint by priority index (config order)
    *
    * This is a best-effort guess made WITHOUT health knowledge; the background
    * stored-first pass (runBackgroundHealthPass) refines it and auto-fails-over if
@@ -119,7 +123,14 @@ class ApiManager {
       }
     }
 
-    // Fall back to the highest-priority endpoint (config order). No store
+    // No stored preference — default to the page's Current URL (:9000).
+    const currentUrl = getCurrentOriginEndpoint();
+    if (currentUrl) {
+      this.currentEndpoint = currentUrl;
+      return this.currentEndpoint;
+    }
+
+    // Fall back to the highest-priority static endpoint (config order). No store
     // write-back here — this is only a synchronous guess; the background pass
     // is the source of truth for persisting a known-good endpoint.
     this.currentEndpoint = endpoints.length > 0 ? endpoints[0] : null;
@@ -182,7 +193,7 @@ class ApiManager {
     const storedEndpointId =
       this.getStoredCurrentEndpoint() ?? this.getAutoDetectedEndpoint();
 
-    if (userEndpointId && healthyIds.has(userEndpointId)) {
+    if (userEndpointId && this.isStoredIdHealthy(userEndpointId, healthyIds)) {
       const endpoint = getEndpointById(userEndpointId);
       if (endpoint) {
         this.currentEndpoint = endpoint;
@@ -195,14 +206,14 @@ class ApiManager {
     // on the dead endpoint and hang until the background pass corrected it).
     // Clear the pin — switchEndpoint() only ever creates pins after a
     // successful probe, so a dead pin means the endpoint truly went down.
-    if (userEndpointId && !healthyIds.has(userEndpointId)) {
+    if (userEndpointId && !this.isStoredIdHealthy(userEndpointId, healthyIds)) {
       this.clearUserModifiedEndpoint();
       console.warn(
         `[ApiManager] User-pinned endpoint '${userEndpointId}' is unreachable — pin cleared, failing over.`
       );
     }
 
-    if (storedEndpointId && healthyIds.has(storedEndpointId)) {
+    if (storedEndpointId && this.isStoredIdHealthy(storedEndpointId, healthyIds)) {
       const endpoint = getEndpointById(storedEndpointId);
       if (endpoint) {
         this.currentEndpoint = endpoint;
@@ -216,7 +227,8 @@ class ApiManager {
     const firstHealthy = endpoints.find(e => healthyIds.has(e.id));
     if (firstHealthy) {
       this.currentEndpoint = firstHealthy;
-      this.setAutoDetectedEndpoint(firstHealthy.id);
+      const persistId = isCurrentUrlId(firstHealthy.id) ? CURRENT_URL_TYPE : firstHealthy.id;
+      this.setAutoDetectedEndpoint(persistId);
       return this.currentEndpoint;
     }
 
@@ -447,7 +459,8 @@ class ApiManager {
     }
 
     this.currentEndpoint = endpoint;
-    this.setUserModifiedEndpoint(endpointId);
+    const persistId = isCurrentUrlId(endpointId) ? CURRENT_URL_TYPE : endpointId;
+    this.setUserModifiedEndpoint(persistId);
     setSharedBaseURL(buildApiUrl(endpoint));
     return { ok: true, endpoint, result };
   }
@@ -517,6 +530,13 @@ class ApiManager {
 
   private getUserModifiedEndpoint(): string | null {
     return localStorage.getItem(this.STORAGE_KEY_USER);
+  }
+
+  /** Resolve a stored TYPE/id and test against probed endpoint ids. */
+  private isStoredIdHealthy(storedId: string | null, healthyIds: Set<string>): boolean {
+    if (!storedId) return false;
+    const resolved = getEndpointById(storedId);
+    return !!resolved && healthyIds.has(resolved.id);
   }
 
   private setUserModifiedEndpoint(endpointId: string): void {

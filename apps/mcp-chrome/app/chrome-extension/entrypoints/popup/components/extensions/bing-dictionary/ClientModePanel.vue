@@ -2,22 +2,7 @@
   <div class="client-mode-section">
     <div class="client-config-card">
       <!-- Header: brand + the two-step primary action. -->
-      <div class="ba-header">
-        <div class="ba-brand">
-          <span class="ba-logo">📖</span>
-          <div class="ba-brand-text">
-            <span class="ba-title">{{ t('bingAssistTitle') }}</span>
-            <span class="ba-subtitle">
-              <span :class="['ba-live-dot', clientService.isRunning ? 'on' : 'off']"></span>
-              {{ clientService.isRunning ? 'Crawling translations' : 'Idle — not crawling' }}
-            </span>
-          </div>
-        </div>
-        <!-- Two-step single button:
-             stopped & not prepared -> "Load queue" (fetch + show data, NO start)
-             stopped & prepared      -> "Confirm & Start" (begin crawling)
-             running                 -> "Stop"
-             Colour: blue=load, green=confirm, red=stop. -->
+      <div class="ba-toolbar">
         <button
           class="service-toggle"
           :class="clientService.isRunning ? 'on' : (prepared ? 'ready' : 'off')"

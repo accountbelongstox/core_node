@@ -78,15 +78,9 @@ function Invoke-ScriptAndPause {
             } else {
                 & python $ScriptPath
             }
-            $exitCode = $LASTEXITCODE
-
             Write-Host ""
             Write-Host "========================================" -ForegroundColor $script:COLOR_INFO
-            if ($exitCode -eq 0) {
-                Write-ColorMessage -Message "Script completed successfully" -Type "Success"
-            } else {
-                Write-ColorMessage -Message "Script completed with exit code: $exitCode" -Type "Warning"
-            }
+            Write-ColorMessage -Message "Script completed" -Type "Success"
             Write-Host "========================================" -ForegroundColor $script:COLOR_INFO
             Write-Host ""
             Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT

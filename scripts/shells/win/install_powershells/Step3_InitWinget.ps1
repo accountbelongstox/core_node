@@ -89,11 +89,11 @@ function Test-WingetAuthorization {
     
     try {
         # Test if winget can run basic commands without prompting
-        $null = & winget --version 2>$null
-        if ($LASTEXITCODE -eq 0) {
+        $wingetVersion = & winget --version 2>$null
+        if ($wingetVersion -match '\d') {
             # Test source list command which often triggers authorization prompts
-            $null = & winget source list 2>$null
-            if ($LASTEXITCODE -eq 0) {
+            $sources = & winget source list 2>$null
+            if ("$sources" -match 'winget') {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Winget is properly authorized and working" -Type "Success"
                 return $true
             }

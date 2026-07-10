@@ -1,9 +1,5 @@
 <template>
   <div class="nblm-panel">
-    <div class="nblm-header">
-      <span class="nblm-title">{{ t('notebooklmTitle') }}</span>
-    </div>
-
     <div class="nblm-form">
       <label class="nblm-label">{{ t('notebooklmNotebookUrl') }}</label>
       <input
@@ -147,16 +143,6 @@ const onDialogueTest = async () => {
   padding: 14px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
   margin-bottom: 12px;
-}
-
-.nblm-header {
-  margin-bottom: 10px;
-}
-
-.nblm-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
 }
 
 .nblm-form {

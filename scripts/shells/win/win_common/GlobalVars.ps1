@@ -87,8 +87,7 @@ try {
         }
     }
 } catch {
-    Write-Error "Failed to determine core node root directory: $($_.Exception.Message)"
-    exit 1
+    throw "Failed to determine core node root directory: $($_.Exception.Message)"
 }
 
 $Global:CORE_NODE_DIR = $Global:BASE_DIR
@@ -381,8 +380,10 @@ function Get-SecretContent {
                         try {
                             # Use node to decrypt the .js file
                             $result = & node $encryptedFile.FullName pwd $plaintextPassword $rawDir 2>&1
+                            $baseName = [System.IO.Path]::GetFileNameWithoutExtension($encryptedFile.Name)
+                            $decryptedPath = Join-Path $rawDir $baseName
 
-                            if ($LASTEXITCODE -eq 0) {
+                            if ((Test-Path $decryptedPath) -and ((Get-Item $decryptedPath).Length -gt 0)) {
                                 Write-Host "[DECRYPT] SUCCESS: Decrypted $($encryptedFile.Name)" -ForegroundColor Green
                                 $successCount++
                             } else {
@@ -550,17 +551,21 @@ $Global:PNPM_EXE_PATH = Join-Path $Global:NODE_DIR "pnpm.cmd"
 $Global:YARN_EXE_PATH = Join-Path $Global:NODE_DIR "yarn.cmd"
 $Global:NODE_WINGET_ID = "OpenJS.NodeJS.LTS"
 
-# Python 3.11 standalone installation (no conda)
-$Global:PYTHON_VERSION = "3.11"
-$Global:PYTHON_VERSION_COMPACT = "311"
-$Global:PYTHON_WINGET_ID = "Python.Python.3.11"
-$Global:PYTHON_DIR = Join-Path $Global:LANG_COMPILER_DIR "python311"
+# Python 3.13 standalone installation (no conda) — paths composed from LANG_COMPILER_DIR
+$Global:PYTHON_VERSION = "3.13"
+$Global:PYTHON_VERSION_COMPACT = ($Global:PYTHON_VERSION -replace '\.', '')
+$Global:PYTHON_WINGET_ID = "Python.Python.$($Global:PYTHON_VERSION)"
+$Global:PYTHON_DIR = Join-Path $Global:LANG_COMPILER_DIR ("python$($Global:PYTHON_VERSION_COMPACT)")
+$Global:PYTHON_SCRIPTS_DIR = Join-Path $Global:PYTHON_DIR "Scripts"
 $Global:PYTHON_EXE_PATH = Join-Path $Global:PYTHON_DIR "python.exe"
-$Global:PIP_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\pip.exe"
-$Global:UV_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\uv.exe"
-$Global:PIPX_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\pipx.exe"
-$Global:POETRY_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\poetry.exe"
-$Global:PYTHON_FLAG_FILE = Join-Path $Global:USER_CACHE_DIR "python312.install_success.flag"
+$Global:PIP_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "pip.exe"
+$Global:UV_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "uv.exe"
+$Global:PIPX_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "pipx.exe"
+$Global:POETRY_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "poetry.exe"
+$Global:PYTHON_FLAG_FILE = Join-Path $Global:USER_CACHE_DIR ("python$($Global:PYTHON_VERSION_COMPACT).install_success.flag")
+
+# NVIDIA tools (optional override; default to System32 nvidia-smi.exe)
+$Global:NVidiaSmiPath = Join-Path $env:SystemRoot 'System32\nvidia-smi.exe'
 
 # Repository Configuration - Auto-switch based on region
 $Global:GITEE_BASE_URL = "https://gitee.com/accountbelongstox/core_node/raw/main"

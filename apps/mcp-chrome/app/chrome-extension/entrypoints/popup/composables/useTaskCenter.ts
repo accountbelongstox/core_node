@@ -4,8 +4,9 @@
  * Under 200 lines
  */
 
-import { ref, onUnmounted } from 'vue';
+import { ref, onUnmounted, watch } from 'vue';
 import { apiManager } from '@/services/ApiManager';
+import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
 import { formatTimestamp } from '@/utils/time-helpers';
 
@@ -230,6 +231,7 @@ export interface TaskCenterState {
 
 export function useTaskCenter() {
   const isActive = ref(false);
+  const { apiBaseUrl } = useApiEndpoint();
   const config = ref<TaskCenterConfig>({
     apiUrl: '',
     pollInterval: 5,
@@ -246,6 +248,14 @@ export function useTaskCenter() {
     stats: null,
   });
   const error = ref('');
+
+  watch(apiBaseUrl, (url) => {
+    if (!url) return;
+    config.value.apiUrl = url;
+    if (config.value.processors?.bing_dictionary) {
+      config.value.processors.bing_dictionary.apiUrl = url.replace(/\/+$/, '');
+    }
+  }, { immediate: true });
 
   let statsPollingInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -289,9 +299,7 @@ export function useTaskCenter() {
 
   const startTaskCenter = async () => {
     try {
-      // Always use the single endpoint configured in Settings (shared ApiManager).
       await apiManager.initialize({ autoDetect: false });
-      config.value.apiUrl = apiManager.getCurrentBaseUrl();
       const response = await chrome.runtime.sendMessage({
         type: 'task_center',
         action: 'start',

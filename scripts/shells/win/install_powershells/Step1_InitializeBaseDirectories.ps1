@@ -32,7 +32,6 @@ function Test-SystemRequirements {
     
     if ($freeSpaceGB -lt 50) {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Error: Insufficient disk space. At least 50 GB required." -Type "Error"
-        exit 1
     }
 
     # Display memory info without requirement check

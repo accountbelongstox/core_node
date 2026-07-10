@@ -25,6 +25,7 @@
 import { ref, computed, watch } from 'vue';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { apiManager } from '@/services/ApiManager';
+import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
 import { sendWithWake } from '@/utils/sendWithWake';
 import {
@@ -144,7 +145,7 @@ export function useBookStudyGenerator() {
   const error = ref('');
   const result = ref('');
   const activeSourceKey = ref('');
-  const apiBaseUrl = ref('');
+  const { apiBaseUrl, apiBaseNormalized, syncApiEndpoint } = useApiEndpoint();
 
   // Single in-instance guard so the resume watcher and a Generate click can't
   // drive two loops at once.
@@ -152,7 +153,7 @@ export function useBookStudyGenerator() {
   let stopRequested = false;
 
   const keyOf = (sourceType: string, sourceKey: string): string => `${sourceType}:${sourceKey}`;
-  const apiBase = (): string => apiManager.getCurrentBaseUrl().replace(/\/+$/, '');
+  const apiBase = (): string => apiBaseNormalized() || apiManager.getCurrentBaseUrl().replace(/\/+$/, '');
   const studyUrl = (path: string): string => `${apiBase()}/api/app_qy_v1/study-gen/${path}`;
 
   const ensureClaimer = (): void => {
@@ -169,7 +170,7 @@ export function useBookStudyGenerator() {
   // ── Source listing ────────────────────────────────────────────────────────
   const loadSources = async (targetPage = 1): Promise<void> => {
     ensureClaimer();
-    apiBaseUrl.value = apiBase();
+    await syncApiEndpoint();
     loadingSources.value = true;
     sourcesError.value = '';
     try {
@@ -621,9 +622,8 @@ export function useBookStudyGenerator() {
 
   const initPanel = async (): Promise<void> => {
     await logger.init().catch(() => {});
-    await apiManager.initialize({ autoDetect: false }).catch(() => {});
+    await syncApiEndpoint();
     ensureClaimer();
-    apiBaseUrl.value = apiBase();
     await loadSources(1);
   };
 

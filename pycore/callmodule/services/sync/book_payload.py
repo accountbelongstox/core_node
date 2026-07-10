@@ -196,7 +196,7 @@ def build_book_payload_v2(path: str, full_content: str, language: str = "en") ->
     # (the stem, not the ascii name). Movie DBs miss for most real documents - the
     # poster key is then omitted and laravel leaves poster_status='pending'.
     poster_title, poster_year = parse_title_year(stem)
-    _attach_poster(source, poster_title, poster_year)
+    _attach_poster(source, poster_title, poster_year, kind="book")
 
     source["metadata"] = {
         "primary_language": stats.get("primary_language"),
@@ -314,7 +314,7 @@ def build_book_payload_v3(
 
     # Best-effort movie/TV poster (using the HUMAN book title; usually omitted).
     poster_title, poster_year = parse_title_year(stem)
-    _attach_poster(source, poster_title, poster_year)
+    _attach_poster(source, poster_title, poster_year, kind="book")
 
     source["metadata"] = {
         "primary_language": stats.get("primary_language"),

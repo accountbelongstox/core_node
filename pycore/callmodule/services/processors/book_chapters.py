@@ -27,7 +27,18 @@ from pycore import ColorPrint
 # Default single-chapter title when a book yields no detectable headings (§8).
 _DEFAULT_CHAPTER_TITLE = "Chapter 1"
 
-# Heading heuristics for prose formats (txt/pdf/docx/doc/rtf). A line is treated
+# Bible / Tanakh book names (standalone line = chapter boundary for scripture PDFs).
+_BIBLE_BOOK_RES = [
+    re.compile(r"^(?:Genesis|Exodus|Leviticus|Numbers|Deuteronomy|Joshua|Judges|Ruth|"
+               r"Samuel|Kings|Chronicles|Ezra|Nehemiah|Esther|Job|Psalms?|Proverbs|Ecclesiastes|"
+               r"Song of Solomon|Isaiah|Jeremiah|Lamentations|Ezekiel|Daniel|Hosea|Joel|Amos|"
+               r"Obadiah|Jonah|Micah|Nahum|Habakkuk|Zephaniah|Haggai|Zechariah|Malachi|"
+               r"Matthew|Mark|Luke|John|Acts|Romans|Corinthians|Galatians|Ephesians|Philippians|"
+               r"Colossians|Thessalonians|Timothy|Titus|Philemon|Hebrews|James|Peter|Jude|Revelation)\b",
+               re.IGNORECASE),
+    re.compile(r"^\d?\s*(?:Samuel|Kings|Chronicles|Corinthians|Thessalonians|Timothy|Peter)\b",
+               re.IGNORECASE),
+]
 # as a chapter heading when it matches ANY of these (checked on the stripped
 # line). Order is not significant - first match wins.
 _CHAPTER_HEADING_RES = [
@@ -78,6 +89,9 @@ def _is_heading_line(line: str) -> bool:
     """True when a stripped prose line should start a new chapter (§8 heuristics)."""
     if not line:
         return False
+    for rx in _BIBLE_BOOK_RES:
+        if rx.match(line):
+            return True
     for rx in _CHAPTER_HEADING_RES:
         if rx.match(line):
             return True

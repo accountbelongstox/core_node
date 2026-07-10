@@ -178,7 +178,7 @@ function Initialize-DevelopmentEnvironment {
         Write-Host "[*] Verifying Git installation..." -ForegroundColor Cyan
         try {
             $gitVersion = git --version 2>$null
-            if ($LASTEXITCODE -eq 0) {
+            if ($gitVersion) {
                 Write-Host "[OK] Git installed successfully: $gitVersion" -ForegroundColor Green
             } else {
                 Write-Host "[ERROR] Git installation verification failed" -ForegroundColor Red
@@ -199,7 +199,7 @@ function Initialize-DevelopmentEnvironment {
                 Write-Host "[*] Using repository: $repoUrl" -ForegroundColor Cyan
                 
                 git clone $repoUrl $projectDir
-                if ($LASTEXITCODE -eq 0) {
+                if (Test-Path $projectDir) {
                     Write-Host "[OK] Project cloned successfully from $selectedRegion repository" -ForegroundColor Green
                 } else {
                     Write-Host "[ERROR] Project clone failed" -ForegroundColor Red
@@ -233,7 +233,7 @@ function Initialize-DevelopmentEnvironment {
                 Write-Host ""
                 & $ddPs1Path
                 # dd.ps1 execution completed, exit initialization
-                exit 0
+                return
             } else {
                 Write-Host "[ERROR] dd.ps1 not found at: $ddPs1Path" -ForegroundColor Red
                 return $false
@@ -294,10 +294,10 @@ if ($Global:EXECUTION_MODE -eq "INSTALLATION") {
         "initialize" {
             if (Initialize-DevelopmentEnvironment) {
                 Write-Host "Initialization completed successfully. Exiting..." -ForegroundColor Green
-                exit 0
+                return
             } else {
                 Write-Host "Initialization failed. Exiting..." -ForegroundColor Red
-                exit 1
+                return
             }
         }
         "continue" {
@@ -305,7 +305,7 @@ if ($Global:EXECUTION_MODE -eq "INSTALLATION") {
         }
         "exit" {
             Write-Host "Exiting..." -ForegroundColor Yellow
-            exit 0
+            return
         }
     }
 } else {

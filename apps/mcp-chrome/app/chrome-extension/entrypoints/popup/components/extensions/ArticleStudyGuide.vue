@@ -1,15 +1,5 @@
 <template>
   <div class="gt-panel">
-    <div class="gt-header">
-      <div class="gt-brand">
-        <span class="gt-logo">📖</span>
-        <div class="gt-brand-text">
-          <span class="gt-title">Article Study Guide</span>
-          <span class="gt-sub">Sentence alignment, phonetics, pattern, grammar, phrases & alt expressions — per language</span>
-        </div>
-      </div>
-    </div>
-
     <label class="gt-label">Provider</label>
     <div class="gt-provider-row">
       <button
@@ -125,40 +115,6 @@ const removeLanguage = (code: string) => {
   border-radius: 14px;
   padding: 14px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px -16px rgba(0, 0, 0, 0.25);
-}
-.gt-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.gt-brand {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.gt-logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  background: var(--accent-soft);
-  font-size: 16px;
-}
-.gt-brand-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.gt-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-}
-.gt-sub {
-  font-size: 10px;
-  color: var(--text-muted);
 }
 .gt-label {
   display: block;

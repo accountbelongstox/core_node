@@ -20,36 +20,22 @@ $winCommonDir = Join-Path (Split-Path $scriptRoot -Parent) "win_common"
 
 . (Join-Path $winCommonDir "GlobalVars.ps1")
 . (Join-Path $winCommonDir "CommonFunc.ps1")
+. (Join-Path $winCommonDir "PythonRuntimeCommon.ps1")
 . (Join-Path $winCommonDir "CudaIndex.ps1")
 
 $SCRIPT_INDEX = "[Step 9]"
-$nvidiaSmiCmd = $null
+$nvidiaSmiExe = $null
 $gpuPresent = $false
 $driverActive = $false
 $driverCudaLine = ""
 $torchIndex = ""
 $paddleIndex = ""
 
-function Test-NvidiaGpuPresent {
-    $nvidiaSmi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
-    if ($nvidiaSmi) {
-        & $nvidiaSmi.Source -L 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) { return $true }
-    }
-    try {
-        $controllers = Get-CimInstance Win32_VideoController -ErrorAction Stop |
-            Where-Object { $_.Name -match 'NVIDIA|GeForce|RTX|Quadro|Tesla' }
-        return [bool]$controllers
-    } catch {
-        return $false
-    }
-}
-
 function Test-NvidiaSmiActive {
-    param([string]$SmiPath)
-    if (-not $SmiPath) { return $false }
-    & $SmiPath 2>$null | Out-Null
-    return $LASTEXITCODE -eq 0
+    param([string]$SmiExe)
+    if (-not $SmiExe) { return $false }
+    $output = & $SmiExe 2>&1
+    return ("$output" -match 'Driver Version:')
 }
 
 Write-Host "$SCRIPT_INDEX ============================================================" -ForegroundColor Cyan
@@ -59,16 +45,16 @@ Write-Host "$SCRIPT_INDEX ======================================================
 $gpuPresent = Test-NvidiaGpuPresent
 if (-not $gpuPresent) {
     Write-Host "$SCRIPT_INDEX No NVIDIA GPU detected -> skipping (CPU-only host)." -ForegroundColor Green
-    exit 0
+    return
 }
 
 Write-Host "$SCRIPT_INDEX NVIDIA GPU detected." -ForegroundColor White
-$nvidiaSmiCmd = (Get-Command nvidia-smi -ErrorAction SilentlyContinue).Source
-$driverActive = Test-NvidiaSmiActive -SmiPath $nvidiaSmiCmd
+$nvidiaSmiExe = Resolve-NvidiaSmiExe
+$driverActive = Test-NvidiaSmiActive -SmiExe $nvidiaSmiExe
 
 if ($driverActive) {
-    $driverCudaLine = Get-NvidiaDriverCudaVersionLine -SmiPath $nvidiaSmiCmd
-    $gpuLine = Get-NvidiaSmiFirstGpuLine -SmiPath $nvidiaSmiCmd
+    $driverCudaLine = Get-NvidiaDriverCudaVersionLine -SmiPath $nvidiaSmiExe
+    $gpuLine = Get-NvidiaSmiFirstGpuLine -SmiPath $nvidiaSmiExe
     if ($gpuLine) {
         Write-Host "$SCRIPT_INDEX Driver active: $gpuLine" -ForegroundColor Green
     } else {
@@ -91,4 +77,3 @@ Write-Host "$SCRIPT_INDEX   paddle -> $paddleIndex" -ForegroundColor White
 Write-Host "$SCRIPT_INDEX   (see https://pytorch.org/get-started/locally/ and PaddlePaddle 3.3 install docs)" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "$SCRIPT_INDEX NVIDIA/CUDA prerequisite step completed." -ForegroundColor Green
-exit 0
