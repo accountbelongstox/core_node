@@ -144,6 +144,7 @@ class MediaIngestTablesInitializer
                 'has_audio' => ['type' => 'boolean', 'nullable' => false, 'default' => false, 'index' => true, 'comment' => 'DB flag only; disk is truth'],
                 'occurrence_count' => ['type' => 'integer', 'nullable' => false, 'default' => 1, 'comment' => 'times ingested'],
                 'metadata' => ['type' => 'json', 'nullable' => true, 'comment' => 'Additional metadata'],
+                'audio_files' => ['type' => 'json', 'nullable' => true, 'comment' => 'Multi-variant audio [{variant_key,accent,source,voice_type,provider,path,has_file}]'],
                 'tts_status' => ['type' => 'string', 'length' => 20, 'nullable' => true, 'index' => true],
                 'tts_attempts' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
                 'tts_error' => ['type' => 'text', 'nullable' => true],

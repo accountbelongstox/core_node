@@ -507,6 +507,7 @@ export const pcZh: PcTranslationDict = {
     save: '保存',
     cancel: '取消',
     edited: '已编辑',
+    subagent: '子代理',
     prev: '上一页',
     next: '下一页',
   },

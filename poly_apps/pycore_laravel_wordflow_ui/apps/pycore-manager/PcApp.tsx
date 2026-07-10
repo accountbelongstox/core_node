@@ -8,10 +8,6 @@
 import React, { Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { PcLayout } from './PcLayout';
-import { PcLiveProvider } from './PcLiveContext';
-import { PcCapabilityProvider } from './PcCapabilityContext';
-import { PcVideoExtractProvider } from './PcVideoExtractContext';
-import { PcLaravelEndpointProvider } from './PcLaravelEndpointContext';
 import {
   checkPycoreNow, syncPycoreOfflineRecheckLoop, stopPycoreOfflineRecheckLoop,
 } from '../../core/api-libs/pycore';
@@ -59,11 +55,8 @@ const PcApp: React.FC = () => {
   }, []);
 
   return (
-    <PcLiveProvider>
+    <>
     <PcLanguageSync />
-    <PcLaravelEndpointProvider>
-    <PcCapabilityProvider>
-    <PcVideoExtractProvider>
     <Routes>
       <Route element={<PcLayout />}>
         {/* Page routes are generated from PC_PAGES (above) — add a registry
@@ -91,10 +84,7 @@ const PcApp: React.FC = () => {
         <Route path="*" element={<Navigate to="/pycore-manager" replace />} />
       </Route>
     </Routes>
-    </PcVideoExtractProvider>
-    </PcCapabilityProvider>
-    </PcLaravelEndpointProvider>
-    </PcLiveProvider>
+    </>
   );
 };
 

@@ -10,6 +10,7 @@ import { Cpu } from 'lucide-react';
 import { PC_PAGES } from './pcPages';
 import { PcFloatingLog } from './PcFloatingLog';
 import { PcTopBar } from './components/PcTopBar';
+import { PcProviders } from './PcProviders';
 
 const linkBase =
   'group relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150';
@@ -47,6 +48,7 @@ export const PcLayout: React.FC = () => {
   };
 
   return (
+    <PcProviders>
     <div className="fixed inset-0 flex overflow-hidden" data-end="pycore-manager">
       <aside className="w-56 shrink-0 h-full flex flex-col border-r border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl overflow-hidden">
         <div className="shrink-0 px-4 py-4 flex items-center gap-2.5 text-slate-800 dark:text-slate-100 font-semibold tracking-tight">
@@ -70,6 +72,7 @@ export const PcLayout: React.FC = () => {
       {/* Global floating live-log: present on every pycore page. */}
       <PcFloatingLog />
     </div>
+    </PcProviders>
   );
 };
 

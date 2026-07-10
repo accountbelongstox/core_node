@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioFiles;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
 use App\Models\LangSentence;
 use App\Services\MediaIngestService;
@@ -186,16 +187,25 @@ class MediaIngestController extends Controller
      * by content_id + language. Fill-missing, never clobber.
      *
      * POST /api/app_qy_v1/media/audio   (multipart, no auth — same trust as ingest)
-     *   language    (required)  per-language sentence table selector
-     *   content_id  (required)  md5 dedup key (PathMapper {lang}/{content_id}.mp3)
-     *   source_key  (optional)  originating record (informational)
-     *   audio       (required)  the mp3 file
+     *   language     (required)  per-language sentence table selector
+     *   content_id   (required)  md5 dedup key (PathMapper {lang}/{content_id}.mp3)
+     *   source_key   (optional)  originating record (informational)
+     *   variant_key  (optional)  clip variant id (e.g. duoreader_tts, uk_f, us_m)
+     *   accent       (optional)  us | uk | …
+     *   source       (optional)  tts | human | ai | duoreader
+     *   voice_type   (optional)  machine | neural | human
+     *   provider     (optional)  duoreader-api | edge-tts | …
+     *   audio        (required)  the mp3 file
      *
      * Behaviour:
      *   - no per-language row for content_id  -> { ok:false, status:'no_sentence' }
-     *   - row exists but already has audio     -> { ok:true,  status:'already_done' }
-     *   - row exists, audio empty              -> store mp3 + has_audio/audio/
-     *                                             tts_completed_at, { ok:true, status:'completed' }
+     *   - variant file already on disk        -> { ok:true,  status:'already_done' }
+     *   - row exists, variant missing         -> store mp3 + audio_files entry
+     *                                             { ok:true, status:'completed' }
+     *
+     * FUTURE UK example (same content_id, second clip):
+     *   variant_key=uk_f, accent=uk, source=tts, voice_type=machine, provider=edge-tts
+     * See AppQyV1SentenceAudioFiles::VARIANT_UK_F and roadmap in that class.
      */
     public function audio(Request $request): JsonResponse
     {
@@ -203,11 +213,17 @@ class MediaIngestController extends Controller
             'language' => 'required|string|max:20',
             'content_id' => 'required|string|max:64',
             'source_key' => 'nullable|string|max:64',
+            'variant_key' => 'nullable|string|max:64',
+            'accent' => 'nullable|string|max:20',
+            'source' => 'nullable|string|max:32',
+            'voice_type' => 'nullable|string|max:32',
+            'provider' => 'nullable|string|max:100',
             'audio' => 'required|file',
         ]);
 
         $language = AppQyV1TableMaps::normalizeLangCode($validated['language']);
         $contentId = trim($validated['content_id']);
+        $variantKey = trim((string) ($validated['variant_key'] ?? ''));
 
         if ($language === '') {
             return response()->json(['ok' => false, 'status' => 'invalid', 'error' => 'Unknown language'], 422);
@@ -215,9 +231,6 @@ class MediaIngestController extends Controller
 
         $service = new AppQyV1SentenceAudioService();
 
-        // Locate the per-language sentence row first so a not-yet-ingested
-        // sentence reports 'no_sentence' (pycore ingests text first) rather than
-        // the generic worker-report 404.
         $sentence = LangSentence::onLang($language)
             ->where('content_id', $contentId)
             ->first();
@@ -226,10 +239,9 @@ class MediaIngestController extends Controller
             return response()->json(['ok' => false, 'status' => 'no_sentence', 'error' => 'No sentence row for content_id; ingest text first'], 200);
         }
 
-        // Fill-missing: a row that already carries audio is acknowledged without
-        // overwriting (the service's report() is also file-first idempotent).
-        if (!empty($sentence->has_audio)) {
-            return response()->json(['ok' => true, 'status' => 'already_done']);
+        if ($service->variantExistsOnDisk($language, $contentId, $variantKey !== '' ? $variantKey : null)
+            || AppQyV1SentenceAudioFiles::hasVariantWithFile($sentence, $variantKey)) {
+            return response()->json(['ok' => true, 'status' => 'already_done', 'variant_key' => $variantKey]);
         }
 
         $binary = @file_get_contents($request->file('audio')->getRealPath());
@@ -237,20 +249,27 @@ class MediaIngestController extends Controller
             return response()->json(['ok' => false, 'status' => 'invalid', 'error' => 'Empty audio upload'], 422);
         }
 
-        // Delegate the validated write (MP3 magic + deterministic path + on-disk
-        // verification + has_audio/audio/tts_completed_at) to the shared service.
+        $variantMeta = [
+            'accent' => $validated['accent'] ?? null,
+            'source' => (string) ($validated['source'] ?? AppQyV1SentenceAudioFiles::SOURCE_TTS),
+            'voice_type' => (string) ($validated['voice_type'] ?? AppQyV1SentenceAudioFiles::VOICE_MACHINE),
+        ];
+
         $result = $service->report(
             $contentId,
             $language,
             'media:audio',
             true,
             $binary,
-            'media:audio',
-            null
+            (string) ($validated['provider'] ?? 'media:audio'),
+            null,
+            $variantKey !== '' ? $variantKey : null,
+            $variantMeta
         );
 
         $httpStatus = $result['http_status'] ?? 200;
         unset($result['http_status']);
+        $result['variant_key'] = $variantKey;
 
         return response()->json($result, $httpStatus);
     }

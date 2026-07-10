@@ -8,7 +8,6 @@
 import { useEffect, useRef } from 'react';
 import { useShell } from '../../shell/ShellContext';
 import { pycoreApi, subscribe } from '../../core/api-libs/pycore';
-import { usePcLive } from './PcLiveContext';
 
 function pickLang(raw: unknown): string | null {
   if (typeof raw !== 'string' || !raw.trim()) return null;
@@ -17,7 +16,6 @@ function pickLang(raw: unknown): string | null {
 
 export function PcLanguageSync() {
   const { lang, setLang } = useShell();
-  const { onSystemSettings } = usePcLive();
 
   const hydrated = useRef(false);
   const applyingFromBackend = useRef(false);
@@ -49,10 +47,14 @@ export function PcLanguageSync() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only hydrate
   }, []);
 
-  // Live pushes from tray or other backend writers.
+  // Live pushes from tray or other backend writers (subscribe directly — no PcLiveContext).
   useEffect(() => {
-    const offSettings = onSystemSettings((settings) => {
-      applyBackendLang(pickLang(settings?.lang));
+    const offSettings = subscribe('system_settings_update', (data: unknown) => {
+      const payload = (data && typeof data === 'object') ? data as Record<string, unknown> : {};
+      const settings = (payload.settings && typeof payload.settings === 'object')
+        ? payload.settings as Record<string, unknown>
+        : null;
+      if (settings) applyBackendLang(pickLang(settings.lang));
     });
     const offI18n = subscribe('ui.i18n.language_changed', (data: unknown) => {
       const payload = (data && typeof data === 'object') ? data as Record<string, unknown> : {};
@@ -60,7 +62,7 @@ export function PcLanguageSync() {
     });
     return () => { offSettings(); offI18n(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- lang read via closure each event
-  }, [onSystemSettings, setLang]);
+  }, [setLang]);
 
   // Shell language changes -> persist to backend (tray + native UI follow via i18n).
   useEffect(() => {

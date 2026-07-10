@@ -14,6 +14,7 @@ import {
   DuoreaderChapter,
   buildSlots,
   buildSource,
+  computeContentId,
   emptyProgress,
   fetchShelf,
   fetchBookIngestStatus,
@@ -22,12 +23,23 @@ import {
   canSkipChapterFetch,
   ingestChapter,
   listBilingualBooks,
-  postEnrich,
+  normalizeImportProgress,
+  recomputeAudioPct,
   sourceKeyForBookAsync,
+  uploadSlotAudio,
   viewerUrl,
   DUOREADER_WEB_BASE,
+  DUOREADER_SHELF_URL,
   type BookIngestStatus,
 } from '@/utils/duoreader-importer-core';
+import { fetchDuoreaderAudio } from '@/utils/duoreader-audio';
+import {
+  backupChapterText,
+  backupSentenceAudio,
+  describeDuoreaderDataLocation,
+  hasLocalSentenceAudio,
+  readLocalSentenceAudio,
+} from '@/utils/duoreader-audio-store';
 import { waitForTabComplete } from '../tools/browser/ai-web-common';
 import {
   articlePzUrl,
@@ -148,59 +160,135 @@ async function extractToc(
   return items;
 }
 
-const TTS_ENRICH_TIMEOUT_MS = 90000;
-const TTS_CATCHUP_ROUNDS = 3;
-const TTS_PER_CHAPTER_ROUNDS = 1;
+const AUDIO_FETCH_DELAY_MS = 120;
 
-async function enrichLanguageBatch(
-  baseUrl: string,
-  language: string,
-  batchSize: number,
-  rounds: number,
-  extra: Record<string, unknown> = {},
-): Promise<number> {
-  let total = 0;
-  for (let round = 0; round < rounds; round += 1) {
-    if (stopRequested) break;
-    const result = await postEnrich(baseUrl, language, batchSize, extra, TTS_ENRICH_TIMEOUT_MS);
-    if (!result.ok) {
-      logger.warn(LOG, `TTS enrich ${language} round ${round + 1} failed: ${result.detail}`);
-      break;
-    }
-    total += result.enriched;
-    if (!result.enriched) break;
-  }
-  return total;
+function resetBookProgress(progress: DuoreaderImportProgress): void {
+  progress.chaptersScraped = 0;
+  progress.chaptersDone = 0;
+  progress.chaptersSkipped = 0;
+  progress.chapterCurrent = 0;
+  progress.chapterSlotsExpected = 0;
+  progress.chapterSlotsUploaded = 0;
+  progress.slotsIngested = 0;
+  progress.audioFetchedLearn = 0;
+  progress.audioFetchedMy = 0;
+  progress.audioSlotsTarget = 0;
+  progress.audioLang = '';
+  progress.audioSlot = 0;
+  progress.audioSlotsTotal = 0;
+  progress.scrapePct = 0;
+  progress.uploadPct = 0;
+  progress.audioPct = 0;
+  progress.detail = '';
 }
 
-async function enrichChapterTts(
+async function fetchAndUploadSentenceAudio(
+  baseUrl: string,
+  bookId: string,
+  chapterIndex: number,
+  sourceKey: string,
+  lang: string,
+  text: string,
+): Promise<'uploaded' | 'cached' | 'skipped' | 'failed'> {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return 'skipped';
+
+  const contentId = computeContentId(trimmed);
+  let bytes: Uint8Array | null = null;
+
+  if (await hasLocalSentenceAudio(bookId, chapterIndex, lang, contentId)) {
+    bytes = await readLocalSentenceAudio(bookId, chapterIndex, lang, contentId);
+  }
+  if (!bytes?.length) {
+    try {
+      bytes = await fetchDuoreaderAudio(trimmed, lang);
+      await backupSentenceAudio(bookId, chapterIndex, lang, contentId, trimmed, bytes);
+    } catch (error: any) {
+      logger.warn(LOG, `Audio fetch ${lang} ch${chapterIndex + 1}: ${error?.message || String(error)}`);
+      return 'failed';
+    }
+  } else {
+    await backupSentenceAudio(bookId, chapterIndex, lang, contentId, trimmed, bytes);
+  }
+
+  const upload = await uploadSlotAudio({
+    baseUrl,
+    language: lang,
+    contentId,
+    sourceKey,
+    bytes: Array.from(bytes),
+    mime: 'audio/mpeg',
+  });
+  if (upload.ok || upload.status === 'already_done') {
+    return upload.status === 'already_done' ? 'cached' : 'uploaded';
+  }
+  logger.warn(LOG, `Audio upload ${lang} ${contentId}: ${upload.error || upload.status}`);
+  return 'failed';
+}
+
+async function fetchChapterAudio(
   baseUrl: string,
   cfg: DuoreaderImporterConfig,
   progress: DuoreaderImportProgress,
   book: DuoreaderBookMeta,
-  chapterIndex: number,
-  paragraphCount: number,
+  chapter: DuoreaderChapter,
+  slots: Record<string, unknown>[],
+  sourceKey: string,
 ): Promise<void> {
-  if (!cfg.enableTtsEnrich || stopRequested || paragraphCount <= 0) return;
-  const rounds = Math.min(
-    TTS_PER_CHAPTER_ROUNDS,
-    Math.max(1, Math.ceil(paragraphCount / cfg.ttsEnrichBatchSize)),
-  );
-  progress.phase = `TTS (${cfg.learnLang}) ch ${chapterIndex + 1}: ${book.titleEn}`;
+  if (!cfg.enableAudioFetch || stopRequested || !slots.length) return;
+
+  progress.audioSlotsTarget += slots.length;
+
+  const chNum = chapter.chapterIndex + 1;
+  progress.chapterCurrent = chNum;
+  progress.chapterSlotsExpected = slots.length;
+  progress.audioSlotsTotal = slots.length;
+  progress.step = 'audio';
+  progress.phase = `Audio fetch · ch ${chNum}/${progress.chaptersTotal}: ${book.titleEn}`;
+  progress.detail = `backing up text → ${describeDuoreaderDataLocation()}`;
   await saveProgress(progress);
-  const learnEnriched = await enrichLanguageBatch(
-    baseUrl,
-    cfg.learnLang,
-    cfg.ttsEnrichBatchSize,
-    rounds,
-    { voice_accent: 'us' },
-  );
-  progress.phase = `TTS (${cfg.myLang}) ch ${chapterIndex + 1}: ${book.titleEn}`;
+
+  await backupChapterText(book.id, chapter);
+
+  const langs = [cfg.learnLang, cfg.myLang];
+  for (let slotIdx = 0; slotIdx < slots.length; slotIdx += 1) {
+    if (stopRequested) break;
+    const slot = slots[slotIdx];
+    const slotLangs = (slot.langs || {}) as Record<string, string | null>;
+    progress.audioSlot = slotIdx + 1;
+    progress.detail = `slot ${slotIdx + 1}/${slots.length}`;
+    await saveProgress(progress);
+
+    for (const lang of langs) {
+      if (stopRequested) break;
+      const text = slotLangs[lang];
+      if (!text?.trim()) continue;
+      progress.audioLang = lang;
+      const result = await fetchAndUploadSentenceAudio(
+        baseUrl,
+        book.id,
+        chapter.chapterIndex,
+        sourceKey,
+        lang,
+        text,
+      );
+      if (result === 'uploaded' || result === 'cached') {
+        if (lang === cfg.learnLang) progress.audioFetchedLearn += 1;
+        else if (lang === cfg.myLang) progress.audioFetchedMy += 1;
+        recomputeAudioPct(progress);
+      }
+      progress.detail = `slot ${slotIdx + 1}/${slots.length} · ${lang} ${result}`;
+      await saveProgress(progress);
+      await sleep(AUDIO_FETCH_DELAY_MS);
+    }
+  }
+
+  progress.detail = `ch ${chNum} · audio ${progress.audioFetchedLearn}+${progress.audioFetchedMy} clips`;
+  recomputeAudioPct(progress);
   await saveProgress(progress);
-  const myEnriched = await enrichLanguageBatch(baseUrl, cfg.myLang, cfg.ttsEnrichBatchSize, rounds);
   logger.info(
     LOG,
-    `TTS ch ${chapterIndex + 1} book=${book.id}: ${cfg.learnLang}=${learnEnriched} ${cfg.myLang}=${myEnriched}`,
+    `Audio ch ${chNum} book=${book.id}: ${cfg.learnLang}=${progress.audioFetchedLearn} ${cfg.myLang}=${progress.audioFetchedMy}`,
   );
 }
 
@@ -220,38 +308,14 @@ async function completeBook(
   await saveState(state);
 
   progress.booksDone += 1;
+  progress.step = 'done';
   progress.phase = `Completed (${modeLabel}): ${book.titleEn} (${uploadCtx.slotsIngested} new slots, ${uploadCtx.chaptersSkipped} skipped)`;
+  progress.detail = `text ${uploadCtx.slotsIngested} slots · audio ${progress.audioFetchedLearn}+${progress.audioFetchedMy} clips`;
   await saveProgress(progress);
   logger.info(
     LOG,
     `Book done (${modeLabel}): ${book.titleEn} new=${uploadCtx.slotsIngested} skipped=${uploadCtx.chaptersSkipped}`,
   );
-}
-
-async function finishBookTtsCatchup(
-  book: DuoreaderBookMeta,
-  cfg: DuoreaderImporterConfig,
-  baseUrl: string,
-  progress: DuoreaderImportProgress,
-): Promise<void> {
-  if (!cfg.enableTtsEnrich || stopRequested) return;
-  try {
-    progress.phase = `TTS catch-up (${cfg.learnLang}): ${book.titleEn}`;
-    await saveProgress(progress);
-    const learnTotal = await enrichLanguageBatch(
-      baseUrl,
-      cfg.learnLang,
-      cfg.ttsEnrichBatchSize,
-      TTS_CATCHUP_ROUNDS,
-      { voice_accent: 'us' },
-    );
-    progress.phase = `TTS catch-up (${cfg.myLang}): ${book.titleEn}`;
-    await saveProgress(progress);
-    const myTotal = await enrichLanguageBatch(baseUrl, cfg.myLang, cfg.ttsEnrichBatchSize, TTS_CATCHUP_ROUNDS);
-    logger.info(LOG, `TTS catch-up ${book.id}: ${cfg.learnLang}=${learnTotal} ${cfg.myLang}=${myTotal}`);
-  } catch (error: any) {
-    logger.warn(LOG, `TTS catch-up failed for ${book.id}: ${error?.message || String(error)}`);
-  }
 }
 
 async function loadBookArticlesViaCdn(bookId: string): Promise<DuoreaderArticleRef[]> {
@@ -385,18 +449,36 @@ async function uploadChapterIfNeeded(
   const expected = chapter.paragraphs.length;
   const seqStart = globalSeqBeforeChapter(chapter.chapterIndex, ctx.ingestStatus);
 
+  const chNum = chapter.chapterIndex + 1;
+  ctx.progress.chapterCurrent = chNum;
+  ctx.progress.chapterSlotsExpected = expected;
+
   if (isChapterCompleteOnBackend(backendCh, expected)) {
     ctx.chaptersSkipped += 1;
     ctx.progress.chaptersDone += 1;
     ctx.progress.chaptersSkipped = ctx.chaptersSkipped;
+    ctx.progress.chapterSlotsUploaded = 0;
+    ctx.progress.step = 'skip';
     ctx.progress.uploadPct = Math.round((ctx.progress.chaptersDone / ctx.progress.chaptersTotal) * 100);
-    ctx.progress.phase = `Skip ch ${chapter.chapterIndex + 1} (backend complete): ${ctx.book.titleEn}`;
+    ctx.progress.phase = `Skip upload ch ${chNum}/${ctx.progress.chaptersTotal}: ${ctx.book.titleEn}`;
+    ctx.progress.detail = `${expected} slots already on backend`;
     await saveProgress(ctx.progress);
     logger.info(
       LOG,
       `Skip upload ch ${chapter.chapterIndex + 1} book=${ctx.book.id} slots=${expected} (backend ${backendCh?.slot_count}/${backendCh?.sentence_count})`,
     );
     await markChapterDone(ctx.state, ctx.book.id, chapter.chapterIndex, Math.max(ctx.globalSeq, seqStart + expected));
+
+    const skipSlots = await buildSlots(ctx.book.id, chapter, ctx.cfg, seqStart);
+    await fetchChapterAudio(
+      ctx.baseUrl,
+      ctx.cfg,
+      ctx.progress,
+      ctx.book,
+      chapter,
+      skipSlots,
+      ctx.sourceKey,
+    );
     return ctx;
   }
 
@@ -407,8 +489,10 @@ async function uploadChapterIfNeeded(
     );
   }
 
-  ctx.progress.phase = `${phaseLabel} ch ${chapter.chapterIndex + 1}/${ctx.progress.chaptersTotal}: ${ctx.book.titleEn}`;
-  ctx.progress.uploadPct = Math.round(((chapter.chapterIndex + 1) / ctx.progress.chaptersTotal) * 100);
+  ctx.progress.step = 'upload';
+  ctx.progress.phase = `${phaseLabel} ch ${chNum}/${ctx.progress.chaptersTotal}: ${ctx.book.titleEn}`;
+  ctx.progress.detail = `uploading ${expected} slots`;
+  ctx.progress.uploadPct = Math.round((chNum / ctx.progress.chaptersTotal) * 100);
   await saveProgress(ctx.progress);
 
   const source = ctx.sourceSent
@@ -441,7 +525,9 @@ async function uploadChapterIfNeeded(
   ctx.slotsIngested += slots.length;
   ctx.progress.chaptersDone += 1;
   ctx.progress.slotsIngested += slots.length;
+  ctx.progress.chapterSlotsUploaded = slots.length;
   ctx.progress.uploadPct = Math.round((ctx.progress.chaptersDone / ctx.progress.chaptersTotal) * 100);
+  ctx.progress.detail = `uploaded ${slots.length} slots · book total ${ctx.progress.slotsIngested}`;
   await saveProgress(ctx.progress);
   logger.info(
     LOG,
@@ -465,13 +551,14 @@ async function uploadChapterIfNeeded(
       };
   ctx.ingestStatus.chapterMap.set(chapter.chapterIndex, updated);
 
-  await enrichChapterTts(
+  await fetchChapterAudio(
     ctx.baseUrl,
     ctx.cfg,
     ctx.progress,
     ctx.book,
-    chapter.chapterIndex,
-    slots.length,
+    chapter,
+    slots,
+    ctx.sourceKey,
   );
 
   return ctx;
@@ -485,7 +572,9 @@ async function importBookViaCdnApi(
   progress: DuoreaderImportProgress,
 ): Promise<void> {
   const bookState = state.books[book.id];
+  progress.step = 'scrape';
   progress.phase = `CDN API TOC: ${book.titleEn}`;
+  progress.detail = 'loading book.pz catalog';
   await saveProgress(progress);
 
   const sourceKey = await sourceKeyForBookAsync(book.id);
@@ -523,11 +612,15 @@ async function importBookViaCdnApi(
 
     if (canSkipChapterFetch(backendCh)) {
       uploadCtx.chaptersSkipped += 1;
+      uploadCtx.progress.chaptersScraped += 1;
       uploadCtx.progress.chaptersDone += 1;
       uploadCtx.progress.chaptersSkipped = uploadCtx.chaptersSkipped;
-      uploadCtx.progress.scrapePct = Math.round((uploadCtx.progress.chaptersDone / uploadCtx.progress.chaptersTotal) * 100);
-      uploadCtx.progress.uploadPct = uploadCtx.progress.scrapePct;
-      uploadCtx.progress.phase = `Skip ch ${chIdx + 1} (backend OK): ${book.titleEn}`;
+      uploadCtx.progress.chapterCurrent = chIdx + 1;
+      uploadCtx.progress.step = 'skip';
+      uploadCtx.progress.scrapePct = Math.round((uploadCtx.progress.chaptersScraped / uploadCtx.progress.chaptersTotal) * 100);
+      uploadCtx.progress.uploadPct = Math.round((uploadCtx.progress.chaptersDone / uploadCtx.progress.chaptersTotal) * 100);
+      uploadCtx.progress.phase = `Skip ch ${chIdx + 1}/${articles.length}: ${book.titleEn}`;
+      uploadCtx.progress.detail = `${backendCh?.slot_count || 0} slots on backend`;
       await saveProgress(uploadCtx.progress);
       logger.info(
         LOG,
@@ -542,7 +635,10 @@ async function importBookViaCdnApi(
       continue;
     }
 
+    uploadCtx.progress.step = 'scrape';
+    uploadCtx.progress.chapterCurrent = chIdx + 1;
     uploadCtx.progress.phase = `CDN fetch ch ${chIdx + 1}/${articles.length}: ${book.titleEn}`;
+    uploadCtx.progress.detail = 'downloading .pz';
     uploadCtx.progress.scrapePct = Math.round(((chIdx + 1) / articles.length) * 100);
     await saveProgress(uploadCtx.progress);
 
@@ -567,12 +663,16 @@ async function importBookViaCdnApi(
       paragraphs,
     };
 
+    uploadCtx.progress.chaptersScraped += 1;
+    uploadCtx.progress.scrapePct = Math.round((uploadCtx.progress.chaptersScraped / uploadCtx.progress.chaptersTotal) * 100);
+    uploadCtx.progress.detail = `fetched ${paragraphs.length} paragraphs`;
+    await saveProgress(uploadCtx.progress);
+
     uploadCtx = await uploadChapterIfNeeded(uploadCtx, chapter, 'Upload');
     await sleep(80);
   }
 
   await completeBook(state, book, progress, uploadCtx, 'CDN');
-  await finishBookTtsCatchup(book, cfg, baseUrl, progress);
 }
 
 async function extractChapter(tabId: number): Promise<DuoreaderChapter | null> {
@@ -594,7 +694,7 @@ async function extractChapter(tabId: number): Promise<DuoreaderChapter | null> {
 
 export async function getDuoreaderProgress(): Promise<DuoreaderImportProgress> {
   const stored = await chrome.storage.local.get(PROGRESS_STORAGE_KEY);
-  return stored[PROGRESS_STORAGE_KEY] || emptyProgress();
+  return normalizeImportProgress(stored[PROGRESS_STORAGE_KEY]);
 }
 
 export async function stopDuoreaderImport(): Promise<void> {
@@ -615,18 +715,27 @@ export async function startDuoreaderImport(
 
   importRunning = true;
   stopRequested = false;
-  const cfg: DuoreaderImporterConfig = { ...DEFAULT_IMPORTER_CONFIG, ...config };
+  const legacyCfg = config as Partial<DuoreaderImporterConfig> & { enableTtsEnrich?: boolean };
+  const cfg: DuoreaderImporterConfig = {
+    ...DEFAULT_IMPORTER_CONFIG,
+    ...config,
+    enableAudioFetch: legacyCfg.enableAudioFetch ?? legacyCfg.enableTtsEnrich ?? DEFAULT_IMPORTER_CONFIG.enableAudioFetch,
+  };
   const progress = emptyProgress();
   progress.running = true;
+  progress.step = 'catalog';
   progress.phase = 'Starting…';
+  progress.detail = `resolving API · backup ${describeDuoreaderDataLocation()}`;
   await saveProgress(progress);
-  logger.info(LOG, `Import started (my=${cfg.myLang} learn=${cfg.learnLang} maxBooks=${cfg.maxBooks} cdnApi=${cfg.useCdnApi})`);
+  logger.info(LOG, `Import started (my=${cfg.myLang} learn=${cfg.learnLang} maxBooks=${cfg.maxBooks} cdnApi=${cfg.useCdnApi} audio=${cfg.enableAudioFetch})`);
 
   try {
     const baseUrl = await resolveApiBase();
     logger.info(LOG, `API base: ${baseUrl}`);
 
+    progress.step = 'catalog';
     progress.phase = 'Loading catalog';
+    progress.detail = DUOREADER_SHELF_URL;
     await saveProgress(progress);
     const shelf = await fetchShelf();
     const books = listBilingualBooks(shelf, cfg);
@@ -658,10 +767,7 @@ export async function startDuoreaderImport(
 
       progress.bookId = book.id;
       progress.bookTitle = book.titleEn;
-      progress.chaptersDone = 0;
-      progress.chaptersTotal = 0;
-      progress.scrapePct = 0;
-      progress.uploadPct = 0;
+      resetBookProgress(progress);
       await saveProgress(progress);
 
       if (cfg.useCdnApi) {
@@ -673,7 +779,9 @@ export async function startDuoreaderImport(
         tabId = await ensureWorkerTab();
       }
 
+      progress.step = 'scrape';
       progress.phase = `Scraping TOC: ${book.titleEn}`;
+      progress.detail = 'opening viewer';
       await saveProgress(progress);
 
       await navigateAndWait(tabId, viewerUrl(book.id, 0, 0));
@@ -710,11 +818,15 @@ export async function startDuoreaderImport(
 
         if (canSkipChapterFetch(backendCh)) {
           uploadCtx.chaptersSkipped += 1;
+          uploadCtx.progress.chaptersScraped += 1;
           uploadCtx.progress.chaptersDone += 1;
           uploadCtx.progress.chaptersSkipped = uploadCtx.chaptersSkipped;
-          uploadCtx.progress.scrapePct = Math.round((uploadCtx.progress.chaptersDone / uploadCtx.progress.chaptersTotal) * 100);
-          uploadCtx.progress.uploadPct = uploadCtx.progress.scrapePct;
-          uploadCtx.progress.phase = `Skip ch ${tocItem.chapterIndex + 1} (backend OK): ${book.titleEn}`;
+          uploadCtx.progress.chapterCurrent = tocItem.chapterIndex + 1;
+          uploadCtx.progress.step = 'skip';
+          uploadCtx.progress.scrapePct = Math.round((uploadCtx.progress.chaptersScraped / uploadCtx.progress.chaptersTotal) * 100);
+          uploadCtx.progress.uploadPct = Math.round((uploadCtx.progress.chaptersDone / uploadCtx.progress.chaptersTotal) * 100);
+          uploadCtx.progress.phase = `Skip ch ${tocItem.chapterIndex + 1}/${toc.length}: ${book.titleEn}`;
+          uploadCtx.progress.detail = `${backendCh?.slot_count || 0} slots on backend`;
           await saveProgress(uploadCtx.progress);
           logger.info(
             LOG,
@@ -729,7 +841,11 @@ export async function startDuoreaderImport(
           continue;
         }
 
-        progress.phase = `Scraping ch ${tocItem.chapterIndex + 1}/${toc.length}: ${book.titleEn}`;
+        const chNum = tocItem.chapterIndex + 1;
+        progress.step = 'scrape';
+        progress.chapterCurrent = chNum;
+        progress.phase = `Scraping ch ${chNum}/${toc.length}: ${book.titleEn}`;
+        progress.detail = 'loading chapter in tab';
         await saveProgress(progress);
 
         await navigateAndWait(tabId, viewerUrl(book.id, tocItem.chapterIndex, 0));
@@ -739,6 +855,11 @@ export async function startDuoreaderImport(
           continue;
         }
 
+        progress.chaptersScraped += 1;
+        progress.scrapePct = Math.round((progress.chaptersScraped / toc.length) * 100);
+        progress.detail = `scraped ${rawChapter.paragraphs.length} paragraphs`;
+        await saveProgress(progress);
+
         const chapter: DuoreaderChapter = {
           ...rawChapter,
           chapterIndex: tocItem.chapterIndex,
@@ -747,7 +868,7 @@ export async function startDuoreaderImport(
           titleEn: rawChapter.titleEn || tocItem.titleEn,
         };
 
-        progress.scrapePct = Math.round(((tocItem.chapterIndex + 1) / toc.length) * 100);
+        progress.scrapePct = Math.round((progress.chaptersScraped / toc.length) * 100);
         await saveProgress(progress);
 
         uploadCtx = await uploadChapterIfNeeded(uploadCtx, chapter, 'Uploading');
@@ -755,7 +876,6 @@ export async function startDuoreaderImport(
       }
 
       await completeBook(state, book, progress, uploadCtx, 'scrape');
-      await finishBookTtsCatchup(book, cfg, baseUrl, progress);
     }
 
     progress.running = false;

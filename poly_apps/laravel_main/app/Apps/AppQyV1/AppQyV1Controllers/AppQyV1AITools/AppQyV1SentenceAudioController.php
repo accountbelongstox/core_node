@@ -186,6 +186,10 @@ class AppQyV1SentenceAudioController extends Controller
     /**
      * GET /api/app_qy_v1/ai_tools/tts/sentence/audio  (§6) — FILE-FIRST.
      * Query: ?hash=<content_id>&language=<lang>  OR  ?text=<sentence>&language=<lang>
+     *
+     * FUTURE: accept ?variant_key=uk_f or ?accent=uk; delegate to
+     * AppQyV1SentenceAudioService::resolve() with variant-aware disk lookup
+     * (relativePathFor + audio_files entry). See AppQyV1SentenceAudioFiles roadmap.
      */
     public function audio(Request $request): JsonResponse
     {

@@ -184,6 +184,12 @@ def read_state() -> Dict[str, Any]:
             data["sources"] = json.loads(str(sources_raw))
         except json.JSONDecodeError:
             data["sources"] = {}
+        counts_raw = data.get("counts")
+        if isinstance(counts_raw, str):
+            try:
+                data["counts"] = json.loads(counts_raw)
+            except json.JSONDecodeError:
+                pass
         return data
     except OSError:
         return {}
@@ -228,6 +234,10 @@ def read_index() -> Dict[str, Any]:
     meta["users"] = [u for u in str(users).split(",") if u] if users else []
     langs = meta.get("langs", "")
     meta["langs"] = [l for l in str(langs).split(",") if l] if langs else []
+    try:
+        meta["sessions_count"] = int(meta.get("sessions_count") or len(sessions))
+    except (TypeError, ValueError):
+        meta["sessions_count"] = len(sessions)
     return meta
 
 
@@ -283,7 +293,7 @@ def read_prompts() -> List[Dict[str, Any]]:
             fields["ts"] = 0
         fields["edited"] = str(fields.get("edited", "")).lower() == "true"
         out.append(fields)
-    return out
+    return [p for p in out if (p.get("text") or "").strip()]
 
 
 def write_prompts(prompts: List[Dict[str, Any]]) -> None:
@@ -299,6 +309,7 @@ def write_prompts(prompts: List[Dict[str, Any]]) -> None:
             "time": p.get("time", ""),
             "lang": p.get("lang", ""),
             "edited": bool(p.get("edited")),
+            "text": p.get("text") or "",
         }, body_key="text"))
     _atomic_write(store_dir() / "prompts.txt", "".join(parts))
 
@@ -370,6 +381,7 @@ def write_session(session_id: str, detail: Dict[str, Any]) -> None:
             "id": p.get("id", ""),
             "ts": p.get("ts", 0),
             "edited": bool(p.get("edited")),
+            "text": p.get("text") or "",
         }, body_key="text"))
     for t in detail.get("turns") or []:
         parts.append(format_block("@turn", {
@@ -379,6 +391,7 @@ def write_session(session_id: str, detail: Dict[str, Any]) -> None:
             "is_subagent": bool(t.get("is_subagent")),
             "model": t.get("model") or "",
             "name": t.get("name") or "",
+            "text": t.get("text") or "",
         }, body_key="text"))
     _atomic_write(sessions_dir() / f"{sid}.txt", "".join(parts))
 

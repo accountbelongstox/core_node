@@ -190,11 +190,11 @@ const PcAgentHistoryPage: React.FC = () => {
       {index?.generated_at && (
         <div className="text-xs font-mono text-slate-400">
           {tk('updated')}: {index.generated_at}
-          {index.counts && (
-            <span className="ml-3">
-              {index.counts.sessions ?? 0} {tk('sessionCount')} · {index.counts.prompts ?? 0} {tk('promptCount')}
-            </span>
-          )}
+          <span className="ml-3">
+            {index.counts?.sessions ?? index.sessions?.length ?? 0} {tk('sessionCount')}
+            {' · '}
+            {index.counts?.prompts ?? 0} {tk('promptCount')}
+          </span>
         </div>
       )}
 
@@ -262,8 +262,9 @@ const PcAgentHistoryPage: React.FC = () => {
                 <SessionRow
                   key={s.id}
                   s={s as any}
-                  selected={selectedId === s.id}
-                  onSelect={() => handleSelect(s.id)}
+                  active={selectedId === s.id}
+                  subagentLabel={tk('subagent')}
+                  onClick={() => handleSelect(s.id)}
                 />
               ))
             )}
@@ -274,7 +275,7 @@ const PcAgentHistoryPage: React.FC = () => {
             ) : detailError ? (
               <div className="text-sm text-red-500">{detailError}</div>
             ) : detail ? (
-              <SessionDetailView detail={detail as any} />
+              <SessionDetailView detail={detail as any} subagentLabel={tk('subagent')} />
             ) : (
               <div className="text-sm text-slate-500 flex items-center gap-2">
                 <UserIcon className="w-4 h-4" />

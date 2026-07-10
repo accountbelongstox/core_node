@@ -520,6 +520,7 @@ export const pcEn = {
     save: 'Save',
     cancel: 'Cancel',
     edited: 'edited',
+    subagent: 'sub-agent',
     prev: 'Prev',
     next: 'Next',
   },

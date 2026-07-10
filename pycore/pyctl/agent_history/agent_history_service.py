@@ -281,6 +281,10 @@ class AgentHistoryService:
             self.extract(False)
             index = txt.read_index()
         counts = txt.read_state().get("counts") or {}
+        if not isinstance(counts, dict):
+            counts = {}
+        if not counts.get("sessions"):
+            counts["sessions"] = index.get("sessions_count") or len(index.get("sessions") or [])
         return {
             "is_dev_machine": index.get("is_dev_machine", self.is_dev_machine()),
             "generated_at": index.get("generated_at", ""),

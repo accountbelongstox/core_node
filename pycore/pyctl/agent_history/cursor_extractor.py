@@ -1,10 +1,18 @@
 # -*- coding: utf-8 -*-
-"""Cursor IDE extractor — mirrors Laravel CursorExtractor (SQLite ItemTable)."""
+"""
+Cursor IDE extractor — agent-transcripts JSONL (primary) + state.vscdb (fallback).
+
+Official Cursor agent chat transcripts live under:
+  <home>/.cursor/projects/<slug>/agent-transcripts/<id>/<id>.jsonl
+
+Each line: {"role":"user|assistant","message":{"content":[{type,text|tool_use},...]}}
+"""
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 from glob import glob
 from typing import Any, Dict, List, Optional
@@ -16,26 +24,153 @@ class CursorExtractor(BaseExtractor):
     def tool(self) -> str:
         return "cursor"
 
-    def _cursor_user_base(self, home: str) -> str:
-        """Windows: AppData/Roaming/Cursor/User; Linux/macOS: .config/Cursor/User."""
+    def _cursor_roots(self, home: str) -> List[str]:
+        roots = [os.path.join(home, ".cursor")]
         roaming = os.path.join(home, "AppData", "Roaming", "Cursor", "User")
         if os.path.isdir(roaming):
-            return roaming
-        return os.path.join(home, ".config", "Cursor", "User")
+            roots.append(roaming)
+        cfg = os.path.join(home, ".config", "Cursor", "User")
+        if os.path.isdir(cfg):
+            roots.append(cfg)
+        return roots
 
     def discover(self, home: str, user: str) -> List[Dict[str, Any]]:
-        base = self._cursor_user_base(home)
-        if not os.path.isdir(base):
-            return []
         out: List[Dict[str, Any]] = []
-        global_db = os.path.join(base, "globalStorage", "state.vscdb")
-        if os.path.isfile(global_db):
-            out.append(self.descriptor(global_db))
-        for db in glob(os.path.join(base, "workspaceStorage", "*", "state.vscdb")):
-            out.append(self.descriptor(db))
+        seen: set[str] = set()
+
+        cursor_projects = os.path.join(home, ".cursor", "projects")
+        if os.path.isdir(cursor_projects):
+            for pattern in (
+                os.path.join(cursor_projects, "*", "agent-transcripts", "*", "*.jsonl"),
+                os.path.join(cursor_projects, "*", "agent-transcripts", "*.jsonl"),
+            ):
+                for file in glob(pattern):
+                    if file not in seen:
+                        seen.add(file)
+                        out.append(self.descriptor(file))
+
+        for base in (
+            os.path.join(home, "AppData", "Roaming", "Cursor", "User"),
+            os.path.join(home, ".config", "Cursor", "User"),
+        ):
+            if not os.path.isdir(base):
+                continue
+            for db in glob(os.path.join(base, "workspaceStorage", "*", "state.vscdb")):
+                if db in seen:
+                    continue
+                try:
+                    if os.path.getsize(db) > 50 * 1024 * 1024:
+                        continue
+                except OSError:
+                    continue
+                seen.add(db)
+                out.append(self.descriptor(db))
+
         return out
 
     def parse_source(self, path: str, user: str) -> List[Dict[str, Any]]:
+        if path.endswith(".jsonl"):
+            sess = self._parse_agent_transcript(path, user)
+            return [sess] if sess else []
+        return self._parse_vscdb(path, user)
+
+    def _parse_agent_transcript(self, file: str, user: str) -> Optional[Dict[str, Any]]:
+        entries = self.load_jsonl(file)
+        if not entries:
+            return None
+
+        turns: List[Dict[str, Any]] = []
+        prompts: List[Dict[str, Any]] = []
+        models: Dict[str, bool] = {}
+        first_ts = 0
+        last_ts = 0
+        try:
+            mtime = int(os.stat(file).st_mtime)
+        except OSError:
+            mtime = 0
+
+        project = ""
+        parts = file.replace("\\", "/").split("/")
+        if "projects" in parts:
+            idx = parts.index("projects")
+            if idx + 1 < len(parts):
+                project = parts[idx + 1]
+
+        session_id = os.path.splitext(os.path.basename(file))[0]
+        if os.path.basename(os.path.dirname(file)) != "agent-transcripts":
+            session_id = os.path.basename(os.path.dirname(file))
+
+        for e in entries:
+            ts = self.ts_to_epoch(e.get("timestamp")) or mtime
+            if ts > 0:
+                last_ts = ts
+                if first_ts == 0:
+                    first_ts = ts
+
+            role = str(e.get("role") or "")
+            msg = e.get("message") or {}
+            model = msg.get("model")
+            if isinstance(model, str) and model:
+                models[model] = True
+
+            content = msg.get("content")
+            if isinstance(content, str):
+                content = [{"type": "text", "text": content}]
+            if not isinstance(content, list):
+                continue
+
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                btype = block.get("type", "")
+                if btype == "text":
+                    text = str(block.get("text") or "").strip()
+                    if not text:
+                        continue
+                    text = self._strip_cursor_metadata(text)
+                    if not text:
+                        continue
+                    if role == "user":
+                        prompts.append({"ts": ts, "text": self.truncate(text)})
+                        turns.append(self.turn(ts, "user", text))
+                    else:
+                        turns.append(self.turn(ts, "assistant", text, False, model))
+                elif btype == "tool_use":
+                    name = str(block.get("name") or "?")
+                    inp = json.dumps(block.get("input") or {}, ensure_ascii=False)
+                    turns.append(self.turn(ts, "tool_use", inp, False, model, name))
+                elif btype == "tool_result":
+                    text = self.stringify_content(block.get("content") or block.get("output") or "")
+                    if text.strip():
+                        turns.append(self.turn(ts, "tool_result", text, False, model))
+
+            if len(turns) > MAX_TURNS:
+                break
+
+        if not turns:
+            return None
+
+        return self.session("cursor", user, session_id, {
+            "project": project,
+            "title": session_id,
+            "firstTs": first_ts or mtime,
+            "lastTs": last_ts or mtime,
+            "source": file,
+            "models": list(models.keys()),
+            "prompts": prompts,
+            "turns": turns,
+        })
+
+    @staticmethod
+    def _strip_cursor_metadata(text: str) -> str:
+        """Keep the user_query body; drop timestamp/XML wrappers when present."""
+        m = re.search(r"<user_query>\s*(.*?)\s*</user_query>", text, re.DOTALL | re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+        text = re.sub(r"<timestamp>.*?</timestamp>\s*", "", text, flags=re.DOTALL | re.IGNORECASE)
+        return text.strip()
+
+    def _parse_vscdb(self, path: str, user: str) -> List[Dict[str, Any]]:
         rows = self._read_item_table(path)
         if not rows:
             return []
@@ -76,7 +211,7 @@ class CursorExtractor(BaseExtractor):
             conn.execute("PRAGMA query_only = 1")
             cur = conn.execute(
                 "SELECT key, value FROM ItemTable WHERE key LIKE '%chat%' "
-                "OR key LIKE '%composer%' OR key LIKE '%aiService%'"
+                "OR key LIKE '%composer%' OR key LIKE '%aiService%' OR key LIKE '%cursor%'"
             )
             for key, value in cur.fetchall():
                 rows[str(key)] = str(value)

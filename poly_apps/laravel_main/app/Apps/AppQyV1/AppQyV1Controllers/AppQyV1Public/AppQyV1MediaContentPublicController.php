@@ -203,6 +203,10 @@ class AppQyV1MediaContentPublicController
      * the first available) for backwards compatibility; `languages` carries the
      * full per-language map (null where the correspondence is empty).
      *
+     * FUTURE: add audio_files per lang entry (AppQyV1SentenceAudioFiles::list($row))
+     * so the public read API can expose all clips; FE selects by accent / variant_key.
+     * Primary audio/audio path stays for backward compat until clients migrate.
+     *
      * @return array{text:?string,audio:?string,explanation:?string,languages:array<string,mixed>}|null
      */
     private function resolveSlotLanguages(SourceSentence $link): ?array
@@ -246,6 +250,7 @@ class AppQyV1MediaContentPublicController
                 'audio' => $row->audio,
                 'explanation' => $row->explanation,
                 'has_audio' => (bool) $row->has_audio,
+                // FUTURE: 'audio_files' => AppQyV1SentenceAudioFiles::list($row),
             ];
             $languages[$lang] = $entry;
 

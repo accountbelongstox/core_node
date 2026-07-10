@@ -27,8 +27,8 @@
     </div>
 
     <label class="dr-check">
-      <input v-model="enableTts" type="checkbox" :disabled="progress.running" />
-      <span>Request Laravel TTS after each chapter (server generates mp3)</span>
+      <input v-model="enableAudio" type="checkbox" :disabled="progress.running" />
+      <span>Fetch audio from Duoreader API (backup text+mp3 locally)</span>
     </label>
 
     <label class="dr-check">
@@ -59,28 +59,56 @@
 
     <div v-if="progress.running || progress.phase" class="dr-activity">
       <span class="dr-dot" :class="{ busy: progress.running }" />
-      <span>{{ progress.phase || 'Idle' }}</span>
+      <div class="dr-activity-text">
+        <div class="dr-activity-main">
+          <span v-if="progress.step" class="dr-step">{{ stepLabel }}</span>
+          {{ progress.phase || 'Idle' }}
+        </div>
+        <div v-if="progress.detail" class="dr-activity-detail">{{ progress.detail }}</div>
+      </div>
     </div>
 
     <div v-if="error || progress.error" class="dr-error">⚠ {{ error || progress.error }}</div>
 
     <div class="dr-progress-block">
       <div class="dr-progress-head">
-        <span>Scrape progress</span>
-        <span>{{ progress.chaptersDone }}/{{ progress.chaptersTotal || '—' }} ch</span>
+        <span>Scrape / fetch</span>
+        <span>{{ progress.chaptersScraped || 0 }}/{{ progress.chaptersTotal || '—' }} ch</span>
       </div>
       <div class="dr-bar"><div class="dr-fill scrape" :style="{ width: progress.scrapePct + '%' }" /></div>
     </div>
 
     <div class="dr-progress-block">
       <div class="dr-progress-head">
-        <span>Upload progress</span>
+        <span>Text upload</span>
         <span>
-          {{ progress.slotsIngested }} slots · {{ progress.booksDone }}/{{ progress.booksTotal || '—' }} books
+          ch {{ progress.chaptersDone || 0 }}/{{ progress.chaptersTotal || '—' }}
+          · {{ progress.slotsIngested }} slots
+          <template v-if="progress.chapterCurrent"> · current ch {{ progress.chapterCurrent }}
+            <template v-if="progress.chapterSlotsExpected"> ({{ progress.chapterSlotsUploaded || 0 }}/{{ progress.chapterSlotsExpected }} slots)</template>
+          </template>
           <template v-if="progress.chaptersSkipped"> · {{ progress.chaptersSkipped }} skipped</template>
         </span>
       </div>
       <div class="dr-bar"><div class="dr-fill upload" :style="{ width: progress.uploadPct + '%' }" /></div>
+    </div>
+
+    <div v-if="enableAudio" class="dr-progress-block">
+      <div class="dr-progress-head">
+        <span>Audio fetch</span>
+        <span>
+          <template v-if="progress.audioLang">{{ progress.audioLang }} slot {{ progress.audioSlot }}/{{ progress.audioSlotsTotal || '—' }} · </template>
+          {{ progress.audioFetchedLearn || 0 }}+{{ progress.audioFetchedMy || 0 }} mp3
+        </span>
+      </div>
+      <div class="dr-bar"><div class="dr-fill audio" :style="{ width: progress.audioPct + '%' }" /></div>
+    </div>
+
+    <div class="dr-progress-block dr-books-row">
+      <div class="dr-progress-head">
+        <span>Books</span>
+        <span>{{ progress.booksDone }}/{{ progress.booksTotal || '—' }}</span>
+      </div>
     </div>
 
     <div v-if="progress.bookTitle" class="dr-current">
@@ -100,13 +128,25 @@
 </template>
 
 <script lang="ts" setup>
+import { computed } from 'vue';
 import { useDuoreaderImporter } from '@/entrypoints/popup/composables/useDuoreaderImporter';
+import type { DuoreaderImportStep } from '@/utils/duoreader-importer-core';
+
+const STEP_LABELS: Record<DuoreaderImportStep, string> = {
+  idle: '',
+  catalog: 'Catalog',
+  scrape: 'Scrape',
+  upload: 'Upload',
+  audio: 'Audio',
+  skip: 'Skip',
+  done: 'Done',
+};
 
 const {
   myLang,
   learnLang,
   maxBooks,
-  enableTts,
+  enableAudio,
   useCdnApi,
   apiBaseUrl,
   books,
@@ -120,6 +160,12 @@ const {
   startImport,
   stopImport,
 } = useDuoreaderImporter();
+
+const stepLabel = computed(() => {
+  const step = progress.value.step || 'idle';
+  const label = STEP_LABELS[step as DuoreaderImportStep];
+  return label ? `[${label}]` : '';
+});
 </script>
 
 <style scoped>
@@ -187,12 +233,25 @@ const {
 .dr-api-err { margin-top: 4px; color: #fecdd3; }
 .dr-activity {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   padding: 6px 8px;
   border-radius: 6px;
   background: rgba(99, 102, 241, 0.1);
   border: 1px solid rgba(99, 102, 241, 0.3);
+}
+.dr-activity-text { flex: 1; min-width: 0; }
+.dr-activity-main { font-size: 9px; line-height: 1.35; }
+.dr-activity-detail { font-size: 8px; color: #94a3b8; margin-top: 2px; line-height: 1.3; word-break: break-word; }
+.dr-step {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(99, 102, 241, 0.25);
+  color: #c7d2fe;
+  font-weight: 700;
+  font-size: 8px;
 }
 .dr-dot {
   width: 8px;
@@ -235,6 +294,8 @@ const {
 }
 .dr-fill.scrape { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
 .dr-fill.upload { background: linear-gradient(90deg, #10b981, #34d399); }
+.dr-fill.audio { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.dr-books-row { margin-bottom: 2px; }
 .dr-current { font-size: 9px; color: #cbd5e1; }
 .dr-id { color: #64748b; margin-left: 4px; }
 .dr-list {

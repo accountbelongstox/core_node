@@ -9,7 +9,7 @@
  *   - latestSettings: most recent backend `system_settings_update` payload
  *   - onSystemSettings(): subscribe to backend settings pushes
  *
- * Wrap the pycore routes with <PcLiveProvider> (done in PcApp) so the global
+ * Wrap the pycore layout with <PcLiveProvider> (done in PcProviders / PcLayout) so the global
  * floating log and any page can read the same buffer via usePcLive().
  */
 import React, {

@@ -11,6 +11,7 @@ import {
   DuoreaderBookMeta,
   DuoreaderImportProgress,
   emptyProgress,
+  normalizeImportProgress,
 } from '@/utils/duoreader-importer-core';
 import type { DuoreaderApiTestResult } from '@/utils/duoreader-pz-decode';
 import { sendWithWake } from '@/utils/sendWithWake';
@@ -26,7 +27,7 @@ export function useDuoreaderImporter() {
   const myLang = usePersistedRef('duoreaderMyLang', 'zh');
   const learnLang = usePersistedRef('duoreaderLearnLang', 'en');
   const maxBooks = usePersistedRef('duoreaderMaxBooks', 0);
-  const enableTts = usePersistedRef('duoreaderEnableTts', true);
+  const enableAudio = usePersistedRef('duoreaderEnableAudio', true);
   const useCdnApi = usePersistedRef('duoreaderUseCdnApi', false);
 
   const { apiBaseUrl, syncApiEndpoint } = useApiEndpoint();
@@ -45,7 +46,7 @@ export function useDuoreaderImporter() {
       action: 'get_status',
     });
     if (res?.progress) {
-      progress.value = res.progress;
+      progress.value = normalizeImportProgress(res.progress);
     }
   };
 
@@ -125,7 +126,7 @@ export function useDuoreaderImporter() {
           myLang: myLang.value,
           learnLang: learnLang.value,
           maxBooks: maxBooks.value,
-          enableTtsEnrich: enableTts.value,
+          enableAudioFetch: enableAudio.value,
           useCdnApi: useCdnApi.value,
         },
       });
@@ -168,12 +169,20 @@ export function useDuoreaderImporter() {
 
   const onStorageChanged = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
     if (area !== 'local' || !changes[PROGRESS_STORAGE_KEY]) return;
-    progress.value = changes[PROGRESS_STORAGE_KEY].newValue || emptyProgress();
+    progress.value = normalizeImportProgress(changes[PROGRESS_STORAGE_KEY].newValue);
   };
 
   onMounted(async () => {
     await logger.init().catch(() => {});
     await syncApiEndpoint();
+    try {
+      const legacy = await chrome.storage.local.get(['ui:duoreaderEnableAudio', 'ui:duoreaderEnableTts']);
+      if (legacy['ui:duoreaderEnableAudio'] === undefined && legacy['ui:duoreaderEnableTts'] !== undefined) {
+        enableAudio.value = legacy['ui:duoreaderEnableTts'];
+      }
+    } catch {
+      // ignore
+    }
     await refreshProgress();
     await loadBooks();
     chrome.storage.onChanged.addListener(onStorageChanged);
@@ -189,7 +198,7 @@ export function useDuoreaderImporter() {
     myLang,
     learnLang,
     maxBooks,
-    enableTts,
+    enableAudio,
     useCdnApi,
     apiBaseUrl,
     books,

@@ -64,6 +64,10 @@ class AppQyV1SentenceAudioService
      * table. When $limit <= 0 the method returns counts only (FE summary),
      * leasing nothing.
      *
+     * FUTURE: claim per missing audio_files variant (variantsForLanguage), not only
+     * has_audio=false — e.g. duoreader_tts present but uk_f absent should still lease.
+     * pendingCount() / claimForLanguage() WHERE must join audio_files + disk stat.
+     *
      * @return array{count:int,pending:int,leased:int,lock_stale_minutes:int,tasks:array<int,array<string,mixed>>}
      */
     public function claim(string $workerId, ?string $language, int $limit): array
@@ -125,6 +129,7 @@ class AppQyV1SentenceAudioService
         $model = LangSentence::for($lang);
 
         return $model->getConnection()->transaction(function () use ($lang, $model, $workerId, $cutoff, $limit) {
+            // FUTURE: replace has_audio=false with per-variant missing check (audio_files).
             $rows = LangSentence::onLang($lang)
                 ->where('has_audio', false)
                 // Not under a LIVE lease: never locked, OR the lease is stale.
@@ -175,6 +180,10 @@ class AppQyV1SentenceAudioService
      * TTS variant specs the pycore worker should synthesize per language.
      * English: US female (primary), UK female, US male. Others: one voice.
      *
+     * FUTURE: claim/report should skip variants already in audio_files with has_file=true
+     * (e.g. skip uk_f when edge-tts file exists; still generate when only duoreader_tts).
+     * UK upload example: variant_key=uk_f, accent=uk, provider=edge-tts via /media/audio.
+     *
      * @return array<int,array{key:string,accent:?string,gender:string}>
      */
     public function variantsForLanguage(string $lang): array
@@ -217,7 +226,8 @@ class AppQyV1SentenceAudioService
         ?string $audioBinary,
         ?string $provider,
         ?string $error,
-        ?string $variantKey = null
+        ?string $variantKey = null,
+        ?array $variantMeta = null
     ): array {
         $language = AppQyV1TableMaps::normalizeLangCode($language);
         if ($language === '' || !$this->tableExists($language)) {
@@ -291,6 +301,14 @@ class AppQyV1SentenceAudioService
                 $sentence->audio = $this->relativePathFor($language, $contentId, null);
             }
         }
+        $entryMeta = is_array($variantMeta) ? $variantMeta : [];
+        AppQyV1SentenceAudioFiles::upsert($sentence, array_merge([
+            'variant_key' => $variantKey ?? '',
+            'path' => $relativePath,
+            'has_file' => true,
+            'provider' => $provider ?: ('worker:' . $workerId),
+            'uploaded_at' => now()->toIso8601String(),
+        ], $entryMeta));
         $sentence->tts_status = 'completed';
         $sentence->tts_completed_at = now();
         $this->recordProvider($sentence, $provider ?: ('worker:' . $workerId));
@@ -317,6 +335,10 @@ class AppQyV1SentenceAudioService
      * Accepts a content_id (md5) hash, or text+language to hash server-side.
      * Existence is decided by stat-ing the filesystem directly — the DB is read
      * only to reconcile the cache.
+     *
+     * FUTURE: optional $variantKey / $accent params — resolve suffixed path
+     * ({lang}/{content_id}_uk_f.mp3) via variantExistsOnDisk(); return audio_files
+     * list in response for FE accent picker. Primary-only today (findOnDisk).
      *
      * @return array<string,mixed> the JSON body
      */
@@ -534,6 +556,15 @@ class AppQyV1SentenceAudioService
     {
         $suffix = ($variantKey !== null && $variantKey !== '') ? ('_' . $variantKey) : '';
         return $language . '/' . $contentId . $suffix . '.mp3';
+    }
+
+    /** True when the variant mp3 already exists on disk. */
+    public function variantExistsOnDisk(string $language, string $contentId, ?string $variantKey = null): bool
+    {
+        $relative = $this->relativePathFor($language, $contentId, $variantKey);
+        $full = PathMapper::getAppQyV1SentenceSoundsDir($relative);
+        clearstatcache(true, $full);
+        return is_file($full) && filesize($full) > 0;
     }
 
     /**
