@@ -242,6 +242,8 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
     // Unified Task Center — one aggregate over BOTH task layers (scheduler +
     // queue + workers + their relations) for the dashboard's Task Center page.
     Route::get('task-center/overview', [\App\Http\Controllers\TaskCenterController::class, 'overview']);
+    Route::get('task-center/settings', [\App\Http\Controllers\TaskCenterController::class, 'getSettings']);
+    Route::post('task-center/settings', [\App\Http\Controllers\TaskCenterController::class, 'updateSettings']);
 
     // AppQyV1 media ingestion (local pycore worker, no auth)
     Route::prefix('app_qy_v1/media')->group(function () {

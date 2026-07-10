@@ -667,3 +667,4 @@ export class WordflowApiMethods extends WordflowApiGroupMethods {
       body: JSON.stringify({ gid }),
     });
   }
+}

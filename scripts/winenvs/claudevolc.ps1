@@ -43,6 +43,13 @@ $scriptsDirPath = $null
 $projectRootPath = $null
 $secretDir = $null
 $maskedKey = $null
+$shellsWinPath = $null
+$winCommonDirPath = $null
+$windowsPathFunctionScript = $null
+$claudeLaunchCommonScript = $null
+$claudeExecutable = $null
+$forceModelChoice = $null
+$forceModelEnabled = $false
 
 # Ensure DISABLE_AUTOUPDATER is set for Claude Code
 $env:DISABLE_AUTOUPDATER = "1"
@@ -84,6 +91,16 @@ if (-not $scriptCurrentPath) {
 $scriptsDirPath = Split-Path $scriptCurrentPath -Parent
 $projectRootPath = Split-Path $scriptsDirPath -Parent
 
+# Ensure PATH is prepared via WindowsPathFunction (same as claudeteam.ps1).
+$shellsWinPath = Join-Path $scriptsDirPath "shells"
+$shellsWinPath = Join-Path $shellsWinPath "win"
+$winCommonDirPath = Join-Path $shellsWinPath "win_common"
+$windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+$claudeLaunchCommonScript = Join-Path $winCommonDirPath "ClaudeLaunchCommon.ps1"
+. $windowsPathFunctionScript
+Set-CoreNodePaths
+. $claudeLaunchCommonScript
+
 # Load environment variables from secret files
 $secretDir = Join-Path $projectRootPath ".secret_keys\.secret_ignore"
 
@@ -122,21 +139,31 @@ if (-not $volcBaseUrl) {
     $volcBaseUrl = "https://ark.cn-beijing.volces.com/api/coding"
 }
 
-# Set the Claude Code environment variables
+# Set the Claude Code environment variables (gateway always; model slots opt-in below).
 $env:ANTHROPIC_BASE_URL = $volcBaseUrl
 if ($volcApiKey) {
     $env:ANTHROPIC_AUTH_TOKEN = $volcApiKey
 }
-$env:ANTHROPIC_MODEL = $volcModel
-# Force the model into every slot so agent-teams / subagents / background tasks
-# also run through the gateway (it only serves glm-5.2).
-$env:CLAUDE_CODE_SUBAGENT_MODEL = $volcModel
-$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $volcModel
-$env:ANTHROPIC_DEFAULT_SONNET_MODEL = $volcModel
+
+# Optional: force glm-5.2 everywhere. Opt-in prompt, default No (like claudeteam).
+$forceModelChoice = Read-Host "Force model $volcModel everywhere (main + subagents + background)? [y/N]"
+$forceModelEnabled = (($forceModelChoice -eq 'y') -or ($forceModelChoice -eq 'Y'))
+
+if ($forceModelEnabled) {
+    $env:ANTHROPIC_MODEL = $volcModel
+    $env:CLAUDE_CODE_SUBAGENT_MODEL = $volcModel
+    $env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $volcModel
+    $env:ANTHROPIC_DEFAULT_SONNET_MODEL = $volcModel
+    Write-Host "[NOTE] $volcModel forced for main session, subagents and background (Haiku/Sonnet) slots." -ForegroundColor Yellow
+}
 
 # Configuration summary
 Write-Host "API Endpoint: $env:ANTHROPIC_BASE_URL" -ForegroundColor White
-Write-Host "Model: $env:ANTHROPIC_MODEL (forced: main + subagents + background)" -ForegroundColor White
+if ($forceModelEnabled) {
+    Write-Host "Model: $volcModel (forced: main + subagents + background)" -ForegroundColor White
+} else {
+    Write-Host "Model: off (default N) - using the account default model" -ForegroundColor White
+}
 Write-Host "Agent Teams: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (force-enabled)" -ForegroundColor White
 Write-Host "Ultracode: --settings $ultraSettingsJson (via temp file $ultraSettingsFile)" -ForegroundColor White
 
@@ -166,8 +193,12 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 
 # Build claude args: ultracode settings always on; teammate-mode in-process;
-# skip-permissions (Windows default, like claudeteam).
-$claudeArgs = @("--settings", $ultraSettingsFile, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+# skip-permissions (Windows default, like claudeteam); --model only when opted in.
+if ($forceModelEnabled) {
+    $claudeArgs = @("--model", $volcModel, "--settings", $ultraSettingsFile, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+} else {
+    $claudeArgs = @("--settings", $ultraSettingsFile, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+}
 
 # Launch tool
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -175,13 +206,26 @@ Write-Host "Press Enter to start Claude AI (Volcano Ark) [glm-5.2 + team + ultra
 Write-Host "============================================================" -ForegroundColor Cyan
 $null = Read-Host "Press Enter to continue"
 
+$claudeExecutable = Resolve-ClaudeCodeExecutable
+if (-not $claudeExecutable) {
+    Write-Host ""
+    Write-Host "[ERROR] Claude Code executable not found." -ForegroundColor Red
+    Write-Host "Install via: npm install -g @anthropic-ai/claude-code" -ForegroundColor Yellow
+    Write-Host "Or ensure $env:USERPROFILE\.local\bin\claude.exe exists." -ForegroundColor Yellow
+    Write-Host ""
+    if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
+        Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
+    }
+    exit 1
+}
+
 Write-Host ""
-Write-Host "Executing: claude $($claudeArgs -join ' ')" -ForegroundColor White
+Write-Host "Executing: $claudeExecutable $($claudeArgs -join ' ')" -ForegroundColor White
 Write-Host ""
-Write-Host "Environment: ANTHROPIC_BASE_URL='$($env:ANTHROPIC_BASE_URL)', ANTHROPIC_MODEL='$($env:ANTHROPIC_MODEL)'" -ForegroundColor White
+Write-Host "Environment: ANTHROPIC_BASE_URL='$($env:ANTHROPIC_BASE_URL)'$(if ($forceModelEnabled) { ", ANTHROPIC_MODEL='$volcModel'" } else { '' })" -ForegroundColor White
 Write-Host ""
 
-& claude @claudeArgs @args
+& $claudeExecutable @claudeArgs @args
 $exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) {
     $exitCode = 0

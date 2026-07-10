@@ -85,7 +85,7 @@ if [[ ${#installers[@]} -eq 0 ]]; then
     exit 0
 fi
 
-# Tell 22_install_tts_offline.sh (reached via install_tts_offline.sh) to stand its
+# Tell 24_install_tts_offline.sh (reached via install_tts_offline.sh) to stand its
 # umbrella down: this sweep already runs every sibling engine installer itself, so the
 # umbrella would only re-do the same work. It still installs its CORE (sherpa + model).
 export PYCORE_INISCRIPTS_SWEEP=1
@@ -132,6 +132,10 @@ if [[ -f "$GUARD_DIR/sherpa_onnx_cpu_guard.sh" ]]; then
     # Offline-TTS engine: a CPU host must never carry a stray '+cuda' sherpa-onnx.
     echo "[..] sherpa-onnx CPU/GPU guard (repair-only)"
     SOG_REPAIR_ONLY=1 bash "$GUARD_DIR/sherpa_onnx_cpu_guard.sh" --python "$PYTHON" || true
+fi
+if [[ -f "$GUARD_DIR/paddle_cpu_guard.sh" ]]; then
+    echo "[..] paddle CPU/GPU guard (repair-only)"
+    PCG_REPAIR_ONLY=1 bash "$GUARD_DIR/paddle_cpu_guard.sh" --python "$PYTHON" || true
 fi
 
 if [[ ${#failed[@]} -gt 0 ]]; then

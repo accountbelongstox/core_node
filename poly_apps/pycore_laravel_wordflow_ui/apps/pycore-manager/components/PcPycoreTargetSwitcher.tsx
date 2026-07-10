@@ -1,19 +1,21 @@
 /**
- * PcPycoreTargetSwitcher — header control to point the WHOLE pycore-manager at
- * another node's pycore (:59000) and manage that remote client by IP.
+ * PcPycoreTargetSwitcher - header control to point the WHOLE pycore-manager at a
+ * chosen pycore node and manage that client.
  *
- * Default is LOCAL (this machine). Picking a remote host re-points every pycore
- * transport (HTTP / RPC WS / SSE / health) via `pycoreTarget` and reloads the
- * page so the entire UI — every page, CodeSync included — manages the remote
- * node. A clear amber chip shows when a remote target is active.
- *
- * State + persistence live in core/api-libs/pycore/pycoreTarget; this is pure UI.
+ * Three target modes (state + persistence in core/api-libs/pycore/pycoreTarget):
+ *   - Current URL (origin, DEFAULT): the page's own origin via the /pyapi proxy.
+ *   - Local (this machine): the page host on :59000 (direct cross-port call).
+ *   - Remote: an explicit host/IP on :59000 (manage another node).
+ * Picking any re-points every pycore transport (HTTP / RPC WS / SSE / health) and
+ * reloads the page so the entire UI manages the chosen node. Fixed quick-connect
+ * presets (Localhost / Public IP / Tailscale LAN) plus Recent history and a custom
+ * add input are offered. This is pure UI.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Server, ChevronDown, Check, Plus, MonitorSmartphone, Globe } from 'lucide-react';
+import { Server, ChevronDown, Check, Plus, MonitorSmartphone, Globe, Link as LinkIcon } from 'lucide-react';
 import {
-  getPycoreTarget, getPycoreTargetRecent, normalizePycoreHost, setPycoreTarget,
-  localPycoreHost,
+  getPycoreTarget, getPycoreTargetRecent, getPycoreTargetPresets, normalizePycoreHost, setPycoreTarget,
+  localPycoreHost, localPycoreOrigin,
 } from '../../../core/api-libs/pycore';
 
 interface Props {
@@ -22,10 +24,16 @@ interface Props {
 
 export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) => {
   const target = getPycoreTarget();           // read once; switching reloads anyway
+  const mode = target.mode;
   const recent = getPycoreTargetRecent();
-  const isRemote = target.mode === 'remote';
-  const localHost = localPycoreHost();        // current page host — the local default
-  const label = isRemote ? (target.host as string) : 'Local';
+  const presets = getPycoreTargetPresets();
+  const presetHosts = new Set(presets.map((p) => p.host));
+  const recentShown = recent.filter((h) => !presetHosts.has(h));  // presets already cover these
+  const localHost = localPycoreHost();        // page host - the "Local" target
+  const pageOrigin = localPycoreOrigin();     // page origin - the "Current URL" target
+  const label = mode === 'remote' ? (target.host as string)
+    : mode === 'local' ? 'Local'
+      : 'Current URL';
 
   const [open, setOpen] = useState(false);
   const [host, setHost] = useState('');
@@ -41,11 +49,16 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  const goLocal = () => setPycoreTarget({ mode: 'local' });          // persists + reloads
+  const goOrigin = () => setPycoreTarget({ mode: 'origin' });          // persists + reloads
+  const goLocal = () => setPycoreTarget({ mode: 'local' });            // persists + reloads
   const goRemote = (h: string) => {
     const norm = normalizePycoreHost(h);
-    if (norm) setPycoreTarget({ mode: 'remote', host: norm });       // persists + reloads
+    if (norm) setPycoreTarget({ mode: 'remote', host: norm });         // persists + reloads
   };
+
+  const chipIcon = mode === 'remote' ? <Globe className="w-3.5 h-3.5" />
+    : mode === 'local' ? <MonitorSmartphone className="w-3.5 h-3.5" />
+      : <LinkIcon className="w-3.5 h-3.5" />;
 
   return (
     <div ref={rootRef} className={`relative ${variant === 'block' ? 'w-full' : ''}`}>
@@ -53,12 +66,12 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
         onClick={() => setOpen((v) => !v)}
         title="Manage which pycore node this UI controls"
         className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-mono font-bold transition-all ${
-          isRemote
+          mode === 'remote'
             ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
             : 'border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60'
         }`}
       >
-        {isRemote ? <Globe className="w-3.5 h-3.5" /> : <MonitorSmartphone className="w-3.5 h-3.5" />}
+        {chipIcon}
         <span className="max-w-[140px] truncate">pycore: {label}</span>
         <ChevronDown className="w-3.5 h-3.5 opacity-70" />
       </button>
@@ -69,36 +82,78 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
             <Server className="w-3.5 h-3.5" /> Managed pycore node
           </div>
 
-          {/* Local */}
+          {/* Current URL (origin, default) - page origin via the /pyapi proxy */}
+          <button
+            onClick={goOrigin}
+            className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all ${
+              mode === 'origin' ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5'
+            }`}
+          >
+            <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
+              <span className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-indigo-500" /> Current URL</span>
+              <span className="text-[10px] font-mono text-slate-400 pl-6">{pageOrigin.split(':')[0]}:59000 (direct)</span>
+            </span>
+            {mode === 'origin' && <Check className="w-4 h-4 text-indigo-500" />}
+          </button>
+
+          {/* Local (this machine) - page host on :59000 */}
           <button
             onClick={goLocal}
             className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all ${
-              !isRemote ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5'
+              mode === 'local' ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5'
             }`}
           >
             <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
               <span className="flex items-center gap-2"><MonitorSmartphone className="w-4 h-4 text-indigo-500" /> Local (this machine)</span>
               <span className="text-[10px] font-mono text-slate-400 pl-6">{localHost}:59000</span>
             </span>
-            {!isRemote && <Check className="w-4 h-4 text-indigo-500" />}
+            {mode === 'local' && <Check className="w-4 h-4 text-indigo-500" />}
           </button>
 
+          {/* Quick-connect presets (fixed hosts on :59000) */}
+          {presets.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">Quick connect</div>
+              {presets.map((p) => {
+                const active = mode === 'remote' && target.host === p.host;
+                return (
+                  <button
+                    key={p.host}
+                    onClick={() => goRemote(p.host)}
+                    title={p.hint ? `${p.label} (${p.hint})` : p.label}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all ${
+                      active
+                        ? 'border-amber-500 bg-amber-500/5'
+                        : 'border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
+                      <span className="flex items-center gap-2 text-xs"><Globe className="w-4 h-4 text-sky-500" /> {p.label}</span>
+                      <span className="text-[10px] font-mono text-slate-400 pl-6">{p.host}:59000</span>
+                    </span>
+                    {active && <Check className="w-4 h-4 text-amber-500" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Recent remotes */}
-          {recent.length > 0 && (
+          {recentShown.length > 0 && (
             <div className="space-y-1">
               <div className="text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">Recent</div>
-              {recent.map((h) => (
+              {recentShown.map((h) => (
                 <button
                   key={h}
                   onClick={() => goRemote(h)}
                   className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg border text-xs font-mono transition-all ${
-                    isRemote && target.host === h
+                    mode === 'remote' && target.host === h
                       ? 'border-amber-500 bg-amber-500/5 text-amber-700 dark:text-amber-300'
                       : 'border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-600 dark:text-slate-300'
                   }`}
                 >
                   <span className="flex items-center gap-2 truncate"><Globe className="w-3.5 h-3.5 shrink-0" /> {h}:59000</span>
-                  {isRemote && target.host === h && <Check className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                  {mode === 'remote' && target.host === h && <Check className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
                 </button>
               ))}
             </div>
@@ -126,10 +181,10 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
               </button>
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              Local targets this page's host on :59000 ({localHost}:59000) — the pycore
-              backend (NOT Laravel's :9000). Port is always 59000. Switching reloads the
-              UI; it then controls that node's pycore (CodeSync, queues, AI, settings).
-              The remote must allow this origin.
+              Current URL = page host :59000 ({localHost}:59000) - direct to pycore backend (NOT
+              Laravel's :9000). Local = same as Current URL. Remote = host:59000. Switching reloads
+              the UI so it controls that node's pycore (CodeSync, queues, AI, settings). The remote
+              must allow this origin.
             </p>
           </div>
         </div>

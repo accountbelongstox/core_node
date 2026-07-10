@@ -15,9 +15,11 @@ Features:
 """
 
 import os
+import re
 import sys
 import platform
 import stat
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from pycore.pyfoundations.pybasecommon import exec_silent
@@ -322,10 +324,12 @@ def get_real_user() -> str:
     Detection Strategy:
     1. If not running as root (EUID != 0), return current user
     2. Check SUDO_USER environment variable (set when using sudo)
-    3. Scan /home directory for regular users:
-       - Prefer 'ubuntu' user if exists
-       - Otherwise return first regular user found
-    4. Fallback to 'ubuntu' as default
+    3. Check LOGNAME / USER environment variables (non-root values only)
+    4. Scan /home directory for regular users, picking the MOST RECENTLY USED
+       one (by home-dir mtime) whose home looks like a real login shell home
+       (has .bashrc / .profile / .bash_profile). This subsumes the former
+       ``_get_actual_user`` mtime-scan that used to live in system_paths.
+    5. Fallback to current user (pwd), then USER env, then 'ubuntu'
 
     Returns:
         Username string (e.g., 'ubuntu', 'john', etc.)
@@ -347,27 +351,167 @@ def get_real_user() -> str:
     if sudo_user and sudo_user != 'root':
         return sudo_user
 
-    # Scan /home directory for regular users
-    home_dir = '/home'
-    if os.path.exists(home_dir):
+    # Other common env hints (LOGNAME / USER), when not 'root'
+    for env_var in ('LOGNAME', 'USER'):
+        val = os.environ.get(env_var)
+        if val and val != 'root':
+            return val
+
+    # Scan /home for the most-recently-used real user home (mtime-scan).
+    home_path = Path('/home')
+    if home_path.exists():
+        user_dirs = []
         try:
-            users = [
-                d for d in os.listdir(home_dir)
-                if os.path.isdir(os.path.join(home_dir, d))
-            ]
-
-            # Prefer 'ubuntu' user if exists
-            if 'ubuntu' in users:
-                return 'ubuntu'
-
-            # Return first user found
-            if users:
-                return users[0]
+            for item in home_path.iterdir():
+                if not item.is_dir() or item.name in ('.', '..', 'lost+found'):
+                    continue
+                # Valid user home directories usually have a shell rc/profile.
+                if (item / '.bashrc').exists() or (item / '.profile').exists() \
+                        or (item / '.bash_profile').exists():
+                    try:
+                        mtime = item.stat().st_mtime
+                        user_dirs.append((item.name, mtime))
+                    except (OSError, PermissionError):
+                        pass
         except (OSError, PermissionError):
             pass
+        if user_dirs:
+            # Most recently used user first.
+            user_dirs.sort(key=lambda x: x[1], reverse=True)
+            return user_dirs[0][0]
 
-    # Fallback to 'ubuntu' as default
-    return 'ubuntu'
+    # Fallback to current user from pwd, then env, then 'ubuntu' default.
+    try:
+        import pwd
+        return pwd.getpwuid(os.getuid()).pw_name
+    except Exception:
+        return os.environ.get('USER', 'ubuntu')
+
+
+# --------------------------------------------------------------------------- #
+# Platform / disk / WSL detection helpers.
+#
+# These were consolidated here from system_paths (where they duplicated
+# get_real_user / get_linux_disk_info). system_paths imports them (aliased to
+# their former private names) so its internal call sites are unchanged, and
+# re-exports ``is_wsl`` as ``_is_wsl`` for pg_sync_adapter's defensive import.
+# --------------------------------------------------------------------------- #
+def is_wsl() -> bool:
+    """
+    Check if running in WSL (Windows Subsystem for Linux)
+
+    Returns:
+        bool: True if running in WSL
+    """
+    # Check for WSL-specific indicators
+    if os.path.exists('/mnt/c/Windows'):
+        return True
+
+    # Check /proc/version for Microsoft/WSL
+    if os.path.exists('/proc/version'):
+        with open('/proc/version', 'r') as f:
+            version_info = f.read().lower()
+            if 'microsoft' in version_info or 'wsl' in version_info:
+                return True
+
+    return False
+
+
+def is_desktop_linux() -> bool:
+    """
+    Check if running on desktop Linux (has display server)
+
+    Returns:
+        bool: True if running on desktop Linux
+    """
+    # Check for display environment variables
+    if os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'):
+        return True
+
+    # Check for desktop session
+    if os.environ.get('DESKTOP_SESSION') or os.environ.get('XDG_SESSION_TYPE'):
+        return True
+
+    return False
+
+
+def get_linux_distro_info() -> Tuple[str, str]:
+    """
+    Get Linux distribution name and version
+
+    Returns:
+        Tuple[str, str]: (distro_name, version)
+            e.g., ('ubuntu', '24.04') or ('debian', '12')
+    """
+    distro_name = 'linux'
+    version = ''
+
+    # Try to read /etc/os-release
+    if os.path.exists('/etc/os-release'):
+        with open('/etc/os-release', 'r') as f:
+            content = f.read()
+
+            # Extract ID (distro name)
+            id_match = re.search(r'^ID=([^\n]+)$', content, re.MULTILINE)
+            if id_match:
+                distro_name = id_match.group(1).strip().strip('"').lower()
+
+            # Extract VERSION_ID (version number)
+            version_match = re.search(r'^VERSION_ID=([^\n]+)$', content, re.MULTILINE)
+            if version_match:
+                version = version_match.group(1).strip().strip('"')
+
+    # Remove decimal points for version (24.04 -> 24)
+    if version and '.' in version:
+        version = version.split('.')[0]
+
+    return distro_name, version
+
+
+def get_mounted_drives() -> List[Path]:
+    """
+    Get list of mounted drives in /mnt/ sorted by size (largest first)
+
+    Returns:
+        List[Path]: List of mounted drives sorted by available space
+    """
+    mounted_drives = []
+    mnt_path = Path('/mnt')
+
+    if not mnt_path.exists():
+        return mounted_drives
+
+    # Get all directories in /mnt/
+    for item in mnt_path.iterdir():
+        if item.is_dir() and item.name not in ['.', '..']:
+            # Check if it's actually mounted and accessible
+            try:
+                # Try to access the directory
+                if os.access(str(item), os.R_OK):
+                    # Get disk usage
+                    stat = os.statvfs(str(item))
+                    available_space = stat.f_bavail * stat.f_frsize
+                    mounted_drives.append((item, available_space))
+            except (OSError, PermissionError):
+                # Skip inaccessible mounts
+                pass
+
+    # Sort by available space (largest first)
+    mounted_drives.sort(key=lambda x: x[1], reverse=True)
+
+    # Return just the paths
+    return [drive[0] for drive in mounted_drives]
+
+
+def get_largest_mnt_drive() -> Optional[Path]:
+    """
+    Get the largest mounted drive in /mnt/
+
+    Returns:
+        Optional[Path]: Largest mounted drive or None if no drives found
+    """
+    mounted_drives = get_mounted_drives()
+    return mounted_drives[0] if mounted_drives else None
 
 
 def get_real_user_home() -> str:
@@ -479,6 +623,12 @@ __all__ = [
     'get_real_user_home',
     'get_real_user_downloads',
     'get_system_summary',
+    # Platform / disk / WSL detection (consolidated from system_paths)
+    'is_wsl',
+    'is_desktop_linux',
+    'get_linux_distro_info',
+    'get_mounted_drives',
+    'get_largest_mnt_drive',
     'SCREEN_RESOLUTION',
     'MEMORY_INFO',
     'DISK_INFO',

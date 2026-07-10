@@ -207,7 +207,7 @@ Heartbeat file missing`；`queue:listen` 因一个超过 60s 的任务抛
 
 **修复**:
 - `scripts/start.sh`: 新增 Swoole ensure（缺失时调用
-  `scripts/shells/linux/debian/install_shells/32_install_swoole.sh`），Linux/WSL
+  `scripts/shells/linux/debian/install_shells/36_install_swoole.sh`），Linux/WSL
   改为 `php artisan octane:start --server=swoole --host=0.0.0.0 --port=9000
   [--watch]`；Swoole 不可用时降级回 `serve + queue:listen --timeout=0` 并明确告警。
 - `app/Console/Commands/InitializeApps.php`: `swoole_not_installed` 分支在

@@ -1,43 +1,39 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-FastAPI-based RPC server (v2).
+FastAPI-based RPC server (v2) - orchestrator + facade.
 
-This implementation unifies HTTP + WebSocket transports on top of FastAPI while
-reusing the proven event/request/inventory tables from rpc v1.
+This implementation unifies HTTP + WebSocket + SSE transports on top of FastAPI
+while reusing the proven event/request/inventory tables from rpc v1. The
+transport handlers live in sibling modules (http_handler / websocket_handler /
+sse_broadcaster) and the uvicorn runner in server_runner; this module wires them
+together and owns the shared `_broadcast_loop` singleton that keeps SSE + WS +
+sync broadcast scheduling coherent.
+
+Public API (re-exported): FastAPIRPCServer, FastAPIRPCServerRunner,
+SSEBroadcaster, HttpRPCHandler, WebSocketRPCHandler.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import threading
 import time
-import uuid
-from collections import deque
 from pathlib import Path
-from typing import Any, Callable, Deque, Dict, Optional, Set, Tuple
+from typing import Any, Callable, Dict, Optional
 
 from pycore import ColorPrint, THREAD_BUS
-from pycore.pyfoundations.third_party import (
-    get_third_package_fastapi,
-    get_third_package_uvicorn,
-)
+from pycore.pyfoundations.third_party import get_third_package_fastapi
 
 fastapi = get_third_package_fastapi()
 FastAPI = fastapi.FastAPI
 Request = fastapi.Request
 WebSocket = fastapi.WebSocket
-WebSocketDisconnect = fastapi.WebSocketDisconnect
-status = fastapi.status
 JSONResponse = fastapi.responses.JSONResponse
-StreamingResponse = fastapi.responses.StreamingResponse
 
 # Import CORS middleware and StaticFiles properly
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-
-uvicorn = get_third_package_uvicorn()
 
 from pycore.pyutils.rpc_v2.config import RPC_CONSTANTS
 from pycore.pyutils.rpc_v2.common import (
@@ -45,25 +41,25 @@ from pycore.pyutils.rpc_v2.common import (
     RequestManager,
     InventoryTable,
     RequestEventTable,
-    RequestStatus,
     default_event_cache,
     default_request_manager,
-    RPCRequestContext,
 )
 from pycore.pyutils.rpc_v2.server.ack_manager import FastAPIAckManager
-from pycore.pyutils.rpc_v2.server.client_registry import ClientRegistry, ClientStatus
+from pycore.pyutils.rpc_v2.server.client_registry import ClientRegistry
 from pycore.pyutils.rpc_v2.server.routes_manager import RoutesManager
 from pycore.pyutils.rpc_v2.server.request_processor import RequestProcessor
+from pycore.pyutils.rpc_v2.server.http_handler import HttpRPCHandler
+from pycore.pyutils.rpc_v2.server.websocket_handler import WebSocketRPCHandler
+from pycore.pyutils.rpc_v2.server.sse_broadcaster import SSEBroadcaster
+from pycore.pyutils.rpc_v2.server.server_runner import FastAPIRPCServerRunner
 from pycore.pyutils.rpc_v2.protocol import RPCProtocolServer
 
-MSG_TYPES = RPC_CONSTANTS.MESSAGE_TYPES
-ERROR_CODES = RPC_CONSTANTS.ERROR_CODES
 WS_PATH = RPC_CONSTANTS.WS_PATH
 HTTP_PATH_PREFIX = RPC_CONSTANTS.HTTP_PATH_PREFIX
 
 
 class FastAPIRPCServer:
-    """Main FastAPI RPC server."""
+    """Main FastAPI RPC server (orchestrator + facade)."""
 
     def __init__(self, options: Optional[Dict[str, Any]] = None):
         options = options or {}
@@ -101,12 +97,65 @@ class FastAPIRPCServer:
             debug=self.debug,
         )
 
+        # Transport handlers (injected tables/managers + debug, mirroring the
+        # ack_manager / request_processor / routes_manager construction pattern).
+        self.sse_broadcaster = SSEBroadcaster(
+            debug=self.debug,
+            sse_ring_size=options.get("sse_ring_size", 500),
+        )
+        self.http_handler = HttpRPCHandler(
+            request_event_table=self.request_event_table,
+            inventory_table=self.inventory_table,
+            routes_manager=self.routes_manager,
+            request_processor=self.request_processor,
+            ack_manager=self.ack_manager,
+            debug=self.debug,
+        )
+        self.websocket_handler = WebSocketRPCHandler(
+            client_registry=self.client_registry,
+            request_event_table=self.request_event_table,
+            inventory_table=self.inventory_table,
+            routes_manager=self.routes_manager,
+            request_processor=self.request_processor,
+            ack_manager=self.ack_manager,
+            debug=self.debug,
+        )
+
         self.app = FastAPI(
             title="Pycore RPC Server",
             version="2.0.0",
             docs_url=None,
             redoc_url=None,
         )
+
+        # Custom middleware for Private Network Access (PNA)
+        # This handles the Access-Control-Request-Private-Network preflight header
+        @self.app.middleware("http")
+        async def private_network_access_middleware(request: Request, call_next):
+            # Handle preflight OPTIONS requests for PNA
+            if request.method == "OPTIONS":
+                # Check if this is a PNA preflight
+                if request.headers.get("Access-Control-Request-Private-Network") == "true":
+                    from fastapi.responses import Response
+                    response = Response(status_code=204)
+                    response.headers["Access-Control-Allow-Private-Network"] = "true"
+                    response.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "*")
+                    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+                    response.headers["Access-Control-Allow-Headers"] = "*"
+                    response.headers["Access-Control-Allow-Credentials"] = "true"
+                    return response
+
+            response = await call_next(request)
+
+            # Add PNA header to regular responses too
+            origin = request.headers.get("Origin")
+            if origin:
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Private-Network"] = "true"
+                response.headers["Vary"] = "Origin"
+
+            return response
+
         self.app.add_middleware(
             CORSMiddleware,
             allow_origins=self.allow_origins,
@@ -117,7 +166,7 @@ class FastAPIRPCServer:
 
         # Windows asyncio (Proactor) raises a benign ConnectionResetError
         # ([WinError 10054]) from _ProactorBasePipeTransport._call_connection_lost
-        # whenever a client drops a connection abruptly — a browser closing the WS,
+        # whenever a client drops a connection abruptly - a browser closing the WS,
         # or an SSE EventSource on its ~50s reconnect cycle. It is harmless but spams
         # "Exception in callback" tracebacks once per disconnect. Install a loop
         # exception handler at startup that swallows ONLY these client-reset errors
@@ -169,23 +218,15 @@ class FastAPIRPCServer:
 
         self.protocol_server = RPCProtocolServer(self)
 
-        # Event loop for async broadcast
+        # Shared event loop for async broadcast. This is the ONE _broadcast_loop
+        # singleton: captured lazily in the WS + SSE route wiring (below) and READ
+        # by broadcast_event_sync + register_thread_bus_listener. The SSE + WS
+        # handlers never duplicate it - they are pure-injection and do not touch it.
         self._broadcast_loop = None
-
-        # ---- SSE broadcast fan-out (additive; shares the SAME event source as WS) ----
-        # Every broadcast_event() increments this process-wide monotonic seq, appends
-        # (seq, event_name, data) to a bounded ring buffer (for ?since= resume), and
-        # pushes the tagged event to each connected SSE subscriber's asyncio.Queue.
-        # The WS delivery path is untouched.
-        sse_options = options or {}
-        self._sse_seq: int = 0
-        self._sse_ring_max: int = sse_options.get("sse_ring_size", 500)
-        self._sse_ring: Deque[Tuple[int, str, Dict[str, Any]]] = deque(maxlen=self._sse_ring_max)
-        self._sse_subscribers: Set["asyncio.Queue"] = set()
 
         # Live log streaming (observer pattern): register a callback into the base
         # print library so every printed line is relayed to connected WS clients.
-        # rpc_v2 imports ColorPrint, never the reverse — ColorPrint stays decoupled.
+        # rpc_v2 imports ColorPrint, never the reverse - ColorPrint stays decoupled.
         # The callback is a no-op until a client connects / the loop is running.
         self._log_guard = threading.local()
         ColorPrint.register_callback(self._colorprint_ws_callback)
@@ -230,36 +271,26 @@ class FastAPIRPCServer:
 
     async def broadcast_event(self, event_name: str, data: Dict[str, Any]):
         """
-        Broadcast an event to all connected WebSocket clients.
+        Broadcast an event to all connected WebSocket clients (and SSE subscribers).
 
         NOTE: Live "stream every ColorPrint line to the UI" rides on this method:
         this server registers `_colorprint_ws_callback` into ColorPrint's callback
         registry (observer pattern), which calls broadcast_event_sync('pycore_log',
-        ...). rpc_v2 imports ColorPrint, never the reverse — ColorPrint stays a
+        ...). rpc_v2 imports ColorPrint, never the reverse - ColorPrint stays a
         decoupled base library, so no import cycle forms.
+
+        The SSE fan-out (monotonic seq + ring buffer + subscriber queues) is owned
+        by self.sse_broadcaster.publish(); the WS fan-out runs here. SSE runs FIRST
+        so it shares the SAME event source as WS and is NOT skipped when no WS
+        client is connected.
 
         Args:
             event_name: Event name (e.g., 'voice_subtitle_update')
             data: Event data to send to clients
         """
         # SSE fan-out FIRST so it shares the SAME event source as WS and is NOT
-        # skipped when no WS client is connected. Assign a process-wide monotonic
-        # seq, append to the bounded ring buffer (for ?since= resume), and push the
-        # tagged event to every connected SSE subscriber queue. This runs on the
-        # event loop thread, so plain (non-locked) mutation of these structures is
-        # safe; SSE generators consume on the same loop.
-        self._sse_seq += 1
-        seq = self._sse_seq
-        self._sse_ring.append((seq, event_name, data))
-        if self._sse_subscribers:
-            sse_item = (seq, event_name, data)
-            for queue in list(self._sse_subscribers):
-                try:
-                    queue.put_nowait(sse_item)
-                except asyncio.QueueFull:
-                    # Slow/stuck subscriber: drop the live push (it can still recover
-                    # via the ring buffer on reconnect with ?since=). Never block WS.
-                    pass
+        # skipped when no WS client is connected.
+        self.sse_broadcaster.publish(event_name, data)
 
         clients = self.client_registry.ws_clients
         if not clients:
@@ -336,19 +367,19 @@ class FastAPIRPCServer:
             self.add_static_dir("/rpc/src", str(client_js_dir))
 
     def _register_builtin_routes(self):
-        """Wire HTTP + WebSocket endpoints."""
+        """Wire HTTP + WebSocket + SSE endpoints, delegating to the transport handlers."""
 
         @self.app.post(f"{HTTP_PATH_PREFIX}/{{route_name:path}}")
         async def handle_named_route(route_name: str, request: Request):
-            return await self._handle_http_rpc(request, route_override=route_name)
+            return await self.http_handler.handle_http_rpc(request, route_override=route_name)
 
         @self.app.post(HTTP_PATH_PREFIX)
         async def handle_root_route(request: Request):
-            return await self._handle_http_rpc(request)
+            return await self.http_handler.handle_http_rpc(request)
 
         @self.app.get(f"{HTTP_PATH_PREFIX}/query/{{request_id}}")
         async def query_result(request_id: str):
-            return await self._handle_query_result(request_id)
+            return await self.http_handler.handle_query_result(request_id)
 
         @self.app.get(f"{HTTP_PATH_PREFIX}/routes")
         async def list_routes():
@@ -356,345 +387,23 @@ class FastAPIRPCServer:
 
         @self.app.websocket(WS_PATH)
         async def websocket_endpoint(websocket: WebSocket):
-            await self._handle_websocket(websocket)
+            # Capture the shared broadcast event loop on the first WS connection.
+            # This is the ONE _broadcast_loop singleton (read by broadcast_event_sync
+            # + register_thread_bus_listener); the SSE route below captures the same
+            # loop. Never duplicate it - the handlers are pure-injection and do not
+            # touch it. asyncio.get_running_loop() is valid from the very start of
+            # the request coroutine (same loop before/after accept).
+            if self._broadcast_loop is None:
+                self._broadcast_loop = asyncio.get_running_loop()
+                ColorPrint.blue("[WS] Captured event loop for broadcast")
+            await self.websocket_handler.handle_websocket(websocket)
 
         @self.app.get(f"{HTTP_PATH_PREFIX}/sse")
         async def sse_stream(request: Request, client_id: Optional[str] = None, since: Optional[int] = None):
-            return await self._handle_sse(request, client_id=client_id, since=since)
-
-    # ------------------------------------------------------------------ HTTP handlers
-    async def _handle_http_rpc(
-        self,
-        request: Request,
-        route_override: Optional[str] = None,
-    ) -> JSONResponse:
-        """Process HTTP RPC requests (mirrors legacy HttpHandler flow)."""
-        try:
-            if request.method == "POST":
-                data = await request.json()
-            else:
-                data = dict(request.query_params)
-        except Exception as exc:
-            return JSONResponse(
-                {
-                    "type": MSG_TYPES["ERROR"],
-                    "id": None,
-                    "route": None,
-                    "success": False,
-                    "error": ERROR_CODES["INVALID_MESSAGE"],
-                    "message": str(exc),
-                },
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
-
-        route = route_override or data.get("route")
-        if not route:
-            return JSONResponse(
-                {
-                    "type": MSG_TYPES["ERROR"],
-                    "id": request_id,
-                    "route": None,
-                    "success": False,
-                    "error": ERROR_CODES["ROUTE_NOT_FOUND"],
-                    "message": "Route not specified",
-                },
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if not self.routes_manager.has_route(route):
-            return JSONResponse(
-                {
-                    "type": MSG_TYPES["ERROR"],
-                    "id": request_id,
-                    "route": route,
-                    "success": False,
-                    "error": ERROR_CODES["ROUTE_NOT_FOUND"],
-                    "message": f"Route {route} not found",
-                },
-                status_code=status.HTTP_404_NOT_FOUND,
-            )
-
-        request_id = data.get("id") or data.get("request_id") or self._generate_request_id()
-
-        if "params" in data:
-            # Support both 'data' (RPC v2 format) and 'params' (legacy) fields
-            params = data.get("data") or data.get("params", {})
-        else:
-            params = {
-                k: v
-                for k, v in data.items()
-                if k not in {"route", "id", "session_id", "request_id"}
-            }
-
-        session_id = (
-            data.get("session_id")
-            or request.headers.get("X-Session-ID")
-            or f"http-{uuid.uuid4()}"
-        )
-
-        if self.debug:
-            ColorPrint.blue(
-                f"[HTTP RPC] route={route} request_id={request_id} session={session_id} params_keys={list(params.keys())}"
-            )
-
-        # Inventory check
-        inventory_item = self.inventory_table.get(request_id, remove=False)
-        if inventory_item:
-            if self.debug:
-                ColorPrint.green(f"[HTTP RPC] Found inventory hit for request {request_id}")
-            event = self.request_event_table.get_event(request_id) or self.request_event_table.create_event(
-                request_id=request_id,
-                route=inventory_item.route,
-                params=params,
-                client_id=session_id,
-                client_type="http",
-            )
-            self.request_event_table.set_result(
-                request_id=request_id,
-                result=inventory_item.result,
-                error=inventory_item.error,
-            )
-            return self.ack_manager.prepare_http_response_with_ack(
-                request_id=request_id,
-                data={
-                    "type": MSG_TYPES["RESPONSE"],
-                    "route": inventory_item.route,
-                    "id": request_id,
-                    "result": inventory_item.result,
-                    "error": inventory_item.error,
-                    "success": inventory_item.error is None,
-                    "from_inventory": True,
-                    "queue": None,
-                },
-                status_code=status.HTTP_200_OK,
-                event=event,
-            )
-
-        existing_event = self.request_event_table.get_event(request_id)
-        if existing_event:
-            if existing_event.status == RequestStatus.COMPLETED:
-                return self.ack_manager.prepare_http_response_with_ack(
-                    request_id=request_id,
-                    data={
-                        "type": MSG_TYPES["RESPONSE"],
-                        "route": existing_event.route,
-                        "id": request_id,
-                        "result": existing_event.result,
-                        "error": existing_event.error,
-                        "success": existing_event.error is None,
-                        "queue": None,
-                    },
-                    status_code=status.HTTP_200_OK,
-                    event=existing_event,
-                )
-            if existing_event.status in (RequestStatus.PROCESSING, RequestStatus.PENDING):
-                return JSONResponse(
-                    {
-                        "type": MSG_TYPES["RESPONSE"],
-                        "route": existing_event.route,
-                        "id": request_id,
-                        "status": existing_event.status.value,
-                        "message": "Request is being processed",
-                        "queue": None,
-                    },
-                    status_code=status.HTTP_202_ACCEPTED,
-                )
-
-            if self.debug:
-                ColorPrint.blue(f"[HTTP RPC] Reusing existing event {request_id} in status {existing_event.status}")
-
-        # ✅ Check if route is synchronous (immediate response)
-        is_sync = self.routes_manager.is_sync_route(route)
-
-        event = self.request_event_table.create_event(
-            request_id=request_id,
-            route=route,
-            params=params,
-            client_id=session_id,
-            client_type="http",
-        )
-
-        if is_sync:
-            # ✅ Synchronous route: await processing and return immediately
-            if self.debug:
-                ColorPrint.blue(f"[HTTP RPC] Sync route {route}, processing immediately...")
-
-            # Await processing completion
-            await self.request_processor.process_request_async(
-                request_id=request_id,
-                route=route,
-                params=params,
-                client_id=session_id,
-                client_type="http",
-                context=RPCRequestContext(
-                    transport="http",
-                    client_id=session_id,
-                    request=request,
-                ).__dict__,
-                notify_callback=None  # No callback for sync routes
-            )
-
-            # Get completed event
-            event = self.request_event_table.get_event(request_id)
-            if event and event.status == RequestStatus.COMPLETED:
-                if self.debug:
-                    ColorPrint.green(f"[HTTP RPC] Sync route {route} completed, returning result")
-
-                # Mark sync responses as notified to skip ACK/redo flow
-                self.request_event_table.mark_notified(request_id)
-
-                # ✅ Return result immediately (no requires_ack)
-                return JSONResponse(
-                    {
-                        "type": MSG_TYPES["RESPONSE"],
-                        "route": route,
-                        "id": request_id,
-                        "result": event.result,
-                        "error": event.error,
-                        "success": event.error is None,
-                        "sync_response": True,  # ✅ Mark as sync response
-                        "queue": None,
-                        "timestamp": int(time.time() * 1000),
-                    },
-                    status_code=status.HTTP_200_OK,
-                )
-            else:
-                # Processing failed
-                return JSONResponse(
-                    {
-                        "type": MSG_TYPES["ERROR"],
-                        "route": route,
-                        "id": request_id,
-                        "error": event.error if event else "Processing failed",
-                        "success": False,
-                    },
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-        else:
-            # ✅ Asynchronous route: use ACK mechanism (original behavior)
-            if self.debug:
-                ColorPrint.blue(f"[HTTP RPC] Async route {route}, using ACK mechanism...")
-
-            asyncio.create_task(
-                self.request_processor.process_request_async(
-                    request_id=request_id,
-                    route=route,
-                    params=params,
-                    client_id=session_id,
-                    client_type="http",
-                    context=RPCRequestContext(
-                        transport="http",
-                        client_id=session_id,
-                        request=request,
-                    ).__dict__,
-                )
-            )
-
-            return self.ack_manager.prepare_http_response_with_ack(
-                request_id=request_id,
-                data={
-                    "type": MSG_TYPES["RESPONSE"],
-                    "route": route,
-                    "id": request_id,
-                    "status": "accepted",
-                    "message": "Request accepted, please query result after 1 second",
-                    "queue": None,
-                },
-                status_code=status.HTTP_200_OK,
-                event=event,
-            )
-
-    async def _handle_query_result(self, request_id: str) -> JSONResponse:
-        """HTTP polling endpoint."""
-        inventory_item = self.inventory_table.get(request_id, remove=False)
-        if inventory_item:
-            if self.debug:
-                ColorPrint.green(f"[HTTP Query] Inventory replay for {request_id}")
-            event = self.request_event_table.get_event(request_id) or self.request_event_table.create_event(
-                request_id=request_id,
-                route=inventory_item.route,
-                params={},
-                client_id=inventory_item.client_id,
-                client_type=inventory_item.client_type,
-            )
-            self.request_event_table.set_result(
-                request_id=request_id,
-                result=inventory_item.result,
-                error=inventory_item.error,
-            )
-            return self.ack_manager.prepare_http_response_with_ack(
-                request_id=request_id,
-                data={
-                    "type": MSG_TYPES["RESPONSE"],
-                    "route": inventory_item.route,
-                    "id": request_id,
-                    "result": inventory_item.result,
-                    "error": inventory_item.error,
-                    "success": inventory_item.error is None,
-                    "from_inventory": True,
-                    "queue": None,
-                },
-                status_code=status.HTTP_200_OK,
-                event=event,
-            )
-
-        event = self.request_event_table.get_event(request_id)
-        if not event:
-            if self.debug:
-                ColorPrint.yellow(f"[HTTP Query] Request {request_id} not found")
-            return JSONResponse(
-                {
-                    "type": MSG_TYPES["RESPONSE"],
-                    "route": None,
-                    "id": request_id,
-                    "status": "not_found",
-                    "message": "Request not found",
-                    "queue": None,
-                },
-                status_code=status.HTTP_404_NOT_FOUND,
-            )
-
-        if event.status == RequestStatus.COMPLETED:
-            return self.ack_manager.prepare_http_response_with_ack(
-                request_id=request_id,
-                data={
-                    "type": MSG_TYPES["RESPONSE"],
-                    "route": event.route,
-                    "id": request_id,
-                    "result": event.result,
-                    "error": event.error,
-                    "success": event.error is None,
-                    "queue": None,
-                },
-                status_code=status.HTTP_200_OK,
-                event=event,
-            )
-
-        if event.status in (RequestStatus.PROCESSING, RequestStatus.PENDING):
-            if self.debug:
-                ColorPrint.blue(f"[HTTP Query] Request {request_id} still {event.status.value}")
-            return JSONResponse(
-                {
-                    "type": MSG_TYPES["RESPONSE"],
-                    "route": event.route,
-                    "id": request_id,
-                    "status": event.status.value,
-                    "message": "Request is being processed",
-                    "queue": None,
-                },
-                status_code=status.HTTP_202_ACCEPTED,
-            )
-
-        return JSONResponse(
-            {
-                "type": MSG_TYPES["RESPONSE"],
-                "route": event.route,
-                "id": request_id,
-                "status": event.status.value,
-                "message": f"Request status: {event.status.value}",
-                "queue": None,
-            }
-        )
+            # Capture the loop here too so SSE works even before any WS connect.
+            if self._broadcast_loop is None:
+                self._broadcast_loop = asyncio.get_running_loop()
+            return await self.sse_broadcaster.handle_sse(request, client_id=client_id, since=since)
 
     def _build_status_payload(self) -> Dict[str, Any]:
         """Return diagnostics for /rpc/status."""
@@ -707,546 +416,14 @@ class FastAPIRPCServer:
             "inventory": self.inventory_table.get_stats(),
         }
 
-    # ------------------------------------------------------------------ SSE handler
-    async def _handle_sse(
-        self,
-        request: Request,
-        client_id: Optional[str] = None,
-        since: Optional[int] = None,
-    ) -> StreamingResponse:
-        """
-        Additive Server-Sent-Events endpoint (GET /rpc/sse).
 
-        Browser clients that only need to RECEIVE pycore broadcast events (the same
-        ones pushed to WS clients: pycore_log / voice_subtitle_queue_update /
-        system_settings_update / ...) can subscribe here instead of opening a WS.
-        The existing /rpc/ws route is unchanged and stays the bidirectional RPC path.
-
-        Frame contract (mirrors the translation SSE stream, cursor renamed to seq):
-          - on connect:          event: stream.open   data: {"seq": <currentSeq>}
-          - each broadcast:      (default message)    data: {"event": <name>, "_seq": <int>, ...payload}
-                                 i.e. NO `event:` line, so the client's onmessage
-                                 dispatches ANY broadcast name generically.
-          - idle keep-alive:     event: ping          data: {"seq": <seq>}  (~15s)
-          - bounded lifetime:    event: stream.close  data: {"seq": <seq>}  (~50s),
-                                 then the generator ends (client reconnects ?since=).
-
-        Resume: ?since=<seq> replays buffered ring events with seq > since (oldest
-        first). since absent / <= 0 starts from the current tail (only new events).
-        """
-        # Capture the event loop here too, so SSE works even before any WS connect.
-        if self._broadcast_loop is None:
-            self._broadcast_loop = asyncio.get_running_loop()
-
-        # Bounded per-connection inbox. broadcast_event() pushes live events here;
-        # maxsize bounds memory — overflow is fine, the client recovers via ?since=.
-        queue: "asyncio.Queue" = asyncio.Queue(maxsize=self._sse_ring_max)
-        conn_id = client_id or str(uuid.uuid4())
-
-        # Lifetime / cadence (seconds). Unlike the Laravel/Octane translation stream
-        # (bounded at ~50s to free a blocking worker), THIS server is async uvicorn —
-        # one event loop holds many SSE connections cheaply, so there is no worker to
-        # free. A longer bound just paces cursor-resync + caps any leaked connection;
-        # 300s cuts the browser's reconnect churn ~6x (and the Windows-Proactor reset
-        # callbacks that come with each disconnect). The 15s heartbeat keeps proxies
-        # from dropping the idle connection in between.
-        max_lifetime = 300.0
-        heartbeat_interval = 15.0
-        # Wake at most every `tick` to emit a heartbeat / honour disconnects.
-        tick = 1.0
-
-        ColorPrint.green(f"[SSE] connected id={conn_id[:8]} since={since}")
-
-        async def event_generator():
-            # --- Replay backlog from the ring buffer (seq > since), oldest first. ---
-            # since absent / <= 0 -> start from current tail (only new events).
-            replay_from = since if isinstance(since, int) and since > 0 else None
-            # Snapshot the ring before subscribing so we don't miss or double-send
-            # events that land between replay and subscription.
-            backlog = list(self._sse_ring) if replay_from is not None else []
-
-            # Subscribe to live events.
-            self._sse_subscribers.add(queue)
-            try:
-                current_seq = self._sse_seq
-
-                # stream.open confirms the resume point.
-                yield self._sse_format("stream.open", {"seq": current_seq})
-
-                # Drain backlog (only events newer than the resume cursor).
-                for seq, event_name, data in backlog:
-                    if seq > replay_from:
-                        frame = self._sse_with_seq(data, seq)
-                        frame["event"] = event_name  # generic (default-message) channel frame
-                        yield self._sse_format("", frame)
-                        current_seq = seq
-
-                start = time.monotonic()
-                last_beat = start
-
-                while (time.monotonic() - start) < max_lifetime:
-                    # Client gone? stop promptly and free the worker.
-                    if await request.is_disconnected():
-                        break
-
-                    try:
-                        seq, event_name, data = await asyncio.wait_for(queue.get(), timeout=tick)
-                    except asyncio.TimeoutError:
-                        # Idle: emit a keep-alive ping at the heartbeat cadence.
-                        if (time.monotonic() - last_beat) >= heartbeat_interval:
-                            yield self._sse_format("ping", {"seq": current_seq})
-                            last_beat = time.monotonic()
-                        continue
-
-                    # Skip stale ring duplicates already replayed from backlog.
-                    if seq <= current_seq:
-                        continue
-                    frame = self._sse_with_seq(data, seq)
-                    frame["event"] = event_name  # generic (default-message) channel frame
-                    yield self._sse_format("", frame)
-                    current_seq = seq
-                    last_beat = time.monotonic()
-
-                # Bounded lifetime reached: tell the client where to resume.
-                yield self._sse_format("stream.close", {"seq": current_seq})
-            finally:
-                self._sse_subscribers.discard(queue)
-                ColorPrint.yellow(f"[SSE] disconnected id={conn_id[:8]}")
-
-        headers = {
-            "Cache-Control": "no-cache, no-transform",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-        }
-        return StreamingResponse(
-            event_generator(),
-            media_type="text/event-stream",
-            headers=headers,
-        )
-
-    @staticmethod
-    def _sse_with_seq(data: Dict[str, Any], seq: int) -> Dict[str, Any]:
-        """Return a shallow copy of the WS payload with a top-level _seq resume cursor."""
-        if isinstance(data, dict):
-            merged = dict(data)
-        else:
-            # Non-dict payloads are wrapped so _seq always has a place to live.
-            merged = {"value": data}
-        merged["_seq"] = seq
-        return merged
-
-    @staticmethod
-    def _sse_format(event_name: str, data: Dict[str, Any]) -> str:
-        """Serialize one SSE frame: 'event:' + 'data:' lines, blank line terminates it.
-
-        A NON-EMPTY event_name -> NAMED SSE event (the stream.open/ping/stream.close
-        ENVELOPE), consumed on the client via addEventListener('<name>'). An EMPTY
-        event_name -> DEFAULT 'message' event (client onmessage), used for CHANNEL
-        broadcasts so the client dispatches ANY broadcast name generically (the name
-        travels inside data['event']) — mirroring the WS path's generic dispatch and
-        staying forward-compatible with new event names without client changes.
-        """
-        payload = json.dumps(data, ensure_ascii=False)
-        if event_name:
-            return f"event: {event_name}\ndata: {payload}\n\n"
-        return f"data: {payload}\n\n"
-
-    # ------------------------------------------------------------------ WebSocket handlers
-    async def _handle_websocket(self, websocket: WebSocket):
-        """Accept WebSocket connections and dispatch messages."""
-        # Logged unconditionally (not behind debug): this is THE signal that a WS
-        # upgrade actually reached the backend. If you see this in the terminal, the
-        # /rpc/ws path/proxy works; if you never see it, the upgrade never arrived.
-        ColorPrint.cyan(
-            f"[WS] upgrade reached backend: path={websocket.url.path} "
-            f"client={websocket.client.host if websocket.client else '?'} "
-            f"origin={websocket.headers.get('origin', '-')}"
-        )
-        await websocket.accept()
-
-        # Capture event loop on first WebSocket connection
-        if self._broadcast_loop is None:
-            self._broadcast_loop = asyncio.get_running_loop()
-            ColorPrint.blue("[WS] Captured event loop for broadcast")
-
-        client_id = websocket.query_params.get("client_id") or str(uuid.uuid4())
-        remote_addr = websocket.client.host if websocket.client else "unknown"
-        user_agent = websocket.headers.get("User-Agent")
-
-        await self.client_registry.register_websocket_client(
-            client_id=client_id,
-            websocket=websocket,
-            remote_addr=remote_addr,
-            user_agent=user_agent,
-        )
-        await self.client_registry.set_client_status(client_id, ClientStatus.CONNECTED)
-
-        ColorPrint.green(f"[WS] connected id={client_id[:8]} addr={remote_addr}")
-
-        await websocket.send_json(
-            {
-                "type": MSG_TYPES["WELCOME"],
-                "client_id": client_id,
-                "timestamp": time.time(),
-            }
-        )
-
-        # Deliver pending events/inventory
-        pending_events = self.request_event_table.get_pending_notifications(client_id)
-        inventory_items = self.inventory_table.get_by_client(client_id)
-
-        for event in pending_events[:10]:
-            self.ack_manager.notify_websocket_with_retry(
-                client_id=client_id,
-                request_id=event.request_id,
-                result=event.result,
-                error=event.error,
-            )
-
-        for item in inventory_items[:10]:
-            await websocket.send_json(
-                {
-                    "type": MSG_TYPES["RESPONSE"],
-                    "route": item.route,
-                    "id": item.request_id,
-                    "result": item.result,
-                    "error": item.error,
-                    "success": item.error is None,
-                    "from_inventory": True,
-                    "requires_ack": True,
-                    "queue": None,
-                }
-            )
-            self.inventory_table.delete(item.request_id)
-
-        try:
-            while True:
-                message = await websocket.receive_json()
-                await self._handle_websocket_message(client_id, websocket, message)
-        except WebSocketDisconnect:
-            pass
-        finally:
-            # Pass this websocket so a connection already superseded by a newer one
-            # for the same client_id doesn't clobber the live session.
-            await self.client_registry.unregister_websocket_client(client_id, websocket)
-            ColorPrint.yellow(f"[WS] disconnected id={client_id[:8]}")
-
-    async def _handle_websocket_message(
-        self,
-        client_id: str,
-        websocket: WebSocket,
-        data: Dict[str, Any],
-    ):
-        """Process WS message types (request/ping/ack)."""
-        await self.client_registry.update_client_activity(client_id)
-
-        msg_type = data.get("type", MSG_TYPES["REQUEST"])
-        request_id = data.get("id") or self._generate_request_id()
-
-        if msg_type == MSG_TYPES["REQUEST"]:
-            route = data.get("route")
-            if not route:
-                await websocket.send_json(
-                    {
-                        "type": MSG_TYPES["ERROR"],
-                        "route": None,
-                        "id": request_id,
-                        "error": ERROR_CODES["ROUTE_NOT_FOUND"],
-                        "message": "Route not specified",
-                    }
-                )
-                return
-            if not self.routes_manager.has_route(route):
-                await websocket.send_json(
-                    {
-                        "type": MSG_TYPES["ERROR"],
-                        "route": route,
-                        "id": request_id,
-                        "error": ERROR_CODES["ROUTE_NOT_FOUND"],
-                        "message": f"Route {route} not found",
-                    }
-                )
-                return
-
-            # Support both 'data' (RPC v2 format) and 'params' (legacy) fields
-            params = data.get("data") or data.get("params", {})
-
-            inventory_item = self.inventory_table.get(request_id, remove=True)
-            if inventory_item:
-                await websocket.send_json(
-                    {
-                        "type": MSG_TYPES["RESPONSE"],
-                        "route": inventory_item.route,
-                        "id": request_id,
-                        "result": inventory_item.result,
-                        "error": inventory_item.error,
-                        "success": inventory_item.error is None,
-                        "from_inventory": True,
-                        "requires_ack": True,
-                        "queue": None,
-                    }
-                )
-                return
-
-            existing_event = self.request_event_table.get_event(request_id)
-            if existing_event:
-                if existing_event.status == RequestStatus.COMPLETED:
-                    self.ack_manager.notify_websocket_with_retry(
-                        client_id=client_id,
-                        request_id=request_id,
-                        result=existing_event.result,
-                        error=existing_event.error,
-                    )
-                    return
-                if existing_event.status in (RequestStatus.PROCESSING, RequestStatus.PENDING):
-                    await websocket.send_json(
-                        {
-                            "type": MSG_TYPES["EVENT"],
-                            "route": "request_processing",
-                            "event": "request_processing",
-                            "id": request_id,
-                            "data": {"status": existing_event.status.value},
-                        }
-                    )
-                    return
-
-            # ✅ Check if route is synchronous (immediate response)
-            is_sync = self.routes_manager.is_sync_route(route)
-
-            self.request_event_table.create_event(
-                request_id=request_id,
-                route=route,
-                params=params,
-                client_id=client_id,
-                client_type="websocket",
-            )
-
-            if is_sync:
-                # ✅ Synchronous route: await processing and return immediately
-                if self.debug:
-                    ColorPrint.blue(f"[WS RPC] Sync route {route}, processing immediately...")
-
-                # Await processing completion
-                await self.request_processor.process_request_async(
-                    request_id=request_id,
-                    route=route,
-                    params=params,
-                    client_id=client_id,
-                    client_type="websocket",
-                    context=RPCRequestContext(
-                        transport="websocket",
-                        client_id=client_id,
-                        websocket=websocket,
-                    ).__dict__,
-                    notify_callback=None  # No callback for sync routes
-                )
-
-                # Get completed event
-                event = self.request_event_table.get_event(request_id)
-                if event and event.status == RequestStatus.COMPLETED:
-                    if self.debug:
-                        ColorPrint.green(f"[WS RPC] Sync route {route} completed, sending result")
-
-                    # Mark sync responses as notified so ACK manager does not retry them
-                    self.request_event_table.mark_notified(request_id)
-
-                    # ✅ Send result immediately (no ACK mechanism)
-                    await websocket.send_json(
-                        {
-                            "type": MSG_TYPES["RESPONSE"],
-                            "route": route,
-                            "id": request_id,
-                            "result": event.result,
-                            "error": event.error,
-                            "success": event.error is None,
-                            "sync_response": True,  # ✅ Mark as sync response
-                            "requires_ack": False,  # ✅ No ACK required
-                            "queue": None,
-                            "timestamp": int(time.time() * 1000),
-                        }
-                    )
-                    return  # ✅ Sync route completed, exit handler
-                else:
-                    # Processing failed
-                    await websocket.send_json(
-                        {
-                            "type": MSG_TYPES["ERROR"],
-                            "route": route,
-                            "id": request_id,
-                            "error": event.error if event else "Processing failed",
-                            "success": False,
-                        }
-                    )
-                    return  # ✅ Sync route failed, exit handler
-            else:
-                # ✅ Asynchronous route: use ACK mechanism (original behavior)
-                if self.debug:
-                    ColorPrint.blue(f"[WS RPC] Async route {route}, using ACK mechanism...")
-
-                asyncio.create_task(
-                    self.request_processor.process_request_async(
-                        request_id=request_id,
-                        route=route,
-                        params=params,
-                        client_id=client_id,
-                        client_type="websocket",
-                        context=RPCRequestContext(
-                            transport="websocket",
-                            client_id=client_id,
-                            websocket=websocket,
-                        ).__dict__,
-                        notify_callback=self.ack_manager.notify_websocket_with_retry,
-                    )
-                )
-
-                # Send accepted event for async routes
-                await websocket.send_json(
-                    {
-                        "type": MSG_TYPES["EVENT"],
-                        "route": "request_accepted",
-                        "event": "request_accepted",
-                        "id": request_id,
-                        "data": {"status": "accepted"},
-                    }
-                )
-
-        elif msg_type == MSG_TYPES["PING"]:
-            await self.client_registry.update_client_ping(client_id)
-
-            pending_events = self.request_event_table.get_pending_notifications(client_id)
-            inventory_items = self.inventory_table.get_by_client(client_id)
-
-            await websocket.send_json(
-                {
-                    "type": MSG_TYPES["PONG"],
-                    "timestamp": time.time(),
-                    "pending_requests": len(pending_events),
-                    "inventory_items": len(inventory_items),
-                }
-            )
-
-            for event in pending_events[:5]:
-                self.ack_manager.notify_websocket_with_retry(
-                    client_id=client_id,
-                    request_id=event.request_id,
-                    result=event.result,
-                    error=event.error,
-                )
-
-            for item in inventory_items[:5]:
-                await websocket.send_json(
-                    {
-                        "type": MSG_TYPES["RESPONSE"],
-                        "id": item.request_id,
-                        "result": item.result,
-                        "error": item.error,
-                        "success": item.error is None,
-                        "from_inventory": True,
-                        "requires_ack": True,
-                    }
-                )
-                self.inventory_table.delete(item.request_id)
-
-        elif msg_type == MSG_TYPES["ACK"]:
-            self.ack_manager.handle_ack(client_id, request_id)
-
-        elif msg_type == MSG_TYPES["EVENT"]:
-            event_name = data.get("event")
-            if event_name:
-                payload = data.get("data", {})
-                self.routes_manager.emit_event(event_name, payload)
-
-    # ------------------------------------------------------------------ Helpers
-    @staticmethod
-    def _generate_request_id() -> str:
-        return str(uuid.uuid4())
-
-
-class FastAPIRPCServerRunner:
-    """Run FastAPIRPCServer inside a background thread."""
-
-    def __init__(self, **server_options):
-        self.server = FastAPIRPCServer(options=server_options)
-        self._thread: Optional[threading.Thread] = None
-        self._uvicorn_server: Optional[uvicorn.Server] = None
-        self._start_event = threading.Event()
-
-    def start(self):
-        if self._thread and self._thread.is_alive():
-            ColorPrint.yellow("[FastAPIRPCRunner] Server already running")
-            return
-
-        # Configure logging to suppress CancelledError during shutdown
-        import logging
-
-        class SuppressCancelledErrorFilter(logging.Filter):
-            """Filter to suppress asyncio.CancelledError logs during shutdown"""
-            def filter(self, record):
-                # Suppress CancelledError from starlette/uvicorn during shutdown
-                if "CancelledError" in str(record.msg):
-                    return False
-                if hasattr(record, 'exc_info') and record.exc_info:
-                    exc_type = record.exc_info[0]
-                    if exc_type and exc_type.__name__ == 'CancelledError':
-                        return False
-                return True
-
-        # Add filter to uvicorn's error logger
-        uvicorn_error_logger = logging.getLogger("uvicorn.error")
-        cancel_filter = SuppressCancelledErrorFilter()
-        uvicorn_error_logger.addFilter(cancel_filter)
-
-        self._start_event.clear()
-        config = uvicorn.Config(
-            app=self.server.app,
-            host=self.server.host,
-            port=self.server.port,
-            loop="asyncio",
-            log_level="debug" if self.server.debug else "info",
-            access_log=False,  # Disable access log to prevent WebSocket binary spam
-        )
-        self._uvicorn_server = uvicorn.Server(config=config)
-
-        def runner():
-            ColorPrint.green(
-                f"[FastAPIRPCRunner] Starting FastAPI RPC server on {self.server.host}:{self.server.port}"
-            )
-            self._start_event.set()
-            try:
-                self._uvicorn_server.run()
-            except Exception:
-                # Suppress expected errors during shutdown (CancelledError, etc.)
-                pass
-
-        self._thread = threading.Thread(target=runner, name="FastAPIRPCServerThread", daemon=True)
-        self._thread.start()
-        self._start_event.wait(timeout=5)
-
-    def stop(self):
-        if not self._uvicorn_server:
-            return
-        self._uvicorn_server.should_exit = True
-        if self._thread:
-            self._thread.join(timeout=5)
-        ColorPrint.blue("[FastAPIRPCRunner] Server stopped")
-
-    # Compatibility helpers -------------------------------------------------
-    def route(self, name: str, handler: Callable):
-        """Register RPC route (proxy to underlying server)."""
-        self.server.route(name, handler)
-
-    def add_static_dir(self, url_prefix: str, directory: str):
-        """Expose static directory on the FastAPI app."""
-        self.server.add_static_dir(url_prefix, directory)
-
-    @property
-    def host(self) -> str:
-        return self.server.host
-
-    @property
-    def port(self) -> int:
-        return self.server.port
-
-    @property
-    def app(self) -> FastAPI:
-        return self.server.app
+# Re-export the runner + transport handlers so the public API
+# (`from .fastapi_server import FastAPIRPCServer, FastAPIRPCServerRunner, ...`)
+# keeps working after the split.
+__all__ = [
+    "FastAPIRPCServer",
+    "FastAPIRPCServerRunner",
+    "SSEBroadcaster",
+    "HttpRPCHandler",
+    "WebSocketRPCHandler",
+]

@@ -31,7 +31,7 @@ COLOR_CYAN="\033[36m"
 check_ssh_installed() {
     if ! command -v sshd >/dev/null 2>&1; then
         echo -e "${COLOR_RED}SSH server is not installed!${COLOR_RESET}"
-        echo "Please run installation script first: 18_setup_ssh_remote.sh"
+        echo "Please run installation script first: 20_setup_ssh_remote.sh"
         return 1
     fi
 

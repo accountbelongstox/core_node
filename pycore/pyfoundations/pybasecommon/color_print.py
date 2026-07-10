@@ -464,7 +464,7 @@ class ColorPrint:
     def print_table_row(columns_data, widths=None, separator='|'):
         """Print a table row with aligned columns"""
         if widths is None:
-            widths = [15] * len(columns_data)
+            widths = [16] * len(columns_data)
 
         row = separator
         for i, data in enumerate(columns_data):
@@ -479,7 +479,7 @@ class ColorPrint:
         ColorPrint.print_table_row(headers, widths, separator)
 
         if widths is None:
-            widths = [15] * len(headers)
+            widths = [16] * len(headers)
 
         # Print separator line
         separator_line = separator

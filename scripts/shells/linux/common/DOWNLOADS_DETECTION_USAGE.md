@@ -194,9 +194,9 @@ fi
 
 | 脚本 | 文件模式 | 下载URL |
 |------|----------|---------|
-| `32_install_swoole.sh` | - | PHP 符号链接检测 |
-| `35_install_chrome.sh` | `google-chrome-stable*.deb` | https://www.google.com/chrome/ |
-| `37_install_dotnet.sh` | - | 使用官方安装脚本 |
+| `34_install_swoole.sh` | - | PHP 符号链接检测 |
+| `37_install_chrome.sh` | `google-chrome-stable*.deb` | https://www.google.com/chrome/ |
+| `39_install_dotnet.sh` | - | 使用官方安装脚本 |
 
 ## 最佳实践
 

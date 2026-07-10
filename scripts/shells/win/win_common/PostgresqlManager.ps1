@@ -16,7 +16,7 @@
     Step_InstallPostgreSQL.ps1 (DevInstaller) and poly_apps/laravel_main/scripts/
     start.ps1 so they never drift.
 
-    Mirrors the Linux canonical installer 46_install_postgresql.sh:
+    Mirrors the Linux canonical installer 48_install_postgresql.sh:
       - binaries under D:\.dev_<sys>\PG, data dir at map_web_path "postgresql"\data
         (D:\www\wwwroot\postgresql\data),
       - superuser "postgres", password from the shared CoreNodeSecrets store
@@ -68,7 +68,7 @@ if ($Global:USER_CACHE_DIR) {
 $Global:PG_CACHE_ZIP     = Join-Path $Global:PG_CACHE_DIR "postgresql-$($Global:PG_VERSION)-windows-x64-binaries.zip"
 
 # Canonical per-app database union (config/database.php polyConnection() names +
-# core_node_main + legacy). MUST match 46_install_postgresql.sh / start.sh.
+# core_node_main + legacy). MUST match 48_install_postgresql.sh / start.sh.
 $Global:PG_APP_DATABASES = @(
     "core_node_main",
     "app_qy_v1_database",

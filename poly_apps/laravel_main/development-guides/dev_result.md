@@ -325,7 +325,7 @@
 ## Development Log
 
 ### 2025-09-07 09:45 - 🔧 Code Consistency Fix & Certbot Integration
-- ✅ **Certbot Installation Script Fixed**: Corrected path references in 26_install_certbot.sh
+- ✅ **Certbot Installation Script Fixed**: Corrected path references in 28_install_certbot.sh
 - ✅ **SSL Error Handling Enhanced**: Better error messages with installation guidance
 - ✅ **New CLI Command Added**: `servermanager:check-certbot` for dependency management
 - ✅ **Code Consistency Validated**: All shell script paths and references corrected

@@ -25,10 +25,10 @@ export { connectPycoreSse, isSseConnected, setPycoreSseActive } from './PycoreSs
 
 export {
   getPycoreTarget, isPycoreRemote, pycoreTargetHost,
-  getPycoreTargetRecent, normalizePycoreHost, setPycoreTarget,
-  localPycoreHost, pycoreEffectiveHost,
+  getPycoreTargetRecent, getPycoreTargetPresets, normalizePycoreHost, setPycoreTarget,
+  localPycoreHost, localPycoreOrigin, pycoreEffectiveHost,
 } from './pycoreTarget';
-export type { PycoreTarget } from './pycoreTarget';
+export type { PycoreTarget, PycorePresetHost } from './pycoreTarget';
 
 export {
   pycoreLaravelApi, PYCORE_LARAVEL_API_CHANGED_EVENT,

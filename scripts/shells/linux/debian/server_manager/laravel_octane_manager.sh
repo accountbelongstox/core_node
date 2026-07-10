@@ -282,7 +282,7 @@ run_installation() {
     echo "================================================"
     echo ""
 
-    local install_script="$PARENT_DIR_LEVEL_1/install_shells/133_setup_api_domains.sh"
+    local install_script="$PARENT_DIR_LEVEL_1/install_shells/137_setup_api_domains.sh"
 
     if [ ! -f "$install_script" ]; then
         echo -e "${RED}Installation script not found: $install_script${NC}"
@@ -291,7 +291,7 @@ run_installation() {
         return 1
     fi
 
-    echo "This will run: 133_setup_api_domains.sh"
+    echo "This will run: 135_setup_api_domains.sh"
     echo ""
     read -p "Continue? (y/N): " confirm
 
@@ -323,7 +323,7 @@ show_main_menu() {
         echo "  4. Restart All Services"
         echo ""
         echo "Installation:"
-        echo "  5. Run Installation Script (133_setup_api_domains.sh)"
+        echo "  5. Run Installation Script (135_setup_api_domains.sh)"
         echo ""
         echo "0. Exit"
         echo ""

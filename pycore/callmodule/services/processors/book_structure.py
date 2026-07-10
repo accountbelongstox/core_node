@@ -19,12 +19,16 @@ Pure business logic (app layer): may import pyfoundations + pyutils freely. Neve
 raises on bad input — empty text yields an empty structure.
 """
 
+import collections
 import hashlib
 import re
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.text_parsing import (
     tokenize_words,
+    split_sentences,
+    normalize_sentence_key,
+    language_breakdown,
     guess_language,
     normalize_language_codes,
 )
@@ -38,7 +42,10 @@ from pycore.pyutils.text_stats import compute_text_stats
 # v3 slot builder produces the SAME cue/sentence rows the rest of the pipeline
 # uses. book_processor imports only video_extract_processor, so importing it here
 # (app layer) stays cycle-free.
-from pycore.callmodule.services.processors.book_processor import segment_sentences
+from pycore.callmodule.services.processors.book_processor import (
+    segment_sentences,
+    segment_chapters,
+)
 
 
 def _normalize(text: str) -> str:
@@ -279,3 +286,86 @@ def build_book_chapters_v3(
         "sentence_count": seq_by_grain.get("sentence", 0),
         "cue_count": seq_by_grain.get("cue", 0),
     }
+
+
+# --------------------------------------------------------------------------- #
+# Drill-down lists - paginated words / sentences / chapters for the Books UI.  #
+# Pure text->lists builder (no IO / no controller state); moved here from      #
+# BooksController._lists_from_text (reuse-batch) so the cache + submit share   #
+# one home alongside build_book_chapters_v3.                                   #
+# --------------------------------------------------------------------------- #
+def lists_from_text(all_text: str, ext: str = "",
+                    path: Optional[str] = None) -> Dict[str, Any]:
+    """Build the drill-down lists from already-extracted text (no IO).
+
+    Returns {words:[{word,count}], sentences:[{seq,text,chapter_index}],
+             unique_sentences:[{seq,text,chapter_index}], languages:[...],
+             chapters:[{chapter_index,title,sentence_count}],
+             chapter_texts:[{chapter_index,title,text}], totals:{...}}.
+
+    Sentences are tagged with their detected ``chapter_index`` (v3 tree) so
+    ``list_items`` can serve chapter-scoped pages. ``chapter_texts`` carries the
+    RAW per-chapter body so chapter-scoped requests can rebuild the v3
+    correspondence slots (BookSlot[]) honoring the request's language set
+    without re-extracting the source. ``ext``/``path`` improve chapter
+    detection (epub/html); over joined folder text they are omitted and
+    heading heuristics apply.
+    """
+    tokens = tokenize_words(all_text)
+    # Distinct-word dedup uses str.lower() (NOT casefold) to agree with laravel
+    # mb_strtolower for non-ASCII letters (sharp-s, final sigma, dotted-I).
+    counter = collections.Counter(t.lower() for t in tokens)
+    words = [{"word": w, "count": c} for w, c in counter.most_common()]
+
+    # Chapter tree + per-chapter sentence tagging. Each chapter's sentences are
+    # split the same way as the flat list so seqs stay continuous + ordered.
+    primary = guess_language(all_text)
+    if primary in ("und", "", None):
+        primary = "en"
+    try:
+        chapter_rows = segment_chapters(all_text, ext, primary, path=path)
+    except Exception:
+        chapter_rows = [{"chapter_index": 0, "title": "Chapter 1", "text": all_text}]
+
+    sentences: List[dict] = []
+    chapters: List[dict] = []
+    chapter_texts: List[dict] = []
+    seq = 0
+    seen: set = set()
+    unique_sentences: List[dict] = []
+    for ch in chapter_rows:
+        ci = int(ch.get("chapter_index", 0) or 0)
+        ch_title = ch.get("title") or "Chapter 1"
+        ch_body = ch.get("text") or ""
+        ch_sents = split_sentences(ch_body)
+        for s in ch_sents:
+            sentences.append({"seq": seq, "text": s, "chapter_index": ci})
+            seq += 1
+            key = normalize_sentence_key(s)
+            if key and key not in seen:
+                seen.add(key)
+                unique_sentences.append({
+                    "seq": len(unique_sentences), "text": s, "chapter_index": ci})
+        # v3.1 per-language titles: only the detected primary language is filled
+        # here (whole-source drill-down knows just the book's own text); the FE
+        # adds blank cells for the other checked languages. 'title' kept for
+        # back-compat convenience (== the primary-language title).
+        chapters.append({
+            "chapter_index": ci,
+            "title": ch_title,
+            "titles": {primary: ch_title},
+            "sentence_count": len(ch_sents),
+        })
+        chapter_texts.append({"chapter_index": ci, "title": ch_title, "text": ch_body})
+
+    languages = language_breakdown(all_text)
+    totals = {
+        "words": len(tokens), "unique_words": len(counter),
+        "sentences": len(sentences), "unique_sentences": len(unique_sentences),
+        "chapters": len(chapters), "chars": len(all_text),
+    }
+    return {"words": words, "sentences": sentences,
+            "unique_sentences": unique_sentences, "languages": languages,
+            "chapters": chapters, "chapter_texts": chapter_texts,
+            "primary_language": primary,
+            "totals": totals}

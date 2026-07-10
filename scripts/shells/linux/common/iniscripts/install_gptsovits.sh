@@ -52,7 +52,7 @@ resolve_python() {
 . "$SCRIPT_DIR/../base_libs/lib_gpu.sh"   # provides gpu_present() (canonical: CUDADetector)
 # Driver-matched CUDA wheel index (single source of truth) so the GPU torch install never
 # grabs the default "latest" wheel (e.g. cu130) that a 12.4 driver can't run.
-. "$SCRIPT_DIR/../base_libs/torch_cuda_index.sh"
+. "$SCRIPT_DIR/../base_libs/cuda_index.sh"
 command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "https://download.pytorch.org/whl/cu124"; }
 # Serialize pip into the shared venv (safe under the parallel install driver). Defensive.
 PIPLOCK_LIB="$SCRIPT_DIR/../base_libs/pip_lock.sh"

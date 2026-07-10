@@ -115,7 +115,7 @@ Write-Host ("$SCRIPT_INDEX  compute : {0}" -f $(if ($hasCuda) { 'CUDA GPU -> GPU
 
 $resolvedPython = Resolve-PythonInterpreter -Preferred $Python
 if (-not $resolvedPython) {
-    Write-Host "$SCRIPT_INDEX [!] Python 3 not found; cannot install. Run Step9_InstallPython first." -ForegroundColor DarkYellow
+    Write-Host "$SCRIPT_INDEX [!] Python 3 not found; cannot install. Run Step8_InstallPython first." -ForegroundColor DarkYellow
     exit 0
 }
 

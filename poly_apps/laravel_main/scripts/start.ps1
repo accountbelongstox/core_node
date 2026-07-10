@@ -113,7 +113,7 @@ $LaravelRuntimeDirs = @(
 )
 
 # Shared native PostgreSQL manager (single source of truth with the DevInstaller
-# Step33_InstallPostgreSQL.ps1). Provides Ensure-Postgresql + Test-PgPortOpen.
+# Step17_InstallPostgreSQL.ps1). Provides Ensure-Postgresql + Test-PgPortOpen.
 . $PgManagerScript
 
 # Shared NSSM service registration helper (idempotent install-or-update + restart).
@@ -130,17 +130,17 @@ try {
     $phpCmd = Get-Command php -ErrorAction SilentlyContinue
     $composerCmd = Get-Command composer -ErrorAction SilentlyContinue
     if ((-not $phpCmd) -or (-not $composerCmd)) {
-        Write-Host "PHP/Composer not found -> invoking canonical installer (idempotent): Step12_InstallPHP.ps1" -ForegroundColor Yellow
-        Invoke-DevInstallerStep -RepoRootDir $RepoRootDir -StepScriptName "Step12_InstallPHP.ps1" | Out-Null
+        Write-Host "PHP/Composer not found -> invoking canonical installer (idempotent): Step16_InstallPHP.ps1" -ForegroundColor Yellow
+        Invoke-DevInstallerStep -RepoRootDir $RepoRootDir -StepScriptName "Step16_InstallPHP.ps1" | Out-Null
         $phpCmd = Get-Command php -ErrorAction SilentlyContinue
         $composerCmd = Get-Command composer -ErrorAction SilentlyContinue
     }
     if (-not $phpCmd) {
-        Write-Host "PHP still not found after Step12_InstallPHP.ps1. Run it manually via the Installer Menu." -ForegroundColor Red
+        Write-Host "PHP still not found after Step16_InstallPHP.ps1. Run it manually via the Installer Menu." -ForegroundColor Red
         exit 1
     }
     if (-not $composerCmd) {
-        Write-Host "Composer still not found after Step12_InstallPHP.ps1. Run it manually via the Installer Menu." -ForegroundColor Red
+        Write-Host "Composer still not found after Step16_InstallPHP.ps1. Run it manually via the Installer Menu." -ForegroundColor Red
         exit 1
     }
 
@@ -198,7 +198,7 @@ try {
         Write-Host "PHP pdo_pgsql extension present." -ForegroundColor Green
     } else {
         # Canonical auto-fix (dd.cmd chain): configure_php_ini.php enables the required
-        # extensions idempotently -- same role as 47_ensure_php_pgsql.sh on Linux.
+        # extensions idempotently -- same role as 49_ensure_php_pgsql.sh on Linux.
         if (Test-Path -LiteralPath $PhpIniConfigScript) {
             $PhpExeForConfig = (Get-Command php -ErrorAction SilentlyContinue).Source
             if ($PhpExeForConfig) {
@@ -239,7 +239,7 @@ try {
 
     # --- PostgreSQL: native cluster on D:, idempotent, reuse an already-serving :5432.
     Write-Host "Ensuring PostgreSQL (native Windows, idempotent, :5432 reuse)..." -ForegroundColor Yellow
-    Write-Host "  Invoking shared PG manager (same idempotent engine as Step33_InstallPostgreSQL.ps1):" -ForegroundColor DarkGray
+    Write-Host "  Invoking shared PG manager (same idempotent engine as Step17_InstallPostgreSQL.ps1):" -ForegroundColor DarkGray
     Write-Host "    $PgManagerScript" -ForegroundColor DarkGray
     $pgReady = Ensure-Postgresql
 

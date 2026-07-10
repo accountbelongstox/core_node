@@ -66,7 +66,8 @@ fix_core_node_permissions_full() {
         done
 
         # Fix Laravel database directory
-        local laravel_db_dir="/www/wwwroot/laravel_db"
+        local laravel_db_dir=$(map_web_path "laravel_db" 2>/dev/null)
+        [ -z "$laravel_db_dir" ] && laravel_db_dir="/www/wwwroot/laravel_db"
         if [ -d "$laravel_db_dir" ]; then
             echo "[INFO] Fixing Laravel database directory permissions: $laravel_db_dir"
             local detected_user=$(detect_system_user)

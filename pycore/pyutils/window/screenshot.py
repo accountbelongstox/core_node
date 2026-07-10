@@ -1,8 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Window Screenshot Manager
-Handles window searching, activation, and screenshot capture
+Window Screenshot Manager (facade)
+
+Handles window searching, activation, and screenshot capture. This module is the
+SOLE public surface of the window-screenshot subsystem (imported by
+pycore/pyctl/desktop/background_services.py and re-exported via the window
+package). It delegates the heavy lifting to sibling sub-modules:
+
+- pycore.pyutils.window.screen_capture : mss fullscreen/region capture + 720p scaling
+- pycore.pyutils.window.grid_capture  : window-region resolution + grid sub-region capture
+- pycore.pyutils.window.activator     : window activation (WindowActivator)
+- pycore.pyutils.common.window_finder : cache-backed window search (WindowFinder)
+
+Dependency direction is one-way: this facade imports the sub-modules; the
+sub-modules never import back into screenshot.py (no circular import).
+
+Windows-heavy import pattern (win32gui/win32con at top) is preserved verbatim
+from the original; this module is not intended to import on a headless Linux host.
 """
 
 import os
@@ -18,36 +33,24 @@ from pycore.pyfoundations.third_party import (
     get_third_package_PIL_Image,
     get_third_package_PIL_ImageGrab,
     get_third_package_pyautogui,
-    get_third_package_mss,
 )
 
 win32gui = get_third_package_win32gui()
 win32con = get_third_package_win32con()
 pyautogui = get_third_package_pyautogui()  # May be None on Linux without X11 display access
-mss = get_third_package_mss()
 
 ImageGrab = get_third_package_PIL_ImageGrab()
 Image = get_third_package_PIL_Image()
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from pycore.pyutils.window.activator import WindowActivator
 from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.common.browser_window_detector import get_default_skip_browser_callable
 from pycore.pygvar.global_var_manager import PYTOOLS_TMP_DIR
+from pycore.pyutils.window import screen_capture, grid_capture
+from pycore.pyutils.window.grid_capture import is_rect_minimized_or_offscreen
 
 # Exe-based browser skip filter for WindowFinder (no app-specific logic in core)
 _skip_browser_if = get_default_skip_browser_callable()
-
-# Off-screen rect threshold (Windows uses ~-32000 for minimized windows)
-_OFFSCREEN_THRESHOLD = -30000
-
-
-def _is_rect_minimized_or_offscreen(rect: Tuple[int, int, int, int]) -> bool:
-    """True if rect is off-screen (e.g. minimized window)."""
-    if not rect or len(rect) < 4:
-        return True
-    left, top = rect[0], rect[1]
-    return left < _OFFSCREEN_THRESHOLD or top < _OFFSCREEN_THRESHOLD
 
 
 class WindowScreenshot:
@@ -75,39 +78,23 @@ class WindowScreenshot:
         ColorPrint.print_min_interval(f"[TMP_DIR] Screenshot directory: {self.tmp_dir}", "1min", "blue")
         ColorPrint.print_min_interval(f"[MATCH_MODE] Title matching mode: {self.match_mode}", "1min", "blue")
 
-
     def activate_window(self, hwnd: int, title: str) -> bool:
         """
-        Activate a window by its handle
+        Activate a window by its handle.
+
+        Delegates to self.window_activator.activate_window_by_handle(hwnd) instead of
+        re-implementing restore/SetForegroundWindow/verify inline.
 
         Args:
             hwnd: Window handle
-            title: Window title (for logging)
+            title: Window title (for logging only)
 
         Returns:
             True if activation was successful
         """
         try:
-            # Check if window is minimized
-            if win32gui.IsIconic(hwnd):
-                ColorPrint.print_min_interval(f"[RESTORE] Restoring minimized window: '{title}'", "1min", "blue")
-                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-                time.sleep(0.5)
-
-            # Bring window to foreground
-            ColorPrint.print_min_interval(f"[ACTIVATE] Activating window: '{title}'", "1min", "blue")
-            win32gui.SetForegroundWindow(hwnd)
-            time.sleep(0.5)  # Wait for activation
-
-            # Verify activation
-            active_hwnd = win32gui.GetForegroundWindow()
-            if active_hwnd == hwnd:
-                ColorPrint.print_min_interval(f"[SUCCESS] Window activated: '{title}'", "1min", "green")
-                return True
-            else:
-                ColorPrint.print_min_interval(f"[WARN] Window activation uncertain: '{title}'", "1min", "yellow")
-                return True  # Continue anyway
-
+            ColorPrint.print_min_interval(f"[ACTIVATE] Activating window: '{title}' (handle: {hwnd})", "1min", "blue")
+            return self.window_activator.activate_window_by_handle(hwnd)
         except Exception as e:
             ColorPrint.print_min_interval(f"[ERROR] Error activating window '{title}': {e}", "1min", "red")
             return False
@@ -120,32 +107,20 @@ class WindowScreenshot:
         """
         Find first matching window, activate it (bring to front), then capture to memory.
         No file path; returns (PIL Image, info_dict) or None. info_dict has window_title, window_offset, window_size.
+
+        Window lookup delegates to WindowFinder (cache-first), no inline re-validation.
         """
         try:
-            window_info = None
-            cache_key = f"window_cache_{titles[0].lower()}" if (use_cache and titles) else None
-            if use_cache and cache_key:
-                cached_info = ENCYCLOPEDIA.get(cache_key)
-                if cached_info and cached_info.get("hwnd") and win32gui.IsWindow(cached_info["hwnd"]) and win32gui.IsWindowVisible(cached_info["hwnd"]):
-                    try:
-                        rect = win32gui.GetWindowRect(cached_info["hwnd"])
-                        window_info = {
-                            "hwnd": cached_info["hwnd"],
-                            "title": cached_info.get("title"),
-                            "rect": rect,
-                        }
-                    except Exception:
-                        ENCYCLOPEDIA.remove(cache_key)
-            if not window_info:
-                windows = WindowFinder.find_windows_by_titles(
-                    titles=titles,
-                    match_mode=self.match_mode,
-                    use_cache=use_cache,
-                    skip_browser_if=_skip_browser_if
-                )
-                if not windows:
-                    return None
-                window_info = windows[0]
+            windows = WindowFinder.find_windows_by_titles(
+                titles=titles,
+                match_mode=self.match_mode,
+                use_cache=use_cache,
+                skip_browser_if=_skip_browser_if
+            )
+            if not windows:
+                return None
+            window_info = windows[0]
+
             hwnd = window_info["hwnd"]
             title = window_info.get("title") or ""
             self.activate_window(hwnd, title)
@@ -234,14 +209,14 @@ class WindowScreenshot:
         Find and screenshot FIRST matching window (optimized with encyclopedia cache)
 
         This method finds the FIRST window matching any of the provided titles.
-        It uses encyclopedia cache for fast lookups and captures using the
-        fast fullscreen + crop method when cached.
+        It uses encyclopedia cache for fast lookups (via WindowFinder) and captures
+        using the fast fullscreen + crop method.
 
         Algorithm:
-        1. Check ENCYCLOPEDIA cache for any of the titles
-        2. If cached and valid: capture fullscreen + crop using cached rect (fast path)
-        3. If not cached: search window, cache it, then capture
-        4. No time.sleep delays
+        1. WindowFinder resolves first match (cache-first, no inline re-validation)
+        2. If window is minimized/off-screen: activate and refresh rect
+        3. Capture fullscreen (mss) and crop to window region
+        4. No time.sleep delays beyond activation settle
 
         Args:
             titles: List of window titles to search (finds FIRST match)
@@ -257,58 +232,28 @@ class WindowScreenshot:
         ColorPrint.print_min_interval(f"[FAST_SINGLE] Searching for titles: {titles}", "1min", "blue")
 
         try:
-            window_info = None
-            found_from_cache = False
+            # Step 1: Resolve first matching window via WindowFinder (cache-first)
+            ColorPrint.print_min_interval("[FAST_SINGLE] Searching for window (cache-first)...", "1min", "blue")
+            windows = WindowFinder.find_windows_by_titles(
+                titles=titles,
+                match_mode=self.match_mode,
+                use_cache=use_cache,
+                skip_browser_if=_skip_browser_if
+            )
 
-            # Step 1: Try to get from encyclopedia cache first (same canonical key as WindowFinder)
-            canonical_label = titles[0] if titles else ""
-            cache_key = f"window_cache_{canonical_label.lower()}" if canonical_label else None
-            if use_cache and cache_key:
-                ColorPrint.print_min_interval("[FAST_SINGLE] Checking encyclopedia cache...", "1min", "blue")
-                cached_info = ENCYCLOPEDIA.get(cache_key)
+            if not windows:
+                ColorPrint.yellow(f"[FAST_SINGLE] No windows found matching: {titles}")
+                return None
 
-                if cached_info:
-                    hwnd = cached_info.get("hwnd")
-                    if hwnd and win32gui.IsWindow(hwnd) and win32gui.IsWindowVisible(hwnd):
-                        try:
-                            rect = win32gui.GetWindowRect(hwnd)
-                            window_info = {
-                                "hwnd": hwnd,
-                                "title": cached_info.get("title"),
-                                "rect": rect,
-                                "class_name": cached_info.get("class_name")
-                            }
-                            found_from_cache = True
-                            ColorPrint.print_min_interval(f"[CACHE] Found cached window: '{canonical_label}'", "1min", "green")
-                        except Exception as e:
-                            ColorPrint.print_min_interval(f"[CACHE] Error reading cached window rect: {e}", "1min", "yellow")
-                    else:
-                        ENCYCLOPEDIA.remove(cache_key)
-                        ColorPrint.print_min_interval(f"[CACHE] Cached window invalid for '{canonical_label}', removed", "1min", "yellow")
+            # Take FIRST match only
+            window_info = windows[0]
+            ColorPrint.print_min_interval(f"[FAST_SINGLE] Found window: '{window_info['title']}'", "1min", "green")
 
-            # Step 2: If not found in cache, search for window using WindowFinder
-            if not window_info:
-                ColorPrint.print_min_interval("[FAST_SINGLE] Searching for window in process list...", "1min", "blue")
-                windows = WindowFinder.find_windows_by_titles(
-                    titles=titles,
-                    match_mode=self.match_mode,
-                    use_cache=use_cache,
-                    skip_browser_if=_skip_browser_if
-                )
-
-                if not windows:
-                    ColorPrint.yellow(f"[FAST_SINGLE] No windows found matching: {titles}")
-                    return None
-
-                # Take FIRST match only
-                window_info = windows[0]
-                ColorPrint.print_min_interval(f"[FAST_SINGLE] Found window: '{window_info['title']}'", "1min", "green")
-
-            # Step 3: If window is minimized or off-screen, activate and refresh rect before capture
+            # Step 2: If window is minimized or off-screen, activate and refresh rect before capture
             hwnd = window_info["hwnd"]
             title = window_info["title"]
             rect = window_info["rect"]
-            if win32gui.IsIconic(hwnd) or _is_rect_minimized_or_offscreen(rect):
+            if win32gui.IsIconic(hwnd) or is_rect_minimized_or_offscreen(rect):
                 ColorPrint.print_min_interval(f"[FAST_SINGLE] Window minimized/off-screen, activating: '{title}'", "1min", "blue")
                 if not self.activate_window(hwnd, title):
                     ColorPrint.print_min_interval(f"[FAST_SINGLE] Proceeding after activation attempt", "1min", "yellow")
@@ -326,22 +271,12 @@ class WindowScreenshot:
             ColorPrint.print_min_interval(f"[FAST_SINGLE] Window rect: {rect}", "1min", "blue")
             ColorPrint.print_min_interval(f"[FAST_SINGLE] Capturing fullscreen...", "1min", "blue")
 
+            # Step 3: Capture full screen (mss) via screen_capture engine
             start_time = time.time()
-
-            with mss.mss() as sct:
-                # Get primary monitor
-                monitor = sct.monitors[1]
-
-                # Capture full screen
-                screenshot_mss = sct.grab(monitor)
-
-                # Convert to PIL Image
-                screenshot_full = Image.frombytes(
-                    "RGB",
-                    screenshot_mss.size,
-                    screenshot_mss.rgb
-                )
-
+            screenshot_full = screen_capture.grab_fullscreen_pil()
+            if screenshot_full is None:
+                ColorPrint.red(f"[FAST_SINGLE] Failed to capture fullscreen")
+                return None
             capture_time = time.time() - start_time
             ColorPrint.print_min_interval(f"[FAST_SINGLE] Screen captured in {capture_time*1000:.2f}ms", "1min", "green")
 
@@ -448,7 +383,7 @@ class WindowScreenshot:
                 hwnd = window_info["hwnd"]
                 title = window_info["title"]
                 rect = window_info["rect"]
-                if win32gui.IsIconic(hwnd) or _is_rect_minimized_or_offscreen(rect):
+                if win32gui.IsIconic(hwnd) or is_rect_minimized_or_offscreen(rect):
                     ColorPrint.print_min_interval(f"[FAST] Window minimized/off-screen, activating: '{title}'", "1min", "blue")
                     if not self.activate_window(hwnd, title):
                         ColorPrint.print_min_interval(f"[FAST] Proceeding after activation attempt", "1min", "yellow")
@@ -467,24 +402,13 @@ class WindowScreenshot:
                 title = None
                 rect = None
 
-            # Step 2: Capture FULL SCREEN using mss (fastest method)
+            # Step 2: Capture FULL SCREEN using mss (fastest method) via screen_capture engine
             ColorPrint.print_min_interval(f"[FAST] Capturing full screen...", "1min", "blue")
             start_time = time.time()
-
-            with mss.mss() as sct:
-                # Get primary monitor
-                monitor = sct.monitors[1]
-
-                # Capture full screen
-                screenshot_mss = sct.grab(monitor)
-
-                # Convert to PIL Image
-                screenshot_full = Image.frombytes(
-                    "RGB",
-                    screenshot_mss.size,
-                    screenshot_mss.rgb
-                )
-
+            screenshot_full = screen_capture.grab_fullscreen_pil()
+            if screenshot_full is None:
+                ColorPrint.red(f"[FAST] Failed to capture full screen")
+                return None
             capture_time = time.time() - start_time
             ColorPrint.print_min_interval(f"[FAST] Screen captured in {capture_time*1000:.2f}ms", "1min", "green")
 
@@ -524,47 +448,30 @@ class WindowScreenshot:
                 "scale_ratio": None
             }
 
-            # Step 5: Optional 720p scaling
+            # Step 5: Optional 720p scaling (via screen_capture engine)
             if scale_to_720p:
                 ColorPrint.print_min_interval(f"[FAST] Scaling to 720p...", "1min", "blue")
                 scale_start = time.time()
 
-                # Calculate 720p scaling (1280x720)
-                target_width = 1280
-                target_height = 720
+                scaled_result = screen_capture.scale_image_to_720p(window_screenshot, left, top)
+                if scaled_result is not None:
+                    scaled_screenshot, scaled_offset, scaled_size, scale_ratio = scaled_result
 
-                scale_x = target_width / window_width
-                scale_y = target_height / window_height
-                scale = min(scale_x, scale_y)  # Maintain aspect ratio
+                    # Save scaled screenshot
+                    scaled_filename = f"{filename_prefix}_720p_{timestamp}.png"
+                    scaled_filepath = self.tmp_dir / scaled_filename
+                    scaled_screenshot.save(scaled_filepath)
 
-                new_width = int(window_width * scale)
-                new_height = int(window_height * scale)
+                    scale_time = time.time() - scale_start
+                    ColorPrint.print_min_interval(f"[FAST] Scaled to {scaled_size[0]}x{scaled_size[1]} in {scale_time*1000:.2f}ms", "1min", "green")
+                    ColorPrint.print_min_interval(f"[FAST] Saved scaled: {scaled_filepath}", "1min", "green")
 
-                # Resize using high-quality LANCZOS
-                scaled_screenshot = window_screenshot.resize(
-                    (new_width, new_height),
-                    Image.Resampling.LANCZOS
-                )
-
-                # Save scaled screenshot
-                scaled_filename = f"{filename_prefix}_720p_{timestamp}.png"
-                scaled_filepath = self.tmp_dir / scaled_filename
-                scaled_screenshot.save(scaled_filepath)
-
-                # Calculate scaled offset
-                scaled_offset_x = int(left * scale)
-                scaled_offset_y = int(top * scale)
-
-                scale_time = time.time() - scale_start
-                ColorPrint.print_min_interval(f"[FAST] Scaled to {new_width}x{new_height} in {scale_time*1000:.2f}ms", "1min", "green")
-                ColorPrint.print_min_interval(f"[FAST] Saved scaled: {scaled_filepath}", "1min", "green")
-
-                result.update({
-                    "scaled_screenshot_path": scaled_filepath,
-                    "scaled_offset": (scaled_offset_x, scaled_offset_y),
-                    "scaled_size": (new_width, new_height),
-                    "scale_ratio": (scale, scale)
-                })
+                    result.update({
+                        "scaled_screenshot_path": scaled_filepath,
+                        "scaled_offset": scaled_offset,
+                        "scaled_size": scaled_size,
+                        "scale_ratio": scale_ratio
+                    })
 
             total_time = time.time() - start_time
             ColorPrint.print_min_interval(f"[FAST] Total time: {total_time*1000:.2f}ms", "1min", "green")
@@ -624,7 +531,6 @@ class WindowScreenshot:
             Number of files deleted
         """
         try:
-            import time
             current_time = time.time()
             max_age = minutes * 60  # Convert minutes to seconds
 
@@ -655,6 +561,8 @@ class WindowScreenshot:
         """
         Get window region coordinates (left, top, width, height, title)
 
+        Delegates to grid_capture.get_window_region.
+
         Args:
             titles: Window titles to search for (None for full screen)
             use_cache: Use cached window list
@@ -662,51 +570,13 @@ class WindowScreenshot:
         Returns:
             Tuple of (left, top, width, height, title) or None if window not found
         """
-        try:
-            if titles:
-                windows = WindowFinder.find_windows_by_titles(
-                    titles=titles,
-                    match_mode=self.match_mode,
-                    use_cache=use_cache,
-                    skip_browser_if=_skip_browser_if
-                )
-
-                if not windows:
-                    ColorPrint.print_min_interval(f"[WindowRegion] No windows found matching: {titles}", "1min", "yellow")
-                    return None
-
-                window_info = windows[0]
-                hwnd = window_info["hwnd"]
-                title = window_info["title"]
-                rect = window_info["rect"]
-                if win32gui.IsIconic(hwnd) or _is_rect_minimized_or_offscreen(rect):
-                    ColorPrint.print_min_interval(f"[WindowRegion] Window minimized/off-screen, activating: '{title}'", "1min", "blue")
-                    if not self.activate_window(hwnd, title):
-                        ColorPrint.print_min_interval(f"[WindowRegion] Proceeding after activation attempt", "1min", "yellow")
-                    time.sleep(1)
-                    try:
-                        rect = win32gui.GetWindowRect(hwnd)
-                        window_info["rect"] = rect
-                    except Exception as e:
-                        ColorPrint.print_min_interval(f"[WindowRegion] Could not refresh rect: {e}", "1min", "yellow")
-                left, top, right, bottom = rect
-                width = right - left
-                height = bottom - top
-                ColorPrint.print_min_interval(f"[WindowRegion] Found window: '{title}' ({width}x{height})", "1min", "gray")
-                return (left, top, width, height, title)
-            else:
-                # Full screen mode
-                with mss.mss() as sct:
-                    monitor = sct.monitors[1]
-                    left, top = 0, 0
-                    width = monitor['width']
-                    height = monitor['height']
-                ColorPrint.print_min_interval(f"[WindowRegion] Using full screen: {width}x{height}", "1min", "gray")
-                return (left, top, width, height, None)
-
-        except Exception as e:
-            ColorPrint.print_min_interval(f"[ERROR] Failed to get window region: {e}", "1min", "red")
-            return None
+        return grid_capture.get_window_region(
+            titles=titles,
+            match_mode=self.match_mode,
+            window_activator=self.window_activator,
+            use_cache=use_cache,
+            skip_browser_if=_skip_browser_if
+        )
 
     def capture_screen_region(
         self,
@@ -719,6 +589,8 @@ class WindowScreenshot:
         Native screen region capture: grab only the given screen rect (no fullscreen then crop).
         Uses mss sct.grab(monitor) with monitor = {left, top, width, height}.
 
+        Delegates to screen_capture.capture_screen_region.
+
         Args:
             left: Screen X of region top-left
             top: Screen Y of region top-left
@@ -728,24 +600,7 @@ class WindowScreenshot:
         Returns:
             PIL Image of the region or None if failed
         """
-        try:
-            if width <= 0 or height <= 0:
-                ColorPrint.print_min_interval("[ScreenRegion] Invalid width/height", "1min", "red")
-                return None
-            with mss.mss() as sct:
-                monitor = {
-                    "left": left,
-                    "top": top,
-                    "width": width,
-                    "height": height,
-                }
-                screenshot = sct.grab(monitor)
-                img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
-            ColorPrint.print_min_interval(f"[ScreenRegion] Native grab: ({left},{top}) {width}x{height}", "1min", "gray")
-            return img
-        except Exception as e:
-            ColorPrint.print_min_interval(f"[ERROR] capture_screen_region: {e}", "1min", "red")
-            return None
+        return screen_capture.capture_screen_region(left, top, width, height)
 
     def capture_window_grid_region(
         self,
@@ -759,6 +614,8 @@ class WindowScreenshot:
         """
         Capture a specific grid region of a window
 
+        Delegates to grid_capture.capture_grid_region.
+
         Args:
             titles: Window titles to search for (None for full screen)
             grid_type: '9grid' (3x3) or '18x18grid' (18x18)
@@ -770,84 +627,17 @@ class WindowScreenshot:
         Returns:
             PIL Image of the region or None if failed
         """
-        try:
-            # Step 1: Get window region using common method
-            region_info = self._get_window_region(titles, use_cache)
-            if not region_info:
-                return None
-
-            left, top, width, height, title = region_info
-            ColorPrint.print_min_interval(f"[GridCapture] Capturing {grid_type} from window: '{title or 'fullscreen'}'", "1min", "blue")
-
-            if grid_type == '9grid':
-                if grid_index is None:
-                    ColorPrint.print_min_interval("[ERROR] grid_index required for 9grid mode", "1min", "red")
-                    return None
-
-                if not 0 <= grid_index <= 8:
-                    ColorPrint.print_min_interval(f"[ERROR] grid_index must be 0-8, got {grid_index}", "1min", "red")
-                    return None
-
-                # Calculate 3x3 grid
-                grid_width = width // 3
-                grid_height = height // 3
-
-                grid_row = grid_index // 3
-                grid_col = grid_index % 3
-
-                region_left = left + grid_col * grid_width
-                region_top = top + grid_row * grid_height
-                region_right = region_left + grid_width
-                region_bottom = region_top + grid_height
-
-                ColorPrint.print_min_interval(f"[9Grid] Capturing grid {grid_index} at ({region_left},{region_top},{region_right},{region_bottom})", "1min", "blue")
-
-            elif grid_type == '18x18grid':
-                if row_range is None and col_range is None:
-                    ColorPrint.red("[ERROR] row_range or col_range required for 18x18grid mode")
-                    return None
-
-                # Calculate 18x18 grid cell size
-                cell_width = width // 18
-                cell_height = height // 18
-
-                if row_range:
-                    start_row, end_row = row_range
-                    region_top = top + start_row * cell_height
-                    region_bottom = top + (end_row + 1) * cell_height
-                    region_left = left
-                    region_right = left + width
-                    ColorPrint.print_min_interval(f"[18x18Grid] Capturing rows {start_row}-{end_row}", "1min", "blue")
-
-                elif col_range:
-                    start_col, end_col = col_range
-                    region_left = left + start_col * cell_width
-                    region_right = left + (end_col + 1) * cell_width
-                    region_top = top
-                    region_bottom = top + height
-                    ColorPrint.print_min_interval(f"[18x18Grid] Capturing cols {start_col}-{end_col}", "1min", "blue")
-
-            else:
-                ColorPrint.print_min_interval(f"[ERROR] Unknown grid_type: {grid_type}", "1min", "red")
-                return None
-
-            # Capture the region
-            with mss.mss() as sct:
-                monitor = {
-                    "left": region_left,
-                    "top": region_top,
-                    "width": region_right - region_left,
-                    "height": region_bottom - region_top
-                }
-                screenshot = sct.grab(monitor)
-                img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
-
-            ColorPrint.print_min_interval(f"[SUCCESS] Captured grid region: {img.size}", "1min", "green")
-            return img
-
-        except Exception as e:
-            ColorPrint.print_min_interval(f"[ERROR] Failed to capture grid region: {e}", "1min", "red")
-            return None
+        return grid_capture.capture_grid_region(
+            titles=titles,
+            grid_type=grid_type,
+            grid_index=grid_index,
+            row_range=row_range,
+            col_range=col_range,
+            match_mode=self.match_mode,
+            window_activator=self.window_activator,
+            use_cache=use_cache,
+            skip_browser_if=_skip_browser_if
+        )
 
     def capture_window_grid_cell(
         self,
@@ -861,6 +651,8 @@ class WindowScreenshot:
         """
         Capture a single cell from multi-row multi-column grid
 
+        Delegates to grid_capture.capture_grid_cell.
+
         Args:
             cell_row: Row index (zero-based)
             cell_col: Column index (zero-based)
@@ -872,45 +664,17 @@ class WindowScreenshot:
         Returns:
             PIL Image of the cell or None
         """
-        try:
-            max_row = grid_rows - 1
-            max_col = grid_cols - 1
-
-            if not (0 <= cell_row <= max_row and 0 <= cell_col <= max_col):
-                ColorPrint.print_min_interval(f"[ERROR] Cell indices must be zero to {max_row}, got row={cell_row}, col={cell_col}", "1min", "red")
-                return None
-
-            # Get window region using common method
-            region_info = self._get_window_region(titles, use_cache)
-            if not region_info:
-                return None
-
-            left, top, width, height, title = region_info
-
-            cell_width = width // grid_cols
-            cell_height = height // grid_rows
-
-            region_left = left + cell_col * cell_width
-            region_top = top + cell_row * cell_height
-            region_right = region_left + cell_width
-            region_bottom = region_top + cell_height
-
-            with mss.mss() as sct:
-                monitor = {
-                    "left": region_left,
-                    "top": region_top,
-                    "width": cell_width,
-                    "height": cell_height
-                }
-                screenshot = sct.grab(monitor)
-                img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
-
-            ColorPrint.print_min_interval(f"[GridCell] Captured cell ({cell_row},{cell_col}) from {grid_rows}x{grid_cols} grid: {img.size}", "1min", "gray")
-            return img
-
-        except Exception as e:
-            ColorPrint.print_min_interval(f"[ERROR] Failed to capture grid cell ({cell_row},{cell_col}): {e}", "1min", "red")
-            return None
+        return grid_capture.capture_grid_cell(
+            cell_row=cell_row,
+            cell_col=cell_col,
+            titles=titles,
+            grid_rows=grid_rows,
+            grid_cols=grid_cols,
+            match_mode=self.match_mode,
+            window_activator=self.window_activator,
+            use_cache=use_cache,
+            skip_browser_if=_skip_browser_if
+        )
 
 
 if __name__ == "__main__":

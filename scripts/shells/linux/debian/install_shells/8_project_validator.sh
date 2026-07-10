@@ -246,8 +246,8 @@ restore_project() {
                         if [[ "$project_root" != /* ]]; then
                             error "project_root is not absolute: $project_root; refusing chown/chmod"
                         else
-                            $USE_SUDO chown -R $(whoami):$(whoami) "$project_root" 2>/dev/null || true
-                            $USE_SUDO chmod -R 755 "$project_root" 2>/dev/null || true
+                            safe_chown_R "$(whoami):$(whoami)" "$project_root"
+                            safe_chmod_R 755 "$project_root"
                         fi
                         ;;
                 esac

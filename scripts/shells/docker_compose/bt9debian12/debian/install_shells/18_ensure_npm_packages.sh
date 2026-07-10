@@ -14,7 +14,7 @@
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-SCRIPT_INDEX="18"
+SCRIPT_INDEX="20"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/linux/LGar.sh"

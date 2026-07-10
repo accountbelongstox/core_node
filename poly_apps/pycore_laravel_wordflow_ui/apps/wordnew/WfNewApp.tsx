@@ -329,7 +329,7 @@ export const WfNewApp: React.FC = () => {
               <WfNewShelfTab
                 activeTheme={activeTheme}
                 trans={trans}
-                lang={lang}
+                lang={shellLang}
                 gGroups={gGroups}
                 selectedCourse={selectedCourse}
                 courseWords={courseWords}

@@ -4,7 +4,7 @@ manage_natgateway() {
     echo "NAT Gateway Configuration"
     echo ""
     
-    local natgateway_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/101_natgateway.sh"
+    local natgateway_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/103_natgateway.sh"
     
     if [ ! -f "$natgateway_script" ]; then
         echo "Error: NAT gateway script not found at: $natgateway_script"

@@ -6,6 +6,11 @@ Frontend Launcher Thread
 Thread-based frontend launcher for native UI applications.
 Inherits from threading.Thread directly (follows pycore standards).
 
+This module is a slimmed facade: command resolution lives in
+``frontend_commands`` and the reusable subprocess/streaming wrappers live in
+``frontend_process``. Only the thread lifecycle (run / dev-mode / prod-build
+dispatch) and the public API stay on ``FrontendLauncherThread``.
+
 Frontend Singleton Support:
 - Detects existing frontend instances using dedicated port range (55000-55099)
 - Automatically shuts down old frontend when new one starts
@@ -13,42 +18,25 @@ Frontend Singleton Support:
 """
 
 import os
-import sys
 import time
-import socket
 import threading
-import platform
-from pathlib import Path
-from typing import Optional, List
+import subprocess
+from typing import Optional
 
 from pycore import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon import exec_realtime, exec_silent
 from .frontend_config import FrontendConfig
 from .frontend_singleton_detector import FrontendSingletonDetector
-import subprocess
-
-
-def _resolve_command_for_platform(command: List[str]) -> List[str]:
-    """
-    Resolve command for current platform (Windows requires .cmd/.bat extension)
-
-    Args:
-        command: Command list (e.g., ['npm', 'run', 'dev'])
-
-    Returns:
-        Platform-specific command list
-    """
-    if platform.system() != "Windows":
-        return command
-
-    # On Windows, add .cmd extension to first element if it's a known npm tool
-    npm_tools = ["npm", "pnpm", "npx", "yarn", "node"]
-    if command and command[0] in npm_tools:
-        command = command.copy()
-        command[0] = f"{command[0]}.cmd"
-
-    return command
+# Reuse the byte-identical HTTP readiness probe from the universal launcher
+from pycore.pyutils.frontend_launcher.universal_launcher import UniversalFrontendLauncher
+# Pure command-resolution helpers (extracted)
+from .frontend_commands import (
+    resolve_command_for_platform as _resolve_command_for_platform,
+    resolve_dev_command,
+    resolve_build_command,
+)
+# Reusable subprocess/streaming wrappers (extracted)
+from .frontend_process import popen_streaming, stream_process_output, start_output_consumer
 
 
 class FrontendLauncherThread(threading.Thread):
@@ -314,22 +302,10 @@ class FrontendLauncherThread(threading.Thread):
         command = _resolve_command_for_platform(command)
         ColorPrint.blue(f"[FrontendThread] Running: {' '.join(command)}")
 
-        process = subprocess.Popen(
-            command,
-            cwd=str(self.config.app_dir),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding='utf-8',
-            errors='replace',
-            bufsize=1
-        )
+        process = popen_streaming(command, cwd=str(self.config.app_dir))
 
         # Stream output in real-time
-        for line in process.stdout:
-            stripped = line.strip()
-            if stripped and self.config.show_output:
-                ColorPrint.gray(f"  {stripped}")
+        stream_process_output(process, self.config.show_output)
 
         # Wait for process to complete (no timeout)
         process.wait()
@@ -403,7 +379,7 @@ class FrontendLauncherThread(threading.Thread):
         Returns:
             True (always - let output verification handle success)
         """
-        command = self._resolve_build_command()
+        command = resolve_build_command(self.config)
         command = _resolve_command_for_platform(command)
         ColorPrint.blue("[FrontendThread] " + "=" * 70)
         ColorPrint.blue("[FrontendThread] BUILDING FRONTEND")
@@ -412,22 +388,10 @@ class FrontendLauncherThread(threading.Thread):
         ColorPrint.cyan(f"[FrontendThread] Working dir: {self.config.app_dir}")
         ColorPrint.blue("[FrontendThread] " + "=" * 70)
 
-        process = subprocess.Popen(
-            command,
-            cwd=str(self.config.app_dir),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding='utf-8',
-            errors='replace',
-            bufsize=1
-        )
+        process = popen_streaming(command, cwd=str(self.config.app_dir))
 
         # Stream output in real-time
-        for line in process.stdout:
-            stripped = line.strip()
-            if stripped and self.config.show_output:
-                ColorPrint.gray(f"  {stripped}")
+        stream_process_output(process, self.config.show_output)
 
         # Wait for process to complete (no timeout)
         process.wait()
@@ -440,30 +404,6 @@ class FrontendLauncherThread(threading.Thread):
         ColorPrint.green("[FrontendThread] BUILD COMPLETED")
         ColorPrint.green("[FrontendThread] " + "=" * 70)
         return True
-
-    def _resolve_build_command(self) -> List[str]:
-        """Resolve build command based on framework"""
-        if self.config.build_command:
-            return self.config.build_command
-
-        # Framework-specific commands
-        if self.config.framework == "nuxt":
-            return ["npx", "nuxi", "build"]
-        if self.config.framework == "next":
-            return ["npx", "next", "build"]
-        if self.config.framework == "nexus":
-            return ["npx", "nexus", "build"]
-        if self.config.framework == "vue":
-            return ["npm", "run", "build"]
-        if self.config.framework == "react-native":
-            return ["npx", "expo", "export:web"]
-        if self.config.framework == "react":
-            return ["npm", "run", "build"]
-        if self.config.framework == "vite":
-            return ["npx", "vite", "build"]
-
-        # Fallback
-        return ["npm", "run", "build"]
 
     def _handle_dev_mode(self):
         """
@@ -521,7 +461,7 @@ class FrontendLauncherThread(threading.Thread):
             ColorPrint.yellow("[FrontendThread] Shutdown requested before starting vite, exiting...")
             return
 
-        command = self._resolve_dev_command()
+        command = resolve_dev_command(self.config)
         command = _resolve_command_for_platform(command)
         env = self._build_env()
 
@@ -533,53 +473,11 @@ class FrontendLauncherThread(threading.Thread):
         ColorPrint.blue("[FrontendThread] " + "=" * 70)
 
         # Start dev server with PIPE to prevent SIGPIPE and process blocking
-        # We create a background thread to consume the output
-        self.process = subprocess.Popen(
-            command,
-            cwd=str(self.config.app_dir),
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding='utf-8',
-            errors='replace',
-            bufsize=1
-        )
+        # A background thread consumes the output (see frontend_process)
+        self.process = popen_streaming(command, cwd=str(self.config.app_dir), env=env)
 
         # Start background thread to consume stdout (prevent blocking)
-        def consume_output():
-            try:
-                for line in self.process.stdout:
-                    stripped = line.strip()
-                    if not stripped:
-                        continue
-
-                    # Always show important messages (ready, errors, warnings)
-                    # even if show_output is False
-                    is_important = any(keyword in stripped.lower() for keyword in [
-                        'ready', 'vite v', 'local:', 'network:', 'error', 'warn',
-                        'failed', 'port', 'http://'
-                    ])
-
-                    if is_important:
-                        # Highlight important messages in cyan/green
-                        if 'ready' in stripped.lower() or 'local:' in stripped.lower():
-                            ColorPrint.green(f"  [vite] {stripped}")
-                        elif 'error' in stripped.lower() or 'failed' in stripped.lower():
-                            ColorPrint.red(f"  [vite] {stripped}")
-                        elif 'warn' in stripped.lower():
-                            ColorPrint.yellow(f"  [vite] {stripped}")
-                        else:
-                            ColorPrint.cyan(f"  [vite] {stripped}")
-                    elif self.config.show_output:
-                        # Show all other output in gray if show_output=True
-                        ColorPrint.gray(f"  [vite] {stripped}")
-            except:
-                pass
-
-        import threading
-        output_thread = threading.Thread(target=consume_output, daemon=True)
-        output_thread.start()
+        start_output_consumer(self.process, self.config.show_output, prefix='[vite]')
 
         ColorPrint.blue(f"[FrontendThread] Dev server started (PID: {self.process.pid})")
 
@@ -588,40 +486,6 @@ class FrontendLauncherThread(threading.Thread):
         if not self._wait_for_http():
             ColorPrint.yellow("[FrontendThread] HTTP wait aborted due to shutdown request")
             return
-
-    def _resolve_dev_command(self) -> List[str]:
-        """Resolve dev command based on framework"""
-        if self.config.dev_command:
-            return self.config.dev_command
-
-        # Framework-specific commands
-        if self.config.framework == "nuxt":
-            return ["npx", "nuxi", "dev", "--hostname", self.config.host, "--port", str(self.config.port)]
-
-        if self.config.framework == "next":
-            return ["npx", "next", "dev", "-H", self.config.host, "-p", str(self.config.port)]
-
-        if self.config.framework == "nexus":
-            return ["npx", "nexus", "dev", "--host", self.config.host, "--port", str(self.config.port)]
-
-        if self.config.framework == "vue":
-            # Vue CLI or Vite
-            return ["npm", "run", "serve", "--", "--host", self.config.host, "--port", str(self.config.port)]
-
-        if self.config.framework == "react-native":
-            # React Native Web via Expo
-            return ["npx", "expo", "start", "--web", "--port", str(self.config.port)]
-
-        if self.config.framework == "react":
-            # Create React App
-            return ["npm", "run", "start"]  # CRA doesn't support --host/--port via CLI
-
-        if self.config.framework == "vite":
-            # Use npm run dev for better compatibility (works with local vite)
-            return ["npm", "run", "dev", "--", "--host", self.config.host, "--port", str(self.config.port)]
-
-        # Fallback - try npm run dev
-        return ["npm", "run", "dev", "--", "--host", self.config.host, "--port", str(self.config.port)]
 
     def _build_env(self) -> dict:
         """Build environment variables for dev server"""
@@ -676,24 +540,13 @@ class FrontendLauncherThread(threading.Thread):
             time.sleep(2)
 
     def _http_ok(self, host: str, port: int, path: str) -> bool:
-        """Check if HTTP server responds"""
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2)
-        code = sock.connect_ex((host, port))
-        if code != 0:
-            sock.close()
-            return False
+        """Check if HTTP server responds.
 
-        request = f"GET {path} HTTP/1.0\r\nHost: {host}\r\n\r\n".encode("ascii")
-        sock.sendall(request)
-        response = sock.recv(1024)
-        sock.close()
-
-        if not response:
-            return False
-
-        status_line = response.split(b"\r\n", 1)[0]
-        return b"200" in status_line
+        Delegates to the byte-identical implementation in
+        ``UniversalFrontendLauncher._http_ok`` (pyutils/frontend_launcher) to
+        avoid duplicating the socket probe logic.
+        """
+        return UniversalFrontendLauncher._http_ok(self, host, port, path)
 
     def wait_for_ready(self, timeout: Optional[float] = None) -> bool:
         """

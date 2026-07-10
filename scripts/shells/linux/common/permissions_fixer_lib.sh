@@ -132,7 +132,7 @@ fix_permissions_wwwroot_dir() {
 
 # Fix laravel_db directory permissions
 fix_permissions_laravel_db_dir() {
-    local laravel_db=$(map_web_path "laravel_data_dir" 2>/dev/null)
+    local laravel_db=$(map_web_path "laravel_db" 2>/dev/null)
     if [ -z "$laravel_db" ]; then
         laravel_db="/www/wwwroot/laravel_db"
     fi

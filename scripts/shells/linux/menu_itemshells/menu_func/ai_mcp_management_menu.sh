@@ -22,7 +22,7 @@ AIMCP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AIMCP_CORE_NODE_DIR="$(cd "$AIMCP_DIR/../../../../.." && pwd)"
 AIMCP_SHTOOLS_DIR="$AIMCP_CORE_NODE_DIR/scripts/ai_shtools"
 # Debian install_shells dir: the menu can call install scripts from here (e.g.
-# the dedicated Claude Code installer 129_install_claude_code.sh).
+# the dedicated Claude Code installer 131_install_claude_code.sh).
 AIMCP_INSTALL_SHELLS_DIR="$AIMCP_CORE_NODE_DIR/scripts/shells/linux/debian/install_shells"
 # Canonical engine + status live in scripts/ai_shtools (shared with the main-menu
 # "Sync All MCP" action), so there is a single source of truth.
@@ -144,7 +144,7 @@ show_ai_mcp_management_menu() {
                 IFS=':' read -r action text <<< "${menu_items[$selected_index]}"
                 case "$action" in
                     header) ;;
-                    claude_env)       clear; aimcp_run_install_script "129_install_claude_code.sh" "Claude Code installer"; aimcp_pause ;;
+                    claude_env)       clear; aimcp_run_install_script "131_install_claude_code.sh" "Claude Code installer"; aimcp_pause ;;
                     droid_env)        aimcp_run_submenu show_droid_submenu "Droid env setup" ;;
                     openai_env)       aimcp_run_submenu show_openai_submenu "OpenAI env setup" ;;
                     dryrun)           clear; mcp_show_planned; aimcp_pause ;;

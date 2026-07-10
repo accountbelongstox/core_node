@@ -75,7 +75,7 @@ Write-Host '============================================================' -Foreg
 
 $resolvedPython = Resolve-PythonInterpreter -Preferred $Python
 if (-not $resolvedPython) {
-    Write-Host "$SCRIPT_INDEX [!] Python 3 not found. Run Step9_InstallPython first, or pass -Python <path>." -ForegroundColor DarkYellow
+    Write-Host "$SCRIPT_INDEX [!] Python 3 not found. Run Step8_InstallPython first, or pass -Python <path>." -ForegroundColor DarkYellow
     exit 0
 }
 if ($env:MELOTTS_SKIP -eq '1') {

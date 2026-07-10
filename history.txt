@@ -4,47 +4,47 @@
   ▘▘ ▝▝    /mnt/dev_nvme0n1p1/programing/core_node
 
 
-❯   Executing: 31_ensure_php85_intelligent.sh
+❯   Executing: 32_ensure_php85_intelligent.sh
 
-  Starting execution of 31_ensure_php85_intelligent.sh...
-  [31_PHP85_INTELLIGENT] INSTALL_NGINX: true
+  Starting execution of 32_ensure_php85_intelligent.sh...
+  [32_PHP85_INTELLIGENT] INSTALL_NGINX: true
   ============================================================================
-  [31_PHP85_INTELLIGENT] Intelligent PHP 8.5 Installation System
+  [32_PHP85_INTELLIGENT] Intelligent PHP 8.5 Installation System
   ============================================================================
-  [31_PHP85_INTELLIGENT] [PRE-FLIGHT] Running system checks...
-  [31_PHP85_INTELLIGENT] Sudo access confirmed
-  [31_PHP85_INTELLIGENT] [PRE-CHECK] Running pre-installation verification...
-  [31_PHP85_INTELLIGENT] Checking PHP 8.5 state...
-  [31_PHP85_INTELLIGENT] [ANALYSIS] Performing comprehensive PHP state analysis...
-  [31_PHP85_INTELLIGENT] PHP 8.5 binary not found: /usr/bin/php8.5
-  [31_PHP85_INTELLIGENT] [DETECTION] Analyzing PHP binary state...
-  [31_PHP85_INTELLIGENT] PHP binary not found
-  [31_PHP85_INTELLIGENT] [DETECTION] Checking PHP version...
-  [31_PHP85_INTELLIGENT] PHP not available for version check
-  [31_PHP85_INTELLIGENT] Skipping PHP-FPM check - Using Swoole instead
-  [31_PHP85_INTELLIGENT] [DETECTION] Checking required PHP extensions...
-  [31_PHP85_INTELLIGENT] PHP not available for extension check
-  >>> [31_PHP85_INTELLIGENT] Checking symbolic link: /usr/local/bin/php
-  [ERROR] [31_PHP85_INTELLIGENT] Symlink not found: /usr/local/bin/php
-  [31_PHP85_INTELLIGENT] State: Not installed
-  [31_PHP85_INTELLIGENT] Checking Composer state...
-  [31_PHP85_INTELLIGENT] [ANALYSIS] Performing Composer state analysis...
-  [31_PHP85_INTELLIGENT] [DETECTION] Analyzing Composer binary state...
-  [31_PHP85_INTELLIGENT] Composer not found
-  [31_PHP85_INTELLIGENT] Note: Composer will be installed in the next step via 34_install_composer.sh
-  [31_PHP85_INTELLIGENT] Composer: Not available
-  [31_PHP85_INTELLIGENT] Note: Composer will be installed in the next step via 34_install_composer.sh
-  [31_PHP85_INTELLIGENT]  PHP 8.5 needs attention
-  [31_PHP85_INTELLIGENT]  Composer needs attention (state code: 1)
-  [31_PHP85_INTELLIGENT] Some components require installation/repair. Proceeding with installation...
-  [31_PHP85_INTELLIGENT]  PHP 8.5 installation required
-  [31_PHP85_INTELLIGENT]  Composer installation required
-  [31_PHP85_INTELLIGENT] [ANALYSIS] Performing comprehensive PHP state analysis...
-  [31_PHP85_INTELLIGENT] PHP 8.5 binary not found: /usr/bin/php8.5
-  [31_PHP85_INTELLIGENT] [DETECTION] Analyzing PHP binary state...
-  [31_PHP85_INTELLIGENT] PHP binary not found
-  [31_PHP85_INTELLIGENT] [DETECTION] Checking PHP version...
-  [31_PHP85_INTELLIG
+  [32_PHP85_INTELLIGENT] [PRE-FLIGHT] Running system checks...
+  [32_PHP85_INTELLIGENT] Sudo access confirmed
+  [32_PHP85_INTELLIGENT] [PRE-CHECK] Running pre-installation verification...
+  [32_PHP85_INTELLIGENT] Checking PHP 8.5 state...
+  [32_PHP85_INTELLIGENT] [ANALYSIS] Performing comprehensive PHP state analysis...
+  [32_PHP85_INTELLIGENT] PHP 8.5 binary not found: /usr/bin/php8.5
+  [32_PHP85_INTELLIGENT] [DETECTION] Analyzing PHP binary state...
+  [32_PHP85_INTELLIGENT] PHP binary not found
+  [32_PHP85_INTELLIGENT] [DETECTION] Checking PHP version...
+  [32_PHP85_INTELLIGENT] PHP not available for version check
+  [32_PHP85_INTELLIGENT] Skipping PHP-FPM check - Using Swoole instead
+  [32_PHP85_INTELLIGENT] [DETECTION] Checking required PHP extensions...
+  [32_PHP85_INTELLIGENT] PHP not available for extension check
+  >>> [32_PHP85_INTELLIGENT] Checking symbolic link: /usr/local/bin/php
+  [ERROR] [32_PHP85_INTELLIGENT] Symlink not found: /usr/local/bin/php
+  [32_PHP85_INTELLIGENT] State: Not installed
+  [32_PHP85_INTELLIGENT] Checking Composer state...
+  [32_PHP85_INTELLIGENT] [ANALYSIS] Performing Composer state analysis...
+  [32_PHP85_INTELLIGENT] [DETECTION] Analyzing Composer binary state...
+  [32_PHP85_INTELLIGENT] Composer not found
+  [32_PHP85_INTELLIGENT] Note: Composer will be installed in the next step via 35_install_composer.sh
+  [32_PHP85_INTELLIGENT] Composer: Not available
+  [32_PHP85_INTELLIGENT] Note: Composer will be installed in the next step via 35_install_composer.sh
+  [32_PHP85_INTELLIGENT]  PHP 8.5 needs attention
+  [32_PHP85_INTELLIGENT]  Composer needs attention (state code: 1)
+  [32_PHP85_INTELLIGENT] Some components require installation/repair. Proceeding with installation...
+  [32_PHP85_INTELLIGENT]  PHP 8.5 installation required
+  [32_PHP85_INTELLIGENT]  Composer installation required
+  [32_PHP85_INTELLIGENT] [ANALYSIS] Performing comprehensive PHP state analysis...
+  [32_PHP85_INTELLIGENT] PHP 8.5 binary not found: /usr/bin/php8.5
+  [32_PHP85_INTELLIGENT] [DETECTION] Analyzing PHP binary state...
+  [32_PHP85_INTELLIGENT] PHP binary not found
+  [32_PHP85_INTELLIGENT] [DETECTION] Checking PHP version...
+  [32_PHP85_INTELLIG
   ──── (109 lines hidden) ──────────────────────────────────────────────────────────────────────────────────────────────────────
   on:
 
@@ -61,28 +61,28 @@
      2. php8.5-xml:amd64 Depends libxml2 (>= 2.9.4)
         but none of the choices are installable:
         [no choices]
-  [31_PHP85_INTELLIGENT] Failed to install PHP 8.5
-  [31_PHP85_INTELLIGENT] Repository setup failed
-  [31_PHP85_INTELLIGENT] [FINAL] Running comprehensive verification...
-  [31_PHP85_INTELLIGENT] [VERIFICATION] Running po..
-  [31_PHP85_INTELLIGENT] [ANALYSIS] Performing comprehensive PHP state analysis...
-  [31_PHP85_INTELLIGENT] PHP 8.5 binary not found:
-  [31_PHP85_INTELLIGENT] [DETECTION] Analyzing PHP binary state...
-  [31_PHP85_INTELLIGENT] PHP binary not found
-  [31_PHP85_INTELLIGENT] [DETECTION] Checking PHP version...
-  [31_PHP85_INTELLIGENT] PHP not available for version check
-  [31_PHP85_INTELLIGENT] Skipping PHP-FPM check - Using Swoole instead
-  [31_PHP85_INTELLIGENT] [DETECTION] Checking required PHP extensions...
-  [31_PHP85_INTELLIGENT] PHP not available for extension check
-  >>> [31_PHP85_INTELLIGENT] Checking symbolic link: /usr/local/bin/php
-  [ERROR] [31_PHP85_INTELLIGENT] Symlink not found: /usr/local/bin/php
-  [31_PHP85_INTELLIGENT] State: Not installed
-  [31_PHP85_INTELLIGENT] [FAIL] Post-installation verification FAILED
-  [31_PHP85_INTELLIGENT] Some issues remain after installation
+  [32_PHP85_INTELLIGENT] Failed to install PHP 8.5
+  [32_PHP85_INTELLIGENT] Repository setup failed
+  [32_PHP85_INTELLIGENT] [FINAL] Running comprehensive verification...
+  [32_PHP85_INTELLIGENT] [VERIFICATION] Running po..
+  [32_PHP85_INTELLIGENT] [ANALYSIS] Performing comprehensive PHP state analysis...
+  [32_PHP85_INTELLIGENT] PHP 8.5 binary not found:
+  [32_PHP85_INTELLIGENT] [DETECTION] Analyzing PHP binary state...
+  [32_PHP85_INTELLIGENT] PHP binary not found
+  [32_PHP85_INTELLIGENT] [DETECTION] Checking PHP version...
+  [32_PHP85_INTELLIGENT] PHP not available for version check
+  [32_PHP85_INTELLIGENT] Skipping PHP-FPM check - Using Swoole instead
+  [32_PHP85_INTELLIGENT] [DETECTION] Checking required PHP extensions...
+  [32_PHP85_INTELLIGENT] PHP not available for extension check
+  >>> [32_PHP85_INTELLIGENT] Checking symbolic link: /usr/local/bin/php
+  [ERROR] [32_PHP85_INTELLIGENT] Symlink not found: /usr/local/bin/php
+  [32_PHP85_INTELLIGENT] State: Not installed
+  [32_PHP85_INTELLIGENT] [FAIL] Post-installation verification FAILED
+  [32_PHP85_INTELLIGENT] Some issues remain after installation
   ============================================================================
-  [31_PHP85_INTELLIGENT] [FAILED] PHP 8.5 installation/configuration failed with exit code: 1
-  [31_PHP85_INTELLIGENT] [INFO] Check the output above for specific error details
-  [31_PHP85_INTELLIGENT] [INFO] You may need to run the script again or fix issues manually
+  [32_PHP85_INTELLIGENT] [FAILED] PHP 8.5 installation/configuration failed with exit code: 1
+  [32_PHP85_INTELLIGENT] [INFO] Check the output above for specific error details
+  [32_PHP85_INTELLIGENT] [INFO] You may need to run the script again or fix issues manually
   ============================================================================
 
 ❯
@@ -98,38 +98,38 @@
   PHP pdo_pgsql extension present.
   Ensuring PostgreSQL (localhost-only, per-app databases)...
     Running canonical PostgreSQL ensurer (idempotent: install + mount-fix + data-dir reconcile):
-      /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/46_install_postgresql.sh
-  [46] PostgreSQL Database Management Script
-  [46] START_POSTGRESQL: true
-  [46] Mode: server - Processing PostgreSQL...
-  [46] ============================================
-  [46] START_POSTGRESQL is true - Installing and s
-  [46] ============================================
-  [46] Port 5432 (PostgreSQL) is already in use.
-  [46] Port 5432 is held by the local PostgreSQL server (postgres) -> already serving; leaving it running.
-  [46] PostgreSQL is already installed - ensuring config (idempotent)
-  [46] Setting up PostgreSQL user and access rules...
-  [46] Setting postgres superuser password (stored in global_var POSTGRES_PASSWORD)...
+      /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/48_install_postgresql.sh
+  [47] PostgreSQL Database Management Script
+  [47] START_POSTGRESQL: true
+  [47] Mode: server - Processing PostgreSQL...
+  [47] ============================================
+  [47] START_POSTGRESQL is true - Installing and s
+  [47] ============================================
+  [47] Port 5432 (PostgreSQL) is already in use.
+  [47] Port 5432 is held by the local PostgreSQL server (postgres) -> already serving; leaving it running.
+  [47] PostgreSQL is already installed - ensuring config (idempotent)
+  [47] Setting up PostgreSQL user and access rules...
+  [47] Setting postgres superuser password (stored in global_var POSTGRES_PASSWORD)...
   ALTER ROLE
-  [46] Password mirrored to app data dir (open_basedir-safe): /mnt/dev_nvme0n1p1/www/wwwroot/laravel_db/.core_node_secrets/POSTGRES_PASSWORD
-  [46] Restricting PostgreSQL to localhost-only access...
-  [46] PostgreSQL user setup completed (localhost-only, scram auth)
-  [46] Ensuring per-app databases...
-  [46] PostgreSQL Installation Information:
-  [46] ========================================
-  [46] PostgreSQL Version: psql (PostgreSQL) 18.4 (Debian 18.4-1)
-  [46] Data Directory: /opt/_kali_2026/postgresql/data
-  [46] Config Directory: /etc/postgresql/18/main
-  [46] Log Directory: /opt/_kali_2026/postgresql/l
-  [46] Default Port: 5432 (localhost-only)
-  [46] Default User: postgres
-  [46] Password: generated, stored in global_var POSTGRES_PASSWORD (read by Laravel via App\Support\CoreNodeSecrets; never in .env)
-  [46] Status: Running
-  [46] Service: systemctl/service/pg_ctlcluster {start|stop|restart} postgresql
-  [46] Connect (admin): sudo -u postgres psql
-  [46] Config: /etc/postgresql/18/main/postgresql.conf
-  [46] ========================================
-  [46] ==========
+  [47] Password mirrored to app data dir (open_basedir-safe): /mnt/dev_nvme0n1p1/www/wwwroot/laravel_db/.core_node_secrets/POSTGRES_PASSWORD
+  [47] Restricting PostgreSQL to localhost-only access...
+  [47] PostgreSQL user setup completed (localhost-only, scram auth)
+  [47] Ensuring per-app databases...
+  [47] PostgreSQL Installation Information:
+  [47] ========================================
+  [47] PostgreSQL Version: psql (PostgreSQL) 18.4 (Debian 18.4-1)
+  [47] Data Directory: /opt/_kali_2026/postgresql/data
+  [47] Config Directory: /etc/postgresql/18/main
+  [47] Log Directory: /opt/_kali_2026/postgresql/l
+  [47] Default Port: 5432 (localhost-only)
+  [47] Default User: postgres
+  [47] Password: generated, stored in global_var POSTGRES_PASSWORD (read by Laravel via App\Support\CoreNodeSecrets; never in .env)
+  [47] Status: Running
+  [47] Service: systemctl/service/pg_ctlcluster {start|stop|restart} postgresql
+  [47] Connect (admin): sudo -u postgres psql
+  [47] Config: /etc/postgresql/18/main/postgresql.conf
+  [47] ========================================
+  [47] ==========
   ──── (955 lines hidden) ──────────────────────────────────────────────────────────────────────────────────────────────────────
   e/poly_apps/laravel_main/vendor/symfony/console/Application.php(195): Symfony\Component\Console\Application->doRun()
   #31 /mnt/dev_nvme0n1p1/programing/core_node/poly_apps/laravel_main/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(198): Symfony\Component\Console\Application->run()
@@ -232,34 +232,34 @@ Re-run start.sh and migrations will load past this point.
   PHP pdo_pgsql extension present.
   Ensuring PostgreSQL (localhost-only, per-app databases)...
     Running canonical PostgreSQL ensurer (idempotent: install + mount-fix + data-dir reconcile):
-      /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/46_install_postgresql.sh
-  [46] PostgreSQL Database Management Script
-  [46] START_POSTGRESQL: true
-  [46] Mode: server - Processing PostgreSQL...
-  [46] ============================================
-  [46] START_POSTGRESQL is true - Installing and starting PostgreSQL...
-  [46] ============================================
-  [46] Port 5432 (PostgreSQL) is already in use.                                                                              [46] Port 5432 is held by the local PostgreSQL serving; leaving it running.
-  [46] PostgreSQL is already installed - ensuring config (idempotent)                                                         [46] Setting up PostgreSQL user and access rules
-  [46] Setting postgres superuser password (stored in global_var POSTGRES_PASSWORD)...
+      /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/48_install_postgresql.sh
+  [47] PostgreSQL Database Management Script
+  [47] START_POSTGRESQL: true
+  [47] Mode: server - Processing PostgreSQL...
+  [47] ============================================
+  [47] START_POSTGRESQL is true - Installing and starting PostgreSQL...
+  [47] ============================================
+  [47] Port 5432 (PostgreSQL) is already in use.                                                                              [47] Port 5432 is held by the local PostgreSQL serving; leaving it running.
+  [47] PostgreSQL is already installed - ensuring config (idempotent)                                                         [47] Setting up PostgreSQL user and access rules
+  [47] Setting postgres superuser password (stored in global_var POSTGRES_PASSWORD)...
   ALTER ROLE
-  [46] Password mirrored to app data dir (open_basedir-safe): /www/wwwroot/laravel_db/.core_node_secrets/POSTGRES_PASSWORD
-  [46] Restricting PostgreSQL to localhost-only access...
-  [46] PostgreSQL user setup completed (localhost-only, scram auth)
-  [46] Ensuring per-app databases...
-  [46] PostgreSQL Installation Information:
-  [46] ========================================
-  [46] PostgreSQL Version: psql (PostgreSQL) 18.4 (Debian 18.4-1)
-  [46] Data Directory: /opt/_kali_2026/postgresql/data
-  [46] Config Directory: /etc/postgresql/18/main
-  [46] Log Directory: /opt/_kali_2026/postgresql/logs
-  [46] Default Port: 5432 (localhost-only)
-  [46] Default User: postgres
-  [46] Password: generated, stored in global_var POSTGRES_PASSWORD (read by Laravel via App\Support\CoreNodeSecrets; never in .env)
-  [46] Status: Running                                                                                                        [46] Service: systemctl/service/pg_ctlcluster {s
-  [46] Connect (admin): sudo -u postgres psql                                                                                 [46] Config: /etc/postgresql/18/main/postgresql.
-  [46] ========================================
-  [46] ============================
+  [47] Password mirrored to app data dir (open_basedir-safe): /www/wwwroot/laravel_db/.core_node_secrets/POSTGRES_PASSWORD
+  [47] Restricting PostgreSQL to localhost-only access...
+  [47] PostgreSQL user setup completed (localhost-only, scram auth)
+  [47] Ensuring per-app databases...
+  [47] PostgreSQL Installation Information:
+  [47] ========================================
+  [47] PostgreSQL Version: psql (PostgreSQL) 18.4 (Debian 18.4-1)
+  [47] Data Directory: /opt/_kali_2026/postgresql/data
+  [47] Config Directory: /etc/postgresql/18/main
+  [47] Log Directory: /opt/_kali_2026/postgresql/logs
+  [47] Default Port: 5432 (localhost-only)
+  [47] Default User: postgres
+  [47] Password: generated, stored in global_var POSTGRES_PASSWORD (read by Laravel via App\Support\CoreNodeSecrets; never in .env)
+  [47] Status: Running                                                                                                        [47] Service: systemctl/service/pg_ctlcluster {s
+  [47] Connect (admin): sudo -u postgres psql                                                                                 [47] Config: /etc/postgresql/18/main/postgresql.
+  [47] ========================================
+  [47] ============================
   ──── (873 lines hidden) ──────────────────────────────────────────────────────────────────────────────────────────────────────
   ies...
     ✓ Exists avatars: /www/wwwroot/laravel_db/avatars
@@ -329,7 +329,7 @@ So a per-app PostgreSQL database (pdd_tool_v1_database) the migration connects t
 
   Ran 1 shell command
 
-Found the drift: 46_install_postgresql.sh:36 has a hardcoded APP_DATABASES list that's missing pdd_tool_v1_database (the newer PddToolV1 app). It's a second source of truth that drifted from config/database.php's poly connections. Let me see the full config list so I can make the shell match it (and ideally auto-derive to prevent future drift).
+Found the drift: 47_install_postgresql.sh:36 has a hardcoded APP_DATABASES list that's missing pdd_tool_v1_database (the newer PddToolV1 app). It's a second source of truth that drifted from config/database.php's poly connections. Let me see the full config list so I can make the shell match it (and ideally auto-derive to prevent future drift).
 
   Ran 1 shell command
 
@@ -342,7 +342,7 @@ Now it's crisp: pdd_tool_v1_database is in config/database.php (the source of tr
 
 The derivation works (full list incl. pdd_tool_v1_database). Let me fix 46 to derive APP_DATABASES from the config (so new apps auto-provision and it can't drift again), with a corrected fixed fallback:
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/46_install_postgresql.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/48_install_postgresql.sh)
 Added 16 lines, removed 1 line
 # wsl_mount_pg_image). Resolved from the central mapping (map_web_path "pg_mount")
 # AFTER gvar_common.sh is sourced -- never hardcoded here.
@@ -379,7 +379,7 @@ Verified end-to-end — db:show --database=pddtoolv1 connects to pdd_tool_v1_dat
 
 Fixed — the missing per-app database
 
-Root cause: 46_install_postgresql.sh:36 had a hardcoded APP_DATABASES list that had drifted from config/database.php — it was missing pdd_tool_v1_database (the newer PddToolV1 app), so that DB was never created and the migration died with "database pdd_tool_v1_database does not exist." (Same second-source-of-truth drift pattern as the PHP scripts earlier.)
+Root cause: 47_install_postgresql.sh:36 had a hardcoded APP_DATABASES list that had drifted from config/database.php — it was missing pdd_tool_v1_database (the newer PddToolV1 app), so that DB was never created and the migration died with "database pdd_tool_v1_database does not exist." (Same second-source-of-truth drift pattern as the PHP scripts earlier.)
 
 Fix (two parts):
 1. 46 now derives APP_DATABASES from config/database.php — the $polyConnection('NAME') calls are the single source of truth, so any new app auto-provisions its DB and the list can't drift again. It unions the config names with core_node_main + the 3   legacy DBs (awy/bank/vipclub) that predate the crrected fixed list if the config can't be read.(bash -n clean; verified it now yields all 11 DBs including pdd_tool_v1_database.)                                          2. Created pdd_tool_v1_database now so you're unnt — exactly what the fixed ensurer does). All 7per-app DBs + legacy now exist.

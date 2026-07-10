@@ -6,7 +6,7 @@
 # Discovered & run by prepare.sh (which pyservice.sh invokes), it forwards
 # directly to the single source of truth in the Linux installer flow:
 #
-#     scripts/shells/linux/debian/install_shells/21_install_edge_tts.sh
+#     scripts/shells/linux/debian/install_shells/22_install_edge_tts.sh
 #
 # That same numbered script runs after 13_ensure_python.sh in install.sh's
 # numeric-ordered sweep, so dd.sh -> install installs edge-tts in the main flow
@@ -27,7 +27,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
 # Repo root = iniscripts -> common -> linux -> shells -> scripts -> <repo root> (five levels up).
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
-STEP_SCRIPT="$REPO_ROOT/scripts/shells/linux/debian/install_shells/21_install_edge_tts.sh"
+STEP_SCRIPT="$REPO_ROOT/scripts/shells/linux/debian/install_shells/22_install_edge_tts.sh"
 
 if [[ ! -s "$STEP_SCRIPT" ]]; then
     echo "[X] edge-tts canonical script not found: $STEP_SCRIPT" >&2

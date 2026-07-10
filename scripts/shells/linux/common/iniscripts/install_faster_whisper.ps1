@@ -4,10 +4,10 @@
     pycore "Video Extraction" feature). Discovered & run by prepare.ps1 (which
     pyservice.ps1 invokes), it forwards directly to the single source of truth:
 
-        scripts\shells\win\install_powershells\Step17_InstallFasterWhisper.ps1
+        scripts\shells\win\install_powershells\Step11_InstallFasterWhisper.ps1
 
     That same Step script is registered in InstallerScriptsList.ps1 right after
-    Step9_InstallPython, so dd.cmd -> Run DevInstaller installs faster-whisper
+    Step8_InstallPython, so dd.cmd -> Run DevInstaller installs faster-whisper
     immediately after Python. Keeping the logic in one place guarantees the
     installer flow and the pyservice prerequisite flow stay identical.
 
@@ -32,7 +32,7 @@ $ErrorActionPreference = 'Stop'
 # Variable Declarations (all at top)
 # Repo root = iniscripts -> common -> linux -> shells -> scripts -> <repo root> (five parents up).
 $repoRoot   = Split-Path (Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent) -Parent
-$stepScript = Join-Path $repoRoot 'scripts\shells\win\install_powershells\Step17_InstallFasterWhisper.ps1'
+$stepScript = Join-Path $repoRoot 'scripts\shells\win\install_powershells\Step11_InstallFasterWhisper.ps1'
 $stepArgs   = @{}
 
 if (-not (Test-Path $stepScript)) {

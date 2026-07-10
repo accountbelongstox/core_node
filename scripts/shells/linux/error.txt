@@ -1,4 +1,4 @@
-Starting execution of 120_install_desktop_applications.sh...
+Starting execution of 122_install_desktop_applications.sh...
 [[INSTALL_LIB]][2025-10-29 02:45:57] ==========================================
 [[INSTALL_LIB]][2025-10-29 02:45:57] Starting Linux Desktop Applications Installation
 [[INSTALL_LIB]][2025-10-29 02:45:57] Install Mode: base
@@ -391,7 +391,7 @@ error: snap "wechat-uos" not found
 [[INSTALL_LIB]][2025-10-29 02:46:16] Cursor Agent is installed and available in PATH
 [[INSTALL_LIB]][2025-10-29 02:46:16] Cursor Agent is already installed, skipping
 [[INSTALL_LIB]][2025-10-29 02:46:16] Skipping langchain - no package ID or install method
-/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/debian/install_shells/120_install_desktop_applications.sh: line 590: INSTALLATION_RESULTS["$display_name"]: bad array subscript
+/mnt/dev_sdb3/programing/core_node/scripts/shells/linux/debian/install_shells/124_install_desktop_applications.sh: line 590: INSTALLATION_RESULTS["$display_name"]: bad array subscript
 
 Script execution completed with exit code: 1
 Press any key to return to test scripts menu...

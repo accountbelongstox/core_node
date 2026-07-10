@@ -22,6 +22,7 @@ import {
 import { ElementTheme } from '../../WfNewTypes';
 import { wfNewAdminApi } from '../../api';
 import type { WfNewAdminLangOption, WfNewAdminTranslateResult } from '../../api';
+import { puterTranslate } from '../../hooks/puterTranslate';
 
 /** Shown while GET /translation/languages loads (and kept on failure). */
 const FALLBACK_LANGS: WfNewAdminLangOption[] = [
@@ -129,8 +130,27 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
         ...prev.filter((h) => h.text !== trimmed),
       ].slice(0, HISTORY_MAX));
     } catch (e: any) {
-      if (e?.status === 401) addToast(trans('admin.needLogin'), 'warning');
-      else addToast(String(e?.message || 'Request failed'), 'warning');
+      // Backend translate failed (401 needLogin / gateway down) - try the
+      // keyless Puter.js AI tier client-side before surfacing the error.
+      const fb = await puterTranslate(trimmed, source, target);
+      if (!alive.current) return;
+      if (fb) {
+        setResult({
+          translation: fb, provider: 'puter', model: 'gpt-5-nano',
+          detected_language: source === 'auto' ? undefined : source,
+          cached: false,
+        });
+        resetAudio();
+        setHistory((prev) => [
+          { text: trimmed, translation: fb },
+          ...prev.filter((h) => h.text !== trimmed),
+        ].slice(0, HISTORY_MAX));
+        addToast(trans('admin.t.fallback'), 'info');
+      } else if (e?.status === 401) {
+        addToast(trans('admin.needLogin'), 'warning');
+      } else {
+        addToast(String(e?.message || 'Request failed'), 'warning');
+      }
     } finally {
       if (alive.current) setBusy(false);
     }

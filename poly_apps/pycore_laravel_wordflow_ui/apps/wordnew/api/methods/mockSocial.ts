@@ -1,7 +1,17 @@
 /** methods/mockSocial - the Social Center method group (posts / comments / live)
  * extracted from WfNewApiMock so the composer stays under the 800-line modular
  * limit. Spread into wfNewApiMock. */
-import type { WfNewPost, WfNewPostComment, WfNewLive } from '../WfNewApiTypes';
+import type {
+  WfNewPost, WfNewPostComment, WfNewLive, WfNewPostFilter, WfNewPostPage,
+  WfNewCreatePostPayload, WfNewPostLikeResult, WfNewPostCommentPage,
+  WfNewCreateLivePayload, WfNewLiveMsgPage, WfNewLiveMsg, WfNewStatistics,
+  BentoGroup, WordGroup, Word, UserProfile, UserStats, SubtitleCourse,
+  AnalyticsStats, BilingualSentence,
+} from '../WfNewApiTypes';
+import {
+  MOCK_BENTO_GROUPS, MOCK_VOCABULARY_MAP, MOCK_WALKMAN_WORDS,
+  MOCK_SUBTITLE_COURSES, MOCK_ANALYTICS_STATS, MOCK_BILINGUAL_SENTENCES,
+} from '../../WfNewMockDb';
 import {
   delay,
   mockAuthError,

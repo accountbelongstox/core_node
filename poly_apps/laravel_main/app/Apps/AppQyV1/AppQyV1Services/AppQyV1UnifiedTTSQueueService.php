@@ -535,7 +535,7 @@ class AppQyV1UnifiedTTSQueueService
      */
     private function maybeCreateGlobalAudioTask($row, string $language, string $taskType, bool $interactive = false): void
     {
-        if (!(bool) env('APPQYV1_DUAL_WRITE_GLOBAL', false)) {
+        if (!app(\App\Services\UserConfig\UserConfigService::class)->get('appqyv1_dual_write_global', false)) {
             return;
         }
         $this->ensureGlobalAudioTask($row, $language, $taskType, $interactive);

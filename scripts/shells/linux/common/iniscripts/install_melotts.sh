@@ -47,7 +47,7 @@ py_has_module() { "$PYTHON" -c "import importlib.util,sys; sys.exit(0 if importl
 . "$(dirname "${BASH_SOURCE[0]}")/../base_libs/setuptools_guard.sh"   # ensure_pkg_resources()
 # Driver-matched CUDA wheel index (single source of truth) so the GPU torch install never
 # grabs the default "latest" wheel (e.g. cu130) that a 12.4 driver can't run.
-. "$(dirname "${BASH_SOURCE[0]}")/../base_libs/torch_cuda_index.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/../base_libs/cuda_index.sh"
 command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "https://download.pytorch.org/whl/cu124"; }
 # Serialize pip into the shared venv (safe under the parallel install driver). Defensive.
 PIPLOCK_LIB="$(dirname "${BASH_SOURCE[0]}")/../base_libs/pip_lock.sh"

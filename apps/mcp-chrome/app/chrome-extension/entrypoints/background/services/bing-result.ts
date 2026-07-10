@@ -51,6 +51,10 @@ export interface ResultEntry {
   // re-translate. NOT fetchable server-side (referrer/cookie bound).
   image_urls?: string[];
   audio_url?: string;
+  // True when the parallel howtopronounce mode contributed audio/phonetics/web
+  // content for this word (filled by HowToPronouncePronunciationSource.mergeInto).
+  // Extra field the Laravel writeback ignores; used for worker stats only.
+  howtopronounce_audio?: boolean;
   provider: string;
 }
 

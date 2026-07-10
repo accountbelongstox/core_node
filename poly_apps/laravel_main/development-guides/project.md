@@ -122,7 +122,7 @@ Develop a comprehensive server management application within Laravel Main (`Serv
 
 ### 6. SSL Certificate Management Module (`ServerManagerV1CertificateManagerCtl`)
 **Functionality:**
-- Certbot installation detection (using 26_install_certbot.sh)
+- Certbot installation detection (using 28_install_certbot.sh)
 - Certificate listing and status
 - Automatic certificate generation
 - Certificate renewal (from no cert to install, expired to renew)
@@ -261,7 +261,7 @@ Develop a comprehensive server management application within Laravel Main (`Serv
 
 ### External System Integration:
 - `/www/wwwroot/core_node/scripts/unified_manager/` complete system
-- `/www/wwwroot/core_node/scripts/shells/linux/debian/install_shells/26_install_certbot.sh`
+- `/www/wwwroot/core_node/scripts/shells/linux/debian/install_shells/30_install_certbot.sh`
 - Nginx configuration files and management
 - System service management (systemctl)
 - SSL certificate management (certbot/letsencrypt)

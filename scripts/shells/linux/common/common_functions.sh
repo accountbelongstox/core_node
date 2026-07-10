@@ -9,6 +9,10 @@ SHELLS_DIR="$(dirname "$COMMON_FUNCS_DIR")"
 # Source gvar_common.sh from the same directory
 source "$COMMON_FUNCS_DIR/gvar_common.sh"
 
+# Source fs_perm_helpers.sh (idempotent recursive chown/chmod; avoids pinning
+# the userspace ntfs-3g FUSE driver on NTFS/FUSE mounts).
+source "$COMMON_FUNCS_DIR/fs_perm_helpers.sh"
+
 # Single transformers pin shared by the local LLM stack (95_deepseek / 96_deepseek_ocr /
 # 97_qwen25 / 98_nllb200). 4.46.3 is DeepSeek-OCR's required version and also satisfies
 # Qwen2.5 (>=4.37.0), NLLB-200 and DeepSeek-VL, so all four agree on ONE version in the

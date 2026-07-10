@@ -44,32 +44,32 @@ declare -A SERVICE_MANAGER_SCRIPT
 
 SERVICE_NAME["redis"]="Redis"
 SERVICE_SYSTEMD["redis"]="redis-server"
-SERVICE_INSTALL_SCRIPT["redis"]="45_install_redis.sh"
+SERVICE_INSTALL_SCRIPT["redis"]="47_install_redis.sh"
 SERVICE_MANAGER_SCRIPT["redis"]="$SERVER_MANAGER_DIR/redis_manager.sh"
 
 SERVICE_NAME["postgresql"]="PostgreSQL"
 SERVICE_SYSTEMD["postgresql"]="postgresql"
-SERVICE_INSTALL_SCRIPT["postgresql"]="46_install_postgresql.sh"
+SERVICE_INSTALL_SCRIPT["postgresql"]="48_install_postgresql.sh"
 SERVICE_MANAGER_SCRIPT["postgresql"]="$SERVER_MANAGER_DIR/postgresql_manager.sh"
 
 SERVICE_NAME["docker"]="Docker"
 SERVICE_SYSTEMD["docker"]="docker"
-SERVICE_INSTALL_SCRIPT["docker"]="47_install_docker.sh"
+SERVICE_INSTALL_SCRIPT["docker"]="49_install_docker.sh"
 SERVICE_MANAGER_SCRIPT["docker"]="$SERVER_MANAGER_DIR/docker_manager.sh"
 
 SERVICE_NAME["mysql"]="MySQL"
 SERVICE_SYSTEMD["mysql"]="mariadb"
-SERVICE_INSTALL_SCRIPT["mysql"]="50_install_mysql.sh"
+SERVICE_INSTALL_SCRIPT["mysql"]="52_install_mysql.sh"
 SERVICE_MANAGER_SCRIPT["mysql"]="$SERVER_MANAGER_DIR/mysql_manager.sh"
 
 SERVICE_NAME["nginx"]="Nginx"
 SERVICE_SYSTEMD["nginx"]="nginx"
-SERVICE_INSTALL_SCRIPT["nginx"]="25_install_nginx.sh"
+SERVICE_INSTALL_SCRIPT["nginx"]="27_install_nginx.sh"
 SERVICE_MANAGER_SCRIPT["nginx"]="$SERVER_MANAGER_DIR/nginx_manager.sh"
 
 SERVICE_NAME["ssh"]="SSH Server"
 SERVICE_SYSTEMD["ssh"]="ssh"
-SERVICE_INSTALL_SCRIPT["ssh"]="18_setup_ssh_remote.sh"
+SERVICE_INSTALL_SCRIPT["ssh"]="20_setup_ssh_remote.sh"
 SERVICE_MANAGER_SCRIPT["ssh"]="$SERVER_MANAGER_DIR/ssh_manager.sh"
 
 SERVICE_NAME["pycore"]="Pycore HTTP"
@@ -81,7 +81,7 @@ SERVICE_NAME["laravel"]="Laravel Octane"
 # Canonical unit registered by poly_apps/laravel_main/scripts/start.sh (--service).
 SERVICE_SYSTEMD["laravel"]="ncore-laravel-main"
 # Install/reinstall is special-cased to run start.sh --service (see reinstall_service).
-SERVICE_INSTALL_SCRIPT["laravel"]="133_setup_api_domains.sh"
+SERVICE_INSTALL_SCRIPT["laravel"]="135_setup_api_domains.sh"
 SERVICE_MANAGER_SCRIPT["laravel"]="$SERVER_MANAGER_DIR/laravel_octane_manager.sh"
 # Laravel service grep pattern: canonical (ncore-laravel-main, from start.sh) +
 # legacy app_manager (app-manager-laravel*) + legacy octane-* multi-domain units.

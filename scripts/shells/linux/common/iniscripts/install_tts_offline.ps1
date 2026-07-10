@@ -7,7 +7,7 @@
     Discovered & run by prepare.ps1 (pyservice). Forwards to the single source of
     truth, which is also registered in the dd.cmd DevInstaller flow:
 
-        scripts\shells\win\install_powershells\Step20_InstallTtsOffline.ps1
+        scripts\shells\win\install_powershells\Step13_InstallTtsOffline.ps1
 
     Installs sherpa-onnx + a Kokoro (zh/en) model by default. MeloTTS is opt-in
     (-Melotts) because it pins transformers==4.27.4. GPT-SoVITS is not installed
@@ -31,7 +31,7 @@ $ErrorActionPreference = 'Stop'
 
 # Variable Declarations (all at top)
 $repoRoot   = Split-Path (Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent) -Parent
-$stepScript = Join-Path $repoRoot 'scripts\shells\win\install_powershells\Step20_InstallTtsOffline.ps1'
+$stepScript = Join-Path $repoRoot 'scripts\shells\win\install_powershells\Step13_InstallTtsOffline.ps1'
 $stepArgs   = @{}
 
 if (-not (Test-Path $stepScript)) {

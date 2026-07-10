@@ -47,9 +47,9 @@ def _parse_ts(s: str) -> Optional[datetime]:
     s = s.strip()
     if len(s) < 19:
         return None
-    if s[4] == "-" and s[7] == "-" and s[10] == " " and s[13] == ":" and s[16] == ":":
+    if s[4] == "-" and s[7] == "-" and s[10] == " " and s[13] == ":" and s[17] == ":":
         try:
-            if len(s) >= 23 and s[19] == ",":
+            if len(s) >= 23 and s[20] == ",":
                 return datetime.strptime(s[:23], "%Y-%m-%d %H:%M:%S,%f")
             return datetime.strptime(s[:19], "%Y-%m-%d %H:%M:%S")
         except ValueError:

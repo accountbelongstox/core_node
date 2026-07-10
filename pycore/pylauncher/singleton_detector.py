@@ -19,13 +19,20 @@ THREAD_BUS Integration:
 - Checks THREAD_BUS.is_shutdown_requested() in listener loop
 - Backwards compatible: keeps existing on_message and state_checker callbacks
 
+Structure (split for modularity, see AGENTS.md 800-line rule):
+- singleton_protocol.py  - pure protocol/data layer (ProtocolVersion, MessageType,
+                           DetectionResult, _process_start_time)
+- singleton_server.py    - PRIMARY-side TCP server (_SingletonServerMixin:
+                           bind/listen/listener/_handle_client/stop)
+- singleton_detector.py  - this file: SingletonDetector orchestrator + public hooks
+
 Use cases:
 - Prevent multiple launches of the same application
 - Cross-process instance discovery and communication
 - Singleton service management
 
 Usage:
-    from pycore.pyutils.singleton_detector import SingletonDetector
+    from pycore.pylauncher.singleton_detector import SingletonDetector
 
     # Create detector
     detector = SingletonDetector(
@@ -46,90 +53,59 @@ Usage:
 """
 
 import os
-import sys
 import socket
 import json
 import time
 import threading
-from typing import Optional, Callable, Dict, Any, List
-from dataclasses import dataclass
-from enum import Enum
+from typing import Optional, Callable, Dict, Any
 
 # THREAD_BUS Integration
 from pycore import THREAD_BUS, ColorPrint
 
-# Fallback "process start" stamp when psutil is unavailable: module import time
-# (later than the true process start, but preserves ordering between instances
-# whose load times are similar).
-_IMPORT_TIME = time.time()
+# Protocol/data layer (sibling) + PRIMARY-side TCP server mixin (sibling)
+from pycore.pylauncher.singleton_protocol import (
+    ProtocolVersion,
+    MessageType,
+    DetectionResult,
+    _process_start_time,
+)
+from pycore.pylauncher.singleton_server import _SingletonServerMixin
 
-
-def _process_start_time() -> float:
-    """This process's creation time (epoch seconds), used for instance ordering."""
-    try:
-        import psutil
-        return float(psutil.Process().create_time())
-    except Exception:
-        return _IMPORT_TIME
-
-
-# ============================================================
-# Protocol Definition
-# ============================================================
-
-class ProtocolVersion:
-    """Protocol version identifier"""
-    CURRENT = "PYCORE_SINGLETON_V1"
-
-
-class MessageType(Enum):
-    """Message types for singleton communication"""
-    CHECK = "CHECK"              # Check if instance exists
-    ALIVE = "ALIVE"              # Instance alive response
-    SHUTDOWN = "SHUTDOWN"        # Request shutdown
-    SHUTDOWN_ACK = "SHUTDOWN_ACK"  # Shutdown acknowledged
-    STATUS = "STATUS"            # Request status
-    STATUS_RESPONSE = "STATUS_RESPONSE"  # Status response
-    PING = "PING"                # Keep-alive ping
-    PONG = "PONG"                # Ping response
-
-
-# ============================================================
-# Detection Result
-# ============================================================
-
-@dataclass
-class DetectionResult:
-    """Result of singleton detection"""
-    is_primary: bool              # True if this is PRIMARY instance
-    port: int                     # Bound port number
-    existing_instance: bool       # True if found existing instance
-    existing_port: Optional[int]  # Port of existing instance (if found)
-    message: str                  # Human-readable message
-    # True when this (older) process deliberately yielded to a PRIMARY that was
-    # started MORE RECENTLY than itself (takeover ordering: newest instance wins).
-    yielded_to_newer: bool = False
+# Re-export protocol types for backward compatibility (callers that imported
+# them from this module before the split keep working).
+__all__ = [
+    'SingletonDetector',
+    'DetectionResult',
+    'MessageType',
+    'ProtocolVersion',
+    'detect_singleton',
+    'on_singleton_superseded',
+]
 
 
 # ============================================================
 # Singleton Detector
 # ============================================================
 
-class SingletonDetector:
+class SingletonDetector(_SingletonServerMixin):
     """
     Cross-Process Singleton Detector with Port Range Scanning
 
     Detection logic:
     1. Start from port_start (e.g., 54000)
     2. Try to connect to port:
-       - Connection failed → Port not in use → Try to bind → Become PRIMARY
-       - Connection success → Send protocol verification:
-         * Protocol correct → Found our instance → Become SECONDARY
-         * Protocol wrong/no response → Other program → Try next port (54001)
+       - Connection failed -> Port not in use -> Try to bind -> Become PRIMARY
+       - Connection success -> Send protocol verification:
+         * Protocol correct -> Found our instance -> Become SECONDARY
+         * Protocol wrong/no response -> Other program -> Try next port (54001)
     3. Repeat until:
        - Find available port (become PRIMARY)
        - Find correct instance (become SECONDARY)
        - Exceed port range (fail)
+
+    The PRIMARY-side TCP server (bind/listen/inbound message handling/teardown)
+    is provided by _SingletonServerMixin (singleton_server.py); this class owns
+    detection orchestration and the client-side message helpers.
 
     Protocol format:
         Request:
@@ -185,13 +161,13 @@ class SingletonDetector:
         self.state_checker = state_checker
         self.shutdown_existing = shutdown_existing
         # Process start time: the ordering key for takeover. "New kicks old" must
-        # hold even when the OLDER instance finishes its (slow) startup LAST —
+        # hold even when the OLDER instance finishes its (slow) startup LAST -
         # e.g. a boot-autostart instance still loading packages while the user
         # manually launches a fresh one. Without this, "whoever finishes
         # detection last wins" inverts the intended semantics.
         self.started_at = _process_start_time()
 
-        # Runtime state
+        # Runtime state (used by _SingletonServerMixin)
         self._is_primary = False
         self._bound_port: Optional[int] = None
         self._server_socket: Optional[socket.socket] = None
@@ -314,52 +290,6 @@ class SingletonDetector:
 
         return response
 
-    def _try_bind_port(self, port: int) -> bool:
-        """
-        Try to bind to port and start listener
-
-        Args:
-            port: Port to bind
-
-        Returns:
-            True if successfully bound
-        """
-        try:
-            self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._server_socket.bind(('localhost', port))
-            self._server_socket.listen(5)
-            self._server_socket.settimeout(1.0)
-
-            self._bound_port = port
-            self._is_primary = True
-            self._running = True
-
-            self._log(f"[SUCCESS] Bound to port {port} (PRIMARY instance)")
-
-            # Start listener thread
-            self._listener_thread = threading.Thread(
-                target=self._listener_loop,
-                name=f"SingletonDetector-{self.app_id}",
-                daemon=True
-            )
-            self._listener_thread.start()
-
-            # THREAD_BUS Integration: Register shutdown handler
-            # Priority=95 ensures singleton detector stops after most services but before heartbeat
-            THREAD_BUS.register_shutdown_handler(
-                self.stop,
-                priority=95,
-                name=f"singleton_detector_{self.app_id}"
-            )
-            self._log("[THREAD_BUS] Registered shutdown handler (priority=95)")
-
-            return True
-
-        except OSError as e:
-            self._log(f"Port {port}: Failed to bind - {e}", "ERROR")
-            return False
-
     def detect_and_bind(self) -> DetectionResult:
         """
         Detect existing instances and try to become PRIMARY
@@ -368,13 +298,13 @@ class SingletonDetector:
         1. Scan port range from port_start
         2. For each port:
            - Try to connect
-           - If connection fails → Port available → Try to bind → SUCCESS
-           - If connection succeeds → Verify protocol
-             * Valid protocol → Found our instance
-               - If shutdown_existing=True → Send shutdown and retry binding
-               - If shutdown_existing=False → RETURN (SECONDARY mode)
-             * Invalid protocol → Other program → Continue to next port
-        3. If all ports exhausted → FAIL
+           - If connection fails -> Port available -> Try to bind -> SUCCESS
+           - If connection succeeds -> Verify protocol
+             * Valid protocol -> Found our instance
+               - If shutdown_existing=True -> Send shutdown and retry binding
+               - If shutdown_existing=False -> RETURN (SECONDARY mode)
+             * Invalid protocol -> Other program -> Continue to next port
+        3. If all ports exhausted -> FAIL
 
         Returns:
             DetectionResult with detection status
@@ -401,7 +331,7 @@ class SingletonDetector:
                 # PRIMARY was started more recently than this process, this is
                 # the OLD instance arriving late (slow startup, e.g. boot
                 # autostart still loading packages while the user launched a
-                # fresh instance) — yield instead of kicking the newer one.
+                # fresh instance) - yield instead of kicking the newer one.
                 # Old instances that don't report started_at are treated as
                 # older (kick them), keeping backward compatibility.
                 existing_started = response.get('started_at')
@@ -576,184 +506,6 @@ class SingletonDetector:
             message="No available ports in range"
         )
 
-    def _listener_loop(self):
-        """
-        Socket listener loop (PRIMARY instance only)
-
-        THREAD_BUS Integration:
-        - Checks THREAD_BUS.is_shutdown_requested() for graceful shutdown
-        """
-        self._log("Listener thread started")
-
-        while self._running:
-            # THREAD_BUS Integration: Check if global shutdown was requested
-            if THREAD_BUS.is_shutdown_requested():
-                self._log("[THREAD_BUS] Shutdown detected, stopping listener...", "WARNING")
-                break
-
-            try:
-                client_socket, address = self._server_socket.accept()
-                # Handle in new thread
-                threading.Thread(
-                    target=self._handle_client,
-                    args=(client_socket, address),
-                    daemon=True
-                ).start()
-            except socket.timeout:
-                continue
-            except Exception as e:
-                if self._running:
-                    self._log(f"Listener error: {e}", "ERROR")
-                break
-
-        self._log("Listener thread stopped")
-
-    def _handle_client(self, client_socket: socket.socket, address):
-        """Handle client connection"""
-        try:
-            data = client_socket.recv(4096).decode('utf-8')
-            if not data:
-                return
-
-            message = json.loads(data.strip())
-
-            # Validate message
-            if not self._validate_message(message):
-                self._log(f"Invalid message from {address}", "WARNING")
-                return
-
-            msg_type = message.get('type')
-            self._log(f"Received {msg_type} from PID {message.get('pid')}")
-
-            # THREAD_BUS Integration: Trigger message received event (for all messages)
-            # This allows other modules to subscribe to singleton messages
-            THREAD_BUS.trigger_event('singleton.message_received', {
-                'message_type': msg_type,
-                'pid': message.get('pid'),
-                'app_id': self.app_id,
-                'full_message': message
-            }, async_mode=True)
-
-            # Call message callback for non-SHUTDOWN messages (backward compatibility)
-            # SHUTDOWN is handled specially below (after sending response)
-            if self.on_message and msg_type != MessageType.SHUTDOWN.value:
-                self.on_message(message)
-
-            # Handle different message types
-            if msg_type == MessageType.CHECK.value:
-                # Send ALIVE response (started_at lets the checker order instances)
-                response = self._create_message(
-                    MessageType.ALIVE,
-                    is_primary=self._is_primary,
-                    port=self._bound_port,
-                    started_at=self.started_at
-                )
-                response_data = json.dumps(response).encode('utf-8')
-                client_socket.sendall(response_data + b'\n')
-
-            elif msg_type == MessageType.STATUS.value:
-                # Query application state
-                app_state = {}
-                if self.state_checker:
-                    try:
-                        app_state = self.state_checker()
-                    except Exception as e:
-                        self._log(f"State checker failed: {e}", "ERROR")
-                        app_state = {"can_shutdown": True, "error": str(e)}
-                else:
-                    # THREAD_BUS Integration: Use THREAD_BUS state as fallback when no state_checker
-                    # Check if THREAD_BUS reports system is busy
-                    app_state = {
-                        "can_shutdown": not THREAD_BUS.is_busy(),
-                        "message": THREAD_BUS.get_busy_reason() if THREAD_BUS.is_busy() else "Ready"
-                    }
-
-                # Send STATUS_RESPONSE
-                response = self._create_message(
-                    MessageType.STATUS_RESPONSE,
-                    is_primary=self._is_primary,
-                    port=self._bound_port,
-                    **app_state
-                )
-                response_data = json.dumps(response).encode('utf-8')
-                client_socket.sendall(response_data + b'\n')
-
-            elif msg_type == MessageType.SHUTDOWN.value:
-                # Newest-wins takeover: a SHUTDOWN from a sibling means the user
-                # launched a NEWER instance. Always accept and shut down
-                # gracefully (execute_handlers=True still runs every shutdown
-                # handler, so in-flight work can flush/save) — the newer instance
-                # is the user's latest intent. Busy state is still reported via
-                # STATUS for external monitors, but never blocks a sibling
-                # takeover (that would leave the user's new launch unable to run).
-                new_pid = message.get('pid')
-
-                # Newest-wins guard (receiver side): only yield to a genuinely
-                # NEWER instance. A SHUTDOWN from an OLDER sibling (a late boot-
-                # autostart instance, a stray/duplicate, or a takeover race
-                # against a just-bound PRIMARY) must NOT kill this newer process.
-                # Senders that omit started_at are legacy -> accept (backward
-                # compatible). Strict '<' so an exact tie still allows takeover
-                # (avoids a mutual-reject deadlock on the import-time fallback).
-                sender_started = message.get('started_at')
-                if sender_started is not None and float(sender_started) < self.started_at:
-                    self._log(
-                        f"[REJECT] SHUTDOWN from OLDER instance (PID {new_pid}, started "
-                        f"{float(sender_started):.3f} < ours {self.started_at:.3f}); "
-                        "keeping this newer instance alive", "WARNING")
-                    response = self._create_message(
-                        MessageType.SHUTDOWN_ACK,
-                        accepted=False,
-                        reason="A newer instance is already running"
-                    )
-                    response_data = json.dumps(response).encode('utf-8')
-                    client_socket.sendall(response_data + b'\n')
-                    return
-
-                self._log(f"Takeover SHUTDOWN from PID {new_pid}; yielding to newer instance", "WARNING")
-
-                # Notification interface (the "old instance" side): fire
-                # 'singleton.superseded' BEFORE the ACK so app code subscribed via
-                # on_singleton_superseded() can react while graceful shutdown runs.
-                THREAD_BUS.trigger_event('singleton.superseded', {
-                    'app_id': self.app_id,
-                    'new_pid': new_pid,
-                }, async_mode=True)
-
-                response = self._create_message(
-                    MessageType.SHUTDOWN_ACK,
-                    accepted=True,
-                    reason="Shutdown accepted (newer instance takes over)"
-                )
-                response_data = json.dumps(response).encode('utf-8')
-                client_socket.sendall(response_data + b'\n')
-
-                # Ensure the ACK is flushed before teardown (benign if already closed).
-                try:
-                    client_socket.shutdown(socket.SHUT_WR)
-                except OSError:
-                    pass
-
-                def trigger_shutdown():
-                    time.sleep(0.3)  # let the ACK reach the new instance first
-                    THREAD_BUS.request_shutdown(
-                        reason=f"Superseded by newer instance (PID {new_pid})",
-                        execute_handlers=True
-                    )
-
-                threading.Thread(target=trigger_shutdown, daemon=True).start()
-
-            elif msg_type == MessageType.PING.value:
-                # Send PONG
-                response = self._create_message(MessageType.PONG)
-                response_data = json.dumps(response).encode('utf-8')
-                client_socket.sendall(response_data + b'\n')
-
-        except Exception as e:
-            self._log(f"Error handling client: {e}", "ERROR")
-        finally:
-            client_socket.close()
-
     def send_shutdown_to_existing(self, existing_port: int) -> dict:
         """
         Send shutdown request to existing instance and wait for response
@@ -790,23 +542,6 @@ class SingletonDetector:
             'accepted': False,
             'reason': 'No response from existing instance'
         }
-
-    def stop(self):
-        """Stop detector and close socket"""
-        self._running = False
-        if self._server_socket:
-            self._server_socket.close()
-        if self._listener_thread:
-            self._listener_thread.join(timeout=2.0)
-        self._log("Detector stopped")
-
-    def is_primary(self) -> bool:
-        """Check if this is PRIMARY instance"""
-        return self._is_primary
-
-    def get_port(self) -> Optional[int]:
-        """Get bound port (PRIMARY only)"""
-        return self._bound_port
 
 
 # ============================================================

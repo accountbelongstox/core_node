@@ -6,7 +6,7 @@
 # Discovered & run by prepare.sh (which pyservice.sh invokes), it forwards
 # directly to the single source of truth in the Linux installer flow:
 #
-#     scripts/shells/linux/debian/install_shells/14_install_faster_whisper.sh
+#     scripts/shells/linux/debian/install_shells/15_install_faster_whisper.sh
 #
 # That same Step script runs right after 13_ensure_python.sh in install.sh's
 # numeric-ordered sweep, so dd.sh -> install installs faster-whisper immediately
@@ -24,7 +24,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
 # Repo root = iniscripts -> common -> linux -> shells -> scripts -> <repo root> (five levels up).
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
-STEP_SCRIPT="$REPO_ROOT/scripts/shells/linux/debian/install_shells/14_install_faster_whisper.sh"
+STEP_SCRIPT="$REPO_ROOT/scripts/shells/linux/debian/install_shells/15_install_faster_whisper.sh"
 
 if [[ ! -s "$STEP_SCRIPT" ]]; then
     echo "[X] faster-whisper Step script not found: $STEP_SCRIPT" >&2

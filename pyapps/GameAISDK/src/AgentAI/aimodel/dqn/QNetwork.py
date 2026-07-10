@@ -278,7 +278,7 @@ class QNetwork(object):
 
         with tf.name_scope('conv_layer1'):
             W_conv1 = self.WeightVariable([8, 8, 4, 32])
-            b_conv1 = self.BiasVariable([32])
+            b_conv1 = self.BiasVariable([33])
             h_conv1 = tf.nn.relu(self.Conv2d(stateInput, W_conv1, 4) + b_conv1)
 
         with tf.name_scope('pool_layer1'):
@@ -286,12 +286,12 @@ class QNetwork(object):
 
         with tf.name_scope('conv_layer2'):
             W_conv2 = self.WeightVariable([4, 4, 32, 64])
-            b_conv2 = self.BiasVariable([64])
+            b_conv2 = self.BiasVariable([65])
             h_conv2 = tf.nn.relu(self.Conv2d(h_pool1, W_conv2, 2) + b_conv2)
 
         with tf.name_scope('conv_layer3'):
             W_conv3 = self.WeightVariable([3, 3, 64, 128])
-            b_conv3 = self.BiasVariable([128])
+            b_conv3 = self.BiasVariable([129])
             h_conv3 = tf.nn.relu(self.Conv2d(h_conv2, W_conv3, 1) + b_conv3)
             h_conv3_flat = tf.reshape(h_conv3, [-1, 9856])
 

@@ -20,7 +20,7 @@
 
 .NOTES
     - Calls: scripts/pytools/special_software_env_manager
-    - Python: Prefer $Global:PYTHON_EXE_PATH from win_common/GlobalVars.ps1 (set by Run DevInstaller / Step9_InstallPython.ps1)
+    - Python: Prefer $Global:PYTHON_EXE_PATH from win_common/GlobalVars.ps1 (set by Run DevInstaller / Step8_InstallPython.ps1)
 #>
 
 #region Variable Declarations
@@ -69,7 +69,7 @@ Write-Host ""
 $pythonExe = Get-PythonExeForSpecialEnv
 if (-not $pythonExe) {
     Write-Host "ERROR: Python not found." -ForegroundColor Red
-    Write-Host "Install via: Installer Menu -> Run DevInstaller (Step9_InstallPython.ps1)." -ForegroundColor Yellow
+    Write-Host "Install via: Installer Menu -> Run DevInstaller (Step8_InstallPython.ps1)." -ForegroundColor Yellow
     Write-Host "Or install Python 3.6+ and add to PATH." -ForegroundColor Yellow
     Write-Host ""
     Write-Host "Press any key to exit..." -ForegroundColor Yellow

@@ -4,6 +4,8 @@ namespace App\Services\EdgeTTS;
 
 use App\Providers\PathMapper;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageConfigService;
+use App\CallPycoreUtils\PycoreHttpClient;
+use App\Services\UserConfig\UserConfigService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Cache;
@@ -311,6 +313,15 @@ class EdgeTTSService
         $this->incrementConcurrentCounter();
 
         try {
+            // Binary-assist gate (UserConfigService::useServerBinaryAssist,
+            // default OFF): delegate synthesis to pycore's tts.synthesize RPC
+            // (POST /rpc/tts.synthesize on :59000) instead of the local
+            // edge-tts binary. ON = desktop fallback where no pycore worker is
+            // available. This keeps Laravel binary-free by default.
+            if (!app(UserConfigService::class)->useServerBinaryAssist()) {
+                return $this->executeViaPycoreRpc($text, $voice, $outputPath);
+            }
+
             $pythonPath = $this->findPythonPath();
             if (!$pythonPath) {
                 return [
@@ -404,6 +415,80 @@ class EdgeTTSService
             // Decrement concurrent counter
             $this->decrementConcurrentCounter();
         }
+    }
+
+    /**
+     * pycore RPC path (default, binary-assist OFF). Delegates synthesis to
+     * pycore's tts.synthesize RPC and writes the returned base64 MP3 to
+     * $outputPath. Laravel stays binary-free; pycore's multi-engine TTS
+     * orchestrator does the actual synthesis. Note: pycore's tts.synthesize
+     * does not accept rate/volume/pitch, so non-default rates are ignored on
+     * this path (default +0% is the common case for word/sentence/audio).
+     */
+    private function executeViaPycoreRpc(string $text, string $voice, string $outputPath): array
+    {
+        $language = $this->languageFromVoice($voice);
+
+        $response = PycoreHttpClient::call('tts.synthesize', [
+            'text' => $text,
+            'language' => $language,
+            'voice' => $voice,
+            'provider' => 'edge',
+            'return_base64' => true,
+            'async' => false,
+            'enable_cache' => true,
+        ], 35, false);
+
+        if (isset($response['error']) || empty($response['success'])) {
+            $error = $response['error'] ?? ($response['message'] ?? 'pycore tts.synthesize failed');
+            Log::error('[EdgeTTS] pycore tts.synthesize failed', [
+                'voice' => $voice,
+                'language' => $language,
+                'error' => $error,
+            ]);
+            return ['success' => false, 'error' => 'pycore tts.synthesize failed: ' . $error];
+        }
+
+        $result = $response['result'] ?? null;
+        $audioBase64 = is_array($result) ? ($result['audio_base64'] ?? null) : null;
+        // Defensive: some envelopes expose audio_base64 at the top level.
+        if (!is_string($audioBase64) || $audioBase64 === '') {
+            $audioBase64 = $response['audio_base64'] ?? null;
+        }
+
+        if (!is_string($audioBase64) || $audioBase64 === '') {
+            Log::error('[EdgeTTS] pycore tts.synthesize returned no audio_base64', [
+                'voice' => $voice,
+                'language' => $language,
+            ]);
+            return ['success' => false, 'error' => 'pycore tts.synthesize returned no audio'];
+        }
+
+        $binary = base64_decode($audioBase64, true);
+        if ($binary === false || $binary === '' || strlen($binary) < 100) {
+            Log::error('[EdgeTTS] pycore tts.synthesize audio payload invalid', [
+                'voice' => $voice,
+                'language' => $language,
+                'bytes' => strlen((string) $binary),
+            ]);
+            return ['success' => false, 'error' => 'pycore tts.synthesize returned invalid audio'];
+        }
+
+        if (@file_put_contents($outputPath, $binary) === false) {
+            Log::error('[EdgeTTS] failed to write pycore audio to disk', [
+                'output_path' => $outputPath,
+            ]);
+            return ['success' => false, 'error' => 'Failed to write audio file'];
+        }
+
+        return ['success' => true];
+    }
+
+    /** Best-effort locale extraction from an edge-tts voice id (en-US-JennyNeural -> en). */
+    private function languageFromVoice(string $voice): string
+    {
+        $parts = explode('-', $voice);
+        return isset($parts[0]) && $parts[0] !== '' ? $parts[0] : 'en';
     }
 
     /**

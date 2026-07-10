@@ -47,7 +47,7 @@ GNOME Remote Desktop (推荐)
 
 1. 启用 GNOME Remote Desktop：
 
-   sudo bash 125_setup_gnome_rdp.sh
+   sudo bash 127_setup_gnome_rdp.sh
 
    脚本会自动：
    - 检测桌面环境
@@ -58,15 +58,15 @@ GNOME Remote Desktop (推荐)
 
 2. 查看连接信息：
 
-   sudo bash 125_setup_gnome_rdp.sh --status
+   sudo bash 127_setup_gnome_rdp.sh --status
 
 3. 自定义密码（可选）：
 
-   sudo bash 125_setup_gnome_rdp.sh --password "your_password"
+   sudo bash 127_setup_gnome_rdp.sh --password "your_password"
 
 4. 禁用远程桌面：
 
-   sudo bash 125_setup_gnome_rdp.sh --disable
+   sudo bash 127_setup_gnome_rdp.sh --disable
 
 连接方式：
 -----------
@@ -148,10 +148,10 @@ AnyDesk (商业):
 ================================================================================
 
 # GNOME Remote Desktop
-sudo bash 125_setup_gnome_rdp.sh                    # 启用
-sudo bash 125_setup_gnome_rdp.sh --password "pwd"   # 使用指定密码启用
-sudo bash 125_setup_gnome_rdp.sh --disable          # 禁用
-sudo bash 125_setup_gnome_rdp.sh --status           # 查看状态
+sudo bash 127_setup_gnome_rdp.sh                    # 启用
+sudo bash 127_setup_gnome_rdp.sh --password "pwd"   # 使用指定密码启用
+sudo bash 127_setup_gnome_rdp.sh --disable          # 禁用
+sudo bash 127_setup_gnome_rdp.sh --status           # 查看状态
 
 # 其他第三方远程桌面工具（可选）
 # NoMachine, AnyDesk 等可从官方网站下载安装

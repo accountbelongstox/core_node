@@ -1,13 +1,16 @@
 """
-pyfoundations.device - Device abstraction module
+pyfoundations.device - thin re-export of the canonical pyutils.device package.
 
-Features:
-- Android device information encapsulation
-- scrcpy-server parameter management
-- Device lifecycle management
+The canonical device implementation lives in pycore.pyutils.device. This shim
+preserves backward-compatible imports (DeviceInfo, Resolution, ServerParams,
+VideoCodec, AndroidDevice, ScrcpyDevice) per the pkg-dedup-canonical rule.
+
+Note: this package previously tried to import from local .device_info /
+.server_params / .android_device / .scrcpy_device modules that do not exist
+here, so it was unimportable. Re-exporting from pyutils.device fixes that.
 
 Dependencies:
-- pycore.pyutils.adb (for ADB operations)
+- pycore.pyutils.device (canonical device/ADB implementation)
 
 Example:
     from pycore.pyfoundations.device import DeviceInfo, ServerParams, Resolution
@@ -31,10 +34,14 @@ Example:
     )
 """
 
-from .device_info import DeviceInfo, Resolution
-from .server_params import ServerParams, VideoCodec
-from .android_device import AndroidDevice
-from .scrcpy_device import ScrcpyDevice
+from pycore.pyutils.device import (
+    DeviceInfo,
+    Resolution,
+    ServerParams,
+    VideoCodec,
+    AndroidDevice,
+    ScrcpyDevice,
+)
 
 __all__ = [
     'DeviceInfo',

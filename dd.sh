@@ -147,7 +147,7 @@ SYSTEM_INFO_SCRIPT="$SHELLS_DIR/linux/menu_itemshells/system_info_display.sh"
 UNIFIED_MANAGER_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/unified_manager/unified_manager.sh"
 GITPUT_UNIFIED_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/git/gitput_unified.sh"
 RESOURCE_LIMITER_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/unified_manager/common/resource_limiter.sh"
-ROUTER_SCRIPT="$SHELLS_DIR/linux/debian/install_shells/101_lnxrouter.sh"
+ROUTER_SCRIPT="$SHELLS_DIR/linux/debian/install_shells/103_lnxrouter.sh"
 
 # DD Helper directory
 DD_HELPER_DIR="$SHELLS_DIR/linux/dd_helper"

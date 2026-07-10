@@ -1,49 +1,47 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Click Handler
-Handles all click-related operations for Battle.net interface
+Click Handler (public facade)
+Handles all click-related operations for Battle.net interface.
+
+This is the slimmed facade after the in-place split:
+  - mouse movement primitives  -> pycore.pyutils.input.mouse_movement.MouseMovement
+  - Battle.net/Diablo III automation -> pycore.pyutils.input.battlenet_clicker.BattlenetClicker
+  - UI-Automation control enumeration -> pycore.pyutils.window.analyzer.WindowAnalyzer
+  - window-message clicks (WM_LBUTTONDOWN/UP) -> pycore.pyutils.window.ops.WindowOps.post_message
+  - tray icon clicking -> pycore.pyutils.input.tray_clicker.TrayIconClicker
+
+The ClickHandler class keeps its full public method surface (move_*, click,
+left_click, right_click, click_at_game_coord, click_element_generic,
+find_and_click_*, enumerate_controls_ui_automation, ...) and delegates to the
+siblings above, so all existing importers
+(`from pycore.pyutils.input.click_handler import ClickHandler`) keep working.
 """
 
-import os
-import sys
 import time
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
-import random
-import math
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
-from pathlib import Path
 
 from pycore.pyfoundations.third_party import (
-    get_third_package_psutil,
-    get_third_package_win32gui,
-    get_third_package_win32con,
-    get_third_package_win32api,
-    get_third_package_PIL_Image,
-    get_third_package_PIL_ImageDraw,
-    get_third_package_PIL_ImageFont,
     get_third_package_pyautogui,
-    get_third_package_pygetwindow,
     get_third_package_uiautomation,
 )
 
-psutil = get_third_package_psutil()
-win32gui = get_third_package_win32gui()
-win32con = get_third_package_win32con()
-win32api = get_third_package_win32api()
 pyautogui = get_third_package_pyautogui()
-pygetwindow = get_third_package_pygetwindow()
 uiautomation = get_third_package_uiautomation()
-import win32process
-
-Image = get_third_package_PIL_Image()
-ImageDraw = get_third_package_PIL_ImageDraw()
-ImageFont = get_third_package_PIL_ImageFont()
-gw = pygetwindow
 auto = uiautomation
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+from pycore.pyutils.input.mouse_movement import MouseMovement
+from pycore.pyutils.input.battlenet_clicker import BattlenetClicker
+from pycore.pyutils.window.analyzer import WindowAnalyzer
+from pycore.pyutils.window.ops import (
+    WindowOps,
+    WM_LBUTTONDOWN,
+    WM_LBUTTONUP,
+    MK_LBUTTON,
+)
 
 
 class ClickHandler:
@@ -51,217 +49,43 @@ class ClickHandler:
 
     def __init__(self):
         self.battle_net_window = None
+        # Composed helpers (split out of this file).
+        self._mouse = MouseMovement()
+        self._battlenet = BattlenetClicker(self)
+        self._window_analyzer = WindowAnalyzer()
+        self._window_ops = WindowOps()
+        self._tray_clicker = None  # lazy: tray_clicker -> pywinauto is Windows-only
 
+    # ------------------------------------------------------------------ #
+    # Mouse movement (delegated to MouseMovement)
+    # ------------------------------------------------------------------ #
     def move_mouse_to(self, x: int, y: int, duration: float = 0.0) -> bool:
-        """
-        Move mouse to specified position
-
-        Note: Includes 100ms delay at method start to prevent consecutive call blocking
-
-        Args:
-            x: Target X coordinate
-            y: Target Y coordinate
-            duration: Movement duration in seconds (0 = instant)
-
-        Returns:
-            True if successful, False otherwise
-        """
-        if x <= 5 and y <= 5:
-            ColorPrint.gray("[ClickHandler] Skip moveTo (%s,%s) to avoid PyAutoGUI fail-safe" % (x, y))
-            return False
-        try:
-            pyautogui.moveTo(x, y, duration=duration)
-            return True
-        except Exception as e:
-            ColorPrint.red(f"❌ Error moving mouse to ({x}, {y}): {e}")
-            return False
+        """Move mouse to specified position. See MouseMovement.move_mouse_to."""
+        return self._mouse.move_mouse_to(x, y, duration=duration)
 
     def get_mouse_position(self) -> Tuple[int, int]:
-        """
-        Get current mouse position
-
-        Returns:
-            Tuple of (x, y) coordinates
-        """
-        return pyautogui.position()
+        """Get current mouse position. See MouseMovement.get_mouse_position."""
+        return self._mouse.get_mouse_position()
 
     def move_mouse_visible(self, x: int, y: int, duration: float = 0.5) -> bool:
-        """
-        Move mouse to specified position with visible trajectory
-
-        Args:
-            x: Target X coordinate
-            y: Target Y coordinate
-            duration: Movement duration in seconds (default 0.5 for visible movement)
-
-        Returns:
-            True if successful, False otherwise
-        """
-        if x <= 5 and y <= 5:
-            ColorPrint.gray("[ClickHandler] Skip move_mouse_visible (%s,%s) to avoid PyAutoGUI fail-safe" % (x, y))
-            return False
-        try:
-            pyautogui.moveTo(x, y, duration=duration)
-            return True
-        except Exception as e:
-            ColorPrint.red(f"Error moving mouse to ({x}, {y}): {e}")
-            return False
+        """Move mouse with visible trajectory. See MouseMovement.move_mouse_visible."""
+        return self._mouse.move_mouse_visible(x, y, duration=duration)
 
     def move_mouse_curve(self, target_x: int, target_y: int, duration: float = None, curve_type: str = 'bezier') -> bool:
-        """
-        Move mouse to target position with curved trajectory (human-like)
-
-        Args:
-            target_x: Target X coordinate
-            target_y: Target Y coordinate
-            duration: Movement duration in seconds (default: auto-calculated, 150-200ms)
-            curve_type: Type of curve ('bezier', 'arc', 'sine')
-
-        Returns:
-            True if successful, False otherwise
-        """
-        if target_x <= 5 and target_y <= 5:
-            ColorPrint.gray("[ClickHandler] Skip move_mouse_curve to (%s,%s) to avoid PyAutoGUI fail-safe" % (target_x, target_y))
-            return False
-        try:
-            start_x, start_y = pyautogui.position()
-
-            # Calculate distance and steps
-            distance = math.sqrt((target_x - start_x)**2 + (target_y - start_y)**2)
-
-            # Reduce steps for faster movement - use fewer points
-            steps = max(int(distance / 50), 10)  # Fewer steps, min 10
-
-            # Auto-calculate duration if not specified - faster default
-            if duration is None:
-                # Scale duration with distance: 100-200ms for normal moves
-                duration = min(0.1 + (distance / 3000), 0.2)
-
-            points = []
-
-            if curve_type == 'bezier':
-                # Bezier curve with random control point for more variation
-                offset_range = int(distance * 0.2)  # Proportional to distance
-                control_x = (start_x + target_x) / 2 + random.randint(-offset_range, offset_range)
-                control_y = (start_y + target_y) / 2 + random.randint(-offset_range, offset_range)
-
-                for i in range(steps + 1):
-                    t = i / steps
-                    # Quadratic Bezier curve formula
-                    x = (1 - t)**2 * start_x + 2 * (1 - t) * t * control_x + t**2 * target_x
-                    y = (1 - t)**2 * start_y + 2 * (1 - t) * t * control_y + t**2 * target_y
-                    points.append((int(x), int(y)))
-
-            elif curve_type == 'arc':
-                # Arc curve
-                mid_x = (start_x + target_x) / 2
-                mid_y = (start_y + target_y) / 2
-                arc_height = distance * 0.2 * random.choice([-1, 1])  # Random arc direction
-
-                for i in range(steps + 1):
-                    t = i / steps
-                    # Parabolic arc
-                    x = start_x + (target_x - start_x) * t
-                    arc_offset = 4 * arc_height * t * (1 - t)  # Parabola formula
-                    y = start_y + (target_y - start_y) * t + arc_offset
-                    points.append((int(x), int(y)))
-
-            elif curve_type == 'sine':
-                # Sine wave curve
-                frequency = random.uniform(1, 3)
-                amplitude = random.randint(5, 20)
-
-                for i in range(steps + 1):
-                    t = i / steps
-                    x = start_x + (target_x - start_x) * t
-                    sine_offset = amplitude * math.sin(frequency * math.pi * t)
-                    y = start_y + (target_y - start_y) * t + sine_offset
-                    points.append((int(x), int(y)))
-
-            # Execute movement - all points moved within total duration
-            # Use tweening for smooth movement across all points at once
-            if points:
-                # Calculate time per step to fit within total duration
-                time_per_step = duration / len(points)
-
-                # Save original PAUSE setting
-                original_pause = pyautogui.PAUSE
-                pyautogui.PAUSE = 0  # No pause between moves
-
-                start_time = time.time()
-                for i, (point_x, point_y) in enumerate(points):
-                    pyautogui.moveTo(point_x, point_y, duration=0)  # Instant move to each point
-                    # Sleep only enough to maintain timing
-                    if i < len(points) - 1:
-                        elapsed = time.time() - start_time
-                        target_time = (i + 1) * time_per_step
-                        sleep_time = max(0, target_time - elapsed)
-                        if sleep_time > 0:
-                            time.sleep(sleep_time)
-
-                # Restore original PAUSE
-                pyautogui.PAUSE = original_pause
-
-            # Ensure we reach exact target
-            pyautogui.moveTo(target_x, target_y, duration=0)
-
-            actual_duration = time.time() - start_time
-            ColorPrint.gray(f"[ClickHandler] Moved mouse with {curve_type} curve from ({start_x},{start_y}) to ({target_x},{target_y}) in {actual_duration*1000:.0f}ms")
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[ClickHandler] Error moving mouse with curve to ({target_x}, {target_y}): {e}")
-            return False
+        """Move mouse with curved trajectory. See MouseMovement.move_mouse_curve."""
+        return self._mouse.move_mouse_curve(target_x, target_y, duration=duration, curve_type=curve_type)
 
     def move_mouse_virtual(self, x: int, y: int) -> bool:
-        """
-        Virtual mouse movement (no actual cursor movement, just position update)
-        Useful for tracking position without visible movement
-
-        Args:
-            x: Target X coordinate
-            y: Target Y coordinate
-
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            # Note: pyautogui doesn't support true virtual movement
-            # This is a placeholder that would require win32api for true virtual movement
-            # For now, we do instant movement
-            current_pos = pyautogui.position()
-            pyautogui.moveTo(x, y, duration=0)
-            ColorPrint.gray(f"[ClickHandler] Virtual move from {current_pos} to ({x},{y})")
-            return True
-        except Exception as e:
-            ColorPrint.red(f"[ClickHandler] Error in virtual mouse move to ({x}, {y}): {e}")
-            return False
+        """Virtual mouse movement. See MouseMovement.move_mouse_virtual."""
+        return self._mouse.move_mouse_virtual(x, y)
 
     def move_mouse_straight(self, target_x: int, target_y: int, duration: float = 0.2, visible: bool = True) -> bool:
-        """
-        Move mouse in straight line to target position
+        """Move mouse in straight line. See MouseMovement.move_mouse_straight."""
+        return self._mouse.move_mouse_straight(target_x, target_y, duration=duration, visible=visible)
 
-        Args:
-            target_x: Target X coordinate
-            target_y: Target Y coordinate
-            duration: Movement duration in seconds
-            visible: Whether to show visible movement (True) or instant (False)
-
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            if visible:
-                pyautogui.moveTo(target_x, target_y, duration=duration)
-                ColorPrint.gray(f"[ClickHandler] Straight move to ({target_x},{target_y}) in {duration}s")
-            else:
-                pyautogui.moveTo(target_x, target_y, duration=0)
-                ColorPrint.gray(f"[ClickHandler] Instant move to ({target_x},{target_y})")
-            return True
-        except Exception as e:
-            ColorPrint.red(f"[ClickHandler] Error moving mouse straight to ({target_x}, {target_y}): {e}")
-            return False
-
+    # ------------------------------------------------------------------ #
+    # Click primitives (live on the facade)
+    # ------------------------------------------------------------------ #
     def click(
         self,
         x: int,
@@ -379,138 +203,104 @@ class ClickHandler:
             pause_after_move=pause_after_move,
         )
 
+    # ------------------------------------------------------------------ #
+    # Tray icon clicking (thin wrapper over TrayIconClicker)
+    # ------------------------------------------------------------------ #
     def find_and_click_tray_icon(self, instant: bool = True, interval_after: float = 1.0) -> bool:
         """
         Find and click Battle.net tray icon.
-        instant: if True, move mouse with duration=0 (teleport) then click; if False, move then click.
-        interval_after: seconds to sleep after click (default 1.0).
+
+        Delegates to pycore.pyutils.input.tray_clicker.TrayIconClicker.click_tray_icon,
+        matching either 'battle' or 'blizzard' tray icons (same intent as the old
+        inline implementation). TrayIconClicker performs its own cursor move +
+        double-click and restores the cursor, so ``instant`` is accepted for API
+        compatibility but has no effect here. ``interval_after`` seconds are slept
+        after a successful click (preserving the old default of 1.0s).
         """
         ColorPrint.yellow("🔍 Looking for Battle.net tray icon...")
-        
         try:
-            # Find system tray area
-            tray_hwnd = None
-            def enum_windows_callback(hwnd, lparam):
-                nonlocal tray_hwnd
-                if win32gui.IsWindowVisible(hwnd):
-                    class_name = win32gui.GetClassName(hwnd)
-                    if class_name in ["Shell_TrayWnd", "TrayNotifyWnd", "NotifyIconOverflowWindow"]:
-                        tray_hwnd = hwnd
-                        return False  # Stop enumeration
-                return True
-            
-            win32gui.EnumWindows(enum_windows_callback, None)
-            
-            if not tray_hwnd:
-                ColorPrint.yellow("⚠️  Could not find system tray area")
-                return False
-            
-            # Get tray area position
-            tray_rect = win32gui.GetWindowRect(tray_hwnd)
-            ColorPrint.gray(f"   Tray area position: {tray_rect}")
-            
-            # Look for Battle.net icon in tray area
-            battle_net_icon_pos = None
-            
-            def enum_child_windows_callback(hwnd, lparam):
-                nonlocal battle_net_icon_pos
-                try:
-                    if win32gui.IsWindowVisible(hwnd):
-                        class_name = win32gui.GetClassName(hwnd)
-                        title = win32gui.GetWindowText(hwnd)
-                        rect = win32gui.GetWindowRect(hwnd)
-                        
-                        # Check if this might be Battle.net related
-                        if ('battle' in title.lower() or 'battle' in class_name.lower() or 
-                            'blizzard' in title.lower() or 'blizzard' in class_name.lower()):
-                            battle_net_icon_pos = rect
-                            ColorPrint.green(f"✅ Found potential Battle.net tray icon: {title}")
-                            return False  # Stop enumeration
-                except Exception as e:
-                    ColorPrint.yellow(f"⚠️  Error checking child window: {e}")
-                return True
-            
-            win32gui.EnumChildWindows(tray_hwnd, enum_child_windows_callback, None)
-            
-            if battle_net_icon_pos:
-                center_x = (battle_net_icon_pos[0] + battle_net_icon_pos[2]) // 2
-                center_y = (battle_net_icon_pos[1] + battle_net_icon_pos[3]) // 2
-                ColorPrint.green(f"🖱️  Clicking Battle.net tray icon at ({center_x}, {center_y})")
-                if instant:
-                    pyautogui.moveTo(center_x, center_y, duration=0)
-                    pyautogui.click(center_x, center_y)
-                else:
-                    pyautogui.click(center_x, center_y)
+            # Lazy import: tray_clicker -> pywinauto is Windows-only; a top-level
+            # import would break click_handler import on Linux (matches the old
+            # inline impl's runtime-only pywinauto dependency).
+            if self._tray_clicker is None:
+                from pycore.pyutils.input.tray_clicker import TrayIconClicker
+                self._tray_clicker = TrayIconClicker()
+            ok = self._tray_clicker.click_tray_icon("battle")
+            if not ok:
+                ok = self._tray_clicker.click_tray_icon("blizzard")
+            if ok and interval_after > 0:
                 time.sleep(interval_after)
-                return True
-            else:
-                ColorPrint.yellow("⚠️  Battle.net tray icon not found")
-                return False
-                
+            return ok
         except Exception as e:
             ColorPrint.red(f"❌ Error finding/clicking tray icon: {e}")
             return False
-    
+
+    # ------------------------------------------------------------------ #
+    # Window-message clicks (delegated to WindowOps.post_message)
+    # ------------------------------------------------------------------ #
     def click_element_by_window_message(self, window_handle: int, x: int, y: int) -> bool:
         """
-        Click an element by sending window messages directly to the window handle
-        
+        Click an element by sending window messages directly to the window handle.
+
+        Delegates to WindowOps.post_message (PostMessageW) with WM_LBUTTONDOWN/UP.
+        The (x, y) client coordinates are packed into lparam via MAKELONG
+        ((y << 16) | (x & 0xFFFF)), matching the original win32api packing.
+
         Args:
             window_handle: Window handle (HWND)
             x: X coordinate relative to window
             y: Y coordinate relative to window
-            
+
         Returns:
             True if successful, False otherwise
         """
         try:
-            # Convert screen coordinates to client coordinates
-            client_x = win32api.MAKELONG(x, y)
-            
-            # Send mouse down message
-            win32api.SendMessage(window_handle, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, client_x)
+            # Pack client coords into lparam (equivalent to win32api.MAKELONG(x, y))
+            lparam = (y << 16) | (x & 0xFFFF)
+            self._window_ops.post_message(window_handle, WM_LBUTTONDOWN, MK_LBUTTON, lparam)
             time.sleep(0.1)  # Brief pause
-            
-            # Send mouse up message
-            win32api.SendMessage(window_handle, win32con.WM_LBUTTONUP, 0, client_x)
-            
+            self._window_ops.post_message(window_handle, WM_LBUTTONUP, 0, lparam)
+
             ColorPrint.green(f"✅ Sent click message to window handle {window_handle} at ({x}, {y})")
             return True
-            
+
         except Exception as e:
             ColorPrint.red(f"❌ Error sending click message: {e}")
             return False
-    
+
     def click_element_by_post_message(self, window_handle: int, x: int, y: int) -> bool:
         """
-        Click an element by posting window messages to the window handle
-        
+        Click an element by posting window messages to the window handle.
+
+        Delegates to WindowOps.post_message (PostMessageW) with WM_LBUTTONDOWN/UP.
+        The (x, y) client coordinates are packed into lparam via MAKELONG
+        ((y << 16) | (x & 0xFFFF)), matching the original win32api packing.
+
         Args:
             window_handle: Window handle (HWND)
             x: X coordinate relative to window
             y: Y coordinate relative to window
-            
+
         Returns:
             True if successful, False otherwise
         """
         try:
-            # Convert screen coordinates to client coordinates
-            client_x = win32api.MAKELONG(x, y)
-            
-            # Post mouse down message
-            win32api.PostMessage(window_handle, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, client_x)
+            # Pack client coords into lparam (equivalent to win32api.MAKELONG(x, y))
+            lparam = (y << 16) | (x & 0xFFFF)
+            self._window_ops.post_message(window_handle, WM_LBUTTONDOWN, MK_LBUTTON, lparam)
             time.sleep(0.1)  # Brief pause
-            
-            # Post mouse up message
-            win32api.PostMessage(window_handle, win32con.WM_LBUTTONUP, 0, client_x)
-            
+            self._window_ops.post_message(window_handle, WM_LBUTTONUP, 0, lparam)
+
             ColorPrint.green(f"✅ Posted click message to window handle {window_handle} at ({x}, {y})")
             return True
-            
+
         except Exception as e:
             ColorPrint.red(f"❌ Error posting click message: {e}")
             return False
-    
+
+    # ------------------------------------------------------------------ #
+    # Generic element-click fallback chain (lives on the facade)
+    # ------------------------------------------------------------------ #
     def _click_with_pyautogui(self, x: int, y: int) -> bool:
         """Click using PyAutoGUI"""
         try:
@@ -519,21 +309,21 @@ class ClickHandler:
         except Exception as e:
             ColorPrint.yellow(f"⚠️  PyAutoGUI click failed: {e}")
             return False
-    
+
     def _click_with_foreground_activation(self, window, x: int, y: int) -> bool:
         """Click with foreground window activation"""
         try:
             # Activate the window first
             window.activate()
             time.sleep(0.5)  # Wait for window activation
-            
+
             # Then click using PyAutoGUI
             pyautogui.click(x, y)
             return True
         except Exception as e:
             ColorPrint.yellow(f"⚠️  Foreground activation click failed: {e}")
             return False
-    
+
     def _click_with_uiautomation(self, control_info: Dict) -> bool:
         """Click using UI Automation"""
         try:
@@ -550,7 +340,7 @@ class ClickHandler:
         except Exception as e:
             ColorPrint.yellow(f"⚠️  UI Automation click failed: {e}")
         return False
-    
+
     def _print_element_click_info(self, control_info: Dict, click_x: int, click_y: int):
         """Print detailed information about the element to be clicked"""
         ColorPrint.white("📋 Element Click Information:")
@@ -558,17 +348,17 @@ class ClickHandler:
         ColorPrint.gray(f"   Element Name: {control_info.get('name', 'No name')}")
         ColorPrint.gray(f"   Automation ID: {control_info.get('automation_id', 'No ID')}")
         ColorPrint.gray(f"   Class Name: {control_info.get('class_name', 'Unknown')}")
-        
+
         rect = control_info.get('rect', {})
         if rect:
             ColorPrint.gray(f"   Element Position: Left={rect.get('left', 0)}, Top={rect.get('top', 0)}, Right={rect.get('right', 0)}, Bottom={rect.get('bottom', 0)}")
             ColorPrint.gray(f"   Element Size: Width={rect.get('width', 0)}, Height={rect.get('height', 0)}")
-        
+
         ColorPrint.gray(f"   Click Coordinates: X={click_x}, Y={click_y}")
         ColorPrint.gray(f"   Is Enabled: {control_info.get('is_enabled', 'Unknown')}")
         ColorPrint.gray(f"   Is Visible: {control_info.get('is_visible', 'Unknown')}")
         ColorPrint.gray(f"   Level: {control_info.get('level', 'Unknown')}")
-    
+
     def _print_click_success_info(self, control_info: Dict, click_x: int, click_y: int, method_name: str):
         """Print information about successful click"""
         ColorPrint.white("✅ Click Success Information:")
@@ -577,22 +367,22 @@ class ClickHandler:
         ColorPrint.green(f"   Element Name: {control_info.get('name', 'No name')}")
         ColorPrint.green(f"   Automation ID: {control_info.get('automation_id', 'No ID')}")
         ColorPrint.green(f"   Click Coordinates: X={click_x}, Y={click_y}")
-        
+
         rect = control_info.get('rect', {})
         if rect:
             ColorPrint.green(f"   Element Position: Left={rect.get('left', 0)}, Top={rect.get('top', 0)}, Right={rect.get('right', 0)}, Bottom={rect.get('bottom', 0)}")
             ColorPrint.green(f"   Element Size: Width={rect.get('width', 0)}, Height={rect.get('height', 0)}")
-        
+
         ColorPrint.green(f"   Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
+
     def click_element_generic(self, element_info: Dict, window=None) -> bool:
         """
         Generic clicking function that can click images, buttons, and other elements
-        
+
         Args:
             element_info: Dictionary containing element information
             window: Window object (optional)
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -602,31 +392,31 @@ class ClickHandler:
             if not rect:
                 ColorPrint.red("❌ Could not get element position")
                 return False
-            
+
             # Calculate center position
             center_x = rect['left'] + (rect['right'] - rect['left']) // 2
             center_y = rect['top'] + (rect['bottom'] - rect['top']) // 2
-            
+
             ColorPrint.green(f"🖱️  Clicking element at position ({center_x}, {center_y})")
             ColorPrint.gray(f"   Element info: {element_info.get('name', 'No name')} - {element_info.get('automation_id', 'No ID')}")
-            
+
             # Print detailed element information
             self._print_element_click_info(element_info, center_x, center_y)
-            
+
             # Try multiple clicking methods
             methods = [
-                ("Method 1: Background click - Direct window message", 
+                ("Method 1: Background click - Direct window message",
                  lambda: self.click_element_by_window_message(window._hWnd, center_x, center_y) if window else False),
-                ("Method 2: Background click - Post window message", 
+                ("Method 2: Background click - Post window message",
                  lambda: self.click_element_by_post_message(window._hWnd, center_x, center_y) if window else False),
-                ("Method 3: Background click - PyAutoGUI", 
+                ("Method 3: Background click - PyAutoGUI",
                  lambda: self._click_with_pyautogui(center_x, center_y)),
-                ("Method 4: Foreground click - Activate window then PyAutoGUI", 
+                ("Method 4: Foreground click - Activate window then PyAutoGUI",
                  lambda: self._click_with_foreground_activation(window, center_x, center_y) if window else False),
-                ("Method 5: UI Automation click", 
+                ("Method 5: UI Automation click",
                  lambda: self._click_with_uiautomation(element_info))
             ]
-            
+
             success_count = 0
             for i, (method_name, method_func) in enumerate(methods, 1):
                 try:
@@ -638,274 +428,60 @@ class ClickHandler:
                         success_count += 1
                     else:
                         ColorPrint.red(f"❌ Method {i} failed: {method_name}")
-                    
+
                     # Wait 1 second before next attempt (except for the last one)
                     if i < len(methods):
                         ColorPrint.gray(f"   Waiting 1 second before next method...")
                         time.sleep(1)
-                        
+
                 except Exception as e:
                     ColorPrint.red(f"❌ Method {i} failed with error: {method_name} - {e}")
                     if i < len(methods):
                         ColorPrint.gray(f"   Waiting 1 second before next method...")
                         time.sleep(1)
                     continue
-            
+
             if success_count > 0:
                 ColorPrint.green(f"✅ Completed all methods. {success_count} method(s) succeeded.")
                 return True
             else:
                 ColorPrint.red("❌ All clicking methods failed")
                 return False
-                
+
         except Exception as e:
             ColorPrint.red(f"❌ Error in generic click function: {e}")
             return False
-    
+
+    # ------------------------------------------------------------------ #
+    # Battle.net / Diablo III automation (delegated to BattlenetClicker)
+    # ------------------------------------------------------------------ #
     def find_and_click_diablo3_button(self, window, controls: List[Dict]) -> bool:
-        """
-        Find and click the Diablo III button using multiple methods
-        
-        Args:
-            window: Battle.net window object
-            controls: List of UI controls
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        ColorPrint.yellow("🎮 Looking for Diablo III button to click...")
-        
-        # Find the Diablo III button with automation_id "game-nav-btn-D3"
-        diablo3_button = None
-        diablo3_button_index = -1
-        for i, control in enumerate(controls):
-            if control.get('automation_id') == 'game-nav-btn-D3':
-                diablo3_button = control
-                diablo3_button_index = i
-                ColorPrint.green(f"✅ Found Diablo III button: {control.get('name', 'No name')}")
-                break
-        
-        if not diablo3_button:
-            ColorPrint.yellow("⚠️  Diablo III button not found with automation_id 'game-nav-btn-D3'")
-            ColorPrint.yellow("🔍 Searching for alternative Diablo III buttons...")
-            
-            # Try to find by name or other properties
-            for i, control in enumerate(controls):
-                name = control.get('name', '') or ''
-                automation_id = control.get('automation_id', '') or ''
-                value = control.get('value', '') or ''
-                
-                name = name.lower()
-                automation_id = automation_id.lower()
-                value = value.lower()
-                
-                if any(keyword in name or keyword in automation_id or keyword in value 
-                       for keyword in ['diablo', 'd3']):
-                    diablo3_button = control
-                    diablo3_button_index = i
-                    ColorPrint.green(f"✅ Found alternative Diablo III button: {control.get('name', 'No name')}")
-                    break
-        
-        if not diablo3_button:
-            ColorPrint.red("❌ Could not find Diablo III button")
-            ColorPrint.yellow("📋 Available buttons/controls:")
-            for i, control in enumerate(controls[:20]):  # Show first 20 controls
-                if 'type' in control:
-                    ColorPrint.gray(f"   {i}: {control.get('type', 'Unknown')} - {control.get('name', 'No name')} (ID: {control.get('automation_id', 'No ID')})")
-                else:
-                    ColorPrint.gray(f"   {i}: {control.get('class_name', 'Unknown')} - {control.get('title', 'No title')}")
-            return False
-        
-        # Find the first ImageControl after the Diablo III button
-        target_image_control = None
-        if diablo3_button_index >= 0:
-            ColorPrint.yellow("🔍 Looking for first ImageControl after Diablo III button...")
-            for i in range(diablo3_button_index + 1, len(controls)):
-                control = controls[i]
-                if control.get('type') == 'ImageControl':
-                    target_image_control = control
-                    ColorPrint.green(f"✅ Found target ImageControl: {control.get('name', 'No name')} (ID: {control.get('automation_id', 'No ID')})")
-                    break
-        
-        if not target_image_control:
-            ColorPrint.yellow("⚠️  No imageControl found after Diablo III button, using button position")
-            target_image_control = diablo3_button
-        
-        # Get target position
-        rect = target_image_control.get('rect', {})
-        if not rect:
-            ColorPrint.red("❌ Could not get target position")
-            return False
-        
-        # Calculate center position of the target
-        center_x = rect['left'] + (rect['right'] - rect['left']) // 2
-        center_y = rect['top'] + (rect['bottom'] - rect['top']) // 2
-        
-        ColorPrint.green(f"🖱️  Target position: ({center_x}, {center_y})")
-        ColorPrint.gray(f"   Target info: {target_image_control.get('name', 'No name')} - {target_image_control.get('automation_id', 'No ID')}")
-        
-        # Use the generic click function
-        return self.click_element_generic(target_image_control, window)
-    
+        """Find and click the Diablo III button. See BattlenetClicker.find_and_click_diablo3_button."""
+        return self._battlenet.find_and_click_diablo3_button(window, controls)
+
     def find_and_click_play_buttons(self, window, controls: List[Dict]) -> bool:
-        """
-        Find and click play buttons (called after first click)
-        
-        Args:
-            window: Battle.net window object
-            controls: UI controls list
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        ColorPrint.yellow("🎮 Looking for play buttons to click...")
-        
-        # Find play buttons using automation IDs array
-        play_buttons = []
-        for control in controls:
-            automation_id = control.get('automation_id', '')
-            if automation_id in PLAY_BUTTON_AUTOMATION_IDS:
-                play_buttons.append(control)
-                ColorPrint.green(f"✅ Found play button: {control.get('name', 'No name')} (ID: {automation_id})")
-        
-        if not play_buttons:
-            ColorPrint.yellow(f"⚠️  No play buttons found with automation_ids: {PLAY_BUTTON_AUTOMATION_IDS}")
-            return False
-        
-        # Click found play buttons
-        success_count = 0
-        for i, button in enumerate(play_buttons):
-            ColorPrint.yellow(f"🖱️  Clicking play button {i+1}/{len(play_buttons)}...")
-            if self.click_element_generic(button, window):
-                success_count += 1
-                time.sleep(1)  # Wait 1 second after click
-        
-        if success_count > 0:
-            ColorPrint.green(f"✅ Successfully clicked {success_count}/{len(play_buttons)} play buttons")
-            return True
-        else:
-            ColorPrint.red("❌ Failed to click any play buttons")
-            return False
-    
+        """Find and click play buttons. See BattlenetClicker.find_and_click_play_buttons."""
+        return self._battlenet.find_and_click_play_buttons(window, controls)
+
     def refresh_and_click_play_buttons(self, window) -> bool:
-        """
-        Refresh window and re-find play buttons for clicking
-        
-        Args:
-            window: Battle.net window object
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        ColorPrint.yellow("🔄 Refreshing window and looking for play buttons...")
-        
-        try:
-            # Re-activate window
-            window.activate()
-            time.sleep(2)  # Wait for window to fully activate
-            
-            # Re-enumerate controls
-            controls = self.enumerate_controls_ui_automation(window)
-            if not controls:
-                ColorPrint.yellow("⚠️  No UI Automation controls found after refresh")
-                return False
-            
-            ColorPrint.green(f"✅ Found {len(controls)} controls after refresh")
-            
-            # Find and click play buttons
-            return self.find_and_click_play_buttons(window, controls)
-            
-        except Exception as e:
-            ColorPrint.red(f"❌ Error refreshing window and clicking play buttons: {e}")
-            return False
-    
+        """Refresh window and re-click play buttons. See BattlenetClicker.refresh_and_click_play_buttons."""
+        return self._battlenet.refresh_and_click_play_buttons(window)
+
+    # ------------------------------------------------------------------ #
+    # UI-Automation control enumeration (delegated to WindowAnalyzer)
+    # ------------------------------------------------------------------ #
     def enumerate_controls_ui_automation(self, window) -> List[Dict]:
-        """Enumerate all controls using UI Automation"""
-        controls = []
-        
-        try:
-            # Get UI Automation control from window handle
-            window_handle = int(window._hWnd)
-            self.battle_net_window = auto.ControlFromHandle(window_handle)
-            
-            if not self.battle_net_window.Exists():
-                raise Exception("Cannot get Battle.net UI Automation controls")
-            
-            ColorPrint.green("🔍 Enumerating UI Automation controls...")
-            
-            # Recursively traverse all child controls
-            def walk_controls(control, parent_id=None, level=0):
-                control_id = len(controls)
-                
-                # Try to get visibility status
-                try:
-                    is_visible = control.IsVisible()
-                except (AttributeError, Exception):
-                    is_visible = None
-                
-                # Try to get enabled status
-                try:
-                    is_enabled = control.IsEnabled
-                except (AttributeError, Exception):
-                    is_enabled = None
-                
-                # Try to get value
-                try:
-                    value = control.CurrentValue
-                except (AttributeError, Exception):
-                    value = None
-                
-                # Try to get help text
-                try:
-                    help_text = control.CurrentHelpText
-                except (AttributeError, Exception):
-                    help_text = None
-                
-                # Try to get pattern support
-                try:
-                    patterns = []
-                    for pattern in control.GetSupportedPatterns():
-                        patterns.append(pattern.ProgrammaticName)
-                except (AttributeError, Exception):
-                    patterns = []
-                
-                control_info = {
-                    "id": control_id,
-                    "parent_id": parent_id,
-                    "type": control.ControlTypeName,
-                    "name": control.Name,
-                    "automation_id": control.AutomationId,
-                    "class_name": control.ClassName,
-                    "value": value,
-                    "help_text": help_text,
-                    "patterns": patterns,
-                    "rect": {
-                        "left": control.BoundingRectangle.left,
-                        "top": control.BoundingRectangle.top,
-                        "right": control.BoundingRectangle.right,
-                        "bottom": control.BoundingRectangle.bottom,
-                        "width": control.BoundingRectangle.width(),
-                        "height": control.BoundingRectangle.height()
-                    },
-                    "is_enabled": is_enabled,
-                    "is_visible": is_visible,
-                    "level": level
-                }
-                controls.append(control_info)
-                
-                # Traverse child controls
-                try:
-                    for child in control.GetChildren():
-                        walk_controls(child, control_id, level + 1)
-                except Exception as e:
-                    ColorPrint.yellow(f"⚠️  Error traversing child controls: {e}")
-            
-            walk_controls(self.battle_net_window)
-            ColorPrint.green(f"✅ Found {len(controls)} UI Automation controls")
-            
-        except Exception as e:
-            ColorPrint.red(f"❌ Error enumerating UI Automation controls: {e}")
-        
+        """Enumerate all controls using UI Automation.
+
+        Delegates to WindowAnalyzer.enumerate_controls_ui_automation (deleting the
+        local duplicate). Preserves the historical side-effect: the old local copy
+        set self.battle_net_window = ControlFromHandle(hwnd), which
+        _click_with_uiautomation reads. WindowAnalyzer stores the same control as
+        its self.target_window, so we mirror it back here.
+        """
+        controls = self._window_analyzer.enumerate_controls_ui_automation(window)
+        # Preserve side-effect consumed by _click_with_uiautomation.
+        self.battle_net_window = getattr(self._window_analyzer, "target_window", None)
         return controls
 
 
@@ -916,4 +492,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()

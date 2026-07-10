@@ -5,10 +5,10 @@
     (which pyservice.ps1 invokes), it forwards directly to the single source of
     truth:
 
-        scripts\shells\win\install_powershells\Step19_InstallEdgeTts.ps1
+        scripts\shells\win\install_powershells\Step12_InstallEdgeTts.ps1
 
     That same Step script is registered in InstallerScriptsList.ps1 right after
-    Step17_InstallFasterWhisper, so dd.cmd -> Run DevInstaller installs edge-tts
+    Step11_InstallFasterWhisper, so dd.cmd -> Run DevInstaller installs edge-tts
     in the main install flow too. Keeping the logic in one place guarantees the
     installer flow and the pyservice prerequisite flow stay identical.
 
@@ -34,7 +34,7 @@ $ErrorActionPreference = 'Stop'
 # Variable Declarations (all at top)
 # Repo root = iniscripts -> common -> linux -> shells -> scripts -> <repo root> (five parents up).
 $repoRoot   = Split-Path (Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent) -Parent
-$stepScript = Join-Path $repoRoot 'scripts\shells\win\install_powershells\Step19_InstallEdgeTts.ps1'
+$stepScript = Join-Path $repoRoot 'scripts\shells\win\install_powershells\Step12_InstallEdgeTts.ps1'
 $stepArgs   = @{}
 
 if (-not (Test-Path $stepScript)) {

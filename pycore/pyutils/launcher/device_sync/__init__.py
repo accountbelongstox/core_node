@@ -52,18 +52,6 @@ from .utils import (
     create_desktop_shortcut,
 )
 
-# Legacy imports (moved to _legacy/)
-try:
-    from ._legacy.tray_menu import DeviceSyncTrayMenu
-    from ._legacy.device_manager import DeviceManager
-    from ._legacy.unified_server import UnifiedServer
-    from ._legacy.http_sync_client import HTTPFileSyncClient
-    from ._legacy.device_discovery_scanner import DeviceDiscoveryScanner
-    from ._legacy.network_cache import NetworkCache
-    LEGACY_AVAILABLE = True
-except ImportError:
-    LEGACY_AVAILABLE = False
-
 __version__ = '3.0.0'
 
 __all__ = [
@@ -94,18 +82,4 @@ __all__ = [
     'check_status',
     'diagnose',
     'create_desktop_shortcut',
-
-    # Meta
-    'LEGACY_AVAILABLE',
 ]
-
-# Legacy exports (if available)
-if LEGACY_AVAILABLE:
-    __all__.extend([
-        'DeviceSyncTrayMenu',
-        'DeviceManager',
-        'UnifiedServer',
-        'HTTPFileSyncClient',
-        'DeviceDiscoveryScanner',
-        'NetworkCache',
-    ])

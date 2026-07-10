@@ -16,7 +16,7 @@ $PSScriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $
 $script:POSTINSTALL_DIR = Join-Path $PSScriptRoot "postinstall"
 $script:PROCESSOR_SCRIPT = Join-Path $script:POSTINSTALL_DIR "CursorAgentPostInstallProcessor.ps1"
 
-$SCRIPT_INDEX = "[Step128]"
+$SCRIPT_INDEX = "[Step 128]"
 Write-Host "$SCRIPT_INDEX Cursor Agent standalone (agent CLI + RipGrep, no Cursor app)" -ForegroundColor Cyan
 
 if (-not (Test-Path $script:PROCESSOR_SCRIPT)) {

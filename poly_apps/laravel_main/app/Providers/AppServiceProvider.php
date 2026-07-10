@@ -21,6 +21,7 @@ use App\Events\TranslationTaskPriorityEvent;
 use App\Events\WordTranslatedEvent;
 use App\Events\TranslationTaskCompletedEvent;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
+use App\Services\UserConfig\UserConfigService;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1DeployCommand;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1DeploySelfCommand;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1SSLCommand;
@@ -42,7 +43,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // User-data-area config loader (singleton: share the memoized JSON
+        // across a request). Source of truth for app feature settings, kept out
+        // of .env (which stays for bootstrap essentials only).
+        $this->app->singleton(UserConfigService::class);
     }
 
     /**

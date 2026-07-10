@@ -124,7 +124,7 @@ echo -e "\033[33m[0/5] Checking runtime dependencies...\033[0m"
 # Get install scripts paths (relative to script location)
 INSTALL_SHELLS_DIR="$SCRIPT_PATH/../linux/debian/install_shells"
 PYTHON_INSTALL_SCRIPT="$INSTALL_SHELLS_DIR/13_ensure_python.sh"
-NODE_INSTALL_SCRIPT="$INSTALL_SHELLS_DIR/14_install_node_22.sh"
+NODE_INSTALL_SCRIPT="$INSTALL_SHELLS_DIR/16_install_node_22.sh"
 
 # Check Node.js
 NODE_INSTALLED=false

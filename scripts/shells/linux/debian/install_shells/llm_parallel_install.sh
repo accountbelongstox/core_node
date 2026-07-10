@@ -16,7 +16,7 @@
 # DOWNLOADS overlap while the shared pip lock serializes their pip steps so the one venv is
 # never corrupted. REUSES base_libs/parallel_terminals.sh (same engine as tts_parallel_install.sh).
 #
-# Tasks: 95_install_deepseek, 96_install_deepseek_ocr, 97_install_qwen25, 98_install_nllb200.
+# Tasks: 97_install_deepseek, 98_install_deepseek_ocr, 99_install_qwen25, 100_install_nllb200.
 #
 # CAVEAT — transformers version conflict (pre-existing in the stack, NOT created here): these
 # pin DIFFERENT transformers (96 -> ==4.46.3; 97 -> >=4.37.0; 95/98 -> unpinned/--upgrade =
@@ -63,10 +63,10 @@ fi
 command -v "$PT_PYTHON" >/dev/null 2>&1 || PT_PYTHON="python3"
 
 # --- LLM stack task list (95-98; each script self-resolves the venv) --------- #
-pt_add_task "deepseek"     "95_install_deepseek"     "bash '$SCRIPT_DIR/95_install_deepseek.sh'"
-pt_add_task "deepseek-ocr" "96_install_deepseek_ocr" "bash '$SCRIPT_DIR/96_install_deepseek_ocr.sh'"
-pt_add_task "qwen25"       "97_install_qwen25"       "bash '$SCRIPT_DIR/97_install_qwen25.sh'"
-pt_add_task "nllb200"      "98_install_nllb200"      "bash '$SCRIPT_DIR/98_install_nllb200.sh'"
+pt_add_task "deepseek"     "97_install_deepseek"     "bash '$SCRIPT_DIR/97_install_deepseek.sh'"
+pt_add_task "deepseek-ocr" "98_install_deepseek_ocr" "bash '$SCRIPT_DIR/98_install_deepseek_ocr.sh'"
+pt_add_task "qwen25"       "99_install_qwen25"       "bash '$SCRIPT_DIR/99_install_qwen25.sh'"
+pt_add_task "nllb200"      "100_install_nllb200"      "bash '$SCRIPT_DIR/100_install_nllb200.sh'"
 
 pt_run
 exit 0

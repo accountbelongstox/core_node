@@ -16,7 +16,7 @@
 #   Already correct -> no-op.
 #
 # Safe to SOURCE (use the tcg_* functions) or RUN directly. Introduced at:
-#   - scripts/shells/linux/debian/install_shells/13_ensure_python.sh (install time, full mode)
+#   - scripts/shells/linux/debian/install_shells/14_install_python_prereq_packages.sh (install time, full mode)
 #   - scripts/shells/linux/common/iniscripts/prepare.sh (after every prerequisite install, repair-only)
 # Python in-process counterpart (same policy, at import):
 #   pycore/pyfoundations/third_party.py::_ensure_torch_cpu_build_when_no_gpu()
@@ -42,7 +42,7 @@ _TCG_PIPLOCK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/base_libs/pip_lock.s
 command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
 # Driver-matched CUDA wheel index (single source of truth) so a GPU install never grabs the
 # default "latest" wheel (e.g. cu130) that a 12.4 driver can't run.
-_TCG_CUDAIDX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/base_libs/torch_cuda_index.sh"
+_TCG_CUDAIDX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/base_libs/cuda_index.sh"
 [ -f "$_TCG_CUDAIDX" ] && . "$_TCG_CUDAIDX"
 command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "https://download.pytorch.org/whl/cu124"; }
 

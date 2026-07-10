@@ -115,7 +115,7 @@ backup_gitea() {
 
     if ! is_gitea_installed; then
         print_error_from_common_functions "Gitea is not installed"
-        print_info_from_common_functions "Please install Gitea first using 123_install_gitea.sh"
+        print_info_from_common_functions "Please install Gitea first using 125_install_gitea.sh"
         return 1
     fi
 

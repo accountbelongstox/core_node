@@ -1075,7 +1075,7 @@ Host → center_server:      absolute address (from host config, e.g. http://loc
 ### Phase 17: Redis Install via core_node Scripts + Debug Mode + Project Rules (2026-04-04)
 
 **Redis auto-install**:
-- Use existing `core_node/scripts/shells/linux/debian/install_shells/45_install_redis.sh`
+- Use existing `core_node/scripts/shells/linux/debian/install_shells/49_install_redis.sh`
 - Call from `start.sh` with `START_REDIS=true`, NOT from Python
 - ioredis retry limited to 3 attempts then STOP (no infinite loop)
 - Error log debounced to once per minute

@@ -166,6 +166,7 @@ export const enLocaleA: Record<string, string> = {
     'admin.t.result': 'Result',
     'admin.t.tts': 'Generate speech',
     'admin.t.provider': 'Provider',
+    'admin.t.fallback': 'Puter.js fallback used (no key)',
     'about.title': 'About Us',
     'about.sub': 'An AI multilingual vocabulary-learning platform',
     'about.appName': 'WordNew',

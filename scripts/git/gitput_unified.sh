@@ -53,7 +53,7 @@ SSH_KEY_NAME="id_ed25519"
 SSH_PUB_NAME="id_ed25519.pub"
 LOCAL_SSH_PUB_JS="$CORE_NODE_DIR/scripts/git/git.ssh.id.ed.pub.js"
 LOCAL_SSH_KEY_JS="$CORE_NODE_DIR/scripts/git/git.ssh.id.ed.js"
-SSH_INSTALL_SCRIPT="$CORE_NODE_DIR/scripts/shells/linux/debian/install_shells/20_install_git_ssh.sh"
+SSH_INSTALL_SCRIPT="$CORE_NODE_DIR/scripts/shells/linux/debian/install_shells/24_install_git_ssh.sh"
 
 # Cache and encryption variables
 SKIP_ENCRYPT_CACHE_DIR="/var/_node_core"

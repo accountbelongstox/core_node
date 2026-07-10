@@ -12,7 +12,7 @@
 
 <#
 .SYNOPSIS
-    Verify the effective Microsoft Defender state written by Step14_DV.ps1.
+    Verify the effective Microsoft Defender state written by Step19_DV.ps1.
     Reads the LIVE registry policy values + Defender runtime status (NOT the
     gpedit.msc store, which would falsely show "Not Configured" for keys set
     directly in the registry). Pops up a grid UI by default; -NoGui prints a table.
@@ -41,7 +41,7 @@ $Results          = New-Object System.Collections.Generic.List[object]
 $compStatus       = $null
 $prefStatus       = $null
 
-# Expected policy values (must match Step14_DV.ps1).
+# Expected policy values (must match Step19_DV.ps1).
 $ExpectedPolicies = @(
     [pscustomobject]@{ Path = $GP_DEFENDER;   Name = "DisableAntiSpyware";           Expected = 1; Setting = "Turn off Defender Antivirus" }
     [pscustomobject]@{ Path = $GP_DEFENDER;   Name = "DisableAntiVirus";             Expected = 1; Setting = "Turn off antivirus engine" }

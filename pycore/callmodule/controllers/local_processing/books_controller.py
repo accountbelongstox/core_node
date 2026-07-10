@@ -16,17 +16,11 @@ import os
 import re
 import json
 import time
-import hashlib
-import collections
 from typing import List, Optional, Tuple
 
 from pycore import ColorPrint, get_user_data_store, THREAD_BUS
 from pycore.pyfoundations.system_paths import get_local_data_dir
 from pycore.pyfoundations.text_parsing import (
-    tokenize_words,
-    split_sentences,
-    normalize_sentence_key,
-    language_breakdown,
     guess_language,
     normalize_language_codes,
 )
@@ -41,6 +35,7 @@ from pycore.callmodule.services.processors.book_processor import (
 # app-layer and cycle-free from this controller.
 from pycore.callmodule.services.processors.book_structure import (
     build_book_chapters_v3,
+    lists_from_text,
 )
 # v2 submit (build_book_payload_v2 inside) + the stable per-source key. Importing
 # the sync module here is app-layer (callmodule) and cycle-free.
@@ -49,26 +44,25 @@ from pycore.callmodule.services.sync.laravel_media_sync import (
     sync_book_source,
     SYNC_EVENT,
 )
+# On-disk drill-down list cache plumbing (extracted from this controller).
+# Re-exported here via thin delegating methods so the public BooksController API
+# and all internal call sites stay unchanged.
+from .books_list_cache import (
+    _BOOKS_NS,
+    list_cache_path,
+    source_fingerprint,
+    write_list_cache,
+    maybe_cache_lists,
+)
+# Books user-data persistence (the "books" section) - moved to books_state.py
+# (reuse-batch); thin delegators below preserve the public API.
+from . import books_state
 
-# User-data section persisting Books sources + their (compact) analysis +
-# submission state, so the UI reloads history on reopen/switch.
-_BOOKS_SECTION = "books"
-
-
-def _norm_path(path: str) -> str:
-    """Normalize a path for dedupe comparison."""
-    return os.path.normcase(os.path.abspath((path or "").strip()))
-
-# Books temp lives under the SHARED repo-local data dir (<core_node>/.data),
-# namespaced "pycore/..." — mirroring the laravel Books path (.data/appqyv1/...)
-# so both ends' Books scratch sits under the same shared .data area.
-_BOOKS_NS = "pycore"
+# _BOOKS_NS (the shared "pycore" data namespace) + _LIST_CACHE_SUBDIR now live in
+# books_list_cache.py; _BOOKS_NS is imported above for staging_dir below.
 # Where drag-dropped uploads (no OS path in the browser sandbox) are staged on
 # disk so they get a stable absolute path the ingest pipeline can read + key on.
 _STAGING_SUBDIR = "books_staging"
-# Cached full drill-down lists (words/sentences/...) per source_key, so paging a
-# huge book never re-extracts/re-tokenizes the source.
-_LIST_CACHE_SUBDIR = "books_cache"
 
 
 def _safe_filename(name: str) -> str:
@@ -116,6 +110,9 @@ def _norm_formats(formats: Optional[List[str]]) -> Optional[set]:
 
 
 class BooksController:
+    def __init__(self) -> None:
+        self._store = get_user_data_store()
+
     # ----- supported formats (sidebar filter) ----------------------------- #
     def supported_formats(self) -> SupportedFormatsResponse:
         return SupportedFormatsResponse(success=True, formats=sorted(BOOK_EXTENSIONS))
@@ -366,87 +363,40 @@ class BooksController:
             scanned=len(uploads), analyzed=ok_files, truncated_files=False,
         )
 
-    # ===================================================================== #
-    # Persistence — the "books" user-data section (survives UI reopen).      #
-    # Each source record: {path, mode, source_key, language,                 #
-    #   submission_state:'draft'|'synced', added_at, analyzed_at, synced_at, #
-    #   summary:{scanned, analyzed, mode, aggregate, files:[compact]}}.       #
-    # ===================================================================== #
+    # ----- persistence (the "books" user-data section) -------------------- #
+    # Moved to books_state.py (reuse-batch). Thin delegators keep the public
+    # API + internal call sites (analyze_upload / submit / analyze) unchanged;
+    # self._store is the shared UserDataStore singleton.
     def _section(self) -> dict:
-        return get_user_data_store().get_section(_BOOKS_SECTION) or {"sources": [], "last_options": {}}
+        return books_state.get_section(self._store)
 
     def _save_section(self, section: dict) -> None:
-        get_user_data_store().set_section(_BOOKS_SECTION, section)
+        books_state.save_section(self._store, section)
 
     def _state_response(self, section: dict) -> BooksStateResponse:
-        sources = [BookSourceState(**s) for s in section.get("sources", [])]
-        return BooksStateResponse(success=True, sources=sources,
-                                  last_options=section.get("last_options", {}))
+        return books_state.state_response(section)
 
     def get_state(self) -> BooksStateResponse:
-        return self._state_response(self._section())
+        return books_state.get_state(self._store)
 
     def _upsert_source(self, section: dict, path: str, mode: str,
                        language: Optional[str] = None, **patch) -> dict:
-        """Upsert a source by source_key; return the record. Mutates section."""
-        abs_path = os.path.abspath((path or "").strip())
-        key = source_key_for(abs_path)
-        sources = section.setdefault("sources", [])
-        rec = next((s for s in sources if s.get("source_key") == key), None)
-        if rec is None:
-            rec = {
-                "path": abs_path, "mode": mode, "source_key": key,
-                "language": language, "submission_state": "draft",
-                "added_at": time.time(), "analyzed_at": None,
-                "synced_at": None, "summary": None,
-            }
-            sources.append(rec)
-        rec["mode"] = mode or rec.get("mode") or "file"
-        if language:
-            rec["language"] = language
-        rec.update(patch)
-        return rec
+        return books_state.upsert_source(section, path, mode, language, **patch)
 
     def add_source(self, path: str, mode: str = "file",
                    language: Optional[str] = None) -> BooksStateResponse:
-        section = self._section()
-        self._upsert_source(section, path, mode, language)
-        self._save_section(section)
-        return self._state_response(section)
+        return books_state.add_source(self._store, path, mode, language)
 
     def remove_source(self, path: str) -> BooksStateResponse:
-        section = self._section()
-        target = _norm_path(path)
-        section["sources"] = [s for s in section.get("sources", [])
-                              if _norm_path(s.get("path", "")) != target]
-        self._save_section(section)
-        return self._state_response(section)
+        return books_state.remove_source(self._store, path)
 
     @staticmethod
     def _compact_summary(a: BooksAnalyzeResponse) -> dict:
-        """A small, persistable summary of an analysis (no full preview text)."""
-        return {
-            "scanned": a.scanned, "analyzed": a.analyzed, "mode": a.mode,
-            "aggregate": a.aggregate.model_dump() if a.aggregate else None,
-            "files": [{
-                "name": f.name, "ext": f.ext,
-                "words": f.stats.word_count if f.stats else 0,
-                "unique_words": f.stats.unique_word_count if f.stats else 0,
-                "sentences": f.stats.sentence_count if f.stats else 0,
-                "unique_sentences": f.stats.unique_sentence_count if f.stats else 0,
-                "primary_language": f.stats.primary_language if f.stats else "und",
-                "error": f.error,
-            } for f in a.files[:100]],
-        }
+        return books_state.compact_summary(a)
 
     def persist_analysis(self, path: str, mode: str, analysis: BooksAnalyzeResponse,
                          language: Optional[str] = None) -> None:
-        """Store a compact analysis summary onto the source record (upsert)."""
-        section = self._section()
-        self._upsert_source(section, path, mode, language,
-                            analyzed_at=time.time(),
-                            summary=self._compact_summary(analysis))
-        self._save_section(section)
+        books_state.persist_analysis(self._store, path, mode, analysis, language)
 
     # ----- submit: build v3 payload + ingest ONCE, mark synced ------------- #
     def submit(self, paths: Optional[List[str]] = None,
@@ -619,107 +569,24 @@ class BooksController:
             total_chapters=total_chapters, total_slots=total_slots)
 
     # ----- drill-down lists (paginated words / sentences / languages) ------ #
+    # On-disk drill-down cache plumbing now lives in books_list_cache.py (path /
+    # fingerprint / write / precompute); these thin delegators pass the
+    # controller's _list_files + _lists_from_text callables so all internal call
+    # sites (self._maybe_cache_lists / self._write_list_cache / ...) stay unchanged
+    # and the public BooksController API is preserved.
     def _list_cache_path(self, source_key: str) -> str:
-        d = os.path.join(str(get_local_data_dir()), _BOOKS_NS, _LIST_CACHE_SUBDIR)
-        os.makedirs(d, exist_ok=True)
-        return os.path.join(d, source_key + ".json")
+        return list_cache_path(source_key)
 
     def _source_fingerprint(self, path: str, fmt_filter: Optional[set],
                             max_files: int) -> str:
-        """A stable signature of a source's files (abspath|size|mtime).
+        return source_fingerprint(path, fmt_filter, max_files, self._list_files)
 
-        Used to validate the drill-down cache: when the underlying file changes
-        (or a cache was written before the file was extractable), the fingerprint
-        no longer matches and the cache is rebuilt — this self-heals a stale or
-        empty cached list instead of serving 0 forever.
-        """
-        files = self._list_files(path, fmt_filter)[:max_files]
-        if not files:
-            return "empty"
-        sig: List[str] = []
-        for f in files:
-            try:
-                st = os.stat(f)
-                sig.append(f"{os.path.abspath(f)}|{st.st_size}|{int(st.st_mtime)}")
-            except OSError:
-                sig.append(f"{os.path.abspath(f)}|?")
-        return hashlib.sha1("\n".join(sig).encode("utf-8")).hexdigest()
-
+    # Drill-down list builder moved to book_structure.lists_from_text (reuse-batch:
+    # pure text->words/sentences/chapters, no IO/state). Thin delegator keeps the
+    # internal call sites (_build_lists / _maybe_cache_lists / submit) unchanged.
     def _lists_from_text(self, all_text: str, ext: str = "",
                          path: Optional[str] = None) -> dict:
-        """Build the drill-down lists from already-extracted text (no IO).
-
-        Returns {words:[{word,count}], sentences:[{seq,text,chapter_index}],
-                 unique_sentences:[{seq,text,chapter_index}], languages:[...],
-                 chapters:[{chapter_index,title,sentence_count}],
-                 chapter_texts:[{chapter_index,title,text}], totals:{...}}.
-
-        Sentences are tagged with their detected ``chapter_index`` (v3 tree) so
-        ``list_items`` can serve chapter-scoped pages. ``chapter_texts`` carries the
-        RAW per-chapter body so chapter-scoped requests can rebuild the v3
-        correspondence slots (BookSlot[]) honoring the request's language set
-        without re-extracting the source. ``ext``/``path`` improve chapter
-        detection (epub/html); over joined folder text they are omitted and
-        heading heuristics apply.
-        """
-        tokens = tokenize_words(all_text)
-        # Distinct-word dedup uses str.lower() (NOT casefold) to agree with laravel
-        # mb_strtolower for non-ASCII letters (sharp-s, final sigma, dotted-I).
-        counter = collections.Counter(t.lower() for t in tokens)
-        words = [{"word": w, "count": c} for w, c in counter.most_common()]
-
-        # Chapter tree + per-chapter sentence tagging. Each chapter's sentences are
-        # split the same way as the flat list so seqs stay continuous + ordered.
-        primary = guess_language(all_text)
-        if primary in ("und", "", None):
-            primary = "en"
-        try:
-            chapter_rows = segment_chapters(all_text, ext, primary, path=path)
-        except Exception:
-            chapter_rows = [{"chapter_index": 0, "title": "Chapter 1", "text": all_text}]
-
-        sentences: List[dict] = []
-        chapters: List[dict] = []
-        chapter_texts: List[dict] = []
-        seq = 0
-        seen: set = set()
-        unique_sentences: List[dict] = []
-        for ch in chapter_rows:
-            ci = int(ch.get("chapter_index", 0) or 0)
-            ch_title = ch.get("title") or "Chapter 1"
-            ch_body = ch.get("text") or ""
-            ch_sents = split_sentences(ch_body)
-            for s in ch_sents:
-                sentences.append({"seq": seq, "text": s, "chapter_index": ci})
-                seq += 1
-                key = normalize_sentence_key(s)
-                if key and key not in seen:
-                    seen.add(key)
-                    unique_sentences.append({
-                        "seq": len(unique_sentences), "text": s, "chapter_index": ci})
-            # v3.1 per-language titles: only the detected primary language is filled
-            # here (whole-source drill-down knows just the book's own text); the FE
-            # adds blank cells for the other checked languages. 'title' kept for
-            # back-compat convenience (== the primary-language title).
-            chapters.append({
-                "chapter_index": ci,
-                "title": ch_title,
-                "titles": {primary: ch_title},
-                "sentence_count": len(ch_sents),
-            })
-            chapter_texts.append({"chapter_index": ci, "title": ch_title, "text": ch_body})
-
-        languages = language_breakdown(all_text)
-        totals = {
-            "words": len(tokens), "unique_words": len(counter),
-            "sentences": len(sentences), "unique_sentences": len(unique_sentences),
-            "chapters": len(chapters), "chars": len(all_text),
-        }
-        return {"words": words, "sentences": sentences,
-                "unique_sentences": unique_sentences, "languages": languages,
-                "chapters": chapters, "chapter_texts": chapter_texts,
-                "primary_language": primary,
-                "totals": totals}
+        return lists_from_text(all_text, ext, path)
 
     def _build_lists(self, path: str, fmt_filter: Optional[set],
                      max_files: int) -> dict:
@@ -748,32 +615,12 @@ class BooksController:
 
     def _write_list_cache(self, path: str, fmt_filter: Optional[set],
                           max_files: int, data: dict) -> None:
-        """Persist drill-down lists for a source, stamped with its fingerprint."""
-        stamped = {**data, "_fp": self._source_fingerprint(path, fmt_filter, max_files)}
-        cache_file = self._list_cache_path(source_key_for(os.path.abspath(path)))
-        with open(cache_file, "w", encoding="utf-8") as fh:
-            json.dump(stamped, fh, ensure_ascii=False)
+        write_list_cache(path, fmt_filter, max_files, data, self._list_files)
 
     def _maybe_cache_lists(self, path: str, mode: str,
                            fmt_filter: Optional[set], text: str) -> None:
-        """Precompute the drill-down cache from text extracted during analyze.
-
-        Only for single-file sources with no format filter (the canonical
-        list_items lookup uses formats=None), and only when text was extracted —
-        so opening the Words/Sentences list right after Analyze is instant rather
-        than re-extracting the whole book. Folders build lazily on first open.
-        """
-        if mode != "file" or fmt_filter is not None or not (text and text.strip()):
-            return
-        try:
-            ext = os.path.splitext(path)[1].lower()
-            data = self._lists_from_text(text, ext, os.path.abspath(path))
-            # Keep the raw extracted text alongside the lists so a later submit
-            # can ingest WITHOUT re-extracting the file (see _cached_full_text).
-            data["full_text"] = text
-            self._write_list_cache(path, None, 25, data)
-        except OSError as e:
-            ColorPrint.yellow(f"[BooksController] precompute list cache failed: {e}")
+        maybe_cache_lists(path, mode, fmt_filter, text,
+                          self._lists_from_text, self._list_files)
 
     def _cached_full_text(self, path: str) -> Optional[str]:
         """Return the cached extracted text for a single-file source, or None.

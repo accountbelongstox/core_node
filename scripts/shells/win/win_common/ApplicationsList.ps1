@@ -311,8 +311,8 @@ $Global:BasePackages = @{
     }
     # NodeJS configuration moved to Step4_InstallNodeJS.ps1
     # Node.js is now installed and configured by Step4_InstallNodeJS.ps1 directly
-    # Python configuration moved to Step9_InstallPython.ps1
-    # Python is now installed and configured by Step9_InstallPython.ps1 directly
+    # Python configuration moved to Step8_InstallPython.ps1
+    # Python is now installed and configured by Step8_InstallPython.ps1 directly
     Pandoc     = @{
         PackageId           = "JohnMacFarlane.Pandoc"
         Exec               = "pandoc.exe"

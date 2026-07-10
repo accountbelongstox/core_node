@@ -44,7 +44,7 @@ import type {
 
 import { MasterApiClient } from '../base';
 import type { MasterRequestOptions } from '../base';
-import { rewritePycoreEndpoint } from './pycoreTarget';
+import { rewritePycoreEndpoint, pycoreWsUrlOverride } from './pycoreTarget';
 
 /**
  * Structural opt-in on the master API base client (core/api-libs/base) for
@@ -149,7 +149,7 @@ export function mapQueueSnapshot(data: any): QueueResponse {
     // item is still being processed (no more hardcoded "completed").
     status: it?.audio_path ? 'completed' : 'processing',
     audioUrl: it?.audio_path
-      ? `/pyapi/voice-subtitle/audio?path=${encodeURIComponent(it.audio_path)}`
+      ? rewritePycoreEndpoint(`/pyapi/voice-subtitle/audio?path=${encodeURIComponent(it.audio_path)}`)
       : undefined,
     metadata: {
       lang: it?.lang,
@@ -361,16 +361,20 @@ export const pycoreApi = {
 
   // --- runtime (backend WS url + api base) -------------------------------- #
   // No server round-trip: the WS connects directly to the backend port and the
-  // REST base is always the /pyapi proxy (same convention as PycoreWs).
+  // REST base is either /pyapi proxy (sandbox) or direct :59000.
   getRuntime: (): Promise<RuntimeInfo> => {
+    // Honor the whole-UI pycore target (origin/local/remote); fall back to the
+    // local/sandbox default when no override is set (local mode).
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const http = location.protocol === 'https:' ? 'https' : 'http';
     const isSandbox = location.hostname.includes('asia-southeast1.run.app') || location.hostname.includes('run.app') || location.port === '3000';
-    const wsUrl = isSandbox
+    const wsUrl = pycoreWsUrlOverride() ?? (isSandbox
       ? `${proto}://${location.host}/pyapi/rpc/ws`
-      : `${proto}://${location.hostname}:59000/rpc/ws`;
+      : `${proto}://${location.hostname}:59000/rpc/ws`);
+    const apiBase = isSandbox ? '/pyapi' : `${http}://${location.hostname}:59000`;
     return Promise.resolve({
       wsUrl,
-      apiBase: '/pyapi',
+      apiBase,
     });
   },
 
@@ -652,7 +656,7 @@ export const pycoreApi = {
     getJSON<ImageHistoryResponse>(`/pyapi/api/local/ai/image/history?limit=${encodeURIComponent(String(limit))}`),
   /** Raw-bytes URL for one history entry's image (use directly in an <img src>). */
   imageHistoryFileUrl: (id: string): string =>
-    `/pyapi/api/local/ai/image/history/file/${encodeURIComponent(id)}`,
+    rewritePycoreEndpoint(`/pyapi/api/local/ai/image/history/file/${encodeURIComponent(id)}`),
   deleteImageHistory: (id: string) =>
     deleteJSON<ImageHistoryDeleteResponse>(`/pyapi/api/local/ai/image/history/${encodeURIComponent(id)}`),
   clearImageHistory: () =>
@@ -666,7 +670,7 @@ export const pycoreApi = {
     getJSON<SpeechHistoryResponse>(`/pyapi/api/local/speech/history?limit=${encodeURIComponent(String(limit))}`),
   /** Raw-bytes URL for one clip (use directly in an <audio src>). */
   speechHistoryFileUrl: (id: string): string =>
-    `/pyapi/api/local/speech/history/file/${encodeURIComponent(id)}`,
+    rewritePycoreEndpoint(`/pyapi/api/local/speech/history/file/${encodeURIComponent(id)}`),
   deleteSpeechHistory: (id: string) =>
     deleteJSON<{ success: boolean }>(`/pyapi/api/local/speech/history/${encodeURIComponent(id)}`),
   clearSpeechHistory: () =>

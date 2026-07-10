@@ -34,6 +34,8 @@ VOLC_API_KEY=""
 VOLC_MODEL="glm-5.2"
 ultra_settings_json='{"ultracode":true}'
 claude_args=()
+force_model_choice=""
+force_model_enabled=0
 ARK_API_KEY=""
 ARK_BASE_URL=""
 masked_key=""
@@ -103,21 +105,33 @@ if [ -z "$ARK_BASE_URL" ]; then
     ARK_BASE_URL="https://ark.cn-beijing.volces.com/api/coding"
 fi
 
-# Set the Claude Code environment variables
+# Set the Claude Code environment variables (gateway always; model slots opt-in below).
 export ANTHROPIC_BASE_URL="$ARK_BASE_URL"
 if [ -n "$ARK_API_KEY" ]; then
     export ANTHROPIC_AUTH_TOKEN="$ARK_API_KEY"
 fi
-export ANTHROPIC_MODEL="$VOLC_MODEL"
-# Force the model into every slot so agent-teams / subagents / background tasks
-# also run through the gateway (it only serves glm-5.2).
-export CLAUDE_CODE_SUBAGENT_MODEL="$VOLC_MODEL"
-export ANTHROPIC_DEFAULT_HAIKU_MODEL="$VOLC_MODEL"
-export ANTHROPIC_DEFAULT_SONNET_MODEL="$VOLC_MODEL"
+
+# Optional: force glm-5.2 everywhere. Opt-in prompt, default No (like claudeteam).
+read -r -p "Force model ${VOLC_MODEL} everywhere (main + subagents + background)? [y/N]: " force_model_choice || force_model_choice=""
+if [ "$force_model_choice" = "y" ] || [ "$force_model_choice" = "Y" ]; then
+    force_model_enabled=1
+fi
+
+if [ "$force_model_enabled" -eq 1 ]; then
+    export ANTHROPIC_MODEL="$VOLC_MODEL"
+    export CLAUDE_CODE_SUBAGENT_MODEL="$VOLC_MODEL"
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL="$VOLC_MODEL"
+    export ANTHROPIC_DEFAULT_SONNET_MODEL="$VOLC_MODEL"
+    echo "[NOTE] ${VOLC_MODEL} forced for main session, subagents and background (Haiku/Sonnet) slots."
+fi
 
 # Configuration summary
 echo "API Endpoint: $ANTHROPIC_BASE_URL"
-echo "Model: $ANTHROPIC_MODEL (forced: main + subagents + background)"
+if [ "$force_model_enabled" -eq 1 ]; then
+    echo "Model: $VOLC_MODEL (forced: main + subagents + background)"
+else
+    echo "Model: off (default N) - using the account default model"
+fi
 echo "Agent Teams: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (force-enabled)"
 echo "Ultracode: --settings $ultra_settings_json (force-enabled)"
 
@@ -142,9 +156,12 @@ fi
 echo "============================================================"
 echo ""
 
-# Build claude args: ultracode settings always on; skip-permissions for non-root
-# (root already has full permissions and Claude Code refuses that flag as root).
+# Build claude args: ultracode settings always on; skip-permissions for non-root;
+# --model only when opted in (like claudeteam).
 claude_args+=(--settings "$ultra_settings_json")
+if [ "$force_model_enabled" -eq 1 ]; then
+    claude_args+=(--model "$VOLC_MODEL")
+fi
 if [ "$EUID" -ne 0 ]; then
     claude_args+=(--permission-mode bypassPermissions --dangerously-skip-permissions)
 fi
@@ -158,7 +175,7 @@ read -p "Press Enter to continue..."
 echo ""
 echo "Executing: claude ${claude_args[*]}"
 echo ""
-echo "Environment: ANTHROPIC_BASE_URL='${ANTHROPIC_BASE_URL}', ANTHROPIC_MODEL='${ANTHROPIC_MODEL}'"
+echo "Environment: ANTHROPIC_BASE_URL='${ANTHROPIC_BASE_URL}'$(if [ "$force_model_enabled" -eq 1 ]; then echo ", ANTHROPIC_MODEL='${VOLC_MODEL}'"; fi)"
 echo ""
 
 exec claude "${claude_args[@]}" "$@"

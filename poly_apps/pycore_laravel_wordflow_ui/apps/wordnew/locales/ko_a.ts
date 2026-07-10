@@ -189,6 +189,7 @@ export const koLocaleA: Record<string, string> = {
     'admin.t.result': '결과',
     'admin.t.tts': '음성 생성',
     'admin.t.provider': '프로바이더',
+    'admin.t.fallback': 'Puter.js 폴백 사용 (키 불필요)',
     'about.title': '앱 정보',
     'about.sub': 'AI 다국어 단어 학습 플랫폼',
     'about.appName': 'WordNew',

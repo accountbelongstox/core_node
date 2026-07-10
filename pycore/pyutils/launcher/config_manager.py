@@ -78,7 +78,12 @@ class ConfigManager:
             'window_chrome': {
                 'title_bar_plus_padding_px': 56,
                 'horizontal_padding_px': 24,
-                'content_scale': 0.78
+                'content_scale': 0.78,
+                # Inter-cell gaps (px) so adjacent terminal windows never touch
+                # ("squeezed together"). Subtracted from the screen before grid
+                # division, then re-added as a step between cell origins.
+                'gap_horizontal_px': 16,
+                'gap_vertical_px': 24
             },
             'applications': self._get_applications_defaults()
         }

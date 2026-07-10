@@ -79,7 +79,7 @@ SCRIPT_CATEGORIES = {
     ],
     # Shell scripts (root level utilities)
     "shells": [
-        "133_setup_api_domains.sh",
+        "135_setup_api_domains.sh",
     ],
 }
 

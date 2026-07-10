@@ -31,7 +31,7 @@ COLOR_CYAN="\033[36m"
 check_mysql_installed() {
     if ! command -v mysql >/dev/null 2>&1; then
         echo -e "${COLOR_RED}MySQL/MariaDB is not installed!${COLOR_RESET}"
-        echo "Please run installation script first: 50_install_mysql.sh"
+        echo "Please run installation script first: 52_install_mysql.sh"
         return 1
     fi
     return 0

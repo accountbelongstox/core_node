@@ -166,6 +166,7 @@ export const zhLocaleA: Record<string, string> = {
     'admin.t.result': '结果',
     'admin.t.tts': '生成语音',
     'admin.t.provider': '提供方',
+    'admin.t.fallback': '已用 Puter.js 回退（免密钥）',
     'about.title': '关于我们',
     'about.sub': 'AI 多语言学习背词平台',
     'about.appName': 'WordNew',

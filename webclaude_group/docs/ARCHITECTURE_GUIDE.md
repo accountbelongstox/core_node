@@ -288,7 +288,7 @@ Every project ships `start.sh` + `start.ps1` with idempotent prerequisite "ensur
 | Service | Hot reload | Prefer / fallback | Ensure (prerequisites) |
 |---------|-----------|-------------------|------------------------|
 | webclaude_center_server | **nodemon** | local `node_modules/.bin/nodemon` → global → plain `node` | deps check, hash-guarded `npm install`, `.env` (CRLF fix), admin auto-setup, MySQL/Redis TCP probe |
-| webclaude_go-gateway | **air** | `air` → built binary | `ensure_go` (auto-install via core_node `53_install_golang22.sh`), `GOPROXY`/`GOSUMDB` fix, `go mod tidy`, `.env`, readiness |
+| webclaude_go-gateway | **air** | `air` → built binary | `ensure_go` (auto-install via core_node `55_install_golang22.sh`), `GOPROXY`/`GOSUMDB` fix, `go mod tidy`, `.env`, readiness |
 | webclaude_website | **Vite HMR** | `pnpm run dev` | Node/pnpm check, `pnpm install`, clear `node_modules/.vite` |
 | claude_host | **watchdog** | `start.sh --dev` → `scripts/dev_reload.py` (auto-installs `watchdog`) | python3 check, `pip install` websockets, config hints |
 

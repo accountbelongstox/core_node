@@ -1,11 +1,11 @@
-> 41_install_ruby.sh
-  37_install_dotnet.sh
-  38_install_flutter.sh
-  39_install_android_studio.sh
-  45_install_redis.sh
-  46_install_postgresql.sh
-  47_install_docker.sh
-  50_install_mysql.sh
+> 43_install_ruby.sh
+  39_install_dotnet.sh
+  40_install_flutter.sh
+  41_install_android_studio.sh
+  47_install_redis.sh
+  48_install_postgresql.sh
+  49_install_docker.sh
+  52_install_mysql.sh
   48_set_docker_daemon.sh
 1. Redis           : [STOPPED - Auto-start DISABLED]
 2. PostgreSQL      : [NOT INSTALLED]

@@ -73,7 +73,7 @@ function Ensure-Winget {
 
 # Idempotent NSSM resolution: reuse an existing install, else auto-install via winget
 # (mirrors the Linux pattern of resolving a tool then invoking its canonical installer
-# on demand -- see install_powershells/Step103_InstallNSSM.ps1 for the DevInstaller-menu
+# on demand -- see install_powershells/Step40_InstallNSSM.ps1 for the DevInstaller-menu
 # entry point that wraps this same function). RepoRootDir is used only to locate
 # Step3_InitWinget.ps1 when winget itself is missing.
 function Ensure-Nssm {

@@ -25,7 +25,7 @@ source "$PARENT_DIR_LEVEL_5/linux/common/gvar_common.sh"
 # Check if AI tools installation is enabled
 INSTALL_AI_TOOLS=$(get_var "INSTALL_AI_TOOLS")
 if [ "$INSTALL_AI_TOOLS" != "true" ]; then
-    echo "[15] Skipping pipx installation (INSTALL_AI_TOOLS: $INSTALL_AI_TOOLS)"
+    echo "[17] Skipping pipx installation (INSTALL_AI_TOOLS: $INSTALL_AI_TOOLS)"
     exit 0
 fi
 

@@ -79,9 +79,9 @@ fi
 [[ "$FORCE" -eq 1 ]] && FORCE_ARG="--force"
 
 # --- TTS/STT task list ------------------------------------------------------- #
-pt_add_task "sherpa-core"     "22 --core-only"            "bash '$SCRIPT_DIR/22_install_tts_offline.sh' --core-only --python '$PYTHON' $FORCE_ARG"
-pt_add_task "edge-tts"        "21_install_edge_tts"       "bash '$SCRIPT_DIR/21_install_edge_tts.sh' --python '$PYTHON' $FORCE_ARG"
-pt_add_task "faster-whisper"  "14_install_faster_whisper" "bash '$SCRIPT_DIR/14_install_faster_whisper.sh' --python '$PYTHON' $FORCE_ARG"
+pt_add_task "sherpa-core"     "22 --core-only"            "bash '$SCRIPT_DIR/24_install_tts_offline.sh' --core-only --python '$PYTHON' $FORCE_ARG"
+pt_add_task "edge-tts"        "23_install_edge_tts"       "bash '$SCRIPT_DIR/23_install_edge_tts.sh' --python '$PYTHON' $FORCE_ARG"
+pt_add_task "faster-whisper"  "16_install_faster_whisper" "bash '$SCRIPT_DIR/16_install_faster_whisper.sh' --python '$PYTHON' $FORCE_ARG"
 pt_add_task "openai-whisper"  "install_whisper"           "bash '$INISCRIPTS_DIR/install_whisper.sh' --python '$PYTHON' $FORCE_ARG"
 pt_add_task "vosk"            "install_vosk"              "bash '$INISCRIPTS_DIR/install_vosk.sh' --python '$PYTHON' $FORCE_ARG"
 pt_add_task "azure-sdk"       "pip azure-speech"          ". '$PT_COMMON_DIR/base_libs/pip_lock.sh' 2>/dev/null || true; if ! command -v vpip >/dev/null 2>&1; then vpip(){ \"\$@\"; }; fi; vpip '$PYTHON' -m pip install --upgrade azure-cognitiveservices-speech"

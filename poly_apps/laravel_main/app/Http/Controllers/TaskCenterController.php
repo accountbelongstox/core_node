@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\GlobalTask;
+use App\Models\Worker;
 use App\Services\OctaneTimerService;
 use App\Services\TaskManagerService;
+use App\Services\UserConfig\UserConfigService;
 use App\Services\WorkerManagerService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use App\Traits\ApiResponse;
 
 /**
@@ -74,6 +77,38 @@ class TaskCenterController extends Controller
     {
         $this->taskManager = $taskManager;
         $this->workerManager = $workerManager;
+    }
+
+    /**
+     * GET /api/task-center/settings
+     * Task-center runtime toggles, read from the user-data config
+     * (UserConfigService). use_server_binary_assist (default OFF) gates whether
+     * Laravel may call local TTS binaries - OFF = pycore generates everything.
+     */
+    public function getSettings(): JsonResponse
+    {
+        $config = app(UserConfigService::class);
+        return $this->success([
+            'use_server_binary_assist' => $config->useServerBinaryAssist(),
+        ], 'Task center settings');
+    }
+
+    /**
+     * POST /api/task-center/settings
+     * Persist task-center runtime toggles to the user-data config.
+     */
+    public function updateSettings(Request $request): JsonResponse
+    {
+        $config = app(UserConfigService::class);
+        if ($request->has('use_server_binary_assist')) {
+            $ok = $config->set('use_server_binary_assist', $request->boolean('use_server_binary_assist'));
+            if (!$ok) {
+                return $this->error('Failed to write settings file', 500);
+            }
+        }
+        return $this->success([
+            'use_server_binary_assist' => $config->useServerBinaryAssist(),
+        ], 'Task center settings updated');
     }
 
     /**

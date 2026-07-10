@@ -50,7 +50,7 @@
       "Bash(php -l app/Services/UserSyncService.php)",
       "Bash(python3 *)",
       "Bash(php:*)",
-      "Bash(chmod +x scripts/shells/linux/debian/install_shells/63_install_tailscale.sh)",
+      "Bash(chmod +x scripts/shells/linux/debian/install_shells/65_install_tailscale.sh)",
       "Bash(getent passwd:*)",
       "Bash(awk -F: '$3 >= 1000 || $1 == \"root\" {print $1, $3, $6}')",
       "Bash(sort -k2 -n)",
@@ -83,7 +83,19 @@
       "Bash(systemctl --user list-units --type=scope)",
       "Bash(systemctl list-units *)",
       "Bash(swapon --show)",
-      "Bash(lspci)"
+      "Bash(lspci)",
+      "mcp__chrome__chrome_get_web_content",
+      "mcp__chrome__chrome_network_capture",
+      "mcp__chrome__chrome_click_element",
+      "mcp__chrome__chrome_computer",
+      "mcp__chrome__chrome_switch_tab",
+      "Bash(curl -sL -A \"Mozilla/5.0 \\(X11; Linux x86_64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0 Safari/537.36\" \"https://zh.howtopronounce.com/hello\" -o htp.html)",
+      "Bash(curl -sI -A \"Mozilla/5.0\" -H \"Origin: https://zh.howtopronounce.com\" -H \"Referer: https://zh.howtopronounce.com/\" \"https://en-audio.howtopronounce.com/161431122060386f3403b65.mp3\")",
+      "Bash(echo \"exit=$?\")",
+      "Bash(echo \" exit=$?\")",
+      "Bash(command -v php)",
+      "Bash(awk '/^verify_open_basedir_config_from_php_common\\\\\\(\\\\\\) \\\\{/,/^\\\\}/' debian/debian_com/php_common_functions.sh)",
+      "Read(//etc/php/8.5/cli/**)"
     ]
   }
 }

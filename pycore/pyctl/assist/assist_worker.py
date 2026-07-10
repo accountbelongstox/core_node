@@ -1,21 +1,34 @@
 # -*- coding: utf-8 -*-
 """
-Assist-Laravel background worker — pycore claims generation work from the
+Assist-Laravel background worker - pycore claims generation work from the
 SELECTED laravel_main endpoint, generates locally, and submits results back.
 
 Capabilities (claim types):
-  cover — AI cover images via the injected image generator (the app layer wires
-          pyctl.ai.generate_image in — pyctl/* packages must not import each
-          other, mirroring pyctl.desktop.ai_hooks composition).
-  tts   — word/sentence audio via the existing TTS orchestrator
-          (pycore.pyutils.tts.tts_orchestrator: edge → sherpa → melotts →
-          gptsovits). The Laravel contract requires MP3 bytes; non-MP3 output
-          is RELEASED with a clear error instead of being submitted.
+  cover  - AI cover images via the injected image generator (the app layer wires
+           pyctl.ai.generate_image in - pyctl/* packages must not import each
+           other, mirroring pyctl.desktop.ai_hooks composition).
+  tts    - word/sentence audio via the existing TTS orchestrator
+           (pycore.pyutils.tts.tts_orchestrator: edge -> sherpa -> melotts ->
+           gptsovits). The Laravel contract requires MP3 bytes; non-MP3 output
+           is RELEASED with a clear error instead of being submitted.
+  poster - movie/TV poster lookup via movie_poster_client (TMDB -> OMDB).
 
-Word TRANSLATIONS are deliberately NOT claimed here — they already ride the
+Word TRANSLATIONS are deliberately NOT claimed here - they already ride the
 existing TranslationWorkerService (/api/worker/tasks/pull pipeline). This
 worker's master toggle gates that service too (see callmodule_main.py /
 event_handlers.py: translation_worker_enabled_on_start()).
+
+------------------------------------------------------------------------------
+Module split (this file is the slim orchestrator + facade)
+------------------------------------------------------------------------------
+  assist_settings.py  settings contract + per-capability toggle gates.
+  assist_payload.py   pure payload transforms + worker-id/time helpers.
+  assist_handlers.py  _handle_cover / _handle_tts / _handle_poster (module
+                      funcs taking a narrow ctx - never reach into locks).
+  assist_worker.py    THIS FILE: AssistWorker singleton (loop, locks, wiring)
+                      + re-exports of the public API.
+  pyutils/worker_base.py  shared _short_err + CircuitBreaker mixin (assist_worker
+                      inherits it; sibling retrofit deferred - see TODO there).
 
 ------------------------------------------------------------------------------
 Laravel contract (base = the SELECTED laravel endpoint, see endpoint resolver)
@@ -42,318 +55,69 @@ Architecture (mirrors TranslationWorkerService's structure)
   - Jittered sleep (poll_interval_s * 0.8..1.2) between cycles; settings are
     re-read from the unified user-data store every cycle so interval /
     capability changes apply live without a restart.
-  - Circuit breaker: after CIRCUIT_FAIL_THRESHOLD consecutive server-side
-    HTTP 5xx give-ups the breaker OPENS for CIRCUIT_COOLDOWN_SECONDS — the
-    loop keeps running but skips claiming until the cooldown expires; any
-    accepted 2xx response resets it.
+  - Circuit breaker (inherited from pyutils.worker_base.CircuitBreaker): after
+    CIRCUIT_FAIL_THRESHOLD consecutive server-side HTTP 5xx give-ups the breaker
+    OPENS for CIRCUIT_COOLDOWN_SECONDS - the loop keeps running but skips
+    claiming until the cooldown expires; any accepted 2xx response resets it.
   - Endpoint selection is INJECTED by the app layer (callmodule wires the
     LaravelEndpointManager resolver in via configure()); pyctl never imports
     callmodule. Without injection a stdlib fallback reads the stored
     ``laravel_api.current`` straight from user_data.json.
 
-Settings (unified user-data store, section ``assist_laravel``):
-    { enabled: bool (default False),
-      capabilities: { cover: true, tts: true, translation: true },
-      poll_interval_s: int (default 30, 5..600),
-      batch_limit: int (default 3, 1..10) }
+RISK - singleton + dual-lock state: AssistWorker holds _instance_lock (singleton),
+_thread_lock (loop), _cycle_lock (serialize daemon loop vs POST /api/local/assist/cycle),
++ a parallel TTS track thread mutating private state. ALL these locks/state stay
+on this class; handlers receive a ctx and never reach into locks.
 
 Logging: ColorPrint only (pycore rule). Networking: the lazily-loaded
-third-party ``requests`` via pycore.pyfoundations.third_party — never a bare
+third-party ``requests`` via pycore.pyfoundations.third_party - never a bare
 import. All imports at file top (PYTHON_PYCORE.md §1.4).
 """
 
-import base64
-import math
-import os
 import random
-import re
-import socket
-import tempfile
 import threading
-import time
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyfoundations.system_paths import get_user_data_store
-from pycore.pyutils.common import result_cache
-from pycore.pyutils.security.machine_id import get_machine_id
-from pycore.pyutils.tts import tts_orchestrator
-from pycore.pyutils.external_apis.movie_poster_client import find_poster, parse_title_year
+from pycore.pyutils.worker_base import CircuitBreaker, _short_err
 
-
-# ============================================================
-# Settings (unified user-data store, section "assist_laravel")
-# ============================================================
-
-USER_DATA_SECTION = "assist_laravel"
-
-# Laravel assist API prefix (relative to the selected endpoint base URL).
-ASSIST_API_PREFIX = "/api/app_qy_v1/assist"
-
-POLL_INTERVAL_MIN, POLL_INTERVAL_MAX = 5, 600
-BATCH_LIMIT_MIN, BATCH_LIMIT_MAX = 1, 10
-
-# Per-capability assist toggles — the SINGLE control plane the Queue Center
-# exposes. Each key gates a real lane/claim (see translation_worker_service
-# _*_enabled gates + AssistWorker.CLAIMABLE_TYPES):
-#   translation    word translation (translation_worker heartbeat)
-#   ai_translate   AI translation (remote_fast ai_translate capability)
-#   cover          AI vocabulary cover image (assist-queue claim)
-#   poster         movie/TV poster lookup (assist-queue claim + remote_poster lane)
-#   image          word media image (remote_fast image capability)
-#   tts            word voice / TTS (remote_audio lane + assist-queue tts claim)
-#   sentence_audio sentence voice (remote_sentence_audio lane) — INDEPENDENT of tts
-#   subtitle       subtitle search (remote_subtitle lane)
-#   stt            speech -> text (remote_stt lane; Laravel lane added separately)
-DEFAULT_SETTINGS: Dict[str, Any] = {
-    "enabled": False,
-    "capabilities": {
-        "translation": True,
-        "ai_translate": True,
-        "cover": True,
-        "poster": True,
-        "image": True,
-        "tts": True,
-        "sentence_audio": True,
-        # subtitle search: OFF by default - the SubtitleSearchController is absent
-        # at this baseline, so an enabled subtitle lane would claim tasks and fail
-        # them (burning retries). Enable only once the controller is restored.
-        "subtitle": False,
-        "stt": True,
-    },
-    "poll_interval_s": 30,
-    "batch_limit": 3,
-}
-
-
-def _clamp(value: Any, lo: int, hi: int, default: int) -> int:
-    """Coerce ``value`` to an int clamped into [lo, hi]; ``default`` on junk."""
-    try:
-        return max(lo, min(hi, int(value)))
-    except (TypeError, ValueError):
-        return default
-
-
-def _merge_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """Merge a raw section dict over DEFAULT_SETTINGS with validation/clamping."""
-    raw = raw if isinstance(raw, dict) else {}
-    caps_raw = raw.get("capabilities")
-    caps_raw = caps_raw if isinstance(caps_raw, dict) else {}
-    caps = {
-        key: bool(caps_raw.get(key, default))
-        for key, default in DEFAULT_SETTINGS["capabilities"].items()
-    }
-    return {
-        "enabled": bool(raw.get("enabled", DEFAULT_SETTINGS["enabled"])),
-        "capabilities": caps,
-        "poll_interval_s": _clamp(
-            raw.get("poll_interval_s"), POLL_INTERVAL_MIN, POLL_INTERVAL_MAX,
-            DEFAULT_SETTINGS["poll_interval_s"]),
-        "batch_limit": _clamp(
-            raw.get("batch_limit"), BATCH_LIMIT_MIN, BATCH_LIMIT_MAX,
-            DEFAULT_SETTINGS["batch_limit"]),
-    }
-
-
-def assist_settings_exist() -> bool:
-    """True when the ``assist_laravel`` section is PRESENT in user_data.json.
-
-    Used by the translation-worker gating to preserve pre-upgrade behaviour:
-    while the key is entirely absent the translation worker keeps its legacy
-    Config-driven default; once the key exists the assist toggle rules.
-    """
-    return get_user_data_store().get(USER_DATA_SECTION) is not None
-
-
-def load_assist_settings() -> Dict[str, Any]:
-    """Effective settings: stored section merged over defaults (validated)."""
-    return _merge_settings(get_user_data_store().get_section(USER_DATA_SECTION))
-
-
-def save_assist_settings(patch: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Apply ``patch`` on top of the stored settings and persist the FULL merged,
-    validated document (so the section is always complete and clamped on disk).
-    ``patch.capabilities`` is merged per-key, not replaced wholesale.
-    Returns the effective settings after saving.
-    """
-    store = get_user_data_store()
-    current = store.get_section(USER_DATA_SECTION)
-    patch = patch if isinstance(patch, dict) else {}
-    merged_raw = dict(current)
-    for key in ("enabled", "poll_interval_s", "batch_limit"):
-        if key in patch:
-            merged_raw[key] = patch[key]
-    if isinstance(patch.get("capabilities"), dict):
-        caps = dict(current.get("capabilities") or {})
-        caps.update(patch["capabilities"])
-        merged_raw["capabilities"] = caps
-    effective = _merge_settings(merged_raw)
-    store.set_section(USER_DATA_SECTION, effective)
-    return effective
-
-
-def translation_worker_enabled_on_start(legacy_default: bool) -> bool:
-    """
-    Master-toggle gate for the EXISTING TranslationWorkerService.
-
-    - Section absent (fresh upgrade, key never written): return
-      ``legacy_default`` — i.e. Config.TRANSLATION_WORKER_ENABLED_ON_START —
-      preserving today's behaviour exactly.
-    - Section present: the assist toggle rules —
-      ``enabled AND capabilities.translation``.
-    """
-    return assist_capability_enabled("translation", legacy_default)
-
-
-def assist_capability_enabled(capability: str, legacy_default: bool = True) -> bool:
-    """
-    Generic per-capability assist gate (the control plane every worker lane
-    consults). Mirrors translation_worker_enabled_on_start for ALL capabilities:
-
-    - Section ABSENT (assist never configured): return ``legacy_default`` so the
-      lane keeps its pre-assist behaviour (a hard env-knob default).
-    - Section PRESENT: the assist toggle rules — the lane is live only while the
-      master ``enabled`` is on AND its capability flag is on (missing key => on,
-      so a newly-added capability defaults to advertised).
-    """
-    if not assist_settings_exist():
-        return bool(legacy_default)
-    settings = load_assist_settings()
-    return bool(settings["enabled"] and settings["capabilities"].get(capability, True))
-
-
-# ============================================================
-# Payload helpers (pure functions, easy to reason about)
-# ============================================================
-
-# Gateway aspect-ratio shape (pyctl.ai.ai_gateway._ASPECT_RATIO_RE): "W:H" <=99.
-_ASPECT_RE = re.compile(r"^\d{1,2}:\d{1,2}$")
-_PIXEL_SIZE_RE = re.compile(r"^(\d{2,5})\s*[xX×]\s*(\d{2,5})$")
-# A poster title still "looks raw" (a filename, not a clean title) when it
-# carries a SxxExx / 1x02 season-episode marker — only then do we re-parse it.
-_SXXEXX_LOOKS_RAW_RE = re.compile(
-    r"\b(?:s\d{1,2}\s?e\d{1,3}|\d{1,2}x\d{1,3})\b", re.IGNORECASE)
-# Ratios the image providers actually understand, used when an exact gcd
-# reduction does not fit the gateway's 2-digit "W:H" shape.
-_COMMON_RATIOS: Tuple[Tuple[int, int], ...] = (
-    (1, 1), (16, 9), (9, 16), (4, 3), (3, 4), (3, 2), (2, 3), (21, 9),
+# Public API re-export (the package __init__ imports these from THIS module so
+# the split is transparent to every caller). See assist_settings for the
+# settings contract + per-capability toggle gates.
+from .assist_settings import (
+    ASSIST_API_PREFIX,
+    BATCH_LIMIT_MAX,
+    BATCH_LIMIT_MIN,
+    DEFAULT_SETTINGS,
+    POLL_INTERVAL_MAX,
+    POLL_INTERVAL_MIN,
+    USER_DATA_SECTION,
+    assist_capability_enabled,
+    assist_settings_exist,
+    load_assist_settings,
+    save_assist_settings,
+    translation_worker_enabled_on_start,
 )
-
-
-def _size_to_aspect(size: Any) -> Optional[str]:
-    """
-    Map the Laravel payload's ``size`` ('WxH', e.g. '1024x1024') to the image
-    gateway's aspect-ratio form ('1:1'). Already-ratio values pass through;
-    unparseable values return None (provider default applies).
-    """
-    if not size:
-        return None
-    s = str(size).strip()
-    if _ASPECT_RE.match(s):
-        return s
-    m = _PIXEL_SIZE_RE.match(s)
-    if not m:
-        return None
-    w, h = int(m.group(1)), int(m.group(2))
-    if w <= 0 or h <= 0:
-        return None
-    g = math.gcd(w, h)
-    aw, ah = w // g, h // g
-    if aw <= 99 and ah <= 99:
-        return f"{aw}:{ah}"
-    ratio = w / h
-    best = min(_COMMON_RATIOS, key=lambda t: abs(t[0] / t[1] - ratio))
-    return f"{best[0]}:{best[1]}"
-
-
-def _speed_to_rate(speed: Any) -> Optional[str]:
-    """
-    Map the Laravel payload's ``speed`` (a factor like 1.0 / 0.8, or an
-    already-formed '-20%') to the orchestrator's edge-style signed percentage.
-    None/1.0/junk -> None (engine default).
-    """
-    if speed in (None, ""):
-        return None
-    if isinstance(speed, str) and speed.strip().endswith("%"):
-        return speed.strip()
-    try:
-        factor = float(speed)
-    except (TypeError, ValueError):
-        return None
-    if factor <= 0:
-        return None
-    pct = int(round((factor - 1.0) * 100))
-    if pct == 0:
-        return None
-    return f"{pct:+d}%"
-
-
-def _looks_like_mp3(data: bytes) -> bool:
-    """Cheap MP3 sniff: ID3 container header or a raw MPEG frame-sync."""
-    if not data or len(data) < 4:
-        return False
-    if data[:3] == b"ID3":
-        return True
-    return data[0] == 0xFF and (data[1] & 0xE0) == 0xE0
-
-
-def _short_err(exc: Exception) -> str:
-    """One-line condensation of noisy requests/urllib3 exceptions
-    (same hygiene as TranslationWorkerService._short_err)."""
-    name = type(exc).__name__
-    text = str(exc)
-    low = text.lower()
-    if "refused" in low or "ConnectionRefused" in name:
-        return "connection refused (Laravel not listening)"
-    if "timed out" in low or "timeout" in low.replace("connecttimeout", ""):
-        return "timed out"
-    if "max retries" in low or "newconnectionerror" in low or "failed to establish" in low:
-        return "host unreachable"
-    if "name or service not known" in low or "getaddrinfo" in low:
-        return "host not resolvable"
-    return text.splitlines()[0][:120] if text else name
-
-
-def _build_claimer() -> str:
-    """
-    Stable claimer id: 'pycore-' + hostname + machine-id prefix, sanitized and
-    <= 56 chars (the Laravel contract's claimer cap). The machine id comes from
-    the existing pyutils.security.machine_id helper (registry MachineGuid /
-    /etc/machine-id backed), so the id survives restarts on the same box.
-    """
-    host = socket.gethostname() or "host"
-    safe_host = "".join(c if (c.isalnum() or c in "-_") else "-" for c in host).lower()
-    mid = get_machine_id()[:12]
-    return f"pycore-{safe_host[:36]}-{mid}"  # 7 + <=36 + 1 + 12 <= 56
-
-
-def _now_iso() -> str:
-    """UTC timestamp for last_cycle_at (second precision, ISO-8601)."""
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-def _blank_cycle_result() -> Dict[str, Any]:
-    """Fresh accumulator for a cycle (and for each parallel per-type track)."""
-    return {"ok": True, "processed": 0, "submitted": 0, "released": 0, "errors": []}
+from .assist_payload import _blank_cycle_result, _build_claimer, _now_iso
+from . import assist_handlers
 
 
 # ============================================================
 # Assist worker (singleton)
 # ============================================================
 
-class AssistWorker:
+class AssistWorker(CircuitBreaker):
     """
-    Singleton background worker for the Laravel assist queue (cover + tts).
+    Singleton background worker for the Laravel assist queue (cover + tts +
+    poster).
 
     Lifecycle:
-      configure(...)  — app layer injects the endpoint resolver + image
+      configure(...)  - app layer injects the endpoint resolver + image
                         generator (idempotent; safe to call repeatedly).
-      start()/stop()  — start/stop the daemon polling thread.
-      run_cycle()     — execute ONE claim->generate->submit cycle synchronously
+      start()/stop()  - start/stop the daemon polling thread.
+      run_cycle()     - execute ONE claim->generate->submit cycle synchronously
                         (used by the loop AND by POST /api/local/assist/cycle).
     """
 
@@ -361,15 +125,10 @@ class AssistWorker:
     _instance_lock = threading.Lock()
 
     # Claim types this worker can serve (translation rides the existing
-    # TranslationWorkerService — never claimed here).
+    # TranslationWorkerService - never claimed here).
     CLAIMABLE_TYPES = ("cover", "tts", "poster")
 
-    # Circuit breaker: consecutive server-side (HTTP 5xx) give-ups before the
-    # worker stops claiming for a cooldown (mirrors TranslationWorkerService).
-    CIRCUIT_FAIL_THRESHOLD = 3
-    CIRCUIT_COOLDOWN_SECONDS = 120
-
-    # HTTP timeouts (seconds). Submit carries base64 images/audio — give it room.
+    # HTTP timeouts (seconds). Submit carries base64 images/audio - give it room.
     CLAIM_TIMEOUT = 8
     SUBMIT_TIMEOUT = 60
     RELEASE_TIMEOUT = 8
@@ -378,8 +137,11 @@ class AssistWorker:
     # cycle lock (and POST /cycle) is never frozen forever.
     TTS_TRACK_TIMEOUT_S = 900
 
+    # CIRCUIT_FAIL_THRESHOLD / CIRCUIT_COOLDOWN_SECONDS inherited from
+    # CircuitBreaker (pyutils.worker_base).
+
     def __new__(cls, *args, **kwargs):
-        """Singleton — one assist worker per process."""
+        """Singleton - one assist worker per process."""
         if cls._instance is None:
             with cls._instance_lock:
                 if cls._instance is None:
@@ -404,12 +166,12 @@ class AssistWorker:
         self._thread: Optional[threading.Thread] = None
         self._thread_lock = threading.Lock()
         self._stop_event = threading.Event()
-        # Serializes cycles (the loop vs. POST /cycle) — never two at once.
+        # Serializes cycles (the loop vs. POST /cycle) - never two at once.
         self._cycle_lock = threading.Lock()
 
-        # Circuit breaker state.
-        self._server_5xx_streak = 0
-        self._circuit_open_until = 0.0
+        # Circuit breaker state (state + methods from the CircuitBreaker mixin).
+        self._circuit_log_prefix = "[AssistWorker]"
+        self._init_circuit_breaker()
 
         # Counters / introspection (guarded by _state_lock).
         self._state_lock = threading.Lock()
@@ -431,11 +193,11 @@ class AssistWorker:
         """
         Inject app-layer collaborators (idempotent).
 
-        endpoint_resolver: () -> {"base_url": str, "label": str} | None — the
+        endpoint_resolver: () -> {"base_url": str, "label": str} | None - the
             SELECTED laravel endpoint (callmodule wires LaravelEndpointManager).
         image_generator: pyctl.ai.generate_image-compatible callable returning
             { success, provider, model, image_base64, mime, latency_ms, error }.
-        task_recorder: (capability, title, ok, detail, error) -> None — records
+        task_recorder: (capability, title, ok, detail, error) -> None - records
             one finished assist unit to the pyctl TaskManager (app layer wires it;
             pyctl.assist must not import pyctl.desktop).
         """
@@ -456,7 +218,7 @@ class AssistWorker:
         try:
             recorder(capability=capability, title=str(title or ""), ok=bool(ok),
                      detail=detail or {}, error=error)
-        except Exception as e:  # noqa: BLE001 — history is best-effort
+        except Exception as e:  # noqa: BLE001 - history is best-effort
             ColorPrint.yellow(f"[AssistWorker] history record failed: {e}")
 
     def resolve_endpoint(self) -> Optional[Dict[str, Any]]:
@@ -466,12 +228,12 @@ class AssistWorker:
         Prefers the injected resolver (LaravelEndpointManager: stored-first
         probe + sweep). Fallback (resolver not wired yet): read the stored
         ``laravel_api.current`` / first candidate straight from the unified
-        user-data store — same source of truth, no probing.
+        user-data store - same source of truth, no probing.
         """
         if self._endpoint_resolver is not None:
             try:
                 return self._endpoint_resolver()
-            except Exception as e:  # noqa: BLE001 — resolver must never kill a cycle
+            except Exception as e:  # noqa: BLE001 - resolver must never kill a cycle
                 ColorPrint.yellow(f"[AssistWorker] Endpoint resolver failed: {_short_err(e)}")
                 return None
         section = get_user_data_store().get_section("laravel_api") or {}
@@ -497,7 +259,7 @@ class AssistWorker:
         Restart-after-stop is race-free: each loop thread owns the Event it was
         created with. If a stop is pending on the live thread, that thread is
         left to die at its next wakeup and a FRESH thread with a FRESH event is
-        spawned — any momentary overlap is harmless because run_cycle() is
+        spawned - any momentary overlap is harmless because run_cycle() is
         serialized by _cycle_lock.
         """
         with self._thread_lock:
@@ -512,7 +274,7 @@ class AssistWorker:
             return True
 
     def stop(self) -> None:
-        """Signal the polling loop to stop (idempotent; does not join — the
+        """Signal the polling loop to stop (idempotent; does not join - the
         thread exits at its next wakeup, daemon=True covers process exit)."""
         with self._thread_lock:
             if not self.is_running():
@@ -529,7 +291,7 @@ class AssistWorker:
             try:
                 if settings["enabled"]:
                     self.run_cycle(settings)
-            except Exception as e:  # noqa: BLE001 — the loop must never die
+            except Exception as e:  # noqa: BLE001 - the loop must never die
                 ColorPrint.red(f"[AssistWorker] Cycle crashed: {e}")
                 self._record_error(f"cycle crashed: {e}")
             # Jittered sleep (0.8x..1.2x) so multiple pycores don't sync up.
@@ -544,7 +306,7 @@ class AssistWorker:
         """
         ONE claim -> generate -> submit/release cycle (synchronous).
 
-        Returns { ok, processed, submitted, released, errors:[str] } — the
+        Returns { ok, processed, submitted, released, errors:[str] } - the
         exact shape POST /api/local/assist/cycle relays. Never raises for
         per-item failures; those are released back to Laravel and reported in
         ``errors``.
@@ -563,7 +325,7 @@ class AssistWorker:
             if self._circuit_is_open():
                 result["ok"] = False
                 result["errors"].append(
-                    f"circuit open — backend returned HTTP 5xx "
+                    f"circuit open - backend returned HTTP 5xx "
                     f"{self._server_5xx_streak}x; retrying in "
                     f"{self._circuit_cooldown_remaining()}s")
                 return result
@@ -582,7 +344,7 @@ class AssistWorker:
             # Run the cover track and the TTS track CONCURRENTLY. TTS synthesis
             # is serialized process-wide by the edge-tts lock and can be slow, so
             # a claimed TTS batch must never stall claimed cover work (and vice
-            # versa) — these are two independent parallel request streams. Each
+            # versa) - these are two independent parallel request streams. Each
             # track accumulates into its OWN sub-result; the worker's counters are
             # already guarded by _state_lock, so submit/release stay race-free and
             # only the plain sub-result dicts (never shared) are merged after join.
@@ -637,7 +399,10 @@ class AssistWorker:
         """Process one track's claimed items sequentially into ``result``.
 
         Cover and TTS tracks call this on SEPARATE threads (see run_cycle) so the
-        slow, lock-serialized TTS engine never blocks fast cover generation.
+        slow, lock-serialized TTS engine never blocks fast cover generation. The
+        per-type handlers live in assist_handlers and receive ``self`` as a
+        narrow ctx (they call only submit/release/record_history/claimer -
+        never the worker's locks).
         """
         for item in items:
             item_type = item.get("type")
@@ -645,15 +410,15 @@ class AssistWorker:
             result["processed"] += 1
             try:
                 if item_type == "cover":
-                    self._handle_cover(base, item, result)
+                    assist_handlers._handle_cover(self, base, item, result)
                 elif item_type == "tts":
-                    self._handle_tts(base, item, result)
+                    assist_handlers._handle_tts(self, base, item, result)
                 elif item_type == "poster":
-                    self._handle_poster(base, item, result)
+                    assist_handlers._handle_poster(self, base, item, result)
                 else:
                     self._release(base, str(item_type), item_id,
                                   f"unsupported assist item type '{item_type}'", result)
-            except Exception as e:  # noqa: BLE001 — release instead of stranding the lease
+            except Exception as e:  # noqa: BLE001 - release instead of stranding the lease
                 ColorPrint.red(f"[AssistWorker] {item_type}#{item_id} crashed: {e}")
                 self._release(base, str(item_type), item_id,
                               f"pycore handler crashed: {e}", result)
@@ -670,7 +435,7 @@ class AssistWorker:
                 json={"types": types, "limit": limit, "claimer": self.claimer},
                 timeout=self.CLAIM_TIMEOUT,
             )
-        except Exception as e:  # noqa: BLE001 — network failure, not a 5xx
+        except Exception as e:  # noqa: BLE001 - network failure, not a 5xx
             msg = f"claim failed: {_short_err(e)}"
             self._record_error(msg)
             result["ok"] = False
@@ -748,7 +513,7 @@ class AssistWorker:
                 self._counters["failures"] += 1
             return False
 
-        # 4xx — a contract-level rejection; release so the item is not stranded.
+        # 4xx - a contract-level rejection; release so the item is not stranded.
         self._release(base, str(item_type), item_id,
                       f"submit rejected (HTTP {resp.status_code})", result)
         return False
@@ -795,278 +560,6 @@ class AssistWorker:
             ColorPrint.yellow(
                 f"[AssistWorker] Release {item_type}#{item_id} failed "
                 f"({_short_err(e)}); lease will expire server-side")
-
-    # -------------------- item handlers --------------------
-
-    def _handle_cover(self, base: str, item: Dict[str, Any], result: Dict[str, Any]) -> None:
-        """cover item: payload {name, prompt, size:'WxH', filename} -> image."""
-        item_id = item.get("id")
-        payload = item.get("payload") or {}
-        if self._image_generator is None:
-            self._release(base, "cover", item_id,
-                          "image generator not wired (app layer did not configure pyctl.ai)",
-                          result)
-            return
-        prompt = (payload.get("prompt") or "").strip()
-        name = (payload.get("name") or "").strip()
-        if not prompt:
-            if not name:
-                self._release(base, "cover", item_id, "empty cover prompt", result)
-                self._record_history("cover", name or "cover", False, error="empty cover prompt")
-                return
-            prompt = f"Book cover illustration for '{name}'"
-        size = _size_to_aspect(payload.get("size"))
-        title = name or prompt[:60]
-
-        # CACHE: an identical cover (prompt + size) is reused instead of re-paying
-        # for AI image generation — the "same task -> use cache" goal.
-        cached = result_cache.get_bytes("cover", prompt, size or "")
-        if cached is not None:
-            data, meta = cached
-            self._submit(base, {
-                "type": "cover", "id": item_id,
-                "image_base64": base64.b64encode(data).decode("ascii"),
-                "mime": meta.get("mime") or "image/png", "claimer": self.claimer,
-                "provider": (meta.get("provider") or "cache"), "model": meta.get("model") or "",
-                "latency_ms": 0,
-            }, result)
-            ColorPrint.green(f"[AssistWorker] cover#{item_id} cache hit ({title})")
-            self._record_history("cover", title, True, {"cached": True, "provider": meta.get("provider")})
-            return
-
-        out = self._image_generator(prompt=prompt, size=size, source="assist-cover")
-        if out.get("success") and out.get("image_base64"):
-            # Store the raw bytes so the next identical claim is a cache hit.
-            try:
-                result_cache.set_bytes(
-                    "cover", base64.b64decode(out["image_base64"]), prompt, size or "",
-                    meta={"mime": out.get("mime") or "image/png",
-                          "provider": out.get("provider") or "", "model": out.get("model") or ""})
-            except Exception:  # noqa: BLE001 — caching is best-effort
-                pass
-            self._submit(base, {
-                "type": "cover",
-                "id": item_id,
-                "image_base64": out["image_base64"],
-                "mime": out.get("mime") or "image/png",
-                "claimer": self.claimer,
-                # Provenance for the detailed cover record on Laravel.
-                "provider": out.get("provider") or "",
-                "model": out.get("model") or "",
-                "latency_ms": int(out["latency_ms"]) if out.get("latency_ms") is not None else None,
-            }, result)
-            self._record_history("cover", title, True,
-                                 {"provider": out.get("provider"), "model": out.get("model")})
-        else:
-            self._release(base, "cover", item_id,
-                          out.get("error") or "image generation failed", result)
-            self._record_history("cover", title, False, error=out.get("error") or "image generation failed")
-
-    def _handle_tts(self, base: str, item: Dict[str, Any], result: Dict[str, Any]) -> None:
-        """tts item: payload {text, language, voice_type, speed,
-        audio_relative_path} -> MP3 via the TTS orchestrator.
-
-        The Laravel contract requires MP3 (>=100 bytes). The orchestrator's
-        engines all target an .mp3 output, but a misbehaving engine that emits
-        WAV/empty bytes is caught by the magic-byte sniff and RELEASED with a
-        clear 'produced non-mp3' error — never submitted as invalid audio.
-        (voice_type is informational: the orchestrator picks its voice from
-        ``language``; the engine that produced the audio is reported back as
-        ``voice``.)
-        """
-        item_id = item.get("id")
-        payload = item.get("payload") or {}
-        text = (payload.get("text") or "").strip()
-        if not text:
-            self._release(base, "tts", item_id, "empty tts text", result)
-            self._record_history("tts", "", False, error="empty tts text")
-            return
-        language = (payload.get("language") or "en").strip() or "en"
-        rate = _speed_to_rate(payload.get("speed"))
-        title = text[:60]
-
-        # CACHE: identical audio (text + language + rate) is reused instead of
-        # re-synthesizing — the "same task -> use cache" goal. The key folds in
-        # voice/speed (rate), which the legacy TTS DB cache omitted.
-        cached = result_cache.get_bytes("tts", text, language, rate or "")
-        if cached is not None:
-            data, meta = cached
-            self._submit(base, {
-                "type": "tts", "id": item_id,
-                "audio_base64": base64.b64encode(data).decode("ascii"),
-                "mime": "audio/mpeg", "voice": meta.get("engine") or "cache",
-                "engine": meta.get("engine") or "cache", "latency_ms": 0,
-                "claimer": self.claimer,
-            }, result)
-            ColorPrint.green(f"[AssistWorker] tts#{item_id} cache hit ({title})")
-            self._record_history("tts", title, True, {"cached": True, "engine": meta.get("engine")})
-            return
-
-        fd, tmp_path = tempfile.mkstemp(prefix="assist_tts_", suffix=".mp3")
-        os.close(fd)
-        tmp = Path(tmp_path)
-        try:
-            synth = tts_orchestrator.synthesize(text, language, tmp, rate=rate)
-            if not synth.get("success"):
-                self._release(base, "tts", item_id,
-                              synth.get("error") or "tts synthesis failed", result)
-                self._record_history("tts", title, False,
-                                     error=synth.get("error") or "tts synthesis failed")
-                return
-            engine = synth.get("engine") or "unknown"
-            audio = tmp.read_bytes() if tmp.exists() else b""
-            if len(audio) < 100 or not _looks_like_mp3(audio):
-                self._release(
-                    base, "tts", item_id,
-                    f"engine '{engine}' produced non-mp3 audio "
-                    f"({len(audio)} bytes) — not submitting invalid bytes", result)
-                self._record_history("tts", title, False,
-                                     error=f"engine '{engine}' produced non-mp3 audio")
-                return
-            # Store for reuse before submitting.
-            try:
-                result_cache.set_bytes("tts", audio, text, language, rate or "",
-                                       meta={"engine": engine, "language": language})
-            except Exception:  # noqa: BLE001 — caching is best-effort
-                pass
-            self._submit(base, {
-                "type": "tts",
-                "id": item_id,
-                "audio_base64": base64.b64encode(audio).decode("ascii"),
-                "mime": "audio/mpeg",
-                "voice": engine,
-                # Provenance: the real engine that synthesized this audio, folded
-                # into the tts_provider record on Laravel.
-                "engine": engine,
-                "latency_ms": int(synth["latency_ms"]) if synth.get("latency_ms") is not None else None,
-                "claimer": self.claimer,
-            }, result)
-            self._record_history("tts", title, True, {"engine": engine, "language": language})
-        finally:
-            try:
-                tmp.unlink()
-            except OSError:
-                pass
-
-    def _handle_poster(self, base: str, item: Dict[str, Any], result: Dict[str, Any]) -> None:
-        """poster item: payload {title, year:int|null, filename} -> movie/TV
-        poster bytes via the movie_poster_client (TMDB -> OMDB; CJK titles are
-        translated to English internally).
-
-        The Laravel title may already be clean; only run parse_title_year when
-        the title still looks like a raw filename (contains scene tokens / an
-        extension). The year comes from the payload when present, else from the
-        parse. ``media_type`` ('book'|'subtitle') is carried back on BOTH the
-        submit and the release so Laravel can route the result.
-        """
-        item_id = item.get("id")
-        payload = item.get("payload") or {}
-        media_type = (payload.get("media_type") or item.get("media_type") or "").strip()
-        title = (payload.get("title") or "").strip()
-        if not title:
-            self._release(base, "poster", item_id,
-                          "empty poster title", result,
-                          extra={"media_type": media_type})
-            return
-
-        # Year: prefer the payload's explicit year; else parse from the title.
-        year = payload.get("year")
-        try:
-            year = int(year) if year not in (None, "") else None
-        except (TypeError, ValueError):
-            year = None
-
-        # Only re-parse when the title still looks like a raw filename (scene
-        # separators, a known media/doc extension, or season/episode markers);
-        # an already-clean Laravel title is passed straight through.
-        query_title = title
-        looks_raw = ("." in title or "_" in title
-                     or bool(_SXXEXX_LOOKS_RAW_RE.search(title)))
-        if looks_raw:
-            parsed_title, parsed_year = parse_title_year(title)
-            if parsed_title:
-                query_title = parsed_title
-            if year is None and parsed_year is not None:
-                year = parsed_year
-
-        hist_title = f"{query_title}{f' ({year})' if year else ''}"
-
-        # CACHE: a poster for the same title+year is reused instead of re-querying
-        # TMDB/OMDB (and re-downloading the image).
-        cached = result_cache.get_bytes("poster", query_title, year or "")
-        if cached is not None:
-            data, meta = cached
-            self._submit(base, {
-                "type": "poster", "media_type": media_type, "id": item_id,
-                "image_base64": base64.b64encode(data).decode("ascii"),
-                "mime": meta.get("mime") or "image/jpeg", "claimer": self.claimer,
-                "provider": (meta.get("provider") or "cache"),
-                "source_id": meta.get("source_id") or "",
-            }, result)
-            ColorPrint.green(f"[AssistWorker] poster#{item_id} cache hit ({hist_title})")
-            self._record_history("poster", hist_title, True, {"cached": True, "media_type": media_type})
-            return
-
-        hit = find_poster(query_title, year=year)
-        if hit and hit.get("image_base64"):
-            try:
-                result_cache.set_bytes(
-                    "poster", base64.b64decode(hit["image_base64"]), query_title, year or "",
-                    meta={"mime": hit.get("mime") or "image/jpeg",
-                          "provider": hit.get("provider") or "", "source_id": hit.get("source_id") or ""})
-            except Exception:  # noqa: BLE001 — caching is best-effort
-                pass
-            self._submit(base, {
-                "type": "poster",
-                "media_type": media_type,
-                "id": item_id,
-                "image_base64": hit["image_base64"],
-                "mime": hit.get("mime") or "image/jpeg",
-                "claimer": self.claimer,
-                # Provenance for the poster record on Laravel.
-                "provider": hit.get("provider") or "",
-                "source_id": hit.get("source_id") or "",
-            }, result)
-            self._record_history("poster", hist_title, True,
-                                 {"provider": hit.get("provider"), "media_type": media_type})
-        else:
-            self._release(base, "poster", item_id,
-                          "poster not found (TMDB/OMDB)", result,
-                          extra={"media_type": media_type})
-            self._record_history("poster", hist_title, False,
-                                 {"media_type": media_type}, error="poster not found (TMDB/OMDB)")
-
-    # -------------------- circuit breaker --------------------
-
-    def _note_server_ok(self) -> None:
-        """Any accepted 2xx — backend write path works; reset the breaker."""
-        if self._server_5xx_streak or self._circuit_open_until:
-            ColorPrint.green("[AssistWorker] Backend answered OK — circuit reset")
-        self._server_5xx_streak = 0
-        self._circuit_open_until = 0.0
-
-    def _note_server_error(self, note: str) -> None:
-        """A server-side HTTP 5xx give-up; open the breaker at the threshold."""
-        self._server_5xx_streak += 1
-        self._record_error(note)
-        ColorPrint.yellow(
-            f"[AssistWorker] Server error ({note}) — "
-            f"streak {self._server_5xx_streak}/{self.CIRCUIT_FAIL_THRESHOLD}")
-        if (self._server_5xx_streak >= self.CIRCUIT_FAIL_THRESHOLD
-                and not self._circuit_is_open()):
-            self._circuit_open_until = time.monotonic() + self.CIRCUIT_COOLDOWN_SECONDS
-            ColorPrint.red(
-                f"[AssistWorker] Backend rejecting requests "
-                f"({self._server_5xx_streak}x HTTP 5xx) — circuit OPEN for "
-                f"{self.CIRCUIT_COOLDOWN_SECONDS}s (no claims until cooldown)")
-
-    def _circuit_is_open(self) -> bool:
-        """True while the cooldown is active (skip claiming new work)."""
-        return time.monotonic() < self._circuit_open_until
-
-    def _circuit_cooldown_remaining(self) -> int:
-        """Seconds left on the open circuit (0 when closed)."""
-        return max(0, int(self._circuit_open_until - time.monotonic()))
 
     # -------------------- introspection --------------------
 

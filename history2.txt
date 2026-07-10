@@ -517,20 +517,20 @@ Want me to also add a guard in the fstab-fix path that auto-removes a now-orphan
   Ensuring PostgreSQL (localhost-only, per-app databases)...
   [sudo] password for kali:
     Running canonical PostgreSQL ensurer (idempotent: install + mount-fix + data-dir reconcile):
-      /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/46_install_postgresql.sh
-  [46] PostgreSQL Database Management Script
-  [46] START_POSTGRESQL: true
-  [46] Mode: server - Processing PostgreSQL...
-  [46] ============================================
-  [46] START_POSTGRESQL is true - Installing and starting Postgr
-  [46] ============================================
-  [46] PostgreSQL is already installed - ensuring config (idempotent)
-  [46] No running cluster -> creating/starting via configure_postgresql
-  [46] Configuring PostgreSQL (Debian/Ubuntu cluster)...
-  [46] Ensuring PostgreSQL directories...
-  [46] Directories prepared
-  [46] Found existing cluster directory: /etc/postgresql/18/main
-  [46] Recreating cluster with data dir: /opt/_kali_2026/postgresql/data
+      /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/48_install_postgresql.sh
+  [47] PostgreSQL Database Management Script
+  [47] START_POSTGRESQL: true
+  [47] Mode: server - Processing PostgreSQL...
+  [47] ============================================
+  [47] START_POSTGRESQL is true - Installing and starting Postgr
+  [47] ============================================
+  [47] PostgreSQL is already installed - ensuring config (idempotent)
+  [47] No running cluster -> creating/starting via configure_postgresql
+  [47] Configuring PostgreSQL (Debian/Ubuntu cluster)...
+  [47] Ensuring PostgreSQL directories...
+  [47] Directories prepared
+  [47] Found existing cluster directory: /etc/postgresql/18/main
+  [47] Recreating cluster with data dir: /opt/_kali_2026/postgresql/data
   Creating new PostgreSQL cluster 18/main ...
   /usr/lib/postgresql/18/bin/initdb -D /opt/_kali_2026/postgresql/data --auth-local peer --auth-host scram-sha-256 --no-instructions
   The files belonging to this database system will be owned by user "postgres".
@@ -554,44 +554,44 @@ Want me to also add a guard in the fstab-fix path that auto-removes a now-orphan
   syncing data to disk ... ok
   Ver Cluster Port Status Owner    Data directory                  Log file
   18  main    5432 online postgres /opt/_kali_2026/postgresql/data /var/log/postgresql/postgresql-18-main.log                                               
-  [46] PostgreSQL cluster configuration completed
-  [46] Setting up PostgreSQL user and access rules...
-  [46] Setting postgres superuser password (stored in global_var POSTGRES_PASSWORD)...
+  [47] PostgreSQL cluster configuration completed
+  [47] Setting up PostgreSQL user and access rules...
+  [47] Setting postgres superuser password (stored in global_var POSTGRES_PASSWORD)...
   ALTER ROLE
-  [46] Password mirrored to app data dir (open_basedir-safe): /mnt/dev_nvme0n1p1/www/wwwroot/laravel_db/.core_node_secrets/POSTGRES_PASSWORD
-  [46] Restricting PostgreSQL to localhost-only access...
+  [47] Password mirrored to app data dir (open_basedir-safe): /mnt/dev_nvme0n1p1/www/wwwroot/laravel_db/.core_node_secrets/POSTGRES_PASSWORD
+  [47] Restricting PostgreSQL to localhost-only access...
   grep: /etc/postgresql/18/main/pg_hba.conf: Permission denied
   grep: /etc/postgresql/18/main/pg_hba.conf: Permission denied
-  [46] PostgreSQL user setup completed (localhost-only, scram auth)
-  [46] Ensuring per-app databases...
-  [46] Creating database: core_node_main
-  [46] Creating database: app_qy_v1_database
-  [46] Creating database: awy_v0_database
-  [46] Creating database: vipclub_v1_database
-  [46] Creating database: server_manager_v1_database
-  [46] Creating database: achat_v1_database
-  [46] Creating database: code_mart_v1_database
-  [46] Creating database: mcp_v1_database
-  [46] Creating database: it_tools_v1_database
-  [46] Creating database: bank_v1_database
-  [46] PostgreSQL Installation Information:
-  [46] ========================================
-  [46] PostgreSQL Version: psql (PostgreSQL) 18.4 (Debian 18.4-1)
-  [46] Data Directory: /opt/_kali_2026/postgresql/data
-  [46] Config Directory: /etc/postgresql/18/main
-  [46] Log Directory: /opt/_kali_2026/postgresql/logs
-  [46] Default Port: 5432 (localhost-only)
-  [46] Default User: postgres
-  [46] Password: generated, stored in global_var POSTGRES_PASSWORD (read by Laravel via App\Support\CoreNodeSecrets; never in .env)
-  [46] Status: Running
-  [46] Service: systemctl/service/pg_ctlcluster {start|stop|restart} postgresql
-  [46] Connect (admin): sudo -u postgres psql
-  [46] Config: /etc/postgresql/18/main/postgresql.conf
-  [46] ========================================
-  [46] ============================================
-  [46] PostgreSQL is installed and running
-  [46] ============================================
-  [46] PostgreSQL configuration completed
+  [47] PostgreSQL user setup completed (localhost-only, scram auth)
+  [47] Ensuring per-app databases...
+  [47] Creating database: core_node_main
+  [47] Creating database: app_qy_v1_database
+  [47] Creating database: awy_v0_database
+  [47] Creating database: vipclub_v1_database
+  [47] Creating database: server_manager_v1_database
+  [47] Creating database: achat_v1_database
+  [47] Creating database: code_mart_v1_database
+  [47] Creating database: mcp_v1_database
+  [47] Creating database: it_tools_v1_database
+  [47] Creating database: bank_v1_database
+  [47] PostgreSQL Installation Information:
+  [47] ========================================
+  [47] PostgreSQL Version: psql (PostgreSQL) 18.4 (Debian 18.4-1)
+  [47] Data Directory: /opt/_kali_2026/postgresql/data
+  [47] Config Directory: /etc/postgresql/18/main
+  [47] Log Directory: /opt/_kali_2026/postgresql/logs
+  [47] Default Port: 5432 (localhost-only)
+  [47] Default User: postgres
+  [47] Password: generated, stored in global_var POSTGRES_PASSWORD (read by Laravel via App\Support\CoreNodeSecrets; never in .env)
+  [47] Status: Running
+  [47] Service: systemctl/service/pg_ctlcluster {start|stop|restart} postgresql
+  [47] Connect (admin): sudo -u postgres psql
+  [47] Config: /etc/postgresql/18/main/postgresql.conf
+  [47] ========================================
+  [47] ============================================
+  [47] PostgreSQL is installed and running
+  [47] ============================================
+  [47] PostgreSQL configuration completed
     Per-app PostgreSQL databases ensured.
     PostgreSQL data directory (actual): /opt/_kali_2026/postgresql/data
     PostgreSQL config file: /etc/postgresql/18/main/postgresql.conf
@@ -710,7 +710,7 @@ Want me to also add a guard in the fstab-fix path that auto-removes a now-orphan
   Ensuring port 9000 is free...
   Prerequisites ready. Add laravel_main to a background systemd service (via debian_service_manager)? [Y/n]  If in liunx, not wls, postgresql/data to mappgin path, and automatically idempotent resolve relation directoryy permissions, and other.
 
-This log shows several intertwined failures in the PostgreSQL setup + Laravel init. Before changing anything (moving a Postgres data dir is consequential), let me understand 46_install_postgresql.sh's data-dir logic, the WSL handling, the "mapping path" mechanism, and the permission/password issues.
+This log shows several intertwined failures in the PostgreSQL setup + Laravel init. Before changing anything (moving a Postgres data dir is consequential), let me understand 47_install_postgresql.sh's data-dir logic, the WSL handling, the "mapping path" mechanism, and the permission/password issues.
 
   Ran 1 shell command
 
@@ -780,7 +780,7 @@ not a symlink to the data disk. bash's map_web_path resolves tn1p1/www, but PHP'
 
 Let me apply the unambiguous, safe fixes first (pg_hba sudo read, PG data ext4-guard, stale fstab cleanup), then report the architectural divergence which needs your call. Starting with the pg_hba sudo reads:
 
-● Update(scripts/shells/linux/debian/install_shells/46_install_postgresql.sh)
+● Update(scripts/shells/linux/debian/install_shells/48_install_postgresql.sh)
 Added 4 lines, removed 1 line
     echo "[$SCRIPT_INDEX] Restricting PostgreSQL to localhost-only access..."
 
@@ -794,7 +794,7 @@ Added 4 lines, removed 1 line
         else
             echo "listen_addresses = 'localhost'" | $USE_SUDO tee -a "$cfg" >/dev/null
 
-● Update(scripts/shells/linux/debian/install_shells/46_install_postgresql.sh)
+● Update(scripts/shells/linux/debian/install_shells/48_install_postgresql.sh)
 Added 2 lines, removed 2 lines
         if [ ! -f "$hba.backup.localhost" ]; then
             $USE_SUDO cp "$hba" "$hba.backup.localhost" 2>/dev/null || true
@@ -811,7 +811,7 @@ Added 2 lines, removed 2 lines
 
 Now Fix B — PG data dir ext4-guarded mapping path. First add a filesystem-type helper near the other helpers:
 
-● Update(scripts/shells/linux/debian/install_shells/46_install_postgresql.sh)
+● Update(scripts/shells/linux/debian/install_shells/48_install_postgresql.sh)
 Added 21 lines
     command -v "$1" >/dev/null 2>&1
 }
@@ -843,7 +843,7 @@ port_in_use() {
 
 Now wire the non-WSL branch in configure_postgresql to use the guarded mapping path:
 
-● Update(scripts/shells/linux/debian/install_shells/46_install_postgresql.sh)
+● Update(scripts/shells/linux/debian/install_shells/48_install_postgresql.sh)
 Added 15 lines
             POSTGRESQL_DATA_DIR="/var/lib/postgresql/$POSTGRESQL_VERSION/main"
         fi
@@ -944,10 +944,10 @@ All three modified scripts pass bash -n. Here's where things stand.
 
 Done now (safe, verified)
 
-1. pg_hba.conf "Permission denied" → fixed (46_install_postgresql.sh)
+1. pg_hba.conf "Permission denied" → fixed (47_install_postgresql.sh)
 configure_localhost_only ran its grep -q reads without sudo on /etc/postgresql/18/main/pg_hba.conf (mode 0640). Now those reads use $USE_SUDO, so the localhost lockdown actually applies (previously the failed grep made it blindly append rules).
 
-2. PG data dir → mapping path, ext4-guarded (46_install_postgresql.sh)
+2. PG data dir → mapping path, ext4-guarded (47_install_postgresql.sh)
 New pg_path_fstype/pg_fs_is_posix helpers + a non-WSL branch: PG data goes to map_web_path "postgresql" only when that path is real ext4/xfs/btrfs, else it
 stays on compile_dir. The existing recreate block already mkdi parent.
 - On your machine the guard keeps PG at /opt/_kali_2026 (ext4) because the mapped path /mnt/dev_nvme0n1p1/www/wwwroot/postgresql is NTFS (fuseblk) — Postgres can't run there. So no relocation, no cluster recreate, no data loss here. It only relocates on hosts where the mapped path is genuinely POSIX.
@@ -969,7 +969,7 @@ The fix is to make bash's get_base_data_directory/map_web_path resolve the web r
 
 Two ways I can proceed — tell me which:
 - (A) Align bash to /www: fix get_base_data_directory so it never returns the NTFS project mount as the web data base (prefer the ext4 /www), matching PHP. Highest correctness, touches core path logic.
-- (B) Belt-and-suspenders, lower risk: keep the base logic, but make 46_install_postgresql.sh write the PG secret to the exact path PHP reads (query it via php -r 'echo PathMapper::mapWebPath(...)') and make get_postgresql_password reuse a surviving secret instead of regenerating — so auth can't diverge even when the stores split.
+- (B) Belt-and-suspenders, lower risk: keep the base logic, but make 47_install_postgresql.sh write the PG secret to the exact path PHP reads (query it via php -r 'echo PathMapper::mapWebPath(...)') and make get_postgresql_password reuse a surviving secret instead of regenerating — so auth can't diverge even when the stores split.
 
 I'd recommend A as the real fix (it also resolves the Laravel mkdir failures and the whole "directories getting mixed up" theme), with B as an immediate safety net. Want me to do A, B, or both?
 
@@ -1107,7 +1107,7 @@ Alignment confirmed — bash and PHP now both resolve to /www/wwwroot/laravel_db
 
   Searched for 1 pattern, read 1 file
 
-● Update(scripts/shells/linux/debian/install_shells/46_install_postgresql.sh)
+● Update(scripts/shells/linux/debian/install_shells/48_install_postgresql.sh)
 Added 14 lines, removed 2 lines
 # value is read by start.sh and written into the Laravel .env, so dd.sh and
 # start.sh stay aligned. A fresh (re)install with no stored value regenerates it.

@@ -32,7 +32,7 @@
 #    - Supports $Global:CHINESE_* variables for cross-platform compatibility
 #
 # INTEGRATION POINTS:
-# - Called from Step12_InstallApplications.ps1 during package installation
+# - Called from Step21_InstallApplications.ps1 during package installation
 # - Uses constants from GlobalVars.ps1 for consistent configuration
 # - Integrates with package metadata PostInstallCallbacks array
 

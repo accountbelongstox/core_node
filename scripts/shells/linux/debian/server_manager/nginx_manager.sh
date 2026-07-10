@@ -34,7 +34,7 @@ COLOR_CYAN="\033[36m"
 check_nginx_installed() {
     if ! command -v nginx >/dev/null 2>&1; then
         echo -e "${COLOR_RED}Nginx is not installed!${COLOR_RESET}"
-        echo "Please run installation script first: 25_install_nginx.sh"
+        echo "Please run installation script first: 27_install_nginx.sh"
         return 1
     fi
     return 0

@@ -189,6 +189,7 @@ export const jaLocaleA: Record<string, string> = {
     'admin.t.result': '結果',
     'admin.t.tts': '音声を生成',
     'admin.t.provider': 'プロバイダ',
+    'admin.t.fallback': 'Puter.js フォールバック使用（キー不要）',
     'about.title': 'アプリについて',
     'about.sub': 'AI 多言語の語彙学習プラットフォーム',
     'about.appName': 'WordNew',

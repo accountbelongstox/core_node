@@ -111,7 +111,7 @@ Write-Host "[0/5] Checking runtime dependencies..." -ForegroundColor Yellow
 
 # Get paths to installation scripts (using relative paths from script location)
 $installPowershellsDir = Join-Path (Split-Path (Split-Path $scriptPath -Parent) -Parent) "shells\win\install_powershells"
-$step12Script = Join-Path $installPowershellsDir "Step12_InstallApplications.ps1"
+$step12Script = Join-Path $installPowershellsDir "Step21_InstallApplications.ps1"
 
 # Check Node.js
 $nodeInstalled = $false
@@ -137,14 +137,14 @@ try {
     Write-Host "Python not found" -ForegroundColor Yellow
 }
 
-# Install missing runtimes using Step12_InstallApplications.ps1
+# Install missing runtimes using Step21_InstallApplications.ps1
 if (-not $nodeInstalled -or -not $pythonInstalled) {
     Write-Host ""
     Write-Host "Installing missing runtimes..." -ForegroundColor Yellow
 
     if (Test-Path $step12Script) {
         if (-not $nodeInstalled) {
-            Write-Host "Installing Node.js via Step12_InstallApplications.ps1..." -ForegroundColor Gray
+            Write-Host "Installing Node.js via Step21_InstallApplications.ps1..." -ForegroundColor Gray
             & powershell -ExecutionPolicy Bypass -File $step12Script -PackageName "NodeJS"
             # Refresh PATH
             $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
@@ -163,7 +163,7 @@ if (-not $nodeInstalled -or -not $pythonInstalled) {
         }
 
         if (-not $pythonInstalled) {
-            Write-Host "Installing Python via Step12_InstallApplications.ps1..." -ForegroundColor Gray
+            Write-Host "Installing Python via Step21_InstallApplications.ps1..." -ForegroundColor Gray
             & powershell -ExecutionPolicy Bypass -File $step12Script -PackageName "Python313"
             # Refresh PATH
             $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")

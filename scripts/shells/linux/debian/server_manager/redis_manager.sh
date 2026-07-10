@@ -31,7 +31,7 @@ COLOR_CYAN="\033[36m"
 check_redis_installed() {
     if ! command -v redis-server >/dev/null 2>&1; then
         echo -e "${COLOR_RED}Redis is not installed!${COLOR_RESET}"
-        echo "Please run installation script first: 45_install_redis.sh"
+        echo "Please run installation script first: 47_install_redis.sh"
         return 1
     fi
     return 0

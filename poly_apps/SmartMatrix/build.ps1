@@ -130,7 +130,7 @@ function Test-IsQtDirectory {
             $binPath = Join-Path $msvcDir.FullName "bin"
             if (Test-Path $binPath) {
                 $qtFiles = Get-ChildItem $binPath -File -ErrorAction SilentlyContinue |
-                    Where-Object { $_.Name -match '^(qmake\.exe|Qt[56]Core\.dll)$' }
+                    Where-Object { $_.Name -match '^(qmake\.exe|Qt[58]Core\.dll)$' }
                 if ($qtFiles) {
                     return $true
                 }

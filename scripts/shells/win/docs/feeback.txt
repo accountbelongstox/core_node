@@ -34,7 +34,7 @@ D:\programing\core_node\scripts\shells\win\dd.ps1 : 检索不到变量“$step�
 "> Current directory: C:\Users\DSPC\Desktop
 
 LINUX
-[26] Installing DNSPod plugin for Certbot...
+[28] Installing DNSPod plugin for Certbot...
 error: externally-managed-environment
 
 × This environment is externally managed

@@ -31,6 +31,21 @@ Usage:
         print("发现现有前端实例")
 """
 
+# REUSE-TODO (deferred): FrontendSingletonDetector duplicates ~13/14 method
+# names 1:1 with pycore.pylauncher.singleton_detector.SingletonDetector
+# (_log/_create_message/_validate_message/_send_message_and_wait_response/
+#  _try_connect_and_verify/_try_bind_port/detect_and_bind/_listener_loop/
+#  _handle_client/stop/is_primary/get_port + own _send_shutdown_to_existing).
+# The pylauncher detector was split into singleton_protocol.py (data layer) +
+# singleton_server.py (_SingletonServerMixin) + singleton_detector.py
+# (orchestrator) on 2026-07-09. Merging this frontend variant onto those
+# shared components is the strongest reuse win but is cross-file + risky
+# (different port range, FrontendDetectionResult, shutdown_existing default,
+# no newest-wins ordering) -> deferred. When revisiting: subclass the
+# SingletonDetector/_SingletonServerMixin or compose, and delete the local
+# MessageType/FrontendDetectionResult duplicates in favor of
+# pycore.pylauncher.singleton_protocol.
+
 import os
 import time
 import socket

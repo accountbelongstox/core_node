@@ -4,11 +4,11 @@
 PySide6 Native UI Framework - Main Application Framework
 
 Main framework class that integrates all components:
-- Startup window (tkinter, shows before dependencies)
+- Startup window (tkinter, shows before dependencies)  [startup_controller.StartupControllerMixin]
 - Main window (PySide6, frameless with custom title bar)
 - System tray
 - WebView
-- Tick timer thread
+- Tick timer thread                                       [tick_timer.TickTimer]
 
 Thread Model:
 - Main thread: Qt event loop (UI) - All GUI operations execute here
@@ -18,25 +18,30 @@ Thread Model:
 - THREAD_BUS: Cross-thread event bus - Routes events safely between threads
 
 IMPORTANT: All GUI operations (show/hide/move/resize) MUST execute in Qt main thread.
-THREAD_BUS events use Qt signals to ensure thread safety.
+THREAD_BUS events use Qt signals to ensure thread safety. The THREAD_BUS window-control
+signals, listeners and slots live in thread_bus_bridge.ThreadBusBridgeMixin (a QObject
+base mixin this class inherits) so the Signals are declared in a QObject class body and
+bind correctly. The tk startup window lifecycle lives in startup_controller.
+
+This module re-exports TickTimer / create_framework for backwards compatibility with
+``from .framework import PySide6Framework, TickTimer, create_framework``.
 """
 
 import sys
 import os
 import signal
 import threading
-import time
-from typing import Optional, Callable, List
+from typing import Optional, TYPE_CHECKING
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Signal, Slot, QTimer, Qt
+from PySide6.QtCore import QObject, Signal, Slot, QTimer
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 from PySide6.QtGui import QIcon
 
 from pycore import THREAD_BUS, ColorPrint
-from pycore.pyutils.native_ui.step4_startup.startup_window import ColorPrintCapture
-from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
-from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
+
+if TYPE_CHECKING:
+    from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
 
 # Import PySide6 components
 from .config import PySide6UIConfig, StartupWindowConfig, ActionType
@@ -51,65 +56,20 @@ from .system_tray import (
 )
 from .webview import PySide6WebView
 
-
-class TickTimer(QObject):
-    """
-    Tick timer for periodic tasks.
-    Runs in a separate thread.
-    """
-
-    # Signal to emit on each tick
-    tick = Signal()
-
-    def __init__(self, interval: float = 1.0, parent: Optional[QObject] = None):
-        """
-        Initialize tick timer.
-
-        Args:
-            interval: Tick interval in seconds
-            parent: Parent QObject
-        """
-        super().__init__(parent)
-
-        self.interval = interval
-        self._running = False
-        self._thread: Optional[threading.Thread] = None
-
-    def start(self):
-        """Start tick timer thread."""
-        if self._running:
-            return
-
-        self._running = True
-        self._thread = threading.Thread(target=self._run, daemon=True)
-        self._thread.start()
-
-    def stop(self):
-        """Stop tick timer thread."""
-        self._running = False
-
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=2.0)
-
-    def _run(self):
-        """Tick timer thread main loop."""
-        while self._running:
-            try:
-                self.tick.emit()
-            except RuntimeError as e:
-                if "Signal source has been deleted" in str(e) or "wrapped C/C++ object" in str(e):
-                    break
-                raise
-            # Sleep in small steps so we can exit promptly when _running becomes False
-            for _ in range(int(self.interval / 0.1) or 1):
-                if not self._running:
-                    return
-                time.sleep(0.1)
+# Split-out sub-modules (re-exported for backwards compatibility)
+from .tick_timer import TickTimer
+from .thread_bus_bridge import ThreadBusBridgeMixin
+from .startup_controller import StartupControllerMixin
 
 
-class PySide6Framework(QObject):
+class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
     """
     Main PySide6 UI Framework.
+
+    Inherits:
+        - ThreadBusBridgeMixin(QObject): carries the 10 THREAD_BUS control
+          Signals + their wiring/handlers/slots. QObject base so Signals bind.
+        - StartupControllerMixin: tk bootstrap window lifecycle methods.
 
     This framework provides:
     1. Startup window (tkinter) - shows during dependency installation
@@ -147,24 +107,11 @@ class PySide6Framework(QObject):
     closed = Signal()
     tick = Signal()  # Forwarded from tick timer
 
-    # Internal signals for thread-safe THREAD_BUS control
-    # These signals ensure GUI operations execute in Qt main thread
-    _thread_bus_show_signal = Signal()
-    _thread_bus_hide_signal = Signal()
-    _thread_bus_toggle_signal = Signal()
-    _thread_bus_move_signal = Signal(int, int)  # x, y
-    _thread_bus_resize_signal = Signal(int, int)  # width, height
-    _thread_bus_close_signal = Signal()
-    _thread_bus_minimize_signal = Signal()
-    _thread_bus_maximize_signal = Signal()
-    _thread_bus_update_tray_menu_signal = Signal(object)  # menu items (list of dicts)
-    _thread_bus_subtitle_mode_signal = Signal(bool)  # subtitle compact mode: True=enter, False=exit
-
     def __init__(
         self,
         config: Optional[PySide6UIConfig] = None,
         startup_config: Optional[StartupWindowConfig] = None,
-        existing_startup_thread: Optional[TkinterStartupThread] = None
+        existing_startup_thread: Optional["TkinterStartupThread"] = None
     ):
         """
         Initialize framework.
@@ -189,7 +136,7 @@ class PySide6Framework(QObject):
         self.qt_app: Optional[QApplication] = None
 
         # Components (existing_startup_thread = tk shown first in ui_thread before PySide6 load)
-        self.startup_thread: Optional[TkinterStartupThread] = existing_startup_thread
+        self.startup_thread = existing_startup_thread
         self.main_window: Optional[PySide6MainWindow] = None
         self.title_bar: Optional[PySide6TitleBar] = None
         self.webview: Optional[PySide6WebView] = None
@@ -200,70 +147,8 @@ class PySide6Framework(QObject):
         self._started = False
         self._qt_app_created_internally = False
 
-        # Register event handler for auto-closing startup window
+        # Register event handler for auto-closing startup window (StartupControllerMixin)
         self._register_startup_autoclose_handler()
-
-    # ========== Startup Window (Tkinter) ==========
-
-    def _register_startup_autoclose_handler(self):
-        """Register event handler to auto-close startup window when third-party packages are loaded."""
-        def handle_packages_loaded(event_data):
-            """Handle system.third_party_packages_loaded event"""
-            # Set signal to mark initialization complete (thread-safe via THREAD_BUS)
-            # Mark initialization complete (legacy signal; tk window uses THREAD_BUS for close)
-            THREAD_BUS.signal('startup_window.initialization_complete', True)
-            ColorPrint.green("[PySide6Framework] Set startup_window.initialization_complete signal")
-
-            if self.startup_config.auto_close and self.startup_thread:
-                ColorPrint.blue("[PySide6Framework] Third-party packages loaded, auto-closing startup window...")
-                self.close_startup()
-                ColorPrint.green("[PySide6Framework] Startup window auto-closed")
-            else:
-                if not self.startup_config.auto_close:
-                    ColorPrint.yellow("[PySide6Framework] auto_close=False, keeping startup window as debug window")
-
-        THREAD_BUS.register_event_handler('system.third_party_packages_loaded', handle_packages_loaded, priority=50)
-
-    def show_startup(self):
-        """Show startup window (tkinter) for dependency installation. Uses TkinterStartupThread (single tk build)."""
-        if not self.startup_config.show_startup:
-            return
-
-        if not self.startup_thread:
-            self.startup_thread = TkinterStartupThread(
-                app_name=self.startup_config.app_name,
-                width=self.startup_config.width,
-                height=self.startup_config.height,
-                icon_path=self.startup_config.icon_path,
-                logo_path=None,
-                enable_language_selector=True,
-                enable_tray=False
-            )
-            self.startup_thread.start()
-            ColorPrint.register_callback(self.startup_thread._colorprint_callback)
-
-        # No .show() - thread already running
-
-    def close_startup(self):
-        """Close startup window via THREAD_BUS (TkinterStartupThread listens)."""
-        if self.startup_thread:
-            try:
-                ColorPrint.unregister_callback(self.startup_thread._colorprint_callback)
-            except Exception:
-                pass
-            THREAD_BUS.trigger_event(BusSignals.STARTUP_REQUEST_CLOSE, {'source': 'framework'}, async_mode=False)
-            self.startup_thread = None
-
-    def log_startup(self, message: str, level: str = "info"):
-        """
-        Log message to startup window.
-
-        Args:
-            message: Log message
-            level: Log level (info, success, warning, error, debug)
-        """
-        if self.startup_thread:
-            self.startup_thread.log(message, level)
 
     # ========== Main Application ==========
 
@@ -328,7 +213,7 @@ class PySide6Framework(QObject):
         # THREAD_BUS, NOT by window visibility. Qt defaults quitOnLastWindowClosed
         # to True, which would end the event loop the moment the last visible
         # window closes (e.g. user closes the window expecting close_to_tray, or a
-        # transient WebEngine window goes away) — and exec() returning in the UI
+        # transient WebEngine window goes away) - and exec() returning in the UI
         # worker thread silently kills that thread. Disable it so only an explicit
         # THREAD_BUS shutdown (tray Exit / singleton takeover / Ctrl+C) tears down.
         self.qt_app.setQuitOnLastWindowClosed(False)
@@ -579,22 +464,9 @@ class PySide6Framework(QObject):
         if self.tick_timer:
             self.tick_timer.tick.connect(self._on_tick)
 
-        # THREAD_BUS internal signal connections (thread-safe)
-        # These signals are emitted from THREAD_BUS event handlers (any thread)
-        # and execute their slots in the Qt main thread automatically
-        self._thread_bus_show_signal.connect(self.show_window)
-        self._thread_bus_hide_signal.connect(self.hide_window)
-        self._thread_bus_toggle_signal.connect(self.toggle_window)
-        self._thread_bus_move_signal.connect(self._do_move_window)
-        self._thread_bus_resize_signal.connect(self._do_resize_window)
-        self._thread_bus_close_signal.connect(self.quit)
-        self._thread_bus_minimize_signal.connect(self._do_minimize_window)
-        self._thread_bus_maximize_signal.connect(self._do_maximize_window)
-        self._thread_bus_update_tray_menu_signal.connect(self._do_update_tray_menu)
-        self._thread_bus_subtitle_mode_signal.connect(self._do_subtitle_mode)
-
-        # THREAD_BUS event listeners (always enabled)
-        self._setup_thread_bus_listeners()
+        # THREAD_BUS internal signal connections + event listeners (ThreadBusBridgeMixin).
+        # Emits from any thread, slots run in the Qt main thread automatically.
+        self._setup_thread_bus_bridge()
 
     # ========== Window Actions ==========
 
@@ -646,32 +518,6 @@ class PySide6Framework(QObject):
         """Handle tick timer event."""
         self.tick.emit()
 
-    # ========== THREAD_BUS Signal Slots (Thread-Safe Helpers) ==========
-
-    @Slot(int, int)
-    def _do_move_window(self, x: int, y: int):
-        """Move window (called via signal in Qt main thread)."""
-        if self.main_window:
-            self.main_window.move(x, y)
-
-    @Slot(int, int)
-    def _do_resize_window(self, width: int, height: int):
-        """Resize window (called via signal in Qt main thread)."""
-        if self.main_window:
-            self.main_window.resize(width, height)
-
-    @Slot()
-    def _do_minimize_window(self):
-        """Minimize window (called via signal in Qt main thread)."""
-        if self.main_window:
-            self.main_window.minimize_window()
-
-    @Slot()
-    def _do_maximize_window(self):
-        """Toggle maximize window (called via signal in Qt main thread)."""
-        if self.main_window:
-            self.main_window.toggle_maximize()
-
     # ========== Public Methods ==========
 
     def _publish_window_visible(self, visible: bool):
@@ -706,6 +552,11 @@ class PySide6Framework(QObject):
         This method can be called in two scenarios:
         1. Programmatically (e.g., tray menu exit) - triggers shutdown first
         2. After THREAD_BUS shutdown complete (cleanup and close window)
+
+        TODO: consider delegating the shutdown orchestration to
+        step7_managers.shutdown_manager.ShutdownManager (register this quit() as
+        the UI quit callback + add window/tick/tray cleanup as shutdown hooks).
+        Deferred for now to keep this split behaviour-preserving.
         """
         # Trigger global shutdown if configured and not already requested
         if self.config.trigger_shutdown_on_close and not THREAD_BUS.is_shutdown_requested():
@@ -743,180 +594,6 @@ class PySide6Framework(QObject):
     def is_running(self) -> bool:
         """Check if application is running."""
         return self._started
-
-    # ========== THREAD_BUS Integration ==========
-
-    def _setup_thread_bus_listeners(self):
-        """
-        Setup THREAD_BUS event listeners for window control (always enabled).
-
-        IMPORTANT: These event handlers may be called from ANY thread (Tray, RPC v2, etc.).
-        They emit Qt signals which automatically execute in the Qt main thread for thread safety.
-        """
-        # Determine namespace: use thread_bus_namespace if provided, else use app_id, else 'ui'
-        namespace = self.config.thread_bus_namespace
-        if not namespace:
-            namespace = self.config.app_id if self.config.app_id else "ui"
-
-        # Define event names
-        events = {
-            f"{namespace}.show": self._on_thread_bus_show,
-            f"{namespace}.hide": self._on_thread_bus_hide,
-            f"{namespace}.toggle": self._on_thread_bus_toggle,
-            f"{namespace}.move": self._on_thread_bus_move,
-            f"{namespace}.resize": self._on_thread_bus_resize,
-            f"{namespace}.close": self._on_thread_bus_close,
-            f"{namespace}.minimize": self._on_thread_bus_minimize,
-            f"{namespace}.maximize": self._on_thread_bus_maximize,
-        }
-
-        # Register event handlers
-        for event_name, handler in events.items():
-            THREAD_BUS.register_event_handler(event_name, handler)
-
-        # Tray menu live-update for the Qt tray (only when this framework owns the tray;
-        # the independent pystray tray registers its own 'tray.update_menu' handler).
-        if self.config.enable_tray:
-            THREAD_BUS.register_event_handler('tray.update_menu', self._on_thread_bus_update_tray_menu)
-
-        # Voice-subtitle compact ("Subtitle Mode") window control. Triggered by the
-        # web UI via WS RPC -> thread_bus.trigger_event. Handled here (Qt thread)
-        # because window/screen geometry must be touched on the GUI thread.
-        THREAD_BUS.register_event_handler('voice_subtitle.subtitle_mode_enter', self._on_thread_bus_subtitle_mode_enter)
-        THREAD_BUS.register_event_handler('voice_subtitle.subtitle_mode_exit', self._on_thread_bus_subtitle_mode_exit)
-
-        if self.config.debug:
-            ColorPrint.green(f"[PySide6Framework] Registered THREAD_BUS listeners with namespace: {namespace}")
-
-    def _on_thread_bus_show(self, event_data):
-        """
-        Handle show event from THREAD_BUS (may be called from any thread).
-        Emits signal to execute in Qt main thread.
-        """
-        self._thread_bus_show_signal.emit()
-
-    def _on_thread_bus_hide(self, event_data):
-        """
-        Handle hide event from THREAD_BUS (may be called from any thread).
-        Emits signal to execute in Qt main thread.
-        """
-        self._thread_bus_hide_signal.emit()
-
-    def _on_thread_bus_toggle(self, event_data):
-        """
-        Handle toggle event from THREAD_BUS (may be called from any thread).
-        Emits signal to execute in Qt main thread.
-        """
-        self._thread_bus_toggle_signal.emit()
-
-    def _on_thread_bus_move(self, event_data):
-        """
-        Handle move event from THREAD_BUS (may be called from any thread).
-        Emits signal to execute in Qt main thread.
-
-        event_data expected format:
-        {
-            'x': int,  # X coordinate
-            'y': int   # Y coordinate
-        }
-        """
-        if isinstance(event_data, dict):
-            x = event_data.get('x')
-            y = event_data.get('y')
-            if x is not None and y is not None:
-                self._thread_bus_move_signal.emit(int(x), int(y))
-
-    def _on_thread_bus_resize(self, event_data):
-        """
-        Handle resize event from THREAD_BUS (may be called from any thread).
-        Emits signal to execute in Qt main thread.
-
-        event_data expected format:
-        {
-            'width': int,   # Width
-            'height': int   # Height
-        }
-        """
-        if isinstance(event_data, dict):
-            width = event_data.get('width')
-            height = event_data.get('height')
-            if width is not None and height is not None:
-                self._thread_bus_resize_signal.emit(int(width), int(height))
-
-    def _on_thread_bus_close(self, event_data):
-        """
-        Handle close event from THREAD_BUS (may be called from any thread).
-        Emits signal to execute in Qt main thread.
-        """
-        self._thread_bus_close_signal.emit()
-
-    def _on_thread_bus_minimize(self, event_data):
-        """
-        Handle minimize event from THREAD_BUS (may be called from any thread).
-        Emits signal to execute in Qt main thread.
-        """
-        self._thread_bus_minimize_signal.emit()
-
-    def _on_thread_bus_maximize(self, event_data):
-        """
-        Handle maximize event from THREAD_BUS (may be called from any thread).
-        Emits signal to execute in Qt main thread.
-        """
-        self._thread_bus_maximize_signal.emit()
-
-    def _on_thread_bus_update_tray_menu(self, event_data):
-        """
-        Handle tray.update_menu event from THREAD_BUS (may be called from any thread).
-        Emits signal to rebuild the native tray menu in the Qt main thread.
-
-        event_data expected format: {'menu_items': List[dict]}  (canonical dict menu)
-        """
-        if isinstance(event_data, dict):
-            menu_items = event_data.get('menu_items')
-            if menu_items is not None:
-                self._thread_bus_update_tray_menu_signal.emit(menu_items)
-
-    @Slot(object)
-    def _do_update_tray_menu(self, menu_items):
-        """Rebuild the native tray menu (Qt main thread)."""
-        if self.system_tray:
-            self.system_tray.set_menu_items(build_pyside6_menu_from_dicts(menu_items))
-
-    def _on_thread_bus_subtitle_mode_enter(self, event_data):
-        """voice_subtitle.subtitle_mode_enter (any thread) -> Qt thread."""
-        self._thread_bus_subtitle_mode_signal.emit(True)
-
-    def _on_thread_bus_subtitle_mode_exit(self, event_data):
-        """voice_subtitle.subtitle_mode_exit (any thread) -> Qt thread."""
-        self._thread_bus_subtitle_mode_signal.emit(False)
-
-    @Slot(bool)
-    def _do_subtitle_mode(self, enter: bool):
-        """
-        Enter/exit compact "Subtitle Mode": a small window at the bottom-center of
-        the screen (above the taskbar). Runs on the Qt main thread.
-        """
-        if not self.main_window:
-            return
-        if enter:
-            self._subtitle_saved_geometry = self.main_window.geometry()
-            screen = self.qt_app.primaryScreen() if self.qt_app else QApplication.primaryScreen()
-            avail = screen.availableGeometry() if screen else None
-            width, height = 1200, 200
-            if avail:
-                x = avail.x() + (avail.width() - width) // 2
-                y = avail.y() + avail.height() - height - 10
-            else:
-                x, y = 100, 100
-            self.main_window.setGeometry(x, y, width, height)
-            self.main_window.show()
-            self.main_window.raise_()
-            self.main_window.activateWindow()
-            self._publish_window_visible(True)
-        else:
-            saved = getattr(self, "_subtitle_saved_geometry", None)
-            if saved is not None:
-                self.main_window.setGeometry(saved)
 
     # ========== WebView Methods ==========
 

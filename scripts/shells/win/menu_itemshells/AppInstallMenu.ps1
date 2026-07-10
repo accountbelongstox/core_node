@@ -21,34 +21,34 @@
 $script:PS_CURRENT_DIR = $PSScriptRoot
 $script:WIN_COMMON_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "win_common"
 $script:INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "install_powershells"
-$script:STEP16_SCRIPT = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step16_InstallApplications.ps1"
+$script:STEP16_SCRIPT = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step21_InstallApplications.ps1"
 
 # Script-based installs: Key must start with "script:" then filename; Display = menu text
 $script:SCRIPT_INSTALL_ENTRIES = @(
     @{ Key = "script:Step4_InstallNodeJS.ps1"; Display = "Node.js" },
-    @{ Key = "script:Step9_InstallPython.ps1"; Display = "Python" },
-    @{ Key = "script:Step12_InstallPHP.ps1"; Display = "PHP" },
+    @{ Key = "script:Step8_InstallPython.ps1"; Display = "Python" },
+    @{ Key = "script:Step16_InstallPHP.ps1"; Display = "PHP" },
     @{ Key = "script:Step6_InstallGit.ps1"; Display = "Git" },
-    @{ Key = "script:Step30_InstallChrome.ps1"; Display = "Chrome (script)" },
-    @{ Key = "script:Step40_InstallRedis.ps1"; Display = "Redis" },
-    @{ Key = "script:Step60_InstallAndroidStudio.ps1"; Display = "Android Studio" },
-    @{ Key = "script:Step61_InstallAndroidPlatformTools.ps1"; Display = "Android Platform Tools" },
-    @{ Key = "script:Step70_InstallFlutter.ps1"; Display = "Flutter" },
-    @{ Key = "script:Step51_InstallApkTool.ps1"; Display = "ApkTool" },
-    @{ Key = "script:Step31_InstallPuppeteerPlugins.ps1"; Display = "Puppeteer Plugins" },
-    @{ Key = "script:Step15_Install7ipBase.ps1"; Display = "7-Zip Base" },
-    @{ Key = "script:Step10_InstallScoopWithChinaMirror.ps1"; Display = "Scoop" },
-    @{ Key = "script:Step84_InstallWSL.ps1"; Display = "WSL" },
-    @{ Key = "script:Step85_InstallWSLUbuntu24.ps1"; Display = "WSL Ubuntu 24" },
-    @{ Key = "script:Step86_SetRootLoginWSLUbuntuDebian.ps1"; Display = "WSL Root Login" },
-    @{ Key = "script:Step87_InstallVisualStudio.ps1"; Display = "Visual Studio" },
-    @{ Key = "script:Step88_InstallQtBuildTools.ps1"; Display = "Qt Build Tools" },
-    @{ Key = "script:Step89_InstallQt.ps1"; Display = "Qt" },
-    @{ Key = "script:Step94_InstallQtOfficial.ps1"; Display = "Qt Official" },
-    @{ Key = "script:Step99_InstallDeepSeek.ps1"; Display = "DeepSeek" },
-    @{ Key = "script:Step100_InstallDeepSeekOCR.ps1"; Display = "DeepSeek OCR" },
-    @{ Key = "script:Step101_InstallQwen25.ps1"; Display = "Qwen 2.5" },
-    @{ Key = "script:Step102_InstallNLLB200.ps1"; Display = "NLLB 200" }
+    @{ Key = "script:Step22_InstallChrome.ps1"; Display = "Chrome (script)" },
+    @{ Key = "script:Step45_InstallRedis.ps1"; Display = "Redis" },
+    @{ Key = "script:Step26_InstallAndroidStudio.ps1"; Display = "Android Studio" },
+    @{ Key = "script:Step27_InstallAndroidPlatformTools.ps1"; Display = "Android Platform Tools" },
+    @{ Key = "script:Step28_InstallFlutter.ps1"; Display = "Flutter" },
+    @{ Key = "script:Step25_InstallApkTool.ps1"; Display = "ApkTool" },
+    @{ Key = "script:Step23_InstallPuppeteerPlugins.ps1"; Display = "Puppeteer Plugins" },
+    @{ Key = "script:Step20_Install7ipBase.ps1"; Display = "7-Zip Base" },
+    @{ Key = "script:Step14_InstallScoopWithChinaMirror.ps1"; Display = "Scoop" },
+    @{ Key = "script:Step29_InstallWSL.ps1"; Display = "WSL" },
+    @{ Key = "script:Step30_InstallWSLUbuntu24.ps1"; Display = "WSL Ubuntu 24" },
+    @{ Key = "script:Step31_SetRootLoginWSLUbuntuDebian.ps1"; Display = "WSL Root Login" },
+    @{ Key = "script:Step32_InstallVisualStudio.ps1"; Display = "Visual Studio" },
+    @{ Key = "script:Step33_InstallQtBuildTools.ps1"; Display = "Qt Build Tools" },
+    @{ Key = "script:Step34_InstallQt.ps1"; Display = "Qt" },
+    @{ Key = "script:Step35_InstallQtOfficial.ps1"; Display = "Qt Official" },
+    @{ Key = "script:Step36_InstallDeepSeek.ps1"; Display = "DeepSeek" },
+    @{ Key = "script:Step37_InstallDeepSeekOCR.ps1"; Display = "DeepSeek OCR" },
+    @{ Key = "script:Step38_InstallQwen25.ps1"; Display = "Qwen 2.5" },
+    @{ Key = "script:Step39_InstallNLLB200.ps1"; Display = "NLLB 200" }
 )
 
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")

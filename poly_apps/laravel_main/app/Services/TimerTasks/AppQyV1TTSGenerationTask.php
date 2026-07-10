@@ -75,6 +75,10 @@ class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
         // protocol (tts/worker/claim + tts/worker/report). Flip
         // APPQYV1_TTS_AUTO_GENERATION=true ONLY on a desktop where Laravel itself
         // should generate audio (e.g. no pycore worker available).
-        return env('APPQYV1_TTS_AUTO_GENERATION', false);
+        // Read from the user-data config (UserConfigService) with .env as a
+        // legacy fallback. Default OFF: Laravel drives tasks / probes the
+        // real-pronunciation API; it never runs the local edge-tts binary
+        // (gated by use_server_binary_assist). Enable in config/settings.json.
+        return app(\App\Services\UserConfig\UserConfigService::class)->get('appqyv1_tts_auto_generation', false);
     }
 }

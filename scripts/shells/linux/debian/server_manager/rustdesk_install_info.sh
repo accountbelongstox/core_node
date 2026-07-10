@@ -111,7 +111,7 @@ else
     else
         echo "RustDesk Server config not found."
         echo "Config path: $RUSTDESK_SERVER_CONFIG_FILE"
-        echo "Install with: scripts/shells/linux/debian/install_shells/128_install_rustdesk_server_*.sh"
+        echo "Install with: scripts/shells/linux/debian/install_shells/132_install_rustdesk_server_*.sh"
     fi
 fi
 

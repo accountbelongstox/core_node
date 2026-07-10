@@ -38,7 +38,6 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 # gvar_common.sh so it can derive the venv path from COMPILE_DIR.
 source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 # Idempotent CPU/GPU build guards (single source of truth, also runnable standalone).
-source "$PARENT_DIR_LEVEL_2/common/torch_cpu_guard.sh"
 source "$PARENT_DIR_LEVEL_2/common/onnxruntime_cpu_guard.sh"
 
 # Get Python version (default to 3 if not installed)
@@ -601,8 +600,8 @@ ensure_venv_user_writable() {
         local owner_group
         owner_group="$(id -gn "$owner_user" 2>/dev/null || echo "$owner_user")"
         print_step_from_common_functions "Repairing venv ownership ($cur -> $owner_user) so pip installs land in the venv, not ~/.local..."
-        echo "[13] $USE_SUDO chown -R $owner_user:$owner_group $VENV_DIR"
-        $USE_SUDO chown -R "$owner_user:$owner_group" "$VENV_DIR" 2>/dev/null || true
+        echo "[13] safe_chown_R $owner_user:$owner_group $VENV_DIR"
+        safe_chown_R "$owner_user:$owner_group" "$VENV_DIR"
     fi
 }
 
@@ -995,7 +994,7 @@ check_urllib3_for_certbot() {
 
     echo ">>> Installing certbot-compatible urllib3 (system-side)..."
     # certbot 2.x depends on urllib3.util.ssl_.DEFAULT_CIPHERS, which urllib3 2.x REMOVED, so
-    # this repair pins the last 1.x (1.26.18) -- the SAME version 26_install_certbot.sh enforces
+    # this repair pins the last 1.x (1.26.18) -- the SAME version 28_install_certbot.sh enforces
     # (one system-python urllib3 policy; --no-user matches 26 too). Upgrading to a newer 2.x
     # would not fix a DEFAULT_CIPHERS failure. The worker's venv pin (urllib3>=2.0,<3 in
     # third_party.py) is a SEPARATE interpreter and is unaffected.
@@ -1072,10 +1071,9 @@ check_and_install_python_packages_from_dependency_map() {
     print_info_from_common_functions "Checking and installing packages from pycore/pyfoundations/third_party.py"
     print_info_from_common_functions "Each package will be checked individually, even if others are correct"
 
-    # torch first, with the correct CPU/GPU build, via the shared guard (full mode:
-    # installs the right build when missing). Single source of truth: torch_cpu_guard.sh.
-    tcg_ensure_torch_build
     # ONNX runtime: on a GPU-less host ensure the CPU runtime (not onnxruntime-gpu).
+    # torch / ultralytics / paddle are installed by 14_install_python_prereq_packages.sh
+    # (after pip + CUDA prereq); do NOT install them here to avoid version conflicts.
     ocg_ensure_onnx_runtime
 
     # Headless Linux (no desktop): skip GUI-only Qt packages (PySide6 ~629M) — pointless
@@ -1099,12 +1097,8 @@ check_and_install_python_packages_from_dependency_map() {
         "psutil|psutil|"
         "mss|mss|"
 
-        # Deep learning - required by opencv
+        # Deep learning - torch/ultralytics installed by 14_install_python_prereq_packages.sh
         "numpy|numpy|"
-        # torch is installed separately by tcg_ensure_torch_build (torch_cpu_guard.sh,
-        # called below) so a GPU-less host gets the CPU wheel, not the default CUDA build
-        # + ~4.3G nvidia-*. ultralytics (and easyocr) then reuse the already-present torch.
-        "ultralytics|ultralytics|"
 
         # Device communication
         "adb_shell|adb-shell|"

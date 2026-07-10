@@ -24,7 +24,14 @@ Usage:
     static_dir = launcher.get_static_dir()
 """
 
-from .nuxt_launcher import NuxtLauncher
+try:
+    from .nuxt_launcher import NuxtLauncher
+except ImportError:
+    # nuxt_launcher depends on an optional output_capturer helper that is
+    # currently absent; isolate it so the rest of the package
+    # (UniversalFrontendLauncher, FrontendConfig) stays importable.
+    NuxtLauncher = None
+
 from .frontend_config import FrontendConfig
 from .universal_launcher import UniversalFrontendLauncher, UniversalFrontendConfig
 

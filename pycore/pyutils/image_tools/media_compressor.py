@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Media Compressor
+Media Compressor (facade)
 Provides video and image compression functionality with GPU acceleration support
 
 Features:
@@ -12,57 +12,49 @@ Features:
 - Configurable quality and preset settings
 - Multi-threaded batch processing with GPU load balancing
 - Task-level and queue-level callbacks
+
+Structure (split out of this file):
+- media_compressor_models.py  : pure dataclasses (CompressionStats / Task / QueueStats)
+- media_capability_detector.py: GPU + FFmpeg/nvenc detection, ENCYCLOPEDIA cache,
+                                 optimal-worker calc (reuses compute_caps.CUDADetector)
+- media_compressor.py (this)  : MediaCompressor facade - delegates capability
+                                 detection, then does image/video compression +
+                                 batch queue + task/queue stats.
+
+The dataclasses are re-exported here so existing callers that import them from
+media_compressor (and via pycore.pyutils) keep working unchanged.
 """
 
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import threading
 import queue
 import time
+import subprocess
 from pathlib import Path
 from typing import Optional, Dict, Tuple, Union, List, Callable
-from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
-import subprocess
-
-cv2 = get_third_package_cv2()
-numpy = get_third_package_numpy()
-from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.third_party import get_third_package_cv2
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
+# Re-exported data contracts (kept importable from this module for backwards
+# compatibility with callers that import them from media_compressor).
+from pycore.pyutils.image_tools.media_compressor_models import (
+    CompressionStats,
+    CompressionTask,
+    QueueStats,
+)
+# Capability detection (GPU + FFmpeg + cache + optimal workers) is delegated here.
+from pycore.pyutils.image_tools.media_capability_detector import MediaCapabilityDetector
 
-@dataclass
-class CompressionStats:
-    """Statistics for compression operations"""
-    original_size: int = 0
-    compressed_size: int = 0
-    compression_ratio: float = 0.0
-    processing_time: float = 0.0
-    used_gpu: bool = False
+cv2 = get_third_package_cv2()
 
-
-@dataclass
-class CompressionTask:
-    """Compression task definition"""
-    task_id: str
-    input_path: Path
-    output_path: Path
-    task_type: str  # 'image' or 'video'
-    options: Dict = field(default_factory=dict)
-    callback: Optional[Callable] = None
-
-
-@dataclass
-class QueueStats:
-    """Queue processing statistics"""
-    total_tasks: int = 0
-    completed_tasks: int = 0
-    failed_tasks: int = 0
-    total_original_size: int = 0
-    total_compressed_size: int = 0
-    start_time: float = 0.0
-    end_time: float = 0.0
+__all__ = [
+    "MediaCompressor",
+    "get_media_compressor",
+    "CompressionStats",
+    "CompressionTask",
+    "QueueStats",
+]
 
 
 class MediaCompressor:
@@ -71,6 +63,9 @@ class MediaCompressor:
 
     Supports both image and video compression with automatic CUDA detection.
     Falls back to CPU processing when GPU is unavailable.
+
+    Capability detection (GPU + FFmpeg/nvenc) is delegated to
+    MediaCapabilityDetector, which owns the single ENCYCLOPEDIA capability cache.
 
     Example:
         compressor = MediaCompressor(verbose=True)
@@ -92,25 +87,20 @@ class MediaCompressor:
             max_workers: Maximum number of worker threads (auto-detect based on GPU if None)
         """
         self.verbose = verbose
-        self.cuda_available = False
-        self.gpu_device_count = 0
-        self.gpu_name = None
-        self.gpu_memory_gb = None
-        self.ffmpeg_available = False
-        self.ffmpeg_cuda_support = False
 
-        # Check cache first
-        cached_info = ENCYCLOPEDIA.get("media_compressor_info")
-        if cached_info is not None:
-            self._load_from_cache(cached_info)
-        else:
-            # Perform detection
-            self._detect_capabilities()
-            # Cache the results
-            self._save_to_cache()
+        # Delegate GPU + FFmpeg capability detection (with ENCYCLOPEDIA cache) to
+        # the detector. It owns the single capability cache; the facade only
+        # mirrors the resulting capability attributes for its own use.
+        self._capability_detector = MediaCapabilityDetector(verbose=verbose)
+        self.cuda_available = self._capability_detector.cuda_available
+        self.gpu_device_count = self._capability_detector.gpu_device_count
+        self.gpu_name = self._capability_detector.gpu_name
+        self.gpu_memory_gb = self._capability_detector.gpu_memory_gb
+        self.ffmpeg_available = self._capability_detector.ffmpeg_available
+        self.ffmpeg_cuda_support = self._capability_detector.ffmpeg_cuda_support
 
         # Thread pool configuration
-        self.max_workers = max_workers or self._calculate_optimal_workers()
+        self.max_workers = max_workers or self._capability_detector.calculate_optimal_workers()
         self.thread_pool = None
         self.task_queue = queue.Queue()
         self.stats_lock = threading.Lock()
@@ -122,149 +112,6 @@ class MediaCompressor:
         """Print if verbose mode enabled"""
         if self.verbose:
             print(*args, **kwargs)
-
-    def _load_from_cache(self, cached: Dict):
-        """Load state from ENCYCLOPEDIA cache"""
-        self.cuda_available = cached.get('cuda_available', False)
-        self.gpu_device_count = cached.get('device_count', 0)
-        self.gpu_name = cached.get('device_name')
-        self.gpu_memory_gb = cached.get('device_memory')
-        self.ffmpeg_available = cached.get('ffmpeg_available', False)
-        self.ffmpeg_cuda_support = cached.get('ffmpeg_cuda_support', False)
-
-    def _save_to_cache(self):
-        """Save state to ENCYCLOPEDIA cache"""
-        ENCYCLOPEDIA.add("media_compressor_info", {
-            'cuda_available': self.cuda_available,
-            'device_count': self.gpu_device_count,
-            'device_name': self.gpu_name,
-            'device_memory': self.gpu_memory_gb,
-            'ffmpeg_available': self.ffmpeg_available,
-            'ffmpeg_cuda_support': self.ffmpeg_cuda_support
-        })
-
-    def _detect_capabilities(self):
-        """Detect GPU and software capabilities"""
-        self._print("\n" + "=" * 80)
-        self._print("[MEDIA COMPRESSOR] Detecting GPU and Codec Support")
-        self._print("=" * 80)
-
-        # Detect GPU via multiple methods
-        self._detect_gpu()
-
-        # Detect FFmpeg and codec support
-        self._detect_ffmpeg()
-
-        # Print summary
-        self._print_capabilities_summary()
-
-    def _detect_gpu(self):
-        """Detect GPU availability via PyTorch and OpenCV"""
-        # Try PyTorch first
-        try:
-            if torch.cuda.is_available():
-                self.cuda_available = True
-                self.gpu_device_count = torch.cuda.device_count()
-                self.gpu_name = torch.cuda.get_device_name(0)
-                self.gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-                self._print(f"✅ PyTorch CUDA detected: {self.gpu_name}")
-                self._print(f"   Memory: {self.gpu_memory_gb:.2f} GB")
-        except ImportError:
-            pass
-
-        # Try OpenCV CUDA
-        try:
-            device_count = cv2.cuda.getCudaEnabledDeviceCount()
-            if device_count > 0:
-                self.cuda_available = True
-                self.gpu_device_count = device_count
-                try:
-                    info = cv2.cuda.DeviceInfo(0)
-                    if not self.gpu_name:
-                        self.gpu_name = info.name()
-                        self.gpu_memory_gb = info.totalMemory() / (1024**3)
-                    self._print(f"✅ OpenCV CUDA detected: {device_count} device(s)")
-                except Exception:
-                    pass
-        except AttributeError:
-            if not self.cuda_available:
-                self._print("ℹ️  OpenCV CUDA not available")
-
-        # Try nvidia-smi as fallback
-        if not self.cuda_available:
-            try:
-                result = exec_silent(
-                    ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
-                if result.return_code == 0:
-                    lines = result.stdout.strip().split('\n')
-                    if lines:
-                        parts = lines[0].split(',')
-                        if len(parts) >= 2:
-                            self.cuda_available = True
-                            self.gpu_device_count = len(lines)
-                            self.gpu_name = parts[0].strip()
-                            memory_str = parts[1].strip()
-                            try:
-                                self.gpu_memory_gb = int(memory_str.split()[0]) / 1024
-                            except (ValueError, IndexError):
-                                pass
-                            self._print(f"✅ NVIDIA GPU detected via nvidia-smi: {self.gpu_name}")
-            except (subprocess.TimeoutExpired, FileNotFoundError):
-                pass
-
-        if not self.cuda_available:
-            self._print("⚠️  No CUDA-capable GPU detected, will use CPU")
-
-    def _detect_ffmpeg(self):
-        """Detect FFmpeg availability and CUDA support"""
-        try:
-            # Check if ffmpeg exists
-            result = exec_silent(
-                ["ffmpeg", "-version"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.return_code == 0:
-                self.ffmpeg_available = True
-                self._print("✅ FFmpeg detected")
-
-                # Check for NVIDIA codec support
-                if self.cuda_available:
-                    codec_result = exec_silent(
-                        ["ffmpeg", "-hide_banner", "-encoders"],
-                        capture_output=True,
-                        text=True,
-                        timeout=5
-                    )
-                    if codec_result.return_code == 0:
-                        output = codec_result.stdout
-                        # Check for NVIDIA hardware encoders
-                        if 'h264_nvenc' in output or 'hevc_nvenc' in output:
-                            self.ffmpeg_cuda_support = True
-                            self._print("✅ FFmpeg NVIDIA hardware encoding support detected")
-                        else:
-                            self._print("ℹ️  FFmpeg CUDA encoders not available")
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            self._print("⚠️  FFmpeg not found, video compression will be limited")
-            self._print("   Install FFmpeg: https://ffmpeg.org/download.html")
-
-    def _print_capabilities_summary(self):
-        """Print capabilities summary"""
-        self._print("\n" + "-" * 80)
-        self._print("CAPABILITIES SUMMARY:")
-        self._print(f"  GPU Available: {self.cuda_available}")
-        if self.cuda_available:
-            self._print(f"  GPU Device: {self.gpu_name}")
-            if self.gpu_memory_gb:
-                self._print(f"  GPU Memory: {self.gpu_memory_gb:.2f} GB")
-        self._print(f"  FFmpeg: {self.ffmpeg_available}")
-        self._print(f"  Hardware Video Encoding: {self.ffmpeg_cuda_support}")
-        self._print("-" * 80 + "\n")
 
     def compress_image(self,
                       input_path: Union[str, Path],
@@ -360,7 +207,7 @@ class MediaCompressor:
         )
 
         ColorPrint.green(
-            f"✅ Image compressed: {original_size/1024:.1f}KB → {compressed_size/1024:.1f}KB "
+            f"✅ Image compressed: {original_size/1024:.1f}KB -> {compressed_size/1024:.1f}KB "
             f"({compression_ratio:.1f}% reduction) in {processing_time:.2f}s"
         )
         if used_gpu:
@@ -532,7 +379,7 @@ class MediaCompressor:
         )
 
         ColorPrint.green(
-            f"✅ Video compressed: {original_size/(1024*1024):.1f}MB → {compressed_size/(1024*1024):.1f}MB "
+            f"✅ Video compressed: {original_size/(1024*1024):.1f}MB -> {compressed_size/(1024*1024):.1f}MB "
             f"({compression_ratio:.1f}% reduction) in {processing_time:.1f}s"
         )
         if used_gpu:
@@ -556,34 +403,6 @@ class MediaCompressor:
             'ffmpeg_cuda_support': self.ffmpeg_cuda_support,
             'max_workers': self.max_workers
         }
-
-    def _calculate_optimal_workers(self) -> int:
-        """
-        Calculate optimal number of worker threads based on GPU availability and memory
-
-        Returns:
-            Optimal number of worker threads
-        """
-        if not self.cuda_available or not self.ffmpeg_cuda_support:
-            # CPU mode: use conservative thread count
-            import os
-            cpu_count = os.cpu_count() or 4
-            return max(2, cpu_count // 2)
-
-        # GPU mode: calculate based on GPU memory
-        if self.gpu_memory_gb:
-            if self.gpu_memory_gb >= 8:
-                # High-end GPU: 4-6 concurrent tasks
-                return 6
-            elif self.gpu_memory_gb >= 4:
-                # Mid-range GPU: 3-4 concurrent tasks
-                return 4
-            else:
-                # Low-end GPU: 2 concurrent tasks
-                return 2
-        else:
-            # Unknown GPU memory, use conservative estimate
-            return 3
 
     def _process_task(self, task: CompressionTask) -> Tuple[bool, Optional[CompressionStats]]:
         """

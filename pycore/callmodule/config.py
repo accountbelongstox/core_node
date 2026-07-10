@@ -22,23 +22,22 @@ except ImportError:
     TKINTER_AVAILABLE = False
 
 from pycore import ColorPrint, THREAD_BUS, get_user_data_store
-from pycore.pyfoundations.third_party import get_third_package_requests, get_third_package_fastapi
+from pycore.pyfoundations.third_party import get_third_package_fastapi
 from pycore.pylauncher import LauncherConfig
 from pycore.pyutils.codesync import get_code_sync_manager, configure as configure_codesync
 from pycore.pyutils.native_ui.step0_i18n import i18n
 from pycore.callmodule.tray_menu import build_tray_menu, tray_menu_to_dicts
 from pycore.callmodule.callmodule_config import Config as CallmoduleConfig
-from pycore.callmodule.services.sync.laravel_endpoint_manager import (
-    get_laravel_endpoint_manager,
+
+# Modular per-area WS RPC route registration (speech-routes convention: one file
+# per area, register_<area>_routes(server)). The 11 desktop-UI WS RPC handlers
+# + THREAD_BUS broadcast listeners live there; _init_rpc_routes wires them up.
+from pycore.callmodule.rpc_routes import (
+    register_thread_bus_routes,
+    register_video_extract_routes,
+    register_media_routes,
+    register_laravel_api_routes,
 )
-from pycore.callmodule.services.sync.laravel_media_sync import (
-    backend_status,
-    resolve_laravel_base_url,
-    sync_all,
-    sync_book_source,
-    sync_source,
-)
-from pycore.callmodule.services.processors.book_processor import iter_books
 
 # Unified AI gateway -> desktop pipeline composition (pyctl/* packages must not
 # import each other, so the APP layer wires the gateway into the desktop hooks).
@@ -115,7 +114,13 @@ UI_DESIRED_WINDOW_SIZE = (1788, 1159)
 
 
 def _get_screen_size():
-    """Best-effort (width, height) of the primary screen, or None if unknown."""
+    """Best-effort (width, height) of the primary screen, or None if unknown.
+
+    TODO(modular-split): move _get_screen_size + _resolve_window_size +
+    UI_DESIRED_WINDOW_SIZE into callmodule_config/ (screen/window sizing is a
+    config concern, not a launcher-config-builder concern). Deferred to keep this
+    split focused on the WS RPC route seams.
+    """
     try:
         if IS_WINDOWS:
             user32 = ctypes.windll.user32
@@ -150,7 +155,12 @@ def _resolve_window_size():
 
 
 def _resolve_tray_icon_path():
-    """Resolve the tray icon absolute path, or None if the file is missing."""
+    """Resolve the tray icon absolute path, or None if the file is missing.
+
+    TODO(modular-split): move _resolve_tray_icon_path + build_tray_service_config
+    into callmodule/tray_menu.py (they are tray concerns). Deferred to keep this
+    split focused on the WS RPC route seams; both stay re-exported from here.
+    """
     pycore_root = Path(__file__).parent.parent
     icon_path = pycore_root / CallmoduleConfig.TRAY_ICON_PATH_REL
     return str(icon_path) if icon_path.exists() else None
@@ -246,334 +256,22 @@ def _init_rpc_routes(server):
     """
     Register the RPC routes/listeners the desktop UI needs over WebSocket.
 
-    Restores the WS bridge the original create_rpc_server() provided: the web UI
-    issues `rpcClient.call('thread_bus.trigger_event', {event_name, event_data})`
-    (e.g. for subtitle fullscreen mode), which must be turned into a real
-    THREAD_BUS event server-side. Also broadcasts voice-subtitle state changes to
-    connected WS clients for real-time UI refresh.
+    The 11 WS RPC handlers + THREAD_BUS broadcast listeners are registered by the
+    per-area ``register_<area>_routes`` functions in ``pycore.callmodule.rpc_routes``
+    (one file per area, speech-routes convention). This orchestrator wires them up
+    and then performs the APP-level Code Sync warm-up (which must stay here:
+    ``_register_code_sync_ws`` serves the ``/code-sync/ws`` receiver on the rpc_v2
+    app, and the manager boot starts the status mesh + file puller at startup).
 
     Called by start_rpc_v2 with the FastAPIRPCServer instance after start.
     """
-    async def thread_bus_trigger_event(params, request_id, context):
-        params = params or {}
-        event_name = params.get('event_name')
-        event_data = params.get('event_data', {})
-        if not event_name:
-            return {'success': False, 'error': 'event_name required'}
-        THREAD_BUS.trigger_event(event_name, event_data)
-        return {'success': True, 'event': event_name}
-
-    async def video_extract_sync_source(params, request_id, context):
-        """Idempotently sync a scanned source's media to laravel_main (:9000).
-
-        params: { source_path | paths:[...], language? }. Runs the (blocking,
-        network-heavy) sync on a worker thread via asyncio.to_thread so the event
-        loop stays responsive. Progress streams over ColorPrint (UI log WS) AND a
-        'video_extract_sync' THREAD_BUS event per stage. Returns the summary (one
-        source) or a {results:[...]} aggregate (multiple paths).
-        """
-        params = params or {}
-        language = params.get('language') or 'en'
-        # Checked correspondence language set (Lsel, v3 subtitles). Optional: when
-        # omitted sync_source unions only the detected languages with the primary.
-        languages = params.get('languages')
-        paths = params.get('paths')
-        single = params.get('source_path')
-        # Precondition guard: need at least one usable source path.
-        targets = [p for p in (paths or ([single] if single else []))
-                   if p and str(p).strip()]
-        if not targets:
-            return {'success': False, 'error': 'source_path (or paths) required'}
-
-        try:
-            if len(targets) == 1:
-                return await asyncio.to_thread(
-                    sync_source, targets[0], language, None, None, languages)
-            results = []
-            for p in targets:
-                results.append(await asyncio.to_thread(
-                    sync_source, p, language, None, None, languages))
-            return {
-                'success': all(r.get('success') for r in results),
-                'count': len(results),
-                'results': results,
-            }
-        except Exception as e:
-            ColorPrint.red(f"[ConfigBuilder] video_extract.sync_source failed: {e}")
-            return {'success': False, 'error': str(e)}
-
-    async def video_extract_backend_status(params, request_id, context):
-        """Compare local extract outputs against what laravel_main actually holds.
-
-        params: { paths?:[...], base_url? }. Defaults to ALL history entry paths
-        and uses the SAME base-url resolution as the sync engine, so the status
-        panel and the sync always target the same host. Runs the (network-bound)
-        probe on a worker thread via asyncio.to_thread. An unreachable backend
-        degrades to reachable:false (never raises from the probe itself).
-        """
-        params = params or {}
-        try:
-            return await asyncio.to_thread(
-                backend_status, params.get('paths'), params.get('base_url'))
-        except Exception as e:
-            ColorPrint.red(f"[ConfigBuilder] video_extract.backend_status failed: {e}")
-            return {'success': False, 'error': str(e)}
-
-    async def video_extract_sync_all(params, request_id, context):
-        """One-click idempotent sync of EVERY known source to laravel_main (:9000).
-
-        params: { paths?:[...], language? }. Defaults to ALL history entry paths,
-        dedupes overlapping output dirs, then runs sync_source per remaining path
-        sequentially. Runs the (blocking, network-heavy) sync on a worker thread
-        via asyncio.to_thread so the event loop stays responsive. Progress streams
-        over ColorPrint (UI log WS) AND a 'video_extract_sync' THREAD_BUS event
-        per stage (plus an outer stage="source" event per path). Returns the
-        aggregate summary.
-        """
-        params = params or {}
-        language = params.get('language') or 'en'
-        languages = params.get('languages')  # checked Lsel (v3 subtitles), optional
-        try:
-            return await asyncio.to_thread(
-                sync_all, params.get('paths'), language, None, None, languages)
-        except Exception as e:
-            ColorPrint.red(f"[ConfigBuilder] video_extract.sync_all failed: {e}")
-            return {'success': False, 'error': str(e)}
-
-    async def book_sync_source(params, request_id, context):
-        """Idempotently ingest book(s) into the shared sentence library (:9000).
-
-        params: { source_path | paths:[...], language? }. Books map ONLY to the
-        sentence library (no segments/clips). Runs the (blocking, network-heavy)
-        ingest on a worker thread via asyncio.to_thread. Progress streams over
-        ColorPrint AND a 'video_extract_sync' THREAD_BUS event per stage. Returns
-        the summary (one book) or a {results:[...]} aggregate (multiple paths).
-        """
-        params = params or {}
-        language = params.get('language') or 'en'
-        # Checked correspondence language set (Lsel, v3). Optional: when omitted
-        # sync_book_source defaults to just the declared/detected primary.
-        languages = params.get('languages')
-        # 'book' (default) or 'document' (Add Document sub-tab) — sets the ingest
-        # source_type so document rows land in the document bucket.
-        source_type = params.get('source_type') or 'book'
-        paths = params.get('paths')
-        single = params.get('source_path')
-        targets = [p for p in (paths or ([single] if single else []))
-                   if p and str(p).strip()]
-        if not targets:
-            return {'success': False, 'error': 'source_path (or paths) required'}
-
-        # Expand any folder into its book files; a folder "source" should ingest
-        # every book it contains (sync_book_source itself handles one file).
-        try:
-            expanded = []
-            for t in targets:
-                if os.path.isdir(t):
-                    expanded.extend(str(p) for p in iter_books(t))
-                else:
-                    expanded.append(t)
-            if expanded:
-                targets = expanded
-        except Exception as e:
-            ColorPrint.yellow(f"[ConfigBuilder] book folder expansion skipped: {e}")
-
-        try:
-            if len(targets) == 1:
-                return await asyncio.to_thread(
-                    sync_book_source, targets[0], language, None, None, None, None,
-                    languages, 3, source_type)
-            results = []
-            for p in targets:
-                results.append(await asyncio.to_thread(
-                    sync_book_source, p, language, None, None, None, None,
-                    languages, 3, source_type))
-            return {
-                'success': all(r.get('success') for r in results),
-                'count': len(results),
-                'results': results,
-            }
-        except Exception as e:
-            ColorPrint.red(f"[ConfigBuilder] book.sync_source failed: {e}")
-            return {'success': False, 'error': str(e)}
-
-    async def media_enrich(params, request_id, context):
-        """Trigger Laravel's sentence-library enrichment via pycore.
-
-        params: { limit?:int, language? }. Forwards to laravel_main's
-        /api/app_qy_v1/media/enrich (built by another role) and returns its JSON.
-        Returns a clear error if the endpoint 404s / is unreachable.
-        """
-        params = params or {}
-        body = {}
-        if params.get('limit') is not None:
-            body['limit'] = params.get('limit')
-        if params.get('language'):
-            body['language'] = params.get('language')
-
-        def _do_enrich():
-            base = resolve_laravel_base_url()
-            url = base + '/api/app_qy_v1/media/enrich'
-            requests = get_third_package_requests()
-            try:
-                resp = requests.post(url, json=body, timeout=120)
-            except Exception as e:
-                return {'success': False, 'error': f'enrich unreachable: {e}', 'url': url}
-            if resp.status_code in (200, 201):
-                try:
-                    return resp.json()
-                except Exception:
-                    return {'success': True, 'status': resp.status_code, 'text': resp.text[:500]}
-            return {'success': False,
-                    'error': f'HTTP {resp.status_code}: {resp.text[:200]}', 'url': url}
-
-        try:
-            return await asyncio.to_thread(_do_enrich)
-        except Exception as e:
-            ColorPrint.red(f"[ConfigBuilder] media.enrich failed: {e}")
-            return {'success': False, 'error': str(e)}
-
-    # ---- laravel_api.* — multi-endpoint manager for the laravel_main base URL.
-    # Stored-first resolution + parallel 3s probes; persisted in user_data.json
-    # under the 'laravel_api' section ({endpoints:[...], current}). All probing
-    # runs on a worker thread (asyncio.to_thread) so the event loop stays free.
-    async def laravel_api_list(params, request_id, context):
-        """List endpoints with health. params: { probe?: bool (default true) }.
-
-        Probes every candidate IN PARALLEL (3s cap) unless probe=false, which
-        returns the last known results instead. Returns {success, endpoints:
-        [{url, healthy, latency_ms, last_checked, status, error}], current,
-        resolved}.
-        """
-        params = params or {}
-        probe = params.get('probe', True)
-        try:
-            return await asyncio.to_thread(
-                get_laravel_endpoint_manager().list_endpoints, bool(probe))
-        except Exception as e:
-            ColorPrint.red(f"[ConfigBuilder] laravel_api.list failed: {e}")
-            return {'success': False, 'error': str(e)}
-
-    async def laravel_api_add(params, request_id, context):
-        """Add a candidate endpoint. params: { url }. Invalidates the cache."""
-        params = params or {}
-        try:
-            return await asyncio.to_thread(
-                get_laravel_endpoint_manager().add, params.get('url'))
-        except Exception as e:
-            ColorPrint.red(f"[ConfigBuilder] laravel_api.add failed: {e}")
-            return {'success': False, 'error': str(e)}
-
-    async def laravel_api_remove(params, request_id, context):
-        """Remove a candidate endpoint. params: { url }. Invalidates the cache."""
-        params = params or {}
-        try:
-            return await asyncio.to_thread(
-                get_laravel_endpoint_manager().remove, params.get('url'))
-        except Exception as e:
-            ColorPrint.red(f"[ConfigBuilder] laravel_api.remove failed: {e}")
-            return {'success': False, 'error': str(e)}
-
-    async def laravel_api_select(params, request_id, context):
-        """Persist the user's endpoint choice. params: { url }.
-
-        Adds the URL when missing, sets it as `current`, invalidates the
-        resolve cache and probes the selection once for fresh health info.
-        """
-        params = params or {}
-        try:
-            return await asyncio.to_thread(
-                get_laravel_endpoint_manager().select, params.get('url'))
-        except Exception as e:
-            ColorPrint.red(f"[ConfigBuilder] laravel_api.select failed: {e}")
-            return {'success': False, 'error': str(e)}
-
-    async def laravel_api_probe(params, request_id, context):
-        """Probe ONE endpoint ({url}) or ALL candidates (no url; parallel, 3s cap)."""
-        params = params or {}
-        try:
-            return await asyncio.to_thread(
-                get_laravel_endpoint_manager().probe_route, params.get('url'))
-        except Exception as e:
-            ColorPrint.red(f"[ConfigBuilder] laravel_api.probe failed: {e}")
-            return {'success': False, 'error': str(e)}
-
     try:
-        server.route(
-            name='thread_bus.trigger_event',
-            handler=thread_bus_trigger_event,
-            sync=False,
-            description='Trigger a THREAD_BUS event from the web UI',
-        )
-        server.route(
-            name='video_extract.sync_source',
-            handler=video_extract_sync_source,
-            sync=False,
-            description='Idempotently sync a scanned source to laravel_main',
-        )
-        server.route(
-            name='video_extract.backend_status',
-            handler=video_extract_backend_status,
-            sync=False,
-            description='Compare local extract outputs against laravel_main holdings',
-        )
-        server.route(
-            name='video_extract.sync_all',
-            handler=video_extract_sync_all,
-            sync=False,
-            description='Idempotently sync every known source to laravel_main',
-        )
-        server.route(
-            name='book.sync_source',
-            handler=book_sync_source,
-            sync=False,
-            description='Idempotently ingest book(s) into the shared sentence library',
-        )
-        server.route(
-            name='media.enrich',
-            handler=media_enrich,
-            sync=False,
-            description='Trigger laravel_main sentence-library enrichment',
-        )
-        server.route(
-            name='laravel_api.list',
-            handler=laravel_api_list,
-            sync=False,
-            description='List Laravel API endpoints with health (parallel probe, 3s cap)',
-        )
-        server.route(
-            name='laravel_api.add',
-            handler=laravel_api_add,
-            sync=False,
-            description='Add a Laravel API endpoint candidate',
-        )
-        server.route(
-            name='laravel_api.remove',
-            handler=laravel_api_remove,
-            sync=False,
-            description='Remove a Laravel API endpoint candidate',
-        )
-        server.route(
-            name='laravel_api.select',
-            handler=laravel_api_select,
-            sync=False,
-            description='Select + persist the current Laravel API endpoint',
-        )
-        server.route(
-            name='laravel_api.probe',
-            handler=laravel_api_probe,
-            sync=False,
-            description='Probe one or all Laravel API endpoints (3s timeout)',
-        )
-        for ev in ('voice_subtitle_update', 'voice_subtitle_queue_update',
-                   'voice_subtitle_ui_show', 'voice_subtitle_ui_hide'):
-            server.register_thread_bus_listener(ev)
-        # System-settings changes are broadcast live to the UI via THREAD_BUS.
-        server.register_thread_bus_listener('system_settings_update')
-        # Tray / native i18n language switches -> web UI sync (PcLanguageSync).
-        server.register_thread_bus_listener('ui.i18n.language_changed')
-        # Code Sync peer-mesh status/config ticks -> live UI refresh.
-        server.register_thread_bus_listener('code_sync_update')
+        # Register WS RPC routes by functional area (modular).
+        register_thread_bus_routes(server)
+        register_video_extract_routes(server)
+        register_media_routes(server)
+        register_laravel_api_routes(server)
+
         # Boot the Code Sync manager now (the tray no longer instantiates it):
         # this starts the status mesh for every role and the file puller for
         # clients (which receive code by default) right at startup, instead of
@@ -581,7 +279,7 @@ def _init_rpc_routes(server):
         try:
             # Inject pycore's services into the standalone Code Sync library so it
             # logs through ColorPrint, fires UI events via THREAD_BUS, and honours
-            # the global shutdown — the same library that runs headless under
+            # the global shutdown - the same library that runs headless under
             # `pyservice.sh codesync`. Must run BEFORE the first get_manager().
             configure_codesync(
                 logger=ColorPrint,
@@ -596,7 +294,7 @@ def _init_rpc_routes(server):
             get_code_sync_manager()
             # Serve the codesync file-push receiver (/code-sync/ws) on THIS
             # rpc_v2 server (:59000) so peers running full pycore accept the
-            # dev's pushes — closes the "ws handshake failed: 404" gap where the
+            # dev's pushes - closes the "ws handshake failed: 404" gap where the
             # route only existed in the never-started standalone daemon.
             _register_code_sync_ws(server.app)
         except Exception as e:

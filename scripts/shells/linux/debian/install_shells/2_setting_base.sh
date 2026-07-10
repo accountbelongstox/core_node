@@ -335,6 +335,22 @@ ntfs_owner_opts() {
     printf 'uid=%s,gid=%s' "$uid" "$gid"
 }
 
+# ntfs_mount_type -> echo "ntfs3" (preferred in-kernel driver) or "ntfs" (ntfs-3g
+# FUSE fallback). ntfs3 is SMP-friendly and runs in-kernel, avoiding the
+# single-threaded userspace FUSE bottleneck of ntfs-3g under metadata-heavy ops
+# (recursive chown/chmod, find). Both drivers accept the same uid=/gid=/umask=
+# mount options, so only the fstab type field changes. Loads the module as a side
+# effect of the availability probe.
+ntfs_mount_type() {
+    if modprobe ntfs3 >/dev/null 2>&1; then
+        echo "ntfs3"
+    elif grep -q ntfs3 /proc/filesystems 2>/dev/null; then
+        echo "ntfs3"
+    else
+        echo "ntfs"
+    fi
+}
+
 # =============================================================================
 # Mount Management Functions
 # =============================================================================
@@ -375,7 +391,10 @@ mount_disk() {
 
     local uuid=$($USE_SUDO blkid -s UUID -o value "$device")
 
-    update_fstab "$uuid" "$mount_point" "$fstype" "$mount_options"
+    # Prefer in-kernel ntfs3 for NTFS volumes (see ntfs_mount_type).
+    local fstab_type="$fstype"
+    [ "$fstype" = "ntfs" ] && fstab_type="$(ntfs_mount_type)"
+    update_fstab "$uuid" "$mount_point" "$fstab_type" "$mount_options"
 
     echo "[2] $USE_SUDO mount $mount_point"
     if $USE_SUDO mount "$mount_point" 2>/dev/null; then
@@ -383,6 +402,19 @@ mount_disk() {
         echo "[2] $USE_SUDO chmod 755 $mount_point"
         $USE_SUDO chmod 755 "$mount_point"
         return 0
+    elif [ "$fstab_type" = "ntfs3" ]; then
+        # ntfs3 mount failed (e.g. dirty volume) -> fall back to ntfs-3g.
+        warning "ntfs3 mount failed for $device; falling back to ntfs-3g"
+        fstab_type="ntfs"
+        update_fstab "$uuid" "$mount_point" "$fstab_type" "$mount_options"
+        if $USE_SUDO mount "$mount_point" 2>/dev/null; then
+            log "Successfully mounted $device to $mount_point (ntfs-3g)"
+            echo "[2] $USE_SUDO chmod 755 $mount_point"
+            $USE_SUDO chmod 755 "$mount_point"
+            return 0
+        fi
+        error "Failed to mount $device to $mount_point"
+        return 1
     else
         error "Failed to mount $device to $mount_point"
         return 1
@@ -521,16 +553,31 @@ handle_ntfs_disk() {
         log "Created mount point: $mount_point"
     fi
 
+    # Prefer in-kernel ntfs3 (see ntfs_mount_type); fall back to ntfs-3g on failure.
+    local ntfs_type="$(ntfs_mount_type)"
     # Update fstab (single entry per UUID, no duplicates)
     local mount_options="defaults,nofail,x-systemd.device-timeout=10,$(ntfs_owner_opts),umask=0022"
-    mount_fstab_ensure_single_entry "$uuid" "$mount_point" "$fstype" "$mount_options"
-    log "Added fstab entry: UUID=$uuid $mount_point $fstype $mount_options 0 2"
+    mount_fstab_ensure_single_entry "$uuid" "$mount_point" "$ntfs_type" "$mount_options"
+    log "Added fstab entry: UUID=$uuid $mount_point $ntfs_type $mount_options 0 2"
 
     # Real-time mount: not mounted -> mount at target; mounted elsewhere -> remount to target
     if [ "$is_mounted" = false ]; then
-        echo "[2] $USE_SUDO mount -t $fstype -o $mount_options $device $mount_point"
-        if $USE_SUDO mount -t "$fstype" -o "$mount_options" "$device" "$mount_point" 2>/dev/null; then
-            log "Successfully mounted $device to $mount_point"
+        local _mounted=false
+        local _tries="$ntfs_type"
+        [ "$ntfs_type" = "ntfs" ] || _tries="$ntfs_type ntfs"
+        for _try_type in $_tries; do
+            [ "$_try_type" = "$ntfs_type" ] || warning "Retrying $device with ntfs-3g"
+            echo "[2] $USE_SUDO mount -t $_try_type -o $mount_options $device $mount_point"
+            if $USE_SUDO mount -t "$_try_type" -o "$mount_options" "$device" "$mount_point" 2>/dev/null; then
+                ntfs_type="$_try_type"
+                _mounted=true
+                break
+            fi
+        done
+        if [ "$_mounted" = true ]; then
+            # Persist the fstab type that actually mounted.
+            mount_fstab_ensure_single_entry "$uuid" "$mount_point" "$ntfs_type" "$mount_options"
+            log "Successfully mounted $device to $mount_point ($ntfs_type)"
             echo "[2] $USE_SUDO chmod 755 $mount_point"
             $USE_SUDO chmod 755 "$mount_point"
             if [ -n "$GLOBAL_VAR_DIR" ]; then
@@ -547,7 +594,7 @@ handle_ntfs_disk() {
         fi
     fi
     if [ "$current_mount" != "$mount_point" ]; then
-        if mount_remount_to_target "$device" "$current_mount" "$mount_point" "$fstype" "$mount_options"; then
+        if mount_remount_to_target "$device" "$current_mount" "$mount_point" "$ntfs_type" "$mount_options"; then
             log "Remounted $device to $mount_point (effective immediately)"
             if [ -n "$GLOBAL_VAR_DIR" ]; then
                 echo "[2] echo \"\$mount_point\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_MOUNT_POINT"

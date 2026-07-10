@@ -7,7 +7,7 @@
 # Discovered & run by prepare.sh (pyservice). Forwards to the single source of
 # truth, which also runs in the dd.sh install flow:
 #
-#     scripts/shells/linux/debian/install_shells/22_install_tts_offline.sh
+#     scripts/shells/linux/debian/install_shells/23_install_tts_offline.sh
 #
 # Installs sherpa-onnx + a Kokoro (zh/en) model by default. MeloTTS is opt-in
 # (--melotts; pins transformers==4.27.4). GPT-SoVITS is not installed (the pycore
@@ -21,7 +21,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
-STEP_SCRIPT="$REPO_ROOT/scripts/shells/linux/debian/install_shells/22_install_tts_offline.sh"
+STEP_SCRIPT="$REPO_ROOT/scripts/shells/linux/debian/install_shells/23_install_tts_offline.sh"
 
 if [[ ! -s "$STEP_SCRIPT" ]]; then
     echo "[X] offline-TTS canonical script not found: $STEP_SCRIPT" >&2

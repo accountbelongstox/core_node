@@ -242,7 +242,7 @@ declare -gA APP_PACKAGES=(
 
 )
 
-# AI Tools definitions (moved from 36_install_ai_tools.sh)
+# AI Tools definitions (moved from 38_install_ai_tools.sh)
 declare -gA AI_PACKAGES=(
     # Gemini CLI
     ["gemini_name"]="Google Gemini CLI"
@@ -346,7 +346,7 @@ APP_PACKAGE_LIST=(
 )
 
 # NOTE: "claude" is intentionally NOT installed here. Claude Code is installed by
-# the dedicated install_shells/129_install_claude_code.sh step (official native
+# the dedicated install_shells/133_install_claude_code.sh step (official native
 # installer), the single source of truth shared with the dd.sh AI workflow.
 AI_PACKAGE_LIST=(
     "gemini" "codex" "cursor_agent" "superclaude" "opencode" "auggie" "droid"

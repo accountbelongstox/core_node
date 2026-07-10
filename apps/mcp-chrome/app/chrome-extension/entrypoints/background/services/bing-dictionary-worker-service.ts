@@ -25,6 +25,7 @@ import {
   type NormalizedWord,
   type ResultEntry,
 } from './bing-result';
+import { howtopronouncePronunciationSource } from './howtopronounce-pronunciation-source';
 import { runScrapeTest, type ScrapeTestResult } from './bing-worker-ops';
 import {
   initBingWorkerLifecycle as _initLifecycle,
@@ -69,6 +70,9 @@ export interface WorkerStats {
   // Live activity surfaced in the popup so the user can see work happening.
   currentWord: string | null;
   currentTaskId: string | null;
+  // How many words the parallel howtopronounce mode contributed audio/content
+  // for (the second pronunciation mode sharing this task's data).
+  howtopronounceHits: number;
   // Per-tab live activity: the word each parallel Bing tab is looking up right
   // now (one entry per pool slot), so the popup shows "Tab 1 · Translating: x"
   // for every tab instead of a single overall word.
@@ -219,6 +223,7 @@ class BingDictionaryWorkerService {
     activeTabs: 0,
     currentWord: null,
     currentTaskId: null,
+    howtopronounceHits: 0,
     tabActivity: [],
   };
 
@@ -240,6 +245,10 @@ class BingDictionaryWorkerService {
     this.config = this.normalizeConfig(config);
 
     logger.info(LOG, 'Starting service', this.config);
+
+    // Match the howtopronounce pronunciation-source pool to the Bing tab
+    // parallelism so the second mode keeps up with the per-word Bing lookups.
+    howtopronouncePronunciationSource.setMaxTabs(this.config.tabCount);
 
     this.workerClient = new WorkerApiClient(this.config.apiUrl);
 
@@ -320,7 +329,12 @@ class BingDictionaryWorkerService {
     this.stats.duplicateTasks = 0;
     this.stats.currentWord = null;
     this.stats.currentTaskId = null;
+    this.stats.howtopronounceHits = 0;
     this.stats.tabActivity = [];
+
+    // Close the parallel howtopronounce mode's tab pool (Bing pool tabs are left
+    // open for the user; howtopronounce tabs are internal and best closed).
+    howtopronouncePronunciationSource.stop().catch(() => undefined);
 
     // Clear persisted intent + disarm the watchdog so a later SW revival does
     // not auto-restart a service the user explicitly stopped.
@@ -487,6 +501,20 @@ class BingDictionaryWorkerService {
     try {
       const r = await chrome.storage.local.get('bingActivatePerWord');
       return r.bingActivatePerWord !== false;
+    } catch {
+      return true;
+    }
+  }
+
+  /**
+   * Whether the parallel howtopronounce pronunciation mode is enabled. Default
+   * ON - both modes (Bing + howtopronounce) consume each word's task data
+   * simultaneously. The user can disable it from the popup to run Bing-only.
+   */
+  private async readHowtopronounceEnabled(): Promise<boolean> {
+    try {
+      const r = await chrome.storage.local.get('howtopronounceEnabled');
+      return r.howtopronounceEnabled !== false;
     } catch {
       return true;
     }

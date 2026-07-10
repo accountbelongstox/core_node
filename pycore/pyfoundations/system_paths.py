@@ -20,89 +20,22 @@ Directory Structure:
 """
 
 import os
-import re
 import sys
-import json
-import time
 import platform
-import threading
-import configparser
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pathlib import Path
 from typing import Optional, Tuple, List, Any, Dict
 
-
-def _is_wsl() -> bool:
-    """
-    Check if running in WSL (Windows Subsystem for Linux)
-
-    Returns:
-        bool: True if running in WSL
-    """
-    # Check for WSL-specific indicators
-    if os.path.exists('/mnt/c/Windows'):
-        return True
-
-    # Check /proc/version for Microsoft/WSL
-    if os.path.exists('/proc/version'):
-        with open('/proc/version', 'r') as f:
-            version_info = f.read().lower()
-            if 'microsoft' in version_info or 'wsl' in version_info:
-                return True
-
-    return False
-
-
-def _is_desktop_linux() -> bool:
-    """
-    Check if running on desktop Linux (has display server)
-
-    Returns:
-        bool: True if running on desktop Linux
-    """
-    # Check for display environment variables
-    if os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'):
-        return True
-
-    # Check for desktop session
-    if os.environ.get('DESKTOP_SESSION') or os.environ.get('XDG_SESSION_TYPE'):
-        return True
-
-    return False
-
-
-def _get_linux_distro_info() -> Tuple[str, str]:
-    """
-    Get Linux distribution name and version
-
-    Returns:
-        Tuple[str, str]: (distro_name, version)
-            e.g., ('ubuntu', '24.04') or ('debian', '12')
-    """
-    distro_name = 'linux'
-    version = ''
-
-    # Try to read /etc/os-release
-    if os.path.exists('/etc/os-release'):
-        with open('/etc/os-release', 'r') as f:
-            content = f.read()
-
-            # Extract ID (distro name)
-            id_match = re.search(r'^ID=([^\n]+)$', content, re.MULTILINE)
-            if id_match:
-                distro_name = id_match.group(1).strip().strip('"').lower()
-
-            # Extract VERSION_ID (version number)
-            version_match = re.search(r'^VERSION_ID=([^\n]+)$', content, re.MULTILINE)
-            if version_match:
-                version = version_match.group(1).strip().strip('"')
-
-    # Remove decimal points for version (24.04 -> 24)
-    if version and '.' in version:
-        version = version.split('.')[0]
-
-    return distro_name, version
+# Platform / disk / WSL detection helpers live in system_info now (consolidated
+# from here to dedupe get_real_user / get_linux_disk_info). Imported under their
+# former private names so internal call sites (_get_dev_compile_base,
+# _get_base_data_directory, map_web_path) are unchanged. `_is_wsl` is also kept
+# as a re-export for pg_sync_adapter's defensive
+# `from pyfoundations.system_paths import _is_wsl` import.
+from pycore.pyfoundations.system_info import (
+    is_wsl as _is_wsl,
+    get_linux_distro_info as _get_linux_distro_info,
+    get_largest_mnt_drive as _get_largest_mounted_drive,
+)
 
 
 def _get_dev_compile_base(secondary_base: 'Path', suffix: str) -> 'Path':
@@ -133,52 +66,6 @@ def _get_dev_compile_base(secondary_base: 'Path', suffix: str) -> 'Path':
     except OSError:
         pass
     return secondary_base
-
-
-def _get_mounted_drives() -> List[Path]:
-    """
-    Get list of mounted drives in /mnt/ sorted by size (largest first)
-
-    Returns:
-        List[Path]: List of mounted drives sorted by available space
-    """
-    mounted_drives = []
-    mnt_path = Path('/mnt')
-
-    if not mnt_path.exists():
-        return mounted_drives
-
-    # Get all directories in /mnt/
-    for item in mnt_path.iterdir():
-        if item.is_dir() and item.name not in ['.', '..']:
-            # Check if it's actually mounted and accessible
-            try:
-                # Try to access the directory
-                if os.access(str(item), os.R_OK):
-                    # Get disk usage
-                    stat = os.statvfs(str(item))
-                    available_space = stat.f_bavail * stat.f_frsize
-                    mounted_drives.append((item, available_space))
-            except (OSError, PermissionError):
-                # Skip inaccessible mounts
-                pass
-
-    # Sort by available space (largest first)
-    mounted_drives.sort(key=lambda x: x[1], reverse=True)
-
-    # Return just the paths
-    return [drive[0] for drive in mounted_drives]
-
-
-def _get_largest_mounted_drive() -> Optional[Path]:
-    """
-    Get the largest mounted drive in /mnt/
-
-    Returns:
-        Optional[Path]: Largest mounted drive or None if no drives found
-    """
-    mounted_drives = _get_mounted_drives()
-    return mounted_drives[0] if mounted_drives else None
 
 
 def _fs_is_posix_capable(path: Path) -> bool:
@@ -217,63 +104,6 @@ def _fs_is_posix_capable(path: Path) -> bool:
     except OSError:
         return False
     return best_fstype in posix_fs
-
-
-def _get_actual_user() -> str:
-    """
-    Get actual logged-in user (for Linux desktop/WSL when running as root)
-
-    This function is useful when running as root to find the actual user.
-    It searches /home/ directory for user directories.
-
-    Returns:
-        str: Actual user name, or current user if detection fails
-    """
-    # First try standard methods
-    # Check SUDO_USER (when using sudo)
-    sudo_user = os.environ.get('SUDO_USER')
-    if sudo_user and sudo_user != 'root':
-        return sudo_user
-
-    # Check LOGNAME
-    logname = os.environ.get('LOGNAME')
-    if logname and logname != 'root':
-        return logname
-
-    # Check USER
-    user = os.environ.get('USER')
-    if user and user != 'root':
-        return user
-
-    # If running as root, search /home/ for actual user
-    home_path = Path('/home')
-    if home_path.exists():
-        # Get all user directories in /home/
-        user_dirs = []
-        for item in home_path.iterdir():
-            if item.is_dir() and item.name not in ['.', '..', 'lost+found']:
-                # Check if it's a valid user home directory
-                # Valid home directories usually have .bashrc or .profile
-                if (item / '.bashrc').exists() or (item / '.profile').exists() or (item / '.bash_profile').exists():
-                    # Get last modified time to find most recently used
-                    try:
-                        mtime = item.stat().st_mtime
-                        user_dirs.append((item.name, mtime))
-                    except (OSError, PermissionError):
-                        pass
-
-        if user_dirs:
-            # Sort by modification time (most recent first)
-            user_dirs.sort(key=lambda x: x[1], reverse=True)
-            return user_dirs[0][0]
-
-    # Fallback to current user from pwd module
-    import pwd
-    try:
-        return pwd.getpwuid(os.getuid()).pw_name
-    except:
-        # Final fallback
-        return os.environ.get('USER', 'user')
 
 
 def _ensure_dir(path: Path) -> Path:
@@ -426,6 +256,12 @@ def get_core_node_root() -> Path:
         Path: core_node root directory
     """
     return Path(__file__).resolve().parent.parent.parent
+
+
+# Alias of get_core_node_root. The modularization smoke test imports
+# `get_repo_root`; kept as a thin alias so the ~20 existing get_core_node_root
+# callers are untouched while both names resolve to the same root.
+get_repo_root = get_core_node_root
 
 
 # Constants - Auto-initialized paths
@@ -700,304 +536,18 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
 
 
 # ===========================================================================
-# User Data Store (merged from the former user_data_store module).
-# Single canonical place for pycore user data: one JSON file under
-# get_app_config_dir() (defined above in this same module), organized into
-# named sections, with optional per-feature <name>.json / <name>.ini overrides.
+# User Data Store -- split into its own module (user_data_store.py). Imported
+# here and re-exported so the public API (pyfoundations/__init__.py and the many
+# `from pycore.pyfoundations.system_paths import UserDataStore` /
+# `get_user_data_store` callers) is unchanged. This import sits AFTER
+# get_app_config_dir is defined, and user_data_store.py imports
+# get_app_config_dir LAZILY (function-local), so there is no circular import.
 # ===========================================================================
-# Canonical store file name inside the config directory.
-STORE_FILE_NAME = "user_data.json"
-
-
-class UserDataStore:
-    r"""
-    Thread-safe, file-backed user data store.
-
-    Sections are top-level keys of the JSON document, each holding a dict. Use
-    :meth:`get` / :meth:`set` for single values and :meth:`get_section` /
-    :meth:`update_section` for whole sections.
-    """
-
-    def __init__(self, base_dir: Optional[Path] = None, file_name: str = STORE_FILE_NAME):
-        self._base_dir = Path(base_dir) if base_dir else get_app_config_dir()
-        self._path = self._base_dir / file_name
-        self._lock = threading.RLock()
-        self._data: Optional[Dict[str, Any]] = None  # loaded lazily
-
-    # --- paths ------------------------------------------------------------- #
-    @property
-    def path(self) -> Path:
-        """Absolute path of the canonical store file."""
-        return self._path
-
-    @property
-    def base_dir(self) -> Path:
-        """Directory that holds the store and any per-feature config files."""
-        return self._base_dir
-
-    # --- low-level load / save -------------------------------------------- #
-    def _ensure_loaded(self) -> Dict[str, Any]:
-        """Load the store from disk once; return the in-memory document."""
-        if self._data is not None:
-            return self._data
-        with self._lock:
-            if self._data is not None:
-                return self._data
-            data: Dict[str, Any] = {}
-            try:
-                if self._path.exists():
-                    with self._path.open("r", encoding="utf-8") as fh:
-                        loaded = json.load(fh)
-                    if isinstance(loaded, dict):
-                        data = loaded
-                    else:
-                        ColorPrint.yellow(
-                            f"[UserDataStore] {self._path} is not an object; ignoring."
-                        )
-            except Exception as exc:  # corrupt file: keep a backup, start fresh
-                ColorPrint.yellow(f"[UserDataStore] Failed to read {self._path}: {exc}")
-                self._backup_corrupt_file()
-                data = {}
-            self._data = data
-            return self._data
-
-    def _backup_corrupt_file(self) -> None:
-        """Rename an unreadable store file aside so the user can inspect it."""
-        try:
-            if self._path.exists():
-                bad = self._path.with_suffix(self._path.suffix + ".corrupt")
-                os.replace(str(self._path), str(bad))
-                ColorPrint.yellow(f"[UserDataStore] Backed up corrupt store to {bad}")
-        except Exception:
-            pass
-
-    def save(self) -> None:
-        """Atomically persist the in-memory document to disk."""
-        with self._lock:
-            data = self._data if self._data is not None else {}
-            try:
-                self._base_dir.mkdir(parents=True, exist_ok=True)
-                tmp = self._path.with_suffix(self._path.suffix + ".tmp")
-                with tmp.open("w", encoding="utf-8") as fh:
-                    json.dump(data, fh, ensure_ascii=False, indent=2, sort_keys=True)
-                    fh.flush()
-                    os.fsync(fh.fileno())
-                os.replace(str(tmp), str(self._path))
-                # World-writable on Linux so ANY user can overwrite this shared
-                # state file (the dir is 1777, but a 0644 file written by another
-                # user would otherwise block updates).
-                if sys.platform != 'win32':
-                    try:
-                        os.chmod(str(self._path), 0o666)
-                    except OSError:
-                        pass
-            except Exception as exc:
-                ColorPrint.red(f"[UserDataStore] Failed to save {self._path}: {exc}")
-
-    def reload(self) -> None:
-        """Drop the in-memory cache so the next access re-reads from disk."""
-        with self._lock:
-            self._data = None
-
-    # --- section / value access ------------------------------------------- #
-    def get_section(self, namespace: str) -> Dict[str, Any]:
-        """Return a *copy* of a section dict (empty dict if absent)."""
-        with self._lock:
-            data = self._ensure_loaded()
-            section = data.get(namespace)
-            return dict(section) if isinstance(section, dict) else {}
-
-    def set_section(self, namespace: str, value: Dict[str, Any]) -> None:
-        """Replace a whole section and persist."""
-        with self._lock:
-            data = self._ensure_loaded()
-            data[namespace] = dict(value or {})
-            self.save()
-
-    def update_section(self, namespace: str, patch: Dict[str, Any]) -> Dict[str, Any]:
-        """Shallow-merge ``patch`` into a section and persist; return the section."""
-        with self._lock:
-            data = self._ensure_loaded()
-            section = data.get(namespace)
-            if not isinstance(section, dict):
-                section = {}
-            section.update(patch or {})
-            data[namespace] = section
-            self.save()
-            return dict(section)
-
-    def get(self, namespace: str, key: Optional[str] = None, default: Any = None) -> Any:
-        """
-        Read a value. With ``key`` omitted, returns a copy of the whole section
-        (or ``default`` if the section is absent).
-        """
-        with self._lock:
-            data = self._ensure_loaded()
-            section = data.get(namespace)
-            if key is None:
-                if isinstance(section, dict):
-                    return dict(section)
-                return default
-            if isinstance(section, dict) and key in section:
-                return section[key]
-            return default
-
-    def set(self, namespace: str, key: str, value: Any) -> None:
-        """Set a single value inside a section and persist."""
-        with self._lock:
-            data = self._ensure_loaded()
-            section = data.get(namespace)
-            if not isinstance(section, dict):
-                section = {}
-            section[key] = value
-            data[namespace] = section
-            self.save()
-
-    def delete(self, namespace: str, key: Optional[str] = None) -> None:
-        """Remove a key (or an entire section when ``key`` is omitted)."""
-        with self._lock:
-            data = self._ensure_loaded()
-            if key is None:
-                data.pop(namespace, None)
-            else:
-                section = data.get(namespace)
-                if isinstance(section, dict):
-                    section.pop(key, None)
-            self.save()
-
-    def as_dict(self) -> Dict[str, Any]:
-        """Return a shallow copy of the whole document."""
-        with self._lock:
-            return dict(self._ensure_loaded())
-
-    # --- content-ingest history (capped ring) ----------------------------- #
-    def record_content_history(self, entry: Dict[str, Any], cap: int = 200) -> None:
-        """Append ONE content-ingest history entry to the capped ring and persist.
-
-        Cross-feature history of book / subtitle / document ingests, stored under
-        the ``content_history`` section as ``{"entries": [...]}`` (newest LAST).
-        Each entry is expected to carry ``{type, source_key, path, title,
-        languages, counts, status, ts}`` but is stored as-given (a missing ``ts``
-        is stamped with the current time). The ring keeps only the last ``cap``
-        entries; same-``source_key``+``type`` is de-duplicated (the newer record
-        replaces the older) so re-syncs update in place rather than growing the
-        ring. Never raises — a bad entry is ignored.
-        """
-        if not isinstance(entry, dict):
-            return
-        with self._lock:
-            data = self._ensure_loaded()
-            section = data.get("content_history")
-            if not isinstance(section, dict):
-                section = {}
-            entries = section.get("entries")
-            if not isinstance(entries, list):
-                entries = []
-            rec = dict(entry)
-            if not rec.get("ts"):
-                rec["ts"] = time.time()
-            key = (rec.get("source_key"), rec.get("type"))
-            if key != (None, None):
-                entries = [e for e in entries
-                           if (e.get("source_key"), e.get("type")) != key]
-            entries.append(rec)
-            if cap and len(entries) > cap:
-                entries = entries[-cap:]
-            section["entries"] = entries
-            data["content_history"] = section
-            self.save()
-
-    def get_content_history(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Return content-ingest history entries (newest FIRST).
-
-        ``limit`` caps the number returned (most-recent first). Returns [] when no
-        history exists.
-        """
-        with self._lock:
-            data = self._ensure_loaded()
-            section = data.get("content_history")
-            entries = section.get("entries") if isinstance(section, dict) else None
-            if not isinstance(entries, list):
-                return []
-            ordered = list(reversed(entries))
-            if limit and limit > 0:
-                return ordered[:limit]
-            return ordered
-
-    # --- per-feature differentiated config (json / ini) ------------------- #
-    def feature_config_path(self, name: str, ext: str = "json") -> Path:
-        """Path of a sibling per-feature config file (e.g. ``video_extract.json``)."""
-        return self._base_dir / f"{name}.{ext.lstrip('.')}"
-
-    def load_feature_config(self, name: str) -> Dict[str, Any]:
-        r"""
-        Load a feature's effective config: the matching store section with an
-        optional ``<name>.json`` or ``<name>.ini`` file merged on top.
-
-        Precedence (low -> high): store section < ``<name>.ini`` < ``<name>.json``.
-        Missing files are simply skipped, so this always returns a dict.
-        """
-        result = self.get_section(name)
-
-        ini_path = self.feature_config_path(name, "ini")
-        if ini_path.exists():
-            try:
-                parser = configparser.ConfigParser()
-                parser.read(ini_path, encoding="utf-8")
-                # Flatten: DEFAULT section keys at top level, others as nested dicts.
-                for key, val in parser.defaults().items():
-                    result[key] = val
-                for sect in parser.sections():
-                    result[sect] = dict(parser.items(sect))
-            except Exception as exc:
-                ColorPrint.yellow(f"[UserDataStore] Failed to read {ini_path}: {exc}")
-
-        json_path = self.feature_config_path(name, "json")
-        if json_path.exists():
-            try:
-                with json_path.open("r", encoding="utf-8") as fh:
-                    loaded = json.load(fh)
-                if isinstance(loaded, dict):
-                    result.update(loaded)
-            except Exception as exc:
-                ColorPrint.yellow(f"[UserDataStore] Failed to read {json_path}: {exc}")
-
-        return result
-
-    def save_feature_config(self, name: str, data: Dict[str, Any]) -> None:
-        """Write a feature's differentiated config to ``<name>.json`` (atomic)."""
-        with self._lock:
-            try:
-                self._base_dir.mkdir(parents=True, exist_ok=True)
-                path = self.feature_config_path(name, "json")
-                tmp = path.with_suffix(path.suffix + ".tmp")
-                with tmp.open("w", encoding="utf-8") as fh:
-                    json.dump(dict(data or {}), fh, ensure_ascii=False, indent=2, sort_keys=True)
-                    fh.flush()
-                    os.fsync(fh.fileno())
-                os.replace(str(tmp), str(path))
-                if sys.platform != 'win32':
-                    try:
-                        os.chmod(str(path), 0o666)
-                    except OSError:
-                        pass
-            except Exception as exc:
-                ColorPrint.red(f"[UserDataStore] Failed to save feature config {name}: {exc}")
-
-
-# --- module-level singleton ----------------------------------------------- #
-_store_lock = threading.Lock()
-_store_singleton: Optional[UserDataStore] = None
-
-
-def get_user_data_store() -> UserDataStore:
-    """Return the process-wide :class:`UserDataStore` singleton."""
-    global _store_singleton
-    if _store_singleton is None:
-        with _store_lock:
-            if _store_singleton is None:
-                _store_singleton = UserDataStore()
-    return _store_singleton
+from pycore.pyfoundations.user_data_store import (  # noqa: E402  (intentional bottom import)
+    UserDataStore,
+    get_user_data_store,
+    STORE_FILE_NAME,
+)
 
 
 __all__ = [
@@ -1010,6 +560,7 @@ __all__ = [
     'get_local_data_dir',
     'get_app_temp_dir',
     'get_core_node_root',
+    'get_repo_root',
     'map_web_path',
     'SYSTEM_CACHE_DIR',
     'UI_STATE_CACHE_DIR',
@@ -1020,7 +571,7 @@ __all__ = [
     'CORE_NODE_ROOT',
     'LOCAL_DATA_DIR',
     'APP_TEMP_DIR',
-    # User data store (merged from user_data_store)
+    # User data store (re-exported from user_data_store)
     'UserDataStore',
     'get_user_data_store',
     'STORE_FILE_NAME',

@@ -396,26 +396,23 @@ verify_open_basedir_config_from_php_common() {
     
     print_step_from_common_functions "$script_index Verifying open_basedir configuration"
     
-    # Check CLI configuration
-    local cli_open_basedir=$(php -i 2>/dev/null | grep "open_basedir" | head -1 | cut -d'>' -f2 | xargs || echo "not found")
-    print_info_from_common_functions "$script_index CLI open_basedir: $cli_open_basedir"
-    
-    # Check FPM configuration
-    local fpm_open_basedir=$(php-fpm8.4 -i 2>/dev/null | grep "open_basedir" | head -1 | cut -d'>' -f2 | xargs || echo "not found")
-    print_info_from_common_functions "$script_index FPM open_basedir: $fpm_open_basedir"
-    
-    # Test if open_basedir is properly disabled
-    if [ "$cli_open_basedir" = "no value" ] || [ "$cli_open_basedir" = "none" ] || [ -z "$cli_open_basedir" ]; then
-        print_success_from_common_functions "$script_index CLI open_basedir is properly disabled"
-    else
-        print_warning_from_common_functions "$script_index CLI open_basedir is still restricted: $cli_open_basedir"
-    fi
-    
-    if [ "$fpm_open_basedir" = "no value" ] || [ "$fpm_open_basedir" = "none" ] || [ -z "$fpm_open_basedir" ]; then
-        print_success_from_common_functions "$script_index FPM open_basedir is properly disabled"
-    else
-        print_warning_from_common_functions "$script_index FPM open_basedir is still restricted: $fpm_open_basedir"
-    fi
+    # Read the active open_basedir line straight from the ini files that
+    # configure_php_for_laravel_from_php_common wrote (open_basedir = none). Avoids php -i,
+    # whose "Directive => Master => Local" text format broke the old `cut -d'>' -f2` parse
+    # ("no value =" -> false "still restricted" warning). Empty/none/no-value = unrestricted;
+    # any path = restricted. PHP_INI_FILES covers every SAPI the stack configures (CLI under
+    # Swoole; FPM is not installed).
+    local ini_file ob_value
+    for ini_file in "${PHP_INI_FILES[@]}"; do
+        [ -f "$ini_file" ] || continue
+        ob_value="$(grep -E '^[[:space:]]*open_basedir[[:space:]]*=' "$ini_file" 2>/dev/null | tail -1 | sed -E 's/^[^=]*=//; s/^[[:space:]]*//; s/[[:space:]]*$//; s/^"//; s/"$//')"
+        print_info_from_common_functions "$script_index ${ini_file##*/}: open_basedir = ${ob_value:-<unrestricted>}"
+        if [ -z "$ob_value" ] || [ "$ob_value" = "none" ] || [ "$ob_value" = "no value" ]; then
+            print_success_from_common_functions "$script_index ${ini_file##*/} open_basedir is properly disabled"
+        else
+            print_warning_from_common_functions "$script_index ${ini_file##*/} open_basedir is still restricted: $ob_value"
+        fi
+    done
     
     return 0
 }

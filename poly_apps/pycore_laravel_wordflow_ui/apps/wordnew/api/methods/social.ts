@@ -4,13 +4,26 @@
 import { wfNewEndpoints } from '../WfNewEndpoints';
 import { WfNewApiPaths } from '../WfNewApiPaths';
 import {
-  getJSON, authedGetJSON, postJSON, postMultipart, deleteJSON,
+  getJSON, authedGetJSON, postJSON, postMultipart, deleteJSON, authToken,
 } from '../WfNewApiTransport';
 import {
   absUrl, toPost, toComment, toLive, toLiveMsg, toActor, toMessage, toNotification,
-  asArray, decorate, toWord, fetchGroups, logContentFallback,
+  asArray, decorate, toWord, fetchGroups, logContentFallback, normPresence,
 } from '../WfNewApiMappers';
 import { unwrapEnvelope } from '../WfNewApiTransport';
+import type {
+  WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity,
+  WfNewDiscoverUser, WfNewFriendRequest, WfNewConversation, WfNewMessage,
+  WfNewMessagePage, WfNewPresenceStatus, WfNewPresenceInfo, WfNewNotificationPage,
+  WfNewPostFilter, WfNewPostPage, WfNewPost, WfNewCreatePostPayload,
+  WfNewPostLikeResult, WfNewPostCommentPage, WfNewPostComment, WfNewLive,
+  WfNewCreateLivePayload, WfNewLiveMsg, WfNewLiveMsgPage, WfNewStatistics,
+  BentoGroup, WordGroup, Word, UserProfile, UserStats, SubtitleCourse,
+  AnalyticsStats, BilingualSentence,
+} from '../WfNewApiTypes';
+import {
+  MOCK_SUBTITLE_COURSES, MOCK_ANALYTICS_STATS, MOCK_BILINGUAL_SENTENCES,
+} from '../../WfNewMockDb';
 
 export const socialMethods = {
   // ---- Social (all auth-required) ----

@@ -1,408 +1,408 @@
-133_setup_api_domains.sh
+135_setup_api_domains.sh
 
-Starting execution of 133_setup_api_domains.sh...
-[133] Domain Setup - API Domains Configuration
-[133] Starting API domains setup...
-[133] Configuration:
-[133]   Laravel directory: /www/programing/core_node/poly_apps/laravel_main
-[133]   Selected prefixes: local,si,sz,sh,api
-[133]   PHP version: 8.4
-[133]   Website type: poly (Laravel main project)
-[133]
-[133] Domains to process:
-[133]   - gm15.com
-[133]   - 12gm.com
-[133]
-[133] API websites to create: 10 (5 per domain × 2 domains)
-[133]
-[133] This will add all API domains (poly type) for Laravel main project
-[133] Document root: /www/programing/core_node/poly_apps/laravel_main/public
+Starting execution of 135_setup_api_domains.sh...
+[135] Domain Setup - API Domains Configuration
+[135] Starting API domains setup...
+[135] Configuration:
+[135]   Laravel directory: /www/programing/core_node/poly_apps/laravel_main
+[135]   Selected prefixes: local,si,sz,sh,api
+[135]   PHP version: 8.4
+[135]   Website type: poly (Laravel main project)
+[135]
+[135] Domains to process:
+[135]   - gm15.com
+[135]   - 12gm.com
+[135]
+[135] API websites to create: 10 (5 per domain × 2 domains)
+[135]
+[135] This will add all API domains (poly type) for Laravel main project
+[135] Document root: /www/programing/core_node/poly_apps/laravel_main/public
 
-[133] Continue with API domains setup? (y/N): y
+[135] Continue with API domains setup? (y/N): y
 
-[133] ==================================
-[133] PROCESSING DOMAINS
-[133] ==================================
-[133]
-[133] [1/2] Processing: gm15.com
-[133] ==================================
-[133] Setting up API domains for: gm15.com
-[133] Prefixes: local,si,sz,sh,api
-[133] ==================================
-[133]
-[133] [API] local.api.gm15.com
-[133]   Adding API website: local.api.gm15.com
-[133]   Type: poly (Laravel main project)
-[133]   Executing: sudo php artisan servermanager:website add "local.api.gm15.com" --type=poly --ssl=auto --php-version=8.4
-[133]   Result:
-[133]     Adding website: local.api.gm15.com
-[133]     Type: poly
-[133]     SSL mode: auto
-[133]     PHP version: 8.4
-[133]     Base domain: local.api.gm15.com
-[133]     WWW domain: (not applicable for subdomain)
-[133]     No certificate found for domain, using HTTP
-[133]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
-[133]     Website type: poly
-[133]     Using existing Laravel directory
-[133]     Website added successfully!
-[133]     SSL enabled: no
-[133]     Website directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Nginx HTTP config: /www/www/nginxconfig/sites-available/local.api.gm15.com (active)
-[133]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/local.api.gm15.com -> /www/www/nginxconfig/sites-available/local.api.gm15.com
-[133]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
-[133]        sudo systemctl restart nginx
-[133]        sudo systemctl status nginx
-[133]     
-[133]     📋 Check nginx main configuration includes sites-enabled:
-[133]        Main config: /etc/nginx/nginx.conf
-[133]        Should include: include /www/nginxconfig/sites-enabled/*;
-[133]     
-[133]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
-[133]   [OK] Successfully added: local.api.gm15.com
-[133]
-[133] [API] si.api.gm15.com
-[133]   Adding API website: si.api.gm15.com
-[133]   Type: poly (Laravel main project)
-[133]   Executing: sudo php artisan servermanager:website add "si.api.gm15.com" --type=poly --ssl=auto --php-version=8.4
-[133]   Result:
-[133]     Adding website: si.api.gm15.com
-[133]     Type: poly
-[133]     SSL mode: auto
-[133]     PHP version: 8.4
-[133]     Base domain: si.api.gm15.com
-[133]     WWW domain: (not applicable for subdomain)
-[133]     No certificate found for domain, using HTTP
-[133]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
-[133]     Website type: poly
-[133]     Using existing Laravel directory
-[133]     Website added successfully!
-[133]     SSL enabled: no
-[133]     Website directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Nginx HTTP config: /www/www/nginxconfig/sites-available/si.api.gm15.com (active)
-[133]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/si.api.gm15.com -> /www/www/nginxconfig/sites-available/si.api.gm15.com
-[133]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
-[133]        sudo systemctl restart nginx
-[133]        sudo systemctl status nginx
-[133]     
-[133]     📋 Check nginx main configuration includes sites-enabled:
-[133]        Main config: /etc/nginx/nginx.conf
-[133]        Should include: include /www/nginxconfig/sites-enabled/*;
-[133]     
-[133]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
-[133]   [OK] Successfully added: si.api.gm15.com
-[133]
-[133] [API] sz.api.gm15.com
-[133]   Adding API website: sz.api.gm15.com
-[133]   Type: poly (Laravel main project)
-[133]   Executing: sudo php artisan servermanager:website add "sz.api.gm15.com" --type=poly --ssl=auto --php-version=8.4
-[133]   Result:
-[133]     Adding website: sz.api.gm15.com
-[133]     Type: poly
-[133]     SSL mode: auto
-[133]     PHP version: 8.4
-[133]     Base domain: sz.api.gm15.com
-[133]     WWW domain: (not applicable for subdomain)
-[133]     No certificate found for domain, using HTTP
-[133]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
-[133]     Website type: poly
-[133]     Using existing Laravel directory
-[133]     Website added successfully!
-[133]     SSL enabled: no
-[133]     Website directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Nginx HTTP config: /www/www/nginxconfig/sites-available/sz.api.gm15.com (active)
-[133]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/sz.api.gm15.com -> /www/www/nginxconfig/sites-available/sz.api.gm15.com
-[133]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
-[133]        sudo systemctl restart nginx
-[133]        sudo systemctl status nginx
-[133]     
-[133]     📋 Check nginx main configuration includes sites-enabled:
-[133]        Main config: /etc/nginx/nginx.conf
-[133]        Should include: include /www/nginxconfig/sites-enabled/*;
-[133]     
-[133]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
-[133]   [OK] Successfully added: sz.api.gm15.com
-[133]
-[133] [API] sh.api.gm15.com
-[133]   Adding API website: sh.api.gm15.com
-[133]   Type: poly (Laravel main project)
-[133]   Executing: sudo php artisan servermanager:website add "sh.api.gm15.com" --type=poly --ssl=auto --php-version=8.4
-[133]   Result:
-[133]     Adding website: sh.api.gm15.com
-[133]     Type: poly
-[133]     SSL mode: auto
-[133]     PHP version: 8.4
-[133]     Base domain: sh.api.gm15.com
-[133]     WWW domain: (not applicable for subdomain)
-[133]     No certificate found for domain, using HTTP
-[133]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
-[133]     Website type: poly
-[133]     Using existing Laravel directory
-[133]     Website added successfully!
-[133]     SSL enabled: no
-[133]     Website directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Nginx HTTP config: /www/www/nginxconfig/sites-available/sh.api.gm15.com (active)
-[133]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/sh.api.gm15.com -> /www/www/nginxconfig/sites-available/sh.api.gm15.com
-[133]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
-[133]        sudo systemctl restart nginx
-[133]        sudo systemctl status nginx
-[133]     
-[133]     📋 Check nginx main configuration includes sites-enabled:
-[133]        Main config: /etc/nginx/nginx.conf
-[133]        Should include: include /www/nginxconfig/sites-enabled/*;
-[133]     
-[133]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
-[133]   [OK] Successfully added: sh.api.gm15.com
-[133]
-[133] [API] api.gm15.com
-[133]   Adding API website: api.gm15.com
-[133]   Type: poly (Laravel main project)
-[133]   Executing: sudo php artisan servermanager:website add "api.gm15.com" --type=poly --ssl=auto --php-version=8.4
-[133]   Result:
-[133]     Adding website: api.gm15.com
-[133]     Type: poly
-[133]     SSL mode: auto
-[133]     PHP version: 8.4
-[133]     Base domain: api.gm15.com
-[133]     WWW domain: (not applicable for subdomain)
-[133]     No certificate found for domain, using HTTP
-[133]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
-[133]     Website type: poly
-[133]     Using existing Laravel directory
-[133]     Website added successfully!
-[133]     SSL enabled: no
-[133]     Website directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Nginx HTTP config: /www/www/nginxconfig/sites-available/api.gm15.com (active)
-[133]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/api.gm15.com -> /www/www/nginxconfig/sites-available/api.gm15.com
-[133]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
-[133]        sudo systemctl restart nginx
-[133]        sudo systemctl status nginx
-[133]     
-[133]     📋 Check nginx main configuration includes sites-enabled:
-[133]        Main config: /etc/nginx/nginx.conf
-[133]        Should include: include /www/nginxconfig/sites-enabled/*;
-[133]     
-[133]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
-[133]   [OK] Successfully added: api.gm15.com
-[133]
-[133] Summary for gm15.com:
-[133]   API websites added: 5
-[133] [OK] Successfully configured: gm15.com
-[133] ---
-[133]
-[133] [2/2] Processing: 12gm.com
-[133] ==================================
-[133] Setting up API domains for: 12gm.com
-[133] Prefixes: local,si,sz,sh,api
-[133] ==================================
-[133]
-[133] [API] local.api.12gm.com
-[133]   Adding API website: local.api.12gm.com
-[133]   Type: poly (Laravel main project)
-[133]   Executing: sudo php artisan servermanager:website add "local.api.12gm.com" --type=poly --ssl=auto --php-version=8.4
-[133]   Result:
-[133]     Adding website: local.api.12gm.com
-[133]     Type: poly
-[133]     SSL mode: auto
-[133]     PHP version: 8.4
-[133]     Base domain: local.api.12gm.com
-[133]     WWW domain: (not applicable for subdomain)
-[133]     No certificate found for domain, using HTTP
-[133]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
-[133]     Website type: poly
-[133]     Using existing Laravel directory
-[133]     Website added successfully!
-[133]     SSL enabled: no
-[133]     Website directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Nginx HTTP config: /www/www/nginxconfig/sites-available/local.api.12gm.com (active)
-[133]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/local.api.12gm.com -> /www/www/nginxconfig/sites-available/local.api.12gm.com
-[133]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
-[133]        sudo systemctl restart nginx
-[133]        sudo systemctl status nginx
-[133]     
-[133]     📋 Check nginx main configuration includes sites-enabled:
-[133]        Main config: /etc/nginx/nginx.conf
-[133]        Should include: include /www/nginxconfig/sites-enabled/*;
-[133]     
-[133]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
-[133]   [OK] Successfully added: local.api.12gm.com
-[133]
-[133] [API] si.api.12gm.com
-[133]   Adding API website: si.api.12gm.com
-[133]   Type: poly (Laravel main project)
-[133]   Executing: sudo php artisan servermanager:website add "si.api.12gm.com" --type=poly --ssl=auto --php-version=8.4
-[133]   Result:
-[133]     Adding website: si.api.12gm.com
-[133]     Type: poly
-[133]     SSL mode: auto
-[133]     PHP version: 8.4
-[133]     Base domain: si.api.12gm.com
-[133]     WWW domain: (not applicable for subdomain)
-[133]     No certificate found for domain, using HTTP
-[133]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
-[133]     Website type: poly
-[133]     Using existing Laravel directory
-[133]     Website added successfully!
-[133]     SSL enabled: no
-[133]     Website directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Nginx HTTP config: /www/www/nginxconfig/sites-available/si.api.12gm.com (active)
-[133]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/si.api.12gm.com -> /www/www/nginxconfig/sites-available/si.api.12gm.com
-[133]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
-[133]        sudo systemctl restart nginx
-[133]        sudo systemctl status nginx
-[133]     
-[133]     📋 Check nginx main configuration includes sites-enabled:
-[133]        Main config: /etc/nginx/nginx.conf
-[133]        Should include: include /www/nginxconfig/sites-enabled/*;
-[133]     
-[133]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
-[133]   [OK] Successfully added: si.api.12gm.com
-[133]
-[133] [API] sz.api.12gm.com
-[133]   Adding API website: sz.api.12gm.com
-[133]   Type: poly (Laravel main project)
-[133]   Executing: sudo php artisan servermanager:website add "sz.api.12gm.com" --type=poly --ssl=auto --php-version=8.4
-[133]   Result:
-[133]     Adding website: sz.api.12gm.com
-[133]     Type: poly
-[133]     SSL mode: auto
-[133]     PHP version: 8.4
-[133]     Base domain: sz.api.12gm.com
-[133]     WWW domain: (not applicable for subdomain)
-[133]     No certificate found for domain, using HTTP
-[133]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
-[133]     Website type: poly
-[133]     Using existing Laravel directory
-[133]     Website added successfully!
-[133]     SSL enabled: no
-[133]     Website directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Nginx HTTP config: /www/www/nginxconfig/sites-available/sz.api.12gm.com (active)
-[133]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/sz.api.12gm.com -> /www/www/nginxconfig/sites-available/sz.api.12gm.com
-[133]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
-[133]        sudo systemctl restart nginx
-[133]        sudo systemctl status nginx
-[133]     
-[133]     📋 Check nginx main configuration includes sites-enabled:
-[133]        Main config: /etc/nginx/nginx.conf
-[133]        Should include: include /www/nginxconfig/sites-enabled/*;
-[133]     
-[133]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
-[133]   [OK] Successfully added: sz.api.12gm.com
-[133]
-[133] [API] sh.api.12gm.com
-[133]   Adding API website: sh.api.12gm.com
-[133]   Type: poly (Laravel main project)
-[133]   Executing: sudo php artisan servermanager:website add "sh.api.12gm.com" --type=poly --ssl=auto --php-version=8.4
-[133]   Result:
-[133]     Adding website: sh.api.12gm.com
-[133]     Type: poly
-[133]     SSL mode: auto
-[133]     PHP version: 8.4
-[133]     Base domain: sh.api.12gm.com
-[133]     WWW domain: (not applicable for subdomain)
-[133]     No certificate found for domain, using HTTP
-[133]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
-[133]     Website type: poly
-[133]     Using existing Laravel directory
-[133]     Website added successfully!
-[133]     SSL enabled: no
-[133]     Website directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Nginx HTTP config: /www/www/nginxconfig/sites-available/sh.api.12gm.com (active)
-[133]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/sh.api.12gm.com -> /www/www/nginxconfig/sites-available/sh.api.12gm.com
-[133]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
-[133]        sudo systemctl restart nginx
-[133]        sudo systemctl status nginx
-[133]     
-[133]     📋 Check nginx main configuration includes sites-enabled:
-[133]        Main config: /etc/nginx/nginx.conf
-[133]        Should include: include /www/nginxconfig/sites-enabled/*;
-[133]     
-[133]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
-[133]   [OK] Successfully added: sh.api.12gm.com
-[133]
-[133] [API] api.12gm.com
-[133]   Adding API website: api.12gm.com
-[133]   Type: poly (Laravel main project)
-[133]   Executing: sudo php artisan servermanager:website add "api.12gm.com" --type=poly --ssl=auto --php-version=8.4
-[133]   Result:
-[133]     Adding website: api.12gm.com
-[133]     Type: poly
-[133]     SSL mode: auto
-[133]     PHP version: 8.4
-[133]     Base domain: api.12gm.com
-[133]     WWW domain: (not applicable for subdomain)
-[133]     No certificate found for domain, using HTTP
-[133]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
-[133]     Website type: poly
-[133]     Using existing Laravel directory
-[133]     Website added successfully!
-[133]     SSL enabled: no
-[133]     Website directory: /www/programing/core_node/poly_apps/laravel_main
-[133]     Nginx HTTP config: /www/www/nginxconfig/sites-available/api.12gm.com (active)
-[133]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/api.12gm.com -> /www/www/nginxconfig/sites-available/api.12gm.com
-[133]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
-[133]        sudo systemctl restart nginx
-[133]        sudo systemctl status nginx
-[133]     
-[133]     📋 Check nginx main configuration includes sites-enabled:
-[133]        Main config: /etc/nginx/nginx.conf
-[133]        Should include: include /www/nginxconfig/sites-enabled/*;
-[133]     
-[133]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
-[133]   [OK] Successfully added: api.12gm.com
-[133]
-[133] Summary for 12gm.com:
-[133]   API websites added: 5
-[133] [OK] Successfully configured: 12gm.com
-[133] ---
+[135] ==================================
+[135] PROCESSING DOMAINS
+[135] ==================================
+[135]
+[135] [1/2] Processing: gm15.com
+[135] ==================================
+[135] Setting up API domains for: gm15.com
+[135] Prefixes: local,si,sz,sh,api
+[135] ==================================
+[135]
+[135] [API] local.api.gm15.com
+[135]   Adding API website: local.api.gm15.com
+[135]   Type: poly (Laravel main project)
+[135]   Executing: sudo php artisan servermanager:website add "local.api.gm15.com" --type=poly --ssl=auto --php-version=8.4
+[135]   Result:
+[135]     Adding website: local.api.gm15.com
+[135]     Type: poly
+[135]     SSL mode: auto
+[135]     PHP version: 8.4
+[135]     Base domain: local.api.gm15.com
+[135]     WWW domain: (not applicable for subdomain)
+[135]     No certificate found for domain, using HTTP
+[135]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
+[135]     Website type: poly
+[135]     Using existing Laravel directory
+[135]     Website added successfully!
+[135]     SSL enabled: no
+[135]     Website directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Nginx HTTP config: /www/www/nginxconfig/sites-available/local.api.gm15.com (active)
+[135]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/local.api.gm15.com -> /www/www/nginxconfig/sites-available/local.api.gm15.com
+[135]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
+[135]        sudo systemctl restart nginx
+[135]        sudo systemctl status nginx
+[135]     
+[135]     📋 Check nginx main configuration includes sites-enabled:
+[135]        Main config: /etc/nginx/nginx.conf
+[135]        Should include: include /www/nginxconfig/sites-enabled/*;
+[135]     
+[135]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
+[135]   [OK] Successfully added: local.api.gm15.com
+[135]
+[135] [API] si.api.gm15.com
+[135]   Adding API website: si.api.gm15.com
+[135]   Type: poly (Laravel main project)
+[135]   Executing: sudo php artisan servermanager:website add "si.api.gm15.com" --type=poly --ssl=auto --php-version=8.4
+[135]   Result:
+[135]     Adding website: si.api.gm15.com
+[135]     Type: poly
+[135]     SSL mode: auto
+[135]     PHP version: 8.4
+[135]     Base domain: si.api.gm15.com
+[135]     WWW domain: (not applicable for subdomain)
+[135]     No certificate found for domain, using HTTP
+[135]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
+[135]     Website type: poly
+[135]     Using existing Laravel directory
+[135]     Website added successfully!
+[135]     SSL enabled: no
+[135]     Website directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Nginx HTTP config: /www/www/nginxconfig/sites-available/si.api.gm15.com (active)
+[135]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/si.api.gm15.com -> /www/www/nginxconfig/sites-available/si.api.gm15.com
+[135]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
+[135]        sudo systemctl restart nginx
+[135]        sudo systemctl status nginx
+[135]     
+[135]     📋 Check nginx main configuration includes sites-enabled:
+[135]        Main config: /etc/nginx/nginx.conf
+[135]        Should include: include /www/nginxconfig/sites-enabled/*;
+[135]     
+[135]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
+[135]   [OK] Successfully added: si.api.gm15.com
+[135]
+[135] [API] sz.api.gm15.com
+[135]   Adding API website: sz.api.gm15.com
+[135]   Type: poly (Laravel main project)
+[135]   Executing: sudo php artisan servermanager:website add "sz.api.gm15.com" --type=poly --ssl=auto --php-version=8.4
+[135]   Result:
+[135]     Adding website: sz.api.gm15.com
+[135]     Type: poly
+[135]     SSL mode: auto
+[135]     PHP version: 8.4
+[135]     Base domain: sz.api.gm15.com
+[135]     WWW domain: (not applicable for subdomain)
+[135]     No certificate found for domain, using HTTP
+[135]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
+[135]     Website type: poly
+[135]     Using existing Laravel directory
+[135]     Website added successfully!
+[135]     SSL enabled: no
+[135]     Website directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Nginx HTTP config: /www/www/nginxconfig/sites-available/sz.api.gm15.com (active)
+[135]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/sz.api.gm15.com -> /www/www/nginxconfig/sites-available/sz.api.gm15.com
+[135]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
+[135]        sudo systemctl restart nginx
+[135]        sudo systemctl status nginx
+[135]     
+[135]     📋 Check nginx main configuration includes sites-enabled:
+[135]        Main config: /etc/nginx/nginx.conf
+[135]        Should include: include /www/nginxconfig/sites-enabled/*;
+[135]     
+[135]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
+[135]   [OK] Successfully added: sz.api.gm15.com
+[135]
+[135] [API] sh.api.gm15.com
+[135]   Adding API website: sh.api.gm15.com
+[135]   Type: poly (Laravel main project)
+[135]   Executing: sudo php artisan servermanager:website add "sh.api.gm15.com" --type=poly --ssl=auto --php-version=8.4
+[135]   Result:
+[135]     Adding website: sh.api.gm15.com
+[135]     Type: poly
+[135]     SSL mode: auto
+[135]     PHP version: 8.4
+[135]     Base domain: sh.api.gm15.com
+[135]     WWW domain: (not applicable for subdomain)
+[135]     No certificate found for domain, using HTTP
+[135]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
+[135]     Website type: poly
+[135]     Using existing Laravel directory
+[135]     Website added successfully!
+[135]     SSL enabled: no
+[135]     Website directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Nginx HTTP config: /www/www/nginxconfig/sites-available/sh.api.gm15.com (active)
+[135]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/sh.api.gm15.com -> /www/www/nginxconfig/sites-available/sh.api.gm15.com
+[135]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
+[135]        sudo systemctl restart nginx
+[135]        sudo systemctl status nginx
+[135]     
+[135]     📋 Check nginx main configuration includes sites-enabled:
+[135]        Main config: /etc/nginx/nginx.conf
+[135]        Should include: include /www/nginxconfig/sites-enabled/*;
+[135]     
+[135]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
+[135]   [OK] Successfully added: sh.api.gm15.com
+[135]
+[135] [API] api.gm15.com
+[135]   Adding API website: api.gm15.com
+[135]   Type: poly (Laravel main project)
+[135]   Executing: sudo php artisan servermanager:website add "api.gm15.com" --type=poly --ssl=auto --php-version=8.4
+[135]   Result:
+[135]     Adding website: api.gm15.com
+[135]     Type: poly
+[135]     SSL mode: auto
+[135]     PHP version: 8.4
+[135]     Base domain: api.gm15.com
+[135]     WWW domain: (not applicable for subdomain)
+[135]     No certificate found for domain, using HTTP
+[135]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
+[135]     Website type: poly
+[135]     Using existing Laravel directory
+[135]     Website added successfully!
+[135]     SSL enabled: no
+[135]     Website directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Nginx HTTP config: /www/www/nginxconfig/sites-available/api.gm15.com (active)
+[135]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/api.gm15.com -> /www/www/nginxconfig/sites-available/api.gm15.com
+[135]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
+[135]        sudo systemctl restart nginx
+[135]        sudo systemctl status nginx
+[135]     
+[135]     📋 Check nginx main configuration includes sites-enabled:
+[135]        Main config: /etc/nginx/nginx.conf
+[135]        Should include: include /www/nginxconfig/sites-enabled/*;
+[135]     
+[135]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
+[135]   [OK] Successfully added: api.gm15.com
+[135]
+[135] Summary for gm15.com:
+[135]   API websites added: 5
+[135] [OK] Successfully configured: gm15.com
+[135] ---
+[135]
+[135] [2/2] Processing: 12gm.com
+[135] ==================================
+[135] Setting up API domains for: 12gm.com
+[135] Prefixes: local,si,sz,sh,api
+[135] ==================================
+[135]
+[135] [API] local.api.12gm.com
+[135]   Adding API website: local.api.12gm.com
+[135]   Type: poly (Laravel main project)
+[135]   Executing: sudo php artisan servermanager:website add "local.api.12gm.com" --type=poly --ssl=auto --php-version=8.4
+[135]   Result:
+[135]     Adding website: local.api.12gm.com
+[135]     Type: poly
+[135]     SSL mode: auto
+[135]     PHP version: 8.4
+[135]     Base domain: local.api.12gm.com
+[135]     WWW domain: (not applicable for subdomain)
+[135]     No certificate found for domain, using HTTP
+[135]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
+[135]     Website type: poly
+[135]     Using existing Laravel directory
+[135]     Website added successfully!
+[135]     SSL enabled: no
+[135]     Website directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Nginx HTTP config: /www/www/nginxconfig/sites-available/local.api.12gm.com (active)
+[135]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/local.api.12gm.com -> /www/www/nginxconfig/sites-available/local.api.12gm.com
+[135]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
+[135]        sudo systemctl restart nginx
+[135]        sudo systemctl status nginx
+[135]     
+[135]     📋 Check nginx main configuration includes sites-enabled:
+[135]        Main config: /etc/nginx/nginx.conf
+[135]        Should include: include /www/nginxconfig/sites-enabled/*;
+[135]     
+[135]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
+[135]   [OK] Successfully added: local.api.12gm.com
+[135]
+[135] [API] si.api.12gm.com
+[135]   Adding API website: si.api.12gm.com
+[135]   Type: poly (Laravel main project)
+[135]   Executing: sudo php artisan servermanager:website add "si.api.12gm.com" --type=poly --ssl=auto --php-version=8.4
+[135]   Result:
+[135]     Adding website: si.api.12gm.com
+[135]     Type: poly
+[135]     SSL mode: auto
+[135]     PHP version: 8.4
+[135]     Base domain: si.api.12gm.com
+[135]     WWW domain: (not applicable for subdomain)
+[135]     No certificate found for domain, using HTTP
+[135]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
+[135]     Website type: poly
+[135]     Using existing Laravel directory
+[135]     Website added successfully!
+[135]     SSL enabled: no
+[135]     Website directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Nginx HTTP config: /www/www/nginxconfig/sites-available/si.api.12gm.com (active)
+[135]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/si.api.12gm.com -> /www/www/nginxconfig/sites-available/si.api.12gm.com
+[135]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
+[135]        sudo systemctl restart nginx
+[135]        sudo systemctl status nginx
+[135]     
+[135]     📋 Check nginx main configuration includes sites-enabled:
+[135]        Main config: /etc/nginx/nginx.conf
+[135]        Should include: include /www/nginxconfig/sites-enabled/*;
+[135]     
+[135]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
+[135]   [OK] Successfully added: si.api.12gm.com
+[135]
+[135] [API] sz.api.12gm.com
+[135]   Adding API website: sz.api.12gm.com
+[135]   Type: poly (Laravel main project)
+[135]   Executing: sudo php artisan servermanager:website add "sz.api.12gm.com" --type=poly --ssl=auto --php-version=8.4
+[135]   Result:
+[135]     Adding website: sz.api.12gm.com
+[135]     Type: poly
+[135]     SSL mode: auto
+[135]     PHP version: 8.4
+[135]     Base domain: sz.api.12gm.com
+[135]     WWW domain: (not applicable for subdomain)
+[135]     No certificate found for domain, using HTTP
+[135]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
+[135]     Website type: poly
+[135]     Using existing Laravel directory
+[135]     Website added successfully!
+[135]     SSL enabled: no
+[135]     Website directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Nginx HTTP config: /www/www/nginxconfig/sites-available/sz.api.12gm.com (active)
+[135]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/sz.api.12gm.com -> /www/www/nginxconfig/sites-available/sz.api.12gm.com
+[135]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
+[135]        sudo systemctl restart nginx
+[135]        sudo systemctl status nginx
+[135]     
+[135]     📋 Check nginx main configuration includes sites-enabled:
+[135]        Main config: /etc/nginx/nginx.conf
+[135]        Should include: include /www/nginxconfig/sites-enabled/*;
+[135]     
+[135]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
+[135]   [OK] Successfully added: sz.api.12gm.com
+[135]
+[135] [API] sh.api.12gm.com
+[135]   Adding API website: sh.api.12gm.com
+[135]   Type: poly (Laravel main project)
+[135]   Executing: sudo php artisan servermanager:website add "sh.api.12gm.com" --type=poly --ssl=auto --php-version=8.4
+[135]   Result:
+[135]     Adding website: sh.api.12gm.com
+[135]     Type: poly
+[135]     SSL mode: auto
+[135]     PHP version: 8.4
+[135]     Base domain: sh.api.12gm.com
+[135]     WWW domain: (not applicable for subdomain)
+[135]     No certificate found for domain, using HTTP
+[135]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
+[135]     Website type: poly
+[135]     Using existing Laravel directory
+[135]     Website added successfully!
+[135]     SSL enabled: no
+[135]     Website directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Nginx HTTP config: /www/www/nginxconfig/sites-available/sh.api.12gm.com (active)
+[135]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/sh.api.12gm.com -> /www/www/nginxconfig/sites-available/sh.api.12gm.com
+[135]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
+[135]        sudo systemctl restart nginx
+[135]        sudo systemctl status nginx
+[135]     
+[135]     📋 Check nginx main configuration includes sites-enabled:
+[135]        Main config: /etc/nginx/nginx.conf
+[135]        Should include: include /www/nginxconfig/sites-enabled/*;
+[135]     
+[135]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
+[135]   [OK] Successfully added: sh.api.12gm.com
+[135]
+[135] [API] api.12gm.com
+[135]   Adding API website: api.12gm.com
+[135]   Type: poly (Laravel main project)
+[135]   Executing: sudo php artisan servermanager:website add "api.12gm.com" --type=poly --ssl=auto --php-version=8.4
+[135]   Result:
+[135]     Adding website: api.12gm.com
+[135]     Type: poly
+[135]     SSL mode: auto
+[135]     PHP version: 8.4
+[135]     Base domain: api.12gm.com
+[135]     WWW domain: (not applicable for subdomain)
+[135]     No certificate found for domain, using HTTP
+[135]     Domain directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Document root: /www/programing/core_node/poly_apps/laravel_main/public
+[135]     Website type: poly
+[135]     Using existing Laravel directory
+[135]     Website added successfully!
+[135]     SSL enabled: no
+[135]     Website directory: /www/programing/core_node/poly_apps/laravel_main
+[135]     Nginx HTTP config: /www/www/nginxconfig/sites-available/api.12gm.com (active)
+[135]     Nginx enabled file: /www/www/nginxconfig/sites-enabled/api.12gm.com -> /www/www/nginxconfig/sites-available/api.12gm.com
+[135]     ⚠️  IMPORTANT: Restart nginx to load the new configuration:
+[135]        sudo systemctl restart nginx
+[135]        sudo systemctl status nginx
+[135]     
+[135]     📋 Check nginx main configuration includes sites-enabled:
+[135]        Main config: /etc/nginx/nginx.conf
+[135]        Should include: include /www/nginxconfig/sites-enabled/*;
+[135]     
+[135]     💡 TIP: Use 'php artisan servermanager:sync' to clean up old configurations
+[135]   [OK] Successfully added: api.12gm.com
+[135]
+[135] Summary for 12gm.com:
+[135]   API websites added: 5
+[135] [OK] Successfully configured: 12gm.com
+[135] ---
 
-[133] ==================================
-[133] API DOMAINS SETUP SUMMARY
-[133] ==================================
-[133] Successfully configured: 2/2 domains
-[133]
-[133] Websites Summary:
-[133] Executing: sudo php artisan servermanager:website summary
-[133]   Websites Summary:
-[133]     Total domains: 10
-[133]     Active domains: 10
-[133]     SSL enabled: 0
-[133]     Nginx enabled: 10
-[133]     Laravel sites: 0
-[133]     Static sites: 0
-[133]   
-[133]   PHP versions:
-[133]     PHP 8.4: 10 domains
-[133]   
-[133]   Domain details:
-[133]     🔓 ✅ local.api.gm15.com (poly, PHP 8.4)
-[133]     🔓 ✅ si.api.gm15.com (poly, PHP 8.4)
-[133]     🔓 ✅ sz.api.gm15.com (poly, PHP 8.4)
-[133]     🔓 ✅ sh.api.gm15.com (poly, PHP 8.4)
-[133]     🔓 ✅ api.gm15.com (poly, PHP 8.4)
-[133]     🔓 ✅ local.api.12gm.com (poly, PHP 8.4)
-[133]     🔓 ✅ si.api.12gm.com (poly, PHP 8.4)
-[133]     🔓 ✅ sz.api.12gm.com (poly, PHP 8.4)
-[133]     🔓 ✅ sh.api.12gm.com (poly, PHP 8.4)
-[133]     🔓 ✅ api.12gm.com (poly, PHP 8.4)
-[133] ==================================
-[133]
-[133] Next Steps:
-[133]   1. Run 134_setup_html_domains.sh to setup HTML domains
-[133]   2. Restart nginx to apply changes: sudo systemctl restart nginx
-[133]   3. Check nginx status: sudo systemctl status nginx
-[133] ==================================
-[133] All API domains configured successfully!
+[135] ==================================
+[135] API DOMAINS SETUP SUMMARY
+[135] ==================================
+[135] Successfully configured: 2/2 domains
+[135]
+[135] Websites Summary:
+[135] Executing: sudo php artisan servermanager:website summary
+[135]   Websites Summary:
+[135]     Total domains: 10
+[135]     Active domains: 10
+[135]     SSL enabled: 0
+[135]     Nginx enabled: 10
+[135]     Laravel sites: 0
+[135]     Static sites: 0
+[135]   
+[135]   PHP versions:
+[135]     PHP 8.4: 10 domains
+[135]   
+[135]   Domain details:
+[135]     🔓 ✅ local.api.gm15.com (poly, PHP 8.4)
+[135]     🔓 ✅ si.api.gm15.com (poly, PHP 8.4)
+[135]     🔓 ✅ sz.api.gm15.com (poly, PHP 8.4)
+[135]     🔓 ✅ sh.api.gm15.com (poly, PHP 8.4)
+[135]     🔓 ✅ api.gm15.com (poly, PHP 8.4)
+[135]     🔓 ✅ local.api.12gm.com (poly, PHP 8.4)
+[135]     🔓 ✅ si.api.12gm.com (poly, PHP 8.4)
+[135]     🔓 ✅ sz.api.12gm.com (poly, PHP 8.4)
+[135]     🔓 ✅ sh.api.12gm.com (poly, PHP 8.4)
+[135]     🔓 ✅ api.12gm.com (poly, PHP 8.4)
+[135] ==================================
+[135]
+[135] Next Steps:
+[135]   1. Run 137_setup_html_domains.sh to setup HTML domains
+[135]   2. Restart nginx to apply changes: sudo systemctl restart nginx
+[135]   3. Check nginx status: sudo systemctl status nginx
+[135] ==================================
+[135] All API domains configured successfully!
 
 Script execution completed with exit code: 0
 Press any key to return to test scripts menu...
