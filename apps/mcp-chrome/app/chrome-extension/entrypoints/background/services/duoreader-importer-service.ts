@@ -638,7 +638,7 @@ async function importBookViaCdnApi(
   await saveProgress(progress);
 
   const sourceKey = await sourceKeyForBookAsync(book.id);
-  const ingestStatus = await fetchBookIngestStatus(baseUrl, sourceKey);
+  const ingestStatus = await fetchBookIngestStatus(baseUrl, sourceKey, ingestStatusQueryForConfig(cfg));
   if (ingestStatus.book_exists) {
     logger.info(LOG, `Backend status ${book.id}: ${ingestStatus.chapters.length} chapter row(s), ${ingestStatus.total_slots} slots`);
   }
@@ -670,7 +670,7 @@ async function importBookViaCdnApi(
     const art = articles[chIdx];
     const backendCh = ingestStatus.chapterMap.get(chIdx);
 
-    if (canSkipChapterFetch(backendCh)) {
+    if (canSkipFullChapter(backendCh, cfg.enableAudioFetch)) {
       uploadCtx.chaptersSkipped += 1;
       uploadCtx.progress.chaptersScraped += 1;
       uploadCtx.progress.chaptersDone += 1;
@@ -680,11 +680,42 @@ async function importBookViaCdnApi(
       uploadCtx.progress.scrapePct = Math.round((uploadCtx.progress.chaptersScraped / uploadCtx.progress.chaptersTotal) * 100);
       uploadCtx.progress.uploadPct = Math.round((uploadCtx.progress.chaptersDone / uploadCtx.progress.chaptersTotal) * 100);
       uploadCtx.progress.phase = `Skip ch ${chIdx + 1}/${articles.length}: ${book.titleEn}`;
-      uploadCtx.progress.detail = `${backendCh?.slot_count || 0} slots on backend`;
+      uploadCtx.progress.detail = `text+audio complete (${backendCh?.slot_count || 0} slots)`;
       await saveProgress(uploadCtx.progress);
       logger.info(
         LOG,
-        `Skip fetch+upload ch ${chIdx + 1} book=${book.id} (${backendCh?.slot_count} slots on backend)`,
+        `Skip full ch ${chIdx + 1} book=${book.id} text+audio complete`,
+      );
+      await markChapterDone(
+        state,
+        book.id,
+        chIdx,
+        globalSeqBeforeChapter(chIdx + 1, ingestStatus),
+      );
+      continue;
+    }
+
+    if (canSkipChapterTextFetch(backendCh)) {
+      uploadCtx.chaptersSkipped += 1;
+      uploadCtx.progress.chaptersScraped += 1;
+      uploadCtx.progress.chaptersDone += 1;
+      uploadCtx.progress.chaptersSkipped = uploadCtx.chaptersSkipped;
+      uploadCtx.progress.chapterCurrent = chIdx + 1;
+      uploadCtx.progress.step = 'audio';
+      uploadCtx.progress.scrapePct = Math.round((uploadCtx.progress.chaptersScraped / uploadCtx.progress.chaptersTotal) * 100);
+      uploadCtx.progress.uploadPct = Math.round((uploadCtx.progress.chaptersDone / uploadCtx.progress.chaptersTotal) * 100);
+      uploadCtx.progress.phase = `Audio only ch ${chIdx + 1}/${articles.length}: ${book.titleEn}`;
+      uploadCtx.progress.detail = `text on backend · audio ${backendCh?.audio?.[cfg.learnLang]?.with_audio || 0}/${backendCh?.audio?.[cfg.learnLang]?.expected || 0} ${cfg.learnLang}`;
+      await saveProgress(uploadCtx.progress);
+      logger.info(LOG, `Audio-only resume ch ${chIdx + 1} book=${book.id}`);
+      await fetchChapterAudioFromBackendSlots(
+        baseUrl,
+        cfg,
+        uploadCtx.progress,
+        book,
+        chIdx,
+        backendCh,
+        sourceKey,
       );
       await markChapterDone(
         state,
@@ -853,7 +884,7 @@ export async function startDuoreaderImport(
       progress.chaptersTotal = toc.length;
       progress.chaptersSkipped = 0;
       const sourceKey = await sourceKeyForBookAsync(book.id);
-      const ingestStatus = await fetchBookIngestStatus(baseUrl, sourceKey);
+      const ingestStatus = await fetchBookIngestStatus(baseUrl, sourceKey, ingestStatusQueryForConfig(cfg));
       if (ingestStatus.book_exists) {
         logger.info(LOG, `Backend status ${book.id}: ${ingestStatus.chapters.length} chapter row(s), ${ingestStatus.total_slots} slots`);
       }
