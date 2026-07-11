@@ -1,5 +1,40 @@
 import { BaseAPI } from '../base/BaseAPI';
-import { APIResponse } from '../../types';
+import { APIResponse, NginxSite } from '../../types';
+
+type NginxSiteType = NginxSite['site_type'];
+
+/** Map backend listSites fields (`name`, `root_directory`, `config_type`) to UI shape. */
+const normalizeNginxSite = (site: Record<string, unknown>): NginxSite => {
+  const siteName = String(site.site_name ?? site.name ?? '');
+  const serverNames = Array.isArray(site.server_names) ? site.server_names as string[] : [];
+  const configType = typeof site.config_type === 'string' ? site.config_type : undefined;
+  let siteType: NginxSiteType = 'static';
+  if (site.site_type === 'laravel' || site.site_type === 'static' || site.site_type === 'proxy' || site.site_type === 'nuxt') {
+    siteType = site.site_type;
+  } else if (configType === 'proxy') {
+    siteType = 'proxy';
+  } else if (configType === 'php') {
+    siteType = 'laravel';
+  }
+
+  return {
+    ...(site as NginxSite),
+    site_name: siteName,
+    domain: String(site.domain ?? serverNames[0] ?? siteName),
+    site_type: siteType,
+    www_dir: String(site.www_dir ?? site.root_directory ?? ''),
+    php_mode: site.php_mode === 'fpm' || site.php_mode === 'swoole'
+      ? site.php_mode
+      : configType === 'php' ? 'fpm' : 'swoole',
+    config_path: String(site.config_path ?? site.config_file ?? ''),
+    listen_ports: Array.isArray(site.listen_ports) ? site.listen_ports as NginxSite['listen_ports'] : undefined,
+    server_names: serverNames.length > 0 ? serverNames : undefined,
+    ssl_enabled: Boolean(site.ssl_enabled),
+    enabled: Boolean(site.enabled),
+    created_at: String(site.created_at ?? ''),
+    updated_at: String(site.updated_at ?? site.modified_human ?? ''),
+  };
+};
 
 /**
  * ServerManagerV1 API Module
@@ -95,7 +130,15 @@ export class ServerManagerV1API extends BaseAPI {
 
   // ========== Nginx Management ==========
   async listNginxSites(): Promise<APIResponse> {
-    return this.get('/nginx/sites');
+    const response = await this.get('/nginx/sites');
+    const data = response.data as Record<string, unknown> | undefined;
+    if (response.success && data) {
+      const sites = data.sites ?? data;
+      if (Array.isArray(sites)) {
+        data.sites = sites.map((site) => normalizeNginxSite(site as Record<string, unknown>));
+      }
+    }
+    return response;
   }
 
   async createNginxSite(data: any): Promise<APIResponse> {
@@ -189,15 +232,28 @@ export class ServerManagerV1API extends BaseAPI {
 
   // ========== Unified Manager ==========
   async listApps(): Promise<APIResponse> {
-    return this.get('/unified/apps');
+    const response = await this.get('/unified/apps');
+    const data = response.data as any;
+    if (response.success && data) {
+      const apps = data.apps || data;
+      if (Array.isArray(apps)) {
+        data.apps = apps.map((app: any) => ({
+          ...app,
+          app_name: app.app_name ?? app.name,
+          app_path: app.app_path ?? app.path,
+          type: app.type ?? app.app_type,
+        }));
+      }
+    }
+    return response;
   }
 
   async deployApp(data: any): Promise<APIResponse> {
     return this.post('/unified/deploy', data);
   }
 
-  async getAppStatus(appName: string): Promise<APIResponse> {
-    return this.get('/unified/status', { app_name: appName });
+  async getAppStatus(appName: string, appType: string): Promise<APIResponse> {
+    return this.get('/unified/status', { app_name: appName, app_type: appType });
   }
 
   async getAppLogs(appName: string): Promise<APIResponse> {
@@ -213,8 +269,8 @@ export class ServerManagerV1API extends BaseAPI {
     return this.deployApp(data);
   }
 
-  async getUnifiedAppStatus(appName: string): Promise<APIResponse> {
-    return this.getAppStatus(appName);
+  async getUnifiedAppStatus(appName: string, appType: string): Promise<APIResponse> {
+    return this.getAppStatus(appName, appType);
   }
 
   // ========== SSL Certificates ==========

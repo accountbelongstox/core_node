@@ -12,6 +12,7 @@ use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UploadedDocumentModel;
 use App\Providers\PathMapper;
 use App\Services\MoviePoster\MoviePosterStore;
+use App\Services\MediaIngestStatusService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -318,10 +319,17 @@ class MediaBrowseController extends Controller
 
     /**
      * GET /api/app_qy_v1/media/books/{source_key}/ingest-status
-     * Per-chapter ingest completeness for idempotent importers: compares the
-     * chapter metadata sentence_count with actual source_sentences slot rows.
-     * A chapter is `complete` when sentence_count > 0 and slot_count >= sentence_count.
-     * Partial chapters should be re-ingested (backend ingest is fill-missing).
+     *
+     * Public idempotent progress probe for external importers (mcp-chrome, pycore).
+     * Text and audio are reported separately so callers can skip existing text
+     * while backfilling missing audio clips.
+     *
+     * Query:
+     *   langs              Comma-separated language codes (e.g. zh,en). When set,
+     *                      each chapter includes per-lang audio counts + complete flags.
+     *   variant_key        Audio variant id (e.g. duoreader_tts, uk_f). Default "" = primary.
+     *   include_slots      1|0 — per-slot seq/content_id/audio map (for audio-only resume).
+     *   include_text       1|0 — with include_slots, include sentence text for slots missing audio.
      */
     public function bookIngestStatus(Request $request, string $source_key): JsonResponse
     {
@@ -329,50 +337,34 @@ class MediaBrowseController extends Controller
             return $this->error('Invalid source key', 404);
         }
 
-        $book = Book::where('source_key', $source_key)->first();
-        if (!$book) {
-            return $this->success([
-                'source_key' => $source_key,
-                'book_exists' => false,
-                'total_slots' => 0,
-                'chapters' => [],
-            ]);
-        }
-
-        $languages = $this->sourceLanguages('book', $book);
-        $chapterRows = $this->buildChaptersList('book', $source_key, $languages);
-
-        $slotCounts = SourceSentence::where('source_key', $source_key)
-            ->where('grain', 'sentence')
-            ->selectRaw('chapter_index, COUNT(*) as slot_count')
-            ->groupBy('chapter_index')
-            ->pluck('slot_count', 'chapter_index');
-
-        $chapters = [];
-        foreach ($chapterRows as $row) {
-            $ci = (int) $row['chapter_index'];
-            $sentenceCount = (int) ($row['sentence_count'] ?? 0);
-            $slotCount = (int) ($slotCounts[$ci] ?? 0);
-            $chapters[] = [
-                'chapter_index' => $ci,
-                'sentence_count' => $sentenceCount,
-                'slot_count' => $slotCount,
-                'complete' => $sentenceCount > 0 && $slotCount >= $sentenceCount,
-            ];
-        }
-
-        // Chapterless slot rows (legacy) are ignored; importers scope by chapter_index.
-
-        $totalSlots = (int) SourceSentence::where('source_key', $source_key)
-            ->where('grain', 'sentence')
-            ->count();
-
-        return $this->success([
-            'source_key' => $source_key,
-            'book_exists' => true,
-            'total_slots' => $totalSlots,
-            'chapters' => $chapters,
+        $validated = $request->validate([
+            'langs' => 'nullable|string|max:200',
+            'variant_key' => 'nullable|string|max:64',
+            'include_slots' => 'nullable|boolean',
+            'include_text' => 'nullable|boolean',
         ]);
+
+        $languages = [];
+        if (!empty($validated['langs'])) {
+            $languages = array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) $validated['langs'])
+            )));
+        }
+
+        $variantKey = trim((string) ($validated['variant_key'] ?? ''));
+        $includeSlots = filter_var($validated['include_slots'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $includeText = filter_var($validated['include_text'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        $payload = (new MediaIngestStatusService())->buildBookStatus(
+            $source_key,
+            $languages,
+            $variantKey,
+            $includeSlots,
+            $includeText
+        );
+
+        return $this->success($payload);
     }
 
     /**

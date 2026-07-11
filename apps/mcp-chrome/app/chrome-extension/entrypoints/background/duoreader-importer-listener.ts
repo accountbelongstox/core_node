@@ -4,6 +4,7 @@ import {
   startDuoreaderImport,
   stopDuoreaderImport,
   testDuoreaderImportApi,
+  unpackPzMessageBytes,
 } from './services/duoreader-importer-service';
 import { logger } from '@/utils/logger';
 
@@ -47,6 +48,16 @@ export function initDuoreaderImporterListener(): void {
           case 'test_api': {
             const result = await testDuoreaderImportApi(message.config || {}, message.bookId);
             sendResponse({ success: result.ok, result, error: result.error });
+            break;
+          }
+          case 'unpack_pz': {
+            const bytes = message.bytes;
+            if (!Array.isArray(bytes) && !(bytes instanceof Uint8Array)) {
+              sendResponse({ success: false, error: 'unpack_pz requires bytes array' });
+              break;
+            }
+            const decoded = await unpackPzMessageBytes(bytes);
+            sendResponse({ success: true, decoded: Array.from(decoded), size: decoded.length });
             break;
           }
           default:

@@ -442,7 +442,7 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
               <div className="grid grid-cols-1 gap-4">
                 {nginxSites.data.map(site => (
                   <NginxSiteCard
-                    key={site.site_name}
+                    key={site.site_name || site.config_path}
                     site={site}
                     lang={lang}
                     batchMode={batchMode}

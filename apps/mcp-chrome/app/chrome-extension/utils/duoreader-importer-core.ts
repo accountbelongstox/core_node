@@ -86,18 +86,48 @@ export interface DuoreaderImportProgress {
   updatedAt: string;
 }
 
+export interface BackendChapterAudioLangStatus {
+  expected: number;
+  with_audio: number;
+  complete: boolean;
+}
+
+export interface BackendIngestSlotStatus {
+  seq: number;
+  corr_id?: string;
+  lang_content_ids: Record<string, string>;
+  audio: Record<string, boolean>;
+  text?: Record<string, string>;
+}
+
 export interface BackendChapterIngestStatus {
   chapter_index: number;
   sentence_count: number;
   slot_count: number;
+  /** Legacy alias: text ingest complete for this chapter. */
   complete: boolean;
+  text_complete: boolean;
+  audio_complete?: boolean;
+  audio?: Record<string, BackendChapterAudioLangStatus>;
+  slots?: BackendIngestSlotStatus[];
 }
 
 export interface BookIngestStatus {
   book_exists: boolean;
   total_slots: number;
+  text_complete?: boolean;
+  audio_complete?: boolean;
+  variant_key?: string;
+  languages?: string[];
   chapters: BackendChapterIngestStatus[];
   chapterMap: Map<number, BackendChapterIngestStatus>;
+}
+
+export interface IngestStatusQuery {
+  langs?: string[];
+  variantKey?: string;
+  includeSlots?: boolean;
+  includeText?: boolean;
 }
 
 export interface DuoreaderImporterConfig {
@@ -381,7 +411,11 @@ export async function buildSlots(
   return slots;
 }
 
-export async function fetchBookIngestStatus(baseUrl: string, sourceKey: string): Promise<BookIngestStatus> {
+export async function fetchBookIngestStatus(
+  baseUrl: string,
+  sourceKey: string,
+  query: IngestStatusQuery = {},
+): Promise<BookIngestStatus> {
   const empty: BookIngestStatus = {
     book_exists: false,
     total_slots: 0,
@@ -389,7 +423,21 @@ export async function fetchBookIngestStatus(baseUrl: string, sourceKey: string):
     chapterMap: new Map(),
   };
   try {
-    const url = `${baseUrl.replace(/\/+$/, '')}${BOOK_INGEST_STATUS_PATH}/${encodeURIComponent(sourceKey)}/ingest-status`;
+    const params = new URLSearchParams();
+    if (query.langs?.length) {
+      params.set('langs', query.langs.join(','));
+    }
+    if (query.variantKey) {
+      params.set('variant_key', query.variantKey);
+    }
+    if (query.includeSlots) {
+      params.set('include_slots', '1');
+    }
+    if (query.includeText) {
+      params.set('include_text', '1');
+    }
+    const qs = params.toString();
+    const url = `${baseUrl.replace(/\/+$/, '')}${BOOK_INGEST_STATUS_PATH}/${encodeURIComponent(sourceKey)}/ingest-status${qs ? `?${qs}` : ''}`;
     const res = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
     if (!res.ok) {
       return empty;
@@ -401,7 +449,11 @@ export async function fetchBookIngestStatus(baseUrl: string, sourceKey: string):
           chapter_index: Number(row.chapter_index),
           sentence_count: Number(row.sentence_count) || 0,
           slot_count: Number(row.slot_count) || 0,
-          complete: !!row.complete,
+          complete: !!(row.text_complete ?? row.complete),
+          text_complete: !!(row.text_complete ?? row.complete),
+          audio_complete: row.audio_complete !== undefined ? !!row.audio_complete : undefined,
+          audio: row.audio,
+          slots: Array.isArray(row.slots) ? row.slots : undefined,
         }))
       : [];
     const chapterMap = new Map<number, BackendChapterIngestStatus>();
@@ -411,6 +463,10 @@ export async function fetchBookIngestStatus(baseUrl: string, sourceKey: string):
     return {
       book_exists: !!data?.book_exists,
       total_slots: Number(data?.total_slots) || 0,
+      text_complete: data?.text_complete !== undefined ? !!data.text_complete : undefined,
+      audio_complete: data?.audio_complete !== undefined ? !!data.audio_complete : undefined,
+      variant_key: data?.variant_key,
+      languages: Array.isArray(data?.languages) ? data.languages : undefined,
       chapters,
       chapterMap,
     };
@@ -437,19 +493,54 @@ export function globalSeqBeforeChapter(
   return seq;
 }
 
-/** True when backend already has all slots for this chapter (skip upload). */
-export function isChapterCompleteOnBackend(
+/** True when backend already has all text slots for this chapter (skip text upload). */
+export function isChapterTextCompleteOnBackend(
   backendChapter: BackendChapterIngestStatus | undefined,
-  expectedParagraphs: number,
+  expectedParagraphs?: number,
 ): boolean {
-  if (!backendChapter || expectedParagraphs <= 0) return false;
-  return backendChapter.slot_count >= expectedParagraphs
-    && backendChapter.sentence_count >= expectedParagraphs;
+  if (!backendChapter) return false;
+  const expected = expectedParagraphs ?? backendChapter.sentence_count;
+  if (expected > 0) {
+    return backendChapter.slot_count >= expected && backendChapter.sentence_count >= expected;
+  }
+  return backendChapter.text_complete || backendChapter.complete;
 }
 
-/** True when we can skip CDN/DOM fetch — backend marked complete from prior import. */
+/** True when all requested langs have audio for every slot (variant-aware on backend). */
+export function isChapterAudioCompleteOnBackend(
+  backendChapter: BackendChapterIngestStatus | undefined,
+  enableAudioFetch: boolean,
+): boolean {
+  if (!enableAudioFetch) return true;
+  return !!backendChapter?.audio_complete;
+}
+
+/** Skip CDN/DOM fetch when text is already on backend. */
+export function canSkipChapterTextFetch(backendChapter: BackendChapterIngestStatus | undefined): boolean {
+  return isChapterTextCompleteOnBackend(backendChapter) && (backendChapter?.sentence_count ?? 0) > 0;
+}
+
+/** Skip entire chapter (text + audio) when both layers are complete. */
+export function canSkipFullChapter(
+  backendChapter: BackendChapterIngestStatus | undefined,
+  enableAudioFetch: boolean,
+): boolean {
+  return canSkipChapterTextFetch(backendChapter)
+    && isChapterAudioCompleteOnBackend(backendChapter, enableAudioFetch);
+}
+
+/** @deprecated Use canSkipChapterTextFetch or canSkipFullChapter */
 export function canSkipChapterFetch(backendChapter: BackendChapterIngestStatus | undefined): boolean {
-  return !!backendChapter?.complete && backendChapter.sentence_count > 0;
+  return canSkipChapterTextFetch(backendChapter);
+}
+
+export function ingestStatusQueryForConfig(cfg: DuoreaderImporterConfig): IngestStatusQuery {
+  return {
+    langs: [cfg.learnLang, cfg.myLang],
+    variantKey: DUOREADER_AUDIO_VARIANT_KEY,
+    includeSlots: cfg.enableAudioFetch,
+    includeText: cfg.enableAudioFetch,
+  };
 }
 
 export async function postIngest(

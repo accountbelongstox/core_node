@@ -19,8 +19,11 @@ import {
   fetchShelf,
   fetchBookIngestStatus,
   globalSeqBeforeChapter,
-  isChapterCompleteOnBackend,
-  canSkipChapterFetch,
+  ingestStatusQueryForConfig,
+  isChapterTextCompleteOnBackend,
+  isChapterAudioCompleteOnBackend,
+  canSkipFullChapter,
+  canSkipChapterTextFetch,
   ingestChapter,
   listBilingualBooks,
   normalizeImportProgress,
@@ -31,6 +34,8 @@ import {
   DUOREADER_WEB_BASE,
   DUOREADER_SHELF_URL,
   type BookIngestStatus,
+  type BackendChapterIngestStatus,
+  type BackendIngestSlotStatus,
 } from '@/utils/duoreader-importer-core';
 import { fetchDuoreaderAudio } from '@/utils/duoreader-audio';
 import {
@@ -50,9 +55,9 @@ import {
   type DuoreaderApiTestResult,
   type DuoreaderArticleRef,
 } from '@/utils/duoreader-pz-decode';
+import { unpackDuoreaderPzBytesAsync } from '@/utils/pz-bunzip';
 
 const LOG = 'DuoreaderImporter';
-const BUNZIP_SCRIPT = 'inject-scripts/pz-bunzip.js';
 const HELPER_SCRIPT = 'inject-scripts/duoreader-importer-helper.js';
 const PING_ACTION = 'duoreader_importer_ping';
 
@@ -96,7 +101,7 @@ async function ensureHelperInjected(tabId: number): Promise<void> {
   }
   await chrome.scripting.executeScript({
     target: { tabId },
-    files: [BUNZIP_SCRIPT, HELPER_SCRIPT],
+    files: [HELPER_SCRIPT],
   });
   logger.debug(LOG, `Injected helper into tab ${tabId}`);
 }
@@ -224,6 +229,61 @@ async function fetchAndUploadSentenceAudio(
   }
   logger.warn(LOG, `Audio upload ${lang} ${contentId}: ${upload.error || upload.status}`);
   return 'failed';
+}
+
+async function fetchChapterAudioFromBackendSlots(
+  baseUrl: string,
+  cfg: DuoreaderImporterConfig,
+  progress: DuoreaderImportProgress,
+  book: DuoreaderBookMeta,
+  chapterIndex: number,
+  backendChapter: BackendChapterIngestStatus | undefined,
+  sourceKey: string,
+): Promise<void> {
+  if (!cfg.enableAudioFetch || stopRequested || !backendChapter?.slots?.length) return;
+
+  const chNum = chapterIndex + 1;
+  progress.chapterCurrent = chNum;
+  progress.chapterSlotsExpected = backendChapter.slots.length;
+  progress.audioSlotsTotal = backendChapter.slots.length;
+  progress.audioSlotsTarget += backendChapter.slots.length;
+  progress.step = 'audio';
+  progress.phase = `Audio resume · ch ${chNum}/${progress.chaptersTotal}: ${book.titleEn}`;
+  progress.detail = 'backend slot map (text+audio idempotent)';
+  await saveProgress(progress);
+
+  const langs = [cfg.learnLang, cfg.myLang];
+  for (let slotIdx = 0; slotIdx < backendChapter.slots.length; slotIdx += 1) {
+    if (stopRequested) break;
+    const slot = backendChapter.slots[slotIdx] as BackendIngestSlotStatus;
+    progress.audioSlot = slotIdx + 1;
+    progress.detail = `slot ${slotIdx + 1}/${backendChapter.slots.length}`;
+    await saveProgress(progress);
+
+    for (const lang of langs) {
+      if (stopRequested) break;
+      if (slot.audio?.[lang]) continue;
+      const text = slot.text?.[lang];
+      if (!text?.trim()) {
+        logger.warn(LOG, `Audio resume missing text ch${chNum} seq=${slot.seq} lang=${lang}`);
+        continue;
+      }
+      progress.audioLang = lang;
+      const result = await fetchAndUploadSentenceAudio(
+        baseUrl,
+        book.id,
+        chapterIndex,
+        sourceKey,
+        lang,
+        text,
+      );
+      if (result === 'uploaded' || result === 'cached') {
+        if (lang === cfg.learnLang) progress.audioFetchedLearn += 1;
+        else if (lang === cfg.myLang) progress.audioFetchedMy += 1;
+        recomputeAudioPct(progress);
+      }
+    }
+  }
 }
 
 async function fetchChapterAudio(
@@ -453,7 +513,7 @@ async function uploadChapterIfNeeded(
   ctx.progress.chapterCurrent = chNum;
   ctx.progress.chapterSlotsExpected = expected;
 
-  if (isChapterCompleteOnBackend(backendCh, expected)) {
+  if (isChapterTextCompleteOnBackend(backendCh, expected)) {
     ctx.chaptersSkipped += 1;
     ctx.progress.chaptersDone += 1;
     ctx.progress.chaptersSkipped = ctx.chaptersSkipped;
@@ -902,4 +962,8 @@ export async function listDuoreaderBooks(
   const cfg = { ...DEFAULT_IMPORTER_CONFIG, ...config };
   const shelf = await fetchShelf();
   return listBilingualBooks(shelf, cfg);
+}
+
+export async function unpackPzMessageBytes(bytes: number[] | Uint8Array): Promise<Uint8Array> {
+  return unpackDuoreaderPzBytesAsync(bytes);
 }

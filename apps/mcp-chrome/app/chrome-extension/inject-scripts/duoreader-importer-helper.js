@@ -79,7 +79,19 @@
     return { chapterTitle: chapterTitle.trim(), paragraphCount: paragraphs.length, paragraphs };
   }
 
-  /** Fetch a same-origin or CORS-allowed URL as raw bytes (number[] 0-255). */
+  /** Ask background service worker to XOR+decompress .pz bytes (WASM bzip2). */
+  async function unpackPzBytes(bytes) {
+    const resp = await chrome.runtime.sendMessage({
+      type: 'duoreader_importer',
+      action: 'unpack_pz',
+      bytes,
+    });
+    if (!resp?.success) {
+      return { ok: false, error: resp?.error || 'unpack_pz failed' };
+    }
+    return { ok: true, decoded: Uint8Array.from(resp.decoded || []), size: resp.size || 0 };
+  }
+
   async function fetchBinary(url) {
     try {
       const resp = await fetch(url, { credentials: 'include', cache: 'no-store' });
@@ -132,16 +144,17 @@
             sendResponse(raw);
             break;
           }
-          try {
-            if (typeof self.unpackDuoreaderPzBytes !== 'function') {
-              sendResponse({ ok: false, error: 'pz-bunzip not loaded' });
-              break;
-            }
-            const decoded = self.unpackDuoreaderPzBytes(raw.bytes);
-            sendResponse({ ok: true, decoded, size: decoded.length, rawSize: raw.size });
-          } catch (e) {
-            sendResponse({ ok: false, error: String(e && e.message ? e.message : e) });
+          const unpacked = await unpackPzBytes(raw.bytes);
+          if (!unpacked.ok) {
+            sendResponse({ ok: false, error: unpacked.error, rawSize: raw.size });
+            break;
           }
+          sendResponse({
+            ok: true,
+            decoded: unpacked.decoded,
+            size: unpacked.size,
+            rawSize: raw.size,
+          });
           break;
         }
         case 'duoreaderApiTest': {
@@ -155,18 +168,13 @@
             sendResponse({ ok: false, error: bookFetch.error || 'book.pz fetch failed', bookUrl });
             break;
           }
-          if (typeof self.unpackDuoreaderPzBytes !== 'function') {
-            sendResponse({ ok: false, error: 'pz-bunzip not loaded' });
+          const bookUnpack = await unpackPzBytes(bookFetch.bytes);
+          if (!bookUnpack.ok) {
+            sendResponse({ ok: false, error: `book.pz decode failed: ${bookUnpack.error}`, bookUrl });
             break;
           }
-          let bookDecoded;
-          try {
-            bookDecoded = self.unpackDuoreaderPzBytes(bookFetch.bytes);
-          } catch (e) {
-            sendResponse({ ok: false, error: `book.pz decode failed: ${e}`, bookUrl });
-            break;
-          }
-          const text = new TextDecoder('utf-8', { fatal: false }).decode(Uint8Array.from(bookDecoded));
+          const bookDecoded = bookUnpack.decoded;
+          const text = new TextDecoder('utf-8', { fatal: false }).decode(bookDecoded);
           const match = text.match(/part_(\d+)_art_(\d+)/);
           if (!match) {
             sendResponse({
@@ -185,13 +193,17 @@
             sendResponse({ ok: false, error: artFetch.error, articleUrl, bookDecoded });
             break;
           }
-          let articleDecoded;
-          try {
-            articleDecoded = self.unpackDuoreaderPzBytes(artFetch.bytes);
-          } catch (e) {
-            sendResponse({ ok: false, error: `article.pz decode failed: ${e}`, articleUrl, bookDecoded });
+          const artUnpack = await unpackPzBytes(artFetch.bytes);
+          if (!artUnpack.ok) {
+            sendResponse({
+              ok: false,
+              error: `article.pz decode failed: ${artUnpack.error}`,
+              articleUrl,
+              bookDecoded,
+            });
             break;
           }
+          const articleDecoded = artUnpack.decoded;
           sendResponse({
             ok: true,
             bookId,

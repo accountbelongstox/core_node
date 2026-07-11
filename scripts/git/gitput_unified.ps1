@@ -37,6 +37,7 @@ $BACKUP_ENABLED = if ($Backup) { "true" } else { "false" }
 $currentBranch = ""
 $script:CommitMessage = $null
 $script:ForcePushChoice = $null
+$script:PullCompleted = $false
 $CommitMessageTimeoutSeconds = 3  # Auto-continue with the default commit message after this many idle seconds
 $winCommonDir = Join-Path $coreNodeDir "scripts\shells\win\win_common"
 $skipEncryptCacheDir = "C:\_node_core"
@@ -1020,9 +1021,12 @@ function Invoke-GitOperations {
         git branch --set-upstream-to=origin/$currentBranch $currentBranch
         if ($script:ForcePushChoice -match '^[Yy]$') {
             Write-ColorText "FORCE PUSH MODE - skipping pull on new branch" -ForegroundColor Red
-        } else {
+        } elseif (-not $script:PullCompleted) {
             Write-ColorText "Executing: git pull origin main" -ForegroundColor DarkGray
             git pull origin main
+            $script:PullCompleted = $true
+        } else {
+            Write-ColorText "Skipping pull - already synchronized in this session" -ForegroundColor Yellow
         }
     } else {
         # Stage all changes FIRST (before pull)
@@ -1084,11 +1088,16 @@ function Invoke-GitOperations {
             Write-ColorText "Executing: git push --force --set-upstream origin $currentBranch" -ForegroundColor DarkGray
             git push --force --set-upstream origin $currentBranch
         } else {
-            # Normal push mode - pull first to prevent conflicts
+            # Normal push mode - pull only once per session (first remote)
             Write-ColorText "=== NORMAL PUSH MODE ===" -ForegroundColor Green
-            Write-ColorText "Pulling and merging remote changes after commit..." -ForegroundColor Cyan
-            Write-ColorText "Executing: git pull origin $currentBranch --no-edit" -ForegroundColor DarkGray
-            git pull origin $currentBranch --no-edit
+            if (-not $script:PullCompleted) {
+                Write-ColorText "Pulling and merging remote changes after commit..." -ForegroundColor Cyan
+                Write-ColorText "Executing: git pull origin $currentBranch --no-edit" -ForegroundColor DarkGray
+                git pull origin $currentBranch --no-edit
+                $script:PullCompleted = $true
+            } else {
+                Write-ColorText "Skipping pull - already synchronized in this session" -ForegroundColor Yellow
+            }
 
             Write-ColorText "Pushing changes to remote..." -ForegroundColor Cyan
             Write-ColorText "Executing: git push --set-upstream origin $currentBranch" -ForegroundColor DarkGray

@@ -3,7 +3,7 @@
  */
 
 import type { DuoreaderParagraph } from './duoreader-importer-core';
-import { unpackDuoreaderPzBytes } from './pz-bunzip';
+import { unpackDuoreaderPzBytesAsync } from './pz-bunzip';
 
 export const DUOREADER_CDN_BASE = 'https://dl-public.xiangyin.mobi/multi_lang_read/';
 
@@ -37,9 +37,9 @@ export function bookPzUrl(bookId: string): string {
   return `${DUOREADER_CDN_BASE}${bookId}/book.pz`;
 }
 
-export function unpackPzBytes(raw: ArrayBuffer | Uint8Array): Uint8Array {
+export async function unpackPzBytes(raw: ArrayBuffer | Uint8Array): Promise<Uint8Array> {
   const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
-  return unpackDuoreaderPzBytes(bytes);
+  return unpackDuoreaderPzBytesAsync(bytes);
 }
 
 export async function fetchPz(url: string): Promise<Uint8Array> {

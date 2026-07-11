@@ -134,6 +134,7 @@ export default defineConfig({
             resources: [
               '/models/*', // Allow access to public/models/ files
               '/workers/*', // Allow access to workers
+              '/wasm/*', // bzip2 WASM for Duoreader .pz decode
             ],
             matches: ['<all_urls>'],
           },
@@ -149,11 +150,12 @@ export default defineConfig({
       permissions: CHROME_PERMISSIONS,
       web_accessible_resources: [
         {
-          resources: [
-            '/models/*', // Allow access to public/models/ files
-            '/workers/*', // Allow access to workers
-            '/offscreen/audio-recorder.html', // Audio recording offscreen document
-          ],
+        resources: [
+          '/models/*', // Allow access to public/models/ files
+          '/workers/*', // Allow access to workers
+          '/wasm/*', // bzip2 WASM for Duoreader .pz decode
+          '/offscreen/audio-recorder.html', // Audio recording offscreen document
+        ],
           matches: ['<all_urls>'],
         },
       ],
@@ -173,6 +175,10 @@ export default defineConfig({
           {
             src: 'inject-scripts/*.js',
             dest: 'inject-scripts',
+          },
+          {
+            src: 'public/wasm/*',
+            dest: 'wasm',
           },
           {
             src: ['workers/*'],

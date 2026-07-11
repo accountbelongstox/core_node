@@ -780,7 +780,8 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
         id: 'unified3', method: 'GET', path: '/api/servermanager/v1/unified/status', 
         description: 'Get application status', section: 'ServerManager - Unified Manager',
         params: [
-            { name: 'app_name', type: 'string', required: true }
+            { name: 'app_name', type: 'string', required: true },
+            { name: 'app_type', type: 'string', required: true, options: ['ncoreApp', 'pycoreApp', 'polyApp'] }
         ]
     },
     {

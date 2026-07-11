@@ -1461,9 +1461,9 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
               <div>
                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">{t.nginx.conf_d_files}</p>
                 <div className="flex flex-wrap gap-2">
-                  {mainConfig.data.conf_d.map(f => (
+                  {mainConfig.data.conf_d.map((f, idx) => (
                     <span
-                      key={f.file}
+                      key={f.file ?? `conf-d-${idx}`}
                       className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-mono"
                     >
                       {f.file} · {(f.size_bytes / 1024).toFixed(1)} KB
@@ -1777,7 +1777,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
     error: null,
     status: 'idle'
   });
-  const [selectedApp, setSelectedApp] = useState<string | null>(null);
+  const [selectedApp, setSelectedApp] = useState<{ name: string; type: string } | null>(null);
   const [appStatus, setAppStatus] = useState<AsyncState<UnifiedAppStatus>>({
     data: null,
     loading: false,
@@ -1814,14 +1814,14 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
     loadApps();
   }, []);
 
-  const handleDeploy = async (appName: string, action: 'deploy' | 'start' | 'stop' | 'restart') => {
+  const handleDeploy = async (app: UnifiedApp, action: 'deploy' | 'start' | 'stop' | 'restart') => {
     try {
-      const response = await api.serverManagerV1.deployUnifiedApp({ app_name: appName, action });
+      const response = await api.serverManagerV1.deployUnifiedApp({ app_name: app.app_name, action });
       if (response.success) {
         const actionMsg = (messages.action_completed || 'Action {action} completed').replace('{action}', action);
         alert(actionMsg);
-        if (selectedApp === appName) {
-          loadAppStatus(appName);
+        if (selectedApp?.name === app.app_name && selectedApp?.type === app.type) {
+          loadAppStatus(app);
         }
       }
     } catch (error: any) {
@@ -1829,10 +1829,20 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
     }
   };
 
-  const loadAppStatus = async (appName: string) => {
+  const loadAppStatus = async (app: UnifiedApp) => {
+    if (!app.type) {
+      setAppStatus({
+        data: null,
+        loading: false,
+        error: 'Missing app type — reload the app list',
+        status: 'error'
+      });
+      return;
+    }
+
     setAppStatus(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await api.serverManagerV1.getUnifiedAppStatus(appName);
+      const response = await api.serverManagerV1.getUnifiedAppStatus(app.app_name, app.type);
       if (response.success && response.data) {
         setAppStatus({
           data: response.data,
@@ -1840,7 +1850,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
           error: null,
           status: 'success'
         });
-        setSelectedApp(appName);
+        setSelectedApp({ name: app.app_name, type: app.type });
       }
     } catch (error: any) {
       setAppStatus({
@@ -1871,31 +1881,31 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handleDeploy(app.app_name, 'deploy')}
+                    onClick={() => handleDeploy(app, 'deploy')}
                     className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm"
                   >
                     {t.deploy}
                   </button>
                   <button
-                    onClick={() => handleDeploy(app.app_name, 'start')}
+                    onClick={() => handleDeploy(app, 'start')}
                     className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
                   >
                     {t.start}
                   </button>
                   <button
-                    onClick={() => handleDeploy(app.app_name, 'stop')}
+                    onClick={() => handleDeploy(app, 'stop')}
                     className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm"
                   >
                     {t.stop}
                   </button>
                   <button
-                    onClick={() => handleDeploy(app.app_name, 'restart')}
+                    onClick={() => handleDeploy(app, 'restart')}
                     className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm"
                   >
                     {t.restart}
                   </button>
                   <button
-                    onClick={() => loadAppStatus(app.app_name)}
+                    onClick={() => loadAppStatus(app)}
                     className="px-3 py-1 bg-slate-600 hover:bg-slate-700 text-white rounded text-sm"
                   >
                     {t.status}
@@ -1976,31 +1986,43 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
 
       {appStatus.data && selectedApp && (
         <div className={`${commonClasses.card} p-4`}>
-          <h3 className="font-semibold mb-3">{selectedApp} - {t.status}</h3>
+          <h3 className="font-semibold mb-3">{selectedApp.name} ({selectedApp.type}) - {t.status}</h3>
           <div className="space-y-2 text-sm">
-            <div>
-              <span className="text-slate-500">Overall Status:</span>
-              <StatusBadge
-                className="ml-2"
-                status={appStatus.data.overall_status}
-                tone={
-                  appStatus.data.overall_status === 'running' ? 'success' :
-                  appStatus.data.overall_status === 'stopped' ? 'idle' : 'error'
-                }
-                withDot={false}
-              />
-            </div>
-            {appStatus.data.service_status && (
+            {appStatus.data.service_name && (
               <div>
                 <span className="text-slate-500">Service:</span>
-                <span className="ml-2">{appStatus.data.service_status.status}</span>
+                <span className="ml-2 font-mono">{appStatus.data.service_name}</span>
               </div>
             )}
-            {appStatus.data.process_info && (
-              <div>
-                <span className="text-slate-500">Processes:</span>
-                <span className="ml-2">{appStatus.data.process_info.count} running</span>
-              </div>
+            {appStatus.data.service_status && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500">Status:</span>
+                  <StatusBadge
+                    status={appStatus.data.service_status.installed ? appStatus.data.service_status.status : 'Not Installed'}
+                    tone={
+                      appStatus.data.service_status.status === 'running' ? 'success' :
+                      appStatus.data.service_status.status === 'failed' ? 'error' : 'idle'
+                    }
+                    withDot={false}
+                  />
+                </div>
+                {appStatus.data.service_status.pid && (
+                  <div>
+                    <span className="text-slate-500">PID:</span>
+                    <span className="ml-2">{appStatus.data.service_status.pid}</span>
+                    {appStatus.data.service_status.uptime && (
+                      <span className="ml-2 text-slate-400">• {appStatus.data.service_status.uptime}</span>
+                    )}
+                  </div>
+                )}
+                {appStatus.data.service_status.launcher_exists && appStatus.data.service_status.launcher_path && (
+                  <div>
+                    <span className="text-slate-500">Launcher:</span>
+                    <span className="ml-2 font-mono text-xs">{appStatus.data.service_status.launcher_path}</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

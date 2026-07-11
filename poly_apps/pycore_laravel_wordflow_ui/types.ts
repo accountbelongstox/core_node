@@ -1000,9 +1000,13 @@ export interface ScriptExecutionRequest {
   script_id: number;
 }
 
+export type UnifiedAppType = 'ncoreApp' | 'pycoreApp' | 'polyApp';
+
 export interface UnifiedApp {
   app_name: string;
   app_path: string;
+  /** Backend scan category — required for /unified/status, start, stop, restart */
+  type?: UnifiedAppType;
   service_name?: string;
   port?: number;
   status?: 'running' | 'stopped' | 'failed';
@@ -1034,23 +1038,17 @@ export interface UnifiedAppDeployRequest {
 
 export interface UnifiedAppStatus {
   app_name: string;
+  app_type?: UnifiedAppType;
+  service_name?: string;
   service_status?: {
-    service_name: string;
-    active: boolean;
+    installed?: boolean;
     status: string;
-    since?: string;
+    enabled?: boolean;
+    launcher_exists?: boolean;
+    launcher_path?: string | null;
+    pid?: number | null;
+    uptime?: string | null;
   };
-  process_info?: {
-    running: boolean;
-    pids: string[];
-    count: number;
-  };
-  port_info?: {
-    expected_port: number;
-    listening: boolean;
-    port?: number;
-  };
-  overall_status: 'running' | 'stopped' | 'failed';
 }
 
 export interface CertbotStatus {

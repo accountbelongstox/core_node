@@ -34,6 +34,7 @@ COMMIT_MESSAGE_TIMEOUT_SECONDS=3
 # State tracking variables
 ENCRYPTION_CHECK_COMPLETED=false
 FILE_VALIDATION_COMPLETED=false
+PULL_COMPLETED=false
 SSH_KEYS_CHECK_COMPLETED=false
 ORIGINAL_WORKING_DIR=$(pwd)
 ORIGINAL_REMOTE_URL=""
@@ -101,6 +102,7 @@ done
 # Declare all variables at the beginning
 ENCRYPTION_CHECK_COMPLETED=false
 FILE_VALIDATION_COMPLETED=false
+PULL_COMPLETED=false
 ORIGINAL_WORKING_DIR=$(pwd)
 ORIGINAL_REMOTE_URL=""
 ORIGINAL_BRANCH=""
@@ -1894,15 +1896,20 @@ invoke_git_operations() {
             return 1
         fi
     else
-        # Normal push mode - pull first to prevent conflicts
+        # Normal push mode - pull only once per session (first remote)
         write_color_text "=== NORMAL PUSH MODE ===" "Green"
-        if git branch -r | grep -q "origin/$current_branch"; then
-            write_color_text "Pulling and merging remote changes after commit..." "Cyan"
-            write_color_text "Executing: git pull origin $current_branch --no-edit" "DarkGray"
-            if ! git pull origin "$current_branch" --no-edit; then
-                write_color_text "Pull failed (e.g. SSH connection timeout), skipping this remote." "Yellow"
-                return 1
+        if [ "$PULL_COMPLETED" != true ]; then
+            if git branch -r | grep -q "origin/$current_branch"; then
+                write_color_text "Pulling and merging remote changes after commit..." "Cyan"
+                write_color_text "Executing: git pull origin $current_branch --no-edit" "DarkGray"
+                if ! git pull origin "$current_branch" --no-edit; then
+                    write_color_text "Pull failed (e.g. SSH connection timeout), skipping this remote." "Yellow"
+                    return 1
+                fi
             fi
+            PULL_COMPLETED=true
+        else
+            write_color_text "Skipping pull - already synchronized in this session" "Yellow"
         fi
 
         write_color_text "Pushing changes to remote..." "Cyan"

@@ -356,9 +356,12 @@ def invoke_git_operations(target_url: str, force_push_mode: bool = False) -> boo
             run_git_command(f"git branch --set-upstream-to=origin/{current_branch} {current_branch}")
             if force_push_mode:
                 write_color_text("FORCE PUSH MODE - skipping pull on new branch", "Red")
-            else:
+            elif not pull_completed:
                 write_color_text(f"Executing: git pull origin {DEFAULT_BRANCH}", "DarkGray")
                 run_git_command(f"git pull origin {DEFAULT_BRANCH}")
+                pull_completed = True
+            else:
+                write_color_text("Skipping pull - already synchronized in this session", "Yellow")
             return True
         
         # Stage all changes FIRST (before pull)

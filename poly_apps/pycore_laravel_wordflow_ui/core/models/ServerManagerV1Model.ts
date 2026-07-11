@@ -473,8 +473,8 @@ export class ServerManagerV1Model {
   /**
    * Get unified app status
    */
-  async getUnifiedAppStatus(appName: string): Promise<UnifiedAppStatus | null> {
-    const response = await api.serverManagerV1.getUnifiedAppStatus(appName);
+  async getUnifiedAppStatus(appName: string, appType: string): Promise<UnifiedAppStatus | null> {
+    const response = await api.serverManagerV1.getUnifiedAppStatus(appName, appType);
 
     if (response.success && response.data) {
       return response.data;

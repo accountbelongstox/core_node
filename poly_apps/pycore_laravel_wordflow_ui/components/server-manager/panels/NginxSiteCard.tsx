@@ -60,7 +60,7 @@ const NginxSiteCard: React.FC<NginxSiteCardProps> = ({
             />
           )}
           <div className={`w-3 h-3 rounded-full shrink-0 ${site.enabled ? 'bg-green-500' : 'bg-slate-300'}`} />
-          <h3 className="font-semibold text-lg truncate">{site.domain}</h3>
+          <h3 className="font-semibold text-lg truncate">{site.domain || site.server_names?.[0] || site.site_name}</h3>
           <span className="px-2 py-1 text-xs rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
             {site.site_type}
           </span>
@@ -140,7 +140,7 @@ const NginxSiteCard: React.FC<NginxSiteCardProps> = ({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
         <div>
           <span className="text-slate-500 dark:text-slate-400">{t.nginx.www_dir}:</span>
-          <p className="font-mono text-xs mt-1">{site.www_dir}</p>
+          <p className="font-mono text-xs mt-1">{site.www_dir || site.config_path || '—'}</p>
         </div>
         <div>
           <span className="text-slate-500 dark:text-slate-400">{t.nginx.php_mode}:</span>
