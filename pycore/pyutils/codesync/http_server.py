@@ -215,7 +215,7 @@ class _Handler(BaseHTTPRequestHandler):
             fields = {k: v for k, v in body.items() if k != "id" and v is not None}
             return self._send_json(m.update_peer(body.get("id", ""), fields))
         if path == "/code-sync/role":
-            return self._send_json({"success": True, "role": m.set_role(body.get("role", "client"))})
+            return self._send_json(m.set_role(body.get("role", "client")))
         if path == "/code-sync/distribute":
             return self._send_json(m.set_distributing(bool(body.get("enabled", False))))
         if path == "/code-sync/skip-update":

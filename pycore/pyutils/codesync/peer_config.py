@@ -148,6 +148,55 @@ class PeerConfig:
             self._ensure_loaded()
             return dict(self._ensure_self_locked())
 
+    def _is_self_peer_unlocked(self, peer: Dict[str, Any]) -> bool:
+        """True when a peer row refers to this machine (id, host:port, or hostname)."""
+        if not peer:
+            return False
+        pid = peer.get("id")
+        if pid and pid == self.machine_id:
+            return True
+        me = self._ensure_self_locked()
+        local_ip = _local_lan_ip()
+        host = str(peer.get("host") or "").strip()
+        port = int(peer.get("port", self._port))
+        my_port = int(me.get("port", self._port))
+        if host and port == my_port:
+            if host in (local_ip, str(me.get("host") or "").strip(),
+                        "127.0.0.1", "localhost"):
+                return True
+            try:
+                if host == socket.gethostname():
+                    return True
+            except Exception:
+                pass
+        return False
+
+    def is_self_peer(self, peer: Dict[str, Any]) -> bool:
+        with self._lock:
+            self._ensure_loaded()
+            return self._is_self_peer_unlocked(peer)
+
+    def prune_self_duplicates(self) -> bool:
+        """Drop extra peer rows that point at this machine; keep the machine_id row."""
+        with self._lock:
+            self._ensure_loaded()
+            peers = self._data.get("peers", [])
+            kept: List[Dict[str, Any]] = []
+            changed = False
+            for p in peers:
+                if p.get("id") == self.machine_id:
+                    kept.append(p)
+                elif self._is_self_peer_unlocked(p):
+                    changed = True
+                else:
+                    kept.append(p)
+            if not changed:
+                return False
+            self._data["peers"] = kept
+            self._bump_locked()
+            self._save_locked()
+            return True
+
     def get_role(self) -> str:
         return self.get_self().get("role", "client")
 
@@ -184,6 +233,8 @@ class PeerConfig:
         pid = peer_id or f"{host}:{port}"
         with self._lock:
             self._ensure_loaded()
+            if self._is_self_peer_unlocked({"id": pid, "host": host, "port": int(port)}):
+                return dict(self._ensure_self_locked())
             # Match by id, or by host:port — but NEVER coalesce into our own self
             # entry (that would let "add peer" silently flip this machine's role).
             existing = self._find_locked(pid) or next(

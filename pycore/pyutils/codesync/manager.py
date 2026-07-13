@@ -114,17 +114,31 @@ class CodeSyncManager:
     def get_role(self) -> str:
         return self.role
 
-    def set_role(self, role: str) -> str:
+    def set_role(self, role: str) -> dict:
         role = role if role in VALID_ROLES else "client"
         with self._lock:
             self.role = self.config.set_role(role)
             # Switching to client clears any distribution state.
             if self.role != "dev":
                 self.distributing = False
+            # Keep self LAN IP fresh and drop duplicate self rows after a switch.
+            try:
+                self.config.update_peer(self.config.machine_id, {"host": _local_lan_ip()})
+            except Exception:
+                pass
+            self.config.prune_self_duplicates()
             self._apply_role(self.role)
-        # Role changed -> let peers know and refresh the UI.
+            with self._sync_lock:
+                self._peer_phases.clear()
+        try:
+            self._stats = self._compute_code_stats()
+        except Exception:
+            pass
+        # Role changed -> let peers know and push a full self+peers snapshot to the UI.
         self.mesh.broadcast_config()
-        return self.role
+        out = self.get_peers()
+        out["role"] = self.role
+        return out
 
     def _apply_role(self, role: str) -> None:
         """(Re)start the file services to match the role."""
@@ -454,6 +468,11 @@ class CodeSyncManager:
         if self.role == "client":
             return {"success": True, "candidates": [],
                     "message": "Discovery disabled on a client (passive node)."}
+        from .sync_settings import get_sync_settings
+        if not get_sync_settings().get().get("scan_lan"):
+            return {"success": True, "candidates": [],
+                    "message": "LAN scanning disabled (enable the toggle first)."}
+        self.config.prune_self_duplicates()
         candidates = self.mesh.discover()
         return {"success": True, "candidates": candidates}
 

@@ -104,7 +104,11 @@ PANEL_HTML = r"""<!doctype html>
 
   <div class="card">
     <div class="row"><strong>Peers</strong>
-      <button onclick="discover()">⊚ Discover LAN</button></div>
+      <div class="actions">
+        <span class="toggle"><span>Scan LAN</span></span>
+        <button class="switch" id="scan-lan-switch" onclick="toggleScanLan()"><i></i></button>
+        <button id="discover-btn" onclick="discover()">⊚ Discover LAN</button>
+      </div></div>
     <ul id="peers"></ul>
     <div class="addform">
       <input id="a-name" placeholder="name">
@@ -512,6 +516,11 @@ function renderFilters(){
       + '<button onclick="addChip(\''+key+'\')">+ Add</button></div></div>';
   }).join('');
   $('#gi-switch').className = 'switch' + (FILTERS.apply_gitignore ? ' on' : '');
+  const scanOn = !!FILTERS.scan_lan;
+  const scanSw = $('#scan-lan-switch');
+  if (scanSw) scanSw.className = 'switch' + (scanOn ? ' on' : '');
+  const disc = $('#discover-btn');
+  if (disc) disc.disabled = !scanOn || !(SELF && SELF.role === 'dev');
   $('#filters-save').disabled = !FILTERS_DIRTY;
 }
 function renderWatch(s){
@@ -577,7 +586,29 @@ async function loadLogs(){
       + '</li>';
   }).join('');
 }
-async function setRole(r){ await api('/code-sync/role', {role:r}); load(); }
+async function toggleScanLan(){
+  if(!FILTERS) return;
+  const enabled = !FILTERS.scan_lan;
+  const d = await api('/code-sync/settings', {scan_lan: enabled});
+  if(d && d.success){
+    FILTERS = d.settings;
+    FILTERS_DIRTY = false;
+    renderFilters();
+  }
+}
+async function discover(){
+  if(!FILTERS || !FILTERS.scan_lan) return;
+  const d = await api('/code-sync/discover');
+  if(d && d.candidates && d.candidates.length){
+    for(const c of d.candidates){ await api('/code-sync/peers/add',
+      {name:c.name||c.host, host:c.host, port:c.port, role:c.role||'client'}); }
+  }
+  load();
+}
+async function setRole(r){
+  await api('/code-sync/role', {role:r});
+  load();
+}
 async function toggleDistribute(on){ await api('/code-sync/distribute', {enabled:on}); load(); }
 async function toggleSkip(on){ await api('/code-sync/skip-update', {enabled:on}); load(); }
 async function removePeer(id){ await api('/code-sync/peers/remove', {id:id}); load(); }
@@ -586,14 +617,6 @@ async function addPeer(){
   await api('/code-sync/peers/add', { name: $('#a-name').value.trim() || host, host: host,
     port: parseInt($('#a-port').value,10) || 59000, role: $('#a-role').value });
   $('#a-name').value=''; $('#a-host').value=''; load();
-}
-async function discover(){
-  const d = await api('/code-sync/discover');
-  if(d && d.candidates && d.candidates.length){
-    for(const c of d.candidates){ await api('/code-sync/peers/add',
-      {name:c.name||c.host, host:c.host, port:c.port, role:c.role||'client'}); }
-  }
-  load();
 }
 applyTreePanel(); load(); setInterval(load, 5000);
 </script>

@@ -21,7 +21,9 @@ import hashlib
 import json as _json
 import os
 import platform
+import re
 import socket
+import subprocess
 import sys
 import threading
 import urllib.error
@@ -38,6 +40,7 @@ _hooks: Dict[str, Optional[Callable]] = {
     "is_shutdown_requested": None,
     "register_shutdown_handler": None,
     "machine_id": None,
+    "hardware_machine_id": None,
     "lan_ip": None,
     "core_node_root": None,
     "app_data_dir": None,
@@ -69,7 +72,8 @@ def is_light() -> bool:
 
 
 def configure(*, logger=None, emit_event=None, is_shutdown_requested=None,
-              register_shutdown_handler=None, machine_id=None, lan_ip=None,
+              register_shutdown_handler=None, machine_id=None,
+              hardware_machine_id=None, lan_ip=None,
               core_node_root=None, app_data_dir=None, light=None):
     """Inject the host runtime's services. Called once by full pycore at startup;
     never called in standalone mode (stdlib defaults stay in effect)."""
@@ -82,6 +86,7 @@ def configure(*, logger=None, emit_event=None, is_shutdown_requested=None,
                      ("is_shutdown_requested", is_shutdown_requested),
                      ("register_shutdown_handler", register_shutdown_handler),
                      ("machine_id", machine_id),
+                     ("hardware_machine_id", hardware_machine_id),
                      ("lan_ip", lan_ip),
                      ("core_node_root", core_node_root),
                      ("app_data_dir", app_data_dir)):
@@ -221,6 +226,81 @@ def request_local_shutdown() -> None:
 # --------------------------------------------------------------------------- #
 # identity + paths (stdlib; identical results to the pycore helpers)           #
 # --------------------------------------------------------------------------- #
+_INVALID_SMBIOS_UUIDS = frozenset({
+    "00000000-0000-0000-0000-000000000000",
+    "ffffffff-ffff-ffff-ffff-ffffffffffff",
+})
+_SMBIOS_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+
+
+def _subprocess_no_window() -> int:
+    return subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+
+
+def _normalize_uuid(value: str) -> str:
+    return value.strip().lower()
+
+
+def _is_valid_smbios_uuid(value: Optional[str]) -> bool:
+    if not value:
+        return False
+    norm = _normalize_uuid(value)
+    if norm in _INVALID_SMBIOS_UUIDS:
+        return False
+    if norm.replace("-", "") == "0" * 32:
+        return False
+    return bool(_SMBIOS_UUID_RE.match(norm))
+
+
+def _digest_id(prefix: str, raw: str) -> str:
+    return hashlib.sha256(f"{prefix}{raw}".encode("utf-8", errors="replace")).hexdigest()
+
+
+def _stdlib_windows_smbios_uuid() -> Optional[str]:
+    try:
+        if sys.platform != "win32":
+            return None
+        out = subprocess.run(
+            ["wmic", "csproduct", "get", "uuid"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            creationflags=_subprocess_no_window(),
+        )
+        if out.returncode != 0 or not out.stdout:
+            return None
+        lines = [l.strip() for l in out.stdout.splitlines()
+                 if l.strip() and l.strip().lower() != "uuid"]
+        return lines[0] if lines else None
+    except Exception:
+        return None
+
+
+def _stdlib_linux_smbios_uuid() -> Optional[str]:
+    if not sys.platform.startswith("linux"):
+        return None
+    for path in ("/sys/class/dmi/id/product_uuid",
+                 "/sys/devices/virtual/dmi/id/product_uuid"):
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                value = (fh.read() or "").strip()
+                if value:
+                    return value
+        except Exception:
+            continue
+    return None
+
+
+def _stdlib_read_smbios_product_uuid() -> Optional[str]:
+    if sys.platform == "win32":
+        return _stdlib_windows_smbios_uuid()
+    if sys.platform.startswith("linux"):
+        return _stdlib_linux_smbios_uuid()
+    return None
+
+
 def _stdlib_machine_id() -> str:
     """Replicates pycore.pyutils.security.machine_id.get_machine_id() exactly so
     the self-entry id in the committed peers file is identical in both modes."""
@@ -236,6 +316,8 @@ def _stdlib_machine_id() -> str:
                 raw = (guid or "").strip()
             except Exception:
                 raw = None
+            if not raw:
+                raw = _stdlib_windows_smbios_uuid()
         elif sys.platform.startswith("linux"):
             for path in ("/etc/machine-id", "/var/lib/dbus/machine-id"):
                 try:
@@ -250,7 +332,15 @@ def _stdlib_machine_id() -> str:
         raw = None
     if not raw:
         raw = f"{platform.node()}|{uuid.getnode()}"
-    return hashlib.sha256(raw.encode("utf-8", errors="replace")).hexdigest()
+    return _digest_id("", raw)
+
+
+def _stdlib_hardware_machine_id() -> str:
+    """Replicates pycore.pyutils.security.machine_id.get_hardware_machine_id()."""
+    raw = _stdlib_read_smbios_product_uuid()
+    if raw and _is_valid_smbios_uuid(raw):
+        return _digest_id("smbios:", _normalize_uuid(raw))
+    return _stdlib_machine_id()
 
 
 def get_machine_id() -> str:
@@ -261,6 +351,16 @@ def get_machine_id() -> str:
         except Exception:
             pass
     return _stdlib_machine_id()
+
+
+def get_hardware_machine_id() -> str:
+    fn = _hooks["hardware_machine_id"]
+    if fn is not None:
+        try:
+            return fn()
+        except Exception:
+            pass
+    return _stdlib_hardware_machine_id()
 
 
 def get_local_lan_ip() -> str:
@@ -310,7 +410,10 @@ def get_app_data_dir() -> Path:
         except Exception:
             pass
     if sys.platform == "win32":
-        cache = _ensure_dir(Path.home() / ".core_node")
+        # Mirror pycore.system_paths.get_system_cache_dir (kept stdlib-only so
+        # codesync runs standalone without importing the pycore package).
+        _user = os.environ.get('USERNAME', os.environ.get('USER', 'default'))
+        cache = _ensure_dir(Path('D:/programing/Users') / _user / '.core_node')
     else:
         shared = Path("/var/_core_node")
         try:

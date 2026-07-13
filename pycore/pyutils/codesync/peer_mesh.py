@@ -23,6 +23,7 @@ by firing a 'code_sync_update' event (no-op in standalone mode).
 Stdlib only: HTTP via `.runtime.http` (urllib), events/shutdown via `.runtime`.
 """
 
+import socket
 import threading
 import time
 from typing import Any, Callable, Dict, List, Optional
@@ -270,27 +271,38 @@ class PeerMeshManager:
         """Scan the local /24 for code-sync peers not already in the config."""
         from .peer_config import _local_lan_ip
         local_ip = _local_lan_ip()
+        me = self.config.get_self()
+        scan_port = int(me.get("port", port))
         prefix = ".".join(local_ip.split(".")[:3])
+        skip_ips = {local_ip, "127.0.0.1", "localhost", "::1",
+                    str(me.get("host") or "").strip()}
+        try:
+            skip_ips.add(socket.gethostname())
+        except Exception:
+            pass
         found: List[Dict[str, Any]] = []
         flock = threading.Lock()
 
         def check(ip: str):
             try:
-                r = requests.get(f"http://{ip}:{port}/code-sync/peer/status", timeout=1)
+                r = requests.get(f"http://{ip}:{scan_port}/code-sync/peer/status", timeout=1)
                 if r.status_code == 200:
                     d = r.json()
+                    candidate = {"host": ip, "port": scan_port,
+                                   "name": d.get("name", ip),
+                                   "role": d.get("role", "client"),
+                                   "id": d.get("id")}
+                    if self.config.is_self_peer(candidate):
+                        return
                     with flock:
-                        found.append({"host": ip, "port": port,
-                                      "name": d.get("name", ip),
-                                      "role": d.get("role", "client"),
-                                      "id": d.get("id")})
+                        found.append(candidate)
             except Exception:
                 pass
 
         threads = []
         for i in range(1, 255):
             ip = f"{prefix}.{i}"
-            if ip == local_ip:
+            if ip in skip_ips:
                 continue
             t = threading.Thread(target=check, args=(ip,), daemon=True)
             threads.append(t)
@@ -300,7 +312,9 @@ class PeerMeshManager:
             t.join(timeout=max(0, 5 - (time.time() - start)))
 
         existing = {(p.get("host"), int(p.get("port", 0))) for p in self.config.list_peers()}
-        return [c for c in found if (c["host"], c["port"]) not in existing]
+        return [c for c in found
+                if not self.config.is_self_peer(c)
+                and (c["host"], c["port"]) not in existing]
 
     # ----- snapshot -------------------------------------------------------- #
     def snapshot(self) -> Dict[str, Any]:
