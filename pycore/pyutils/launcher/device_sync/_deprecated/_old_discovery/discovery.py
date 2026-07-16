@@ -18,6 +18,9 @@ import threading
 from typing import Optional, List, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import time
+
+
 DEFAULT_SYNC_PORT = 45679
 DISCOVERY_TIMEOUT = 0.5
 MAX_THREADS = 100
@@ -183,7 +186,6 @@ class DeviceDiscovery:
         Returns:
             Device info dict or None
         """
-        import time
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(DISCOVERY_TIMEOUT)

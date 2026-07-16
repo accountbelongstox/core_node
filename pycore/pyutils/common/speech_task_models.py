@@ -32,6 +32,9 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict, Any
 from enum import Enum
 
+from pycore.pyfoundations import Task, TaskPriority
+
+
 
 class SpeechTaskType(Enum):
     """Speech task types"""
@@ -166,7 +169,6 @@ def create_tts_task(data: TTSTaskData, priority = None):
     Returns:
         Task instance
     """
-    from pycore.pyfoundations import Task, TaskPriority
 
     if priority is None:
         priority = TaskPriority.NORMAL
@@ -189,7 +191,6 @@ def create_stt_task(data: STTTaskData, priority = None):
     Returns:
         Task instance
     """
-    from pycore.pyfoundations import Task, TaskPriority
 
     if priority is None:
         priority = TaskPriority.NORMAL

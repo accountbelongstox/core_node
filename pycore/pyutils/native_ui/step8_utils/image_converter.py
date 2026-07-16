@@ -28,6 +28,9 @@ from typing import Optional, Tuple
 
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image
 
+import time
+
+
 Image = get_third_package_PIL_Image()
 
 from pycore import ColorPrint
@@ -105,7 +108,6 @@ def _convert_svg_to_png(
     """
     # Try method 1: cairosvg (best quality)
     try:
-        import cairosvg
         if size:
             cairosvg.svg2png(
                 url=str(svg_path),
@@ -127,8 +129,6 @@ def _convert_svg_to_png(
 
     # Try method 2: svglib + reportlab
     try:
-        from svglib.svglib import svg2rlg
-        from reportlab.graphics import renderPM
 
         drawing = svg2rlg(str(svg_path))
         if size:
@@ -267,7 +267,6 @@ def clear_image_cache(older_than_days: int = 30):
     Args:
         older_than_days: Remove cache files older than this many days
     """
-    import time
 
     current_time = time.time()
     cutoff_time = current_time - (older_than_days * 24 * 60 * 60)

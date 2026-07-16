@@ -38,6 +38,10 @@ import json
 
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_yaml
 
+import time
+import traceback
+
+
 cv2 = get_third_package_cv2()
 np = get_third_package_numpy()
 yaml = get_third_package_yaml()
@@ -142,8 +146,6 @@ class UnifiedDetector:
 
     def _load_models(self, model_name: Optional[str], model_type: Optional[str]):
         """Load models"""
-        from ultralytics import YOLO
-        import time
 
         # If model type is specified, only load that type
         load_cls = model_type in [None, 'classification']
@@ -188,7 +190,6 @@ class UnifiedDetector:
 
     def _scan_models(self, model_dir: Path) -> Dict[str, Dict]:
         """Scan model directory"""
-        import time
         models = {}
 
         for subdir in model_dir.iterdir():
@@ -655,7 +656,6 @@ Examples:
 
     except Exception as e:
         print(f"\nError: {e}", file=sys.stderr)
-        import traceback
         traceback.print_exc()
         return 1
 

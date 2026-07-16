@@ -3,10 +3,11 @@
 namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1ElevatedAccess;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Illuminate\Support\Facades\Log;
 
 class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
@@ -23,36 +24,21 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
 
         // Get allowed paths
         $allowedPaths = ServerManagerV1Constants::getAllowedDownloadPaths();
+        $requestedPath = $request->input('path');
+        $resolved = ServerManagerV1Utils::resolveBrowsePath(
+            is_string($requestedPath) && trim($requestedPath) !== '' ? $requestedPath : null
+        );
+        $realPath = $resolved['path'];
 
-        // Find first existing allowed path as default. Fall back to the REAL checkout
-        // (PathMapper::getCoreNodeDir(), e.g. /mnt/<disk>/programing/core_node) rather
-        // than the non-existent hardcoded /www path.
-        $defaultPath = \App\Providers\PathMapper::getCoreNodeDir() ?: '/www/programing/core_node';
-        foreach ($allowedPaths as $allowedPath) {
-            if (is_dir($allowedPath) && file_exists($allowedPath)) {
-                $defaultPath = $allowedPath;
-                break;
-            }
-        }
-
-        $path = $request->input('path', $defaultPath);
-        $path = ServerManagerV1Utils::sanitizePath($path);
-
-        // Resolve real path for security check
-        $realPath = realpath($path);
-        if ($realPath === false) {
-            ServerManagerV1Utils::logFileAccess('browse', $path, false, 'Path does not exist or cannot be resolved');
+        if ($realPath === null) {
+            ServerManagerV1Utils::logFileAccess('browse', $requestedPath ?? '', false, 'No allowed directory exists');
             return $this->errorResponse(
-                'Path does not exist or cannot be resolved.',
+                'No allowed directory exists on this host.',
                 ServerManagerV1Constants::RESPONSE_NOT_FOUND,
-                [
-                    'path' => $path,
-                    'allowed_paths' => $allowedPaths
-                ]
+                ['allowed_paths' => $allowedPaths]
             );
         }
 
-        // Security check: validate path is allowed
         if (!ServerManagerV1Utils::isPathAllowed($realPath)) {
             ServerManagerV1Utils::logFileAccess('browse', $realPath, false, 'Path not in whitelist');
             return $this->errorResponse(
@@ -83,14 +69,16 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             'path' => $realPath,
             'items' => $items,
             'total_items' => count($items),
-            'allowed_paths' => $allowedPaths
+            'allowed_paths' => $allowedPaths,
+            'path_fallback' => (bool) ($resolved['fallback'] ?? false),
+            'requested_path' => $resolved['requested'] ?? null,
         ], 'Directory listing retrieved successfully');
     }
 
     /**
      * Download files from server with security restrictions
      */
-    public function download(Request $request): Response|JsonResponse
+    public function download(Request $request): BinaryFileResponse|JsonResponse
     {
         $validation = $this->validateRequest($request, 'file_download');
         if ($validation) {
@@ -255,7 +243,13 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             $filePath = $request->input('file_path');
             $filePath = ServerManagerV1Utils::sanitizePath($filePath);
             $maxLines = (int)$request->input('max_lines', 100);
-            $maxLines = min($maxLines, 1000); // Hard limit
+            $forEdit = filter_var($request->input('for_edit', false), FILTER_VALIDATE_BOOLEAN);
+            $maxPreviewSize = $forEdit
+                ? ServerManagerV1Constants::MAX_FILE_WRITE_SIZE
+                : 1048576;
+            $maxLines = $forEdit
+                ? min(max($maxLines, 1000), 50000)
+                : min($maxLines, 1000);
             
             // Security check: validate path is allowed
             if (!ServerManagerV1Utils::isPathAllowed($filePath)) {
@@ -281,20 +275,10 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
             }
-            
-            // Check if file type is allowed for preview
-            if (!ServerManagerV1Utils::isPreviewAllowed($filePath)) {
-                ServerManagerV1Utils::logFileAccess('preview', $filePath, false, 'File type not allowed for preview');
-                return $this->errorResponse(
-                    'File type not allowed for preview. Allowed extensions: ' . implode(', ', ServerManagerV1Constants::ALLOWED_PREVIEW_EXTENSIONS),
-                    ServerManagerV1Constants::RESPONSE_BAD_REQUEST
-                );
-            }
-            
+
             $fileSize = filesize($filePath);
             
             // Check file size for preview (smaller limit than download)
-            $maxPreviewSize = 1048576; // 1MB
             if ($fileSize > $maxPreviewSize) {
                 ServerManagerV1Utils::logFileAccess('preview', $filePath, false, 'File too large for preview');
                 return $this->errorResponse(
@@ -312,15 +296,19 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
                     ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
                 );
             }
+
+            $isBinary = ServerManagerV1Utils::isBinaryContent($content);
+            $previewContent = $isBinary ? base64_encode($content) : $content;
             
             // Split into lines and limit
-            $lines = explode("\n", $content);
-            $totalLines = count($lines);
+            $lines = $isBinary ? [] : explode("\n", $content);
+            $totalLines = $isBinary ? 0 : count($lines);
             $truncated = false;
             
-            if ($totalLines > $maxLines) {
+            if (!$isBinary && $totalLines > $maxLines) {
                 $lines = array_slice($lines, 0, $maxLines);
                 $truncated = true;
+                $previewContent = implode("\n", $lines);
             }
             
             // Log successful access
@@ -332,15 +320,199 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
                 'file_size' => $fileSize,
                 'file_size_human' => ServerManagerV1Utils::formatFileSize($fileSize),
                 'total_lines' => $totalLines,
-                'displayed_lines' => count($lines),
+                'displayed_lines' => $isBinary ? 0 : count($lines),
                 'truncated' => $truncated,
-                'content' => implode("\n", $lines),
-                'lines' => $lines,
-                'mime_type' => mime_content_type($filePath) ?: 'text/plain'
+                'is_binary' => $isBinary,
+                'encoding' => $isBinary ? 'base64' : 'utf-8',
+                'content' => $previewContent,
+                'lines' => $isBinary ? [] : $lines,
+                'mime_type' => mime_content_type($filePath) ?: 'application/octet-stream'
             ], 'File preview retrieved successfully');
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'file_preview');
         }
+    }
+
+    /**
+     * Write text file content with whitelist and optional elevated access.
+     */
+    public function write(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'file_write');
+        if ($validation) {
+            return $validation;
+        }
+
+        $paramValidation = $this->validateParameters($request, ['file_path']);
+        if ($paramValidation) {
+            return $paramValidation;
+        }
+
+        if (!$request->has('content') || !is_string($request->input('content'))) {
+            return $this->errorResponse(
+                'Missing required parameter: content',
+                ServerManagerV1Constants::RESPONSE_BAD_REQUEST
+            );
+        }
+
+        try {
+            $filePath = ServerManagerV1Utils::sanitizePath($request->input('file_path'));
+            $content = $request->input('content');
+            $encoding = $request->input('encoding', 'utf-8');
+
+            if ($encoding === 'base64') {
+                $decoded = base64_decode($content, true);
+                if ($decoded === false) {
+                    return $this->errorResponse(
+                        'Invalid base64 content.',
+                        ServerManagerV1Constants::RESPONSE_BAD_REQUEST
+                    );
+                }
+                $content = $decoded;
+            }
+
+            $contentBytes = strlen($content);
+
+            if ($contentBytes > ServerManagerV1Constants::MAX_FILE_WRITE_SIZE) {
+                return $this->errorResponse(
+                    'File content too large. Maximum size: ' . ServerManagerV1Utils::formatFileSize(ServerManagerV1Constants::MAX_FILE_WRITE_SIZE),
+                    ServerManagerV1Constants::RESPONSE_BAD_REQUEST
+                );
+            }
+
+            $existingReal = realpath($filePath);
+            $parentReal = $existingReal !== false
+                ? dirname($existingReal)
+                : realpath(dirname($filePath));
+
+            if ($existingReal !== false) {
+                if (!ServerManagerV1Utils::isPathAllowed($existingReal)) {
+                    ServerManagerV1Utils::logFileAccess('write', $existingReal, false, 'Path not in whitelist');
+                    return $this->errorResponse(
+                        'Access denied. File path not in allowed whitelist.',
+                        ServerManagerV1Constants::RESPONSE_FORBIDDEN
+                    );
+                }
+                $targetPath = $existingReal;
+            } elseif ($parentReal !== false && ServerManagerV1Utils::isPathAllowed($parentReal)) {
+                $targetPath = $parentReal . DIRECTORY_SEPARATOR . basename($filePath);
+            } else {
+                ServerManagerV1Utils::logFileAccess('write', $filePath, false, 'Path not in whitelist');
+                return $this->errorResponse(
+                    'Access denied. File path not in allowed whitelist.',
+                    ServerManagerV1Constants::RESPONSE_FORBIDDEN
+                );
+            }
+
+            if (file_exists($targetPath) && is_dir($targetPath)) {
+                return $this->errorResponse(
+                    'Target path is a directory.',
+                    ServerManagerV1Constants::RESPONSE_BAD_REQUEST
+                );
+            }
+
+            $clientIp = $this->getClientIp($request);
+            $elevatedToken = $request->header(ServerManagerV1Constants::ELEVATED_TOKEN_HEADER);
+            $needsElevation = file_exists($targetPath) ? !is_writable($targetPath) : !is_writable($parentReal ?? dirname($targetPath));
+
+            if ($needsElevation) {
+                if (!$elevatedToken || !ServerManagerV1ElevatedAccess::validateToken($elevatedToken, $clientIp)) {
+                    ServerManagerV1Utils::logFileAccess('write', $targetPath, false, 'Elevated access required');
+                    return $this->errorResponse(
+                        'Elevated access required to write this file.',
+                        ServerManagerV1Constants::RESPONSE_FORBIDDEN,
+                        ['needs_elevation' => true]
+                    );
+                }
+
+                $writeResult = ServerManagerV1ElevatedAccess::writeFileWithToken(
+                    $targetPath,
+                    $content,
+                    $elevatedToken,
+                    $clientIp
+                );
+            } else {
+                $writeResult = ServerManagerV1Utils::writeFileDirect($targetPath, $content);
+            }
+
+            if (!$writeResult['success']) {
+                ServerManagerV1Utils::logFileAccess('write', $targetPath, false, $writeResult['error'] ?? 'Write failed');
+                return $this->errorResponse(
+                    $writeResult['error'] ?? 'Failed to write file.',
+                    $writeResult['code'] ?? ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR,
+                    ['needs_elevation' => $writeResult['needs_elevation'] ?? false]
+                );
+            }
+
+            clearstatcache(true, $targetPath);
+            ServerManagerV1Utils::logFileAccess('write', $targetPath, true);
+
+            return $this->successResponse([
+                'file_path' => $targetPath,
+                'file_name' => basename($targetPath),
+                'size' => filesize($targetPath),
+                'size_human' => ServerManagerV1Utils::formatFileSize((int) filesize($targetPath)),
+                'modified' => filemtime($targetPath),
+                'modified_human' => date('Y-m-d H:i:s', filemtime($targetPath)),
+                'elevated' => (bool) $needsElevation,
+            ], 'File saved successfully');
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'file_write');
+        }
+    }
+
+    /**
+     * Exchange root password for a short-lived elevated access token.
+     */
+    public function elevatedAuth(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'file_elevated_auth');
+        if ($validation) {
+            return $validation;
+        }
+
+        if (!$request->has('password') || !is_string($request->input('password'))) {
+            return $this->errorResponse(
+                'Missing required parameter: password',
+                ServerManagerV1Constants::RESPONSE_BAD_REQUEST
+            );
+        }
+
+        $result = ServerManagerV1ElevatedAccess::authenticate(
+            $request->input('password'),
+            $this->getClientIp($request)
+        );
+
+        if (!$result['success']) {
+            return $this->errorResponse(
+                $result['error'] ?? 'Authentication failed.',
+                $result['code'] ?? ServerManagerV1Constants::RESPONSE_FORBIDDEN
+            );
+        }
+
+        return $this->successResponse([
+            'token' => $result['token'],
+            'expires_in' => $result['expires_in'],
+            'header' => ServerManagerV1Constants::ELEVATED_TOKEN_HEADER,
+        ], 'Elevated access granted');
+    }
+
+    /**
+     * Revoke an elevated access token.
+     */
+    public function revokeElevatedAuth(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'file_elevated_revoke');
+        if ($validation) {
+            return $validation;
+        }
+
+        $token = $request->header(ServerManagerV1Constants::ELEVATED_TOKEN_HEADER)
+            ?: $request->input('token');
+
+        ServerManagerV1ElevatedAccess::revokeToken(is_string($token) ? $token : null);
+
+        return $this->successResponse(null, 'Elevated access revoked');
     }
 }

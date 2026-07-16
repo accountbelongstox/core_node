@@ -12,6 +12,7 @@ import sys
 import os
 
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
+from pycore.pyfoundations.system_paths import get_system_cache_dir
 cv2 = get_third_package_cv2()
 np = get_third_package_numpy()
 Image = get_third_package_PIL_Image()
@@ -1192,7 +1193,7 @@ class BagLayoutDetector:
         )
         if combined is None:
             return
-        output_dir = Path.home() / ".core_node" / "pytools" / "tmp"
+        output_dir = get_system_cache_dir() / "pytools" / "tmp"
         output_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_path = output_dir / f"bag_layout_{timestamp}.png"

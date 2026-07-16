@@ -12,6 +12,11 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 from pycore import THREAD_BUS, ColorPrint
 from .config import PySide6UIConfig, StartupWindowConfig
 
+from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
+from pycore.pyfoundations.third_party import get_third_package_pyside6
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.framework import PySide6Framework
+
+
 if TYPE_CHECKING:
     from .framework import PySide6Framework
 
@@ -59,7 +64,6 @@ class PySide6UIThread(threading.Thread):
 
         # 1. Show tk bootstrap window first (no PySide6 needed)
         if self.startup_config and self.startup_config.show_startup:
-            from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
             ColorPrint.blue("[PySide6UIThread] Step 0: Showing tk bootstrap window (no PySide6 yet)...")
             existing_startup_thread = TkinterStartupThread(
                 app_name=self.startup_config.app_name,
@@ -86,13 +90,11 @@ class PySide6UIThread(threading.Thread):
             )
 
         # 2. Load PySide6 (may install; logs go to tk window)
-        from pycore.pyfoundations.third_party import get_third_package_pyside6
         ColorPrint.blue("[PySide6UIThread] Checking/installing PySide6...")
         get_third_package_pyside6()
         ColorPrint.green("[PySide6UIThread] PySide6 available")
 
         # 3. Create framework and main window (after tk is visible)
-        from .framework import PySide6Framework
         self.framework = PySide6Framework(
             config=self.ui_config,
             startup_config=startup_config_for_framework,

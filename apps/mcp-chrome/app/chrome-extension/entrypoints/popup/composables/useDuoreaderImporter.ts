@@ -13,6 +13,10 @@ import {
   emptyProgress,
   normalizeImportProgress,
 } from '@/utils/duoreader-importer-core';
+import {
+  resolveCoverUrlsForDisplay,
+  revokeCoverSearchBlobUrls,
+} from '@/utils/web-search-cover-cache';
 import type { DuoreaderApiTestResult } from '@/utils/duoreader-pz-decode';
 import { sendWithWake } from '@/utils/sendWithWake';
 
@@ -29,6 +33,8 @@ export function useDuoreaderImporter() {
   const maxBooks = usePersistedRef('duoreaderMaxBooks', 0);
   const enableAudio = usePersistedRef('duoreaderEnableAudio', true);
   const useCdnApi = usePersistedRef('duoreaderUseCdnApi', false);
+  const enrichCoversFromSearch = usePersistedRef('duoreaderEnrichCovers', false);
+  const forceReplaceUpload = usePersistedRef('duoreaderForceReplace', false);
 
   const { apiBaseUrl, syncApiEndpoint } = useApiEndpoint();
   const books = ref<DuoreaderBookMeta[]>([]);
@@ -39,6 +45,34 @@ export function useDuoreaderImporter() {
   const error = ref('');
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let displayBlobUrls: string[] = [];
+
+  const revokeDisplayBlobs = () => {
+    revokeCoverSearchBlobUrls(displayBlobUrls);
+    displayBlobUrls = [];
+  };
+
+  const hydrateCoverDisplay = async (list: DuoreaderBookMeta[]): Promise<DuoreaderBookMeta[]> => {
+    revokeDisplayBlobs();
+    const out: DuoreaderBookMeta[] = [];
+    for (const book of list) {
+      const displayUrls = await resolveCoverUrlsForDisplay(
+        book.titleEn,
+        book.authorEn,
+        book.coverUrl,
+        book.coverUrls,
+      );
+      for (const url of displayUrls) {
+        if (url.startsWith('blob:')) displayBlobUrls.push(url);
+      }
+      out.push({
+        ...book,
+        coverUrls: displayUrls,
+        coverUrl: displayUrls[0] || book.coverUrl || '',
+      });
+    }
+    return out;
+  };
 
   const refreshProgress = async () => {
     const res = await sendDr<{ progress?: DuoreaderImportProgress }>({
@@ -50,18 +84,22 @@ export function useDuoreaderImporter() {
     }
   };
 
-  const loadBooks = async () => {
+  const loadBooks = async (opts: { enrichCovers?: boolean } = {}) => {
     loadingBooks.value = true;
     error.value = '';
     try {
       await syncApiEndpoint();
+      const enrichCovers = opts.enrichCovers === true && enrichCoversFromSearch.value;
       const res = await sendDr<{ books?: DuoreaderBookMeta[] }>({
         type: 'duoreader_importer',
         action: 'list_books',
+        enrichCovers,
         config: {
           myLang: myLang.value,
           learnLang: learnLang.value,
           maxBooks: maxBooks.value,
+          enrichCoversFromSearch: enrichCoversFromSearch.value,
+          forceReplaceUpload: forceReplaceUpload.value,
         },
       });
       if (!res?.success) {
@@ -69,7 +107,7 @@ export function useDuoreaderImporter() {
         books.value = [];
         return;
       }
-      books.value = res.books || [];
+      books.value = await hydrateCoverDisplay(res.books || []);
       logger.info(LOG, `Catalog loaded: ${books.value.length} book(s)`);
     } catch (e: any) {
       error.value = e?.message || 'Failed to load books';
@@ -93,6 +131,7 @@ export function useDuoreaderImporter() {
           myLang: myLang.value,
           learnLang: learnLang.value,
           maxBooks: maxBooks.value,
+          enrichCoversFromSearch: enrichCoversFromSearch.value,
         },
         bookId: books.value[0]?.id,
       });
@@ -114,40 +153,53 @@ export function useDuoreaderImporter() {
     }
   };
 
-  const startImport = async () => {
+  const startOrResumeImport = async () => {
     error.value = '';
+    const isResume = progress.value.paused
+      || (progress.value.phase === 'Stopped' && !!progress.value.bookId);
     try {
       await syncApiEndpoint();
-      logger.info(LOG, `Start Import clicked → ${apiBaseUrl.value}`);
-      const res = await sendDr<{ started?: boolean }>({
+      const action = isResume ? 'resume' : 'start';
+      logger.info(LOG, `${isResume ? 'Resume' : 'Start'} Import → ${apiBaseUrl.value}`);
+      const res = await sendDr<{ started?: boolean; resumed?: boolean; error?: string }>({
         type: 'duoreader_importer',
-        action: 'start',
+        action,
         config: {
           myLang: myLang.value,
           learnLang: learnLang.value,
           maxBooks: maxBooks.value,
           enableAudioFetch: enableAudio.value,
           useCdnApi: useCdnApi.value,
+          enrichCoversFromSearch: enrichCoversFromSearch.value,
+          forceReplaceUpload: forceReplaceUpload.value,
         },
+        resume: isResume,
       });
       if (!res?.success) {
-        error.value = res?.error || 'Start failed';
+        error.value = res?.error || `${isResume ? 'Resume' : 'Start'} failed`;
         logger.warn(LOG, error.value);
         return;
       }
       progress.value = {
         ...progress.value,
         running: true,
-        phase: 'Starting…',
+        paused: false,
+        phase: isResume ? 'Resuming…' : 'Starting…',
         error: '',
       };
-      logger.info(LOG, 'Import job dispatched to background');
+      logger.info(LOG, `Import ${isResume ? 'resume' : 'start'} dispatched`);
       startPolling();
       await refreshProgress();
     } catch (e: any) {
-      error.value = e?.message || 'Start failed';
+      error.value = e?.message || `${isResume ? 'Resume' : 'Start'} failed`;
       logger.error(LOG, error.value, e);
     }
+  };
+
+  const pauseImport = async () => {
+    await sendDr({ type: 'duoreader_importer', action: 'pause' });
+    logger.info(LOG, 'Pause requested');
+    await refreshProgress();
   };
 
   const stopImport = async () => {
@@ -160,7 +212,7 @@ export function useDuoreaderImporter() {
     if (pollTimer) return;
     pollTimer = setInterval(async () => {
       await refreshProgress();
-      if (!progress.value.running && pollTimer) {
+      if (!progress.value.running && !progress.value.paused && pollTimer) {
         clearInterval(pollTimer);
         pollTimer = null;
       }
@@ -184,13 +236,15 @@ export function useDuoreaderImporter() {
       // ignore
     }
     await refreshProgress();
-    await loadBooks();
+    await loadBooks({ enrichCovers: false });
     chrome.storage.onChanged.addListener(onStorageChanged);
     if (progress.value.running) startPolling();
+    else if (progress.value.paused) startPolling();
   });
 
   onUnmounted(() => {
     if (pollTimer) clearInterval(pollTimer);
+    revokeDisplayBlobs();
     chrome.storage.onChanged.removeListener(onStorageChanged);
   });
 
@@ -200,6 +254,8 @@ export function useDuoreaderImporter() {
     maxBooks,
     enableAudio,
     useCdnApi,
+    enrichCoversFromSearch,
+    forceReplaceUpload,
     apiBaseUrl,
     books,
     progress,
@@ -209,7 +265,8 @@ export function useDuoreaderImporter() {
     error,
     loadBooks,
     testApi,
-    startImport,
+    startOrResumeImport,
+    pauseImport,
     stopImport,
     refreshApiBase: syncApiEndpoint,
   };

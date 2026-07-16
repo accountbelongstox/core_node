@@ -2,8 +2,9 @@
 """
 Azure Speech cloud TTS engine — the orchestrator's API fallback.
 
-Used ONLY when every local engine (edge / sherpa / melotts / gptsovits) is
-unavailable or fails: see tts_orchestrator priority (azure is last). Azure's free
+Used ONLY when every higher-priority engine (gptsovits / melotts / sherpa /
+edge / streamelements / gtts_web) is unavailable or fails: see tts_orchestrator
+priority (azure is last). Azure's free
 F0 tier gives ~0.5M neural characters/month and throttles with HTTP 429 once
 exhausted (it never auto-charges), which the orchestrator treats as a normal
 engine failure and reports upward.

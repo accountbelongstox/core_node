@@ -32,6 +32,10 @@ from .wire_codec import (
     ENCODE_WORKERS, ENCODE_LOOKAHEAD, _fmt_bytes,
 )
 
+from pycore.pyutils.codesync.ws_client import WSClient
+from pycore.pyutils.codesync.watcher import get_watch_manager
+
+
 
 # --------------------------------------------------------------------------- #
 # DEV side -- dial each client and push deltas                                #
@@ -78,7 +82,6 @@ class PushSender:
                 if self.m.is_distributing():
                     # Start the file index scanning AS SOON AS we are distributing -
                     # before any client connects.
-                    from .watcher import get_watch_manager
                     wm = get_watch_manager()
                     try:
                         wm.start()
@@ -163,8 +166,6 @@ class PushSender:
 
     # ----- one peer connection -------------------------------------------- #
     def _push_to(self, peer: dict) -> None:
-        from .ws_client import WSClient
-        from .watcher import get_watch_manager
         host = peer.get("host")
         port = int(peer.get("port", 59000))
         ws = WSClient(host, port)

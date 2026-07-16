@@ -28,6 +28,9 @@ import socket
 # Import logging
 from .logging_config import setup_logging
 
+import time
+
+
 # Set up logger
 logger = setup_logging(__name__)
 
@@ -209,7 +212,6 @@ class FileSyncHTTPHandler(BaseHTTPRequestHandler):
 
     def _get_timestamp(self) -> float:
         """Get current timestamp."""
-        import time
         return time.time()
 
     def _generate_dashboard_html(self) -> str:

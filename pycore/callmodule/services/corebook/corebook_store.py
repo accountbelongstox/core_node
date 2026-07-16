@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""On-disk CoreBook bundle storage (~/.core_node/data/pycore/corebooks/<source_key>/)."""
+"""On-disk CoreBook bundle storage (<cache>/pycore/corebooks/<source_key>/)."""
 
 import json
 import os
@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.system_paths import get_local_data_dir
 
-_COREBOOK_NS = "pycore"
 _COREBOOK_SUBDIR = "corebooks"
 _BUNDLE_NAME = "corebook.json"
 _AUDIO_SUBDIR = "audio"
@@ -17,7 +16,7 @@ _AUDIO_SUBDIR = "audio"
 
 def bundle_root(source_key: str) -> str:
     """Absolute directory for one CoreBook bundle."""
-    d = os.path.join(str(get_local_data_dir()), _COREBOOK_NS, _COREBOOK_SUBDIR, source_key)
+    d = os.path.join(str(get_local_data_dir()), _COREBOOK_SUBDIR, source_key)
     os.makedirs(d, exist_ok=True)
     return d
 
@@ -34,7 +33,7 @@ def audio_root(source_key: str) -> str:
 
 def list_source_keys() -> List[str]:
     """All saved CoreBook source_key folder names (newest mtime first)."""
-    root = os.path.join(str(get_local_data_dir()), _COREBOOK_NS, _COREBOOK_SUBDIR)
+    root = os.path.join(str(get_local_data_dir()), _COREBOOK_SUBDIR)
     if not os.path.isdir(root):
         return []
     out: List[str] = []
@@ -71,7 +70,7 @@ def save_bundle(source_key: str, bundle: Dict[str, Any]) -> None:
 
 
 def delete_bundle(source_key: str) -> bool:
-    root = os.path.join(str(get_local_data_dir()), _COREBOOK_NS, _COREBOOK_SUBDIR, source_key)
+    root = os.path.join(str(get_local_data_dir()), _COREBOOK_SUBDIR, source_key)
     if not os.path.isdir(root):
         return False
     shutil.rmtree(root, ignore_errors=True)

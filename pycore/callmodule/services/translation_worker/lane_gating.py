@@ -15,10 +15,15 @@ functions), so handlers may import it freely at module top.
 
 from typing import List
 
+from pycore.callmodule.callmodule_config import Config
+
+from pycore.pyctl.assist import assist_capability_enabled
+
+
+
 
 def _cfg():
     """Lazily fetch the callmodule Config (kill-switch knobs)."""
-    from pycore.callmodule.callmodule_config import Config
     return Config
 
 
@@ -30,18 +35,27 @@ def ai_translate_enabled() -> bool:
     except Exception:
         pass
     try:
-        from pycore.pyctl.assist import assist_capability_enabled
         return assist_capability_enabled("ai_translate", True)
     except Exception:
         return True
 
 
 def audio_enabled() -> bool:
-    """Audio (word TTS) lane: the assist 'tts' capability (master enabled AND
-    capabilities.tts). While the assist_laravel section is absent the legacy
-    default (advertise) applies."""
+    """Audio (word TTS / edge-tts) lane - FALLBACK only.
+
+    Puter.js (browser-side, pycore-manager Queue Center 1000-word batch bar) is
+    the PRIMARY word-audio generator. The pycore edge-tts lane runs ONLY when
+    ``Config.WORD_AUDIO_EDGE_FALLBACK`` is set (env ``PYCORE_WORD_AUDIO_EDGE_FALLBACK=1``)
+    - i.e. when Puter.js is unavailable / no browser is open. When the fallback
+    is off (default), pycore does not advertise the audio lane; word audio is
+    produced by Puter.js uploading to /word/audio/upload. Also gated by the
+    assist 'tts' capability (master enabled AND capabilities.tts)."""
     try:
-        from pycore.pyctl.assist import assist_capability_enabled
+        if not bool(getattr(_cfg(), "WORD_AUDIO_EDGE_FALLBACK", False)):
+            return False
+    except Exception:
+        return False
+    try:
         return assist_capability_enabled("tts", True)
     except Exception:
         return True
@@ -61,33 +75,14 @@ def subtitle_enabled() -> bool:
     except Exception:
         pass
     try:
-        from pycore.pyctl.assist import assist_capability_enabled
         return assist_capability_enabled("subtitle", False)
     except Exception:
         return False
 
 
 def poster_enabled() -> bool:
-    """Poster lane: hard knob AND the live media_sync.fetch_poster toggle AND the
-    assist poster toggle - unified so the Queue Center poster switch is
-    authoritative (was decoupled from the assist-queue poster claim)."""
-    try:
-        if not bool(getattr(_cfg(), "POSTER_WORKER_ENABLED", True)):
-            return False
-    except Exception:
-        pass
-    try:
-        from pycore.pyfoundations.system_paths import get_user_data_store
-        section = get_user_data_store().get_section("media_sync") or {}
-        if "fetch_poster" in section and not bool(section.get("fetch_poster")):
-            return False
-    except Exception:
-        pass
-    try:
-        from pycore.pyctl.assist import assist_capability_enabled
-        return assist_capability_enabled("poster", True)
-    except Exception:
-        return True
+    """Poster lane disabled in pycore — delegated to apps/mcp-chrome task center."""
+    return False
 
 
 def sentence_audio_enabled() -> bool:
@@ -99,30 +94,14 @@ def sentence_audio_enabled() -> bool:
     except Exception:
         pass
     try:
-        from pycore.pyctl.assist import assist_capability_enabled
         return assist_capability_enabled("sentence_audio", True)
     except Exception:
         return True
 
 
 def image_enabled() -> bool:
-    """'image' capability (word media): hard knob AND the assist image toggle.
-
-    Backed by the unified AI gateway (pyctl.ai.generate_image). NOT a fake
-    capability: if no image provider is configured at runtime, generate_image
-    returns success=False and the handler reports the task 'failed' so Laravel
-    re-routes/re-pends it - never stranded.
-    """
-    try:
-        if not bool(getattr(_cfg(), "WORD_IMAGE_WORKER_ENABLED", True)):
-            return False
-    except Exception:
-        pass
-    try:
-        from pycore.pyctl.assist import assist_capability_enabled
-        return assist_capability_enabled("image", True)
-    except Exception:
-        return True
+    """Word-media AI image lane disabled — delegated to apps/mcp-chrome."""
+    return False
 
 
 def stt_enabled() -> bool:
@@ -132,7 +111,6 @@ def stt_enabled() -> bool:
     the best available engine (faster-whisper/whisper/vosk/azure).
     """
     try:
-        from pycore.pyctl.assist import assist_capability_enabled
         return assist_capability_enabled("stt", False)
     except Exception:
         return False

@@ -10,7 +10,10 @@ use App\Models\LangSentence;
 use App\Models\LangChapter;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UploadedDocumentModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioFiles;
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
 use App\Providers\PathMapper;
+use App\Services\BookChapterIndexAdapter;
 use App\Services\MoviePoster\MoviePosterStore;
 use App\Services\MediaIngestStatusService;
 use App\Traits\ApiResponse;
@@ -66,6 +69,8 @@ class MediaBrowseController extends Controller
 
         $posterStore = new MoviePosterStore();
         $paginator = $query->paginate($perPage)->through(function (Subtitle $subtitle) use ($posterStore) {
+            $posterUrl = $posterStore->imageUrlFor($subtitle);
+            $imageUrls = $this->resolveImageUrls($subtitle, $posterUrl);
             return [
                 'id' => $subtitle->id,
                 'source_key' => $subtitle->source_key,
@@ -78,7 +83,8 @@ class MediaBrowseController extends Controller
                 'segment_count' => $subtitle->segment_count,
                 'sentence_count' => $subtitle->sentence_count,
                 'synced_at' => $subtitle->synced_at,
-                'image_url' => $posterStore->imageUrlFor($subtitle),
+                'image_url' => $imageUrls[0] ?? null,
+                'image_urls' => $imageUrls,
                 'poster_status' => $subtitle->poster_status,
             ];
         });
@@ -118,6 +124,8 @@ class MediaBrowseController extends Controller
 
         $posterStore = new MoviePosterStore();
         $paginator = $query->paginate($perPage)->through(function (Book $book) use ($posterStore) {
+            $posterUrl = $posterStore->imageUrlFor($book);
+            $imageUrls = $this->resolveImageUrls($book, $posterUrl);
             return [
                 'id' => $book->id,
                 'source_key' => $book->source_key,
@@ -127,7 +135,8 @@ class MediaBrowseController extends Controller
                 'language' => $book->language,
                 'sentence_count' => $book->sentence_count,
                 'synced_at' => $book->synced_at,
-                'image_url' => $posterStore->imageUrlFor($book),
+                'image_url' => $imageUrls[0] ?? null,
+                'image_urls' => $imageUrls,
                 'poster_status' => $book->poster_status,
             ];
         });
@@ -277,13 +286,21 @@ class MediaBrowseController extends Controller
         $grain = $validated['grain'] ?? 'sentence';
         $perPage = isset($validated['per_page']) ? (int) $validated['per_page'] : 500;
         $chapterIndex = isset($validated['chapter_index']) ? (int) $validated['chapter_index'] : null;
-        $sentences = $this->buildSentencesPaginator($source_key, $grain, $perPage, $chapterIndex);
+        $languages = $this->sourceLanguages('book', $book);
+        $adaptation = $this->resolveChapterIndex('book', $source_key, $languages, $chapterIndex, $grain);
+        $sentences = $this->buildSentencesPaginator($source_key, $grain, $perPage, $adaptation['slot_index']);
 
-        return $this->success([
+        $payload = [
             'source' => $book,
             'chapter_index' => $chapterIndex,
             'sentences' => $sentences,
-        ]);
+        ];
+        if ($adaptation['adapted']) {
+            $payload['chapter_index_adapted'] = true;
+            $payload['slot_chapter_index'] = $adaptation['slot_index'];
+        }
+
+        return $this->success($payload);
     }
 
     /**
@@ -564,6 +581,8 @@ class MediaBrowseController extends Controller
                 'audio' => $row->audio ?? null,
                 'explanation' => $row->explanation ?? null,
                 'has_audio' => $row !== null ? (bool) $row->has_audio : false,
+                'tts_status' => $row->tts_status ?? null,
+                'audio_files' => $row !== null ? $this->formatSentenceAudioFiles($row) : [],
             ];
 
             if ($row !== null) {
@@ -613,6 +632,31 @@ class MediaBrowseController extends Controller
             $out[(string) $lang] = $byId;
         }
 
+        return $out;
+    }
+
+    /**
+     * Per-variant sentence audio metadata for book-reader language cells.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function formatSentenceAudioFiles(LangSentence $sentence): array
+    {
+        $out = [];
+        foreach (AppQyV1SentenceAudioFiles::list($sentence) as $row) {
+            $path = is_string($row['path'] ?? null) ? $row['path'] : '';
+            $out[] = [
+                'variant_key' => $row['variant_key'] ?? '',
+                'accent' => $row['accent'] ?? null,
+                'gender' => $row['gender'] ?? null,
+                'source' => $row['source'] ?? null,
+                'voice_type' => $row['voice_type'] ?? null,
+                'provider' => $row['provider'] ?? null,
+                'path' => $path,
+                'has_file' => (bool) ($row['has_file'] ?? false),
+                'url' => $path !== '' ? AppQyV1SentenceAudioUrl::forRelative($path) : null,
+            ];
+        }
         return $out;
     }
 
@@ -697,8 +741,48 @@ class MediaBrowseController extends Controller
         }
         unset($chapter);
 
+        $adapter = app(BookChapterIndexAdapter::class);
+        foreach (array_keys($byIndex) as $ci) {
+            $metadataIndex = (int) $ci;
+            $slotCount = $adapter->slotCountForMetadataChapter(
+                $sourceType,
+                $sourceKey,
+                $languages,
+                $metadataIndex
+            );
+            if ($slotCount <= 0) {
+                unset($byIndex[$ci]);
+                continue;
+            }
+            $byIndex[$ci]['sentence_count'] = $slotCount;
+            $resolved = $adapter->resolve($sourceType, $sourceKey, $languages, $metadataIndex);
+            if ($resolved['adapted']) {
+                $byIndex[$ci]['slot_chapter_index'] = $resolved['slot_index'];
+            }
+        }
+
         ksort($byIndex);
         return array_values($byIndex);
+    }
+
+    /**
+     * @return array{slot_index: ?int, requested: ?int, adapted: bool}
+     */
+    private function resolveChapterIndex(
+        string $sourceType,
+        string $sourceKey,
+        array $languages,
+        ?int $requestedChapterIndex,
+        string $grain = 'sentence'
+    ): array {
+        $grainFilter = $grain === 'all' ? 'sentence' : $grain;
+        return app(BookChapterIndexAdapter::class)->resolve(
+            $sourceType,
+            $sourceKey,
+            $languages,
+            $requestedChapterIndex,
+            $grainFilter
+        );
     }
 
     /**
@@ -723,6 +807,42 @@ class MediaBrowseController extends Controller
     private function isValidSourceKey(string $sourceKey): bool
     {
         return $sourceKey !== '' && (bool) preg_match('/^[A-Za-z0-9._-]+$/', $sourceKey);
+    }
+
+    /**
+     * Merge stored poster URL with metadata cover_url / cover_urls (string or array).
+     *
+     * @param Book|Subtitle $model
+     */
+    private function resolveImageUrls($model, ?string $posterUrl): array
+    {
+        $urls = [];
+        if (is_string($posterUrl) && $posterUrl !== '') {
+            $urls[] = $posterUrl;
+        }
+
+        $meta = is_array($model->metadata ?? null) ? $model->metadata : [];
+        if (!empty($meta['cover_urls']) && is_array($meta['cover_urls'])) {
+            foreach ($meta['cover_urls'] as $u) {
+                if (is_string($u) && $u !== '') {
+                    $urls[] = $u;
+                }
+            }
+        } elseif (!empty($meta['cover_url']) && is_string($meta['cover_url'])) {
+            $urls[] = $meta['cover_url'];
+        }
+
+        $unique = [];
+        $seen = [];
+        foreach ($urls as $u) {
+            if (isset($seen[$u])) {
+                continue;
+            }
+            $seen[$u] = true;
+            $unique[] = $u;
+        }
+
+        return array_slice($unique, 0, 10);
     }
 
     /**

@@ -9,6 +9,13 @@ import sys
 import platform
 from pathlib import Path
 
+# Make pycore importable so the cache path resolves via the centralized
+# system_paths module (one source of truth for the .cache path).
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from pycore.pyfoundations.system_paths import get_xdg_cache_home
+
 
 class VariableDirectoryManager:
     """Manages variable directories across different platforms"""
@@ -65,8 +72,9 @@ class VariableDirectoryManager:
 
         # XDG Base Directory Specification
         xdg_runtime_dir = os.environ.get('XDG_RUNTIME_DIR')
-        xdg_cache_home = os.environ.get('XDG_CACHE_HOME',
-                                       os.path.expanduser('~/.cache'))
+        # Centralized cache root (respects XDG_CACHE_HOME / CORE_NODE_CACHE_DIR;
+        # D:\www\cache on Windows, /var/_core_node/cache on Linux) - see system_paths.
+        xdg_cache_home = str(get_xdg_cache_home())
         xdg_data_home = os.environ.get('XDG_DATA_HOME',
                                       os.path.expanduser('~/.local/share'))
 

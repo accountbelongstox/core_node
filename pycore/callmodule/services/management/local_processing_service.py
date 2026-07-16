@@ -20,6 +20,14 @@ from ...models.management.local_processing_models import (
     UploadStats,
 )
 
+import time
+
+from pycore.pyfoundations.third_party import get_third_package_torch
+from pycore.pyutils.ocr_cluster import ocr_manager
+from pycore.pyfoundations.third_party import get_third_package_whisper
+
+
+
 
 class LocalProcessingService:
     """Service for local processing management operations"""
@@ -112,7 +120,7 @@ class LocalProcessingService:
         """Check if GPU is available"""
         try:
             # Try importing torch to check CUDA availability
-            import torch
+            torch = get_third_package_torch()
             return torch.cuda.is_available()
         except:
             return False
@@ -120,7 +128,7 @@ class LocalProcessingService:
     def _get_gpu_model(self) -> str:
         """Get GPU model name"""
         try:
-            import torch
+            torch = get_third_package_torch()
             if torch.cuda.is_available():
                 return torch.cuda.get_device_name(0)
         except:
@@ -130,7 +138,7 @@ class LocalProcessingService:
     def _get_cuda_version(self) -> Optional[str]:
         """Get CUDA version"""
         try:
-            import torch
+            torch = get_third_package_torch()
             if torch.cuda.is_available():
                 return torch.version.cuda
         except:
@@ -140,7 +148,6 @@ class LocalProcessingService:
     def _check_ocr_availability(self) -> bool:
         """Check if OCR is available"""
         try:
-            from pycore.pyutils.ocr_cluster import ocr_manager
             return True
         except:
             return False
@@ -149,12 +156,10 @@ class LocalProcessingService:
         """Get available OCR engines"""
         engines = []
         try:
-            import paddleocr
             engines.append("paddleocr")
         except:
             pass
         try:
-            import easyocr
             engines.append("easyocr")
         except:
             pass
@@ -163,7 +168,6 @@ class LocalProcessingService:
     def _check_audio_availability(self) -> bool:
         """Check if audio transcription is available"""
         try:
-            from pycore.pyutils.whisper_stt import WhisperProvider
             return True
         except:
             return False
@@ -172,7 +176,7 @@ class LocalProcessingService:
         """Get available audio transcription engines"""
         engines = []
         try:
-            import whisper
+            whisper = get_third_package_whisper()
             engines.append("whisper")
         except:
             pass
@@ -181,7 +185,6 @@ class LocalProcessingService:
     def _check_video_availability(self) -> bool:
         """Check if video processing is available"""
         try:
-            import ffmpeg
             return True
         except:
             return False
@@ -271,7 +274,6 @@ class LocalProcessingService:
         Returns:
             TestResponse with test results
         """
-        import time
         start_time = time.time()
 
         try:

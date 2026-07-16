@@ -27,11 +27,14 @@ import {
   CertbotStatus,
   SystemProcess,
   SystemStorage,
-  SystemServiceStatus
+  SystemServiceStatus,
+  StaticResourcesSummary,
+  ViewType
 } from '../../types';
 import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
 import { getDefaultBaseURL } from '../../config/constants';
+import { useAppState } from '../../contexts/AppStateContext';
 import { useToast, Modal, ConfirmModal } from '../admin';
 import { logInfo, logSuccess, logError } from '../../core/logstore/logStore';
 import {
@@ -61,6 +64,7 @@ import GenerateCertModal from '../server-manager/modals/GenerateCertModal';
 import NginxPanel from '../server-manager/panels/NginxPanel';
 import SslPanel from '../server-manager/panels/SslPanel';
 import SystemPanel from '../server-manager/panels/SystemPanel';
+import ServerFileManagerPanel from '../server-manager/panels/ServerFileManagerPanel';
 import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 
@@ -71,7 +75,17 @@ interface ServerManagerProps {
 type ServerTab = 'nginx' | 'ssl' | 'system' | 'files' | 'executor' | 'unified';
 
 const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
-  const [activeTab, setActiveTab] = useState<ServerTab>('nginx');
+  const { setActiveView } = useAppState();
+  const [activeTab, setActiveTab] = useState<ServerTab>(() => {
+    try {
+      const pending = localStorage.getItem('server_manager_tab');
+      if (pending === 'system') {
+        localStorage.removeItem('server_manager_tab');
+        return 'system';
+      }
+    } catch { /* ignore */ }
+    return 'nginx';
+  });
   const [octaneRestarting, setOctaneRestarting] = useState(false);
   const [restartProgress, setRestartProgress] = useState('');
   const [servicesSummary, setServicesSummary] = useState<any>(null);
@@ -164,6 +178,9 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     status: 'idle'
   });
   const [showGenerateCert, setShowGenerateCert] = useState(false);
+  const [deleteFilesSite, setDeleteFilesSite] = useState<string | null>(null);
+  const [deleteFilesPassword, setDeleteFilesPassword] = useState('');
+  const [deleteFilesConfirm, setDeleteFilesConfirm] = useState('');
   const [certbotStatus, setCertbotStatus] = useState<AsyncState<CertbotStatus>>({
     data: null,
     loading: false,
@@ -186,6 +203,12 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   });
   const [systemStorage, setSystemStorage] = useState<AsyncState<SystemStorage[]>>({
     data: [],
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [staticResources, setStaticResources] = useState<AsyncState<StaticResourcesSummary>>({
+    data: null,
     loading: false,
     error: null,
     status: 'idle'
@@ -596,24 +619,12 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
   // Renew the SSL certificate for one site (uses the certificates module)
   const handleRenewSiteCert = async (site: NginxSite) => {
-    if (renewingCert) return;
+    if (renewingCert || certProgress) return;
     setRenewingCert(site.site_name);
-    logInfo('nginx', `Renewing certificate for ${site.domain}…`);
-    try {
-      const response = await api.serverManagerV1.renewCertificates({ domain: site.domain });
-      if (response.success) {
-        toast.success(t.nginx.renew_cert_started.replace('{domain}', site.domain));
-        logSuccess('nginx', `Certificate renewal started for ${site.domain}`);
-        loadNginxSites();
-      } else {
-        throw new Error(response.error || messages.operation_failed || 'Operation failed');
-      }
-    } catch (error: any) {
-      toast.error(`${t.nginx.renew_cert_failed} — ${error.message}`);
-      logError('nginx', `Renew certificate for ${site.domain} failed — ${error.message}`);
-    } finally {
+    logInfo('nginx', `Certificate ensure for ${site.domain}…`);
+    void startCertProgress(site.domain).finally(() => {
       setRenewingCert(null);
-    }
+    });
   };
 
   // Load Nginx Logs
@@ -728,8 +739,12 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     try {
       const response = await api.serverManagerV1.getSystemStorage();
       if (response.success && response.data) {
+        const data = response.data as Record<string, unknown>;
+        const mounts = Array.isArray(data)
+          ? data
+          : (data.disk_usage as SystemStorage[] | undefined) ?? [];
         setSystemStorage({
-          data: Array.isArray(response.data) ? response.data : [],
+          data: mounts,
           loading: false,
           error: null,
           status: 'success'
@@ -738,6 +753,40 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     } catch (error: any) {
       setSystemStorage({
         data: [],
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const loadStaticResources = async () => {
+    setStaticResources(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.serverManagerV1.getStaticResourcesSummary();
+      if (response.success && response.data) {
+        const summary = response.data as StaticResourcesSummary;
+        setStaticResources({
+          data: summary,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+        if (summary.disk_usage?.length) {
+          setSystemStorage(prev => ({
+            ...prev,
+            data: summary.disk_usage ?? prev.data,
+            loading: false,
+            error: null,
+            status: 'success'
+          }));
+        }
+      } else {
+        throw new Error(response.error || 'Failed to load static resources');
+      }
+    } catch (error: any) {
+      setStaticResources({
+        data: null,
         loading: false,
         error: error.message,
         status: 'error'
@@ -839,6 +888,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       loadSystemInfo();
       loadSystemProcesses();
       loadSystemStorage();
+      loadStaticResources();
       loadSystemServices();
     }
   }, [activeTab]);
@@ -911,22 +961,74 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     }
   };
 
-  // SSL Actions
-  const handleGenerateCertificate = async (domain: string, provider?: string, staging?: boolean) => {
+  // SSL Actions — unified: idempotent ensure (generate if missing, renew if present) with real-time progress.
+  const [certProgress, setCertProgress] = useState<{
+    requestId: string;
+    domain: string;
+    command: string;
+    status: 'running' | 'completed' | 'failed';
+    outputLines: string[];
+    error?: string;
+  } | null>(null);
+
+  const certPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => { if (certPollRef.current) clearInterval(certPollRef.current); };
+  }, []);
+
+  const startCertProgress = async (domain: string) => {
+    if (certProgress) return;
+    setCertProgress({ requestId: '', domain, command: '', status: 'running', outputLines: [] });
     try {
-      const response = await api.serverManagerV1.generateSSLCertificate({
-        domain,
-        provider: provider as 'dnspod' | 'cloudflare' | undefined,
-        staging
-      });
-      if (response.success) {
-        alert(response.data?.message || messages.cert_generation_started || 'Certificate generation started');
-        setShowGenerateCert(false);
-        await loadSSLCertificates();
+      const res = await api.serverManagerV1.ensureCertificate({ domain });
+      if (res.success && res.data?.request_id) {
+        setCertProgress(p => p ? {
+          ...p,
+          requestId: res.data.request_id,
+          command: res.data.command || '',
+          outputLines: [`[certbot] ${res.data.command || 'certbot ensure'}`],
+        } : null);
+        const id = res.data.request_id as string;
+        certPollRef.current = setInterval(async () => {
+          try {
+            const pr = await api.serverManagerV1.certificateProgress(id);
+            if (!pr.success) return;
+            const d = pr.data || {};
+            setCertProgress(prev => {
+              if (!prev || prev.requestId !== id) return prev;
+              const lines = Array.isArray(d.output_lines) ? d.output_lines : [];
+              const next: typeof prev = { ...prev, outputLines: lines, status: d.status === 'completed' ? 'completed' : prev.status };
+              if (d.status === 'completed') {
+                // Check for error indicators in the output
+                const hasError = lines.some((l: string) => l.toLowerCase().includes('error') || l.toLowerCase().includes('fail'));
+                if (hasError) {
+                  next.status = 'failed';
+                  next.error = lines[lines.length - 1] || 'Certificate operation had errors';
+                }
+              }
+              return next;
+            });
+            if (d.status === 'completed') {
+              if (certPollRef.current) { clearInterval(certPollRef.current); certPollRef.current = null; }
+              loadSSLCertificates();
+              loadNginxSites();
+              setShowGenerateCert(false);
+            }
+          } catch {
+            // Polling error - keep trying.
+          }
+        }, 1500);
+      } else {
+        setCertProgress(p => p ? { ...p, status: 'failed', error: res.error || 'Failed to start certificate operation' } : null);
       }
     } catch (error: any) {
-      alert(error.message || messages.failed_to_generate_cert || 'Failed to generate certificate');
+      setCertProgress(p => p ? { ...p, status: 'failed', error: error.message || 'Failed to start certificate operation' } : null);
     }
+  };
+
+  const handleGenerateCertificate = async (domain: string, provider?: string, staging?: boolean) => {
+    void startCertProgress(domain);
   };
 
   const handleRenewAllCertificates = async () => {
@@ -1110,6 +1212,70 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     });
   };
 
+  const handleDeleteFilesSite = (siteName: string) => {
+    setDeleteFilesPassword('');
+    setDeleteFilesConfirm('');
+    setDeleteFilesSite(siteName);
+  };
+
+  const confirmDeleteFiles = async () => {
+    if (!deleteFilesSite) return;
+    if (deleteFilesConfirm !== 'delete') {
+      toast.error('Type "delete" to confirm');
+      return;
+    }
+    if (!deleteFilesPassword) {
+      toast.error('Root password is required');
+      return;
+    }
+    const siteName = deleteFilesSite;
+    logInfo('nginx', `Purging site files ${siteName}…`);
+    try {
+      const response = await api.serverManagerV1.deleteNginxSiteFiles(siteName, {
+        password: deleteFilesPassword,
+        confirm: deleteFilesConfirm,
+      });
+      if (response.success) {
+        await loadNginxSites();
+        loadNginxStatus();
+        toast.success(response.data?.message || 'Site files deleted successfully');
+        logSuccess('nginx', `Site files ${siteName} purged`);
+        setDeleteFilesSite(null);
+        setDeleteFilesPassword('');
+        setDeleteFilesConfirm('');
+      } else {
+        throw new Error(response.error || messages.operation_failed || 'Operation failed');
+      }
+    } catch (error: any) {
+      toast.error(`${messages.operation_failed || 'Operation failed'} - ${error.message}`);
+      logError('nginx', `Purge site files ${siteName} failed - ${error.message}`);
+    }
+  };
+
+  const handleRepairConfig = async () => {
+    logInfo('nginx', 'Repairing nginx config…');
+    try {
+      const response = await api.serverManagerV1.repairNginxConfig();
+      if (response.success) {
+        const r = response.data || {};
+        const quarantined = Array.isArray(r.quarantined) ? r.quarantined.length : 0;
+        toast.success(
+          r.valid
+            ? `Nginx config repaired${r.reloaded ? ' & reloaded' : ''}${quarantined ? ` (${quarantined} site(s) quarantined)` : ''}`
+            : 'Config still invalid after repair'
+        );
+        await loadNginxSites();
+        loadNginxStatus();
+        logSuccess('nginx', 'Nginx config repaired');
+      } else {
+        throw new Error(response.error || messages.operation_failed || 'Operation failed');
+      }
+    } catch (error: any) {
+      toast.error(`${messages.operation_failed || 'Operation failed'} - ${error.message}`);
+      logError('nginx', `Repair config failed - ${error.message}`);
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'ok':
@@ -1193,6 +1359,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
                 loadSystemInfo();
                 loadSystemProcesses();
                 loadSystemStorage();
+                loadStaticResources();
                 loadSystemServices();
               }}
               className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
@@ -1271,6 +1438,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             onInstallNginx={handleInstallNginx}
             onCopyInstallHint={handleCopyInstallHint}
             onNginxService={handleNginxService}
+            onRepairConfig={handleRepairConfig}
             onLoadNginxLogs={loadNginxLogs}
             onLoadNginxBackups={loadNginxBackups}
             onRestoreBackup={handleRestoreBackup}
@@ -1283,6 +1451,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             onEditSite={handleEditSite}
             onViewConfig={handleViewConfig}
             onDeleteSite={handleDeleteSite}
+            onDeleteFilesSite={handleDeleteFilesSite}
           />
         )}
 
@@ -1305,11 +1474,17 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             systemServices={systemServices}
             systemStorage={systemStorage}
             systemProcesses={systemProcesses}
+            staticResources={staticResources}
+            onRefreshStaticResources={() => {
+              loadStaticResources();
+              loadSystemStorage();
+            }}
+            onOpenMedia={() => setActiveView(ViewType.MEDIA_BROWSER)}
           />
         )}
 
         {activeTab === 'files' && (
-          <FileManagerTab lang={lang} />
+          <ServerFileManagerPanel lang={lang} />
         )}
 
         {activeTab === 'executor' && (
@@ -1349,6 +1524,64 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
           </>
         )}
       </div>
+
+      {/* Certificate Progress (floating real-time output) */}
+      {certProgress && (
+        <Portal>
+        <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP}`}>
+          <div className="relative bg-white dark:bg-slate-800 rounded-lg max-w-2xl w-full max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Shield className={`w-5 h-5 ${certProgress.status === 'completed' ? 'text-green-500' : certProgress.status === 'failed' ? 'text-red-500' : 'text-amber-500 animate-pulse'}`} />
+                {certProgress.status === 'running' ? `Working on ${certProgress.domain}…` : certProgress.status === 'completed' ? `Done: ${certProgress.domain}` : `Failed: ${certProgress.domain}`}
+              </h3>
+              <button
+                onClick={() => {
+                  if (certPollRef.current) { clearInterval(certPollRef.current); certPollRef.current = null; }
+                  setCertProgress(null);
+                }}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-2 overflow-y-auto flex-1">
+              {certProgress.command && (
+                <div className="text-xs font-mono bg-slate-100 dark:bg-slate-900 p-2 rounded text-amber-700 dark:text-amber-400 break-all">
+                  $ {certProgress.command}
+                </div>
+              )}
+              <div className="text-xs font-mono bg-slate-900 text-green-400 p-3 rounded max-h-96 overflow-y-auto whitespace-pre-wrap">
+                {certProgress.status === 'running' && certProgress.outputLines.length === 1
+                  ? certProgress.outputLines[0]
+                  : certProgress.outputLines.join('\n') || (certProgress.status === 'running' ? 'Waiting for certbot…' : '')}
+                {certProgress.status === 'running' && <span className="animate-pulse">▊</span>}
+              </div>
+              {certProgress.error && (
+                <div className="text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-2 rounded text-red-700 dark:text-red-300">
+                  {certProgress.error}
+                </div>
+              )}
+            </div>
+            {certProgress.status !== 'running' && (
+              <div className="p-3 border-t border-slate-200 dark:border-slate-700 shrink-0 flex justify-end">
+                <button
+                  onClick={() => {
+                    if (certPollRef.current) { clearInterval(certPollRef.current); certPollRef.current = null; }
+                    setCertProgress(null);
+                    loadSSLCertificates();
+                    loadNginxSites();
+                  }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+        </Portal>
+      )}
 
       {/* Generate Certificate Modal */}
       <GenerateCertModal
@@ -1494,6 +1727,69 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
         loading={confirmState.loading}
       />
 
+      {/* Delete Files (purge web root + config) */}
+      <Modal
+        isOpen={deleteFilesSite !== null}
+        onClose={() => {
+          setDeleteFilesSite(null);
+          setDeleteFilesPassword('');
+          setDeleteFilesConfirm('');
+        }}
+        title={`Delete Files: ${deleteFilesSite ?? ''}`}
+        size="lg"
+        footer={
+          <div className="flex items-center justify-end gap-3">
+            <button
+              onClick={() => {
+                setDeleteFilesSite(null);
+                setDeleteFilesPassword('');
+                setDeleteFilesConfirm('');
+              }}
+              className="px-4 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeleteFiles}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
+            >
+              Delete Files
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-800 dark:text-red-300">
+            This permanently deletes the site's <strong>web-root files</strong> AND its nginx config.
+            The <strong>core_node</strong> directory is never deletable (server-enforced). This cannot be undone.
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Root password
+            </label>
+            <input
+              type="password"
+              value={deleteFilesPassword}
+              onChange={(e) => setDeleteFilesPassword(e.target.value)}
+              placeholder="root password"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Type "delete" to confirm
+            </label>
+            <input
+              type="text"
+              value={deleteFilesConfirm}
+              onChange={(e) => setDeleteFilesConfirm(e.target.value)}
+              placeholder="delete"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+          </div>
+        </div>
+      </Modal>
+
       {/* Nginx Site Create/Edit Modal */}
       <NginxSiteModal
         isOpen={showCreateSite}
@@ -1505,152 +1801,6 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
         site={editingSite}
         lang={lang}
       />
-    </div>
-  );
-};
-
-// File Manager Tab Component
-const FileManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
-  const [files, setFiles] = useState<AsyncState<ServerFileNode[]>>({
-    data: [],
-    loading: false,
-    error: null,
-    status: 'idle'
-  });
-  const [currentPath, setCurrentPath] = useState<string>('/www/programing/core_node');
-  const [allowedPaths, setAllowedPaths] = useState<string[]>([]);
-  const [previewFile, setPreviewFile] = useState<string | null>(null);
-  const t = TRANSLATIONS[lang].server.files;
-
-  const loadFiles = async (path?: string) => {
-    setFiles(prev => ({ ...prev, loading: true, status: 'loading' }));
-    try {
-      const response = await api.serverManagerV1.browseFiles(path);
-      if (response.success && response.data) {
-        const items = response.data.items || response.data;
-        const responsePath = response.data.path || path;
-        const paths = response.data.allowed_paths || [];
-
-        setFiles({
-          data: Array.isArray(items) ? items : [],
-          loading: false,
-          error: null,
-          status: 'success'
-        });
-        setCurrentPath(responsePath || '');
-        if (paths.length > 0) {
-          setAllowedPaths(paths);
-        }
-      }
-    } catch (error: any) {
-      setFiles({
-        data: [],
-        loading: false,
-        error: error.message,
-        status: 'error'
-      });
-    }
-  };
-
-  useEffect(() => {
-    loadFiles();
-  }, []);
-
-  const handleDownload = async (filePath: string) => {
-    try {
-      const blob = (await api.serverManagerV1.downloadFile(filePath)) as unknown as Blob;
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filePath.split('/').pop() || 'download';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Download failed:', error);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      {/* Allowed Paths Quick Access */}
-      {allowedPaths.length > 0 && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Shield className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">Allowed Paths (Quick Access)</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {allowedPaths.map((allowedPath, idx) => (
-              <button
-                key={idx}
-                onClick={() => {
-                  setCurrentPath(allowedPath);
-                  loadFiles(allowedPath);
-                }}
-                className="px-3 py-1.5 text-xs bg-white dark:bg-slate-700 border border-blue-300 dark:border-blue-700 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300 transition-colors"
-              >
-                {allowedPath}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Path Input */}
-      <div className="flex items-center gap-2">
-        <input
-          type="text"
-          value={currentPath}
-          onChange={(e) => setCurrentPath(e.target.value)}
-          placeholder="Enter path..."
-          className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700"
-        />
-        <button
-          onClick={() => loadFiles(currentPath || undefined)}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
-        >
-          {t.browse}
-        </button>
-      </div>
-
-      {files.loading && (
-        <LoadingBlock />
-      )}
-
-      {files.error && (
-        <AlertBox variant="error">{files.error}</AlertBox>
-      )}
-
-      {files.data && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {files.data.map((file, idx) => (
-            <div key={idx} className={`${commonClasses.card} p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800`}>
-              <div className="flex items-center gap-3 mb-2">
-                {file.type === 'directory' ? (
-                  <Folder className="w-5 h-5 text-blue-500" />
-                ) : (
-                  <File className="w-5 h-5 text-slate-500" />
-                )}
-                <span className="font-medium truncate">{file.name}</span>
-              </div>
-              {file.size && (
-                <p className="text-xs text-slate-500 mb-2">{file.size} bytes</p>
-              )}
-              {file.type === 'file' && (
-                <button
-                  onClick={() => handleDownload(file.path)}
-                  className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                >
-                  <Download className="w-3 h-3" />
-                  {t.download}
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 };

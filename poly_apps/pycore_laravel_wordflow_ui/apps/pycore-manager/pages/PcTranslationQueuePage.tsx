@@ -23,6 +23,7 @@ import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { TranslationQueueItem, TranslationQueueSummary, PycoreGlobalTaskDetail } from '../../../core/api-libs/pycore/pycoreTypes';
 import { usePersistentTask } from '../../../core/tasks/usePersistentTask';
 import { PcGlobalTaskDetailModal } from '../components/PcTaskDetailModal';
+import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 
 const REFRESH_MS = 5000;
 const EMPTY_SUMMARY: TranslationQueueSummary = {
@@ -53,15 +54,14 @@ interface QueueSnapshot {
   error: string | null;
 }
 
-/** Contract with PcQueueCenterPage (kept local to avoid an import cycle). */
-interface PanelProps {
-  /** Bumped by the parent's refresh button / auto-refresh interval. */
-  refreshTick?: number;
-  /** Report the pending count + in-flight state up to the tab bar. */
-  onMeta?: (meta: { count: number | null; loading: boolean }) => void;
-}
+import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
+
+/** Contract with PcQueueCenterPage (shared panel props). */
+type PanelProps = QueueCenterPanelProps;
 
 const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => {
+  const { laravelStoredEndpoint, laravelActiveEndpoint } = useQueueCenterHub();
+  const laravelEndpoint = laravelStoredEndpoint || laravelActiveEndpoint;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -274,7 +274,11 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta
         {!reachable && (
           <div className="mb-4 flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
             <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
-            <span className="break-words">Backend unreachable — showing the last known snapshot.</span>
+            <span className="break-words">
+              Backend unreachable
+              {laravelEndpoint ? <> at <span className="font-mono">{laravelEndpoint}</span></> : null}
+              {' '}— showing the last known snapshot. Enable Assist Translation and check the Laravel endpoint in Settings.
+            </span>
           </div>
         )}
 

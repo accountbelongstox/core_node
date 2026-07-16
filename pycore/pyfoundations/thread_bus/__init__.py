@@ -42,6 +42,9 @@ from collections import deque
 from pycore.pyfoundations.thread_bus.shutdown_stack import ShutdownStack
 from pycore.pyfoundations.thread_bus.event_handler_registry import EventHandlerRegistry
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+
 
 class ThreadBus:
     """
@@ -556,7 +559,6 @@ THREAD_BUS = ThreadBus()
 
 def main():
     """Test ThreadBus"""
-    from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
     ColorPrint.blue("=== Testing ThreadBus ===")
 

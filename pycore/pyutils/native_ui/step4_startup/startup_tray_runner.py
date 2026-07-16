@@ -38,6 +38,15 @@ from pycore.pyutils.native_ui.platform_adapter import (
     TrayBackend as PlatformTrayBackend,
 )
 
+from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import (
+    AppIndicatorSystemTray,
+    APPINDICATOR_AVAILABLE,
+)
+from pycore.pyutils.native_ui.step6_tray.appindicator_thread import (
+    build_appindicator_menu_items,
+)
+
+
 
 def run_tray_mode(thread):
     """
@@ -65,13 +74,6 @@ def run_tray_mode(thread):
     )
     if use_appindicator:
         try:
-            # LAZY import: preserves the original function-local cycle break.
-            # Do NOT hoist to module top.
-            from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import (
-                AppIndicatorSystemTray,
-                APPINDICATOR_AVAILABLE,
-            )
-            from pycore.pyutils.native_ui.step6_tray.appindicator_thread import build_appindicator_menu_items
             if APPINDICATOR_AVAILABLE:
                 run_appindicator_tray(thread, tray_config, bus_mgr)
                 return
@@ -94,8 +96,6 @@ def run_appindicator_tray(thread, tray_config, bus_mgr):
     (was TkinterStartupThread._run_appindicator_tray)
     """
     # LAZY import: preserves the original function-local cycle break.
-    from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import AppIndicatorSystemTray
-    from pycore.pyutils.native_ui.step6_tray.appindicator_thread import build_appindicator_menu_items
 
     # Reuse the EXISTING converter (reuse-first) instead of re-building menu items.
     appindicator_items = build_appindicator_menu_items(tray_config.menu_items)

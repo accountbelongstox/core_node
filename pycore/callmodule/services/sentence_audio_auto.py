@@ -16,6 +16,9 @@ from pycore.pyfoundations.system_paths import get_user_data_store
 from pycore.pyheartbeat import get_heartbeat_system
 from pycore.pyctl.assist import load_assist_settings, save_assist_settings
 
+from pycore.callmodule.services import get_tts_sentence_worker_service
+
+
 _SECTION = "sentence_audio_auto"
 _AUTO_KEY = "auto_start"
 _HEARTBEAT_NAME = "tts_sentence_worker"
@@ -32,7 +35,6 @@ def _laravel_queue_summary() -> Dict[str, Any]:
         return dict(_laravel_summary_cache)
     summary: Dict[str, Any] = {}
     try:
-        from pycore.callmodule.services import get_tts_sentence_worker_service
         summary = get_tts_sentence_worker_service().fetch_queue_summary() or {}
     except Exception:
         pass
@@ -50,6 +52,47 @@ def get_config() -> Dict[str, Any]:
     return {
         "auto_start": bool(section.get(_AUTO_KEY, False)),
     }
+
+
+def restore_persisted_auto_start() -> None:
+    """Apply persisted Queue Center auto_start after heartbeat registration.
+
+    When ``assist_laravel`` exists in user_data, voice auto-run is owned by
+    Assist → Voice (TTS); skip legacy per-strip toggles here.
+    """
+    store = get_user_data_store()
+    if store.get_section("assist_laravel") is not None:
+        ColorPrint.blue("[SentenceAudioAuto] Skipping restore — assist_laravel owns voice workers")
+        return
+    section = store.get_section(_SECTION)
+    if section is None:
+        return
+
+    enabled = bool(section.get(_AUTO_KEY, False))
+    heartbeat = get_heartbeat_system()
+    try:
+        if enabled:
+            heartbeat.enable_callback(_HEARTBEAT_NAME)
+        else:
+            heartbeat.disable_callback(_HEARTBEAT_NAME)
+    except Exception as exc:  # noqa: BLE001
+        ColorPrint.yellow(f"[SentenceAudioAuto] restore heartbeat failed ({exc})")
+
+    settings = load_assist_settings()
+    caps = dict(settings.get("capabilities") or {})
+    desired = bool(enabled)
+    if caps.get("sentence_audio") != desired:
+        caps["sentence_audio"] = desired
+        save_assist_settings({**settings, "capabilities": caps})
+
+    ColorPrint.blue(f"[SentenceAudioAuto] Restored auto_start={desired} from user_data")
+    if not enabled:
+        return
+
+    try:
+        get_tts_sentence_worker_service().poll_and_process()
+    except Exception as exc:  # noqa: BLE001
+        ColorPrint.yellow(f"[SentenceAudioAuto] restore immediate cycle failed ({exc})")
 
 
 def apply_auto_start(enabled: bool) -> Dict[str, Any]:
@@ -73,7 +116,6 @@ def apply_auto_start(enabled: bool) -> Dict[str, Any]:
 
     if enabled:
         try:
-            from pycore.callmodule.services import get_tts_sentence_worker_service
             worker = get_tts_sentence_worker_service()
             worker.poll_and_process()
         except Exception as exc:  # noqa: BLE001
@@ -88,7 +130,6 @@ def get_status() -> Dict[str, Any]:
     worker_status: Dict[str, Any] = {}
     heartbeat_enabled = False
     try:
-        from pycore.callmodule.services import get_tts_sentence_worker_service
         worker_status = get_tts_sentence_worker_service().get_status()
     except Exception:
         pass

@@ -18,6 +18,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Settings2, Power, RefreshCw, Clipboard, Image as ImageIcon, FileText,
   AlertTriangle, Info, Wifi, Handshake, Server, Languages, Volume2, Save, Loader2,
+  Sparkles, Film, Captions, Mic,
 } from 'lucide-react';
 import {
   pycoreApi,
@@ -55,11 +56,33 @@ interface AssistForm {
 
 const ASSIST_DEFAULTS: AssistForm = {
   enabled: false,
-  capabilities: { cover: true, tts: true, translation: true },
+  capabilities: {
+    translation: true,
+    ai_translate: true,
+    cover: false,
+    poster: false,
+    image: false,
+    tts: true,
+    sentence_audio: true,
+    subtitle: false,
+    stt: false,
+  },
   poll_interval_s: 30,
   batch_limit: 5,
   running: false,
 };
+
+const ASSIST_CAPS: { key: keyof AssistCapabilities; label: string; Icon: React.FC<{ className?: string }> }[] = [
+  { key: 'translation', label: 'Word translation', Icon: Languages },
+  { key: 'ai_translate', label: 'AI translate', Icon: Sparkles },
+  // mcp-chrome delegated — not shown in pycore settings UI:
+  // { key: 'cover', label: 'Cover images (mcp-chrome)', Icon: ImageIcon },
+  // { key: 'poster', label: 'Movie/TV poster (mcp-chrome)', Icon: Film },
+  // { key: 'image', label: 'Word media (mcp-chrome)', Icon: Sparkles },
+  { key: 'tts', label: 'Voice (TTS) — words + sentences', Icon: Volume2 },
+  { key: 'subtitle', label: 'Subtitle search', Icon: Captions },
+  { key: 'stt', label: 'Speech-to-text', Icon: Mic },
+];
 
 /** Loose 404/error bodies must not populate the form — shape-guard the reply. */
 const isAssistStatus = (s: any): s is AssistStatus =>
@@ -68,7 +91,6 @@ const isAssistStatus = (s: any): s is AssistStatus =>
 const isAutostart = (s: any): s is AutostartStatus =>
   !!s && typeof s.enabled === 'boolean' && typeof s.supported === 'boolean';
 
-// --- TTS tuning (edge-tts synth timeout + failure cooldown) -------------- #
 interface TtsTuningForm {
   synth_timeout_s: number;
   edge_cooldown_s: number;
@@ -79,11 +101,17 @@ const TTS_TUNING_DEFAULTS: TtsTuningForm = {
   edge_cooldown_s: 300,
 };
 
-const ASSIST_CAPS: { key: keyof AssistCapabilities; label: string; Icon: React.FC<{ className?: string }> }[] = [
-  { key: 'cover', label: 'Cover images', Icon: ImageIcon },
-  { key: 'tts', label: 'TTS audio', Icon: Volume2 },
-  { key: 'translation', label: 'Word translation', Icon: Languages },
-];
+const mergeAssistCapabilities = (caps?: AssistCapabilities): AssistCapabilities => ({
+  translation: caps?.translation !== false,
+  ai_translate: caps?.ai_translate !== false,
+  cover: caps?.cover !== false,
+  poster: caps?.poster !== false,
+  image: caps?.image !== false,
+  tts: caps?.tts !== false,
+  sentence_audio: caps?.sentence_audio !== false,
+  subtitle: caps?.subtitle === true,
+  stt: caps?.stt === true,
+});
 
 const PcSettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<SystemSettings>(DEFAULTS);
@@ -155,11 +183,7 @@ const PcSettingsPage: React.FC = () => {
       if (!isAssistStatus(s)) throw new Error((s as any)?.error || (s as any)?.detail || 'assist status unavailable');
       setAssist({
         enabled: s.enabled === true,
-        capabilities: {
-          cover: s.capabilities?.cover !== false,
-          tts: s.capabilities?.tts !== false,
-          translation: s.capabilities?.translation !== false,
-        },
+        capabilities: mergeAssistCapabilities(s.capabilities),
         poll_interval_s: typeof s.poll_interval_s === 'number' ? s.poll_interval_s : ASSIST_DEFAULTS.poll_interval_s,
         batch_limit: typeof s.batch_limit === 'number' ? s.batch_limit : ASSIST_DEFAULTS.batch_limit,
         running: s.running === true,
@@ -174,10 +198,12 @@ const PcSettingsPage: React.FC = () => {
   const saveAssist = useCallback(async () => {
     setAssistSaving(true);
     setAssistNotice(null);
+    const caps = { ...assist.capabilities };
+    caps.sentence_audio = caps.tts;
     try {
       const r = await pycoreApi.setAssistConfig({
         enabled: assist.enabled,
-        capabilities: assist.capabilities,
+        capabilities: caps,
         poll_interval_s: Math.max(5, Math.round(assist.poll_interval_s) || ASSIST_DEFAULTS.poll_interval_s),
         batch_limit: Math.max(1, Math.round(assist.batch_limit) || ASSIST_DEFAULTS.batch_limit),
       });
@@ -188,11 +214,7 @@ const PcSettingsPage: React.FC = () => {
       if (r.config) {
         setAssist((prev) => ({
           enabled: r.config.enabled === true,
-          capabilities: {
-            cover: r.config.capabilities?.cover !== false,
-            tts: r.config.capabilities?.tts !== false,
-            translation: r.config.capabilities?.translation !== false,
-          },
+          capabilities: mergeAssistCapabilities(r.config.capabilities),
           poll_interval_s: typeof r.config.poll_interval_s === 'number' ? r.config.poll_interval_s : prev.poll_interval_s,
           batch_limit: typeof r.config.batch_limit === 'number' ? r.config.batch_limit : prev.batch_limit,
           running: prev.running,
@@ -254,16 +276,59 @@ const PcSettingsPage: React.FC = () => {
     }
   }, [ttsTuning]);
 
+  // --- Task capability chains (translation + voice fallback) --------------- #
+  const [taskChains, setTaskChains] = useState<{ translation: string; voice_tts: string }>({
+    translation: 'google, ecdict, wordnet, ai',
+    voice_tts: 'gptsovits, streamelements, sherpa, melotts, edge, gtts_web, azure, chattts, cosyvoice, fishspeech, qwen3tts, bark, parler, voxcpm2, kokoro, f5tts',
+  });
+  const [chainsSaving, setChainsSaving] = useState<string | null>(null);
+  const [chainsNotice, setChainsNotice] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const loadTaskChains = useCallback(async () => {
+    try {
+      const r = await pycoreApi.getTaskCapabilityChains();
+      const c = r?.chains;
+      if (!c) return;
+      setTaskChains({
+        translation: (c.translation ?? []).join(', '),
+        voice_tts: (c.voice_tts ?? []).join(', '),
+      });
+    } catch { /* offline */ }
+  }, []);
+
+  const saveTaskChain = useCallback(async (taskType: 'translation' | 'voice_tts') => {
+    setChainsSaving(taskType);
+    setChainsNotice(null);
+    const raw = taskChains[taskType] || '';
+    const priority = raw.split(/[,;\s]+/).map((s) => s.trim()).filter(Boolean);
+    try {
+      const r = await pycoreApi.saveTaskCapabilityChain(taskType, priority);
+      if (!r?.success) throw new Error((r as any)?.error || 'save rejected');
+      if (r.chains) {
+        setTaskChains({
+          translation: (r.chains.translation ?? []).join(', '),
+          voice_tts: (r.chains.voice_tts ?? []).join(', '),
+        });
+      }
+      setChainsNotice({ ok: true, text: 'Task chain saved.' });
+    } catch (e: any) {
+      setChainsNotice({ ok: false, text: `Save failed: ${e?.message || 'pycore unreachable'}` });
+    } finally {
+      setChainsSaving(null);
+    }
+  }, [taskChains]);
+
   useEffect(() => {
     loadSettings();
     loadAssist();
     loadTtsTuning();
+    loadTaskChains();
     pycoreApi.getAutostart().then((s) => {
       if (!isAutostart(s)) return;
       setAutostart(s);
       if (s.target) setAutostartTarget(s.target);
     }).catch(() => { /* offline */ });
-  }, [loadSettings, loadAssist, loadTtsTuning]);
+  }, [loadSettings, loadAssist, loadTtsTuning, loadTaskChains]);
 
   // Persist a settings patch to the backend (optimistic update).
   const patch = useCallback(async (next: Partial<SystemSettings>) => {
@@ -372,7 +437,7 @@ const PcSettingsPage: React.FC = () => {
           pcHealth.up === null
             ? 'Not checked yet.'
             : pcHealth.up
-              ? `Online — /pyapi/ping answered in ${pcHealth.responseTime}ms.`
+              ? `Online — ping answered in ${pcHealth.responseTime}ms.`
               : 'Offline — retrying at the interval below until it answers.',
           <button onClick={recheckConnection} disabled={pcChecking}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold pc-glass hover:bg-sky-500/10 text-sky-500 transition disabled:opacity-50 shrink-0">
@@ -476,11 +541,12 @@ const PcSettingsPage: React.FC = () => {
                   disabled={assistAvailable !== true || !assist.enabled}
                   onChange={() => setAssist((a) => {
                     const nextOn = !a.capabilities[key];
+                    const caps = { ...a.capabilities, [key]: nextOn };
+                    if (key === 'tts') caps.sentence_audio = nextOn;
                     return {
                       ...a,
-                      // Turning a capability ON implies the master must be ON too.
                       enabled: nextOn ? true : a.enabled,
-                      capabilities: { ...a.capabilities, [key]: nextOn },
+                      capabilities: caps,
                     };
                   })}
                   className="w-3.5 h-3.5 accent-rose-500 disabled:cursor-not-allowed" />
@@ -553,6 +619,40 @@ const PcSettingsPage: React.FC = () => {
             </span>
           )}
         </div>
+      </section>
+
+      {/* Per-task-type capability fallback chains */}
+      <section className="pc-glass p-6 space-y-3">
+        <h2 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Task capability chains</h2>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+          Fallback order per task type (comma-separated). Voice chain also updates the shared TTS engine priority.
+        </p>
+        {(['translation', 'voice_tts'] as const).map((key) => (
+          <div key={key} className="rounded-2xl p-4 bg-slate-100/60 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 space-y-2">
+            <div className="text-xs font-bold text-slate-700 dark:text-zinc-200">
+              {key === 'translation' ? 'Translation' : 'Voice (words + sentences)'}
+            </div>
+            <input
+              value={taskChains[key]}
+              onChange={(e) => setTaskChains((c) => ({ ...c, [key]: e.target.value }))}
+              className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-300/50 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-zinc-200"
+              placeholder={key === 'translation' ? 'google, ecdict, wordnet, ai' : 'chattts, cosyvoice, fishspeech, qwen3tts, bark, parler, …'}
+            />
+            <button
+              type="button"
+              onClick={() => saveTaskChain(key)}
+              disabled={chainsSaving === key}
+              className="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-indigo-500/15 text-indigo-500 hover:bg-indigo-500/25 disabled:opacity-50 flex items-center gap-1.5">
+              {chainsSaving === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              Save chain
+            </button>
+          </div>
+        ))}
+        {chainsNotice && (
+          <span className={`text-[11px] ${chainsNotice.ok ? 'text-emerald-500' : 'text-rose-500'}`}>
+            {chainsNotice.text}
+          </span>
+        )}
       </section>
 
       {/* TTS tuning: edge-tts per-attempt synth timeout + failure cooldown.

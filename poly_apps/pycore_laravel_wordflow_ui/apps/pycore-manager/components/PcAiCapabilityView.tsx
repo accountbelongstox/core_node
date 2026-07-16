@@ -28,11 +28,12 @@ import type {
   AiProvider, AiProviderRate, AiKeySlot,
   SystemResourcesResponse, SystemInfo,
 } from '../../../core/api-libs/pycore';
-import { usePcCapability } from '../PcCapabilityContext';
-import { PcPipelineStatusPanels, PcFreeLibrariesPanel } from './PcPipelineStatusPanels';
+import { usePycoreCapability } from '../../../core/api-libs/pycore';
+import { PcPipelineStatusPanels } from './PcPipelineStatusPanels';
 import { PcRecordsPanel } from './PcRecordsPanel';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
 import { PcCollapse, PcImageLightbox } from './PcAiShared';
+import { usePcTestPopup } from './PcTestPopupContext';
 
 const LOG_SRC = 'pc-ai-capability';
 
@@ -289,7 +290,6 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
   const [error, setError] = useState<string | null>(null);
   const [unreachable, setUnreachable] = useState(false);
   const [testingAll, setTestingAll] = useState(false);
-  const [testing, setTesting] = useState<Set<string>>(new Set());
   const [imageTesting, setImageTesting] = useState<Set<string>>(new Set());
   const [resetting, setResetting] = useState<Record<string, Set<string>>>({});
   const [notice, setNotice] = useState<string | null>(null);
@@ -298,7 +298,8 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
   const [sortDir, setSortDir] = useState<ProviderSortDir>('asc');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  const { caps, retry: retryCapabilityStatus, refreshing: capabilityRefreshing } = usePcCapability();
+  const { caps, retry: retryCapabilityStatus, refreshing: capabilityRefreshing } = usePycoreCapability();
+  const { openTest } = usePcTestPopup();
 
   const [res, setRes] = useState<SystemResourcesResponse | null>(null);
   const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null);
@@ -394,20 +395,6 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
       return merged;
     });
   }, []);
-
-  const testOne = useCallback(async (name: string) => {
-    setTesting((s) => { const n = new Set(s); n.add(name); return n; });
-    try {
-      const rec = await pycoreApi.probeAiOne(name);
-      if (rec && rec.name) {
-        mergeProvider(rec);
-        appendProviderTestLogs([rec]);
-      }
-    } catch { /* keep last */ }
-    finally {
-      setTesting((s) => { const n = new Set(s); n.delete(name); return n; });
-    }
-  }, [mergeProvider]);
 
   const testAll = useCallback(async () => {
     setTestingAll(true);
@@ -724,7 +711,6 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mt-3">
             {list.map((p) => {
-              const busy = testing.has(p.name);
               const imgBusy = imageTesting.has(p.name);
               const isOpen = expanded.has(p.name);
               return (
@@ -808,8 +794,8 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
                   {/* action row: availability test + image test */}
                   <div className="px-4 pb-4 pt-1 mt-auto flex flex-wrap items-center gap-2">
                     <button
-                      onClick={() => testOne(p.name)}
-                      disabled={busy || testingAll || !p.configured}
+                      onClick={() => openTest('ai', p.name)}
+                      disabled={testingAll || !p.configured}
                       title={p.configured
                         ? (p.tested ? t('aiStatus.retestTitle') : t('aiStatus.testTitle'))
                         : t('aiStatus.noKeyConfigured')}
@@ -820,8 +806,8 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
                             ? 'bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25'
                             : 'pc-glass hover:bg-indigo-500/10 text-indigo-500'
                       }`}>
-                      {busy ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
-                      {busy ? t('common.testing') : p.tested ? t('common.retest') : t('common.test')}
+                      <Activity className="w-3.5 h-3.5" />
+                      {p.tested ? t('common.retest') : t('common.test')}
                     </button>
                     {p.image && (
                       <button
@@ -860,15 +846,6 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
           </button>
         </div>
         <PcPipelineStatusPanels variant="status" />
-      </section>
-
-      {/* ===================== Free libraries ===================== */}
-      <section className="pc-glass p-5">
-        <h2 className="text-sm font-bold flex items-center gap-2 text-slate-700 dark:text-slate-200 mb-1">
-          <ScanText className="w-4 h-4 text-indigo-500" /> {t('aiStatus.freeLibraries')}
-        </h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">{t('aiStatus.freeLibrariesHint')}</p>
-        <PcFreeLibrariesPanel />
       </section>
 
       {/* ===================== Constants & static directories ===================== */}

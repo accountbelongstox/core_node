@@ -38,6 +38,19 @@ from pycore.pyctl.ai.ai_rate_limits import check_rate_limit, record_request, cha
 from pycore.pyctl.ai.ai_compat_helpers import chat_openai_compat, chat_cloudflare, chat_spark
 from pycore.pyctl.ai.ai_usage_log import record_usage
 
+from pycore.pyutils.ai_cluster.openrouter.openrouter_client import OpenRouterClient
+from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient
+from pycore.pyutils.ai_cluster.deepseek import get_deepseek_client
+from pycore.pyutils.ai_cluster.groq.groq_client import GroqClient
+from pycore.pyutils.ai_cluster.mistral.mistral_client import MistralClient
+from pycore.pyutils.ai_cluster.cohere.cohere_client import CohereClient
+from pycore.pyutils.ai_cluster.nvidia.nvidia_client import NVIDIAClient
+from pycore.pyutils.ai_cluster.huggingface.hf_client import HuggingFaceClient
+from pycore.pyutils.ai_cluster.cerebras.cerebras_client import CerebrasClient
+from pycore.pyutils.ai_cluster.github.github_client import GitHubModelsClient
+from pycore.pyutils.ai_cluster.zhipuai.zhipuai_client import ZhipuAIClient
+
+
 _VALID_ROLES = ("system", "user", "assistant")
 
 
@@ -90,7 +103,6 @@ def _openrouter_first_model(key: str) -> Optional[str]:
     sends a probed model (fast path); this is only used when a caller omits one.
     """
     try:
-        from pycore.pyfoundations.third_party import get_third_package_requests
         requests = get_third_package_requests()
         resp = requests.get(
             "https://openrouter.ai/api/v1/models",
@@ -101,6 +113,10 @@ def _openrouter_first_model(key: str) -> Optional[str]:
         data = resp.json().get("data", [])
         for m in data:
             mid = m.get("id", "")
+            if mid == "openrouter/free":
+                return mid
+        for m in data:
+            mid = m.get("id", "")
             if mid.endswith(":free"):
                 return mid
         return data[0].get("id") if data else None
@@ -109,7 +125,6 @@ def _openrouter_first_model(key: str) -> Optional[str]:
 
 
 def _chat_openrouter(messages, model, key, out):
-    from pycore.pyutils.ai_cluster.openrouter.openrouter_client import OpenRouterClient
     client = OpenRouterClient(api_key=key)
     if not model:
         model = _openrouter_first_model(key) or default_model("openrouter")
@@ -127,7 +142,6 @@ def _chat_openrouter(messages, model, key, out):
 
 
 def _chat_gemini(messages, model, key, out):
-    from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient
     model = model or default_model("gemini")
     out["model"] = model
     client = GeminiClient(api_key=key, default_model=model)
@@ -141,7 +155,6 @@ def _chat_gemini(messages, model, key, out):
 
 
 def _chat_deepseek(messages, model, key, out):
-    from pycore.pyutils.ai_cluster.deepseek import get_deepseek_client
     model = model or default_model("deepseek")
     out["model"] = model
     client = get_deepseek_client(api_key=key)
@@ -213,7 +226,6 @@ def _chat_anthropic(messages, model, key, out):
 
 def _chat_groq(messages, model, key, out):
     """Groq via its OpenAI-compatible API."""
-    from pycore.pyutils.ai_cluster.groq.groq_client import GroqClient
     model = model or default_model("groq")
     out["model"] = model
     client = GroqClient(api_key=key, default_model=model)
@@ -228,7 +240,6 @@ def _chat_groq(messages, model, key, out):
 
 def _chat_mistral(messages, model, key, out):
     """Mistral AI via its chat completions API."""
-    from pycore.pyutils.ai_cluster.mistral.mistral_client import MistralClient
     model = model or default_model("mistral")
     out["model"] = model
     client = MistralClient(api_key=key, default_model=model)
@@ -243,7 +254,6 @@ def _chat_mistral(messages, model, key, out):
 
 def _chat_cohere(messages, model, key, out):
     """Cohere via its chat API."""
-    from pycore.pyutils.ai_cluster.cohere.cohere_client import CohereClient
     model = model or default_model("cohere")
     out["model"] = model
     client = CohereClient(api_key=key, default_model=model)
@@ -258,7 +268,6 @@ def _chat_cohere(messages, model, key, out):
 
 def _chat_nvidia(messages, model, key, out):
     """NVIDIA NIM via its OpenAI-compatible API."""
-    from pycore.pyutils.ai_cluster.nvidia.nvidia_client import NVIDIAClient
     model = model or default_model("nvidia")
     out["model"] = model
     client = NVIDIAClient(api_key=key, default_model=model)
@@ -273,7 +282,6 @@ def _chat_nvidia(messages, model, key, out):
 
 def _chat_huggingface(messages, model, key, out):
     """HuggingFace Inference API via its client."""
-    from pycore.pyutils.ai_cluster.huggingface.hf_client import HuggingFaceClient
     model = model or default_model("huggingface")
     out["model"] = model
     client = HuggingFaceClient(api_key=key, default_model=model)
@@ -287,7 +295,6 @@ def _chat_huggingface(messages, model, key, out):
 
 
 def _chat_cerebras(messages, model, key, out):
-    from pycore.pyutils.ai_cluster.cerebras.cerebras_client import CerebrasClient
     model = model or default_model("cerebras")
     out["model"] = model
     client = CerebrasClient(api_key=key, default_model=model)
@@ -301,7 +308,6 @@ def _chat_cerebras(messages, model, key, out):
 
 
 def _chat_github(messages, model, key, out):
-    from pycore.pyutils.ai_cluster.github.github_client import GitHubModelsClient
     model = model or default_model("github")
     out["model"] = model
     client = GitHubModelsClient(api_key=key, default_model=model)
@@ -316,7 +322,6 @@ def _chat_github(messages, model, key, out):
 
 def _chat_zhipuai(messages, model, key, out):
     """Zhipu AI (BigModel.cn) via its OpenAI-compatible API."""
-    from pycore.pyutils.ai_cluster.zhipuai.zhipuai_client import ZhipuAIClient
     model = model or default_model("zhipuai")
     out["model"] = model
     client = ZhipuAIClient(api_key=key, default_model=model)

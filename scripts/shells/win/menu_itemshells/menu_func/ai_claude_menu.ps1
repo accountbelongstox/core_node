@@ -46,11 +46,11 @@ function Get-ClaudeConfig {
                 InputType = "Token"
             },
             @{
-                Name = "ANTHROPIC_API_KEY"
-                DisplayName = "ANTHROPIC_API_KEY"
-                Description = "Claude AI API key (alternative to ANTHROPIC_AUTH_TOKEN)"
-                IsSecret = $true
-                InputType = "Token"
+                Name = "ANTHROPIC_MODEL"
+                DisplayName = "ANTHROPIC_MODEL"
+                Description = "Default model (optional, e.g. claude-opus-4-8)"
+                IsSecret = $false
+                InputType = "Text"
             }
         )
     }

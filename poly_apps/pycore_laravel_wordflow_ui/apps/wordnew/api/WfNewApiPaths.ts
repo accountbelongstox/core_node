@@ -65,6 +65,21 @@ export const WfNewApiPaths = {
   /** Preset-avatar gallery — NOTE: no backend route exists yet; the http impl
    *  probes this and falls back to the built-in set on any non-2xx. */
   avatarPresets: p('/user/avatar/presets'),
+  /** Book reading progress — GET list / GET one / POST save (auth:sanctum). */
+  userBookProgressList: (limit = 100): string => p(`/user/book-progress?limit=${limit}`),
+  userBookProgress: (sourceKey: string): string =>
+    p(`/user/book-progress/${encodeURIComponent(sourceKey)}`),
+
+  /** Guest device settings (PUBLIC) — browser fingerprint client_key. */
+  clientDeviceSettings: (clientKey: string): string =>
+    p(`/client/device-settings?client_key=${encodeURIComponent(clientKey)}`),
+  clientDeviceSettingsSave: p('/client/device-settings'),
+
+  // ---- Sentence audio (book reader on-demand TTS) ----
+  sentenceAudioBump: p('/ai_tools/tts/sentence/bump'),
+  sentenceAudio: (text: string, language: string, variantKey?: string): string =>
+    p(`/ai_tools/tts/sentence/audio?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}${
+      variantKey ? `&variant_key=${encodeURIComponent(variantKey)}` : ''}`),
 
   // ---- Learning languages (AppQyV1Learning.php — prefix app_qy_v1/learning, sanctum) ----
   /** GET native + learning_languages / POST to update them. */
@@ -135,6 +150,11 @@ export const WfNewApiPaths = {
   wordMedia: (lang: string, word: string, accent?: string): string =>
     p(`/word/${encodeURIComponent(lang)}/${encodeURIComponent(word)}/media${
       accent ? `?accent=${encodeURIComponent(accent)}` : ''}`),
+
+  /** Upload FE-generated word audio (Puter.js) for persistence (POST).
+   *  Body: { md5, lang, audio_base64, provider?, accent? }.
+   *  Laravel stores via AppQyV1DictionaryTTSCoordinator::storeWordAudioBytes. */
+  wordAudioUpload: p('/word/audio/upload'),
 
   // ---- Dictionary words (AppQyV1Vocabulary.php — paginated, PUBLIC) ----
   /** Paginated dictionary words with audio + translation for the word-stats sidebar.
@@ -266,6 +286,10 @@ export const WfNewApiPaths = {
     return p(`/social/live/${liveId}/chat${qs ? `?${qs}` : ''}`);
   },
   socialLiveChatSend: (liveId: number): string => p(`/social/live/${liveId}/chat`),
+
+  // ---- Vocabulary group membership (AppQyV1Dict.php — auth:sanctum) ----
+  /** Add a vocabulary library to a word group (POST {gid, library_id}). */
+  groupAddLibrary: p('/group/add_library'),
 } as const;
 
 /**
@@ -347,10 +371,22 @@ export const WfNewAdminPaths = {
   /** POST /ai_tools/tts/sentence/bump */
   sentenceAudioBump: p('/ai_tools/tts/sentence/bump'),
   /** GET /ai_tools/tts/sentence/audio — file-first sentence audio resolve. */
-  sentenceAudio: (text: string, language: string): string =>
-    p(`/ai_tools/tts/sentence/audio?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}`),
+  sentenceAudio: (text: string, language: string, variantKey?: string): string =>
+    p(`/ai_tools/tts/sentence/audio?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}${
+      variantKey ? `&variant_key=${encodeURIComponent(variantKey)}` : ''}`),
 
   ttsQueueStats: p('/ai_tools/tts/queue/stats'),
+  /** Assist/worker queue overview (pycore + chrome lanes). */
+  assistOverview: (fresh = false): string =>
+    p(`/assist/overview${fresh ? '?fresh=1' : ''}`),
+  assistOverviewItems: (opts: { category: string; status?: string; start?: number; limit?: number }): string => {
+    const params = new URLSearchParams();
+    params.set('category', opts.category);
+    if (opts.status) params.set('status', opts.status);
+    params.set('start', String(opts.start ?? 0));
+    params.set('limit', String(opts.limit ?? 50));
+    return p(`/assist/overview/items?${params.toString()}`);
+  },
   /** Paginated TTS queue items: ?status=&type=&start=&limit=. */
   ttsQueueItems: (opts: { status?: string; type?: string; start?: number; limit?: number } = {}): string => {
     const params = new URLSearchParams();
@@ -372,3 +408,4 @@ export const WfNewAdminPaths = {
   translationTranslate: p('/ai_tools/translation/translate'),
   ttsGenerate: p('/ai_tools/tts/generate'),
 } as const;
+

@@ -41,7 +41,8 @@ SHARED_CACHE_DIR="$SHARED_CACHE_DATA_ROOT/cache"
 for __scc_d in "$SHARED_CACHE_DATA_ROOT" "$SHARED_CACHE_DIR" \
                "$SHARED_CACHE_DIR/huggingface/hub" "$SHARED_CACHE_DIR/torch" \
                "$SHARED_CACHE_DIR/pip" "$SHARED_CACHE_DIR/xdg" \
-               "$SHARED_CACHE_DIR/stt" "$SHARED_CACHE_DIR/tts" "$SHARED_CACHE_DIR/ocr"; do
+               "$SHARED_CACHE_DIR/stt" "$SHARED_CACHE_DIR/tts" "$SHARED_CACHE_DIR/ocr" \
+               "$SHARED_CACHE_DIR/pycore"; do
     [ -d "$__scc_d" ] && continue
     mkdir -p "$__scc_d" 2>/dev/null \
         || { command -v sudo >/dev/null 2>&1 && sudo -n mkdir -p "$__scc_d" 2>/dev/null; } || true
@@ -54,18 +55,20 @@ if [ -w "$SHARED_CACHE_DIR" ]; then
     export CORE_NODE_CACHE_DIR="$SHARED_CACHE_DIR"
 
     # HuggingFace Hub (transformers / faster-whisper / MeloTTS / GPT-SoVITS / deepseek /
-    # qwen / nllb all cache models here). HF_HOME is the modern single knob; the *_CACHE
-    # aliases keep older library versions in line.
+    # qwen / nllb all cache models here). HF_HOME is the single knob (transformers v5).
     : "${HF_HOME:=$SHARED_CACHE_DIR/huggingface}";                export HF_HOME
     : "${HF_HUB_CACHE:=$SHARED_CACHE_DIR/huggingface/hub}";       export HF_HUB_CACHE
     : "${HUGGINGFACE_HUB_CACHE:=$SHARED_CACHE_DIR/huggingface/hub}"; export HUGGINGFACE_HUB_CACHE
-    : "${TRANSFORMERS_CACHE:=$SHARED_CACHE_DIR/huggingface/hub}";  export TRANSFORMERS_CACHE
+    if [ "${TRANSFORMERS_CACHE:-}" = "$SHARED_CACHE_DIR/huggingface/hub" ]; then
+        unset TRANSFORMERS_CACHE
+    fi
 
     # PyTorch hub weights, pip wheel cache, and the generic XDG cache (openai-whisper
     # stores its models under $XDG_CACHE_HOME/whisper).
     : "${TORCH_HOME:=$SHARED_CACHE_DIR/torch}";  export TORCH_HOME
     : "${PIP_CACHE_DIR:=$SHARED_CACHE_DIR/pip}"; export PIP_CACHE_DIR
     : "${XDG_CACHE_HOME:=$SHARED_CACHE_DIR/xdg}"; export XDG_CACHE_HOME
+    : "${PYCORE_LOCAL_DATA_DIR:=$SHARED_CACHE_DIR/pycore}"; export PYCORE_LOCAL_DATA_DIR
 fi
 
 unset __scc_d 2>/dev/null || true

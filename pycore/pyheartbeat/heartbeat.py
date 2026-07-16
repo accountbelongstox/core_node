@@ -195,17 +195,27 @@ class HeartbeatPusher(threading.Thread):
                 del self._callbacks[name]
                 ColorPrint.blue(f"[Heartbeat] Unregistered callback: {name}")
 
-    def enable_callback(self, name: str):
-        """Enable a callback"""
+    def enable_callback(self, name: str) -> bool:
+        """Enable a callback. Returns False when the name is not registered."""
         with self._callbacks_lock:
             if name in self._callbacks:
                 self._callbacks[name].enabled = True
+                return True
+            return False
 
-    def disable_callback(self, name: str):
-        """Disable a callback"""
+    def disable_callback(self, name: str) -> bool:
+        """Disable a callback. Returns False when the name is not registered."""
         with self._callbacks_lock:
             if name in self._callbacks:
                 self._callbacks[name].enabled = False
+                return True
+            return False
+
+    def is_callback_enabled(self, name: str) -> bool:
+        """Return live enabled flag for a registered callback."""
+        with self._callbacks_lock:
+            info = self._callbacks.get(name)
+            return bool(info.enabled) if info is not None else False
 
     def run(self):
         """
@@ -512,15 +522,23 @@ class HeartbeatSystem:
         if self._heartbeat_pusher:
             self._heartbeat_pusher.unregister_callback(name)
 
-    def enable_callback(self, name: str):
-        """Enable a callback"""
+    def enable_callback(self, name: str) -> bool:
+        """Enable a callback. Returns False when the name is not registered."""
         if self._heartbeat_pusher:
-            self._heartbeat_pusher.enable_callback(name)
+            return self._heartbeat_pusher.enable_callback(name)
+        return False
 
-    def disable_callback(self, name: str):
-        """Disable a callback"""
+    def disable_callback(self, name: str) -> bool:
+        """Disable a callback. Returns False when the name is not registered."""
         if self._heartbeat_pusher:
-            self._heartbeat_pusher.disable_callback(name)
+            return self._heartbeat_pusher.disable_callback(name)
+        return False
+
+    def is_callback_enabled(self, name: str) -> bool:
+        """Return live enabled flag for a registered callback."""
+        if self._heartbeat_pusher:
+            return self._heartbeat_pusher.is_callback_enabled(name)
+        return False
 
     def get_stats(self) -> dict:
         """Get comprehensive system statistics"""

@@ -31,6 +31,7 @@ class AppQyV1LangDictionaryModel extends Model
         'us_phonetic',
         'uk_phonetic',
         'tts_files',
+        'audio_files',
         'tts_provider',
         'has_audio',
         'image_files',
@@ -72,6 +73,7 @@ class AppQyV1LangDictionaryModel extends Model
     protected $casts = [
         'translations' => 'json',
         'tts_files' => 'json',
+        'audio_files' => 'json',
         'image_files' => 'json',
         'word_details' => 'json',
         'bing_resource_urls' => 'json',

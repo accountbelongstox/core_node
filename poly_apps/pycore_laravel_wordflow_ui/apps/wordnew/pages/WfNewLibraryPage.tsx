@@ -1,32 +1,44 @@
 /**
- * WfNewLibraryPage — the dedicated word-browser for ONE public vocabulary library
- * (e.g. "English Coca 60000"). Opened by clicking a library card on the home hub
- * (NOT the generic shelf). The route is fully reflected in the URL hash:
+ * WfNewLibraryPage - the dedicated word-browser for ONE public vocabulary library
+ * (e.g. "English Coca 60000"). Opened by clicking a library card on the home hub.
+ * The route is fully reflected in the URL hash:
  *
  *   #/library/<libraryId>?page=<n>&view=<dash|table>
  *
- * so a refresh / deep-link keeps the exact library, page and view. The parent
- * (WfNewApp) owns that route state and passes it in + change callbacks; this page
- * is otherwise self-contained (fetches its own paginated words from the backend).
- *
- * Layout:
- *   - a COLLAPSIBLE stats dashboard at the top (total / translated / audio / image),
- *   - the WORD TABLE shown by default, which can EXPAND TO FULLSCREEN,
- *   - per-row: play audio, expand definition/explanation, show images,
- *   - up / down (prev / next) pagination driven by the backend page meta.
- *
- * Static files (word images, audio) are already resolved to absolute URLs by the
- * HTTP api layer (absUrl), so the table renders them directly.
+ * Audio parity with the book reader (WfNewBookReader):
+ *   - three-state icons (queued / processing / ready) via ttsStatusToCellState,
+ *   - priority bump on visible/click (bumpSentenceAudioImmediate + wait),
+ *   - click row plays it through WfLibraryPlayback (playFrom re-roots current),
+ *   - play-all top-to-bottom with auto-advance,
+ *   - auto-scroll active word to upper-middle; manual scroll pauses it 2.5s,
+ *   - multi-audio variant picker when >1 ready variant.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
-  Maximize2, Minimize2, Play, Pause, Image as ImageIcon, BookOpen, Volume2, Languages,
+  Maximize2, Minimize2, Play, Pause, Square, Zap,
 } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
-import type { WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordMedia } from '../api';
-import { wfNewApi } from '../api';
-import { WfNewLoadingDots } from '../components/WfNewLoadingDots';
+import {
+  wfNewApi,
+  type WfNewLibraryWord,
+  type WfNewLibraryWordsPage,
+  type WfNewWordMedia,
+} from '../api';
+import { wfNewSettings } from '../WfNewSettingsStore';
+import { WfLibraryPlayback } from '../services/WfLibraryPlayback';
+import {
+  bumpSentenceAudioImmediate,
+  requestSentenceAudio,
+  resetSentenceAudioScheduler,
+  waitForSentenceAudioUrl,
+} from '../services/WfBookReaderSentenceAudio';
+import { ttsStatusToCellState, type WfAudioCellState } from '../utils/WfAudioCellState';
+import { pickSentenceAudioUrl, readerPreferredAccent } from '../utils/WfSentenceAudioPick';
+import { buildWordCell } from '../utils/WfLibraryWordCell';
+import { WfLibraryWordRow, wordRowKey } from '../components/library/WfLibraryWordRow';
+import { useLibraryPuterAudio } from '../hooks/useLibraryPuterAudio';
+import { pycoreApi } from '../../../core/api-libs/pycore';
 
 type LibraryView = 'dash' | 'table';
 
@@ -45,6 +57,7 @@ interface WfNewLibraryPageProps {
 }
 
 const DEFAULT_PER_PAGE = 100;
+const EMPTY_WORDS: WfNewLibraryWord[] = [];
 
 export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
   libraryId,
@@ -63,35 +76,72 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [usePuterAudio, setUsePuterAudio] = useState<boolean>(() => wfNewSettings.get('usePuterAudio'));
+  useEffect(() => { wfNewSettings.setField('usePuterAudio', usePuterAudio); }, [usePuterAudio]);
+  // Per-word priority-boost tracking: md5 → 'idle'|'boosting'|'done'
+  const [boostStatus, setBoostStatus] = useState<Record<string, 'idle' | 'boosting' | 'done'>>({});
 
-  // Single shared <audio> element for row playback (no overlapping clips).
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [playingIndex, setPlayingIndex] = useState<number | null>(null);
+  const onBoostPriority = useCallback(async (w: WfNewLibraryWord, lang: string) => {
+    const md5 = w.md5 || `${w.index}-${w.word}`;
+    if (boostStatus[md5] === 'boosting') return;
+    setBoostStatus((prev) => ({ ...prev, [md5]: 'boosting' }));
+    try {
+      await pycoreApi.boostWordAudioPriority(md5, lang);
+      setBoostStatus((prev) => ({ ...prev, [md5]: 'done' }));
+    } catch {
+      setBoostStatus((prev) => ({ ...prev, [md5]: 'idle' }));
+    }
+  }, [boostStatus]);
 
   // ---- On-demand word media (image/audio) --------------------------------- //
   // For a row whose image/audio is missing we call getWordMedia(lang, word) ONCE
-  // — that READS current media AND tells the backend to enqueue+prioritize the
-  // missing files. While the resolve reports 'pending' we keep a flashing loader
-  // and poll a few times until it flips to 'ready', then overlay the urls.
-  // Keyed by md5 so each word is requested at most once (guarded by requestedMd5).
+  // - that READS current media AND tells the backend to enqueue+prioritize the
+  // missing files. Polled a few times until ready, then overlaid on the row.
   const [mediaByMd5, setMediaByMd5] = useState<Record<string, WfNewWordMedia>>({});
   const requestedMd5 = useRef<Set<string>>(new Set());
-  // Active poll timers, so we can cancel them on page change / unmount.
   const pollTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
+  // ---- Playback (parity with WfNewBookReader) ----------------------------- //
+  const [playingKey, setPlayingKey] = useState<string | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [activeWord, setActiveWord] = useState<WfNewLibraryWord | null>(null);
+  const [cellStatuses, setCellStatuses] = useState<Record<string, WfAudioCellState>>({});
+  const [variantByKey, setVariantByKey] = useState<Record<string, string>>({});
+
+  const wordsRef = useRef<WfNewLibraryWord[]>([]);
+  const langRef = useRef('english');
+  const variantByKeyRef = useRef<Record<string, string>>({});
+  const mediaByMd5Ref = useRef<Record<string, WfNewWordMedia>>({});
+  const requestedWordKeys = useRef<Set<string>>(new Set());
+  const playbackRef = useRef<WfLibraryPlayback | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollPausedUntil = useRef(0);
+  const userPickedWord = useRef(false);
+
+  const libName = data?.library?.name || title || libraryId;
+  const libLang = data?.library?.language || language || 'english';
+  langRef.current = libLang;
+  const stats = data?.stats;
+  const pg = data?.pagination;
+  const lastPage = pg?.lastPage ?? 1;
+  const currentPage = pg?.currentPage ?? page;
+
+  const wordRows = data?.words ?? EMPTY_WORDS;
+  useEffect(() => { wordsRef.current = wordRows; }, [wordRows]);
+  useEffect(() => { variantByKeyRef.current = variantByKey; }, [variantByKey]);
+  useEffect(() => { mediaByMd5Ref.current = mediaByMd5; }, [mediaByMd5]);
 
   /**
    * Resolve (+enqueue) media for one word, then poll up to `maxTries` times every
-   * ~4s until both image & audio are ready (or tries run out). One in-flight chain
-   * per md5; guarded by requestedMd5 so a re-expand never re-fires.
+   * ~4s until both image & audio are ready. One in-flight chain per md5.
    */
   const requestWordMedia = useCallback((w: WfNewLibraryWord, lang: string) => {
     const md5 = w.md5 || `${w.index}-${w.word}`;
     if (requestedMd5.current.has(md5)) return;
     requestedMd5.current.add(md5);
-
     const maxTries = 3;
     const intervalMs = 4000;
-
     const attempt = (tries: number): void => {
       wfNewApi
         .getWordMedia(lang, w.word)
@@ -106,18 +156,130 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
             pollTimers.current.add(t);
           }
         })
-        .catch(() => {
-          // Allow a later re-expand to retry after a transient failure.
-          requestedMd5.current.delete(md5);
-        });
+        .catch(() => { requestedMd5.current.delete(md5); });
     };
     attempt(1);
   }, []);
 
-  // Cancel any in-flight polls + reset request guards when the page payload changes.
+  const setCellStatus = useCallback((key: string, state: WfAudioCellState) => {
+    setCellStatuses((prev) => (prev[key] === state ? prev : { ...prev, [key]: state }));
+  }, []);
+
+  /** A Puter-synthesized clip landed: flip the word to hasAudio + a playable
+   *  blob URL and mark its cell ready so the row icon updates immediately. */
+  const onPuterAudioReady = useCallback((md5: string, audioUrl: string) => {
+    const lang = langRef.current;
+    setData((prev) => {
+      if (!prev) return prev;
+      let bumped = false;
+      const nextWords = prev.words.map((w) => {
+        if (w.md5 === md5) {
+          if (!w.hasAudio) bumped = true;
+          return { ...w, hasAudio: true, audioUrl };
+        }
+        return w;
+      });
+      return {
+        ...prev,
+        words: nextWords,
+        stats: bumped ? { ...prev.stats, withAudio: prev.stats.withAudio + 1 } : prev.stats,
+      };
+    });
+    setCellStatus(`${md5}:${lang}`, 'ready');
+  }, [setCellStatus]);
+
+  /** Queued (non-urgent) resolve/bump for a word missing audio - drives the
+   *  three-state icon from the sentence-audio scheduler. */
+  const requestWordAudio = useCallback((w: WfNewLibraryWord, lang: string) => {
+    const text = w.word?.trim();
+    if (!text) return;
+    const key = wordRowKey(w, lang);
+    if (requestedWordKeys.current.has(key)) return;
+    requestedWordKeys.current.add(key);
+    setCellStatus(key, 'queued');
+    requestSentenceAudio(text, lang, {
+      onStatus: ({ exists, queued, tts_status }) => {
+        setCellStatus(key, ttsStatusToCellState(exists, tts_status, queued));
+      },
+      onReady: () => setCellStatus(key, 'ready'),
+      onSettled: (url) => { if (!url) requestedWordKeys.current.delete(key); },
+    });
+  }, [setCellStatus]);
+
+  /** Urgent re-bump + wait (icon click on a missing/queued word). */
+  const retryWordAudio = useCallback((w: WfNewLibraryWord) => {
+    const text = w.word?.trim();
+    if (!text) return;
+    const lang = langRef.current;
+    const key = wordRowKey(w, lang);
+    const variantKey = variantByKeyRef.current[key];
+    requestedWordKeys.current.add(key);
+    setCellStatus(key, 'queued');
+    void bumpSentenceAudioImmediate(text, lang, variantKey);
+    void waitForSentenceAudioUrl(text, lang, {
+      urgent: true,
+      variantKey: variantKey || undefined,
+      onStatus: ({ exists, queued, tts_status }) => {
+        setCellStatus(key, ttsStatusToCellState(exists, tts_status, queued));
+      },
+      onReady: () => setCellStatus(key, 'ready'),
+      onSettled: (url) => { if (!url) requestedWordKeys.current.delete(key); },
+    });
+  }, [setCellStatus]);
+
+  /** Resolve an absolute MP3 url for a word (playback). Pick from ready
+   *  variants first; else poll the sentence-audio scheduler. Stable callback
+   *  (reads media/variant via refs) so the playback engine is not rebuilt. */
+  const resolveAudioUrl = useCallback(async (
+    w: WfNewLibraryWord,
+    shouldContinue?: () => boolean,
+  ): Promise<string | null> => {
+    const lang = langRef.current;
+    const key = wordRowKey(w, lang);
+    const variantKey = variantByKeyRef.current[key];
+    const preferredAccent = readerPreferredAccent(wfNewSettings.get('voiceAccent'));
+    const resolved = mediaByMd5Ref.current[w.md5 || `${w.index}-${w.word}`];
+    const cell = buildWordCell(w, resolved);
+    const picked = pickSentenceAudioUrl(cell, { variantKey, preferredAccent });
+    if (picked.url) return picked.url;
+    const text = w.word?.trim();
+    if (!text) return null;
+    return waitForSentenceAudioUrl(text, lang, {
+      urgent: true,
+      shouldContinue,
+      variantKey: variantKey || undefined,
+      onReady: () => setCellStatus(key, 'ready'),
+    });
+  }, [setCellStatus]);
+
+  // Build the playback engine once; deps read latest via refs.
+  useEffect(() => {
+    playbackRef.current = new WfLibraryPlayback({
+      getWords: () => wordsRef.current,
+      getLang: () => langRef.current,
+      autoAdvance: () => true,
+      onPlayingKey: setPlayingKey,
+      onPlaying: setPlaying,
+      onPaused: setPaused,
+      onWordActive: setActiveWord,
+      resolveAudioUrl,
+      bumpMissingAudio: (w, lang) => {
+        const key = wordRowKey(w, lang);
+        const variantKey = variantByKeyRef.current[key];
+        void bumpSentenceAudioImmediate(w.word, lang, variantKey);
+      },
+    });
+    return () => { playbackRef.current?.stop(); };
+  }, [resolveAudioUrl]);
+
+  // Cancel polls + reset request guards when the page payload changes.
   useEffect(() => {
     requestedMd5.current = new Set();
+    requestedWordKeys.current = new Set();
     setMediaByMd5({});
+    setCellStatuses({});
+    resetSentenceAudioScheduler();
+    playbackRef.current?.stop();
     const timers = pollTimers.current;
     return () => {
       timers.forEach((t) => clearTimeout(t));
@@ -133,65 +295,64 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     setExpanded(new Set());
     wfNewApi
       .getLibraryWords(libraryId, { page, perPage })
-      .then((res) => {
-        if (!alive) return;
-        setData(res);
-      })
+      .then((res) => { if (alive) setData(res); })
       .catch((e) => {
         if (!alive) return;
         setError(e?.message ? String(e.message) : 'Failed to load library words.');
         setData(null);
       })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, [libraryId, page, perPage]);
 
-  // Stop any playback when the page changes / unmounts.
+  // Seed cell statuses from the page payload + queue resolve for missing audio.
   useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
+    if (!wordRows.length) return;
+    const next: Record<string, WfAudioCellState> = {};
+    for (const w of wordRows) {
+      const key = wordRowKey(w, libLang);
+      const cell = buildWordCell(w, mediaByMd5[w.md5 || `${w.index}-${w.word}`]);
+      if (cell.hasAudio) next[key] = 'ready';
+      else if (cell.ttsStatus === 'processing') next[key] = 'processing';
+      else if (cell.ttsStatus === 'pending') next[key] = 'queued';
+      else if (!cell.hasAudio) {
+        // No audio at all -> ask the scheduler to resolve/bump (queued).
+        requestWordAudio(w, libLang);
       }
-    };
+    }
+    if (Object.keys(next).length) setCellStatuses((prev) => ({ ...prev, ...next }));
+  }, [wordRows, libLang, mediaByMd5, requestWordAudio]);
+
+  // Auto-scroll the active word to upper-middle (~1/3 from top). Manual scroll
+  // pauses this for 2.5s; a user-picked playFrom resumes immediately.
+  useEffect(() => {
+    if (!activeWord) return;
+    if (!userPickedWord.current && Date.now() < scrollPausedUntil.current) return;
+    const container = scrollRef.current;
+    if (!container) return;
+    const el = container.querySelector(`#libword-${activeWord.md5 || activeWord.index}`) as HTMLElement | null;
+    if (!el) return;
+    container.scrollTo({ top: el.offsetTop - container.clientHeight / 3, behavior: 'smooth' });
+    userPickedWord.current = false;
+  }, [activeWord, playingKey]);
+
+  const onScrollUser = useCallback(() => {
+    scrollPausedUntil.current = Date.now() + 2500;
   }, []);
 
-  const libName = data?.library?.name || title || libraryId;
-  const libLang = data?.library?.language || language || 'english';
-  const stats = data?.stats;
-  const pg = data?.pagination;
-  const lastPage = pg?.lastPage ?? 1;
-  const currentPage = pg?.currentPage ?? page;
+  const onPlay = useCallback((w: WfNewLibraryWord) => {
+    userPickedWord.current = true;
+    scrollPausedUntil.current = 0;
+    void playbackRef.current?.playFrom(w);
+  }, []);
 
-  const togglePlay = useCallback((w: WfNewLibraryWord) => {
-    if (!w.audioUrl) return;
-    const el = audioRef.current;
-    if (playingIndex === w.index && el) {
-      el.pause();
-      setPlayingIndex(null);
-      return;
-    }
-    if (el) el.pause();
-    const next = new Audio(w.audioUrl);
-    audioRef.current = next;
-    next.onended = () => setPlayingIndex((p) => (p === w.index ? null : p));
-    next.onerror = () => setPlayingIndex((p) => (p === w.index ? null : p));
-    next.play().then(() => setPlayingIndex(w.index)).catch(() => setPlayingIndex(null));
-  }, [playingIndex]);
-
-  const toggleExpand = useCallback((w: WfNewLibraryWord) => {
+  const onToggleExpand = useCallback((w: WfNewLibraryWord) => {
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(w.index)) {
         next.delete(w.index);
       } else {
         next.add(w.index);
-        // On first expand, kick off media resolution (enqueue+prioritize) for a
-        // row that is still missing its image or audio.
         if (!w.hasImage || !w.hasAudio || w.images.length === 0 || !w.audioUrl) {
           requestWordMedia(w, libLang);
         }
@@ -200,11 +361,40 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     });
   }, [requestWordMedia, libLang]);
 
+  const onVariantSelect = useCallback((wordKey: string, variantKey: string) => {
+    setVariantByKey((prev) => ({ ...prev, [wordKey]: variantKey }));
+  }, []);
+
+  const playAll = useCallback(() => {
+    if (!wordRows.length) return;
+    userPickedWord.current = true;
+    scrollPausedUntil.current = 0;
+    void playbackRef.current?.playFrom(wordRows[0]);
+  }, [wordRows]);
+
+  const onPlayPause = useCallback(() => {
+    if (playing) playbackRef.current?.togglePause();
+    else if (activeWord) void playbackRef.current?.playFrom(activeWord);
+    else if (wordRows[0]) void playbackRef.current?.playFrom(wordRows[0]);
+  }, [playing, activeWord, wordRows]);
+
   const goTo = useCallback((p: number) => {
     const clamped = Math.max(1, Math.min(p, lastPage));
     if (clamped !== currentPage) onChangePage(clamped);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [lastPage, currentPage, onChangePage]);
+
+  // Auto-generate missing word audio via Puter.js (current page + next 3 pages).
+  useLibraryPuterAudio({
+    libraryId,
+    page,
+    perPage,
+    lastPage,
+    lang: libLang,
+    words: wordRows,
+    enabled: usePuterAudio,
+    onAudioReady: onPuterAudioReady,
+  });
 
   // ---- dashboard (collapsible) -------------------------------------------- //
   const dashOpen = view === 'dash';
@@ -215,19 +405,29 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     { key: 'image', label: trans('library.stat.image'), value: stats?.withImage ?? 0, tone: 'text-violet-300' },
   ]), [stats, data, trans]);
 
-  const wordRows = data?.words ?? [];
-
   const containerCls = fullscreen
     ? 'fixed inset-0 z-[200] bg-zinc-950/98 backdrop-blur-sm overflow-auto p-4 space-y-4'
     : 'space-y-4';
 
+  const activeKey = activeWord ? wordRowKey(activeWord, libLang) : null;
+  const listMaxHeight = fullscreen ? '70vh' : 'min(60vh, 560px)';
+
   return (
     <div className={containerCls}>
-      {/* Toolbar (no header text — page title lives in the global nav): view
-          toggle + fullscreen, kept right via the flex-1 spacer. */}
+      {/* Toolbar: view toggle + fullscreen (page title lives in the global nav). */}
       <div className="flex items-center gap-3 px-1">
         <div className="min-w-0 flex-1" />
-        {/* dash / table toggle */}
+        <button
+          type="button"
+          onClick={() => setUsePuterAudio((v) => !v)}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 transition"
+          title="Auto-generate missing word audio via Puter.js (current page + next 3 pages), saved to backend"
+        >
+          <span className={`relative inline-block w-7 h-3.5 rounded-full transition ${usePuterAudio ? 'bg-emerald-500/70' : 'bg-white/15'}`}>
+            <span className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all ${usePuterAudio ? 'left-4' : 'left-0.5'}`} />
+          </span>
+          <span className={usePuterAudio ? 'text-emerald-200' : 'text-zinc-400'}>Puter Audio</span>
+        </button>
         <div className="flex items-center rounded-lg border border-white/10 overflow-hidden">
           <button
             type="button"
@@ -304,7 +504,34 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
             <p className="text-[12px] font-mono text-zinc-500">{trans('content.empty')}</p>
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
+          <>
+            {/* Play-all bar */}
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-white/[0.02]">
+              <button
+                type="button"
+                onClick={onPlayPause}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-indigo-500/30 bg-indigo-500/15 text-indigo-200 hover:bg-indigo-500/25 transition"
+              >
+                {playing && !paused ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                {playing && !paused ? trans('content.pause') : trans('content.play')}
+              </button>
+              <button
+                type="button"
+                onClick={playAll}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition"
+              >
+                <Play className="w-3.5 h-3.5" /> {trans('library.playAll')}
+              </button>
+              {playing && (
+                <button
+                  type="button"
+                  onClick={() => playbackRef.current?.stop()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition"
+                >
+                  <Square className="w-3.5 h-3.5" /> {trans('content.stop')}
+                </button>
+              )}
+            </div>
             {/* column header */}
             <div className="hidden sm:grid grid-cols-[3rem_1fr_2fr_5rem] gap-3 px-4 py-2 bg-white/[0.03] text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-500">
               <span>#</span>
@@ -312,138 +539,65 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
               <span>{trans('library.col.meaning')}</span>
               <span className="text-right">{trans('library.col.actions')}</span>
             </div>
-            {wordRows.map((w) => {
-              const isOpen = expanded.has(w.index);
-              const isPlaying = playingIndex === w.index;
-              // Overlay any on-demand resolved media on top of the page payload.
-              const resolved = mediaByMd5[w.md5 || `${w.index}-${w.word}`];
-              const effAudioUrl = w.audioUrl ?? resolved?.audioUrl ?? null;
-              const effImages = w.images.length > 0
-                ? w.images
-                : (resolved?.imageUrl ? [resolved.imageUrl] : []);
-              const requested = requestedMd5.current.has(w.md5 || `${w.index}-${w.word}`);
-              // Pending = we've asked for it and it isn't ready yet (no url + not 'ready').
-              const audioPending = !effAudioUrl && requested && resolved?.audioStatus !== 'ready';
-              const imagePending = effImages.length === 0 && requested && resolved?.imageStatus !== 'ready';
-              return (
-                <div key={`${w.index}-${w.md5}`} className="px-4 py-2.5 hover:bg-white/[0.03] transition">
-                  <div className="grid grid-cols-[2rem_1fr_auto] sm:grid-cols-[3rem_1fr_2fr_5rem] gap-3 items-center">
-                    <span className="text-[11px] font-mono text-zinc-600">{w.index}</span>
-                    {/* word + phonetic */}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-100 truncate">{w.word}</span>
-                        {!w.isValid && (
-                          <span className="text-[9px] font-mono text-amber-500/80 border border-amber-500/30 rounded px-1">
-                            {trans('library.invalid')}
-                          </span>
-                        )}
-                      </div>
-                      {(w.phonetic || w.usPhonetic) && (
-                        <span className="text-[10px] font-mono text-zinc-500">/{w.phonetic || w.usPhonetic}/</span>
-                      )}
-                    </div>
-                    {/* meaning (truncated until expanded) */}
-                    <div className="hidden sm:block min-w-0">
-                      <p className={`text-[12px] text-zinc-300 ${isOpen ? '' : 'truncate'}`}>
-                        {w.translations.length > 0 ? w.translations.join('；') : (w.explanation || '—')}
-                      </p>
-                    </div>
-                    {/* actions */}
-                    <div className="flex items-center justify-end gap-1">
-                      {effAudioUrl ? (
-                        <button
-                          type="button"
-                          onClick={() => togglePlay({ ...w, audioUrl: effAudioUrl })}
-                          className={`p-1.5 rounded-lg border transition ${
-                            isPlaying
-                              ? 'border-sky-500/40 bg-sky-500/15 text-sky-300'
-                              : 'border-white/10 bg-white/5 hover:bg-white/10 text-zinc-400'
-                          }`}
-                          title={trans('library.play')}
-                        >
-                          {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                        </button>
-                      ) : audioPending ? (
-                        <span
-                          className="p-1.5 rounded-lg border border-sky-500/20 bg-sky-500/10 text-sky-300/80"
-                          title={trans('library.mediaPending')}
-                        >
-                          <WfNewLoadingDots className="text-sky-300/80" />
-                        </span>
-                      ) : null}
-                      {effImages.length > 0 ? (
-                        <span className="p-1.5 rounded-lg border border-violet-500/20 bg-violet-500/10 text-violet-300" title={trans('library.hasImage')}>
-                          <ImageIcon className="w-3.5 h-3.5" />
-                        </span>
-                      ) : imagePending ? (
-                        <span
-                          className="p-1.5 rounded-lg border border-violet-500/20 bg-violet-500/10 text-violet-300/80"
-                          title={trans('library.mediaPending')}
-                        >
-                          <WfNewLoadingDots className="text-violet-300/80" />
-                        </span>
-                      ) : null}
+            {/* Scrollable word list (scrollRef here for auto-scroll math). */}
+            <div
+              ref={scrollRef}
+              className="divide-y divide-white/5 overflow-y-auto relative"
+              style={{ maxHeight: listMaxHeight }}
+              onWheel={onScrollUser}
+              onTouchStart={onScrollUser}
+            >
+              {wordRows.map((w) => {
+                const md5 = w.md5 || `${w.index}-${w.word}`;
+                const resolved = mediaByMd5[md5];
+                const requested = requestedMd5.current.has(md5);
+                const effImages = w.images.length > 0
+                  ? w.images
+                  : (resolved?.imageUrl ? [resolved.imageUrl] : []);
+                const imagePending = effImages.length === 0 && requested && resolved?.imageStatus !== 'ready';
+                const bs = boostStatus[md5] || 'idle';
+                return (
+                  <div key={`${w.index}-${w.md5}`} className="relative group">
+                    <WfLibraryWordRow
+                      word={w}
+                      resolved={resolved}
+                      lang={libLang}
+                      open={expanded.has(w.index)}
+                      playingKey={playingKey}
+                      activeKey={activeKey}
+                      cellStatuses={cellStatuses}
+                      variantByKey={variantByKey}
+                      onVariantSelect={onVariantSelect}
+                      onPlay={onPlay}
+                      onRetry={retryWordAudio}
+                      onToggleExpand={onToggleExpand}
+                      trans={trans}
+                      requested={requested}
+                      imagePending={imagePending}
+                      effImages={effImages}
+                      theme={theme}
+                    />
+                    {/* Priority boost button — visible on hover, moves word to front of audio queue */}
+                    {!w.hasAudio && (
                       <button
                         type="button"
-                        onClick={() => toggleExpand(w)}
-                        className="p-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-400 transition"
-                        title={trans('library.detail')}
+                        title="Boost audio priority — move this word to the front of the batch queue"
+                        onClick={() => onBoostPriority(w, libLang)}
+                        disabled={bs === 'boosting'}
+                        className={`absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity
+                          p-1 rounded text-[10px] font-bold z-10
+                          ${bs === 'done' ? 'text-emerald-400 bg-emerald-900/40' :
+                            bs === 'boosting' ? 'text-amber-400 bg-amber-900/40 animate-pulse' :
+                            'text-zinc-400 bg-zinc-800/70 hover:text-amber-300 hover:bg-amber-900/40'}`}
                       >
-                        {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        <Zap className="w-3 h-3" />
                       </button>
-                    </div>
+                    )}
                   </div>
-
-                  {/* expanded detail: full meaning + explanation + images */}
-                  {isOpen && (
-                    <div className="mt-2.5 ml-8 sm:ml-12 space-y-2.5 border-l border-white/10 pl-3">
-                      {w.translations.length > 0 && (
-                        <div className="flex items-start gap-2">
-                          <Languages className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
-                          <p className="text-[12px] text-zinc-200">{w.translations.join('；')}</p>
-                        </div>
-                      )}
-                      {w.explanation && (
-                        <div className="flex items-start gap-2">
-                          <BookOpen className="w-3.5 h-3.5 text-indigo-400 mt-0.5 shrink-0" />
-                          <p className="text-[12px] text-zinc-300 whitespace-pre-line">{w.explanation}</p>
-                        </div>
-                      )}
-                      {(w.usPhonetic || w.ukPhonetic) && (
-                        <div className="flex items-center gap-3 text-[10px] font-mono text-zinc-500">
-                          {w.usPhonetic && <span><Volume2 className="w-3 h-3 inline mr-1" />US /{w.usPhonetic}/</span>}
-                          {w.ukPhonetic && <span><Volume2 className="w-3 h-3 inline mr-1" />UK /{w.ukPhonetic}/</span>}
-                        </div>
-                      )}
-                      {effImages.length > 0 ? (
-                        <div className="flex flex-wrap gap-2 pt-0.5">
-                          {effImages.map((src, i) => (
-                            <img
-                              key={`${w.index}-img-${i}`}
-                              src={src}
-                              alt={w.word}
-                              loading="lazy"
-                              className="w-20 h-20 object-cover rounded-lg border border-white/10 bg-black/30"
-                            />
-                          ))}
-                        </div>
-                      ) : imagePending ? (
-                        <div className="flex items-center gap-2 pt-0.5">
-                          <span className="w-20 h-20 rounded-lg border border-white/10 bg-black/30 flex items-center justify-center">
-                            <WfNewLoadingDots size="md" className="text-violet-300/80" />
-                          </span>
-                          <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
-                            {trans('library.mediaPending')}
-                          </span>
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 

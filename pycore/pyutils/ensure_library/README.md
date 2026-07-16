@@ -10,7 +10,7 @@
 - ✅ 遵循项目规范（无 try-except）
 - ✅ 使用项目标准工具（Commander、ColorPrint）
 
-## 安装位置
+## Installation位置
 
 ### FFmpeg 安装目录
 
@@ -29,7 +29,7 @@ D:\_win11\ffmpeg\        (Windows 11)
 /_ubuntu24/ffmpeg/           (服务器模式，无挂载盘)
 ```
 
-## 使用方法
+## Usage
 
 ### 基础用法
 

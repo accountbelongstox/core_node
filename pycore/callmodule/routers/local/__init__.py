@@ -27,8 +27,13 @@ from .assist_router import router as assist_router
 from .poster_router import router as poster_router
 from .image_search_router import router as image_search_router
 from .sentence_audio_router import router as sentence_audio_router
+from .queue_bumps_router import router as queue_bumps_router
 from .dictionary_router import router as dictionary_router
 from .word_audio_router import router as word_audio_router
+from .word_tts_router import router as word_tts_router
+from .vocabulary_router import router as vocabulary_router
+from .heartbeat_workers_router import router as heartbeat_workers_router
 from .agent_history_router import router as agent_history_router
+from .task_settings_router import router as task_settings_router
 
-__all__ = ["screenshot_router", "image_router", "audio_router", "file_router", "video_router", "video_extract_router", "system_resources_router", "user_data_router", "books_router", "corebook_router", "ai_probe_router", "ai_chat_router", "ai_image_router", "ai_keys_router", "ocr_status_router", "tts_status_router", "stt_status_router", "speech_history_router", "capability_status_router", "translation_queue_router", "task_center_router", "queue_overview_router", "task_history_router", "assist_router", "poster_router", "image_search_router", "sentence_audio_router", "dictionary_router", "word_audio_router", "agent_history_router"]
+__all__ = ["screenshot_router", "image_router", "audio_router", "file_router", "video_router", "video_extract_router", "system_resources_router", "user_data_router", "books_router", "corebook_router", "ai_probe_router", "ai_chat_router", "ai_image_router", "ai_keys_router", "ocr_status_router", "tts_status_router", "stt_status_router", "speech_history_router", "capability_status_router", "translation_queue_router", "task_center_router", "queue_overview_router", "task_history_router", "assist_router", "poster_router", "image_search_router", "sentence_audio_router", "queue_bumps_router", "dictionary_router", "word_audio_router", "word_tts_router", "vocabulary_router", "heartbeat_workers_router", "agent_history_router", "task_settings_router"]

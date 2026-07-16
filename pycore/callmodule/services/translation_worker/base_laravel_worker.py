@@ -43,6 +43,9 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 # requests is a third-party dep - always obtained through the lazy accessor.
 from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.callmodule.services.sync.laravel_endpoint_manager import (
+    get_laravel_endpoint_manager,
+)
 
 
 class BaseLaravelWorkerService:
@@ -104,12 +107,11 @@ class BaseLaravelWorkerService:
         (_initialized) is the subclass's responsibility (it owns the full
         __init__ contract).
         """
-        # Candidate Laravel base URLs, tried in order until one answers. The
-        # configured URL is preferred; the rest are sensible local/LAN fallbacks
-        # (mirrors the frontend's endpoint-discovery list) so the worker keeps
-        # working if Laravel moves host/port. Pinned to the first reachable one.
-        self._candidates = self._build_candidates(laravel_api_url)
-        self.api_url = self._candidates[0]
+        # Candidate Laravel base URLs from LaravelEndpointManager (same source as
+        # the pycore-manager Laravel endpoint UI). Stored-first resolve() picks the
+        # user's selection; the full candidate list is the registration sweep.
+        self._candidates: List[str] = []
+        self.api_url = self._sync_laravel_endpoint(laravel_api_url)
         self.worker_id = self._build_worker_id()
         self.hostname = socket.gethostname()
         self.platform = platform.platform()
@@ -202,31 +204,51 @@ class BaseLaravelWorkerService:
         prefix = ".".join(parts[:3]) + "."
         return any(ip.startswith(prefix) for ip in local_ips)
 
-    @classmethod
-    def _build_candidates(cls, primary: str) -> List[str]:
+    def _sync_laravel_endpoint(self, fallback: str = "") -> str:
+        """Refresh candidate list + resolved base from LaravelEndpointManager.
+
+        Returns the resolved base URL (no trailing slash). When not yet
+        registered, ``api_url`` is primed to this value so monitors that read
+        the worker see the UI-selected endpoint immediately.
         """
-        Ordered, de-duplicated list of Laravel base URLs to try. The configured
-        ``primary`` is first, then loopback defaults. The hardcoded LAN fallbacks
-        are added ONLY when this machine actually sits on their subnet - otherwise
-        they are unreachable from here and just stall the health sweep (SYN_SENT,
-        timing out), so they are skipped.
-        """
-        local_defaults = [
-            "http://127.0.0.1:9000",
-            "http://localhost:9000",
+        mgr = get_laravel_endpoint_manager()
+        base = (mgr.resolve() or "").rstrip("/")
+        state = mgr._load()
+        endpoints = [
+            (u or "").rstrip("/")
+            for u in (state.get("endpoints") or [])
+            if (u or "").strip()
         ]
-        lan_fallbacks = [
-            "http://192.168.50.3:9000",
-            "http://192.168.50.2:9000",
-        ]
-        local_ips = cls._local_ipv4s()
-        reachable_lan = [u for u in lan_fallbacks if cls._on_local_subnet(u, local_ips)]
         ordered: List[str] = []
-        for url in [primary, *local_defaults, *reachable_lan]:
-            u = (url or "").rstrip("/")
+        if base:
+            ordered.append(base)
+        for u in endpoints:
             if u and u not in ordered:
                 ordered.append(u)
-        return ordered
+        fb = (fallback or "").rstrip("/")
+        if not ordered and fb:
+            ordered.append(fb)
+        if not ordered:
+            ordered.append("http://127.0.0.1:9000")
+        self._candidates = ordered
+        if not getattr(self, "_registered", False):
+            self.api_url = ordered[0]
+        return ordered[0]
+
+    @classmethod
+    def _build_candidates(cls, primary: str) -> List[str]:
+        """Deprecated: use LaravelEndpointManager via _sync_laravel_endpoint()."""
+        mgr = get_laravel_endpoint_manager()
+        base = (mgr.resolve() or primary or "").rstrip("/")
+        state = mgr._load()
+        ordered: List[str] = []
+        if base:
+            ordered.append(base)
+        for u in state.get("endpoints") or []:
+            u = (u or "").rstrip("/")
+            if u and u not in ordered:
+                ordered.append(u)
+        return ordered or ["http://127.0.0.1:9000"]
 
     # -------------------- HTTP helpers --------------------
 
@@ -266,8 +288,14 @@ class BaseLaravelWorkerService:
         Laravel backend" with the tried list - and then stay quiet until the
         situation changes, instead of dumping a connection stack every tick.
         """
+        resolved = self._sync_laravel_endpoint()
         if self._registered:
-            return True
+            if self.api_url.rstrip("/") == resolved.rstrip("/"):
+                return True
+            ColorPrint.blue(
+                f"{self._log_prefix} Laravel endpoint changed "
+                f"({self.api_url} -> {resolved}); re-registering")
+            self._registered = False
 
         requests = self._requests()
         last_reason = ""
@@ -314,7 +342,7 @@ class BaseLaravelWorkerService:
             ColorPrint.yellow(
                 f"{self._log_prefix} No reachable Laravel backend - could not connect to any of "
                 f"{self._candidates}. Last: {last_reason}. Will keep retrying quietly "
-                "(set LARAVEL_WORKER_API_URL to point at your Laravel :9000)."
+                "(select the Laravel endpoint in pycore-manager Settings)."
             )
         return False
 

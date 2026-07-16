@@ -14,12 +14,30 @@ from hf_secret import ensure_hf_token
 ensure_hf_token()
 
 def setup_hf_environment(cache_dir: Optional[str] = None):
-    if cache_dir is None:
-        cache_dir = os.path.join(os.path.expanduser('~'), '.cache', 'huggingface')
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    try:
+        from pycore.pyfoundations.system_paths import apply_shared_cache_env, get_hf_home_dir
+        apply_shared_cache_env()
+        if cache_dir is None:
+            cache_dir = str(get_hf_home_dir())
+    except Exception:
+        if cache_dir is None:
+            if os.environ.get('HF_HOME'):
+                cache_dir = os.environ['HF_HOME']
+            elif sys.platform == 'win32':
+                cache_dir = r'D:\www\cache\huggingface'
+            else:
+                cache_dir = os.path.join(os.path.expanduser('~'), '.cache', 'huggingface')
 
     os.environ['HF_HOME'] = cache_dir
-    os.environ['TRANSFORMERS_CACHE'] = os.path.join(cache_dir, 'hub')
-    os.environ['HF_HUB_CACHE'] = os.path.join(cache_dir, 'hub')
+    hf_hub = os.path.join(cache_dir, 'hub')
+    os.environ['HF_HUB_CACHE'] = hf_hub
+    os.environ['HUGGINGFACE_HUB_CACHE'] = hf_hub
+    legacy = os.environ.get('TRANSFORMERS_CACHE')
+    if legacy and os.path.normcase(os.path.normpath(legacy)) == os.path.normcase(os.path.normpath(hf_hub)):
+        os.environ.pop('TRANSFORMERS_CACHE', None)
 
     os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '1'
 

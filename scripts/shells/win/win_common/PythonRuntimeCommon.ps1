@@ -77,8 +77,14 @@ function Test-PipPackageInstalled {
         return $false
     }
 
-    $pythonExe = Join-Path (Split-Path -Parent (Split-Path -Parent $PipExe)) 'python.exe'
-    if (Test-Path -LiteralPath $pythonExe) {
+    # Prefer Scripts\python.exe (venv); else parent\python.exe (system Python layout).
+    $scriptsDir = Split-Path -Parent $PipExe
+    $siblingPy = Join-Path $scriptsDir 'python.exe'
+    $parentPy = Join-Path (Split-Path -Parent $scriptsDir) 'python.exe'
+    $pythonExe = $null
+    if (Test-Path -LiteralPath $siblingPy) { $pythonExe = $siblingPy }
+    elseif (Test-Path -LiteralPath $parentPy) { $pythonExe = $parentPy }
+    if ($pythonExe) {
         if (Test-PythonDistInfoPresent -PythonExe $pythonExe -DistPrefixes @($PackageName)) {
             return $true
         }
@@ -297,7 +303,7 @@ function Test-PythonPipBinaryReady {
         [string[]]$PyRun
     )
 
-    $pipExe = Resolve-InstallerPipExe -PythonExe $PythonExe
+    $pipExe = $Global:PIP_EXE_PATH
     return [bool]$pipExe
 }
 
@@ -309,6 +315,11 @@ function Set-EnvironmentPathValue {
         [Parameter(Mandatory = $true)]
         [string]$NewPath
     )
+
+    $currentPath = [Environment]::GetEnvironmentVariable('Path', $Scope)
+    if ($currentPath -eq $NewPath) {
+        return
+    }
 
     if ($Scope -eq 'Machine') {
         Backup-Environment
@@ -457,4 +468,32 @@ function Resolve-InstallerPipExe {
     }
 
     return $null
+}
+
+function Test-PycorePythonModulePresent {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PythonExe,
+        [Parameter(Mandatory = $true)]
+        [string]$ModuleName
+    )
+
+    if (-not (Test-Path -LiteralPath $PythonExe)) {
+        return $false
+    }
+
+    $modLiteral = ($ModuleName -replace "'", "''")
+    $pyCode = @"
+import importlib.util
+try:
+    ok = importlib.util.find_spec('$modLiteral') is not None
+except Exception:
+    ok = False
+print('__FOUND__' if ok else '__MISSING__')
+"@
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $out = (& $PythonExe -c $pyCode 2>$null) -join ''
+    $ErrorActionPreference = $prevEap
+    return ($out -match '__FOUND__')
 }

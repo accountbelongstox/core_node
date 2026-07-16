@@ -13,8 +13,22 @@ import argparse
 import sys
 from pathlib import Path
 
+from pycore.callmodule.platform.windows_tray import launch_windows_tray
+from pycore.callmodule.global_config import init_global_config
+from pycore.pyfoundations.third_party import get_third_package_uvicorn
+
+from pycore.callmodule.platform import launch_platform_aware
+
+
+
 PYCORE_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PYCORE_ROOT))
+PROJECT_ROOT = PYCORE_ROOT.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from pycore.pyfoundations.system_paths import apply_shared_cache_env
+
+apply_shared_cache_env()
 
 
 def main():
@@ -56,14 +70,11 @@ def main():
 
     # Force specific mode if requested
     if args.tray:
-        from .platform.windows_tray import launch_windows_tray
         launch_windows_tray(host=args.host, port=args.port, debug=args.debug)
         return
 
     if args.service or args.reload:
         # Service mode or reload mode
-        from .global_config import init_global_config
-        from pycore.pyfoundations.third_party import get_third_package_uvicorn
 
         init_global_config(
             pycore_root=str(PYCORE_ROOT),
@@ -83,9 +94,36 @@ def main():
         )
         return
 
-    # Platform-aware mode (default)
-    from .platform import launch_platform_aware
-    launch_platform_aware(host=args.host, port=args.port, debug=args.debug)
+    # Platform-aware mode (default). The platform launcher (PySide6 tray/UI) is
+    # optional - when it is unavailable (headless host, missing dep, or the
+    # launcher module was removed) fall back to the same service-mode app path
+    # used by --service (create_app via uvicorn). No hot-reload in fallback.
+    try:
+        launch_platform_aware(host=args.host, port=args.port, debug=args.debug)
+        return
+    except Exception as exc:  # noqa: BLE001 - launcher optional; fall back to service mode
+        print(
+            f"[callmodule] platform launcher unavailable ({exc}); "
+            "starting service mode (no tray) instead."
+        )
+
+
+    init_global_config(
+        pycore_root=str(PYCORE_ROOT),
+        http_port=args.port,
+        host=args.host,
+        debug=args.debug
+    )
+
+    uvicorn = get_third_package_uvicorn()
+    uvicorn.run(
+        "pycore.callmodule.app:create_app",
+        host=args.host,
+        port=args.port,
+        reload=False,
+        factory=True,
+        log_level="debug" if args.debug else "info"
+    )
 
 
 if __name__ == '__main__':

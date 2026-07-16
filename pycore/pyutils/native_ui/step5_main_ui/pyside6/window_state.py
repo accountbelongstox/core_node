@@ -18,6 +18,9 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 from dataclasses import dataclass, asdict
 
+from pycore.pyfoundations.system_paths import get_ui_state_cache_dir
+
+
 
 @dataclass
 class WindowState:
@@ -78,7 +81,6 @@ class WindowStateManager:
 
     def _get_cache_dir(self) -> Path:
         """Get UI state cache directory"""
-        from pycore.pyfoundations.system_paths import get_ui_state_cache_dir
         return get_ui_state_cache_dir()
 
     def save_state(

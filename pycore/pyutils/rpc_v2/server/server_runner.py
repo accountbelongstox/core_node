@@ -5,8 +5,8 @@ Runner for the FastAPI RPC server.
 
 Constructs a FastAPIRPCServer and runs uvicorn inside a background daemon
 thread, with a logging filter that suppresses benign asyncio CancelledError
-tracebacks during shutdown. FastAPIRPCServer is imported lazily in __init__ to
-break the import cycle with fastapi_server.py (which re-exports this runner).
+tracebacks during shutdown. Imports FastAPIRPCServer from fastapi_server only
+(one-way); the runner is re-exported via server.__init__ / rpc_v2.__init__.
 """
 
 from __future__ import annotations
@@ -17,6 +17,9 @@ from typing import Any, Callable, Optional
 
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_uvicorn
+
+from pycore.pyutils.rpc_v2.server.fastapi_server import FastAPIRPCServer
+
 
 uvicorn = get_third_package_uvicorn()
 
@@ -39,11 +42,6 @@ class FastAPIRPCServerRunner:
     """Run FastAPIRPCServer inside a background thread."""
 
     def __init__(self, **server_options):
-        # Lazy import breaks the cycle: fastapi_server.py re-exports this runner
-        # at module top, so importing FastAPIRPCServer here (at construction time)
-        # avoids a top-level circular import.
-        from .fastapi_server import FastAPIRPCServer
-
         self.server = FastAPIRPCServer(options=server_options)
         self._thread: Optional[threading.Thread] = None
         self._uvicorn_server: Optional[uvicorn.Server] = None

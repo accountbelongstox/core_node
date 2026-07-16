@@ -63,7 +63,6 @@ import {
   toWord, toGroup, decorate, asArray, logContentFallback, toAbsoluteUrl,
   wordRowToContentGroup, mediaRowToContentGroup, libraryRowToContentGroup, documentRowToContentGroup,
 } from './WfNewApiMappers';
-import { socialMethods } from './methods/social';
 
 // --- implementation -------------------------------------------------------- #
 
@@ -485,6 +484,27 @@ export const wfNewApiHttp: WfNewApi = {
     };
   },
 
+  async saveWordAudio(payload: {
+    md5: string;
+    lang: string;
+    audio_base64: string;
+    provider?: string;
+    accent?: WfNewWordAccent;
+  }): Promise<{ ok: boolean; stored?: boolean }> {
+    try {
+      const res = await postJSON<any>(WfNewApiPaths.wordAudioUpload, {
+        md5: payload.md5,
+        lang: payload.lang,
+        audio_base64: payload.audio_base64,
+        provider: payload.provider ?? 'puter',
+        accent: payload.accent,
+      });
+      return { ok: !!res?.success, stored: !!res?.data?.stored };
+    } catch {
+      return { ok: false };
+    }
+  },
+
   async getWordMedia(
     language: string,
     word: string,
@@ -526,14 +546,16 @@ export const wfNewApiHttp: WfNewApi = {
     };
   },
 
-  async resolveSentenceAudio(text: string, language: string) {
-    const res = await getJSON<any>(WfNewApiPaths.sentenceAudio(text, language));
+  async resolveSentenceAudio(text: string, language: string, variantKey?: string) {
+    const res = await getJSON<any>(WfNewApiPaths.sentenceAudio(text, language, variantKey));
     return {
       exists: !!res?.exists,
       url: res?.url ?? null,
       queued: !!res?.queued,
       content_id: res?.content_id ?? res?.hash ?? undefined,
       hash: res?.hash ?? res?.content_id ?? undefined,
+      tts_status: res?.tts_status ?? null,
+      audio_files: Array.isArray(res?.audio_files) ? res.audio_files : [],
     };
   },
 
@@ -545,5 +567,128 @@ export const wfNewApiHttp: WfNewApi = {
       create_task: true,
     });
     return { success: !!(res?.success ?? res?.ok), task_id: res?.task_id ?? null };
+  },
+
+  async getBookReadingProgress(sourceKey: string) {
+    if (!authToken) return null;
+    try {
+      const res = await authedGetJSON<any>(WfNewApiPaths.userBookProgress(sourceKey), null);
+      const p = res?.progress;
+      if (!p) return null;
+      return {
+        sourceKey: p.source_key ?? sourceKey,
+        chapterIndex: p.chapter_index ?? null,
+        verseSeq: Number(p.verse_seq ?? 0),
+        grain: p.grain ?? 'sentence',
+        page: Number(p.page ?? 1),
+        updatedAt: p.updated_at ?? null,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  async saveBookReadingProgress(
+    sourceKey: string,
+    payload: { chapterIndex?: number | null; verseSeq: number; grain?: string; page?: number },
+  ) {
+    if (!authToken) return null;
+    try {
+      const raw = await postJSON<any>(WfNewApiPaths.userBookProgress(sourceKey), {
+        chapter_index: payload.chapterIndex ?? null,
+        verse_seq: payload.verseSeq,
+        grain: payload.grain ?? 'sentence',
+        page: payload.page ?? 1,
+      });
+      const res = unwrapEnvelope(raw);
+      const p = res?.progress;
+      if (!p) return null;
+      return {
+        sourceKey: p.source_key ?? sourceKey,
+        chapterIndex: p.chapter_index ?? null,
+        verseSeq: Number(p.verse_seq ?? 0),
+        grain: p.grain ?? 'sentence',
+        page: Number(p.page ?? 1),
+        updatedAt: p.updated_at ?? null,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  async listBookReadingProgress(limit = 100) {
+    if (!authToken) return [];
+    try {
+      const res = await authedGetJSON<any>(WfNewApiPaths.userBookProgressList(limit), { items: [] });
+      const items = Array.isArray(res?.items) ? res.items : [];
+      return items.map((p: any) => ({
+        sourceKey: p.source_key ?? '',
+        chapterIndex: p.chapter_index ?? null,
+        verseSeq: Number(p.verse_seq ?? 0),
+        grain: p.grain ?? 'sentence',
+        page: Number(p.page ?? 1),
+        updatedAt: p.updated_at ?? null,
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  async getClientDeviceSettings(clientKey: string) {
+    try {
+      const res = await getJSON<any>(WfNewApiPaths.clientDeviceSettings(clientKey));
+      const s = res?.settings;
+      if (!s) return null;
+      return {
+        clientKey: s.client_key ?? clientKey,
+        reader: s.reader ?? null,
+        updatedAt: s.updated_at ?? null,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  async saveClientDeviceSettings(
+    clientKey: string,
+    reader: import('./WfNewApiTypes').WfNewReaderSettingsBlob,
+    updatedAt?: string,
+  ) {
+    try {
+      const res = await postJSON<any>(WfNewApiPaths.clientDeviceSettingsSave, {
+        client_key: clientKey,
+        reader,
+        updated_at: updatedAt ?? new Date().toISOString(),
+      });
+      const s = unwrapEnvelope(res)?.settings ?? res?.settings;
+      if (!s) return null;
+      return {
+        clientKey: s.client_key ?? clientKey,
+        reader: s.reader ?? reader,
+        updatedAt: s.updated_at ?? updatedAt ?? null,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  async addLibraryToDefaultGroup(libraryId) {
+    const groupsRes = await authedGetJSON<any>(WfNewApiPaths.queryAllGroups, null);
+    const all: any[] = asArray(groupsRes, 'groups');
+    const def = all.find((g: any) => g.gname === 'Default Vocabulary Group');
+    if (!def) throw new Error('Default Vocabulary Group not found');
+    const res = await postJSON<any>(WfNewApiPaths.groupAddLibrary, {
+      gid: String(def.gid),
+      library_id: Number(libraryId),
+    });
+    const data = unwrapEnvelope(res) ?? res;
+    return {
+      gid: String(data?.gid ?? def.gid),
+      library_id: Number(data?.library_id ?? libraryId),
+      library_name: data?.library_name ?? '',
+      already_linked: !!(data?.already_linked),
+      words_added: Number(data?.words_added ?? 0),
+      total_words_in_library: Number(data?.total_words_in_library ?? 0),
+    };
   },
 };

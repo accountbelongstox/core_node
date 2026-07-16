@@ -16,6 +16,9 @@ import inspect
 import platform
 from typing import List, Callable, Optional
 
+import ctypes
+
+
 columns = shutil.get_terminal_size().columns
 
 # Auto-detect MCP mode from environment variable
@@ -30,7 +33,6 @@ def _enable_windows_ansi_support():
         return True
     
     try:
-        import ctypes
         kernel32 = ctypes.windll.kernel32
         # Get stdout handle
         STD_OUTPUT_HANDLE = -11
@@ -559,7 +561,6 @@ def main():
     ColorPrint.print_section("Progress Example")
     for i in range(11):
         ColorPrint.print_progress(i, 10, f"Processing step {i}")
-        import time
         time.sleep(0.1)
 
     ColorPrint.print_section("Table Example")

@@ -18,11 +18,10 @@ Laravel exposes (server-side reachable, mirroring /api/worker/*; no user token):
   POST {base}/api/app_qy_v1/ai_tools/translation/queue/stack
        { words, language, target_language, priority? }
 
-`{base}` is the SAME Laravel backend the translation WORKER discovers. This
-monitor REUSES the worker's candidate-URL discovery (TranslationWorkerService.
-_build_candidates + its pinned api_url) so the monitor and worker always agree on
-which host:port to talk to (default incl. http://127.0.0.1:9000, configurable via
-Config.LARAVEL_WORKER_API_URL / env LARAVEL_WORKER_API_URL).
+`{base}` is the SAME Laravel backend the UI selects via LaravelEndpointManager
+(user_data.json ``laravel_api.current`` / stored-first resolve). The monitor
+reads that resolver live on every request so tray/UI endpoint switches apply
+without restart.
 
 ------------------------------------------------------------------------------
 Architecture (mirrors translation_worker_service.py / tts_queue_poller_service.py)
@@ -59,10 +58,12 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 # requests is a third-party dep — always obtained through the lazy accessor.
 from pycore.pyfoundations.third_party import get_third_package_requests
-# Reuse the worker's base-URL discovery so monitor + worker share one backend.
-from pycore.callmodule.services.translation_worker_service import (
-    get_translation_worker_service,
+# Reuse the shared Laravel endpoint resolver (same as the UI laravel_api.* RPCs).
+from pycore.callmodule.services.sync.laravel_endpoint_manager import (
+    get_laravel_endpoint_manager,
+    resolve_laravel_base_url,
 )
+from pycore.callmodule.services.queue_bump_hub import get_queue_bump_hub
 
 
 # Laravel queue-API path prefix (server-side, mirrors /api/worker/*).
@@ -102,11 +103,7 @@ class QueueMonitorService:
         if getattr(self, "_initialized", False):
             return
 
-        # Share the worker's discovery: its singleton owns the candidate list and
-        # pins `api_url` to the first reachable Laravel. We always read its CURRENT
-        # api_url at call time so a worker reconnect is reflected here immediately.
-        self._worker = get_translation_worker_service(laravel_api_url=laravel_api_url)
-
+        # Laravel base URL comes from LaravelEndpointManager (UI-selected).
         self._bump_ttl = max(1, int(bump_ttl_seconds))
         self._http_timeout = 6  # seconds for list/priority/stack calls
 
@@ -138,17 +135,32 @@ class QueueMonitorService:
     # -------------------- base URL / HTTP helpers --------------------
 
     def _base_url(self) -> str:
-        """Current Laravel base URL, taken live from the shared worker singleton."""
-        return getattr(self._worker, "api_url", "http://127.0.0.1:9000").rstrip("/")
+        """Active Laravel base URL (cached winner — no blocking resolve on request path)."""
+        return get_laravel_endpoint_manager().get_active_base_url().rstrip("/")
+
+    def _poll_base_url(self) -> str:
+        """Full resolve for heartbeat poll only (may sweep when all endpoints are down)."""
+        return resolve_laravel_base_url().rstrip("/")
+
+    @staticmethod
+    def _short_err(exc: Exception) -> str:
+        """Condense a noisy requests exception into a one-line reason."""
+        name = type(exc).__name__
+        text = str(exc)
+        low = text.lower()
+        if "actively refused" in low or "refused" in low or "ConnectionRefused" in name:
+            return "connection refused (Laravel not listening)"
+        if "timed out" in low or "timeout" in low.replace("connecttimeout", ""):
+            return "timed out"
+        if "max retries" in low or "newconnectionerror" in low or "failed to establish" in low:
+            return "host unreachable"
+        if "name or service not known" in low or "getaddrinfo" in low:
+            return "host not resolvable"
+        return text.splitlines()[0][:120] if text else name
 
     def _requests(self):
         """Lazily obtain the third-party requests module (pycore rule)."""
         return get_third_package_requests()
-
-    def _short_err(self, exc: Exception) -> str:
-        """Condense a noisy requests exception into a one-line reason (reuses the
-        worker's helper so error phrasing matches across the two services)."""
-        return self._worker._short_err(exc)
 
     # -------------------- bump detection --------------------
 
@@ -178,6 +190,20 @@ class QueueMonitorService:
             if prior is not None and priority > prior:
                 # qyApp (or anyone) bumped this task — flag + announce once.
                 self._bumped_until[task_id] = now + self._bump_ttl
+                words = item.get("words") or []
+                label = ", ".join(words[:2]) if words else str(task_id)
+                get_queue_bump_hub().record(
+                    lane="translation",
+                    item_id=str(task_id),
+                    label=label,
+                    old_priority=prior,
+                    new_priority=priority,
+                    meta={
+                        "language": item.get("language"),
+                        "target_language": item.get("target_language"),
+                        "word_count": item.get("word_count"),
+                    },
+                )
                 ColorPrint.blue(
                     f"[QueueMonitor] queue: task {task_id} priority "
                     f"{int(prior) if prior.is_integer() else prior}->"
@@ -216,6 +242,14 @@ class QueueMonitorService:
         which accepts both wrapped and bare payloads).
         """
         base = self._base_url()
+        return self._fetch_list_at(base, status=status, limit=limit)
+
+    def _fetch_list_at(
+        self,
+        base: str,
+        status: str = "pending",
+        limit: int = 100,
+    ) -> Optional[Dict[str, Any]]:
         try:
             requests = self._requests()
             resp = requests.get(
@@ -227,8 +261,6 @@ class QueueMonitorService:
                 data = resp.json() or {}
                 body = data.get("data") if isinstance(data.get("data"), dict) else data
                 return body or {}
-            # Reachable but the endpoint errored/absent — treat as not-reachable for
-            # the snapshot, but log once (e.g. queue routes not yet deployed).
             if not self._unreachable_warned:
                 self._unreachable_warned = True
                 ColorPrint.yellow(
@@ -253,7 +285,7 @@ class QueueMonitorService:
         bump-detection. NEVER raises into the heartbeat loop.
         """
         try:
-            body = self._fetch_list()
+            body = self._fetch_list_at(self._poll_base_url())
             if body is None:
                 with self._lock:
                     self._laravel_reachable = False
@@ -431,15 +463,15 @@ class QueueMonitorService:
             payload["priority"] = priority
         return self._post_proxy("stack", payload)
 
-    def get_task_detail(self, task_id: Any) -> Dict[str, Any]:
+    def _proxy_laravel_task_get(self, task_id: Any, suffix: str) -> Dict[str, Any]:
         """
-        Proxy GET /api/task/{taskId}/status from Laravel (full global_tasks row).
+        Proxy GET /api/task/{taskId}/{suffix} from Laravel (suffix = status|detail).
 
         Returns a uniform envelope:
-            { success:bool, task:<dict>?, error:str?, laravel_reachable:bool }
+            { success:bool, task:<dict>?, bundle:<dict>?, error:str?, laravel_reachable:bool }
         """
         base = self._base_url()
-        url = f"{base}/api/task/{task_id}/status"
+        url = f"{base}/api/task/{task_id}/{suffix}"
         try:
             requests = self._requests()
             resp = requests.get(url, timeout=self._http_timeout)
@@ -457,21 +489,62 @@ class QueueMonitorService:
                     "laravel_reachable": True,
                 }
             task = None
+            bundle = None
             if isinstance(body, dict):
                 data = body.get("data")
                 if isinstance(data, dict):
                     task = data.get("task")
+                    if suffix == "detail":
+                        bundle = data
             if not task:
                 return {
                     "success": False,
                     "error": "Task payload missing from Laravel response",
                     "laravel_reachable": True,
                 }
-            return {"success": True, "task": task, "laravel_reachable": True}
+            out: Dict[str, Any] = {
+                "success": True,
+                "task": task,
+                "laravel_reachable": True,
+            }
+            if bundle is not None:
+                out["bundle"] = bundle
+            return out
         except Exception as e:
             reason = self._short_err(e)
-            ColorPrint.yellow(f"[QueueMonitor] task detail failed ({reason})")
+            ColorPrint.yellow(f"[QueueMonitor] task {suffix} failed ({reason})")
             return {"success": False, "error": reason, "laravel_reachable": False}
+
+    def get_task_detail(self, task_id: Any) -> Dict[str, Any]:
+        """
+        Proxy GET /api/task/{taskId}/status from Laravel (full global_tasks row).
+
+        Falls back to GET /api/task/{taskId}/detail when /status misses (same
+        laravel_main TaskController row, richer bundle on the detail path).
+
+        Returns a uniform envelope:
+            { success:bool, task:<dict>?, error:str?, laravel_reachable:bool }
+        """
+        result = self._proxy_laravel_task_get(task_id, "status")
+        if result.get("success"):
+            return result
+        fallback = self._proxy_laravel_task_get(task_id, "detail")
+        if fallback.get("success"):
+            return fallback
+        return result
+
+    def get_task_full_detail(self, task_id: Any) -> Dict[str, Any]:
+        """
+        Proxy GET /api/task/{taskId}/detail — task + events + phase bundle.
+
+        Falls back to GET /api/task/{taskId}/status when /detail is unavailable.
+        Returns the same uniform envelope as get_task_detail; on success from
+        /detail also includes ``bundle`` (events + current_phase + metadata).
+        """
+        result = self._proxy_laravel_task_get(task_id, "detail")
+        if result.get("success"):
+            return result
+        return self._proxy_laravel_task_get(task_id, "status")
 
     def _post_proxy(self, action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Shared POST helper for the priority/stack control proxies."""

@@ -93,9 +93,9 @@ function Test-GitAvailable {
 }
 
 function Test-PythonAvailable {
-    $pythonCommand = Resolve-InstallerPythonExe
-    if (-not $pythonCommand) {
-        Write-Host "$SCRIPT_INDEX Python not found at $($Global:PYTHON_EXE_PATH). Run Step8_InstallPython.ps1" -ForegroundColor Red
+    $pythonCommand = $Global:PYTHON_EXE_PATH
+    if (-not (Test-Path -LiteralPath $pythonCommand)) {
+        Write-Host "$SCRIPT_INDEX Python not found at $pythonCommand. Run Step8_InstallPython.ps1" -ForegroundColor Red
         return @{ Available = $false; Command = "" }
     }
 
@@ -156,7 +156,7 @@ function Install-DeepSeekOCRDependencies {
 
     Write-Host "$SCRIPT_INDEX Installing Python dependencies..." -ForegroundColor Yellow
     Write-Host "$SCRIPT_INDEX Using Python command: $PythonCommand" -ForegroundColor White
-    Write-Host "$SCRIPT_INDEX Note: DeepSeek-OCR requires cuda12+torch (latest)" -ForegroundColor White
+    Write-Host "$SCRIPT_INDEX Note: DeepSeek-OCR requires CUDA torch (driver-matched via Get-TorchCudaIndexUrl)" -ForegroundColor White
 
     try {
         Push-Location $InstallDirectory
@@ -325,7 +325,7 @@ function Test-DeepSeekOCRInstallation {
     $hfDir = Join-Path $InstallDirectory "DeepSeek-OCR-master\DeepSeek-OCR-hf"
     $vllmDir = Join-Path $InstallDirectory "DeepSeek-OCR-master\DeepSeek-OCR-vllm"
 
-    $cacheDir = Join-Path $env:USERPROFILE ".core_node\.cache"
+    $cacheDir = Join-Path $Global:CORE_NODE_CACHE_DIR 'core_node'
     if (-not (Test-Path $cacheDir)) {
         New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
     }

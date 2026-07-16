@@ -1,11 +1,12 @@
 /**
  * Shell home — cross-end summary. One card per end with a live-ish health dot and
- * an entry link. pycore pings /pyapi/ping (dev proxy); laravel/wordflow health is
+ * an entry link. pycore pings :59000/ping directly; laravel/wordflow health is
  * refined when their API libraries' probes are wired into the home cards.
  */
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Server, Cpu, GraduationCap, ArrowRight, Coins, ShoppingBag } from 'lucide-react';
+import { rewritePycoreEndpoint } from '../core/api-libs/pycore/pycoreTarget';
 import { END_META } from './shellTypes';
 
 type Health = 'checking' | 'up' | 'down' | 'unknown';
@@ -72,10 +73,7 @@ export const ShellHome: React.FC = () => {
     let alive = true;
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 4000);
-    // DIRECT to the pycore backend (no /pyapi proxy). The sandbox has no
-    // reachable :59000, so there fall back to the same-origin /pyapi proxy.
-    const isSandbox = location.hostname.includes('run.app') || location.port === '3000';
-    const pingUrl = isSandbox ? '/pyapi/ping' : `${location.protocol}//${location.hostname}:59000/ping`;
+    const pingUrl = rewritePycoreEndpoint('/ping');
     fetch(pingUrl, { signal: ctrl.signal })
       .then((r) => { if (alive) setPycoreHealth(r.ok ? 'up' : 'down'); })
       .catch(() => { if (alive) setPycoreHealth('down'); })

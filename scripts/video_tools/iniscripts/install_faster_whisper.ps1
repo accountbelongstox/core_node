@@ -39,8 +39,11 @@ $ErrorActionPreference = 'Stop'
 
 function Test-PyModule {
     param([string]$Py, [string]$Module)
-    & $Py -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$Module') else 1)" 2>$null
-    return ($LASTEXITCODE -eq 0)
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $out = (& $Py -c "import importlib.util; print('__FOUND__' if importlib.util.find_spec('$Module') else '__MISSING__')" 2>$null) -join ''
+    $ErrorActionPreference = $prevEap
+    return ($out -match '__FOUND__')
 }
 
 Write-Host '============================================================' -ForegroundColor Cyan
@@ -58,8 +61,8 @@ if ($Master) {
     Write-Host '[..] pip install faster-whisper ...' -ForegroundColor Yellow
     & $Python -m pip install --upgrade faster-whisper
 }
-if ($LASTEXITCODE -ne 0) {
-    Write-Host '[X] faster-whisper install failed.' -ForegroundColor Red
+if (-not (Test-PyModule -Py $Python -Module 'faster_whisper')) {
+    Write-Host '[X] faster-whisper install failed or still not importable.' -ForegroundColor Red
     exit 1
 }
 
@@ -70,21 +73,17 @@ if ($LASTEXITCODE -ne 0) {
 if ($Gpu) {
     Write-Host '[..] pip install nvidia-cublas-cu12 nvidia-cudnn-cu12==9.* (skipped if already present) ...' -ForegroundColor Yellow
     & $Python -m pip install 'nvidia-cublas-cu12' 'nvidia-cudnn-cu12==9.*'
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host '[!] GPU lib install failed; whisper will fall back to CPU (int8).' -ForegroundColor DarkYellow
-    } else {
+    if ((Test-PyModule -Py $Python -Module 'nvidia.cublas') -and (Test-PyModule -Py $Python -Module 'nvidia.cudnn')) {
         # The worker adds nvidia\cublas\bin + nvidia\cudnn\bin to the DLL search
         # path automatically at runtime (os.add_dll_directory), so nothing else
         # is needed here on Windows.
         Write-Host '[OK] GPU runtime libs present.' -ForegroundColor Green
+    } else {
+        Write-Host '[!] GPU lib install failed; whisper will fall back to CPU (int8).' -ForegroundColor DarkYellow
     }
 }
 
 # --- 3) verify package --------------------------------------------------- #
-if (-not (Test-PyModule -Py $Python -Module 'faster_whisper')) {
-    Write-Host '[X] faster-whisper still not importable after install.' -ForegroundColor Red
-    exit 1
-}
 $ver = & $Python -c "import faster_whisper as f; print(getattr(f, '__version__', '?'))"
 Write-Host ("[OK] faster-whisper installed (version {0})." -f $ver) -ForegroundColor Green
 
@@ -95,11 +94,15 @@ Write-Host ("[OK] faster-whisper installed (version {0})." -f $ver) -ForegroundC
 if ($Model -and $Model -ne 'auto') {
     $dlHelper = Join-Path $PSScriptRoot '..\py_video_tools\download_model.py'
     Write-Host ("[..] Ensuring whisper model '{0}' is downloaded ..." -f $Model) -ForegroundColor Yellow
-    & $Python -u $dlHelper $Model
-    if ($LASTEXITCODE -eq 0) {
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $dlOut = (& $Python -u $dlHelper $Model 2>&1) -join "`n"
+    $ErrorActionPreference = $prevEap
+    if ($dlOut) { Write-Host $dlOut }
+    if ($dlOut -match '\[dl\] (done:|already cached)') {
         Write-Host ("[OK] model '{0}' is ready." -f $Model) -ForegroundColor Green
     } else {
-        Write-Host ("[!] model download did not complete (exit {0}); the worker will retry at run time." -f $LASTEXITCODE) -ForegroundColor DarkYellow
+        Write-Host ("[!] model download did not complete; the worker will retry at run time." -f $Model) -ForegroundColor DarkYellow
     }
 }
 

@@ -8,6 +8,9 @@ import json
 from pathlib import Path
 from typing import Dict, Any
 
+from pycore.pyutils.launcher.app_finder import AppFinder
+
+
 
 class ConfigManager:
     """Manage launcher configuration"""
@@ -28,7 +31,6 @@ class ConfigManager:
     def _get_applications_defaults(self):
         """Get default applications configuration from APP_DEFINITIONS"""
         # Import here to avoid circular import
-        from pycore.pyutils.launcher.app_finder import AppFinder
         
         defaults = {}
         app_definitions = AppFinder.APP_DEFINITIONS
@@ -67,12 +69,12 @@ class ConfigManager:
             'measurements': {
                 'columns': 67,
                 'columns_width_px': 510,
-                'rows': 164,
+                'rows': 32,
                 'rows_height_px': 485
             },
             'calibration': {
                 'actual_height_px': 485,
-                'term_rows': 270
+                'term_rows': 32
             },
             # Reserve pixels for WT window chrome + safety so content fits in grid cell (avoids overlap)
             'window_chrome': {
@@ -94,6 +96,12 @@ class ConfigManager:
                     user_config = json.load(f)
                     # Merge with defaults
                     self._merge_config(default_config, user_config)
+                    # Migrate legacy X16 (4x4) toggle to X12 (4x3).
+                    term = default_config.get('terminal', {})
+                    if term.get('toggle') == 'X16':
+                        term['toggle'] = 'X12'
+                        term['columns'] = 4
+                        term['rows'] = 3
                     # Ensure all apps from APP_DEFINITIONS are in config
                     self._ensure_all_apps_in_config(default_config)
                     # Remove all 'path' fields from applications (paths belong in cache, not config)
@@ -186,7 +194,6 @@ class ConfigManager:
     def _ensure_all_apps_in_config(self, config):
         """Ensure all apps from APP_DEFINITIONS are in config"""
         # Import here to avoid circular import
-        from pycore.pyutils.launcher.app_finder import AppFinder
         
         app_defaults = self._get_applications_defaults()
         if 'applications' not in config:

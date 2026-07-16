@@ -5,10 +5,10 @@ Capability probe — CUDA/compute + free-library availability for the
 
 Cheap and side-effect-free: library checks use importlib.util.find_spec (no heavy
 import, no install), and the CUDA block reuses the cached, nvidia-smi-based
-CUDADetector. Heavier per-engine probes (AI providers, OCR engines, edge-tts
+CUDADetector. Heavier per-engine probes (AI providers, OCR/TTS/STT orchestrators, edge-tts
 live synth) keep their own dedicated endpoints; this fills the gaps —
-GPU/CUDA compute readiness and the free, offline-capable libraries (translation,
-TTS, OCR, STT) that the pipelines fall back to.
+GPU/CUDA compute readiness and the pycore library registry (pip packages +
+local/API neural engines) with GPU/CPU model tier metadata for the UI.
 """
 
 import importlib.metadata
@@ -26,20 +26,79 @@ from pycore.pyfoundations.system_paths import (
     UI_STATE_CACHE_DIR,
 )
 from pycore.pyfoundations.secret_manager import get_secret_directories
+from pycore.pyutils.common.model_tiers import (
+    TIER_TABLE,
+    engine_model,
+    gpu_present,
+    runtime_faster_whisper_model,
+    runtime_whisper_model,
+    tier_summary_lines,
+)
+from pycore.pyutils.tts.tts_orchestrator import default_tts_engine_priority
 
-# Free / offline-capable libraries the pipelines use. module = import name probed
-# with find_spec; dist = PyPI distribution name for the version lookup.
-_FREE_LIBS = (
-    {"name": "google_translate", "module": "googletrans",   "dist": "googletrans",     "category": "translate", "note": "Free Google translation (googletrans)"},
-    {"name": "edge_tts",         "module": "edge_tts",       "dist": "edge-tts",        "category": "tts",       "note": "Microsoft Edge TTS (online, natural)"},
-    {"name": "sherpa_onnx",      "module": "sherpa_onnx",    "dist": "sherpa-onnx",     "category": "tts",       "note": "Sherpa-ONNX offline TTS (CPU, never fails)"},
-    {"name": "melotts",          "module": "melo",           "dist": "melotts",         "category": "tts",       "note": "MeloTTS offline TTS (zh/en mixed)"},
-    {"name": "cnocr",            "module": "cnocr",          "dist": "cnocr",           "category": "ocr",       "note": "Free local OCR (CnOCR, onnxruntime)"},
-    {"name": "easyocr",          "module": "easyocr",        "dist": "easyocr",         "category": "ocr",       "note": "Free local OCR (EasyOCR, torch)"},
-    {"name": "windows_ocr",      "module": "winrt.windows.media.ocr", "dist": "winrt-Windows.Media.Ocr", "category": "ocr", "note": "Windows native OCR (WinRT)"},
-    {"name": "faster_whisper",   "module": "faster_whisper", "dist": "faster-whisper",  "category": "stt",       "note": "Free local STT (faster-whisper)"},
-    {"name": "whisper",          "module": "whisper",        "dist": "openai-whisper",  "category": "stt",       "note": "Free local STT (OpenAI Whisper)"},
-    {"name": "vosk",             "module": "vosk",           "dist": "vosk",            "category": "stt",       "note": "Free offline STT (Vosk)"},
+from pycore.pyutils.tts.tts_orchestrator import engine_available
+from pycore.pyutils.tts.tts_engine_probe import engine_installed
+
+
+# Pip-installable libraries (find_spec probe). tier_engine -> TIER_TABLE key.
+_PIP_LIBS = (
+    {"name": "google_translate", "module": "googletrans", "dist": "googletrans",
+     "category": "translate", "note": "Free Google translation (googletrans)"},
+    {"name": "faster_whisper", "module": "faster_whisper", "dist": "faster-whisper",
+     "category": "stt", "tier_engine": "faster_whisper",
+     "note": "CTranslate2 Whisper STT (GPU large-v3 / CPU medium)"},
+    {"name": "whisper", "module": "whisper", "dist": "openai-whisper",
+     "category": "stt", "tier_engine": "whisper",
+     "note": "OpenAI Whisper STT (GPU large-v3 / CPU medium)"},
+    {"name": "vosk", "module": "vosk", "dist": "vosk", "category": "stt",
+     "note": "Free offline STT (Vosk; needs VOSK_MODEL_DIR)"},
+    {"name": "cnocr", "module": "cnocr", "dist": "cnocr", "category": "ocr",
+     "note": "Free local OCR (CnOCR, onnxruntime)"},
+    {"name": "easyocr", "module": "easyocr", "dist": "easyocr", "category": "ocr",
+     "note": "Free local OCR (EasyOCR, torch)"},
+    {"name": "windows_ocr", "module": "winrt.windows.media.ocr",
+     "dist": "winrt-Windows.Media.Ocr", "category": "ocr",
+     "note": "Windows native OCR (WinRT)"},
+    {"name": "edge_tts", "module": "edge_tts", "dist": "edge-tts", "category": "tts",
+     "note": "Microsoft Edge TTS (online, natural)"},
+    {"name": "sherpa_onnx", "module": "sherpa_onnx", "dist": "sherpa-onnx",
+     "category": "tts", "tier_engine": "sherpa",
+     "note": "Sherpa-ONNX offline TTS (Kokoro multi-lang)"},
+    {"name": "kokoro", "module": "sherpa_onnx", "dist": "sherpa-onnx",
+     "category": "tts", "tier_engine": "kokoro", "probe_engine": "kokoro",
+     "note": "Kokoro-82M via sherpa-onnx (zh/en offline)"},
+    {"name": "melotts", "module": "melo", "dist": "melotts", "category": "tts",
+     "note": "MeloTTS offline TTS (zh/en mixed)"},
+    {"name": "voxcpm", "module": "voxcpm", "dist": "voxcpm", "category": "tts",
+     "tier_engine": "voxcpm2", "probe_engine": "voxcpm2",
+     "note": "VoxCPM2 in-process TTS (OpenBMB multilingual clone)"},
+    {"name": "qwen_tts", "module": "qwen_tts", "dist": "qwen-tts", "category": "tts",
+     "tier_engine": "qwen3tts", "probe_engine": "qwen3tts",
+     "note": "Qwen3-TTS in-process (pip qwen-tts; Python 3.13 OK)"},
+)
+
+# Local HTTP / in-process neural TTS engines (orchestrator availability probe).
+_API_TTS_LIBS = (
+    {"name": "chattts", "category": "tts", "probe_engine": "chattts",
+     "note": "ChatTTS dialogue TTS (laughs/sighs; CHATTTS_URL local api)"},
+    {"name": "cosyvoice", "category": "tts", "tier_engine": "cosyvoice",
+     "probe_engine": "cosyvoice",
+     "note": "CosyVoice multilingual clone (COSYVOICE_URL; iic/CosyVoice2-0.5B)"},
+    {"name": "fishspeech", "category": "tts", "tier_engine": "fishspeech",
+     "probe_engine": "fishspeech",
+     "note": "Fish Speech clone (openaudio-s1 GPU / openaudio-s1-mini CPU)"},
+    {"name": "qwen3tts", "category": "tts", "tier_engine": "qwen3tts",
+     "probe_engine": "qwen3tts",
+     "note": "Qwen3-TTS multilingual (qwen-tts; 1.7B GPU / 0.6B CPU)"},
+    {"name": "bark", "category": "tts", "tier_engine": "bark", "probe_engine": "bark",
+     "note": "Bark expressive TTS (transformers suno/bark; Python 3.13 native)"},
+    {"name": "parler", "category": "tts", "tier_engine": "parler", "probe_engine": "parler",
+     "note": "Parler-TTS voice-description TTS (HF parler-tts; Python 3.13 native)"},
+    {"name": "gptsovits", "category": "tts", "tier_engine": "gptsovits",
+     "probe_engine": "gptsovits",
+     "note": "GPT-SoVITS voice clone (GPTSOVITS_HF_ALLOW GPU=* / CPU v2)"},
+    {"name": "f5tts", "category": "tts", "probe_engine": "f5tts",
+     "note": "F5-TTS flow-matching clone (F5TTS_URL local api)"},
 )
 
 
@@ -57,6 +116,92 @@ def _dist_version(dist: str) -> Optional[str]:
         return importlib.metadata.version(dist)
     except Exception:
         return None
+
+
+def _tts_engine_available(name: str) -> bool:
+    try:
+        return bool(engine_available(name))
+    except Exception:
+        return False
+
+
+def _tier_payload(tier_engine: Optional[str]) -> Dict[str, Any]:
+    if not tier_engine:
+        return {}
+    row = TIER_TABLE.get(tier_engine)
+    if not row:
+        return {}
+    gpu = gpu_present()
+    active = engine_model(tier_engine, gpu)
+    if tier_engine == "whisper" and _spec_available("whisper"):
+        active = runtime_whisper_model()
+    elif tier_engine == "faster_whisper" and _spec_available("faster_whisper"):
+        active = runtime_faster_whisper_model()
+    return {
+        "model_gpu": row["gpu"],
+        "model_cpu": row["cpu"],
+        "model_active": active,
+        "env": row.get("env"),
+    }
+
+
+def _tts_engine_installed(name: str) -> bool:
+    try:
+        return bool(engine_installed(name))
+    except Exception:
+        return False
+
+
+def _library_entry(
+    name: str,
+    category: str,
+    note: str,
+    available: bool,
+    installed: bool,
+    version: Optional[str] = None,
+    kind: str = "pip",
+    tier_engine: Optional[str] = None,
+) -> Dict[str, Any]:
+    entry: Dict[str, Any] = {
+        "name": name,
+        "category": category,
+        "kind": kind,
+        "available": available,
+        "installed": installed,
+        "version": version,
+        "note": note,
+    }
+    entry.update(_tier_payload(tier_engine))
+    return entry
+
+
+def libraries_status() -> List[Dict[str, Any]]:
+    """Pycore library registry: pip packages + neural TTS engines with model tiers."""
+    out: List[Dict[str, Any]] = []
+    for lib in _PIP_LIBS:
+        module = lib["module"]
+        probe = lib.get("probe_engine")
+        pip_ok = _spec_available(module)
+        if probe:
+            avail = _tts_engine_available(probe)
+            inst = _tts_engine_installed(probe)
+        else:
+            avail = pip_ok
+            inst = pip_ok
+        version = _dist_version(lib["dist"]) if pip_ok else None
+        out.append(_library_entry(
+            lib["name"], lib["category"], lib["note"], avail, inst, version,
+            kind="pip", tier_engine=lib.get("tier_engine"),
+        ))
+    for lib in _API_TTS_LIBS:
+        probe = lib.get("probe_engine") or lib["name"]
+        inst = _tts_engine_installed(probe)
+        out.append(_library_entry(
+            lib["name"], lib["category"], lib["note"],
+            _tts_engine_available(probe), inst, None,
+            kind="api", tier_engine=lib.get("tier_engine"),
+        ))
+    return out
 
 
 def cuda_status() -> Dict[str, Any]:
@@ -81,27 +226,16 @@ def cuda_status() -> Dict[str, Any]:
     }
 
 
-def libraries_status() -> List[Dict[str, Any]]:
-    """Availability + version for each free/offline library (find_spec only)."""
-    out: List[Dict[str, Any]] = []
-    for lib in _FREE_LIBS:
-        available = _spec_available(lib["module"])
-        out.append({
-            "name": lib["name"],
-            "category": lib["category"],
-            "available": available,
-            "version": _dist_version(lib["dist"]) if available else None,
-            "note": lib["note"],
-        })
-    return out
-
-
 def capabilities_status() -> Dict[str, Any]:
-    """Full capability snapshot for the UI: CUDA block + free libraries."""
+    """Full capability snapshot for the UI: CUDA block + pycore library registry."""
     return {
         "success": True,
         "cuda": cuda_status(),
         "libraries": libraries_status(),
+        "model_tiers": [
+            {"engine": key, **row}
+            for key, row in TIER_TABLE.items()
+        ],
     }
 
 
@@ -165,12 +299,14 @@ def pycore_constants() -> List[Dict[str, Any]]:
     return [
         {"key": "edge_tts_min_version", "value": ">= 7.2.4 (latest)",
          "note": "edge-tts is kept at latest; old versions 403 on a stale Sec-MS-GEC handshake"},
-        {"key": "tts_engine_priority", "value": "edge → sherpa → melotts → gptsovits",
+        {"key": "tts_engine_priority", "value": " → ".join(default_tts_engine_priority()),
          "note": "TTS engine fallback order (override with TTS_ENGINE_PRIORITY)"},
         {"key": "tts_rate", "value": "-20%",
          "note": "Default speech rate for the subtitle pipeline (override with EDGE_TTS_RATE)"},
         {"key": "ocr_engine_priority", "value": "windows → easyocr → cnocr → ai-vision",
          "note": "OCR engine fallback order for the screenshot pipeline"},
+        {"key": "model_tiers", "value": " | ".join(tier_summary_lines()),
+         "note": "GPU/CPU max model tiers (pycore/tts_install_assets/tts_model_tiers.py)"},
         {"key": "ai_dispatch_order", "value": "free → balance → paid",
          "note": "Unified AI gateway smart-dispatch tier order"},
         {"key": "rpc_port", "value": "59000",

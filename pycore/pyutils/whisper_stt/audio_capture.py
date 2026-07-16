@@ -40,6 +40,9 @@ from pycore.pyutils.whisper_stt.audio_utils import (
     WHISPER_CHANNELS,
 )
 
+from pycore.pyutils.whisper_stt.audio_utils import convert_to_whisper_format
+
+
 
 class AudioCaptureConfig:
     """Configuration for audio capture"""
@@ -460,7 +463,6 @@ class SystemAudioCapture:
         self._frames = []
 
         # Convert to Whisper format (16kHz mono)
-        from pycore.pyutils.whisper_stt.audio_utils import convert_to_whisper_format
         converted_path = convert_to_whisper_format(output_path)
         if converted_path and converted_path != output_path:
             output_path.unlink(missing_ok=True)

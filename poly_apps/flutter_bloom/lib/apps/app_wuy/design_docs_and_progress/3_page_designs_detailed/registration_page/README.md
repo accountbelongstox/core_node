@@ -1,4 +1,4 @@
-# 注册页 (registration_page)
+# Registration Page (registration_page)
 
 This directory contains detailed design specifications for the registration_page page.
 

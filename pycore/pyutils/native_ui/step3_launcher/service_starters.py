@@ -32,6 +32,14 @@ from pycore.pyutils.native_ui.step9_frontend import (
     start_frontend_if_needed
 )
 from pycore.pylauncher.singleton_detector import SingletonDetector
+from pycore.pyfoundations.launcher_config import LauncherConfig
+
+import traceback
+
+from pycore.pyutils.common.port_utils import ensure_ports_available
+from pycore.pyutils.native_ui.step6_tray import TrayMenuItem
+
+
 
 if TYPE_CHECKING:
     from pycore.pyutils.native_ui.step9_frontend import FrontendLauncherThread
@@ -210,7 +218,6 @@ def _start_rpc_v2_service(
     """
     # Lazy import to avoid circular dependency:
     # pylauncher -> pythreadpool -> native_ui.step6_tray -> native_ui -> step3_launcher -> pylauncher
-    from pycore.pylauncher import LauncherConfig, ServiceLauncher
 
     if config.debug:
         ColorPrint.print_info("[NativeLauncher] Phase 4.7: Starting RPC v2 service...")
@@ -218,7 +225,6 @@ def _start_rpc_v2_service(
     try:
         # ========== 0. Ensure RPC port is available ==========
         # After singleton takeover, wait for old instance's ports to be released
-        from pycore.pyutils.common.port_utils import ensure_ports_available
 
         ports_to_check = [config.rpc_port]
         # Only check frontend port in production mode (dev mode frontend is already running)
@@ -274,6 +280,7 @@ def _start_rpc_v2_service(
             ColorPrint.blue(f"  - Static mounts: {len(static_mounts)}")
 
         # ========== 3. Start RPC v2 via ServiceLauncher ==========
+        from pycore.pylauncher import ServiceLauncher
         launcher_config = LauncherConfig(
             app_id=f"{config.app_id}_rpc",
             app_name=f"{config.app_name} RPC",
@@ -328,7 +335,6 @@ def _start_rpc_v2_service(
 
     except Exception as e:
         ColorPrint.print_error(f"[NativeLauncher] Phase 4.7: Failed to start RPC v2: {e}")
-        import traceback
         traceback.print_exc()
         return None
 
@@ -347,7 +353,6 @@ def _start_pylauncher_tray_service(config: NativeUIConfig) -> Optional[Any]:
         Tray service instance or None
     """
     # Lazy import to avoid circular dependency
-    from pycore.pylauncher import LauncherConfig, ServiceLauncher
 
     if config.debug:
         ColorPrint.print_info("[NativeLauncher] Starting pylauncher tray service (pystray backend)...")
@@ -355,8 +360,6 @@ def _start_pylauncher_tray_service(config: NativeUIConfig) -> Optional[Any]:
     try:
         # Convert NativeUIConfig tray_menu_items to TrayMenuItem format
         # NativeUIConfig uses simple dicts, need to convert to proper format
-        from pycore.pyutils.native_ui.step6_tray import TrayMenuItem
-        import webbrowser
 
         tray_menu_items = []
 
@@ -433,6 +436,7 @@ def _start_pylauncher_tray_service(config: NativeUIConfig) -> Optional[Any]:
         }
 
         # Use pylauncher to start tray service
+        from pycore.pylauncher import ServiceLauncher
         launcher_config = LauncherConfig(
             app_id=f"{config.app_id}_tray",
             app_name=f"{config.app_name} Tray",
@@ -454,6 +458,5 @@ def _start_pylauncher_tray_service(config: NativeUIConfig) -> Optional[Any]:
 
     except Exception as e:
         ColorPrint.print_error(f"[NativeLauncher] Failed to start pylauncher tray service: {e}")
-        import traceback
         traceback.print_exc()
         return None

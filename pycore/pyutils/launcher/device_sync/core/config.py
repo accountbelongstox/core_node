@@ -12,6 +12,13 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
+from pycore.pyfoundations.system_paths import get_system_cache_dir
+
+import traceback
+import time
+from datetime import datetime
+
+
 
 # Default constants
 DEFAULT_HTTP_PORT = 58923
@@ -23,15 +30,11 @@ def get_cache_dir() -> Path:
     """
     Get unified cache directory across platforms
 
-    Windows: C:\\Users\\用户名\\.core_node\\.device_sync
-    Linux: /var/_core_node/_device_sync
+    Windows: D:\\programing\\Users\\<user>\\.core_node\\.device_sync
+    Linux:   /var/_core_node/.device_sync (else ~/.core_node/.device_sync)
     """
-    if sys.platform == 'win32':
-        # Windows: Use user home directory
-        cache_dir = Path.home() / '.core_node' / '.device_sync'
-    else:
-        # Linux/Unix: Use /var/_core_node
-        cache_dir = Path('/var/_core_node/_device_sync')
+    # Centralized per-user state dir (see system_paths.get_system_cache_dir).
+    cache_dir = get_system_cache_dir() / '.device_sync'
 
     # Create directory if it doesn't exist
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -269,7 +272,6 @@ class GlobalConfig:
 
     def build_file_cache(self):
         """Build file cache for root directory"""
-        import time
 
         if not self.root_dir or not self.root_dir.exists():
             print(f"[Config] Cannot build file cache: root_dir not set or doesn't exist")
@@ -314,13 +316,10 @@ class GlobalConfig:
         except Exception as e:
             print(f"[Config] Error building file cache: {e}")
             # Don't clear existing cache on error
-            import traceback
             traceback.print_exc()
 
     def get_status(self) -> dict:
         """Get current configuration status"""
-        import time
-        from datetime import datetime
 
         return {
             'isPrimaryServer': self.isPrimaryServer,

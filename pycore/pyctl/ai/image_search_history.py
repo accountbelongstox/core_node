@@ -2,7 +2,7 @@
 """
 Shared image-search history (SerpApi Google-Images queries + result metadata).
 
-Stores metadata only (no image bytes) under ``<core_node>/.data/.ai_state``.
+Stores metadata only (no image bytes) under ``<cache>/pycore/.ai_state``.
 The UI lists thumbnails via the result URLs SerpApi returned.
 """
 
@@ -18,9 +18,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root
+from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root, get_local_data_dir
 
-_SHARED_STATE_DIR = get_core_node_root() / ".data" / ".ai_state"
+_SHARED_STATE_DIR = get_local_data_dir() / ".ai_state"
 _OLD_SHARED_DIR = get_core_node_root() / ".ai_state"
 _LEGACY_DIR = APP_DATA_DIR / "ai_state"
 _INDEX_NAME = "image_search_history.json"

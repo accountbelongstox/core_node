@@ -23,6 +23,12 @@ from pycore.pyfoundations import ColorPrint
 from pycore.pylauncher import launch_services, create_speech_service_config, ServiceInstances
 from pycore.pyctl.speech.rpc import start_rpc_service
 
+from pycore.pyutils.common import speech_config
+from pathlib import Path
+from pycore.pyutils.rpc_v2 import UnifiedRpcServerRunner
+from pycore.pylauncher import stop_services
+
+
 
 def initialize_speech_config():
     """
@@ -31,7 +37,6 @@ def initialize_speech_config():
     Uses dedicated SpeechConfig (util_speech.config table).
     Auto-migrates from GlobalConfig if needed.
     """
-    from pycore.pyutils.common import speech_config
 
     # SpeechConfig will automatically:
     # 1. Initialize defaults from SpeechConfigModel.DEFAULT_CONFIG
@@ -96,11 +101,9 @@ def launch_speech_rpc_service(
     ColorPrint.blue(f"[SpeechRPC] Queue Size: {tts_queue_size}")
 
     # Step 2: Prepare static web directory path (BEFORE launching services)
-    from pathlib import Path
     web_dir = Path(__file__).parent / 'rpc_v2' / 'web'
 
     # Step 3: Create RPC server and configure static directories BEFORE starting
-    from pycore.pyutils.rpc_v2 import UnifiedRpcServerRunner
     rpc_server = UnifiedRpcServerRunner(
         host=config.rpc_host,
         port=config.rpc_port,
@@ -186,7 +189,6 @@ def main():
         ColorPrint.yellow("\nShutting down...")
 
     # Cleanup
-    from pycore.pylauncher import stop_services
     stop_services(instances)
 
     ColorPrint.green("Service stopped.")

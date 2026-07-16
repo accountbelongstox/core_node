@@ -238,7 +238,7 @@ if (-not $SkipChecks) {
                 Write-Warn "Python websockets not installed, installing..."
                 $reqFile = Join-Path $Paths.host "pyapps\claude_host\requirements.txt"
                 if (Test-Path $reqFile) {
-                    $null = cmd /c "$pyCmd -m pip install -r `"$reqFile`" 2>&1"
+                    $null = cmd /c "$pyCmd -m pip install --upgrade -r `"$reqFile`" 2>&1"
                     # Verify
                     $wsTest2 = cmd /c "$pyCmd -c `"import websockets; print('OK')`" 2>nul"
                     if ($wsTest2 -eq "OK") {

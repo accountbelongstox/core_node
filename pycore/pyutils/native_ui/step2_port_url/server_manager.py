@@ -20,6 +20,12 @@ from dataclasses import dataclass
 from pycore import ColorPrint
 import subprocess
 
+import traceback
+
+from pycore.pyutils.native_ui.step7_managers.shutdown_manager import get_shutdown_manager
+
+
+
 
 @dataclass
 class ServerProcess:
@@ -233,7 +239,6 @@ class ServerManager:
 
             except Exception as e:
                 ColorPrint.print_error(f"[ServerManager] Failed to start Nuxt dev server: {e}")
-                import traceback
                 traceback.print_exc()
                 return None
 
@@ -319,7 +324,6 @@ class ServerManager:
 
             except Exception as e:
                 ColorPrint.print_error(f"[ServerManager] Failed to start static server: {e}")
-                import traceback
                 traceback.print_exc()
                 return None
 
@@ -397,7 +401,6 @@ class ServerManager:
             return
 
         try:
-            from pycore.pyutils.native_ui.step7_managers.shutdown_manager import get_shutdown_manager
 
             shutdown_mgr = get_shutdown_manager()
             shutdown_mgr.add_shutdown_hook(

@@ -11,6 +11,14 @@ from collections import Counter
 
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_numpy
 
+try:
+    from sklearn.cluster import KMeans
+    _KMEANS_AVAILABLE = True
+except ImportError:
+    KMeans = None
+    _KMEANS_AVAILABLE = False
+
+
 PIL_Image = get_third_package_PIL_Image()
 numpy = get_third_package_numpy()
 
@@ -79,7 +87,6 @@ class ColorPaletteExtractorWithDominantColorsAndHistogram:
             indices = numpy.random.choice(len(pixels), 10000, replace=False)
             pixels = pixels[indices]
 
-        from sklearn.cluster import KMeans
         kmeans = KMeans(n_clusters=num_colors, random_state=42, n_init=10)
         kmeans.fit(pixels)
 

@@ -13,6 +13,7 @@ CONFIG_QUEUE = queue.Queue()
 SAVE_QUEUE = queue.Queue()
 
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont
+from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 Image = get_third_package_PIL_Image()
 ImageDraw = get_third_package_PIL_ImageDraw()
@@ -512,7 +513,7 @@ def template_uses_png_matcher(template_name: str) -> bool:
 # Configuration file path
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "template_config.json")
 
-DATA_DIR = Path.home() / '.core_node' / '.d3check'
+DATA_DIR = get_system_cache_dir() / '.d3check'
 
 # User-specific configuration paths
 CURRENT_USER_DATA_PATH = DATA_DIR

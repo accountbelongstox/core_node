@@ -13,7 +13,7 @@ from pathlib import Path
 def create_desktop_shortcut():
     """Create desktop shortcut for Device Sync."""
     try:
-        import win32com.client
+        pass
     except ImportError:
         print("Error: pywin32 not installed")
         print("Install with: pip install pywin32")

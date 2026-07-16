@@ -13,6 +13,7 @@ import type {
   WfNewHomeContent, WfNewStatistics, WfNewLanguage, WfNewSuperAdminStatus,
 } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
+import { wfReaderSettingsRoamer, applyReaderSettings } from '../services/WfReaderSettingsRoamer';
 import { translate } from '../WfNewLocales';
 import { wfNewNotify, useWfNewToasts } from '../WfNewNotify';
 import { CUSTOM_THEMES } from '../WfNewThemes';
@@ -154,18 +155,29 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     // Deep-link to a vocabulary library: #/library/<id>?page=N&view=dash|table
     if (fromHash.startsWith('library/')) {
       const [path, query = ''] = fromHash.split('?');
-      const id = decodeURIComponent(path.slice('library/'.length));
-      if (id) {
-        const params = new URLSearchParams(query);
-        const page = Math.max(1, parseInt(params.get('page') || '1', 10) || 1);
-        const view = params.get('view') === 'dash' ? 'dash' : 'table';
-        setLibraryRoute({ id, page, view });
-        setActiveTabRaw('library');
+      const id = decodeURIComponent(path.slice('library/'.length)).trim();
+      if (!id) {
+        setActiveTabRaw('home');
         return;
       }
+      const params = new URLSearchParams(query);
+      const page = Math.max(1, parseInt(params.get('page') || '1', 10) || 1);
+      const view = params.get('view') === 'dash' ? 'dash' : 'table';
+      setLibraryRoute({ id, page, view });
+      setActiveTabRaw('library');
+      return;
+    }
+    // book-reader requires in-app state (sourceKey); bare hash cannot restore.
+    if (fromHash === 'book-reader') {
+      setActiveTabRaw('home');
+      return;
     }
     if (fromHash && (ALL as string[]).includes(fromHash) && fromHash !== 'home') {
       setActiveTabRaw(fromHash as WfTab);
+      return;
+    }
+    if (fromHash && fromHash !== 'home') {
+      setActiveTabRaw('home');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -387,6 +399,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
           setActiveThemeId(themeId);
           wfNewSettings.setField('themeId', themeId);
         }
+        applyReaderSettings(prefs.app_settings?.reader as any);
       } catch {
         /* offline / unauthenticated — keep local settings */
       }
@@ -424,6 +437,11 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     });
     return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Pull roaming book-reader settings on boot (user prefs when authed, device key when guest).
+  useEffect(() => {
+    void wfReaderSettingsRoamer.pull();
   }, []);
 
   // Social realtime lifecycle — keyed on the login flag. When logged IN: open the
@@ -479,6 +497,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   const homeCountRef = useRef<Record<WfNewCachedKind, number>>({ word: 0, book: 0, subtitle: 0, library: 0 });
   // The book currently open in the reader (book -> chapter -> verses surface).
   const [bookReader, setBookReader] = useState<{ sourceKey: string; title: string } | null>(null);
+
   // The subtitle source pre-selected from the home hub (drives WfNewSubtitles).
   const [selectedSubtitleKey, setSelectedSubtitleKey] = useState<string | undefined>(undefined);
   // The category whose full "list page" is open (book/subtitle/library "More →").
@@ -533,6 +552,13 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   const [newWordTransl, setNewWordTransl] = useState('');
   const [newWordPhon, setNewWordPhon] = useState('');
   const [newWordDef, setNewWordDef] = useState('');
+
+  // book-reader tab without an opened book (e.g. bare #/book-reader hash) → home.
+  useEffect(() => {
+    if (activeTab === 'book-reader' && !bookReader) {
+      goHome();
+    }
+  }, [activeTab, bookReader, goHome]);
 
   // Fetch profile & packages through the single gateway (mock or real — the
   // implementation behind ./api decides, this code is identical either way).

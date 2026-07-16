@@ -13,6 +13,9 @@ import signal
 from typing import List, Optional
 from pycore import ColorPrint
 
+import subprocess
+
+
 
 def is_port_in_use(port: int, host: str = '0.0.0.0') -> bool:
     """
@@ -109,7 +112,6 @@ def kill_process_using_port(port: int, host: str = '0.0.0.0', force: bool = Fals
     """
     try:
         # Find PID using the port (Linux/Unix)
-        import subprocess
 
         # Use netstat or ss to find the PID
         try:

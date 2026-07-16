@@ -10,8 +10,8 @@ sse_broadcaster) and the uvicorn runner in server_runner; this module wires them
 together and owns the shared `_broadcast_loop` singleton that keeps SSE + WS +
 sync broadcast scheduling coherent.
 
-Public API (re-exported): FastAPIRPCServer, FastAPIRPCServerRunner,
-SSEBroadcaster, HttpRPCHandler, WebSocketRPCHandler.
+Public API: FastAPIRPCServer (runner re-exported from server.__init__).
+SSEBroadcaster, HttpRPCHandler, WebSocketRPCHandler are sibling modules.
 """
 
 from __future__ import annotations
@@ -51,7 +51,6 @@ from pycore.pyutils.rpc_v2.server.request_processor import RequestProcessor
 from pycore.pyutils.rpc_v2.server.http_handler import HttpRPCHandler
 from pycore.pyutils.rpc_v2.server.websocket_handler import WebSocketRPCHandler
 from pycore.pyutils.rpc_v2.server.sse_broadcaster import SSEBroadcaster
-from pycore.pyutils.rpc_v2.server.server_runner import FastAPIRPCServerRunner
 from pycore.pyutils.rpc_v2.protocol import RPCProtocolServer
 
 WS_PATH = RPC_CONSTANTS.WS_PATH
@@ -426,13 +425,6 @@ class FastAPIRPCServer:
         }
 
 
-# Re-export the runner + transport handlers so the public API
-# (`from .fastapi_server import FastAPIRPCServer, FastAPIRPCServerRunner, ...`)
-# keeps working after the split.
 __all__ = [
     "FastAPIRPCServer",
-    "FastAPIRPCServerRunner",
-    "SSEBroadcaster",
-    "HttpRPCHandler",
-    "WebSocketRPCHandler",
 ]

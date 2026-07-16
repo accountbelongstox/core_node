@@ -11,6 +11,22 @@ import json
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from hf_secret import ensure_hf_token
 
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..'))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+from pycore.pyutils.common.hf_local_weights import resolve_model_id
+
+_NLLB200_DEFAULT_REPO = "facebook/nllb-200-distilled-600M"
+
+
+def _resolve_model(model_name=None):
+    """Pre-downloaded local weights (Step39 idempotent install) when available,
+    else the HF repo id. An explicit model_name always wins."""
+    if model_name:
+        return model_name
+    return resolve_model_id("NLLB200_DIR", "nllb200", _NLLB200_DEFAULT_REPO)
+
+
 ensure_hf_token()
 
 
@@ -45,7 +61,8 @@ def normalize_language_code(lang_code):
     return lang_code
 
 
-def translate_text(text, source_lang='auto', target_lang='zh', model_name='facebook/nllb-200-distilled-600M'):
+def translate_text(text, source_lang='auto', target_lang='zh', model_name=None):
+    model_name = _resolve_model(model_name)
     try:
         os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
 
@@ -92,7 +109,7 @@ def main():
         text = params.get('text', '')
         source_lang = params.get('source_lang', 'auto')
         target_lang = params.get('target_lang', 'zh')
-        model_name = params.get('model_name', 'facebook/nllb-200-distilled-600M')
+        model_name = params.get('model_name')
 
         result = translate_text(text, source_lang, target_lang, model_name)
         print(json.dumps(result, ensure_ascii=False, indent=2))

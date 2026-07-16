@@ -433,7 +433,7 @@ frontend.wait_for_ready(timeout=120)  # 阻塞等待（最长120秒）
 1. **node_modules/ 不存在**
 2. **pnpm-lock.yaml 更新**（比 node_modules/ 新）
 
-### 安装流程
+### Installation流程
 
 ```python
 def _ensure_dependencies(self) -> bool:
@@ -540,7 +540,7 @@ config = FrontendConfig(
 
 ## 线程管理
 
-### 设计原则
+### Design Principles
 
 遵循 pycore 规范：
 
@@ -612,7 +612,7 @@ thread.stop()
 
 ---
 
-## 错误处理
+## Error Handling
 
 ### 错误类型
 
@@ -747,7 +747,7 @@ if __name__ == "__main__":
 
 ---
 
-## 性能优化
+## Performance优化
 
 ### 1. 使用智能构建
 

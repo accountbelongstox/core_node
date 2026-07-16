@@ -90,6 +90,14 @@ class ServerManagerV1ApiInfo
                 'path' => $apiPrefix . '/system/storage',
                 'feature' => 'auth_required/GET|Get storage analysis and disk usage information|ServerManagerV1SystemInfoCtl|response:storage(object,Storage info),usage(object,Disk usage),free_space(string,Available space)|tags:server,system'
             ],
+            [
+                'path' => $apiPrefix . '/system/static-resources',
+                'feature' => 'auth_required/GET|Get static resources summary (laravel_db/static file counts and sizes by type)|ServerManagerV1SystemInfoCtl@getStaticResources|response:base_path(string,Static root),total_files(int,File count),total_size_bytes(int,Total bytes),by_type(object,Counts by audio/video/image),by_subdirectory(array,Known subdirs),disk_usage(array,Mount points)|tags:server,system,static'
+            ],
+            [
+                'path' => $apiPrefix . '/system/static-resources/files',
+                'feature' => 'auth_required/GET|List files in static subdirectory with search/sort/pagination|ServerManagerV1SystemInfoCtl@listStaticResourceFiles|params:path(string,required,app_qy_v1/audio),q(string,optional,),sort(string,optional,name),order(string,optional,asc),page(int,optional,1),per_page(int,optional,100)|response:files(array,File list),total(int,Total matches)|tags:server,system,static'
+            ],
 
             // File Management APIs
             [
@@ -106,7 +114,19 @@ class ServerManagerV1ApiInfo
             ],
             [
                 'path' => $apiPrefix . '/files/preview',
-                'feature' => 'auth_required/GET|Preview text files with syntax highlighting|ServerManagerV1FileManagerCtl|params:file_path(string,required,/etc/hosts),lines(int,optional,100)|response:content(string,File content),type(string,File type)|tags:server,files'
+                'feature' => 'auth_required/GET|Preview text files with syntax highlighting|ServerManagerV1FileManagerCtl|params:file_path(string,required,/etc/hosts),lines(int,optional,100),for_edit(bool,optional,false)|response:content(string,File content),type(string,File type)|tags:server,files'
+            ],
+            [
+                'path' => $apiPrefix . '/files/write',
+                'feature' => 'auth_required/POST|Write text file with whitelist and optional elevated access|ServerManagerV1FileManagerCtl|params:file_path(string,required,/etc/hosts),content(string,required,file body)|headers:X-Elevated-Token(string,optional,short-lived token)|response:file_path(string,Saved path),size(int,Bytes)|tags:server,files'
+            ],
+            [
+                'path' => $apiPrefix . '/files/elevated-auth',
+                'feature' => 'auth_required/POST|Exchange root password for short-lived elevated write token|ServerManagerV1FileManagerCtl|params:password(string,required,root password)|response:token(string,Elevated token),expires_in(int,Seconds)|tags:server,files,security'
+            ],
+            [
+                'path' => $apiPrefix . '/files/elevated-auth',
+                'feature' => 'auth_required/DELETE|Revoke elevated write token|ServerManagerV1FileManagerCtl|headers:X-Elevated-Token(string,optional,token to revoke)|tags:server,files,security'
             ],
 
             // Code Execution APIs

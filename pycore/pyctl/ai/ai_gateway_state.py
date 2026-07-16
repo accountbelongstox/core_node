@@ -85,14 +85,14 @@ _NET_ERROR_MARKS = (
 # were dropped because transient proxy/nginx 401/503 pages contain them and would
 # wrongly cool a valid key for an hour. The provider-JSON forms below are precise.
 _HARD_DISABLE_MARKS = (
-    "only available on paid", "paid plan", "paid tier", "upgrade your account",
+    "401", "only available on paid", "paid plan", "paid tier", "upgrade your account",
     "账号已被禁用", "account disabled", "account has been disabled",
     "account is disabled", "请联系客服", "authentication_error",
     "invalid api key", "invalid_api_key", "permission_denied",
 )
 
 _lock = threading.Lock()
-_probe_cache: Dict[str, Any] = {"ts": 0.0, "providers": []}
+_probe_cache: Dict[str, Any] = {"ts": 0.0, "providers": [], "by_name": {}}
 _quota_cache: Dict[str, Dict[str, Any]] = {}  # provider -> {ts, quota}
 _vision_model_cache: Dict[str, Any] = {"ts": 0.0, "model": None}
 
@@ -177,6 +177,30 @@ def _rate_caps(provider: str, model: Optional[str] = None) -> Tuple[Optional[int
     return getattr(spec, "rpm", None), getattr(spec, "rpd", None)
 
 
+def _apply_failure_cooldown(provider: str, error: Optional[str]) -> None:
+    """Pause a provider after quota/auth/unreachable failures (mutates under _lock)."""
+    st = _stats[provider]
+    st["failed"] += 1
+    st["last_error"] = error
+    if _is_quota_error(error):
+        st["strikes"] += 1
+        cooldown = min(_COOLDOWN_BASE_S * (2 ** (st["strikes"] - 1)), _COOLDOWN_MAX_S)
+        st["cooldown_until"] = time.time() + cooldown
+        ColorPrint.yellow(
+            f"[ai_gateway] {provider} rate/quota limited - cooling down {cooldown:.0f}s")
+    elif _is_hard_disable_error(error):
+        st["strikes"] += 1
+        st["cooldown_until"] = time.time() + _IMG_DISABLED_COOLDOWN_S
+        ColorPrint.yellow(
+            f"[ai_gateway] {provider} disabled ({(error or '')[:80]}) - "
+            f"cooling down {int(_IMG_DISABLED_COOLDOWN_S)}s")
+    elif _is_net_timeout_error(error):
+        st["strikes"] += 1
+        st["cooldown_until"] = time.time() + _IMG_UNREACHABLE_COOLDOWN_S
+        ColorPrint.yellow(
+            f"[ai_gateway] {provider} unreachable - cooling down {int(_IMG_UNREACHABLE_COOLDOWN_S)}s")
+
+
 def _on_result(provider: str, ok: bool, error: Optional[str]) -> None:
     with _lock:
         st = _stats[provider]
@@ -187,16 +211,18 @@ def _on_result(provider: str, ok: bool, error: Optional[str]) -> None:
             st["strikes"] = 0
             st["last_error"] = None
         else:
-            st["failed"] += 1
-            st["last_error"] = error
-            if _is_quota_error(error):
-                st["strikes"] += 1
-                cooldown = min(_COOLDOWN_BASE_S * (2 ** (st["strikes"] - 1)), _COOLDOWN_MAX_S)
-                st["cooldown_until"] = time.time() + cooldown
-                ColorPrint.yellow(
-                    f"[ai_gateway] {provider} rate/quota limited - cooling down {cooldown:.0f}s")
+            _apply_failure_cooldown(provider, error)
     # _save_stats() re-acquires _lock, so it MUST run OUTSIDE the block above -
     # threading.Lock is non-reentrant; calling it inside would self-deadlock.
+    _save_stats()
+
+
+def _on_probe_result(provider: str, ok: bool, error: Optional[str]) -> None:
+    """Record a live probe outcome and pause providers that cannot be used."""
+    if ok:
+        return
+    with _lock:
+        _apply_failure_cooldown(provider, error)
     _save_stats()
 
 

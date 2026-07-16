@@ -141,10 +141,13 @@ On miss it marks `has_audio=false` on the per-language row and may enqueue (bump
 ## 5. pycore: engine selection + single priority queue
 
 ### 5.1 Orchestrator (`pycore/pyutils/tts/tts_orchestrator.py`)
-Priority extended to `("edge","sherpa","melotts","gptsovits","azure")`. `azure` (cloud) is
-**last**, so it is only used when every local engine is unavailable/failed — exactly the
-"local OK → local; else API" rule. `synthesize(text, language, output_path, rate)` is
-unchanged for callers. GPU→CPU is handled inside MeloTTS (`_device()` auto).
+Default priority is local-AI-first:
+`("gptsovits","melotts","sherpa","edge","streamelements","gtts_web","azure")`.
+`azure` (cloud) is **last**, so it is only used when every engine above is
+unavailable/failed — exactly the "local OK → local; else API" rule.
+`streamelements` requires `STREAMELEMENTS_API_KEY` (disabled + warned at startup
+when missing). `synthesize(text, language, output_path, rate)` is unchanged for
+callers. GPU→CPU is handled inside MeloTTS (`_device()` auto).
 
 ### 5.2 Cloud engine (`pycore/pyutils/tts/azure_engine.py`, new)
 Azure Speech (F0 free ≈ 0.5M neural chars/month; throttles with 429, never auto-charges).

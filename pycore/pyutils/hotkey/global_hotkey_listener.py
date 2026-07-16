@@ -68,8 +68,6 @@ def _check_and_install_dependencies():
     Check if dependencies are available, if not, try to install them
     """
     try:
-        import keyboard
-        import mouse
         return True
     except ImportError:
         ColorPrint.yellow("[DEPENDENCY] Required modules not found, attempting auto-installation...")
@@ -77,8 +75,6 @@ def _check_and_install_dependencies():
         if _auto_install_dependencies():
             # Try importing again after installation
             try:
-                import keyboard
-                import mouse
                 ColorPrint.green("[DEPENDENCY] Dependencies successfully installed and imported")
                 return True
             except ImportError as e:
@@ -498,7 +494,6 @@ class HotkeyListener:
                 pass
             
             # Method 2: Try registering with a slight delay
-            import time
             time.sleep(0.1)
             try:
                 keyboard.add_hotkey(hotkey, new_callback, suppress=True)

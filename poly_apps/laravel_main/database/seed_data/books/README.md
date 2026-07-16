@@ -39,7 +39,7 @@ a reset/empty DB re-seeds automatically. See
 Only two **public-domain** editions are inserted as the bilingual pair:
 
 - `en` ← **KJV** (King James Version, 1611)
-- `zh` ← **和合本 / CUV** (Chinese Union Version, 1919)
+- `zh` ← **CUV** (Chinese Union Version, 1919)
 
 The full six editions (`cuv/kjv/lzz/nasb/ncv/niv`) remain inside the blob and are
 listed in each book's `metadata.available_versions`. **Personal academic /

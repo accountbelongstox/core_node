@@ -70,7 +70,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable
 
 from pycore import ColorPrint, THREAD_BUS
-from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusKeys, BusSignals
+from pycore.pyfoundations.thread_bus_constants import BusKeys, BusSignals
 
 # Base translations directory (step0_i18n/translations/)
 _BASE_I18N_DIR = Path(__file__).parent / "translations"

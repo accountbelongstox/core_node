@@ -15,6 +15,9 @@ import os
 import json
 from typing import Dict, List, Any
 
+import traceback
+
+
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 sys.path.insert(0, project_root)
 
@@ -127,7 +130,6 @@ def main():
         bridge.send_result(result)
 
     except Exception as e:
-        import traceback
         bridge.send_error(str(e), traceback.format_exc())
 
 

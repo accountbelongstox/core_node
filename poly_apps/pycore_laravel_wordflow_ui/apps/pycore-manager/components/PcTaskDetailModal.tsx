@@ -6,11 +6,22 @@
  *   - PcGlobalTaskDetailModal — Laravel global_tasks rows (Translation Queue tab)
  *   - PcQueueItemDetailModal  — voice-subtitle queue row (Queue Manager tab)
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { XCircle, Loader2, Info } from 'lucide-react';
 import Portal from '../../../components/shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
+import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { LocalTaskDetail, PycoreGlobalTaskDetail, QueueItem } from '../../../core/api-libs/pycore/pycoreTypes';
+import { extractTaskContentSummary, mergeTaskContentSources } from '../utils/pcTaskContent';
+import {
+  isLaravelGlobalTaskId,
+  isSentenceQueueJobId,
+  mergeTaskResultSources,
+  resolveRemoteTaskId,
+  resolveTaskWorker,
+} from '../utils/pcTaskResult';
+import { extractAudioPath, PcTaskAudioPreview } from './PcTaskAudioPreview';
+import { extractEngine, extractSynthCommand, PcTaskSynthInfo } from './PcTaskSynthInfo';
 
 const PREVIEW_MAX = 4000;
 
@@ -124,6 +135,16 @@ function FieldGrid({ fields }: { fields: { label: string; value: React.ReactNode
   );
 }
 
+function TaskContentBlock({ label, text }: { label: string; text: string }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5">{label}</div>
+      <p className="p-3 rounded-xl bg-slate-100/60 dark:bg-white/5 border border-slate-200/40 dark:border-white/5 text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words">
+        {text}
+      </p>
+    </div>
+  );
+}
 function JsonBlock({ label, value }: { label: string; value: unknown }) {
   return (
     <div>
@@ -143,58 +164,118 @@ interface LocalProps {
   task: LocalTaskDetail | null;
   /** Optional linked Laravel global task (remote_translation). */
   remoteTask?: PycoreGlobalTaskDetail | null;
+  remoteError?: string | null;
+  laravelReachable?: boolean | null;
   loading?: boolean;
   remoteLoading?: boolean;
   onClose: () => void;
 }
 
 export const PcLocalTaskDetailModal: React.FC<LocalProps> = ({
-  task, remoteTask, loading, remoteLoading, onClose,
+  task, remoteTask, remoteError, laravelReachable, loading, remoteLoading, onClose,
 }) => {
-  if (!task) return null;
-  const remoteId = task.input_data?.remote_task_id as string | undefined;
+  const [liveTask, setLiveTask] = useState<LocalTaskDetail | null>(task);
+
+  useEffect(() => {
+    setLiveTask(task);
+  }, [task]);
+
+  useEffect(() => {
+    if (!liveTask || liveTask.status !== 'processing') return undefined;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const r = await pycoreApi.getLocalTaskDetail(liveTask.task_id);
+        if (!cancelled && r?.success && r.task) setLiveTask(r.task);
+      } catch {
+        // keep last snapshot
+      }
+    };
+    void poll();
+    const timer = window.setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [liveTask?.task_id, liveTask?.status]);
+
+  if (!liveTask) return null;
+  const merged = mergeTaskResultSources(
+    liveTask.input_data as Record<string, unknown> | undefined,
+    liveTask.result as Record<string, unknown> | undefined,
+  );
+  const remoteJobId = resolveRemoteTaskId(
+    liveTask.input_data as Record<string, unknown> | undefined,
+    liveTask.result as Record<string, unknown> | undefined,
+  );
+  const laravelRemoteId = isLaravelGlobalTaskId(remoteJobId) ? remoteJobId : null;
+  const sentenceJobId = isSentenceQueueJobId(remoteJobId) ? remoteJobId : null;
+  const taskWorker = resolveTaskWorker(
+    liveTask.input_data as Record<string, unknown> | undefined,
+    liveTask.result as Record<string, unknown> | undefined,
+  );
+  const remotePayload = remoteTask?.payload && typeof remoteTask.payload === 'object'
+    ? remoteTask.payload as Record<string, unknown>
+    : null;
+  const taskContent = mergeTaskContentSources(liveTask.input_data, remotePayload);
+  const audioPath = extractAudioPath(merged);
+  const engine = extractEngine(merged);
+  const synthCommand = extractSynthCommand(merged);
+  const isProcessing = liveTask.status === 'processing';
 
   return (
     <ModalShell
       title="Task detail"
-      subtitle={task.task_id}
+      subtitle={liveTask.task_id}
       loading={loading}
-      live={!!task && !loading}
+      live={!!liveTask && !loading}
       onClose={onClose}
     >
       <div className="space-y-4">
         <div>
           <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-1.5">Status</div>
           <div className="flex items-center gap-3">
-            <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${statusCls(task.status)}`}>
-              {task.status}
+            <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${statusCls(liveTask.status)}`}>
+              {liveTask.status}
             </span>
-            <div className="flex-1"><ProgressBar progress={task.progress} status={task.status} /></div>
+            <div className="flex-1"><ProgressBar progress={liveTask.progress} status={liveTask.status} /></div>
           </div>
         </div>
 
         <FieldGrid fields={[
-          { label: 'Type', value: task.task_type },
-          { label: 'Created', value: formatDateTime(task.created_at) },
-          { label: 'Updated', value: formatDateTime(task.updated_at) },
-          ...(task.estimated_time != null
-            ? [{ label: 'Est. time', value: `${task.estimated_time}s` }]
+          { label: 'Type', value: liveTask.task_type },
+          { label: 'Created', value: formatDateTime(liveTask.created_at) },
+          { label: 'Updated', value: formatDateTime(liveTask.updated_at) },
+          ...(liveTask.estimated_time != null
+            ? [{ label: 'Est. time', value: `${liveTask.estimated_time}s` }]
             : []),
-          ...(remoteId ? [{ label: 'Remote task ID', value: remoteId }] : []),
+          ...(laravelRemoteId ? [{ label: 'Laravel task ID', value: laravelRemoteId }] : []),
+          ...(sentenceJobId != null ? [{ label: 'Sentence queue job', value: String(sentenceJobId) }] : []),
+          ...(taskWorker ? [{ label: 'Worker', value: taskWorker }] : []),
         ]} />
 
-        <JsonBlock label="Input / task content" value={task.input_data} />
+        <TaskContentBlock label="Task content" text={taskContent} />
 
-        {task.error && (
+        {(engine || synthCommand || isProcessing) && (
+          <PcTaskSynthInfo engine={engine} synthCommand={synthCommand} processing={isProcessing} />
+        )}
+
+        {audioPath && (
+          <PcTaskAudioPreview audioPath={audioPath} label="Generated audio" />
+        )}
+
+        <JsonBlock label="Input (raw)" value={liveTask.input_data} />
+
+        {liveTask.error && (
           <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20">
             <div className="text-[10px] uppercase tracking-wide font-semibold text-rose-500 mb-1">Error</div>
-            <div className="text-sm font-mono text-rose-600 dark:text-rose-400 whitespace-pre-wrap break-all">{task.error}</div>
+            <div className="text-sm font-mono text-rose-600 dark:text-rose-400 whitespace-pre-wrap break-all">{liveTask.error}</div>
           </div>
         )}
 
-        <JsonBlock label="Result" value={task.result ?? '—'} />
+        <JsonBlock label="Result" value={liveTask.result ?? '—'} />
 
-        {remoteId && (
+        {laravelRemoteId && (
           <div className="pt-2 border-t border-slate-200/40 dark:border-white/5 space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Laravel global task</span>
@@ -217,9 +298,23 @@ export const PcLocalTaskDetailModal: React.FC<LocalProps> = ({
                 )}
               </>
             ) : !remoteLoading && (
-              <p className="text-xs text-slate-500">Remote task detail unavailable.</p>
+              <div className="text-xs text-slate-500 space-y-1">
+                <p>{remoteError || 'Remote task detail unavailable.'}</p>
+                {laravelReachable === false && (
+                  <p className="text-amber-600 dark:text-amber-400">
+                    Laravel unreachable — check LARAVEL_WORKER_API_URL / laravel_api endpoints in pycore.
+                  </p>
+                )}
+              </div>
             )}
           </div>
+        )}
+
+        {sentenceJobId != null && !laravelRemoteId && (
+          <p className="text-xs text-slate-500 pt-2 border-t border-slate-200/40 dark:border-white/5">
+            Sentence-library queue job #{String(sentenceJobId)} — not a Laravel <code className="font-mono">global_tasks</code> row.
+            See the Sentence Audio tab for queue status.
+          </p>
         )}
       </div>
     </ModalShell>
@@ -238,6 +333,10 @@ interface GlobalProps {
 
 export const PcGlobalTaskDetailModal: React.FC<GlobalProps> = ({ task, loading, onClose }) => {
   if (!task) return null;
+  const payload = task.payload && typeof task.payload === 'object'
+    ? task.payload as Record<string, unknown>
+    : null;
+  const taskContent = extractTaskContentSummary(payload);
 
   return (
     <ModalShell
@@ -272,8 +371,12 @@ export const PcGlobalTaskDetailModal: React.FC<GlobalProps> = ({ task, loading, 
           ...(task.completed_at ? [{ label: 'Completed', value: formatDateTime(task.completed_at) }] : []),
         ]} />
 
+        {taskContent !== '—' && (
+          <TaskContentBlock label="Task content" text={taskContent} />
+        )}
+
         {task.payload !== undefined && task.payload !== null && (
-          <JsonBlock label="Payload / task content" value={task.payload} />
+          <JsonBlock label="Payload (raw)" value={task.payload} />
         )}
 
         {task.error && (

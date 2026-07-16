@@ -1,7 +1,7 @@
 /**
  * PcTranslatePage — pycore Google Translate status + a Google-vs-AI test box.
  *
- * Two capabilities, both over the pycore /pyapi proxy:
+ * Two capabilities, both direct on pycore :59000:
  *
  *  1. Status — is the FREE googletrans library importable, its version, the
  *     service URL, and the on-disk translation cache dir + entry count.

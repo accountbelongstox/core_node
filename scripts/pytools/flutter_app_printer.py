@@ -19,8 +19,13 @@ except ImportError:
 
 # Directory definitions
 ROOT_DIR = Path(__file__).parent / "../.."
+# Make pycore importable so the cache path resolves via the centralized
+# system_paths module (D:\programing\Users\<user>\.core_node on Windows,
+# /var/_core_node on Linux) instead of a hardcoded home path.
+sys.path.insert(0, str(ROOT_DIR.resolve()))
+from pycore.pyfoundations.system_paths import get_system_cache_dir
 FLUTTER_DIR = ROOT_DIR / "poly_apps" / "flutter_bloom"
-CACHE_DIR = Path.home() / ".core_node" / ".flutter_build"
+CACHE_DIR = get_system_cache_dir() / ".flutter_build"
 CACHE_FILE = CACHE_DIR / "menu_cache.json"
 
 # Print modes

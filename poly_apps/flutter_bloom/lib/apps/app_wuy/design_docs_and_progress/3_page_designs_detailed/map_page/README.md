@@ -1,4 +1,4 @@
-# 地图页 (map_page)
+# Map Page (map_page)
 
 This directory contains detailed design specifications for the map_page page.
 

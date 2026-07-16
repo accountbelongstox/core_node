@@ -36,13 +36,10 @@ function statusLabel(s: QueueItem['status']): { text: string; cls: string } {
   }
 }
 
-/** Contract with PcQueueCenterPage (kept local to avoid an import cycle). */
-interface PanelProps {
-  /** Bumped by the parent's refresh button / auto-refresh interval. */
-  refreshTick?: number;
-  /** Report the row count + in-flight state up to the tab bar. */
-  onMeta?: (meta: { count: number | null; loading: boolean }) => void;
-}
+import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
+
+/** Contract with PcQueueCenterPage (shared panel props). */
+type PanelProps = QueueCenterPanelProps;
 
 const PcQueueManagerPanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => {
   const [queue, setQueue] = useState<QueueItem[]>(() => loadQueueCache() ?? []);

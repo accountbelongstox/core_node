@@ -27,6 +27,9 @@ from pycore.pyfoundations.third_party import (
     get_third_package_uiautomation,
 )
 
+from pycore.pyutils.input.tray_clicker import TrayIconClicker
+
+
 pyautogui = get_third_package_pyautogui()
 uiautomation = get_third_package_uiautomation()
 auto = uiautomation
@@ -223,7 +226,6 @@ class ClickHandler:
             # import would break click_handler import on Linux (matches the old
             # inline impl's runtime-only pywinauto dependency).
             if self._tray_clicker is None:
-                from pycore.pyutils.input.tray_clicker import TrayIconClicker
                 self._tray_clicker = TrayIconClicker()
             ok = self._tray_clicker.click_tray_icon("battle")
             if not ok:

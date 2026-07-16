@@ -18,6 +18,9 @@ import time
 import uuid
 from pathlib import Path
 
+import argparse
+
+
 # Add project root
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -167,7 +170,6 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
 
 def main():
     """Main entry point"""
-    import argparse
 
     parser = argparse.ArgumentParser(description="MCP Backend Server (RPC v2 Architecture)")
     parser.add_argument(

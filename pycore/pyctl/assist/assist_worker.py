@@ -4,14 +4,12 @@ Assist-Laravel background worker - pycore claims generation work from the
 SELECTED laravel_main endpoint, generates locally, and submits results back.
 
 Capabilities (claim types):
-  cover  - AI cover images via the injected image generator (the app layer wires
-           pyctl.ai.generate_image in - pyctl/* packages must not import each
-           other, mirroring pyctl.desktop.ai_hooks composition).
+  cover  - delegated to apps/mcp-chrome (Google Images); not claimed here.
   tts    - word/sentence audio via the existing TTS orchestrator
            (pycore.pyutils.tts.tts_orchestrator: edge -> sherpa -> melotts ->
            gptsovits). The Laravel contract requires MP3 bytes; non-MP3 output
            is RELEASED with a clear error instead of being submitted.
-  poster - movie/TV poster lookup via movie_poster_client (TMDB -> OMDB).
+  poster - delegated to apps/mcp-chrome (Google Images); not claimed here.
 
 Word TRANSLATIONS are deliberately NOT claimed here - they already ride the
 existing TranslationWorkerService (/api/worker/tasks/pull pipeline). This
@@ -110,8 +108,8 @@ from . import assist_handlers
 
 class AssistWorker(CircuitBreaker):
     """
-    Singleton background worker for the Laravel assist queue (cover + tts +
-    poster).
+    Singleton background worker for the Laravel assist queue (tts only;
+    cover/poster delegated to apps/mcp-chrome).
 
     Lifecycle:
       configure(...)  - app layer injects the endpoint resolver + image
@@ -124,9 +122,9 @@ class AssistWorker(CircuitBreaker):
     _instance: Optional["AssistWorker"] = None
     _instance_lock = threading.Lock()
 
-    # Claim types this worker can serve (translation rides the existing
-    # TranslationWorkerService - never claimed here).
-    CLAIMABLE_TYPES = ("cover", "tts", "poster")
+    # Claim types this worker can serve. Cover/poster image work is delegated to
+    # apps/mcp-chrome — only TTS is claimed here.
+    CLAIMABLE_TYPES = ("tts",)
 
     # HTTP timeouts (seconds). Submit carries base64 images/audio - give it room.
     CLAIM_TIMEOUT = 8

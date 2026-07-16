@@ -31,6 +31,9 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import map_web_path
 
+from pathlib import Path
+
+
 # Target languages ECDICT can answer directly (its ``translation`` column is
 # Simplified Chinese); everything else falls back to Google upstream.
 _ZH_TARGETS = {"zh", "zh-cn", "zh_cn", "zh-hans", "zh-hans-cn", "chinese", "cn", "zh-chs"}
@@ -46,7 +49,6 @@ def _ecdict_db_path():
     """Resolve the ECDICT SQLite path (env override, else pycore_db/dictionaries)."""
     override = os.environ.get("ECDICT_DB_PATH", "").strip()
     if override:
-        from pathlib import Path
         return Path(override)
     return map_web_path("pycore_db") / "dictionaries" / "stardict.db"
 
@@ -138,7 +140,6 @@ class DictionaryService:
             return self._wn
         self._wn_attempted = True
         try:
-            from nltk.corpus import wordnet as wn
             # Touch the corpus so a missing download surfaces now, not mid-lookup.
             wn.synsets("test")
             self._wn = wn

@@ -1,7 +1,7 @@
 /**
  * PcVoiceSubtitlePage — merged Voice/TTS Queue + Subtitle Mode (tabbed).
  *
- * One page over the pycore voice-subtitle pipeline (`/pyapi/voice-subtitle/*`),
+ * One page over the pycore voice-subtitle pipeline (`/voice-subtitle/*`),
  * superseding the separate PcVoicePlayerPage / PcSubtitlePage:
  *
  *   - Shared strip: AI Auto-Subtitle switches — the SCREENSHOT monitor (capture
@@ -28,7 +28,7 @@ import {
   pycoreApi, mapQueueSnapshot, subscribe, connectPycoreWs, loadQueueCache, saveQueueCache,
 } from '../../../core/api-libs/pycore';
 import type { QueueItem } from '../../../core/api-libs/pycore';
-import { usePcCapability } from '../PcCapabilityContext';
+import { usePycoreCapability } from '../../../core/api-libs/pycore';
 import { PcPipelineStatusPanels } from '../components/PcPipelineStatusPanels';
 
 const CATEGORY_CLS: Record<string, string> = {
@@ -101,7 +101,7 @@ const PcVoiceSubtitlePage: React.FC = () => {
   const [switching, setSwitching] = useState<string | null>(null);
   const [playingText, setPlayingText] = useState<string | null>(null);
 
-  const { retry: retryCapabilityStatus } = usePcCapability();
+  const { retry: retryCapabilityStatus } = usePycoreCapability();
 
   // ----- queue tab ----------------------------------------------------------- #
   const [text, setText] = useState('');

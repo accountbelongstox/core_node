@@ -11,6 +11,9 @@ from dataclasses import dataclass, field
 from typing import Callable, Optional, List, Dict, Tuple, Union, Literal
 from pathlib import Path
 
+from pycore import ColorPrint
+
+
 
 @dataclass
 class NativeUIConfig:
@@ -372,7 +375,6 @@ class NativeUIConfig:
             if icon_ico.exists():
                 self.icon_path = str(icon_ico)
                 if self.debug:
-                    from pycore import ColorPrint
                     ColorPrint.print_info(f"[Config] Auto-detected icon: {self.icon_path}")
 
         # Auto-detect logo path (same as icon by default)
@@ -397,7 +399,6 @@ class NativeUIConfig:
         if self.window_title_key is None:
             self.window_title_key = f"{self.app_id}.window.title"
             if self.debug:
-                from pycore import ColorPrint
                 ColorPrint.print_info(
                     f"[Config] Auto-generated window title key: {self.window_title_key}"
                 )

@@ -5,7 +5,7 @@
 | End | Route prefix | Source | Talks to |
 |-----|--------------|--------|----------|
 | laravel-manager | `/laravel-manager` | `apps/laravel-manager` + `components/views` | laravel_main API (`/api/...`) |
-| pycore-manager | `/pycore-manager` | `apps/pycore-manager` | pycore (`:59000`) via the `/pyapi` proxy + WS `/rpc/ws` |
+| pycore-manager | `/pycore-manager` | `apps/pycore-manager` | pycore (`:59000`) direct + WS `/rpc/ws` |
 | wordflow | `/wordflow` | `apps/wordflow` | laravel_main (WordflowApi) |
 
 The shell, top nav, end-switching and routing live in `shell/` + `core/routing/`. Each end owns its pages; shared infrastructure is centralized (below).
@@ -23,7 +23,7 @@ Cross-cutting             core/logstore (GlobalLogPanel), core/persistence, cont
 ```
 
 - **One `api` singleton** (`core/api`) exposes a module per backend area — `api.appQyV1`, `api.books`, `api.mcpV1`, `api.itToolsV1`, `api.serverManagerV1`, `api.auth`, `api.aiManagement`, `api.aiStatus`, `api.databaseManager`, `api.systemConfig`, `api.mediaQuery`, `api.inviteCode`. Each extends `BaseAPI` (`core/api/base`) which provides `get/post/put/delete/patch`, the `APICache`, and automatic request logging to the log store.
-- **pycore end** uses `core/api-libs/pycore` (`pycoreApi`, `callRpc`, WS subscribe) over the `/pyapi` reverse proxy to `:59000`; **wordflow** uses `core/api-libs/wordflow`.
+- **pycore end** uses `core/api-libs/pycore` (`pycoreApi`, `callRpc`, WS subscribe) direct to `:59000`; **wordflow** uses `core/api-libs/wordflow`.
 - See [API.md](API.md) for conventions, the module catalog and endpoint switching.
 
 ## Cross-cutting frameworks (use these, don't reinvent)

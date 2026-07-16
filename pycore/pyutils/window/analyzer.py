@@ -59,7 +59,7 @@ class WindowAnalyzer:
         First tries to get from encyclopedia cache, then searches if needed
         """
         try:
-            import win32gui
+            win32gui = get_third_package_win32gui()
             found_window = None
 
             # Try to get from cache first
@@ -107,7 +107,7 @@ class WindowAnalyzer:
 
                                     def activate(self):
                                         try:
-                                            import win32con
+                                            win32con = get_third_package_win32con()
                                             win32gui.SetForegroundWindow(self._hWnd)
                                             win32gui.ShowWindow(self._hWnd, win32con.SW_RESTORE)
                                             return True
@@ -171,7 +171,7 @@ class WindowAnalyzer:
 
                                     def activate(self):
                                         try:
-                                            import win32con
+                                            win32con = get_third_package_win32con()
                                             win32gui.SetForegroundWindow(self._hWnd)
                                             win32gui.ShowWindow(self._hWnd, win32con.SW_RESTORE)
                                             return True

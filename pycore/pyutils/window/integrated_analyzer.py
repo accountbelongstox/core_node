@@ -15,6 +15,9 @@ from pathlib import Path
 
 from pycore.pyfoundations.third_party import get_third_package_uiautomation
 
+from pycore.pyfoundations.third_party import get_third_package_win32api
+
+
 uiautomation = get_third_package_uiautomation()
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.window_mapping_provider import WINDOW_MAPPING_PROVIDER, UIElementMapping
@@ -263,7 +266,7 @@ class IntegratedWindowAnalyzer:
             # Fallback to coordinate click
             center_x, center_y = element.get_center_point()
             if center_x > 0 and center_y > 0:
-                import win32api
+                win32api = get_third_package_win32api()
                 win32api.SetCursorPos((center_x, center_y))
                 win32api.mouse_event(2, 0, 0)  # Left button down
                 win32api.mouse_event(4, 0, 0)  # Left button up

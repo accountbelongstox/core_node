@@ -12,6 +12,9 @@ from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pathlib import Path
 import tempfile
 
+from pycore.pyfoundations.third_party import get_third_package_pystray
+
+
 
 def print_header(text):
     """Print formatted header."""
@@ -50,7 +53,7 @@ def check_pystray():
     print("[2] Checking pystray library...")
 
     try:
-        import pystray
+        pystray = get_third_package_pystray()
         print("    ✓ pystray is installed")
         return True
     except ImportError:

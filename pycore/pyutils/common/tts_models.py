@@ -16,6 +16,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+import re
+
+
 
 def clean_tts_text(text: str) -> str:
     """
@@ -33,7 +36,6 @@ def clean_tts_text(text: str) -> str:
     # Replace asterisks with spaces
     text = text.replace('*', ' ')
     # Normalize multiple spaces to single space
-    import re
     text = re.sub(r'\s+', ' ', text)
     # Strip leading/trailing whitespace
     return text.strip()

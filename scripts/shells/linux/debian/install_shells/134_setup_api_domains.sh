@@ -523,25 +523,9 @@ if [ -z "$install_watcher" ]; then
 fi
 
 if [[ "$install_watcher" =~ ^[Yy]$ ]]; then
-    echo "[$SCRIPT_INDEX] Installing Laravel Octane File Watcher..."
-    echo "[$SCRIPT_INDEX]"
-
-    watcher_install_script="${INSTALL_SHELLS_DIR:-$SCRIPT_CURRENT_DIR}/151_install_octane_watcher_daemon.sh"
-
-    if [ -f "$watcher_install_script" ]; then
-        bash "$watcher_install_script"
-
-        if [ $? -eq 0 ]; then
-            echo "[$SCRIPT_INDEX]"
-            echo "[$SCRIPT_INDEX] ??Octane File Watcher installed successfully"
-        else
-            echo "[$SCRIPT_INDEX]"
-            echo "[$SCRIPT_INDEX] ??Octane File Watcher installation failed"
-        fi
-    else
-        echo "[$SCRIPT_INDEX] Error: Watcher installation script not found"
-        echo "[$SCRIPT_INDEX]   Expected: $watcher_install_script"
-    fi
+    echo "[$SCRIPT_INDEX] Octane File Watcher is a separate numbered installer."
+    echo "[$SCRIPT_INDEX] Run it after this script completes:"
+    echo "[$SCRIPT_INDEX]   bash ${INSTALL_SHELLS_DIR:-$SCRIPT_CURRENT_DIR}/151_install_octane_watcher_daemon.sh"
 else
     echo "[$SCRIPT_INDEX] Skipping Octane File Watcher installation"
     echo "[$SCRIPT_INDEX] You can install it later by running:"

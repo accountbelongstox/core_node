@@ -1295,21 +1295,45 @@ class PathMapper
     }
 
     /**
-     * Get a path under the SHARED core_node/.data temp directory.
+     * Get a path under the shared pycore local-data root (D:\www\cache\pycore on Windows).
      *
-     * This is the cross-tool scratch area shared with pycore (core_node/.data).
-     * Callers MUST namespace their subtree (e.g. "appqyv1/books/<id>") so apps
-     * never collide. The directory is created if missing.
+     * Mirrors pycore system_paths.get_local_data_dir(). Callers MUST namespace their
+     * subtree (e.g. "appqyv1/books/<id>") so apps never collide.
      *
-     * @param string|null $subPath Namespaced sub-path under .data (e.g. "appqyv1/books").
-     * @return string Absolute path under core_node/.data (dir ensured).
+     * @param string|null $subPath Namespaced sub-path under pycore (e.g. "appqyv1/books").
+     * @return string Absolute path under the shared pycore dir (dir ensured).
      */
     public static function getCoreNodeDataDir(?string $subPath = ""): string
     {
-        $base = self::getCoreNodeDir() . DIRECTORY_SEPARATOR . '.data';
-        $full = $base;
+        $base = 'pycore';
         if ($subPath !== null && $subPath !== "") {
-            $full = $base . DIRECTORY_SEPARATOR . ltrim(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $subPath), DIRECTORY_SEPARATOR);
+            $base = $base . DIRECTORY_SEPARATOR . ltrim(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $subPath), DIRECTORY_SEPARATOR);
+        }
+        return self::getSharedDownloadCacheDir($base);
+    }
+
+    /**
+     * Get the shared download cache dir (mirror of pycore system_paths.get_shared_download_cache_dir).
+     *
+     * Windows: D:\www\cache ; Linux: /var/_core_node/cache ; env CORE_NODE_CACHE_DIR override.
+     * This is the SAME physical location pycore resolves, so PHP + Python land on identical paths.
+     *
+     * @param string|null $subPath Namespaced sub-path under the cache root (e.g. "pycore/.ai_state").
+     * @return string Absolute path under the shared cache dir (dir ensured).
+     */
+    public static function getSharedDownloadCacheDir(?string $subPath = ""): string
+    {
+        $envVal = env('CORE_NODE_CACHE_DIR');
+        if ($envVal !== null && $envVal !== '') {
+            $base = rtrim($envVal, '/\\');
+        } elseif (self::isWindows()) {
+            $base = 'D:\\www\\cache';
+        } else {
+            $base = '/var/_core_node/cache';
+        }
+        $full = $base;
+        if ($subPath !== null && $subPath !== '') {
+            $full = rtrim($base, '/\\') . DIRECTORY_SEPARATOR . ltrim(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $subPath), DIRECTORY_SEPARATOR);
         }
         self::ensureDirectory($full);
         return $full;

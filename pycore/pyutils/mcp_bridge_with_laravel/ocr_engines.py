@@ -18,6 +18,9 @@ from pathlib import Path
 
 from pycore.pyfoundations.third_party import get_third_package_requests
 
+from pycore.pyutils.mcp_bridge_with_laravel.cnocr_engine import CnOCREngine
+
+
 requests = get_third_package_requests()
 
 # Check for optional dependencies at module level
@@ -477,7 +480,6 @@ class OCRManager:
     def initialize_cnocr(self, model_type: str = "general") -> bool:
         """Initialize CnOCR engine"""
         try:
-            from .cnocr_engine import CnOCREngine
             self.engines['cnocr'] = CnOCREngine(model_type=model_type)
             return self.engines['cnocr'].initialize()
         except ImportError:
@@ -490,7 +492,6 @@ class OCRManager:
     def set_cnocr_model(self, model_type: str):
         """Set CnOCR model type"""
         try:
-            from .cnocr_engine import CnOCREngine
             self.engines['cnocr'] = CnOCREngine(model_type=model_type)
         except ImportError:
             logger.error("CnOCR engine not available")

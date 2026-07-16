@@ -29,6 +29,19 @@ AUDIO_EXTENSIONS = {'.mp3', '.wav', '.m4a', '.flac', '.ogg', '.aac', '.opus'}
 _auto_convert_enabled = False
 
 
+def apply_notebooklm_auto_convert(enabled: bool, run_scan: bool = False) -> bool:
+    """Set auto-convert flag (used by system_settings boot + settings API)."""
+    global _auto_convert_enabled
+    _auto_convert_enabled = bool(enabled)
+    if _auto_convert_enabled:
+        ColorPrint.green("[NotebookLM STT] Auto-convert enabled")
+        if run_scan:
+            _auto_convert_all()
+    else:
+        ColorPrint.yellow("[NotebookLM STT] Auto-convert disabled")
+    return _auto_convert_enabled
+
+
 class SettingsRequest(BaseModel):
     """Settings request model"""
     enabled: bool
@@ -261,13 +274,9 @@ async def update_settings(request: SettingsRequest, background_tasks: Background
         enabled: Enable/disable auto-convert
     """
     global _auto_convert_enabled
-    _auto_convert_enabled = request.enabled
-
-    if _auto_convert_enabled:
-        ColorPrint.green("[NotebookLM STT] Auto-convert enabled")
-        background_tasks.add_task(_auto_convert_all)
-    else:
-        ColorPrint.yellow("[NotebookLM STT] Auto-convert disabled")
+    _auto_convert_enabled = apply_notebooklm_auto_convert(
+        request.enabled, run_scan=request.enabled
+    )
 
     return {
         'success': True,

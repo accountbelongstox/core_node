@@ -11,6 +11,10 @@ import time
 
 from pycore import ColorPrint, THREAD_BUS
 
+import os
+import sys
+
+
 
 def restart_process() -> None:
     """
@@ -24,8 +28,6 @@ def restart_process() -> None:
     process with a fresh invocation (os.execv works in low privilege);
     otherwise logs a clean-shutdown message and returns.
     """
-    import os
-    import sys
 
     if not THREAD_BUS.is_restart_requested():
         ColorPrint.blue("[NativeLauncher] Shutdown complete (no restart requested)")

@@ -171,7 +171,7 @@ class Win32SystemTray:
 
             text = item.get_display_text()
             flags = win32con.MF_STRING
-            if not getattr(item, "enabled", True):
+            if not item.is_enabled():
                 flags |= win32con.MF_GRAYED
 
             submenu_items = getattr(item, "submenu", None)

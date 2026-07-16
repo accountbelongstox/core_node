@@ -27,8 +27,9 @@ class ApplicationsListParser:
         if not self.script_path.exists():
             raise FileNotFoundError(f"ApplicationsList.ps1 not found: {self.script_path}")
 
-        user_home = Path.home()
-        self.json_exchange_file = user_home / ".core_node" / "pybackup" / "applications_list.json"
+        username = os.environ.get('USERNAME', os.environ.get('USER', 'default'))
+        core_node_dir = Path('D:/programing/Users') / username / '.core_node'
+        self.json_exchange_file = core_node_dir / "pybackup" / "applications_list.json"
 
         logger.info(f"ApplicationsListParser initialized")
         logger.info(f"  Script: {self.script_path}")

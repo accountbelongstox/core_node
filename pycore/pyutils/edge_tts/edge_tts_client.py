@@ -21,6 +21,9 @@ import asyncio
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_edge_tts
 
+import tempfile
+
+
 edge_tts = get_third_package_edge_tts()
 from pycore.pyutils.edge_tts.config import TTSConfig
 
@@ -197,7 +200,6 @@ class EdgeTTSClient:
         
         if edge_tts:
             # Use Python package (async)
-            import asyncio
             try:
                 loop = asyncio.get_event_loop()
             except RuntimeError:
@@ -449,8 +451,6 @@ class EdgeTTSClient:
             self._avail_cache = result
             return result
 
-        import asyncio
-        import tempfile
 
         async def _probe():
             kwargs = {"proxy": proxy} if proxy else {}

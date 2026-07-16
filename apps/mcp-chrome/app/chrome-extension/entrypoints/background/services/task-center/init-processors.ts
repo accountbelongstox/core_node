@@ -16,6 +16,7 @@ import { geminiImageProcessor } from './processors/GeminiImageProcessor';
 import { promptTranslateWebProcessor } from './processors/PromptTranslateWebProcessor';
 import { wordValidityWebProcessor } from './processors/WordValidityWebProcessor';
 import { puterAiTranslateProcessor } from './processors/PuterAiTranslateProcessor';
+import { mediaImageProcessor } from './processors/MediaImageProcessor';
 
 /**
  * Initialize and register all task processors
@@ -65,6 +66,10 @@ export function initializeProcessors(): void {
   // calls Puter's OpenAI-compatible REST API for translation (no API key, no
   // browser tab). Advertises capability 'puter_translate' on the fast lane.
   taskCenter.registerProcessor(puterAiTranslateProcessor, false);
+
+  // Poster + vocabulary cover via Google/Bing image search (replaces pycore
+  // TMDB/OMDB + AI cover). Also polls Laravel /assist/claim for cover/poster.
+  taskCenter.registerProcessor(mediaImageProcessor, true);
 
   console.log('[TaskCenter] Processors initialized');
 }

@@ -16,6 +16,9 @@ helpers:
 import sys
 from pathlib import Path
 
+import subprocess
+
+
 # Add project root to Python path to enable pycore imports. Same bootstrap as
 # launcher.py so this module is importable standalone.
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
@@ -28,6 +31,11 @@ import tempfile
 
 from pycore.pyutils.common.icon_generator import DesktopIconGenerator
 from pycore.pyutils.desktop.universal_shortcut import ShortcutManager
+
+# Real entry point for the desktop shortcut (.bat / .desktop). Must NOT use __file__
+# here — this module was split out of launcher.py and __file__ would point here.
+_LAUNCHER_DIR = Path(__file__).resolve().parent
+_LAUNCHER_PY_PATH = _LAUNCHER_DIR / 'launcher.py'
 
 
 def get_windows_version():
@@ -64,11 +72,10 @@ def ensure_desktop_shortcut():
     with DesktopShortcutManager/ShortcutManager (reuse-first) rather than maintaining
     a separate .desktop writer.
     """
-    launcher_py_path = Path(__file__).resolve()
-    launcher_dir = launcher_py_path.parent
+    launcher_py_path = _LAUNCHER_PY_PATH
+    launcher_dir = _LAUNCHER_DIR
 
     if platform.system() == 'Linux':
-        import subprocess
         apps_dir = Path.home() / '.local' / 'share' / 'applications'
         apps_dir.mkdir(parents=True, exist_ok=True)
         icon_png = launcher_dir / 'icon.png'

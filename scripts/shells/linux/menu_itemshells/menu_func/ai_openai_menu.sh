@@ -11,51 +11,49 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# OpenAI Environment Variables Menu Module
-# Provides menu functions for managing OpenAI environment variables
+# Codex CLI Environment Variables Menu Module
+# Provides menu functions for managing Codex CLI (OpenAI) environment variables
 
 # Configuration
 
-get_openai_config() {
-    ENVIRONMENT_CONFIGS_OpenAI_Title="OpenAI Environment Variables"
-    ENVIRONMENT_CONFIGS_OpenAI_Description="Set up OpenAI environment variables for API access"
-    ENVIRONMENT_CONFIGS_OpenAI_Common="openai"
-    ENVIRONMENT_CONFIGS_OpenAI_CommandPrefix="openai"
-    ENVIRONMENT_CONFIGS_OpenAI_DisplayName="OpenAI"
-    ENVIRONMENT_CONFIGS_OpenAI_SmartRecognition_Enabled="true"
-    ENVIRONMENT_CONFIGS_OpenAI_SmartRecognition_AllowedTypes="token url"
+get_codex_config() {
+    ENVIRONMENT_CONFIGS_Codex_CLI_Title="Codex CLI Environment Variables"
+    ENVIRONMENT_CONFIGS_Codex_CLI_Description="Set up Codex CLI environment variables for API access"
+    ENVIRONMENT_CONFIGS_Codex_CLI_Common="codex"
+    ENVIRONMENT_CONFIGS_Codex_CLI_CommandPrefix="codex"
+    ENVIRONMENT_CONFIGS_Codex_CLI_DisplayName="Codex CLI"
+    ENVIRONMENT_CONFIGS_Codex_CLI_SmartRecognition_Enabled="true"
+    ENVIRONMENT_CONFIGS_Codex_CLI_SmartRecognition_AllowedTypes="token url"
 
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_Count=3
+    ENVIRONMENT_CONFIGS_Codex_CLI_Variables_Count=2
 
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_0_Name="OPENAI_API_KEY"
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_0_DisplayName="OPENAI_API_KEY"
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_0_Description="OpenAI API key"
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_0_IsSecret="true"
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_0_InputType="Token"
+    ENVIRONMENT_CONFIGS_Codex_CLI_Variables_0_Name="OPENAI_API_KEY"
+    ENVIRONMENT_CONFIGS_Codex_CLI_Variables_0_DisplayName="OPENAI_API_KEY"
+    ENVIRONMENT_CONFIGS_Codex_CLI_Variables_0_Description="OpenAI API key for Codex CLI"
+    ENVIRONMENT_CONFIGS_Codex_CLI_Variables_0_IsSecret="true"
+    ENVIRONMENT_CONFIGS_Codex_CLI_Variables_0_InputType="Token"
 
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_1_Name="OPENAI_BASE_URL"
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_1_DisplayName="OPENAI_BASE_URL"
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_1_Description="OpenAI API base URL (optional)"
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_1_IsSecret="false"
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_1_InputType="Url"
-
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_2_Name="OPENAI_ORG_ID"
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_2_DisplayName="OPENAI_ORG_ID"
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_2_Description="OpenAI Organization ID (optional)"
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_2_IsSecret="false"
-    ENVIRONMENT_CONFIGS_OpenAI_Variables_2_InputType="Token"
+    ENVIRONMENT_CONFIGS_Codex_CLI_Variables_1_Name="OPENAI_BASE_URL"
+    ENVIRONMENT_CONFIGS_Codex_CLI_Variables_1_DisplayName="OPENAI_BASE_URL"
+    ENVIRONMENT_CONFIGS_Codex_CLI_Variables_1_Description="OpenAI-compatible API base URL (proxy/relay, leave empty for api.openai.com)"
+    ENVIRONMENT_CONFIGS_Codex_CLI_Variables_1_IsSecret="false"
+    ENVIRONMENT_CONFIGS_Codex_CLI_Variables_1_InputType="Url"
 }
+
+# Backward-compatible alias
+get_openai_config() { get_codex_config; }
 
 # Menu Functions
 
-show_openai_submenu() {
-    get_openai_config
+show_codex_submenu() {
+    get_codex_config
 
-    local config_display_name="$ENVIRONMENT_CONFIGS_OpenAI_DisplayName"
+    local config_display_name="$ENVIRONMENT_CONFIGS_Codex_CLI_DisplayName"
 
     local -a menu_items=(
         "addcommand:Add $config_display_name Global Command"
         "viewscripts:View $config_display_name Scripts"
+        "restore:Restore from Configuration"
         "back:Back to Main Menu"
     )
 
@@ -90,9 +88,9 @@ show_openai_submenu() {
 
                 case "$action" in
                     'addcommand')
-                        local config_name="OpenAI"
-                        if [ -z "${ENVIRONMENT_CONFIGS_OpenAI_Title:-}" ]; then
-                            get_openai_config
+                        local config_name="Codex CLI"
+                        if [ -z "${ENVIRONMENT_CONFIGS_Codex_CLI_Title:-}" ]; then
+                            get_codex_config
                         fi
 
                         show_existing_files_menu "$config_name"
@@ -101,11 +99,18 @@ show_openai_submenu() {
                         read -n 1 -s
                         ;;
                     'viewscripts')
-                        local config_name="OpenAI"
-                        if [ -z "${ENVIRONMENT_CONFIGS_OpenAI_Title:-}" ]; then
-                            get_openai_config
+                        local config_name="Codex CLI"
+                        if [ -z "${ENVIRONMENT_CONFIGS_Codex_CLI_Title:-}" ]; then
+                            get_codex_config
                         fi
                         show_list_scripts "$config_name"
+                        ;;
+                    'restore')
+                        local config_name="Codex CLI"
+                        if [ -z "${ENVIRONMENT_CONFIGS_Codex_CLI_Title:-}" ]; then
+                            get_codex_config
+                        fi
+                        show_restore_configuration_menu "$config_name"
                         ;;
                     'back')
                         return 0

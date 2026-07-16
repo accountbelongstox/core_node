@@ -44,7 +44,6 @@ def register_image_tools(mcp):
             Result: 10 images of 56x56 each
         """
         try:
-            from image_tools import image_tools
             return image_tools.split_image_equal(
                 image_path, count, direction, output_dir, name_pattern
             )
@@ -77,7 +76,6 @@ def register_image_tools(mcp):
             Part 0: 0-100px, Part 1: 100-250px, Part 2: 250-400px, Part 3: 400-end
         """
         try:
-            from image_tools import image_tools
             return image_tools.split_image_custom(
                 image_path, split_points, direction, output_dir, name_pattern
             )
@@ -119,7 +117,6 @@ def register_image_tools(mcp):
             create_image_grid(["img1.png", "img2.png", ...], 3, "grid.png")
         """
         try:
-            from image_tools import image_tools
             return image_tools.create_image_grid(
                 image_paths, cols, output_path, spacing,
                 background_color, cell_width, cell_height, resize_mode
@@ -151,7 +148,6 @@ def register_image_tools(mcp):
             Result dictionary with output path and metadata
         """
         try:
-            from image_tools import image_tools
             return image_tools.crop_image(image_path, x, y, width, height, output_path)
         except Exception as e:
             return {"error": str(e)}
@@ -184,7 +180,6 @@ def register_image_tools(mcp):
             split_sprite_sheet("sprite.png", 80, 80, direction="vertical")
         """
         try:
-            from image_tools import image_tools
             return image_tools.split_sprite_sheet(
                 image_path, sprite_width, sprite_height,
                 output_dir, name_pattern, direction
@@ -214,7 +209,6 @@ def register_image_tools(mcp):
             Result dictionary with output files list
         """
         try:
-            from image_tools import image_tools
             return image_tools.split_image_grid(image_path, rows, cols, output_dir, name_pattern)
         except Exception as e:
             return {"error": str(e)}
@@ -245,7 +239,6 @@ def register_image_tools(mcp):
             Result dictionary
         """
         try:
-            from image_tools import image_tools
             return image_tools.resize_image(
                 image_path, width, height, max_size,
                 keep_aspect, resample, output_path
@@ -275,7 +268,6 @@ def register_image_tools(mcp):
             Result dictionary
         """
         try:
-            from image_tools import image_tools
             return image_tools.rotate_image(image_path, angle, expand, fill_color, output_path)
         except Exception as e:
             return {"error": str(e)}
@@ -298,7 +290,6 @@ def register_image_tools(mcp):
             Result dictionary
         """
         try:
-            from image_tools import image_tools
             return image_tools.flip_image(image_path, direction, output_path)
         except Exception as e:
             return {"error": str(e)}
@@ -327,7 +318,6 @@ def register_image_tools(mcp):
             Result dictionary with compression ratio
         """
         try:
-            from image_tools import image_tools
             return image_tools.compress_image(
                 image_path, quality, max_width, max_height,
                 output_format, output_path
@@ -355,7 +345,6 @@ def register_image_tools(mcp):
             Result dictionary
         """
         try:
-            from image_tools import image_tools
             return image_tools.merge_images_horizontal(image_paths, output_path, spacing, align)
         except Exception as e:
             return {"error": str(e)}
@@ -380,7 +369,6 @@ def register_image_tools(mcp):
             Result dictionary
         """
         try:
-            from image_tools import image_tools
             return image_tools.merge_images_vertical(image_paths, output_path, spacing, align)
         except Exception as e:
             return {"error": str(e)}
@@ -413,7 +401,6 @@ def register_image_tools(mcp):
             Result dictionary
         """
         try:
-            from image_tools import image_tools
             return image_tools.add_text_to_image(
                 image_path, text, position, font_size,
                 font_color, font_path, background_color, output_path
@@ -449,7 +436,6 @@ def register_image_tools(mcp):
             - sepia: Sepia tone effect
         """
         try:
-            from image_tools import image_tools
             return image_tools.apply_filter(image_path, filter_type, intensity, output_path)
         except Exception as e:
             return {"error": str(e)}

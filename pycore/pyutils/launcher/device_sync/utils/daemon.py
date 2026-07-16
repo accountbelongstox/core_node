@@ -16,6 +16,12 @@ from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pathlib import Path
 import subprocess
 
+import time
+
+import tempfile
+
+
+
 
 def is_console_attached() -> bool:
     """
@@ -87,7 +93,6 @@ def restart_as_background() -> bool:
             CREATE_NEW_PROCESS_GROUP = 0x00000200
 
             # Create log file for debugging
-            import tempfile
             log_dir = Path(tempfile.gettempdir()) / 'device_sync'
             log_dir.mkdir(exist_ok=True)
             log_file = log_dir / 'device_sync.log'
@@ -244,7 +249,6 @@ def auto_background_wrapper(main_func):
         # Check if we need to restart
         if ensure_background_mode():
             # We restarted - exit this process
-            import time
             time.sleep(1)  # Give user time to see message
             sys.exit(0)
 

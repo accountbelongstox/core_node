@@ -128,8 +128,10 @@ export interface WfNewContentGroup {
   /** What `count` measures: 'words' | 'sentences' | 'subtitles'. */
   countUnit: string;
   language?: string;
-  /** Absolute cover/poster URL, or undefined when none. */
+  /** Absolute primary cover URL (first of imageUrls), or undefined when none. */
   imageUrl?: string;
+  /** All cover/poster URLs for carousel playback (string or array from API). */
+  imageUrls?: string[];
   /** Optional classifier (group type / library category). */
   category?: string;
   description?: string;

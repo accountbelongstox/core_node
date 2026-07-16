@@ -64,6 +64,8 @@ import GeminiImage from './extensions/GeminiImage.vue';
 import ArticleStudyGuide from './extensions/ArticleStudyGuide.vue';
 import BookStudyGenerator from './extensions/BookStudyGenerator.vue';
 import AiTranslateHub from './extensions/AiTranslateHub.vue';
+import WebSearchPanel from './extensions/WebSearchPanel.vue';
+import QwenTtsPanel from './extensions/QwenTtsPanel.vue';
 
 // Extension config management. The old in-extension "Local Task Queue" (Process
 // API requests locally) was removed — it duplicated the laravel-aligned Bing
@@ -90,6 +92,8 @@ const registerAllComponents = () => {
   registerComponent('article-study-guide', ArticleStudyGuide);
   registerComponent('book-study-generator', BookStudyGenerator);
   registerComponent('ai-translate-hub', AiTranslateHub);
+  registerComponent('web-search', WebSearchPanel);
+  registerComponent('qwen-tts', QwenTtsPanel);
 };
 
 onMounted(async () => {

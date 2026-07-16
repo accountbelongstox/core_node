@@ -19,32 +19,70 @@ The live test (``stt_test``) synthesizes a known phrase with the TTS orchestrato
 {success, engine, text, latency_ms, error} — the round-trip is the test.
 """
 
+import importlib.metadata
 import importlib.util
 import os
 import tempfile
+import threading
 import time
 import wave
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.managed_service import CategorySettings, ServiceSpec, managed_services
 from pycore.pyfoundations.third_party import (
     get_third_package_vosk,
     get_third_package_whisper,
 )
 from pycore.pyutils.common.api_secrets import azure_speech_key, azure_speech_region
+from pycore.pyutils.common.model_tiers import (
+    runtime_faster_whisper_compute_type,
+    runtime_faster_whisper_device,
+    runtime_faster_whisper_model,
+    runtime_whisper_model,
+)
+
+import json as _json
+
+from pycore.pyutils.azure_speech.quota_state import is_stt_quota_blocked
+from pycore.pyfoundations.system_paths import APP_CACHE_DIR
+from pycore.pyutils.tts import sherpa_engine
+from pycore.pyfoundations.third_party import get_third_package_sherpa_onnx
+from pycore.pyutils.tts import synthesize as tts_synth
+
+import array
+
+
+
 
 _DEFAULT_PRIORITY = ("faster-whisper", "whisper", "vosk", "azure")
+_KNOWN_ENGINES = _DEFAULT_PRIORITY
 _SAMPLE_PHRASE = "the quick brown fox jumps over the lazy dog"
 _ENGINE_NOTES = {
-    "faster-whisper": "Faster-Whisper (CTranslate2; CPU int8 / GPU) — offline",
-    "whisper": "OpenAI Whisper (offline; large->GPU, turbo->CPU)",
+    "faster-whisper": "Faster-Whisper (CTranslate2; GPU large-v3 / CPU medium)",
+    "whisper": "OpenAI Whisper (offline; GPU large-v3 / CPU medium)",
     "vosk": "Vosk offline ASR (lightweight; needs a model dir)",
     "azure": "Azure Speech cloud STT (free F0 ~0.5M chars/mo; API fallback)",
 }
 
-# Cache loaded local models so repeat tests don't reload weights every click.
-_model_cache: Dict[str, Any] = {}
+_ENGINE_VERSIONS = {
+    "faster-whisper": "faster-whisper",
+    "whisper": "openai-whisper",
+    "vosk": "vosk",
+}
+
+
+def default_stt_engine_priority() -> tuple[str, ...]:
+    """Canonical default chain (shared by capability settings)."""
+    return _KNOWN_ENGINES
+
+
+def _dist_version(dist: str) -> Optional[str]:
+    try:
+        return importlib.metadata.version(dist)
+    except Exception:
+        return None
 
 
 def _priority() -> tuple[str, ...]:
@@ -53,6 +91,11 @@ def _priority() -> tuple[str, ...]:
         return _DEFAULT_PRIORITY
     parts = [p.strip() for p in raw.replace(",", "->").split("->") if p.strip()]
     return tuple(parts) if parts else _DEFAULT_PRIORITY
+
+
+# Cache loaded local models so repeat tests don't reload weights every click.
+_model_cache: Dict[str, Any] = {}
+_cache_lock = threading.Lock()
 
 
 STT_ENGINE_PRIORITY = _priority()
@@ -95,7 +138,6 @@ def _azure_available() -> bool:
 
 def _azure_stt_blocked() -> tuple[bool, Optional[str]]:
     try:
-        from pycore.pyutils.azure_speech.quota_state import is_stt_quota_blocked
         return is_stt_quota_blocked()
     except Exception:
         return (False, None)
@@ -107,7 +149,6 @@ def _vosk_model_dir() -> Optional[Path]:
     if env:
         candidates.append(Path(env))
     try:
-        from pycore.pyfoundations.system_paths import APP_CACHE_DIR
         candidates.append(Path(APP_CACHE_DIR) / "stt" / "vosk")
     except Exception:
         pass
@@ -158,15 +199,27 @@ def stt_status() -> Dict[str, Any]:
     """Availability snapshot for the UI (no recognition run)."""
     engines: List[Dict[str, Any]] = []
     for i, name in enumerate(_priority()):
+        avail = engine_available(name)
         entry: Dict[str, Any] = {
             "name": name,
             "priority": i + 1,
-            "available": engine_available(name),
+            "available": avail,
             "note": _ENGINE_NOTES.get(name, ""),
         }
+        dist = _ENGINE_VERSIONS.get(name)
+        if dist and avail:
+            entry["version"] = _dist_version(dist)
+        if name == "faster-whisper" and avail:
+            entry["model"] = runtime_faster_whisper_model()
+        if name == "whisper" and avail:
+            entry["model"] = runtime_whisper_model()
         quota = _quota(name)
         if quota is not None:
             entry["quota"] = quota
+        if name in ("faster-whisper", "whisper", "vosk") and managed_services.is_registered(name):
+            rt = managed_services.runtime_status(name)
+            entry["model_loaded"] = bool(rt.get("running"))
+            entry["model_idle_remaining_s"] = rt.get("idle_remaining_s")
         engines.append(entry)
     avail = [e for e in engines if e["available"]]
     best = next((e["name"] for e in engines if e["available"]), None)
@@ -181,22 +234,29 @@ def stt_status() -> Dict[str, Any]:
 
 # --- transcription --------------------------------------------------------- #
 
-def _transcribe_faster_whisper(audio_path: Path, language: Optional[str]) -> str:
-    from faster_whisper import WhisperModel  # availability checked by caller
-    model = _model_cache.get("faster-whisper")
+def _transcribe_faster_whisper(audio_path: Path, language: Optional[str],
+                                model_override: Optional[str] = None) -> str:
+    model_name = model_override or runtime_faster_whisper_model()
+    device = runtime_faster_whisper_device()
+    compute = runtime_faster_whisper_compute_type(device)
+    cache_key = ("faster-whisper", model_name, device, compute)
+    model = _model_cache.get(cache_key)
     if model is None:
-        model = WhisperModel("tiny", device="cpu", compute_type="int8")
-        _model_cache["faster-whisper"] = model
+        model = WhisperModel(model_name, device=device, compute_type=compute)
+        _model_cache[cache_key] = model
     segments, _info = model.transcribe(str(audio_path), language=language)
     return " ".join(seg.text.strip() for seg in segments).strip()
 
 
-def _transcribe_whisper(audio_path: Path, language: Optional[str]) -> str:
+def _transcribe_whisper(audio_path: Path, language: Optional[str],
+                         model_override: Optional[str] = None) -> str:
     whisper = get_third_package_whisper()
-    model = _model_cache.get("whisper")
+    model_name = model_override or runtime_whisper_model()
+    cache_key = ("whisper", model_name)
+    model = _model_cache.get(cache_key)
     if model is None:
-        model = whisper.load_model("tiny")
-        _model_cache["whisper"] = model
+        model = whisper.load_model(model_name)
+        _model_cache[cache_key] = model
     result = model.transcribe(str(audio_path), language=language, fp16=False)
     return str(result.get("text", "")).strip()
 
@@ -210,7 +270,6 @@ def _transcribe_vosk(audio_path: Path, language: Optional[str]) -> str:
     if model is None:
         model = vosk.Model(str(model_dir))
         _model_cache["vosk"] = model
-    import json as _json
     with wave.open(str(audio_path), "rb") as wf:
         rec = vosk.KaldiRecognizer(model, wf.getframerate())
         rec.SetWords(False)
@@ -226,7 +285,6 @@ def _transcribe_vosk(audio_path: Path, language: Optional[str]) -> str:
 
 
 def _transcribe_azure(audio_path: Path, language: Optional[str]) -> str:
-    import azure.cognitiveservices.speech as speechsdk
     speech_config = speechsdk.SpeechConfig(subscription=_azure_key(), region=_azure_region())
     locale = {"en": "en-US", "zh": "zh-CN"}.get((language or "en").lower(), "en-US")
     speech_config.speech_recognition_language = locale
@@ -245,19 +303,24 @@ def _transcribe_azure(audio_path: Path, language: Optional[str]) -> str:
 _NEEDS_WAV = {"vosk", "azure"}
 
 
-def transcribe(engine: str, audio_path: Path, language: Optional[str] = None) -> str:
-    if engine == "faster-whisper":
-        return _transcribe_faster_whisper(audio_path, language)
-    if engine == "whisper":
-        return _transcribe_whisper(audio_path, language)
-    if engine == "vosk":
-        return _transcribe_vosk(audio_path, language)
-    if engine == "azure":
-        return _transcribe_azure(audio_path, language)
-    raise ValueError(f"unknown STT engine: {engine}")
+def transcribe(engine: str, audio_path: Path, language: Optional[str] = None,
+               model: Optional[str] = None) -> str:
+    # Busy-protected managed lifecycle: STT models load in parallel (no eviction);
+    # each idle-unloads after 60s. azure is an API engine (unregistered) ->
+    # `using` is a no-op for it.
+    with managed_services.using(engine):
+        if engine == "faster-whisper":
+            return _transcribe_faster_whisper(audio_path, language, model_override=model)
+        if engine == "whisper":
+            return _transcribe_whisper(audio_path, language, model_override=model)
+        if engine == "vosk":
+            return _transcribe_vosk(audio_path, language)
+        if engine == "azure":
+            return _transcribe_azure(audio_path, language)
+        raise ValueError(f"unknown STT engine: {engine}")
 
 
-def _make_sample_clip(language: str, want_wav: bool) -> Optional[Path]:
+def _make_sample_clip(language: str, want_wav: bool, phrase: str = _SAMPLE_PHRASE) -> Optional[Path]:
     """Synthesize the known phrase with the TTS orchestrator (offline-first) so the
     STT test has audio to recognize. Returns an mp3, or a 16k PCM wav when an engine
     needs one (vosk/azure) — converted from a local sherpa render via stdlib wave."""
@@ -267,19 +330,16 @@ def _make_sample_clip(language: str, want_wav: bool) -> Optional[Path]:
         # Render raw samples with the offline sherpa engine and write a PCM wav
         # directly — no ffmpeg, and the exact format vosk/azure expect.
         try:
-            from pycore.pyutils.tts import sherpa_engine
-            from pycore.pyfoundations.third_party import get_third_package_sherpa_onnx
             if not sherpa_engine.available() or get_third_package_sherpa_onnx() is None:
                 return None
             tts = sherpa_engine._get_tts()  # noqa: SLF001 — reuse the loaded model
             if tts is None:
                 return None
-            audio = tts.generate(_SAMPLE_PHRASE, 0, speed=1.0)
+            audio = tts.generate(phrase, 0, speed=1.0)
             samples = getattr(audio, "samples", None)
             sample_rate = int(getattr(audio, "sample_rate", 22050))
             if samples is None:
                 return None
-            import array
             ints = array.array("h", (max(-32768, min(32767, int(s * 32767))) for s in samples))
             wav_path = tmp_dir / "sample.wav"
             with wave.open(str(wav_path), "wb") as wf:
@@ -293,9 +353,8 @@ def _make_sample_clip(language: str, want_wav: bool) -> Optional[Path]:
             return None
     # mp3 path: any TTS engine works; whisper/faster-whisper decode mp3 themselves.
     try:
-        from pycore.pyutils.tts import synthesize as tts_synth
         mp3_path = tmp_dir / "sample.mp3"
-        res = tts_synth(_SAMPLE_PHRASE, language, mp3_path)
+        res = tts_synth(phrase, language, mp3_path)
         if res.get("success") and mp3_path.exists() and mp3_path.stat().st_size > 0:
             return mp3_path
     except Exception as e:  # noqa: BLE001
@@ -303,32 +362,91 @@ def _make_sample_clip(language: str, want_wav: bool) -> Optional[Path]:
     return None
 
 
-def stt_test(engine: Optional[str] = None, language: str = "en") -> Dict[str, Any]:
-    """Live round-trip test: synth the known phrase, recognize it with ``engine``
-    (or the best available), return {success, engine, text, latency_ms, error}."""
+def stt_test(engine: Optional[str] = None, language: str = "en",
+             text: Optional[str] = None,
+             # Per-engine extra params.
+             model: Optional[str] = None,
+             **extra_params: Any) -> Dict[str, Any]:
+    """Live round-trip test: synth ``text`` (or the default sample phrase),
+    recognize it with ``engine`` (or the best available), return
+    {success, engine, text, latency_ms, error}. The synthesized phrase is
+    echoed back as ``phrase`` so the caller knows what was recognized.
+
+    Per-engine params:
+    - model (faster-whisper / whisper): override the default model name."""
     name = engine or best_engine()
     if not name:
-        return {"success": False, "engine": None, "text": "", "latency_ms": 0, "error": "no STT engine available"}
+        return {"success": False, "engine": None, "text": "", "latency_ms": 0,
+                "route": "local.stt.test", "error": "no STT engine available"}
     if not engine_available(name):
-        return {"success": False, "engine": name, "text": "", "latency_ms": 0, "error": f"{name} unavailable"}
+        return {"success": False, "engine": name, "text": "", "latency_ms": 0,
+                "route": "local.stt.test", "error": f"{name} unavailable"}
 
-    sample = _make_sample_clip(language, want_wav=(name in _NEEDS_WAV))
+    phrase = (text or "").strip() or _SAMPLE_PHRASE
+    sample = _make_sample_clip(language, want_wav=(name in _NEEDS_WAV), phrase=phrase)
     if sample is None:
         return {"success": False, "engine": name, "text": "", "latency_ms": 0,
+                "route": "local.stt.test",
                 "error": "could not produce a sample clip (offline TTS needed to generate test audio)"}
 
     t0 = time.monotonic()
     try:
-        text = transcribe(name, sample, language)
+        recognized = transcribe(name, sample, language, model=model)
     except Exception as e:  # noqa: BLE001
         return {"success": False, "engine": name, "text": "", "latency_ms": round((time.monotonic() - t0) * 1000),
-                "path": str(sample), "language": language, "error": f"{e}"}
+                "route": "local.stt.test",
+                "phrase": phrase, "path": str(sample), "language": language, "error": f"{e}"}
     latency = round((time.monotonic() - t0) * 1000)
-    ok = bool((text or "").strip())
-    return {"success": ok, "engine": name, "text": text, "latency_ms": latency,
-            # The sample clip that was recognized (for the caller to persist).
-            "path": str(sample), "language": language,
+    ok = bool((recognized or "").strip())
+    result: Dict[str, Any] = {"success": ok, "engine": name, "text": recognized, "latency_ms": latency,
+            "route": "local.stt.test",
+            "phrase": phrase, "path": str(sample), "language": language,
             "error": None if ok else "engine returned empty text"}
+    if model:
+        result["model"] = model
+    return result
+
+
+def is_model_loaded(engine: str) -> bool:
+    """True when a local STT model for `engine` is resident in memory."""
+    with _cache_lock:
+        if engine in ("faster-whisper", "whisper"):
+            return any(isinstance(k, tuple) and k and k[0] == engine for k in _model_cache)
+        if engine == "vosk":
+            return "vosk" in _model_cache
+    return False
+
+
+def unload_model(engine: str) -> None:
+    """Drop cached STT model(s) for `engine` so their memory can be freed. The
+    managed-service layer releases the GPU cache afterwards and only calls this
+    when no transcription is in flight (busy protection)."""
+    with _cache_lock:
+        if engine in ("faster-whisper", "whisper"):
+            for k in list(_model_cache):
+                if isinstance(k, tuple) and k and k[0] == engine:
+                    _model_cache.pop(k, None)
+        elif engine == "vosk":
+            _model_cache.pop("vosk", None)
+
+
+def _register_stt_services() -> None:
+    """Register the local STT models with the unified managed-service manager
+    (category "stt", parallel models, 60s idle unload). azure is an API engine and
+    is NOT registered."""
+    managed_services.register_category("stt", CategorySettings("stt", "model_", idle_default=60))
+    for engine in ("faster-whisper", "whisper", "vosk"):
+        managed_services.register(ServiceSpec(
+            name=engine,
+            category="stt",
+            kind="model",
+            installed=lambda e=engine: engine_available(e),
+            unload=lambda e=engine: unload_model(e),
+            is_loaded=lambda e=engine: is_model_loaded(e),
+        ))
+
+
+_register_stt_services()
 
 
 __all__ = [
@@ -338,4 +456,6 @@ __all__ = [
     "stt_status",
     "transcribe",
     "stt_test",
+    "is_model_loaded",
+    "unload_model",
 ]

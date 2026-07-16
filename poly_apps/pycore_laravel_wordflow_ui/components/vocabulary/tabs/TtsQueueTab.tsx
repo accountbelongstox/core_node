@@ -2,7 +2,8 @@ import React from 'react';
 import { RefreshCw, ListChecks, Eye } from 'lucide-react';
 import { commonClasses } from '../../../styles/theme';
 import { LoadingBlock, EmptyState } from '../../common';
-import VocabTtsEnginesStrip from '../VocabTtsEnginesStrip';
+import VocabAssistQueuesPanel from '../VocabAssistQueuesPanel';
+import type { AssistOverviewResponse } from '../../../core/api/modules/BooksAPI';
 
 type TtsQueueDrillParams = {
   status?: 'pending' | 'processing' | 'completed' | 'failed';
@@ -16,6 +17,10 @@ interface TtsQueueTabProps {
   setAutoRefreshQueue: (v: boolean) => void;
   loadQueueStats: () => void;
   openTtsQueueDrill: (label: string, params: TtsQueueDrillParams) => void;
+  assistOverview: AssistOverviewResponse | null;
+  loadingAssistOverview: boolean;
+  loadAssistOverview: () => void;
+  openAssistCategoryDrill: (label: string, category: string, status?: 'pending' | 'processing' | 'completed' | 'failed' | 'leased') => void;
   setLogsDockOpen: (v: boolean) => void;
   t: {
     logs_moved_hint: string;
@@ -23,7 +28,7 @@ interface TtsQueueTabProps {
   };
 }
 
-/** TTS Queue tab body: engines strip, queue management card, colored stat cards, logs-moved hint. */
+/** TTS Queue tab body: worker queues (Laravel), queue management card, stat cards, logs hint. */
 const TtsQueueTab: React.FC<TtsQueueTabProps> = ({
   queueStats,
   loadingQueueStats,
@@ -31,13 +36,22 @@ const TtsQueueTab: React.FC<TtsQueueTabProps> = ({
   setAutoRefreshQueue,
   loadQueueStats,
   openTtsQueueDrill,
+  assistOverview,
+  loadingAssistOverview,
+  loadAssistOverview,
+  openAssistCategoryDrill,
   setLogsDockOpen,
   t,
 }) => {
   return (
       <>
-      {/* TTS Engines status strip (pycore — polled, degrades gracefully) */}
-      <VocabTtsEnginesStrip />
+      {/* Worker queues — Laravel assist/overview only (no pycore :59000 on laravel-manager). */}
+      <VocabAssistQueuesPanel
+        overview={assistOverview}
+        loading={loadingAssistOverview}
+        onRefresh={loadAssistOverview}
+        onDrill={openAssistCategoryDrill}
+      />
 
       {/* TTS Queue Management Section */}
       <div className={`${commonClasses.card} p-4 mb-4`}>
@@ -126,10 +140,13 @@ const TtsQueueTab: React.FC<TtsQueueTabProps> = ({
               </div>
             </div>
 
-            {/* Type Statistics */}
+            {/* Type Statistics — dictionary canonical tables (word / article); sentence_audio is under Worker Queues */}
             {queueStats.by_type && (
               <div>
-                <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Type Statistics</h4>
+                <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Dictionary TTS Types</h4>
+                <p className="text-[10px] text-slate-400 mb-3">
+                  Word/article rows on canonical dictionary tables. Sentence audio lives in Worker Queues → Sentence Audio.
+                </p>
                 <div className="grid grid-cols-3 gap-4">
                   <button
                     type="button"

@@ -218,8 +218,8 @@ function Backup-PythonEnvironment {
     Write-Host "Includes:" -ForegroundColor $script:COLOR_INFO
     Write-Host "  - Python install directory (interpreter + all pip packages)" -ForegroundColor Gray
     Write-Host "  - pycore models + user data (~/.core_node: cache/tts, cache/stt, ...)" -ForegroundColor Gray
-    Write-Host "  - HuggingFace model cache (~/.cache/huggingface: faster-whisper, ...)" -ForegroundColor Gray
-    Write-Host "  - Whisper model cache (~/.cache/whisper)" -ForegroundColor Gray
+    Write-Host "  - HuggingFace model cache (D:\www\cache\huggingface: faster-whisper, ...)" -ForegroundColor Gray
+    Write-Host "  - Whisper model cache (D:\www\cache\whisper)" -ForegroundColor Gray
     Write-Host ""
     Write-ColorMessage -Message "You will be asked whether to compress the backup (.tar.gz)." -Type "Warning"
     Write-Host ""

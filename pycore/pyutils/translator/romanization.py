@@ -33,6 +33,9 @@ except ImportError:
     GOOGLETRANS_AVAILABLE = False
     Translator = None
 
+import json
+
+
 
 @dataclass
 class RomanizationResult:
@@ -69,7 +72,6 @@ class RomanizationCache:
         cache_file = self.cache_dir / f"{cache_key}.json"
         if cache_file.exists():
             try:
-                import json
                 with open(cache_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception:
@@ -80,7 +82,6 @@ class RomanizationCache:
         cache_key = self._get_cache_key(text)
         cache_file = self.cache_dir / f"{cache_key}.json"
         try:
-            import json
             with open(cache_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception:

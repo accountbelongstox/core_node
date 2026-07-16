@@ -18,6 +18,14 @@ from pathlib import Path
 from pycore import ColorPrint
 from .webengine_config import configure_webengine_tier3_settings, mark_gpu_fallback
 
+try:
+    from PySide6.QtCore import QUrlQuery
+    _QURLQUERY_AVAILABLE = True
+except ImportError:
+    QUrlQuery = None
+    _QURLQUERY_AVAILABLE = False
+
+
 
 class PySide6WebView(QWidget):
     """
@@ -269,7 +277,6 @@ class PySide6WebView(QWidget):
             # Build URL with query parameters
             url = QUrl.fromLocalFile(str(file_path.absolute()))
             # Add query parameters
-            from PySide6.QtCore import QUrlQuery
             query = QUrlQuery()
             query.addQueryItem("style", str(style))
             query.addQueryItem("text", text)

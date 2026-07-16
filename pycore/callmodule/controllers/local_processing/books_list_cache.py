@@ -6,7 +6,7 @@ logic is reusable independent of the controller's analyze/submit flow. The cache
 lets paging a huge book reuse ONE extraction+tokenization pass instead of
 re-reading the source every page.
 
-A cache file ``<data>/pycore/books_cache/<source_key>.json`` holds the full
+A cache file ``<cache>/pycore/books_cache/<source_key>.json`` holds the full
 drill-down lists (words / sentences / unique_sentences / languages / chapters /
 chapter_texts) stamped with a fingerprint (``abspath|size|mtime`` of the source
 files). A mismatched/missing fingerprint self-heals by rebuilding, so a stale or
@@ -31,19 +31,14 @@ from pycore import ColorPrint
 from pycore.pyfoundations.system_paths import get_local_data_dir
 from pycore.callmodule.services.sync.laravel_media_sync import source_key_for
 
-# Books data lives under the SHARED repo-local data dir (<core_node>/.data),
-# namespaced "pycore/..." - mirroring the laravel Books path (.data/appqyv1/...)
-# so both ends' Books scratch sits under the same shared .data area. Shared with
-# books_controller.staging_dir, which imports this constant.
-_BOOKS_NS = "pycore"
-# Cached full drill-down lists (words/sentences/...) per source_key, so paging a
-# huge book never re-extracts/re-tokenizes the source.
+# Books data lives under the shared cache dir (<cache>/pycore/...), mirroring the
+# laravel Books path. Shared with books_controller.staging_dir.
 _LIST_CACHE_SUBDIR = "books_cache"
 
 
 def list_cache_path(source_key: str) -> str:
     """Absolute cache file path for ``source_key`` (dir created on demand)."""
-    d = os.path.join(str(get_local_data_dir()), _BOOKS_NS, _LIST_CACHE_SUBDIR)
+    d = os.path.join(str(get_local_data_dir()), _LIST_CACHE_SUBDIR)
     os.makedirs(d, exist_ok=True)
     return os.path.join(d, source_key + ".json")
 

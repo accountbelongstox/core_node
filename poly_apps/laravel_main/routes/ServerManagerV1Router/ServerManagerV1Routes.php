@@ -22,6 +22,8 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::get('services', [ServerManagerV1SystemInfoCtl::class, 'getServices']);
         Route::get('permissions', [ServerManagerV1SystemInfoCtl::class, 'getPermissions']);
         Route::get('storage', [ServerManagerV1SystemInfoCtl::class, 'getStorage']);
+        Route::get('static-resources', [ServerManagerV1SystemInfoCtl::class, 'getStaticResources']);
+        Route::get('static-resources/files', [ServerManagerV1SystemInfoCtl::class, 'listStaticResourceFiles']);
 
         // System Service Management Routes
         Route::prefix('service')->group(function () {
@@ -42,6 +44,9 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::get('download', [ServerManagerV1FileManagerCtl::class, 'download']);
         Route::get('info', [ServerManagerV1FileManagerCtl::class, 'getFileInfo']);
         Route::get('preview', [ServerManagerV1FileManagerCtl::class, 'preview']);
+        Route::post('write', [ServerManagerV1FileManagerCtl::class, 'write']);
+        Route::post('elevated-auth', [ServerManagerV1FileManagerCtl::class, 'elevatedAuth']);
+        Route::delete('elevated-auth', [ServerManagerV1FileManagerCtl::class, 'revokeElevatedAuth']);
     });
     
     // Code Execution Routes
@@ -59,10 +64,14 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::get('config', [ServerManagerV1NginxManagerCtl::class, 'getSiteConfig']);
         Route::put('sites/{site_name}', [ServerManagerV1NginxManagerCtl::class, 'updateSite']);
         Route::delete('sites/{site_name}', [ServerManagerV1NginxManagerCtl::class, 'deleteSite']);
+        // Purge a site's actual web-root files (destructive: root password + "delete" confirm in the body).
+        Route::post('sites/{site_name}/delete-files', [ServerManagerV1NginxManagerCtl::class, 'deleteSiteFiles']);
         Route::post('enable', [ServerManagerV1NginxManagerCtl::class, 'enableSite']);
         Route::post('disable', [ServerManagerV1NginxManagerCtl::class, 'disableSite']);
         Route::post('test', [ServerManagerV1NginxManagerCtl::class, 'testConfig']);
         Route::post('reload', [ServerManagerV1NginxManagerCtl::class, 'reloadNginx']);
+        // Idempotently repair + reset all nginx config (ensure log/run dirs, quarantine broken site configs, reload).
+        Route::post('repair', [ServerManagerV1NginxManagerCtl::class, 'repairConfig']);
         Route::get('status', [ServerManagerV1NginxManagerCtl::class, 'statusOverview']);
         Route::post('service', [ServerManagerV1NginxManagerCtl::class, 'serviceControl']);
         Route::get('logs', [ServerManagerV1NginxManagerCtl::class, 'logs']);
@@ -98,6 +107,9 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::get('/', [ServerManagerV1CertificateManagerCtl::class, 'listCertificates']);
         Route::post('generate', [ServerManagerV1CertificateManagerCtl::class, 'generateCertificate']);
         Route::post('renew', [ServerManagerV1CertificateManagerCtl::class, 'renewCertificates']);
+        // Idempotent: generate if missing, renew if present (with 5m cooldown). Async with progress polling.
+        Route::post('ensure', [ServerManagerV1CertificateManagerCtl::class, 'ensureCertificate']);
+        Route::get('progress/{request_id}', [ServerManagerV1CertificateManagerCtl::class, 'certificateProgress']);
         Route::get('status', [ServerManagerV1CertificateManagerCtl::class, 'getCertificateStatus']);
         Route::post('install-certbot', [ServerManagerV1CertificateManagerCtl::class, 'installCertbot']);
         Route::get('detect-certbot', [ServerManagerV1CertificateManagerCtl::class, 'detectCertbot']);

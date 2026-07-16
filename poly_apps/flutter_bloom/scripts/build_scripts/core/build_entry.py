@@ -25,6 +25,15 @@ from core.modern_build_system import ModernFlutterBuildSystem as FlutterBloomBui
 from shared.data_exchange.unified_variable_system import unified_vars
 from utils.print_helper import PrintHelper
 
+# Make pycore importable so cache paths resolve via the centralized system_paths
+# module (matches FlutterGlobalVar.ps1 D:\programing\Users\<user>\.core_node).
+_REPO_ROOT = Path(__file__).resolve()
+while _REPO_ROOT != _REPO_ROOT.parent and not (_REPO_ROOT / 'pycore').is_dir():
+    _REPO_ROOT = _REPO_ROOT.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from pycore.pyfoundations.system_paths import get_system_cache_dir
+
 
 class BuildEntryPoint:
     """
@@ -35,7 +44,7 @@ class BuildEntryPoint:
         """Initialize build entry point"""
         # PrintHelper is now a static class
         self.current_dir = Path.cwd()
-        self.user_cache_dir = Path.home() / ".core_node" / ".flutter_build" / ".cache" / "copy_flag_dir"
+        self.user_cache_dir = get_system_cache_dir() / ".flutter_build" / ".cache" / "copy_flag_dir"
         self.temp_build_dir_file = self.user_cache_dir / "temp_build_dir.txt"
 
     def execute_build(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -197,7 +206,7 @@ class BuildEntryPoint:
 
     def _debug_list_file_variables(self):
         """Debug function to list file variables"""
-        temp_flutter_dir = Path.home() / ".core_node" / ".flutter_build" / ".cache" / "flutter_bloom"
+        temp_flutter_dir = get_system_cache_dir() / ".flutter_build" / ".cache" / "flutter_bloom"
         PrintHelper.info(f"Listing all file variables from: {temp_flutter_dir}", "BUILD-DEBUG")
 
         if temp_flutter_dir.exists():

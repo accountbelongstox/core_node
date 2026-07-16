@@ -127,7 +127,6 @@ class DeviceManager:
         else:
             sdk_version = int(sdk_version_str)
 
-        from dataclasses import dataclass
         @dataclass
         class Resolution:
             width: int

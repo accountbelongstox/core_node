@@ -21,6 +21,10 @@ from pycore.pyutils.mcp.file_processing.database_manager_for_file_info_caching_a
     get_database_manager_singleton
 )
 
+import os
+import hashlib
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -217,8 +221,6 @@ class FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata:
 
     async def _process_generic_file_with_basic_info(self, file_path: str) -> Dict[str, Any]:
         """Process generic file with basic information"""
-        import os
-        import hashlib
 
         file_size = os.path.getsize(file_path)
         mime_type, _ = mimetypes.guess_type(file_path)

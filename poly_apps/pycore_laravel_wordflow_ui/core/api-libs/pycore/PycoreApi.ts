@@ -1,13 +1,8 @@
 /**
  * PycoreApi — pycore service API client for the dashboard's pycore-manager end.
  *
- * Talks DIRECTLY to the pycore backend contract through the `/pyapi/*` reverse
- * proxy (Vite dev / webview — see vite.config.ts). The legacy desktop-manager
- * Node adapter (`/api/queue`, `/api/tts`, `/api/runtime` served by server.ts)
- * does NOT exist in this unified shell, so the voice-subtitle queue endpoints
- * map pycore's raw `/voice-subtitle/*` responses to the React shapes HERE
- * (mapQueueSnapshot). All paths are relative so the same code works inside a
- * webview or a plain browser.
+ * Talks DIRECTLY to the pycore backend on `<host>:59000`. Paths are rewritten
+ * by rewritePycoreEndpoint() for the selected pycore target (local or remote).
  *
  * Self-contained: types come from `./pycoreTypes`, never the original app.
  */
@@ -21,7 +16,7 @@ import type {
   AiUsageResponse,
   AiImageResponse, ImageHistoryResponse, ImageHistoryClearResponse, ImageHistoryDeleteResponse,
   AiKeysResponse, AiKeySetRequest, AiKeySetResponse, AiKeyDeleteResponse, AiKeyResetCooldownResponse,
-  OcrStatus, TtsStatus, TtsSettings, TtsTestResponse, SttStatus, SttTestResponse, SpeechHistoryResponse, RevealResponse, CapabilityStatus, SystemInfo, OpenDirResponse,
+  OcrStatus, OcrTestResponse, TtsStatus, TtsSettings, TtsServerActionResponse, TtsTestResponse, SttStatus, SttTestResponse, SpeechHistoryResponse, RevealResponse, CapabilityStatus, SystemInfo, OpenDirResponse,
   TranslationQueueResponse, TranslationQueueActionResponse,
   LocalTaskDetailResponse, PycoreGlobalTaskDetailResponse,
   AssistStatus, AssistConfigPatch, AssistConfigResponse, AssistCycleResponse,
@@ -38,14 +33,33 @@ import type {
   TranslateHistoryResponse, TranslateHistoryDeleteResponse, TranslateHistoryClearResponse,
   AgentHistoryIndexResponse, AgentHistoryPromptsResponse, AgentHistorySessionResponse,
   PcQueueOverview, PcCapabilitySettings, PcCapabilityKey,
+  PcTaskCenterResponse,
   PcCapabilitySaveResponse, PcCapabilityOptions,
   PcTaskRecentResponse, PcTaskClearResponse,
-  DictionaryStatus, DictionaryEntry, SentenceAudioAutoStatus,
+  DictionaryStatus, DictionaryEntry, SentenceAudioAutoStatus, SentenceAudioQueueSnapshot,
+  SentenceVoiceVariant,
+  QueueBumpsSnapshot, WordTtsAutoStatus,
+  HeartbeatWorkersStatus,
 } from './pycoreTypes';
 
-import { MasterApiClient } from '../base';
+import { MasterApiClient, isNetworkLevelFailure } from '../base';
 import type { MasterRequestOptions } from '../base';
-import { rewritePycoreEndpoint, pycoreWsUrlOverride } from './pycoreTarget';
+import { buildPycoreHttpUrl, buildPycoreWsUrl, normalizePycorePath } from './pycoreEndpoints';
+import { rewritePycoreEndpoint, pycoreWsUrlOverride, directPycoreHost } from './pycoreTarget';
+import { callRpc, isWsConnected } from './PycoreWs';
+import {
+  buildVocabQuery,
+  type VocabLanguagesResponse,
+  type VocabTranslateRequest, type VocabTranslateResponse,
+  type VocabTtsGenerateRequest, type VocabTtsGenerateResponse,
+  type VocabDictionaryWordsResponse, type VocabDictionaryWordRow,
+  type VocabLibrariesResponse, type VocabLibrary,
+  type VocabLibraryWordsResponse,
+  type VocabStatisticsResponse, type VocabLanguageBreakdownResponse,
+  type VocabTtsQueueStats, type VocabTtsQueueItemsResponse,
+  type VocabAssistOverviewResponse,
+  type VocabProxyEnvelope,
+} from './PycoreVocabTypes';
 
 /**
  * Structural opt-in on the master API base client (core/api-libs/base) for
@@ -56,16 +70,12 @@ import { rewritePycoreEndpoint, pycoreWsUrlOverride } from './pycoreTarget';
  * 'pycore_api_queue') and drop the ceiling override.
  */
 class PycoreMasterClient extends MasterApiClient {
-  /** All paths are relative (`/pyapi/*` reverse proxy) — empty base URL. */
+  /** Paths rewritten to direct :59000 URLs — empty base URL. */
   protected resolveBaseUrl(): string {
     return '';
   }
 
-  /**
-   * Re-point every pycore HTTP call at the selected target (pycoreTarget):
-   * local leaves `/pyapi/*` untouched; a remote target rewrites it to
-   * `http(s)://<host>:59000/...` so the whole pycore-manager manages that node.
-   */
+  /** Re-point every pycore HTTP call via rewritePycoreEndpoint (direct :59000). */
   async request(endpoint: string, options: MasterRequestOptions = {}): Promise<Response> {
     return super.request(rewritePycoreEndpoint(endpoint), options);
   }
@@ -80,31 +90,202 @@ export const pycoreMasterClient = new PycoreMasterClient({ defaultCeilingMs: 0 }
  * DNS) sticks every panel on "Loading…" with no recovery. On abort the caller's
  * catch shows its error fallback + Refresh instead of an eternal spinner.
  */
-const GET_CEILING_MS = 25_000;
+const GET_CEILING_MS = 12_000;
+const WS_GET_TIMEOUT_MS = 8_000;
 
-/**
- * Default dead-socket ceiling for POST writes (ms). POSTs used to inherit
- * defaultCeilingMs:0 (wait forever), so a hung socket on a control POST (assist
- * config/cycle, clear recent, capability settings save, queue priority/stack)
- * left its button disabled indefinitely. 120s is generous for any control write
- * while still recovering from a dead socket. Genuinely long operations (AI image
- * generation/chat, TTS/STT synth test, video-extract passthrough) pass an
- * explicit ceilingMs of 0 to keep waiting forever.
- */
-const POST_CEILING_MS = 120_000;
+function localApiPathFromUrl(url: string): string {
+  const rewritten = rewritePycoreEndpoint(url);
+  if (/^https?:\/\//i.test(rewritten)) {
+    try {
+      const u = new URL(rewritten);
+      return `${u.pathname}${u.search}`;
+    } catch {
+      return normalizePycorePath(url);
+    }
+  }
+  return normalizePycorePath(rewritten);
+}
+
+async function getJSONViaWs<T>(url: string): Promise<T> {
+  const path = localApiPathFromUrl(url);
+  const body = await callRpc('local_http.get', { path }, WS_GET_TIMEOUT_MS);
+  if (body && body.success === false && body.error) {
+    throw new Error(String(body.error));
+  }
+  return body as T;
+}
+
+/** Like getJSON but keeps `{ success:false, error, laravel_reachable }` envelopes (Laravel proxies). */
+async function getJSONEnvelopeViaWs<T>(url: string): Promise<T> {
+  const path = localApiPathFromUrl(url);
+  return callRpc('local_http.get', { path }, WS_GET_TIMEOUT_MS) as Promise<T>;
+}
+
+async function getJSONEnvelope<T>(url: string): Promise<T> {
+  try {
+    const r = await pycoreMasterClient.request(url, { ceilingMs: GET_CEILING_MS });
+    let body: unknown;
+    try {
+      body = await r.json();
+    } catch {
+      throw new Error(`Invalid JSON from pycore (HTTP ${r.status})`);
+    }
+    if (!r.ok) {
+      const errBody = body as { error?: string };
+      throw new Error(errBody?.error || `pycore HTTP ${r.status}`);
+    }
+    return body as T;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '';
+    const tryWs = isWsConnected() && (
+      isNetworkLevelFailure(e)
+      || /pycore HTTP|offline|unavailable|Failed to fetch/i.test(msg)
+    );
+    if (tryWs) {
+      return getJSONEnvelopeViaWs<T>(url);
+    }
+    throw e;
+  }
+}
+
+async function parseGetResponse<T>(r: Response): Promise<T> {
+  let body: any;
+  try {
+    body = await r.json();
+  } catch {
+    throw new Error(`Invalid JSON from pycore (HTTP ${r.status})`);
+  }
+  if (!r.ok) {
+    throw new Error(body?.error || `pycore HTTP ${r.status}`);
+  }
+  if (body && body.success === false && body.error) {
+    throw new Error(String(body.error));
+  }
+  return body as T;
+}
 
 async function getJSON<T>(url: string): Promise<T> {
-  const r = await pycoreMasterClient.request(url, { ceilingMs: GET_CEILING_MS });
-  return (await r.json()) as T;
+  // Prefer WS for status routes (avoids private-network-access issues).
+  const barePath = localApiPathFromUrl(url).split('?', 1)[0];
+  const directStatusRoute = WS_DIRECT_STATUS_ROUTES[barePath];
+  if (directStatusRoute && isWsConnected()) {
+    try {
+      const qs = localApiPathFromUrl(url).split('?', 1)[1] || '';
+      const refresh = qs.includes('refresh=1') ? 1 : 0;
+      return await callRpc(directStatusRoute, { refresh }, WS_GET_TIMEOUT_MS) as T;
+    } catch {
+      // Fall through to HTTP below.
+    }
+  }
+  try {
+    const r = await pycoreMasterClient.request(url, { ceilingMs: GET_CEILING_MS });
+    return await parseGetResponse<T>(r);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '';
+    const tryWs = isWsConnected() && (
+      isNetworkLevelFailure(e)
+      || /pycore HTTP|offline|unavailable|Failed to fetch/i.test(msg)
+    );
+    if (tryWs) {
+      return getJSONViaWs<T>(url);
+    }
+    throw e;
+  }
 }
-async function postJSON<T>(url: string, body: unknown = {}, ceilingMs: number = POST_CEILING_MS): Promise<T> {
-  const r = await pycoreMasterClient.request(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    ceilingMs,
-  });
-  return (await r.json()) as T;
+const POST_CEILING_MS = 120_000;
+/** Live engine tests (TTS/STT/OCR) — model cold-start can exceed 2 minutes. */
+const LIVE_TEST_RPC_TIMEOUT_MS = 600_000;
+
+/** Direct WS RPC routes for long-running live engine tests (no loopback HTTP).
+ *  These are the ONLY path now — HTTP fallback is removed for tests.
+ *  Status routes are added so status polls also prefer WS. */
+const WS_DIRECT_LIVE_TEST_ROUTES: Record<string, string> = {
+  '/api/local/tts/test': 'local.tts.test',
+  '/api/local/stt/test': 'local.stt.test',
+  '/api/local/ocr/test': 'local.ocr.test',
+};
+// Status routes that prefer WS. NOTE: /api/local/tts/status is intentionally
+// NOT here - it goes direct HTTP (127.0.0.1:59000) so a slow/stuck pycore
+// surfaces as a clear HTTP error instead of an 8s WS-RPC timeout (and the
+// Queue Center "always spinning" symptom). WS remains the fallback on network
+// failure (private-network-access), via getJSON's catch.
+const WS_DIRECT_STATUS_ROUTES: Record<string, string> = {
+  '/api/local/stt/status': 'local.stt.status',
+  '/api/local/ocr/status': 'local.ocr.status',
+  '/api/local/ai/gateway': 'local.ai.status',
+};
+
+async function parsePostResponse<T>(r: Response, softFail = false): Promise<T> {
+  let body: any;
+  try {
+    body = await r.json();
+  } catch {
+    throw new Error(`Invalid JSON from pycore (HTTP ${r.status})`);
+  }
+  if (!r.ok) {
+    const detail = body?.error ?? body?.detail;
+    throw new Error(typeof detail === 'string' ? detail : `pycore HTTP ${r.status}`);
+  }
+  // Live engine tests return {success:false, error, latency_ms, ...} as a normal
+  // 200 body — callers need the full payload, not an exception.
+  if (!softFail && body && body.success === false && body.error) {
+    throw new Error(String(body.error));
+  }
+  return body as T;
+}
+
+async function postJSONViaWs<T>(
+  url: string,
+  payload: unknown,
+  softFail = false,
+  timeoutMs: number = WS_GET_TIMEOUT_MS,
+): Promise<T> {
+  const path = localApiPathFromUrl(url);
+  const barePath = path.split('?', 1)[0];
+  const directRoute = WS_DIRECT_LIVE_TEST_ROUTES[barePath];
+  const body = directRoute
+    ? await callRpc(directRoute, payload ?? {}, timeoutMs)
+    : await callRpc(
+        'local_http.post',
+        { path, body: payload, timeout_s: timeoutMs / 1000 },
+        timeoutMs,
+      );
+  if (!softFail && body && body.success === false && body.error) {
+    throw new Error(String(body.error));
+  }
+  return body as T;
+}
+
+async function postJSON<T>(
+  url: string,
+  body: unknown = {},
+  ceilingMs: number = POST_CEILING_MS,
+  softFail = false,
+): Promise<T> {
+  const barePath = localApiPathFromUrl(url).split('?', 1)[0];
+  const wsTimeout = ceilingMs > 0 ? ceilingMs : LIVE_TEST_CEILING_MS;
+  if (isWsConnected() && WS_DIRECT_LIVE_TEST_ROUTES[barePath]) {
+    return postJSONViaWs<T>(url, body, softFail, wsTimeout);
+  }
+  try {
+    const r = await pycoreMasterClient.request(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      ceilingMs,
+    });
+    return await parsePostResponse<T>(r, softFail);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '';
+    const tryWs = isWsConnected() && (
+      isNetworkLevelFailure(e)
+      || /pycore HTTP|offline|unavailable|Failed to fetch/i.test(msg)
+    );
+    if (tryWs) {
+      return postJSONViaWs<T>(url, body, softFail, wsTimeout);
+    }
+    throw e;
+  }
 }
 async function deleteJSON<T>(url: string): Promise<T> {
   const r = await pycoreMasterClient.request(url, { method: 'DELETE' });
@@ -150,7 +331,7 @@ export function mapQueueSnapshot(data: any): QueueResponse {
     // item is still being processed (no more hardcoded "completed").
     status: it?.audio_path ? 'completed' : 'processing',
     audioUrl: it?.audio_path
-      ? `/pyapi/voice-subtitle/audio?path=${encodeURIComponent(it.audio_path)}`
+      ? rewritePycoreEndpoint(`/voice-subtitle/audio?path=${encodeURIComponent(it.audio_path)}`)
       : undefined,
     metadata: {
       lang: it?.lang,
@@ -291,22 +472,22 @@ export interface CoreBookSubmitResponse { success: boolean; result: Record<strin
 export const pycoreApi = {
   // --- queue (pycore /voice-subtitle, mapped via mapQueueSnapshot) --------- #
   getQueue: async (): Promise<QueueResponse> =>
-    mapQueueSnapshot(await getJSON<any>('/pyapi/voice-subtitle/queue')),
+    mapQueueSnapshot(await getJSON<any>('/voice-subtitle/queue')),
   clearQueue: () =>
-    postJSON<{ success: boolean; message?: string }>('/pyapi/voice-subtitle/clear', {}),
+    postJSON<{ success: boolean; message?: string }>('/voice-subtitle/clear', {}),
   removeQueueItems: (indices: number[]) =>
     postJSON<{ success: boolean; removed_count?: number; error?: string }>(
-      '/pyapi/voice-subtitle/remove-items', { indices }),
+      '/voice-subtitle/remove-items', { indices }),
   setQueueIndex: (index: number) =>
     postJSON<{ success: boolean; current_index?: number; error?: string }>(
-      '/pyapi/voice-subtitle/set-index', { index }),
+      '/voice-subtitle/set-index', { index }),
   incrementPlayCount: (index: number) =>
-    postJSON<{ success: boolean }>('/pyapi/voice-subtitle/increment-play-count', { index }),
+    postJSON<{ success: boolean }>('/voice-subtitle/increment-play-count', { index }),
 
   // --- playback (backend desktop player auto-plays the queue when enabled) - #
   togglePlayback: () =>
     postJSON<{ success: boolean; enabled: boolean; message?: string }>(
-      '/pyapi/voice-subtitle/toggle', {}),
+      '/voice-subtitle/toggle', {}),
 
   // --- AI auto-subtitle monitors ------------------------------------------- #
   // Screenshot monitor: captures the screen every N seconds, the AI describes
@@ -315,33 +496,33 @@ export const pycoreApi = {
   // whole pipeline: OCR recognition → translation → TTS subtitle.
   getScreenshotMonitorStatus: () =>
     getJSON<{ success: boolean; enabled: boolean; interval: number; lang?: string }>(
-      '/pyapi/voice-subtitle/screenshot-monitor/status'),
+      '/voice-subtitle/screenshot-monitor/status'),
   startScreenshotMonitor: (interval: number, lang = 'en') =>
     postJSON<{ success: boolean; message?: string }>(
-      '/pyapi/voice-subtitle/screenshot-monitor/start', { interval, lang }),
+      '/voice-subtitle/screenshot-monitor/start', { interval, lang }),
   stopScreenshotMonitor: () =>
     postJSON<{ success: boolean; message?: string }>(
-      '/pyapi/voice-subtitle/screenshot-monitor/stop', {}),
+      '/voice-subtitle/screenshot-monitor/stop', {}),
   // Change the recognition/output language live (applies on the next capture).
   setScreenshotLanguage: (lang: string) =>
     postJSON<{ success: boolean; lang: string }>(
-      '/pyapi/voice-subtitle/screenshot-monitor/language', { lang }),
+      '/voice-subtitle/screenshot-monitor/language', { lang }),
   // Clipboard monitor: copied sentences are rewritten in English by the AI and
   // enqueued the same way.
   getClipboardMonitorStatus: () =>
     getJSON<{ success: boolean; enabled: boolean }>(
-      '/pyapi/voice-subtitle/clipboard-monitor/status'),
+      '/voice-subtitle/clipboard-monitor/status'),
   startClipboardMonitor: () =>
     postJSON<{ success: boolean; message?: string }>(
-      '/pyapi/voice-subtitle/clipboard-monitor/start', {}),
+      '/voice-subtitle/clipboard-monitor/start', {}),
   stopClipboardMonitor: () =>
     postJSON<{ success: boolean; message?: string }>(
-      '/pyapi/voice-subtitle/clipboard-monitor/stop', {}),
+      '/voice-subtitle/clipboard-monitor/stop', {}),
 
   // --- TTS (pycore voice-subtitle add-text pipeline) ---------------------- #
   tts: async (text: string, langs: string[] = ['en'], category = 'normal') => {
     const r = await postJSON<{ success?: boolean; task_id?: string }>(
-      '/pyapi/voice-subtitle/add-text', { text, langs, category });
+      '/voice-subtitle/add-text', { text, langs, category });
     return {
       success: r?.success !== false,
       queued: true,
@@ -351,106 +532,92 @@ export const pycoreApi = {
   },
 
   // --- generic pycore passthrough (video-extract/code-sync/tasks) --------- #
-  pyGet: <T = any>(path: string) => getJSON<T>('/pyapi' + path),
-  // Generic passthrough used by video-extract/code-sync/tasks. Those operations
-  // (media sync, extraction) can run for many minutes, so this keeps the forever
-  // ceiling (0) - callers that want a bounded POST use the named methods instead.
+  pyGet: <T = any>(path: string) => getJSON<T>(path.startsWith('/') ? path : `/${path}`),
   pyPost: <T = any>(path: string, body: unknown = {}, ceilingMs: number = 0) =>
-    postJSON<T>('/pyapi' + path, body, ceilingMs),
+    postJSON<T>(path.startsWith('/') ? path : `/${path}`, body, ceilingMs),
 
-  ping: () => getJSON<{ success?: boolean; status?: string }>('/pyapi/ping'),
+  ping: () => getJSON<{ success?: boolean; status?: string }>('/ping'),
 
-  // --- runtime (backend WS url + api base) -------------------------------- #
-  // No server round-trip: DIRECT to the backend port (no /pyapi proxy outside
-  // the sandbox). The REST base mirrors rewritePycoreEndpoint; WS mirrors
-  // PycoreWs.resolveWsUrl.
   getRuntime: (): Promise<RuntimeInfo> => {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const http = location.protocol === 'https:' ? 'https' : 'http';
-    const isSandbox = location.hostname.includes('asia-southeast1.run.app') || location.hostname.includes('run.app') || location.port === '3000';
-    const wsUrl = pycoreWsUrlOverride() ?? (isSandbox
-      ? `${proto}://${location.host}/pyapi/rpc/ws`
-      : `${proto}://${location.hostname}:59000/rpc/ws`);
-    const apiBase = isSandbox ? '/pyapi' : `${http}://${location.hostname}:59000`;
-    return Promise.resolve({
-      wsUrl,
-      apiBase,
-    });
+    const host = directPycoreHost();
+    const wsUrl = pycoreWsUrlOverride() ?? buildPycoreWsUrl(host);
+    const apiBase = buildPycoreHttpUrl(host, '/').replace(/\/$/, '');
+    return Promise.resolve({ wsUrl, apiBase });
   },
 
   // --- system settings (persisted on the pycore backend) ------------------ #
   getSystemSettings: () =>
-    getJSON<SystemSettingsResponse>('/pyapi/api/local/user-data/system-settings'),
+    getJSON<SystemSettingsResponse>('/api/local/user-data/system-settings'),
   setSystemSettings: (settings: Record<string, unknown>) =>
     postJSON<{ success: boolean; error?: string }>(
-      '/pyapi/api/local/user-data/system-settings', { settings }),
+      '/api/local/user-data/system-settings', { settings }),
 
   // --- video extract history / options ------------------------------------ #
   getVideoExtractHistory: () =>
-    getJSON<VideoExtractHistory>('/pyapi/api/local/user-data/video-extract'),
+    getJSON<VideoExtractHistory>('/api/local/user-data/video-extract'),
   addVideoExtractEntry: (path: string, mode: VideoExtractMode) =>
     postJSON<VideoExtractHistory>(
-      '/pyapi/api/local/user-data/video-extract/add', { path, mode }),
+      '/api/local/user-data/video-extract/add', { path, mode }),
   removeVideoExtractEntry: (path: string) =>
     postJSON<VideoExtractHistory>(
-      '/pyapi/api/local/user-data/video-extract/remove', { path }),
+      '/api/local/user-data/video-extract/remove', { path }),
   setVideoExtractOptions: (options: Partial<VideoExtractOptions>) =>
     postJSON<{ success: boolean; error?: string }>(
-      '/pyapi/api/local/user-data/video-extract/options', { options }),
+      '/api/local/user-data/video-extract/options', { options }),
 
   // --- video extract capabilities ----------------------------------------- #
   getVideoExtractCapabilities: () =>
-    getJSON<VideoExtractCapabilities>('/pyapi/api/local/video-extract/capabilities'),
+    getJSON<VideoExtractCapabilities>('/api/local/video-extract/capabilities'),
 
   // --- video extract: open a path in the OS file manager ------------------ #
   openVideoExtractPath: (kind: VideoExtractOpenKind, path?: string) =>
     postJSON<VideoExtractOpenResponse>(
-      '/pyapi/api/local/video-extract/open', { kind, path }),
+      '/api/local/video-extract/open', { kind, path }),
 
   // --- video extract: segment ↔ subtitle map for the current file --------- #
   // `languages` (>=1 codes, includes the primary) requests the multi-language
   // correspondence slots per cue; omitted/empty → the legacy single-language map.
   getVideoExtractSegments: (path: string, languages?: string[]) =>
     postJSON<VideoExtractSegmentsResponse>(
-      '/pyapi/api/local/video-extract/segments', { path, languages }),
+      '/api/local/video-extract/segments', { path, languages }),
 
   // --- video extract: pause / resume / cancel a running task -------------- #
   pauseVideoExtractTask: (taskId: string) =>
     postJSON<{ success: boolean; error?: string }>(
-      `/pyapi/api/local/video-extract/tasks/${taskId}/pause`),
+      `/api/local/video-extract/tasks/${taskId}/pause`),
   resumeVideoExtractTask: (taskId: string) =>
     postJSON<{ success: boolean; error?: string }>(
-      `/pyapi/api/local/video-extract/tasks/${taskId}/resume`),
+      `/api/local/video-extract/tasks/${taskId}/resume`),
   cancelVideoExtractTask: (taskId: string) =>
     postJSON<{ success: boolean; error?: string }>(
-      `/pyapi/api/local/video-extract/tasks/${taskId}/cancel`),
+      `/api/local/video-extract/tasks/${taskId}/cancel`),
 
   // --- live system resources (CPU / MEM / GPU) ---------------------------- #
   getSystemResources: () =>
-    getJSON<SystemResourcesResponse>('/pyapi/api/local/system/resources'),
+    getJSON<SystemResourcesResponse>('/api/local/system/resources'),
 
   // --- native OS folder/file picker --------------------------------------- #
   pickPath: (mode: VideoExtractMode, initial?: string) =>
     postJSON<PickPathResult>(
-      '/pyapi/api/local/user-data/pick-path', { mode, initial }),
+      '/api/local/user-data/pick-path', { mode, initial }),
 
   // --- Books document analyze / preview (local, read-only; pre-sync) ------- #
   // supported-formats drives the format-filter sidebar; scan lists files fast
   // (no extraction); analyze extracts text + multi-language stats + a preview
   // for a single file or a whole folder (capped by max_files).
   getBooksSupportedFormats: () =>
-    getJSON<BooksSupportedFormatsResponse>('/pyapi/api/local/books/supported-formats'),
+    getJSON<BooksSupportedFormatsResponse>('/api/local/books/supported-formats'),
   booksScan: (path: string, formats?: string[]) =>
-    postJSON<BooksScanResponse>('/pyapi/api/local/books/scan', { path, formats }),
+    postJSON<BooksScanResponse>('/api/local/books/scan', { path, formats }),
   booksAnalyze: (path: string, opts: BooksAnalyzeOptions = {}) =>
-    postJSON<BooksAnalyzeResponse>('/pyapi/api/local/books/analyze', { path, ...opts }),
+    postJSON<BooksAnalyzeResponse>('/api/local/books/analyze', { path, ...opts }),
   // Persisted Books state (sources + compact analysis + submission state) — the
   // UI reloads this on mount so history survives a page switch / reopen.
-  getBooksState: () => getJSON<BooksStateResponse>('/pyapi/api/local/books/state'),
+  getBooksState: () => getJSON<BooksStateResponse>('/api/local/books/state'),
   booksStateAdd: (path: string, mode: string, language?: string) =>
-    postJSON<BooksStateResponse>('/pyapi/api/local/books/state/add', { path, mode, language }),
+    postJSON<BooksStateResponse>('/api/local/books/state/add', { path, mode, language }),
   booksStateRemove: (path: string) =>
-    postJSON<BooksStateResponse>('/pyapi/api/local/books/state/remove', { path }),
+    postJSON<BooksStateResponse>('/api/local/books/state/remove', { path }),
   // One-shot batch submit to laravel_main (builds the model_version:3 payload
   // server-side). `languages` is the checked correspondence set (>=1, includes
   // the detected primary language) — empty slots are emitted as null per spec §5.
@@ -459,7 +626,7 @@ export const pycoreApi = {
   // the right source_type (spec §7). NOTE: pycore /books/submit must honor this
   // — see the backend-gap report.
   booksSubmit: (paths?: string[], language?: string, languages?: string[], source_type?: string) =>
-    postJSON<BooksSubmitResponse>('/pyapi/api/local/books/submit', { paths, language, languages, source_type }),
+    postJSON<BooksSubmitResponse>('/api/local/books/submit', { paths, language, languages, source_type }),
   // Paginated drill-down into a source's lists (words/sentences/languages), plus
   // the chapter -> sentence tree: kind='chapters' lists BookChapter[]; passing a
   // chapter_index (with kind='sentences'|'cues') returns that chapter's BookSlot[]
@@ -470,7 +637,7 @@ export const pycoreApi = {
     opts: { formats?: string[]; refresh?: boolean; max_files?: number;
             chapter_index?: number; languages?: string[]; grain?: string;
             sort_order?: 'asc' | 'desc'; query?: string; view_language?: string } = {},
-  ) => postJSON<BooksListResponse>('/pyapi/api/local/books/list', { path, kind, start, limit, ...opts }),
+  ) => postJSON<BooksListResponse>('/api/local/books/list', { path, kind, start, limit, ...opts }),
   // Drag-drop fallback for sandboxed browsers (no File.path): upload the bytes;
   // the backend stages them to disk and returns staged paths + analysis.
   // `languages` (>=1 codes) requests the per-language correspondence; `source_type`
@@ -488,7 +655,7 @@ export const pycoreApi = {
     if (opts.persist) fd.append('persist', 'true');
     if (opts.source_type) fd.append('source_type', opts.source_type);
     // No explicit Content-Type — the browser sets the multipart boundary.
-    const r = await pycoreMasterClient.request('/pyapi/api/local/books/analyze-upload', {
+    const r = await pycoreMasterClient.request('/api/local/books/analyze-upload', {
       method: 'POST', body: fd,
     });
     return (await r.json()) as BooksAnalyzeResponse;
@@ -499,126 +666,126 @@ export const pycoreApi = {
   // / per-language audio), enrich it (add a language via batched AI translation;
   // fill audio locally via TTS) and submit it (whole or partial) to laravel_main.
   corebookList: () =>
-    getJSON<CoreBookListResponse>('/pyapi/api/local/corebook/list'),
+    getJSON<CoreBookListResponse>('/api/local/corebook/list'),
   corebookConvert: (req: CoreBookConvertRequest) =>
-    postJSON<CoreBookConvertResponse>('/pyapi/api/local/corebook/convert', req),
+    postJSON<CoreBookConvertResponse>('/api/local/corebook/convert', req),
   corebookGet: (source_key: string, start = 0, limit = 0) =>
     getJSON<CoreBookGetResponse>(
-      `/pyapi/api/local/corebook/get?source_key=${encodeURIComponent(source_key)}`
+      `/api/local/corebook/get?source_key=${encodeURIComponent(source_key)}`
       + `&start=${start}&limit=${limit}`),
   corebookAddLanguage: (req: CoreBookAddLanguageRequest) =>
-    postJSON<CoreBookEnrichResponse>('/pyapi/api/local/corebook/add-language', req),
+    postJSON<CoreBookEnrichResponse>('/api/local/corebook/add-language', req),
   corebookFillAudio: (req: CoreBookFillAudioRequest) =>
-    postJSON<CoreBookEnrichResponse>('/pyapi/api/local/corebook/fill-audio', req),
+    postJSON<CoreBookEnrichResponse>('/api/local/corebook/fill-audio', req),
   corebookSubmit: (req: CoreBookSubmitRequest) =>
-    postJSON<CoreBookSubmitResponse>('/pyapi/api/local/corebook/submit', req),
+    postJSON<CoreBookSubmitResponse>('/api/local/corebook/submit', req),
   corebookDelete: async (source_key: string): Promise<CoreBookDeleteResponse> => {
     const r = await pycoreMasterClient.request(
-      `/pyapi/api/local/corebook/delete?source_key=${encodeURIComponent(source_key)}`,
+      `/api/local/corebook/delete?source_key=${encodeURIComponent(source_key)}`,
       { method: 'DELETE' });
     return (await r.json()) as CoreBookDeleteResponse;
   },
 
   // --- code sync (peer mesh: dev/client roles + peer list) ---------------- #
-  getPeers: () => getJSON<CodeSyncPeersResponse>('/pyapi/code-sync/peers'),
+  getPeers: () => getJSON<CodeSyncPeersResponse>('/code-sync/peers'),
   addPeer: (peer: { name: string; host: string; port: number; role: CodeSyncRole }) =>
-    postJSON<CodeSyncPeersResponse>('/pyapi/code-sync/peers/add', peer),
+    postJSON<CodeSyncPeersResponse>('/code-sync/peers/add', peer),
   removePeer: (id: string) =>
-    postJSON<CodeSyncPeersResponse>('/pyapi/code-sync/peers/remove', { id }),
+    postJSON<CodeSyncPeersResponse>('/code-sync/peers/remove', { id }),
   updatePeer: (patch: { id: string; name?: string; host?: string; port?: number; role?: CodeSyncRole }) =>
-    postJSON<CodeSyncPeersResponse>('/pyapi/code-sync/peers/update', patch),
+    postJSON<CodeSyncPeersResponse>('/code-sync/peers/update', patch),
   setRole: (role: CodeSyncRole) =>
-    postJSON<{ success: boolean; role: CodeSyncRole; error?: string }>(
-      '/pyapi/code-sync/role', { role }),
+    postJSON<CodeSyncPeersResponse & { role: CodeSyncRole }>(
+      '/code-sync/role', { role }),
   setDistribute: (enabled: boolean) =>
     postJSON<{ success: boolean; distributing: boolean; message?: string; error?: string }>(
-      '/pyapi/code-sync/distribute', { enabled }),
+      '/code-sync/distribute', { enabled }),
   setSkipUpdate: (enabled: boolean) =>
     postJSON<{ success: boolean; skip_update: boolean; message?: string; error?: string }>(
-      '/pyapi/code-sync/skip-update', { enabled }),
+      '/code-sync/skip-update', { enabled }),
   discoverPeers: () =>
-    postJSON<{ success: boolean; candidates: CodeSyncCandidate[]; error?: string }>(
-      '/pyapi/code-sync/discover', {}),
+    postJSON<{ success: boolean; candidates: CodeSyncCandidate[]; message?: string; error?: string }>(
+      '/code-sync/discover', {}),
 
   // --- code sync filter settings (presets + per-machine .data override) --- #
-  getSyncSettings: () => getJSON<SyncSettingsResponse>('/pyapi/code-sync/settings'),
+  getSyncSettings: () => getJSON<SyncSettingsResponse>('/code-sync/settings'),
   setSyncSettings: (patch: Partial<SyncSettings>) =>
     postJSON<{ success: boolean; settings: SyncSettings; error?: string }>(
-      '/pyapi/code-sync/settings', patch),
+      '/code-sync/settings', patch),
   resetSyncSettings: () =>
     postJSON<{ success: boolean; settings: SyncSettings; error?: string }>(
-      '/pyapi/code-sync/settings/reset', {}),
+      '/code-sync/settings/reset', {}),
   getSyncLogs: (limit = 100) =>
     getJSON<{ success: boolean; role: CodeSyncRole; logs: SyncLogEntry[] }>(
-      `/pyapi/code-sync/logs?limit=${limit}`),
+      `/code-sync/logs?limit=${limit}`),
 
   // --- code sync file structure (live tree of the synced set) ------------- #
-  getFileTree: () => getJSON<FileTreeResponse>('/pyapi/code-sync/file-tree'),
+  getFileTree: () => getJSON<FileTreeResponse>('/code-sync/file-tree'),
   // Dev-side: a specific client's received tree + drift vs this dev's synced set.
   getPeerFileTree: (peerId: string) =>
-    getJSON<PeerFileTreeResponse>(`/pyapi/code-sync/peer-file-tree?peer_id=${encodeURIComponent(peerId)}`),
+    getJSON<PeerFileTreeResponse>(`/code-sync/peer-file-tree?peer_id=${encodeURIComponent(peerId)}`),
 
   // --- AI provider catalog (NO network test — cheap, never spends quota) --- #
   // Renders the grid on page load; live availability is tested on demand only.
-  getAiCatalog: () => getJSON<AiProbeResponse>('/pyapi/api/local/ai/catalog'),
+  getAiCatalog: () => getJSON<AiProbeResponse>('/api/local/ai/catalog'),
 
   // --- AI provider availability probe (live test) ------------------------- #
   // probeAi() tests ALL providers (the "Test all" button, rate-aware + cached).
   probeAi: (refresh = false) =>
-    getJSON<AiProbeResponse>(`/pyapi/api/local/ai/probe${refresh ? '?refresh=1' : ''}`),
+    getJSON<AiProbeResponse>(`/api/local/ai/probe${refresh ? '?refresh=1' : ''}`),
 
   // Test ONE provider (per-card "Test"): live, never cached, rate-aware.
   probeAiOne: (provider: string) =>
-    getJSON<AiProvider>(`/pyapi/api/local/ai/probe?provider=${encodeURIComponent(provider)}`),
+    getJSON<AiProvider>(`/api/local/ai/probe?provider=${encodeURIComponent(provider)}`),
 
   // --- AI account balance / remaining credit ------------------------------- #
   // Only openrouter / deepseek / siliconflow / moonshot expose a balance API;
   // every other provider returns supported:false WITHOUT a network call
   // (billing is console-only — e.g. Gemini, OpenAI, Anthropic). Never cached.
-  getAiBalances: () => getJSON<AiBalanceResponse>('/pyapi/api/local/ai/balance'),
+  getAiBalances: () => getJSON<AiBalanceResponse>('/api/local/ai/balance'),
   getAiBalanceOne: (provider: string) =>
-    getJSON<AiBalance>(`/pyapi/api/local/ai/balance?provider=${encodeURIComponent(provider)}`),
+    getJSON<AiBalance>(`/api/local/ai/balance?provider=${encodeURIComponent(provider)}`),
 
   // --- AI local rate budgets (auto-reset by the pyheartbeat tick) ---------- #
   // Cheap poll: current per-minute/day/month usage vs limits + resets-in
   // countdown. No provider call; lets the UI show budgets resetting live.
   getAiRateLimits: () =>
-    getJSON<AiRateLimitsResponse>('/pyapi/api/local/ai/rate-limits'),
+    getJSON<AiRateLimitsResponse>('/api/local/ai/rate-limits'),
 
   // --- AI chat confirm (explicit provider) --------------------------------- #
   aiChat: (provider: string, messages: AiChatMessage[], model?: string) =>
-    postJSON<AiChatResponse>('/pyapi/api/local/ai/chat', { provider, messages, model }, 0),
+    postJSON<AiChatResponse>('/api/local/ai/chat', { provider, messages, model }, 0),
 
   // --- AI auto (unified gateway: smart dispatch + fallback) ---------------- #
   // One round trip; the backend picks the provider by tier/quota/cooldown and
   // the response says which AI handled it. `source` labels the task in the
   // gateway records.
   aiAuto: (messages: AiChatMessage[], source?: string, model?: string) =>
-    postJSON<AiChatResponse>('/pyapi/api/local/ai/chat',
+    postJSON<AiChatResponse>('/api/local/ai/chat',
       { provider: 'auto', messages, model, source }, 0),
 
   // --- AI gateway status (tiers, quotas, cooldowns, task records) ---------- #
-  getAiGateway: () => getJSON<AiGatewayStatus>('/pyapi/api/local/ai/gateway'),
+  getAiGateway: () => getJSON<AiGatewayStatus>('/api/local/ai/gateway'),
 
   // --- AI key management (indexed secret-store key files) ------------------ #
   // List every provider's key base + per-slot rotation status (KEY1/KEY2…),
   // plus the raw env-var names of each configured key file (for targeted
   // delete). Read-only; never returns full secrets (slots are masked).
-  getAiKeys: () => getJSON<AiKeysResponse>('/pyapi/api/local/ai/keys'),
+  getAiKeys: () => getJSON<AiKeysResponse>('/api/local/ai/keys'),
   // Write ONE indexed key file ({BASE}_{index}, or {BASE}_IMAGE_{index} when
   // image=true) then re-probe. Values are write-only — never echoed back.
   setAiKey: (body: AiKeySetRequest) =>
-    postJSON<AiKeySetResponse>('/pyapi/api/local/ai/keys', body),
+    postJSON<AiKeySetResponse>('/api/local/ai/keys', body),
   // Delete one specific key file by its exact env-var name (e.g.
   // GOOGLE_API_KEY_2 or OPENAI_API_KEY_IMAGE_1).
   deleteAiKey: (keyName: string) =>
     deleteJSON<AiKeyDeleteResponse>(
-      `/pyapi/api/local/ai/keys/${encodeURIComponent(keyName)}`),
+      `/api/local/ai/keys/${encodeURIComponent(keyName)}`),
   // Clear the cooldown on one rotation key so it becomes usable again. `index`
   // targets a specific slot (0-based); `image` targets the dedicated image
   // budget instead of the text keys. Omitting index clears every slot.
   resetKeyCooldown: (req: { provider: string; index?: number; image?: boolean }) =>
-    postJSON<AiKeyResetCooldownResponse>('/pyapi/api/local/ai/keys/reset-cooldown', req),
+    postJSON<AiKeyResetCooldownResponse>('/api/local/ai/keys/reset-cooldown', req),
 
   // --- AI usage (SHARED cross-runtime store — text / vision / probe) ------- #
   // The store is shared with laravel, so this returns usage from BOTH runtimes
@@ -628,7 +795,7 @@ export const pycoreApi = {
   getAiUsage: async (limit = 150): Promise<{ success: boolean; data: AiUsageResponse | null; error: string | null }> => {
     try {
       const r = await getJSON<AiUsageResponse>(
-        `/pyapi/api/local/ai/usage?limit=${encodeURIComponent(String(limit))}`);
+        `/api/local/ai/usage?limit=${encodeURIComponent(String(limit))}`);
       if (r && r.success !== false) {
         return { success: true, data: r, error: null };
       }
@@ -643,94 +810,144 @@ export const pycoreApi = {
   // base64 bytes + mime, AND saves the result into the SHARED cross-runtime
   // history store. `source` labels the task in the records.
   generateImage: (req: { prompt: string; size?: string; model?: string; provider?: string; source?: string }) =>
-    postJSON<AiImageResponse>('/pyapi/api/local/ai/image', req, 0),
+    postJSON<AiImageResponse>('/api/local/ai/image', req, 0),
 
   // One-click "Test this provider": force a single image provider, ignoring the
   // cooldown/rate window. Returns the same AiImageResponse shape (base64 + mime
   // + latency) so the caller can show the image + latency in a popup.
   testImageProvider: (req: { provider: string; prompt?: string; size?: string; model?: string }) =>
-    postJSON<AiImageResponse>('/pyapi/api/local/ai/image/test', req, 0),
+    postJSON<AiImageResponse>('/api/local/ai/image/test', req, 0),
 
   // --- AI image history (SHARED store — pycore + laravel entries) ---------- #
   // Metadata only (newest-first); fetch bytes via imageHistoryFileUrl(id).
   getImageHistory: (limit = 50) =>
-    getJSON<ImageHistoryResponse>(`/pyapi/api/local/ai/image/history?limit=${encodeURIComponent(String(limit))}`),
+    getJSON<ImageHistoryResponse>(`/api/local/ai/image/history?limit=${encodeURIComponent(String(limit))}`),
   /** Raw-bytes URL for one history entry's image (use directly in an <img src>). */
   imageHistoryFileUrl: (id: string): string =>
-    `/pyapi/api/local/ai/image/history/file/${encodeURIComponent(id)}`,
+    `/api/local/ai/image/history/file/${encodeURIComponent(id)}`,
   deleteImageHistory: (id: string) =>
-    deleteJSON<ImageHistoryDeleteResponse>(`/pyapi/api/local/ai/image/history/${encodeURIComponent(id)}`),
+    deleteJSON<ImageHistoryDeleteResponse>(`/api/local/ai/image/history/${encodeURIComponent(id)}`),
   clearImageHistory: () =>
-    postJSON<ImageHistoryClearResponse>('/pyapi/api/local/ai/image/history/clear', {}),
+    postJSON<ImageHistoryClearResponse>('/api/local/ai/image/history/clear', {}),
   /** Reveal a generated image's folder in the OS file manager (path resolved by id). */
   revealImage: (id: string) =>
-    postJSON<RevealResponse>(`/pyapi/api/local/ai/image/history/${encodeURIComponent(id)}/reveal`, {}),
+    postJSON<RevealResponse>(`/api/local/ai/image/history/${encodeURIComponent(id)}/reveal`, {}),
 
   // --- Speech (TTS/STT) clip history — audio side of the Records timeline --- #
   getSpeechHistory: (limit = 50) =>
-    getJSON<SpeechHistoryResponse>(`/pyapi/api/local/speech/history?limit=${encodeURIComponent(String(limit))}`),
+    getJSON<SpeechHistoryResponse>(`/api/local/speech/history?limit=${encodeURIComponent(String(limit))}`),
   /** Raw-bytes URL for one clip (use directly in an <audio src>). */
   speechHistoryFileUrl: (id: string): string =>
-    `/pyapi/api/local/speech/history/file/${encodeURIComponent(id)}`,
+    `/api/local/speech/history/file/${encodeURIComponent(id)}`,
   deleteSpeechHistory: (id: string) =>
-    deleteJSON<{ success: boolean }>(`/pyapi/api/local/speech/history/${encodeURIComponent(id)}`),
+    deleteJSON<{ success: boolean }>(`/api/local/speech/history/${encodeURIComponent(id)}`),
   clearSpeechHistory: () =>
-    postJSON<{ success: boolean; removed: number }>('/pyapi/api/local/speech/history/clear', {}),
+    postJSON<{ success: boolean; removed: number }>('/api/local/speech/history/clear', {}),
   /** Open the clip's folder in the OS file manager (path resolved by id). */
   revealSpeech: (id: string) =>
-    postJSON<RevealResponse>(`/pyapi/api/local/speech/history/${encodeURIComponent(id)}/reveal`, {}),
+    postJSON<RevealResponse>(`/api/local/speech/history/${encodeURIComponent(id)}/reveal`, {}),
 
   // --- OCR engine availability (windows -> easyocr -> cnocr priority) ------ #
-  getOcrStatus: () => getJSON<OcrStatus>('/pyapi/api/local/ocr/status'),
+  getOcrStatus: () => getJSON<OcrStatus>('/api/local/ocr/status'),
 
   // --- TTS live availability + version (edge-tts 403/region probe) --------- #
   getTtsStatus: (refresh = false) =>
-    getJSON<TtsStatus>(`/pyapi/api/local/tts/status${refresh ? '?refresh=1' : ''}`),
+    getJSON<TtsStatus>(`/api/local/tts/status${refresh ? '?refresh=1' : ''}`),
 
   // --- TTS tuning: per-attempt synth timeout + edge failure cooldown ------- #
-  getTtsSettings: () => getJSON<TtsSettings>('/pyapi/api/local/tts/settings'),
-  setTtsSettings: (patch: { synth_timeout_s?: number; edge_cooldown_s?: number }) =>
-    postJSON<TtsSettings>('/pyapi/api/local/tts/settings', patch),
+  getTtsSettings: () => getJSON<TtsSettings>('/api/local/tts/settings'),
+  setTtsSettings: (patch: {
+    synth_timeout_s?: number;
+    edge_cooldown_s?: number;
+    server_auto_manage?: boolean;
+    server_single_active?: boolean;
+    server_idle_shutdown_s?: number;
+    server_enabled?: Record<string, boolean>;
+  }) =>
+    postJSON<TtsSettings>('/api/local/tts/settings', patch),
+
+  postTtsServer: (req: { engine: string; enabled?: boolean; start?: boolean }) =>
+    postJSON<TtsServerActionResponse>('/api/local/tts/server', req, 0),
 
   // --- TTS live per-engine synth test (actually runs the engine) ----------- #
-  testTts: (req: { engine?: string; text?: string; language?: string; rate?: string }) =>
-    postJSON<TtsTestResponse>('/pyapi/api/local/tts/test', req, 0),
+  // Always over WS (no HTTP fallback). Accepts per-engine extra params
+  // (speaker, instruct, gender, voice, description, cfg_value, timesteps,
+  // speaker_id, prompt_text, prompt_lang, speed) — ignored by engines that
+  // don't use them.
+  testTts: (req: Record<string, unknown>) => {
+    if (!isWsConnected()) throw new Error('pycore WebSocket not connected — test requires WS');
+    const params: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(req)) { if (v !== undefined && v !== '') params[k] = v; }
+    return callRpc('local.tts.test', params, LIVE_TEST_RPC_TIMEOUT_MS) as Promise<TtsTestResponse>;
+  },
 
   // --- STT engine availability + live recognition test --------------------- #
-  // faster-whisper -> whisper -> vosk -> azure (Azure exposes a free-F0 quota).
-  getSttStatus: () => getJSON<SttStatus>('/pyapi/api/local/stt/status'),
-  testStt: (req: { engine?: string; language?: string }) =>
-    postJSON<SttTestResponse>('/pyapi/api/local/stt/test', req, 0),
+  getSttStatus: () => getJSON<SttStatus>('/api/local/stt/status'),
+  testStt: (req: { engine?: string; language?: string; text?: string; model?: string }) => {
+    if (!isWsConnected()) throw new Error('pycore WebSocket not connected — test requires WS');
+    const params: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(req)) { if (v !== undefined && v !== '') params[k] = v; }
+    return callRpc('local.stt.test', params, LIVE_TEST_RPC_TIMEOUT_MS) as Promise<SttTestResponse>;
+  },
+
+  // --- OCR live per-engine recognition test -------------------------------- #
+  testOcr: (req: { engine?: string; image_data?: string; image_path?: string; lang?: string; model_type?: string; languages?: string[] }) => {
+    if (!isWsConnected()) throw new Error('pycore WebSocket not connected — test requires WS');
+    const params: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(req)) { if (v !== undefined && v !== '' && v !== null) params[k] = v; }
+    return callRpc('local.ocr.test', params, LIVE_TEST_RPC_TIMEOUT_MS) as Promise<OcrTestResponse>;
+  },
+
+  // --- AI chat test (one turn through gateway or explicit provider) --------- #
+  testAiChat: (req: { provider: string; messages?: AiChatMessage[]; message?: string; model?: string; source?: string }) => {
+    if (!isWsConnected()) throw new Error('pycore WebSocket not connected — test requires WS');
+    const params: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(req)) { if (v !== undefined && v !== '') params[k] = v; }
+    return callRpc('local.ai.chat', params, LIVE_TEST_RPC_TIMEOUT_MS) as Promise<AiChatResponse>;
+  },
+
+  // --- AI image test (one provider, inline base64 result) ------------------- #
+  testAiImage: (req: { provider: string; prompt?: string; size?: string; model?: string }) => {
+    if (!isWsConnected()) throw new Error('pycore WebSocket not connected — test requires WS');
+    const params: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(req)) { if (v !== undefined && v !== '') params[k] = v; }
+    return callRpc('local.ai.image.test', params, LIVE_TEST_RPC_TIMEOUT_MS) as Promise<AiImageResponse>;
+  },
 
   // --- Capabilities: CUDA/compute + free-library availability -------------- #
-  getCapabilities: () => getJSON<CapabilityStatus>('/pyapi/api/local/capabilities/status'),
+  getCapabilities: () => getJSON<CapabilityStatus>('/api/local/capabilities/status'),
 
   // --- System info: read-only constants + static dirs (one-click open) ----- #
-  getSystemInfo: () => getJSON<SystemInfo>('/pyapi/api/local/capabilities/info'),
+  getSystemInfo: () => getJSON<SystemInfo>('/api/local/capabilities/info'),
   openStaticDir: (key: string) =>
-    postJSON<OpenDirResponse>('/pyapi/api/local/capabilities/open-dir', { key }),
+    postJSON<OpenDirResponse>('/api/local/capabilities/open-dir', { key }),
 
   // --- translation queue (Laravel pending queue, steered via pycore) ------ #
   queueTranslation: (refresh = false) =>
     getJSON<TranslationQueueResponse>(
-      `/pyapi/api/local/translation/queue${refresh ? '?refresh=1' : ''}`),
+      `/api/local/translation/queue${refresh ? '?refresh=1' : ''}`),
   setQueuePriority: (task_id: string, priority: number) =>
     postJSON<TranslationQueueActionResponse>(
-      '/pyapi/api/local/translation/queue/priority', { task_id, priority }),
+      '/api/local/translation/queue/priority', { task_id, priority }),
   stackQueue: (words: string[], language: string, target_language: string, priority?: number) =>
     postJSON<TranslationQueueActionResponse>(
-      '/pyapi/api/local/translation/queue/stack',
+      '/api/local/translation/queue/stack',
       { words, language, target_language, ...(priority != null ? { priority } : {}) }),
 
   /** Full pyctl TaskManager record — Task Queue tab detail modal. */
   getLocalTaskDetail: (taskId: string) =>
     getJSON<LocalTaskDetailResponse>(
-      `/pyapi/api/local/task-center/tasks/${encodeURIComponent(taskId)}`),
+      `/api/local/task-center/tasks/${encodeURIComponent(taskId)}`),
 
-  /** Laravel global_tasks row — Translation Queue tab detail modal. */
+  /** Laravel global_tasks row — proxied via QueueMonitorService (UI-selected Laravel base). */
   getTranslationTaskDetail: (taskId: string) =>
-    getJSON<PycoreGlobalTaskDetailResponse>(
-      `/pyapi/api/local/translation/queue/tasks/${encodeURIComponent(taskId)}`),
+    getJSONEnvelope<PycoreGlobalTaskDetailResponse>(
+      `/api/local/translation/queue/tasks/${encodeURIComponent(taskId)}`),
+
+  /** Richer Laravel bundle (task + events + phase) — task-center detail proxy. */
+  getRemoteGlobalTaskDetail: (taskId: string) =>
+    getJSONEnvelope<PycoreGlobalTaskDetailResponse>(
+      `/api/local/task-center/tasks/${encodeURIComponent(taskId)}/detail`),
 
   // --- Assist Laravel (pycore drains Laravel's cover/tts/translation work) - #
   // Status includes the worker loop state, circuit breaker, counters and the
@@ -738,11 +955,11 @@ export const pycoreApi = {
   // provided fields change). Cycle runs one claim→process→submit pass NOW and
   // returns 400 when assist is disabled.
   getAssistStatus: () =>
-    getJSON<AssistStatus>('/pyapi/api/local/assist/status'),
+    getJSON<AssistStatus>('/api/local/assist/status'),
   setAssistConfig: (config: AssistConfigPatch) =>
-    postJSON<AssistConfigResponse>('/pyapi/api/local/assist/config', config),
+    postJSON<AssistConfigResponse>('/api/local/assist/config', config),
   runAssistCycle: () =>
-    postJSON<AssistCycleResponse>('/pyapi/api/local/assist/cycle', {}),
+    postJSON<AssistCycleResponse>('/api/local/assist/cycle', {}),
 
   // --- Recent tasks (unified cross-end task history: pycore + chrome) ------- #
   // Newest-first log of finished task units across both ends, with roll-up
@@ -755,35 +972,35 @@ export const pycoreApi = {
     if (params.end) q.set('end', params.end);
     if (params.worker) q.set('worker', params.worker);
     if (params.task_type) q.set('task_type', params.task_type);
-    return getJSON<PcTaskRecentResponse>(`/pyapi/api/local/tasks/recent?${q.toString()}`);
+    return getJSON<PcTaskRecentResponse>(`/api/local/tasks/recent?${q.toString()}`);
   },
   clearRecentTasks: () =>
-    postJSON<PcTaskClearResponse>('/pyapi/api/local/tasks/clear', {}),
+    postJSON<PcTaskClearResponse>('/api/local/tasks/clear', {}),
 
   // --- Movie / TV poster (TMDB + OMDB key status + fetch toggle + lookup) -- #
   // status: masked provider keys + the ingest fetch flag (media_sync.fetch_poster).
   // config: persist that same flag. test: one poster lookup with the base64 image
   // inlined so the UI can preview it (never throws — {found:false} on a miss).
-  getPosterStatus: () => getJSON<PosterStatus>('/pyapi/api/local/poster/status'),
+  getPosterStatus: () => getJSON<PosterStatus>('/api/local/poster/status'),
   setPosterConfig: (enabled: boolean) =>
-    postJSON<PosterStatus>('/pyapi/api/local/poster/config', { enabled }),
+    postJSON<PosterStatus>('/api/local/poster/config', { enabled }),
   testPoster: (title: string, year?: number) =>
-    postJSON<PosterTestResponse>('/pyapi/api/local/poster/test',
+    postJSON<PosterTestResponse>('/api/local/poster/test',
       year != null ? { title, year } : { title }),
   /** Zero the local-reuse-vs-fetch counters; returns the fresh status. */
   resetPosterStats: () =>
-    postJSON<PosterStatus>('/pyapi/api/local/poster/stats/reset', {}),
+    postJSON<PosterStatus>('/api/local/poster/stats/reset', {}),
 
   // --- Google Translate (free googletrans + AI comparison on one input) --- #
   // status: googletrans availability/version + cache info. translate: the free
   // lib path ({error} on failure, never throws). translateAi: the SAME text
   // through the unified AI gateway so the UI can compare Google vs AI.
-  getTranslateStatus: () => getJSON<TranslateStatus>('/pyapi/api/local/translate/status'),
+  getTranslateStatus: () => getJSON<TranslateStatus>('/api/local/translate/status'),
   translate: (text: string, src = 'auto', dest = 'en', useCache = true) =>
-    postJSON<TranslateResponse>('/pyapi/api/local/translate',
+    postJSON<TranslateResponse>('/api/local/translate',
       { text, src, dest, use_cache: useCache }),
   translateAi: (text: string, src = 'auto', dest = 'en') =>
-    postJSON<TranslateAiResponse>('/pyapi/api/local/translate/ai', { text, src, dest }),
+    postJSON<TranslateAiResponse>('/api/local/translate/ai', { text, src, dest }),
 
   // --- Image search (SerpApi Google-Images + AI comparison + history) ----- #
   // status: SerpApi key present + engine + history count. search: real Google
@@ -791,21 +1008,21 @@ export const pycoreApi = {
   // query (unified IMAGE contract). compare: both in one call + a combined
   // history record. Plus the search-history list/delete/clear. This is the same
   // SerpApi capability the poster pipeline now prefers as its first source.
-  getImageSearchStatus: () => getJSON<ImageSearchStatus>('/pyapi/api/local/image-search/status'),
+  getImageSearchStatus: () => getJSON<ImageSearchStatus>('/api/local/image-search/status'),
   searchImages: (query: string, num = 12, country?: string, record = true) =>
-    postJSON<ImageSearchResponse>('/pyapi/api/local/image-search',
+    postJSON<ImageSearchResponse>('/api/local/image-search',
       { query, num, country, record }),
   searchImagesAi: (query: string, size?: string, model?: string) =>
-    postJSON<AiImageResponse>('/pyapi/api/local/image-search/ai', { query, size, model }),
+    postJSON<AiImageResponse>('/api/local/image-search/ai', { query, size, model }),
   compareImages: (query: string, num = 12, country?: string, size?: string, model?: string) =>
-    postJSON<ImageSearchCompareResponse>('/pyapi/api/local/image-search/compare',
+    postJSON<ImageSearchCompareResponse>('/api/local/image-search/compare',
       { query, num, country, size, model }),
   getImageSearchHistory: (limit = 50) =>
-    getJSON<ImageSearchHistoryResponse>(`/pyapi/api/local/image-search/history?limit=${encodeURIComponent(String(limit))}`),
+    getJSON<ImageSearchHistoryResponse>(`/api/local/image-search/history?limit=${encodeURIComponent(String(limit))}`),
   deleteImageSearchHistory: (id: string) =>
-    deleteJSON<ImageSearchHistoryDeleteResponse>(`/pyapi/api/local/image-search/history/${encodeURIComponent(id)}`),
+    deleteJSON<ImageSearchHistoryDeleteResponse>(`/api/local/image-search/history/${encodeURIComponent(id)}`),
   clearImageSearchHistory: () =>
-    postJSON<ImageSearchHistoryClearResponse>('/pyapi/api/local/image-search/history/clear', {}),
+    postJSON<ImageSearchHistoryClearResponse>('/api/local/image-search/history/clear', {}),
 
   // --- Subtitle search (OpenSubtitles search + download + history) -------- #
   // status: OpenSubtitles key present + authenticated state + history count.
@@ -813,30 +1030,30 @@ export const pycoreApi = {
   // movie/TV title (records history). download: pull one result's file (inline
   // .srt content or a saved path). Plus the search-history list/delete/clear.
   getSubtitleSearchStatus: () =>
-    getJSON<SubtitleSearchStatus>('/pyapi/api/local/subtitle-search/status'),
+    getJSON<SubtitleSearchStatus>('/api/local/subtitle-search/status'),
   probeSubtitleSearch: () =>
-    getJSON<SubtitleSearchProbe>('/pyapi/api/local/subtitle-search/probe'),
+    getJSON<SubtitleSearchProbe>('/api/local/subtitle-search/probe'),
   // Provider fallback chain (ordered) + a live per-provider probe.
   getSubtitleProviders: () =>
-    getJSON<SubtitleProvidersResponse>('/pyapi/api/local/subtitle-search/providers'),
+    getJSON<SubtitleProvidersResponse>('/api/local/subtitle-search/providers'),
   testSubtitleProvider: (name: string) =>
-    postJSON<SubtitleProviderProbe>(`/pyapi/api/local/subtitle-search/providers/${encodeURIComponent(name)}/test`, {}),
+    postJSON<SubtitleProviderProbe>(`/api/local/subtitle-search/providers/${encodeURIComponent(name)}/test`, {}),
   // Download cache: cached subtitle downloads are reused so a rate/quota-limited
   // provider file is never pulled twice. Stats are local (no network); clear wipes it.
-  getSubtitleCacheStats: () => getJSON<SubtitleCacheStats>('/pyapi/api/local/subtitle-search/cache'),
-  clearSubtitleCache: () => postJSON<SubtitleCacheClearResponse>('/pyapi/api/local/subtitle-search/cache/clear', {}),
+  getSubtitleCacheStats: () => getJSON<SubtitleCacheStats>('/api/local/subtitle-search/cache'),
+  clearSubtitleCache: () => postJSON<SubtitleCacheClearResponse>('/api/local/subtitle-search/cache/clear', {}),
   searchSubtitles: (query: string, opts: SubtitleSearchOptions = {}) =>
-    postJSON<SubtitleSearchResponse>('/pyapi/api/local/subtitle-search',
+    postJSON<SubtitleSearchResponse>('/api/local/subtitle-search',
       { query, ...opts }),
   downloadSubtitle: (file_id: number | string, record = true) =>
-    postJSON<SubtitleDownloadResponse>('/pyapi/api/local/subtitle-search/download',
+    postJSON<SubtitleDownloadResponse>('/api/local/subtitle-search/download',
       { file_id, record }),
   getSubtitleSearchHistory: (limit = 50) =>
-    getJSON<SubtitleSearchHistoryResponse>(`/pyapi/api/local/subtitle-search/history?limit=${encodeURIComponent(String(limit))}`),
+    getJSON<SubtitleSearchHistoryResponse>(`/api/local/subtitle-search/history?limit=${encodeURIComponent(String(limit))}`),
   deleteSubtitleSearchHistory: (id: string) =>
-    deleteJSON<SubtitleSearchHistoryDeleteResponse>(`/pyapi/api/local/subtitle-search/history/${encodeURIComponent(id)}`),
+    deleteJSON<SubtitleSearchHistoryDeleteResponse>(`/api/local/subtitle-search/history/${encodeURIComponent(id)}`),
   clearSubtitleSearchHistory: () =>
-    postJSON<SubtitleSearchHistoryClearResponse>('/pyapi/api/local/subtitle-search/history/clear', {}),
+    postJSON<SubtitleSearchHistoryClearResponse>('/api/local/subtitle-search/history/clear', {}),
 
   // --- Word audio (real pronunciation lookup + TTS fallback) -------------- #
   // status: which real-pronunciation sources are wired (pycore reports 3:
@@ -846,21 +1063,55 @@ export const pycoreApi = {
   // audio bytes come back base64-encoded (play as a data: URI), on a clean miss
   // {success:false, provider:null, message}.
   getWordAudioStatus: () =>
-    getJSON<WordAudioStatus>('/pyapi/api/local/word-audio/status'),
+    getJSON<WordAudioStatus>('/api/local/word-audio/status'),
   testWordAudio: (word: string, lang = 'en') =>
-    postJSON<WordAudioTestResponse>('/pyapi/api/local/word-audio/test', { word, lang }),
+    postJSON<WordAudioTestResponse>('/api/local/word-audio/test', { word, lang }),
+
+  // --- Puter.js word-audio batch (browser-side synth -> laravel upload) ---- #
+  // Fetch up to `limit` missing-audio words (is_valid=true only) for the
+  // Queue Center persistent batch bar. pycore proxies laravel.
+  getWordAudioMissingBatch: (limit = 1000, language = 'en') =>
+    getJSON<{ success: boolean; language?: string; count?: number; words?: { word: string; md5: string; language: string }[]; error?: string }>(
+      `/api/local/word-audio/missing-batch?limit=${encodeURIComponent(String(limit))}&language=${encodeURIComponent(language)}`,
+    ),
+  // Upload one synthesized clip (base64 mp3) -> laravel store (fill-missing).
+  // `cleaned_word` notifies laravel the spoken text was cleaned (HTML entities
+  // -> '-') so the backend can fix the dictionary row content.
+  uploadWordAudio: (payload: { md5: string; lang: string; audio_base64: string; provider?: string; accent?: 'us' | 'uk' | null; cleaned_word?: string }) =>
+    postJSON<{ success: boolean; data?: { stored: boolean; md5: string; language: string }; error?: string }>(
+      '/api/local/word-audio/upload', payload,
+    ),
+  // Fetch audio from the Youdao (Longman CDN) via pycore proxy (avoids CORS).
+  // type=1 -> UK, type=2 -> US. Returns base64 mp3 on success.
+  fetchYoudaoAudio: (word: string, type: 1 | 2 = 2) =>
+    getJSON<{ success: boolean; audio_base64?: string; mime?: string; bytes?: number; error?: string }>(
+      `/api/local/word-audio/youdao?word=${encodeURIComponent(word)}&type=${type}`,
+    ),
+  // Write back the cleaned word text to the laravel dictionary row (garbled
+  // text / HTML markup -> '-' replacement detected during browser-side batch).
+  fixWordText: (payload: { md5: string; lang: string; cleaned_word: string }) =>
+    postJSON<{ success: boolean; updated?: number; error?: string }>(
+      '/api/local/word-audio/fix-word', payload,
+    ),
+  // Move a word to the front of the audio generation queue. Broadcasts
+  // 'word_audio_priority_boost' on the pycore WS bus so the pycore-manager
+  // Queue Center batch bar re-orders its in-flight pending list immediately.
+  boostWordAudioPriority: (md5: string, lang: string) =>
+    postJSON<{ success: boolean; laravel_updated?: boolean; error?: string }>(
+      '/api/local/word-audio/boost-priority', { md5, lang },
+    ),
 
   // --- translate history (Google / AI translate usage records) ------------ #
   getTranslateHistory: (limit = 50) =>
-    getJSON<TranslateHistoryResponse>(`/pyapi/api/local/translate/history?limit=${encodeURIComponent(String(limit))}`),
+    getJSON<TranslateHistoryResponse>(`/api/local/translate/history?limit=${encodeURIComponent(String(limit))}`),
   deleteTranslateHistory: (id: string) =>
-    deleteJSON<TranslateHistoryDeleteResponse>(`/pyapi/api/local/translate/history/${encodeURIComponent(id)}`),
+    deleteJSON<TranslateHistoryDeleteResponse>(`/api/local/translate/history/${encodeURIComponent(id)}`),
   clearTranslateHistory: () =>
-    postJSON<TranslateHistoryClearResponse>('/pyapi/api/local/translate/history/clear', {}),
+    postJSON<TranslateHistoryClearResponse>('/api/local/translate/history/clear', {}),
 
   // --- Agent history (local Claude/Codex/Cursor/Gemini txt store) ---------- #
   getAgentHistoryIndex: () =>
-    getJSON<AgentHistoryIndexResponse>('/pyapi/api/local/agent-history/index'),
+    getJSON<AgentHistoryIndexResponse>('/api/local/agent-history/index'),
   getAgentHistoryPrompts: (params?: {
     tool?: string; user?: string; q?: string; lang?: string;
     limit?: number; offset?: number; page?: number; pageSize?: number;
@@ -875,17 +1126,37 @@ export const pycoreApi = {
     if (params?.page != null) qs.set('page', String(params.page));
     if (params?.pageSize != null) qs.set('pageSize', String(params.pageSize));
     const tail = qs.toString();
-    return getJSON<AgentHistoryPromptsResponse>(`/pyapi/api/local/agent-history/prompts${tail ? `?${tail}` : ''}`);
+    return getJSON<AgentHistoryPromptsResponse>(`/api/local/agent-history/prompts${tail ? `?${tail}` : ''}`);
   },
   getAgentHistorySession: (id: string) =>
-    getJSON<AgentHistorySessionResponse>(`/pyapi/api/local/agent-history/sessions/${encodeURIComponent(id)}`),
+    getJSON<AgentHistorySessionResponse>(`/api/local/agent-history/sessions/${encodeURIComponent(id)}`),
   refreshAgentHistory: () =>
     postJSON<{ success: boolean; data?: Record<string, unknown>; error?: string | null }>(
-      '/pyapi/api/local/agent-history/refresh', {},
+      '/api/local/agent-history/refresh', {},
     ),
   updateAgentHistoryPrompt: (id: string, text: string) =>
     postJSON<{ success: boolean; data?: { id: string; text: string; edited: boolean }; error?: string | null }>(
-      '/pyapi/api/local/agent-history/prompts/update', { id, text },
+      '/api/local/agent-history/prompts/update', { id, text },
+    ),
+  getAgentHistoryArticleConfig: () =>
+    getJSON<{ success: boolean; data?: Record<string, unknown>; error?: string | null }>(
+      '/api/local/agent-history/article/config',
+    ),
+  saveAgentHistoryArticleConfig: (body: Record<string, unknown>) =>
+    postJSON<{ success: boolean; data?: Record<string, unknown>; error?: string | null }>(
+      '/api/local/agent-history/article/config', body,
+    ),
+  startAgentHistoryArticlePipeline: () =>
+    postJSON<{ success: boolean; data?: Record<string, unknown>; error?: string | null }>(
+      '/api/local/agent-history/article/start', {},
+    ),
+  getAgentHistoryArticles: (limit = 50) =>
+    getJSON<{ success: boolean; data?: { items: Record<string, unknown>[] }; error?: string | null }>(
+      `/api/local/agent-history/articles?limit=${encodeURIComponent(String(limit))}`,
+    ),
+  getAgentHistoryArticleLogs: () =>
+    getJSON<{ success: boolean; data?: Record<string, unknown>; error?: string | null }>(
+      '/api/local/agent-history/article/logs',
     ),
 
   // --- Queue Center: unified overview (contract A) ------------------------ #
@@ -894,20 +1165,86 @@ export const pycoreApi = {
   // 8 categories are always present (zeros when empty); laravel_reachable:false
   // means the counts are zeroed but the categories + local engines still report.
   getQueueOverview: () =>
-    getJSON<PcQueueOverview>('/pyapi/api/local/queue/overview'),
+    getJSON<PcQueueOverview>('/api/local/queue/overview'),
 
   // --- Sentence-audio auto-start (Queue Center strip) --------------------- #
   getSentenceAudioAutoStatus: () =>
-    getJSON<SentenceAudioAutoStatus>('/pyapi/api/local/sentence-audio/status'),
+    getJSON<SentenceAudioAutoStatus>('/api/local/sentence-audio/status'),
   setSentenceAudioAutoConfig: (autoStart: boolean) =>
-    postJSON<SentenceAudioAutoStatus>('/pyapi/api/local/sentence-audio/config', { auto_start: autoStart }),
+    postJSON<SentenceAudioAutoStatus>('/api/local/sentence-audio/config', { auto_start: autoStart }),
   runSentenceAudioOnce: () =>
-    postJSON<{ ok: boolean; error?: string }>('/pyapi/api/local/sentence-audio/run-once', {}),
+    postJSON<{ ok: boolean; error?: string }>('/api/local/sentence-audio/run-once', {}),
+  getSentenceAudioQueue: () =>
+    getJSON<SentenceAudioQueueSnapshot>('/api/local/sentence-audio/queue'),
+
+  // --- Sentence-audio voice variants (per-language accent/gender specs) ----- #
+  // pycore proxies laravel: GET returns the variant specs for a language; POST
+  // replaces the full spec list for that language; DELETE removes one variant.
+  getSentenceVoiceVariants: async (lang: string): Promise<SentenceVoiceVariant[]> => {
+    const r = await getJSON<{ success: boolean; specs: SentenceVoiceVariant[] }>(
+      `/api/local/sentence-audio/variants?lang=${encodeURIComponent(lang)}`);
+    return r?.specs ?? [];
+  },
+  saveSentenceVoiceVariants: (
+    lang: string,
+    specs: Array<{ variant_key: string; accent: string | null; gender: string; is_primary: boolean }>,
+  ) =>
+    postJSON<{ success: boolean; specs: SentenceVoiceVariant[] }>(
+      '/api/local/sentence-audio/variants', { lang, specs }),
+  deleteSentenceVoiceVariant: (lang: string, variant_key: string) =>
+    deleteJSON<{ success: boolean }>(
+      `/api/local/sentence-audio/variants?lang=${encodeURIComponent(lang)}&variant_key=${encodeURIComponent(variant_key)}`),
+  getQueueBumps: (limit = 30) =>
+    getJSON<QueueBumpsSnapshot & { success?: boolean }>(`/api/local/queue/bumps?limit=${limit}`),
+
+  getTaskCapabilityChains: () =>
+    getJSON<{ success?: boolean; chains?: { translation: string[]; voice_tts: string[] } }>(
+      '/api/local/task-settings/chains',
+    ),
+  saveTaskCapabilityChain: (taskType: string, priority: string[]) =>
+    postJSON<{ success?: boolean; chains?: { translation: string[]; voice_tts: string[] } }>(
+      '/api/local/task-settings/chains',
+      { task_type: taskType, priority },
+    ),
+  searchTaskHistory: (params: {
+    q?: string; date_from?: string; date_to?: string; task_type?: string; worker?: string; limit?: number;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set('q', params.q);
+    if (params.date_from) qs.set('date_from', params.date_from);
+    if (params.date_to) qs.set('date_to', params.date_to);
+    if (params.task_type) qs.set('task_type', params.task_type);
+    if (params.worker) qs.set('worker', params.worker);
+    if (params.limit) qs.set('limit', String(params.limit));
+    const tail = qs.toString() ? `?${qs.toString()}` : '';
+    return getJSON<{ success?: boolean; entries?: any[]; total?: number; stored?: number }>(
+      `/api/local/tasks/search${tail}`,
+    );
+  },
+
+  // --- Word-dictionary TTS auto-start (Queue Center strip) ---------------- #
+  getWordTtsAutoStatus: () =>
+    getJSON<WordTtsAutoStatus>('/api/local/word-tts/status'),
+  setWordTtsAutoConfig: (autoStart: boolean) =>
+    postJSON<WordTtsAutoStatus>('/api/local/word-tts/config', { auto_start: autoStart }),
+  runWordTtsOnce: () =>
+    postJSON<{ ok: boolean; error?: string }>('/api/local/word-tts/run-once', {}),
+
+  // --- Heartbeat workers overview (Queue Center worker strip) ------------- #
+  getHeartbeatWorkersStatus: () =>
+    getJSON<HeartbeatWorkersStatus>('/api/local/heartbeat-workers/status'),
+  setHeartbeatWorkerConfig: (callbackName: string, enabled: boolean) =>
+    postJSON<{ success: boolean; ok?: boolean; error?: string }>(
+      '/api/local/heartbeat-workers/config',
+      { callback_name: callbackName, enabled },
+    ),
+  getTaskCenter: () =>
+    getJSON<PcTaskCenterResponse>('/api/local/task-center'),
 
   // --- Queue Center: capability settings (contract B) --------------------- #
   // Read all four capability blocks (priority + availability + options).
   getCapabilitySettings: () =>
-    getJSON<PcCapabilitySettings>('/pyapi/api/local/capabilities/settings'),
+    getJSON<PcCapabilitySettings>('/api/local/capabilities/settings'),
   // Persist ONE capability's priority/options and live-apply; returns the
   // updated block. `priority` re-orders the engine chain (omitted engines are
   // appended in default order server-side, so a save can never silence it);
@@ -916,25 +1253,84 @@ export const pycoreApi = {
     capability: PcCapabilityKey,
     patch: { priority?: string[]; options?: PcCapabilityOptions },
   ) =>
-    postJSON<PcCapabilitySaveResponse>('/pyapi/api/local/capabilities/settings', {
+    postJSON<PcCapabilitySaveResponse>('/api/local/capabilities/settings', {
       capability, ...patch,
-    }),
+    }, 30_000),
 
   // --- Offline dictionary (ECDICT + WordNet) ------------------------------ #
   // Free, offline word translation served alongside Google/AI. status reports
-  // whether the data is installed (run iniscripts/install_dictionaries.sh).
+  // whether the data is installed (run 107_install_dictionaries.sh).
   getDictionaryStatus: () =>
-    getJSON<DictionaryStatus>('/pyapi/api/local/dictionary/status'),
+    getJSON<DictionaryStatus>('/api/local/dictionary/status'),
   getDictionaryLookup: (word: string, target = 'zh') =>
     getJSON<DictionaryEntry>(
-      `/pyapi/api/local/dictionary/lookup?word=${encodeURIComponent(word)}&target=${encodeURIComponent(target)}`),
+      `/api/local/dictionary/lookup?word=${encodeURIComponent(word)}&target=${encodeURIComponent(target)}`),
 
   // --- auto-start on boot (native OS startup entry) ----------------------- #
-  getAutostart: () => getJSON<AutostartStatus>('/pyapi/api/manage/control/autostart'),
+  getAutostart: () => getJSON<AutostartStatus>('/api/manage/control/autostart'),
   // target/mechanism are optional; the backend falls back to the persisted
   // preference, so a bare enable keeps the historical behavior.
   setAutostart: (enabled: boolean, target?: AutostartTarget, mechanism?: string) =>
-    postJSON<AutostartStatus>('/pyapi/api/manage/control/autostart', { enabled, target, mechanism }),
+    postJSON<AutostartStatus>('/api/manage/control/autostart', { enabled, target, mechanism }),
+
+  // --- Vocabulary (pycore proxies laravel_main #/vocabulary) -------------- #
+  // The laravel-manager vocabulary surface, re-exposed through pycore so the
+  // pycore-manager Vocabulary page talks only to pycore (UI -> pycore ->
+  // laravel). Pure passthrough: responses are laravel's native JSON shapes.
+  // GETs forward query params via buildVocabQuery; POSTs forward the body.
+  getVocabTranslationLanguages: () =>
+    getJSON<VocabLanguagesResponse>('/api/local/vocabulary/translation/languages'),
+  translateVocab: (payload: VocabTranslateRequest) =>
+    postJSON<VocabTranslateResponse>('/api/local/vocabulary/translation/translate', payload),
+  queueVocabTranslationBatch: (payload: Record<string, unknown>) =>
+    postJSON<VocabProxyEnvelope>('/api/local/vocabulary/translation/queue/batch/add', payload),
+  generateVocabTts: (payload: VocabTtsGenerateRequest) =>
+    postJSON<VocabTtsGenerateResponse>('/api/local/vocabulary/tts/generate', payload),
+  queueVocabTtsBatchQuery: (items: Record<string, unknown>[]) =>
+    postJSON<VocabProxyEnvelope>('/api/local/vocabulary/tts/queue/batch/query', items),
+  getVocabSentenceAudio: (params: Record<string, unknown>) =>
+    getJSON<VocabProxyEnvelope>(buildVocabQuery('/api/local/vocabulary/tts/sentence-audio', params)),
+  getVocabTtsQueueStats: () =>
+    getJSON<VocabTtsQueueStats>('/api/local/vocabulary/tts-queue/stats'),
+  getVocabTtsQueueItems: (params: Record<string, unknown>) =>
+    getJSON<VocabTtsQueueItemsResponse>(buildVocabQuery('/api/local/vocabulary/tts-queue/items', params)),
+  getVocabAssistOverview: () =>
+    getJSON<VocabAssistOverviewResponse>('/api/local/vocabulary/assist/overview'),
+  getVocabAssistOverviewItems: (params: Record<string, unknown>) =>
+    getJSON<VocabProxyEnvelope>(buildVocabQuery('/api/local/vocabulary/assist/overview/items', params)),
+  retryVocabCover: (payload: Record<string, unknown>) =>
+    postJSON<VocabProxyEnvelope>('/api/local/vocabulary/cover/retry', payload),
+  getVocabLibraries: (params: Record<string, unknown>) =>
+    getJSON<VocabLibrariesResponse>(buildVocabQuery('/api/local/vocabulary/libraries', params)),
+  getVocabLibraryWords: (libraryId: number, params: Record<string, unknown>) =>
+    getJSON<VocabLibraryWordsResponse>(
+      buildVocabQuery(`/api/local/vocabulary/libraries/${encodeURIComponent(libraryId)}/words`, params)),
+  deleteVocabLibrary: (libraryId: number) =>
+    deleteJSON<VocabProxyEnvelope>(`/api/local/vocabulary/libraries/${encodeURIComponent(libraryId)}`),
+  getVocabStatistics: (params: Record<string, unknown>) =>
+    getJSON<VocabStatisticsResponse>(buildVocabQuery('/api/local/vocabulary/statistics', params)),
+  getVocabLanguageBreakdown: (params: Record<string, unknown>) =>
+    getJSON<VocabLanguageBreakdownResponse>(buildVocabQuery('/api/local/vocabulary/language-breakdown', params)),
+  getVocabDictionaryWords: (params: Record<string, unknown>) =>
+    getJSON<VocabDictionaryWordsResponse>(buildVocabQuery('/api/local/vocabulary/dictionary/words', params)),
+  createVocabDictionaryWord: (payload: Record<string, unknown>) =>
+    postJSON<VocabProxyEnvelope>('/api/local/vocabulary/dictionary/words', payload),
+  // Update is POST here (proxied as PUT to laravel) so the FE keeps the WS
+  // fallback - the local_http loopback proxy is GET/POST-only.
+  updateVocabDictionaryWord: (md5: string, payload: Record<string, unknown>) =>
+    postJSON<VocabProxyEnvelope>(
+      `/api/local/vocabulary/dictionary/words/${encodeURIComponent(md5)}`, payload),
+  deleteVocabDictionaryWord: (md5: string, params: Record<string, unknown>) =>
+    deleteJSON<VocabProxyEnvelope>(
+      buildVocabQuery(`/api/local/vocabulary/dictionary/words/${encodeURIComponent(md5)}`, params)),
+  batchVocabDictionaryWords: (payload: Record<string, unknown>) =>
+    postJSON<VocabProxyEnvelope>('/api/local/vocabulary/dictionary/words/batch', payload),
+  getVocabDictionarySentences: (params: Record<string, unknown>) =>
+    getJSON<VocabProxyEnvelope>(buildVocabQuery('/api/local/vocabulary/dictionary/sentences', params)),
+  reportVocabValidity: (payload: Record<string, unknown>) =>
+    postJSON<VocabProxyEnvelope>('/api/local/vocabulary/validity/report', payload),
+  getVocabStorageSummary: () =>
+    getJSON<VocabProxyEnvelope>('/api/local/vocabulary/storage-summary'),
 };
 
 export type PycoreApi = typeof pycoreApi;

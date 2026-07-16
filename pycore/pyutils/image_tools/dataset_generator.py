@@ -25,6 +25,9 @@ from dataclasses import dataclass, asdict
 
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
 
+import traceback
+
+
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
 np = numpy
@@ -466,7 +469,6 @@ class DatasetGenerator:
 
         except Exception as e:
             print(f"\n[DatasetGenerator] Error: Generation failed: {e}")
-            import traceback
             traceback.print_exc()
             return {}
 

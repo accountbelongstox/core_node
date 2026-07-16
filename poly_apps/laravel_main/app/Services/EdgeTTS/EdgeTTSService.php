@@ -640,11 +640,23 @@ class EdgeTTSService
      * worker report endpoint) produce identical paths and existence checks
      * stay equivalent to generation-time cache hits.
      */
-    public function buildRelativePath(string $text, string $langCode, string $textType = 'word', string $rate = '+0%'): string
+    /**
+     * Deterministic relative path for a (text, lang, type, rate[, variant]) tuple
+     * - the SAME formula generateAudio uses, exposed so other writers (the pycore
+     * worker report endpoint) produce identical paths and existence checks stay
+     * equivalent to generation-time cache hits.
+     *
+     * When $variantKey is a non-empty string, a ``_{variantKey}`` segment is
+     * appended to the filename (e.g. ``.../{hash}_uk_f.mp3``) so multiple
+     * accent/gender voices for one word coexist. When $variantKey is null/empty
+     * the path is BYTE-IDENTICAL to the legacy formula (primary audio).
+     */
+    public function buildRelativePath(string $text, string $langCode, string $textType = 'word', string $rate = '+0%', ?string $variantKey = null): string
     {
         $speedKey = str_replace(['+', '%', '-'], ['p', 'pct', 'm'], $rate);
         $hash = md5($langCode . ':' . $textType . ':' . $rate . ':' . trim($text));
-        return $langCode . '/' . $textType . '/' . $speedKey . '/' . $hash . '.mp3';
+        $suffix = ($variantKey !== null && $variantKey !== '') ? '_' . $variantKey : '';
+        return $langCode . '/' . $textType . '/' . $speedKey . '/' . $hash . $suffix . '.mp3';
     }
 
     /**

@@ -10,6 +10,11 @@ probe in has_nvidia_gpu: its device count is the authoritative "can STT
 actually use CUDA right now" answer (a working nvidia-smi alone does NOT
 guarantee ctranslate2 has a CUDA build), with CUDADetector as the fallback.
 
+faster-whisper runs IN-PROCESS in the system Python (cu13). No cu12 nvidia libs
+are installed, so ctranslate2 falls back to CPU (int8) - it cannot use cu13
+(its CUDA build links cublas64_12.dll). This keeps paddle/torch cu13 free of the
+cu12/cu13 nvidia<lib> DLL clobber.
+
 Pure business logic: no HTTP/FastAPI. Imports only ffmpeg_ops (for
 resolve_ffmpeg in whisper_capabilities) - no import back into the processors
 package otherwise.
@@ -21,6 +26,16 @@ from typing import Any, Dict, List, Optional
 from pycore import ColorPrint
 from .ffmpeg_ops import resolve_ffmpeg
 
+import os
+
+from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
+from pycore.pyutils.common.model_tiers import whisper_model
+
+import importlib.util as u
+
+
+
+
 
 # --------------------------------------------------------------------------- #
 # whisper runtime helpers (GPU detection / model auto-pick) - shared           #
@@ -29,7 +44,6 @@ def has_nvidia_gpu() -> bool:
     # ctranslate2 is faster-whisper's backend: its CUDA device count is the
     # authoritative "can STT actually use CUDA right now" probe.
     try:
-        import ctranslate2
         if ctranslate2.get_cuda_device_count() > 0:
             return True
     except Exception:
@@ -37,7 +51,6 @@ def has_nvidia_gpu() -> bool:
     # Fallback: reuse pyfoundations' single CUDA detector (nvidia-smi + env
     # vars) instead of a 3rd local nvidia-smi subprocess copy.
     try:
-        from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
         return bool(CUDADetector.is_cuda_available())
     except Exception:
         return False
@@ -55,7 +68,6 @@ def detect_gpu_vram_mb() -> int:
     # VRAM via pyfoundations' cached nvidia-smi probe (no local subprocess copy).
     # get_cuda_info() returns gpus[].memory_total as a string like "8188 MiB".
     try:
-        from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
         info = CUDADetector.get_cuda_info() or {}
     except Exception:
         return 0
@@ -78,7 +90,10 @@ def pick_whisper_model(device: str, vram_mb: int) -> str:
         if vram_mb >= 2500:
             return "small"
         return "base"
-    return "small"
+    try:
+        return whisper_model(False)
+    except Exception:
+        return "medium"
 
 
 # Whisper model sizes the UI offers, in ascending capability order. Only the ones
@@ -90,7 +105,6 @@ def _fw_model_repos() -> Dict[str, str]:
     """Map candidate model name -> HuggingFace repo id (from faster-whisper)."""
     repos: Dict[str, str] = {}
     try:
-        from faster_whisper.utils import _MODELS
         for name in WHISPER_MODEL_CANDIDATES:
             if name in _MODELS:
                 repos[name] = _MODELS[name]
@@ -109,7 +123,6 @@ def list_installed_whisper_models() -> List[str]:
     if not repos:
         return []
     try:
-        from huggingface_hub import scan_cache_dir
         cached = {r.repo_id for r in scan_cache_dir().repos}
     except Exception:
         return []
@@ -153,13 +166,11 @@ def list_supported_languages() -> List[Dict[str, str]]:
     """
     codes: List[str] = []
     try:
-        from faster_whisper.tokenizer import _LANGUAGE_CODES
         codes = sorted(_LANGUAGE_CODES)
     except Exception:
         codes = ["en"]
     names: Dict[str, str] = {}
     try:
-        from whisper.tokenizer import LANGUAGES
         names = {k: v.title() for k, v in LANGUAGES.items()}
     except Exception:
         names = {}
@@ -192,11 +203,9 @@ def whisper_capabilities() -> Dict[str, Any]:
 
 def _add_nvidia_dll_dirs():
     """Make pip-installed cuBLAS/cuDNN DLLs discoverable for CTranslate2 (Windows)."""
-    import os
     if os.name != "nt":
         return
     try:
-        import importlib.util as u
         for mod in ("nvidia.cublas", "nvidia.cudnn"):
             spec = u.find_spec(mod)
             if spec and spec.submodule_search_locations:

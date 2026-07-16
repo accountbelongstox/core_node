@@ -2,6 +2,7 @@
 
 . (Join-Path $PSScriptRoot 'CudaIndex.ps1')
 . (Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1')
+. (Join-Path $PSScriptRoot 'NvidiaCuStackAlign.ps1')
 
 $script:TorchCpuIndexUrl = 'https://download.pytorch.org/whl/cpu'
 
@@ -85,7 +86,7 @@ function Ensure-TorchBuild {
     }
 
     if (-not $PipExe) {
-        $PipExe = Resolve-InstallerPipExe -PythonExe $PythonCmd
+        $PipExe = $Global:PIP_EXE_PATH
     }
 
     if (-not $PipExe) {
@@ -103,6 +104,9 @@ function Ensure-TorchBuild {
                 $idx = Get-TorchCudaIndexUrl
                 Write-Host "[torch-guard] GPU present, torch missing -> installing driver-matched CUDA build ($idx)."
                 & $PipExe install --ignore-installed --index-url $idx torch torchvision torchaudio
+                # Align the nvidia stack to torch's CUDA major (removes stray cu12
+                # libs that clobber torch's cu13 DLLs -> WinError 127).
+                Sync-NvidiaCuStack -PythonCmd $PythonCmd -PipExe $PipExe
             }
             return
         }
@@ -113,10 +117,12 @@ function Ensure-TorchBuild {
         if (Test-TorchCudaUsable -PythonCmd $PythonCmd) {
             Write-Host "[torch-guard] GPU present, torch cuda=$state usable on this driver; no change."
         } else {
-            $idx = Get-TorchCudaIndexUrl
-            Write-Host "[torch-guard] GPU present but torch cuda=$state cannot init on this driver -> reinstalling ($idx)."
-            & $PipExe uninstall -y torch torchvision torchaudio
-            & $PipExe install --ignore-installed --force-reinstall --index-url $idx torch torchvision torchaudio
+            # torch is installed (binary present) but CUDA cannot init here. This is a
+            # driver / nvidia-smi problem, not a torch-install problem: reinstalling torch
+            # cannot fix a broken driver, would call pip uninstall (forbidden), and would
+            # fire every run (non-idempotent). Leave torch as-is; the app falls back to CPU.
+            # Fix the NVIDIA driver (nvidia-smi) to enable CUDA.
+            Write-Host "[torch-guard] GPU hardware present but torch cuda=$state cannot init (nvidia-smi/driver not working); leaving torch installed. App runs on CPU until the driver is fixed." -ForegroundColor DarkYellow
         }
         return
     }

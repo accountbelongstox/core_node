@@ -66,8 +66,22 @@ from pycore.pyctl.ai.ai_keys import (
     is_configured,
 )
 from pycore.pyctl.ai.ai_compat_helpers import probe_openai_compat, probe_cloudflare, probe_spark
-from pycore.pyctl.ai.ai_rate_limits import rate_status
+from pycore.pyctl.ai.ai_rate_limits import rate_status, check_rate_limit
 from pycore.pyctl.ai.ai_usage_log import record_usage
+from pycore.pyctl.ai.ai_gateway_state import _in_cooldown, _on_probe_result
+
+from pycore.pyutils.ai_cluster.openrouter.openrouter_client import OpenRouterClient
+from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient
+from pycore.pyutils.ai_cluster.deepseek import get_deepseek_client
+from pycore.pyutils.ai_cluster.groq.groq_client import GroqClient
+from pycore.pyutils.ai_cluster.mistral.mistral_client import MistralClient
+from pycore.pyutils.ai_cluster.cohere.cohere_client import CohereClient
+from pycore.pyutils.ai_cluster.nvidia.nvidia_client import NVIDIAClient
+from pycore.pyutils.ai_cluster.huggingface.hf_client import HuggingFaceClient
+from pycore.pyutils.ai_cluster.zhipuai.zhipuai_client import ZhipuAIClient
+from pycore.pyutils.ai_cluster.cerebras.cerebras_client import CerebrasClient
+from pycore.pyutils.ai_cluster.github.github_client import GitHubModelsClient
+
 
 # Maximum model ids returned per provider (keep the payload small for the UI).
 _MAX_MODELS = 5
@@ -107,7 +121,6 @@ def _probe_openrouter() -> Dict[str, Any]:
 
     start = time.time()
     try:
-        from pycore.pyutils.ai_cluster.openrouter.openrouter_client import OpenRouterClient
         client = OpenRouterClient(api_key=key)
         models = client.list_models()
         if models:
@@ -131,7 +144,6 @@ def _probe_gemini() -> Dict[str, Any]:
 
     start = time.time()
     try:
-        from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient
         client = GeminiClient(api_key=key)
         models = client.list_models()
         result["available"] = True
@@ -152,7 +164,6 @@ def _probe_deepseek() -> Dict[str, Any]:
 
     start = time.time()
     try:
-        from pycore.pyutils.ai_cluster.deepseek import get_deepseek_client
         client = get_deepseek_client(api_key=key)
         listed = client.list_models()
         if listed.get("success"):
@@ -230,7 +241,6 @@ def _probe_groq() -> Dict[str, Any]:
 
     start = time.time()
     try:
-        from pycore.pyutils.ai_cluster.groq.groq_client import GroqClient
         client = GroqClient(api_key=key)
         models = client.list_models()
         if models:
@@ -254,7 +264,6 @@ def _probe_mistral() -> Dict[str, Any]:
 
     start = time.time()
     try:
-        from pycore.pyutils.ai_cluster.mistral.mistral_client import MistralClient
         client = MistralClient(api_key=key)
         models = client.list_models()
         if models:
@@ -278,7 +287,6 @@ def _probe_cohere() -> Dict[str, Any]:
 
     start = time.time()
     try:
-        from pycore.pyutils.ai_cluster.cohere.cohere_client import CohereClient
         client = CohereClient(api_key=key)
         models = client.list_models()
         if models:
@@ -302,7 +310,6 @@ def _probe_nvidia() -> Dict[str, Any]:
 
     start = time.time()
     try:
-        from pycore.pyutils.ai_cluster.nvidia.nvidia_client import NVIDIAClient
         client = NVIDIAClient(api_key=key)
         models = client.list_models()
         if models:
@@ -326,7 +333,6 @@ def _probe_huggingface() -> Dict[str, Any]:
 
     start = time.time()
     try:
-        from pycore.pyutils.ai_cluster.huggingface.hf_client import HuggingFaceClient
         client = HuggingFaceClient(api_key=key)
         if client.validate_token():
             result["available"] = True
@@ -349,7 +355,6 @@ def _probe_zhipuai() -> Dict[str, Any]:
 
     start = time.time()
     try:
-        from pycore.pyutils.ai_cluster.zhipuai.zhipuai_client import ZhipuAIClient
         client = ZhipuAIClient(api_key=key)
         models = client.list_models()
         if models:
@@ -420,7 +425,6 @@ def _probe_cerebras() -> Dict[str, Any]:
 
     start = time.time()
     try:
-        from pycore.pyutils.ai_cluster.cerebras.cerebras_client import CerebrasClient
         client = CerebrasClient(api_key=key, default_model=catalog_models(name)[0] if catalog_models(name) else "llama-3.3-70b")
         models = client.list_models()
         if models:
@@ -444,7 +448,6 @@ def _probe_github() -> Dict[str, Any]:
 
     start = time.time()
     try:
-        from pycore.pyutils.ai_cluster.github.github_client import GitHubModelsClient
         client = GitHubModelsClient(api_key=key)
         models = client.list_models()
         if models:
@@ -508,6 +511,41 @@ for _pname in OPENAI_COMPAT_PROVIDERS:
 _PROBES = [_PROBE_BY_NAME[n] for n in PROVIDER_ORDER if n in _PROBE_BY_NAME]
 
 
+def probe_skip_reason(name: str, *, force: bool = False) -> Optional[str]:
+    """Return why a live probe should be skipped (None = probe is allowed)."""
+    if force:
+        return None
+    if not is_configured(name):
+        return "No API key configured"
+    if _in_cooldown(name):
+        return "Provider paused (cooldown)"
+    rate = check_rate_limit(name)
+    if not rate.allowed:
+        return rate.message or "Rate limit reached"
+    return None
+
+
+def _catalog_record(name: str) -> Dict[str, Any]:
+    """One provider record from the registry without any network I/O."""
+    rec = _finalize(_blank(name, _provider_secret(name)))
+    rec["tested"] = False
+    return rec
+
+
+def _ensure_catalog_models(rec: Dict[str, Any]) -> None:
+    """Fill model ids from the registry when a live list is empty."""
+    if rec.get("models"):
+        return
+    name = rec.get("name", "")
+    models = catalog_models(name, _MAX_MODELS)
+    if not models:
+        dm = PROVIDERS.get(name, {}).get("default_model", "")
+        if dm:
+            models = [dm]
+    if models:
+        rec["models"] = models
+
+
 def _attach_rate(result: Dict[str, Any]) -> Dict[str, Any]:
     """Attach the current local rate-limit snapshot (usage vs RPM/RPD) for the UI."""
     name = result.get("name", "")
@@ -529,29 +567,36 @@ def catalog() -> Dict[str, Any]:
     """
     providers: List[Dict[str, Any]] = []
     for name in PROVIDER_ORDER:
-        rec = _finalize(_blank(name, _provider_secret(name)))
-        rec["tested"] = False
+        rec = _catalog_record(name)
         _attach_rate(rec)
         providers.append(rec)
     providers.sort(key=_sort_key)
     return {"providers": providers}
 
 
-def probe_one(name: str) -> Dict[str, Any]:
+def probe_one(name: str, *, force: bool = True) -> Dict[str, Any]:
     """
     Run a single provider's live availability test.
 
-    A probe is a cheap list-models *metadata* call, NOT generation, so it is
-    deliberately NOT rate-gated and NOT counted against the provider's free-tier
-    budget — repeatedly clicking "Test" / "Test all" can never starve real
-    text/image generation (the gemini "20/20 but no image" trap). Every probe is
-    still logged (kind="probe") in the shared usage log, and the record carries
-    `tested: True` plus the current `rate` snapshot.
+    Skips providers that are unconfigured, on cooldown, or over the local rate
+    budget unless ``force=True`` (the UI "Test" button). Failed probes pause the
+    provider via the gateway cooldown registry so later dispatch/probes do not
+    hammer dead keys. Every live probe is logged (kind="probe") in the shared
+    usage log.
     """
     name = (name or "").strip().lower()
+    skip = probe_skip_reason(name, force=force)
+    if skip:
+        rec = _catalog_record(name)
+        rec["available"] = False
+        rec["error"] = skip
+        rec["paused"] = True
+        _ensure_catalog_models(rec)
+        return _attach_rate(rec)
+
     fn = _PROBE_BY_NAME.get(name)
     if fn is None:
-        rec = _finalize(_blank(name, _provider_secret(name)))
+        rec = _catalog_record(name)
         rec["tested"] = True
         rec["error"] = rec.get("error") or f"Unknown provider '{name}'"
         return _attach_rate(rec)
@@ -560,29 +605,42 @@ def probe_one(name: str) -> Dict[str, Any]:
         rec = _finalize(fn())
     except Exception as e:
         ColorPrint.yellow(f"[ai_probe] probe {name} crashed: {e}")
-        rec = _finalize(_blank(name, _provider_secret(name)))
+        rec = _catalog_record(name)
         rec["error"] = str(e)
     rec["tested"] = True
+    _ensure_catalog_models(rec)
+    if not rec.get("available"):
+        _on_probe_result(name, False, rec.get("error"))
     models = rec.get("models") or []
     record_usage("probe", name, models[0] if models else "",
                  bool(rec.get("available")), rec.get("latency_ms"), "probe", rec.get("error"))
     return _attach_rate(rec)
 
 
-def probe_all() -> Dict[str, Any]:
+def probe_all(*, force: bool = True) -> Dict[str, Any]:
     """
-    Probe every AI provider and return the unified contract (rate-aware).
+    Live-test configured AI providers and return the unified contract.
 
-    Each provider is tested independently via probe_one() (rate-gated + recorded);
-    one provider failing never aborts the others. See module docstring for shape.
+    Unconfigured providers are returned from the registry only (no network).
+    Providers on cooldown or over the local rate budget are skipped unless
+    ``force=True`` (the UI "Test all" path).
     """
     providers: List[Dict[str, Any]] = []
     for name in PROVIDER_ORDER:
         if name not in _PROBE_BY_NAME:
             continue
-        providers.append(probe_one(name))
+        if not is_configured(name) and not force:
+            rec = _catalog_record(name)
+            _ensure_catalog_models(rec)
+            _attach_rate(rec)
+            providers.append(rec)
+            continue
+        providers.append(probe_one(name, force=force))
     providers.sort(key=_sort_key)
     return {"providers": providers}
 
 
-__all__ = ["probe_all", "probe_one", "catalog", "mask_key"]
+__all__ = [
+    "probe_all", "probe_one", "catalog", "mask_key",
+    "probe_skip_reason", "_PROBE_BY_NAME", "_catalog_record", "_ensure_catalog_models",
+]

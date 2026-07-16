@@ -263,11 +263,57 @@ export interface WordSentencesResponse {
 
 // ========== Vocabulary stat drill-down: TTS queue items ==========
 
-export type TtsQueueItemStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type TtsQueueItemStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'leased';
 export type TtsQueueItemType = 'word' | 'sentence' | 'article';
 
 export interface TtsQueueItemsResponse {
   success: boolean;
+  total: number;
+  start: number;
+  limit: number;
+  items: any[];
+  error?: string;
+}
+
+// ========== Assist / worker queue overview (GET /assist/overview) ==========
+
+export type AssistQueueHandler = 'chrome' | 'pycore' | 'ai';
+
+export interface AssistQueueCategory {
+  key: string;
+  label: string;
+  handler: AssistQueueHandler | string;
+  pending: number;
+  processing: number;
+  leased: number;
+  total: number;
+  by_language?: Record<string, number>;
+  by_status?: Record<string, number>;
+  sample?: Array<{ word?: string; language?: string; title?: string; source_key?: string; id?: string | number }>;
+}
+
+export interface AssistQueueWorker {
+  id: string;
+  kind: 'chrome' | 'pycore' | string;
+  name?: string;
+  processor_types: string[];
+  online: boolean;
+  last_seen: string | null;
+  claimed: number;
+}
+
+export interface AssistOverviewResponse {
+  success: boolean;
+  generated_at?: string;
+  categories: AssistQueueCategory[];
+  workers: AssistQueueWorker[];
+  error?: string;
+}
+
+export interface AssistCategoryItemsResponse {
+  success: boolean;
+  category: string;
+  status?: string | null;
   total: number;
   start: number;
   limit: number;
@@ -421,6 +467,21 @@ export class BooksAPI extends BaseAPI {
     limit?: number;
   }): Promise<APIResponse<TtsQueueItemsResponse>> {
     return this.get<TtsQueueItemsResponse>('/tts/queue/items', params, false);
+  }
+
+  /** GET /assist/overview — worker queue categories (pycore / chrome / ai lanes). */
+  async getAssistOverview(fresh = false): Promise<APIResponse<AssistOverviewResponse>> {
+    return this.get<AssistOverviewResponse>('/assist/overview', fresh ? { fresh: 1 } : undefined, false);
+  }
+
+  /** GET /assist/overview/items — paginated rows for one assist category. */
+  async getAssistCategoryItems(params: {
+    category: string;
+    status?: TtsQueueItemStatus;
+    start?: number;
+    limit?: number;
+  }): Promise<APIResponse<AssistCategoryItemsResponse>> {
+    return this.get<AssistCategoryItemsResponse>('/assist/overview/items', params, false);
   }
 
   /** GET /vocabulary/language-breakdown — per-language word/translation/audio/invalid counts. */

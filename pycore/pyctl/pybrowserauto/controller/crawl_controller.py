@@ -10,6 +10,9 @@ import time
 from typing import Dict, Optional, List, Callable
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
+from pycore.pyutils.pybrowser.fetchers import HTTPFetcher, BrowserFetcher, IframeFetcher, TampermonkeyFetcher
+
+
 
 class CrawlController:
     """
@@ -107,12 +110,6 @@ class CrawlController:
         ColorPrint.blue(f'[CrawlController] Initializing {fetcher_type} fetcher')
 
         # Import fetchers from PyBrowser
-        from pycore.pyutils.pybrowser.fetchers import (
-            HTTPFetcher,
-            BrowserFetcher,
-            IframeFetcher,
-            TampermonkeyFetcher
-        )
 
         # Create fetcher based on type
         if fetcher_type == 'http':

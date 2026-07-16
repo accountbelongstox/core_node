@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import get_core_node_root
+from pycore.pyfoundations.system_paths import get_local_data_dir
 
 # Default cooldown applied to a key on a rate-limit / quota failure (seconds).
 DEFAULT_KEY_COOLDOWN_S = 120.0
@@ -38,7 +38,7 @@ DEFAULT_KEY_COOLDOWN_S = 120.0
 # Persistent per-key usage store (counts + per-day windows survive restarts).
 # Lives beside the other shared AI state; pycore-local schema (Laravel keeps its
 # own per-key store). cooldown_until / minute windows are transient (NOT saved).
-_USAGE_FILE = get_core_node_root() / ".data" / ".ai_state" / "ai_key_usage.json"
+_USAGE_FILE = get_local_data_dir() / ".ai_state" / "ai_key_usage.json"
 _SAVE_THROTTLE_S = 5.0
 
 _lock = threading.Lock()

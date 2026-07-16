@@ -14,21 +14,18 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const logger = require('#@logger');
+const { getSystemCacheDir } = require('../../foundation/common/system_paths');
 
 class UserSettings {
     constructor() {
         // Determine OS and set appropriate paths
         this.isWindows = process.platform === 'win32';
         
-        if (this.isWindows) {
-            this.configDir = path.join(os.homedir(), '.core_node');
-            this.configFile = path.join(this.configDir, 'settings.json');
-            this.syncDir = path.join(this.configDir, '.sync');
-        } else {
-            this.configDir = path.join(os.homedir(), '.core_node');
-            this.configFile = path.join(this.configDir, 'settings.json');
-            this.syncDir = path.join(this.configDir, '.sync');
-        }
+        // Centralized per-user state dir (see system_paths.getSystemCacheDir):
+        // D:\programing\Users\<user>\.core_node on Windows, /var/_core_node on Linux.
+        this.configDir = getSystemCacheDir();
+        this.configFile = path.join(this.configDir, 'settings.json');
+        this.syncDir = path.join(this.configDir, '.sync');
 
         this.ensureDirectories();
     }

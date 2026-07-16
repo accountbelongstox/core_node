@@ -2,6 +2,8 @@
  * Duoreader → Laravel Books v3 ingest core (shared by background service + popup).
  */
 
+import { normalizeCoverUrls } from '@/utils/cover-playback';
+
 export const DUOREADER_SHELF_URL = 'https://duoreader.cn/assets/shelf.json';
 export const DUOREADER_WEB_BASE = 'https://web.duoreader.cn';
 export const INGEST_PATH = '/api/app_qy_v1/media/ingest';
@@ -9,6 +11,7 @@ export const AUDIO_PATH = '/api/app_qy_v1/media/audio';
 export const BOOK_INGEST_STATUS_PATH = '/api/app_qy_v1/media/books';
 export const PROGRESS_STORAGE_KEY = 'duoreader_importer_progress';
 export const STATE_STORAGE_KEY = 'duoreader_importer_state';
+export const SESSION_STORAGE_KEY = 'duoreader_importer_session';
 
 export interface DuoreaderBookMeta {
   id: string;
@@ -16,7 +19,10 @@ export interface DuoreaderBookMeta {
   titleZh: string;
   authorEn: string;
   authorZh: string;
+  /** Primary cover (first of coverUrls). */
   coverUrl: string;
+  /** Up to 5 search/shelf cover URLs for carousel + backend metadata. */
+  coverUrls: string[];
   sectionTagEn: string;
   sectionTagZh: string;
   langs: string[];
@@ -48,6 +54,8 @@ export type DuoreaderImportStep =
 
 export interface DuoreaderImportProgress {
   running: boolean;
+  /** True when user paused — job stays alive, counters preserved. */
+  paused: boolean;
   phase: string;
   /** High-level step for UI badges. */
   step: DuoreaderImportStep;
@@ -82,6 +90,8 @@ export interface DuoreaderImportProgress {
   uploadPct: number;
   /** Rough audio coverage vs uploaded slots (both langs). */
   audioPct: number;
+  /** True while background audio queue is still draining. */
+  audioPending: boolean;
   error: string;
   updatedAt: string;
 }
@@ -140,6 +150,19 @@ export interface DuoreaderImporterConfig {
   bookIds: string[];
   /** Fetch chapters from Duoreader CDN .pz API (fast) instead of DOM scrape. */
   useCdnApi: boolean;
+  /** When loading catalog, search Google/Bing images for book covers. */
+  enrichCoversFromSearch: boolean;
+  /** Re-upload chapter text even when backend already has it (audio stays idempotent). */
+  forceReplaceUpload: boolean;
+}
+
+export type DuoreaderImportInterruptReason = 'stop' | 'pause' | '';
+
+export interface DuoreaderImportSession {
+  config: DuoreaderImporterConfig;
+  interrupted: boolean;
+  reason: DuoreaderImportInterruptReason;
+  updatedAt: string;
 }
 
 export const DEFAULT_IMPORTER_CONFIG: DuoreaderImporterConfig = {
@@ -150,6 +173,8 @@ export const DEFAULT_IMPORTER_CONFIG: DuoreaderImporterConfig = {
   maxBooks: 0,
   bookIds: [],
   useCdnApi: false,
+  enrichCoversFromSearch: false,
+  forceReplaceUpload: false,
 };
 
 /** Strip punctuation/symbols (Unicode P/S) — mirrors Laravel MediaIngestService. */
@@ -314,6 +339,19 @@ export async function fetchShelf(): Promise<any> {
   return res.json();
 }
 
+/** Duoreader shelf section for literature (名著), not FAO news articles. */
+export const DUOREADER_CLASSICS_SECTION_EN = 'Classics';
+
+/**
+ * Literature entries in shelf.json carry detailed_metadata_available; FAO articles use fao_* ids.
+ * Web UI lists them under separate sections (名著 vs 联合国粮农组织).
+ */
+export function isDuoreaderLiteratureBook(book: any): boolean {
+  const id = String(book?.id || '');
+  if (!id || id.startsWith('fao_')) return false;
+  return book.detailed_metadata_available === true;
+}
+
 export function listBilingualBooks(shelf: any, config: DuoreaderImporterConfig): DuoreaderBookMeta[] {
   const myLang = config.myLang;
   const learnLang = config.learnLang;
@@ -324,16 +362,20 @@ export function listBilingualBooks(shelf: any, config: DuoreaderImporterConfig):
   for (const section of shelf.sections || []) {
     for (const book of section.books || []) {
       if (!book?.id) continue;
+      if (!isDuoreaderLiteratureBook(book)) continue;
       if (hasAllow && !allowSet.has(book.id)) continue;
       const langs: string[] = book.langs || [];
       if (!langs.includes(myLang) || !langs.includes(learnLang)) continue;
+      const shelfCover = book.coverUrl || '';
+      const coverUrls = normalizeCoverUrls(shelfCover);
       books.push({
         id: book.id,
         titleEn: book.title?.en || book.title?.[learnLang] || book.id,
         titleZh: book.title?.zh || book.title?.[myLang] || '',
         authorEn: book.author?.name?.en || book.author?.en || '',
         authorZh: book.author?.name?.zh || book.author?.zh || '',
-        coverUrl: book.coverUrl || '',
+        coverUrl: coverUrls[0] || '',
+        coverUrls,
         sectionTagEn: section.tag_name?.en || '',
         sectionTagZh: section.tag_name?.zh || '',
         langs,
@@ -372,6 +414,7 @@ export async function buildSource(
       titles: { [config.learnLang]: book.titleEn, [config.myLang]: book.titleZh },
       author: { [config.learnLang]: book.authorEn, [config.myLang]: book.authorZh },
       cover_url: book.coverUrl,
+      cover_urls: book.coverUrls?.length ? book.coverUrls : (book.coverUrl ? [book.coverUrl] : []),
       section: { [config.learnLang]: book.sectionTagEn, [config.myLang]: book.sectionTagZh },
       seeded_languages: [config.learnLang, config.myLang],
     },
@@ -520,6 +563,16 @@ export function canSkipChapterTextFetch(backendChapter: BackendChapterIngestStat
   return isChapterTextCompleteOnBackend(backendChapter) && (backendChapter?.sentence_count ?? 0) > 0;
 }
 
+/** Match backend chapter row by Duoreader article index (legacy) or dense chapter_index. */
+export function resolveBackendChapter(
+  ingestStatus: BookIngestStatus,
+  articleIndex: number,
+  denseChapterIndex: number,
+): BackendChapterIngestStatus | undefined {
+  return ingestStatus.chapterMap.get(articleIndex)
+    ?? ingestStatus.chapterMap.get(denseChapterIndex);
+}
+
 /** Skip entire chapter (text + audio) when both layers are complete. */
 export function canSkipFullChapter(
   backendChapter: BackendChapterIngestStatus | undefined,
@@ -527,6 +580,44 @@ export function canSkipFullChapter(
 ): boolean {
   return canSkipChapterTextFetch(backendChapter)
     && isChapterAudioCompleteOnBackend(backendChapter, enableAudioFetch);
+}
+
+/** Seed chapter total and reset per-book counters when opening a book (resume-safe). */
+export function seedBookProgressFromBackend(
+  progress: DuoreaderImportProgress,
+  ingestStatus: BookIngestStatus,
+  chaptersTotal: number,
+  enableAudioFetch: boolean,
+  preserveCounters = false,
+): void {
+  progress.chaptersTotal = chaptersTotal;
+  if (!preserveCounters) {
+    progress.chaptersScraped = 0;
+    progress.chaptersDone = 0;
+    progress.chaptersSkipped = 0;
+    progress.chapterSlotsExpected = 0;
+    progress.chapterSlotsUploaded = 0;
+    progress.slotsIngested = 0;
+    progress.scrapePct = 0;
+    progress.uploadPct = 0;
+    progress.audioFetchedLearn = 0;
+    progress.audioFetchedMy = 0;
+    progress.audioSlotsTarget = 0;
+    progress.audioLang = '';
+    progress.audioSlot = 0;
+    progress.audioSlotsTotal = 0;
+    progress.audioPct = 0;
+    progress.step = 'idle';
+  }
+
+  for (let i = 0; i < chaptersTotal; i += 1) {
+    const ch = ingestStatus.chapterMap.get(i);
+    if (!canSkipFullChapter(ch, enableAudioFetch)) {
+      progress.chapterCurrent = i + 1;
+      return;
+    }
+  }
+  progress.chapterCurrent = chaptersTotal > 0 ? chaptersTotal : 0;
 }
 
 /** @deprecated Use canSkipChapterTextFetch or canSkipFullChapter */
@@ -660,6 +751,7 @@ export function viewerUrl(bookId: string, articleIndex: number, segmentIndex = 0
 export function emptyProgress(): DuoreaderImportProgress {
   return {
     running: false,
+    paused: false,
     phase: '',
     step: 'idle',
     detail: '',
@@ -684,6 +776,7 @@ export function emptyProgress(): DuoreaderImportProgress {
     scrapePct: 0,
     uploadPct: 0,
     audioPct: 0,
+    audioPending: false,
     error: '',
     updatedAt: new Date().toISOString(),
   };
@@ -707,6 +800,8 @@ export function normalizeImportProgress(raw: DuoreaderImportProgress | null | un
   return {
     ...base,
     ...raw,
+    paused: !!raw.paused,
+    audioPending: !!raw.audioPending,
     step: raw.step === 'tts' || raw.step === 'catchup' ? 'audio' : raw.step,
     audioFetchedLearn: Number(legacy.audioFetchedLearn ?? legacy.ttsEnrichedLearn ?? 0),
     audioFetchedMy: Number(legacy.audioFetchedMy ?? legacy.ttsEnrichedMy ?? 0),

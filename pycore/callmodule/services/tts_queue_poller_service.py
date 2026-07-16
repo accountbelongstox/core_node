@@ -4,8 +4,8 @@ TTS Queue Worker Service (formerly a placeholder "queue poller")
 
 A pycore worker that drives laravel_main's word-generation TTS queue. Each
 heartbeat tick it CLAIMS a batch of pending word tasks, synthesizes an MP3 per
-task with the TTS orchestrator (engine priority edge -> sherpa -> melotts ->
-gptsovits, built into pyutils/tts/tts_orchestrator.py) and REPORTS each result
+task with the TTS orchestrator (local-first engine priority in
+pyutils/tts/tts_orchestrator.py) and REPORTS each result
 back — a multipart MP3 upload on success, a `success=false` + error otherwise.
 
 ------------------------------------------------------------------------------
@@ -75,8 +75,8 @@ from pycore.callmodule.callmodule_config import Config
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
 )
-# ONE entry point for synthesis; engine priority (edge -> sherpa -> melotts ->
-# gptsovits) and edge's process-wide serialization live inside the orchestrator.
+# ONE entry point for synthesis; local-first engine priority and edge's
+# process-wide serialization live inside the orchestrator.
 from pycore.pyutils.tts import tts_orchestrator
 
 
@@ -86,8 +86,9 @@ from pycore.pyutils.tts import tts_orchestrator
 CLAIM_PATH = "/api/app_qy_v1/ai_tools/tts/worker/claim"
 REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/worker/report"
 
-# HTTP timeouts (seconds). Claim is a cheap DB lock; report uploads a small MP3.
-_CLAIM_TIMEOUT = 15
+# HTTP timeouts (seconds). Claim can scan the full word/sentence backlog on a
+# large dictionary, so give it room; report uploads a small MP3.
+_CLAIM_TIMEOUT = 60
 _REPORT_TIMEOUT = 60
 
 # Server-mirrored validation floor: the Laravel report endpoint 422-rejects
@@ -288,6 +289,35 @@ class TTSQueuePollerService:
             return None
         data = body.get("data") if isinstance(body.get("data"), dict) else body
         return list((data or {}).get("tasks") or [])
+
+    def fetch_queue_summary(self) -> Dict[str, Any]:
+        """POST /tts/worker/claim with limit=0 — Laravel pending/leased counts."""
+        base = self._base_url()
+        if not base:
+            return {}
+        requests = self._requests()
+        try:
+            resp = requests.post(
+                base + CLAIM_PATH,
+                json={"worker_id": self.worker_id, "limit": 0},
+                timeout=_CLAIM_TIMEOUT,
+            )
+        except Exception:
+            return {}
+        if resp.status_code != 200:
+            return {}
+        try:
+            body = resp.json() or {}
+        except ValueError:
+            return {}
+        data = body.get("data") if isinstance(body.get("data"), dict) else body
+        if not isinstance(data, dict):
+            return {}
+        return {
+            "pending": int(data.get("pending") or 0),
+            "leased": int(data.get("leased") or 0),
+            "count": int(data.get("count") or 0),
+        }
 
     def _report(
         self,

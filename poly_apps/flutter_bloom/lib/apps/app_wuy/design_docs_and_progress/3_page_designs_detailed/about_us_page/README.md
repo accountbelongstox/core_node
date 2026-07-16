@@ -1,4 +1,4 @@
-# 关于我们页 (about_us_page)
+# About Us Page (about_us_page)
 
 This directory contains detailed design specifications for the about_us_page page.
 

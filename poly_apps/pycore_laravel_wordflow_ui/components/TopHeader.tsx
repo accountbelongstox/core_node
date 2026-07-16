@@ -1,14 +1,60 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Power, Sun, Moon, Languages, LogIn } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { ApiEndpointSwitcher } from './ApiEndpointSwitcher';
 import { useAppState } from '../contexts/AppStateContext';
-import { APP_NAME, APP_VERSION } from '../constants';
+import { api } from '../core/api';
+
+const CODE_UPDATE_POLL_MS = 10000;
+const RELATIVE_TICK_MS = 1000;
 
 interface TopHeaderProps {
   pageTitle: string;
   isLoggedIn: boolean;
   onAuthClick: () => void;
+}
+
+function localeTag(lang: string): string {
+  if (lang === 'zh') return 'zh-CN';
+  return 'en-US';
+}
+
+function formatCodeUpdateTime(iso: string, lang: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString(localeTag(lang), {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+}
+
+function serverNowMs(serverScannedAt: string | null, fetchedAtClient: number | null): number {
+  if (!serverScannedAt || fetchedAtClient === null) return Date.now();
+  return new Date(serverScannedAt).getTime() + (Date.now() - fetchedAtClient);
+}
+
+function formatRelativeAgo(lastModifiedIso: string, serverNow: number, t: TFunction): string {
+  const lastMs = new Date(lastModifiedIso).getTime();
+  if (Number.isNaN(lastMs)) return t('header.code_last_updated_unavailable');
+
+  const diffSec = Math.max(0, Math.floor((serverNow - lastMs) / 1000));
+  if (diffSec < 10) return t('header.code_updated_just_now');
+  if (diffSec < 60) return t('header.code_updated_seconds_ago', { count: diffSec });
+
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return t('header.code_updated_minutes_ago', { count: diffMin });
+
+  const diffHr = Math.floor(diffSec / 3600);
+  if (diffHr < 24) return t('header.code_updated_hours_ago', { count: diffHr });
+
+  const diffDay = Math.floor(diffSec / 86400);
+  return t('header.code_updated_days_ago', { count: diffDay });
 }
 
 /**
@@ -18,6 +64,56 @@ interface TopHeaderProps {
 const TopHeader: React.FC<TopHeaderProps> = ({ pageTitle, isLoggedIn, onAuthClick }) => {
   const { lang, theme, toggleLang, toggleTheme } = useAppState();
   const { t } = useTranslation();
+  const [codeUpdatedAt, setCodeUpdatedAt] = useState<string | null>(null);
+  const [codeUpdatedFile, setCodeUpdatedFile] = useState<string | null>(null);
+  const [serverScannedAt, setServerScannedAt] = useState<string | null>(null);
+  const [fetchedAtClient, setFetchedAtClient] = useState<number | null>(null);
+  const [, setRelativeTick] = useState(0);
+
+  const refreshCodeUpdateTime = useCallback(async () => {
+    try {
+      const status = await api.codeUpdate.getLastModified();
+      if (!status?.last_modified_at) return;
+      setCodeUpdatedAt(status.last_modified_at);
+      setCodeUpdatedFile(status.latest_file ?? null);
+      setServerScannedAt(status.scanned_at ?? null);
+      setFetchedAtClient(Date.now());
+    } catch {
+      /* backend may be offline; keep the last known value */
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const tick = async () => {
+      if (cancelled) return;
+      await refreshCodeUpdateTime();
+    };
+
+    tick();
+    const pollId = window.setInterval(tick, CODE_UPDATE_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(pollId);
+    };
+  }, [refreshCodeUpdateTime]);
+
+  useEffect(() => {
+    const tickId = window.setInterval(() => {
+      setRelativeTick((value) => value + 1);
+    }, RELATIVE_TICK_MS);
+    return () => window.clearInterval(tickId);
+  }, []);
+
+  const codeUpdateBadge = codeUpdatedAt
+    ? `${t('header.code_last_updated')}: ${formatCodeUpdateTime(codeUpdatedAt, lang)} · ${formatRelativeAgo(
+        codeUpdatedAt,
+        serverNowMs(serverScannedAt, fetchedAtClient),
+        t
+      )}`
+    : t('header.code_last_updated_unavailable');
 
   return (
     <header className="sticky top-0 z-40 min-h-16 flex flex-wrap items-center justify-between px-4 sm:px-6 py-2 gap-3 border-b border-black/5 dark:border-white/10 bg-white/60 dark:bg-slate-900/50 backdrop-blur-md transition-colors duration-300 flex-shrink-0">
@@ -25,8 +121,11 @@ const TopHeader: React.FC<TopHeaderProps> = ({ pageTitle, isLoggedIn, onAuthClic
         <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-800 dark:text-white truncate">
           {pageTitle}
         </h1>
-        <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-600 dark:text-indigo-400 font-mono whitespace-nowrap flex-shrink-0">
-          {APP_NAME} {APP_VERSION}
+        <span
+          className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-600 dark:text-indigo-400 font-mono whitespace-nowrap flex-shrink-0"
+          title={codeUpdatedFile ? codeUpdatedFile : undefined}
+        >
+          {codeUpdateBadge}
         </span>
       </div>
 

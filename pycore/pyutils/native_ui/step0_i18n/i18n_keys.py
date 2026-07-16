@@ -59,6 +59,9 @@ class I18nKeys:
     TRAY_MENU_AUTOSTART = "tray.menu.autostart"
     TRAY_MENU_SERVICE_TOGGLE = "tray.menu.service_toggle"
     TRAY_MENU_LANGUAGE = "tray.menu.language"
+    TRAY_MENU_CODE_SYNC = "tray.menu.code_sync"
+    TRAY_MENU_CODE_SYNC_DISTRIBUTE = "tray.menu.code_sync_distribute"
+    TRAY_MENU_CODE_SYNC_SKIP_UPDATE = "tray.menu.code_sync_skip_update"
     
     # Loading keys
     LOADING_TEXT = "loading.text"

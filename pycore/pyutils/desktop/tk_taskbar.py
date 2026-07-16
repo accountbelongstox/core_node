@@ -19,6 +19,12 @@ Usage:
 import sys
 from typing import Optional
 
+from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con
+
+import ctypes
+
+
+
 # GWL_EXSTYLE = -20, GWLP_HWNDPARENT = -8 (owner; 0 = unowned top-level)
 # WS_EX_TOOLWINDOW: window does not appear in taskbar (MSDN)
 # WS_EX_APPWINDOW: forces top-level window onto taskbar when visible (MSDN)
@@ -47,7 +53,6 @@ def set_windows_app_user_model_id(app_id: str) -> bool:
     if sys.platform != "win32":
         return False
     try:
-        import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
         return True
     except Exception:
@@ -57,7 +62,6 @@ def set_windows_app_user_model_id(app_id: str) -> bool:
 def _apply_taskbar_style_pywin32(hwnd: int) -> bool:
     """Use pywin32 to set ex-style and owner. Returns True if applied."""
     try:
-        from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con
         win32gui = get_third_package_win32gui()
         win32con = get_third_package_win32con()
         if not win32gui or not win32con:
@@ -83,7 +87,6 @@ def _apply_taskbar_style_pywin32(hwnd: int) -> bool:
 def _apply_taskbar_style_ctypes(hwnd: int) -> bool:
     """Use ctypes to set ex-style and owner. Returns True if applied."""
     try:
-        import ctypes
         user32 = ctypes.windll.user32
         ex_style = user32.GetWindowLongPtrW(ctypes.c_void_p(hwnd), GWL_EXSTYLE)
         if ex_style is None:

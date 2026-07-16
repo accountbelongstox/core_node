@@ -407,6 +407,21 @@ export class AppQyV1API extends BaseAPI {
     return this.get('/ai_tools/tts/queue/stats', undefined, false); // No cache, real-time data
   }
 
+  /** GET /assist/overview — pycore/chrome worker queue snapshot (SHARED CONTRACT v2). */
+  async getAssistOverview(fresh = false): Promise<APIResponse> {
+    return this.get('/assist/overview', fresh ? { fresh: 1 } : undefined, false);
+  }
+
+  /** GET /assist/overview/items — paginated drill-down for one assist category. */
+  async getAssistCategoryItems(params: {
+    category: string;
+    status?: string;
+    start?: number;
+    limit?: number;
+  }): Promise<APIResponse> {
+    return this.get('/assist/overview/items', params, false);
+  }
+
   async checkTTSQueueStatus(word: string, language: string): Promise<APIResponse> {
     return this.get('/ai_tools/tts/queue/status', { word, language });
   }

@@ -17,7 +17,8 @@
  *   const off2 = onWsStatus((connected) => { ... });
  */
 
-import { pycoreWsUrlOverride, isPycoreSecureContext, pnaBlockedReason } from './pycoreTarget';
+import { PYCORE_PORT, buildPycoreWsUrl } from './pycoreEndpoints';
+import { pycoreWsUrlOverride, isPycoreSecureContext, pnaBlockedReason, directPycoreHost } from './pycoreTarget';
 
 type EventHandler = (data: any) => void;
 type StatusHandler = (connected: boolean) => void;
@@ -132,18 +133,40 @@ function rejectAllPendingCalls(reason: string) {
   pendingCalls.clear();
 }
 
+// ---- WS traffic logging ----------------------------------------------------
+let _wsLogEnabled = false;
+
+/** Enable/disable console logging of every WS frame sent and received. */
+export function setWsLogEnabled(on: boolean): void { _wsLogEnabled = on; }
+export function isWsLogEnabled(): boolean { return _wsLogEnabled; }
+
+function wsLog(dir: '>>>' | '<<<', routeOrType: string, payload: any, id?: string): void {
+  if (!_wsLogEnabled) return;
+  const tag = id ? `#${id.slice(0, 8)}` : '';
+  const body = typeof payload === 'string' && payload.length > 2000
+    ? payload.slice(0, 2000) + `… (${payload.length} chars)`
+    : payload;
+  console.log(`%c[WS ${dir}] %c${routeOrType}%c ${tag}`,
+    'color:#888', 'color:#4fc3f7;font-weight:bold', 'color:#888',
+    typeof body === 'object' ? body : body);
+}
+
 function nativeCall(method: string, params: any, timeoutMs: number): Promise<any> {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     return Promise.reject(new Error('RPC unavailable: WebSocket not connected.'));
   }
   const id = newRequestId();
+  const frame = { type: 'request', id, route: method, params: params ?? {} };
+  wsLog('>>>', method, params, id);
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       pendingCalls.delete(id);
-      reject(new Error(`RPC timeout after ${timeoutMs}ms: ${method}`));
+      const msg = `RPC timeout after ${timeoutMs}ms: ${method}`;
+      if (_wsLogEnabled) console.warn(`[WS] %cTIMEOUT %c${msg}`, 'color:#ff7043', 'color:#888');
+      reject(new Error(msg));
     }, timeoutMs);
     pendingCalls.set(id, { resolve, reject, timer });
-    socket!.send(JSON.stringify({ type: 'request', id, route: method, params: params ?? {} }));
+    socket!.send(JSON.stringify(frame));
   });
 }
 
@@ -201,23 +224,13 @@ export function dispatchEvent(event: string, data: any): void {
 }
 
 function resolveWsUrl(): string {
-  // Whole-UI remote target (pycoreTarget): when the user points the
-  // pycore-manager at another node's :59000, the RPC WS follows it too. Applied
-  // on (re)connect — switching the target reloads the page (see pycoreTarget).
-  const remote = pycoreWsUrlOverride();
-  if (remote) return remote;
-  // Connect DIRECTLY to the pycore backend (same host as the page, backend port
-  // 59000). This avoids a same-origin proxy dependency; a page reload alone
-  // applies it. (pycore RPC port is 59000.)
-  // BY DESIGN this does NOT follow the laravel API endpoint switcher: pycore is
-  // a local (same-machine) service. When the API endpoint points at a remote
-  // server, pycore features still require the local pycore service.
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const isSandbox = location.hostname.includes('asia-southeast1.run.app') || location.hostname.includes('run.app') || location.port === '3000';
-  if (isSandbox) {
-    return `${proto}://${location.host}/pyapi/rpc/ws`;
+  const override = pycoreWsUrlOverride();
+  if (override) return override;
+  if (typeof location !== 'undefined' && location.port === String(PYCORE_PORT)) {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    return `${proto}://${location.host}/rpc/ws`;
   }
-  return `${proto}://${location.hostname}:59000/rpc/ws`;
+  return buildPycoreWsUrl(directPycoreHost());
 }
 
 /**
@@ -293,9 +306,10 @@ function openSocket() {
 
   ws.onopen = () => {
     reconnectAttempts = 0;
-    // Re-arm the one-time unreachable warning for any FUTURE outage.
     unreachableHintLogged = false;
     diag('info', `connected as client_id=${getClientId()}`);
+    if (_wsLogEnabled) console.log(`%c[WS] %cCONNECTED %cclient_id=${getClientId()}`,
+      'color:#66bb6a', 'color:#4fc3f7;font-weight:bold', 'color:#888');
     setConnected(true);
   };
 
@@ -305,11 +319,25 @@ function openSocket() {
     try { msg = JSON.parse(ev.data); } catch { return; }
     if (!msg || typeof msg !== 'object') return;
     // Request/response frames for native callRpc (response/error with our id).
-    if (settlePendingCall(msg)) return;
-    // SSE owns broadcast-event delivery when connected; skip here to avoid
-    // duplicates. Falls back to WS dispatch when SSE is not active.
-    if (!sseEventsActive && msg.type === 'event' && typeof msg.event === 'string') {
-      dispatch(msg.event, msg.data ?? {});
+    if (settlePendingCall(msg)) {
+      const dir = msg.type === 'error' ? '<<< ERR' : '<<<';
+      wsLog(dir as '<<<', msg.type === 'error' ? (msg.error || 'error') : 'response',
+        msg.type === 'error' ? msg : (msg.result ?? msg), msg.id);
+      return;
+    }
+    // Broadcast events from server.
+    if (msg.type === 'event' && typeof msg.event === 'string') {
+      wsLog('<<<', `event:${msg.event}`, msg.data ?? {});
+      // SSE owns broadcast-event delivery when connected; skip here to avoid
+      // duplicates. Falls back to WS dispatch when SSE is not active.
+      if (!sseEventsActive) {
+        dispatch(msg.event, msg.data ?? {});
+      }
+      return;
+    }
+    // Unrecognised frame.
+    if (_wsLogEnabled) {
+      console.log(`[WS] %c<?> %cunhandled frame`, 'color:#ffb74d', 'color:#888', msg.type || '?');
     }
   };
 
@@ -389,6 +417,21 @@ export function callRpc(method: string, params: any = {}, timeoutMs: number = CA
 export function connectPycoreWs(): void {
   if (started) return;
   started = true;
+  // Enable WS traffic logging in dev (toggle via `window.__pycoreWsLog = false`).
+  try {
+    if (typeof window !== 'undefined' && (window as any).__pycoreWsLog !== false) {
+      setWsLogEnabled(true);
+    }
+    // Expose toggles on window for devtools.
+    if (typeof window !== 'undefined') {
+      (window as any).__pycoreWsLog = _wsLogEnabled;
+      Object.defineProperty(window, '__pycoreWsLog', {
+        get: () => _wsLogEnabled,
+        set: (v: boolean) => setWsLogEnabled(v),
+        configurable: true,
+      });
+    }
+  } catch { /* sandboxed */ }
   if (suspended) {
     diag('info', 'connect requested while route inactive — deferring until a pycore end is active');
     return;

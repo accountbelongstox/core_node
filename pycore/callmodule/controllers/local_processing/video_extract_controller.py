@@ -26,6 +26,13 @@ from ...models.local_processing.video_extract_models import (
 from .user_data_controller import UserDataController
 from pycore.pyctl.desktop.task_manager import get_task_manager
 
+import shutil
+import subprocess
+
+from pycore.pyfoundations.third_party import get_third_package_psutil
+
+
+
 # Common, broadly-useful container/video extensions offered as the default
 # selection in the UI (intersected with the processor's actually-supported set).
 _DEFAULT_EXTENSIONS = [".mp4", ".mkv", ".mov", ".avi", ".flv", ".webm", ".ts", ".m4v"]
@@ -269,14 +276,13 @@ def _get_psutil():
     """Resolve psutil via pycore's third-party loader, falling back to a direct
     import. Returns the module or None if unavailable."""
     try:
-        from pycore.pyfoundations.third_party import get_third_package_psutil
         mod = get_third_package_psutil()
         if mod is not None:
             return mod
     except Exception:
         pass
     try:
-        import psutil  # noqa: F401
+        psutil = get_third_package_psutil()
         return psutil
     except Exception:
         return None
@@ -285,8 +291,6 @@ def _get_psutil():
 def _query_gpus():
     """Best-effort per-GPU utilization/memory via nvidia-smi. Returns [] when no
     NVIDIA GPU / nvidia-smi is present."""
-    import shutil
-    import subprocess
 
     exe = shutil.which("nvidia-smi")
     if not exe:

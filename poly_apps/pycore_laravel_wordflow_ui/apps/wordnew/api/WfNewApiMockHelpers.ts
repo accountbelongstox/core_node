@@ -6,6 +6,7 @@ import type {
   WfNewLeaderboardEntry, WfNewActivity, WfNewUserSearchResult,
   WfNewConversation, WfNewMessage, WfNewFriendRequest, WfNewNotification,
 } from './WfNewApiTypes';
+import type { WfNewClientDeviceSettings, WfNewReaderSettingsBlob } from './types/readerSettings';
 
 export const delay = <T>(value: T, ms = 180): Promise<T> =>
   new Promise((resolve) => setTimeout(() => resolve(value), ms));
@@ -121,6 +122,45 @@ export function writeMockPreferences(prefs: WfNewPreferences): void {
   } catch {
     /* best-effort */
   }
+}
+
+// --- mock guest device settings (fingerprint client_key) -------------------- #
+
+const MOCK_DEVICE_SETTINGS_KEY = 'wfnew_device_settings_mock';
+
+export function readMockDeviceSettings(clientKey: string): WfNewClientDeviceSettings | null {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(MOCK_DEVICE_SETTINGS_KEY) : null;
+    if (!raw) return null;
+    const map = JSON.parse(raw) as Record<string, WfNewClientDeviceSettings>;
+    return map[clientKey] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeMockDeviceSettings(
+  clientKey: string,
+  reader: WfNewReaderSettingsBlob,
+  updatedAt: string,
+): WfNewClientDeviceSettings {
+  let map: Record<string, WfNewClientDeviceSettings> = {};
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(MOCK_DEVICE_SETTINGS_KEY) : null;
+    if (raw) map = JSON.parse(raw);
+  } catch {
+    map = {};
+  }
+  const entry: WfNewClientDeviceSettings = { clientKey, reader, updatedAt };
+  map[clientKey] = entry;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(MOCK_DEVICE_SETTINGS_KEY, JSON.stringify(map));
+    }
+  } catch {
+    /* best-effort */
+  }
+  return entry;
 }
 
 // --- mock learning-language selection --------------------------------------- #

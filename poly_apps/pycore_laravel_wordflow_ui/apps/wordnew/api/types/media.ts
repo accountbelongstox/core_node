@@ -18,6 +18,19 @@ export interface WfNewBookChapters {
   chapters: WfNewBookChapter[];
 }
 
+/** One audio variant on a sentence or word row. */
+export interface WfAudioFileVariant {
+  variantKey?: string;
+  accent?: string;
+  gender?: string;
+  source?: string;
+  voiceType?: string;
+  provider?: string;
+  path?: string;
+  hasFile?: boolean;
+  url?: string | null;
+}
+
 /** One language's cell on a verse: text + (lazily filled) audio. `hasAudio` is the
  *  backend flag (audio for book sentences is generated over time by the pycore
  *  sentence-TTS worker); `explanation` is optional AI enrichment. */
@@ -27,6 +40,10 @@ export interface WfNewBookVerseLang {
   audio: string | null;
   /** True once TTS audio exists for this cell (else play is disabled / "generating"). */
   hasAudio?: boolean;
+  /** Laravel tts_status: pending | processing | completed | failed */
+  ttsStatus?: string | null;
+  /** Multi-variant clips (accent/gender/provider metadata). */
+  audioFiles?: WfAudioFileVariant[];
   explanation?: string | null;
 }
 
@@ -151,6 +168,12 @@ export interface WfNewLibraryWord {
   hasAudio: boolean;
   hasImage: boolean;
   isValid: boolean;
+  /** Laravel tts_status: pending | processing | completed | failed. */
+  ttsStatus?: string | null;
+  /** Multi-variant clips (canonical wire field from word-media resolve). */
+  audioFiles?: WfAudioFileVariant[];
+  /** Alias for audio_files on older payloads. */
+  audioVariants?: WfAudioFileVariant[];
 }
 
 /** A page of a vocabulary library's words + the library header + aggregate stats. */
@@ -209,6 +232,9 @@ export interface WfNewWordMedia {
   accentFallback?: boolean;
   /** Per-accent renditions (wire `audio_variants`); empty on older backends. */
   audioVariants?: WfNewWordAudioVariant[];
+  /** Canonical multi-variant clips (wire `audio_files`) from word-media resolve;
+   *  same shape as book-reader sentence cells. Empty on older backends. */
+  audioFiles?: WfAudioFileVariant[];
   /** Translation strings (may be empty). */
   translations: string[];
   explanation?: string;

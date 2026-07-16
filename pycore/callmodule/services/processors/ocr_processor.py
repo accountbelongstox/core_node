@@ -7,6 +7,10 @@ import time
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
+from pycore.pyutils.ocr_cluster import ocr_manager
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+
+
 
 class OCRProcessor:
     """Processor for OCR (Optical Character Recognition)"""
@@ -20,7 +24,6 @@ class OCRProcessor:
         """Lazy load PaddleOCR"""
         if self._paddleocr is None:
             try:
-                from pycore.pyutils.ocr_cluster import ocr_manager
                 self._paddleocr = ocr_manager
             except ImportError:
                 raise RuntimeError("PaddleOCR not available. Check pycore.pyutils.ocr_manager")
@@ -30,7 +33,6 @@ class OCRProcessor:
         """Lazy load EasyOCR"""
         if self._easyocr is None:
             try:
-                import easyocr
                 self._easyocr = easyocr.Reader(languages)
             except ImportError:
                 raise RuntimeError("EasyOCR not available. Install with: pip install easyocr")
@@ -39,7 +41,6 @@ class OCRProcessor:
     def _get_tesseract(self):
         """Check Tesseract availability"""
         try:
-            import pytesseract
             return pytesseract
         except ImportError:
             raise RuntimeError("Tesseract not available. Install with: pip install pytesseract")
@@ -197,7 +198,7 @@ class OCRProcessor:
         """OCR using Tesseract"""
         try:
             pytesseract = self._get_tesseract()
-            from PIL import Image
+            Image = get_third_package_PIL_Image()
 
             image = Image.open(image_path)
             text = pytesseract.image_to_string(image, lang=language)

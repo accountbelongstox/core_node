@@ -21,7 +21,7 @@
     3. Cache cleanup - removes expired cache entries
 
     Cache Structure:
-        %UserProfile%\.core_node\cache\secret_cache\
+        D:\www\cache\secret_cache\
         ├── decryption_timestamps\    # Decryption timestamp cache
         │   ├── filename1.decrypt_time
         │   └── filename2.decrypt_time
@@ -62,10 +62,10 @@ if (-not (Get-Variable -Name "Global:CORE_NODE_DIR" -ErrorAction SilentlyContinu
     Returns the base directory for secret cache storage
 #>
 function Get-SecretCacheBaseDir {
-    $cacheDir = if ($Global:USER_CACHE_DIR) {
-        $Global:USER_CACHE_DIR
+    $cacheDir = if ($Global:CORE_NODE_CACHE_DIR) {
+        $Global:CORE_NODE_CACHE_DIR
     } else {
-        Join-Path $env:USERPROFILE ".core_node\cache"
+        $Global:WWW_CACHE_DIR
     }
 
     return Join-Path $cacheDir "secret_cache"

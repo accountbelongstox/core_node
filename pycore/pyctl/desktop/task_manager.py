@@ -234,6 +234,31 @@ class TaskManager:
                 task.update_progress(progress, status)
                 ColorPrint.blue(f"[TaskManager] Task {task_id}: {progress}%")
 
+    def patch_task(
+        self,
+        task_id: str,
+        progress: Optional[int] = None,
+        status: Optional[str] = None,
+        result_patch: Optional[Dict] = None,
+        error: Optional[str] = None,
+    ) -> None:
+        """Merge live fields into an in-flight task (progress/result/error)."""
+        with self.lock:
+            task = self.tasks.get(task_id)
+            if not task:
+                return
+            if progress is not None:
+                task.progress = progress
+            if status:
+                task.status = status
+            if error is not None:
+                task.error = error
+            if result_patch:
+                if task.result is None:
+                    task.result = {}
+                task.result.update(result_patch)
+            task.updated_at = datetime.now().isoformat()
+
     def complete_task(self, task_id: str, result: Dict):
         """Mark task as completed"""
         with self.lock:

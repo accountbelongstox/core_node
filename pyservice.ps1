@@ -5,11 +5,11 @@
 .DESCRIPTION
     `pyservice.ps1` is ONLY an entry point. It does two things, in order:
 
-        1. PREREQUISITES: runs scripts\shells\linux\common\iniscripts\prepare.ps1, which
-           installs the heavy third-party packages that are more convenient to
-           set up from a shell (e.g. whisper) than from Python. This complements
-           pycore\pyfoundations\third_party.py, which fast-detects/installs the
-           lighter packages at import time. Skip this step with -NoInstall.
+        1. PREREQUISITES (idempotent): default `run` always runs
+           PreparePycorePrerequisites (Step*.ps1 installers skip when already satisfied).
+           Orchestration lives in scripts\shells\win\main_powershells\PreparePycorePrerequisites.ps1.
+           Use `install` / `-Only` to provision without launching
+           the worker. All Python work uses the single system Python 3.13 (no venv).
 
         2. LAUNCH: starts pycore\pycore_module_caller.py (the real worker, which
            now lives inside the pycore package, not at the repo root).
@@ -27,34 +27,17 @@
     Enable the worker's debug mode. (Named -DebugMode because -Debug is a reserved
     PowerShell common parameter.)
 
-.PARAMETER Reload
-    Dev backend hot-reload. Forwards --reload to the worker: a watcher polls the
-    pycore package's .py files and restarts the backend (via the existing
-    request_restart -> os.execv re-exec) on any change. Pairs with the Vite UI
-    HMR so both layers reload on save. Off by default.
-
-.PARAMETER NoInstall
-    Skip the prerequisite-install step (step 1) and launch the worker directly.
+.PARAMETER NoReload
+    Disable backend hot-reload. By default a watcher polls the pycore package's
+    .py files and restarts the backend (via request_restart -> os.execv re-exec)
+    on any change. Pairs with the Vite UI HMR so both layers reload on save.
 
 .PARAMETER Only
-    Run ONLY the prerequisite-install step and exit (do not launch the worker).
-    Useful for provisioning a machine ahead of time.
-
-.PARAMETER WhisperModel
-    Forwarded to the prerequisite step: also pre-download this whisper model
-    (e.g. -WhisperModel base). Skipped if already cached.
-
-.PARAMETER Include
-    Forwarded to the prerequisite step: only run the named installer(s), e.g.
-    -Include whisper. Default: run all discovered install_*.ps1.
+    Run ONLY the idempotent prerequisite step and exit (do not launch the worker).
 
 .EXAMPLE
     .\pyservice.ps1
-    Install prerequisites, then launch on 0.0.0.0:59000.
-
-.EXAMPLE
-    .\pyservice.ps1 -NoInstall -Port 8000 -DebugMode
-    Skip prerequisites; launch on port 8000 in debug mode.
+    Idempotent prerequisites, then launch on 0.0.0.0:59000.
 
 .PARAMETER NoUi
     Do not launch the unified dashboard UI; the PySide6 webview falls back to the
@@ -67,9 +50,12 @@
 .PARAMETER UiPort
     Port the UI server listens on (PySide6 loads it). Default: 13054.
 
+.PARAMETER SkipVoxcpm2
+    Skip VoxCPM2, Bark, and Parler prerequisite installs (sets VOXCPM2_SKIP=1 / BARK_SKIP=1 / PARLER_SKIP=1 for Step58/59/60). Default: install when NEURAL_TTS_INSTALL runs.
+
 .EXAMPLE
-    .\pyservice.ps1 -Only -WhisperModel base
-    Only install prerequisites (incl. pre-downloading the whisper 'base' model).
+    .\pyservice.ps1 install
+    Provision prerequisites only (Step installers via PreparePycorePrerequisites).
 
 .EXAMPLE
     .\pyservice.ps1 -UiBuild
@@ -78,6 +64,10 @@
 .EXAMPLE
     .\pyservice.ps1 -NoUi
     Use the legacy /web/subtitle UI (no dashboard dev server).
+
+.EXAMPLE
+    .\pyservice.ps1 -SkipVoxcpm2
+    Skip VoxCPM2, Bark, and Parler prerequisite installs (Step58/59/60); other neural TTS engines unchanged.
 
 .NOTES
     /pycore-manager/queue-center is served BY pycore (proxying laravel_main's
@@ -132,14 +122,12 @@ param(
     [string]$BindHost = '0.0.0.0',
     [int]   $Port     = 59000,
     [switch]$DebugMode,
-    [switch]$Reload,
-    [switch]$NoInstall,
+    [switch]$NoReload,
     [switch]$Only,
-    [string]$WhisperModel = '',
-    [string[]]$Include = @(),
     [switch]$NoUi,
     [switch]$UiBuild,
     [int]$UiPort = 13054,
+    [switch]$SkipVoxcpm2,
     # Trailing args forwarded to subcommands (e.g. `config ...`, `codesync ...`).
     # Required because [CmdletBinding()] otherwise rejects extra positional args.
     [Parameter(ValueFromRemainingArguments=$true)]
@@ -148,38 +136,41 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$sharedCacheEnv = Join-Path $PSScriptRoot 'scripts\shells\win\win_common\SharedCacheEnv.ps1'
+if (Test-Path -LiteralPath $sharedCacheEnv) {
+    . $sharedCacheEnv
+}
+
+$winCommonDir = Join-Path $PSScriptRoot 'scripts\shells\win\win_common'
+. (Join-Path $winCommonDir 'GlobalVars.ps1')
+. (Join-Path $winCommonDir 'PythonRuntimeCommon.ps1')
+
 # --------------------------------------------------------------------------- #
-# Locate a REAL Python interpreter (skip the Windows Store alias stub).        #
+# Single system Python 3.13 (D:\.dev_win10\python313); no venv, no py launcher #
+# fallbacks to other minors.                                                   #
 # --------------------------------------------------------------------------- #
 function Resolve-Python {
-    $candidates = New-Object System.Collections.Generic.List[string]
-
-    foreach ($name in 'python', 'python3', 'py') {
-        Get-Command $name -All -ErrorAction SilentlyContinue | ForEach-Object {
-            if ($_.Source -and $_.Source -notmatch 'WindowsApps') {
-                $candidates.Add($_.Source)
-            }
-        }
+    $exe = $Global:PYTHON_EXE_PATH
+    if (-not $exe -or -not (Test-Path -LiteralPath $exe)) {
+        Write-Host ("[!] System Python not found at {0}." -f $Global:PYTHON_EXE_PATH) -ForegroundColor Red
+        return $null
     }
-    foreach ($p in @(
-        "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
-        "C:\Python313\python.exe", "C:\Python312\python.exe", "C:\Python311\python.exe",
-        "$env:USERPROFILE\scoop\shims\python.exe"
-    )) { $candidates.Add($p) }
-
-    foreach ($c in $candidates) {
-        if ($c -and (Test-Path $c)) {
-            try {
-                $v = & $c --version 2>&1
-                if ($LASTEXITCODE -eq 0 -and "$v" -match 'Python\s+3') {
-                    return [PSCustomObject]@{ Path = $c; Version = ("$v").Trim() }
-                }
-            } catch { }
-        }
+    # Reject venv / virtualenv Pythons: only the system Python 3.13 is allowed.
+    $exeDir = Split-Path -Parent $exe
+    $pyvenvCfg = Join-Path $exeDir 'pyvenv.cfg'
+    if (Test-Path -LiteralPath $pyvenvCfg) {
+        Write-Host ("[!] Refusing venv Python at {0} (pyvenv.cfg found; system Python 3.13 required)." -f $exe) -ForegroundColor Red
+        return $null
     }
-    return $null
+    if (-not (Test-PythonExeVersionMatches -PythonExe $exe)) {
+        Write-Host ("[!] Python at {0} is not 3.13." -f $exe) -ForegroundColor Red
+        return $null
+    }
+    $versionText = Get-PythonVersionTextFromExe -PythonExe $exe
+    return [PSCustomObject]@{
+        Path    = $exe
+        Version = if ($versionText) { $versionText } else { 'Python 3.13' }
+    }
 }
 
 # --------------------------------------------------------------------------- #
@@ -192,10 +183,11 @@ function Show-Usage {
     Write-Host '  .\pyservice.ps1 [SUBCOMMAND] [-Param value ...]'
     Write-Host ''
     Write-Host 'Subcommands:'
-    Write-Host '  run          Launch the service (default if no subcommand is given)'
+    Write-Host '  run          Idempotent prerequisites, then launch (default)'
+    Write-Host '  install      Run idempotent PreparePycorePrerequisites then exit'
     Write-Host '  config       Edit/show headless config via the cross-platform Python CLI'
     Write-Host '               (forwards args to: python -m pycore.pyutils.pyservice_cli config)'
-    Write-Host '  install      systemd service install is Linux-only (prints a notice on Windows)'
+    Write-Host '  install-svc  systemd service install is Linux-only (prints a notice on Windows)'
     Write-Host '  start        Linux-only (notice on Windows)'
     Write-Host '  stop         Linux-only (notice on Windows)'
     Write-Host '  restart      Linux-only (notice on Windows)'
@@ -207,18 +199,18 @@ function Show-Usage {
     Write-Host '  -BindHost HOST    Host the RPC v2 server binds to (default: 0.0.0.0)'
     Write-Host '  -Port PORT        Port the RPC v2 server binds to (default: 59000)'
     Write-Host '  -DebugMode        Enable the worker''s debug mode'
-    Write-Host '  -Reload           Dev backend hot-reload (watch .py -> restart)'
-    Write-Host '  -NoInstall        Skip the prerequisite-install step'
-    Write-Host '  -Only             Run ONLY the prerequisite step, then exit'
-    Write-Host '  -WhisperModel M   Also pre-download this whisper model'
-    Write-Host '  -Include name     Only run the named prerequisite installer(s)'
+    Write-Host '  -NoReload         Disable backend hot-reload (watch .py -> restart; ON by default)'
+    Write-Host '  -Only             Provision only (idempotent install), then exit'
     Write-Host '  -NoUi             Do not launch the dashboard UI; use legacy /web/subtitle'
     Write-Host '  -UiBuild          Build the dashboard UI and serve it (vite preview)'
     Write-Host '  -UiPort PORT      Port the UI server listens on (default: 13054)'
+    Write-Host '  -SkipVoxcpm2      Skip VoxCPM2 + Bark + Parler prerequisite installs (Step58/59/60)'
     Write-Host ''
     Write-Host 'Examples:'
     Write-Host '  .\pyservice.ps1'
+    Write-Host '  .\pyservice.ps1 install'
     Write-Host '  .\pyservice.ps1 run -NoUi -Port 8000'
+    Write-Host '  .\pyservice.ps1 -SkipVoxcpm2'
     Write-Host '  .\pyservice.ps1 config -show'
 }
 
@@ -270,7 +262,7 @@ switch ($Command.ToLowerInvariant()) {
             Write-Host '    On Windows, run the standalone daemon in the foreground:' -ForegroundColor DarkYellow
             Write-Host '        .\pyservice.ps1 codesync run' -ForegroundColor DarkYellow
             Write-Host '    To auto-start at login, wrap that with Task Scheduler or nssm.' -ForegroundColor DarkYellow
-            Write-Host '    View file-sync logs at: %USERPROFILE%\.core_node\data\code_sync_logs\' -ForegroundColor DarkYellow
+            Write-Host "    View file-sync logs at: D:\programing\Users\$env:USERNAME\.core_node\data\code_sync_logs\" -ForegroundColor DarkYellow
             exit 0
         }
         Push-Location -LiteralPath $PSScriptRoot
@@ -282,10 +274,11 @@ switch ($Command.ToLowerInvariant()) {
         }
         exit $csCode
     }
-    { $_ -in @('install', 'start', 'stop', 'restart', 'status', 'uninstall') } {
+    { $_ -in @('start', 'stop', 'restart', 'status', 'uninstall', 'service-install') } {
         Write-Host ("[i] '{0}': systemd service install/management is Linux-only." -f $Command) -ForegroundColor Yellow
         Write-Host '    On Windows, use the Settings -> Auto-start toggle to run pycore at login,' -ForegroundColor DarkYellow
         Write-Host '    and `.\pyservice.ps1 config` to manage headless configuration.' -ForegroundColor DarkYellow
+        Write-Host '    To provision Python prerequisites on Windows: `.\pyservice.ps1 install`' -ForegroundColor DarkYellow
         exit 0
     }
     default {
@@ -297,46 +290,45 @@ Write-Host '======================================================' -ForegroundC
 Write-Host ' Pycore Service - entry point' -ForegroundColor Cyan
 Write-Host '======================================================' -ForegroundColor Cyan
 $uiMode = if ($NoUi) { 'legacy' } else { 'dashboard (pycore-manager)' }
-Write-Host ("[i] pyservice run - run `".\pyservice.ps1 help`" for all commands (host={0} port={1} ui={2})" -f $BindHost, $Port, $uiMode) -ForegroundColor DarkGray
+$skipTtsMode = if ($SkipVoxcpm2) { 'voxcpm2+bark+parler skipped' } else { 'default' }
+Write-Host ("[i] pyservice run - run `".\pyservice.ps1 help`" for all commands (host={0} port={1} ui={2} skip_tts={3})" -f $BindHost, $Port, $uiMode, $skipTtsMode) -ForegroundColor DarkGray
 
 $py = Resolve-Python
 if (-not $py) {
-    Write-Host '[X] Python 3 was NOT found.' -ForegroundColor Red
-    Write-Host '    (The Microsoft Store "python.exe" alias is a stub and does not count.)' -ForegroundColor DarkYellow
-    Write-Host '    Install one of the following, then re-run this script:' -ForegroundColor Yellow
-    Write-Host '      - winget install Python.Python.3.12'
-    Write-Host '      - scoop install python'
-    Write-Host '      - or download from https://www.python.org/downloads/'
+    Write-Host '[X] System Python 3.13 was NOT found.' -ForegroundColor Red
+    Write-Host ("    Expected: {0}" -f $Global:PYTHON_EXE_PATH) -ForegroundColor DarkYellow
+    Write-Host '    Run Step8_InstallPython.ps1 (DevInstaller) or install Python 3.13 there.' -ForegroundColor Yellow
     exit 1
 }
+Ensure-CoreNodePythonPath -LogPrefix '[pyservice]'
 Write-Host ("[OK] Python : {0}" -f $py.Version) -ForegroundColor Green
 Write-Host ("       path : {0}" -f $py.Path)    -ForegroundColor DarkGray
 
 # Relative paths from this script's folder (repo root).
-$prepareRel = '.\scripts\shells\linux\common\iniscripts\prepare.ps1'
+$prepareRel = '.\scripts\shells\win\main_powershells\PreparePycorePrerequisites.ps1'
 $workerRel  = '.\pycore\pycore_module_caller.py'
 
 $uiProc = $null   # React UI server process (stopped in finally)
 
 Push-Location -LiteralPath $PSScriptRoot
 try {
-    # --- 1) prerequisites ------------------------------------------------- #
-    if ($NoInstall) {
-        Write-Host '[i] Skipping prerequisite install (-NoInstall).' -ForegroundColor DarkYellow
-    } else {
-        Write-Host '[..] Running prerequisite installers ...' -ForegroundColor Yellow
-        # Hashtable splat -> binds by parameter name (array splat would not).
-        $prepareParams = @{ Python = $py.Path }
-        if ($Include.Count -gt 0) { $prepareParams['Include']      = $Include }
-        if ($WhisperModel)        { $prepareParams['WhisperModel'] = $WhisperModel }
-        & $prepareRel @prepareParams
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host ("[!] Prerequisite step exited with {0}; continuing to launch." -f $LASTEXITCODE) -ForegroundColor DarkYellow
-        }
+    # --- 1) idempotent prerequisites (always run; each Step*.ps1 is a no-op when satisfied) --- #
+    $provisionOnly = ($Command.ToLowerInvariant() -eq 'install') -or $Only
+
+    Write-Host '[..] Running idempotent prerequisite installers (PreparePycorePrerequisites -> Step*.ps1) ...' -ForegroundColor Yellow
+    if (-not $env:NEURAL_TTS_INSTALL) { $env:NEURAL_TTS_INSTALL = '1' }
+    if ($SkipVoxcpm2) {
+        $env:VOXCPM2_SKIP = '1'
+        $env:BARK_SKIP = '1'
+        $env:PARLER_SKIP = '1'
+    }
+    & $prepareRel
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host ("[!] Prerequisite step exited with {0}; continuing." -f $LASTEXITCODE) -ForegroundColor DarkYellow
     }
 
-    if ($Only) {
-        Write-Host '[OK] Prerequisite step complete (-Only); not launching the worker.' -ForegroundColor Green
+    if ($provisionOnly) {
+        Write-Host '[OK] Prerequisite provisioning complete.' -ForegroundColor Green
         exit 0
     }
 
@@ -442,7 +434,7 @@ try {
     # --- 3) launch the worker -------------------------------------------- #
     $pyArgs = @('-u', $workerRel, '--host', $BindHost, '--port', $Port)
     if ($DebugMode) { $pyArgs += '--debug' }
-    if ($Reload)    { $pyArgs += '--reload' }   # backend hot-reload (watch .py -> os.execv restart)
+    if ($NoReload)  { $pyArgs += '--no-reload' }   # hot-reload is the default; opt out for headless prod
 
     Write-Host ''
     Write-Host ("[>] Launching worker: {0}" -f $workerRel) -ForegroundColor Cyan

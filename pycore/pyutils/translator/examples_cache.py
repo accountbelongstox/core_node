@@ -16,6 +16,9 @@ from pycore.pyutils.translator import (
     PhoneticCache,
 )
 
+import time
+
+
 
 def print_section(title: str):
     """Print section header"""
@@ -136,7 +139,6 @@ async def example_cache_performance():
     """Demonstrate cache performance benefit"""
     print_section("Example 7: Cache Performance")
 
-    import time
 
     texts = ["Hello", "World", "Python", "Programming", "Artificial Intelligence"]
 

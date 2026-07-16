@@ -170,16 +170,20 @@ function Test-PycorePythonModulePresent {
         [string]$ModuleName
     )
 
+    $modLiteral = ($ModuleName -replace "'", "''")
     $code = @"
-import importlib.util, sys
+import importlib.util
 try:
-    ok = importlib.util.find_spec('$ModuleName') is not None
+    ok = importlib.util.find_spec('$modLiteral') is not None
 except Exception:
     ok = False
-sys.exit(0 if ok else 1)
+print('__FOUND__' if ok else '__MISSING__')
 "@
-    & $PythonExe -c $code 2>$null
-    return ($LASTEXITCODE -eq 0)
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $out = (& $PythonExe -c $code 2>$null) -join ''
+    $ErrorActionPreference = $prevEap
+    return ($out -match '__FOUND__')
 }
 
 function Install-PycoreWinrtOcrPackages {
@@ -292,6 +296,9 @@ function Install-PycoreDependencyMapPackages {
     }
 
     Write-Host "$LogPrefix Installing pycore DEPENDENCY_MAP pip packages (Step10 phase 2) ..." -ForegroundColor Cyan
+    if (Get-Command Ensure-PipCacheDirConfigured -ErrorAction SilentlyContinue) {
+        Ensure-PipCacheDirConfigured -PipExe $PipExe
+    }
     Ensure-OnnxRuntimeCpuBuild -PipExe $PipExe -LogPrefix $LogPrefix
     Write-Host ''
 

@@ -1115,6 +1115,10 @@ function Invoke-PipCommand {
     Write-DebugLog -Message "Using Python absolute path: $pythonExe" -Category "PIP" -Color "Green"
     Write-DebugLog -Message "Using Scripts directory: $pythonScriptsDir" -Category "PIP" -Color "Green"
 
+    if (Get-Command Ensure-PipCacheDirConfigured -ErrorAction SilentlyContinue) {
+        Ensure-PipCacheDirConfigured -PipExe $pipExe
+    }
+
     # Build search paths for pip packages
     $searchPaths = @($pythonScriptsDir)
     Write-DebugLog -Message "Building search paths for pip package scanning..." -Category "PIP" -Color "Cyan"

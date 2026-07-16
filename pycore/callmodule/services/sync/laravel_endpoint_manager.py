@@ -76,6 +76,9 @@ STORED_PROBE_RETRIES = 1
 # After a fully-failed sweep, don't re-sweep for this long (avoid hammering a
 # down backend from periodic callers like backend_status).
 FAILED_SWEEP_TTL = 10.0
+# Hot HTTP paths (assist status, queue overview) — one stored probe, no sweep.
+UI_PROBE_TIMEOUT = 1.5
+UI_NEGATIVE_TTL = 30.0
 # Baseline local default — the loopback (local-first so a laravel on the same
 # box as pycore is the fast happy path). `localhost` is merged into 127.0.0.1
 # by _normalize, so only this single loopback entry ever appears.
@@ -118,6 +121,7 @@ class LaravelEndpointManager:
         self._lock = threading.RLock()
         self._resolved: Optional[str] = None       # in-process resolve() cache
         self._failed_sweep_at: float = 0.0          # monotonic ts of last all-down sweep
+        self._ui_failed_at: float = 0.0             # monotonic ts of last UI-path probe miss
         # Last probe result per url: {url, healthy, latency_ms, last_checked, ...}
         self._probe_results: Dict[str, Dict[str, Any]] = {}
 
@@ -319,11 +323,69 @@ class LaravelEndpointManager:
             f"{len(endpoints)} candidate(s); falling back to {fallback}")
         return fallback
 
+    def peek_stored_base_url(self) -> str:
+        """Return the stored/current Laravel base URL — zero network I/O."""
+        state = self._load()
+        current: Optional[str] = state["current"]
+        endpoints: List[str] = state["endpoints"]
+        return current or (endpoints[0] if endpoints else "http://127.0.0.1:9000")
+
+    def get_active_base_url(self) -> str:
+        """Last-known healthy Laravel base URL — zero network I/O.
+
+        Prefer the in-process resolve() winner (set by heartbeat / worker polls);
+        fall back to the stored UI selection when nothing is cached yet.
+        """
+        with self._lock:
+            if self._resolved:
+                return self._resolved
+        return self.peek_stored_base_url()
+
+    def resolve_for_ui(self, *, skip_probe: bool = False) -> str:
+        """Fast resolve for hot HTTP paths — no parallel sweep, no warm-up retry.
+
+        When ``skip_probe`` is True (monitor already knows Laravel is down),
+        returns the stored URL immediately. Otherwise probes ONLY the stored
+        endpoint once with a short timeout.
+        """
+        with self._lock:
+            if self._resolved:
+                return self._resolved
+        fallback = self.peek_stored_base_url()
+        if skip_probe:
+            return fallback
+        state = self._load()
+        current: Optional[str] = state["current"]
+        with self._lock:
+            if time.monotonic() - self._failed_sweep_at < FAILED_SWEEP_TTL:
+                return fallback
+            if time.monotonic() - self._ui_failed_at < UI_NEGATIVE_TTL:
+                return fallback
+        if current:
+            res = self.probe(current, timeout=UI_PROBE_TIMEOUT)
+            if res.get("healthy"):
+                with self._lock:
+                    self._resolved = current
+                return current
+        # Heartbeat may have resolved another candidate while we probed the stored one.
+        with self._lock:
+            if self._resolved:
+                return self._resolved
+            for url in state.get("endpoints") or []:
+                last = self._probe_results.get(url) or {}
+                if last.get("healthy"):
+                    self._resolved = url
+                    return url
+        with self._lock:
+            self._ui_failed_at = time.monotonic()
+        return fallback
+
     def invalidate(self) -> None:
         """Drop the in-process resolve cache (after select/add/remove)."""
         with self._lock:
             self._resolved = None
             self._failed_sweep_at = 0.0
+            self._ui_failed_at = 0.0
 
     # ----------------------------------------------------------------- #
     # List management (RPC-facing)                                       #
@@ -462,3 +524,8 @@ def get_laravel_endpoint_manager() -> LaravelEndpointManager:
             if _manager_singleton is None:
                 _manager_singleton = LaravelEndpointManager()
     return _manager_singleton
+
+
+def resolve_laravel_base_url() -> str:
+    """Shared Laravel base URL for all pycore services (UI-selected, stored-first)."""
+    return get_laravel_endpoint_manager().resolve()

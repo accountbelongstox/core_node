@@ -1,7 +1,7 @@
 /**
  * PcMoviePosterPage — pycore Movie / TV poster pipeline status + control.
  *
- * Three self-contained capabilities, all over the pycore /pyapi proxy:
+ * Three self-contained capabilities, all direct on pycore :59000:
  *
  *  1. Provider key status — TMDB (v3 key and/or v4 read token) + OMDB, shown as
  *     green/grey badges with masked keys (the backend never returns full secrets).
@@ -30,7 +30,7 @@ import type { PosterStatus, PosterTestResponse } from '../../../core/api-libs/py
 // i18n labels (single source; the pages use literals, not a `t` object).
 const L = {
   title: 'Movie Poster',                                              // 电影海报
-  subtitle: 'TMDB / OMDB poster lookup status for the media ingest pipeline. Posters are fetched at ingest time and shipped to Laravel as local bytes.',
+  subtitle: 'Poster search is handled by apps/mcp-chrome (Google Images via the extension task center). pycore TMDB/OMDB fetch is disabled.',
   refresh: 'Refresh',                                                 // 刷新
   providers: 'Providers',                                            // 提供方
   tmdb: 'TMDB',                                                      // TMDB
@@ -169,6 +169,13 @@ export default function PcMoviePosterPage() {
             {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} {L.refresh}
           </button>
         </div>
+
+        {status?.delegation_note && (
+          <div className="mb-4 flex items-start gap-2 text-xs rounded-xl p-3 border bg-sky-500/10 border-sky-500/25 text-sky-700 dark:text-sky-300">
+            <Clapperboard className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{status.delegation_note}</span>
+          </div>
+        )}
 
         {offline && (
           <div className="mb-4 flex items-center gap-2 text-xs font-semibold text-amber-500">

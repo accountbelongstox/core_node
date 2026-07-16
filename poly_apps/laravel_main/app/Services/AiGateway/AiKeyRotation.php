@@ -23,7 +23,7 @@ use App\Providers\PathMapper;
  * an image key cooldown can never block text and vice-versa (matching pycore).
  *
  * Persistence mirrors AiRateLimiter: a shared JSON file under
- * <core_node>/.data/.ai_state (flock'd, atomic tmp+rename) so cooldown/counters
+ * <cache>/pycore/.ai_state (flock'd, atomic tmp+rename) so cooldown/counters
  * survive restarts AND are consistent across Octane workers. cooldown_until is an
  * ABSOLUTE wall-clock microtime (cross-worker safe). This is Laravel's own
  * per-key store (pycore keeps its in-memory equivalent); the schema mirrors
@@ -35,8 +35,7 @@ class AiKeyRotation
 
     private static function stateFile(): string
     {
-        $coreNode = PathMapper::getCoreNodeDir() ?: PathMapper::getLaravelMainDir();
-        return rtrim($coreNode, '/\\') . '/.data/.ai_state/ai_key_rotation.json';
+        return PathMapper::getSharedDownloadCacheDir('pycore/.ai_state') . '/ai_key_rotation.json';
     }
 
     // ------------------------------------------------------------------ store

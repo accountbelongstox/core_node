@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>字数统计</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface-2: #243044;
+      --border: #2f3f56;
+      --text: #e8edf4;
+      --muted: #8b9cb3;
+      --accent: #3b82f6;
+      --accent-soft: rgba(59, 130, 246, 0.15);
+      --green: #34d399;
+      --amber: #fbbf24;
+      --purple: #a78bfa;
+      --rose: #fb7185;
+      --cyan: #22d3ee;
+      --radius: 12px;
+      --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.18), transparent),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+
+    header {
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      transition: border-color 0.2s, transform 0.15s;
+    }
+
+    .stat-card:hover {
+      border-color: rgba(59, 130, 246, 0.45);
+      transform: translateY(-1px);
+    }
+
+    .stat-card.primary {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(59, 130, 246, 0.06));
+      border-color: rgba(59, 130, 246, 0.35);
+    }
+
+    .stat-label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-value {
+      font-size: 1.65rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+
+    .stat-card.primary .stat-value { color: #93c5fd; }
+    .stat-card[data-key="charsNoSpace"] .stat-value { color: var(--green); }
+    .stat-card[data-key="chinese"] .stat-value { color: var(--amber); }
+    .stat-card[data-key="words"] .stat-value { color: var(--purple); }
+    .stat-card[data-key="lines"] .stat-value { color: var(--cyan); }
+    .stat-card[data-key="paragraphs"] .stat-value { color: var(--rose); }
+
+    .editor-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .toolbar input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .btn:hover {
+      background: var(--accent-soft);
+      border-color: rgba(59, 130, 246, 0.5);
+    }
+
+    .btn-danger:hover {
+      background: rgba(251, 113, 133, 0.12);
+      border-color: rgba(251, 113, 133, 0.45);
+    }
+
+    #textInput {
+      display: block;
+      width: 100%;
+      min-height: 420px;
+      padding: 20px;
+      border: none;
+      outline: none;
+      resize: vertical;
+      background: transparent;
+      color: var(--text);
+      font-family: "Cascadia Code", "Consolas", "SF Mono", monospace;
+      font-size: 0.95rem;
+      line-height: 1.7;
+    }
+
+    #textInput::placeholder {
+      color: #5c6b82;
+    }
+
+    .footer-note {
+      margin-top: 16px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media (max-width: 600px) {
+      .page {
+        padding: 20px 14px 32px;
+      }
+
+      h1 {
+        font-size: 1.4rem;
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      #textInput {
+        min-height: 320px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>字数统计</h1>
+      <p class="subtitle">输入文本后实时更新统计结果，支持中英文混排</p>
+    </header>
+
+    <section class="stats-grid" id="statsGrid" aria-live="polite"></section>
+
+    <section class="editor-wrap">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <label>
+            <input type="checkbox" id="excludeWhitespace" checked>
+            不计空白字符
+          </label>
+          <label>
+            <input type="checkbox" id="countPunctuation">
+            单独统计标点
+          </label>
+        </div>
+        <div>
+          <button type="button" class="btn" id="pasteBtn">粘贴</button>
+          <button type="button" class="btn btn-danger" id="clearBtn">清空</button>
+        </div>
+      </div>
+      <textarea
+        id="textInput"
+        placeholder="在此输入或粘贴文本，统计结果会实时更新…"
+        spellcheck="false"
+        autofocus
+      ></textarea>
+    </section>
+
+    <p class="footer-note">双击打开本文件即可使用，无需服务器</p>
+  </div>
+
+  <script>
+    var textInput = document.getElementById("textInput");
+    var statsGrid = document.getElementById("statsGrid");
+    var excludeWhitespaceCheckbox = document.getElementById("excludeWhitespace");
+    var countPunctuationCheckbox = document.getElementById("countPunctuation");
+    var pasteBtn = document.getElementById("pasteBtn");
+    var clearBtn = document.getElementById("clearBtn");
+
+    var statDefinitions = [
+      { key: "totalChars", label: "总字符", primary: true },
+      { key: "charsNoSpace", label: "不含空格" },
+      { key: "chinese", label: "中文字符" },
+      { key: "englishLetters", label: "英文字母" },
+      { key: "words", label: "英文单词" },
+      { key: "numbers", label: "数字" },
+      { key: "punctuation", label: "标点符号" },
+      { key: "lines", label: "行数" },
+      { key: "nonEmptyLines", label: "非空行" },
+      { key: "paragraphs", label: "段落数" },
+      { key: "bytesUtf8", label: "UTF-8 字节" }
+    ];
+
+    var statElements = {};
+
+    function initStatCards() {
+      var html = "";
+      var i;
+      var def;
+
+      for (i = 0; i < statDefinitions.length; i += 1) {
+        def = statDefinitions[i];
+        html += '<div class="stat-card' + (def.primary ? " primary" : "") + '" data-key="' + def.key + '">';
+        html += '<div class="stat-label">' + def.label + "</div>";
+        html += '<div class="stat-value" id="stat-' + def.key + '">0</div>';
+        html += "</div>";
+      }
+
+      statsGrid.innerHTML = html;
+
+      for (i = 0; i < statDefinitions.length; i += 1) {
+        def = statDefinitions[i];
+        statElements[def.key] = document.getElementById("stat-" + def.key);
+      }
+    }
+
+    function countChinese(text) {
+      var matches = text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g);
+      return matches ? matches.length : 0;
+    }
+
+    function countEnglishLetters(text) {
+      var matches = text.match(/[a-zA-Z]/g);
+      return matches ? matches.length : 0;
+    }
+
+    function countNumbers(text) {
+      var matches = text.match(/[0-9]/g);
+      return matches ? matches.length : 0;
+    }
+
+    function countPunctuation(text) {
+      var matches = text.match(/[\u3000-\u303f\uff00-\uffef\u2000-\u206f!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~，。！？；：""''（）【】《》、…—·]/g);
+      return matches ? matches.length : 0;
+    }
+
+    function countEnglishWords(text) {
+      var matches = text.match(/[a-zA-Z]+(?:['-][a-zA-Z]+)*/g);
+      return matches ? matches.length : 0;
+    }
+
+    function countLines(text) {
+      if (text.length === 0) {
+        return 0;
+      }
+      return text.split(/\r\n|\r|\n/).length;
+    }
+
+    function countNonEmptyLines(text) {
+      var lines = text.split(/\r\n|\r|\n/);
+      var count = 0;
+      var i;
+
+      for (i = 0; i < lines.length; i += 1) {
+        if (lines[i].trim().length > 0) {
+          count += 1;
+        }
+      }
+
+      return count;
+    }
+
+    function countParagraphs(text) {
+      var blocks = text.split(/\r\n\r\n|\r\r|\n\n/);
+      var count = 0;
+      var i;
+
+      for (i = 0; i < blocks.length; i += 1) {
+        if (blocks[i].trim().length > 0) {
+          count += 1;
+        }
+      }
+
+      return count;
+    }
+
+    function countUtf8Bytes(text) {
+      return new TextEncoder().encode(text).length;
+    }
+
+    function formatNumber(value) {
+      return value.toLocaleString("zh-CN");
+    }
+
+    function computeStats(text) {
+      var excludeWhitespace = excludeWhitespaceCheckbox.checked;
+      var charsNoSpace = text.replace(/\s/g, "").length;
+      var totalChars = excludeWhitespace ? charsNoSpace : text.length;
+
+      return {
+        totalChars: totalChars,
+        charsNoSpace: charsNoSpace,
+        chinese: countChinese(text),
+        englishLetters: countEnglishLetters(text),
+        words: countEnglishWords(text),
+        numbers: countNumbers(text),
+        punctuation: countPunctuation(text),
+        lines: countLines(text),
+        nonEmptyLines: countNonEmptyLines(text),
+        paragraphs: countParagraphs(text),
+        bytesUtf8: countUtf8Bytes(text)
+      };
+    }
+
+    function updateStats() {
+      var text = textInput.value;
+      var stats = computeStats(text);
+      var key;
+
+      for (key in statElements) {
+        if (Object.prototype.hasOwnProperty.call(statElements, key)) {
+          statElements[key].textContent = formatNumber(stats[key]);
+        }
+      }
+
+      statElements.punctuation.closest(".stat-card").style.display =
+        countPunctuationCheckbox.checked ? "" : "none";
+    }
+
+    function handlePaste() {
+      if (!navigator.clipboard || !navigator.clipboard.readText) {
+        textInput.focus();
+        return;
+      }
+
+      navigator.clipboard.readText().then(function (clipText) {
+        textInput.value = clipText;
+        updateStats();
+      }).catch(function () {
+        textInput.focus();
+      });
+    }
+
+    function handleClear() {
+      textInput.value = "";
+      updateStats();
+      textInput.focus();
+    }
+
+    initStatCards();
+    updateStats();
+
+    textInput.addEventListener("input", updateStats);
+    excludeWhitespaceCheckbox.addEventListener("change", updateStats);
+    countPunctuationCheckbox.addEventListener("change", updateStats);
+    pasteBtn.addEventListener("click", handlePaste);
+    clearBtn.addEventListener("click", handleClear);
+  </script>
+</body>
+</html>

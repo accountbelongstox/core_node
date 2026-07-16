@@ -14,6 +14,9 @@ from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field, asdict
 from pycore.pyfoundations import ColorPrint, Task, ENCYCLOPEDIA
 
+from pycore.pythreadpool.registry import THREAD_REGISTRY
+
+
 
 THREAD_POOL_THREADS_KEY = 'heartbeat.thread_pool.threads'
 THREAD_POOL_TASK_HANDLERS_KEY = 'heartbeat.thread_pool.task_type_handlers'
@@ -175,7 +178,6 @@ class GlobalThreadPool:
 
             # Get shutdown priority from registry or parameter
             if shutdown_priority is None:
-                from .registry import THREAD_REGISTRY
                 registry_entry = THREAD_REGISTRY.get(name, {})
                 shutdown_priority = registry_entry.get('shutdown_priority', 50)
 

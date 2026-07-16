@@ -38,6 +38,14 @@ import threading
 import time
 import unicodedata
 
+# Make pycore importable so the HF cache path resolves via the centralized
+# system_paths module (D:\www\cache on Windows, /var/_core_node on Linux) instead
+# of a hardcoded home/cache path.
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+from pycore.pyfoundations.system_paths import get_xdg_cache_home
+
 # --------------------------------------------------------------------------- #
 # Make stdout/stderr tolerant of non-ASCII paths on legacy Windows code pages. #
 # --------------------------------------------------------------------------- #
@@ -446,7 +454,9 @@ def _hf_cache_dir():
         return os.environ["HF_HUB_CACHE"]
     if os.environ.get("HF_HOME"):
         return os.path.join(os.environ["HF_HOME"], "hub")
-    return os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "hub")
+    # Centralized cache root (respects XDG_CACHE_HOME / CORE_NODE_CACHE_DIR;
+    # D:\www\cache on Windows, /var/_core_node/cache on Linux) - see system_paths.
+    return str(get_xdg_cache_home() / "huggingface" / "hub")
 
 
 def _path_size_mb(path):

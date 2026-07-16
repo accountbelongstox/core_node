@@ -61,6 +61,9 @@ from pycore.callmodule.services.processors.book_text_extraction import (
 # public API stays importable from book_processor.
 from pycore.callmodule.services.processors.book_chapters import segment_chapters
 
+from pycore.callmodule.services.processors.file_processor import FileProcessor
+
+
 
 # --------------------------------------------------------------------------- #
 # Constants                                                                    #
@@ -126,7 +129,6 @@ def extract_text(path: str) -> str:
         if ext in (".txt", ".md"):
             return _read_text_file(path)
         if ext in (".pdf", ".docx"):
-            from pycore.callmodule.services.processors.file_processor import FileProcessor
             proc = FileProcessor()
             result = proc.analyze_file(path, {"extract_text": True})
             if result.get("success"):

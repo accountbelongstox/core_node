@@ -14,6 +14,7 @@ import { wfNewApi, type WfNewLanguage } from '../api';
 import { WfNewLogo } from '../WfNewBrand';
 import { WfNewLanguagePanel } from '../components/WfNewLanguagePanel';
 import { WfNewCacheManager } from '../components/WfNewCacheManager';
+import { WfTtsEnginePriorityPanel } from '../components/settings/WfTtsEnginePriorityPanel';
 
 interface WfNewSettingsProps {
   activeTheme: ElementTheme;
@@ -508,6 +509,9 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
 
         </div>
       </div>
+
+      {/* TTS engine try-order (re-orderable, mirrors pycore capability drawer). */}
+      <WfTtsEnginePriorityPanel activeTheme={activeTheme} trans={trans} />
 
       {/* 5. Bilingual Acoustic Recital Preferences Section Card */}
       <div className={`p-6 sm:p-8 rounded-3xl ${activeTheme.cardClass} space-y-6 shadow-md`}>

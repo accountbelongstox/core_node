@@ -21,9 +21,9 @@ Design notes
 ------------
 - stdlib only (mtime polling via os.walk). No ``watchdog`` dependency, so it
   works on a freshly-provisioned machine with nothing pip-installed.
-- Dev-only: started solely when ``--reload`` / ``PYCORE_RELOAD=1`` is set. The
-  flag rides through os.execv (sys.argv is preserved), so reload stays on across
-  restarts.
+- On by default; disable with ``--no-reload`` / ``PYCORE_NO_RELOAD=1``. The
+  reload flag rides through os.execv (sys.argv is preserved), so the choice stays
+  on across restarts.
 - Logs the EXACT file and change kind that triggered the restart (not a generic
   "files changed"), and routes through ColorPrint so it also reaches the live WS
   log bridge.

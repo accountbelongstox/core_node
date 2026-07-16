@@ -26,6 +26,8 @@ import { initializeProcessors } from './services/task-center/init-processors';
 import { initTaskCenterListener } from './task-center-listener';
 import { initPuterTranslateListener } from './puter-translate-listener';
 import { initDuoreaderImporterListener } from './duoreader-importer-listener';
+import { initWebSearchListener } from './web-search-listener';
+import { initQwenTtsListener } from './qwen-tts-listener';
 import { logger } from '@/utils/logger';
 
 /**
@@ -58,6 +60,12 @@ export default defineBackground(() => {
       // Suppress the error - this is expected when no listeners are present
       event.preventDefault();
       console.debug('[Background] Suppressed benign connection error (no listeners present)');
+      return;
+    }
+
+    if (errorMessage.includes('Duplicate script ID')) {
+      event.preventDefault();
+      console.debug('[Background] Suppressed duplicate content-script registration on reload');
       return;
     }
 
@@ -112,6 +120,10 @@ export default defineBackground(() => {
   initPuterTranslateListener();
   // Duoreader → Laravel Books import (scrape + upload with shared API endpoint).
   initDuoreaderImporterListener();
+  // Google/Bing web+image search API (popup panel, MCP tool, Duoreader cover enrich).
+  initWebSearchListener();
+  // Qwen3-TTS HuggingFace Gradio automation (popup + MCP tool).
+  initQwenTtsListener();
   void logger.init().catch(() => {});
 
   // Initialize DeepSeek polling service

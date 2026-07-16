@@ -13,10 +13,51 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from pathlib import Path
 import platform
-import cgi
 import json
-import shutil
 import threading
+import re
+
+
+INLINE_VIEW_SUFFIXES = {
+    '.html', '.htm', '.css', '.js', '.json', '.svg', '.txt', '.md',
+    '.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf',
+}
+
+VOICE_WORDS_STATIC_SUBDIR = 'voice_words_static'
+FILE_SERVER_VOICE_API = 'voice_audio_v1'
+DEFAULT_PORT = 16888
+
+
+def get_system_cache_dir():
+    if platform.system() == 'Windows':
+        username = os.environ.get('USERNAME') or os.environ.get('USER') or 'default'
+        cache_dir = Path('D:/programing/Users') / username / '.core_node'
+    else:
+        shared = Path('/var/_core_node')
+        if shared.is_dir() and os.access(shared, os.W_OK):
+            cache_dir = shared
+        else:
+            cache_dir = Path.home() / '.core_node'
+    return cache_dir
+
+
+def get_voice_words_static_dir():
+    target = get_system_cache_dir() / 'cache' / VOICE_WORDS_STATIC_SUBDIR
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def safe_word_slug(word):
+    slug = re.sub(r'[^\w\u4e00-\u9fff-]+', '_', (word or '').strip().lower())
+    slug = slug.strip('_')
+    return slug or 'audio'
+
+
+def normalize_language_code(language):
+    raw = (language or 'en').strip().lower()
+    if '-' in raw:
+        return raw.split('-', 1)[0]
+    return raw or 'en'
 
 
 class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
@@ -55,16 +96,38 @@ class FileServerHandler(BaseHTTPRequestHandler):
         sys.stderr.write(message)
         sys.stderr.flush()
     
+    def _normalize_api_path(self, path):
+        path = urllib.parse.unquote(path or '')
+        if path.startswith('/'):
+            path = path[1:]
+        return path.strip('/')
+
     def do_GET(self):
         """Handle GET requests"""
         try:
             # Parse URL
             parsed_path = urllib.parse.urlparse(self.path)
-            path = urllib.parse.unquote(parsed_path.path)
-            
-            # Remove leading slash
-            if path.startswith('/'):
-                path = path[1:]
+            path = self._normalize_api_path(parsed_path.path)
+
+            if path == '__check_file_exists__':
+                self._handle_check_file_exists()
+                return
+
+            if path == '__voice_words_static_dir__':
+                self._send_json_response(200, {
+                    "ok": True,
+                    "dir": str(get_voice_words_static_dir()),
+                })
+                return
+
+            if path == '__file_server_info__':
+                self._send_json_response(200, {
+                    "ok": True,
+                    "voice_api": FILE_SERVER_VOICE_API,
+                    "voice_cache_dir": str(get_voice_words_static_dir()),
+                    "save_route": "/__save_voice_audio__",
+                })
+                return
             
             # Build full path
             if path:
@@ -87,11 +150,6 @@ class FileServerHandler(BaseHTTPRequestHandler):
                 self.send_error(404, "Not Found")
                 return
             
-            # Handle special API endpoints
-            if path == '__check_file_exists__':
-                self._handle_check_file_exists()
-                return
-            
             # Handle directory
             if full_path.is_dir():
                 self._serve_directory(full_path, path)
@@ -109,11 +167,18 @@ class FileServerHandler(BaseHTTPRequestHandler):
         try:
             # Parse URL to get target directory
             parsed_path = urllib.parse.urlparse(self.path)
-            path = urllib.parse.unquote(parsed_path.path)
-            
-            # Remove leading slash
-            if path.startswith('/'):
-                path = path[1:]
+            path = self._normalize_api_path(parsed_path.path)
+
+            if path == '__save_voice_audio__':
+                self._handle_save_voice_audio()
+                return
+
+            if path.startswith('__') and path.endswith('__'):
+                self._send_json_response(404, {
+                    "ok": False,
+                    "error": "Unknown API route. Restart file_server.py to load the latest server code.",
+                })
+                return
             
             # Build target directory path
             if path:
@@ -344,6 +409,128 @@ class FileServerHandler(BaseHTTPRequestHandler):
             
         except Exception as e:
             return {"status": 500, "error": f"Upload error: {str(e)}"}
+
+    def _parse_multipart_form(self, content_type, body):
+        fields = {}
+        files = {}
+        boundary = None
+        part_text = None
+        part_name = None
+        part_filename = None
+        part_chunk = None
+        header_end = None
+        headers_raw = None
+        line = None
+        segment = None
+
+        for part_text in content_type.split(';'):
+            part_text = part_text.strip()
+            if part_text.startswith('boundary='):
+                boundary = part_text[9:].strip().strip('"')
+                break
+
+        if not boundary:
+            return fields, files
+
+        boundary_bytes = ('--' + boundary).encode('utf-8')
+        for part_chunk in body.split(boundary_bytes)[1:-1]:
+            if not part_chunk.strip():
+                continue
+            header_end = part_chunk.find(b'\r\n\r\n')
+            if header_end == -1:
+                continue
+            headers_raw = part_chunk[:header_end]
+            part_chunk = part_chunk[header_end + 4:]
+            if part_chunk.endswith(b'\r\n'):
+                part_chunk = part_chunk[:-2]
+            part_name = None
+            part_filename = None
+            for line in headers_raw.split(b'\r\n'):
+                if b'content-disposition' not in line.lower():
+                    continue
+                segment = line.decode('utf-8', errors='ignore')
+                if 'name=' in segment:
+                    segment = segment.split('name=', 1)[1].strip()
+                    if segment.startswith('"'):
+                        part_name = segment[1:segment.find('"', 1)]
+                    else:
+                        part_name = segment.split(';', 1)[0].strip()
+                if 'filename=' in segment:
+                    segment = segment.split('filename=', 1)[1].strip()
+                    if segment.startswith('"'):
+                        part_filename = segment[1:segment.find('"', 1)]
+                    else:
+                        part_filename = segment.split(';', 1)[0].strip()
+            if not part_name:
+                continue
+            if part_filename:
+                files[part_name] = {
+                    'filename': part_filename,
+                    'data': part_chunk,
+                }
+            else:
+                fields[part_name] = part_chunk.decode('utf-8', errors='replace').strip()
+
+        return fields, files
+
+    def _handle_save_voice_audio(self):
+        content_type = self.headers.get('Content-Type', '')
+        content_length = 0
+        body = b''
+        fields = {}
+        files = {}
+        word = ''
+        language = 'en-US'
+        audio_part = None
+        audio_bytes = b''
+        lang_code = ''
+        slug = ''
+        root = None
+        lang_dir = None
+        out_path = None
+        tmp_path = None
+
+        if 'multipart/form-data' not in content_type:
+            self._send_json_response(400, {"ok": False, "error": "multipart/form-data required"})
+            return
+
+        content_length = int(self.headers.get('Content-Length', 0))
+        if content_length <= 0:
+            self._send_json_response(400, {"ok": False, "error": "Empty request"})
+            return
+
+        body = self.rfile.read(content_length)
+        fields, files = self._parse_multipart_form(content_type, body)
+        word = fields.get('word') or fields.get('speak_text') or ''
+        language = fields.get('language') or 'en-US'
+        audio_part = files.get('audio')
+
+        if not word or not audio_part or not audio_part.get('data'):
+            self._send_json_response(400, {"ok": False, "error": "word and audio required"})
+            return
+
+        audio_bytes = audio_part['data']
+        if len(audio_bytes) < 32:
+            self._send_json_response(400, {"ok": False, "error": "audio too small"})
+            return
+
+        lang_code = normalize_language_code(language)
+        slug = safe_word_slug(word)
+        root = get_voice_words_static_dir()
+        lang_dir = root / lang_code
+        lang_dir.mkdir(parents=True, exist_ok=True)
+        out_path = lang_dir / (slug + '.mp3')
+        tmp_path = out_path.with_suffix('.mp3.tmp')
+        tmp_path.write_bytes(audio_bytes)
+        os.replace(tmp_path, out_path)
+
+        self._send_json_response(200, {
+            "ok": True,
+            "path": str(out_path),
+            "word": word,
+            "language": lang_code,
+            "bytes": len(audio_bytes),
+        })
     
     def _handle_check_file_exists(self):
         """Handle file existence check API"""
@@ -436,11 +623,21 @@ class FileServerHandler(BaseHTTPRequestHandler):
             html.append('.batch-controls button:hover { background: #1976D2; }')
             html.append('.batch-controls button:disabled { background: #ccc; cursor: not-allowed; }')
             html.append('input[type="checkbox"] { margin-right: 8px; cursor: pointer; }')
+            html.append('.webtool-banner { margin: 16px 0; padding: 14px 16px; background: #e8f4fd; border: 1px solid #90caf9; border-radius: 8px; color: #1565c0; font-size: 14px; line-height: 1.6; }')
+            html.append('.webtool-banner a { color: #0d47a1; font-weight: bold; }')
             html.append('</style>')
             html.append('</head><body>')
             html.append('<div class="container">')
             html.append('<h1>📁 File Server</h1>')
             html.append(f'<div class="path">Path: {self._escape_html(str(dir_path))}</div>')
+
+            puter_audio_page = dir_path / 'puter_word_audio.html'
+            if puter_audio_page.is_file():
+                html.append('<div class="webtool-banner">')
+                html.append('<strong>Word Audio Tester</strong> — ')
+                html.append('<a href="/puter_word_audio.html">Open puter_word_audio.html</a>')
+                html.append(' · paste words directly (spaces auto-split to one word per line, empty lines removed)')
+                html.append('</div>')
             
             # Upload area
             html.append('<div class="upload-area" id="uploadArea" onclick="document.getElementById(\'fileInput\').click()">')
@@ -790,8 +987,8 @@ class FileServerHandler(BaseHTTPRequestHandler):
                 self.send_header('Content-Range', 
                                f'bytes {byte_start}-{byte_end}/{file_size}')
                 self.send_header('Accept-Ranges', 'bytes')
-                self.send_header('Content-Disposition', 
-                               f'attachment; filename="{file_path.name}"')
+                self.send_header('Content-Disposition', self._get_content_disposition(file_path))
+                self._add_file_cache_headers(file_path)
                 self.end_headers()
                 
                 # Stream file chunk
@@ -817,8 +1014,8 @@ class FileServerHandler(BaseHTTPRequestHandler):
                 self.send_header('Content-Type', self._get_content_type(file_path))
                 self.send_header('Content-Length', str(file_size))
                 self.send_header('Accept-Ranges', 'bytes')
-                self.send_header('Content-Disposition', 
-                               f'attachment; filename="{file_path.name}"')
+                self.send_header('Content-Disposition', self._get_content_disposition(file_path))
+                self._add_file_cache_headers(file_path)
                 self.end_headers()
                 
                 # Stream file
@@ -850,6 +1047,12 @@ class FileServerHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(content.encode('utf-8'))
     
+    def _add_file_cache_headers(self, file_path):
+        suffix = file_path.suffix.lower()
+        if suffix in {'.html', '.htm'}:
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.send_header('Pragma', 'no-cache')
+
     def _get_content_type(self, file_path):
         """Get MIME type for file"""
         suffix = file_path.suffix.lower()
@@ -872,6 +1075,13 @@ class FileServerHandler(BaseHTTPRequestHandler):
             '.ps1': 'text/plain',
         }
         return mime_types.get(suffix, 'application/octet-stream')
+
+    def _get_content_disposition(self, file_path):
+        """Inline for browser-viewable files; attachment for downloads."""
+        suffix = file_path.suffix.lower()
+        if suffix in INLINE_VIEW_SUFFIXES:
+            return f'inline; filename="{file_path.name}"'
+        return f'attachment; filename="{file_path.name}"'
     
     def _format_size(self, size):
         """Format file size"""
@@ -1046,15 +1256,39 @@ def get_local_ips():
     return unique_ips
 
 
+def parse_cli_args(argv):
+    dir_path = None
+    port = DEFAULT_PORT
+    args = argv[1:]
+    index = 0
+
+    while index < len(args):
+        token = args[index]
+        if token == '--port' and index + 1 < len(args):
+            port = int(args[index + 1])
+            index += 2
+            continue
+        if dir_path is None:
+            dir_path = token
+        index += 1
+
+    return dir_path, port
+
+
 def main():
     """Main function"""
+    dir_path = None
+    port = DEFAULT_PORT
+
     if len(sys.argv) < 2:
-        print("Usage: python file_server.py <directory_path>")
+        print("Usage: python file_server.py <directory_path> [--port 16888]")
         print("Example: python file_server.py /home/user/documents")
         sys.exit(1)
-    
-    # Get directory path
-    dir_path = sys.argv[1]
+
+    dir_path, port = parse_cli_args(sys.argv)
+    if not dir_path:
+        print("Usage: python file_server.py <directory_path> [--port 16888]")
+        sys.exit(1)
     
     # Resolve path
     if platform.system() == 'Windows':
@@ -1070,9 +1304,6 @@ def main():
     if not os.path.isdir(dir_path):
         print(f"Error: Path is not a directory: {dir_path}")
         sys.exit(1)
-    
-    # Port
-    port = 16888
     
     # Create server with threading support
     def handler(*args, **kwargs):
@@ -1090,6 +1321,9 @@ def main():
     print(f"Directory: {dir_path}")
     print(f"Port: {port}")
     print(f"Mode: Multi-threaded (concurrent upload/download supported)")
+    print(f"Voice audio cache: {get_voice_words_static_dir()}")
+    print(f"Voice audio API ({FILE_SERVER_VOICE_API}): /__save_voice_audio__  /__voice_words_static_dir__")
+    print("If auto-save fails with 'Target is not a directory', stop old servers on this port and restart.")
     print(f"\nTotal network interfaces found: {len(ips)}")
     print("\nAccess URLs (copy any URL below):")
     print("-" * 70)

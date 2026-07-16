@@ -43,7 +43,7 @@ Write-Host ""
 Write-Host "=====================================" -ForegroundColor Cyan
 Write-Host "Environment Variables Status:" -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
-Write-Host "  ANTHROPIC_BASE_URL: Checking..." -ForegroundColor White Write-Host "  ANTHROPIC_AUTH_TOKEN: Checking..." -ForegroundColor White Write-Host "  ANTHROPIC_API_KEY: Checking..." -ForegroundColor White
+Write-Host "  ANTHROPIC_BASE_URL: Checking..." -ForegroundColor White Write-Host "  ANTHROPIC_AUTH_TOKEN: Checking..." -ForegroundColor White
 Write-Host ""
 Write-Host "=====================================" -ForegroundColor Cyan
 Write-Host "File Management Options:" -ForegroundColor Cyan

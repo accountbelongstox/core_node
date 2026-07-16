@@ -68,7 +68,7 @@ case "$ACTION" in
     "dev")
         echo "Running Python application in development mode..."
         if [ -f "requirements-dev.txt" ]; then
-            pip install -r requirements-dev.txt
+            pip install --upgrade -r requirements-dev.txt
         fi
         python main.py
         ;;

@@ -12,6 +12,9 @@ from datetime import datetime
 
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont, get_third_package_numpy
 
+import os
+
+
 PIL_Image = get_third_package_PIL_Image()
 PIL_ImageDraw = get_third_package_PIL_ImageDraw()
 PIL_ImageFont = get_third_package_PIL_ImageFont()
@@ -128,7 +131,6 @@ class ImageAnalyzerWithOCRColorExtractionAndPixelMatrix:
         )
 
         # Calculate file size
-        import os
         file_size_bytes = os.path.getsize(image_path)
 
         # Calculate file hash

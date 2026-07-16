@@ -950,6 +950,81 @@ export interface SystemStorage {
   mounted_on: string;
 }
 
+export interface StaticResourceTypeBucket {
+  count: number;
+  size_bytes: number;
+  size_human: string;
+}
+
+export interface StaticResourceSubdir {
+  path: string;
+  label: string;
+  exists: boolean;
+  files: number;
+  size_bytes: number;
+  size_human: string;
+}
+
+export interface DataDirBreakdownItem {
+  key: string;
+  label: string;
+  path: string;
+  exists: boolean;
+  size_bytes: number;
+  size_human: string;
+}
+
+export interface StaticResourceFileEntry {
+  name: string;
+  path: string;
+  size_bytes: number;
+  size_human: string;
+  modified: string;
+  extension: string;
+}
+
+export interface StaticResourceFileList {
+  path: string;
+  exists: boolean;
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages?: number;
+  sort: string;
+  order: string;
+  q: string;
+  files: StaticResourceFileEntry[];
+}
+
+export interface StaticResourcesSummary {
+  base_path: string;
+  exists: boolean;
+  total_size_bytes: number;
+  total_size_human: string;
+  total_files: number;
+  total_directories: number;
+  truncated?: boolean;
+  by_type: Record<string, StaticResourceTypeBucket>;
+  by_subdirectory: StaticResourceSubdir[];
+  laravel_data_dir: string;
+  laravel_data_dir_size_bytes: number;
+  laravel_data_dir_size_human: string;
+  static_percent_of_data_dir: number;
+  data_dir_breakdown?: DataDirBreakdownItem[];
+  data_dir_accounted_bytes?: number;
+  data_dir_accounted_human?: string;
+  data_dir_unaccounted_bytes?: number;
+  data_dir_unaccounted_human?: string;
+  disk_usage?: SystemStorage[];
+}
+
+export interface SystemStorageAnalysis {
+  disk_usage: SystemStorage[];
+  directory_sizes?: Record<string, { path: string; size_bytes: number; size_human: string }>;
+  database_info?: Record<string, unknown>;
+  log_sizes?: Record<string, unknown>;
+}
+
 export interface ServerFileNode {
   name: string;
   type: 'file' | 'directory';
@@ -972,8 +1047,10 @@ export interface FileInfo {
 
 export interface FilePreview {
   content: string;
-  lines: number;
-  encoding: string;
+  lines?: number;
+  encoding?: string;
+  truncated?: boolean;
+  is_binary?: boolean;
 }
 
 export interface PredefinedScript {

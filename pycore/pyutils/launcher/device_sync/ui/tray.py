@@ -19,6 +19,9 @@ from typing import Optional
 
 from pycore.pyfoundations.third_party import get_third_package_pystray, get_third_package_PIL_Image, get_third_package_PIL_ImageDraw
 
+import threading
+
+
 pystray = get_third_package_pystray()
 Image = get_third_package_PIL_Image()
 ImageDraw = get_third_package_PIL_ImageDraw()
@@ -186,7 +189,6 @@ class SimpleTrayMenu:
 
         # Run periodic scan in a separate thread
         logger.info("Creating periodic scan thread...")
-        import threading
         scan_thread = threading.Thread(target=periodic_scan, daemon=True)
         logger.info(f"  Thread created: {scan_thread}")
         logger.info(f"  Thread name: {scan_thread.name}")

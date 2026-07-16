@@ -9,6 +9,9 @@ from datetime import datetime
 
 from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
 
+import hashlib
+
+
 sqlalchemy = get_third_package_sqlalchemy()
 from pycore.database.base_model import BaseModel
 from pycore.database.models.table_keys import TableKeys
@@ -261,7 +264,6 @@ class VoiceDictionariesModel(BaseModel):
             conn: Database connection
             contents: List of content strings
         """
-        import hashlib
 
         insert_data = []
         for content in contents:

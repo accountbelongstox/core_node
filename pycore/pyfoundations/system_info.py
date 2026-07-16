@@ -24,6 +24,22 @@ from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from pycore.pyfoundations.pybasecommon import exec_silent
 
+import string
+import sys
+
+windll = None
+c_ulonglong = None
+c_wchar_p = None
+byref = None
+if sys.platform == 'win32':
+    from ctypes import windll, c_ulonglong, c_wchar_p, byref
+
+pwd = None
+if sys.platform != 'win32':
+    import pwd
+
+
+
 
 @dataclass
 class ScreenInfo:
@@ -177,8 +193,6 @@ def get_windows_disk_info() -> List[DiskInfo]:
     Returns:
         List of DiskInfo objects
     """
-    import string
-    from ctypes import windll, c_ulonglong, c_wchar_p, byref
 
     disks = []
 
@@ -343,7 +357,6 @@ def get_real_user() -> str:
     """
     # If not running as root, return current user
     if os.geteuid() != 0:
-        import pwd
         return pwd.getpwuid(os.getuid()).pw_name
 
     # Check SUDO_USER environment variable first
@@ -382,7 +395,6 @@ def get_real_user() -> str:
 
     # Fallback to current user from pwd, then env, then 'ubuntu' default.
     try:
-        import pwd
         return pwd.getpwuid(os.getuid()).pw_name
     except Exception:
         return os.environ.get('USER', 'ubuntu')

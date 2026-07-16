@@ -451,4 +451,44 @@ class AppQyV1AssistController extends Controller
 
         return response()->json($snapshot);
     }
+
+    /**
+     * GET /api/app_qy_v1/assist/overview/items
+     *
+     * Paginated drill-down for one assist/overview category (word_audio,
+     * sentence_audio, cover, poster, …). NO-AUTH, same trust level as /overview.
+     */
+    public function overviewItems(Request $request): JsonResponse
+    {
+        $validated = Validator::make($request->all(), [
+            'category' => 'required|string|in:' . implode(',', AppQyV1AssistService::OVERVIEW_CATEGORY_KEYS),
+            'status' => 'nullable|string|in:pending,processing,completed,failed,leased',
+            'start' => 'nullable|integer|min:0',
+            'limit' => 'nullable|integer|min:1|max:500',
+        ]);
+
+        if ($validated->fails()) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation failed: ' . $validated->errors()->first(),
+            ], 422);
+        }
+
+        $data = $request->all();
+        $start = isset($data['start']) ? (int) $data['start'] : 0;
+        $limit = isset($data['limit']) ? (int) $data['limit'] : 50;
+        $status = isset($data['status']) ? (string) $data['status'] : null;
+
+        try {
+            $result = $this->assist->categoryItems((string) $data['category'], $status, $start, $limit);
+        } catch (\Throwable $e) {
+            Log::error('[Assist] overview/items failed', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'error' => 'Internal error listing category items',
+            ], 500);
+        }
+
+        return response()->json(array_merge(['success' => true], $result));
+    }
 }

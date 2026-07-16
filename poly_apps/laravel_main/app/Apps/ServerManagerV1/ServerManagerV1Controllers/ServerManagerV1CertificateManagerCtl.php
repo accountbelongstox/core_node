@@ -7,8 +7,9 @@ use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SSLConfigReader;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
 {
@@ -101,28 +102,45 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             return $this->errorResponse('Invalid domain name', 400, ['domain' => $domain]);
         }
 
+        // Cooldown: 5 minutes between generate attempts per domain.
+        $cooldownKey = 'cert_cooldown_' . md5(strtolower($domain));
+        if (Cache::has($cooldownKey)) {
+            $remaining = (int) Cache::ttl($cooldownKey);
+            return $this->errorResponse("Cooldown active: {$remaining}s remaining before the next attempt for {$domain}.", 429);
+        }
+
         // Get DNS credentials
         $dnsCredentials = $this->getDnsCredentials($provider);
         if (!$dnsCredentials) {
             return $this->errorResponse('Failed to retrieve DNS credentials', 400, ['provider' => $provider]);
         }
 
+        $certbotPath = $this->findCertbotBinary();
+        $displayCmd = $certbotPath
+            ? 'sudo ' . escapeshellcmd($certbotPath) . ' certonly --dns-' . $provider
+              . ($staging ? ' --staging' : '')
+              . ' --keep-until-expiring -d ' . escapeshellarg($domain)
+            : '';
+
         // Generate certificate using DNS challenge
         $result = $this->generateCertificateWithDns($domain, $provider, $dnsCredentials, $staging);
 
         if ($result['success']) {
+            Cache::put($cooldownKey, time(), 300);
             return $this->successResponse([
                 'domain' => $domain,
                 'provider' => $provider,
                 'staging' => $staging,
                 'certificate_path' => \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptLiveDir($domain) . '/',
-                'output' => $result['output']
+                'output' => $result['output'],
+                'command' => $displayCmd,
             ], 'SSL certificate generated successfully');
         } else {
             return $this->errorResponse('Failed to generate SSL certificate', 500, [
                 'domain' => $domain,
                 'error' => $result['error'],
-                'exit_code' => $result['exit_code']
+                'exit_code' => $result['exit_code'],
+                'command' => $displayCmd,
             ]);
         }
     }
@@ -177,6 +195,17 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
 
         // If no certificates found, return early with helpful message
         if ($listCode !== 0 || empty($listOutput) || strpos(implode("\n", $listOutput), 'No certificates found') !== false) {
+            // When a specific domain was requested and no cert exists, fall
+            // through to idempotent generation (--keep-until-expiring) so the
+            // "renew" button also doubles as "generate when missing".
+            if ($domain && !$all) {
+                $certRequest = new \Illuminate\Http\Request([
+                    'domain' => $domain,
+                    'provider' => 'dnspod',
+                    'staging' => false,
+                ]);
+                return $this->generateCertificate($certRequest);
+            }
             return $this->successResponse([
                 'renewed' => 0,
                 'certificates' => [],
@@ -513,6 +542,10 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             '--email', $credentials['email'],
             '--agree-tos',
             '--non-interactive',
+            // Idempotent: if a matching cert already exists and is not near
+            // expiry, keep it and take no action (safe to re-run on every site
+            // create). Without this, re-issuing over an existing cert errors.
+            '--keep-until-expiring',
             '-d', $domain
         ]);
 
@@ -613,5 +646,173 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         }
         
         return $info;
+    }
+
+    // ------------------------------------------------------------------
+    // Idempotent ensure + async progress
+    // ------------------------------------------------------------------
+
+    /**
+     * POST /api/servermanager/v1/certificates/ensure
+     *
+     * Idempotent: generates a new cert (DNS challenge, --keep-until-expiring) when
+     * none exists for the domain, or renews when one does. A 5-minute cooldown per
+     * domain prevents rapid-fire retries. Runs certbot asynchronously via a
+     * backgrounded shell so the HTTP response returns immediately; the FE polls
+     * GET /certificates/progress/{request_id} for real-time output.
+     */
+    public function ensureCertificate(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'certificate_ensure');
+        if ($validation) {
+            return $validation;
+        }
+
+        $domain = $request->input('domain');
+        $provider = $request->input('provider', 'dnspod');
+        $staging = (bool) $request->input('staging', false);
+
+        if (empty($domain) || !preg_match('/^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$/', $domain)) {
+            return $this->errorResponse('Invalid domain name', 400);
+        }
+
+        // Cooldown: 5 minutes between attempts per domain (prevents rate-limit
+        // exhaustion + rapid retry loops).
+        $cooldownKey = 'cert_cooldown_' . md5(strtolower($domain));
+        if (Cache::has($cooldownKey)) {
+            $remaining = (int) Cache::ttl($cooldownKey);
+            return $this->errorResponse(
+                "Cooldown active: {$remaining}s remaining before the next attempt for {$domain}.",
+                429
+            );
+        }
+
+        $certbotPath = $this->findCertbotBinary();
+        if ($certbotPath === null) {
+            return $this->errorResponse('Certbot not found.', 404);
+        }
+
+        $certPath = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptCertPath($domain);
+        $certExists = file_exists($certPath);
+        $requestId = 'cert_' . uniqid('', true);
+        $outputFile = sys_get_temp_dir() . '/' . $requestId . '.log';
+
+        // Build the certbot command (backslashed for shell back-grounding).
+        if ($certExists) {
+            $shellCmd = escapeshellcmd($certbotPath)
+                . ' renew --cert-name ' . escapeshellarg($domain)
+                . ' --non-interactive --no-random-sleep-on-renew';
+        } else {
+            $dnsCredentials = $this->getDnsCredentials($provider);
+            if (!$dnsCredentials) {
+                return $this->errorResponse('Failed to retrieve DNS credentials for ' . $provider, 400);
+            }
+            $credFile = $this->createDnspodCredentialsFile($dnsCredentials);
+            $shellCmd = escapeshellcmd($certbotPath)
+                . ' certonly --dns-' . $provider
+                . ($staging ? ' --staging' : '')
+                . ' --email ' . escapeshellarg($dnsCredentials['email'])
+                . ' --agree-tos --non-interactive --keep-until-expiring'
+                . ' -d ' . escapeshellarg($domain)
+                . ' --dns-dnspod-credentials ' . escapeshellarg($credFile);
+        }
+
+        $displayCmd = ($certExists ? 'sudo certbot renew --cert-name ' . $domain : 'sudo certbot certonly --dns-' . $provider . ' ... -d ' . $domain);
+
+        // Start certbot in the background: redirect stdout+stderr to the output
+        // file, append a __DONE__ sentinel on exit so the polling endpoint detects
+        // completion, then detach via &. exec() returns immediately.
+        $fullShell = $shellCmd
+            . ' > ' . escapeshellarg($outputFile) . ' 2>&1'
+            . '; echo "\n__DONE__\n" >> ' . escapeshellarg($outputFile);
+        exec("nohup sh -c " . escapeshellarg($fullShell) . ' > /dev/null 2>&1 &');
+
+        Cache::put("cert_progress_{$requestId}", [
+            'request_id' => $requestId,
+            'domain' => strtolower($domain),
+            'command' => $displayCmd,
+            'output_file' => $outputFile,
+            'status' => 'running',
+            'started_at' => now()->toIso8601String(),
+            'cert_exists' => $certExists,
+        ], 600);
+
+        // Set cooldown.
+        Cache::put($cooldownKey, time(), 300);
+
+        Log::info('ServerManagerV1: Cert ensure started', [
+            'request_id' => $requestId,
+            'domain' => $domain,
+            'cert_exists' => $certExists,
+        ]);
+
+        return $this->successResponse([
+            'request_id' => $requestId,
+            'command' => $displayCmd,
+            'status' => 'running',
+            'cert_exists' => $certExists,
+        ], $certExists ? 'Certificate renewal started' : 'Certificate generation started');
+    }
+
+    /**
+     * GET /api/servermanager/v1/certificates/progress/{request_id}
+     *
+     * Poll the real-time output of a backgrounded certbot ensure/generate/renew
+     * operation. Returns the accumulated output lines, the command string, and
+     * a status field: 'running' (output still being written) or 'completed'
+     * (__DONE__ sentinel found). The cache entry expires after 10 minutes.
+     */
+    public function certificateProgress(Request $request, string $requestId): JsonResponse
+    {
+        $meta = Cache::get("cert_progress_{$requestId}");
+        if (!$meta || !is_array($meta)) {
+            return $this->errorResponse('Request not found or expired.', 404, ['request_id' => $requestId]);
+        }
+
+        $outputFile = $meta['output_file'] ?? '';
+        $output = '';
+        $status = $meta['status'] ?? 'running';
+
+        if ($outputFile !== '' && file_exists($outputFile)) {
+            $output = @file_get_contents($outputFile) ?: '';
+            if ($output === false) {
+                $output = '';
+            }
+            // Detect the __DONE__ sentinel that the background shell appends on exit.
+            if (strpos($output, '__DONE__') !== false) {
+                $output = trim(str_replace('__DONE__', '', $output));
+                $status = 'completed';
+                $meta['status'] = 'completed';
+                $meta['output'] = $output;
+                Cache::put("cert_progress_{$requestId}", $meta, 600);
+            }
+        } else {
+            $output = $meta['output'] ?? '';
+        }
+
+        $lines = $output !== '' ? array_values(array_filter(explode("\n", $output), function ($l) {
+            $t = trim($l);
+            return $t !== '' && $t !== '__DONE__';
+        })) : [];
+
+        return $this->successResponse([
+            'request_id' => $requestId,
+            'command' => $meta['command'] ?? '',
+            'status' => $status,
+            'output' => $output,
+            'output_lines' => $lines,
+            'started_at' => $meta['started_at'] ?? null,
+        ], 'Progress retrieved');
+    }
+
+    /** @return string|null certbot binary path or null */
+    private function findCertbotBinary(): ?string
+    {
+        foreach (['/usr/bin/certbot','/usr/local/bin/certbot','/usr/sbin/certbot','/sbin/certbot'] as $p) {
+            if (file_exists($p) && is_executable($p)) return $p;
+        }
+        $which = ServerManagerV1Utils::executeCommand('which', ['certbot']);
+        if ($which['success'] && trim($which['output'])) return trim($which['output']);
+        return null;
     }
 }

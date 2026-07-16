@@ -27,6 +27,9 @@ from ..core.scanner import get_network_scanner
 from .tray import SimpleTrayMenu
 from ..core.logging import setup_logging
 
+import traceback
+
+
 logger = setup_logging(__name__)
 
 
@@ -96,7 +99,6 @@ def main():
 
     except Exception as e:
         logger.error(f"FATAL ERROR in main: {e}", exc_info=True)
-        import traceback
         traceback.print_exc()
 
     finally:

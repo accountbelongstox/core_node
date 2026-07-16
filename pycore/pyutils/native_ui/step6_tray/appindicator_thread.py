@@ -17,58 +17,13 @@ from pycore import THREAD_BUS, ColorPrint
 
 from .appindicator_system_tray import (
     AppIndicatorSystemTray,
-    AppIndicatorMenuItem,
     APPINDICATOR_AVAILABLE,
     check_appindicator_available
 )
+from ._types import AppIndicatorMenuItem, build_appindicator_menu_items
 
-
-def build_appindicator_menu_items(menu_items: List[Any]) -> List[AppIndicatorMenuItem]:
-    """
-    Convert tray config menu items to AppIndicatorMenuItem list.
-
-    Accepts TrayMenuItem (tkinter: text, action_signal) or dict (text_key/text, signal/action_signal).
-    Uses i18n.get() for display text when item has i18n key.
-    """
-    try:
-        from pycore.pyutils.native_ui.step0_i18n import i18n
-    except ImportError:
-        i18n = None
-
-    result = []
-    for item in menu_items:
-        if getattr(item, 'text', None) == "---" or (isinstance(item, dict) and item.get('text_key') == '---'):
-            result.append(AppIndicatorMenuItem(text="---", separator=True))
-            continue
-        if isinstance(item, dict):
-            text_key = item.get('text_key') or item.get('text', '')
-            text = i18n.get(text_key) if i18n and text_key else text_key
-            signal = item.get('signal') or item.get('action_signal', '')
-            submenu_data = item.get('submenu')
-            submenu = build_appindicator_menu_items(submenu_data) if submenu_data else None
-            result.append(AppIndicatorMenuItem(
-                text=text,
-                callback=signal or None,
-                enabled=item.get('enabled', True),
-                checkable=item.get('checkable', False),
-                checked=item.get('checked', False),
-                submenu=submenu
-            ))
-        else:
-            text_raw = getattr(item, 'text', '') or getattr(item, 'text_key', '')
-            text = i18n.get(text_raw) if i18n and text_raw and text_raw != "---" else text_raw
-            signal = getattr(item, 'action_signal', None) or getattr(item, 'signal', '')
-            submenu_raw = getattr(item, 'submenu', None)
-            submenu = build_appindicator_menu_items(submenu_raw) if submenu_raw else None
-            result.append(AppIndicatorMenuItem(
-                text=text,
-                callback=signal or None,
-                enabled=getattr(item, 'enabled', True),
-                checkable=getattr(item, 'checkable', False),
-                checked=getattr(item, 'checked', False),
-                submenu=submenu
-            ))
-    return result
+import os
+import platform
 
 
 class AppIndicatorSystemTrayThread(threading.Thread):
@@ -197,8 +152,6 @@ def is_appindicator_recommended() -> bool:
     Returns:
         True if running on Linux with GNOME Shell and AppIndicator available
     """
-    import os
-    import platform
 
     if platform.system() != "Linux":
         return False

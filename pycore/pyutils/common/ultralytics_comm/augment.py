@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """Image augmentation helpers (e.g. color jitter)."""
 
+from pycore.pyfoundations.third_party import get_third_package_numpy
+
+
 
 def color_jitter(img):
     """Random brightness/contrast jitter. Returns new (H,W,C) uint8 array."""
-    from pycore.pyfoundations.third_party import get_third_package_numpy
     np = get_third_package_numpy()
     out = img.astype(np.float64)
     if np.random.random() > 0.5:

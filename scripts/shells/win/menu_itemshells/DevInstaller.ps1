@@ -23,9 +23,11 @@ $INSTALLER_SCRIPTS_LIST_FILE = "InstallerScriptsList.ps1"
 # Path combinations
 $SCRIPTS_SHELLS_WIN_INSTALL_POWERSHELLS_PATH = "$SCRIPTS_PATH\$SHELLS_WIN_PATH\$INSTALL_POWERSHELLS_DIR_NAME"
 $SHELLS_WIN_INSTALL_POWERSHELLS_PATH = "$SHELLS_WIN_PATH\$INSTALL_POWERSHELLS_DIR_NAME"
+$SCRIPTS_SHELLS_WIN_WIN_COMMON_PATH = "$SCRIPTS_PATH\$SHELLS_WIN_PATH\$WIN_COMMON_DIR_NAME"
+$SHELLS_WIN_WIN_COMMON_PATH = "$SHELLS_WIN_PATH\$WIN_COMMON_DIR_NAME"
 
 # Directory and path variables
-$USER_DIR = "$env:USERPROFILE\.core_node"
+$USER_DIR = "D:\programing\Users\$env:USERNAME\.core_node"
 $GLOBAL_VAR_DIR = Join-Path $USER_DIR ".global_vars"
 $INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path -Parent $PSScriptRoot) $INSTALL_POWERSHELLS_DIR_NAME
 $WIN_COMMON_DIR = Join-Path (Split-Path -Parent $PSScriptRoot) $WIN_COMMON_DIR_NAME
@@ -115,13 +117,22 @@ function Install-Script {
 
     if ($shouldExecute) {
         Write-Host "Executing script: $actualScriptPath" -ForegroundColor Cyan
-        & $actualScriptPath $selectedRegion
+        $scriptLeaf = Split-Path -Leaf $actualScriptPath
+        $pythonExe = $null
+        if (Get-Command Resolve-InstallerStepPythonExe -ErrorAction SilentlyContinue) {
+            $pythonExe = Resolve-InstallerStepPythonExe
+        }
+        if (Get-Command Invoke-InstallerStepScript -ErrorAction SilentlyContinue) {
+            Invoke-InstallerStepScript -ScriptName $scriptLeaf -Region $selectedRegion -PythonExe $pythonExe | Out-Null
+        } else {
+            & $actualScriptPath $selectedRegion
+        }
     }
 }
 
 # Execute the main installation steps in order via a single source of truth
 # Smart load the steps list file using Invoke-SmartLoadScript
-$stepsListSubPath = Join-Path $SHELLS_WIN_INSTALL_POWERSHELLS_PATH $INSTALLER_SCRIPTS_LIST_FILE
+$stepsListSubPath = Join-Path $SHELLS_WIN_WIN_COMMON_PATH $INSTALLER_SCRIPTS_LIST_FILE
 $stepsList = Invoke-SmartLoadScript -SubPath $stepsListSubPath
 if (-not $stepsList) {
     throw "Failed to load steps list file"

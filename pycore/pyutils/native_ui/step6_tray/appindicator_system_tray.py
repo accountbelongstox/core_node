@@ -36,8 +36,13 @@ Usage:
 import sys
 import platform
 from typing import Optional, List, Callable, TYPE_CHECKING
-from dataclasses import dataclass
 from pathlib import Path
+
+from pycore.pyutils.native_ui.step6_tray._types import (
+    AppIndicatorMenuItem,
+    build_appindicator_menu_items,
+)
+
 
 # Try to import GTK3 + an AppIndicator binding.
 #
@@ -79,31 +84,6 @@ except (ImportError, ValueError) as e:
     GLib = None
 
 from pycore import THREAD_BUS, ColorPrint
-
-
-@dataclass
-class AppIndicatorMenuItem:
-    """
-    Menu item configuration for AppIndicator.
-
-    Attributes:
-        text: Menu item label (supports i18n keys)
-        callback: Function to call when clicked
-        icon_path: Optional icon path
-        checkable: Whether item is checkable (toggle)
-        checked: Initial checked state (if checkable)
-        separator: True if this is a separator
-        submenu: List of submenu items
-        enabled: Whether item is enabled
-    """
-    text: str
-    callback: Optional[Callable] = None
-    icon_path: Optional[str] = None
-    checkable: bool = False
-    checked: bool = False
-    separator: bool = False
-    submenu: Optional[List['AppIndicatorMenuItem']] = None
-    enabled: bool = True
 
 
 class AppIndicatorSystemTray:
@@ -331,7 +311,6 @@ class AppIndicatorSystemTray:
                 # AppIndicatorMenuItem, so adapt via the shared builder (same
                 # one the direct startup callers use). Raw items lack
                 # .separator/.callback and crash _add_menu_item.
-                from .appindicator_thread import build_appindicator_menu_items
                 ColorPrint.blue("[AppIndicatorSystemTray] Received menu update via THREAD_BUS")
                 self.update_menu(build_appindicator_menu_items(items))
 
@@ -446,7 +425,6 @@ def print_appindicator_status():
 
         # Try to get version info
         try:
-            import gi
             ColorPrint.cyan(f"  PyGObject version: {gi.__version__}")
         except:
             pass

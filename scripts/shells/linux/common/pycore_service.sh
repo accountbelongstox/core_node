@@ -29,7 +29,7 @@
 #
 # The unit it creates:
 #   [Service]
-#   ExecStart=/bin/bash <REPO_ROOT>/pyservice.sh run --no-ui --no-install
+#   ExecStart=/bin/bash <REPO_ROOT>/pyservice.sh run --no-ui --no-install --no-reload
 #   WorkingDirectory=<REPO_ROOT>
 #   User=<real desktop user>
 #   Restart=always
@@ -43,7 +43,7 @@ PYCORE_SERVICE_DESC="Pycore Module Caller (headless)"
 PYCORE_SVC_SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
 # This file lives at scripts/shells/linux/common/, so repo root is 4 dirs up.
 PYCORE_REPO_ROOT="$(cd "$PYCORE_SVC_SCRIPT_DIR/../../../.." && pwd)"
-PYCORE_SVC_EXEC_START="/bin/bash $PYCORE_REPO_ROOT/pyservice.sh run --no-ui --no-install"
+PYCORE_SVC_EXEC_START="/bin/bash $PYCORE_REPO_ROOT/pyservice.sh run --no-ui --no-install --no-reload"
 PYCORE_SVC_USER=""
 PYCORE_DEBIAN_MGR="$PYCORE_SVC_SCRIPT_DIR/debian_service_manager.sh"
 PYCORE_GVAR_COMMON="$PYCORE_SVC_SCRIPT_DIR/gvar_common.sh"

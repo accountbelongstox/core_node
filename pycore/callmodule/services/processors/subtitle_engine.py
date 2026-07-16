@@ -40,11 +40,11 @@ def load_faster_whisper(model_name: str, device: str, compute_type: str):
     """Load a faster-whisper model once for reuse. Returns model or None."""
     _add_nvidia_dll_dirs()
     try:
-        from faster_whisper import WhisperModel
+        pass
     except Exception:
         ColorPrint.yellow(
             "[VideoExtract] faster-whisper not installed. "
-            "Install it (scripts/iniscripts/install_faster_whisper.*) or "
+            "Install it (scripts/shells/win/install_powershells/Step11_InstallFasterWhisper.ps1) or "
             "`pip install faster-whisper`. Subtitles disabled for this run.")
         return None
     try:

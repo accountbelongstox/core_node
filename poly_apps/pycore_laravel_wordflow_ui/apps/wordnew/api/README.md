@@ -121,11 +121,11 @@ declared in `WfNewApiPaths.ts` (verified against `poly_apps/laravel_main`):
 
 | Category (UI) | API method | Backend route | Array key | Count field | Notes |
 | --- | --- | --- | --- | --- | --- |
-| 词组 Word groups | `getWordContentGroups` | `GET /api/app_qy_v1/query_all_groups` | `data.groups` | `total_words` | **auth required** |
-| 书组 Books | `getBookGroups` | `GET /api/app_qy_v1/media/books` | `data.items` | `sentence_count` | public |
-| 字幕组 Subtitles | `getSubtitleGroups` | `GET /api/app_qy_v1/media/subtitles` | `data.items` | `subtitle_count` | public |
-| 词库 Libraries | `getLibraryGroups` | `GET /api/app_qy_v1/vocabulary/libraries` | `data.libraries` | `word_count` | public word libraries |
-| 文档 Documents | `getDocumentGroups` | `GET /api/app_qy_v1/media/documents` | `data.items` | `word_count` | the user's OWN uploads |
+| Word groups | `getWordContentGroups` | `GET /api/app_qy_v1/query_all_groups` | `data.groups` | `total_words` | **auth required** |
+| Books | `getBookGroups` | `GET /api/app_qy_v1/media/books` | `data.items` | `sentence_count` | public |
+| Subtitles | `getSubtitleGroups` | `GET /api/app_qy_v1/media/subtitles` | `data.items` | `subtitle_count` | public |
+| Libraries | `getLibraryGroups` | `GET /api/app_qy_v1/vocabulary/libraries` | `data.libraries` | `word_count` | public word libraries |
+| Documents | `getDocumentGroups` | `GET /api/app_qy_v1/media/documents` | `data.items` | `word_count` | the user's OWN uploads |
 
 `getHomeContent()` fetches all five **in parallel** and is **partial-tolerant**:
 a category whose endpoint fails resolves to `[]` rather than failing the whole
@@ -133,9 +133,9 @@ home. Backend-relative cover paths → absolute via `toAbsoluteUrl`. Word groups
 are **skipped entirely when unauthenticated** so the home never fires a 401 /
 auth-expired logout just to load.
 
-> **词库 vs 文档 — they are NOT the same.** `vocabulary/libraries` is the PUBLIC
+> **Libraries vs documents — they are NOT the same.** `vocabulary/libraries` is the PUBLIC
 > word-library list (e.g. "English Coca 60000", a frequency word collection) — a
-> 词库, not a document. `media/documents` lists the user's OWN uploaded files (the
+> library, not a document. `media/documents` lists the user's OWN uploaded files (the
 > `app_qy_v1_uploaded_documents` table). In this backend an uploaded document also
 > *produces* a vocabulary library, which once caused them to be conflated; the home
 > keeps them as two distinct tiles. `media/documents` is **optional-auth**: it

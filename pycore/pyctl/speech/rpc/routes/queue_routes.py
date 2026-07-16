@@ -14,6 +14,9 @@ from typing import Dict, Any
 
 from pycore.pyfoundations import ColorPrint, get_global_task_queue
 
+from pycore.pyheartbeat import get_heartbeat_system
+
+
 
 def register_queue_routes(rpc_server, service_instances: Dict[str, Any]):
     """
@@ -39,7 +42,6 @@ def register_queue_routes(rpc_server, service_instances: Dict[str, Any]):
                 }
             }
         """
-        from pycore.pyheartbeat import get_heartbeat_system
 
         heartbeat_system = get_heartbeat_system()
 

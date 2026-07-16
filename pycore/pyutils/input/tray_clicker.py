@@ -417,7 +417,6 @@ class TrayIconClicker:
             
         except Exception as e:
             print(f"❌ Error double-clicking tray icon: {e}")
-            import traceback
             print(f"🔍 Full error traceback:")
             traceback.print_exc()
             # Ensure mouse position is restored even on error

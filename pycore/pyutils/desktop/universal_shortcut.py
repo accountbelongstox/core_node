@@ -9,12 +9,16 @@ import platform
 from pathlib import Path
 import tempfile
 
+import traceback
+
+
 # Add project root to Python path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyutils.common.icon_generator import DesktopIconGenerator
+from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 
 class ShortcutManager:
@@ -74,7 +78,7 @@ class ShortcutManager:
             win_version = ShortcutManager.get_windows_version()
             dev_path = Path(f'D:\\.dev_{win_version}\\.winenvs')
         else:
-            dev_path = Path.home() / '.core_node' / '.winenvs'
+            dev_path = get_system_cache_dir() / '.winenvs'
         dev_path.mkdir(parents=True, exist_ok=True)
         return dev_path
 
@@ -491,7 +495,6 @@ def main():
 
     except Exception as e:
         print(f"Error: {e}")
-        import traceback
         traceback.print_exc()
 
 

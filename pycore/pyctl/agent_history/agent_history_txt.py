@@ -2,7 +2,7 @@
 """
 Agent history TXT parse/format library.
 
-Human-readable, block-delimited text files under ``<core_node>/.data/.ai_state/agent_history/``.
+Human-readable, block-delimited text files under ``<cache>/pycore/.ai_state/agent_history/``.
 No database — all persistence is flat txt that both humans and the parser can read.
 
 Files:
@@ -22,13 +22,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root
+from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_local_data_dir
+
+import json
+
 
 TEXT_END = "TEXT>>>"
 TEXT_START = "<<<TEXT"
 BLOCK_MARKERS = ("@session", "@prompt", "@turn", "@meta")
 
-_SHARED_STATE_DIR = get_core_node_root() / ".data" / ".ai_state" / "agent_history"
+_SHARED_STATE_DIR = get_local_data_dir() / ".ai_state" / "agent_history"
 _LEGACY_DIR = APP_DATA_DIR / "ai_state" / "agent_history"
 
 _lock = threading.Lock()
@@ -81,7 +84,6 @@ def format_kv_lines(data: Dict[str, Any]) -> str:
         if isinstance(v, bool):
             lines.append(f"{k}={'true' if v else 'false'}")
         elif isinstance(v, (list, dict)):
-            import json
             lines.append(f"{k}={json.dumps(v, ensure_ascii=False)}")
         else:
             lines.append(f"{k}={_escape_value(str(v))}")
@@ -179,7 +181,6 @@ def read_state() -> Dict[str, Any]:
     try:
         data = parse_kv_lines(path.read_text(encoding="utf-8"))
         sources_raw = data.get("sources_json", "[]")
-        import json
         try:
             data["sources"] = json.loads(str(sources_raw))
         except json.JSONDecodeError:
@@ -196,7 +197,6 @@ def read_state() -> Dict[str, Any]:
 
 
 def write_state(data: Dict[str, Any]) -> None:
-    import json
     payload = dict(data)
     sources = payload.pop("sources", {})
     payload["sources_json"] = json.dumps(sources, ensure_ascii=False)

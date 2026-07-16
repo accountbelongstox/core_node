@@ -1,0 +1,150 @@
+﻿<#
+.SYNOPSIS
+    Kokoro-82M prerequisite via sherpa-onnx (dedicated model cache).
+
+.DESCRIPTION
+    Downloads the Kokoro multi-lang (zh+en) model into D:\www\cache\tts\kokoro
+    and ensures sherpa-onnx is present (CUDA wheel when SHERPA_ONNX_CUDA_SPEC is set).
+    Idempotency verifies BOTH lexicons (lexicon-us-en.txt + lexicon-zh.txt); a partial
+    install (missing lexicon-zh.txt) is re-downloaded so Chinese token ids resolve.
+
+    Official: https://k2-fsa.github.io/sherpa/onnx/tts/all/Chinese-English/kokoro-multi-lang-v1_1.html
+
+    No parameters required: idempotently installs (skips when the multi-lang
+    model is complete, downloads/repairs when incomplete). Skip with KOKORO_SKIP=1.
+#>
+[CmdletBinding()]
+param(
+    [string]$Python = 'python'
+)
+
+$ErrorActionPreference = 'Stop'
+
+$SCRIPT_INDEX     = '[Step57-Kokoro]'
+$resolvedPython   = $null
+$modelDir         = $null
+$modelUrl         = $null
+$modelArchive     = $null
+$tmpExtract       = $null
+$sherpaCudaSpec   = $env:SHERPA_ONNX_CUDA_SPEC
+$sherpaCudaIndex  = if ($env:SOG_CUDA_INDEX_URL) { $env:SOG_CUDA_INDEX_URL } else { 'https://k2-fsa.github.io/sherpa/onnx/cuda.html' }
+$winCommonDir     = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
+
+. (Join-Path $winCommonDir 'GlobalVars.ps1')
+. (Join-Path $winCommonDir 'PythonRuntimeCommon.ps1')
+. (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
+
+$modelDir = Join-Path $Global:CORE_NODE_CACHE_DIR 'tts\kokoro'
+
+function Test-PyModule {
+    param([string]$PipExe, [string]$PackageName)
+    return Test-PipPackageInstalled -PipExe $PipExe -PackageName $PackageName
+}
+
+function Test-KokoroMultiLangComplete {
+    # Multi-lang Kokoro requires model.onnx + tokens.txt + voices.bin + BOTH
+    # lexicons (lexicon-us-en.txt, lexicon-zh.txt). Missing lexicon-zh.txt is
+    # the root cause of the "unknown Chinese token" error at runtime.
+    param([string]$Dir)
+    if (-not (Test-Path $Dir)) { return $false }
+    $onnx   = Get-ChildItem -Path $Dir -Recurse -Filter '*.onnx'            -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    $tokens = Get-ChildItem -Path $Dir -Recurse -Filter 'tokens.txt'        -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    $voices = Get-ChildItem -Path $Dir -Recurse -Filter 'voices.bin'        -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    $lexZh  = Get-ChildItem -Path $Dir -Recurse -Filter 'lexicon-zh.txt'    -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    $lexEn  = Get-ChildItem -Path $Dir -Recurse -Filter 'lexicon-us-en.txt' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    return [bool]($onnx -and $tokens -and $voices -and $lexZh -and $lexEn)
+}
+
+function Install-KokoroModel {
+    param([string]$Py, [string]$Archive, [string]$Tmp, [string]$Dir, [string]$Sentinel, [string]$Url)
+    if (-not (Test-Path $Archive)) { return $false }
+    if (Test-Path $Tmp) { Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue }
+    New-Item -ItemType Directory -Force -Path $Tmp | Out-Null
+    & $Py -c "import tarfile,sys;t=tarfile.open(sys.argv[1],'r:bz2');t.extractall(sys.argv[2]);t.close()" $Archive $Tmp
+    $inner = Get-ChildItem -Path $Tmp -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+    $src = if ($inner) { $inner.FullName } else { $Tmp }
+    New-Item -ItemType Directory -Force -Path $Dir | Out-Null
+    Copy-Item -Path (Join-Path $src '*') -Destination $Dir -Recurse -Force
+    if (Test-KokoroMultiLangComplete -Dir $Dir) {
+        Set-Content -Path $Sentinel -Value $Url -Encoding utf8
+        return $true
+    }
+    Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue
+    return $false
+}
+
+function Set-SherpaOnnxBuild {
+    param([string]$PipExe)
+    $gpu = Test-CudaPresent
+    $ver = Get-PipPackageVersion -PipExe $PipExe -PackageName 'sherpa-onnx'
+    $installed = [bool]$ver
+    $isCuda = ($ver -match '\+cuda')
+    if ($gpu) {
+        if ($sherpaCudaSpec) {
+            if ($ver -ne $sherpaCudaSpec) {
+                & $PipExe install ("sherpa-onnx=={0}" -f $sherpaCudaSpec) -f $sherpaCudaIndex
+            }
+        } elseif (-not $installed) {
+            & $PipExe install --upgrade sherpa-onnx
+        }
+        return
+    }
+    if ($isCuda) {
+        & $PipExe install sherpa-onnx --force-reinstall
+    } elseif (-not $installed) {
+        & $PipExe install --upgrade sherpa-onnx
+    }
+}
+
+Write-Host '============================================================' -ForegroundColor Cyan
+Write-Host " $SCRIPT_INDEX Kokoro-82M (sherpa-onnx)" -ForegroundColor Cyan
+Write-Host '============================================================' -ForegroundColor Cyan
+
+if ($env:KOKORO_SKIP -eq '1') {
+    Write-Host "$SCRIPT_INDEX [i] KOKORO_SKIP=1 -> skipping." -ForegroundColor DarkGray
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('sherpa_onnx')
+}
+
+$modelSentinel = Join-Path $modelDir '.model_done'
+$modelComplete = Test-KokoroMultiLangComplete -Dir $modelDir
+if ($modelComplete -and (Test-Path $modelSentinel)) {
+    Write-TtsIdempotentSkip -PythonExe $Python -Reason "Kokoro multi-lang model present at $modelDir" -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('sherpa_onnx')
+}
+
+$resolvedPython = $Global:PYTHON_EXE_PATH
+if (-not ($resolvedPython -and (Test-Path -LiteralPath $resolvedPython))) {
+    Write-Host "$SCRIPT_INDEX [!] Python 3 not found at $Global:PYTHON_EXE_PATH." -ForegroundColor DarkYellow
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('sherpa_onnx')
+}
+$hasGpu = Test-CudaPresent
+$modelUrl = Resolve-TtsModelTier -PythonExe $resolvedPython -Key kokoro_url -InstallScriptRoot $PSScriptRoot -Gpu:($hasGpu)
+Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine kokoro -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
+$pipExePath = $Global:PIP_EXE_PATH
+Write-Host ("$SCRIPT_INDEX  model dir : {0}" -f $modelDir) -ForegroundColor DarkGray
+Write-Host ("$SCRIPT_INDEX  compute   : {0}" -f $(if ($hasGpu) { 'CUDA -> full Kokoro model' } else { 'CPU -> int8 Kokoro model' })) -ForegroundColor DarkGray
+Write-Host ("$SCRIPT_INDEX  model url : {0}" -f $modelUrl) -ForegroundColor DarkGray
+
+Set-SherpaOnnxBuild -PipExe $pipExePath
+& $pipExePath install soundfile
+
+$modelArchive = Join-Path $modelDir '.download.tar.bz2'
+$tmpExtract = Join-Path $env:TEMP 'kokoro-tts-extract'
+New-Item -ItemType Directory -Force -Path $modelDir | Out-Null
+if (-not (Test-Path $modelArchive)) {
+    Write-Host "$SCRIPT_INDEX [..] downloading Kokoro model ..." -ForegroundColor Yellow
+    try {
+        Invoke-WebRequest -Uri $modelUrl -OutFile $modelArchive -UseBasicParsing
+    } catch {
+        Write-Host "$SCRIPT_INDEX [!] download failed: $($_.Exception.Message)" -ForegroundColor DarkYellow
+        if (Test-Path $modelArchive) { Remove-Item -Force $modelArchive -ErrorAction SilentlyContinue }
+        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('sherpa_onnx')
+    }
+}
+if (Install-KokoroModel -Py $resolvedPython -Archive $modelArchive -Tmp $tmpExtract -Dir $modelDir -Sentinel $modelSentinel -Url $modelUrl) {
+    Write-Host "$SCRIPT_INDEX [OK] Kokoro model installed." -ForegroundColor Green
+} else {
+    Write-Host "$SCRIPT_INDEX [!] model extract failed; removing archive to retry next run." -ForegroundColor DarkYellow
+    if (Test-Path $modelArchive) { Remove-Item -Force $modelArchive -ErrorAction SilentlyContinue }
+}
+Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('sherpa_onnx')

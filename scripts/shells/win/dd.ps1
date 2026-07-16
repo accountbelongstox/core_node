@@ -69,6 +69,10 @@ $scriptProcessorPath = Join-Path $PSScriptRoot "tools\ScriptProcessor.ps1"
 $windowsPathFunctionPath = Join-Path $PSScriptRoot "win_common\WindowsPathFunction.ps1"
 . $windowsPathFunctionPath
 
+# Import PathMappingLib.ps1 for idempotent user profile dot-folder junctions
+$pathMappingLibPath = Join-Path $PSScriptRoot "win_common\PathMappingLib.ps1"
+. $pathMappingLibPath
+
 # Import GitManagementFunctions.psm1 for unified Git management (calls Python version)
 $gitManagementFunctionsPath = Join-Path $PSScriptRoot "win_common\GitManagementFunctions.psm1"
 # Resolve path to absolute path to handle execution from different directories
@@ -1183,6 +1187,15 @@ if (-not $SkipInitialization) {
     # Check for newly added raw secrets and prompt for encryption (reverse direction)
     $secretEncryptCheckScript = Join-Path $script:PS_CURENT_DIR "win_common\SecretEncryptionCheck.ps1"
     & powershell -NoProfile -ExecutionPolicy Bypass -File $secretEncryptCheckScript
+
+    # Idempotent user profile path mapping (.cursor, .devin, and other dot-folders)
+    Write-ColorMessage -Message "Applying user profile path mappings (idempotent)..." -Type "Info"
+    $pathMappingOk = Invoke-DefaultUserProfilePathMappings -UserName $env:USERNAME
+    if ($pathMappingOk) {
+        Write-ColorMessage -Message "User profile path mappings are ready." -Type "Success"
+    } else {
+        Write-ColorMessage -Message "User profile path mapping finished with warnings or errors." -Type "Warning"
+    }
 } else {
     Write-ColorMessage -Message "Skipping initialization operations (returning from sub-menu)..." -Type "Info"
 }

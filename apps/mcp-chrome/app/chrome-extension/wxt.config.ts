@@ -34,6 +34,7 @@ const CHROME_PERMISSIONS = [
   'offscreen',
   'tabCapture',
   'storage',
+  'unlimitedStorage',
   'alarms',
   'tabGroups',
 ];

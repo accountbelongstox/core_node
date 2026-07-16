@@ -12,6 +12,9 @@ continues after the launcher exits; RPC v2 becomes available after startup
 import sys
 from pathlib import Path
 
+import time
+
+
 # Add project root to Python path to enable pycore imports. Same bootstrap as
 # launcher.py so this module is importable standalone.
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
@@ -23,6 +26,7 @@ import os
 import tempfile
 
 from pycore.pyfoundations.pybasecommon import run_background
+from pycore.pyutils.launcher.launch_guard import is_pycore_module_running
 
 
 def launch_pycore_module():
@@ -32,10 +36,14 @@ def launch_pycore_module():
     Runs pycore_module_caller.py with pythonw on Windows for no console window.
     Process is detached so it continues after launcher exits.
     """
+    if is_pycore_module_running():
+        print("[Launcher] Skipping Pycore Module (already running).")
+        return
+
     print("[Launcher] Starting Pycore Module in background...")
 
     project_root = Path(__file__).parent.parent.parent.parent
-    caller_script = project_root / 'pycore_module_caller.py'
+    caller_script = project_root / 'pycore' / 'pycore_module_caller.py'
 
     if not caller_script.exists():
         print(f"[Launcher] Failed: pycore_module_caller.py not found at {caller_script}")
@@ -78,7 +86,6 @@ def launch_pycore_module():
         print(f"[Launcher] Pycore Module started with PID: {proc.pid}")
         print("[Launcher] RPC v2 will be available after startup (default port 59000)")
 
-        import time
         time.sleep(0.5)
     except Exception as e:
         print(f"[Launcher] Failed to start Pycore Module: {e}")

@@ -2,11 +2,10 @@
  * PycoreHealth — reachability state + all-Offline retry loop for the
  * pycore-manager end.
  *
- * The pycore end has a single "endpoint": the pycore backend behind the
- * /pyapi proxy (dev: Vite proxy to :59000). Health = GET /pyapi/ping answers
- * 2xx within the probe timeout. The shared STORED-FIRST detection
- * contract degenerates here to that single probe (there is nothing to sweep or
- * fail over to), so every check costs exactly one request. Same contract as the
+ * The pycore end has a single "endpoint": the pycore backend on :59000 (direct).
+ * Health = GET /ping answers 2xx within the probe timeout. The shared
+ * STORED-FIRST detection contract degenerates here to that single probe (there is
+ * nothing to sweep or fail over to), so every check costs exactly one request.
  * other two ends:
  *  - while DOWN, re-ping at a configurable interval (default below,
  *    overridable in PcSettingsPage, read fresh on every tick);
@@ -72,7 +71,7 @@ export function checkPycoreNow(): Promise<boolean> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), PYCORE_HEALTH_DEFAULTS.timeout);
     try {
-      const response = await fetch(rewritePycoreEndpoint('/pyapi/ping'), { signal: controller.signal });
+      const response = await fetch(rewritePycoreEndpoint('/ping'), { signal: controller.signal });
       up = response.ok;
     } catch {
       up = false;

@@ -1,33 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Movie / TV poster client (TMDB + OMDB).
+Movie / TV poster client (TMDB + OMDB) — LEGACY / DISABLED in pycore.
 
-Canonical contract: poly_apps/laravel_main/docs/MOVIE_POSTER_PIPELINE.md. pycore is the
-PRIMARY poster fetcher: it runs at ingest/extract time, downloads the poster
-bytes, and ships them (base64) to laravel. Posters are ALWAYS downloaded as
-local bytes — never referenced as an external URL.
+Poster search is delegated to apps/mcp-chrome (Google Images via the extension
+task center). pycore no longer fetches or generates posters at ingest or via
+the AssistWorker. The functions below remain for reference; callers should not
+invoke find_poster / save_poster_file in production paths.
 
-Flow (see find_poster):
-  1. If the title is non-Latin (CJK etc.) translate it to English FIRST — movie
-     DBs index by English/original titles. Uses pycore's existing async
-     GoogleTranslator (same as the translation worker), run on a private event
-     loop because this can execute on any thread.
-  2. Query SerpApi Google Images (engine=google_images) and download the FIRST
-     result image (preferred for real books/documents; also used for movies).
-  3. Query TMDB ``search/multi`` (v4 Bearer token preferred, else v3 api_key),
-     pick the first result with a poster_path, download w780 poster bytes.
-  4. On TMDB miss / no key / error, fall back to OMDB (?apikey=&t=&y=) and
-     download the ``Poster`` URL (unless "N/A").
-  5. Return the poster result object (§3 of the contract) or None.
-
-pycore rules honored here:
-  * Networking ONLY via get_third_package_requests (never ``import requests``).
-  * Secrets ONLY via get_secret_key_indexed.
-  * Logging ONLY via ColorPrint.
-  * Imports at file top (PYTHON_PYCORE.md §1.4).
-  * NEVER raises — every failure path returns None / "" and logs a hint.
-
-All strings here are English (pycore code rule).
+Canonical contract: poly_apps/laravel_main/docs/MOVIE_POSTER_PIPELINE.md
 """
 
 import asyncio
@@ -50,6 +30,21 @@ from pycore.pyutils.external_apis.image_search_client import (
 # --------------------------------------------------------------------------- #
 # Constants                                                                    #
 # --------------------------------------------------------------------------- #
+POSTER_DELEGATED_TO_MCP_CHROME = (
+    "Poster search is handled by apps/mcp-chrome (Google Images via task center), "
+    "not pycore TMDB/OMDB."
+)
+
+COVER_DELEGATED_TO_MCP_CHROME = (
+    "Cover image generation is handled by apps/mcp-chrome (Google Images via task center), "
+    "not pycore AI models."
+)
+
+MCP_CHROME_IMAGE_DELEGATION = (
+    "Cover/poster images are handled by apps/mcp-chrome (Google Images via task center), "
+    "not pycore AI models or TMDB/OMDB."
+)
+
 # (connect, read) timeouts (seconds) — mirrors ai_gateway's image fetch budget.
 _HTTP_TIMEOUT: Tuple[int, int] = (8, 25)
 
@@ -436,8 +431,12 @@ def find_poster(
     ``kind`` is ``"movie"`` (default) or ``"book"`` — controls the image-search
     query suffix ("movie poster" vs "book cover").
 
-    NEVER raises — any failure logs via ColorPrint and returns None.
+    NEVER raises — disabled in pycore; returns None immediately.
     """
+    ColorPrint.blue(f"[MoviePoster] {POSTER_DELEGATED_TO_MCP_CHROME}")
+    return None
+
+    # --- Legacy TMDB/OMDB/SerpApi fetch (disabled; kept for reference) ---
     try:
         clean = (title or "").strip()
         if not clean:

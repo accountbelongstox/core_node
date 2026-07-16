@@ -30,6 +30,9 @@ from typing import Optional, Any, Dict, List
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
+from pycore.pyfoundations.system_paths import get_app_config_dir
+
+
 
 # Canonical store file name inside the config directory.
 STORE_FILE_NAME = "user_data.json"
@@ -37,7 +40,6 @@ STORE_FILE_NAME = "user_data.json"
 
 def _get_app_config_dir() -> Path:
     """Resolve the app config dir lazily (avoids circular import with system_paths)."""
-    from pycore.pyfoundations.system_paths import get_app_config_dir
     return get_app_config_dir()
 
 

@@ -24,6 +24,7 @@
 
 #region Variable Declarations
 $script:PS_CURRENT_DIR = $PSScriptRoot
+$script:WIN_COMMON_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "win_common"
 $script:WINDOWS_MANAGEMENT_SCRIPT = Join-Path $script:PS_CURRENT_DIR "WindowsManagementManager.ps1"
 $script:BACKUP_MANAGEMENT_SCRIPT = Join-Path $script:PS_CURRENT_DIR "BackupManager.ps1"
 
@@ -32,6 +33,10 @@ $script:COLOR_WARNING = "Yellow"
 $script:COLOR_ERROR = "Red"
 $script:COLOR_INFO = "White"
 $script:COLOR_HIGHLIGHT = "Cyan"
+#endregion
+
+#region Bootstrap
+. (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
 #endregion
 
 #region Helper Functions
@@ -58,6 +63,15 @@ function Write-ColorMessage {
     Write-Host "$prefix$Message" -ForegroundColor $color
 }
 
+function Test-MenuItemIsHeader {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$MenuItem
+    )
+
+    return ($MenuItem.ContainsKey('IsHeader') -and $MenuItem.IsHeader -eq $true)
+}
+
 function Invoke-SubMenuScript {
     param(
         [Parameter(Mandatory=$true)] [string]$ScriptPath,
@@ -67,12 +81,11 @@ function Invoke-SubMenuScript {
     if (Test-Path $ScriptPath) {
         Write-ColorMessage -Message "Launching $Description..." -Type "Info"
         Write-Host ""
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $ScriptPath
+        & $ScriptPath
+        Wait-MenuContinue
     } else {
         Write-ColorMessage -Message "Script not found: $ScriptPath" -Type "Error"
-        Write-Host ""
-        Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        Wait-MenuContinue
     }
 }
 #endregion
@@ -82,29 +95,33 @@ function Show-ManagementAndBackupMenu {
     $menuItems = @(
         @{
             Text = "Windows Management"
+            IsHeader = $false
             Action = { Invoke-SubMenuScript -ScriptPath $script:WINDOWS_MANAGEMENT_SCRIPT -Description "Windows Management Menu" }
         },
         @{
             Text = "Backup Management"
+            IsHeader = $false
             Action = { Invoke-SubMenuScript -ScriptPath $script:BACKUP_MANAGEMENT_SCRIPT -Description "Backup Management Menu" }
         },
         @{
             Text = "------------------------------------"
-            Action = { }
             IsHeader = $true
+            Action = { }
         },
         @{
             Text = "Back to main menu"
+            IsHeader = $false
             Action = { return $true }
         },
         @{
             Text = "Exit"
+            IsHeader = $false
             Action = { exit }
         }
     )
 
     $selectedIndex = 0
-    while ($menuItems[$selectedIndex].IsHeader -eq $true) {
+    while (Test-MenuItemIsHeader -MenuItem $menuItems[$selectedIndex]) {
         $selectedIndex++
     }
 
@@ -117,7 +134,7 @@ function Show-ManagementAndBackupMenu {
         Write-Host ""
 
         for ($i = 0; $i -lt $menuItems.Count; $i++) {
-            if ($menuItems[$i].IsHeader -eq $true) {
+            if (Test-MenuItemIsHeader -MenuItem $menuItems[$i]) {
                 Write-Host $menuItems[$i].Text -ForegroundColor DarkGray
             }
             elseif ($i -eq $selectedIndex) {
@@ -140,16 +157,16 @@ function Show-ManagementAndBackupMenu {
                 do {
                     $selectedIndex--
                     if ($selectedIndex -lt 0) { $selectedIndex = $menuItems.Count - 1 }
-                } while ($menuItems[$selectedIndex].IsHeader -eq $true)
+                } while (Test-MenuItemIsHeader -MenuItem $menuItems[$selectedIndex])
             }
             40 {
                 do {
                     $selectedIndex++
                     if ($selectedIndex -ge $menuItems.Count) { $selectedIndex = 0 }
-                } while ($menuItems[$selectedIndex].IsHeader -eq $true)
+                } while (Test-MenuItemIsHeader -MenuItem $menuItems[$selectedIndex])
             }
             13 {
-                if ($menuItems[$selectedIndex].IsHeader -ne $true) {
+                if (-not (Test-MenuItemIsHeader -MenuItem $menuItems[$selectedIndex])) {
                     $result = & $menuItems[$selectedIndex].Action
                     if ($result -eq $true) { return }
                 }

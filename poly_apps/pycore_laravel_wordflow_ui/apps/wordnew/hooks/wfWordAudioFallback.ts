@@ -126,7 +126,7 @@ let puterLoadPromise: Promise<boolean> | null = null;
 
 /** Lazy-inject the Puter.js script ONCE — called ONLY when the opt-in setting
  *  is enabled (temp-account credit cliff + sign-in popup: never load eagerly). */
-function ensurePuterLoaded(): Promise<boolean> {
+export function ensurePuterLoaded(): Promise<boolean> {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return Promise.resolve(false);
   }

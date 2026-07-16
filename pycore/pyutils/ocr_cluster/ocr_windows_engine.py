@@ -16,6 +16,9 @@ from pycore.pyfoundations.third_party import (
     get_third_package_windows_ocr,
 )
 
+import concurrent.futures
+
+
 Image = get_third_package_PIL_Image()
 np = get_third_package_numpy()
 
@@ -33,7 +36,6 @@ def _run_coro_blocking(coro: Any) -> Any:
         asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(coro)
-    import concurrent.futures
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
         return ex.submit(lambda: asyncio.run(coro)).result()
 
@@ -43,7 +45,6 @@ def _pil_to_software_bitmap(img: "Image.Image", winrt_ns: Any) -> Any:
     img_gray = img.convert("L")
     w, h = img_gray.size
     data = img_gray.tobytes()
-    from winrt.windows.storage.streams import DataWriter
     dw = DataWriter()
     dw.write_bytes(data)
     buf = dw.detach_buffer()

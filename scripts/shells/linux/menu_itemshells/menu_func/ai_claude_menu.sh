@@ -39,11 +39,11 @@ get_claude_config() {
     ENVIRONMENT_CONFIGS_Claude_AI_Variables_1_IsSecret="true"
     ENVIRONMENT_CONFIGS_Claude_AI_Variables_1_InputType="Token"
 
-    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_Name="ANTHROPIC_API_KEY"
-    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_DisplayName="ANTHROPIC_API_KEY"
-    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_Description="Claude AI API key (alternative to ANTHROPIC_AUTH_TOKEN)"
-    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_IsSecret="true"
-    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_InputType="Token"
+    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_Name="ANTHROPIC_MODEL"
+    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_DisplayName="ANTHROPIC_MODEL"
+    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_Description="Default model (optional, e.g. claude-opus-4-8)"
+    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_IsSecret="false"
+    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_InputType="Text"
 }
 
 # Menu Functions

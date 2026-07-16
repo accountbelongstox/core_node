@@ -11,6 +11,8 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.system_paths import get_system_cache_dir
+
 
 class AppFinder:
     """Find application executables"""
@@ -20,7 +22,7 @@ class AppFinder:
     _LINUX_BINARIES = {
         'cursor': ['cursor'],
         'devin': ['windsurf', 'devin'],
-        'edge': ['microsoft-edge', 'microsoft-edge-stable'],
+        'edge': ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'],
         'vscode': ['code', 'code-insiders'],
         'wechat': ['wechat', 'weixin'],
         'qq': ['qq', 'linuxqq'],
@@ -39,6 +41,9 @@ class AppFinder:
         'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
         'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
     ]
+    CHROME_PORTABLE_APPLICATION_DIR = Path(
+        r'D:\applications\Chrome\Chrome\Application')
+    CHROME_PORTABLE_EXE = CHROME_PORTABLE_APPLICATION_DIR / 'chrome.exe'
     CHROME_BETA_KEYWORDS = ['Beta', 'beta', 'BETA']
     CHROME_CANARY_KEYWORDS = ['Canary', 'canary', 'CANARY']
     CHROME_STABLE_KEYWORDS = ['Stable', 'stable', 'STABLE']
@@ -83,10 +88,9 @@ class AppFinder:
             ]
         },
         'edge': {
-            'names': ['msedge.exe', 'MicrosoftEdge.exe'],
+            'names': CHROME_EXE_NAMES,
             'search_paths': [
-                'C:\\Program Files (x86)\\Microsoft\\Edge\\Application',
-                'C:\\Program Files\\Microsoft\\Edge\\Application'
+                r'D:\applications\Chrome\Chrome\Application'
             ]
         },
         'wechat': {
@@ -121,6 +125,13 @@ class AppFinder:
                 'C:\\Users\\{username}\\AppData\\Local\\Programs\\Microsoft VS Code',
                 'C:\\Program Files\\Microsoft VS Code'
             ]
+        },
+        'aiassistant': {
+            'names': [],
+            'search_paths': [
+                'C:\\Users\\{username}\\Downloads'
+            ],
+            'downloads_glob': 'AIAssistant*.exe'
         }
     }
     
@@ -132,10 +143,9 @@ class AppFinder:
             cache_path: Path to cache file
         """
         if cache_path is None:
-            # Cross-platform: Path.home() is C:\Users\<user> on Windows and
-            # ~/ on Linux/macOS. The previous hardcoded "C:\\Users\\..." string
-            # was created as a LITERAL backslash-named dir under cwd on Linux.
-            cache_dir = Path.home() / '.core_node' / 'launch_multiple'
+            # Centralized per-user state dir (D:\programing\Users\<user>\.core_node
+            # on Windows, /var/_core_node on Linux) - see system_paths.
+            cache_dir = get_system_cache_dir() / 'launch_multiple'
             cache_dir.mkdir(parents=True, exist_ok=True)
             cache_path = cache_dir / 'app_cache.json'
         
@@ -214,6 +224,14 @@ class AppFinder:
         # Special handling for Chrome Beta
         if app_name == 'chrome_beta':
             return self.find_chrome_by_version('beta')
+
+        # AIAssistant: newest AIAssistant*.exe in the user's Downloads folder.
+        if app_name == 'aiassistant':
+            return self.find_aiassistant(force_refresh=force_refresh)
+
+        # Edge slot launches portable Chrome under D:\applications\Chrome.
+        if app_name == 'edge':
+            return self.find_portable_chrome(force_refresh=force_refresh)
         
         # Search for application
         search_paths = [self.expand_path(p) for p in app_def.get('search_paths', [])]
@@ -232,6 +250,19 @@ class AppFinder:
                     self.save_cache()
                     return str(found_path)
         
+        return None
+
+    def _is_portable_chrome_exe(self, exe_path: Path) -> bool:
+        """True when *exe_path* is the portable copy used by the edge slot."""
+        try:
+            return exe_path.resolve() == self.CHROME_PORTABLE_EXE.resolve()
+        except OSError:
+            return str(exe_path).lower() == str(self.CHROME_PORTABLE_EXE).lower()
+
+    def _preferred_chrome_stable_path(self) -> Optional[str]:
+        """Preferred stable Chrome on Windows: D:\\applications\\Chrome\\Chrome copy."""
+        if sys.platform == 'win32' and self.CHROME_PORTABLE_EXE.is_file():
+            return str(self.CHROME_PORTABLE_EXE.resolve())
         return None
     
     def find_chrome_versions(self, force_refresh: bool = False) -> Dict[str, str]:
@@ -280,10 +311,18 @@ class AppFinder:
                 stable_path = Path(self.cache['chrome_stable'])
                 if stable_path.exists():
                     cached_versions['stable'] = str(stable_path)
+            preferred_stable = self._preferred_chrome_stable_path()
+            if preferred_stable:
+                cached_versions['stable'] = preferred_stable
             
             # If all versions are cached and valid, return them
             if len(cached_versions) >= 1:
                 return cached_versions
+
+        preferred_stable = self._preferred_chrome_stable_path()
+        if preferred_stable:
+            all_versions['stable'] = preferred_stable
+            self.cache['chrome_stable'] = preferred_stable
         
         # Search for all Chrome versions
         search_paths = [self.expand_path(p) for p in self.CHROME_SEARCH_PATHS]
@@ -327,13 +366,14 @@ class AppFinder:
                             found_paths['stable'] = str(item)
             except (PermissionError, OSError):
                 continue
-        
-        # Also search in standard locations (these are always stable)
-        for std_path in self.CHROME_STANDARD_PATHS:
-            if Path(std_path).exists() and 'stable' not in all_versions:
-                all_versions['stable'] = std_path
-                self.cache['chrome_stable'] = std_path
-                found_paths['stable'] = std_path
+
+        # Fallback: native install when portable copy is missing.
+        if 'stable' not in all_versions:
+            for std_path in self.CHROME_STANDARD_PATHS:
+                if Path(std_path).exists():
+                    all_versions['stable'] = std_path
+                    self.cache['chrome_stable'] = std_path
+                    break
         
         self.save_cache()
         
@@ -350,6 +390,13 @@ class AppFinder:
             Path to Chrome executable or None
         """
         cache_key = f'chrome_{version}'
+
+        if version == 'stable':
+            preferred = self._preferred_chrome_stable_path()
+            if preferred:
+                self.cache['chrome_stable'] = preferred
+                self.save_cache()
+                return preferred
         
         # Check cache first
         if cache_key in self.cache:
@@ -362,6 +409,96 @@ class AppFinder:
         
         # Return the requested version
         return all_versions.get(version)
+
+    def _find_native_chrome_application_dir(self) -> Optional[Path]:
+        """Return the native Chrome ``Application`` directory, if installed."""
+        for std_path in self.CHROME_STANDARD_PATHS:
+            exe_path = Path(std_path)
+            if exe_path.is_file():
+                return exe_path.parent
+
+        search_paths = [self.expand_path(p) for p in self.CHROME_SEARCH_PATHS]
+        for search_path_str in search_paths:
+            search_path = Path(search_path_str)
+            if not search_path.is_dir():
+                continue
+            for exe_name in self.CHROME_EXE_NAMES:
+                found_path = self._search_recursive(search_path, exe_name)
+                if found_path is not None:
+                    return found_path.parent
+
+        return None
+
+    def _copy_native_chrome_to_portable(self) -> Optional[str]:
+        """Copy native Chrome ``Application`` folder to the portable location."""
+        if sys.platform != 'win32':
+            return None
+
+        source_dir = self._find_native_chrome_application_dir()
+        if source_dir is None:
+            print('Warning: native Chrome installation not found; cannot copy to portable path.')
+            return None
+
+        dest_dir = self.CHROME_PORTABLE_APPLICATION_DIR
+        dest_dir.parent.mkdir(parents=True, exist_ok=True)
+        print(f'Copying Chrome from {source_dir} to {dest_dir} ...')
+        shutil.copytree(source_dir, dest_dir, dirs_exist_ok=True)
+
+        portable_exe = self.CHROME_PORTABLE_EXE
+        if not portable_exe.is_file():
+            print(f'Warning: portable Chrome copy finished but {portable_exe} is missing.')
+            return None
+
+        print(f'Portable Chrome ready: {portable_exe}')
+        return str(portable_exe.resolve())
+
+    def find_portable_chrome(self, force_refresh: bool = False) -> Optional[str]:
+        """Resolve Chrome for the edge slot: portable path first, copy native if missing."""
+        cache_key = 'edge_path'
+        portable_exe = self.CHROME_PORTABLE_EXE
+
+        if not force_refresh and cache_key in self.cache:
+            cached_path = Path(self.cache[cache_key])
+            if cached_path.is_file():
+                return str(cached_path)
+
+        if portable_exe.is_file():
+            found = str(portable_exe.resolve())
+        else:
+            found = self._copy_native_chrome_to_portable()
+
+        if found:
+            self.cache[cache_key] = found
+            self.save_cache()
+        return found
+
+    def find_aiassistant(self, force_refresh: bool = False) -> Optional[str]:
+        """Find the newest AIAssistant*.exe in the user's Downloads folder."""
+        cache_key = 'aiassistant_path'
+        if not force_refresh and cache_key in self.cache:
+            cached_path = Path(self.cache[cache_key])
+            if cached_path.exists():
+                return str(cached_path)
+
+        if sys.platform != 'win32':
+            return None
+
+        downloads = Path(self.expand_path('C:\\Users\\{username}\\Downloads'))
+        if not downloads.is_dir():
+            return None
+
+        matches = sorted(
+            downloads.glob('AIAssistant*.exe'),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if not matches:
+            return None
+
+        found = str(matches[0].resolve())
+        self.cache[cache_key] = found
+        self.save_cache()
+        return found
     
     def _search_recursive(self, search_path: Path, exe_name: str, max_depth: int = 5) -> Optional[Path]:
         """

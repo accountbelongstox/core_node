@@ -29,6 +29,7 @@ import {
 } from '../cache/WfNewContentCache';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { WfNewHomeContent as WfNewHomeContentWidget } from './WfNewHomeContent';
+import { WfNewAgentArticlesSection } from './WfNewAgentArticlesSection';
 
 // Modular Imports
 import { UserStats, ElementTheme } from '../WfNewTypes';
@@ -80,10 +81,11 @@ interface WfNewHomeTabProps {
   selectBookCourse: (g: WordGroup) => Promise<void>;
   startGroupPractice: (g: WordGroup, m: any) => Promise<void>;
   startModePractice: (m: any) => void;
+  addLibraryToStudy: (g: WfNewContentGroup) => void;
 }
 
 export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
-  const { activeTheme, trans, dark, currentUser, nickname, avatarUrl, statistics, gGroups, bentoGroups, userStats, languageOptions, homeContent, homeContentLoading, addToast, setActiveTab, setContentListKind, handleSaveDashboard, openHomeGroup, loadMoreGroups, selectBookCourse, startGroupPractice, startModePractice } = props;
+  const { activeTheme, trans, dark, currentUser, nickname, avatarUrl, statistics, gGroups, bentoGroups, userStats, languageOptions, homeContent, homeContentLoading, addToast, setActiveTab, setContentListKind, handleSaveDashboard, openHomeGroup, loadMoreGroups, selectBookCourse, startGroupPractice, startModePractice, addLibraryToStudy } = props;
   return (
     <>
               {/* Unified learning dashboard. When LOGGED IN: identity + real backend
@@ -408,6 +410,23 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                 </div>
               </div>
 
+              {/* Agent History generated articles — live poll */}
+              <WfNewAgentArticlesSection
+                theme={activeTheme}
+                trans={trans}
+                onOpenBook={(sourceKey, title) => {
+                  openHomeGroup({
+                    id: sourceKey,
+                    kind: 'book',
+                    sourceKey,
+                    title,
+                    count: 0,
+                    countUnit: 'sentences',
+                    category: 'agent_history',
+                  });
+                }}
+              />
+
               {/* Multi-category content hub — live backend word / book / subtitle
                   / document groups (WfNewHomeContent widget reads getHomeContent). */}
               <WfNewHomeContentWidget
@@ -418,6 +437,7 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                 onOpen={openHomeGroup}
                 onMore={(kind) => { setContentListKind(kind); setActiveTab('content-list'); }}
                 onNeedMore={loadMoreGroups}
+                onAddToStudy={addLibraryToStudy}
               />
     </>
   );

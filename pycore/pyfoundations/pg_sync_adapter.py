@@ -39,6 +39,12 @@ import shutil
 from pathlib import Path
 from typing import Optional, Tuple, List
 
+import re
+
+from datetime import datetime, timezone
+
+
+
 # ---------------------------------------------------------------------------
 # Module-level constants
 # ---------------------------------------------------------------------------
@@ -171,8 +177,6 @@ def _control_mtime(data_dir: Path) -> float:
 
 def _parse_checkpoint_time(controldata_output: str) -> float:
     """Parse 'Time of latest checkpoint:' from pg_controldata output → Unix ts."""
-    import re
-    from datetime import datetime, timezone
     for line in controldata_output.splitlines():
         if 'Time of latest checkpoint' in line:
             raw = line.split(':', 1)[-1].strip()
@@ -317,7 +321,6 @@ class PgSyncAdapter:
     def _ts_str(ts: float) -> str:
         if not ts:
             return '(unknown)'
-        import datetime
         return datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
 
     def prompt_3x_confirm(self, win_ts: float, linux_ts: float) -> bool:

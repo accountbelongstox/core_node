@@ -52,6 +52,10 @@ export const zhLocaleA: Record<string, string> = {
     'toast.forged': '成功熔铸 {word}！',
     'toast.pinned': '已置顶 [{name}]！已同步到自定义主控台。',
     'toast.wipedForge': '已从自定义熔铸列表移除。',
+    'library.addToStudy': '添加到背单词',
+    'toast.libraryAddedToStudy': '已将"{name}"添加到默认词汇组',
+    'toast.libraryAlreadyInStudy': '"{name}"已在默认词汇组中',
+    'toast.libraryAddFailed': '添加词库失败',
     'settings.title': '量子设置中心',
     // 超级管理控制台（本机回环管理模式）
     'hdr.admin': '超级管理控制台',

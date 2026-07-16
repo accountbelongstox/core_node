@@ -26,6 +26,9 @@ import threading
 from typing import Optional, Dict, List, Callable
 from pathlib import Path
 
+from pycore.pyutils.launcher.device_sync._deprecated._old_servers.discovery import DeviceDiscovery
+
+
 DEFAULT_SYNC_PORT = 45679
 SYNC_INTERVAL = 5  # seconds
 
@@ -100,7 +103,6 @@ class FileSyncClient:
         Returns:
             True if primary found
         """
-        from .discovery import DeviceDiscovery
 
         print("[SyncClient] Discovering primary device...")
 
@@ -371,7 +373,6 @@ class FileSyncClient:
         Returns:
             True if conflict detected
         """
-        from .discovery import DeviceDiscovery
 
         try:
             discovery = DeviceDiscovery(sync_port=self.port)

@@ -3,7 +3,7 @@
 Agent history router — local AI session/prompt extraction (no auth required).
 
 Mirrors Laravel ``/api/dev-history/*`` but reads the pycore txt store under
-``<core_node>/.data/.ai_state/agent_history/``. The heartbeat tick keeps it fresh.
+``<cache>/pycore/.ai_state/agent_history/``. The heartbeat tick keeps it fresh.
 
 Endpoints (prefix /api/local/agent-history):
   GET  /index
@@ -22,6 +22,7 @@ import fastapi
 
 from pycore.pyctl.agent_history import get_agent_history_service
 from pycore.callmodule.services.agent_history_tick_service import get_agent_history_tick_service
+from pycore.callmodule.services.agent_history_article_service import get_agent_history_article_service
 
 router = fastapi.APIRouter(prefix="/api/local/agent-history", tags=["Local Processing - Agent History"])
 
@@ -85,4 +86,45 @@ def update_prompt(body: dict):
 def status():
     tick = get_agent_history_tick_service()
     svc = get_agent_history_service()
-    return {"success": True, "data": {"tick": tick.get_status(), "store": svc.get_status()}}
+    article = get_agent_history_article_service()
+    return {
+        "success": True,
+        "data": {
+            "tick": tick.get_status(),
+            "store": svc.get_status(),
+            "article": article.get_status(),
+        },
+    }
+
+
+@router.get("/article/config")
+def article_config_get():
+    svc = get_agent_history_article_service()
+    return {"success": True, "data": svc.get_config()}
+
+
+@router.post("/article/config")
+def article_config_post(body: dict):
+    svc = get_agent_history_article_service()
+    cfg = svc.save_config(body or {})
+    if cfg.get("extract_as_article"):
+        get_agent_history_service().extract(force=False)
+    return {"success": True, "data": cfg}
+
+
+@router.post("/article/start")
+def article_start():
+    svc = get_agent_history_article_service()
+    return {"success": True, "data": svc.start_backfill()}
+
+
+@router.get("/articles")
+def article_list(limit: int = 50):
+    svc = get_agent_history_article_service()
+    return {"success": True, "data": {"items": svc.list_articles(limit=limit)}}
+
+
+@router.get("/article/logs")
+def article_logs():
+    svc = get_agent_history_article_service()
+    return {"success": True, "data": svc.get_logs()}

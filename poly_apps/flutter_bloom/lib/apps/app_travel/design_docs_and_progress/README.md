@@ -1,45 +1,45 @@
 # Design Docs & Progress - app_travel
 
-**应用名称**: app_travel
-**创建时间**: 2025-11-19
-**最后更新**: 2025-11-19
+**App name**: app_travel
+**Created**: 2025-11-19
+**Last updated**: 2025-11-19
 
-## 目录结构
+## Directory Structure
 
 ```
 design_docs_and_progress/
-├── README.md                   # 本文件
-├── 1_concept_designs/          # 第一层：概念图（粗设计图）
-├── 2_page_designs_cn/          # 第二层：粗页面图（中文页面名）
-├── 3_page_designs_en/          # 第三层：细页面图（英文页面名）
-├── backend_bridge/             # 后端对接文档
-├── feature_progress/           # 功能进度跟踪
-├── flows/                      # 流程图
-├── progress_logs/              # 进度日志
-└── wireframes/                 # 线框图
+├── README.md                   # This file
+├── 1_concept_designs/          # Level 1: concept diagrams
+├── 2_page_designs_cn/          # Level 2: rough page designs (Chinese names)
+├── 3_page_designs_en/          # Level 3: detailed page designs (English names)
+├── backend_bridge/             # Backend integration docs
+├── feature_progress/           # Feature progress tracking
+├── flows/                      # Flow diagrams
+├── progress_logs/              # Progress logs
+└── wireframes/                 # Wireframes
 ```
 
-## 三层设计文档体系
+## Three-Level Design Documentation
 
-### 第一层：概念图 (1_concept_designs/)
-- **用途**: 宏观概念设计，整体架构
-- **内容**: 架构图、用户流程、数据模型
+### Level 1: Concept diagrams (`1_concept_designs/`)
+- **Purpose**: High-level concepts and overall architecture
+- **Content**: Architecture diagrams, user flows, data models
 
-### 第二层：粗页面图 (2_page_designs_cn/)
-- **用途**: 页面级别设计（中文命名）
-- **内容**: 页面功能、布局草图、交互说明
+### Level 2: Rough page designs (`2_page_designs_cn/`)
+- **Purpose**: Page-level design (Chinese naming)
+- **Content**: Page features, layout sketches, interaction notes
 
-### 第三层：细页面图 (3_page_designs_en/)
-- **用途**: 详细设计（英文命名，与代码对应）
-- **内容**: pageview_map.json、详细规格
+### Level 3: Detailed page designs (`3_page_designs_en/`)
+- **Purpose**: Detailed design (English names aligned with code)
+- **Content**: `pageview_map.json`, detailed specs
 
-## 使用流程
+## Workflow
 
-1. **概念阶段**: 在 `1_concept_designs/` 编写架构设计
-2. **页面设计**: 在 `2_page_designs_cn/` 设计页面（中文）
-3. **细化实现**: 在 `3_page_designs_en/` 创建详细设计
-4. **代码开发**: 根据 pageview_map.json 实现组件
+1. **Concept phase**: Write architecture in `1_concept_designs/`
+2. **Page design**: Design pages in `2_page_designs_cn/` (Chinese names)
+3. **Detail implementation**: Create detailed designs in `3_page_designs_en/`
+4. **Development**: Implement components from `pageview_map.json`
 
-## 参考文档
+## References
 
-完整说明请参考: `doc/DESIGN_DOCS_STRUCTURE.md`
+See `doc/DESIGN_DOCS_STRUCTURE.md` for the full guide.

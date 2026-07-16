@@ -19,6 +19,9 @@ from datetime import datetime
 # Import image analyzer
 from .image_analyzer import analyze_image_full
 
+import shutil
+
+
 
 # ============================================================
 # PageView Map Structure
@@ -358,7 +361,6 @@ def add_actual_image(
 
     # Copy image to composites directory
     composite_path = composites_dir / composite_filename
-    import shutil
     shutil.copy2(image_file, composite_path)
 
     # Create relative path

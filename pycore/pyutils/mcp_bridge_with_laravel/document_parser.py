@@ -19,6 +19,14 @@ from package_manager import PackageManager
 from document_converter import DocumentConverter
 from pycore.pyfoundations.third_party import get_third_package_pypdf
 
+from pycore.pyfoundations.third_party import get_third_package_pdfplumber
+from pycore.pyfoundations.third_party import get_third_package_openpyxl
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+
+import xml.etree.ElementTree as ET
+
+
+
 logger = logging.getLogger(__name__)
 
 # pypdf is resolved once at import (no circular dependency on server).
@@ -91,7 +99,7 @@ class DocumentParser:
 
             if pypdf_lib is None:
                 raise ImportError("pypdf not available")
-            import pdfplumber
+            pdfplumber = get_third_package_pdfplumber()
 
             result = {
                 "type": "pdf",
@@ -154,7 +162,6 @@ class DocumentParser:
             if not PackageManager.ensure_packages('xmind'):
                 raise ImportError("XMind parsing packages not available")
 
-            from xmindparser import xmind_to_dict
 
             result = {
                 "type": "xmind",
@@ -210,7 +217,6 @@ class DocumentParser:
             if not PackageManager.ensure_packages('office'):
                 raise ImportError("Office parsing packages not available")
 
-            from docx import Document
 
             result = {
                 "type": "word",
@@ -275,7 +281,7 @@ class DocumentParser:
             if not PackageManager.ensure_packages('office'):
                 raise ImportError("Office parsing packages not available")
 
-            import openpyxl
+            openpyxl = get_third_package_openpyxl()
 
             result = {
                 "type": "excel",
@@ -334,7 +340,6 @@ class DocumentParser:
             if not PackageManager.ensure_packages('office'):
                 raise ImportError("Office parsing packages not available")
 
-            from pptx import Presentation
 
             result = {
                 "type": "powerpoint",
@@ -411,7 +416,7 @@ class DocumentParser:
 
             # Load image metadata
             try:
-                from PIL import Image
+                Image = get_third_package_PIL_Image()
                 with Image.open(file_path) as img:
                     result["metadata"] = {
                         "width": img.width,
@@ -466,8 +471,7 @@ class DocumentParser:
             if not PackageManager.ensure_packages('ocr'):
                 raise ImportError("OCR parsing packages not available")
 
-            import pytesseract
-            from PIL import Image
+            Image = get_third_package_PIL_Image()
 
             logger.info("Using pytesseract fallback OCR")
 
@@ -592,7 +596,6 @@ class DocumentParser:
             if not PackageManager.ensure_packages('xml'):
                 raise ImportError("XML parsing packages not available")
 
-            import xml.etree.ElementTree as ET
 
             result = {
                 "type": "xml",

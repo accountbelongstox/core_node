@@ -38,6 +38,8 @@ from pycore.callmodule.rpc_routes import (
     register_media_routes,
     register_corebook_routes,
     register_laravel_api_routes,
+    register_local_http_routes,
+    register_local_engine_test_routes,
 )
 
 # Unified AI gateway -> desktop pipeline composition (pyctl/* packages must not
@@ -73,6 +75,7 @@ from pycore.callmodule.routers.local import (
     ai_probe_router,
     ai_chat_router,
     ai_image_router,
+    ai_keys_router,
     ocr_status_router,
     tts_status_router,
     stt_status_router,
@@ -81,6 +84,7 @@ from pycore.callmodule.routers.local import (
     translation_queue_router,
     task_center_router,
     queue_overview_router,
+    queue_bumps_router,
     task_history_router,
     assist_router,
     poster_router,
@@ -88,7 +92,10 @@ from pycore.callmodule.routers.local import (
     sentence_audio_router,
     dictionary_router,
     word_audio_router,
+    word_tts_router,
+    heartbeat_workers_router,
     agent_history_router,
+    task_settings_router,
 )
 
 # Import upload layer routers (NEW)
@@ -277,6 +284,8 @@ def _init_rpc_routes(server):
         register_media_routes(server)
         register_corebook_routes(server)
         register_laravel_api_routes(server)
+        register_local_http_routes(server)
+        register_local_engine_test_routes(server)
 
         # Boot the Code Sync manager now (the tray no longer instantiates it):
         # this starts the status mesh for every role and the file puller for
@@ -400,6 +409,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 ai_probe_router,         # AI provider probe (/api/local/ai/probe): configured/available/models
                 ai_chat_router,          # AI chat confirm (/api/local/ai/chat): send a message, get the reply
                 ai_image_router,         # AI image generation (/api/local/ai/image): prompt -> base64 image via gateway
+                ai_keys_router,          # AI provider key pool (/api/local/ai/keys): set/delete/masked status
                 ocr_status_router,       # OCR engine availability (/api/local/ocr/status): windows/easyocr/cnocr priority
                 tts_status_router,       # TTS live availability + version (/api/local/tts/status) + live /test per engine
                 stt_status_router,       # STT engine availability (/api/local/stt/status) + live /test: faster-whisper/whisper/vosk/azure
@@ -408,14 +418,18 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 translation_queue_router,# Translation queue monitor + control proxy (/api/local/translation/queue)
                 task_center_router,      # Unified task-center aggregate (/api/local/task-center) — mirrors laravel_main /api/task-center/overview
                 queue_overview_router,   # Unified queue overview — never-blind category catalog incl ai_translate+subtitle_search (/api/local/queue/overview)
+                queue_bumps_router,      # Cross-lane priority bump feed (/api/local/queue/bumps)
                 task_history_router,     # Recent-task cross-end log + clear (/api/local/tasks/recent, /clear)
                 assist_router,           # Assist-Laravel worker control (/api/local/assist): status/config/cycle for cover+tts generation
                 poster_router,           # Movie/TV poster status+config+test (/api/local/poster): TMDB/OMDB/SerpApi key status + fetch toggle + lookup preview
                 image_search_router,     # SerpApi Google-Images search + AI compare + history (/api/local/image-search)
                 sentence_audio_router,   # Sentence-library audio auto-start + run-once (/api/local/sentence-audio)
+                word_tts_router,         # Word-dictionary TTS auto-start + run-once (/api/local/word-tts)
+                heartbeat_workers_router,# Heartbeat worker status + monitor/WS toggles (/api/local/heartbeat-workers)
                 dictionary_router,       # Offline ECDICT+WordNet word dictionary (/api/local/dictionary): lookup + status
                 word_audio_router,       # Real word pronunciation chain status+test (/api/local/word-audio): free-dict/cambridge/forvo + base64 audio
                 agent_history_router,    # Local AI agent history (/api/local/agent-history): Claude/Codex/Cursor/Gemini txt store
+                task_settings_router,    # Per-task-type capability chains (/api/local/task-settings/chains)
 
                 # === Upload Layer Routers ===
                 upload_router,           # Upload task management and server config

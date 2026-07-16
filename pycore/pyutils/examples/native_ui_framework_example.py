@@ -9,6 +9,10 @@ import sys
 import os
 import time
 
+import threading
+import traceback
+
+
 # Add project root directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
@@ -184,7 +188,6 @@ def example_custom_signals():
         print("\n✅ UI is ready!\n")
 
         # Delay sending custom signal (simulate user action)
-        import threading
         def send_signal():
             time.sleep(2)
             print("Sending custom signal...")
@@ -281,7 +284,6 @@ def example_hidden_start():
         print("Showing window...")
         app.show_window()
 
-    import threading
     threading.Thread(target=delayed_show, daemon=True).start()
 
     # Start application
@@ -371,7 +373,6 @@ def example_complete_app():
             'task': 'Code review'
         })
 
-    import threading
     threading.Thread(target=simulate_user_actions, daemon=True).start()
 
     # Start application
@@ -427,7 +428,6 @@ def main():
         sys.exit(0)
     except Exception as e:
         print(f"\n❌ Error: {e}")
-        import traceback
         traceback.print_exc()
 
 

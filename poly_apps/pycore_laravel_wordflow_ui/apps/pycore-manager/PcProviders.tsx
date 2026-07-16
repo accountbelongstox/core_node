@@ -1,6 +1,6 @@
 /**
  * Shared React context providers for the pycore-manager end.
- * Mounted in PcLayout (the layout route) so every consumer — top bar, pages,
+ * Mounted in PcApp (wraps all layout routes) so every consumer — top bar, pages,
  * floating log — shares one provider tree co-located with the layout element.
  */
 import React from 'react';

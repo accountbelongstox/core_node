@@ -35,7 +35,8 @@ import {
   Activity,
   Archive,
   FileCode,
-  ListChecks
+  ListChecks,
+  Wrench
 } from 'lucide-react';
 import NginxSiteCard from './NginxSiteCard';
 
@@ -76,6 +77,7 @@ interface NginxPanelProps {
   onInstallNginx: () => void;
   onCopyInstallHint: (hint: string) => void;
   onNginxService: (action: NginxServiceAction) => void;
+  onRepairConfig: () => void;
   onLoadNginxLogs: (type?: 'access' | 'error', lines?: number, filter?: string) => void;
   onLoadNginxBackups: () => void;
   onRestoreBackup: (backup: NginxBackup) => void;
@@ -88,6 +90,7 @@ interface NginxPanelProps {
   onEditSite: (site: NginxSite) => void;
   onViewConfig: (siteName: string) => void;
   onDeleteSite: (siteName: string) => void;
+  onDeleteFilesSite: (siteName: string) => void;
 }
 
 const NginxPanel: React.FC<NginxPanelProps> = ({
@@ -127,6 +130,7 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
   onInstallNginx,
   onCopyInstallHint,
   onNginxService,
+  onRepairConfig,
   onLoadNginxLogs,
   onLoadNginxBackups,
   onRestoreBackup,
@@ -138,7 +142,8 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
   onDisableSite,
   onEditSite,
   onViewConfig,
-  onDeleteSite
+  onDeleteSite,
+  onDeleteFilesSite
 }) => {
   const t = TRANSLATIONS[lang].server;
   return (
@@ -337,6 +342,15 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
                 );
               })}
               <button
+                onClick={onRepairConfig}
+                disabled={nginxNotInstalled || serviceBusy !== null}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium flex items-center gap-2"
+                title="Repair + reset all nginx config (ensure log dirs, quarantine broken sites, reload)"
+              >
+                <Wrench className="w-4 h-4" />
+                Repair
+              </button>
+              <button
                 onClick={() => {
                   setShowNginxLogs(prev => {
                     const next = !prev;
@@ -455,6 +469,7 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
                     onEdit={onEditSite}
                     onViewConfig={onViewConfig}
                     onDelete={onDeleteSite}
+                    onDeleteFiles={onDeleteFilesSite}
                   />
                 ))}
               </div>

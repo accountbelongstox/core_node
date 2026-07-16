@@ -29,6 +29,9 @@ import LibrariesTab from '../vocabulary/tabs/LibrariesTab';
 import { type PaginatedListColumn, type PaginatedListFetcher } from '../vocabulary/PaginatedListModal';
 import { buildDictionaryColumns } from '../vocabulary/words/dictionaryColumns';
 import WordDetail from '../vocabulary/words/WordDetail';
+import QueueItemDetailPanel from '../vocabulary/QueueItemDetailPanel';
+import { buildAssistQueueColumns, buildTtsQueueColumns } from '../vocabulary/queueDrillColumns';
+import type { AssistOverviewResponse } from '../../core/api/modules/BooksAPI';
 import type { VocabularyStatisticsWordRow, VocabularyWordsPagination } from '../../types';
 import { useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '../../core/logstore/logStore';
@@ -39,6 +42,7 @@ import VocabSubTabBar, {
   VOCAB_TABS,
   type VocabTab,
 } from '../vocabulary/VocabSubTabBar';
+import VocabularyStorageSummary from '../vocabulary/VocabularyStorageSummary';
 
 const VocabularyLearning: React.FC = () => {
   const { lang } = useAppState();
@@ -124,6 +128,8 @@ const VocabularyLearning: React.FC = () => {
   // this page and a full reload re-polls. `loadingQueueStats` is page-local UI.
   const [loadingQueueStats, setLoadingQueueStats] = useState(false);
   const [autoRefreshQueue, setAutoRefreshQueue] = useState(false);
+  const [assistOverview, setAssistOverview] = useState<AssistOverviewResponse | null>(null);
+  const [loadingAssistOverview, setLoadingAssistOverview] = useState(false);
   // Floating Recent-Logs dock (bottom-left). Collapsed by default.
   const [logsDockOpen, setLogsDockOpen] = useState(false);
 
@@ -177,9 +183,30 @@ const VocabularyLearning: React.FC = () => {
         return null;
       });
 
+  const fetchAssistOverview = (): Promise<AssistOverviewResponse | null> =>
+    api.books.getAssistOverview()
+      .then((response: any) => {
+        setLoadingAssistOverview(false);
+        if (response.success && response.data) {
+          return response.data as AssistOverviewResponse;
+        }
+        return null;
+      })
+      .catch((error: any) => {
+        console.error('Failed to load assist overview:', error);
+        setLoadingAssistOverview(false);
+        return null;
+      });
+
   const queueTask = usePersistentTask<any>('laravel.tts-queue', {
     intervalMs: 5000,
-    poll: fetchQueueStats,
+    poll: () =>
+      fetchQueueStats().then((stats) => {
+        fetchAssistOverview().then((overview) => {
+          if (overview) setAssistOverview(overview);
+        });
+        return stats;
+      }),
     reattach: fetchQueueStats,
   });
   const queueStats = queueTask.data;
@@ -189,6 +216,7 @@ const VocabularyLearning: React.FC = () => {
     loadTasks();
     loadLibraries();
     loadQueueStats();
+    loadAssistOverview();
   }, []);
 
   useEffect(() => {
@@ -446,6 +474,16 @@ const VocabularyLearning: React.FC = () => {
     fetchQueueStats().then((s) => { if (s) queueTask.set(s); });
   };
 
+  const loadAssistOverview = () => {
+    setLoadingAssistOverview(true);
+    fetchAssistOverview().then((d) => { if (d) setAssistOverview(d); });
+  };
+
+  const refreshQueueBundle = () => {
+    loadQueueStats();
+    loadAssistOverview();
+  };
+
   const loadWordModal = async (language: string, page: number, perPage: number): Promise<{ words: VocabularyStatisticsWordRow[]; pagination: VocabularyWordsPagination | null }> => {
     const response = await api.appQyV1.getVocabularyStatistics({
       language,
@@ -688,7 +726,7 @@ const VocabularyLearning: React.FC = () => {
   const sentenceAudioKey = (text: string, language: string) => `${language}|${text}`;
 
   const playSentenceAudio = async (sentence: any, language: string) => {
-    const text: string = sentence?.text || '';
+    const text: string = sentence?.text || sentence?.content_text || '';
     if (!text) return;
     // Ready audio on the row — just play it.
     if (sentence?.audio) {
@@ -903,24 +941,70 @@ const VocabularyLearning: React.FC = () => {
     />
   );
 
+  const queueDrillDeps = {
+    playWordAudio,
+    playSentenceAudio,
+    sentenceAudioState,
+    sentenceAudioKey,
+  };
+
+  const renderQueueItemDetail = (r: any) => (
+    <QueueItemDetailPanel
+      row={r}
+      playWordAudio={playWordAudio}
+      playSentenceAudio={playSentenceAudio}
+      sentenceAudioState={sentenceAudioState}
+      sentenceAudioKey={sentenceAudioKey}
+    />
+  );
+
   /** TTS queue items by status or type (GET /tts/queue/items). */
   const openTtsQueueDrill = (
     label: string,
-    params: { status?: 'pending' | 'processing' | 'completed' | 'failed'; type?: 'word' | 'sentence' | 'article' }
+    params: { status?: 'pending' | 'processing' | 'completed' | 'failed' | 'leased'; type?: 'word' | 'sentence' | 'article' }
   ) => {
-    const columns: PaginatedListColumn[] = [
-      { key: 'content_text', header: 'Content', className: 'text-slate-900 dark:text-slate-100 max-w-xs truncate', render: (r) => r.content_text || r.content || r.text || '-' },
-      { key: 'task_type', header: 'Type', render: (r) => r.task_type || r.type || '-' },
-      { key: 'language', header: 'Lang', className: 'uppercase', render: (r) => r.language || '-' },
-      { key: 'status', header: 'Status', render: (r) => r.status || '-' },
-    ];
+    const columns = buildTtsQueueColumns(queueDrillDeps);
     const fetchPage: PaginatedListFetcher = async (start, limit) => {
       const r = await api.books.getTtsQueueItems({ ...params, start, limit });
       if (!r.success || !r.data) throw new Error(r.error || 'Failed to load queue items');
       return { items: r.data.items || [], total: r.data.total || 0 };
     };
     logInfo('vocab', `Drill-down: TTS queue "${label}"`);
-    setStatDrill({ title: `TTS Queue — ${label}`, fetchPage, columns, reloadKey: `tts:${JSON.stringify(params)}` });
+    setStatDrill({
+      title: `TTS Queue — ${label}`,
+      subtitle: 'Sorted by priority (wordnew bumps ≥100 appear first)',
+      fetchPage,
+      columns,
+      renderDetail: renderQueueItemDetail,
+      wide: true,
+      reloadKey: `tts:${JSON.stringify(params)}`,
+    });
+  };
+
+  /** Assist/worker category items (GET /assist/overview/items). */
+  const openAssistCategoryDrill = (
+    label: string,
+    category: string,
+    status?: 'pending' | 'processing' | 'completed' | 'failed' | 'leased'
+  ) => {
+    const columns = buildAssistQueueColumns(queueDrillDeps);
+    const fetchPage: PaginatedListFetcher = async (start, limit) => {
+      const r = await api.books.getAssistCategoryItems({ category, status, start, limit });
+      if (!r.success || !r.data) throw new Error(r.error || 'Failed to load category items');
+      return { items: r.data.items || [], total: r.data.total || 0 };
+    };
+    logInfo('vocab', `Drill-down: assist "${label}" (${category}${status ? `/${status}` : ''})`);
+    setStatDrill({
+      title: `Worker Queue — ${label}`,
+      subtitle: status === 'leased'
+        ? 'Active leases (worker holds this item now)'
+        : 'Sorted by priority — wordnew/library bumps (≥100) at top',
+      fetchPage,
+      columns,
+      renderDetail: renderQueueItemDetail,
+      wide: true,
+      reloadKey: `assist:${category}:${status ?? 'all'}`,
+    });
   };
 
   /** Dictionary words by filter (GET /dictionary/words). */
@@ -987,6 +1071,8 @@ const VocabularyLearning: React.FC = () => {
         <p className="text-sm text-slate-500 dark:text-slate-400">Translate, learn, and practice vocabulary</p>
       </div>
 
+      <VocabularyStorageSummary />
+
       {/* Sub-tab bar — only the active tab's content mounts. Persisted in localStorage. */}
       <VocabSubTabBar activeTab={activeTab} switchTab={switchTab} />
 
@@ -1002,8 +1088,12 @@ const VocabularyLearning: React.FC = () => {
           loadingQueueStats={loadingQueueStats}
           autoRefreshQueue={autoRefreshQueue}
           setAutoRefreshQueue={setAutoRefreshQueue}
-          loadQueueStats={loadQueueStats}
+          loadQueueStats={refreshQueueBundle}
           openTtsQueueDrill={openTtsQueueDrill}
+          assistOverview={assistOverview}
+          loadingAssistOverview={loadingAssistOverview}
+          loadAssistOverview={loadAssistOverview}
+          openAssistCategoryDrill={openAssistCategoryDrill}
           setLogsDockOpen={setLogsDockOpen}
           t={t}
         />

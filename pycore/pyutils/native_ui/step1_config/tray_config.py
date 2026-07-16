@@ -37,6 +37,10 @@ from enum import Enum
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 
+from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
+from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
+
+
 
 class TrayBackend(Enum):
     """System tray backend options"""
@@ -188,8 +192,6 @@ def create_default_tray_menu(app_name: str) -> List[TrayMenuItem]:
     """
     # Import I18nKeys and BusSignals here to avoid circular import
     try:
-        from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
-        from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
         return [
             TrayMenuItem(
                 text_key=I18nKeys.TRAY_MENU_SHOW,

@@ -1,0 +1,71 @@
+<?php
+
+namespace App\Apps\AppQyV1\AppQyV1Services;
+
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserBookReadingProgressModel;
+
+class AppQyV1BookReadingProgressService
+{
+    public function getForBook(int $userId, string $sourceKey): ?array
+    {
+        $row = AppQyV1UserBookReadingProgressModel::query()
+            ->where('user_id', $userId)
+            ->where('source_key', $sourceKey)
+            ->first();
+
+        if (!$row) {
+            return null;
+        }
+
+        return $this->toPayload($row);
+    }
+
+    public function listForUser(int $userId, int $limit = 100): array
+    {
+        return AppQyV1UserBookReadingProgressModel::query()
+            ->where('user_id', $userId)
+            ->orderByDesc('updated_at')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($row) => $this->toPayload($row))
+            ->values()
+            ->all();
+    }
+
+    public function saveForBook(int $userId, string $sourceKey, array $payload): array
+    {
+        $row = AppQyV1UserBookReadingProgressModel::query()->firstOrNew([
+            'user_id' => $userId,
+            'source_key' => $sourceKey,
+        ]);
+
+        if (array_key_exists('chapter_index', $payload)) {
+            $row->chapter_index = $payload['chapter_index'];
+        }
+        if (array_key_exists('verse_seq', $payload)) {
+            $row->verse_seq = (int) $payload['verse_seq'];
+        }
+        if (array_key_exists('grain', $payload)) {
+            $row->grain = $payload['grain'] ?? 'sentence';
+        }
+        if (array_key_exists('page', $payload)) {
+            $row->page = max(1, (int) $payload['page']);
+        }
+
+        $row->save();
+
+        return $this->toPayload($row);
+    }
+
+    private function toPayload(AppQyV1UserBookReadingProgressModel $row): array
+    {
+        return [
+            'source_key' => $row->source_key,
+            'chapter_index' => $row->chapter_index,
+            'verse_seq' => (int) ($row->verse_seq ?? 0),
+            'grain' => $row->grain ?? 'sentence',
+            'page' => (int) ($row->page ?? 1),
+            'updated_at' => $row->updated_at?->toIso8601String(),
+        ];
+    }
+}

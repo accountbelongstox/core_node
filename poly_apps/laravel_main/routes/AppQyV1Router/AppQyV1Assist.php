@@ -41,6 +41,7 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
         // CONTRACT v2): all 8 assist categories + worker roster, cache-backed
         // (30s), ?fresh=1 bypass.
         Route::get('/overview', [AppQyV1AssistController::class, 'overview']);
+        Route::get('/overview/items', [AppQyV1AssistController::class, 'overviewItems']);
 
         // Record-scoped assist requests (CoreBook §6): a thin per-record request
         // layer on top of the worker-pull pool. Filed by the Task Center modal

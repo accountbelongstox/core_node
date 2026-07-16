@@ -90,7 +90,7 @@ class ImageComparator:
             SSIM value (range: -1 to 1, 1 = identical)
         """
         try:
-            from skimage.metrics import structural_similarity as ssim
+            pass
         except ImportError:
             raise ImportError("scikit-image is required for SSIM. Install with: pip install scikit-image")
 

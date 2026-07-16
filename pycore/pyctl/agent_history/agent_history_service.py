@@ -4,7 +4,7 @@ Local AI agent history extractor — pycore twin of Laravel DeveloperHistoryServ
 
 Incrementally scans Claude/Codex/Cursor/Gemini source files from user home dirs,
 parses prompts + AI returns, and persists to txt files under
-``<core_node>/.data/.ai_state/agent_history/`` (no database).
+``<cache>/pycore/.ai_state/agent_history/`` (no database).
 """
 
 from __future__ import annotations

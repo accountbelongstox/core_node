@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 # 1. Write all code in English only.
@@ -15,7 +15,7 @@
 # for the pycore "Video Extraction" feature) on Linux/macOS. Prefix 15 sorts right
 # AFTER 13_ensure_python.sh and 14_install_python_prereq_packages.sh in install.sh's
 # numeric-ordered run, so pip and ML prereqs are ready.
-# Also invoked directly by scripts/shells/linux/common/iniscripts/install_faster_whisper.sh
+# Also invoked by prepare_pycore_prerequisites.sh (pyservice).
 # (the pyservice prerequisite reference) to keep one copy of the logic.
 #
 # Invocation contracts:
@@ -40,6 +40,7 @@ GPU_ARGS=()
 
 # Resolve the common dir the same way sibling install scripts do.
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_CURRENT_DIR/../../common/tts_install_assets_common.sh"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
@@ -143,17 +144,17 @@ if [[ "$FORCE" -eq 0 ]]; then
     [[ -n "$DISK_GB" && "$DISK_GB" -lt "$MIN_DISK_GB" ]] && reasons+=("free disk ${DISK_GB} GB < ${MIN_DISK_GB} GB")
     if [[ ${#reasons[@]} -gt 0 ]]; then
         echo "[skip] System too small for faster-whisper (${reasons[*]}); skipping. Use --force to override."
-        exit 0
+        complete_prereq_step "$PYTHON" "[faster_whisper] " faster_whisper
     fi
     if is_server && ! has_cuda; then
         echo "[skip] Headless server (non-desktop) with no CUDA GPU; skipping. Use --force to override."
-        exit 0
+        complete_prereq_step "$PYTHON" "[faster_whisper] " faster_whisper
     fi
 fi
 
 # --- 2) faster-whisper (idempotent) -------------------------------------- #
 if py_has_module faster_whisper && [[ "$FORCE" -eq 0 ]]; then
-    echo "[OK] faster-whisper already installed; skipping pip."
+    tts_idempotent_msg "$PYTHON" "$SCRIPT_CURRENT_DIR" "faster-whisper already installed"
 else
     echo "[..] pip install --upgrade faster-whisper ..."
     # Install INTO the shared venv; no PEP668 escape flags needed there.
@@ -161,20 +162,18 @@ else
     echo "[run] $PYTHON -m pip install ${PIP_ARGS[*]}"
     if ! vpip "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
         echo "[X] faster-whisper install failed." >&2
-        exit 1
+        complete_prereq_step "$PYTHON" "[faster_whisper] " faster_whisper
     fi
     if ! py_has_module faster_whisper; then
         echo "[X] faster-whisper still not importable after install." >&2
-        exit 1
+        complete_prereq_step "$PYTHON" "[faster_whisper] " faster_whisper
     fi
     echo "[OK] faster-whisper installed."
 fi
 
 # --- 3) GPU runtime libs (only if a CUDA GPU is present; idempotent) ------ #
-# Skip-when-present: on a GPU host re-run, an already-satisfied cublas/cudnn must NOT
-# re-invoke pip every time (the steady-state run stays a cheap no-op).
 if has_cuda && py_has_module nvidia.cublas && py_has_module nvidia.cudnn && [[ "$FORCE" -eq 0 ]]; then
-    echo "[OK] GPU runtime libs (cublas/cudnn) already present; skipping."
+    tts_idempotent_msg "$PYTHON" "$SCRIPT_CURRENT_DIR" "GPU runtime libs (cublas/cudnn) already present"
 elif has_cuda; then
     echo "[..] NVIDIA GPU detected -> pip install nvidia-cublas-cu12 nvidia-cudnn-cu12==9.* ..."
     # Install the CUDA/nvidia wheels INTO the shared venv (no PEP668 escape flags). CTranslate2
@@ -192,15 +191,26 @@ else
     echo "[i] No NVIDIA GPU detected -> CPU (int8) inference."
 fi
 
-# --- 4) optional model pre-download -------------------------------------- #
+# --- 4) model pre-download (GPU large-v3 / CPU medium when --model omitted) #
+_gpu_flag="--cpu"
+if has_cuda; then _gpu_flag="--gpu"; fi
+tts_official_env_line "$PYTHON" "$SCRIPT_CURRENT_DIR" faster_whisper | while read -r _line; do
+    echo "  official env (faster_whisper): $_line"
+done
+if [[ -z "$MODEL" || "$MODEL" == "auto" ]]; then
+    MODEL="$(tts_model_tier "$PYTHON" "$SCRIPT_CURRENT_DIR" faster_whisper_model "$_gpu_flag")"
+    echo "[..] auto model tier ($(echo "$_gpu_flag" | tr -d '-')): '$MODEL'"
+fi
 if [[ -n "$MODEL" && "$MODEL" != "auto" ]]; then
     echo "[..] Pre-downloading faster-whisper model '$MODEL' ..."
     echo "[run] $PYTHON -c \"from faster_whisper import download_model; download_model('$MODEL'); print('cached')\""
     if "$PYTHON" -c "from faster_whisper import download_model; download_model('$MODEL'); print('cached')"; then
         echo "[OK] model '$MODEL' ready."
+        repo_root="$(pycore_repo_root_from_install_shells "$SCRIPT_CURRENT_DIR")"
+        PYTHONPATH="$repo_root" "$PYTHON" -c "from pycore.pyutils.common.model_tiers import persist_stt_models; persist_stt_models(faster_whisper='$MODEL')" 2>/dev/null || true
     else
         echo "[!] model download did not complete; it will download on first use."
     fi
 fi
 
-exit 0
+complete_prereq_step "$PYTHON" "[faster_whisper] " faster_whisper

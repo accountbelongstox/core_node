@@ -43,11 +43,11 @@ class AiImageHistory
         'image/gif' => 'gif',
     ];
 
-    /** Absolute path of the shared .data/.ai_state dir (same dir pycore writes). */
+    /** Absolute path of the shared <cache>/pycore/.ai_state dir (same dir pycore writes). */
     public static function stateDir(): string
     {
+        $new = PathMapper::getSharedDownloadCacheDir('pycore/.ai_state');
         $coreNode = PathMapper::getCoreNodeDir() ?: PathMapper::getLaravelMainDir();
-        $new = rtrim($coreNode, '/\\') . '/.data/.ai_state';
         self::migrateLegacyStateDir($coreNode, $new);
         return $new;
     }
@@ -57,7 +57,7 @@ class AiImageHistory
 
     /**
      * One-time PER-FILE move of the prior <core_node>/.ai_state dir into
-     * .data/.ai_state. Per-file (not a whole-dir rename) so a partially-created
+     * <cache>/pycore/.ai_state. Per-file (not a whole-dir rename) so a partially-created
      * new dir — the other runtime moved some files first — never orphans the rest.
      */
     private static function migrateLegacyStateDir(string $coreNode, string $new): void

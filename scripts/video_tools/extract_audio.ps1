@@ -169,7 +169,7 @@ function Resolve-Python {
         if ($c -and (Test-Path $c)) {
             try {
                 $v = & $c --version 2>&1
-                if ($LASTEXITCODE -eq 0 -and "$v" -match 'Python\s+3') {
+                if ("$v" -match 'Python\s+3') {
                     return [PSCustomObject]@{ Path = $c; Version = ("$v").Trim() }
                 }
             } catch { }
@@ -235,7 +235,10 @@ Write-Host ("       path : {0}" -f $ff.Path)    -ForegroundColor DarkGray
 # --- GPU detection ------------------------------------------------------- #
 $hasGpu = $false
 if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
-    try { & nvidia-smi | Out-Null; if ($LASTEXITCODE -eq 0) { $hasGpu = $true } } catch { }
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $gpuOut = & nvidia-smi -L 2>$null; if ("$gpuOut" -match '(?m)^GPU\s+\d+:') { $hasGpu = $true } } catch { }
+    $ErrorActionPreference = $prevEap
 }
 if (-not $NoSubtitle) {
     if ($hasGpu) { Write-Host '[OK] NVIDIA GPU detected -> whisper will use CUDA.' -ForegroundColor Green }
@@ -249,7 +252,7 @@ if (-not $NoSubtitle) {
 # download. The Python worker itself never installs anything. All RELATIVE paths.
 $checkerRel     = '.\py_video_tools\check_deps.py'
 $workerRel      = '.\py_video_tools\video_audio_extractor.py'
-$fwInstallerRel = '.\iniscripts\install_faster_whisper.ps1'
+$fwInstallerRel = '..\shells\win\install_powershells\Step11_InstallFasterWhisper.ps1'
 
 $featureArgs = @('--feature', 'naming')
 if (-not $NoSubtitle) { $featureArgs += @('--feature', 'subtitle') }
@@ -288,10 +291,10 @@ try {
         # Simple libs (unidecode/deep-translator) via plain pip.
         if ($simpleLibs.Count -gt 0) {
             Write-Host ("[..] Installing via pip: {0}" -f ($simpleLibs -join ', ')) -ForegroundColor Yellow
-            & $py.Path -m pip install --upgrade @simpleLibs
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host '[!] pip install reported an error; continuing with whatever is available.' -ForegroundColor DarkYellow
-            }
+            $prevEap = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            try { & $py.Path -m pip install --upgrade @simpleLibs } catch { }
+            $ErrorActionPreference = $prevEap
         }
         # faster-whisper package and/or model handled by the dedicated installer.
         if ($needFw -or $needModel) {

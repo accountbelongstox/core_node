@@ -20,6 +20,8 @@ export {
   audioDurationTool,
 } from './audio';
 export { bingDictionaryTool } from './bing-dictionary';
+export { webSearchTool } from './web-search';
+export { qwenTtsTool } from './qwen-tts';
 export { notebookLmTool } from './notebooklm';
 export { notebookLmCreateTool } from './notebooklm-create';
 export { geminiImageTool } from './gemini-image';

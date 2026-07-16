@@ -2,7 +2,7 @@
 
 这是一个基于Fastify的TypeScript项目，用于与Chrome扩展进行原生通信。
 
-## 功能特性
+## Features
 
 - 通过Chrome Native Messaging协议与Chrome扩展进行双向通信
 - **支持多浏览器**: Chrome 和 Chromium (包括 Linux、macOS 和 Windows)
@@ -18,7 +18,7 @@
 - Node.js 14+
 - npm 6+
 
-### 安装
+### Installation
 
 ```bash
 git clone https://github.com/your-username/fastify-chrome-native.git
@@ -178,6 +178,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 npm run test
 ```
 
-### 许可证
+### License
 
 MIT

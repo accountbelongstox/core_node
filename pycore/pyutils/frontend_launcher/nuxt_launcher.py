@@ -18,6 +18,13 @@ from .frontend_config import FrontendConfig
 from .output_capturer import OutputCapturer
 import subprocess
 
+import traceback
+from pycore.pyfoundations.third_party import get_third_package_requests
+
+import platform as plat
+
+
+
 
 class NuxtLauncher:
     """
@@ -175,7 +182,6 @@ class NuxtLauncher:
 
         except Exception as e:
             ColorPrint.red(f"[NuxtLauncher] Compilation error: {e}")
-            import traceback
             traceback.print_exc()
             return False
 
@@ -194,7 +200,6 @@ class NuxtLauncher:
         ColorPrint.gray(f"Command: python \"{self.start_dev_script}\" {self.config.app_name} {self.config.port}")
 
         try:
-            import platform as plat
 
             if plat.system() == 'Windows':
                 # Windows: Launch in new console window
@@ -239,7 +244,6 @@ class NuxtLauncher:
 
         except Exception as e:
             ColorPrint.red(f"[NuxtLauncher] Failed to start dev server: {e}")
-            import traceback
             traceback.print_exc()
             return False
 
@@ -250,7 +254,7 @@ class NuxtLauncher:
         Returns:
             True if frontend is ready
         """
-        import requests
+        requests = get_third_package_requests()
 
         url = f"http://localhost:{self.config.port}"
         timeout = self.config.health_check_timeout

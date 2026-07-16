@@ -179,7 +179,6 @@ def example_6_integration_with_training():
     print("-" * 40)
 
     try:
-        from ultralytics_trainer import train_from_config
 
         training_config = {
             "data": f"{dataset_result['output_dir']}/data.yaml",

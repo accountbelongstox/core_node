@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from pycore.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT
+
+
 
 @dataclass
 class FrontendConfig:
@@ -43,7 +46,6 @@ class FrontendConfig:
 
         # Auto-detect project root if not provided
         if self.project_root is None:
-            from pycore.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT
             self.project_root = Path(PYCORE_PROJECT_ROOT)
         else:
             self.project_root = Path(self.project_root)

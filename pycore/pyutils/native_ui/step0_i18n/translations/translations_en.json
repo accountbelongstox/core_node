@@ -44,7 +44,10 @@
       "singleton_port": "Singleton Port: {port}",
       "autostart": "Auto-Start on Boot",
       "service_toggle": "Run as System Service",
-      "language": "Language"
+      "language": "Language",
+      "code_sync": "Code Sync",
+      "code_sync_distribute": "Start distributing",
+      "code_sync_skip_update": "Skip update"
     }
   },
   "loading": {

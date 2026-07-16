@@ -8,6 +8,9 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+
+
 _ICO_SIZES = (16, 32, 48, 256)
 
 
@@ -34,7 +37,7 @@ def get_icon_path_for_windows(image_path: Path | str) -> Path:
 def _convert_to_ico(image_path: Path, ico_path: Path) -> None:
     """Convert image to multi-size .ico using PIL when available."""
     try:
-        from PIL import Image
+        Image = get_third_package_PIL_Image()
     except ImportError:
         return
     try:

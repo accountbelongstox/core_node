@@ -137,6 +137,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [userPreferences, setUserPreferences] = useState<any>(null);
   const [userProfileLoading, setUserProfileLoading] = useState(false);
+  const [userProfileError, setUserProfileError] = useState<string | null>(null);
   const [userProfileForm, setUserProfileForm] = useState<any>({});
   const [userPrefsForm, setUserPrefsForm] = useState<any>({});
   const [userSaveStatus, setUserSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
@@ -227,6 +228,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
     if (!user) return;
     
     setUserProfileLoading(true);
+    setUserProfileError(null);
     
     try {
       const [profileRes, prefsRes] = await Promise.all([
@@ -234,7 +236,23 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
         api.auth.getUserPreferences()
       ]);
 
-      if (profileRes.success && profileRes.data?.user) {
+      if (!profileRes.success) {
+        const code = (profileRes as any).code ?? profileRes.debugInfo?.code;
+        if (code === 'AUTH_REQUIRED' || profileRes.error?.toLowerCase().includes('unauthenticated')) {
+          throw new Error('Session expired or not authenticated. Please log in again.');
+        }
+        throw new Error(profileRes.error || profileRes.message || 'Failed to load profile');
+      }
+
+      if (!prefsRes.success) {
+        const code = (prefsRes as any).code ?? prefsRes.debugInfo?.code;
+        if (code === 'AUTH_REQUIRED' || prefsRes.error?.toLowerCase().includes('unauthenticated')) {
+          throw new Error('Session expired or not authenticated. Please log in again.');
+        }
+        throw new Error(prefsRes.error || prefsRes.message || 'Failed to load preferences');
+      }
+
+      if (profileRes.data?.user) {
         setUserProfile(profileRes.data.user);
         setUserProfileForm({
           nickname: profileRes.data.user.nickname || '',
@@ -244,11 +262,13 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
         });
       }
 
-      if (prefsRes.success && prefsRes.data) {
+      if (prefsRes.data) {
         setUserPreferences(prefsRes.data);
         setUserPrefsForm(prefsRes.data);
       }
     } catch (error: any) {
+      const message = error?.message || 'Failed to load user profile';
+      setUserProfileError(message);
       console.error('Failed to load user profile:', error);
     } finally {
       setUserProfileLoading(false);
@@ -1119,6 +1139,16 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
             ) : userProfileLoading ? (
               <div className={`${commonClasses.card} p-6`}>
                 <LoadingBlock label="Loading user profile..." />
+              </div>
+            ) : userProfileError ? (
+              <div className={`${commonClasses.card} p-6`}>
+                <AlertBox variant="error">{userProfileError}</AlertBox>
+                <button
+                  onClick={loadUserProfile}
+                  className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+                >
+                  Retry
+                </button>
               </div>
             ) : userProfile ? (
               <>

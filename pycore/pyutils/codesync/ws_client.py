@@ -18,6 +18,9 @@ from .ws_proto import (
     OP_TEXT, OP_PING, OP_PONG, OP_CLOSE,
 )
 
+import sys
+
+
 
 class WSClient:
     def __init__(self, host: str, port: int, path: str = "/code-sync/ws",
@@ -65,7 +68,6 @@ class WSClient:
         """Best-effort, cross-platform TCP keepalive tuning. Detects a dead peer in
         ~idle + interval*count seconds (~60s) rather than the OS default (often 2h).
         No-op where a knob/platform is unavailable (wrapped by the caller's try)."""
-        import sys
         plat = sys.platform
         try:
             if plat.startswith("linux"):

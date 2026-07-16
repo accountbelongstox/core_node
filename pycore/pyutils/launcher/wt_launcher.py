@@ -4,7 +4,7 @@ Windows Terminal Launcher
 Handles launching Windows Terminal windows and Ubuntu terminals
 """
 
-from pycore.pyutils.launcher.script_generator import ScriptGenerator
+from pycore.pyutils.launcher.script_generator import ScriptGenerator, format_wt_size
 from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor
 from pycore.pyutils.launcher.ubuntu_finder import UbuntuFinder
 import time
@@ -44,7 +44,7 @@ class WindowsTerminalLauncher:
         ubuntu_windows = windows_config[-ubuntu_count:] if ubuntu_count > 0 else []
         
         print("\nCreating batch files:")
-        # One .bat per window: launch_terminal_1.bat .. launch_terminal_N.bat (each runs wt.exe -w new --pos ... --size ...)
+        # One .bat per window: launch_terminal_1.bat .. launch_terminal_N.bat (each runs wt.exe -w -1 --pos ... --size ...)
         for i, (x, y, term_cols, term_rows) in enumerate(wt_windows, 1):
             bat_path = self.script_generator.create_wt_bat(i, x, y, term_cols, term_rows)
             bat_files.append(bat_path)
@@ -70,7 +70,8 @@ class WindowsTerminalLauncher:
         # Launch Windows Terminal windows
         for i, bat_path in enumerate(bat_files[:len(wt_windows)], 1):
             x, y, term_cols, term_rows = wt_windows[i-1]
-            cmd = f'wt.exe -w new --pos "{x},{y}" --size "{term_cols}.{term_rows}"'
+            size_arg = format_wt_size(term_cols, term_rows)
+            cmd = f'wt.exe -w -1 --pos "{x},{y}" --size "{size_arg}"'
             print(f"  Windows Terminal {i}: {cmd}")
             self.executor.execute_bat_file_with_cmd(bat_path, independent=True)
             time.sleep(delay)

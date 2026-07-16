@@ -37,6 +37,9 @@ import fastapi
 
 from pycore.pyheartbeat import get_heartbeat_system
 from pycore.pyctl.desktop.task_manager import get_task_manager
+from pycore.callmodule.services.sync.laravel_endpoint_manager import (
+    get_laravel_endpoint_manager,
+)
 from pycore.callmodule.services import (
     get_queue_monitor_service,
     get_translation_worker_service,
@@ -53,10 +56,13 @@ router = fastapi.APIRouter(
 # (queue_role = None). Mirrors laravel_main TaskCenterController's
 # TIMER_QUEUE_ROLES (its scheduler→queue relationship metadata).
 _CALLBACK_QUEUE_ROLES: Dict[str, str] = {
-    "translation_worker": "consumer",         # pulls + translates queue tasks
-    "translation_queue_monitor": "monitor",   # polls/caches the queue snapshot
-    "translation_ws_client": "signal",        # real-time Reverb push supervisor
-    "tts_queue_poller": "consumer",           # pulls TTS queue tasks
+    "translation_worker": "consumer",
+    "translation_queue_monitor": "monitor",
+    "translation_ws_client": "signal",
+    "tts_queue_poller": "consumer",
+    "tts_sentence_worker": "consumer",
+    "ai_rate_reset": "maintainer",
+    "agent_history_extraction": "maintainer",
 }
 
 # Local TaskManager status vocabulary (Task statuses in pyctl task_manager).
@@ -85,7 +91,7 @@ _CATEGORY_CATALOG: List[Dict[str, str]] = [
     {"key": "word_audio", "label": "Word Audio", "handler": "pycore"},
     {"key": "sentence_audio", "label": "Sentence Audio", "handler": "pycore"},
     {"key": "subtitle_search", "label": "Subtitle Search", "handler": "pycore"},
-    {"key": "poster", "label": "Poster", "handler": "pycore"},
+    {"key": "poster", "label": "Poster", "handler": "chrome"},
     {"key": "gemini_image", "label": "Gemini Image", "handler": "chrome"},
     {"key": "notebooklm", "label": "NotebookLM", "handler": "chrome"},
     {"key": "gemini_chat", "label": "Gemini Chat", "handler": "chrome"},
@@ -214,6 +220,8 @@ def _remote_queue_section() -> Dict[str, Any]:
 
     return {
         "laravel_reachable": snapshot.get("laravel_reachable", False),
+        "laravel_endpoint": get_laravel_endpoint_manager().peek_stored_base_url(),
+        "laravel_active_endpoint": get_laravel_endpoint_manager().get_active_base_url(),
         "ws_connected": snapshot.get("ws_connected", False),
         "summary": snapshot.get("summary", {}),
         "age_ms": snapshot.get("age_ms"),
@@ -282,12 +290,4 @@ async def get_remote_task_detail(task_id: str):
     monitor.
     """
     monitor = _monitor()
-    detail_getter = getattr(monitor, "get_task_full_detail", None)
-    if callable(detail_getter):
-        try:
-            return detail_getter(task_id)
-        except Exception:
-            pass
-    # Fallback: the /status proxy still yields the global_tasks row, which the
-    # FE can render even without the events/phase bundle.
-    return monitor.get_task_detail(task_id)
+    return monitor.get_task_full_detail(task_id)

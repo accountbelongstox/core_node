@@ -344,6 +344,25 @@ function Write-ColorMessage {
     Write-Host -ForegroundColor $color "$prefix$Message"
 }
 
+function Wait-MenuContinue {
+    param(
+        [Parameter()]
+        [string]$Message = "Press Enter to continue"
+    )
+
+    Write-Host ""
+    Write-Host "$Message..." -ForegroundColor Yellow
+
+    Start-Sleep -Milliseconds 30
+    while ([Console]::KeyAvailable) {
+        [void][Console]::ReadKey($true)
+    }
+
+    do {
+        $key = [Console]::ReadKey($true)
+    } while ($key.Key -ne 'Enter')
+}
+
 # Function to prompt user with timeout
 function Invoke-TimeoutPrompt {
     param (

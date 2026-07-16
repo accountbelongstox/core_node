@@ -25,7 +25,7 @@ new_order/
 └── README.md                          # 说明文档
 ```
 
-## 功能特性
+## Features
 
 ### 1. 页面组件
 
@@ -59,9 +59,9 @@ new_order/
 - 背景色: #F5F5F5
 - 卡片背景: #FFFFFF
 
-## 使用方法
+## Usage
 
-### 基本用法
+### Basic Usage
 
 ```dart
 import 'package:flutter/material.dart';
@@ -195,7 +195,7 @@ dependencies:
   intl: ^0.18.0  # 用于日期格式化
 ```
 
-## 注意事项
+## Notes
 
 1. 日期格式化需要 `intl` 包支持
 2. 所有图片路径需要在 `pubspec.yaml` 中正确配置
@@ -225,7 +225,7 @@ const TextStyle(
 )
 ```
 
-## 技术栈
+## Stack
 
 - Flutter 3.x
 - Material Design 3

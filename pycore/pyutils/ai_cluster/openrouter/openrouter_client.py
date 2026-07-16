@@ -72,8 +72,8 @@ class OpenRouterClient:
         'llama-3.3-70b': 'meta-llama/llama-3.3-70b-instruct',
         'llama-3.1-405b': 'meta-llama/llama-3.1-405b-instruct',
 
-        # Free models
-        'free': 'tngtech/deepseek-r1t2-chimera:free',
+        # Free Models Router — https://openrouter.ai/docs/guides/routing/routers/free-router
+        'free': 'openrouter/free',
     }
 
     def __init__(
@@ -393,6 +393,9 @@ class OpenRouterClient:
             resp.raise_for_status()
             data = resp.json().get("data", [])
             ids = [m.get("id", "") for m in data if m.get("id")]
+            if "openrouter/free" in ids:
+                rest = [i for i in ids if i != "openrouter/free"]
+                return ["openrouter/free"] + rest
             free = [i for i in ids if i.endswith(":free")]
             rest = [i for i in ids if not i.endswith(":free")]
             return free + rest

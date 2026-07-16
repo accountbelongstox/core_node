@@ -1,4 +1,4 @@
-# 搜索功能 (search_functionality)
+# Search Functionality (search_functionality)
 
 This directory contains detailed design specifications for the search_functionality page.
 

@@ -5,6 +5,7 @@
  * Both PcVoiceSubtitlePage and PcAiStatusPage read the same store so a refresh
  * on either page updates the other. One poll loop, single-flight fetches.
  */
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { pycoreApi } from './PycoreApi';
 import type { AiGatewayStatus, CapabilityStatus, OcrStatus, TtsStatus, SttStatus } from './pycoreTypes';
 
@@ -153,4 +154,32 @@ export function stopPycoreCapabilityPoll(): void {
     window.clearInterval(pollId);
     pollId = null;
   }
+}
+
+export interface PycoreCapabilityHook extends PycoreCapabilityState {
+  /** One-click retry — forces a fresh TTS probe too. */
+  retry: () => Promise<void>;
+}
+
+/**
+ * React hook for the module singleton store. Safe from lazy-loaded page chunks
+ * (no React context — avoids duplicate context modules across Vite splits).
+ */
+export function usePycoreCapability(): PycoreCapabilityHook {
+  useEffect(() => {
+    startPycoreCapabilityPoll();
+    return () => stopPycoreCapabilityPoll();
+  }, []);
+
+  const snap = useSyncExternalStore(
+    subscribePycoreCapability,
+    getPycoreCapabilityState,
+    getPycoreCapabilityState,
+  );
+
+  const retry = useCallback(async () => {
+    await refreshPycoreCapabilities(true);
+  }, []);
+
+  return useMemo(() => ({ ...snap, retry }), [snap, retry]);
 }

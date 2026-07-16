@@ -91,7 +91,86 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
      */
     private function runConfigTest(string $binary): array
     {
+        // Ensure nginx runtime dirs (log/run) exist BEFORE testing - a missing
+        // /var/log/nginx makes `nginx -t` fail with
+        // "open() /var/log/nginx/error.log failed (2: No such file or directory)"
+        // even when the config is syntactically valid, which then blocks
+        // reload/restart. Idempotent.
+        $this->ensureNginxRuntimeDirs();
         return ServerManagerV1Utils::executeCommand($binary, ['-t']);
+    }
+
+    /**
+     * Idempotently ensure nginx runtime directories exist (/var/log/nginx for
+     * error/access logs, /run/nginx + /var/run/nginx for the pid). Tries native
+     * mkdir first (octane often runs as root); falls back to non-interactive sudo
+     * (passwordless sudo is set up by the installer). Never throws.
+     *
+     * @return array{success: bool, actions: string[]}
+     */
+    private function ensureNginxRuntimeDirs(): array
+    {
+        $dirs = ['/var/log/nginx', '/var/run/nginx', '/run/nginx'];
+        $actions = [];
+        foreach ($dirs as $dir) {
+            if (is_dir($dir)) {
+                continue;
+            }
+            if (@mkdir($dir, 0755, true)) {
+                $actions[] = "created {$dir}";
+                continue;
+            }
+            $mk = ServerManagerV1Utils::executeCommand('sudo', ['-n', 'mkdir', '-p', $dir]);
+            if ($mk['success']) {
+                ServerManagerV1Utils::executeCommand('sudo', ['-n', 'chmod', '755', $dir]);
+                $actions[] = "created {$dir} (sudo)";
+            } else {
+                $actions[] = "failed to create {$dir}: " . trim($mk['error'] ?? $mk['output'] ?? '');
+            }
+        }
+        return ['success' => true, 'actions' => $actions];
+    }
+
+    /**
+     * Parse the broken site-config file path from a `nginx -t` error. nginx emits
+     * lines like `nginx: [emerg] ... in /etc/nginx/sites-enabled/foo:12`. Returns
+     * the absolute path when it lives under the sites-enabled/sites-available dir
+     * (so a main-config error like the missing error.log is NOT mistaken for a
+     * site config), else null.
+     */
+    private function extractBrokenConfigPath(string $error, string $enabledDir, string $availableDir): ?string
+    {
+        if ($error === '') {
+            return null;
+        }
+        if (!preg_match_all('#(/[^\s:]+)#', $error, $matches)) {
+            return null;
+        }
+        foreach ($matches[1] as $path) {
+            $clean = preg_replace('/:\d+$/', '', $path);
+            if (($enabledDir !== '' && strpos($clean, $enabledDir) === 0)
+                || ($availableDir !== '' && strpos($clean, $availableDir) === 0)) {
+                return $clean;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Quarantine a broken site config so nginx stops loading it: back up the
+     * sites-available file as .broken, then remove the sites-enabled symlink (or
+     * the file itself if it is a real file). Idempotent (no error if already
+     * gone). Returns true when something was removed.
+     */
+    private function quarantineSiteConfig(string $path, string $backupDir): bool
+    {
+        if (!is_link($path) && !file_exists($path)) {
+            return false;
+        }
+        if ($backupDir !== '' && is_dir($backupDir) && is_file($path)) {
+            @copy($path, $backupDir . '/' . basename($path) . '.broken.' . date('Y-m-d_H-i-s'));
+        }
+        return @unlink($path);
     }
 
     /**
@@ -234,8 +313,49 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 return $this->errorResponse("Site already exists: $siteName", ServerManagerV1Constants::RESPONSE_CONFLICT);
             }
 
-            // Generate nginx configuration based on site type
-            $nginxConfig = $this->generateNginxConfig($domain, $siteType, $config);
+            // SSL: issue/reuse the cert FIRST so its files exist before the nginx
+            // config references them (nginx -t fails on a missing ssl_certificate).
+            // generateCertificate uses --keep-until-expiring, so an existing valid
+            // cert is reused idempotently. SSL directives are written only when a
+            // cert is actually present (generated now, or pre-existing on disk).
+            $sslReady = false;
+            $sslMessage = null;
+            $certPath = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptCertPath($domain);
+            if ($sslEnabled) {
+                if ($autoSsl) {
+                    Log::info('ServerManagerV1: Auto-generating SSL certificate', [
+                        'domain' => $domain,
+                        'dns_provider' => $dnsProvider
+                    ]);
+                    try {
+                        $certRequest = new Request([
+                            'domain' => $domain,
+                            'provider' => $dnsProvider !== 'none' ? $dnsProvider : null,
+                            'staging' => false
+                        ]);
+                        $certCtl = new ServerManagerV1CertificateManagerCtl();
+                        $certResult = $certCtl->generateCertificate($certRequest);
+                        $sslReady = (bool) ($certResult->getData()->success ?? false);
+                        $sslMessage = $sslReady
+                            ? 'SSL certificate generated/reused'
+                            : 'SSL certificate generation failed: ' . ($certResult->getData()->message ?? 'Unknown error');
+                    } catch (\Exception $e) {
+                        Log::error('ServerManagerV1: SSL generation failed', [
+                            'domain' => $domain,
+                            'error' => $e->getMessage()
+                        ]);
+                        $sslMessage = 'SSL generation error: ' . $e->getMessage();
+                    }
+                }
+                // A pre-existing cert (issued out-of-band) also enables SSL config.
+                if (!$sslReady && file_exists($certPath)) {
+                    $sslReady = true;
+                    $sslMessage = $sslMessage ?? 'SSL certificate already present';
+                }
+            }
+
+            // Generate nginx configuration (SSL directives only when the cert is ready).
+            $nginxConfig = $this->generateNginxConfig($domain, $siteType, $config, $sslReady);
 
             $binary = $this->detectNginxBinary();
             if ($binary === null) {
@@ -261,49 +381,23 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'type' => $siteType,
                 'config_file' => $configFile,
                 'enabled' => false,
-                'ssl_enabled' => $sslEnabled
+                'ssl_enabled' => $sslEnabled,
+                'ssl_configured' => $sslReady
             ];
-
-            // Auto-generate SSL certificate if requested
-            if ($sslEnabled && $autoSsl) {
-                Log::info('ServerManagerV1: Auto-generating SSL certificate', [
-                    'domain' => $domain,
-                    'dns_provider' => $dnsProvider
-                ]);
-
-                try {
-                    // Use CertificateManagerCtl to generate certificate
-                    $certRequest = new Request([
-                        'domain' => $domain,
-                        'provider' => $dnsProvider !== 'none' ? $dnsProvider : null,
-                        'staging' => false
-                    ]);
-
-                    $certCtl = new ServerManagerV1CertificateManagerCtl();
-                    $certResult = $certCtl->generateCertificate($certRequest);
-
-                    if ($certResult->getData()->success ?? false) {
-                        $responseData['ssl_generated'] = true;
-                        $responseData['ssl_message'] = 'SSL certificate generation initiated';
-                    } else {
-                        $responseData['ssl_generated'] = false;
-                        $responseData['ssl_message'] = 'SSL certificate generation failed: ' . ($certResult->getData()->message ?? 'Unknown error');
-                    }
-                } catch (\Exception $e) {
-                    Log::error('ServerManagerV1: SSL generation failed', [
-                        'domain' => $domain,
-                        'error' => $e->getMessage()
-                    ]);
-                    $responseData['ssl_generated'] = false;
-                    $responseData['ssl_message'] = 'SSL generation error: ' . $e->getMessage();
-                }
+            if ($sslMessage !== null) {
+                $responseData['ssl_message'] = $sslMessage;
             }
+
+            // Best-effort reload so the running nginx serves the new site (idempotent;
+            // the config test already passed above, including runtime-dir repair).
+            $responseData['reloaded'] = $this->runServiceAction('reload')['result']['success'];
 
             Log::info('ServerManagerV1: Nginx site created', [
                 'site_name' => $siteName,
                 'domain' => $domain,
                 'type' => $siteType,
                 'ssl_enabled' => $sslEnabled,
+                'ssl_configured' => $sslReady,
                 'auto_ssl' => $autoSsl,
                 'ip' => $request->ip()
             ]);
@@ -489,20 +583,126 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 return $this->errorResponse("Failed to delete site configuration: $siteName", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
             }
 
+            // Idempotent reset: ensure runtime dirs + validate + reload so the
+            // running nginx drops this site cleanly (best-effort, non-fatal).
+            $binary = $this->detectNginxBinary();
+            $reloaded = false;
+            if ($binary !== null) {
+                $test = $this->runConfigTest($binary);
+                if ($test['success']) {
+                    $reloaded = $this->runServiceAction('reload')['result']['success'];
+                }
+            }
+
             Log::info('ServerManagerV1: Nginx site deleted', [
                 'site_name' => $siteName,
                 'backup_file' => $backupFile,
+                'reloaded' => $reloaded,
                 'ip' => $request->ip()
             ]);
 
             return $this->successResponse([
                 'site_name' => $siteName,
                 'deleted' => true,
-                'backup_file' => $backupFile
+                'backup_file' => $backupFile,
+                'reloaded' => $reloaded
             ], 'Site deleted successfully');
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_delete_site');
+        }
+    }
+
+    /**
+     * Delete a site's actual web-root FILES. The normal deleteSite only removes
+     * the nginx config; this destructive action purges the document root too.
+     * Requires the root password AND typing "delete" to confirm. The core_node
+     * code tree is NEVER deletable: the web root must resolve inside wwwroot and
+     * outside core_node, or the call is refused. Backs up the nginx config first,
+     * then purges files + config.
+     */
+    public function deleteSiteFiles(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'nginx_delete_site_files');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $siteName = $request->route('site_name');
+            $confirm = (string) $request->input('confirm', '');
+            $password = (string) $request->input('password', '');
+
+            if ($confirm !== 'delete') {
+                return $this->errorResponse('Confirmation mismatch: type "delete" to confirm file deletion.', ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+            }
+            if ($password === '') {
+                return $this->errorResponse('Root password is required to delete site files.', ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+            }
+
+            // Verify the root password (rate-limited) before any deletion.
+            $auth = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1ElevatedAccess::authenticate($password, $request->ip());
+            if (empty($auth['success'])) {
+                return $this->errorResponse('Authentication failed: ' . ($auth['error'] ?? 'invalid password'), ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+            }
+
+            $nginxPaths = ServerManagerV1SSLConfigReader::getNginxPaths();
+            $configFile = $nginxPaths['config_path'] . '/' . $siteName;
+            if (!file_exists($configFile)) {
+                return $this->errorResponse("Site not found: $siteName", ServerManagerV1Constants::RESPONSE_NOT_FOUND);
+            }
+
+            // Resolve the web root from the nginx config (root directive), falling
+            // back to the conventional <wwwroot>/<siteName>.
+            $parsed = $this->parseNginxConfig($configFile);
+            $webRoot = $parsed['root_directory'] ?? null;
+            if (!$webRoot) {
+                $webRoot = \App\Providers\PathMapper::mapWebPath('wwwroot') . '/' . $siteName;
+            }
+            $webRoot = rtrim($webRoot, '/');
+
+            // Guardrails: never delete the core_node tree, and only delete inside wwwroot.
+            $coreReal = realpath(\App\Providers\PathMapper::getCoreNodeDir()) ?: \App\Providers\PathMapper::getCoreNodeDir();
+            $wwwrootReal = realpath(\App\Providers\PathMapper::mapWebPath('wwwroot')) ?: \App\Providers\PathMapper::mapWebPath('wwwroot');
+            $webReal = realpath($webRoot) ?: $webRoot;
+            if ($webRoot === '' || $webReal === '' || $webReal === '/' ||
+                strpos($webReal, $coreReal) === 0 ||
+                strpos($webReal, $wwwrootReal) !== 0) {
+                return $this->errorResponse('Refused: site web root is empty, outside wwwroot, or inside the protected core_node directory.', ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+            }
+
+            // Disable + back up the nginx config (same as deleteSite), then purge
+            // the web root files and remove the config.
+            $enabledFile = $nginxPaths['enabled_path'] . '/' . $siteName;
+            if (is_link($enabledFile)) {
+                @unlink($enabledFile);
+            }
+            $backupFile = $nginxPaths['backup_path'] . '/' . $siteName . '_purged_' . date('Y-m-d_H-i-s') . '.backup';
+            @copy($configFile, $backupFile);
+
+            $deleteResult = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1ElevatedAccess::deletePathWithSudo($webRoot, $password);
+            @unlink($configFile);
+
+            if (!$deleteResult['success']) {
+                Log::warning('ServerManagerV1: Site file purge partial failure', [
+                    'site_name' => $siteName, 'web_root' => $webRoot, 'error' => $deleteResult['error'] ?? '',
+                ]);
+                return $this->errorResponse('Site config removed, but file deletion failed: ' . ($deleteResult['error'] ?? 'unknown'), ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR, ['web_root' => $webRoot]);
+            }
+
+            Log::warning('ServerManagerV1: Site files purged', [
+                'site_name' => $siteName, 'web_root' => $webRoot, 'ip' => $request->ip(),
+            ]);
+
+            return $this->successResponse([
+                'site_name' => $siteName,
+                'deleted' => true,
+                'web_root' => $webRoot,
+                'backup_file' => $backupFile,
+            ], 'Site files deleted successfully');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'nginx_delete_site_files');
         }
     }
 
@@ -914,6 +1114,9 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 }
             }
 
+            // Ensure runtime dirs (log/run) exist so start/restart don't fail on
+            // a missing /var/log/nginx (idempotent; also done in runConfigTest).
+            $this->ensureNginxRuntimeDirs();
             $serviceRun = $this->runServiceAction($action);
             $result = $serviceRun['result'];
 
@@ -936,6 +1139,84 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_service_control');
+        }
+    }
+
+    /**
+     * Idempotently repair + reset the nginx config: ensure runtime dirs, test the
+     * config, and if it is invalid quarantine the broken site config(s) (back up
+     * + remove the sites-enabled symlink / sites-available file) until `nginx -t`
+     * passes, then reload. Always returns a report of what was done. Intended to
+     * be called after add/delete operations and from a "Repair Config" button.
+     */
+    public function repairConfig(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'nginx_repair_config');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $binary = $this->detectNginxBinary();
+            if ($binary === null) {
+                return $this->errorResponse(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+            }
+
+            $report = [
+                'dir_fixes' => [],
+                'quarantined' => [],
+                'valid' => false,
+                'reloaded' => false,
+                'error' => null,
+            ];
+
+            // 1. Ensure runtime dirs (fixes the missing /var/log/nginx case).
+            $report['dir_fixes'] = $this->ensureNginxRuntimeDirs()['actions'];
+
+            // 2. Test config.
+            $test = $this->runConfigTest($binary);
+            $report['valid'] = $test['success'];
+
+            // 3. If invalid, quarantine broken site configs one at a time until valid.
+            if (!$test['success']) {
+                $nginxPaths = ServerManagerV1SSLConfigReader::getNginxPaths();
+                $enabledDir = $nginxPaths['enabled_path'] ?? '';
+                $availableDir = $nginxPaths['config_path'] ?? '';
+                $backupDir = $nginxPaths['backup_path'] ?? '';
+                $attempts = 0;
+                $maxAttempts = 60;
+                while (!$test['success'] && $attempts < $maxAttempts) {
+                    $attempts++;
+                    $err = trim(($test['error'] ?? '') . "\n" . ($test['output'] ?? ''));
+                    $broken = $this->extractBrokenConfigPath($err, $enabledDir, $availableDir);
+                    if ($broken === null) {
+                        break; // cannot identify a site config to quarantine
+                    }
+                    if (!$this->quarantineSiteConfig($broken, $backupDir)) {
+                        break;
+                    }
+                    $report['quarantined'][] = $broken;
+                    $test = $this->runConfigTest($binary);
+                    $report['valid'] = $test['success'];
+                }
+            }
+
+            // 4. If valid now, reload so the running nginx picks up the clean config.
+            if ($report['valid']) {
+                $serviceRun = $this->runServiceAction('reload');
+                $report['reloaded'] = $serviceRun['result']['success'];
+            } else {
+                $report['error'] = trim(($test['error'] ?? '') . "\n" . ($test['output'] ?? ''));
+            }
+
+            Log::info('ServerManagerV1: Nginx config repair', $report);
+
+            return $this->successResponse($report, $report['valid']
+                ? 'Nginx config repaired' . ($report['reloaded'] ? ' and reloaded' : '')
+                : 'Nginx config still invalid after repair');
+
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'nginx_repair_config');
         }
     }
 
@@ -1895,9 +2176,11 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
     }
 
     /**
-     * Generate nginx configuration based on site type
+     * Generate nginx configuration based on site type. When $sslEnabled is true
+     * (a Let's Encrypt cert is already present for the domain), 443-ssl listeners
+     * + ssl_certificate paths are injected so the block serves HTTPS too.
      */
-    private function generateNginxConfig(string $domain, string $siteType, array $config): string
+    private function generateNginxConfig(string $domain, string $siteType, array $config, bool $sslEnabled = false): string
     {
         // Use PathMapper for environment-aware path (no hardcoded paths)
         $wwwroot = \App\Providers\PathMapper::mapWebPath('wwwroot');
@@ -1907,23 +2190,55 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
         switch ($siteType) {
             case 'laravel':
-                return $this->generateLaravelConfig($domain, $wwwDir . '/public', $phpVersion);
+                $nginxConfig = $this->generateLaravelConfig($domain, $wwwDir . '/public', $phpVersion);
+                break;
 
             case 'static':
-                return $this->generateStaticConfig($domain, $wwwDir);
+                $nginxConfig = $this->generateStaticConfig($domain, $wwwDir);
+                break;
 
             case 'proxy':
                 if (!$proxyTarget) {
                     throw new \InvalidArgumentException('proxy_target is required for proxy site type');
                 }
-                return $this->generateProxyConfig($domain, $proxyTarget);
+                $nginxConfig = $this->generateProxyConfig($domain, $proxyTarget);
+                break;
 
             case 'php':
-                return $this->generatePhpConfig($domain, $wwwDir, $phpVersion);
+                $nginxConfig = $this->generatePhpConfig($domain, $wwwDir, $phpVersion);
+                break;
 
             default:
                 throw new \InvalidArgumentException("Unsupported site type: $siteType");
         }
+
+        if ($sslEnabled) {
+            $nginxConfig = $this->injectSslDirectives($nginxConfig, $domain);
+        }
+
+        return $nginxConfig;
+    }
+
+    /**
+     * Inject 443-ssl listeners + ssl_certificate paths into the first server
+     * block (right after the server_name line) so the same block serves HTTP and
+     * HTTPS. The cert files MUST already exist on disk (nginx -t verifies), so
+     * this is only called when a Let's Encrypt cert is present for the domain.
+     * DNS challenge is used for issue/renew, so no webroot ACME location is
+     * needed on port 80.
+     */
+    private function injectSslDirectives(string $config, string $domain): string
+    {
+        $certPath = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptCertPath($domain);
+        $keyPath = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptKeyPath($domain);
+
+        $sslLines = "    listen 443 ssl;\n"
+            . "    listen [::]:443 ssl;\n"
+            . "    ssl_certificate {$certPath};\n"
+            . "    ssl_certificate_key {$keyPath};\n"
+            . "    ssl_protocols TLSv1.2 TLSv1.3;\n";
+
+        return preg_replace('/(    server_name [^;]+;)\n/', '\\1' . "\n" . $sslLines, $config, 1);
     }
 
     /**

@@ -27,9 +27,16 @@ export {
   getPycoreTarget, isPycoreRemote, pycoreTargetHost,
   getPycoreTargetRecent, getPycoreTargetPresets, normalizePycoreHost, setPycoreTarget,
   localPycoreHost, localPycoreOrigin, pycoreEffectiveHost,
-  isPycoreSecureContext, pnaBlockedReason,
+  isPycoreSecureContext, pnaBlockedReason, isViteDevShell,
+  isLoopbackPage, directPycoreHost, pycoreLocalConnectionHint,
+  rewritePycoreEndpoint, pycoreWsUrlOverride, pycoreSseUrlOverride,
 } from './pycoreTarget';
 export type { PycoreTarget, PycorePresetHost } from './pycoreTarget';
+
+export {
+  PYCORE_PORT, PycorePaths,
+  normalizePycorePath, buildPycoreHttpUrl, buildPycoreWsUrl, buildPycoreSseBaseUrl,
+} from './pycoreEndpoints';
 
 export {
   pycoreLaravelApi, PYCORE_LARAVEL_API_CHANGED_EVENT,
@@ -38,6 +45,11 @@ export type {
   PycoreLaravelApi, LaravelApiEndpoint, LaravelApiListResponse,
   LaravelApiMutateResponse,
 } from './PycoreLaravelApi';
+
+export {
+  LARAVEL_API_PORT, PC_LARAVEL_PREPARED_HOSTS,
+  normalizeLaravelApiUrl, buildPcPreparedLaravelEndpoints,
+} from './pcLaravelPreparedEndpoints';
 
 export {
   loadSettings, saveSettings,
@@ -60,7 +72,10 @@ export {
   refreshPycoreCapabilities,
   startPycoreCapabilityPoll,
   stopPycoreCapabilityPoll,
+  usePycoreCapability,
 } from './PycoreCapabilityStore';
-export type { PycoreCapabilityState, CapabilityKey } from './PycoreCapabilityStore';
+export type { PycoreCapabilityState, CapabilityKey, PycoreCapabilityHook } from './PycoreCapabilityStore';
 
 export * from './pycoreTypes';
+export * from './ttsEngineState';
+export * from './PycoreVocabTypes';

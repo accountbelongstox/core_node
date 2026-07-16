@@ -146,9 +146,9 @@ echo ""
 # Build claude args: glm-5.2 always on; ultracode opt-in; skip-permissions for non-root.
 claude_args+=(--model "$VOLC_MODEL")
 
-# Ultracode: opt-in prompt (default No).
-read -r -p "Enable ultracode? [y/N]: " ultra_choice || ultra_choice=""
-if [ "$ultra_choice" = "y" ] || [ "$ultra_choice" = "Y" ]; then
+# Ultracode: opt-in prompt (default Yes).
+read -r -p "Enable ultracode? [Y/n]: " ultra_choice || ultra_choice=""
+if [ "$ultra_choice" != "n" ] && [ "$ultra_choice" != "N" ]; then
     ultra_enabled=1
     claude_args+=(--settings "$ultra_settings_json")
 fi
@@ -156,18 +156,14 @@ fi
 if [ "$ultra_enabled" -eq 1 ]; then
     echo "Ultracode: enabled (--settings $ultra_settings_json)"
 else
-    echo "Ultracode: off (default N)"
+    echo "Ultracode: off (opted out)"
 fi
 
 if [ "$EUID" -ne 0 ]; then
     claude_args+=(--permission-mode bypassPermissions --dangerously-skip-permissions)
 fi
 
-# Launch tool
-echo "============================================================"
-echo "Press Enter to start Claude AI (Volcano Ark) [glm-5.2 + team + opt-in ultracode]..."
-echo "============================================================"
-read -p "Press Enter to continue..."
+# Launch tool (info already shown above; start Claude directly).
 
 echo ""
 echo "Executing: claude ${claude_args[*]}"

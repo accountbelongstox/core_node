@@ -315,6 +315,7 @@ export interface SyncSettings {
   excluded_path_substrings: string[];
   apply_gitignore: boolean;
   watch_dirs: string[];   // dirs the dev watches/pushes; empty = project root
+  scan_lan: boolean;      // opt-in LAN discovery (default off)
 }
 
 export interface SyncSettingsResponse {
@@ -797,6 +798,8 @@ export interface OcrEngine {
   priority: number;
   available: boolean;
   note: string;
+  /** Installed PyPI package version, when applicable. */
+  version?: string | null;
 }
 
 export interface OcrStatus {
@@ -806,6 +809,23 @@ export interface OcrStatus {
   available_count: number;
   engines: OcrEngine[];
   error?: string;
+}
+
+/** Live per-engine recognition test (POST /api/local/ocr/test). */
+export interface OcrTestResponse {
+  success: boolean;
+  /** Engine that ran (null when no engine is available). */
+  engine: string | null;
+  /** Recognized text (empty on failure). */
+  text: string;
+  latency_ms: number;
+  error: string | null;
+  /** Echo of the backend route that handled this test. */
+  route?: string;
+  /** Model type used (cnocr: "general"|"scene"|"doc"|"number"|"english"|"chinese_traditional"). */
+  model_type?: string;
+  /** Language list used (easyocr). */
+  languages?: string[];
 }
 
 // --- TTS engine availability (live edge-tts probe) ----------------------- #
@@ -829,17 +849,46 @@ export interface TtsProvider {
 
 /**
  * One entry in the TTS fallback chain (priority order:
- * edge -> sherpa -> melotts -> gptsovits). `cooldown_remaining` is only set on
+ * chattts -> cosyvoice -> fishspeech -> qwen3tts -> bark -> parler -> voxcpm2 -> kokoro -> …). `cooldown_remaining` is only set on
  * the 'edge' entry (seconds left on its failure cooldown; 0/absent = normal).
  */
 export interface TtsEngine {
   name: string;
   /** 1-based priority (1 = tried first). */
   priority: number;
+  /** Runtime-ready — can synthesize now. */
   available: boolean;
+  /** Prerequisites installed (pip / staging / models); may still need server or config. */
+  installed?: boolean;
   note?: string;
-  /** Seconds left on this engine's failure cooldown (edge only). */
+  /** Installed PyPI package version (edge version comes from live probe). */
+  version?: string | null;
+  /** Why this engine is off (e.g. missing STREAMELEMENTS_API_KEY). */
+  disabled_reason?: string;
+  /** Seconds left on this engine's failure cooldown (edge / streamelements). */
   cooldown_remaining?: number;
+  /** edge only: live synth probe result (may differ from package installed). */
+  live_available?: boolean | null;
+  /** edge only: EDGE_TTS_PROXY in effect. */
+  proxy?: boolean;
+  /** edge only: last live-probe error (e.g. HTTP 403). */
+  probe_error?: string | null;
+  /** edge only: live probe still running. */
+  probe_pending?: boolean;
+  /** edge only: live probe came from cache. */
+  probe_cached?: boolean;
+  /** Configured model/checkpoint tier (see tts_model_tiers.py). */
+  model?: string | null;
+  /** Local HTTP server engine (chattts/cosyvoice/…). */
+  server_engine?: boolean;
+  server_running?: boolean;
+  server_managed?: boolean;
+  server_enabled?: boolean;
+  server_idle_remaining_s?: number | null;
+  /** In-process model engine (qwen3tts/sherpa/…): weights resident in memory. */
+  model_loaded?: boolean;
+  /** Seconds until idle-unload for an in-process model (null when not loaded). */
+  model_idle_remaining_s?: number | null;
 }
 
 export interface TtsStatus {
@@ -851,7 +900,9 @@ export interface TtsStatus {
   active?: string | null;
   /** Seconds left on the edge-tts failure cooldown; 0 = not cooling. */
   edge_cooldown_remaining?: number;
-  /** Fallback chain in priority order (edge -> sherpa -> melotts -> gptsovits -> azure). */
+  /** Whether STREAMELEMENTS_API_KEY exists in .secret_keys (value never returned). */
+  streamelements_key_present?: boolean;
+  /** Fallback chain in priority order (chattts -> cosyvoice -> fishspeech -> qwen3tts -> bark -> parler -> … -> azure). */
   engines?: TtsEngine[];
   error?: string;
 }
@@ -864,6 +915,26 @@ export interface TtsTestResponse {
   /** Size of the produced mp3 (0 on failure). */
   bytes: number;
   error: string | null;
+  /** The text that was synthesized. */
+  text?: string;
+  /** Recognition / synth language used. */
+  language?: string;
+  /** On-disk path of the produced clip (informational). */
+  path?: string;
+  /** Id of the persisted speech-history record - play via speechHistoryFileUrl(id). */
+  record_id?: string;
+  /** Echo of the backend route that handled this test. */
+  route?: string;
+  /** Accent ACTUALLY produced ("us"|"uk"|"unknown"). */
+  accent?: string | null;
+  /** Gender used (edge: "female"|"male"). */
+  gender?: string;
+  /** Speaker name used (qwen3tts, cosyvoice). */
+  speaker?: string;
+  /** Voice style instruction used (qwen3tts, cosyvoice). */
+  instruct?: string;
+  /** Voice description used (parler). */
+  description?: string;
 }
 
 // --- STT (speech-to-text) engine availability + live test ---------------- #
@@ -888,7 +959,15 @@ export interface SttEngine {
   priority: number;
   available: boolean;
   note?: string;
+  /** Installed PyPI package version, when applicable. */
+  version?: string | null;
+  /** Active model/checkpoint tier (STT whisper / faster-whisper). */
+  model?: string | null;
   quota?: SttQuota;
+  /** Local STT model resident in memory (faster-whisper/whisper/vosk). */
+  model_loaded?: boolean;
+  /** Seconds until idle-unload (null when not loaded). */
+  model_idle_remaining_s?: number | null;
 }
 
 export interface SttStatus {
@@ -909,8 +988,18 @@ export interface SttTestResponse {
   text: string;
   latency_ms: number;
   error: string | null;
+  /** The phrase that was synthesized then recognized. */
+  phrase?: string;
+  /** Language used for synthesis + recognition. */
+  language?: string;
+  /** On-disk path of the synthesized sample clip. */
+  path?: string;
+  /** Model used (faster-whisper / whisper override). */
+  model?: string;
   /** Id of the persisted speech-history record (for the Records timeline). */
   record_id?: string;
+  /** Echo of the backend route that handled this test. */
+  route?: string;
 }
 
 // --- Speech (TTS/STT) clip history — the audio side of the Records timeline - #
@@ -1032,6 +1121,20 @@ export interface TtsSettings {
   synth_timeout_s: number;
   /** Edge-tts failure cooldown window (seconds; backend clamps 0–3600). */
   edge_cooldown_s: number;
+  server_auto_manage?: boolean;
+  server_single_active?: boolean;
+  server_idle_shutdown_s?: number;
+  server_enabled?: Record<string, boolean>;
+}
+
+export interface TtsServerActionResponse {
+  success: boolean;
+  engine?: string;
+  enabled?: boolean;
+  running?: boolean;
+  managed?: boolean;
+  error?: string;
+  note?: string;
 }
 
 // --- Capability status (CUDA/compute + free libraries) ------------------- #
@@ -1049,15 +1152,35 @@ export interface CapabilityLibrary {
   name: string;
   /** 'translate' | 'tts' | 'ocr' | 'stt'. */
   category: string;
+  /** 'pip' = PyPI package; 'api' = local HTTP / in-process neural engine. */
+  kind?: 'pip' | 'api';
   available: boolean;
+  /** Prerequisites present (pip/staging); may differ from runtime-ready ``available``. */
+  installed?: boolean;
   version: string | null;
   note: string;
+  /** Max model/checkpoint when CUDA is available. */
+  model_gpu?: string;
+  /** Max model/checkpoint on CPU tier. */
+  model_cpu?: string;
+  /** Model/checkpoint selected for the current host. */
+  model_active?: string;
+  /** Primary env var for model override. */
+  env?: string;
+}
+
+export interface ModelTierRow {
+  engine: string;
+  gpu: string;
+  cpu: string;
+  env?: string;
 }
 
 export interface CapabilityStatus {
   success: boolean;
   cuda: CudaStatus;
   libraries: CapabilityLibrary[];
+  model_tiers?: ModelTierRow[];
   error?: string;
 }
 
@@ -1194,7 +1317,7 @@ export interface AssistCapabilities {
   subtitle?: boolean;
   /** Speech-to-text. */
   stt?: boolean;
-  /** Movie/TV poster fetch (TMDB/OMDB) for Books/Subtitles media. Optional —
+  /** Movie/TV poster — delegated to apps/mcp-chrome (Google Images). Optional —
    *  older backends omit it; treated as off until the field is present. */
   poster?: boolean;
 }
@@ -1252,6 +1375,8 @@ export interface AssistStatus {
   last_error: string | null;
   last_cycle_at: string | null;
   laravel_status: AssistLaravelStatus | null;
+  /** Cached monitor reachability — avoids blocking resolve on status polls. */
+  laravel_reachable?: boolean;
   error?: string;
 }
 
@@ -1281,6 +1406,11 @@ export interface PosterProvider {
 export interface PosterStatus {
   /** Mirrors the ingest flag user-data media_sync.fetch_poster (default ON). */
   enabled: boolean;
+  /** True when pycore ingest/assist poster fetch is disabled. */
+  pycore_fetch_disabled?: boolean;
+  /** Handler for poster search (apps/mcp-chrome task center). */
+  delegated_to?: string;
+  delegation_note?: string;
   providers: PosterProvider[];
   /** Masked (first6…last4) — full secrets never leave the backend. */
   keys: {
@@ -1579,6 +1709,8 @@ export interface WordAudioStatus {
   sources: WordAudioSource[];
   /** Whether FORVO_API_KEY is configured (the key value is never returned). */
   forvo_key_present: boolean;
+  /** Whether STREAMELEMENTS_API_KEY is in .secret_keys (value never returned). */
+  streamelements_key_present?: boolean;
   /** Always true — TTS synthesis handles a clean miss. */
   tts_fallback: boolean;
 }
@@ -1652,6 +1784,35 @@ export interface PcQueueEngines {
   translation?: { priority: string[] };
 }
 
+/** GET /api/local/task-center — hub aggregate (no Laravel I/O on request path). */
+export interface PcTaskCenterLocalCounts {
+  pending?: number;
+  processing?: number;
+  completed?: number;
+  failed?: number;
+}
+
+export interface PcTaskCenterRemoteQueue {
+  laravel_reachable: boolean;
+  /** UI-selected URL (user_data laravel_api.current). */
+  laravel_endpoint?: string;
+  /** Last-known healthy URL the monitor/worker uses. */
+  laravel_active_endpoint?: string;
+  ws_connected?: boolean;
+  summary?: TranslationQueueSummary;
+  age_ms?: number | null;
+}
+
+export interface PcTaskCenterResponse {
+  scheduler?: Record<string, unknown>;
+  local_tasks?: {
+    recent?: unknown[];
+    counts?: PcTaskCenterLocalCounts;
+  };
+  remote_queue?: PcTaskCenterRemoteQueue;
+  timestamp?: string;
+}
+
 export interface PcQueueOverview {
   success: boolean;
   generated_at?: string;
@@ -1675,13 +1836,113 @@ export interface SentenceAudioAutoStatus {
   worker?: {
     queued?: number;
     leased?: number;
-    processing?: string | null;
+    processing?: number | string | null;
     cycle_running?: boolean;
     total_claimed?: number;
     total_succeeded?: number;
     total_failed?: number;
     last_cycle?: Record<string, unknown>;
+    current_task?: {
+      task_id?: number;
+      content_id?: string;
+      language?: string;
+      priority?: number;
+      content?: string;
+    } | null;
+    events?: Array<{
+      at?: number;
+      kind?: string;
+      detail?: string;
+      text_preview?: string;
+      language?: string;
+      priority?: number;
+    }>;
   };
+}
+
+export interface SentenceQueueRow {
+  content_id: string;
+  text?: string;
+  language: string;
+  tts_priority?: number;
+  tts_status?: string;
+  tts_locked_by?: string | null;
+  occurrence_count?: number;
+  recently_bumped?: boolean;
+}
+
+export interface SentenceAudioQueueSnapshot {
+  success?: boolean;
+  worker?: SentenceAudioAutoStatus['worker'];
+  queue?: {
+    items?: SentenceQueueRow[];
+    total?: number;
+    laravel_reachable?: boolean;
+    snapshot_age_s?: number;
+  };
+  bumps?: QueueBumpsSnapshot;
+}
+
+/** One voice variant spec for sentence-audio (GET/POST/DELETE /api/local/sentence-audio/variants).
+ *  `accent` is 'us'|'uk'|null; `gender` is 'female'|'male'; exactly one spec per
+ *  lang has `is_primary` true. */
+export interface SentenceVoiceVariant {
+  lang: string;
+  variant_key: string;
+  accent: string | null;
+  gender: string;
+  is_primary: boolean;
+}
+
+export interface QueueBumpEvent {
+  lane: string;
+  item_id: string;
+  label: string;
+  old_priority: number | string;
+  new_priority: number | string;
+  at?: number;
+  recently_bumped?: boolean;
+  meta?: Record<string, unknown>;
+}
+
+export interface QueueBumpsSnapshot {
+  events: QueueBumpEvent[];
+  active_bumps?: string[];
+  ttl_seconds?: number;
+}
+
+/** Word-dictionary TTS worker auto-start strip (tts_queue_poller). */
+export interface WordTtsAutoStatus {
+  auto_start: boolean;
+  heartbeat_enabled: boolean;
+  laravel?: {
+    pending?: number;
+    leased?: number;
+    cached_at?: string;
+  };
+  worker?: {
+    batch_running?: boolean;
+    total_claimed?: number;
+    total_succeeded?: number;
+    total_failed?: number;
+    last_tick?: Record<string, unknown>;
+  };
+}
+
+export interface HeartbeatCallbackRow {
+  name: string;
+  enabled: boolean;
+  interval: number;
+  run_count: number;
+  queue_role?: string | null;
+}
+
+export interface HeartbeatWorkersStatus {
+  success?: boolean;
+  callbacks: HeartbeatCallbackRow[];
+  auxiliary?: Record<string, { persisted?: boolean | null; enabled: boolean; configured?: boolean }>;
+  word_tts?: WordTtsAutoStatus;
+  sentence_audio?: SentenceAudioAutoStatus;
 }
 
 // --- Queue Center: capability settings (contract B) ------------------------ #
@@ -1692,6 +1953,10 @@ export interface SentenceAudioAutoStatus {
 export interface PcCapabilityOptions {
   synth_timeout_s?: number;
   edge_cooldown_s?: number;
+  server_auto_manage?: boolean;
+  server_single_active?: boolean;
+  server_idle_shutdown_s?: number;
+  server_enabled?: Record<string, boolean>;
   [k: string]: unknown;
 }
 
@@ -1699,24 +1964,32 @@ export interface PcCapabilityOptions {
 export interface PcCapabilityBlock {
   /** Ordered engine chain (index 0 = tried first). */
   priority: string[];
-  /** Per-engine availability (engine id -> ready). */
+  /** Per-engine runtime-ready (engine id -> can use now). */
   available: Record<string, boolean>;
+  /** Per-engine prerequisites installed (engine id -> pip/staging present). */
+  installed?: Record<string, boolean>;
+  /** Per-engine setup hint when installed but not ready. */
+  setup_reasons?: Record<string, string>;
   /** Tuning options (TTS: synth_timeout_s / edge_cooldown_s). */
   options: PcCapabilityOptions;
 }
 
-/** GET /api/local/capabilities/settings — all four capability blocks. */
+/** GET /api/local/capabilities/settings — capability blocks (stt/tts/image/translation + sentence_tts/word_tts profiles). */
 export interface PcCapabilitySettings {
   success: boolean;
   stt: PcCapabilityBlock;
   tts: PcCapabilityBlock;
   image: PcCapabilityBlock;
   translation: PcCapabilityBlock;
+  /** Sentence-level TTS variant chain (optional - older backends omit it). */
+  sentence_tts?: PcCapabilityBlock;
+  /** Word-level TTS variant chain (optional - older backends omit it). */
+  word_tts?: PcCapabilityBlock;
   error?: string;
 }
 
-/** The four capability ids the drawer manages. */
-export type PcCapabilityKey = 'stt' | 'tts' | 'image' | 'translation';
+/** The capability ids the drawer manages (sentence_tts/word_tts are TTS profiles). */
+export type PcCapabilityKey = 'stt' | 'tts' | 'image' | 'translation' | 'sentence_tts' | 'word_tts';
 
 /** POST /api/local/capabilities/settings response — the updated block. */
 export interface PcCapabilitySaveResponse extends Partial<PcCapabilityBlock> {
@@ -1793,6 +2066,8 @@ export interface PcTaskDetail {
   voice?: string;
   /** The produced audio file address (path or URL). */
   audio_path?: string;
+  /** Human-readable synth invocation (engine-specific). */
+  synth_command?: string;
   audio_bytes?: number;
   image_bytes?: number;
   mime?: string;

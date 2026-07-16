@@ -27,6 +27,13 @@ from threading import Thread
 from queue import Queue
 import subprocess
 
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyfoundations.third_party import get_third_package_numpy
+
+import logging
+
+
+
 # Add parent directory to path for dependency checking
 pytools_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(pytools_dir))
@@ -101,8 +108,6 @@ class PaddleOCREngine:
     def _check_packages_installed(self) -> bool:
         """Check if required packages are installed"""
         try:
-            import paddle
-            import paddleocr
             ColorPrint.green("[CHECK] PaddleOCR packages already installed")
             return True
         except ImportError:
@@ -249,8 +254,6 @@ class PaddleOCREngine:
     def _initialize_ocr_engine(self) -> bool:
         """Initialize the PaddleOCR engine"""
         try:
-            from paddleocr import PaddleOCR
-            import logging
 
             ColorPrint.blue(f"[INIT] Creating PaddleOCR instance with language: {self.lang}")
 
@@ -311,8 +314,8 @@ class PaddleOCREngine:
             # Pitfall: OpenCV cannot handle Chinese characters in file paths
             # Solution: Load image with PIL and convert to numpy array before passing to OCR
             try:
-                from PIL import Image
-                import numpy as np
+                Image = get_third_package_PIL_Image()
+                np = get_third_package_numpy()
 
                 # Read image using PIL (handles Chinese/Unicode paths correctly)
                 pil_image = Image.open(image_path)

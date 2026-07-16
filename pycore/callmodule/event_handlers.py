@@ -7,6 +7,7 @@ This module only registers event handlers, does not start any threads.
 """
 
 import os
+import threading
 import webbrowser
 
 from pycore import ColorPrint, THREAD_BUS, get_user_data_store
@@ -14,7 +15,9 @@ from pycore.pyheartbeat import get_heartbeat_system
 from pycore.pylauncher import ServiceLauncher
 from pycore.pythreadpool.starters import start_tray
 from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyutils.codesync import get_code_sync_manager
 from pycore.callmodule.callmodule_config import Config
+from pycore.callmodule.platform import system_service_manager as ssm
 from pycore.pyctl.assist import translation_worker_enabled_on_start
 from pycore.callmodule.services import (
     get_translation_worker_service,
@@ -22,7 +25,18 @@ from pycore.callmodule.services import (
     get_translation_ws_client,
 )
 from pycore.callmodule.services.assist_wiring import register_assist_worker_start
-from pycore.callmodule.tray_menu import TRAY_SET_LANGUAGE_SIGNAL
+from pycore.callmodule.services.heartbeat_tts_workers import (
+    register_sentence_queue_monitor,
+    register_tts_queue_poller,
+    register_tts_sentence_worker,
+)
+from pycore.callmodule.services.heartbeat_worker_prefs import restore_persisted_heartbeat_prefs
+from pycore.callmodule.services.system_settings_boot import apply_persisted_system_settings
+from pycore.callmodule.tray_menu import (
+    TRAY_SET_LANGUAGE_SIGNAL,
+    TRAY_TOGGLE_CODE_SYNC_DISTRIBUTE_SIGNAL,
+    TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL,
+)
 from pycore.callmodule.config import build_tray_service_config, update_tray_menu_with_singleton
 
 
@@ -122,11 +136,8 @@ def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port
         thread is never blocked. The menu is re-pushed afterwards so the
         [X]/[ ] state refreshes live.
         """
-        import threading as _threading
-
         def _apply():
             try:
-                from pycore.callmodule.platform import system_service_manager as ssm
                 if not ssm.is_supported():
                     ColorPrint.yellow("[Tray] systemd not available; service toggle is a no-op.")
                     return
@@ -155,7 +166,42 @@ def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port
                 except Exception as e:
                     ColorPrint.yellow(f"[Tray] Menu re-push after service toggle failed: {e}")
 
-        _threading.Thread(target=_apply, name='TrayServiceToggle', daemon=True).start()
+        threading.Thread(target=_apply, name='TrayServiceToggle', daemon=True).start()
+
+    def handle_tray_toggle_code_sync_distribute(event_data):
+        """Toggle dev-end code distribution (same CodeSyncManager as the UI API)."""
+        ColorPrint.blue("[Tray] Toggling code sync distribute...")
+        try:
+            mgr = get_code_sync_manager()
+            if mgr.get_role() != "dev":
+                ColorPrint.yellow("[Tray] Distribute toggle only applies to dev role")
+                return
+            result = mgr.set_distributing(not mgr.distributing)
+            if result.get("success"):
+                ColorPrint.green(f"[Tray] Code sync distribute: {result.get('message', result)}")
+            else:
+                ColorPrint.yellow(f"[Tray] Code sync distribute failed: {result.get('message', result)}")
+        except Exception as e:
+            ColorPrint.red(f"[Tray] Code sync distribute toggle failed: {e}")
+
+    def handle_tray_toggle_code_sync_skip_update(event_data):
+        """Toggle client skip-update (same CodeSyncManager as the UI API)."""
+        ColorPrint.blue("[Tray] Toggling code sync skip-update...")
+        try:
+            mgr = get_code_sync_manager()
+            if mgr.get_role() != "client":
+                ColorPrint.yellow("[Tray] Skip-update toggle only applies to client role")
+                return
+            if mgr.light:
+                ColorPrint.yellow("[Tray] Skip-update toggle not available in light client mode")
+                return
+            result = mgr.set_skip_update(not mgr.is_skip_update())
+            if result.get("success"):
+                ColorPrint.green(f"[Tray] Code sync skip-update: {result.get('message', result)}")
+            else:
+                ColorPrint.yellow(f"[Tray] Code sync skip-update failed: {result.get('message', result)}")
+        except Exception as e:
+            ColorPrint.red(f"[Tray] Code sync skip-update toggle failed: {e}")
 
     def handle_language_changed(event_data):
         """
@@ -200,6 +246,10 @@ def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port
     THREAD_BUS.register_event_handler('tray_action_toggle_voice_subtitle', handle_tray_toggle_voice_subtitle)
     # Linux system-service toggle (install both units / remove pycore only).
     THREAD_BUS.register_event_handler('tray_action_toggle_service', handle_tray_toggle_service)
+    THREAD_BUS.register_event_handler(
+        TRAY_TOGGLE_CODE_SYNC_DISTRIBUTE_SIGNAL, handle_tray_toggle_code_sync_distribute)
+    THREAD_BUS.register_event_handler(
+        TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL, handle_tray_toggle_code_sync_skip_update)
     # Fallback: only fires when the PySide6 backend is selected but no system tray exists
     THREAD_BUS.register_event_handler('tray.native_unavailable', handle_native_tray_unavailable)
     # Language switch (UI settings / bus): persist + rebuild tray texts
@@ -226,12 +276,20 @@ def _register_heartbeat_workers():
     """
     Register pycore's periodic PyHeartbeat workers (idempotent).
 
-    Registers (1) the translation WORKER (Laravel worker-task pipeline) and (2) the
-    translation QUEUE MONITOR (queue snapshot + priority-bump detection). Both on
-    the active launcher path so they run under `pycore_module_caller.py`. Toggle at
-    runtime via POST /api/heartbeat/{enable,disable}/{translation_worker,
-    translation_queue_monitor}.
+    Registers TTS word/sentence workers, the translation WORKER, the translation
+    QUEUE MONITOR, and the sentence-audio monitor on the active launcher path
+    (`pycore_module_caller.py`). Toggle at runtime via POST
+    /api/heartbeat/{enable,disable}/<callback> or Queue Center assist toggles.
     """
+    # TTS workers live in callmodule_main_entry on the native_ui path; mirror them
+    # here so assist_laravel voice toggles can enable callbacks that exist.
+    try:
+        register_tts_queue_poller()
+        register_tts_sentence_worker()
+        register_sentence_queue_monitor()
+    except Exception as e:
+        ColorPrint.red(f"[EventHandlers] Failed to register TTS/sentence heartbeat workers: {e}")
+
     try:
         heartbeat = get_heartbeat_system()
         worker = get_translation_worker_service(laravel_api_url=Config.LARAVEL_WORKER_API_URL)
@@ -313,3 +371,9 @@ def _register_heartbeat_workers():
         )
     except Exception as e:
         ColorPrint.red(f"[EventHandlers] Failed to register translation_ws_client: {e}")
+
+    try:
+        restore_persisted_heartbeat_prefs()
+        apply_persisted_system_settings()
+    except Exception as e:
+        ColorPrint.yellow(f"[EventHandlers] Worker prefs / system_settings restore: {e}")

@@ -4,8 +4,21 @@ const path = require('path');
 const fs = require('fs').promises;
 const logger = require('#@logger');
 const commander = require('#@commander');
+const { getXdgCacheHome } = require('../../foundation/common/system_paths');
 
 const execAsync = promisify(exec);
+
+function resolveHfHubCacheDir() {
+  if (process.env.HF_HUB_CACHE) {
+    return process.env.HF_HUB_CACHE;
+  }
+  if (process.env.HF_HOME) {
+    return path.join(process.env.HF_HOME, 'hub');
+  }
+  // Centralized cache root (respects XDG_CACHE_HOME / CORE_NODE_CACHE_DIR;
+  // D:\www\cache on Windows, /var/_core_node/cache on Linux) - see system_paths.
+  return path.join(getXdgCacheHome(), 'huggingface', 'hub');
+}
 
 class PythonBridge {
   constructor() {
@@ -59,8 +72,7 @@ class PythonBridge {
 
   async checkModelAvailable(modelName) {
     try {
-      const homeDir = process.env.HOME || process.env.USERPROFILE;
-      const cacheDir = path.join(homeDir, '.cache', 'huggingface', 'hub');
+      const cacheDir = resolveHfHubCacheDir();
 
       const files = await fs.readdir(cacheDir).catch(() => []);
       const modelDirName = `models--${modelName.replace('/', '--')}`;
@@ -147,8 +159,7 @@ class PythonBridge {
 
   async getModelInfo(modelName) {
     try {
-      const homeDir = process.env.HOME || process.env.USERPROFILE;
-      const cacheDir = path.join(homeDir, '.cache', 'huggingface', 'hub');
+      const cacheDir = resolveHfHubCacheDir();
       const modelDirName = `models--${modelName.replace('/', '--')}`;
       const modelPath = path.join(cacheDir, modelDirName);
 
@@ -196,8 +207,7 @@ class PythonBridge {
 
   async clearModelCache(modelName) {
     try {
-      const homeDir = process.env.HOME || process.env.USERPROFILE;
-      const cacheDir = path.join(homeDir, '.cache', 'huggingface', 'hub');
+      const cacheDir = resolveHfHubCacheDir();
       const modelDirName = `models--${modelName.replace('/', '--')}`;
       const modelPath = path.join(cacheDir, modelDirName);
 

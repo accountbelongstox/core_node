@@ -2,120 +2,14 @@
 # -*- coding: utf-8 -*-
 
 from typing import Dict, Any, Optional
-from dataclasses import dataclass, field
 
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pythreadpool import get_global_thread_pool, SERVICE_STARTERS
 from pycore.pylauncher.singleton_detector import SingletonDetector, on_singleton_superseded
+from pycore.pyfoundations.launcher_config import LauncherConfig  # noqa: F401 — re-export
 
+import traceback
 
-# ============================================================
-# Configuration
-# ============================================================
-
-@dataclass
-class LauncherConfig:
-    """
-    Unified service launcher configuration
-
-    Supports both modern dict-based API and legacy boolean flags.
-    Legacy flags automatically convert to services dict.
-
-    Modern Usage:
-        config = LauncherConfig(
-            services={'rpc_v2': {'port': 58100}}
-        )
-
-    Legacy Usage (backward compatible):
-        config = LauncherConfig(
-            enable_rpc_v2=True,
-            rpc_v2_port=58100
-        )
-    """
-    # Modern API - Primary interface
-    services: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    app_id: str = "default_app"
-    app_name: str = "Application"
-    singleton: bool = False
-    singleton_port_start: int = 54000
-    singleton_port_range: int = 100
-    force_launch: bool = False
-    shutdown_existing: bool = False
-
-    # Tray Configuration (Cross-platform)
-    enable_tray: bool = False
-    tray_backend: str = "auto"          # "auto", "pystray", "pyside6"
-    tray_icon_path: Optional[str] = None
-    tray_menu_items: list = field(default_factory=list)
-
-    # Legacy API - Auto-converts to services dict
-    enable_heartbeat: bool = True
-    enable_rpc_v2: bool = False
-    rpc_v2_port: int = 58100
-    rpc_v2_host: str = "0.0.0.0"
-    rpc_v2_debug: bool = True
-    enable_speech: bool = False
-    speech_mode: str = "single"
-    enable_ui: bool = False
-    singleton_check: bool = False  # Maps to 'singleton'
-
-    def __post_init__(self):
-        """Convert legacy flags to modern services dict"""
-        # If using legacy API (any enable_* flag), convert to services
-        legacy_used = (
-            self.enable_rpc_v2 or
-            self.enable_speech or
-            self.enable_ui or
-            not self.enable_heartbeat
-        )
-
-        if legacy_used and not self.services:
-            # Build services from legacy flags
-            if self.enable_heartbeat:
-                self.services['heartbeat'] = {}
-
-            if self.enable_rpc_v2:
-                self.services['rpc_v2'] = {
-                    'port': self.rpc_v2_port,
-                    'host': self.rpc_v2_host,
-                    'debug': self.rpc_v2_debug
-                }
-
-            if self.enable_speech:
-                self.services['speech'] = {'mode': self.speech_mode}
-
-            if self.enable_ui:
-                self.services['ui'] = {}
-
-            # Map legacy singleton_check to singleton
-            if self.singleton_check:
-                self.singleton = True
-
-    @classmethod
-    def rpc_v2_only(cls, port: int = 58100, singleton: bool = False):
-        """Quick config for RPC v2 only"""
-        return cls(
-            app_id="rpc_v2_app",
-            app_name="RPC v2 Service",
-            singleton=singleton,
-            services={
-                'heartbeat': {},
-                'rpc_v2': {'port': port, 'host': '0.0.0.0', 'debug': True}
-            }
-        )
-
-    @classmethod
-    def speech_only(cls, mode: str = "single", singleton: bool = False):
-        """Quick config for Speech only"""
-        return cls(
-            app_id="speech_app",
-            app_name="Speech Service",
-            singleton=singleton,
-            services={
-                'heartbeat': {},
-                'speech': {'mode': mode}
-            }
-        )
 
 
 # ============================================================
@@ -168,7 +62,6 @@ class ServiceLauncher:
                     success_count += 1
             except Exception as e:
                 ColorPrint.red(f"[Launcher] Failed to start {name}: {e}")
-                import traceback
                 traceback.print_exc()
 
         self._started = True

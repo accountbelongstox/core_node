@@ -27,11 +27,9 @@ falls back to the per-user location.
 """
 
 import os
-import sys
 from pathlib import Path
 from typing import List
 
-from pycore.pyfoundations.system_paths import get_app_data_dir
 from pycore.callmodule.platform.autostart_target import (
     VALID_TARGETS,
     VALID_MECHANISMS,
@@ -40,6 +38,11 @@ from pycore.callmodule.platform.autostart_target import (
     read_preference,
     write_preference,
 )
+from pycore.callmodule.platform.linux_autostart_common import (
+    LinuxAutostartScript,
+    disable_systemd_autostart,
+)
+
 
 
 class LinuxStartupManager:
@@ -56,93 +59,22 @@ class LinuxStartupManager:
         self.system_entry = self.system_dir / self.entry_name
         self.user_entry = self.user_dir / self.entry_name
 
-        # Fixed-location shell launcher (content regenerated each enable).
-        self.script_dir = get_app_data_dir() / "autostart"
-        self.sh_path = self.script_dir / f"{app_name}.sh"
-
-        self.python_exe = sys.executable
-        self.launcher_script = self._get_launcher_path()
-        self.pyservice_script = self._get_pyservice_path()
-
-        # Resolve target/mechanism: explicit arg > persisted preference > default.
-        # The XDG manager always reports mechanism "xdg" (systemd is a sibling
-        # manager); only the TARGET (what to launch) is configurable here.
         pref = read_preference()
         self.target = normalize_target(target if target is not None else pref["target"])
         self.mechanism = normalize_mechanism(mechanism if mechanism is not None else "xdg")
-
-    # ----- path resolution ------------------------------------------------- #
-    def _get_launcher_path(self) -> Path:
-        """Locate pycore_module_caller.py (source tree or installed)."""
-        current_file = Path(__file__)
-        # .../pycore/callmodule/platform/linux_startup_manager.py -> pycore/ is 3 up.
-        pycore_dir = current_file.parent.parent.parent
-        for path in (
-            pycore_dir / "pycore_module_caller.py",         # pycore/ (canonical)
-            pycore_dir.parent / "pycore_module_caller.py",  # repo root (fallback)
-            Path(sys.executable).parent / "pycore_module_caller.py",
-        ):
-            if path.exists():
-                return path
-        return pycore_dir / "pycore_module_caller.py"
-
-    def _get_pyservice_path(self) -> Path:
-        """Locate pyservice.sh, the canonical full-stack entry point (repo root)."""
-        # .../pycore/callmodule/platform/linux_startup_manager.py -> repo root is 4 up.
-        return Path(__file__).resolve().parents[3] / "pyservice.sh"
+        self._script = LinuxAutostartScript(app_name, target=self.target)
+        self.script_dir = self._script.script_dir
+        self.sh_path = self._script.sh_path
+        self.python_exe = self._script.python_exe
+        self.launcher_script = self._script.launcher_script
+        self.pyservice_script = self._script.pyservice_script
 
     def _entry_paths(self) -> List[Path]:
         return [self.system_entry, self.user_entry]
 
-    # ----- launcher script + desktop entry -------------------------------- #
-    def _pyservice_run(self):
-        """(workdir, exec-command) that starts the full pycore RPC stack.
-
-        Prefers pyservice.sh (UI dev server + worker); falls back to the bare
-        worker (pycore_module_caller.py) when pyservice.sh cannot be found.
-        """
-        if self.pyservice_script.exists():
-            script = str(self.pyservice_script).replace('"', '\\"')
-            workdir = str(self.pyservice_script.parent).replace('"', '\\"')
-            return workdir, f'/usr/bin/env bash "{script}" run --no-install'
-        py = str(self.python_exe).replace('"', '\\"')
-        launcher = str(self.launcher_script).replace('"', '\\"')
-        workdir = str(self.launcher_script.parent).replace('"', '\\"')
-        return workdir, f'"{py}" "{launcher}"'
-
-    def _launcher_run(self):
-        """(workdir, exec-command) that starts the multi-terminal grid launcher."""
-        py = str(self.python_exe).replace('"', '\\"')
-        repo_root = str(self.pyservice_script.parent).replace('"', '\\"')  # repo root holds pyservice.sh; pycore importable here
-        # --mode windows => launcher.py headless option '1' (Window Layout ONLY). Without it,
-        # mode=None maps to option '3' (Both), so the "launcher" target would also start the
-        # pycore worker, and "both" would start it twice (pyservice.sh already backgrounds it).
-        return repo_root, f'"{py}" -m pycore.pyutils.launcher --mode windows --no-pause'
-
-    def _generate_sh(self) -> str:
-        """Build the shell launcher content per self.target (absolute paths, current config)."""
-        header = (
-            "#!/usr/bin/env bash\n"
-            "# PyCore RPC Server - auto-start launcher\n"
-            "# AUTO-GENERATED: regenerated on every enable() and on every service start\n"
-            "# (reflects current config).\n"
-        )
-        pw, pc = self._pyservice_run()
-        lw, lc = self._launcher_run()
-        if self.target == "launcher":
-            body = f'cd "{lw}" 2>/dev/null\nexec {lc}\n'
-        elif self.target == "both":
-            body = f'( cd "{pw}" 2>/dev/null; exec {pc} ) &\ncd "{lw}" 2>/dev/null\nexec {lc}\n'
-        else:
-            body = f'cd "{pw}" 2>/dev/null\nexec {pc}\n'
-        return header + body
-
     def _write_sh(self) -> None:
         """(Re)write the fixed shell launcher with current config and make it executable."""
-        self.script_dir.mkdir(parents=True, exist_ok=True)
-        with open(self.sh_path, "w", encoding="utf-8") as fh:
-            fh.write(self._generate_sh())
-        os.chmod(self.sh_path, 0o755)
+        self._script.write_sh()
 
     def _desktop_entry(self) -> str:
         return (
@@ -179,13 +111,8 @@ class LinuxStartupManager:
             return {"success": False, "enabled": self.is_enabled(),
                     "message": f"Failed to write launcher script: {e}", "error": str(e)}
 
-        # Switching mechanism: remove any systemd --user unit so boot doesn't fire
-        # BOTH the .desktop entry and the systemd unit. Lazy import avoids a
-        # circular import (the systemd manager imports this module).
         try:
-            from pycore.callmodule.platform.systemd_user_startup_manager import (
-                SystemdUserStartupManager)
-            SystemdUserStartupManager(self.app_name, target=self.target).disable()
+            disable_systemd_autostart(self.app_name)
         except Exception:
             pass
 

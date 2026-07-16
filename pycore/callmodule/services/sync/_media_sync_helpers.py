@@ -32,7 +32,7 @@ from pycore import ColorPrint, get_user_data_store
 # Stored-first multi-endpoint manager (probe + persist + cache) - the single
 # source of the Laravel base URL for every media-sync HTTP call.
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
-    get_laravel_endpoint_manager,
+    resolve_laravel_base_url as _resolve_managed_endpoint,
 )
 # Movie/TV poster fetch backend (best-effort; only ``find_poster`` is needed
 # here - the payload builders call ``parse_title_year`` themselves).
@@ -109,21 +109,21 @@ def _attach_poster(
     year: Optional[int] = None,
     kind: str = "movie",
 ) -> None:
-    """Best-effort: fetch a poster for ``title`` and attach it to
-    ``source['poster']`` (the §4 ingest payload addition). Omits the key entirely
-    when no poster is found or fetch is disabled. NEVER raises - a poster failure
-    must not break ingest.
+    """Best-effort poster attach at ingest — DISABLED in pycore.
 
-    ``kind`` is ``"movie"`` (default) or ``"book"`` — SerpApi query suffix differs.
+    Poster search is delegated to apps/mcp-chrome (Google Images via task center).
     """
-    if not (title and title.strip()) or not _poster_enabled():
-        return
-    try:
-        poster = find_poster(title.strip(), year=year, kind=kind)
-        if poster:
-            source["poster"] = poster
-    except Exception as exc:  # noqa: BLE001 - best-effort, never break ingest
-        ColorPrint.yellow(f"[MediaSync] poster fetch skipped for '{title}' ({exc})")
+    return
+
+    # --- Legacy TMDB/OMDB ingest fetch (disabled) ---
+    # if not (title and title.strip()) or not _poster_enabled():
+    #     return
+    # try:
+    #     poster = find_poster(title.strip(), year=year, kind=kind)
+    #     if poster:
+    #         source["poster"] = poster
+    # except Exception as exc:
+    #     ColorPrint.yellow(f"[MediaSync] poster fetch skipped for '{title}' ({exc})")
 
 
 # --------------------------------------------------------------------------- #
@@ -142,7 +142,7 @@ def resolve_laravel_base_url(base_url: Optional[str] = None) -> str:
     """
     if base_url and base_url.strip():
         return base_url.strip().rstrip("/")
-    return get_laravel_endpoint_manager().resolve()
+    return _resolve_managed_endpoint()
 
 
 # --------------------------------------------------------------------------- #

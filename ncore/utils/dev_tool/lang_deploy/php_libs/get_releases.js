@@ -16,6 +16,7 @@ const https = require('https');
     const fs = require('fs');
     const path = require('path');
     const os = require('os');
+    const { getXdgCacheHome } = require('../../../../foundation/common/system_paths');
     const { request_headers } = require('#@global_vars');
     // const { execCmd } = require('#@commander');
 
@@ -29,9 +30,9 @@ const https = require('https');
 
         _getCacheFilePath() {
             const isWin = process.platform === 'win32';
-            const cacheDir = isWin ? 
+            const cacheDir = isWin ?
                 path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'PhpReleases') :
-                path.join(os.homedir(), '.cache', 'php-releases');
+                path.join(getXdgCacheHome(), 'php-releases');
 
             if (!fs.existsSync(cacheDir)) {
                 fs.mkdirSync(cacheDir, { recursive: true });

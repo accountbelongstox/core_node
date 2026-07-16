@@ -29,6 +29,8 @@ export const StorageKeys = {
 
   // WordNew (/wordnew) app settings + profile (one consolidated WfNewSettings object).
   WORDNEW_SETTINGS: `${PREFIX}wordnew_settings`,
+  /** Fallback guest client id when fingerprint + localStorage are unavailable. */
+  WORDNEW_CLIENT_ID: `${PREFIX}wordnew_client_id`,
   // WordNew (/wordnew) social caches (partners / posts / chats).
   WORDNEW_SOCIAL: `${PREFIX}wordnew_social`,
   // WordNew (/wordnew) mock account registry (one object keyed by lowercased email).

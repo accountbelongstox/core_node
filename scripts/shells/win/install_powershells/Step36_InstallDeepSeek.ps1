@@ -38,9 +38,23 @@ $deepSeekManagerPath = Join-Path $shellsWinRoot "ai_scripts\DeepSeekManager.ps1"
 . $commonFuncPath
 . (Join-Path $winCommonDir "PythonRuntimeCommon.ps1")
 . $deepSeekManagerPath
+. (Join-Path $winCommonDir "TtsInstallAssetsCommon.ps1")
 
 $SCRIPT_INDEX = "[Step 36]"
 $STEP_NUMBER = 36
+# Match the runtime translator default (ncore/utils/stream_translator/config/index.js:
+# DEEPSEEK_MODEL_PATH || deepseek-ai/deepseek-vl-1.3b-chat). Step36 previously
+# hard-coded 7b for its test only; aligning install + test + runtime on one id.
+$VL_MODEL_PATH = if ($env:DEEPSEEK_MODEL_PATH) { $env:DEEPSEEK_MODEL_PATH } else { 'deepseek-ai/deepseek-vl-1.3b-chat' }
+$vlStagingDefault = Get-PycoreLocalDataSubDir -SubDir 'deepseek-vl'
+$vlStagingDir = if ($env:DEEPSEEK_VL_DIR) { $env:DEEPSEEK_VL_DIR } else { $vlStagingDefault }
+$vlWeightsDir = Join-Path $vlStagingDir 'weights'
+$vlModelSentinel = Join-Path $vlStagingDir '.model_installed'
+# *.py included: deepseek-vl uses trust_remote_code=True (modeling code ships in the HF repo).
+$vlWeightAllow = @('*.bin', '*.safetensors', '*.pt', '*.json', '*.txt', '*.model', '*.vocab', '*.py')
+$vlModelReady = $false
+$vlDlOk = $false
+$vlSentinelModel = $null
 
 Write-Host "$SCRIPT_INDEX Install DeepSeek-VL Local Translation Model" -ForegroundColor Cyan
 
@@ -70,10 +84,10 @@ function Test-GitAvailable {
     Hashtable - Python status information
 #>
 function Test-PythonAvailable {
-    $pythonCmd = Get-PythonCommand
+    $pythonCmd = $Global:PYTHON_EXE_PATH
 
-    if (-not $pythonCmd) {
-        Write-Host "$SCRIPT_INDEX Python not found" -ForegroundColor Red
+    if (-not ($pythonCmd -and (Test-Path -LiteralPath $pythonCmd))) {
+        Write-Host "$SCRIPT_INDEX Python not found at $Global:PYTHON_EXE_PATH" -ForegroundColor Red
         return @{
             Available = $false
             Command = $null
@@ -84,30 +98,10 @@ function Test-PythonAvailable {
     try {
         $pythonVersion = & $pythonCmd --version 2>&1
         Write-Host "$SCRIPT_INDEX Python is available: $pythonVersion" -ForegroundColor Green
-
-        $versionMatch = $pythonVersion -match "Python\s+(\d+)\.(\d+)\.(\d+)"
-        if ($versionMatch) {
-            $major = [int]$Matches[1]
-            $minor = [int]$Matches[2]
-
-            if ($major -ge 3 -and $minor -ge 8) {
-                Write-Host "$SCRIPT_INDEX Python version is sufficient (3.8+)" -ForegroundColor Green
-                return @{
-                    Available = $true
-                    Command = $pythonCmd
-                    Version = $pythonVersion
-                    Major = $major
-                    Minor = $minor
-                }
-            }
-            else {
-                Write-Host "$SCRIPT_INDEX Python version is too old (need 3.8+)" -ForegroundColor Red
-                return @{
-                    Available = $false
-                    Command = $pythonCmd
-                    Version = $pythonVersion
-                }
-            }
+        return @{
+            Available = $true
+            Command = $pythonCmd
+            Version = $pythonVersion
         }
     }
     catch {
@@ -220,6 +214,39 @@ function Install-DeepSeekDependencies {
 .SYNOPSIS
     Main installation function
 #>
+function Install-DeepSeekVLModelWeights {
+    Write-Host "`n$SCRIPT_INDEX Pre-downloading VL model weights (idempotent: sentinel + curl resume + size verify)" -ForegroundColor Cyan
+    Write-Host ("$SCRIPT_INDEX  model   : {0}" -f $VL_MODEL_PATH) -ForegroundColor DarkGray
+    Write-Host ("$SCRIPT_INDEX  weights : {0}" -f $vlWeightsDir) -ForegroundColor DarkGray
+    Write-Host ("$SCRIPT_INDEX  sentinel: {0} ({1})" -f $vlModelSentinel, $(if (Test-Path $vlModelSentinel) { 'present' } else { 'absent' })) -ForegroundColor DarkGray
+
+    New-Item -ItemType Directory -Force -Path $vlStagingDir | Out-Null
+
+    # allow-list excludes redundant flax/tf/onnx format variants; *.py kept for trust_remote_code.
+    $vlModelReady = $false
+    if (Test-Path $vlModelSentinel) {
+        $vlSentinelModel = (Get-Content -LiteralPath $vlModelSentinel -Raw -ErrorAction SilentlyContinue)
+        if ($vlSentinelModel) { $vlSentinelModel = $vlSentinelModel.Trim().Trim([char]0xFEFF) }
+        if ($vlSentinelModel -and ($vlSentinelModel -eq $VL_MODEL_PATH) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $vlWeightsDir -RepoId $VL_MODEL_PATH)) {
+            Write-Host "$SCRIPT_INDEX [idempotent] skipping: model weights verified ($VL_MODEL_PATH)" -ForegroundColor Green
+            $vlModelReady = $true
+        } elseif ($vlSentinelModel -and ($vlSentinelModel -ne $VL_MODEL_PATH)) {
+            Write-Host ("$SCRIPT_INDEX [..] model changed ({0} -> {1}); refreshing weights." -f $vlSentinelModel, $VL_MODEL_PATH) -ForegroundColor Yellow
+        } elseif (-not (Test-NeuralTtsLocalWeightsReady -WeightsDir $vlWeightsDir -RepoId $VL_MODEL_PATH)) {
+            Write-Host "$SCRIPT_INDEX [..] local weights incomplete or corrupt; repairing download." -ForegroundColor Yellow
+        }
+    }
+    if (-not $vlModelReady) {
+        Write-Host ("$SCRIPT_INDEX [..] downloading/repairing model '{0}' (curl, resumable) ..." -f $VL_MODEL_PATH) -ForegroundColor Yellow
+        $vlDlOk = Install-HfRepoFlat -RepoId $VL_MODEL_PATH -DestDir $vlWeightsDir -SentinelPath $vlModelSentinel -AllowPatterns $vlWeightAllow -Prefix "$SCRIPT_INDEX " -SentinelValue $VL_MODEL_PATH
+        if ($vlDlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $vlWeightsDir -RepoId $VL_MODEL_PATH)) {
+            Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready at {1}." -f $VL_MODEL_PATH, $vlWeightsDir) -ForegroundColor Green
+        } else {
+            Write-Host ("$SCRIPT_INDEX [!] model download not finished; partial files kept at {0}; will RESUME next run." -f $vlWeightsDir) -ForegroundColor DarkYellow
+        }
+    }
+}
+
 function Install-DeepSeek {
     Write-Host "`n$SCRIPT_INDEX ========================================" -ForegroundColor Cyan
     Write-Host "$SCRIPT_INDEX   DeepSeek-VL Installation" -ForegroundColor Cyan
@@ -273,6 +300,9 @@ function Install-DeepSeek {
         Write-Host "$SCRIPT_INDEX WARNING: Dependency installation may have failed" -ForegroundColor Yellow
         Write-Host "$SCRIPT_INDEX You can try installing dependencies manually later" -ForegroundColor Yellow
     }
+
+    Write-Host "`n$SCRIPT_INDEX Step 2b: Pre-download VL model weights (idempotent)" -ForegroundColor Cyan
+    Install-DeepSeekVLModelWeights
 
     # Verify final installation
     Write-Host "`n$SCRIPT_INDEX Step 3: Verify installation" -ForegroundColor Cyan
@@ -357,7 +387,7 @@ os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
 print('[TEST] Loading VLChatProcessor...')
 from deepseek_vl.models import VLChatProcessor
 
-model_path = 'deepseek-ai/deepseek-vl-7b-chat'
+model_path = '$VL_MODEL_PATH'
 print(f'[INFO] Model path: {model_path}')
 print('[INFO] Note: First run will download model from HuggingFace')
 print('[INFO] Download timeout: 3600s (1 hour)')
@@ -380,7 +410,7 @@ print('[OK] Conversation structure is valid')
 
 print('')
 print('[SUCCESS] ========================================')
-print('[SUCCESS]   DeepSeek-VL 7B is ready!')
+print('[SUCCESS]   DeepSeek-VL is ready!')
 print('[SUCCESS] ========================================')
 "@
 
@@ -411,7 +441,7 @@ print('[SUCCESS] ========================================')
         Write-Host "$SCRIPT_INDEX ========================================" -ForegroundColor Green
         Write-Host ""
 
-        $cacheDir = Join-Path $env:USERPROFILE ".core_node\.cache"
+        $cacheDir = Join-Path $Global:CORE_NODE_CACHE_DIR 'core_node'
         if (-not (Test-Path $cacheDir)) {
             New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
         }
@@ -421,7 +451,7 @@ print('[SUCCESS] ========================================')
 @echo off
 chcp 65001 >nul
 echo ========================================
-echo   DeepSeek-VL 7B Interactive Chat
+echo   DeepSeek-VL Interactive Chat
 echo ========================================
 echo.
 echo INSTRUCTIONS:
@@ -433,7 +463,7 @@ echo.
 echo Starting model... Please wait...
 echo.
 cd /d "$InstallDirectory"
-$PythonCommand cli_chat.py --model_path "deepseek-ai/deepseek-vl-7b-chat"
+$PythonCommand cli_chat.py --model_path "$VL_MODEL_PATH"
 echo.
 echo ========================================
 echo   Chat Ended
@@ -464,7 +494,7 @@ pause
         Write-Host ""
         Write-Host "$SCRIPT_INDEX Or manually run:" -ForegroundColor White
         Write-Host "$SCRIPT_INDEX   cd `"$InstallDirectory`"" -ForegroundColor White
-        Write-Host "$SCRIPT_INDEX   python cli_chat.py --model_path `"deepseek-ai/deepseek-vl-7b-chat`"" -ForegroundColor White
+        Write-Host "$SCRIPT_INDEX   python cli_chat.py --model_path `"$VL_MODEL_PATH`"" -ForegroundColor White
         Write-Host ""
         Write-Host "$SCRIPT_INDEX For more information, check: $InstallDirectory" -ForegroundColor White
         Write-Host ""

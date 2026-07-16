@@ -51,6 +51,9 @@ from pycore.pyutils.whisper_stt.audio_capture import (
     SystemAudioCapture,
 )
 
+from pycore.pyfoundations.third_party import get_third_package_whisper
+
+
 
 # Whisper model sizes
 WHISPER_MODELS = ["tiny", "base", "small", "medium", "large", "turbo"]
@@ -65,7 +68,6 @@ def _get_whisper():
     Returns:
         whisper module or None if not available
     """
-    from pycore.pyfoundations.third_party import get_third_package_whisper
     return get_third_package_whisper()
 
 

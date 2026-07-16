@@ -638,6 +638,25 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     setNewWordDef('');
   };
 
+  const handleAddLibraryToStudy = async (group: WfNewContentGroup) => {
+    if (!currentUser.isLoggedIn) {
+      addToast(trans('social.loginRequired'), 'warning');
+      setActiveTab('auth');
+      return;
+    }
+    try {
+      const result = await wfNewApi.addLibraryToDefaultGroup(group.id);
+      addToast(
+        result.already_linked
+          ? trans('toast.libraryAlreadyInStudy', { name: group.title })
+          : trans('toast.libraryAddedToStudy', { name: group.title }),
+        result.already_linked ? 'warning' : 'success',
+      );
+    } catch (e: any) {
+      addToast(e?.message || trans('toast.libraryAddFailed'), 'warning');
+    }
+  };
+
   // Current page's header (big title + subtitle) for the global nav's fixed-width
   // info block beside the back/logo control. Recomputed each render from the
   // active tab; null on pages with no header (home / shelf / practice / labs).
@@ -669,6 +688,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     proceedQuizNext,
     handleClearEverything,
     handleForgeCustomWord,
+    handleAddLibraryToStudy,
     pageHeader,
   };
 }

@@ -26,6 +26,7 @@ are blocking — same pattern as ai_image_router.
 """
 
 from typing import Any, Dict, Optional
+import traceback
 
 import fastapi
 from pydantic import BaseModel
@@ -42,7 +43,13 @@ from pycore.pyctl.assist import (
     load_assist_settings,
     save_assist_settings,
 )
-from pycore.callmodule.services.assist_wiring import ensure_assist_worker_wired
+from pycore.callmodule.services import get_queue_monitor_service
+from pycore.callmodule.callmodule_config import Config
+from pycore.callmodule.services.assist_wiring import (
+    ensure_assist_worker_wired,
+    resolve_selected_endpoint_for_ui,
+)
+from pycore.callmodule.services.assist_capability_sync import apply_assist_runtime
 
 router = fastapi.APIRouter(prefix="/api/local/assist",
                            tags=["Local Processing - Assist Laravel"])
@@ -76,6 +83,18 @@ class ConfigRequest(BaseModel):
     batch_limit: Optional[int] = None      # 1..10
 
 
+def _laravel_reachable_from_monitor() -> bool:
+    """Cached queue-monitor reachability — no endpoint resolve on this path."""
+    try:
+        snap = get_queue_monitor_service(
+            laravel_api_url=Config.LARAVEL_WORKER_API_URL,
+            bump_ttl_seconds=Config.TRANSLATION_QUEUE_BUMP_TTL_SECONDS,
+        ).get_snapshot(refresh=False)
+        return bool(snap.get("laravel_reachable"))
+    except Exception:  # noqa: BLE001 — best-effort
+        return False
+
+
 def _fetch_laravel_status(base_url: str) -> Optional[Dict[str, Any]]:
     """GET {base}/api/app_qy_v1/assist/status (2s timeout); None on failure."""
     try:
@@ -91,27 +110,8 @@ def _fetch_laravel_status(base_url: str) -> Optional[Dict[str, Any]]:
 
 
 def _apply_translation_gate(config: Dict[str, Any]) -> None:
-    """
-    Gate the EXISTING translation_worker heartbeat callback under the assist
-    master toggle: enabled && capabilities.translation. Once the
-    ``assist_laravel`` section exists (which a POST /config guarantees), the
-    toggle rules — matching translation_worker_enabled_on_start()'s
-    start-time decision. Best-effort: the callback may not be registered yet
-    on an unusual startup ordering, in which case the start-time gate applies.
-    """
-    try:
-        heartbeat = get_heartbeat_system()
-        want = bool(config["enabled"]
-                    and config["capabilities"].get("translation", True))
-        if want:
-            heartbeat.enable_callback("translation_worker")
-        else:
-            heartbeat.disable_callback("translation_worker")
-        ColorPrint.blue(
-            f"[AssistRouter] translation_worker callback "
-            f"{'enabled' if want else 'disabled'} (assist master toggle)")
-    except Exception as e:  # noqa: BLE001
-        ColorPrint.yellow(f"[AssistRouter] Translation gate apply failed: {e}")
+    """Legacy alias — full runtime sync replaces translation-only gate."""
+    apply_assist_runtime(config)
 
 
 @router.get("/status")
@@ -121,28 +121,50 @@ def assist_status():
     state + counters, and a best-effort passthrough of the selected Laravel
     endpoint's own /assist/status (null when unreachable within 2s).
     """
-    worker = ensure_assist_worker_wired()
-    settings = load_assist_settings()
-    endpoint = worker.resolve_endpoint()
-    laravel_status = (
-        _fetch_laravel_status(endpoint["base_url"])
-        if endpoint and endpoint.get("base_url") else None
-    )
-    worker_state = worker.get_status()
-    return {
-        "enabled": settings["enabled"],
-        "capabilities": settings["capabilities"],
-        "endpoint": endpoint,
-        "running": worker_state["running"],
-        "circuit": worker_state["circuit"],
-        "poll_interval_s": settings["poll_interval_s"],
-        "batch_limit": settings["batch_limit"],
-        "counters": worker_state["counters"],
-        "last_error": worker_state["last_error"],
-        "last_cycle_at": worker_state["last_cycle_at"],
-        "claimer": worker_state["claimer"],
-        "laravel_status": laravel_status,
-    }
+    try:
+        worker = ensure_assist_worker_wired()
+        settings = load_assist_settings()
+        laravel_reachable = _laravel_reachable_from_monitor()
+        endpoint = resolve_selected_endpoint_for_ui(monitor_reachable=laravel_reachable)
+        laravel_status = (
+            _fetch_laravel_status(endpoint["base_url"])
+            if laravel_reachable and endpoint and endpoint.get("base_url") else None
+        )
+        worker_state = worker.get_status()
+        return {
+            "enabled": settings["enabled"],
+            "capabilities": settings["capabilities"],
+            "endpoint": endpoint,
+            "laravel_reachable": laravel_reachable,
+            "running": worker_state["running"],
+            "circuit": worker_state["circuit"],
+            "poll_interval_s": settings["poll_interval_s"],
+            "batch_limit": settings["batch_limit"],
+            "counters": worker_state["counters"],
+            "last_error": worker_state["last_error"],
+            "last_cycle_at": worker_state["last_cycle_at"],
+            "claimer": worker_state["claimer"],
+            "laravel_status": laravel_status,
+        }
+    except Exception as exc:  # noqa: BLE001 - never 500; print full traceback
+        tb = traceback.format_exc()
+        ColorPrint.red(f"[AssistRouter] /status failed: {exc}\n{tb}")
+        return {
+            "enabled": False,
+            "capabilities": {},
+            "endpoint": None,
+            "laravel_reachable": False,
+            "running": False,
+            "circuit": {"open": False, "cooldown_s": 0},
+            "poll_interval_s": 0,
+            "batch_limit": 0,
+            "counters": {},
+            "last_error": f"status error: {exc}",
+            "last_cycle_at": None,
+            "claimer": None,
+            "laravel_status": None,
+            "_status_error": str(exc),
+        }
 
 
 @router.post("/config")
@@ -173,6 +195,11 @@ def assist_config(req: ConfigRequest):
     if req.capabilities is not None:
         caps = {k: v for k, v in req.capabilities.dict().items() if v is not None}
         if caps:
+            # Voice (TTS): words + sentences share one toggle.
+            if "tts" in caps:
+                caps["sentence_audio"] = caps["tts"]
+            elif "sentence_audio" in caps:
+                caps["tts"] = caps["sentence_audio"]
             patch["capabilities"] = caps
 
     config = save_assist_settings(patch)

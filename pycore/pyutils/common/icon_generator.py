@@ -23,6 +23,9 @@ except ImportError:
     if sys.platform == "win32":
         print("Warning: win32com not available, some features may not work")
 
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+
+
 
 class DesktopIconGenerator:
     """Powerful Windows desktop shortcut generator"""
@@ -52,7 +55,7 @@ class DesktopIconGenerator:
 
         # Try to import PIL/Pillow
         try:
-            from PIL import Image
+            Image = get_third_package_PIL_Image()
         except ImportError:
             try:
                 # Try to install Pillow
@@ -60,7 +63,7 @@ class DesktopIconGenerator:
                 result = exec_silent([sys.executable, "-m", "pip", "install", "Pillow"], info=False)
                 if result.return_code != 0:
                     raise RuntimeError(f"Failed to install Pillow: {result.stderr}")
-                from PIL import Image
+                Image = get_third_package_PIL_Image()
                 print("[INFO] Pillow installed successfully")
             except Exception as e:
                 raise RuntimeError(f"Failed to import/install Pillow for PNG conversion: {e}")

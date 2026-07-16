@@ -11,6 +11,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1User\AppQyV1UserInitializationController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1User\AppQyV1ProfileController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1User\AppQyV1BookReadingProgressController;
 
 /*
 |--------------------------------------------------------------------------
@@ -64,5 +65,11 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/preferences', [AppQyV1ProfileController::class, 'getPreferences']);
         Route::put('/preferences', [AppQyV1ProfileController::class, 'updatePreferences']);
         Route::post('/preferences', [AppQyV1ProfileController::class, 'updatePreferences']);
+
+        // Book reading progress (per source_key; many books per user)
+        Route::get('/book-progress', [AppQyV1BookReadingProgressController::class, 'list']);
+        Route::get('/book-progress/{sourceKey}', [AppQyV1BookReadingProgressController::class, 'get']);
+        Route::put('/book-progress/{sourceKey}', [AppQyV1BookReadingProgressController::class, 'save']);
+        Route::post('/book-progress/{sourceKey}', [AppQyV1BookReadingProgressController::class, 'save']);
     });
 });

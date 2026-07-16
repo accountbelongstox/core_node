@@ -92,7 +92,10 @@ class AppQyV1WordMediaService
         $row = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
 
         $imageUrl = $row ? $this->resolveImageUrl($row) : null;
-        $audioUrl = $row ? $this->resolveAudioUrl($row) : null;
+        $audioPick = $row ? $this->resolveAudioPick($row, $accent) : ['url' => null, 'accent' => null, 'fallback' => false];
+        $audioUrl = $audioPick['url'];
+        $audioAccent = $audioPick['accent'];
+        $accentFallback = $audioPick['fallback'];
 
         $hasImage = $imageUrl !== null;
         $hasAudio = $audioUrl !== null;
@@ -161,6 +164,7 @@ class AppQyV1WordMediaService
             // here keeps a hot word cheap.
         }
 
+        $audioFilesPayload = $row ? $this->formatAudioVariantsForApi($row) : [];
         return [
             'word' => $word,
             'md5' => $md5,
@@ -169,6 +173,12 @@ class AppQyV1WordMediaService
             'audio_url' => $audioUrl,
             'image_status' => $hasImage ? 'ready' : 'pending',
             'audio_status' => $hasAudio ? 'ready' : 'pending',
+            'audio_accent' => $audioAccent,
+            'accent_fallback' => $accentFallback,
+            // audio_files is the CANONICAL key; audio_variants is kept as an
+            // alias (same payload) for backward compatibility with older FEs.
+            'audio_files' => $audioFilesPayload,
+            'audio_variants' => $audioFilesPayload,
             'translations' => $translations,
             'explanation' => $this->extractExplanation($row),
             'phonetic' => $row ? ($row->phonetic ?? null) : null,
@@ -335,7 +345,13 @@ class AppQyV1WordMediaService
             );
         }
 
-        if ($needsAudio) {
+        // Word-AUDIO task creation is GATED off by default: Puter.js (browser,
+        // pycore-manager Queue Center batch bar + wordnew library auto-batch) is
+        // the primary word-audio generator and uploads directly to /word/audio/upload
+        // (no Task Queue). The pycore edge-tts Task-Queue lane runs ONLY when
+        // WORD_AUDIO_TASK_QUEUE_ENABLED=1 (manual load) - paired with pycore's
+        // PYCORE_WORD_AUDIO_EDGE_FALLBACK=1. Backend function retained either way.
+        if ($needsAudio && self::wordAudioTaskQueueEnabled()) {
             $this->ensureWordTask(
                 'word_audio',
                 GlobalTask::EXECUTION_REMOTE_AUDIO,
@@ -347,6 +363,16 @@ class AppQyV1WordMediaService
                 $accent
             );
         }
+    }
+
+    /**
+     * Whether the word-audio Task-Queue lane is enabled (manual load). Default OFF
+     * - Puter.js is primary. Enable with env WORD_AUDIO_TASK_QUEUE_ENABLED=1.
+     */
+    public static function wordAudioTaskQueueEnabled(): bool
+    {
+        $v = strtolower((string) getenv('WORD_AUDIO_TASK_QUEUE_ENABLED'));
+        return in_array($v, ['1', 'true', 'yes', 'on'], true);
     }
 
     /**
@@ -448,6 +474,14 @@ class AppQyV1WordMediaService
         // additively; the word_media/chrome lane ignores the field.
         if ($accentCode !== null) {
             $payload['accent'] = $accentCode;
+        }
+        // Multi-variant word audio: per-language variant specs (3 voices by
+        // default - us_f/uk_f/us_m for en) drive N translations[] items from
+        // pycore, each written to its own variant-suffixed path. Count is
+        // dynamic via variantsForLanguage(). Additive; accent stays for back-compat.
+        $variantList = AppQyV1WordAudioFiles::variantsForLanguage($langCode);
+        if (is_array($variantList) && !empty($variantList)) {
+            $payload['variants'] = $variantList;
         }
 
         // IMAGE lane: NO worker drains the raw remote_client execution_type, so a
@@ -600,9 +634,51 @@ class AppQyV1WordMediaService
      */
     public function resolveAudioUrl(AppQyV1LangDictionaryModel $row): ?string
     {
+        return $this->resolveAudioPick($row, null)['url'];
+    }
+
+    /**
+     * Pick the best on-disk audio URL for a row, optionally honoring accent preference.
+     *
+     * @return array{url:?string,accent:?string,fallback:bool}
+     */
+    public function resolveAudioPick(AppQyV1LangDictionaryModel $row, ?string $accent = null): array
+    {
+        $preferred = null;
+        if (is_string($accent)) {
+            $a = strtolower(trim($accent));
+            if (in_array($a, ['us', 'uk'], true)) {
+                $preferred = $a;
+            }
+        }
+
+        $variants = AppQyV1WordAudioFiles::list($row);
+        if ($preferred !== null) {
+            foreach ($variants as $variant) {
+                if (($variant['accent'] ?? null) === $preferred && !empty($variant['has_file']) && !empty($variant['path'])) {
+                    return [
+                        'url' => AppQyV1TtsUrl::forPath((string) $variant['path']),
+                        'accent' => $preferred,
+                        'fallback' => false,
+                    ];
+                }
+            }
+        }
+
+        foreach ($variants as $variant) {
+            if (!empty($variant['has_file']) && !empty($variant['path'])) {
+                $accentTag = $variant['accent'] ?? null;
+                return [
+                    'url' => AppQyV1TtsUrl::forPath((string) $variant['path']),
+                    'accent' => is_string($accentTag) ? $accentTag : 'unknown',
+                    'fallback' => $preferred !== null && $accentTag !== $preferred,
+                ];
+            }
+        }
+
         $ttsFiles = $row->tts_files;
         if (!is_array($ttsFiles) || empty($ttsFiles)) {
-            return null;
+            return ['url' => null, 'accent' => null, 'fallback' => false];
         }
 
         $base = rtrim(PathMapper::getAppQyV1AudioBaseDir(), '/\\') . '/';
@@ -611,11 +687,38 @@ class AppQyV1WordMediaService
                 continue;
             }
             if (is_file($base . $ttsFile['path'])) {
-                return AppQyV1TtsUrl::forPath($ttsFile['path']);
+                return [
+                    'url' => AppQyV1TtsUrl::forPath($ttsFile['path']),
+                    'accent' => 'unknown',
+                    'fallback' => $preferred !== null,
+                ];
             }
         }
 
-        return null;
+        return ['url' => null, 'accent' => null, 'fallback' => false];
+    }
+
+    /** @return array<int,array<string,mixed>> */
+    private function formatAudioVariantsForApi(AppQyV1LangDictionaryModel $row): array
+    {
+        $out = [];
+        foreach (AppQyV1WordAudioFiles::list($row) as $variant) {
+            if (empty($variant['has_file']) || empty($variant['path'])) {
+                continue;
+            }
+            $accent = $variant['accent'] ?? null;
+            $out[] = [
+                'variant_key' => $variant['variant_key'] ?? '',
+                'accent' => in_array($accent, ['us', 'uk'], true) ? $accent : 'unknown',
+                'gender' => $variant['gender'] ?? null,
+                'source' => $variant['source'] ?? null,
+                'voice_type' => $variant['voice_type'] ?? null,
+                'provider' => $variant['provider'] ?? null,
+                'url' => AppQyV1TtsUrl::forPath((string) $variant['path']),
+                'status' => 'ready',
+            ];
+        }
+        return $out;
     }
 
     /**

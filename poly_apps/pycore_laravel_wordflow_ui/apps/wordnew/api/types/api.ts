@@ -1,11 +1,13 @@
 /** types/api.ts - the WfNewApi interface (method contract shared by WfNewApiHttp + WfNewApiMock). (extracted from WfNewApiTypes to keep each
  * source file under the 800-line modular limit; re-exported by the barrel). */
 import type { Word, WordGroup, BentoGroup, UserStats, WfNewStatistics, UserProfile, WfNewContentKind, WfNewContentGroup, WfNewHomeContent, WfNewLanguage, WfNewLanguageSelection } from './core';
-import type { WfNewBookChapter, WfNewBookChapters, WfNewBookVerseLang, WfNewBookVerse, WfNewBookVersesPage, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewSubtitleDetail, WfNewDictWord, WfNewWordPage, WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordAccent, WfNewWordAudioVariant, WfNewWordMedia, SubtitleWord, SubtitleLine, SubtitleCourse, BilingualWord, BilingualSentence } from './media';
+import type { WfNewBookChapter, WfNewBookChapters, WfNewBookVerseLang, WfNewBookVerse, WfNewBookVersesPage, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewSubtitleDetail, WfNewDictWord, WfNewWordPage, WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordAccent, WfNewWordAudioVariant, WfNewWordMedia, WfAudioFileVariant, SubtitleWord, SubtitleLine, SubtitleCourse, BilingualWord, BilingualSentence } from './media';
 import type { WfNewAuthUser, WfNewAuthResult, WfNewPreferences, WfNewRegisterPayload, WfNewSocialCredential, WfNewProfileUpdate, WfNewAvatarResult, WfNewSocialStats } from './user';
 import type { WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity, WfNewPresenceStatus, WfNewDiscoverUser, WfNewFriendRequest, WfNewConversation, WfNewMessage, WfNewMessagePage, WfNewNotification, WfNewNotificationPage, WfNewPresenceInfo, WfNewSocialActor, WfNewPostImage, WfNewPostType, WfNewPostVisibility, WfNewPostFilter, WfNewPost, WfNewPostPage, WfNewPostComment, WfNewPostCommentPage, WfNewPostLikeResult, WfNewCreatePostPayload, WfNewLiveStatus, WfNewLive, WfNewCreateLivePayload, WfNewLiveMsg, WfNewLiveMsgPage } from './social';
 import type { WeeklyActivity, CategoryScore, StudiedTimelineItem, AnalyticsStats } from './analytics';
 import type { WfNewEndpointKind, WfNewEndpoint, WfNewEndpointHealth, WfNewEndpointSnapshot } from './endpoints';
+import type { WfNewBookReadingProgress } from './bookProgress';
+import type { WfNewClientDeviceSettings, WfNewReaderSettingsBlob } from './readerSettings';
 
 /**
  * Every data access the /wordnew app needs, in one interface. Both
@@ -227,12 +229,60 @@ export interface WfNewApi {
     opts?: { accent?: WfNewWordAccent },
   ): Promise<WfNewWordMedia>;
 
-  /** Resolve sentence-library audio (file-first). On miss, backend bumps priority. */
+  /**
+   * Upload frontend-generated word audio (e.g. Puter.js txt2speech) to Laravel
+   * for persistence (POST /word/audio/upload). Laravel matches the dictionary
+   * row by (lang, md5), validates the MP3, and stores it via the canonical
+   * storeWordAudioBytes (fill-missing - never clobbers existing audio). On the
+   * next page load the word reports hasAudio=true from the saved file.
+   */
+  saveWordAudio(payload: {
+    md5: string;
+    lang: string;
+    audio_base64: string;
+    provider?: string;
+    accent?: WfNewWordAccent;
+  }): Promise<{ ok: boolean; stored?: boolean }>;
+
+  /** Resolve sentence-library audio (file-first). On miss, backend bumps priority.
+   *  `variantKey` requests a specific accent/voice variant; the response carries
+   *  `tts_status` (pending|processing|completed|failed) + `audio_files` variants. */
   resolveSentenceAudio(
     text: string,
     language: string,
-  ): Promise<{ exists: boolean; url?: string | null; queued?: boolean; content_id?: string; hash?: string }>;
+    variantKey?: string,
+  ): Promise<{ exists: boolean; url?: string | null; queued?: boolean; content_id?: string; hash?: string; tts_status?: string | null; audio_files?: WfAudioFileVariant[] }>;
 
   /** Explicit priority bump + fast task for one sentence (book-reader retry). */
   bumpSentenceAudio(contentId: string, language: string): Promise<{ success: boolean; task_id?: string | null }>;
+
+  // ---- Book reading progress (server-side, auth:sanctum) ----
+  getBookReadingProgress(sourceKey: string): Promise<WfNewBookReadingProgress | null>;
+  saveBookReadingProgress(
+    sourceKey: string,
+    payload: { chapterIndex?: number | null; verseSeq: number; grain?: string; page?: number },
+  ): Promise<WfNewBookReadingProgress | null>;
+  listBookReadingProgress(limit?: number): Promise<WfNewBookReadingProgress[]>;
+
+  /** Guest device reader settings (PUBLIC, fingerprint client_key). */
+  getClientDeviceSettings(clientKey: string): Promise<WfNewClientDeviceSettings | null>;
+  saveClientDeviceSettings(
+    clientKey: string,
+    reader: WfNewReaderSettingsBlob,
+    updatedAt?: string,
+  ): Promise<WfNewClientDeviceSettings | null>;
+
+  /** Add a vocabulary library to the user's Default Vocabulary Group (auth required).
+   *  Internally resolves the default group gid via /query_all_groups, then POST /group/add_library.
+   *  Returns already_linked: true (with no error) if the library is already in the group. */
+  addLibraryToDefaultGroup(libraryId: string | number): Promise<AddLibraryToDefaultGroupResult>;
+}
+
+export interface AddLibraryToDefaultGroupResult {
+  gid: string;
+  library_id: number;
+  library_name: string;
+  already_linked: boolean;
+  words_added: number;
+  total_words_in_library: number;
 }

@@ -6,7 +6,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Language } from '../../../types';
 import { api } from '../../../core/api';
-import { AudioLines, ChevronLeft, ChevronRight, Languages, RefreshCw } from 'lucide-react';
+import { pycoreApi } from '../../../core/api-libs/pycore';
+import type { SentenceAudioAutoStatus } from '../../../core/api-libs/pycore';
+import { AudioLines, ChevronLeft, ChevronRight, Languages, RefreshCw, Power, Check, ExternalLink } from 'lucide-react';
 import { commonClasses } from '../../../styles/theme';
 import { EmptyState, InlineSpinner } from '../../common';
 
@@ -35,6 +37,12 @@ const LABELS: Record<Language, Record<string, string>> = {
     empty: 'No sentences missing audio.',
     loadFailed: 'Failed to load missing sentence audio list.',
     total: 'total',
+    pycoreWorker: 'pycore sentence worker',
+    pycoreOn: 'auto-start ON',
+    pycoreOff: 'auto-start OFF',
+    pycorePending: 'Laravel pending',
+    openQueue: 'Open Queue Center',
+    pycoreUnreachable: 'pycore offline — start pyservice.ps1 to enable auto synthesis',
   },
   zh: {
     title: '等待语音协助的句子',
@@ -46,6 +54,12 @@ const LABELS: Record<Language, Record<string, string>> = {
     empty: '没有待生成语音的句子。',
     loadFailed: '加载待协助句子列表失败。',
     total: '共',
+    pycoreWorker: 'pycore 句子 worker',
+    pycoreOn: '自动开始 开',
+    pycoreOff: '自动开始 关',
+    pycorePending: 'Laravel 待处理',
+    openQueue: '打开队列中心',
+    pycoreUnreachable: 'pycore 离线 — 请启动 pyservice.ps1 以启用自动合成',
   },
 };
 
@@ -59,6 +73,8 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [languages, setLanguages] = useState<string[]>([]);
+  const [pcAudio, setPcAudio] = useState<SentenceAudioAutoStatus | null>(null);
+  const [pcBusy, setPcBusy] = useState(false);
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
 
@@ -94,6 +110,30 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
     fetchList();
   }, [fetchList, refreshToken]);
 
+  const fetchPcStatus = useCallback(async () => {
+    try {
+      const s = await pycoreApi.getSentenceAudioAutoStatus();
+      if (mounted.current) setPcAudio(s);
+    } catch {
+      if (mounted.current) setPcAudio(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPcStatus();
+  }, [fetchPcStatus, refreshToken]);
+
+  const togglePcAuto = async () => {
+    if (pcBusy || !pcAudio) return;
+    setPcBusy(true);
+    try {
+      const s = await pycoreApi.setSentenceAudioAutoConfig(!pcAudio.auto_start);
+      if (mounted.current) setPcAudio(s);
+    } finally {
+      if (mounted.current) setPcBusy(false);
+    }
+  };
+
   const lastPage = Math.max(1, Math.ceil(total / perPage));
 
   return (
@@ -113,6 +153,39 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-xs rounded-lg border border-teal-200/60 dark:border-teal-800/60 bg-teal-500/5 p-2">
+        <span className="font-semibold text-teal-700 dark:text-teal-300">{t.pycoreWorker}</span>
+        {pcAudio ? (
+          <>
+            <span className="font-mono text-slate-500">
+              {t.pycorePending}: <b>{pcAudio.laravel?.pending ?? 0}</b>
+              {' · '}leased: <b>{pcAudio.laravel?.leased ?? 0}</b>
+            </span>
+            <button
+              type="button"
+              disabled={pcBusy}
+              onClick={togglePcAuto}
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg font-bold transition disabled:opacity-50 ${
+                pcAudio.auto_start
+                  ? 'bg-emerald-500/15 text-emerald-600'
+                  : 'bg-slate-500/10 text-slate-500'
+              }`}>
+              {pcAudio.auto_start ? <Check className="w-3 h-3" /> : <Power className="w-3 h-3" />}
+              {pcAudio.auto_start ? t.pycoreOn : t.pycoreOff}
+            </button>
+            <a
+              href="/pycore-manager/queue-center?tab=translation"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-teal-600 hover:underline ml-auto">
+              <ExternalLink className="w-3 h-3" /> {t.openQueue}
+            </a>
+          </>
+        ) : (
+          <span className="text-slate-500">{t.pycoreUnreachable}</span>
+        )}
       </div>
 
       <div className="flex items-center gap-2 flex-wrap text-xs">

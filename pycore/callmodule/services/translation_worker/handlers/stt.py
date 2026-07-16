@@ -21,6 +21,11 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from .. import lane_gating
 
+from pycore.pyutils.stt import stt_orchestrator
+import shutil
+import subprocess
+
+
 
 def process_stt_task(worker, task: Dict[str, Any]) -> None:
     """STT task: transcribe an audio clip to text via pyutils.stt.stt_orchestrator.
@@ -34,7 +39,6 @@ def process_stt_task(worker, task: Dict[str, Any]) -> None:
 
     Disabled / no audio / no engine / transcription failure -> 'failed'.
     """
-    from pycore.pyutils.stt import stt_orchestrator
 
     task_id = task.get("task_id")
     if not lane_gating.stt_enabled():
@@ -139,8 +143,6 @@ def _stt_to_wav(src: Path) -> Optional[Path]:
 
     Returns the wav path, or None when ffmpeg is unavailable / conversion fails.
     """
-    import shutil
-    import subprocess
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         return None

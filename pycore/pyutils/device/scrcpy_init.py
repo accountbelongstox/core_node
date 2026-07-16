@@ -16,6 +16,10 @@ from pathlib import Path
 from typing import Dict, Optional, Callable
 
 from pycore.pyutils.common.robust_downloader import RobustDownloader
+from pycore.pyfoundations.system_paths import get_system_cache_dir
+
+import shutil
+
 
 # Download URLs for scrcpy packages
 # Source: https://github.com/Genymobile/scrcpy/releases
@@ -46,38 +50,15 @@ class ScrcpyInitializer:
         )
 
     def _get_user_data_dir(self) -> Path:
-        """Get user data directory based on OS"""
-        if self.system == "windows":
-            # Windows: C:\Users\<username>\.core_node
-            # Force use C:\Users\<username> even if USERPROFILE is redirected
-            # This ensures consistent scrcpy binary location across all systems
-            username = os.environ.get('USERNAME')
-            if username:
-                # Construct standard Windows path: C:\Users\<username>\.core_node
-                base_dir = Path(f"C:/Users/{username}/.core_node")
-            else:
-                # Fallback to USERPROFILE if USERNAME not available
-                userprofile = os.environ.get('USERPROFILE')
-                if userprofile:
-                    base_dir = Path(userprofile) / ".core_node"
-                else:
-                    # Final fallback to Path.home()
-                    base_dir = Path.home() / ".core_node"
-        elif self.system == "linux":
-            # Linux: /var/_core_node
-            base_dir = Path("/var/_core_node")
-            # If /var/_core_node not accessible, fallback to home
-            if not os.access("/var", os.W_OK):
-                base_dir = Path.home() / ".core_node"
-        elif self.system == "darwin":
-            # macOS: ~/.core_node
-            base_dir = Path.home() / ".core_node"
-        else:
-            # Unknown OS, use home
-            base_dir = Path.home() / ".core_node"
+        """Get user data directory based on OS (centralized via system_paths).
 
-        base_dir.mkdir(parents=True, exist_ok=True)
-        return base_dir
+        Windows: D:\\programing\\Users\\<user>\\.core_node
+        Linux:   /var/_core_node (else ~/.core_node)
+        macOS:   ~/.core_node
+        """
+        # Centralized per-user state dir (see system_paths.get_system_cache_dir);
+        # it already handles per-OS resolution + idempotent creation.
+        return get_system_cache_dir()
 
     def _get_package_path(self) -> Optional[Path]:
         """Get the .pyp package path from project resources"""
@@ -207,7 +188,6 @@ class ScrcpyInitializer:
                         extracted_dir = self.user_data_dir / root_folder
                         if extracted_dir.exists() and extracted_dir != self.scrcpy_dir:
                             if self.scrcpy_dir.exists():
-                                import shutil
                                 shutil.rmtree(self.scrcpy_dir)
                             extracted_dir.rename(self.scrcpy_dir)
             else:
@@ -226,7 +206,6 @@ class ScrcpyInitializer:
                         if extracted_dir.exists() and extracted_dir != self.scrcpy_dir:
                             # Move all files from extracted_dir to scrcpy_dir
                             if self.scrcpy_dir.exists():
-                                import shutil
                                 shutil.rmtree(self.scrcpy_dir)
                             extracted_dir.rename(self.scrcpy_dir)
 

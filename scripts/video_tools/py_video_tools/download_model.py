@@ -4,7 +4,7 @@
 download_model.py
 
 Pre-download a faster-whisper model from Hugging Face with live MB progress.
-Invoked by iniscripts\\install_faster_whisper.ps1 so that the model download (a
+Invoked by Step11_InstallFasterWhisper.ps1 / Step42_InstallWhisper.ps1 so that the model download (a
 form of installation) is driven from PowerShell, while the main worker simply
 USES the cached model. Reuses helpers from video_audio_extractor.
 

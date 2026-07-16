@@ -22,6 +22,9 @@ launch_pycore_module and the (deleted) launch_device_sync (kept as a no-op stub)
 import sys
 from pathlib import Path
 
+import time
+
+
 # Add project root to Python path to enable pycore imports
 # This MUST be done before importing from pycore
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
@@ -45,6 +48,7 @@ from pycore.pyutils.launcher.app_finder import AppFinder
 from pycore.pyutils.launcher.menu import InteractiveMenu
 from pycore.pyutils.common.icon_generator import DesktopIconGenerator
 from pycore.pyutils.common.process_manager import ProcessManager
+from pycore.pyutils.launcher.launch_guard import is_app_running, resolve_launch_path
 
 # ============================================================================
 # Re-exports: implementations split into sibling modules (public API preserved).
@@ -97,6 +101,11 @@ def _parse_launch_args():
 
 def main():
     """Main entry point"""
+    # Skip third_party import-time dep check: this launcher only opens windows/apps
+    # and must not trigger a heavy package install as a side effect of starting.
+    if os.environ.get('PYCORE_SKIP_DEP_CHECK') != '1':
+        os.environ['PYCORE_SKIP_DEP_CHECK'] = '1'
+
     # Resolve headless/interactive up front. When headless (--no-pause, --mode,
     # PYLAUNCHER_MODE, or a closed stdin) we never call input(): auto-start runs
     # this from a .desktop/systemd unit with no TTY, so any input() would block
@@ -203,7 +212,6 @@ def main():
 
     if launch_module:
         launch_pycore_module()
-        import time
         time.sleep(0.5)
 
     if not launch_windows:
@@ -238,11 +246,11 @@ def main():
     if grid_columns > 0 and grid_rows > 0:
         measured_columns = measurements_config.get('columns', 67)
         measured_width_px = measurements_config.get('columns_width_px', 510)
-        measured_rows = measurements_config.get('rows', 164)
+        measured_rows = measurements_config.get('rows', 32)
         measured_height_px = measurements_config.get('rows_height_px', 485)
 
         calibration_height = calibration_config.get('actual_height_px', 485)
-        calibration_rows = calibration_config.get('term_rows', 270)
+        calibration_rows = calibration_config.get('term_rows', 32)
         window_chrome = config_manager.get('window_chrome') or {}
         if not isinstance(window_chrome, dict):
             window_chrome = {}
@@ -283,7 +291,7 @@ def main():
             window_chrome_gap_vertical_px=window_chrome.get('gap_vertical_px', 24)
         )
 
-        # Launch windows
+        # Launch windows (idempotent: WindowLauncher tops up only the deficit).
         launcher.launch_windows()
     else:
         print("Terminal launching is disabled")
@@ -291,82 +299,71 @@ def main():
     # Launch configured applications using explorer executor (via bat files)
     apps_config = config_manager.get_applications_config()
     executor = ExplorerExecutor()
-    # Reused to skip browsers that are already running (avoid duplicate launches).
     process_manager = ProcessManager()
+    launched_exe_paths = set()
 
     for app_name, app_config in apps_config.items():
-        if app_config.get('enabled', False):
-            # vscode is intentionally not launched by this flow anymore.
-            if app_name == 'vscode':
-                print(f"\nSkipping {app_name} (not launched by this flow).")
+        if not app_config.get('enabled', False):
+            print(f"\nSkipping {app_name} (disabled in config).")
+            continue
+
+        # vscode is intentionally not launched by this flow anymore.
+        if app_name == 'vscode':
+            print(f"\nSkipping {app_name} (not launched by this flow).")
+            continue
+
+        launch_as_admin = app_name == 'aiassistant'
+
+        # Resolve path before the running check so chrome stable is not skipped
+        # when only edge (portable chrome.exe) or another chrome variant is open.
+        app_path = resolve_launch_path(app_name, app_config, app_finder)
+        resolved_app_path = None
+        if app_path:
+            try:
+                resolved_app_path = Path(app_path).resolve()
+            except OSError:
+                resolved_app_path = Path(app_path)
+            if resolved_app_path in launched_exe_paths:
+                print(f"\nSkipping {app_name} (same executable already launched in this run).")
                 continue
 
-            # chrome/edge: skip if an instance is already running (avoid duplicates).
-            if app_name in ('chrome', 'edge'):
-                exe_names = AppFinder.APP_DEFINITIONS.get(app_name, {}).get('names', [])
-                if any(process_manager.is_process_running(name) for name in exe_names):
-                    print(f"\nSkipping {app_name} (already running).")
-                    continue
+        if is_app_running(app_name, process_manager, app_finder, exe_path=app_path):
+            print(f"\nSkipping {app_name} (already running).")
+            continue
 
-            # Get path from cache first, then from config if cache doesn't have it
-            app_path = None
+        if app_path:
+            launch_label = app_name
+            if app_name == 'edge':
+                launch_label = 'edge (Chrome portable)'
+            print(f"\nLaunching {launch_label}{' (as administrator)' if launch_as_admin else ''}...")
+            try:
+                app_path_obj = Path(app_path)
 
-            # Try to get from cache (AppFinder cache)
-            if app_name == 'chrome':
-                version = app_config.get('version', 'stable')
-                cache_key = f'chrome_{version}'
-                if cache_key in app_finder.cache:
-                    cached_path = Path(app_finder.cache[cache_key])
-                    if cached_path.exists():
-                        app_path = str(cached_path)
-            elif app_name == 'chrome_beta':
-                # chrome_beta always uses beta version
-                # Use same cache key format as find_chrome_by_version('beta')
-                cache_key = 'chrome_beta'
-                if cache_key in app_finder.cache:
-                    cached_path = Path(app_finder.cache[cache_key])
-                    if cached_path.exists():
-                        app_path = str(cached_path)
-            else:
-                cache_key = f'{app_name}_path'
-                if cache_key in app_finder.cache:
-                    cached_path = Path(app_finder.cache[cache_key])
-                    if cached_path.exists():
-                        app_path = str(cached_path)
-
-            # If not in cache, try to find it (and save to cache only, NOT config)
-            if not app_path:
-                if app_name == 'chrome':
-                    version = app_config.get('version', 'stable')
-                    app_path = app_finder.find_chrome_by_version(version)
-                elif app_name == 'chrome_beta':
-                    app_path = app_finder.find_chrome_by_version('beta')
-                else:
-                    app_path = app_finder.find_app(app_name)
-                # AppFinder.save_cache() will be called by find_app/find_chrome_by_version
-                # Paths are saved to app_cache.json, NOT config.json
-
-            if app_path:
-                print(f"\nLaunching {app_name}...")
-                try:
-                    app_path_obj = Path(app_path)
-
-                    if app_path_obj.exists():
-                        # Windows: write a launch .bat (legacy/diagnostic) first.
-                        # Linux: skip it (an unrunnable, stray .bat artifact) and just
-                        # launch the binary independently.
-                        if platform.system() == 'Windows':
-                            temp_bat = script_generator.get_temp_dir() / f'launch_{app_name}.bat'
-                            bat_content = f'@echo off\r\nstart "" "{app_path}"\r\n'
-                            with open(temp_bat, 'w', encoding='utf-8', newline='\r\n') as f:
-                                f.write(bat_content)
+                if app_path_obj.exists():
+                    # Windows: write a launch .bat (legacy/diagnostic) first.
+                    # Linux: skip it (an unrunnable, stray .bat artifact) and just
+                    # launch the binary independently.
+                    if platform.system() == 'Windows' and not launch_as_admin:
+                        temp_bat = script_generator.get_temp_dir() / f'launch_{app_name}.bat'
+                        bat_content = f'@echo off\r\nstart "" "{app_path}"\r\n'
+                        with open(temp_bat, 'w', encoding='utf-8', newline='\r\n') as f:
+                            f.write(bat_content)
+                    if launch_as_admin:
+                        executor.execute_as_admin(app_path)
+                    else:
                         # Launch independently (explorer on Windows; exec/xdg-open on Linux).
                         executor.execute_file(app_path, independent=True)
-                        print(f"  Launched: {app_path}")
-                    else:
-                        print(f"  Error: Application path does not exist: {app_path}")
-                except Exception as e:
-                    print(f"Failed to launch {app_name}: {e}")
+                    if resolved_app_path is not None:
+                        launched_exe_paths.add(resolved_app_path)
+                    print(f"  Launched: {app_path}")
+                else:
+                    print(f"  Error: Application path does not exist: {app_path}")
+            except Exception as e:
+                print(f"Failed to launch {app_name}: {e}")
+        elif launch_as_admin:
+            print(f"\nSkipping {app_name} (no AIAssistant*.exe found in Downloads).")
+        elif app_name in ('chrome', 'chrome_beta', 'edge'):
+            print(f"\nSkipping {app_name} (Chrome executable not found).")
 
     # Pause to view output, wait for 'y' or Enter to continue.
     # Headless (auto-start) runs skip this pause so the launcher exits on its own.

@@ -58,11 +58,20 @@ class LinuxCommandContentGenerator:
             tool_type, tool_display_name, target_name, support_upgrade, support_npm_update
         )
 
+    @staticmethod
+    def _has_model_var(variables: List[Dict[str, Any]]) -> bool:
+        for var in variables:
+            if var.get('Name') == 'ANTHROPIC_MODEL':
+                return True
+        return False
+
     def generate_command_content(self, config_name: str, command_prefix: str,
                                 bash_command: str, file_number: int,
                                 variables: List[Dict[str, Any]],
                                 mcp_section: str = "", file_name: str = "") -> str:
         """Generate complete bash command content"""
+        has_model = self._has_model_var(variables)
+
         # Add --dangerously-skip-permissions for claude commands
         # Skip this flag if running as root (root doesn't need permission skipping)
         # Add --yolo for codex commands
@@ -82,6 +91,13 @@ if [ "$EUID" -eq 0 ]; then
     claude_command="claude"
 else
     claude_command="claude --dangerously-skip-permissions"
+fi
+"""
+            if has_model:
+                root_check_section += """
+# Add --model if ANTHROPIC_MODEL is configured
+if [ -n "${ANTHROPIC_MODEL:-}" ]; then
+    claude_command="$claude_command --model $ANTHROPIC_MODEL"
 fi
 """
             bash_command = "$claude_command"
@@ -151,6 +167,24 @@ echo ""
         # Generate environment variable loading section
         env_loading_section = self.env_loading_generator.generate_linux_env_loading_section(variables, file_number)
 
+        # Generate model configuration section (Claude Code specific)
+        model_section = ""
+        if has_model:
+            model_section = """
+#region Model Configuration
+# If ANTHROPIC_MODEL is configured, force it everywhere (main + subagents + tiers).
+if [ -n "${ANTHROPIC_MODEL:-}" ]; then
+    export CLAUDE_CODE_SUBAGENT_MODEL="$ANTHROPIC_MODEL"
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL="$ANTHROPIC_MODEL"
+    export ANTHROPIC_DEFAULT_SONNET_MODEL="$ANTHROPIC_MODEL"
+    echo "Model: $ANTHROPIC_MODEL (forced: main + subagents + background)"
+else
+    echo "Model: account default (no ANTHROPIC_MODEL configured)"
+fi
+#endregion
+
+"""
+
         # Build command display code
         build_command_code = """
 #region Build Launch Command Display
@@ -175,7 +209,7 @@ fi
 
 """
 
-        env_section = env_loading_section + build_command_code + "\n"
+        env_section = env_loading_section + model_section + build_command_code + "\n"
 
         mcp_section_content = ""
         if mcp_section:

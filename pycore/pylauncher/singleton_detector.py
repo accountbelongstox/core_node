@@ -71,6 +71,10 @@ from pycore.pylauncher.singleton_protocol import (
 )
 from pycore.pylauncher.singleton_server import _SingletonServerMixin
 
+import signal
+import time as time_module
+
+
 # Re-export protocol types for backward compatibility (callers that imported
 # them from this module before the split keep working).
 __all__ = [
@@ -290,6 +294,14 @@ class SingletonDetector(_SingletonServerMixin):
 
         return response
 
+    def find_existing_port(self) -> Optional[int]:
+        """Scan the port range for a running instance without binding a port."""
+        for offset in range(self.port_range):
+            port = self.port_start + offset
+            if self._try_connect_and_verify(port):
+                return port
+        return None
+
     def detect_and_bind(self) -> DetectionResult:
         """
         Detect existing instances and try to become PRIMARY
@@ -402,10 +414,6 @@ class SingletonDetector(_SingletonServerMixin):
 
                             if old_pid:
                                 try:
-                                    import os
-                                    import signal
-                                    import socket
-                                    import time as time_module
 
                                     self._log(f"[FORCE] Sending SIGTERM to old instance PID {old_pid}...")
                                     os.kill(old_pid, signal.SIGTERM)

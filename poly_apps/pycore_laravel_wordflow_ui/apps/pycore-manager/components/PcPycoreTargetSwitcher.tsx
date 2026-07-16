@@ -16,8 +16,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Server, ChevronDown, Check, Plus, MonitorSmartphone, Globe, Link as LinkIcon, AlertTriangle } from 'lucide-react';
 import {
   getPycoreTarget, getPycoreTargetRecent, getPycoreTargetPresets, normalizePycoreHost, setPycoreTarget,
-  localPycoreHost, localPycoreOrigin, isPycoreSecureContext, pnaBlockedReason,
-} from '../../../core/api-libs/pycore';
+  localPycoreHost, isPycoreSecureContext, pnaBlockedReason,
+  pycoreLocalConnectionHint,
+} from '../../../core/api-libs/pycore/pycoreTarget';
 
 interface Props {
   variant?: 'header' | 'block';
@@ -31,7 +32,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   const presetHosts = new Set(presets.map((p) => p.host));
   const recentShown = recent.filter((h) => !presetHosts.has(h));  // presets already cover these
   const localHost = localPycoreHost();        // page host - the "Local" target
-  const pageOrigin = localPycoreOrigin();     // page origin - the "Current URL" target
+  const connHint = pycoreLocalConnectionHint();
   const label = mode === 'remote' ? (target.host as string)
     : mode === 'local' ? 'Local'
       : 'Current URL';
@@ -112,7 +113,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
           >
             <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
               <span className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-indigo-500" /> Current URL</span>
-              <span className="text-[10px] font-mono text-slate-400 pl-6">{localHost}:59000 (direct)</span>
+              <span className="text-[10px] font-mono text-slate-400 pl-6">{connHint}</span>
             </span>
             {mode === 'origin' && <Check className="w-4 h-4 text-indigo-500" />}
           </button>
@@ -126,7 +127,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
           >
             <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
               <span className="flex items-center gap-2"><MonitorSmartphone className="w-4 h-4 text-indigo-500" /> Local (this machine)</span>
-              <span className="text-[10px] font-mono text-slate-400 pl-6">{localHost}:59000 (direct)</span>
+              <span className="text-[10px] font-mono text-slate-400 pl-6">{connHint}</span>
             </span>
             {mode === 'local' && <Check className="w-4 h-4 text-indigo-500" />}
           </button>
@@ -202,13 +203,9 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
               </button>
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              All modes connect DIRECTLY to <b>host:59000</b> (no reverse proxy). Current URL / Local
-              = this page's host ({localHost}:59000) - the pycore backend (NOT Laravel's :9000).
-              Remote = any host:59000 (use 127.0.0.1 when the browser runs on the pycore machine,
-              or the machine's LAN/Tailscale/public IP). Switching reloads so the UI controls that
-              node's pycore (CodeSync, queues, AI, settings). Private Network Access blocks
-              127.0.0.1/private hosts from a non-secure (HTTP public IP) page - use HTTPS, localhost,
-              or the Chrome flag shown above.
+              All modes connect directly to <b>host:59000</b> (no proxy).
+              Current URL / Local = {localHost}:59000; Remote = any host:59000.
+              Laravel is separate (<b>:9000</b>, header switcher). Switching reloads the page.
             </p>
           </div>
         </div>

@@ -22,7 +22,7 @@ $WIN_COMMON_DIR = Join-Path (Split-Path -Parent $PSScriptRoot) $WIN_COMMON_DIR_N
 $INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path -Parent $PSScriptRoot) $INSTALL_POWERSHELLS_DIR_NAME
 
 # Load InstallerScriptsList.ps1 for script management
-$installerScriptsListPath = Join-Path $INSTALL_POWERSHELLS_DIR "InstallerScriptsList.ps1"
+$installerScriptsListPath = Join-Path $WIN_COMMON_DIR "InstallerScriptsList.ps1"
 . $installerScriptsListPath
 
 # =============================================================================
@@ -32,8 +32,7 @@ function Get-ExecutionMode {
     # Detect if running in project mode or installation mode
     # Check if running from .core_node directory (installation mode) or project directory (project mode)
     $currentDir = $script:PS_CURENT_DIR
-    $userProfileDir = [Environment]::GetFolderPath("UserProfile")
-    $coreNodeInstallDir = Join-Path $userProfileDir ".core_node"
+    $coreNodeInstallDir = "D:\programing\Users\$env:USERNAME\.core_node"
 
     # Check if running from .core_node installation directory
     if ($currentDir -like "$coreNodeInstallDir*") {
@@ -48,8 +47,7 @@ function Get-ExecutionMode {
 function Test-InitializationRequired {
     # Check if script is running from .core_node directory (not initialized)
     $currentDir = Get-Location
-    $userProfileDir = [Environment]::GetFolderPath("UserProfile")
-    $coreNodeInstallDir = Join-Path $userProfileDir ".core_node"
+    $coreNodeInstallDir = "D:\programing\Users\$env:USERNAME\.core_node"
 
     if ($currentDir.Path -like "$coreNodeInstallDir*") {
         return $true

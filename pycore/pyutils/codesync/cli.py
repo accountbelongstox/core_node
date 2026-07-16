@@ -24,6 +24,10 @@ import sys
 
 from .runtime import http
 
+from pycore.pyutils.codesync.peer_config import get_peer_config
+from pycore.pyutils.codesync import daemon
+
+
 DEFAULT_PORT = 59000
 
 
@@ -63,7 +67,6 @@ def _emit(obj):
 
 
 def _peer_config():
-    from .peer_config import get_peer_config
     return get_peer_config()
 
 
@@ -87,7 +90,6 @@ def _offline_snapshot(cfg):
 # commands                                                                     #
 # --------------------------------------------------------------------------- #
 def cmd_run(args):
-    from . import daemon
     return daemon.run(host=args.host, port=args.port,
                       reload=getattr(args, "reload", False),
                       light=getattr(args, "light", False))

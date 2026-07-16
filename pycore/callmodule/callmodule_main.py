@@ -26,6 +26,19 @@ import os
 import platform
 from pathlib import Path
 
+from pycore.callmodule.services.heartbeat_worker_prefs import restore_persisted_heartbeat_prefs
+from pycore.callmodule.services.system_settings_boot import apply_persisted_system_settings
+from pycore.pyutils.tts.tts_orchestrator import report_tts_engine_startup
+from pycore.callmodule.services import get_translation_worker_service
+from pycore.pyctl.assist import translation_worker_enabled_on_start
+from pycore.callmodule.services.assist_wiring import register_assist_worker_start
+from pycore.callmodule.services import get_ai_rate_reset_service
+from pycore.callmodule.services import get_agent_history_tick_service
+from pycore.callmodule.services import get_queue_monitor_service
+from pycore.pyheartbeat import get_heartbeat_system
+from pycore.callmodule.services import get_translation_ws_client
+
+
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -34,6 +47,11 @@ from pycore import ColorPrint
 from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app, get_platform_adapter
 from pycore.pyutils.native_ui.step2_port_url import register_port_range
 from pycore.callmodule.callmodule_config import Config
+from pycore.callmodule.services.heartbeat_tts_workers import (
+    register_sentence_queue_monitor as _register_sentence_queue_monitor,
+    register_tts_queue_poller as _register_tts_queue_poller,
+    register_tts_sentence_worker as _register_tts_sentence_worker,
+)
 
 # Import all routers
 # Management Layer (9 routers)
@@ -49,22 +67,42 @@ from pycore.callmodule.routers.management import (
     heartbeat_router,
 )
 
-# Local Processing Layer (5 routers)
+# Local Processing Layer
 from pycore.callmodule.routers.local import (
     screenshot_router,
     image_router,
     audio_router,
     file_router,
     video_router,
+    video_extract_router,
+    system_resources_router,
+    user_data_router,
+    books_router,
+    corebook_router,
     ai_probe_router,
     ai_chat_router,
     ai_image_router,
     ai_keys_router,
+    ocr_status_router,
+    tts_status_router,
+    stt_status_router,
+    speech_history_router,
+    capability_status_router,
     translation_queue_router,
     task_center_router,
     queue_overview_router,
     task_history_router,
     assist_router,
+    poster_router,
+    image_search_router,
+    sentence_audio_router,
+    queue_bumps_router,
+    dictionary_router,
+    word_audio_router,
+    word_tts_router,
+    heartbeat_workers_router,
+    agent_history_router,
+    task_settings_router,
 )
 
 # Upload Layer (1 router)
@@ -78,6 +116,8 @@ from pycore.callmodule.routers.mcp_router import mcp_router
 from pycore.callmodule.routers.code_sync_router import router as code_sync_router
 from pycore.callmodule.routers.module_call_router import module_call_router
 from pycore.callmodule.routers.notebooklm_stt_router import router as notebooklm_stt_router
+from pycore.callmodule.routers.web_router import router as web_router
+from pycore.callmodule.routers.voice_subtitle_router import router as voice_subtitle_router
 
 
 def callmodule_main_entry():
@@ -108,6 +148,7 @@ def callmodule_main_entry():
 
     # Register translation queue monitor callback (idempotent)
     _register_queue_monitor()
+    _register_sentence_queue_monitor()
 
     # Register translation Reverb WS client callback (idempotent) — Phase C
     _register_translation_ws_client()
@@ -121,6 +162,11 @@ def callmodule_main_entry():
     # Register local AI agent history extractor (idempotent)
     _register_agent_history_extraction()
 
+    restore_persisted_heartbeat_prefs()
+    apply_persisted_system_settings()
+    # Migrate legacy TTS order + warn when STREAMELEMENTS_API_KEY is missing.
+    report_tts_engine_startup()
+
 
 def _ensure_heartbeat_running():
     """
@@ -129,7 +175,6 @@ def _ensure_heartbeat_running():
     This function checks if PyHeartbeat is running and starts it if needed.
     Can be called multiple times safely - will not restart if already running.
     """
-    from pycore.pyheartbeat import get_heartbeat_system
 
     heartbeat = get_heartbeat_system()
 
@@ -139,100 +184,6 @@ def _ensure_heartbeat_running():
         ColorPrint.green("[Callmodule] PyHeartbeat started")
     else:
         ColorPrint.blue("[Callmodule] PyHeartbeat already running")
-
-
-def _register_tts_queue_poller():
-    """
-    Register the TTS queue WORKER callback to PyHeartbeat (Idempotent)
-
-    The worker claims pending word-generation TTS tasks from laravel_main,
-    synthesizes MP3s via the pyutils TTS orchestrator and reports validated
-    results back. Can be called multiple times safely - will overwrite the
-    existing callback with the same name.
-
-    Architecture:
-    - Callback name: 'tts_queue_poller'
-    - Interval: Config.TTS_WORKER_INTERVAL (60 seconds)
-    - Initial state: ENABLED by default (Config.TTS_WORKER_ENABLED_ON_START,
-                     env PYCORE_TTS_WORKER=0 to disable)
-    - Laravel base URL: resolved by the stored-first LaravelEndpointManager
-      (same resolution the media-sync service uses)
-    - Control: POST /api/heartbeat/enable|disable/tts_queue_poller
-    """
-    from pycore.pyheartbeat import get_heartbeat_system
-    from pycore.callmodule.services import get_tts_queue_poller_service
-    from pycore.callmodule.callmodule_config import Config
-
-    # Get PyHeartbeat system
-    heartbeat = get_heartbeat_system()
-
-    # Get TTS worker service singleton (idempotent initialization). No explicit
-    # base URL: it resolves via the LaravelEndpointManager per batch.
-    poller = get_tts_queue_poller_service()
-
-    # Register callback (idempotent - overwrites if already registered)
-    heartbeat.register_callback(
-        name='tts_queue_poller',
-        callback=poller.poll_and_process,
-        interval=Config.TTS_WORKER_INTERVAL,
-        enabled=Config.TTS_WORKER_ENABLED_ON_START,
-    )
-
-    ColorPrint.green("[Callmodule] Registered TTS queue worker callback")
-    ColorPrint.blue("  - Callback name: tts_queue_poller")
-    ColorPrint.blue(f"  - Interval: {Config.TTS_WORKER_INTERVAL} seconds")
-    ColorPrint.blue(f"  - Initial state: "
-                    f"{'enabled' if Config.TTS_WORKER_ENABLED_ON_START else 'disabled'}")
-    ColorPrint.blue(f"  - Batch size: {Config.TTS_WORKER_BATCH}")
-    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/tts_queue_poller")
-
-
-def _register_tts_sentence_worker():
-    """
-    Register the TTS sentence-audio WORKER callback to PyHeartbeat (Idempotent).
-
-    Mirrors _register_tts_queue_poller(), but drives the SENTENCE-library audio
-    queue: it claims pending sentence tasks from laravel_main
-    (/api/app_qy_v1/ai_tools/tts/sentence/claim), merges EVERY claimed task into
-    ONE in-process priority queue (high-priority user requests outrank backfill
-    regardless of claim batch — pipeline §5.3), synthesizes MP3s via the pyutils
-    TTS orchestrator and reports validated results back. Safe to call repeatedly.
-
-    Architecture:
-    - Callback name: 'tts_sentence_worker'
-    - Interval: Config.TTS_SENTENCE_WORKER_INTERVAL (60 seconds)
-    - Initial state: ENABLED by default (Config.TTS_SENTENCE_WORKER_ENABLED_ON_START,
-                     env PYCORE_TTS_SENTENCE_WORKER=0 to disable)
-    - Laravel base URL: resolved by the stored-first LaravelEndpointManager
-      (same resolution the media-sync / word-worker services use)
-    - Control: POST /api/heartbeat/enable|disable/tts_sentence_worker
-    """
-    from pycore.pyheartbeat import get_heartbeat_system
-    from pycore.callmodule.services import get_tts_sentence_worker_service
-    from pycore.callmodule.callmodule_config import Config
-
-    # Get PyHeartbeat system
-    heartbeat = get_heartbeat_system()
-
-    # Get sentence-audio worker singleton (idempotent initialization). No explicit
-    # base URL: it resolves via the LaravelEndpointManager per cycle.
-    worker = get_tts_sentence_worker_service()
-
-    # Register callback (idempotent - overwrites if already registered)
-    heartbeat.register_callback(
-        name='tts_sentence_worker',
-        callback=worker.poll_and_process,
-        interval=Config.TTS_SENTENCE_WORKER_INTERVAL,
-        enabled=Config.TTS_SENTENCE_WORKER_ENABLED_ON_START,
-    )
-
-    ColorPrint.green("[Callmodule] Registered TTS sentence-audio worker callback")
-    ColorPrint.blue("  - Callback name: tts_sentence_worker")
-    ColorPrint.blue(f"  - Interval: {Config.TTS_SENTENCE_WORKER_INTERVAL} seconds")
-    ColorPrint.blue(f"  - Initial state: "
-                    f"{'enabled' if Config.TTS_SENTENCE_WORKER_ENABLED_ON_START else 'disabled'}")
-    ColorPrint.blue(f"  - Batch size: {Config.TTS_SENTENCE_WORKER_BATCH}")
-    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/tts_sentence_worker")
 
 
 def _register_translation_worker():
@@ -255,10 +206,6 @@ def _register_translation_worker():
     dispatches each to a background TaskManager thread — it never blocks the
     heartbeat loop with translation/network latency.
     """
-    from pycore.pyheartbeat import get_heartbeat_system
-    from pycore.callmodule.services import get_translation_worker_service
-    from pycore.callmodule.callmodule_config import Config
-    from pycore.pyctl.assist import translation_worker_enabled_on_start
 
     heartbeat = get_heartbeat_system()
 
@@ -314,7 +261,6 @@ def _register_assist_worker():
 
     Control: GET/POST /api/local/assist/{status,config,cycle}.
     """
-    from pycore.callmodule.services.assist_wiring import register_assist_worker_start
 
     register_assist_worker_start()
 
@@ -336,9 +282,6 @@ def _register_ai_rate_reset():
     - Initial state: ENABLED (env PYCORE_AI_RATE_RESET=0 to disable)
     - Control: POST /api/heartbeat/enable|disable/ai_rate_reset
     """
-    import os
-    from pycore.pyheartbeat import get_heartbeat_system
-    from pycore.callmodule.services import get_ai_rate_reset_service
 
     heartbeat = get_heartbeat_system()
     service = get_ai_rate_reset_service()
@@ -371,12 +314,9 @@ def _register_agent_history_extraction():
     - Callback name: 'agent_history_extraction'
     - Interval: PYCORE_AGENT_HISTORY_INTERVAL env (default 10s)
     - Initial state: ENABLED by default
-    - Store: <core_node>/.data/.ai_state/agent_history/*.txt
+    - Store: <cache>/pycore/.ai_state/agent_history/*.txt
     - Control: POST /api/heartbeat/enable|disable/agent_history_extraction
     """
-    import os
-    from pycore.pyheartbeat import get_heartbeat_system
-    from pycore.callmodule.services import get_agent_history_tick_service
 
     heartbeat = get_heartbeat_system()
     service = get_agent_history_tick_service()
@@ -417,9 +357,6 @@ def _register_queue_monitor():
     The callback GETs the queue list, caches the snapshot, and detects priority
     bumps (flagging tasks `recently_bumped`) — it never blocks the heartbeat loop.
     """
-    from pycore.pyheartbeat import get_heartbeat_system
-    from pycore.callmodule.services import get_queue_monitor_service
-    from pycore.callmodule.callmodule_config import Config
 
     heartbeat = get_heartbeat_system()
 
@@ -468,9 +405,6 @@ def _register_translation_ws_client():
                    on reverb restart — keep TRANSLATION_REVERB_APP_KEY in sync.
     - Control: POST /api/heartbeat/enable|disable/translation_ws_client
     """
-    from pycore.pyheartbeat import get_heartbeat_system
-    from pycore.callmodule.services import get_translation_ws_client
-    from pycore.callmodule.callmodule_config import Config
 
     heartbeat = get_heartbeat_system()
 
@@ -602,7 +536,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
         rpc_host=host,
         rpc_debug=debug,
         rpc_routers=[
-            # === Management Layer (9 routers) ===
+            # === Management Layer ===
             status_router,
             config_router,
             control_router,
@@ -612,30 +546,53 @@ def start(host='0.0.0.0', port=59000, debug=False):
             local_stats_router,
             local_test_router,
             heartbeat_router,
-            # === Local Processing Layer (5 routers) ===
+            # === Local Processing Layer ===
             screenshot_router,
             image_router,
             audio_router,
             file_router,
             video_router,
-            ai_probe_router,         # AI provider probe (/api/local/ai/probe)
-            ai_chat_router,          # AI chat confirm (/api/local/ai/chat)
-            ai_image_router,         # AI image generation (/api/local/ai/image)
-            ai_keys_router,          # AI provider key management (/api/local/ai/keys)
-            translation_queue_router,# Translation queue monitor + control (/api/local/translation/queue)
-            task_center_router,      # Unified task-center aggregate (/api/local/task-center)
-            queue_overview_router,   # Unified queue overview — never-blind catalog (/api/local/queue/overview)
-            task_history_router,     # Recent-task cross-end log (/api/local/tasks/recent)
-            assist_router,           # Assist-Laravel worker control (/api/local/assist)
-            # === Upload Layer (1 router) ===
+            video_extract_router,
+            system_resources_router,
+            user_data_router,
+            books_router,
+            corebook_router,
+            ai_probe_router,
+            ai_chat_router,
+            ai_image_router,
+            ai_keys_router,
+            ocr_status_router,
+            tts_status_router,
+            stt_status_router,
+            speech_history_router,
+            capability_status_router,
+            translation_queue_router,
+            task_center_router,
+            queue_overview_router,
+            task_history_router,
+            assist_router,
+            poster_router,
+            image_search_router,
+            sentence_audio_router,
+            queue_bumps_router,
+            dictionary_router,
+            word_audio_router,
+            word_tts_router,
+            heartbeat_workers_router,
+            agent_history_router,
+            task_settings_router,
+            # === Upload Layer ===
             upload_router,
-            # === Client Layer (1 router) ===
+            # === Client Layer ===
             client_router,
-            # === Legacy Routers (4 routers) ===
+            # === Legacy Routers ===
             mcp_router,
             code_sync_router,
             module_call_router,
             notebooklm_stt_router,
+            # === Web UI + Voice Subtitle ===
+            web_router,
+            voice_subtitle_router,
         ],
         rpc_allow_origins=Config.CORS_ALLOW_ORIGINS,
         rpc_auto_mount_frontend=True,  # Auto-coordinate static file mounting

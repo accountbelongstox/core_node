@@ -9,7 +9,7 @@
 
 > 🌟 **Turn your Chrome browser into your intelligent assistant** - Let AI take control of your browser, transforming it into a powerful AI-controlled automation tool.
 
-**📖 Documentation**: [English](README.md) | [中文](README_zh.md)
+**📖 Documentation**: [English](README.md) | [Chinese](README_zh.md)
 
 > The project is still in its early stages and is under intensive development. More features, stability improvements, and other enhancements will follow.
 
@@ -137,7 +137,7 @@ Then your final path would be: /Users/xxx/Library/pnpm/global/5/node_modules/mcp
 
 eg：config in augment:
 
-<img width="494" alt="截屏2025-06-22 22 11 25" src="https://github.com/user-attachments/assets/48eefc0c-a257-4d3b-8bbe-d7ff716de2bf" />
+<img width="494" alt="Screenshot 2025-06-22 22 11 25" src="https://github.com/user-attachments/assets/48eefc0c-a257-4d3b-8bbe-d7ff716de2bf" />
 
 ## 🛠️ Available Tools
 

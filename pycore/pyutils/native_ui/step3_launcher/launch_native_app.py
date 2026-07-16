@@ -40,6 +40,10 @@ from pycore.pyutils.native_ui.step3_launcher.service_starters import (
 from pycore.pyutils.native_ui.step3_launcher.pyside6_ui_builder import _create_pyside6_ui
 from pycore.pyutils.native_ui.step3_launcher._restart import restart_process
 
+import signal
+import traceback
+
+
 
 def launch_native_app(config: NativeUIConfig) -> None:
     """
@@ -307,7 +311,6 @@ def launch_native_app(config: NativeUIConfig) -> None:
             # If no GUI (server mode), wait for shutdown signal
             adapter = get_platform_adapter()
             if not (adapter.has_gui and (config.show_on_start or config.enable_tray)):
-                import signal
 
                 ColorPrint.green("[NativeLauncher] Server mode: Running in background (no GUI)")
                 ColorPrint.blue("[NativeLauncher] Press Ctrl+C to stop, or use THREAD_BUS.request_shutdown()")
@@ -336,7 +339,6 @@ def launch_native_app(config: NativeUIConfig) -> None:
             ColorPrint.yellow("\nKeyboard interrupt received")
         except Exception as e:
             ColorPrint.print_error(f"\nERROR: Main application failed: {e}")
-            import traceback
             traceback.print_exc()
             raise
 

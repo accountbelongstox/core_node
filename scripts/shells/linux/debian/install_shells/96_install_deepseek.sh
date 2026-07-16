@@ -27,11 +27,22 @@ command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
 TORCH_CUDA_IDX_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/cuda_index.sh"
 [ -f "$TORCH_CUDA_IDX_LIB" ] && . "$TORCH_CUDA_IDX_LIB"
 command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "https://download.pytorch.org/whl/cu124"; }
+# Idempotent HF weight download (sentinel + curl resume + size verify).
+source "$PARENT_DIR_LEVEL_2/common/tts_install_assets_common.sh"
 
 SCRIPT_NAME="[97_install_deepseek]"
 MODEL_NAME="DeepSeek-VL"
 REPO_URL="https://github.com/deepseek-ai/DeepSeek-VL.git"
 MODEL_PATH="deepseek-ai/deepseek-vl-7b-chat"
+# Runtime translator default (ncore/utils/stream_translator/config/index.js):
+# DEEPSEEK_MODEL_PATH || deepseek-ai/deepseek-vl-1.3b-chat. Pre-download that id so the
+# translator loads local weights instead of a lazy HF fetch.
+VL_MODEL_PATH="${DEEPSEEK_MODEL_PATH:-deepseek-ai/deepseek-vl-1.3b-chat}"
+VL_STAGING_DIR="${DEEPSEEK_VL_DIR:-$CORE_NODE_CACHE_DIR/pycore/deepseek-vl}"
+VL_WEIGHTS_DIR="$VL_STAGING_DIR/weights"
+VL_MODEL_SENTINEL="$VL_STAGING_DIR/.model_installed"
+# *.py included: deepseek-vl uses trust_remote_code=True (modeling code ships in the HF repo).
+VL_WEIGHT_ALLOW="*.bin,*.safetensors,*.pt,*.json,*.txt,*.model,*.vocab,*.py"
 
 print_info() {
     echo -e "\033[0;36m$SCRIPT_NAME $1\033[0m"
@@ -308,14 +319,14 @@ test_model_load() {
     print_info "Testing model load (first run may download model)..."
 
     local test_script="$install_dir/test_model_load.py"
-    cat > "$test_script" << 'PYTHON_EOF'
+    cat > "$test_script" << PYTHON_EOF
 import os
 os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
 
 print('[TEST] Loading VLChatProcessor...')
 from deepseek_vl.models import VLChatProcessor
 
-model_path = 'deepseek-ai/deepseek-vl-7b-chat'
+model_path = '$VL_MODEL_PATH'
 print(f'[INFO] Model path: {model_path}')
 print('[INFO] Note: First run will download model from HuggingFace')
 
@@ -337,7 +348,7 @@ print('[OK] Conversation structure is valid')
 
 print('')
 print('[SUCCESS] ========================================')
-print('[SUCCESS]   DeepSeek-VL 7B is ready!')
+print('[SUCCESS]   DeepSeek-VL is ready!')
 print('[SUCCESS] ========================================')
 PYTHON_EOF
 
@@ -383,7 +394,7 @@ echo ""
 BASH_EOF
 
     echo "cd \"$install_dir\"" >> "$test_script"
-    echo "$python_cmd cli_chat.py --model_path \"deepseek-ai/deepseek-vl-7b-chat\"" >> "$test_script"
+    echo "$python_cmd cli_chat.py --model_path \"$VL_MODEL_PATH\"" >> "$test_script"
     echo "" >> "$test_script"
     echo "echo \"\"" >> "$test_script"
     echo "echo \"========================================\"" >> "$test_script"
@@ -400,6 +411,36 @@ BASH_EOF
     print_success "DeepSeek-VL is ready to use!"
 
     return 0
+}
+
+download_vl_model_weights() {
+    local python_cmd=$1
+    print_info "Pre-downloading VL model weights (idempotent: sentinel + curl resume + size verify)"
+    print_info "  model   : $VL_MODEL_PATH"
+    print_info "  weights : $VL_WEIGHTS_DIR"
+    print_info "  sentinel: $VL_MODEL_SENTINEL ($([ -f "$VL_MODEL_SENTINEL" ] && echo present || echo absent))"
+    mkdir -p "$VL_STAGING_DIR"
+    local _model_ready=0 _sentinel_model=""
+    if [[ -f "$VL_MODEL_SENTINEL" ]]; then
+        _sentinel_model="$(cat "$VL_MODEL_SENTINEL" 2>/dev/null | tr -d '\r\n')"
+        if [[ -n "$_sentinel_model" && "$_sentinel_model" == "$VL_MODEL_PATH" ]] && neural_tts_local_weights_ready "$VL_WEIGHTS_DIR" "$VL_MODEL_PATH" "$python_cmd"; then
+            print_success "model weights verified ($VL_MODEL_PATH) - skipping"
+            _model_ready=1
+        elif [[ -n "$_sentinel_model" && "$_sentinel_model" != "$VL_MODEL_PATH" ]]; then
+            print_warning "model changed ($_sentinel_model -> $VL_MODEL_PATH); refreshing weights."
+        elif ! neural_tts_local_weights_ready "$VL_WEIGHTS_DIR" "$VL_MODEL_PATH" "$python_cmd"; then
+            print_warning "local weights incomplete or corrupt; repairing download."
+        fi
+    fi
+    if [[ "$_model_ready" -eq 0 ]]; then
+        print_info "downloading/repairing model '$VL_MODEL_PATH' (curl, resumable) ..."
+        if install_hf_repo_flat "$VL_MODEL_PATH" "$VL_WEIGHTS_DIR" "$VL_MODEL_SENTINEL" "$SCRIPT_NAME " "$VL_WEIGHT_ALLOW" "" "$VL_MODEL_PATH" "$python_cmd" \
+           && neural_tts_local_weights_ready "$VL_WEIGHTS_DIR" "$VL_MODEL_PATH" "$python_cmd"; then
+            print_success "model '$VL_MODEL_PATH' ready at $VL_WEIGHTS_DIR"
+        else
+            print_warning "model download not finished; partial files kept at $VL_WEIGHTS_DIR; will RESUME next run."
+        fi
+    fi
 }
 
 main() {
@@ -446,6 +487,10 @@ main() {
         install_dependencies "$install_dir" "$python_cmd"
 
         echo ""
+        print_info "Pre-downloading VL model weights (idempotent)"
+        download_vl_model_weights "$python_cmd"
+
+        echo ""
         print_info "Testing installation..."
         test_installation "$install_dir" "$python_cmd"
 
@@ -481,6 +526,10 @@ main() {
         print_success "Model location: $install_dir"
         local file_count=$(find "$install_dir" -type f 2>/dev/null | wc -l)
         print_success "File count: $file_count"
+
+        echo ""
+        print_info "Step 3b: Pre-download VL model weights (idempotent)"
+        download_vl_model_weights "$python_cmd"
 
         echo ""
         print_info "Step 4: Testing installation"

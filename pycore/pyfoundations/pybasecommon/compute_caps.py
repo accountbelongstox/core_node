@@ -37,6 +37,12 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
 
 
+def _get_torch():
+    """Lazy torch getter — avoids circular import with third_party at module load."""
+    from pycore.pyfoundations.third_party import get_third_package_torch
+    return get_third_package_torch()
+
+
 # ===========================================================================
 # CUDA detection (no third-party packages; nvidia-smi + env vars only)
 # ===========================================================================
@@ -263,7 +269,7 @@ def _get_torch_cuda_major() -> Optional[int]:
     Checks torch.version.cuda first; fallback to torch.__version__ for wheel tags like +cu118, +cu121.
     """
     try:
-        import torch
+        torch = _get_torch()
         cuda = getattr(torch.version, "cuda", None)
         if cuda and isinstance(cuda, str):
             if cuda.startswith("11."):
@@ -289,7 +295,6 @@ def _prepare_onnx_cuda_dlls() -> None:
     """
     try:
         torch_major = _get_torch_cuda_major()
-        import onnxruntime as ort
         if getattr(ort, "preload_dlls", None) is not None:
             if torch_major == 11:
                 # PyPI onnxruntime-gpu is CUDA 12; PyTorch has CUDA 11 DLLs. Load only from nvidia site-packages.
@@ -299,7 +304,7 @@ def _prepare_onnx_cuda_dlls() -> None:
     except Exception:
         pass
     try:
-        import torch  # noqa: F401
+        _get_torch()
     except Exception:
         pass
 
@@ -327,7 +332,7 @@ def _make_minimal_onnx_bytes() -> Optional[bytes]:
 def _probe_ort_cuda() -> bool:
     """Actually try create CUDA session (no cache). Returns True if session runs."""
     try:
-        import onnxruntime as ort
+        pass
     except ImportError:
         return False
     get_providers = getattr(ort, "get_available_providers", None)
@@ -442,7 +447,6 @@ def ensure_onnx_cuda_usable(
     # 2) preload_dlls explicitly (ORT 1.21+): when PyTorch is 11 use directory="" (nvidia only).
     clear_onnx_cuda_usable_cache()
     try:
-        import onnxruntime as ort
         if getattr(ort, "preload_dlls", None) is not None:
             if torch_major == 11:
                 _log("[HF] Trying onnxruntime.preload_dlls(directory='') (PyTorch CUDA 11, ORT CUDA 12)...")
@@ -461,7 +465,7 @@ def ensure_onnx_cuda_usable(
     if torch_major != 11:
         try:
             _log("[HF] Trying import torch to preload CUDA/cuDNN...")
-            import torch
+            torch = _get_torch()
             if getattr(torch, "cuda", None) is not None and torch.cuda.is_available():
                 if _probe_ort_cuda():
                     _ORT_CUDA_USABLE = True

@@ -15,6 +15,11 @@ from pycore.pyctl.ai.ai_keys import (
     is_configured,
 )
 
+from pycore.pyutils.ai_cluster.openai_compat import OpenAICompatClient
+from pycore.pyutils.ai_cluster.cloudflare import CloudflareAIClient
+from pycore.pyutils.ai_cluster.spark import SparkClient
+
+
 
 def probe_openai_compat(name: str, _blank, _provider_secret, max_models: int) -> Dict[str, Any]:
     key = _provider_secret(name)
@@ -24,7 +29,6 @@ def probe_openai_compat(name: str, _blank, _provider_secret, max_models: int) ->
 
     start = time.time()
     try:
-        from pycore.pyutils.ai_cluster.openai_compat import OpenAICompatClient
         client = OpenAICompatClient(
             api_key=key,
             base_url=base_url(name),
@@ -56,7 +60,6 @@ def probe_cloudflare(_blank, _provider_secret, max_models: int) -> Dict[str, Any
         return result
     start = time.time()
     try:
-        from pycore.pyutils.ai_cluster.cloudflare import CloudflareAIClient
         client = CloudflareAIClient(
             api_token=key,
             account_id=extra_secret(name),
@@ -79,7 +82,6 @@ def probe_spark(_blank, _provider_secret, max_models: int) -> Dict[str, Any]:
         return result
     start = time.time()
     try:
-        from pycore.pyutils.ai_cluster.spark import SparkClient
         client = SparkClient(api_password=key, default_model=default_model(name))
         models = client.list_models()
         result["available"] = True
@@ -91,7 +93,6 @@ def probe_spark(_blank, _provider_secret, max_models: int) -> Dict[str, Any]:
 
 
 def chat_openai_compat(name: str, messages, model, key, out) -> Dict[str, Any]:
-    from pycore.pyutils.ai_cluster.openai_compat import OpenAICompatClient
     use_model = model or default_model(name)
     out["model"] = use_model
     client = OpenAICompatClient(
@@ -110,7 +111,6 @@ def chat_openai_compat(name: str, messages, model, key, out) -> Dict[str, Any]:
 
 
 def chat_cloudflare(messages, model, key, out) -> Dict[str, Any]:
-    from pycore.pyutils.ai_cluster.cloudflare import CloudflareAIClient
     use_model = model or default_model("cloudflare")
     out["model"] = use_model
     client = CloudflareAIClient(
@@ -128,7 +128,6 @@ def chat_cloudflare(messages, model, key, out) -> Dict[str, Any]:
 
 
 def chat_spark(messages, model, key, out) -> Dict[str, Any]:
-    from pycore.pyutils.ai_cluster.spark import SparkClient
     use_model = model or default_model("spark")
     out["model"] = use_model
     client = SparkClient(api_password=key, default_model=use_model)

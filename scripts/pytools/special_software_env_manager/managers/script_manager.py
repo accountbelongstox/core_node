@@ -9,6 +9,7 @@ import os
 import platform
 import stat
 import subprocess
+import time
 from pathlib import Path
 from typing import List, Dict, Any, Set
 from datetime import datetime
@@ -19,6 +20,38 @@ from utils.common_utils import (
 from generators.command_content_generator_windows import WindowsCommandContentGenerator
 from generators.command_content_generator_linux import LinuxCommandContentGenerator
 from utils.secret_manager import LOCAL_SECRET_MANAGER
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _write_script_file(file_path: Path, content: str, make_executable: bool = False) -> None:
+    """Write content to file using binary mode (matching safe_write_secret).
+
+    Uses ``open(…, 'wb')`` + explicit UTF-8 encode to stay on the same
+    Windows API code path as ``Path.write_bytes()``, avoiding text-mode
+    ``CreateFileW`` hooks that can return ``ERROR_INVALID_PARAMETER``
+    (errno 22) under aggressive security-software / filter-driver stacks.
+    Includes a brief retry loop for transient locks (Defender scans, etc.).
+    """
+    raw = content.encode('utf-8')
+    last_err = None
+    for attempt in range(3):
+        try:
+            with open(file_path, 'wb') as fh:
+                fh.write(raw)
+            if make_executable:
+                try:
+                    os.chmod(file_path, 0o755)
+                except Exception:
+                    pass
+            return
+        except OSError as exc:
+            last_err = exc
+            if attempt < 2:
+                time.sleep(0.3 * (attempt + 1))
+    raise last_err  # type: ignore[misc]
 
 
 class ScriptManager:
@@ -82,8 +115,7 @@ class ScriptManager:
         win_script_path = winenvs_dir / f"{file_name}.ps1"
 
         try:
-            with open(win_script_path, 'w', encoding='utf-8') as f:
-                f.write(windows_content)
+            _write_script_file(win_script_path, windows_content)
             ColorMessage.write(f"[OK] Windows script: {win_script_path}", 'success')
             script_paths.append(win_script_path)
             success_count += 1
@@ -113,13 +145,7 @@ class ScriptManager:
         linux_script_path = linuxenvs_dir / f"{file_name}.sh"
 
         try:
-            with open(linux_script_path, 'w', encoding='utf-8') as f:
-                f.write(linux_content)
-
-            try:
-                os.chmod(linux_script_path, 0o755)
-            except Exception:
-                pass
+            _write_script_file(linux_script_path, linux_content, make_executable=True)
 
             if platform.system() != 'Windows':
                 self._ensure_linux_symlink(linux_script_path)
@@ -180,12 +206,7 @@ class ScriptManager:
         ensure_directory_exists(str(linuxenvs_dir))
         sh_path = linuxenvs_dir / f"{file_name}.sh"
         try:
-            with open(sh_path, 'w', encoding='utf-8', newline='\n') as f:
-                f.write(sh_content)
-            try:
-                os.chmod(sh_path, 0o755)
-            except Exception:
-                pass
+            _write_script_file(sh_path, sh_content, make_executable=True)
             if platform.system() != 'Windows':
                 self._ensure_linux_symlink(sh_path)
             script_paths.append(sh_path)
@@ -196,8 +217,7 @@ class ScriptManager:
         ensure_directory_exists(str(winenvs_dir))
         ps1_path = winenvs_dir / f"{file_name}.ps1"
         try:
-            with open(ps1_path, 'w', encoding='utf-8', newline='\n') as f:
-                f.write(ps1_content)
+            _write_script_file(ps1_path, ps1_content)
             script_paths.append(ps1_path)
         except Exception as e:
             ColorMessage.write(f"[X] Failed to create v4 Windows script: {e}", 'error')
@@ -752,13 +772,7 @@ exit $exitCode
                 script_lines.append(f"echo \"  {script.stem}\"")
 
         try:
-            with open(script_path, 'w', encoding='utf-8', newline='\n') as f:
-                f.write('\n'.join(script_lines) + '\n')
-
-            try:
-                os.chmod(script_path, 0o755)
-            except Exception:
-                pass
+            _write_script_file(script_path, '\n'.join(script_lines) + '\n', make_executable=True)
 
             ColorMessage.write(f"\n[CREATED] Symlink helper: {script_path}", 'success')
         except Exception as e:

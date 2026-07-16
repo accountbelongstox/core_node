@@ -24,6 +24,9 @@ from pycore.pyutils.common.tts_models import ItemType, ItemStatus
 from pycore.pyutils.edge_tts.edge_tts_client import get_edge_tts_client
 from pycore.pyutils.edge_tts.translator import TTSTranslator
 
+from pycore.pyutils.edge_tts.edge_tts_worker_thread import EdgeTTSWorkerThread
+
+
 
 class BaseTTSWorkerThread(threading.Thread):
     """
@@ -271,7 +274,6 @@ class TTSThreadManager:
 
             # Use base thread - subclasses should extend BaseTTSWorkerThread
             # For edge_tts, use EdgeTTSWorkerThread from edge_tts_worker_thread.py
-            from pycore.pyutils.edge_tts.edge_tts_worker_thread import EdgeTTSWorkerThread
             thread = EdgeTTSWorkerThread(thread_id, item_type, interval)
             thread.start()
             self._threads[thread_name] = thread

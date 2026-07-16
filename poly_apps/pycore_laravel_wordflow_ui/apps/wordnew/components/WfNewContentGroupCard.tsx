@@ -21,6 +21,7 @@ import { motion } from 'framer-motion';
 import { BookOpen, Clapperboard, FileText, Layers, Library, Globe } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
 import type { WfNewContentGroup, WfNewContentKind } from '../api';
+import { WfNewRotatingCover } from './WfNewRotatingCover';
 
 /** Per-kind visual identity: icon + accent classes + gradient fallback. */
 interface KindStyle {
@@ -48,6 +49,8 @@ interface WfNewContentGroupCardProps {
   trans: (key: string, replacements?: Record<string, string | number>) => string;
   /** Grid mode: fill the cell width instead of the fixed rail width (w-56/60). */
   fullWidth?: boolean;
+  /** When provided, renders an "Add to study" action button at the card bottom-right. */
+  onAddToStudy?: () => void;
 }
 
 export const WfNewContentGroupCard: React.FC<WfNewContentGroupCardProps> = ({
@@ -56,6 +59,7 @@ export const WfNewContentGroupCard: React.FC<WfNewContentGroupCardProps> = ({
   onClick,
   trans,
   fullWidth = false,
+  onAddToStudy,
 }) => {
   const style = WFNEW_KIND_STYLES[group.kind];
   const { Icon } = style;
@@ -72,16 +76,11 @@ export const WfNewContentGroupCard: React.FC<WfNewContentGroupCardProps> = ({
     >
       {/* Cover: real poster when present, else a kind-coloured gradient + icon. */}
       <div className="relative h-28 w-full overflow-hidden">
-        {group.imageUrl ? (
-          <img
-            src={group.imageUrl}
-            alt={group.title}
-            loading="lazy"
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-            // A broken/unauthorized poster hides itself so the gradient shows through.
-            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-          />
-        ) : null}
+        <WfNewRotatingCover
+          imageUrl={group.imageUrl}
+          imageUrls={group.imageUrls}
+          alt={group.title}
+        />
         <div className={`absolute inset-0 bg-gradient-to-br ${style.gradient}`} />
         {/* Kind chip (top-left) + count badge (top-right). */}
         <div className="absolute inset-x-0 top-0 flex items-start justify-between p-2.5">
@@ -96,7 +95,7 @@ export const WfNewContentGroupCard: React.FC<WfNewContentGroupCardProps> = ({
       </div>
 
       {/* Body: title + language/category meta. */}
-      <div className="p-4 space-y-2">
+      <div className="relative p-4 space-y-2">
         <h4 className={`font-extrabold text-sm leading-snug text-slate-100 dark:text-inherit truncate transition-colors group-hover:${style.accent}`}>
           {group.title}
         </h4>
@@ -114,6 +113,17 @@ export const WfNewContentGroupCard: React.FC<WfNewContentGroupCardProps> = ({
         </div>
         {group.description && (
           <p className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-snug">{group.description}</p>
+        )}
+        {onAddToStudy && (
+          <div className="flex justify-end pt-1">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onAddToStudy(); }}
+              className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-cyan-600/80 hover:bg-cyan-500 text-white transition"
+            >
+              {trans('library.addToStudy')}
+            </button>
+          </div>
         )}
       </div>
     </motion.div>

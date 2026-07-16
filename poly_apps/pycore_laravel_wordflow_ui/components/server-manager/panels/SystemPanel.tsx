@@ -5,11 +5,13 @@ import {
   Language,
   SystemServiceStatus,
   SystemStorage,
-  SystemProcess
+  SystemProcess,
+  StaticResourcesSummary
 } from '../../../types';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
 import { LoadingBlock, AlertBox, StatusBadge } from '../../common';
+import StaticResourcesPanel from './StaticResourcesPanel';
 
 interface SystemPanelProps {
   lang: Language;
@@ -18,6 +20,9 @@ interface SystemPanelProps {
   systemServices: AsyncState<SystemServiceStatus[]>;
   systemStorage: AsyncState<SystemStorage[]>;
   systemProcesses: AsyncState<SystemProcess[]>;
+  staticResources: AsyncState<StaticResourcesSummary>;
+  onRefreshStaticResources: () => void;
+  onOpenMedia?: () => void;
 }
 
 const SystemPanel: React.FC<SystemPanelProps> = ({
@@ -26,12 +31,23 @@ const SystemPanel: React.FC<SystemPanelProps> = ({
   servicesSummary,
   systemServices,
   systemStorage,
-  systemProcesses
+  systemProcesses,
+  staticResources,
+  onRefreshStaticResources,
+  onOpenMedia
 }) => {
   const t = TRANSLATIONS[lang].server;
 
   return (
     <div className="space-y-4">
+      <StaticResourcesPanel
+        lang={lang}
+        staticResources={staticResources}
+        systemStorage={systemStorage}
+        onRefresh={onRefreshStaticResources}
+        onOpenMedia={onOpenMedia}
+      />
+
       {systemInfo.loading && (
         <LoadingBlock />
       )}

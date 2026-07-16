@@ -26,6 +26,9 @@ from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient
 from pycore.pyctl.ai.ai_keys import PROVIDERS, first_secret
 from pycore.pyctl.ai.ai_gateway_state import _lock, _vision_model_cache, _PROBE_TTL_S
 
+from pycore.pyutils.ai_cluster.openrouter.openrouter_client import OpenRouterClient
+
+
 _GEMINI_VISION_MODEL = "gemini-2.5-flash"
 
 _DEFAULT_IMAGE_PROMPT = (
@@ -93,7 +96,6 @@ def _image_data_url(image_path: str) -> str:
 
 
 def _describe_with_openrouter(image_path: str, prompt: Optional[str], out: Dict[str, Any]) -> Dict[str, Any]:
-    from pycore.pyutils.ai_cluster.openrouter.openrouter_client import OpenRouterClient
     key = first_secret("openrouter")
     if not key:
         out["error"] = "No API key configured"

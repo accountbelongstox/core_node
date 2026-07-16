@@ -25,9 +25,9 @@ Route::prefix($apiVersionPrefix)->group(function () {
     Route::post('/reset-password', [NewPasswordController::class, 'store'])->name('common.password.store');
     Route::get('/verify-email/{id}/{hash}', VerifyEmailController::class)->middleware(['auth', 'signed', 'throttle:6,1'])->name('common.verification.verify');
     Route::post('/email/verification-notification', [EmailVerificationNotificationController::class, 'store'])->middleware(['auth', 'throttle:6,1'])->name('common.verification.send');
-    Route::any('/login', [LoginController::class, 'login']);
-    Route::any('/logout', [LoginController::class, 'logout'])->middleware('auth:sanctum');
-    Route::middleware(['auth:sanctum'])->group(function () {
+    Route::any('/login', [LoginController::class, 'login'])->name('login');
+    Route::any('/logout', [LoginController::class, 'logout'])->middleware('dashboard.auth');
+    Route::middleware(['dashboard.auth'])->group(function () {
         Route::any('/user', function (Request $request) {
             return $request->user();
         });

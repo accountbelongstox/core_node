@@ -81,11 +81,34 @@ class SentenceAudioTaskProcessor implements TaskProcessorInterface
             return 0;
         }
 
-        // Worker may nest under result.result (documented) or send flat.
+        // Worker may nest under result.result (documented) or send flat. The
+        // variant tags (variant_key/accent/gender/source/voice_type/provider)
+        // ride on the same entry that carries the audio bytes.
         $inner = (isset($result['result']) && is_array($result['result'])) ? $result['result'] : $result;
 
-        $audioBase64 = $this->extractAudioBase64($inner) ?? $this->extractAudioBase64($result);
-        $provider = $inner['provider'] ?? ($result['provider'] ?? null);
+        $audioPayload = self::extractAudioPayload($inner);
+        if ($audioPayload['base64'] === null) {
+            $audioPayload = self::extractAudioPayload($result);
+        }
+
+        $audioBase64 = $audioPayload['base64'];
+
+        // Variant tags: prefer the result entry (the worker that generated the
+        // audio knows which variant it made); fall back to the flat payload
+        // fields for tasks created with an explicit variant request.
+        $variantKey = $audioPayload['variant_key'] ?? self::strOrNull($payload['variant_key'] ?? null);
+        $accent = $audioPayload['accent'] ?? self::strOrNull($payload['accent'] ?? null);
+        $gender = $audioPayload['gender'] ?? self::strOrNull($payload['gender'] ?? null);
+        $source = $audioPayload['source'] ?? self::strOrNull($payload['source'] ?? null);
+        $voiceType = $audioPayload['voice_type'] ?? self::strOrNull($payload['voice_type'] ?? null);
+        $provider = $audioPayload['provider'] ?? self::strOrNull($payload['provider'] ?? null);
+
+        $variantMeta = array_filter([
+            'accent' => $accent,
+            'gender' => $gender,
+            'source' => $source,
+            'voice_type' => $voiceType,
+        ], static fn ($v) => $v !== null && $v !== '');
 
         if ($audioBase64 === null || $audioBase64 === '') {
             Log::warning('[SentenceAudioTaskProcessor] No audio bytes in result, nothing stored', [
@@ -108,6 +131,7 @@ class SentenceAudioTaskProcessor implements TaskProcessorInterface
 
         // DELEGATE to the existing sentence-audio writeback: validate MP3 + write
         // to the deterministic §6 path + flip has_audio/audio/tts_status, idempotent.
+        // Pass the variant tags so the writeback stamps the right variant entry.
         $applied = $this->sentenceAudioService->report(
             $contentId,
             $language,
@@ -115,7 +139,9 @@ class SentenceAudioTaskProcessor implements TaskProcessorInterface
             true,
             $audioBinary,
             is_string($provider) ? $provider : null,
-            null
+            null,
+            $variantKey,
+            $variantMeta ?: null
         );
 
         $status = $applied['status'] ?? null;
@@ -142,19 +168,38 @@ class SentenceAudioTaskProcessor implements TaskProcessorInterface
     }
 
     /**
-     * Pull a base64 MP3 payload out of the worker's result shape. Accepts the
-     * flat audio_base64, or the first audio_files[] entry's audio_base64 (the
-     * audio_files[]/saved_path list form). saved_path alone carries no bytes the
-     * server can trust, so it is not treated as storable here.
+     * Pull the audio bytes + variant tags out of the worker's result shape.
+     * Accepts flat audio_base64, or the first audio_files[] entry's audio_base64.
+     * Captures variant_key/accent/gender/source/voice_type/provider from the
+     * matched entry (or the flat fields) so the write-back stamps the right
+     * variant. saved_path alone carries no trusted bytes -> base64 stays null.
      *
      * @param array $data
-     * @return string|null
+     * @return array{base64:?string, variant_key:?string, accent:?string, gender:?string, source:?string, voice_type:?string, provider:?string}
      */
-    private function extractAudioBase64(array $data): ?string
+    private static function extractAudioPayload(array $data): array
     {
+        $empty = [
+            'base64' => null,
+            'variant_key' => null,
+            'accent' => null,
+            'gender' => null,
+            'source' => null,
+            'voice_type' => null,
+            'provider' => null,
+        ];
+
         $direct = $data['audio_base64'] ?? null;
         if (is_string($direct) && $direct !== '') {
-            return $direct;
+            return array_merge($empty, [
+                'base64' => $direct,
+                'variant_key' => self::strOrNull($data['variant_key'] ?? null),
+                'accent' => self::strOrNull($data['accent'] ?? null),
+                'gender' => self::strOrNull($data['gender'] ?? null),
+                'source' => self::strOrNull($data['source'] ?? null),
+                'voice_type' => self::strOrNull($data['voice_type'] ?? null),
+                'provider' => self::strOrNull($data['provider'] ?? null),
+            ]);
         }
 
         $files = $data['audio_files'] ?? null;
@@ -163,15 +208,33 @@ class SentenceAudioTaskProcessor implements TaskProcessorInterface
                 if (is_array($file)) {
                     $b64 = $file['audio_base64'] ?? ($file['base64'] ?? null);
                     if (is_string($b64) && $b64 !== '') {
-                        return $b64;
+                        return array_merge($empty, [
+                            'base64' => $b64,
+                            'variant_key' => self::strOrNull($file['variant_key'] ?? null),
+                            'accent' => self::strOrNull($file['accent'] ?? null),
+                            'gender' => self::strOrNull($file['gender'] ?? null),
+                            'source' => self::strOrNull($file['source'] ?? null),
+                            'voice_type' => self::strOrNull($file['voice_type'] ?? null),
+                            'provider' => self::strOrNull($file['provider'] ?? null),
+                        ]);
                     }
                 } elseif (is_string($file) && $file !== '') {
-                    return $file;
+                    return array_merge($empty, ['base64' => $file]);
                 }
             }
         }
 
-        return null;
+        return $empty;
+    }
+
+    /** Trim a scalar to a non-empty string or null. */
+    private static function strOrNull(mixed $v): ?string
+    {
+        if (!is_string($v)) {
+            return null;
+        }
+        $v = trim($v);
+        return $v !== '' ? $v : null;
     }
 
     public function getPriority(): int

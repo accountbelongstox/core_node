@@ -19,6 +19,12 @@ from typing import Optional, Dict, Any
 from pycore.pyfoundations import ColorPrint
 from pycore.database import get_database_manager
 
+from pycore.database.models import TableKeys
+
+from pycore.database.models.common.config_model import CommonConfigModel
+
+
+
 
 class GlobalConfig:
     """
@@ -89,7 +95,6 @@ class GlobalConfig:
             self._db_manager = get_database_manager()
 
             # Get config model
-            from pycore.database.models.common.config_model import CommonConfigModel
             self._config_model = CommonConfigModel
 
             # Register common database if not already registered
@@ -98,7 +103,6 @@ class GlobalConfig:
 
             # Load config table if not already loaded
             if not self._db_manager.is_table_loaded('common.config'):
-                from pycore.database.models import TableKeys
                 self._db_manager.load_tables(
                     table_keys=[TableKeys.COMMON_CONFIG],
                     models=[CommonConfigModel],

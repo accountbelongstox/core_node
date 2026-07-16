@@ -36,14 +36,18 @@ Architecture:
 
 from pycore.pyctl.speech.speech_manager import SpeechManager, get_speech_manager
 
-# New: RPC service launcher (uses PyHeartbeat + SpeechSwitch)
-from pycore.pyctl.speech.launch_speech_rpc import launch_speech_rpc_service
-
-# DO NOT create instance here - let applications initialize themselves
-# This prevents auto-loading unnecessary modules
+# Lazy: launch_speech_rpc imports pylauncher; avoid that during package init
+# (pythreadpool -> speech_thread -> pyctl.speech must not circle back).
 
 __all__ = [
     'SpeechManager',
     'get_speech_manager',
     'launch_speech_rpc_service',
 ]
+
+
+def __getattr__(name: str):
+    if name == 'launch_speech_rpc_service':
+        from pycore.pyctl.speech.launch_speech_rpc import launch_speech_rpc_service
+        return launch_speech_rpc_service
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

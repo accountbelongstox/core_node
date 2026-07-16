@@ -182,9 +182,9 @@ Write-Host ""
 # skip-permissions (Windows default, like claudeteam); ultracode opt-in.
 $claudeArgs = @("--model", $volcModel, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
 
-# Ultracode: opt-in prompt (default No).
-$ultraChoice = Read-Host "Enable ultracode? [y/N]"
-if ($ultraChoice -eq 'y' -or $ultraChoice -eq 'Y') {
+# Ultracode: opt-in prompt (default Yes).
+$ultraChoice = Read-Host "Enable ultracode? [Y/n]"
+if ($ultraChoice -ne 'n' -and $ultraChoice -ne 'N') {
     $enableUltra = $true
     [System.IO.File]::WriteAllText($ultraSettingsFile, $ultraSettingsJson)
     $claudeArgs += @("--settings", $ultraSettingsFile)
@@ -193,15 +193,10 @@ if ($ultraChoice -eq 'y' -or $ultraChoice -eq 'Y') {
 if ($enableUltra) {
     Write-Host "Ultracode: enabled (--settings via $ultraSettingsFile)" -ForegroundColor White
 } else {
-    Write-Host "Ultracode: off (default N)" -ForegroundColor White
+    Write-Host "Ultracode: off (opted out)" -ForegroundColor White
 }
 
-# Launch tool
-Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Press Enter to start Claude AI (Volcano Ark) [glm-5.2 + team + opt-in ultracode]..." -ForegroundColor Yellow
-Write-Host "============================================================" -ForegroundColor Cyan
-$null = Read-Host "Press Enter to continue"
-
+# Launch tool (info already shown above; start Claude directly).
 $claudeExecutable = Resolve-ClaudeCodeExecutable
 if (-not $claudeExecutable) {
     Write-Host ""

@@ -423,8 +423,16 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
       }
     };
 
+    const handleSessionChanged = () => {
+      refreshState();
+    };
+
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener('user-session-changed', handleSessionChanged);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('user-session-changed', handleSessionChanged);
+    };
   }, [refreshState]);
 
   const value: UnifiedAppContextType = {

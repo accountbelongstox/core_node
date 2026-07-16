@@ -31,6 +31,20 @@ from .routers.local import (
     audio_router,
     file_router,
     video_router,
+    # Queue / task / assist routers - mirror callmodule_main.py so --service mode
+    # (create_app) serves the same queue/task endpoints as the full platform app.
+    translation_queue_router,
+    task_center_router,
+    queue_overview_router,
+    queue_bumps_router,
+    task_history_router,
+    assist_router,
+    sentence_audio_router,
+    word_audio_router,
+    word_tts_router,
+    dictionary_router,
+    task_settings_router,
+    vocabulary_router,
 )
 from .routers.upload import router as upload_router
 from .routers.client import router as client_router
@@ -92,6 +106,22 @@ def create_app() -> FastAPI:
     app.include_router(audio_router)
     app.include_router(file_router)
     app.include_router(video_router)
+
+    # Queue / task / assist routers (prefixes are declared on each router).
+    # Without these, /api/local/queue/bumps, /task-center, /sentence-audio, …
+    # 404 in --service mode (create_app). Each router owns its own prefix.
+    app.include_router(translation_queue_router)
+    app.include_router(task_center_router)
+    app.include_router(queue_overview_router)
+    app.include_router(queue_bumps_router)
+    app.include_router(task_history_router)
+    app.include_router(assist_router)
+    app.include_router(sentence_audio_router)
+    app.include_router(word_audio_router)
+    app.include_router(word_tts_router)
+    app.include_router(dictionary_router)
+    app.include_router(task_settings_router)
+    app.include_router(vocabulary_router)
 
     # Upload layer router
     app.include_router(upload_router)

@@ -7,7 +7,7 @@ import { appendLog } from '../../logstore/logStore';
  * Endpoints excluded from the global log panel: high-frequency background
  * probes (health detection, debug-status) would drown real operations.
  */
-const LOG_EXCLUDED_PATHS = ['/api_info', '/debug-status', '/health'];
+const LOG_EXCLUDED_PATHS = ['/api_info', '/debug-status', '/health', '/code-last-modified'];
 
 /** Append a request outcome to the global log store (noise-filtered). */
 function logRequestOutcome(

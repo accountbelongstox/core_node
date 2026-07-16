@@ -20,9 +20,14 @@ class MediaIngestStatusService
 {
     private AppQyV1SentenceAudioService $audioService;
 
-    public function __construct(?AppQyV1SentenceAudioService $audioService = null)
-    {
+    private BookChapterIndexAdapter $chapterIndexAdapter;
+
+    public function __construct(
+        ?AppQyV1SentenceAudioService $audioService = null,
+        ?BookChapterIndexAdapter $chapterIndexAdapter = null
+    ) {
         $this->audioService = $audioService ?? new AppQyV1SentenceAudioService();
+        $this->chapterIndexAdapter = $chapterIndexAdapter ?? new BookChapterIndexAdapter();
     }
 
     /**
@@ -91,14 +96,16 @@ class MediaIngestStatusService
         foreach ($chapterRows as $row) {
             $ci = (int) $row['chapter_index'];
             $sentenceCount = (int) ($row['sentence_count'] ?? 0);
-            $slotCount = (int) ($slotCounts[$ci] ?? 0);
+            $resolved = $this->chapterIndexAdapter->resolve('book', $sourceKey, $sourceLanguages, $ci);
+            $slotCi = $resolved['slot_index'] ?? $ci;
+            $slotCount = (int) ($slotCounts[$slotCi] ?? 0);
             $textComplete = $sentenceCount > 0 && $slotCount >= $sentenceCount;
             if (!$textComplete) {
                 $bookTextComplete = false;
             }
 
             $audioSummary = $this->summarizeChapterAudio(
-                $slotsByChapter[$ci] ?? [],
+                $slotsByChapter[$slotCi] ?? [],
                 $languages,
                 $variantKey,
                 $sentenceCache,
@@ -119,6 +126,9 @@ class MediaIngestStatusService
                 'audio_complete' => $audioSummary['complete'],
                 'complete' => $textComplete,
             ];
+            if ($resolved['adapted']) {
+                $chapterPayload['slot_chapter_index'] = $slotCi;
+            }
 
             if ($includeSlots) {
                 $chapterPayload['slots'] = $audioSummary['slots'];
@@ -284,20 +294,32 @@ class MediaIngestStatusService
     /** @return array<int,string> */
     private function sourceLanguagesFromBook(Book $book): array
     {
-        $raw = $book->languages ?? $book->language ?? [];
-        if (is_string($raw) && $raw !== '') {
-            return [AppQyV1TableMaps::normalizeLangCode($raw)];
-        }
-        if (!is_array($raw)) {
-            return [];
-        }
-        $out = [];
-        foreach ($raw as $item) {
-            if (is_string($item) && $item !== '') {
-                $out[] = AppQyV1TableMaps::normalizeLangCode($item);
+        $meta = is_array($book->metadata ?? null) ? $book->metadata : [];
+        $raw = isset($meta['seeded_languages']) && is_array($meta['seeded_languages'])
+            ? $meta['seeded_languages']
+            : [];
+
+        if ($raw === []) {
+            $sample = SourceSentence::where('source_type', 'book')
+                ->where('source_key', $book->source_key)
+                ->whereNotNull('lang_content_ids')
+                ->first();
+            if ($sample && is_array($sample->lang_content_ids)) {
+                $raw = array_keys($sample->lang_content_ids);
+            }
+            if ($sample && !empty($sample->primary_language)) {
+                $raw[] = $sample->primary_language;
             }
         }
-        return array_values(array_unique($out));
+
+        $out = [];
+        foreach ($raw as $lang) {
+            $code = AppQyV1TableMaps::normalizeLangCode((string) $lang);
+            if ($code !== '' && AppQyV1TableMaps::isLanguageSupported($code) && !in_array($code, $out, true)) {
+                $out[] = $code;
+            }
+        }
+        return $out === [] ? ['en'] : $out;
     }
 
     /**

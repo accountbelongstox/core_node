@@ -19,6 +19,9 @@ It must stay stdlib-only and must never `import pycore`.
 import os
 import sys
 
+import subprocess
+
+
 # Make `codesync` importable as a top-level package (defensive; running this file
 # directly already puts this dir on sys.path[0]).
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -54,7 +57,6 @@ def _scan_conflict_markers(pkg_dir):
 
 
 def _git(repo, *args, timeout=30):
-    import subprocess
     try:
         return subprocess.run(["git", "-C", repo, *args], capture_output=True,
                               text=True, timeout=timeout)

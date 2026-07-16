@@ -8,35 +8,9 @@ import React, {
 } from 'react';
 import {
   pycoreLaravelApi, PYCORE_LARAVEL_API_CHANGED_EVENT,
+  buildPcPreparedLaravelEndpoints, normalizeLaravelApiUrl, LARAVEL_API_PORT,
 } from '../../core/api-libs/pycore';
 import type { LaravelApiEndpoint } from '../../core/api-libs/pycore';
-
-/**
- * Frontend-known "prepared" Laravel API endpoints, shown when the pycore RPC
- * (:59000) is offline so the switcher still lists the available APIs instead of
- * a dead "unavailable" box. The Laravel API is always on the fixed :9000 port,
- * independent of the FE port (:13054); the page's own origin is the most likely
- * candidate, followed by the standard loopback hosts. These are READ-ONLY hints
- * (healthy=null): selecting/adding still needs the pycore service running.
- */
-function pcPreparedEndpoints(): LaravelApiEndpoint[] {
-  const norm = (u: string) => u.replace(/\/+$/, '');
-  const urls: string[] = [];
-  if (typeof window !== 'undefined' && window.location?.hostname) {
-    const proto = window.location.protocol === 'https:' ? 'https' : 'http';
-    urls.push(`${proto}://${window.location.hostname}:9000`);
-  }
-  urls.push('http://127.0.0.1:9000', 'http://localhost:9000');
-  const seen = new Set<string>();
-  const out: LaravelApiEndpoint[] = [];
-  for (const u of urls) {
-    const n = norm(u);
-    if (seen.has(n)) continue;
-    seen.add(n);
-    out.push({ url: n, healthy: null, custom: false });
-  }
-  return out;
-}
 
 export interface PcLaravelEndpointContextValue {
   endpoints: LaravelApiEndpoint[];
@@ -85,7 +59,7 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
       // endpoints (read-only) so the switcher shows the available APIs rather than
       // an empty error box. We keep `error` set + flag `fallback` so the UI can
       // label these as prepared/offline.
-      const prepared = pcPreparedEndpoints();
+      const prepared = buildPcPreparedLaravelEndpoints();
       setEndpoints(prepared);
       setCurrent((cur) => cur || prepared[0]?.url || '');
       setError(e?.message || 'RPC failed');
@@ -115,10 +89,9 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
     if (currentOriginAddedRef.current || loading || fallback) return; // never mutate while RPC is down
     if (typeof window === 'undefined' || !window.location?.hostname) return;
     if (endpoints.length === 0) return; // list not loaded yet / backend offline
-    const originUrl = `http://${window.location.hostname}:9000`;
-    const norm = (u: string) => (u || '').replace(/\/+$/, '');
+    const originUrl = `http://${window.location.hostname}:${LARAVEL_API_PORT}`;
     currentOriginAddedRef.current = true; // one-shot regardless of outcome
-    if (!endpoints.some((e) => norm(e.url) === norm(originUrl))) {
+    if (!endpoints.some((e) => normalizeLaravelApiUrl(e.url) === normalizeLaravelApiUrl(originUrl))) {
       void addUrl(originUrl);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

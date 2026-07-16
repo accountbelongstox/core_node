@@ -1,56 +1,122 @@
-# Plan: path-mapping consistency, open_basedir fix, CUDA resolver unification
+# Vocabulary page -> pycore-manager (UI -> pycore -> laravel proxy)
 
-Three threads from the `35_PHP85_CONFIG` log + the "unify CUDA / packages, keep idempotent + kali/debian/ubuntu" request. All changes reuse existing distro-agnostic helpers (`map_web_path`, `nvidia-smi`); no new distro branches.
+## Goal
+Surface the laravel-manager `#/vocabulary` page's endpoints in pycore-manager's
+sidebar nav (middle slot), with UI talking to pycore and pycore proxying laravel
+- matching the existing `word_audio_router.py` + `PcWordAudioPage` style. Full
+tab-for-tab replica (user-approved scope). No commands run.
 
-## Thread A — path-mapping consistency (Windows-disk mounts)
+## Architecture decision (verified)
+The shared `components/views/VocabularyLearning.tsx` (+ sub-components) import the
+`api` singleton (hits laravel DIRECTLY) and shell hooks that pycore-manager does
+NOT provide: `useToast` (`components/admin/Toast.tsx:242`) **throws** outside a
+`ToastProvider`, `useAppState` needs `UnifiedAppContext`; `PcProviders.tsx` only
+mounts PcLive/PcLaravelEndpoint/PcCapability/PcVideoExtract. Reusing the shared
+component would crash. => Build a **fresh self-contained `PcVocabularyPage`** that
+uses `pycoreApi` + local state (the `PcWordAudioPage` pattern: `L` label object,
+guarded calls, no laravel-manager shell contexts).
 
-`34_configure_php85.sh` itself is correct (uses `map_web_path "wwwroot"` → `/mnt/dev_nvme1n1p1/www/wwwroot`, the right mapped path). The inconsistency is in sibling scripts that hardcode `/www/wwwroot/...` and break when the data disk is a Windows/NTFS mount at `/mnt/...`.
+## Backend - new proxy router (UI->pycore->laravel)
+**New `pycore/callmodule/routers/local/vocabulary_router.py`** - prefix
+`/api/local/vocabulary`, follows `word_audio_router.py`:
+- `_laravel_base()` via `get_laravel_endpoint_manager().resolve() or ""` (try/except, never raises).
+- `get_third_package_requests()` for HTTP; `ColorPrint.red(... + traceback.format_exc())` on error.
+- Never raises -> `{success:False, error:...}` envelope.
+- Module-private `_proxy(method, laravel_path, *, params=None, json_body=None)` helper
+  (justified: 23 endpoints inlined would exceed the 800-line split rule; this is the
+  scoped departure from the "inline per endpoint" norm, kept inside the one router file).
+- `_VOCAB_TIMEOUT = 600` (laravel can be slow/unreachable - matches the word-audio batch timeout).
 
-1. **`common/permissions_fixer_lib.sh:135`** — REAL BUG: `map_web_path "laravel_data_dir"` uses a non-existent key (correct key is `"laravel_db"`, gvar_common.sh:1222). The wrong key falls through to the `*)` default → returns the literal `"laravel_data_dir"` (a bogus relative path), so the `:137` `/www/wwwroot/laravel_db` fallback is dead code and the function chmods a non-existent dir. Fix: `"laravel_data_dir"` → `"laravel_db"`. Keep `:137` as last-resort fallback (only reached if `map_web_path` returns empty).
-2. **`dd_helper/permissions_repair_menu.sh:69`** — `laravel_db_dir="/www/wwwroot/laravel_db"` hardcoded → `$(map_web_path "laravel_db")` (with the same `/www/wwwroot/laravel_db` fallback for safety).
-3. Leave as-is (verified already correct/path-agnostic):
-   - `octane_service_manager.sh:151` — grep regex `.*/www/wwwroot/laravel_db` already matches any base.
-   - `install_dictionaries.sh:46-48` — already tries `map_web_path('pycore_db')` via Python first; `$REPO_ROOT/www/...` is only the defensive fallback.
-   - `permissions_fixer_lib.sh:125-127` — `wwwroot` key is correct; `:127` `/www/wwwroot` is the unreachable fallback.
+Endpoint map (pycore path -> laravel path):
+- GET  `/translation/languages`      -> `/api/app_qy_v1/ai_tools/translation/languages`
+- POST `/translation/translate`      -> `/api/app_qy_v1/ai_tools/translation/translate`
+- POST `/tts/generate`               -> `/api/app_qy_v1/ai_tools/tts/generate`
+- GET  `/tts-queue/stats`            -> `/api/app_qy_v1/ai_tools/tts/queue/stats`
+- GET  `/tts-queue/items`            -> `/api/app_qy_v1/tts/queue/items`
+- GET  `/assist/overview`            -> `/api/app_qy_v1/assist/overview`
+- GET  `/assist/overview/items`      -> `/api/app_qy_v1/assist/overview/items`
+- GET  `/libraries`                  -> `/api/app_qy_v1/vocabulary/libraries`
+- GET  `/libraries/{id}/words`       -> `/api/app_qy_v1/vocabulary/libraries/{id}/words`
+- DEL  `/libraries/{id}`             -> `/api/app_qy_v1/learning/libraries/{id}`
+- POST `/cover/retry`                -> `/api/app_qy_v1/assist/cover/retry`
+- GET  `/statistics`                 -> `/api/app_qy_v1/vocabulary/statistics`
+- GET  `/language-breakdown`         -> `/api/app_qy_v1/vocabulary/language-breakdown`
+- GET  `/dictionary/words`           -> `/api/app_qy_v1/dictionary/words`
+- POST `/dictionary/words`           -> `/api/app_qy_v1/dictionary/words`
+- PUT  `/dictionary/words/{md5}`     -> `/api/app_qy_v1/dictionary/words/{md5}`
+- DEL  `/dictionary/words/{md5}`     -> `/api/app_qy_v1/dictionary/words/{md5}`
+- POST `/dictionary/words/batch`     -> `/api/app_qy_v1/dictionary/words/batch`
+- GET  `/dictionary/sentences`       -> `/api/app_qy_v1/dictionary/sentences`
+- POST `/translation/queue/batch/add`-> `/api/app_qy_v1/ai_tools/translation/queue/batch/add`
+- POST `/tts/queue/batch/query`      -> `/api/app_qy_v1/ai_tools/tts/queue/batch/query`
+- POST `/validity/report`            -> `/api/app_qy_v1/vocabulary/validity/report`
+- GET  `/tts/sentence-audio`         -> `/api/app_qy_v1/ai_tools/tts/sentence/audio`
+- GET  `/storage-summary`            -> `/api/servermanager/v1/system/static-resources`
 
-## Thread A2 — open_basedir false WARNING (the actual log noise)
+**Register (2 places):** export `vocabulary_router` in
+`pycore/callmodule/routers/local/__init__.py` (import + `__all__`); import +
+`app.include_router(vocabulary_router)` in `pycore/callmodule/app.py` (import block
+lines 28-47 + mount block lines 112-122, alongside `word_audio_router`).
 
-`debian_com/php_common_functions.sh:400` parses `php -i | grep open_basedir | cut -d'>' -f2` → yields `no value =` (fragile), so the `= "no value"` equality at `:408` fails → false "CLI open_basedir is still restricted" warning. CLI open_basedir is actually disabled (the log shows `no value`). Also `:404` queries `php-fpm8.4` while the script targets PHP 8.5 (FPM is moot anyway — Swoole).
+## Frontend - pycoreApi methods + types
+**`core/api-libs/pycore/PycoreApi.ts`** - add a `// --- Vocabulary (pycore proxies laravel)` section
+with one method per endpoint above (GET->`getJSON`, POST->`postJSON`, PUT->`putJSON`,
+DEL->`deleteJSON`), mirroring the word-audio section's style (lines 1045-1082). Types
+declared alongside (DictionaryWordRow, LibraryWordRow, VocabStatistics, AssistOverviewResponse,
+TtsQueueStats, TranslationResponse, etc. - shapes from the laravel page, agent-confirmed).
 
-Fix `verify_open_basedir_config_from_php_common` (lines 400, 404, 408, 414):
-- CLI: replace with `php -r 'echo ini_get("open_basedir");'` (authoritative; empty = unrestricted). Treat empty / `none` / `no value` as disabled.
-- FPM: use `php -c /etc/php/${PHP_VERSION}/fpm/php.ini -r 'echo ini_get("open_basedir");'` (correct version, tolerant of FPM-not-installed via `2>/dev/null` + empty=disabled). `PHP_VERSION` is sourced from `php_common_vars.sh` (8.5).
-- Idempotent: verify is read-only; the existing `configure_php_for_laravel_from_php_common` (remove `^open_basedir` then append `open_basedir = none`) is already idempotent and unchanged.
+## Frontend - new page + tabs (self-contained, no shell contexts)
+**`apps/pycore-manager/pages/PcVocabularyPage.tsx`** - default export; tab bar shell
+(`VocabSubTabBar`-style local tabs: Translate / Words / Libraries / Statistics / TTS Queue /
+Learning Tasks) with `localStorage`-persisted active tab; lazy `Suspense` per tab. Uses
+`pycoreApi.vocabulary.*`; local React state; `L` label object (en literals + zh comments);
+guarded calls; never crashes when pycore offline.
 
-## Thread B — unify the two CUDA resolvers into ONE
+Co-located sub-components (split to stay <800 lines each), under
+`apps/pycore-manager/pages/vocabulary/`:
+- `vocabTypes.ts` - shared row/response types + `L` labels.
+- `VocabTranslateTab.tsx` - translate panel (source/target lang, detect, TTS generate + play).
+- `VocabWordsTab.tsx` - dictionary words table: filter (language/validity/has-audio) + search
+  + sort + paging + batch (delete/mark_valid/mark_invalid/requeue_tts) + per-word actions
+  (requeue translation, validity report, sentence audio). Reuses the column-builder idiom.
+- `VocabLibrariesTab.tsx` - libraries list by language + cover-retry + delete; opens detail modal.
+- `VocabLibraryDetailModal.tsx` - paginated library words + stats.
+- `VocabStatisticsTab.tsx` - summary totals + per-language breakdown table.
+- `VocabTtsQueueTab.tsx` - TTS queue stats + paginated items by status/type.
+- `VocabLearningTasksPanel.tsx` - learning tasks list (read-only-ish).
+- `vocabColumns.tsx` - shared table column builders (dictionary / assist-queue / tts-queue).
 
-`torch_cuda_index.sh` and `paddle_cuda_index.sh` duplicate the `nvidia-smi` → `cv` parse; only the tag table + base URL differ (torch: cu118/121/124/126/128/130 @ pytorch.org; paddle: cu118/126/129/130 @ paddlepaddle.org.cn — paddle has NO cu124/cu120 cp313 wheel, so its table must stay distinct; cu118 stays correct on a 12.4 driver, per the `paddle-cu118-forced-py313` memory).
+Style: Tailwind + lucide-react icons; `pycoreApi` envelope `{success,error,...}` consumed
+directly (no `APIResponse` wrapper, no BaseAPI); offline banner when pycore unreachable.
 
-1. Create **`common/base_libs/cuda_index.sh`** (single source) containing:
-   - `cuda_driver_cv()` — shared `nvidia-smi` parse → numeric (e.g. `1204`). Single source of truth for the driver CUDA version.
-   - `torch_cuda_index_url()` — torch tag table + `https://download.pytorch.org/whl/$tag` (default cu124). Uses `cuda_driver_cv`. Preserves the "mirrors `third_party.py::_resolve_pytorch_cuda_index_url`" parity comment.
-   - `paddle_cuda_index_url()` — paddle tag table + `https://www.paddlepaddle.org.cn/packages/stable/$tag/` (default cu126). Uses `cuda_driver_cv`.
-   - Respects existing env overrides `PYTORCH_CUDA_INDEX_URL` / `PADDLE_CUDA_INDEX_URL`.
-2. Update 6 `source` paths → `base_libs/cuda_index.sh`:
-   - `common/torch_cpu_guard.sh:45` (also covers `97_install_deepseek_ocr.sh`, which sources the guard transitively)
-   - `common/paddle_cpu_guard.sh:38`
-   - `common/iniscripts/install_gptsovits.sh:55`
-   - `common/iniscripts/install_melotts.sh:50`
-   - `debian/install_shells/96_install_deepseek.sh:27`
-   - `debian/install_shells/98_install_qwen25.sh:26`
-3. Delete `base_libs/torch_cuda_index.sh` + `base_libs/paddle_cuda_index.sh`.
-4. Keep each caller's inline `command -v … >/dev/null 2>&1 || <name>() { … }` fallback (default cu124/cu126) — only fires if sourcing fails.
-5. No behavior change: torch still resolves cu124 on a 12.4 driver; paddle still resolves cu118. Idempotent + cross-distro (nvidia-smi is universal).
+## Frontend - nav registration
+**`apps/pycore-manager/pcPages.tsx`** - add `export const PcVocabularyPage = lazy(() => import('./pages/PcVocabularyPage'));`
+near line 36; insert into `PC_PAGES` between `content` (line 56) and `ai` (line 60):
+`{ id: 'vocabulary', labelKey: 'nav.vocabulary', Icon: BookOpen, Component: PcVocabularyPage }`
+(`BookOpen` from lucide-react, added to the import list). No router edits (PcApp.tsx auto-generates).
+**`pc-locales/en.ts` + `zh.ts`** - add `vocabulary: 'Vocabulary'` / `'词汇'` to the `nav` block.
 
-## Thread C — idempotency + cross-distro (verification lens, no separate work)
-- All edits use existing helpers (`map_web_path`, `get_base_data_directory`, `nvidia-smi`, `ini_get`) that are already kali/debian/ubuntu-agnostic via `SYSTEM_NAME`/`SYSTEM_VERSION` and `/etc/os-release`.
-- No new install/force-reinstall patterns introduced (the prior paddle `--force-reinstall` removal stands).
-- After edits: `bash -n` syntax-check every touched file; re-run `14_install_python_prereq_packages.sh` guard probe (no-op) and the PHP verify to confirm the WARNING is gone.
+## Files touched
+- NEW `pycore/callmodule/routers/local/vocabulary_router.py`
+- EDIT `pycore/callmodule/routers/local/__init__.py`
+- EDIT `pycore/callmodule/app.py`
+- EDIT `core/api-libs/pycore/PycoreApi.ts`
+- NEW `apps/pycore-manager/pages/PcVocabularyPage.tsx`
+- NEW `apps/pycore-manager/pages/vocabulary/*` (8 files)
+- EDIT `apps/pycore-manager/pcPages.tsx`
+- EDIT `apps/pycore-manager/pc-locales/en.ts`, `zh.ts`
 
-## Files touched (9)
-Edit: `permissions_fixer_lib.sh`, `permissions_repair_menu.sh`, `php_common_functions.sh`, `torch_cpu_guard.sh`, `paddle_cpu_guard.sh`, `install_gptsovits.sh`, `install_melotts.sh`, `96_install_deepseek.sh`, `98_install_qwen25.sh`.
-Create: `base_libs/cuda_index.sh`. Delete: `base_libs/torch_cuda_index.sh`, `base_libs/paddle_cuda_index.sh`.
+## Rules honored
+English code/comments/logs; no test code; no run/build/test; split >800-line files; imports
+at file top; follow existing `word_audio_router.py` + `PcWordAudioPage` style; FE no
+`import.meta.env` (config in JS). UI->pycore->laravel only - never `api` direct to laravel.
 
-## Out of scope
-- Python counterpart `pycore/pyfoundations/third_party.py` (shell parity comment preserved; no behavior change needed).
-- "搜索文档所有包能否统一" beyond CUDA: the cross-script package/dep-map alignment is already tracked by the `prereq-thirdparty-dep-alignment` memory; the only live churn (paddle `--force-reinstall`) was fixed last turn. No further package unification needed unless you name a specific conflict.
+## Risks / notes
+- Translate + TTS-queue tabs duplicate surfaces already in pycore-manager (AI page, Queue
+  Center) - user accepted this by choosing full replica.
+- Response shapes: pycore proxy is pure passthrough of laravel JSON, so FE consumes laravel's
+  native shapes (agent-confirmed). No BaseAPI envelope.
+- Auth: laravel vocabulary read/CRUD routes are public; translate/TTS-generate/library-delete
+  need `auth:sanctum`. Proxy passes through; if laravel returns 401 the envelope surfaces it.
+- Large build (~10 new FE files). Will implement in order: BE router -> register -> pycoreApi ->
+  nav+locales -> page shell -> tabs.

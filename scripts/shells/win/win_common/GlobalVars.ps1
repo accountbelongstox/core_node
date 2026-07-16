@@ -134,15 +134,17 @@ $Global:SCOOP_GLOBAL_DIR = "$LANG_COMPILER_DIR\scoop\apps"
 $Global:CHOCO_EXE = "$CHOCO_DIR\choco.exe"
 $Global:CHOCO_CACHE_DIR = "$TEMP_DIR\chocolatey"
 
-$Global:USER_DIR = "$env:USERPROFILE\.core_node"
-$Global:USER_CACHE_DIR = Join-Path $env:USERPROFILE ".core_node\.cache"
+. (Join-Path $PSScriptRoot 'SharedCacheEnv.ps1')
+
+$Global:USER_DIR = "D:\programing\Users\$env:USERNAME\.core_node"
+$Global:USER_CACHE_DIR = Join-Path $Global:CORE_NODE_CACHE_DIR 'core_node'
 if (-not (Test-Path $Global:USER_CACHE_DIR)) {
     New-Item -ItemType Directory -Path $Global:USER_CACHE_DIR -Force | Out-Null
 }
 
 $Global:APP_INSTALLED_FLAG_DIR = "$Global:USER_DIR\.app_installed_flag"
 $Global:GIT_CONFIG_DIR = "$Global:USER_DIR\.git_config"
-$Global:USER_CONFIG_DIR = "$Global:USER_DIR\.core_node\.config"
+$Global:USER_CONFIG_DIR = Join-Path $Global:USER_DIR ".config"
 $Global:SCRIPTS_DIR = "$Global:USER_DIR\.scripts"
 $Global:WINGET_FLAG_FILE = "$Global:USER_DIR\.winget_set_flag_file"
 
@@ -656,6 +658,10 @@ function Get-RegionDownloadBaseURL {
 
 function Get-RegionRemoteBaseUrl {
     return Get-RegionURL -SubPath "scripts/shells/win/install_powershells"
+}
+
+function Get-RegionInstallerScriptsListUrl {
+    return Get-RegionURL -SubPath "scripts/shells/win/win_common/InstallerScriptsList.ps1"
 }
 
 function Get-RegionTestInstallerUrl {

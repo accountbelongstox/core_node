@@ -12,6 +12,9 @@ from typing import Dict, List, Optional, Any, Tuple
 
 from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
 
+import re
+
+
 sqlalchemy = get_third_package_sqlalchemy()
 
 logger = logging.getLogger(__name__)
@@ -274,7 +277,6 @@ class DatabaseOperationsManager:
 
             # Filter by pattern if provided
             if table_pattern:
-                import re
                 pattern = table_pattern.replace('%', '.*')
                 table_names = [t for t in table_names if re.match(pattern, t, re.IGNORECASE)]
 

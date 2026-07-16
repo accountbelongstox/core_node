@@ -20,11 +20,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Optional
 from .logging_config import setup_logging
+from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 logger = setup_logging(__name__)
 
-# Default cache directory
-DEFAULT_CACHE_DIR = Path.home() / '.core_node' / '.cache' / 'device_sync'
+# Default cache directory (centralized root; .cache/device_sync subpath preserved)
+DEFAULT_CACHE_DIR = get_system_cache_dir() / '.cache' / 'device_sync'
 
 # Event types
 EVENT_FILE_SYNC = 'file_sync'

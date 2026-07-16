@@ -11,6 +11,8 @@ use App\Apps\McpV1\McpV1Utils\McpV1Initializer;
 use App\Apps\PddToolV1\Utils\PddToolV1Initializer;
 use App\Apps\DingDuoDuoV1\Utils\DingDuoDuoV1Initializer;
 use App\Apps\AppQyV1\Services\AppQyV1UserInitializationTableService;
+use App\Apps\AppQyV1\Services\AppQyV1BookReadingProgressTableService;
+use App\Apps\AppQyV1\Services\AppQyV1ClientDeviceSettingsTableService;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyService;
 use App\Services\OctaneTaskStatusService;
 use App\Services\AI\UnifiedAIRouter;
@@ -441,6 +443,22 @@ class InitializeApps extends Command
         }
         $this->newLine();
 
+        $this->info('Creating AppQyV1 book reading progress tables...');
+        $bookProgressResults = AppQyV1BookReadingProgressTableService::ensureTablesExist();
+        foreach ($bookProgressResults as $table => $status) {
+            $icon = ($status === 'created' || $status === 'exists') ? '✅' : '❌';
+            $this->line("  {$icon} {$table}: {$status}");
+        }
+        $this->newLine();
+
+        $this->info('Creating AppQyV1 client device settings tables...');
+        $clientSettingsResults = AppQyV1ClientDeviceSettingsTableService::ensureTablesExist();
+        foreach ($clientSettingsResults as $table => $status) {
+            $icon = ($status === 'created' || $status === 'exists') ? '✅' : '❌';
+            $this->line("  {$icon} {$table}: {$status}");
+        }
+        $this->newLine();
+
         $this->info('Verifying Octane Timer tasks...');
         $taskStatusService = new OctaneTaskStatusService();
         $taskVerification = $taskStatusService->verifyInitialization();
@@ -575,6 +593,17 @@ class InitializeApps extends Command
 
         $this->info('Seeding punctuation markers (Books Sentence/Word Model v2)...');
         $this->seedPunctuationMarkers();
+        $this->newLine();
+
+        $this->info('Seeding TTS engine config + variant specs...');
+        try {
+            $engineSeed = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsEngineConfigModel::seedDefaults();
+            $variantSeed = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsVariantSpecModel::seedDefaults();
+            $this->line("  ✅ TTS engine config: {$engineSeed['seeded']} created, {$engineSeed['updated']} updated");
+            $this->line("  ✅ TTS variant specs: {$variantSeed['seeded']} created, {$variantSeed['updated']} updated");
+        } catch (\Throwable $e) {
+            $this->warn('  ⚠️  TTS config seeding failed (will retry next sys:init): ' . $e->getMessage());
+        }
         $this->newLine();
 
         $this->info('Verifying AI providers...');

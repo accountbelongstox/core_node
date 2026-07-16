@@ -5,16 +5,24 @@ Used by both games or by non-game modules (paths, window, Battle.net login/UI, g
 """
 import colorsys
 import os
+import sys
 from pathlib import Path
 
 # Project root: providor/constants/common.py -> parent.parent.parent = pyapps/d3-check
 _ROOT_PATH = Path(__file__).resolve().parent.parent.parent
 
+# Make pycore importable so TMP_DIR resolves via the centralized system_paths
+# module (D:\programing\Users\<user>\.core_node on Windows, /var/_core_node on Linux).
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from pycore.pyfoundations.system_paths import get_system_cache_dir
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 ROOT_DIR = str(_ROOT_PATH)
-TMP_DIR = Path.home() / ".core_node" / "pytools" / "tmp"
+TMP_DIR = get_system_cache_dir() / "pytools" / "tmp"
 TAMPERMONKEY_SCRIPT_PATH = _ROOT_PATH / "scripts" / "d3check_oauth_login_tampermonkey.user.js"
 TEMPLATE_DIR = os.path.join(ROOT_DIR, "images")
 SCALED_TEMPLATES_CACHE_DIR = TMP_DIR / "scaled_templates"

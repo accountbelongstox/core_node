@@ -40,7 +40,13 @@ from typing import Callable, Optional, Any
 from pycore import THREAD_BUS, ColorPrint
 from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
 from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
-from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
+from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals, get_bus_manager
+
+import threading
+from pycore.pyutils.native_ui.step1_config.tray_config import TrayConfig, TrayBackend, create_default_tray_menu
+from pycore.pyutils.native_ui.step7_managers.shutdown_manager import get_shutdown_manager
+import traceback
+
 
 
 def launch_app_with_startup(
@@ -93,7 +99,6 @@ def launch_app_with_startup(
             ColorPrint.yellow("\nKeyboard interrupt received")
         except Exception as e:
             ColorPrint.print_error(f"\nERROR: Main application failed: {e}")
-            import traceback
             traceback.print_exc()
             raise
         return
@@ -133,7 +138,6 @@ def launch_app_with_startup(
             ColorPrint.green("[DebugLog] Frontend was already ready, closing debug window after brief delay...")
 
             # Schedule close after allowing window to show for min_display_time
-            import threading
             def delayed_close():
                 time.sleep(min_display_time)  # Wait for minimum display time
                 ColorPrint.green("[DebugLog] Closing debug window (frontend already ready)...")
@@ -156,9 +160,6 @@ def launch_app_with_startup(
     # ========== Step 2.5: Setup TrayConfig and register handlers (if tray enabled) ==========
     if enable_tray:
         # Create TrayConfig and store in THREAD_BUS for startup_window_thread to access
-        from pycore.pyutils.native_ui.step1_config.tray_config import TrayConfig, TrayBackend, create_default_tray_menu
-        from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals, get_bus_manager
-
         # Create default tray configuration
         tray_config = TrayConfig(
             enabled=True,
@@ -195,7 +196,6 @@ def launch_app_with_startup(
             """
             ColorPrint.yellow("[TrayHandler] Received TRAY_RESTART signal, restarting application...")
             # Use shutdown manager to perform clean restart
-            from pycore.pyutils.native_ui.step7_managers.shutdown_manager import get_shutdown_manager
             shutdown_mgr = get_shutdown_manager()
             shutdown_mgr.request_restart()
 
@@ -292,7 +292,6 @@ def launch_app_with_startup(
         ColorPrint.yellow("\nKeyboard interrupt received")
     except Exception as e:
         ColorPrint.print_error(f"\nERROR: Main application failed: {e}")
-        import traceback
         traceback.print_exc()
         raise
     finally:
@@ -321,7 +320,6 @@ def launch_app_with_startup(
 if __name__ == "__main__":
     def test_main_entry():
         """Test main entry"""
-        from pycore import ColorPrint
         ColorPrint.print_success("\n" + "=" * 70)
         ColorPrint.print_success(" TEST MAIN APPLICATION STARTED")
         ColorPrint.print_success("=" * 70)

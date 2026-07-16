@@ -22,6 +22,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import urllib.request
 import urllib.error
 
+import time
+
+
 DEFAULT_HTTP_PORT = 58923
 DISCOVERY_TIMEOUT = 1.0
 MAX_THREADS = 100
@@ -186,7 +189,6 @@ class HTTPDeviceDiscovery:
         Returns:
             Device info dict or None
         """
-        import time
 
         url = f"http://{ip}:{self.http_port}/api/discover"
 

@@ -65,6 +65,9 @@ require_once __DIR__ . '/DashboardRouter/DatabaseViewer.php';
 // Dashboard Database Manager (loopback debug bypass OR Sanctum) + debug-status
 require_once __DIR__ . '/DashboardRouter/DatabaseManager.php';
 
+// Dashboard code-last-modified probe (laravel-manager header)
+require_once __DIR__ . '/DashboardRouter/CodeUpdate.php';
+
 // InviteCode Controller
 use App\Http\Controllers\InviteCodeController;
 
@@ -100,6 +103,8 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::get('services', [ServerManagerV1SystemInfoCtl::class, 'getServices']);
         Route::get('permissions', [ServerManagerV1SystemInfoCtl::class, 'getPermissions']);
         Route::get('storage', [ServerManagerV1SystemInfoCtl::class, 'getStorage']);
+        Route::get('static-resources', [ServerManagerV1SystemInfoCtl::class, 'getStaticResources']);
+        Route::get('static-resources/files', [ServerManagerV1SystemInfoCtl::class, 'listStaticResourceFiles']);
     });
 
     // File Management Routes
@@ -139,6 +144,10 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::get('port-check', [ServerManagerV1NginxManagerCtl::class, 'portCheck']);
         Route::get('metrics', [ServerManagerV1NginxManagerCtl::class, 'metrics']);
         Route::post('sites/batch', [ServerManagerV1NginxManagerCtl::class, 'batchSites']);
+        // Purge a site's web-root files (root password + "delete" confirm, core_node protected).
+        Route::post('sites/{site_name}/delete-files', [ServerManagerV1NginxManagerCtl::class, 'deleteSiteFiles']);
+        // Idempotently repair + reset all nginx config (ensure log/run dirs, quarantine broken sites, reload).
+        Route::post('repair', [ServerManagerV1NginxManagerCtl::class, 'repairConfig']);
     });
 
     // Unified Manager Routes
@@ -167,6 +176,9 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::get('status', [ServerManagerV1CertificateManagerCtl::class, 'getCertificateStatus']);
         Route::post('install-certbot', [ServerManagerV1CertificateManagerCtl::class, 'installCertbot']);
         Route::get('detect-certbot', [ServerManagerV1CertificateManagerCtl::class, 'detectCertbot']);
+        // Idempotent: generate if missing, renew if present (5m cooldown). Runs certbot async; poll progress/{id} for output.
+        Route::post('ensure', [ServerManagerV1CertificateManagerCtl::class, 'ensureCertificate']);
+        Route::get('progress/{request_id}', [ServerManagerV1CertificateManagerCtl::class, 'certificateProgress']);
     });
 
 });
@@ -197,6 +209,7 @@ require_once __DIR__ . '/AppQyV1Router/AppQyV1StudyGen.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1PersonDict.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Social.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1MediaContent.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Client.php';
 
 // DingDuoDuoV1 (订多多) extension backend - no-super-code member/license surface
 require_once __DIR__ . '/DingDuoDuoV1Router/DingDuoDuoV1License.php';
@@ -268,7 +281,8 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
         Route::get('subtitles/{source_key}', [\App\Http\Controllers\MediaBrowseController::class, 'subtitleDetail']);
         // Books v3.1: ordered chapter list (book -> chapter -> verses navigation).
         Route::get('books/{source_key}/chapters', [\App\Http\Controllers\MediaBrowseController::class, 'bookChapters']);
-        // Per-chapter ingest completeness (slot_count vs sentence_count) for idempotent importers.
+        // Per-chapter text + audio ingest progress (public, idempotent importers).
+        // Query: langs, variant_key, include_slots, include_text
         Route::get('books/{source_key}/ingest-status', [\App\Http\Controllers\MediaBrowseController::class, 'bookIngestStatus']);
         Route::get('books/{source_key}', [\App\Http\Controllers\MediaBrowseController::class, 'bookDetail']);
         Route::get('clip/{source_key}/{name}', [\App\Http\Controllers\MediaBrowseController::class, 'clip'])
@@ -298,8 +312,8 @@ Route::prefix('config')->group(function () {
     Route::get('paths', [PathConfigController::class, 'getPaths']);
     Route::get('paths/{name}', [PathConfigController::class, 'getPathMapping']);
     
-    // System configuration (admin only)
-    Route::middleware('auth:sanctum')->group(function () {
+    // System configuration (admin only; loopback debug bypass OR Sanctum)
+    Route::middleware('dashboard.auth')->group(function () {
         Route::get('server', [SystemConfigController::class, 'getConfig']);
         Route::put('server', [SystemConfigController::class, 'updateConfig']);
         Route::get('environment', [SystemConfigController::class, 'getEnvironment']);

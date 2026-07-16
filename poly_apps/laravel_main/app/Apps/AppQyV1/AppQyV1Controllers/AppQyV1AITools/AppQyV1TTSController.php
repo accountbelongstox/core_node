@@ -495,4 +495,5 @@ class AppQyV1TTSController extends Controller
             'summary' => $summary,
         ], 'Batch status check completed');
     }
+
 }

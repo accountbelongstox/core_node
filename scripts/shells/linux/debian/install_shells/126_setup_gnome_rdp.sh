@@ -18,7 +18,7 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 TARGET_USER="${ACTUAL_DESKTOP_USER:-ubuntu}"
 
 # Cache file for UI prompt choice
-CACHE_DIR="$HOME/.cache/core_node"
+CACHE_DIR="${XDG_CACHE_HOME:-${CORE_NODE_CACHE_DIR:-$HOME/.cache}}/core_node"
 CACHE_FILE="$CACHE_DIR/125_rdp_ui_prompted"
 
 # Ensure cache directory exists

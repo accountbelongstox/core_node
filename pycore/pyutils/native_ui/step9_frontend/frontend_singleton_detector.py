@@ -58,6 +58,9 @@ from enum import Enum
 from pycore import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
+from pycore.pyutils.native_ui.step9_frontend.port_killer import kill_process_on_port
+
+
 
 # ============================================================
 # Protocol Definition
@@ -526,7 +529,6 @@ class FrontendSingletonDetector:
         # Communication failed - use port killer
         self._log("No valid shutdown response received, using port killer...", "WARNING")
 
-        from .port_killer import kill_process_on_port
 
         if kill_process_on_port(existing_port, force=True):
             self._log(f"Port {existing_port} forcefully cleaned", "INFO")

@@ -18,6 +18,13 @@ import sys
 import platform
 from pathlib import Path
 
+import traceback
+
+from pycore.pyfoundations.third_party import get_third_package_pythoncom
+import ctypes
+
+
+
 
 class AppUserModelIDManager:
     """
@@ -70,7 +77,6 @@ class AppUserModelIDManager:
             return False
 
         try:
-            import ctypes
 
             # Define HRESULT (not available in Python 3.11's ctypes.wintypes)
             HRESULT = ctypes.c_long
@@ -124,7 +130,7 @@ class AppUserModelIDManager:
             return False
 
         try:
-            import pythoncom
+            pythoncom = get_third_package_pythoncom()
             from win32com.propsys import propsys, pscon
 
             # Initialize COM
@@ -164,7 +170,6 @@ class AppUserModelIDManager:
             return False
         except Exception as e:
             print(f"[AppUserModelID] [X] Error setting shortcut property: {e}")
-            import traceback
             traceback.print_exc()
             return False
 
@@ -179,7 +184,6 @@ class AppUserModelIDManager:
             return None
 
         try:
-            import ctypes
 
             # Define HRESULT (not available in Python 3.11's ctypes.wintypes)
             HRESULT = ctypes.c_long

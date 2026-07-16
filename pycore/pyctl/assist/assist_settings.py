@@ -39,9 +39,9 @@ BATCH_LIMIT_MIN, BATCH_LIMIT_MAX = 1, 10
 # _*_enabled gates + AssistWorker.CLAIMABLE_TYPES):
 #   translation    word translation (translation_worker heartbeat)
 #   ai_translate   AI translation (remote_fast ai_translate capability)
-#   cover          AI vocabulary cover image (assist-queue claim)
-#   poster         movie/TV poster lookup (assist-queue claim + remote_poster lane)
-#   image          word media image (remote_fast image capability)
+#   cover          delegated to apps/mcp-chrome (Google Images); OFF in pycore
+#   poster         delegated to apps/mcp-chrome (Google Images); OFF in pycore
+#   image          word media AI image; delegated to apps/mcp-chrome — OFF in pycore
 #   tts            word voice / TTS (remote_audio lane + assist-queue tts claim)
 #   sentence_audio sentence voice (remote_sentence_audio lane) - INDEPENDENT of tts
 #   subtitle       subtitle search (remote_subtitle lane)
@@ -51,9 +51,9 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "capabilities": {
         "translation": True,
         "ai_translate": True,
-        "cover": True,
-        "poster": True,
-        "image": True,
+        "cover": False,
+        "poster": False,
+        "image": False,
         "tts": True,
         "sentence_audio": True,
         # subtitle search: OFF by default - the SubtitleSearchController is absent

@@ -12,6 +12,9 @@ and internal services.
 
 from typing import Dict, Tuple
 
+from pycore import ColorPrint
+
+
 
 # Built-in port range mappings (app_id -> (port_start, port_range))
 BUILTIN_PORT_RANGES: Dict[str, Tuple[int, int]] = {
@@ -48,7 +51,6 @@ def get_port_range(app_id: str, debug: bool = False) -> Tuple[int, int]:
     if app_id in BUILTIN_PORT_RANGES:
         port_start, port_range = BUILTIN_PORT_RANGES[app_id]
         if debug:
-            from pycore import ColorPrint
             ColorPrint.blue(
                 f"[PortAllocator] {app_id} -> {port_start}-{port_start+port_range-1} (built-in)"
             )
@@ -60,7 +62,6 @@ def get_port_range(app_id: str, debug: bool = False) -> Tuple[int, int]:
     _NEXT_CUSTOM_PORT_START += port_range
 
     if debug:
-        from pycore import ColorPrint
         ColorPrint.blue(
             f"[PortAllocator] {app_id} -> {port_start}-{port_start+port_range-1} (auto-allocated)"
         )

@@ -36,7 +36,7 @@ $FILES = @(
     'scripts/shells/win/win_common/StartupManager.ps1',
     'scripts/shells/win/win_common/SecretDecryptionCheck.ps1',
     'scripts/shells/win/win_common/SecretEncryptionCheck.ps1',
-    'scripts/shells/win/install_powershells/InstallerScriptsList.ps1',
+    'scripts/shells/win/win_common/InstallerScriptsList.ps1',
     'scripts/shells/win/install_powershells/Step1_InitializeBaseDirectories.ps1',
     'scripts/shells/win/install_powershells/Step2_SetBaseSettings.ps1',
     'scripts/shells/win/install_powershells/Step3_InitWinget.ps1',
@@ -49,7 +49,6 @@ $FILES = @(
     'scripts/shells/win/install_powershells/Step10_InstallPythonPrereqPackages.ps1',
     'scripts/shells/win/install_powershells/Step11_InstallFasterWhisper.ps1',
     'scripts/shells/win/install_powershells/Step12_InstallEdgeTts.ps1',
-    'scripts/shells/win/install_powershells/Step13_InstallTtsOffline.ps1',
     'scripts/shells/win/install_powershells/Step14_InstallScoopWithChinaMirror.ps1',
     'scripts/shells/win/install_powershells/Step15_ExtendWindowsUpdate.ps1',
     'scripts/shells/win/install_powershells/Step16_InstallPHP.ps1',
@@ -77,6 +76,19 @@ $FILES = @(
     'scripts/shells/win/install_powershells/Step38_InstallQwen25.ps1',
     'scripts/shells/win/install_powershells/Step39_InstallNLLB200.ps1',
     'scripts/shells/win/install_powershells/Step40_InstallNSSM.ps1',
+    'scripts/shells/win/install_powershells/Step51_InstallChatTts.ps1',
+    'scripts/shells/win/install_powershells/Step52_InstallCosyVoice.ps1',
+    'scripts/shells/win/install_powershells/Step53_InstallF5Tts.ps1',
+    'scripts/shells/win/install_powershells/Step54_InstallGptsovits.ps1',
+    'scripts/shells/win/install_powershells/Step55_InstallMelotts.ps1',
+    'scripts/shells/win/install_powershells/Step56_InstallFishspeech.ps1',
+    'scripts/shells/win/install_powershells/Step57_InstallKokoro.ps1',
+    'scripts/shells/win/install_powershells/Step58_InstallVoxcpm2.ps1',
+    'scripts/shells/win/install_powershells/Step59_InstallBark.ps1',
+    'scripts/shells/win/install_powershells/Step60_InstallParler.ps1',
+    'scripts/shells/win/install_powershells/Step61_InstallQwen3Tts.ps1',
+    'scripts/shells/win/main_powershells/PreparePycorePrerequisites.ps1',
+    'scripts/shells/win/main_powershells/PycorePrerequisitesList.ps1',
     'scripts/shells/win/install_powershells/postinstall/WeChatInstallProcessor.ps1',
     'scripts/shells/win/install_powershells/postinstall/GoPostInstallProcessor.ps1',
     'scripts/shells/win/install_powershells/postinstall/JavaPostInstallProcessor.ps1',
@@ -96,7 +108,8 @@ $FILES = @(
 ## Dynamic configuration based on region to reduce complexity
 # Function to determine base URL based on region preference
 function Get-RepoBaseUrl {
-    $globalVarDir = "$env:USERPROFILE\.core_node\.global_vars"
+    $username = $env:USERNAME
+    $globalVarDir = "D:\programing\Users\$username\.core_node\.global_vars"
     $regionFile = Join-Path $globalVarDir "SELECTED_REGION"
     
     $selectedRegion = "Global"  # Default to Global if no preference set
@@ -113,7 +126,7 @@ function Get-RepoBaseUrl {
 }
 
 $RepoBaseUrl = Get-RepoBaseUrl
-$LocalDataDir = "$env:USERPROFILE\.core_node"
+$LocalDataDir = "D:\programing\Users\$env:USERNAME\.core_node"
 
 # Common function for safe file downloads with atomic overwrite
 function Invoke-SafeDownload {

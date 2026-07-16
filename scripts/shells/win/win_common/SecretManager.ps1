@@ -867,6 +867,32 @@ function Set-SecretKeyBatch {
     return $true
 }
 
+function Invoke-SecretMenuContinue {
+    param(
+        [Parameter()]
+        [switch]$NoFinalPause
+    )
+
+    if ($NoFinalPause) {
+        return
+    }
+
+    if (Get-Command Wait-MenuContinue -ErrorAction SilentlyContinue) {
+        Wait-MenuContinue
+        return
+    }
+
+    Write-Host ""
+    Write-Host "Press Enter to continue..." -ForegroundColor Yellow
+    Start-Sleep -Milliseconds 30
+    while ([Console]::KeyAvailable) {
+        [void][Console]::ReadKey($true)
+    }
+    do {
+        $key = [Console]::ReadKey($true)
+    } while ($key.Key -ne 'Enter')
+}
+
 <#
 .SYNOPSIS
     Clear all decrypted secrets and re-decrypt them
@@ -879,6 +905,11 @@ function Set-SecretKeyBatch {
     Clear-AndRedecryptSecrets
 #>
 function Clear-AndRedecryptSecrets {
+    param(
+        [Parameter()]
+        [switch]$NoFinalPause
+    )
+
     $dirs = Get-SecretDirectories
     $fileCount = 0
 
@@ -890,7 +921,7 @@ function Clear-AndRedecryptSecrets {
     if (-not (Test-Path $dirs.ENCRYPTED_DIR)) {
         Write-Host "[INFO] No encrypted directory found at: $($dirs.ENCRYPTED_DIR)" -ForegroundColor Yellow
         Write-Host ""
-        Read-Host "Press Enter to continue"
+        Invoke-SecretMenuContinue -NoFinalPause:$NoFinalPause
         return $true
     }
 
@@ -919,7 +950,7 @@ function Clear-AndRedecryptSecrets {
             if ($confirmChoice -notmatch "^[Yy](es)?$") {
                 Write-Host "[CANCELLED] Operation cancelled. No files were deleted." -ForegroundColor Green
                 Write-Host ""
-                Read-Host "Press Enter to continue"
+                Invoke-SecretMenuContinue -NoFinalPause:$NoFinalPause
                 return $true
             }
 
@@ -932,7 +963,7 @@ function Clear-AndRedecryptSecrets {
             } catch {
                 Write-Host "[ERROR] Failed to clear some files: $($_.Exception.Message)" -ForegroundColor Red
                 Write-Host ""
-                Read-Host "Press Enter to continue"
+                Invoke-SecretMenuContinue -NoFinalPause:$NoFinalPause
                 return $false
             }
         }
@@ -947,7 +978,7 @@ function Clear-AndRedecryptSecrets {
     $result = Invoke-SecretDecryptAll -OutputDir $dirs.RAW_DIR
 
     Write-Host ""
-    Read-Host "Press Enter to continue"
+    Invoke-SecretMenuContinue -NoFinalPause:$NoFinalPause
 
     return $result
 }

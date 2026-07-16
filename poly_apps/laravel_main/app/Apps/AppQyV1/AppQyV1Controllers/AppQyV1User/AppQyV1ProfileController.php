@@ -511,11 +511,38 @@ class AppQyV1ProfileController extends BaseController
             $currentPreferences = [];
         }
 
+        if (array_key_exists('app_settings', $validated) && is_array($validated['app_settings'])) {
+            $validated['app_settings'] = $this->mergeAppSettings(
+                is_array($currentPreferences['app_settings'] ?? null) ? $currentPreferences['app_settings'] : [],
+                $validated['app_settings']
+            );
+        }
+
         $updatedPreferences = array_merge($defaultPreferences, $currentPreferences, $validated);
 
         $user->preferences = $updatedPreferences;
         $user->save();
 
         return $this->success($updatedPreferences, 'Preferences updated successfully');
+    }
+
+    /**
+     * Deep-merge app_settings so partial patches (e.g. reader blob) do not wipe
+     * other client keys such as themeId.
+     */
+    private function mergeAppSettings(array $current, array $incoming): array
+    {
+        $merged = $current;
+
+        foreach ($incoming as $key => $value) {
+            if ($key === 'reader' && is_array($value)) {
+                $existing = is_array($merged['reader'] ?? null) ? $merged['reader'] : [];
+                $merged['reader'] = array_merge($existing, $value);
+                continue;
+            }
+            $merged[$key] = $value;
+        }
+
+        return $merged;
     }
  }

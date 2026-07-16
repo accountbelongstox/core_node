@@ -85,13 +85,11 @@ function Read-SecretFile {
 # Load secrets from _4 files
 $env:ANTHROPIC_BASE_URL = Read-SecretFile (Join-Path $secretDir "ANTHROPIC_BASE_URL_4")
 $env:ANTHROPIC_AUTH_TOKEN = Read-SecretFile (Join-Path $secretDir "ANTHROPIC_AUTH_TOKEN_4")
-$env:ANTHROPIC_API_KEY = Read-SecretFile (Join-Path $secretDir "ANTHROPIC_API_KEY_4")
 $env:ANTHROPIC_MODEL = Read-SecretFile (Join-Path $secretDir "ANTHROPIC_MODEL_4")
 
 # Configuration summary
 Write-Host "ANTHROPIC_BASE_URL: $($env:ANTHROPIC_BASE_URL)" -ForegroundColor White
 Write-Host "ANTHROPIC_AUTH_TOKEN: $($env:ANTHROPIC_AUTH_TOKEN)" -ForegroundColor White
-Write-Host "ANTHROPIC_API_KEY: $($env:ANTHROPIC_API_KEY)" -ForegroundColor White
 Write-Host "ANTHROPIC_MODEL: $($env:ANTHROPIC_MODEL)" -ForegroundColor White
 Write-Host "Agent Teams: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (always on)" -ForegroundColor White
 if (-not [string]::IsNullOrWhiteSpace($env:ANTHROPIC_MODEL)) {

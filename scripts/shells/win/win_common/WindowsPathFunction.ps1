@@ -31,12 +31,14 @@ try {
     $Global:HAS_ADMIN_RIGHTS = $false
 }
 
-if (-not $Global:HAS_ADMIN_RIGHTS) {
-    Write-Log "ERROR: This script requires Administrator privileges" -color "Red"
-    Write-Log "Please run PowerShell as Administrator and try again" -color "Yellow"
-    Write-Log "Right-click PowerShell -> Run as Administrator" -color "Yellow"
-    return
+function Write-Log {
+    param (
+        [string]$message,
+        [string]$color = "White"
+    )
+    Write-Host $message -ForegroundColor $color
 }
+
 
 if ($winBuild -ge 22000) {
     $systemName = "win11"
@@ -75,14 +77,6 @@ if ($scriptDir) {
     if (Test-Path $globalVarsPath) {
         . $globalVarsPath
     }
-}
-
-function Write-Log {
-    param (
-        [string]$message,
-        [string]$color = "White"
-    )
-    Write-Host $message -ForegroundColor $color
 }
 
 function Test-IsExecutableFile {
@@ -279,10 +273,23 @@ function Add-Path {
         }
     }
 
+    $newPath = Normalize-WindowsPath $newPath
+    if (-not $newPath) { return }
+
+    if (-not $Global:HAS_ADMIN_RIGHTS) {
+        $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+        $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+        $combinedPath = if ($userPath) { "$userPath;$machinePath" } else { $machinePath }
+        if ($combinedPath -notlike "*$newPath*") {
+            [Environment]::SetEnvironmentVariable("Path", "$newPath;$combinedPath", "Process")
+        }
+        Write-Log "Session PATH updated (admin required for permanent Machine PATH): $newPath" -color "Yellow"
+        return
+    }
+
     try {
         $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
         $paths = $currentPath -split ';'
-        $newPath = Normalize-WindowsPath $newPath
         $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
 
         if (-not ($pathsNormalized -contains $newPath)) {
@@ -754,33 +761,37 @@ function Sync-InlineToGlobal {
 if (-not $SkipInit) {
     Write-Log "Initializing WindowsPathFunction..." -color "Cyan"
 
-    try {
-        $winEnvsDirGuard = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
-        $winEnvsNormGuard = Normalize-WindowsPath $winEnvsDirGuard
-        if ($winEnvsNormGuard) {
-            Add-Path -newPath $winEnvsNormGuard
+    if (-not $Global:HAS_ADMIN_RIGHTS) {
+        Write-Log "WindowsPathFunction initialization complete (session only; admin required for Machine PATH)" -color "Yellow"
+    } else {
+        try {
+            $winEnvsDirGuard = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+            $winEnvsNormGuard = Normalize-WindowsPath $winEnvsDirGuard
+            if ($winEnvsNormGuard) {
+                Add-Path -newPath $winEnvsNormGuard
+            }
+        } catch {
+            Write-Log "Failed to add .winenvs to PATH: $($_.Exception.Message)" -color "Red"
         }
-    } catch {
-        Write-Log "Failed to add .winenvs to PATH: $($_.Exception.Message)" -color "Red"
-    }
 
-    # Ensure inline winenvs exists in Machine PATH before executing any action (after all functions are defined)
-    try {
-        $inlineWinEnvsDirGuard = $Global:INLINE_WINENVS_DIR
-        $inlineWinEnvsNormGuard = Normalize-WindowsPath $inlineWinEnvsDirGuard
-        if ($inlineWinEnvsNormGuard) {
-            Add-Path -newPath $inlineWinEnvsNormGuard
+        try {
+            $inlineWinEnvsDirGuard = $Global:INLINE_WINENVS_DIR
+            $inlineWinEnvsNormGuard = Normalize-WindowsPath $inlineWinEnvsDirGuard
+            if ($inlineWinEnvsNormGuard) {
+                Add-Path -newPath $inlineWinEnvsNormGuard
+            }
+        } catch {
+            Write-Log "Failed to add inline winenvs to PATH: $($_.Exception.Message)" -color "Red"
         }
-    } catch {
-        Write-Log "Failed to add inline winenvs to PATH: $($_.Exception.Message)" -color "Red"
-    }
 
-    Write-Log "WindowsPathFunction initialization complete" -color "Green"
+        Write-Log "WindowsPathFunction initialization complete" -color "Green"
+    }
 } else {
     Write-Log "WindowsPathFunction initialization skipped (SkipInit flag)" -color "Gray"
 }
 
-# Main logic
+# Main logic (skip when dot-sourced without an explicit action)
+if (-not [string]::IsNullOrWhiteSpace($action)) {
 switch ($action) {
     "init" {
         # Explicit initialization action
@@ -975,6 +986,7 @@ switch ($action) {
     default {
         Write-Log "Use WindowsPathFunction.ps1 v1.0.0; help ?" -color "Green"
     }
+}
 }
 
 

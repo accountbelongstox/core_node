@@ -50,6 +50,9 @@ from pycore.pyctl.speech.cached_selection import (
 )
 from pycore.pyctl.speech.cache_info import print_recognition_cache_info
 
+import os
+
+
 # Facade re-exports: keep the public API importable from this module.
 __all__ = [
     # Entry points (public API used by speech_manager / speech_thread)
@@ -278,7 +281,6 @@ def run_app(speech_manager, interactive: bool = True, language: str = None, devi
         print()
         save_choice = input("Save session to file? (y/n) [default: n]: ").strip().lower()
         if save_choice == 'y':
-            from pathlib import Path
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             output_file = Path(f"transcription_{timestamp}.txt")
             session.save_session(output_file)
@@ -555,7 +557,6 @@ def _replay_text_with_tts(text: str, language: str, speech_manager):
             ColorPrint.green(f"[TTS] Playing audio: {temp_file}")
             # Play audio (platform-specific)
             if CURRENT_PLATFORM == 'Windows':
-                import os
                 os.startfile(str(temp_file))
             elif CURRENT_PLATFORM == 'Darwin':  # macOS
                 exec_silent(['afplay', str(temp_file)])

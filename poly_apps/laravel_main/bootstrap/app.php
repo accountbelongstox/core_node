@@ -9,6 +9,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
+use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ClientTokenAuth;
@@ -49,6 +50,17 @@ return Application::configure(basePath: dirname(__DIR__))
         \App\Providers\AppServiceProvider::class,
     ])
     ->withMiddleware(function (Middleware $middleware) {
+        // API-only app: never redirect unauthenticated guests to a web login
+        // route (none exists). Returning null throws AuthenticationException,
+        // which bootstrap/app.php renders as a JSON 401 envelope.
+        $middleware->redirectGuestsTo(function (Request $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return null;
+            }
+
+            return null;
+        });
+
         $middleware->api(prepend: [
             GoLatency::class,
             EnsureFrontendRequestsAreStateful::class,
@@ -71,6 +83,7 @@ return Application::configure(basePath: dirname(__DIR__))
             | Request::HEADER_X_FORWARDED_PROTO);
 
         $middleware->alias([
+            'auth' => Authenticate::class,
             'remove.framework.fingerprints' => RemoveFrameworkFingerprints::class,
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'client.token' => ClientTokenAuth::class,

@@ -7,7 +7,7 @@ Defines system-wide cache and data directories for core_node applications.
 These paths are used for storing persistent data, cache, and configuration files.
 
 Platform-specific paths:
-    Windows: C:\Users\{username}\.core_node
+    Windows: D:\programing\Users\{username}\.core_node
     Linux:   /var/_core_node
 
 Directory Structure:
@@ -36,6 +36,9 @@ from pycore.pyfoundations.system_info import (
     get_linux_distro_info as _get_linux_distro_info,
     get_largest_mnt_drive as _get_largest_mounted_drive,
 )
+
+import subprocess
+
 
 
 def _get_dev_compile_base(secondary_base: 'Path', suffix: str) -> 'Path':
@@ -132,7 +135,7 @@ def get_system_cache_dir() -> Path:
 
     Returns:
         Path: System cache directory path
-            - Windows: C:\Users\{username}\.core_node  (per-user)
+            - Windows: D:\programing\Users\{username}\.core_node  (per-user)
             - Linux:   /var/_core_node                 (ONE shared, all-users-writable)
 
     On Linux this is a SINGLE shared directory so every user (and the service,
@@ -141,8 +144,10 @@ def get_system_cache_dir() -> Path:
     created AND is not writable do we fall back to the per-user ``~/.core_node``.
     """
     if sys.platform == 'win32':
-        # Windows: per-user home directory.
-        return _ensure_dir(Path.home() / '.core_node')
+        # Windows: D:\programing\Users\{username}\.core_node
+        username = os.environ.get('USERNAME', os.environ.get('USER', 'default'))
+        cache_dir = Path('D:/programing/Users') / username / '.core_node'
+        return _ensure_dir(cache_dir)
 
     # Linux/Unix: ONE shared, all-users-writable system dir.
     shared = Path('/var/_core_node')
@@ -209,20 +214,126 @@ def get_app_logs_dir() -> Path:
     return _ensure_dir(get_system_cache_dir() / 'logs')
 
 
+def get_shared_download_cache_dir() -> Path:
+    r"""Shared download cache root (HF / pip / whisper / torch / TTS models).
+
+    Windows: D:\www\cache  (replaces %USERPROFILE%\.cache)
+    Linux:   /var/_core_node/cache  (CORE_NODE_CACHE_DIR)
+
+    Respects CORE_NODE_CACHE_DIR when already exported.
+    """
+    env_val = os.environ.get('CORE_NODE_CACHE_DIR')
+    if env_val:
+        return _ensure_dir(Path(env_val))
+    if sys.platform == 'win32':
+        return _ensure_dir(map_web_path('cache'))
+    shared = Path('/var/_core_node/cache')
+    try:
+        _ensure_dir(shared)
+    except OSError:
+        pass
+    if shared.is_dir() and os.access(shared, os.W_OK):
+        return shared
+    return _ensure_dir(Path.home() / '.core_node' / 'cache')
+
+
+def get_edge_tts_voice_cache_dir(lang: str = "en") -> Path:
+    r"""Edge-tts word-audio scratch/cache dir:
+    ``<shared_cache>/voice_static/voice_words_static/edge-tts/<lang>``.
+
+    Used by the word-audio edge-tts fallback + the TTS test popup so synth
+    scratch files land on the shared ``D:\www\cache`` volume, NEVER the C:
+    ``%TEMP%`` dir. ``lang`` is lower-cased and defaults to ``en``."""
+    lang_code = (lang or "en").strip().lower() or "en"
+    return _ensure_dir(
+        get_shared_download_cache_dir() / 'voice_static' / 'voice_words_static' / 'edge-tts' / lang_code
+    )
+
+
+def get_xdg_cache_home() -> Path:
+    r"""User-level XDG cache root (~/.cache on Linux, D:\www\cache on Windows).
+
+    Subpaths are preserved when migrating from the per-user home cache, e.g.
+    ``~/.cache/huggingface`` -> ``D:\www\cache\huggingface`` on Windows.
+    """
+    env_val = os.environ.get('XDG_CACHE_HOME')
+    if env_val:
+        return _ensure_dir(Path(env_val))
+    if sys.platform == 'win32':
+        return get_shared_download_cache_dir()
+    core_cache = os.environ.get('CORE_NODE_CACHE_DIR')
+    if core_cache:
+        return _ensure_dir(Path(core_cache) / 'xdg')
+    return _ensure_dir(Path.home() / '.cache')
+
+
+def get_hf_home_dir() -> Path:
+    """HuggingFace home (HF_HOME): shared cache / huggingface."""
+    env_val = os.environ.get('HF_HOME')
+    if env_val:
+        return _ensure_dir(Path(env_val))
+    return _ensure_dir(get_shared_download_cache_dir() / 'huggingface')
+
+
+def get_hf_hub_cache_dir() -> Path:
+    """HuggingFace Hub blob cache (HF_HUB_CACHE / HUGGINGFACE_HUB_CACHE)."""
+    for key in ('HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE'):
+        env_val = os.environ.get(key)
+        if env_val:
+            return _ensure_dir(Path(env_val))
+    return _ensure_dir(get_hf_home_dir() / 'hub')
+
+
+def apply_shared_cache_env() -> None:
+    r"""Wire shared download-cache env vars idempotently.
+
+    Mirrors scripts/shells/*/common/shared_cache_env.*: respects caller overrides,
+    maps paths via :func:`get_shared_download_cache_dir` / :func:`get_xdg_cache_home`,
+    and does NOT set deprecated ``TRANSFORMERS_CACHE``. When that legacy var duplicates
+    the canonical hub path, it is removed so transformers uses ``HF_HOME`` instead.
+    """
+    shared = get_shared_download_cache_dir()
+    hf_home = shared / 'huggingface'
+    hf_hub = hf_home / 'hub'
+    xdg_home = get_xdg_cache_home() if os.environ.get('XDG_CACHE_HOME') else (
+        shared if sys.platform == 'win32' else shared / 'xdg'
+    )
+
+    defaults = (
+        ('CORE_NODE_CACHE_DIR', str(shared)),
+        ('HF_HOME', str(hf_home)),
+        ('HF_HUB_CACHE', str(hf_hub)),
+        ('HUGGINGFACE_HUB_CACHE', str(hf_hub)),
+        ('TORCH_HOME', str(shared / 'torch')),
+        ('PIP_CACHE_DIR', str(shared / 'pip')),
+        ('WHISPER_CACHE_DIR', str(shared / 'whisper')),
+        ('XDG_CACHE_HOME', str(xdg_home)),
+    )
+    for key, value in defaults:
+        if not os.environ.get(key):
+            os.environ[key] = value
+
+    legacy = os.environ.get('TRANSFORMERS_CACHE')
+    if legacy:
+        try:
+            if Path(legacy).resolve() == hf_hub.resolve():
+                os.environ.pop('TRANSFORMERS_CACHE', None)
+        except OSError:
+            pass
+
+
 def get_local_data_dir() -> Path:
     r"""
-    Get the repo-local data directory
+    Get the local data directory for pycore (models/staging/state).
 
-    A single, git-ignored ``.data/`` folder at the core_node repo root that
-    collects all transient/runtime artifacts that would otherwise scatter into
-    the project tree (scratch temp, captured gifs, runtime logs, etc.). Distinct
-    from :func:`get_app_data_dir` (the per-user ``~/.core_node/data``); this one
-    is intentionally inside the repo and ignored by git.
+    Lives under the shared download cache (Windows: D:\www\cache\pycore,
+    Linux: /var/_core_node/cache/pycore) - NOT the repo's .data folder.
+    Callers that historically appended a "pycore" segment must drop it.
 
     Returns:
-        Path: Repo-local data directory (<repo>/.data/)
+        Path: Local data directory (<cache>/pycore/)
     """
-    return _ensure_dir(get_core_node_root() / '.data')
+    return _ensure_dir(get_shared_download_cache_dir() / 'pycore')
 
 
 def get_app_temp_dir() -> Path:
@@ -231,11 +342,10 @@ def get_app_temp_dir() -> Path:
 
     Canonical scratch space for transient processor output (extracted audio,
     rendered video, captured screenshots, parsed files, etc.). Lives under the
-    repo-local, git-ignored ``.data/`` dir so it is never created loosely in the
-    (CWD-relative) project tree.
+    shared cache pycore dir so it is never created loosely in the project tree.
 
     Returns:
-        Path: Application temp directory (<repo>/.data/temp/)
+        Path: Application temp directory (<cache>/pycore/temp/)
     """
     temp_dir = get_local_data_dir() / 'temp'
 
@@ -289,7 +399,6 @@ _BASE_DATA_DIR_FILE = '/var/_core_node/global_var/BASE_DATA_DIR'
 def _run_cmd(args: List[str]) -> str:
     """Run a command; return stripped stdout, or '' on any failure (never raises)."""
     try:
-        import subprocess
         res = subprocess.run(args, capture_output=True, text=True, timeout=8)
         return (res.stdout or '').strip()
     except Exception:
@@ -475,6 +584,8 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             # paths kept here for parity, mirroring gvar_common.sh).
             'app_manager_logs': Path('/opt/_core_node/logs'),
             'app_manager_logs_old': Path('/opt/core_node_unified_manager/logs'),
+            # Shared download cache (HF / pip / whisper / torch). Mirrors gvar_common.sh "cache".
+            'cache': base_d / 'www' / 'cache',
         }
     else:
         # Linux mappings (context-aware). The web/data base is the base the shell
@@ -518,6 +629,7 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             # 'app_manager_logs_old'. MUST stay in sync with gvar_common.sh.
             'app_manager_logs': Path('/opt/_core_node/logs'),
             'app_manager_logs_old': Path('/opt/core_node_unified_manager/logs'),
+            'cache': www_base / 'cache',
         }
 
     # Get mapped path
@@ -551,6 +663,8 @@ from pycore.pyfoundations.user_data_store import (  # noqa: E402  (intentional b
 
 
 __all__ = [
+    'get_xdg_cache_home',
+    'get_shared_download_cache_dir',
     'get_system_cache_dir',
     'get_ui_state_cache_dir',
     'get_app_cache_dir',

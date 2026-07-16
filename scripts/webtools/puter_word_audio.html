@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Puter.js Word Audio Tester</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface-2: #243044;
+      --border: #2f3f56;
+      --text: #e8edf4;
+      --muted: #8b9cb3;
+      --accent: #3b82f6;
+      --accent-soft: rgba(59, 130, 246, 0.15);
+      --green: #34d399;
+      --amber: #fbbf24;
+      --rose: #fb7185;
+      --radius: 12px;
+      --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.18), transparent),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+
+    header {
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+      max-width: 720px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 14px 16px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .panel-body {
+      padding: 16px;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .field select,
+    .field input[type="text"] {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    .field select:focus,
+    .field input[type="text"]:focus {
+      border-color: rgba(59, 130, 246, 0.55);
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    .checkbox-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 14px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .checkbox-row label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checkbox-row input {
+      accent-color: var(--accent);
+    }
+
+    #wordInput {
+      display: block;
+      width: 100%;
+      min-height: 220px;
+      padding: 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Cascadia Code", "Consolas", "SF Mono", monospace;
+      font-size: 0.92rem;
+      line-height: 1.65;
+      resize: vertical;
+      outline: none;
+    }
+
+    #wordInput:focus {
+      border-color: rgba(59, 130, 246, 0.55);
+    }
+
+    #wordInput::placeholder {
+      color: #5c6b82;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+    }
+
+    .btn:hover:not(:disabled) {
+      background: var(--accent-soft);
+      border-color: rgba(59, 130, 246, 0.5);
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: rgba(59, 130, 246, 0.22);
+      border-color: rgba(59, 130, 246, 0.45);
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: rgba(251, 113, 133, 0.12);
+      border-color: rgba(251, 113, 133, 0.45);
+    }
+
+    .status-bar {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      font-size: 0.84rem;
+      color: var(--muted);
+      min-height: 40px;
+    }
+
+    .status-bar.error {
+      background: rgba(251, 113, 133, 0.1);
+      border-color: rgba(251, 113, 133, 0.3);
+      color: #fecdd3;
+    }
+
+    .status-bar.success {
+      background: rgba(52, 211, 153, 0.1);
+      border-color: rgba(52, 211, 153, 0.28);
+      color: #a7f3d0;
+    }
+
+    .word-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 560px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .word-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg);
+    }
+
+    .word-item.playing {
+      border-color: rgba(59, 130, 246, 0.55);
+      box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.15) inset;
+    }
+
+    .word-main {
+      min-width: 0;
+    }
+
+    .word-text {
+      font-weight: 600;
+      font-size: 1rem;
+      word-break: break-word;
+    }
+
+    .word-meta {
+      margin-top: 4px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      word-break: break-word;
+    }
+
+    .word-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    .badge.pending {
+      background: rgba(139, 156, 179, 0.15);
+      color: var(--muted);
+    }
+
+    .badge.loading {
+      background: rgba(251, 191, 36, 0.15);
+      color: var(--amber);
+    }
+
+    .badge.ready {
+      background: rgba(52, 211, 153, 0.15);
+      color: var(--green);
+    }
+
+    .badge.error {
+      background: rgba(251, 113, 133, 0.15);
+      color: var(--rose);
+    }
+
+    .empty-state {
+      padding: 36px 16px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .footer-note {
+      margin-top: 16px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .footer-note a {
+      color: #93c5fd;
+      text-decoration: none;
+    }
+
+    .footer-note a:hover {
+      text-decoration: underline;
+    }
+
+    .input-hint {
+      margin-top: 8px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .cache-hint {
+      margin-bottom: 12px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      word-break: break-all;
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .word-list {
+        max-height: none;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .page {
+        padding: 20px 14px 32px;
+      }
+
+      h1 {
+        font-size: 1.4rem;
+      }
+
+      .settings-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .word-item {
+        grid-template-columns: 1fr;
+      }
+
+      .word-actions {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>Puter.js Word Audio Tester</h1>
+      <p class="subtitle">
+        Paste or type words — spaces, commas, and tabs are auto-split into one word per line (empty lines removed).
+        Uses Puter.js <code>puter.ai.txt2speech()</code> for audio and optional <code>puter.ai.chat()</code> translation.
+        Successful clips auto-save to <code>.core_node/cache/voice_words_static</code> when served via file_server.
+      </p>
+    </header>
+
+    <div class="layout">
+      <section class="panel">
+        <div class="panel-head">Input &amp; Settings</div>
+        <div class="panel-body">
+          <div class="settings-grid">
+            <div class="field">
+              <label for="languageSelect">TTS Language</label>
+              <select id="languageSelect">
+                <option value="en-US" selected>English (US)</option>
+                <option value="en-GB">English (UK)</option>
+                <option value="zh-CN">Chinese (Mandarin)</option>
+                <option value="ja-JP">Japanese</option>
+                <option value="ko-KR">Korean</option>
+                <option value="fr-FR">French</option>
+                <option value="de-DE">German</option>
+                <option value="es-ES">Spanish</option>
+                <option value="it-IT">Italian</option>
+                <option value="pt-BR">Portuguese (Brazil)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="engineSelect">Engine</label>
+              <select id="engineSelect">
+                <option value="neural" selected>Neural</option>
+                <option value="standard">Standard</option>
+                <option value="generative">Generative</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="voiceSelect">Voice</label>
+              <select id="voiceSelect">
+                <option value="Joanna" selected>Joanna</option>
+                <option value="Matthew">Matthew</option>
+                <option value="Amy">Amy</option>
+                <option value="Brian">Brian</option>
+                <option value="Ivy">Ivy</option>
+                <option value="Justin">Justin</option>
+                <option value="Kendra">Kendra</option>
+                <option value="Kimberly">Kimberly</option>
+                <option value="Salli">Salli</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="providerSelect">Provider</label>
+              <select id="providerSelect">
+                <option value="aws-polly" selected>AWS Polly (default)</option>
+                <option value="openai">OpenAI</option>
+                <option value="gemini">Gemini</option>
+                <option value="elevenlabs">ElevenLabs</option>
+                <option value="xai">xAI (Grok)</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label for="translateLangInput">Translate To (optional)</label>
+              <input id="translateLangInput" type="text" value="Chinese" placeholder="e.g. Chinese, Japanese, Spanish">
+            </div>
+          </div>
+
+          <div class="checkbox-row">
+            <label>
+              <input type="checkbox" id="translateCheckbox" checked>
+              Translate before TTS
+            </label>
+            <label>
+              <input type="checkbox" id="speakTranslationCheckbox">
+              Speak translated text instead of original
+            </label>
+            <label>
+              <input type="checkbox" id="autoFormatCheckbox" checked>
+              Auto format (split by space/comma, one word per line)
+            </label>
+            <label>
+              <input type="checkbox" id="autoSaveCheckbox" checked>
+              Auto-save audio to voice_words_static cache
+            </label>
+            <label>
+              <input type="checkbox" id="testModeCheckbox">
+              Test mode (sample audio, no credits)
+            </label>
+          </div>
+
+          <div class="cache-hint" id="cacheHint">Save dir: loading...</div>
+
+          <textarea
+            id="wordInput"
+            placeholder="Paste or type: hello world beautiful&#10;→ auto becomes one word per line&#10;&#10;Or enter one word/phrase per line manually"
+            spellcheck="false"
+            autofocus
+          >hello world beautiful</textarea>
+
+          <div class="input-hint" id="inputHint">0 word(s)</div>
+
+          <div class="toolbar">
+            <button type="button" class="btn btn-primary" id="generateBtn">Generate Audio</button>
+            <button type="button" class="btn" id="formatBtn">Format Input</button>
+            <button type="button" class="btn" id="playAllBtn" disabled>Play All</button>
+            <button type="button" class="btn btn-danger" id="stopBtn" disabled>Stop</button>
+            <button type="button" class="btn" id="clearBtn">Clear</button>
+          </div>
+
+          <div class="status-bar" id="statusBar">Ready. Click Generate Audio to fetch TTS for each line.</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">Results</div>
+        <div class="panel-body">
+          <div class="word-list" id="wordList">
+            <div class="empty-state">No words yet. Enter lines on the left and click Generate Audio.</div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <p class="footer-note">
+      Requires network access to <a href="https://js.puter.com/v2/" target="_blank" rel="noopener">Puter.js CDN</a>.
+      For best results, serve via <code>python scripts/webtools/file_server.py scripts/webtools</code>
+      then open <code>http://127.0.0.1:16888/puter_word_audio.html</code>.
+    </p>
+  </div>
+
+  <script src="https://js.puter.com/v2/"></script>
+  <script>
+    var wordInput = document.getElementById("wordInput");
+    var wordList = document.getElementById("wordList");
+    var statusBar = document.getElementById("statusBar");
+    var generateBtn = document.getElementById("generateBtn");
+    var playAllBtn = document.getElementById("playAllBtn");
+    var stopBtn = document.getElementById("stopBtn");
+    var clearBtn = document.getElementById("clearBtn");
+    var languageSelect = document.getElementById("languageSelect");
+    var engineSelect = document.getElementById("engineSelect");
+    var voiceSelect = document.getElementById("voiceSelect");
+    var providerSelect = document.getElementById("providerSelect");
+    var translateLangInput = document.getElementById("translateLangInput");
+    var translateCheckbox = document.getElementById("translateCheckbox");
+    var speakTranslationCheckbox = document.getElementById("speakTranslationCheckbox");
+    var testModeCheckbox = document.getElementById("testModeCheckbox");
+    var autoFormatCheckbox = document.getElementById("autoFormatCheckbox");
+    var autoSaveCheckbox = document.getElementById("autoSaveCheckbox");
+    var formatBtn = document.getElementById("formatBtn");
+    var inputHint = document.getElementById("inputHint");
+    var cacheHint = document.getElementById("cacheHint");
+
+    var wordEntries = [];
+    var currentAudio = null;
+    var playAllQueue = [];
+    var isGenerating = false;
+    var shouldStop = false;
+
+    function setStatus(message, type) {
+      statusBar.textContent = message;
+      statusBar.className = "status-bar";
+      if (type) {
+        statusBar.classList.add(type);
+      }
+    }
+
+    function parseWords(text) {
+      var lines = text.split(/\r\n|\r|\n/);
+      var words = [];
+      var seen = {};
+      var i;
+      var line;
+
+      for (i = 0; i < lines.length; i += 1) {
+        line = lines[i].trim();
+        if (!line) {
+          continue;
+        }
+        if (!seen[line]) {
+          seen[line] = true;
+          words.push(line);
+        }
+      }
+
+      return words;
+    }
+
+    function formatWordInput(text) {
+      var tokens;
+      var words = [];
+      var seen = {};
+      var i;
+      var token;
+
+      if (!text || !String(text).trim()) {
+        return "";
+      }
+
+      tokens = String(text).trim().split(/[\s,，;；、\t\r\n]+/);
+      for (i = 0; i < tokens.length; i += 1) {
+        token = tokens[i].trim();
+        if (!token) {
+          continue;
+        }
+        if (!seen[token]) {
+          seen[token] = true;
+          words.push(token);
+        }
+      }
+
+      return words.join("\n");
+    }
+
+    function applyInputFormat() {
+      var formatted = formatWordInput(wordInput.value);
+      wordInput.value = formatted;
+      updateInputHint();
+      return formatted;
+    }
+
+    function updateInputHint() {
+      var count = parseWords(wordInput.value).length;
+      inputHint.textContent = count + " word(s) — empty lines and extra spaces removed";
+    }
+
+    function maybeAutoFormat() {
+      if (autoFormatCheckbox.checked) {
+        applyInputFormat();
+      } else {
+        updateInputHint();
+      }
+    }
+
+    function badgeClass(status) {
+      return "badge " + status;
+    }
+
+    function renderWordList() {
+      var html = "";
+      var i;
+      var entry;
+
+      if (wordEntries.length === 0) {
+        wordList.innerHTML = '<div class="empty-state">No words yet. Enter lines on the left and click Generate Audio.</div>';
+        playAllBtn.disabled = true;
+        return;
+      }
+
+      for (i = 0; i < wordEntries.length; i += 1) {
+        entry = wordEntries[i];
+        html += '<div class="word-item" data-id="' + entry.id + '">';
+        html += '<div class="word-main">';
+        html += '<div class="word-text">' + escapeHtml(entry.word);
+        html += '<span class="' + badgeClass(entry.status) + '">' + entry.status + "</span></div>";
+        if (entry.translation) {
+          html += '<div class="word-meta">Translation: ' + escapeHtml(entry.translation) + "</div>";
+        }
+        if (entry.speakText && entry.speakText !== entry.word) {
+          html += '<div class="word-meta">Speaking: ' + escapeHtml(entry.speakText) + "</div>";
+        }
+        if (entry.error) {
+          html += '<div class="word-meta" style="color:#fecdd3;">' + escapeHtml(entry.error) + "</div>";
+        }
+        if (entry.savedPath) {
+          html += '<div class="word-meta" style="color:#a7f3d0;">Saved: ' + escapeHtml(entry.savedPath) + "</div>";
+        } else if (entry.saveError) {
+          html += '<div class="word-meta" style="color:#fecdd3;">Save failed: ' + escapeHtml(entry.saveError) + "</div>";
+        }
+        html += "</div>";
+        html += '<div class="word-actions">';
+        html += '<button type="button" class="btn" data-action="play" data-id="' + entry.id + '"';
+        html += entry.audio ? "" : " disabled";
+        html += ">Play</button>";
+        html += '<button type="button" class="btn" data-action="download" data-id="' + entry.id + '"';
+        html += entry.audio ? "" : " disabled";
+        html += ">Save</button>";
+        html += "</div></div>";
+      }
+
+      wordList.innerHTML = html;
+      playAllBtn.disabled = !wordEntries.some(function (item) {
+        return item.audio;
+      });
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function getEntryById(id) {
+      var i;
+      for (i = 0; i < wordEntries.length; i += 1) {
+        if (wordEntries[i].id === id) {
+          return wordEntries[i];
+        }
+      }
+      return null;
+    }
+
+    function markPlaying(id) {
+      var items = wordList.querySelectorAll(".word-item");
+      var i;
+      for (i = 0; i < items.length; i += 1) {
+        items[i].classList.remove("playing");
+      }
+      if (id !== null) {
+        var active = wordList.querySelector('.word-item[data-id="' + id + '"]');
+        if (active) {
+          active.classList.add("playing");
+        }
+      }
+    }
+
+    function stopPlayback() {
+      shouldStop = true;
+      playAllQueue = [];
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+        currentAudio = null;
+      }
+      markPlaying(null);
+      stopBtn.disabled = true;
+    }
+
+    function playEntry(entry) {
+      return new Promise(function (resolve) {
+        if (!entry || !entry.audio) {
+          resolve();
+          return;
+        }
+
+        if (currentAudio) {
+          currentAudio.pause();
+          currentAudio.currentTime = 0;
+        }
+
+        currentAudio = entry.audio;
+        markPlaying(entry.id);
+        stopBtn.disabled = false;
+
+        entry.audio.onended = function () {
+          markPlaying(null);
+          currentAudio = null;
+          resolve();
+        };
+
+        entry.audio.onerror = function () {
+          markPlaying(null);
+          currentAudio = null;
+          resolve();
+        };
+
+        entry.audio.play().catch(function () {
+          markPlaying(null);
+          currentAudio = null;
+          resolve();
+        });
+      });
+    }
+
+    async function playAllSequential() {
+      var ready = wordEntries.filter(function (entry) {
+        return entry.audio;
+      });
+      var i;
+
+      if (ready.length === 0) {
+        return;
+      }
+
+      shouldStop = false;
+      playAllQueue = ready.slice();
+      stopBtn.disabled = false;
+
+      for (i = 0; i < playAllQueue.length; i += 1) {
+        if (shouldStop) {
+          break;
+        }
+        await playEntry(playAllQueue[i]);
+      }
+
+      stopBtn.disabled = true;
+      shouldStop = false;
+    }
+
+    function downloadEntry(entry) {
+      var url;
+      var link;
+      var safeName;
+
+      if (!entry || !entry.audio || !entry.audio.src) {
+        return;
+      }
+
+      safeName = entry.word.replace(/[^\w\u4e00-\u9fff-]+/g, "_").slice(0, 60) || "audio";
+      url = entry.audio.src;
+      link = document.createElement("a");
+      link.href = url;
+      link.download = safeName + ".mp3";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function buildTtsOptions() {
+      var options = {
+        language: languageSelect.value,
+        voice: voiceSelect.value,
+        engine: engineSelect.value,
+        provider: providerSelect.value
+      };
+
+      if (testModeCheckbox.checked) {
+        options.test_mode = true;
+      }
+
+      if (providerSelect.value === "openai") {
+        options.model = "tts-1-hd";
+        options.voice = "nova";
+      }
+
+      if (providerSelect.value === "gemini") {
+        options.model = "gemini-2.5-flash-preview-tts";
+        options.voice = "Puck";
+      }
+
+      if (providerSelect.value === "xai") {
+        options.voice = "eve";
+        options.output_format = "mp3";
+      }
+
+      return options;
+    }
+
+    function extractChatText(result) {
+      var content;
+      if (typeof result === "string") {
+        return result.trim();
+      }
+      if (!result || !result.message) {
+        return String(result || "").trim();
+      }
+      content = result.message.content;
+      if (typeof content === "string") {
+        return content.trim();
+      }
+      if (Array.isArray(content) && content.length > 0) {
+        if (typeof content[0].text === "string") {
+          return content[0].text.trim();
+        }
+      }
+      return "";
+    }
+
+    async function translateWord(word, targetLanguage) {
+      var prompt = [
+        "Translate the following word or short phrase to " + targetLanguage + ".",
+        "Output only the translated text, nothing else:",
+        "",
+        word
+      ].join("\n");
+
+      var result = await puter.ai.chat(prompt, { model: "gpt-5.4-nano" });
+      return extractChatText(result);
+    }
+
+    async function synthesizeSpeech(text, options) {
+      return puter.ai.txt2speech(text, options);
+    }
+
+    function safeFilename(word) {
+      return String(word).replace(/[^\w\u4e00-\u9fff-]+/g, "_").slice(0, 60) || "audio";
+    }
+
+    async function ensureAudioBlob(entry) {
+      var audio;
+      var response;
+
+      audio = entry && entry.audio;
+      if (!audio) {
+        throw new Error("No audio element");
+      }
+
+      if (!audio.src) {
+        await new Promise(function (resolve, reject) {
+          var settled = false;
+          function finish(ok, err) {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            if (ok) {
+              resolve();
+              return;
+            }
+            reject(err || new Error("Audio load failed"));
+          }
+
+          audio.addEventListener("loadedmetadata", function () {
+            finish(true);
+          }, { once: true });
+          audio.addEventListener("error", function () {
+            finish(false, new Error("Audio load failed"));
+          }, { once: true });
+          window.setTimeout(function () {
+            finish(false, new Error("Audio src timeout"));
+          }, 10000);
+        });
+      }
+
+      if (!audio.src) {
+        throw new Error("Audio has no src");
+      }
+
+      response = await fetch(audio.src);
+      if (!response.ok) {
+        throw new Error("Failed to read audio blob (HTTP " + response.status + ")");
+      }
+      return response.blob();
+    }
+
+    async function saveAudioToCache(entry) {
+      var blob;
+      var form;
+      var resp;
+      var data;
+
+      if (!autoSaveCheckbox.checked || !entry.audio) {
+        return false;
+      }
+
+      if (!serverAutoSaveReady) {
+        entry.saveError = "Auto-save server API unavailable. Stop old file_server on port 16888, restart, then hard-reload this page (Ctrl+Shift+R).";
+        return false;
+      }
+
+      entry.savedPath = "";
+      entry.saveError = "";
+
+      try {
+        blob = await ensureAudioBlob(entry);
+        if (!blob || blob.size < 32) {
+          entry.saveError = "Audio blob is empty or too small";
+          return false;
+        }
+
+        form = new FormData();
+        form.append("word", entry.word);
+        form.append("speak_text", entry.speakText || entry.word);
+        form.append("language", languageSelect.value);
+        form.append("audio", blob, safeFilename(entry.word) + ".mp3");
+
+        resp = await fetch("/__save_voice_audio__", {
+          method: "POST",
+          body: form
+        });
+        data = await resp.json();
+
+        if (data && data.ok) {
+          entry.savedPath = data.path;
+          return true;
+        }
+
+        entry.saveError = formatSaveError(data, resp.status);
+        return false;
+      } catch (err) {
+        entry.saveError = err && err.message ? err.message : String(err);
+        return false;
+      }
+    }
+
+    var serverAutoSaveReady = false;
+
+    async function loadCacheDirHint() {
+      var resp;
+      var data;
+
+      try {
+        resp = await fetch("/__file_server_info__");
+        if (!resp.ok) {
+          resp = await fetch("/__voice_words_static_dir__");
+        }
+        if (!resp.ok) {
+          serverAutoSaveReady = false;
+          cacheHint.textContent = "Auto-save unavailable: restart file_server.py on port 16888, then hard-reload (Ctrl+Shift+R).";
+          return;
+        }
+        data = await resp.json();
+        if (data && (data.voice_api || data.dir || data.voice_cache_dir)) {
+          serverAutoSaveReady = true;
+          cacheHint.textContent = "Auto-save dir: " + (data.voice_cache_dir || data.dir) + " / {lang} / *.mp3";
+          return;
+        }
+        serverAutoSaveReady = false;
+        cacheHint.textContent = "Auto-save unavailable: file_server API did not return a cache dir.";
+      } catch (err) {
+        serverAutoSaveReady = false;
+        cacheHint.textContent = "Auto-save requires file_server (not file://).";
+      }
+    }
+
+    function formatSaveError(data, statusCode) {
+      var message = (data && data.error) ? data.error : ("HTTP " + statusCode);
+      if (message === "Target is not a directory") {
+        return "Outdated file_server on port 16888. Stop it, restart file_server.py, then hard-reload this page.";
+      }
+      return message;
+    }
+
+    function wait(ms) {
+      return new Promise(function (resolve) {
+        window.setTimeout(resolve, ms);
+      });
+    }
+
+    async function generateAll() {
+      var words;
+      var options;
+      var targetLanguage;
+      var i;
+      var entry;
+      var speakText;
+      var translation;
+
+      if (isGenerating) {
+        return;
+      }
+
+      if (typeof puter === "undefined" || !puter.ai || !puter.ai.txt2speech) {
+        setStatus("Puter.js failed to load. Check network access to https://js.puter.com/v2/", "error");
+        return;
+      }
+
+      if (autoFormatCheckbox.checked) {
+        applyInputFormat();
+      }
+
+      words = parseWords(wordInput.value);
+      if (words.length === 0) {
+        setStatus("Enter at least one word. Spaces and commas auto-split into separate lines.", "error");
+        return;
+      }
+
+      isGenerating = true;
+      shouldStop = false;
+      generateBtn.disabled = true;
+      playAllBtn.disabled = true;
+      stopBtn.disabled = false;
+      options = buildTtsOptions();
+      targetLanguage = translateLangInput.value.trim();
+
+      wordEntries = words.map(function (word, index) {
+        return {
+          id: "w-" + index,
+          word: word,
+          translation: "",
+          speakText: word,
+          status: "pending",
+          audio: null,
+          error: "",
+          savedPath: "",
+          saveError: ""
+        };
+      });
+
+      renderWordList();
+      setStatus("Generating audio for " + words.length + " line(s)...", "");
+
+      try {
+        for (i = 0; i < wordEntries.length; i += 1) {
+          if (shouldStop) {
+            setStatus("Generation stopped by user.", "error");
+            break;
+          }
+
+          entry = wordEntries[i];
+          entry.status = "loading";
+          renderWordList();
+          setStatus("Processing " + (i + 1) + " / " + wordEntries.length + ": " + entry.word, "");
+
+          try {
+            translation = "";
+            speakText = entry.word;
+
+            if (translateCheckbox.checked && targetLanguage) {
+              translation = await translateWord(entry.word, targetLanguage);
+              entry.translation = translation;
+              if (speakTranslationCheckbox.checked && translation) {
+                speakText = translation;
+              }
+            }
+
+            entry.speakText = speakText;
+            entry.audio = await synthesizeSpeech(speakText, options);
+            entry.status = "ready";
+            entry.error = "";
+            await saveAudioToCache(entry);
+          } catch (err) {
+            entry.status = "error";
+            entry.error = err && err.message ? err.message : String(err);
+          }
+
+          renderWordList();
+          await wait(250);
+        }
+
+        if (!shouldStop) {
+          var readyCount = wordEntries.filter(function (item) {
+            return item.status === "ready";
+          }).length;
+          var savedCount = wordEntries.filter(function (item) {
+            return item.savedPath;
+          }).length;
+          setStatus(
+            "Done. " + readyCount + " / " + wordEntries.length + " audio ready, " + savedCount + " saved to cache.",
+            "success"
+          );
+        }
+      } finally {
+        isGenerating = false;
+        generateBtn.disabled = false;
+        stopBtn.disabled = true;
+        shouldStop = false;
+        renderWordList();
+      }
+    }
+
+    wordList.addEventListener("click", function (event) {
+      var target = event.target;
+      var action;
+      var id;
+      var entry;
+
+      if (!target || !target.getAttribute) {
+        return;
+      }
+
+      action = target.getAttribute("data-action");
+      id = target.getAttribute("data-id");
+      if (!action || !id) {
+        return;
+      }
+
+      entry = getEntryById(id);
+      if (!entry) {
+        return;
+      }
+
+      if (action === "play") {
+        playEntry(entry);
+      } else if (action === "download") {
+        downloadEntry(entry);
+      }
+    });
+
+    generateBtn.addEventListener("click", generateAll);
+    playAllBtn.addEventListener("click", playAllSequential);
+    stopBtn.addEventListener("click", stopPlayback);
+    formatBtn.addEventListener("click", function () {
+      applyInputFormat();
+      setStatus("Input formatted: one word per line.", "success");
+    });
+    wordInput.addEventListener("input", updateInputHint);
+    wordInput.addEventListener("blur", maybeAutoFormat);
+    wordInput.addEventListener("paste", function (event) {
+      if (!autoFormatCheckbox.checked) {
+        window.setTimeout(updateInputHint, 0);
+        return;
+      }
+
+      var clipText = (event.clipboardData || window.clipboardData).getData("text");
+      if (!clipText) {
+        return;
+      }
+
+      event.preventDefault();
+      wordInput.value = formatWordInput(wordInput.value + clipText);
+      applyInputFormat();
+      setStatus("Pasted and formatted to one word per line.", "");
+    });
+    autoFormatCheckbox.addEventListener("change", function () {
+      if (autoFormatCheckbox.checked) {
+        applyInputFormat();
+      } else {
+        updateInputHint();
+      }
+    });
+    clearBtn.addEventListener("click", function () {
+      stopPlayback();
+      wordInput.value = "";
+      wordEntries = [];
+      renderWordList();
+      updateInputHint();
+      setStatus("Cleared.", "");
+    });
+
+    applyInputFormat();
+    loadCacheDirHint();
+  </script>
+</body>
+</html>

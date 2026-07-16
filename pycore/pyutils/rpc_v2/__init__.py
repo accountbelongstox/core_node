@@ -22,7 +22,8 @@ from .common import (
     RequestStatus,
     default_request_event_table,
 )
-from .server.fastapi_server import FastAPIRPCServer, FastAPIRPCServerRunner
+from .server.fastapi_server import FastAPIRPCServer
+from .server.server_runner import FastAPIRPCServerRunner
 from .address import RPCAddressProvider, RPCAddress
 from .discovery import (
     RPCDiscovery,

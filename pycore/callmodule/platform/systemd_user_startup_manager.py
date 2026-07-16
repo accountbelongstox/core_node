@@ -3,8 +3,8 @@
 r"""
 Systemd (user) Startup Manager - Auto-start via a systemd --user unit.
 
-An alternative Linux mechanism to the XDG .desktop entry. It REUSES the
-:class:`LinuxStartupManager` to build/write the SAME fixed launcher .sh (so the
+An alternative Linux mechanism to the XDG .desktop entry. It REUSES the shared
+:class:`LinuxAutostartScript` to build/write the SAME fixed launcher .sh (so the
 "target" — pyservice / launcher / both — behaves identically), then registers a
 ``systemd --user`` service that execs that .sh:
 
@@ -27,17 +27,19 @@ from pycore.callmodule.platform.autostart_target import (
     VALID_MECHANISMS,
     write_preference,
 )
-from pycore.callmodule.platform.linux_startup_manager import LinuxStartupManager
+from pycore.callmodule.platform.linux_autostart_common import (
+    LinuxAutostartScript,
+    disable_xdg_autostart,
+)
 
 
 class SystemdUserStartupManager:
-    """Auto-start via the fixed .sh (built by LinuxStartupManager) + a systemd --user unit."""
+    """Auto-start via the fixed .sh (built by LinuxAutostartScript) + a systemd --user unit."""
 
     def __init__(self, app_name: str = "PyCore_RPC_Server", target=None):
         self.app_name = app_name
-        # Reuse the XDG manager purely to build/write the fixed .sh + resolve target.
-        self._linux = LinuxStartupManager(app_name, target=target, mechanism="systemd")
-        self.sh_path = self._linux.sh_path
+        self._script = LinuxAutostartScript(app_name, target=target)
+        self.sh_path = self._script.sh_path
 
         self.unit_name = f"{app_name.lower().replace('_', '-')}.service"
         self.unit_dir = Path(os.environ.get(
@@ -91,35 +93,30 @@ class SystemdUserStartupManager:
         return False
 
     def enable(self) -> dict:
-        # Switching mechanism: remove any XDG .desktop entry so boot doesn't fire
-        # BOTH the systemd unit and the autostart entry (the shared .sh is kept;
-        # LinuxStartupManager.disable() only removes the .desktop entries).
         try:
-            self._linux.disable()
+            disable_xdg_autostart(self.app_name)
         except Exception:
             pass
-        # Build/write the SAME fixed .sh as the XDG manager (reflects current config).
         try:
-            self._linux._write_sh()
+            self._script.write_sh()
         except Exception as e:
             return {"success": False, "enabled": self.is_enabled(),
                     "message": f"Failed to write launcher script: {e}", "error": str(e),
-                    "target": self._linux.target, "mechanism": "systemd",
+                    "target": self._script.target, "mechanism": "systemd",
                     "targets": list(VALID_TARGETS), "mechanisms": list(VALID_MECHANISMS)}
 
         if not self._write_unit():
             return {"success": False, "enabled": self.is_enabled(),
                     "message": f"Failed to write systemd unit: {self.unit_path}",
                     "error": "unit write failed",
-                    "target": self._linux.target, "mechanism": "systemd",
+                    "target": self._script.target, "mechanism": "systemd",
                     "targets": list(VALID_TARGETS), "mechanisms": list(VALID_MECHANISMS)}
 
         self._run(["systemctl", "--user", "daemon-reload"])
         res = self._run(["systemctl", "--user", "enable", "--now", self.unit_name])
-        # Best-effort: let the user's service start at boot before interactive login.
         self._run(["loginctl", "enable-linger", os.environ.get("USER", "")])
 
-        write_preference(self._linux.target, mechanism="systemd")
+        write_preference(self._script.target, mechanism="systemd")
 
         ok = (res is not None and res.returncode == 0) or self.unit_path.exists()
         message = (f"Auto-start enabled (current-user, systemd): {self.unit_path}"
@@ -130,7 +127,7 @@ class SystemdUserStartupManager:
             "success": bool(ok), "enabled": True, "scope": "current-user",
             "message": message,
             "script_path": str(self.sh_path), "unit_path": str(self.unit_path),
-            "target": self._linux.target, "mechanism": "systemd",
+            "target": self._script.target, "mechanism": "systemd",
             "targets": list(VALID_TARGETS), "mechanisms": list(VALID_MECHANISMS),
         }
 
@@ -144,7 +141,7 @@ class SystemdUserStartupManager:
         except Exception as e:
             return {"success": False, "enabled": self.is_enabled(),
                     "message": f"Failed to remove systemd unit: {e}", "error": str(e),
-                    "target": self._linux.target, "mechanism": "systemd",
+                    "target": self._script.target, "mechanism": "systemd",
                     "targets": list(VALID_TARGETS), "mechanisms": list(VALID_MECHANISMS)}
         self._run(["systemctl", "--user", "daemon-reload"])
         return {
@@ -152,7 +149,7 @@ class SystemdUserStartupManager:
             "message": ("Auto-start disabled (systemd unit removed)" if removed
                         else "Auto-start already disabled"),
             "unit_path": str(self.unit_path), "script_path": str(self.sh_path),
-            "target": self._linux.target, "mechanism": "systemd",
+            "target": self._script.target, "mechanism": "systemd",
             "targets": list(VALID_TARGETS), "mechanisms": list(VALID_MECHANISMS),
         }
 
@@ -164,7 +161,7 @@ class SystemdUserStartupManager:
         if not self.is_enabled():
             return False
         try:
-            self._linux._write_sh()
+            self._script.write_sh()
             return True
         except Exception:
             return False
@@ -176,7 +173,7 @@ class SystemdUserStartupManager:
             "supported": self.is_supported(),
             "mechanism": "systemd",
             "mechanisms": list(VALID_MECHANISMS),
-            "target": self._linux.target,
+            "target": self._script.target,
             "targets": list(VALID_TARGETS),
             "scope": "current-user",
             "unit_path": str(self.unit_path),

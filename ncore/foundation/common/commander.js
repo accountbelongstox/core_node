@@ -14,8 +14,11 @@ const { execSync, spawn, spawnSync } = require('child_process');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
+const { getSystemCacheDir } = require('./system_paths');
 const homeDir = os.homedir();
-const coceCacheDir = path.join(homeDir,".core_node");fs.mkdirSync(coceCacheDir,{recursive:true});
+const username = process.env.USERNAME || process.env.USER || 'default';
+const coceCacheDir = getSystemCacheDir();
+fs.mkdirSync(coceCacheDir, { recursive: true });
 const cacheFilePath = path.join(coceCacheDir, '.shell_cache.json');
 const cachePowerShellFile = path.join(coceCacheDir, '.powershell_path_cache.json');
 

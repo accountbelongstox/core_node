@@ -6,8 +6,13 @@ Qt WebEngine Codec Diagnostic Tool
 Checks if Qt WebEngine was built with proprietary codec support (H.264, AAC, etc.)
 """
 
+import platform
 from pathlib import Path
+
+from PySide6.QtCore import QLibraryInfo, qVersion
+
 from pycore import ColorPrint
+
 
 
 def check_proprietary_codec_support() -> bool:
@@ -18,7 +23,6 @@ def check_proprietary_codec_support() -> bool:
         True if proprietary codecs are available, False otherwise
     """
     try:
-        from PySide6.QtCore import QLibraryInfo
 
         ColorPrint.blue("=" * 80)
         ColorPrint.blue("[CodecDiagnostic] Qt WebEngine Codec Support Check")
@@ -29,7 +33,6 @@ def check_proprietary_codec_support() -> bool:
         ColorPrint.blue(f"[CodecDiagnostic] Qt installation: {qt_path}")
 
         # Check Qt version
-        from PySide6.QtCore import qVersion
         qt_version = qVersion()
         ColorPrint.blue(f"[CodecDiagnostic] Qt version: {qt_version}")
 
@@ -61,7 +64,6 @@ def check_proprietary_codec_support() -> bool:
             "libffmpeg.so*",
         ]
 
-        import platform
         if platform.system() == "Windows":
             codec_files = windows_codecs
         else:

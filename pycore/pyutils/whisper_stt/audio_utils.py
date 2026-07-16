@@ -25,6 +25,9 @@ from pycore.pyfoundations import ColorPrint
 from pycore.pyfoundations.system_paths import APP_CACHE_DIR
 from pycore.pyfoundations.third_party import get_third_package_requests
 
+import time
+
+
 
 # Whisper-compatible audio format settings
 WHISPER_SAMPLE_RATE = 16000
@@ -336,7 +339,6 @@ def cleanup_cache(max_age_hours: int = 24) -> int:
     Returns:
         Number of files deleted
     """
-    import time
 
     cache_dir = get_whisper_cache_dir()
     deleted = 0

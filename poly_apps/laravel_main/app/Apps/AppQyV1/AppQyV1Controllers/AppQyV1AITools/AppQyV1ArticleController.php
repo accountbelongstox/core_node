@@ -28,6 +28,8 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleWord;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Providers\PathMapper;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
 use Illuminate\Support\Facades\Log;
 
 class AppQyV1ArticleController
@@ -554,5 +556,216 @@ class AppQyV1ArticleController
             ]);
             return false;
         }
+    }
+
+    /**
+     * Worker-facing article submit (no auth — pycore Agent History pipeline).
+     *
+     * POST /api/app_qy_v1/ai_tools/article/worker/submit
+     */
+    public function workerSubmit(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'article_text' => 'required|string|min:10|max:50000',
+            'language' => 'nullable|string|max:20',
+            'title' => 'nullable|string|max:255',
+            'title_cn' => 'nullable|string|max:255',
+            'reference_cn' => 'nullable|string|max:5000',
+            'reference_lang' => 'nullable|string|max:10',
+            'target_lang' => 'nullable|string|max:10',
+            'source' => 'nullable|string|max:255',
+            'raw_preview' => 'nullable|string|max:5000',
+            'raw_word_count' => 'nullable|integer|min:0',
+            'audio_base64' => 'nullable|string',
+            'tts_engine' => 'nullable|string|max:100',
+            'tts_accent' => 'nullable|string|max:20',
+            'openrouter_model' => 'nullable|string|max:200',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 422);
+        }
+
+        $articleText = (string) $request->input('article_text');
+        $language = AppQyV1TableMaps::normalizeLangCode((string) $request->input('language', 'en'));
+        if ($language === '') {
+            $language = 'en';
+        }
+
+        $parsedResult = AppQyV1ArticleTextParser::parseArticle($articleText, $language);
+        $articleId = 'article_' . Str::uuid();
+
+        try {
+            $article = AppQyV1Article::create([
+                'article_id' => $articleId,
+                'user_id' => 0,
+                'title' => $request->input('title') ?: $request->input('title_cn') ?: 'Agent history article',
+                'content' => $articleText,
+                'language' => $language,
+                'article_type' => 'agent_history',
+                'source' => $request->input('source', 'agent_history'),
+                'word_count' => $parsedResult['total_words'],
+                'unique_word_count' => $parsedResult['unique_words'],
+                'sentence_count' => $parsedResult['total_sentences'],
+                'is_daily_reading' => true,
+                'reading_date' => now()->toDateString(),
+                'tts_generated' => false,
+                'metadata' => [
+                    'title_cn' => $request->input('title_cn'),
+                    'reference_cn' => $request->input('reference_cn'),
+                    'reference_lang' => $request->input('reference_lang', 'CN'),
+                    'target_lang' => $request->input('target_lang', 'EN'),
+                    'raw_preview' => $request->input('raw_preview'),
+                    'raw_word_count' => (int) $request->input('raw_word_count', 0),
+                    'openrouter_model' => $request->input('openrouter_model'),
+                ],
+            ]);
+
+            AppQyV1ArticleWord::createFromArticleWords(
+                $articleId,
+                $parsedResult['words'],
+                $parsedResult['word_frequency'],
+                $language
+            );
+
+            $audioUrl = null;
+            $audioB64 = $request->input('audio_base64');
+            if (is_string($audioB64) && $audioB64 !== '') {
+                $audioUrl = $this->storeWorkerArticleAudio($articleId, $language, $audioB64);
+                if ($audioUrl !== null) {
+                    $meta = is_array($article->metadata) ? $article->metadata : [];
+                    $meta['audio_url'] = $audioUrl;
+                    $meta['tts_engine'] = $request->input('tts_engine');
+                    $meta['tts_accent'] = $request->input('tts_accent');
+                    $meta['audio_files'] = [[
+                        'sentence' => $articleText,
+                        'path' => $audioUrl,
+                        'created_at' => now()->toDateTimeString(),
+                    ]];
+                    $article->metadata = $meta;
+                    $article->tts_generated = true;
+                    $article->save();
+                }
+            }
+
+            $this->mapArticleToLibrary($articleId, $articleText, $language);
+            $bumpedSentences = $this->bumpWorkerArticleSentences($parsedResult, $language);
+
+            return $this->success([
+                'article_id' => $articleId,
+                'source_key' => $articleId,
+                'audio_url' => $audioUrl,
+                'title' => $article->title,
+                'sentence_bumps' => $bumpedSentences,
+            ], 'Agent history article stored');
+        } catch (\Throwable $e) {
+            return $this->error('Failed to store worker article: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Recent agent-history articles for wordnew / pycore polling.
+     *
+     * GET /api/app_qy_v1/ai_tools/article/worker/recent
+     */
+    public function workerRecent(Request $request): JsonResponse
+    {
+        $limit = (int) $request->input('limit', 30);
+        if ($limit < 1) {
+            $limit = 30;
+        }
+        if ($limit > 100) {
+            $limit = 100;
+        }
+
+        $rows = AppQyV1Article::query()
+            ->where('source', 'agent_history')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get(['article_id', 'title', 'language', 'word_count', 'metadata', 'created_at']);
+
+        $items = [];
+        foreach ($rows as $row) {
+            $meta = is_array($row->metadata) ? $row->metadata : [];
+            $items[] = [
+                'article_id' => $row->article_id,
+                'source_key' => $row->article_id,
+                'title' => $row->title,
+                'title_cn' => $meta['title_cn'] ?? null,
+                'reference_cn' => $meta['reference_cn'] ?? null,
+                'language' => $row->language,
+                'word_count' => (int) $row->word_count,
+                'audio_url' => $meta['audio_url'] ?? null,
+                'created_at' => $row->created_at ? $row->created_at->toIso8601String() : null,
+            ];
+        }
+
+        return $this->success(['items' => $items], 'Recent agent-history articles');
+    }
+
+    private function storeWorkerArticleAudio(string $articleId, string $language, string $audioB64): ?string
+    {
+        $binary = base64_decode($audioB64, true);
+        if ($binary === false || $binary === '') {
+            return null;
+        }
+        if (strlen($binary) < 128) {
+            return null;
+        }
+
+        $safeId = preg_replace('/[^A-Za-z0-9._-]/', '_', $articleId) ?: 'article';
+        $dir = PathMapper::getAppQyV1AudioDir('agent_history/' . $language);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        $filename = $safeId . '.mp3';
+        $path = rtrim($dir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $filename;
+        if (@file_put_contents($path, $binary) === false) {
+            return null;
+        }
+
+        return '/static/app_qy_v1/audio/agent_history/' . rawurlencode($language) . '/' . rawurlencode($filename);
+    }
+
+    /**
+     * After library ingest, bump sentence-audio priority so pycore can fill per-sentence MP3s
+     * for WfNewBookReader read-along (best-effort; never fails the submit).
+     *
+     * @param array<string,mixed> $parsedResult
+     */
+    private function bumpWorkerArticleSentences(array $parsedResult, string $language): int
+    {
+        $rows = $parsedResult['sentences_with_md5'] ?? [];
+        if (!is_array($rows) || count($rows) === 0) {
+            return 0;
+        }
+        $svc = new AppQyV1SentenceAudioService();
+        $bumped = 0;
+        $cap = 80;
+        foreach ($rows as $row) {
+            if ($bumped >= $cap) {
+                break;
+            }
+            if (!is_array($row)) {
+                continue;
+            }
+            $text = trim((string) ($row['sentence'] ?? ''));
+            $contentId = trim((string) ($row['md5'] ?? ''));
+            if ($contentId === '' || $text === '') {
+                continue;
+            }
+            try {
+                $res = $svc->bumpPriority($contentId, $language, true, true, $text);
+                if (!empty($res['ok'])) {
+                    $bumped++;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('[AppQyV1Article] sentence bump failed', [
+                    'content_id' => $contentId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        return $bumped;
     }
 }

@@ -19,7 +19,7 @@ from typing import Dict, Optional
 
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_fastapi
-from pycore.pyutils.rpc_v2.server.fastapi_server import FastAPIRPCServerRunner
+from pycore.pyutils.rpc_v2.server.server_runner import FastAPIRPCServerRunner
 
 fastapi = get_third_package_fastapi()
 Request = fastapi.Request

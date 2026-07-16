@@ -11,11 +11,9 @@ GITEE_DOMAINS="gitee.com www.gitee.com api.gitee.com"
 GITEE_TEST_URL="https://gitee.com/"
 GITEE_TEST_TIMEOUT="5"
 GITEE_IP_LIBRARY="180.76.198.225 180.76.199.13 180.76.198.77"
-if [ -n "$HOME" ]; then
-    GITEE_CACHE_DIR="${HOME}/.core_node"
-else
-    GITEE_CACHE_DIR="/var/_node_core"
-fi
+# Centralized per-user state dir (CORE_NODE_DATA_DIR, default /var/_core_node;
+# all-users-writable post-install - see gvar_common.sh / shared_cache_env.sh).
+GITEE_CACHE_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}"
 GITEE_CACHE_FILE="$GITEE_CACHE_DIR/gitee_host_cache.txt"
 
 CHOSEN_IP=""

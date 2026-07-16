@@ -201,6 +201,15 @@ const WordAudioCapability: React.FC = () => {
               <KeyRound className="w-3 h-3" /> Forvo key {status.forvo_key_present ? 'set' : 'absent'}
             </span>
           )}
+          {status?.streamelements_key_present != null && (
+            <span
+              title="Whether STREAMELEMENTS_API_KEY is in .secret_keys (the key itself is never shown)"
+              className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide ${
+                status.streamelements_key_present ? 'bg-emerald-500/15 text-emerald-500' : 'bg-slate-500/15 text-slate-400'
+              }`}>
+              <KeyRound className="w-3 h-3" /> StreamElements {status.streamelements_key_present ? 'set' : 'absent'}
+            </span>
+          )}
         </div>
 
         {loading && sources.length === 0 ? (

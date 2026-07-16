@@ -23,6 +23,9 @@ from pycore.pyutils.flutter_dev_tools.routes.config_routes import ConfigRoutesHa
 from pycore.pyutils.flutter_dev_tools.routes.system_routes import SystemRoutesHandler
 from pycore.pyutils.flutter_dev_tools.routes.static_routes import StaticRoutesHandler
 
+import traceback
+
+
 
 class Router:
     """
@@ -188,7 +191,6 @@ class Router:
 
         except Exception as e:
             self.color_print.print_red(f"[Router] Handler error: {e}")
-            import traceback
             traceback.print_exc()
             request_handler.send_error(500, "Internal Server Error")
 

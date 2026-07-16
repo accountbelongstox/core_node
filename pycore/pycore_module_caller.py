@@ -34,6 +34,7 @@ import signal
 import time
 from pathlib import Path
 
+
 # This file lives at <project_root>/pycore/pycore_module_caller.py.
 # `from pycore import ...` requires the PROJECT ROOT (the parent of the pycore
 # package) to be importable.
@@ -46,10 +47,20 @@ PROJECT_ROOT = PYCORE_ROOT.parent                       # .../core_node
 # AND as bare `x`, producing DUPLICATE module objects (and thus duplicate
 # THREAD_BUS / ENCYCLOPEDIA singletons). Drop any sys.path entry that points at
 # the package dir, then put the PROJECT ROOT first instead.
+# Must happen BEFORE any `from pycore import ...` — otherwise, when CWD is not
+# on sys.path (e.g. invoked via an absolute path from a different directory),
+# the very first import fails with ModuleNotFoundError.
 sys.path[:] = [p for p in sys.path
                if not (p and Path(p).resolve() == PYCORE_ROOT)]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+from pycore.callmodule.platform.startup_manager import refresh_startup_launcher
+from pycore.pyutils.common.dev_reload import start_reload_watcher
+
+from pycore.pyfoundations.system_paths import apply_shared_cache_env
+
+apply_shared_cache_env()
 
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pylauncher import ServiceLauncher, on_singleton_superseded
@@ -66,7 +77,7 @@ from pycore.callmodule.event_handlers import register_event_handlers
 _SUPERSEDED = {'flag': False}
 
 
-def main(host='0.0.0.0', port=59000, debug=False, reload=False):
+def main(host='0.0.0.0', port=59000, debug=False, reload=True):
     """
     Main entry point
 
@@ -123,7 +134,6 @@ def main(host='0.0.0.0', port=59000, debug=False, reload=False):
     #     (pyservice.ps1/.sh = dashboard UI dev server + worker). Launchers
     #     written by older versions started the bare worker only, so the UI dev
     #     server never came up in boot mode (webview -> ERR_CONNECTION_REFUSED).
-    from pycore.callmodule.platform.startup_manager import refresh_startup_launcher
     if refresh_startup_launcher():
         ColorPrint.blue("[Main] Auto-start launcher refreshed (next boot uses pyservice + UI)")
 
@@ -150,9 +160,8 @@ def main(host='0.0.0.0', port=59000, debug=False, reload=False):
 
     # 7. Dev hot-reload: watch .py files and restart the backend on change.
     #    Reuses the proven restart path (request_restart -> graceful stop ->
-    #    os.execv re-exec, which re-reads ALL Python). Dev-only; off by default.
+    #    os.execv re-exec, which re-reads ALL Python). On by default; --no-reload to disable.
     if reload:
-        from pycore.pyutils.common.dev_reload import start_reload_watcher
         start_reload_watcher()
 
     # 8. Wait for shutdown signal (THREAD_BUS is the event center)
@@ -175,13 +184,18 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=59000, help='Port to bind (default: 59000)')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     parser.add_argument('--reload', action='store_true',
-                        help='Dev hot-reload: restart backend on .py changes '
-                             '(also enabled by PYCORE_RELOAD=1)')
+                        help='Hot-reload is ON by default; this flag is kept for compatibility')
+    parser.add_argument('--no-reload', action='store_true',
+                        help='Disable hot-reload: do not restart backend on .py changes')
 
     args = parser.parse_args()
-    # Env var is an alternative switch so a wrapper can enable reload without
-    # editing the argv it forwards.
-    reload_enabled = args.reload or os.environ.get('PYCORE_RELOAD', '') in ('1', 'true', 'True')
+    reload_enabled = True
+    if args.no_reload or os.environ.get('PYCORE_NO_RELOAD', '') in ('1', 'true', 'True'):
+        reload_enabled = False
+    if os.environ.get('PYCORE_RELOAD', '') in ('0', 'false', 'False'):
+        reload_enabled = False
+    if args.reload:
+        reload_enabled = True
     main(host=args.host, port=args.port, debug=args.debug, reload=reload_enabled)
 
     # ---- Process-level exit / restart -------------------------------------

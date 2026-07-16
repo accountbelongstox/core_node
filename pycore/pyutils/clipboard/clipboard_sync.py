@@ -9,6 +9,10 @@ Syncs speech recognition results to clipboard database for real-time sharing.
 from typing import Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
+from pycore.database import database_manager
+from pycore.database.models import ClipboardHistoryModel
+
+
 
 def add_recognition_to_clipboard(
     text: str,
@@ -31,8 +35,6 @@ def add_recognition_to_clipboard(
         True if added successfully, False otherwise
     """
     try:
-        from pycore.database import database_manager
-        from pycore.database.models import ClipboardHistoryModel
 
         # Prepare content with metadata
         content = text.strip()

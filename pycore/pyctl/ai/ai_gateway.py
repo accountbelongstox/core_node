@@ -62,6 +62,7 @@ from pycore.pyctl.ai.ai_keys import (
 from pycore.pyctl.ai.ai_probe import _sort_key
 from pycore.pyctl.ai.ai_chat import chat_once
 from pycore.pyctl.ai.ai_image_history import record_image as _record_image_history
+from pycore.pyctl.ai.ai_rate_limits import check_rate_limit
 # Singleton state + state-mutation primitives (LEAF) - imported, NEVER re-declared.
 from pycore.pyctl.ai.ai_gateway_state import (
     _TIER_ORDER, _lock, _records, _stats,
@@ -425,6 +426,8 @@ def gateway_status() -> Dict[str, Any]:
         with _lock:
             st = dict(_stats[name])
         cooldown_s = max(0.0, st["cooldown_until"] - now)
+        rate = check_rate_limit(name)
+        paused = cooldown_s > 0 or not rate.allowed
         providers.append({
             "name": name,
             "tier": meta["tier"],
@@ -434,6 +437,7 @@ def gateway_status() -> Dict[str, Any]:
             "image_model": meta.get("image_model", "") if meta.get("image") else "",
             "configured": bool(probed.get("configured")) or bool(first_secret(name)),
             "available": bool(probed.get("available")),
+            "paused": paused,
             "key_masked": probed.get("key_masked"),
             "models": probed.get("models") or [],
             "quota": get_quota(name),

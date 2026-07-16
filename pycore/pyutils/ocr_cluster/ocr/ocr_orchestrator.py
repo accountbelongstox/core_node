@@ -20,21 +20,33 @@ it never triggers the WinRT/easyocr auto-install in the hot screenshot loop
 (that is the install_ocr prerequisite's job).
 """
 
+import base64
+import importlib.metadata
 import importlib.util
+import os
+import tempfile
 import threading
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-# Ordered engine priority. Each entry: (name, spec-module probed for availability).
+from pycore.pyutils.ocr_cluster.ocr_windows_engine import create_windows_ocr
+from pycore.pyutils.ocr_cluster.ocr.ocr_manager import ocr_manager
+
+from pycore.pyutils.ocr_cluster.ocr.cnocr_engine import CnOCREngine
+
+
+
+# Ordered engine priority. Each entry: (name, spec-module, PyPI dist for version).
 # The spec module is what we import-check; it must NOT trigger any install.
 _ENGINE_SPECS = (
-    ("windows", "winrt.windows.media.ocr"),
-    ("easyocr", "easyocr"),
-    ("cnocr", "cnocr"),
+    ("windows", "winrt.windows.media.ocr", "winrt-Windows.Media.Ocr"),
+    ("easyocr", "easyocr", "easyocr"),
+    ("cnocr", "cnocr", "cnocr"),
 )
-OCR_ENGINE_PRIORITY = tuple(name for name, _ in _ENGINE_SPECS)
+OCR_ENGINE_PRIORITY = tuple(name for name, _, _ in _ENGINE_SPECS)
 
 # Lazily-built engine instances (built once, reused). Guarded for the screenshot
 # monitor thread + request threads hitting extract_text concurrently.
@@ -53,9 +65,16 @@ def _spec_available(module: str) -> bool:
         return False
 
 
+def _dist_version(dist: str) -> Optional[str]:
+    try:
+        return importlib.metadata.version(dist)
+    except Exception:
+        return None
+
+
 def engine_available(name: str) -> bool:
     """Cheap availability probe for one engine (no heavy import / no install)."""
-    for ename, spec in _ENGINE_SPECS:
+    for ename, spec, _dist in _ENGINE_SPECS:
         if ename == name:
             return _spec_available(spec)
     return False
@@ -63,7 +82,7 @@ def engine_available(name: str) -> bool:
 
 def best_engine() -> Optional[str]:
     """Highest-priority engine whose package is installed, or None."""
-    for name, spec in _ENGINE_SPECS:
+    for name, spec, _dist in _ENGINE_SPECS:
         if _spec_available(spec):
             return name
     return None
@@ -83,11 +102,13 @@ def ocr_status() -> Dict[str, Any]:
         "easyocr": "EasyOCR (torch/GPU) — high accuracy, heavy",
         "cnocr": "CnOCR (onnxruntime) — GPU/CPU local OCR",
     }
-    for i, (name, _spec) in enumerate(_ENGINE_SPECS):
+    for i, (name, _spec, dist) in enumerate(_ENGINE_SPECS):
+        avail = engine_available(name)
         engines.append({
             "name": name,
             "priority": i + 1,
-            "available": engine_available(name),
+            "available": avail,
+            "version": _dist_version(dist) if avail else None,
             "note": notes.get(name, ""),
         })
     avail = [e for e in engines if e["available"]]
@@ -106,7 +127,6 @@ def _extract_windows(image_path: str) -> str:
     global _windows_engine
     with _lock:
         if _windows_engine is None:
-            from pycore.pyutils.ocr_cluster.ocr_windows_engine import create_windows_ocr
             _windows_engine = create_windows_ocr() or False
         engine = _windows_engine
     if not engine:
@@ -118,7 +138,6 @@ def _extract_easyocr(image_path: str) -> str:
     global _easyocr_reader
     with _lock:
         if _easyocr_reader is None:
-            import easyocr
             _easyocr_reader = easyocr.Reader(_easyocr_langs)
         reader = _easyocr_reader
     if not reader:
@@ -140,7 +159,6 @@ _CNOCR_MODEL_BY_LANG = {
 
 
 def _extract_cnocr(image_path: str, lang: Optional[str] = None) -> str:
-    from pycore.pyutils.ocr_cluster.ocr.ocr_manager import ocr_manager
     model_type = _CNOCR_MODEL_BY_LANG.get((lang or "").lower(), "general")
     res = ocr_manager.recognize_image(image_path, model_type=model_type)
     if res.get("success"):
@@ -177,7 +195,7 @@ def extract_text(image_path: str, lang: Optional[str] = None) -> Dict[str, Any]:
 
     tried: List[str] = []
     last_error: Optional[str] = None
-    for name, spec in _ENGINE_SPECS:
+    for name, spec, _dist in _ENGINE_SPECS:
         if not _spec_available(spec):
             continue
         tried.append(name)
@@ -202,10 +220,142 @@ def extract_text(image_path: str, lang: Optional[str] = None) -> Dict[str, Any]:
     }
 
 
+def extract_text_engine(engine: str, image_path: str, lang: Optional[str] = None,
+                         model_type: Optional[str] = None,
+                         languages: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Extract text with ONE specific engine (no fallback). Returns
+    {success, text, engine, error}. Unknown / not-installed engines report
+    success=False with a clear error instead of raising.
+
+    Per-engine extra params:
+    - model_type (cnocr): "general" | "scene" | "doc" | "number" | "english" | "chinese_traditional"
+    - languages (easyocr): e.g. ["en", "ch_sim"] to override default ["ch_sim", "en"]"""
+    if engine not in _EXTRACTORS:
+        return {"success": False, "text": "", "engine": engine,
+                "error": f"unknown OCR engine: {engine}"}
+    if not engine_available(engine):
+        return {"success": False, "text": "", "engine": engine,
+                "error": f"{engine} not installed"}
+    try:
+        extra: Dict[str, Any] = {}
+        if model_type:
+            extra["model_type"] = model_type
+        if languages:
+            extra["languages"] = languages
+        text = _EXTRACTORS[engine](image_path, lang) if not extra else \
+            _extract_with_extra(engine, image_path, lang, extra)
+    except Exception as e:  # noqa: BLE001 - surface the engine failure, do not fall through
+        return {"success": False, "text": "", "engine": engine, "error": f"{e}"}
+    text = (text or "").strip()
+    if not text:
+        return {"success": False, "text": "", "engine": engine,
+                "error": f"{engine} returned no text"}
+    return {"success": True, "text": text, "engine": engine, "error": None}
+
+
+def _extract_with_extra(engine: str, image_path: str, lang: Optional[str],
+                         extra: Dict[str, Any]) -> str:
+    """Call an OCR extractor with engine-specific extra params. Currently handles
+    cnocr model_type and easyocr language list overrides."""
+    if engine == "windows_ocr":
+        return _EXTRACTORS[engine](image_path, lang)
+    if engine == "easyocr":
+        return _extract_easyocr_with_langs(image_path, extra.get("languages"))
+    if engine == "cnocr":
+        return _extract_cnocr_with_model(image_path, lang, extra.get("model_type"))
+    return _EXTRACTORS[engine](image_path, lang)
+
+
+def _extract_easyocr_with_langs(image_path: str, languages: Optional[List[str]]) -> str:
+    """EasyOCR extraction with a custom language list (defaults to ['ch_sim', 'en'])."""
+    try:
+        pass
+    except ImportError:
+        return ""
+    langs = languages if languages and len(languages) > 0 else _easyocr_langs
+    reader = easyocr.Reader(langs)  # type: ignore[no-untyped-call]
+    result = reader.readtext(image_path, detail=0, paragraph=True)  # type: ignore[no-untyped-call]
+    return " ".join(result).strip() if result else ""
+
+
+def _extract_cnocr_with_model(image_path: str, lang: Optional[str],
+                               model_type: Optional[str]) -> str:
+    """CnOCR extraction with a specific model type."""
+    ocr = CnOCREngine()
+    recognized = ocr.recognize(image_path, model_type=model_type)
+    return recognized.text if recognized and recognized.text else ""
+
+
+def ocr_test(engine: Optional[str] = None, image_path: Optional[str] = None,
+             image_data: Optional[str] = None, lang: Optional[str] = None,
+             # Per-engine extra params.
+             model_type: Optional[str] = None,
+             languages: Optional[List[str]] = None,
+             **extra_params: Any) -> Dict[str, Any]:
+    """Live OCR test for ONE engine (or the best available). Resolves the image
+    from a base64 data-URL / raw base64 (``image_data``) or a filesystem path
+    (``image_path``), runs the engine, and returns
+    {success, engine, text, latency_ms, error, model_type}. The decoded base64
+    image is written to a temp file and removed afterwards; a caller-supplied
+    ``image_path`` is never deleted.
+
+    Per-engine params:
+    - model_type (cnocr): "general"|"scene"|"doc"|"number"|"english"|"chinese_traditional"
+    - languages (easyocr): list of language codes to override default ["ch_sim", "en"]"""
+    name = engine or best_engine()
+    if not name:
+        return {"success": False, "engine": None, "text": "", "latency_ms": 0,
+                "route": "local.ocr.test", "error": "no OCR engine available"}
+
+    tmp_path: Optional[str] = None
+    resolved = image_path
+    if not resolved and image_data:
+        try:
+            raw = image_data.strip()
+            # Strip an optional data-URL prefix: data:image/png;base64,XXXX
+            if raw.startswith("data:") and "," in raw:
+                raw = raw.split(",", 1)[1]
+            tmp_dir = Path(tempfile.gettempdir()) / "pycore_ocr_test"
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+            tmp_path = str(tmp_dir / "sample.png")
+            with open(tmp_path, "wb") as fh:
+                fh.write(base64.b64decode(raw))
+            resolved = tmp_path
+        except Exception as e:  # noqa: BLE001
+            return {"success": False, "engine": name, "text": "", "latency_ms": 0,
+                    "route": "local.ocr.test",
+                    "error": f"could not decode image_data: {e}"}
+
+    if not resolved or not Path(resolved).exists():
+        return {"success": False, "engine": name, "text": "", "latency_ms": 0,
+                "route": "local.ocr.test",
+                "error": "no image provided (upload or paste an image, or let the popup render sample text)"}
+
+    t0 = time.monotonic()
+    try:
+        result = extract_text_engine(name, resolved, lang,
+                                     model_type=model_type, languages=languages)
+    finally:
+        if tmp_path:
+            try:
+                os.remove(tmp_path)
+            except Exception:  # noqa: BLE001 - cleanup is best-effort
+                pass
+    result["latency_ms"] = round((time.monotonic() - t0) * 1000)
+    result["route"] = "/api/local/ocr/test"
+    if model_type:
+        result["model_type"] = model_type
+    if languages:
+        result["languages"] = languages
+    return result
+
+
 __all__ = [
     "OCR_ENGINE_PRIORITY",
     "engine_available",
     "best_engine",
     "ocr_status",
     "extract_text",
+    "extract_text_engine",
+    "ocr_test",
 ]

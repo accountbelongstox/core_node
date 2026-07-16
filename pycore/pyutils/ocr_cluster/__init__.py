@@ -9,8 +9,10 @@ from pycore.pyutils.ocr_cluster.ocr import (
     best_engine,
     engine_available,
     extract_text,
+    extract_text_engine,
     ocr_manager,
     ocr_status,
+    ocr_test,
 )
 
 __all__ = [
@@ -19,5 +21,7 @@ __all__ = [
     "best_engine",
     "engine_available",
     "extract_text",
+    "extract_text_engine",
     "ocr_status",
+    "ocr_test",
 ]

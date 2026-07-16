@@ -1,33 +1,14 @@
 
-# Welcome  
-
-**Important:** Before you begin, please read the [DEVELOPMENT_GUIDE_THIS_FILE_NO_AI_EDIT.md](DEVELOPMENT_GUIDE_THIS_FILE_NO_AI_EDIT.md) for essential project information and setup instructions.
-
----
-
-**AI Notice:** This file (`README.md`) is for informational purposes only and must not be modified by any AI assistant. All development guidelines are located in other documents.
-
----
-
-**Developer Section (AI Ignore):** The content below this line is for human developers and should be ignored by AI assistants.
-
-## Project Terminology
-
-When reading requirements, interpret the following terms as defined below:
-
-- **ncore**: The overall Node-based project. Its root (the `ncore dir`) is the top-level directory that contains this README, located at `D:\programing\core_node`.
-- **ncore dir**: The top-level root directory, `D:\programing\core_node`.
-- **script dir**: The `scripts` directory under the `ncore dir`.
-- **poly app**: An app built on a different technology stack, located under the `poly_apps` directory.
-- **poly app dir**: The root directory of a `poly app`.
-- **app**: A Node-based app, located under the `apps` directory.
-- **app dir**: The root directory of an `app`.
-- **local mcp**: A service located under the `ncore\mcp_server` directory.
+# AI Reading
+Backend: `poly_apps/laravel_main`
+Pycore: `./pyservice.sh` or `.ps1`, `./pycore`
+UI: `poly_apps/pycore_laravel_wordflow_ui` (includes Pycore manager: http://localhost:13054/pycore-manager, Laravel manager: `/laravel-manager`, vocabulary app: `/wordnew`)
+Ncore: `./main.js` and `./apps/`
+Chrome extension: `./apps/mcp-chrome`
+所有AI必须按项目规范修改代码，请先读AI规范和项目规范。
 
 ## Quick Setup
-
-Run in Administrator Command Prompt to deploy development environment:
-
+The commands below are for copy-paste only; AI agents do not need to read them.
 ```cmd
 curl -L https://gitee.com/accountbelongstox/core_node/raw/main/dd.cmd -o dd.cmd
 dd.cmd
@@ -61,4 +42,3 @@ sudo mkdir -p /usr/tmp && sudo wget -O /usr/tmp/dd.sh https://raw.githubusercont
 ```
 
 update
-

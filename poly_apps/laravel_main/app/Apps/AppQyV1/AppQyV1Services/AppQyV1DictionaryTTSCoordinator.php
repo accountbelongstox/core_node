@@ -423,7 +423,9 @@ class AppQyV1DictionaryTTSCoordinator
         string $langCode,
         string $md5,
         string $bytes,
-        string $providerLabel = 'bing'
+        string $providerLabel = 'bing',
+        ?string $variantKey = null,
+        ?array $variantMeta = null
     ): bool {
         $entry = AppQyV1LangDictionaryModel::forLanguage($langCode)
             ->where('md5', $md5)
@@ -432,17 +434,26 @@ class AppQyV1DictionaryTTSCoordinator
             return false;
         }
 
-        // Fill-missing: never clobber audio produced by the edge-tts pipeline or
-        // a prior assist submission.
-        if (!empty($entry->has_audio)) {
-            return false;
+        $variantKey = ($variantKey === null) ? '' : $variantKey;
+        // Per-variant fill-missing: never clobber an existing file. The primary
+        // variant respects has_audio; non-primary variants check their own slot.
+        if ($variantKey === '') {
+            if (!empty($entry->has_audio)) {
+                return false;
+            }
+        } else {
+            if (AppQyV1WordAudioFiles::hasVariantWithFile($entry, $variantKey)) {
+                return false;
+            }
         }
 
         if (strlen($bytes) < 100 || !self::looksLikeMp3($bytes)) {
             return false;
         }
 
-        $relativePath = $this->ttsService->buildRelativePath($entry->content, $langCode, 'word');
+        $relativePath = $this->ttsService->buildRelativePath(
+            $entry->content, $langCode, 'word', '+0%', $variantKey
+        );
         $fullPath = $this->ttsService->getAudioBaseDir() . '/' . $relativePath;
         FileSystemManager::ensureDirectoryExists(dirname($fullPath));
 
@@ -455,7 +466,9 @@ class AppQyV1DictionaryTTSCoordinator
             return false;
         }
 
-        $this->markWordCompleted($entry, $relativePath, $providerLabel);
+        $meta = is_array($variantMeta) ? $variantMeta : [];
+        $meta['variant_key'] = $variantKey;
+        $this->markWordCompleted($entry, $relativePath, $providerLabel, $meta);
 
         Log::info('[DictTTS] Assist word audio stored', [
             'language' => $langCode,
@@ -463,6 +476,7 @@ class AppQyV1DictionaryTTSCoordinator
             'bytes' => strlen($bytes),
             'path' => $relativePath,
             'provider' => $providerLabel,
+            'variant_key' => $variantKey,
         ]);
 
         return true;
@@ -560,8 +574,12 @@ class AppQyV1DictionaryTTSCoordinator
     // Canonical state transitions (used by worker report AND local timer)
     // ------------------------------------------------------------------
 
-    public function markWordCompleted(AppQyV1LangDictionaryModel $entry, string $relativePath, string $provider): void
-    {
+    public function markWordCompleted(
+        AppQyV1LangDictionaryModel $entry,
+        string $relativePath,
+        string $provider,
+        ?array $variantMeta = null
+    ): void {
         $ttsFiles = is_array($entry->tts_files) ? $entry->tts_files : [];
         $known = array_filter(array_map(fn ($f) => $f['path'] ?? null, $ttsFiles));
         if (!in_array($relativePath, $known, true)) {
@@ -576,6 +594,18 @@ class AppQyV1DictionaryTTSCoordinator
         $entry->tts_error = null;
         $entry->tts_locked_at = null;
         $entry->tts_locked_by = null;
+
+        $meta = is_array($variantMeta) ? $variantMeta : [];
+        AppQyV1WordAudioFiles::upsert($entry, array_merge([
+            'variant_key' => (string) ($meta['variant_key'] ?? ''),
+            'path' => $relativePath,
+            'has_file' => true,
+            'provider' => $provider,
+            'source' => AppQyV1WordAudioFiles::SOURCE_TTS,
+            'voice_type' => AppQyV1WordAudioFiles::VOICE_MACHINE,
+            'uploaded_at' => now()->toIso8601String(),
+        ], $meta));
+
         $entry->save();
     }
 

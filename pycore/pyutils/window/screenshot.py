@@ -35,6 +35,9 @@ from pycore.pyfoundations.third_party import (
     get_third_package_pyautogui,
 )
 
+import traceback
+
+
 win32gui = get_third_package_win32gui()
 win32con = get_third_package_win32con()
 pyautogui = get_third_package_pyautogui()  # May be None on Linux without X11 display access
@@ -311,7 +314,6 @@ class WindowScreenshot:
 
         except Exception as e:
             ColorPrint.red(f"[FAST_SINGLE] Error in single window capture: {e}")
-            import traceback
             traceback.print_exc()
             return None
 
@@ -480,7 +482,6 @@ class WindowScreenshot:
 
         except Exception as e:
             ColorPrint.red(f"[FAST] Error in fast capture: {e}")
-            import traceback
             traceback.print_exc()
             return None
 

@@ -60,4 +60,27 @@ Route::prefix('words/public')->group(function () {
 //   GET /api/app_qy_v1/word/{lang}/{word}/media
 Route::get('/word/{lang}/{word}/media', [AppQyV1WordMediaController::class, 'media'])
     ->where('lang', '[A-Za-z][A-Za-z0-9_-]*');
+
+// FE-generated word audio upload (Puter.js): persist a synthesized clip for a
+// dictionary row matched by (lang, md5). Public trust level matches the media
+// resolve endpoint above; validated + fill-missing server-side.
+//   POST /api/app_qy_v1/word/audio/upload  { md5, lang, audio_base64, provider? }
+Route::post('/word/audio/upload', [AppQyV1WordMediaController::class, 'uploadAudio']);
+
+// Missing-audio word batch for the browser-side Puter.js generator (pycore-manager
+// Queue Center persistent bar). Returns up to limit words with has_audio=false;
+// backend-marked invalid words (is_valid=false) are excluded.
+//   GET /api/app_qy_v1/word/audio/missing-batch?limit=1000&language=en
+Route::get('/word/audio/missing-batch', [AppQyV1WordMediaController::class, 'missingBatch']);
+
+// Fix garbled word text detected during browser-side audio generation.
+// Writes the cleaned form back to the content column (HTML/garbage -> '-').
+//   POST /api/app_qy_v1/word/fix-text  { md5, lang, cleaned_word }
+Route::post('/word/fix-text', [AppQyV1WordMediaController::class, 'fixWordText']);
+
+// Boost a word's tts_priority to move it to the front of the audio queue.
+// Called from the wordnew library UI; pycore re-broadcasts via WS so the
+// batch bar re-orders its in-flight pending list immediately.
+//   POST /api/app_qy_v1/word/boost-priority  { md5, lang }
+Route::post('/word/boost-priority', [AppQyV1WordMediaController::class, 'boostPriority']);
 });

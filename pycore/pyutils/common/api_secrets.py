@@ -17,9 +17,14 @@ Variables"):
   AZURE_SPEECH_REGION   - resource region, e.g. "eastus"
 A transitional fallback to the old AZURE_SPEECH_KEYA / AZURE_SPEECH_KEYB names
 keeps a key entered before the rename working until it is re-entered.
-"""
 
-import os
+StreamElements TTS (online Polly voices; required since the keyless endpoint
+started returning HTTP 401):
+  STREAMELEMENTS_API_KEY - channel/JWT auth token stored under
+  ``.secret_keys/.secret_ignore/`` as ``STREAMELEMENTS_API_KEY_1`` .. ``_5``
+  (or bare ``STREAMELEMENTS_API_KEY``). Enter via Special Software env manager;
+  read only through ``get_secret_key_indexed`` — never OS env vars here.
+"""
 
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 
@@ -34,10 +39,23 @@ def azure_speech_key() -> str:
 
 
 def azure_speech_region() -> str:
-    """Azure Speech region (default 'eastus'). Indexed loader -> env -> default."""
-    return (get_secret_key_indexed("AZURE_SPEECH_REGION")
-            or os.environ.get("AZURE_SPEECH_REGION")
-            or "eastus")
+    """Azure Speech region (default 'eastus'). Indexed loader from .secret_keys."""
+    return get_secret_key_indexed("AZURE_SPEECH_REGION") or "eastus"
 
 
-__all__ = ["azure_speech_key", "azure_speech_region"]
+def streamelements_api_key() -> str:
+    """StreamElements speech API key from ``.secret_keys`` (indexed _1.._5 then bare)."""
+    return (get_secret_key_indexed("STREAMELEMENTS_API_KEY") or "").strip()
+
+
+def streamelements_key_present() -> bool:
+    """True when STREAMELEMENTS_API_KEY is configured in ``.secret_keys`` (never leaks value)."""
+    return bool(streamelements_api_key())
+
+
+__all__ = [
+    "azure_speech_key",
+    "azure_speech_region",
+    "streamelements_api_key",
+    "streamelements_key_present",
+]

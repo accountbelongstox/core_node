@@ -1,8 +1,8 @@
-# Vue3 实战 高仿去哪儿旅行、携程移动端 App
+# Vue3 Travel App Clone (Qunar / Ctrip Mobile)
 
-原 Vue2 版本已归档至分支 [vue2](https://github.com/quantum-rose/travel/tree/vue2)
+The original Vue2 version is archived on branch [vue2](https://github.com/quantum-rose/travel/tree/vue2)
 
-[在线演示](https://quantum-rose.github.io/travel)
+[Live demo](https://quantum-rose.github.io/travel)
 
 <div align="center">
     <img src="images/Screenshot_2019-08-11-17-24-08-364_com.android.ch.png" width=250/>
@@ -10,14 +10,14 @@
     <img src="images/Screenshot_2019-08-11-17-24-46-393_com.android.ch.png" width=250/>
 </div>
 
-### 介绍：
+### Introduction
 
-- 包含首页和城市选择页，首页采用瀑布流 + 无限滚动
-- 拥抱全新前端开发技术栈
-- 针对 VS Code 深度定制，开发体验 UP! UP! UP!
+- Home page and city picker; home uses waterfall layout + infinite scroll
+- Modern frontend stack
+- VS Code–oriented workflow for a smoother dev experience
 
-### 技术栈
+### Stack
 
-`pnpm`、 `Vite`、 `Vue3`、 `TypeScript`、 `Vue Router`、 `Pinia`、 `Vant4`、 `Scss`
+`pnpm`, `Vite`, `Vue3`, `TypeScript`, `Vue Router`, `Pinia`, `Vant4`, `Scss`
 
-> 不由得感慨，前端的变化真是快啊！
+> Frontend tooling moves fast — this project tracks a current Vue3 stack.

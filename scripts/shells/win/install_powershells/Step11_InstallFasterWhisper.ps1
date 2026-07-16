@@ -13,12 +13,12 @@
 # Single source of truth for the faster-whisper prerequisite (DEFAULT STT engine
 # for the pycore "Video Extraction" feature). Runs AFTER Step8_InstallPython,
 # Step9_InstallCudaNvidiaPrereq, and Step10_InstallPythonPrereqPackages so
-# torch is already present. Also invoked directly by scripts\shells\linux\common\iniscripts\install_faster_whisper.ps1
-# (the pyservice prerequisite reference) to keep one copy of the logic.
+# torch/paddle cu13 are already present. Also invoked by PreparePycorePrerequisites.ps1.
 #
-# Invocation contracts:
-#   - DevInstaller flow:  & Step11_InstallFasterWhisper.ps1 <Region>
-#   - pyservice flow:     & Step11_InstallFasterWhisper.ps1 -Python <py> [-Model <m>] [-Force]
+# CUDA policy: single system Python 3.13 stays cu13-only. faster-whisper +
+# CTranslate2 install into that interpreter; on GPU hosts CTranslate2 uses CPU
+# int8 (no cu12 nvidia libs, no venv). Sync-NvidiaCuStack removes stray cu12
+# packages that would clobber cu13 paddle/torch DLLs.
 [CmdletBinding()]
 param(
     [string]$Region = 'Global',
@@ -27,25 +27,26 @@ param(
     [switch]$Force
 )
 
-# Variable Declarations (all globals at top, per rule 5)
 $ErrorActionPreference = 'Stop'
 $SCRIPT_INDEX          = '[Step 11]'
 $MinRamGB              = 1
 $MinFreeDiskGB         = 100
 $resolvedPython        = $null
-$pythonCandidates      = $null
 $ramGB                 = $null
 $freeGB                = $null
 $hasGpu                = $false
 $reasons               = @()
+$sysPip                = $null
+$modelExplicit         = (-not [string]::IsNullOrWhiteSpace($Model) -and $Model -ne 'auto')
 
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
 . (Join-Path $winCommonDir 'PythonRuntimeCommon.ps1')
+. (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
 
 function Test-PyModule {
     param([string]$Py, [string]$PackageName)
-    $pipExe = if ($Global:PIP_EXE_PATH -and (Test-Path -LiteralPath $Global:PIP_EXE_PATH)) { $Global:PIP_EXE_PATH } else { Resolve-InstallerPipExe -PythonExe $Py }
+    $pipExe = $Global:PIP_EXE_PATH
     return Test-PipPackageInstalled -PipExe $pipExe -PackageName $PackageName
 }
 
@@ -53,15 +54,13 @@ Write-Host '============================================================' -Foreg
 Write-Host " $SCRIPT_INDEX Installing faster-whisper (default STT for Video Extraction)" -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
 
-# --- 0) resolve python (Step8_InstallPython has already run in the installer flow) --- #
-$resolvedPython = Resolve-InstallerPythonExe -PreferredPath $Python
+$resolvedPython = $Global:PYTHON_EXE_PATH
 if (-not $resolvedPython) {
-    Write-Host "$SCRIPT_INDEX [X] Python 3 was NOT found. Run Step8_InstallPython first, or pass -Python <path>." -ForegroundColor Red
-    return
+    Write-Host "$SCRIPT_INDEX [X] System Python 3.13 was NOT found. Run Step8_InstallPython first." -ForegroundColor Red
+    Complete-PrereqStep -Prefix $SCRIPT_INDEX -ImportModules @('faster_whisper')
 }
 Write-Host ("$SCRIPT_INDEX python : {0}" -f $resolvedPython) -ForegroundColor DarkGray
 
-# --- 1) system-capacity guard (same policy as install_whisper) ----------- #
 try {
     $ramGB = [math]::Round((Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop).TotalPhysicalMemory / 1GB, 2)
 } catch { $ramGB = $null }
@@ -76,66 +75,53 @@ if (-not $Force) {
     if ($null -ne $freeGB -and $freeGB -lt $MinFreeDiskGB) { $reasons += ("free disk {0} GB < {1} GB" -f $freeGB, $MinFreeDiskGB) }
     if ($reasons.Count -gt 0) {
         Write-Host ("$SCRIPT_INDEX [skip] System too small for faster-whisper ({0}); skipping. Use -Force to override." -f ($reasons -join '; ')) -ForegroundColor DarkYellow
-        return
+        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('faster_whisper')
     }
 }
 
-# --- 2) faster-whisper (idempotent) -------------------------------------- #
-if ((Test-PyModule -Py $resolvedPython -PackageName 'faster-whisper') -and -not $Force) {
-    Write-Host "$SCRIPT_INDEX [OK] faster-whisper already installed; skipping pip." -ForegroundColor Green
-} else {
-    Write-Host "$SCRIPT_INDEX [..] pip install --upgrade faster-whisper ..." -ForegroundColor Yellow
-    & $Global:PIP_EXE_PATH install --upgrade faster-whisper
-    if (Test-PyModule -Py $resolvedPython -PackageName 'faster-whisper') {
-        Write-Host "$SCRIPT_INDEX [OK] faster-whisper installed." -ForegroundColor Green
-    } else {
-        Write-Host "$SCRIPT_INDEX [X] faster-whisper still not importable after install." -ForegroundColor Red
-    }
-}
-
-# --- 3) GPU runtime libs (CUDA 12 + cuDNN 9 for CTranslate2), only if GPU present -
-# Step 10 torch cu130 pulls nvidia-cublas-cu13 / nvidia-cudnn-cu13 (PyTorch stack).
-# faster-whisper uses CTranslate2, which needs cuBLAS+cuDNN for CUDA *12* per official docs:
-#   https://github.com/SYSTRAN/faster-whisper — pip install nvidia-cublas-cu12 nvidia-cudnn-cu12==9.*
-# That is a separate user-space stack from torch cu130; not a duplicate Step 9 driver install.
 $hasGpu = Test-NvidiaGpuPresent
-if ($hasGpu) {
-    $pipExe = if ($Global:PIP_EXE_PATH -and (Test-Path -LiteralPath $Global:PIP_EXE_PATH)) {
-        $Global:PIP_EXE_PATH
-    } else {
-        Resolve-InstallerPipExe -PythonExe $resolvedPython
-    }
-    $cu12Ready = (Test-PipPackageInstalled -PipExe $pipExe -PackageName 'nvidia-cublas-cu12') -and
-        (Test-PipPackageInstalled -PipExe $pipExe -PackageName 'nvidia-cudnn-cu12')
+$sysPip = $Global:PIP_EXE_PATH
 
-    if ($cu12Ready -and -not $Force) {
-        Write-Host "$SCRIPT_INDEX [OK] GPU runtime libs (nvidia-cublas-cu12, nvidia-cudnn-cu12) already present; skipping." -ForegroundColor Green
-        Write-Host "$SCRIPT_INDEX [i] Note: torch cu130 uses cu13 wheels from Step 10; CTranslate2 still needs cu12 libs above." -ForegroundColor DarkGray
-    } else {
-        Write-Host "$SCRIPT_INDEX [..] NVIDIA GPU detected -> pip install nvidia-cublas-cu12 nvidia-cudnn-cu12==9.* ..." -ForegroundColor Yellow
-        Write-Host "$SCRIPT_INDEX [i] CTranslate2 (faster-whisper backend) requires CUDA 12 cuBLAS/cuDNN pip wheels (official faster-whisper README)." -ForegroundColor DarkGray
-        Write-Host "$SCRIPT_INDEX [i] Separate from Step 10 torch cu130 (nvidia-*-cu13); first GPU host download can be ~700MB." -ForegroundColor DarkGray
-        & $pipExe install nvidia-cublas-cu12 'nvidia-cudnn-cu12==9.*'
-        $cu12Ready = (Test-PipPackageInstalled -PipExe $pipExe -PackageName 'nvidia-cublas-cu12') -and
-            (Test-PipPackageInstalled -PipExe $pipExe -PackageName 'nvidia-cudnn-cu12')
-        if ($cu12Ready) {
-            Write-Host "$SCRIPT_INDEX [OK] GPU runtime libs (cu12 cublas/cudnn) present." -ForegroundColor Green
+if ($hasGpu) {
+    Write-Host "$SCRIPT_INDEX [i] GPU host: faster-whisper runs in system Python (CPU int8; cu13-only, no cu12 venv)." -ForegroundColor DarkGray
+}
+
+if ((Test-PyModule -Py $resolvedPython -PackageName 'faster-whisper') -and -not $Force) {
+    Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'faster-whisper already installed' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('faster_whisper')
+}
+
+Write-Host "$SCRIPT_INDEX [..] pip install --upgrade faster-whisper (system Python) ..." -ForegroundColor Yellow
+& $sysPip install --upgrade faster-whisper
+if (Test-PyModule -Py $resolvedPython -PackageName 'faster-whisper') {
+    Write-Host "$SCRIPT_INDEX [OK] faster-whisper installed." -ForegroundColor Green
+} else {
+    Write-Host "$SCRIPT_INDEX [X] faster-whisper still not importable after install." -ForegroundColor Red
+}
+
+if ($modelExplicit -or $Force) {
+    Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine faster_whisper -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
+    if (-not $Model -or $Model -eq 'auto') {
+        $Model = Resolve-TtsModelTier -PythonExe $resolvedPython -Key faster_whisper_model -InstallScriptRoot $PSScriptRoot -Gpu:($hasGpu)
+    }
+    if ($Model -and $Model -ne 'auto') {
+        Write-Host ("$SCRIPT_INDEX [..] Pre-downloading faster-whisper model '{0}' ..." -f $Model) -ForegroundColor Yellow
+        $dlOk = $false
+        try {
+            $prevEap = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            $dlOut = (& $resolvedPython -c "from faster_whisper import download_model; download_model('$Model'); print('__DOWNLOAD_OK__')" 2>$null) -join ''
+            $ErrorActionPreference = $prevEap
+            $dlOk = ($dlOut -match '__DOWNLOAD_OK__')
+        } catch { $dlOk = $false }
+        if ($dlOk) {
+            Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready." -f $Model) -ForegroundColor Green
+            Save-SttModelTier -PythonExe $resolvedPython -InstallScriptRoot $PSScriptRoot -FasterWhisperModel $Model
         } else {
-            Write-Host "$SCRIPT_INDEX [!] GPU lib install incomplete; faster-whisper will fall back to CPU (int8)." -ForegroundColor Yellow
+            $modelDir = Join-Path $Global:CORE_NODE_CACHE_DIR 'huggingface\hub'
+            Write-Host ("$SCRIPT_INDEX [!] model download did not complete; cache={0}; will download on first use." -f $modelDir) -ForegroundColor DarkYellow
         }
     }
-} else {
-    Write-Host "$SCRIPT_INDEX [i] No NVIDIA GPU detected -> CPU (int8) inference." -ForegroundColor DarkGray
 }
 
-# --- 4) optional model pre-download -------------------------------------- #
-if ($Model -and $Model -ne 'auto') {
-    Write-Host ("$SCRIPT_INDEX [..] Pre-downloading faster-whisper model '{0}' ..." -f $Model) -ForegroundColor Yellow
-    & $resolvedPython -c "from faster_whisper import download_model; download_model('$Model')"
-    $modelDir = Join-Path $env:USERPROFILE '.cache\huggingface\hub'
-    if (Test-Path -LiteralPath $modelDir) {
-        Write-Host ("$SCRIPT_INDEX [OK] model '{0}' download attempted (cache under {1})." -f $Model, $modelDir) -ForegroundColor Green
-    } else {
-        Write-Host "$SCRIPT_INDEX [!] model download did not complete; it will download on first use." -ForegroundColor DarkYellow
-    }
-}
+Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('faster_whisper')

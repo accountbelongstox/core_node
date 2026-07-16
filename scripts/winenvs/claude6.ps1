@@ -260,8 +260,6 @@ function Read-SecretFile {
         Write-Host "[WARNING] Secret file not found: $FilePath" -ForegroundColor Yellow
         Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
         return ""
-    }
-    
     try {
         # Read file content using System.IO.File for reliable UTF-8 handling
         $bytes = [System.IO.File]::ReadAllBytes($FilePath)
@@ -287,8 +285,6 @@ function Read-SecretFile {
         Write-Host "[ERROR] Failed to read secret file: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
         $value = ""
-    }
-    
     if (-not $value) {
         Write-Host "[WARNING] Secret value is empty or file is empty: $FilePath" -ForegroundColor Yellow
         Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
@@ -346,40 +342,19 @@ if ($env:ANTHROPIC_AUTH_TOKEN) {
     Write-Host "[WARNING] Failed to load ANTHROPIC_AUTH_TOKEN" -ForegroundColor Yellow
 }
 
-$env:ANTHROPIC_API_KEY = Get-SecretValue "ANTHROPIC_API_KEY_6"
-if ($env:ANTHROPIC_API_KEY) {
-    Write-Host "[SUCCESS] Loaded ANTHROPIC_API_KEY = $($env:ANTHROPIC_API_KEY)" -ForegroundColor Green
-} else {
-    Write-Host "[WARNING] Failed to load ANTHROPIC_API_KEY" -ForegroundColor Yellow
-}
-
-
-
 #region Build Launch Command Display
 $envVarsParts = @()
 
 if ($env:ANTHROPIC_BASE_URL) {
     $envVarsParts += "`$env:ANTHROPIC_BASE_URL='$($env:ANTHROPIC_BASE_URL)'"
-}
-
 if ($env:ANTHROPIC_AUTH_TOKEN) {
     $envVarsParts += "`$env:ANTHROPIC_AUTH_TOKEN='$($env:ANTHROPIC_AUTH_TOKEN)'"
-}
-
-if ($env:ANTHROPIC_API_KEY) {
-    $envVarsParts += "`$env:ANTHROPIC_API_KEY='$($env:ANTHROPIC_API_KEY)'"
-}
-
 $envVarsCommand = $envVarsParts -join '; '
 if ($envVarsCommand) {
     $fullCommandDisplay = "$envVarsCommand; claude --dangerously-skip-permissions"
 } else {
     $fullCommandDisplay = "claude --dangerously-skip-permissions"
-}
 #endregion
-
-
-
 #region MCP Server Synchronization
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -399,9 +374,6 @@ if (Test-Path $preLaunchScript) {
     Write-Host ""
     & $preLaunchScript -WorkingDirectory "$currentWorkingDir"
     Write-Host ""
-}
-
-
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Red
 Write-Host "WARNING: Upgrade Option" -ForegroundColor Red
@@ -435,7 +407,6 @@ if ($upgradeChoice -eq "y" -or $upgradeChoice -eq "Y") {
     Write-Host "[INFO] Skipping upgrade" -ForegroundColor Cyan
 }
 
-
 $syncScript = Join-Path $aiToolsDirPath "claude_sync_mcp_servers.py"
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -462,10 +433,7 @@ Write-Host "Press Enter to start Claude AI..." -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 $null = Read-Host "Press Enter to continue"
 
-
 #endregion
-
-
 
 #region Backup and Restore Check
 Write-Host ""
@@ -574,8 +542,6 @@ if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
     Write-Host ""
     Write-Host "[INFO] On Windows: Using npx fallback (temporary solution)" -ForegroundColor Cyan
     Write-Host ""
-}
-
 # Final check and npx fallback
 if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
     Write-Host ""
@@ -590,26 +556,15 @@ if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
     $envVarsPartsNpx = @()
     if ($env:ANTHROPIC_BASE_URL) {
         $envVarsPartsNpx += "`$env:ANTHROPIC_BASE_URL='$($env:ANTHROPIC_BASE_URL)'"
-    }
     if ($env:ANTHROPIC_AUTH_TOKEN) {
         $envVarsPartsNpx += "`$env:ANTHROPIC_AUTH_TOKEN='$($env:ANTHROPIC_AUTH_TOKEN)'"
-    }
-    if ($env:ANTHROPIC_API_KEY) {
-        $envVarsPartsNpx += "`$env:ANTHROPIC_API_KEY='$($env:ANTHROPIC_API_KEY)'"
-    }
-
     $envVarsCommandNpx = $envVarsPartsNpx -join '; '
     if ($envVarsCommandNpx) {
         $fullCommandDisplay = "$envVarsCommandNpx; npx -y @anthropic-ai/claude-code"
     } else {
         $fullCommandDisplay = "npx -y @anthropic-ai/claude-code"
-    }
-
     Write-Host "[INFO] Using command: $fullCommandDisplay" -ForegroundColor Cyan
     Write-Host ""
-}
-
-
 #region Launch Tool
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan

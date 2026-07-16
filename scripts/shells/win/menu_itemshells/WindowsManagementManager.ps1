@@ -25,16 +25,14 @@ $script:INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -
 $script:TOOLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "tools"
 $script:ANDROID_LAUNCHER = Join-Path $script:TOOLS_DIR "AndroidEmulatorLauncher.ps1"
 $script:SCRIPTS_ROOT_DIR = Split-Path $script:SHELLS_DIR -Parent
-$script:CHROME_REPAIR_SCRIPT = Join-Path $script:SCRIPTS_ROOT_DIR "chromefix\fix-chrome-compat-shim.ps1"
-$script:CHROME_REPAIR_SCRIPT_FALLBACK = Join-Path $env:USERPROFILE ".core_node\scripts\chromefix\fix-chrome-compat-shim.ps1"
-$script:AW_REMOVE_SCRIPT = Join-Path $script:SCRIPTS_ROOT_DIR "chromefix\remove-aw-manager.ps1"
-$script:AW_REMOVE_SCRIPT_FALLBACK = Join-Path $env:USERPROFILE ".core_node\scripts\chromefix\remove-aw-manager.ps1"
+$script:CHROME_REPAIR_SCRIPT = Join-Path $script:SCRIPTS_ROOT_DIR "chromefix\repair-chrome-crash.ps1"
+$script:CHROME_REPAIR_SCRIPT_FALLBACK = Join-Path "D:\programing\Users\$env:USERNAME\.core_node\scripts\chromefix" "repair-chrome-crash.ps1"
+$script:USER_PROFILE_PATH_MAPPING_SCRIPT = Join-Path $script:PS_CURRENT_DIR "UserProfilePathMapping.ps1"
+$script:WSL_UBUNTU_MANAGER_SCRIPT = Join-Path $script:PS_CURRENT_DIR "WSLUbuntuManager.ps1"
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
 . (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
-. (Join-Path $script:WIN_COMMON_DIR "SecretManager.ps1")
-
 $script:COLOR_SUCCESS = "Green"
 $script:COLOR_WARNING = "Yellow"
 $script:COLOR_ERROR = "Red"
@@ -64,30 +62,31 @@ function Write-ColorMessage {
     
     Write-Host "$prefix$Message" -ForegroundColor $color
 }
-#endregion
 
-#region Main Functions
-function Show-WindowsManagementSubMenu {
+function Show-WindowsSystemInfoHeader {
+    $osInfo = Get-CimInstance Win32_OperatingSystem
+    $computerInfo = Get-CimInstance Win32_ComputerSystem
+
     Write-Host ""
     Write-ColorMessage -Message "================================================================================" -Type "Info"
     Write-ColorMessage -Message "Windows System Information" -Type "Info"
     Write-ColorMessage -Message "================================================================================" -Type "Info"
-    
-    $osInfo = Get-CimInstance Win32_OperatingSystem
-    $computerInfo = Get-CimInstance Win32_ComputerSystem
-    
     Write-ColorMessage -Message "Operating System: $($osInfo.Caption)" -Type "Info"
-    Write-ColorMessage -Message "Version: $($osInfo.Version)" -Type "Info"
-    Write-ColorMessage -Message "Build Number: $($osInfo.BuildNumber)" -Type "Info"
+    Write-ColorMessage -Message "Version: $($osInfo.Version) (Build $($osInfo.BuildNumber))" -Type "Info"
     Write-ColorMessage -Message "Architecture: $($osInfo.OSArchitecture)" -Type "Info"
     Write-ColorMessage -Message "Computer Name: $($computerInfo.Name)" -Type "Info"
     Write-ColorMessage -Message "Total Physical Memory: $([math]::Round($computerInfo.TotalPhysicalMemory / 1GB, 2)) GB" -Type "Info"
     Write-ColorMessage -Message "Manufacturer: $($computerInfo.Manufacturer)" -Type "Info"
     Write-ColorMessage -Message "Model: $($computerInfo.Model)" -Type "Info"
-    
     Write-ColorMessage -Message "================================================================================" -Type "Info"
     Write-Host ""
-    
+}
+#endregion
+
+#region Main Functions
+function Show-WindowsManagementSubMenu {
+    $extendWindowsUpdateScript = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step15_ExtendWindowsUpdate.ps1"
+
     $subItems = @(
         @{
             Text = "Display System Information";
@@ -111,8 +110,6 @@ function Show-WindowsManagementSubMenu {
                 } catch {
                     Write-ColorMessage -Message "Failed to get system info: $_" -Type "Error"
                 }
-                Write-Host ""
-                Read-Host "Press Enter to continue"
             }
         },
         @{
@@ -121,27 +118,13 @@ function Show-WindowsManagementSubMenu {
             CurrentValueIndex = 0;
             Key = $null;
             Action = {
-                $step7Script = Join-Path $script:SHELLS_DIR "win\install_powershells\Step7_ExtendWindowsUpdate.ps1"
-                if (Test-Path $step7Script) {
-                    Write-ColorMessage -Message "Executing Step7: Extend Windows Update Pause Days..." -Type "Info"
+                if (Test-Path $extendWindowsUpdateScript) {
+                    Write-ColorMessage -Message "Executing Step15: Extend Windows Update Pause Days..." -Type "Info"
                     Write-Host ""
-                    & $step7Script
-                    Write-Host ""
-                    Read-Host "Press Enter to continue"
+                    & $extendWindowsUpdateScript
                 } else {
-                    Write-ColorMessage -Message "Step7 script not found at: $step7Script" -Type "Error"
-                    Read-Host "Press Enter to continue"
+                    Write-ColorMessage -Message "Step15 script not found at: $extendWindowsUpdateScript" -Type "Error"
                 }
-            }
-        },
-        @{
-            Text = "Clear and Re-decrypt Secret Keys";
-            Values = @("default");
-            CurrentValueIndex = 0;
-            Key = $null;
-            Action = {
-                Clear-Host
-                Clear-AndRedecryptSecrets
             }
         },
         @{
@@ -163,8 +146,6 @@ function Show-WindowsManagementSubMenu {
                 } else {
                     Write-ColorMessage -Message "Stable launcher script not found: $stableLauncher" -Type "Error"
                 }
-                Write-Host ""
-                Read-Host "Press Enter to continue"
             }
         },
         @{
@@ -181,8 +162,6 @@ function Show-WindowsManagementSubMenu {
                 } else {
                     Write-ColorMessage -Message "AppInstallMenu.ps1 not found: $appInstallMenuScript" -Type "Error"
                 }
-                Write-Host ""
-                Read-Host "Press Enter to continue"
             }
         },
         @{
@@ -191,20 +170,17 @@ function Show-WindowsManagementSubMenu {
             CurrentValueIndex = 0;
             Key = $null;
             Action = {
-                $wslMenuScript = Join-Path $script:PS_CURRENT_DIR "WSLUbuntuManager.ps1"
-                if (Test-Path $wslMenuScript) {
+                if (Test-Path $script:WSL_UBUNTU_MANAGER_SCRIPT) {
                     Write-ColorMessage -Message "Launching WSL Ubuntu Management..." -Type "Info"
                     Write-Host ""
-                    & powershell -NoProfile -ExecutionPolicy Bypass -File $wslMenuScript
+                    & powershell -NoProfile -ExecutionPolicy Bypass -File $script:WSL_UBUNTU_MANAGER_SCRIPT
                 } else {
-                    Write-ColorMessage -Message "WSLUbuntuManager.ps1 not found: $wslMenuScript" -Type "Error"
+                    Write-ColorMessage -Message "WSLUbuntuManager.ps1 not found: $script:WSL_UBUNTU_MANAGER_SCRIPT" -Type "Error"
                 }
-                Write-Host ""
-                Read-Host "Press Enter to continue"
             }
         },
         @{
-            Text = "Repair Chrome Crash (Compat Shim / 0xC0000409)";
+            Text = "Repair Chrome Crash (PUP + Compat Shim / 0xC0000409)";
             Values = @("default");
             CurrentValueIndex = 0;
             Key = $null;
@@ -213,34 +189,26 @@ function Show-WindowsManagementSubMenu {
                 $repairScript = $script:CHROME_REPAIR_SCRIPT
                 if (-not (Test-Path $repairScript)) { $repairScript = $script:CHROME_REPAIR_SCRIPT_FALLBACK }
                 if (Test-Path $repairScript) {
-                    Write-ColorMessage -Message "Repairing Chrome STATUS_STACK_BUFFER_OVERRUN (removing stale compat shim)..." -Type "Info"
+                    Write-ColorMessage -Message "Repairing Chrome crash (AW PUP removal + compat shim fix)..." -Type "Info"
                     Write-Host ""
-                    & powershell -NoProfile -ExecutionPolicy Bypass -File $repairScript -Apply
+                    & powershell -NoProfile -ExecutionPolicy Bypass -File $repairScript
                 } else {
                     Write-ColorMessage -Message "Chrome repair script not found: $repairScript" -Type "Error"
                 }
-                Write-Host ""
-                Read-Host "Press Enter to continue"
             }
         },
         @{
-            Text = "Remove AW Manager / Quark PUP (root cause)";
+            Text = "Path Mapping (.cursor / .devin)";
             Values = @("default");
             CurrentValueIndex = 0;
             Key = $null;
             Action = {
-                Clear-Host
-                $removeScript = $script:AW_REMOVE_SCRIPT
-                if (-not (Test-Path $removeScript)) { $removeScript = $script:AW_REMOVE_SCRIPT_FALLBACK }
-                if (Test-Path $removeScript) {
-                    Write-ColorMessage -Message "Removing AW Manager / Quark PUP (idempotent)..." -Type "Info"
-                    Write-Host ""
-                    & powershell -NoProfile -ExecutionPolicy Bypass -File $removeScript -Apply
+                if (Test-Path $script:USER_PROFILE_PATH_MAPPING_SCRIPT) {
+                    . $script:USER_PROFILE_PATH_MAPPING_SCRIPT
+                    Show-UserProfilePathMappingMenu
                 } else {
-                    Write-ColorMessage -Message "PUP removal script not found: $removeScript" -Type "Error"
+                    Write-ColorMessage -Message "UserProfilePathMapping.ps1 not found: $script:USER_PROFILE_PATH_MAPPING_SCRIPT" -Type "Error"
                 }
-                Write-Host ""
-                Read-Host "Press Enter to continue"
             }
         },
         @{ Text = "Back"; Values = @("default"); Key = $null; Action = { return } },
@@ -262,6 +230,7 @@ function Show-WindowsManagementSubMenu {
     $selected = 0
     while ($true) {
         Clear-Host
+        Show-WindowsSystemInfoHeader
         Write-ColorMessage -Message "Windows Management Menu (Up/Down to move, Left/Right to change value, Enter to select)" -Type "Info"
         for ($i=0; $i -lt $subItems.Count; $i++) {
             $it = $subItems[$i]
@@ -317,14 +286,21 @@ function Show-WindowsManagementSubMenu {
                 }
             }
             'Enter' {
-                Clear-Host
-                $subItems[$selected].Action.Invoke()
-                if ($subItems[$selected].Text -eq "Back") {
+                $selectedItem = $subItems[$selected]
+                $selectedText = $selectedItem.Text
+
+                if ($selectedText -eq "Back") {
+                    $selectedItem.Action.Invoke()
                     return
                 }
-                if ($subItems[$selected].Text -eq "Quit") {
+                if ($selectedText -eq "Quit") {
+                    $selectedItem.Action.Invoke()
                     exit
                 }
+
+                Clear-Host
+                $selectedItem.Action.Invoke()
+                Wait-MenuContinue
             }
             'Q' { return }
             'Escape' { return }

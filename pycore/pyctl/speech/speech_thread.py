@@ -13,7 +13,7 @@ import time
 from typing import Optional, Dict, Any
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyctl.speech import get_speech_manager
+from pycore.pyctl.speech.speech_manager import get_speech_manager
 from pycore.pyctl.speech.transcription_app import run_app, run_app_dual_source
 
 

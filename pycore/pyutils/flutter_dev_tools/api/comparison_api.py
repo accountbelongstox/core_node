@@ -20,6 +20,9 @@ except ImportError:
     COMPARISON_AVAILABLE = False
     print("[WARNING] comparison_manager not available")
 
+import traceback
+
+
 
 def create_comparison(
     app_path: Path,
@@ -83,7 +86,6 @@ def create_comparison(
 
     except Exception as e:
         print(f"[ERROR] Failed to create comparison: {e}")
-        import traceback
         traceback.print_exc()
         return {
             "success": False,

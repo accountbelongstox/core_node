@@ -27,79 +27,71 @@ from typing import Any, Dict, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common import result_cache
 from pycore.pyutils.tts import tts_orchestrator
-from pycore.pyutils.external_apis.movie_poster_client import find_poster, parse_title_year
+from pycore.pyutils.external_apis.movie_poster_client import (
+    COVER_DELEGATED_TO_MCP_CHROME,
+    POSTER_DELEGATED_TO_MCP_CHROME,
+    parse_title_year,
+)
 
 from .assist_payload import (
     _looks_like_mp3,
-    _size_to_aspect,
     _speed_to_rate,
     _SXXEXX_LOOKS_RAW_RE,
 )
 
 
+def _tts_history_detail(text: str, language: str, rate: str,
+                        engine: str, audio_bytes: int,
+                        cached: bool = False,
+                        synth_command: Optional[str] = None) -> Dict[str, Any]:
+    """Build the task-history detail for a finished TTS item (includes cache path)."""
+    audio_path = result_cache.get_bytes_path("tts", text, language, rate or "")
+    detail: Dict[str, Any] = {
+        "text": text,
+        "language": language,
+        "engine": engine,
+        "mime": "audio/mpeg",
+        "audio_bytes": audio_bytes,
+    }
+    if audio_path:
+        detail["audio_path"] = audio_path
+    if cached:
+        detail["cached"] = True
+        parts = "/".join((text, language, rate or ""))
+        detail["synth_command"] = synth_command or (
+            f'result_cache hit: tts/{parts} -> {audio_path or "?"}')
+    elif synth_command:
+        detail["synth_command"] = synth_command
+    return detail
+
+
 def _handle_cover(ctx, base: str, item: Dict[str, Any], result: Dict[str, Any]) -> None:
-    """cover item: payload {name, prompt, size:'WxH', filename} -> image."""
+    """cover item — DISABLED in pycore.
+
+    AI cover generation is delegated to apps/mcp-chrome (Google Images via task center).
+    Release immediately so Laravel can re-lease to mcp-chrome.
+    """
     item_id = item.get("id")
     payload = item.get("payload") or {}
-    if ctx._image_generator is None:
-        ctx._release(base, "cover", item_id,
-                     "image generator not wired (app layer did not configure pyctl.ai)",
-                     result)
-        return
-    prompt = (payload.get("prompt") or "").strip()
     name = (payload.get("name") or "").strip()
-    if not prompt:
-        if not name:
-            ctx._release(base, "cover", item_id, "empty cover prompt", result)
-            ctx._record_history("cover", name or "cover", False, error="empty cover prompt")
-            return
-        prompt = f"Book cover illustration for '{name}'"
-    size = _size_to_aspect(payload.get("size"))
-    title = name or prompt[:60]
+    prompt = (payload.get("prompt") or "").strip()
+    title = name or prompt[:60] or f"cover#{item_id}"
+    detail = {
+        "delegated_to": "apps/mcp-chrome",
+        "laravel_item_id": item_id,
+    }
+    if name:
+        detail["name"] = name
+    if prompt:
+        detail["prompt"] = prompt[:200]
 
-    # CACHE: an identical cover (prompt + size) is reused instead of re-paying
-    # for AI image generation - the "same task -> use cache" goal.
-    cached = result_cache.get_bytes("cover", prompt, size or "")
-    if cached is not None:
-        data, meta = cached
-        ctx._submit(base, {
-            "type": "cover", "id": item_id,
-            "image_base64": base64.b64encode(data).decode("ascii"),
-            "mime": meta.get("mime") or "image/png", "claimer": ctx.claimer,
-            "provider": (meta.get("provider") or "cache"), "model": meta.get("model") or "",
-            "latency_ms": 0,
-        }, result)
-        ColorPrint.green(f"[AssistWorker] cover#{item_id} cache hit ({title})")
-        ctx._record_history("cover", title, True, {"cached": True, "provider": meta.get("provider")})
-        return
+    ColorPrint.blue(f"[AssistWorker] cover#{item_id} deferred — {COVER_DELEGATED_TO_MCP_CHROME}")
+    ctx._release(base, "cover", item_id, COVER_DELEGATED_TO_MCP_CHROME, result)
+    ctx._record_history("cover", title, False, detail, error=COVER_DELEGATED_TO_MCP_CHROME)
 
-    out = ctx._image_generator(prompt=prompt, size=size, source="assist-cover")
-    if out.get("success") and out.get("image_base64"):
-        # Store the raw bytes so the next identical claim is a cache hit.
-        try:
-            result_cache.set_bytes(
-                "cover", base64.b64decode(out["image_base64"]), prompt, size or "",
-                meta={"mime": out.get("mime") or "image/png",
-                      "provider": out.get("provider") or "", "model": out.get("model") or ""})
-        except Exception:  # noqa: BLE001 - caching is best-effort
-            pass
-        ctx._submit(base, {
-            "type": "cover",
-            "id": item_id,
-            "image_base64": out["image_base64"],
-            "mime": out.get("mime") or "image/png",
-            "claimer": ctx.claimer,
-            # Provenance for the detailed cover record on Laravel.
-            "provider": out.get("provider") or "",
-            "model": out.get("model") or "",
-            "latency_ms": int(out["latency_ms"]) if out.get("latency_ms") is not None else None,
-        }, result)
-        ctx._record_history("cover", title, True,
-                            {"provider": out.get("provider"), "model": out.get("model")})
-    else:
-        ctx._release(base, "cover", item_id,
-                     out.get("error") or "image generation failed", result)
-        ctx._record_history("cover", title, False, error=out.get("error") or "image generation failed")
+    # --- Legacy AI cover generation (disabled) ---
+    # out = ctx._image_generator(prompt=prompt, size=size, source="assist-cover")
+    # cached = result_cache.get_bytes("cover", prompt, size or "")
 
 
 def _handle_tts(ctx, base: str, item: Dict[str, Any], result: Dict[str, Any]) -> None:
@@ -139,7 +131,12 @@ def _handle_tts(ctx, base: str, item: Dict[str, Any], result: Dict[str, Any]) ->
             "claimer": ctx.claimer,
         }, result)
         ColorPrint.green(f"[AssistWorker] tts#{item_id} cache hit ({title})")
-        ctx._record_history("tts", title, True, {"cached": True, "engine": meta.get("engine")})
+        ctx._record_history(
+            "tts", title, True,
+            _tts_history_detail(text, language, rate or "",
+                                meta.get("engine") or "cache", len(data),
+                                cached=True),
+        )
         return
 
     fd, tmp_path = tempfile.mkstemp(prefix="assist_tts_", suffix=".mp3")
@@ -181,7 +178,11 @@ def _handle_tts(ctx, base: str, item: Dict[str, Any], result: Dict[str, Any]) ->
             "latency_ms": int(synth["latency_ms"]) if synth.get("latency_ms") is not None else None,
             "claimer": ctx.claimer,
         }, result)
-        ctx._record_history("tts", title, True, {"engine": engine, "language": language})
+        ctx._record_history(
+            "tts", title, True,
+            _tts_history_detail(text, language, rate or "", engine, len(audio),
+                                synth_command=synth.get("synth_command")),
+        )
     finally:
         try:
             tmp.unlink()
@@ -190,89 +191,48 @@ def _handle_tts(ctx, base: str, item: Dict[str, Any], result: Dict[str, Any]) ->
 
 
 def _handle_poster(ctx, base: str, item: Dict[str, Any], result: Dict[str, Any]) -> None:
-    """poster item: payload {title, year:int|null, filename} -> movie/TV
-    poster bytes via the movie_poster_client (TMDB -> OMDB; CJK titles are
-    translated to English internally).
+    """poster item — DISABLED in pycore.
 
-    The Laravel title may already be clean; only run parse_title_year when
-    the title still looks like a raw filename (contains scene tokens / an
-    extension). The year comes from the payload when present, else from the
-    parse. ``media_type`` ('book'|'subtitle') is carried back on BOTH the
-    submit and the release so Laravel can route the result.
+    Poster search is delegated to apps/mcp-chrome (Google Images via the extension
+    task center). Release immediately so Laravel can re-lease to mcp-chrome.
     """
     item_id = item.get("id")
     payload = item.get("payload") or {}
     media_type = (payload.get("media_type") or item.get("media_type") or "").strip()
     title = (payload.get("title") or "").strip()
-    if not title:
-        ctx._release(base, "poster", item_id,
-                     "empty poster title", result,
-                     extra={"media_type": media_type})
-        return
 
-    # Year: prefer the payload's explicit year; else parse from the title.
     year = payload.get("year")
     try:
         year = int(year) if year not in (None, "") else None
     except (TypeError, ValueError):
         year = None
 
-    # Only re-parse when the title still looks like a raw filename (scene
-    # separators, a known media/doc extension, or season/episode markers);
-    # an already-clean Laravel title is passed straight through.
     query_title = title
-    looks_raw = ("." in title or "_" in title
-                 or bool(_SXXEXX_LOOKS_RAW_RE.search(title)))
-    if looks_raw:
-        parsed_title, parsed_year = parse_title_year(title)
-        if parsed_title:
-            query_title = parsed_title
-        if year is None and parsed_year is not None:
-            year = parsed_year
+    if title:
+        looks_raw = ("." in title or "_" in title
+                     or bool(_SXXEXX_LOOKS_RAW_RE.search(title)))
+        if looks_raw:
+            parsed_title, parsed_year = parse_title_year(title)
+            if parsed_title:
+                query_title = parsed_title
+            if year is None and parsed_year is not None:
+                year = parsed_year
 
-    hist_title = f"{query_title}{f' ({year})' if year else ''}"
+    hist_title = f"{query_title}{f' ({year})' if year else ''}" if query_title else f"poster#{item_id}"
+    detail = {
+        "media_type": media_type,
+        "year": year,
+        "delegated_to": "apps/mcp-chrome",
+        "laravel_item_id": item_id,
+    }
+    if title:
+        detail["raw_title"] = title
 
-    # CACHE: a poster for the same title+year is reused instead of re-querying
-    # TMDB/OMDB (and re-downloading the image).
-    cached = result_cache.get_bytes("poster", query_title, year or "")
-    if cached is not None:
-        data, meta = cached
-        ctx._submit(base, {
-            "type": "poster", "media_type": media_type, "id": item_id,
-            "image_base64": base64.b64encode(data).decode("ascii"),
-            "mime": meta.get("mime") or "image/jpeg", "claimer": ctx.claimer,
-            "provider": (meta.get("provider") or "cache"),
-            "source_id": meta.get("source_id") or "",
-        }, result)
-        ColorPrint.green(f"[AssistWorker] poster#{item_id} cache hit ({hist_title})")
-        ctx._record_history("poster", hist_title, True, {"cached": True, "media_type": media_type})
-        return
+    ColorPrint.blue(f"[AssistWorker] poster#{item_id} deferred — {POSTER_DELEGATED_TO_MCP_CHROME}")
+    ctx._release(base, "poster", item_id, POSTER_DELEGATED_TO_MCP_CHROME, result,
+                 extra={"media_type": media_type})
+    ctx._record_history("poster", hist_title, False, detail, error=POSTER_DELEGATED_TO_MCP_CHROME)
 
-    hit = find_poster(query_title, year=year)
-    if hit and hit.get("image_base64"):
-        try:
-            result_cache.set_bytes(
-                "poster", base64.b64decode(hit["image_base64"]), query_title, year or "",
-                meta={"mime": hit.get("mime") or "image/jpeg",
-                      "provider": hit.get("provider") or "", "source_id": hit.get("source_id") or ""})
-        except Exception:  # noqa: BLE001 - caching is best-effort
-            pass
-        ctx._submit(base, {
-            "type": "poster",
-            "media_type": media_type,
-            "id": item_id,
-            "image_base64": hit["image_base64"],
-            "mime": hit.get("mime") or "image/jpeg",
-            "claimer": ctx.claimer,
-            # Provenance for the poster record on Laravel.
-            "provider": hit.get("provider") or "",
-            "source_id": hit.get("source_id") or "",
-        }, result)
-        ctx._record_history("poster", hist_title, True,
-                            {"provider": hit.get("provider"), "media_type": media_type})
-    else:
-        ctx._release(base, "poster", item_id,
-                     "poster not found (TMDB/OMDB)", result,
-                     extra={"media_type": media_type})
-        ctx._record_history("poster", hist_title, False,
-                            {"media_type": media_type}, error="poster not found (TMDB/OMDB)")
+    # --- Legacy TMDB/OMDB fetch (disabled; retained for reference) ---
+    # hit = find_poster(query_title, year=year)
+    # cached = result_cache.get_bytes("poster", query_title, year or "")

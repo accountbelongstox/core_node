@@ -2,6 +2,11 @@ import os
 import platform
 from pathlib import Path
 
+import shutil
+import string
+from ctypes import windll
+
+
 SYSTEM_NAME = platform.system()
 SYSTEM_VERSION = platform.version()
 IS_WINDOWS = SYSTEM_NAME == 'Windows'
@@ -114,7 +119,6 @@ def get_seven_zip_executable():
         if os.path.exists(path):
             return path
     if IS_WINDOWS:
-        import shutil
         system_7z = shutil.which('7z') or shutil.which('7za')
         if system_7z:
             return system_7z
@@ -129,8 +133,6 @@ def ensure_directory(dir_path):
 def get_available_drives():
     if not IS_WINDOWS:
         return []
-    import string
-    from ctypes import windll
     drives = []
     bitmask = windll.kernel32.GetLogicalDrives()
     for letter in string.ascii_uppercase:

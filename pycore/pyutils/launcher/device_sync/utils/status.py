@@ -13,6 +13,9 @@ from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pathlib import Path
 import tempfile
 
+from pycore.pyfoundations.third_party import get_third_package_pystray
+
+
 
 def check_ipc_server(verbose=True):
     """
@@ -63,7 +66,7 @@ def check_pystray(verbose=True):
         print("[Check] Testing pystray availability...")
 
     try:
-        import pystray
+        pystray = get_third_package_pystray()
         if verbose:
             print("    ✓ pystray is installed")
         return True

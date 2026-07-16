@@ -2,6 +2,7 @@
 
 . (Join-Path $PSScriptRoot 'CudaIndex.ps1')
 . (Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1')
+. (Join-Path $PSScriptRoot 'NvidiaCuStackAlign.ps1')
 
 $script:PaddleCpuIndexUrl = 'https://www.paddlepaddle.org.cn/packages/stable/cpu/'
 $script:PaddleVersion = if ($env:PCG_PADDLE_VERSION) { $env:PCG_PADDLE_VERSION } else { '3.3.0' }
@@ -49,9 +50,18 @@ function Install-CpuPaddle {
 }
 
 function Install-GpuPaddle {
-    param([string]$PipExe)
+    param(
+        [string]$PythonCmd,
+        [string]$PipExe
+    )
     $idx = Get-PaddleCudaIndexUrl
     & $PipExe install --index-url $idx "paddlepaddle-gpu==$($script:PaddleVersion)"
+    # GPU paddle pins the cu13 nvidia stack; remove any stray cu12 nvidia libs
+    # (e.g. left by faster-whisper/CTranslate2 before it moved to its venv) and
+    # restore clobbered cu13 files so import paddle does not hit WinError 127.
+    if ($PythonCmd) {
+        Sync-NvidiaCuStack -PythonCmd $PythonCmd -PipExe $PipExe -TargetMajor 13
+    }
 }
 
 function Ensure-PaddleBuild {
@@ -66,7 +76,7 @@ function Ensure-PaddleBuild {
     }
 
     if (-not $PipExe) {
-        $PipExe = Resolve-InstallerPipExe -PythonExe $PythonCmd
+        $PipExe = $Global:PIP_EXE_PATH
     }
 
     if (-not $PipExe) {
@@ -82,14 +92,14 @@ function Ensure-PaddleBuild {
                 Write-Host '[paddle-guard] GPU present, paddle missing (repair-only) -> nothing to repair.'
             } else {
                 Write-Host '[paddle-guard] GPU present, paddle missing -> installing driver-matched GPU build.'
-                Install-GpuPaddle -PipExe $PipExe
+                Install-GpuPaddle -PythonCmd $PythonCmd -PipExe $PipExe
             }
             return
         }
         if ($state -eq 'cpu') {
             Write-Host '[paddle-guard] GPU present but paddle is CPU build -> switching to GPU build.'
             Remove-PaddlePackages -PipExe $PipExe
-            Install-GpuPaddle -PipExe $PipExe
+            Install-GpuPaddle -PythonCmd $PythonCmd -PipExe $PipExe
             return
         }
         if (Test-PaddleCudaUsable -PythonCmd $PythonCmd) {
@@ -97,7 +107,7 @@ function Ensure-PaddleBuild {
         } else {
             Write-Host "[paddle-guard] GPU present but paddle GPU build cannot init -> reinstalling ($(Get-PaddleCudaIndexUrl))."
             Remove-PaddlePackages -PipExe $PipExe
-            Install-GpuPaddle -PipExe $PipExe
+            Install-GpuPaddle -PythonCmd $PythonCmd -PipExe $PipExe
         }
         return
     }

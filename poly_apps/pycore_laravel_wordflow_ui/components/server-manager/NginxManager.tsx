@@ -14,7 +14,8 @@ import {
   Power,
   PowerOff,
   RefreshCw,
-  FileCode
+  FileCode,
+  FolderX
 } from 'lucide-react';
 
 /**
@@ -35,6 +36,9 @@ export function NginxManager() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDeleteFilesModal, setShowDeleteFilesModal] = useState(false);
+  const [deleteFilesPassword, setDeleteFilesPassword] = useState('');
+  const [deleteFilesConfirm, setDeleteFilesConfirm] = useState('');
   const [selectedSite, setSelectedSite] = useState<any>(null);
   const [configContent, setConfigContent] = useState('');
   const [processing, setProcessing] = useState(false);
@@ -146,6 +150,45 @@ export function NginxManager() {
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete site');
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  /**
+   * Purge the site's actual web-root files (deleteNginxSite only removes the
+   * nginx config). Destructive: requires the root password AND typing "delete".
+   * The backend refuses to delete anything inside core_node or outside wwwroot.
+   */
+  async function handleDeleteFiles() {
+    if (!selectedSite) return;
+    if (deleteFilesConfirm !== 'delete') {
+      toast.warning('Type "delete" to confirm');
+      return;
+    }
+    if (!deleteFilesPassword) {
+      toast.warning('Root password is required');
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const res = await api.serverManagerV1.deleteNginxSiteFiles(selectedSite.name, {
+        password: deleteFilesPassword,
+        confirm: deleteFilesConfirm,
+      });
+      if (res.success) {
+        toast.success('Site files deleted successfully');
+        setShowDeleteFilesModal(false);
+        setSelectedSite(null);
+        setDeleteFilesPassword('');
+        setDeleteFilesConfirm('');
+        loadSites();
+      } else {
+        toast.error(res.message || 'Failed to delete site files');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete site files');
     } finally {
       setProcessing(false);
     }
@@ -323,6 +366,19 @@ export function NginxManager() {
             title="Delete"
           >
             <Trash2 className="w-4 h-4 text-red-600" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedSite(row);
+              setDeleteFilesPassword('');
+              setDeleteFilesConfirm('');
+              setShowDeleteFilesModal(true);
+            }}
+            className="p-2 hover:bg-gray-100 rounded transition-colors"
+            title="Delete Files (purge web root)"
+          >
+            <FolderX className="w-4 h-4 text-red-700" />
           </button>
         </div>
       )
@@ -583,6 +639,66 @@ export function NginxManager() {
         variant="danger"
         loading={processing}
       />
+
+      {/* Delete Files (purge web root + config) */}
+      <Modal
+        isOpen={showDeleteFilesModal}
+        onClose={() => {
+          setShowDeleteFilesModal(false);
+          setSelectedSite(null);
+          setDeleteFilesPassword('');
+          setDeleteFilesConfirm('');
+        }}
+        title={`Delete Files: ${selectedSite?.name}`}
+        size="lg"
+        footer={
+          <div className="flex items-center justify-end gap-3">
+            <button
+              onClick={() => {
+                setShowDeleteFilesModal(false);
+                setSelectedSite(null);
+                setDeleteFilesPassword('');
+                setDeleteFilesConfirm('');
+              }}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              onClick={handleDeleteFiles}
+              disabled={processing}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+            >
+              {processing ? 'Deleting...' : 'Delete Files'}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+            This permanently deletes the site's <strong>web-root files</strong> AND its nginx config.
+            The <strong>core_node</strong> directory is never deletable (server-enforced). This cannot be undone.
+          </div>
+          <Field label="Root password" required>
+            <input
+              type="password"
+              value={deleteFilesPassword}
+              onChange={(e) => setDeleteFilesPassword(e.target.value)}
+              placeholder="root password"
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+          </Field>
+          <Field label='Type "delete" to confirm' required>
+            <input
+              type="text"
+              value={deleteFilesConfirm}
+              onChange={(e) => setDeleteFilesConfirm(e.target.value)}
+              placeholder="delete"
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+          </Field>
+        </div>
+      </Modal>
     </div>
   );
 }

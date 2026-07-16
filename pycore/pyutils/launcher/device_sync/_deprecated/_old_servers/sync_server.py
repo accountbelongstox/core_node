@@ -27,6 +27,9 @@ import hashlib
 from typing import Optional, Dict, List
 from pathlib import Path
 
+from pycore.pyutils.launcher.device_sync._deprecated._old_servers.web_server import DeviceSyncWebServer
+
+
 DEFAULT_SYNC_PORT = 45679
 
 
@@ -96,7 +99,6 @@ class FileSyncServer:
 
         # Start web server
         try:
-            from .web_server import DeviceSyncWebServer
             self.web_server = DeviceSyncWebServer(port=self.web_port, sync_server=self)
             self.web_server.start()
         except Exception as e:

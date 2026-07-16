@@ -44,7 +44,10 @@
       "singleton_port": "单实例端口: {port}",
       "autostart": "开机自启动",
       "service_toggle": "作为系统服务运行",
-      "language": "语言"
+      "language": "语言",
+      "code_sync": "代码同步",
+      "code_sync_distribute": "开始分发",
+      "code_sync_skip_update": "跳过更新"
     }
   },
   "loading": {

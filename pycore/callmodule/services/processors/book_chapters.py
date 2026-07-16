@@ -20,6 +20,9 @@ from typing import Any, Dict, List, Optional
 
 from pycore import ColorPrint
 
+from pycore.pyfoundations.third_party import get_third_package_ebooklib, get_third_package_bs4
+
+
 
 # --------------------------------------------------------------------------- #
 # Heading heuristics constants (prose/markdown/html)                           #
@@ -209,10 +212,6 @@ def _chapters_from_epub(path: str) -> List[Dict[str, Any]]:
     "use the heuristic fallback".
     """
     try:
-        from pycore.pyfoundations.third_party import (
-            get_third_package_ebooklib,
-            get_third_package_bs4,
-        )
         ebooklib = get_third_package_ebooklib()
         epub = ebooklib.epub
         BeautifulSoup = get_third_package_bs4().BeautifulSoup

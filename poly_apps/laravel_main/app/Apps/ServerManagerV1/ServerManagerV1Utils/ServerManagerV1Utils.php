@@ -44,14 +44,147 @@ class ServerManagerV1Utils
     }
     
     /**
-     * Check if file extension is allowed for preview
+     * Resolve a browse path against the allowed whitelist. Falls back to the
+     * first existing allowed directory when the requested path does not exist
+     * (e.g. legacy /www/wwwroot/... aliases on hosts that use PathMapper roots).
+     */
+    public static function resolveBrowsePath(?string $requestedPath): array
+    {
+        $allowedPaths = ServerManagerV1Constants::getAllowedDownloadPaths();
+        $defaultPath = self::firstExistingAllowedPath($allowedPaths);
+
+        if ($requestedPath === null || trim($requestedPath) === '') {
+            return [
+                'path' => $defaultPath,
+                'fallback' => true,
+                'requested' => null,
+            ];
+        }
+
+        $sanitized = self::sanitizePath($requestedPath);
+        $real = realpath($sanitized);
+        if ($real !== false && is_dir($real) && self::isPathAllowed($real)) {
+            return [
+                'path' => $real,
+                'fallback' => false,
+                'requested' => $sanitized,
+            ];
+        }
+
+        $requestedTail2 = self::pathTail($sanitized, 2);
+        $requestedTail3 = self::pathTail($sanitized, 3);
+
+        foreach ($allowedPaths as $allowed) {
+            if (!is_string($allowed) || $allowed === '') {
+                continue;
+            }
+
+            $realAllowed = realpath($allowed);
+            if ($realAllowed === false || !is_dir($realAllowed)) {
+                continue;
+            }
+
+            $allowedTail2 = self::pathTail($allowed, 2);
+            $allowedTail3 = self::pathTail($allowed, 3);
+
+            if (
+                ($requestedTail2 && $allowedTail2 && $requestedTail2 === $allowedTail2)
+                || ($requestedTail3 && $allowedTail3 && $requestedTail3 === $allowedTail3)
+            ) {
+                return [
+                    'path' => $realAllowed,
+                    'fallback' => true,
+                    'requested' => $sanitized,
+                ];
+            }
+        }
+
+        return [
+            'path' => $defaultPath,
+            'fallback' => true,
+            'requested' => $sanitized,
+        ];
+    }
+
+    /**
+     * Preview/write access is allowed for all file types within whitelisted paths.
+     * Path whitelist and size limits remain the security boundary.
      */
     public static function isPreviewAllowed(string $filename): bool
     {
-        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-        return in_array($extension, ServerManagerV1Constants::ALLOWED_PREVIEW_EXTENSIONS);
+        return true;
     }
-    
+
+    /**
+     * Write access is allowed for all file types within whitelisted paths.
+     */
+    public static function isWriteAllowed(string $filename): bool
+    {
+        return true;
+    }
+
+    /**
+     * Detect binary content (null bytes or invalid UTF-8).
+     */
+    public static function isBinaryContent(string $content): bool
+    {
+        if ($content === '') {
+            return false;
+        }
+
+        if (str_contains($content, "\0")) {
+            return true;
+        }
+
+        return !mb_check_encoding($content, 'UTF-8');
+    }
+
+    /**
+     * Write file content directly when the web user has write permission.
+     */
+    public static function writeFileDirect(string $filePath, string $content): array
+    {
+        $written = @file_put_contents($filePath, $content, LOCK_EX);
+        if ($written === false) {
+            return [
+                'success' => false,
+                'error' => 'Failed to write file.',
+                'code' => 500,
+                'needs_elevation' => !is_writable(dirname($filePath)),
+            ];
+        }
+
+        clearstatcache(true, $filePath);
+        return ['success' => true];
+    }
+
+    private static function firstExistingAllowedPath(array $allowedPaths): ?string
+    {
+        foreach ($allowedPaths as $allowedPath) {
+            if (!is_string($allowedPath) || $allowedPath === '') {
+                continue;
+            }
+
+            $real = realpath($allowedPath);
+            if ($real !== false && is_dir($real)) {
+                return $real;
+            }
+        }
+
+        return null;
+    }
+
+    private static function pathTail(string $path, int $segments): ?string
+    {
+        $parts = array_values(array_filter(explode('/', str_replace('\\', '/', $path))));
+        if (count($parts) === 0) {
+            return null;
+        }
+
+        $segments = min($segments, count($parts));
+        return implode('/', array_slice($parts, -$segments));
+    }
+
     /**
      * Execute system command safely with logging
      *

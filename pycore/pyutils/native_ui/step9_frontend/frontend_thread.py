@@ -38,6 +38,13 @@ from .frontend_commands import (
 # Reusable subprocess/streaming wrappers (extracted)
 from .frontend_process import popen_streaming, stream_process_output, start_output_consumer
 
+import traceback
+from pycore.pyutils.native_ui.step9_frontend.port_killer import is_port_available
+
+import signal
+
+
+
 
 class FrontendLauncherThread(threading.Thread):
     """
@@ -234,7 +241,6 @@ class FrontendLauncherThread(threading.Thread):
             ColorPrint.red(f"[FrontendThread] Unexpected error: {e}")
             self.error_message = str(e)
             self.error_event.set()
-            import traceback
             traceback.print_exc()
 
         finally:
@@ -420,7 +426,6 @@ class FrontendLauncherThread(threading.Thread):
         # Frontend singleton detection should have already triggered old instance shutdown
         # Wait for graceful shutdown instead of force killing
         ColorPrint.blue(f"[FrontendThread] Checking if port {self.config.port} is occupied...")
-        from .port_killer import is_port_available
 
         if not is_port_available(self.config.port, self.config.host):
             ColorPrint.yellow(f"[FrontendThread] Port {self.config.port} is occupied")
@@ -615,8 +620,6 @@ class FrontendLauncherThread(threading.Thread):
                     ColorPrint.yellow(f"[FrontendThread] Force killing process {pid}...")
 
                     try:
-                        import os
-                        import signal
                         os.kill(pid, signal.SIGKILL)
                         ColorPrint.blue(f"[FrontendThread] Sent SIGKILL to process {pid}")
 

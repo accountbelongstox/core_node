@@ -66,9 +66,10 @@ wordnew :13054                      laravel_main :9000                     pycor
   |                                        |        |   Cambridge -> Forvo (2-pass
   |                                        |        |   accent: preferred then any)
   |                                        |        |  else synthesize(text,l,accent)
-  |                                        |        |   edge -> streamelements ->
-  |                                        |        |   sherpa -> melotts -> gptsovits
-  |                                        |        |   -> gtts_web -> azure [target #4]
+  |                                        |        |   gptsovits -> melotts ->
+  |                                        |        |   sherpa -> edge ->
+  |                                        |        |   streamelements ->
+  |                                        |        |   gtts_web -> azure [target #4]
   |                                        |        |  cache + emit translations[]
   |                                        | POST /api/worker/tasks/result
   |                                        |<-------| {translations:[{word,
@@ -144,11 +145,14 @@ from a higher-priority source. The result carries the ACTUAL accent obtained
    with `-us.mp3`/`-uk.mp3` suffix) -> Wikimedia Commons (`En-us-/En-uk-<word>.ogg`)
    -> Cambridge (prefer the requested region span) -> Forvo (key-gated).
 3. Real human audio, ANY accent from the same providers (tag actual accent).
-4. Neural TTS, preferred accent: `edge` with `en-US-AriaNeural` / `en-GB-SoniaNeural`
-   (60s cooldown on failure).
-5. No-key web TTS: `streamelements` (Joanna=US / Amy=UK, plain GET mp3) ->
-   `gtts_web` (Google translate_tts, no accent promise -> `"unknown"`).
-6. Offline engines any-accent: `sherpa` -> `melotts` -> `gptsovits` -> `azure`.
+4. Local AI / neural TTS (any-accent unless noted): `gptsovits` -> `melotts` ->
+   `sherpa`.
+5. Online TTS, preferred accent when possible: `edge` with
+   `en-US-AriaNeural` / `en-GB-SoniaNeural` (60s cooldown on failure) ->
+   `streamelements` (Joanna=US / Amy=UK; **requires** `STREAMELEMENTS_API_KEY`,
+   disabled at startup when missing) -> `gtts_web` (Google translate_tts, no
+   accent promise -> `"unknown"`).
+6. Cloud fallback: `azure`.
 
 `synthesize(text, language, output_path, rate=None, accent=None)` returns
 `{success, engine, error, tried, accent}` where `accent` is the accent actually
@@ -187,7 +191,7 @@ Verified options (researched 2026-07):
 | Cambridge Dictionary | US/UK (page span) | No | pycore | HTML parse of public page |
 | Forvo | multi-lang | Yes (paid) | pycore | Gated behind `FORVO_API_KEY` |
 | edge-tts (python) | en-US + en-GB neural | No | pycore | Best server-side quality+accent |
-| StreamElements | Polly Joanna/Amy | No | pycore | Plain GET mp3; years-stable |
+| StreamElements | Polly Joanna/Amy | Yes (`.secret_keys` `STREAMELEMENTS_API_KEY_1`) | pycore | Disabled at startup without key; 401 otherwise |
 | gTTS (HTTP) | one en voice | No | pycore | translate_tts endpoint; unofficial |
 | Puter.js `txt2speech` | en-US/en-GB (Polly) | No key (browser) | wordnew ONLY | Temp-account credit cliff + sign-in popup at scale -> opt-in, default OFF |
 | Puter server-side | - | account token | EXCLUDED | Credit drain + ToS-sensitive for unattended use |
@@ -293,3 +297,184 @@ sources live in `pycore/pyutils/external_apis/word_audio_client.py`.
   engine chain + pycore heap - §5.2 engine extension points used here)
 - `poly_apps/pycore_laravel_wordflow_ui/docs/WORDNEW_API_MOCK_PATTERN.md`
   (FE API layer mock/real rules - §6 follows rule 4)
+
+## 9. Task1 Archival: Sentence/Word Multi-Audio + TTS Priority + Icon States (2026-07-13)
+
+> Archival of the task1 prompt + the as-built feature architecture. This section
+> is the completed-state record; §1-§8 above remain the live source of truth for
+> the realtime/accent contract. Language: English (repo rule); the original
+> prompt is preserved verbatim in Chinese.
+
+### 9.1 Original prompt from `_prompts/task1.txt`
+
+```text
+http://localhost:13054/wordnew#/book-reader 在其中，当句子音频被后端调整优先级以后，右边的音频图标变成对应图标，之后，当任务被 ./pycore pyservice标记处理中时，再次变成其他图标和颜色。当pycore处理好回传时。变成绿色可用的音频图标。同时，每一小节点击时自动播放该小节，同时pycore端生成的音频要标记是那个工具生成的，以及选择的发音us/en,男女等细节，后端要扩展sys:init支持，同时现在一个句子，单词都是可以放多个音频的，当然是扩展PHP查询逻辑代码，数据库只标记有没有音频而不放音频路径，当点击全部播放时，自上而下播放，但仍可以通过点击其他小节更改current Node并继续播放。同时播放到那个的时候那个就自动跳到页面中上。滑动时不跳动，但改变了新的node时重新继续跳动。对于http://localhost:13054/wordnew#/library/3?page=1&view=table 也是同样的方式。现在同时扩展poly apps/pycore laravel ui端，pycore端，laravel端。UI端需要同时扩展wordnew和pycore-manager.以上全部完成后，生成一个报表，并将该提示诩放到设计文档。
+之该优先级默认按这个来，同时为什么保存不了 Text-to-Speech
+Saving…
+Engine priority
+Tried top -> bottom. Re-order with the arrows; omitted engines fall through in default order.
+
+1
+gptsovits
+available
+
+
+2
+streamelements
+available
+
+
+3
+sherpa
+available
+
+
+4
+melotts
+available
+
+
+5
+edge
+available
+
+
+6
+gtts_web
+available
+
+
+7
+azure
+available，并验证所有调整是否实时生效、数据内联性如何，同时 http://127.0.0.1:59000/api/local/queue/bumps?limit=20这个后端是干什么的，一直 {"detail":"Not Found"} ，修复一些BUG，在参数不对时可以回到首页 [plugin:vite:react-babel] /www/programing/core_node/poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/pages/WfNewBookReader.tsx: Identifier 'chapterOrder' has already been declared. (452:8)
+  455 |   const selectChapter = useCallback((chapterIndex: number) => {
+/www/programing/core_node/poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/pages/WfNewBookReader.tsx:452:8
+450|    };
+451|  
+452|    const chapterOrder = useMemo(() => chapters.map((c) => c.chapterIndex), [chapters]);
+   |          ^
+453|    const activePos = activeChapter == null ? -1 : chapterOrder.indexOf(activeChapter); /www/programing/core_node/poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/pages/WfNewBookReader.tsx: Identifier 'chapterOrder' has already been declared. (452:8)
+  455 |   const selectChapter = useCallback((chapterIndex: number) => {
+/www/programing/core_node/poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/pages/WfNewBookReader.tsx:452:8
+450|    };
+451|  
+452|    const chapterOrder = useMemo(() => chapters.map((c) => c.chapterIndex), [chapters]);
+   |          ^
+453|    const activePos = activeChapter == null ? -1 : chapterOrder.indexOf(activeChapter);
+```
+
+### 9.2 Feature architecture (per layer)
+
+- **wordnew book-reader** (`#/book-reader`): per-cell audio icon with 3 states -
+  **queued** (amber `ArrowUpCircle`, after a priority bump), **processing**
+  (sky `Loader2` spin, when pycore claims the task), **ready** (green `Volume2`,
+  on completion). Click a section -> `playFrom`; Play-all runs top-to-bottom via
+  `WfBookReaderPlayback.advanceFrom` with `currentNode` re-rooted on click.
+  Auto-scroll brings the active verse to upper-middle; manual scroll pauses
+  auto-scroll for 2500 ms, and selecting a new node resumes it. Multi-audio via
+  `WfAudioVariantPicker` + `pickSentenceAudioUrl` (reads `audioFiles[]` tagged
+  with accent/gender/provider).
+- **wordnew library table** (`#/library/{id}?view=table`): the same 6 behaviors
+  via the new `WfLibraryPlayback` + `WfLibraryWordRow` + `WfLibraryWordCell`,
+  reusing the shared `WfAudioCellState` / `WfAudioStatusIcon` /
+  `WfSentenceAudioPick` / `WfAudioVariantPicker` +
+  `bumpSentenceAudioImmediate` / `waitForSentenceAudioUrl`. Three-state icons,
+  play-all + `currentNode`, auto-scroll upper-middle + manual-scroll pause,
+  multi-audio variant picker - parity with the book-reader.
+- **wordnew TTS engine-priority panel**: `WfTtsEnginePriorityPanel` in Settings,
+  arrow-reorder, calls laravel `GET`/`POST /api/app_qy_v1/ai_tools/tts/priority`.
+  Dynamic engine list (16 engines, chattts-first local-AI-first default). The
+  "Saving…" indicator is cleared in a `finally` block so it never sticks.
+- **pycore-manager**: `PcCapabilityDrawer` (arrow-reorder) +
+  `PcTtsEnginesStrip`, saves to pycore `/api/local/capabilities/settings`;
+  `reload_tts_priority()` applies the new order realtime.
+- **pycore**:
+  - `tts_sentence_worker_service` (primary path) tags each result with
+    `accent` / `gender` / `variant_key` / `source` / `voice_type` / `provider`.
+  - `translation_worker` / `handlers/audio.py` (assist path) now tags the same
+    fields, so assist-generated audio is query-compatible with the primary path.
+  - `tts_orchestrator._DEFAULT_PRIORITY` = 16 engines, chattts-first;
+    `reload_tts_priority()` rebinds the global; `_priority()` reads it
+    dynamically at request time. `word_audio_router` calls `_priority()` when
+    serving a request (not a stale module-load snapshot).
+  - `__main__.py` falls back to `--service` mode when the platform launcher is
+    absent, so `./pycore pyservice` always starts the FastAPI app.
+  - `create_app()` includes ALL queue/task routers, so
+    `/api/local/queue/bumps` resolves in `--service` mode (the prior 404). The
+    duplicate `/bumps` route was removed (kept only in `queue_bumps_router`).
+- **laravel**:
+  - Per-language sentence tables + `tts_cache_{lang}` dictionary tables carry a
+    `has_audio` boolean + an `audio_files` JSON array (multi-variant rows:
+    `variant_key` / `accent` / `gender` / `source` / `voice_type` / `provider` /
+    `path`). The DB only flags presence; paths live in the JSON array.
+  - `AppQyV1SentenceAudioService::resolve()` returns `audio_files[]` +
+    `tts_status` and supports `?variant_key=` and `?accent=` selection.
+  - `AppQyV1WordMediaService::resolve()` returns `audio_files` (canonical) +
+    `audio_variants` (alias) for FE compatibility.
+  - Claim logic is per-variant missing (`missingVariantsForRow`), so one row can
+    be re-claimed to fill additional accents/genders without clobbering
+    existing files.
+  - `SentenceAudioTaskProcessor` accepts the assist-path tags.
+  - `sys:init` seeds `app_qy_v1_tts_engine_config` (16 engines) +
+    `app_qy_v1_tts_variant_specs` (`en`: `us_f` primary, `uk_f`, `us_m`);
+    `variantsForLanguage` reads the DB, not a hardcoded list.
+  - TTS priority proxy at `/api/app_qy_v1/ai_tools/tts/priority` forwards to
+    pycore and back (single save surface for both UIs).
+
+### 9.3 TTS engine priority decision
+
+The default is the **16-engine chattts-first (local-AI-first) order**:
+
+```
+chattts, cosyvoice, fishspeech, qwen3tts, bark, parler, voxcpm2, kokoro,
+gptsovits, f5tts, melotts, sherpa, edge, streamelements, gtts_web, azure
+```
+
+Rationale: local/neural engines first (free, offline-capable), then online
+no-key engines, then cloud (`azure`) last. The legacy 7-engine gptsovits-first
+order from the task1 prompt is retained in `_LEGACY_SAVED_ORDERS` and
+auto-upgrades to the 16-engine default on first load (saved user orders are
+preserved; only the default/fallback order changes). Both UIs (wordnew Settings
+panel + pycore-manager `PcCapabilityDrawer`) read/write the same pycore
+priority store, so a save in either propagates realtime via
+`reload_tts_priority()`.
+
+### 9.4 Endpoints reference
+
+| Hop | Method | Endpoint | Purpose |
+|---|---|---|---|
+| wordnew -> laravel | GET | `/api/app_qy_v1/ai_tools/tts/priority` | Read engine order |
+| wordnew -> laravel | POST | `/api/app_qy_v1/ai_tools/tts/priority` | Save engine order (proxied to pycore) |
+| wordnew -> laravel | POST | `/api/app_qy_v1/ai_tools/tts/sentence/bump` | Bump a sentence audio task to front |
+| wordnew -> laravel | GET | `/api/app_qy_v1/ai_tools/tts/sentence/audio` | Resolve sentence audio_files[] (+ `?variant_key=`/`?accent=`) |
+| laravel <-> pycore | GET/POST | `/api/local/capabilities/settings` | Read/write TTS priority + capability config |
+| laravel <-> pycore | GET | `/api/local/queue/bumps?limit=N` | Recent priority bumps (was 404; now in `queue_bumps_router`) |
+| laravel <-> pycore | * | `/api/local/sentence-audio/*` | Sentence-audio claim/report/resolve |
+| laravel <-> pycore | * | `/api/local/word-audio/*` | Word-audio resolve + generate |
+| pycore claim | POST | `/api/app_qy_v1/ai_tools/tts/sentence/claim` | Claim a sentence-audio task |
+| pycore claim | POST | `/api/app_qy_v1/ai_tools/tts/sentence/report` | Report completion + tags back to laravel |
+
+### 9.5 Completion checklist
+
+- [x] Audio icon 3-state (queued amber / processing sky-spin / ready green) in
+  book-reader and library table.
+- [x] Click a section -> auto-play that section (`playFrom`).
+- [x] Multi-audio tagging: pycore stamps `tool`/`accent`/`gender`
+  (`variant_key`/`source`/`voice_type`/`provider`) on every generated file.
+- [x] Play-all top-to-bottom, click another section re-roots `currentNode` and
+  continues from there.
+- [x] Active verse auto-scrolls to page upper-middle; manual scroll pauses
+  auto-scroll (2500 ms); selecting a new node resumes.
+- [x] Library table (`#/library/{id}?view=table`) parity - same 6 behaviors via
+  shared components.
+- [x] `sys:init` extended: seeds `app_qy_v1_tts_engine_config` (16 engines) +
+  `app_qy_v1_tts_variant_specs`; DB only stores `has_audio`, paths in
+  `audio_files` JSON.
+- [x] TTS engine-priority panel saves + applies realtime
+  (`reload_tts_priority()`; "Saving…" cleared in `finally`).
+- [x] `/api/local/queue/bumps` 404 fixed (router included in `--service` mode;
+  duplicate `/bumps` removed).
+- [x] `WfNewBookReader.tsx` `chapterOrder` duplicate-declaration compile bug
+  fixed.
+- [x] Bad-param guard: invalid route params fall back to home instead of
+  crashing the page.

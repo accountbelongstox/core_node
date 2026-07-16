@@ -146,7 +146,7 @@ show_ai_mcp_management_menu() {
                     header) ;;
                     claude_env)       clear; aimcp_run_install_script "131_install_claude_code.sh" "Claude Code installer"; aimcp_pause ;;
                     droid_env)        aimcp_run_submenu show_droid_submenu "Droid env setup" ;;
-                    openai_env)       aimcp_run_submenu show_openai_submenu "OpenAI env setup" ;;
+                    codex_env)        aimcp_run_submenu show_codex_submenu "Codex CLI env setup" ;;
                     dryrun)           clear; mcp_show_planned; aimcp_pause ;;
                     install_all)      clear; mcp_install_all; aimcp_pause ;;
                     install_chrome)   clear; export MCP_CHROME_BUILD_DONE=0; mcp_install_chrome; mcp_sync_all; aimcp_pause ;;

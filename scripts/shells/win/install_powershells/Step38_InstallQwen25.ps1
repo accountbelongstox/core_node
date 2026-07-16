@@ -18,16 +18,26 @@ $globalVarsPath = Join-Path $winCommonDir "GlobalVars.ps1"
 . $globalVarsPath
 . (Join-Path $winCommonDir "CudaIndex.ps1")
 . (Join-Path $winCommonDir "PythonRuntimeCommon.ps1")
+. (Join-Path $winCommonDir "TorchCpuGuard.ps1")
+. (Join-Path $winCommonDir "TtsInstallAssetsCommon.ps1")
 
 $SCRIPT_INDEX = "[Step 38]"
 $MODEL_NAME = "Qwen2.5-0.5B-Instruct"
 $MODEL_PATH = "Qwen/Qwen2.5-0.5B-Instruct"
 $REQUIRED_PYTHON_VERSION = $Global:PYTHON_VERSION
+$stagingDefault = Get-PycoreLocalDataSubDir -SubDir 'qwen25'
+$targetDir = if ($env:QWEN25_DIR) { $env:QWEN25_DIR } else { $stagingDefault }
+$weightsDir = Join-Path $targetDir 'weights'
+$modelSentinel = Join-Path $targetDir '.model_installed'
+$weightAllow = @('*.bin', '*.safetensors', '*.pt', '*.json', '*.txt', '*.model', '*.vocab')
+$modelReady = $false
+$dlOk = $false
+$sentinelModel = $null
 
 function Test-PythonAvailable {
-    $pythonCommand = Resolve-InstallerPythonExe
-    if (-not $pythonCommand) {
-        Write-Host "$SCRIPT_INDEX Python not found at $($Global:PYTHON_EXE_PATH). Run Step8_InstallPython.ps1" -ForegroundColor Red
+    $pythonCommand = $Global:PYTHON_EXE_PATH
+    if (-not (Test-Path -LiteralPath $pythonCommand)) {
+        Write-Host "$SCRIPT_INDEX Python not found at $pythonCommand. Run Step8_InstallPython.ps1" -ForegroundColor Red
         return @{ Available = $false; Command = "" }
     }
 
@@ -44,15 +54,9 @@ function Install-Qwen25Dependencies {
     Write-Host "$SCRIPT_INDEX Note: Qwen2.5 requires transformers >= 4.37.0" -ForegroundColor White
 
     try {
-        Write-Host "$SCRIPT_INDEX Uninstalling incompatible torch versions..." -ForegroundColor Cyan
+        Write-Host "$SCRIPT_INDEX Ensuring torch build (idempotent, driver-matched cu13)..." -ForegroundColor Cyan
         Write-Host ""
-        & $Global:PIP_EXE_PATH uninstall -y torch torchvision torchaudio
-        Write-Host ""
-
-        Write-Host "$SCRIPT_INDEX Installing compatible torch and dependencies..." -ForegroundColor Cyan
-        Write-Host ""
-        $torchIndex = Get-TorchCudaIndexUrl
-        & $Global:PIP_EXE_PATH install torch torchvision torchaudio --index-url $torchIndex
+        Ensure-TorchBuild -PythonCmd $PythonCommand -PipExe $Global:PIP_EXE_PATH
         Write-Host ""
 
         Write-Host "$SCRIPT_INDEX Installing transformers and accelerate..." -ForegroundColor Cyan
@@ -128,7 +132,7 @@ function New-Qwen25InteractiveScript {
         return
     }
 
-    $cacheDir = Join-Path $env:USERPROFILE ".core_node\.cache"
+    $cacheDir = Join-Path $Global:CORE_NODE_CACHE_DIR 'core_node'
     if (-not (Test-Path $cacheDir)) {
         New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
     }
@@ -186,6 +190,38 @@ pause
     Write-Host ""
 }
 
+function Install-Qwen25ModelWeights {
+    Write-Host "`n$SCRIPT_INDEX Pre-downloading model weights (idempotent: sentinel + curl resume + size verify)" -ForegroundColor Cyan
+    Write-Host ("$SCRIPT_INDEX  weights : {0}" -f $weightsDir) -ForegroundColor DarkGray
+    Write-Host ("$SCRIPT_INDEX  sentinel: {0} ({1})" -f $modelSentinel, $(if (Test-Path $modelSentinel) { 'present' } else { 'absent' })) -ForegroundColor DarkGray
+
+    New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+
+    # allow-list excludes redundant flax/tf/onnx format variants.
+    $modelReady = $false
+    if (Test-Path $modelSentinel) {
+        $sentinelModel = (Get-Content -LiteralPath $modelSentinel -Raw -ErrorAction SilentlyContinue)
+        if ($sentinelModel) { $sentinelModel = $sentinelModel.Trim().Trim([char]0xFEFF) }
+        if ($sentinelModel -and ($sentinelModel -eq $MODEL_PATH) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $MODEL_PATH)) {
+            Write-Host "$SCRIPT_INDEX [idempotent] skipping: model weights verified ($MODEL_PATH)" -ForegroundColor Green
+            $modelReady = $true
+        } elseif ($sentinelModel -and ($sentinelModel -ne $MODEL_PATH)) {
+            Write-Host ("$SCRIPT_INDEX [..] model changed ({0} -> {1}); refreshing weights." -f $sentinelModel, $MODEL_PATH) -ForegroundColor Yellow
+        } elseif (-not (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $MODEL_PATH)) {
+            Write-Host "$SCRIPT_INDEX [..] local weights incomplete or corrupt; repairing download." -ForegroundColor Yellow
+        }
+    }
+    if (-not $modelReady) {
+        Write-Host ("$SCRIPT_INDEX [..] downloading/repairing model '{0}' (curl, resumable) ..." -f $MODEL_PATH) -ForegroundColor Yellow
+        $dlOk = Install-HfRepoFlat -RepoId $MODEL_PATH -DestDir $weightsDir -SentinelPath $modelSentinel -AllowPatterns $weightAllow -Prefix "$SCRIPT_INDEX " -SentinelValue $MODEL_PATH
+        if ($dlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $MODEL_PATH)) {
+            Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready at {1}." -f $MODEL_PATH, $weightsDir) -ForegroundColor Green
+        } else {
+            Write-Host ("$SCRIPT_INDEX [!] model download not finished; partial files kept at {0}; will RESUME next run." -f $weightsDir) -ForegroundColor DarkYellow
+        }
+    }
+}
+
 function Install-Qwen25 {
     Write-Host "`n$SCRIPT_INDEX ========================================" -ForegroundColor Cyan
     Write-Host "$SCRIPT_INDEX   Qwen2.5-0.5B-Instruct Installation" -ForegroundColor Cyan
@@ -213,7 +249,10 @@ function Install-Qwen25 {
         Write-Host "$SCRIPT_INDEX You can try installing manually: pip install --upgrade transformers torch" -ForegroundColor Yellow
     }
 
-    Write-Host "`n$SCRIPT_INDEX Step 2: Test model loading" -ForegroundColor Cyan
+    Write-Host "`n$SCRIPT_INDEX Step 2: Pre-download model weights (idempotent)" -ForegroundColor Cyan
+    Install-Qwen25ModelWeights
+
+    Write-Host "`n$SCRIPT_INDEX Step 3: Test model loading (local weights)" -ForegroundColor Cyan
     $testSuccess = Test-Qwen25ModelLoad -PythonCommand $pythonStatus.Command
 
     if ($testSuccess) {
@@ -221,9 +260,9 @@ function Install-Qwen25 {
         Write-Host "$SCRIPT_INDEX   Installation Successful!" -ForegroundColor Green
         Write-Host "$SCRIPT_INDEX ========================================" -ForegroundColor Green
         Write-Host "`n$SCRIPT_INDEX Model: $MODEL_PATH" -ForegroundColor Green
-        Write-Host "$SCRIPT_INDEX Cache: ~\\.cache\\huggingface" -ForegroundColor Green
+        Write-Host "$SCRIPT_INDEX Weights: $weightsDir" -ForegroundColor Green
 
-        Write-Host "`n$SCRIPT_INDEX Step 3: Create interactive chat" -ForegroundColor Cyan
+        Write-Host "`n$SCRIPT_INDEX Step 4: Create interactive chat" -ForegroundColor Cyan
         New-Qwen25InteractiveScript -PythonCommand $pythonStatus.Command
 
         return $true

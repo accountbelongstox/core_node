@@ -11,6 +11,12 @@ mechanism (Windows: a .lnk shortcut in the common Startup folder; Linux: an XDG
 
 import platform
 
+from pycore.callmodule.platform.windows_startup_manager import WindowsStartupManager
+from pycore.callmodule.platform.autostart_target import read_preference, normalize_mechanism
+from pycore.callmodule.platform.systemd_user_startup_manager import SystemdUserStartupManager
+from pycore.callmodule.platform.linux_startup_manager import LinuxStartupManager
+
+
 
 class _UnsupportedStartupManager:
     """No-op manager for platforms without an implemented native mechanism."""
@@ -54,17 +60,13 @@ def get_startup_manager(app_name: str = "PyCore_RPC_Server", target=None, mechan
     """
     system = platform.system()
     if system == "Windows":
-        from pycore.callmodule.platform.windows_startup_manager import WindowsStartupManager
         return WindowsStartupManager(app_name, target=target)
     if system == "Linux":
-        from pycore.callmodule.platform.autostart_target import read_preference, normalize_mechanism
         mech = normalize_mechanism(mechanism if mechanism is not None else read_preference()["mechanism"])
         if mech == "systemd":
-            from pycore.callmodule.platform.systemd_user_startup_manager import SystemdUserStartupManager
             mgr = SystemdUserStartupManager(app_name, target=target)
             if mgr.is_supported():
                 return mgr
-        from pycore.callmodule.platform.linux_startup_manager import LinuxStartupManager
         return LinuxStartupManager(app_name, target=target, mechanism="xdg")
     return _UnsupportedStartupManager(system)
 

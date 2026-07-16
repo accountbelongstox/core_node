@@ -18,6 +18,7 @@ use Illuminate\Http\JsonResponse;
 use App\Models\Book;
 use App\Models\Subtitle;
 use App\Models\SourceSentence;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioFiles;
 use App\Models\LangSentence;
 use App\Models\PunctuationMarker;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
@@ -250,7 +251,8 @@ class AppQyV1MediaContentPublicController
                 'audio' => $row->audio,
                 'explanation' => $row->explanation,
                 'has_audio' => (bool) $row->has_audio,
-                // FUTURE: 'audio_files' => AppQyV1SentenceAudioFiles::list($row),
+                'tts_status' => $row->tts_status,
+                'audio_files' => AppQyV1SentenceAudioFiles::list($row),
             ];
             $languages[$lang] = $entry;
 

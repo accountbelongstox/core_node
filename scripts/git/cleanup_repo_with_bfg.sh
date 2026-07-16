@@ -20,7 +20,8 @@ SCRIPTS_DIR="$(dirname "$SCRIPT_DIR")"
 PROJECT_ROOT="$(dirname "$SCRIPTS_DIR")"
 
 USER_HOME="${HOME}"
-TOOLS_DIR="${USER_HOME}/.core_node/tools"
+# Centralized per-user state dir (CORE_NODE_DATA_DIR, default /var/_core_node).
+TOOLS_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/tools"
 BFG_JAR="${TOOLS_DIR}/bfg.jar"
 BFG_URL="https://repo1.maven.org/maven2/com/madgag/bfg/1.14.0/bfg-1.14.0.jar"
 

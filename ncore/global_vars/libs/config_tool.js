@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+const { getSystemCacheDir } = require('../../foundation/common/system_paths');
 const homeDir = os.homedir();
 const log = {
     colors: {
@@ -336,12 +337,13 @@ function getConfig(key) {
         const upperKey = key.toUpperCase();
 
         // Hardcoded default values for common configurations
+        const coreNodeDir = getSystemCacheDir();
         const defaultConfigs = {
-            'FILE_CACHE': path.join(os.homedir(), '.core_node', 'cache', 'files'),
-            'BEHAVIOR_CACHE': path.join(os.homedir(), '.core_node', 'cache', 'behavior'),
-            'APP_CACHE_DIR': path.join(os.homedir(), '.core_node', 'cache'),
-            'APP_TEMP_DIR': path.join(os.homedir(), '.core_node', 'temp'),
-            'APP_LOG_DIR': path.join(os.homedir(), '.core_node', 'logs')
+            'FILE_CACHE': path.join(coreNodeDir, 'cache', 'files'),
+            'BEHAVIOR_CACHE': path.join(coreNodeDir, 'cache', 'behavior'),
+            'APP_CACHE_DIR': path.join(coreNodeDir, 'cache'),
+            'APP_TEMP_DIR': path.join(coreNodeDir, 'temp'),
+            'APP_LOG_DIR': path.join(coreNodeDir, 'logs')
         };
 
         const filePath = path.join(configDir, upperKey);

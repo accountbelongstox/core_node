@@ -17,11 +17,14 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from . import translation as _h_translation
 
+from pycore.pyctl.ai import available_providers
+from pycore.callmodule.services import ai_batch_translate
+
+
 
 def ai_provider_label() -> str:
     """Best-effort label for the active AI provider (fallback 'ai')."""
     try:
-        from pycore.pyctl.ai import available_providers
         providers = available_providers() or []
         if providers:
             name = providers[0].get("name")
@@ -49,7 +52,7 @@ def ai_translate_words(worker, task: Dict[str, Any]) -> None:
         worker._post_result(task_id, "failed", error="ai_translate task had no words")
         return
     try:
-        from pycore.callmodule.services import ai_batch_translate
+        pass
     except ImportError as e:
         ColorPrint.yellow(
             f"[TranslationWorker] ai_batch_translate unavailable ({e}); "

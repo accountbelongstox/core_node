@@ -16,7 +16,8 @@ from datetime import datetime
 ROOT_DIR = Path(__file__).parent / "../.."
 LARAVEL_DIR = ROOT_DIR / "poly_apps" / "laravel_main"
 APPS_NAMESPACE_DIR = LARAVEL_DIR / "app" / "Apps"
-CACHE_DIR = Path.home() / ".core_node" / ".laravel_build"
+USERNAME = os.environ.get('USERNAME', os.environ.get('USER', 'default'))
+CACHE_DIR = Path('D:/programing/Users') / USERNAME / '.core_node' / '.laravel_build'
 CACHE_FILE = CACHE_DIR / "laravel_menu_cache.json"
 
 # Debug flag

@@ -10,4 +10,6 @@ export * from './types/user';
 export * from './types/social';
 export * from './types/analytics';
 export * from './types/endpoints';
+export * from './types/bookProgress';
+export * from './types/readerSettings';
 export * from './types/api';

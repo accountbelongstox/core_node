@@ -1,10 +1,3 @@
-/**
- * WfNewContentGrid — a responsive "waterfall" grid of content cards (replaces the
- * old horizontal scroll rail). Columns are driven by Tailwind breakpoints
- * (2 → 3 → 4 → 5) which MUST stay in sync with the shared column constant in
- * api/WfNewGrid (computeCols) so "rows" mean the same thing here and in the
- * pagination math used by the home hub, the list page and the data layer.
- */
 import React from 'react';
 import type { WfNewContentGroup } from '../api';
 import { ElementTheme } from '../WfNewTypes';
@@ -18,9 +11,10 @@ interface WfNewContentGridProps {
   theme: ElementTheme;
   trans: (key: string, r?: Record<string, string | number>) => string;
   onOpen: (g: WfNewContentGroup) => void;
+  onAddToStudy?: (g: WfNewContentGroup) => void;
 }
 
-export const WfNewContentGrid: React.FC<WfNewContentGridProps> = ({ groups, theme, trans, onOpen }) => (
+export const WfNewContentGrid: React.FC<WfNewContentGridProps> = ({ groups, theme, trans, onOpen, onAddToStudy }) => (
   <div className={`grid ${WFNEW_GRID_COLS_CLASS} gap-3 sm:gap-4`}>
     {groups.map((g) => (
       <WfNewContentGroupCard
@@ -30,6 +24,7 @@ export const WfNewContentGrid: React.FC<WfNewContentGridProps> = ({ groups, them
         trans={trans}
         fullWidth
         onClick={() => onOpen(g)}
+        onAddToStudy={onAddToStudy ? () => onAddToStudy(g) : undefined}
       />
     ))}
   </div>

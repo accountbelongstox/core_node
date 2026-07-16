@@ -206,6 +206,7 @@ export const WfNewApp: React.FC = () => {
     proceedQuizNext,
     handleClearEverything,
     handleForgeCustomWord,
+    handleAddLibraryToStudy,
     pageHeader,
   } = useWfNewAppState({ shellLang, dark });
 
@@ -272,6 +273,7 @@ export const WfNewApp: React.FC = () => {
                 selectBookCourse={selectBookCourse}
                 startGroupPractice={startGroupPractice}
                 startModePractice={startModePractice}
+                addLibraryToStudy={handleAddLibraryToStudy}
               />
             </motion.div>
           )}

@@ -12,6 +12,13 @@ LinuxTerminalLauncher, EditorLauncher).
 import sys
 from pathlib import Path
 
+from pycore.pyutils.launcher.linux_screen_manager import LinuxScreenManager
+from pycore.pyutils.launcher.linux_terminal_launcher import LinuxTerminalLauncher
+
+from pycore.pyutils.launcher.char_size_measurer import CharSizeMeasurer
+
+
+
 # Add project root to Python path to enable pycore imports. Same bootstrap as
 # launcher.py so this module is importable standalone (matches the established
 # pattern in pycore/pyutils/desktop/universal_shortcut.py).
@@ -26,6 +33,15 @@ from pycore.pyutils.launcher.ratio_calculator import RatioCalculator
 from pycore.pyutils.launcher.wt_launcher import WindowsTerminalLauncher
 from pycore.pyutils.launcher.editor_launcher import EditorLauncher
 from pycore.pyutils.launcher.script_generator import ScriptGenerator
+from pycore.pyutils.launcher.launch_guard import (
+    compute_terminal_deficit,
+    count_open_terminals,
+    is_app_running,
+    resolve_launch_path,
+)
+from pycore.pyutils.launcher.config_manager import ConfigManager
+from pycore.pyutils.launcher.app_finder import AppFinder
+from pycore.pyutils.common.process_manager import ProcessManager
 
 
 class WindowLauncher:
@@ -57,7 +73,7 @@ class WindowLauncher:
 
         # Use provided calibration or defaults
         self.calibration_actual_height = calibration_actual_height or 485
-        self.calibration_term_rows = calibration_term_rows or 270
+        self.calibration_term_rows = calibration_term_rows or 32
         # WT --size is content only; full window has title bar + padding. Reserve + scale so each window fits in cell.
         self.window_chrome_title_bar_px = window_chrome_title_bar_px if window_chrome_title_bar_px is not None else 56
         self.window_chrome_horizontal_px = window_chrome_horizontal_px if window_chrome_horizontal_px is not None else 24
@@ -74,7 +90,7 @@ class WindowLauncher:
             adjusted_measured_rows = self.calibration_term_rows
         else:
             adjusted_measured_height = measured_height_px or 485
-            adjusted_measured_rows = measured_rows or 164
+            adjusted_measured_rows = measured_rows or 32
 
         # Initialize ratio calculator
         self.ratio_calc = RatioCalculator(
@@ -94,14 +110,58 @@ class WindowLauncher:
         # their own windows). The Linux backend mirrors the WindowsTerminalLauncher
         # and ScreenManager interfaces, so the rest of this class is unchanged.
         if platform.system() == "Linux":
-            from pycore.pyutils.launcher.linux_screen_manager import LinuxScreenManager
-            from pycore.pyutils.launcher.linux_terminal_launcher import LinuxTerminalLauncher
             self.screen_manager = LinuxScreenManager()
             self.wt_launcher = LinuxTerminalLauncher()
         else:
             self.screen_manager = ScreenManager()
             self.wt_launcher = WindowsTerminalLauncher(self.script_generator)
         self.editor_launcher = EditorLauncher(self.script_generator)
+
+    def _ensure_char_size_measured(self):
+        """Resolve char_width/char_height to real measured values (Windows Terminal).
+
+        On Windows, launch two calibration WT windows and measure their pixel
+        rects to derive the exact per-cell size for the installed font/DPI
+        (cached). This supersedes the config calibration, whose legacy
+        term_rows=270 made char_height ~1.8px/row (~10x too small) so every
+        window overflowed the screen vertically. On Linux, or if measurement
+        fails, keep the config ratio but sanitize physically-impossible values
+        so the old overflow can never recur.
+
+        Runs at most once per instance (guarded by _char_size_resolved); the
+        cache makes repeat calls instant.
+        """
+        if getattr(self, '_char_size_resolved', False):
+            return
+        self._char_size_resolved = True
+
+        if platform.system() == "Windows":
+            try:
+                measured = CharSizeMeasurer.measure()
+                if measured:
+                    char_width, char_height, source = measured
+                    self.ratio_calc = RatioCalculator.from_char_size(
+                        char_width, char_height, source)
+                    # Real char_height is exact -> drop the config calibration override.
+                    self.calibration_actual_height = None
+                    self.calibration_term_rows = None
+                    return
+            except Exception as e:
+                print(f"Warning: dynamic char-size measurement failed ({e}); "
+                      f"using config fallback ratios.")
+
+        # Fallback: sanitize physically-impossible char_height from bogus config
+        # (e.g. legacy term_rows=270 -> 1.8px/row). Monospace line height is
+        # ~1.7-2.0x the advance width, so derive a sane height from the width.
+        if self.ratio_calc.char_height < 4.0:
+            sane_height = self.ratio_calc.char_width * 2.0
+            print(f"Warning: config char_height {self.ratio_calc.char_height:.3f}px/row is "
+                  f"physically impossible; using {sane_height:.3f}px/row (2.0x char_width). "
+                  f"Run on Windows for an exact measurement.")
+            self.ratio_calc.char_height = sane_height
+            self.ratio_calc.row_ratio = f"{sane_height:.4f}px per row (sanitized)"
+            self.calibration_actual_height = None
+            self.calibration_term_rows = None
 
     def calculate_window_layout(self, screen_x, screen_y, screen_width, screen_height):
         """
@@ -118,6 +178,10 @@ class WindowLauncher:
         Returns:
             list: List of tuples (x, y, term_cols, term_rows, actual_width, actual_height)
         """
+        # Resolve real char_width/char_height (dynamic measurement on Windows,
+        # sanitized config fallback otherwise) before any cell math.
+        self._ensure_char_size_measured()
+
         columns = self.grid_columns
         rows = self.grid_rows
         gap_x = self.gap_horizontal_px
@@ -140,13 +204,31 @@ class WindowLauncher:
             self.ratio_calc.calculate_term_size(
                 content_width,
                 content_height,
-                actual_height_px=calibration_height
+                calibration_height_px=calibration_height,
+                calibration_term_rows=self.calibration_term_rows if calibration_height else None,
             )
+
+        # Step 2b: Shrink cols/rows if estimated full window (content + chrome) exceeds cell.
+        char_height = (calibration_height / self.calibration_term_rows
+                       if calibration_height and self.calibration_term_rows
+                       else self.ratio_calc.char_height)
+        char_width = self.ratio_calc.char_width
+        while term_rows > 10:
+            if actual_height + self.window_chrome_title_bar_px <= target_window_height:
+                break
+            term_rows -= 1
+            actual_height = term_rows * char_height
+        while term_columns > 10:
+            if actual_width + self.window_chrome_horizontal_px <= target_window_width:
+                break
+            term_columns -= 1
+            actual_width = term_columns * char_width
 
         # Step 3: Print calculation and WT/screen correspondence
         ratio_info = self.ratio_calc.get_info()
         print(f"\nCalculation steps:")
-        print(f"  WT/screen: --pos = pixels (window top-left); --size = character cells (cols.rows); content px = cols*px_per_col + rows*px_per_row.")
+        print(f"  WT/screen: --pos = pixels (window top-left); --size = character cells (cols,rows); content px = cols*px_per_col + rows*px_per_row.")
+        print(f"  Char-size source: {ratio_info.get('source', 'config measurement')}")
         print(f"  Column pixel ratio: {ratio_info['column_ratio']}")
         print(f"  Row pixel ratio: {ratio_info['row_ratio']}")
         print(f"  Step 1 - Cell size (px): Screen {screen_width}x{screen_height} / Grid {columns}x{rows} (gaps {gap_x}x{gap_y}px) = {target_window_width}x{target_window_height}px")
@@ -157,7 +239,7 @@ class WindowLauncher:
         print(f"  Step 3 - Content size (px):")
         print(f"    Width: {term_columns} cols * {self.ratio_calc.char_width:.4f} px/col = {actual_width:.1f}px")
         print(f"    Height: {term_rows} rows * {self.ratio_calc.char_height:.4f} px/row = {actual_height:.1f}px")
-        print(f"  Result: --size \"{term_columns}.{term_rows}\" (character cells) -> content {actual_width:.1f}x{actual_height:.1f}px; add chrome so window fits in {target_window_width}x{target_window_height}px cell.\n")
+        print(f"  Result: --size \"{term_columns},{term_rows}\" (character cells) -> content {actual_width:.1f}x{actual_height:.1f}px; add chrome so window fits in {target_window_width}x{target_window_height}px cell.\n")
 
         windows = []
         # Step between cell origins = cell size + gap, so windows sit gap-px apart on both axes.
@@ -179,14 +261,17 @@ class WindowLauncher:
             total_windows: Total number of windows
 
         Returns:
-            int: Number of Ubuntu terminals (at least 2, 4 if 16 windows)
+            int: Number of Ubuntu terminals (2 for small grids; 0 for 4x3/12+
+                 so the full grid is pure Windows Terminal)
         """
         # "Ubuntu terminals" here means WSL inside Windows Terminal - a Windows-only
         # concept. On Linux every window is a native terminal, so reserve none.
         if platform.system() != "Windows":
             return 0
-        if total_windows >= 16:
-            return 4
+        # 4x3 (12) grid is pure Windows Terminal (no WSL reservation); smaller
+        # grids still reserve 2 Ubuntu terminals as before.
+        if total_windows >= 12:
+            return 0
         elif total_windows >= 2:
             return 2
         else:
@@ -200,11 +285,31 @@ class WindowLauncher:
             delay: Delay between window launches in seconds
             limit: When set, launch only the first ``limit`` cells of the grid
                 (row-major). Used to "top up" a partially-filled grid -- open just
-                the missing terminals to reach the target count. None = full grid.
+                the missing terminals to reach the target count. None = auto-detect
+                open terminals and launch only the deficit (idempotent).
 
         Returns:
             list: List of created batch file paths
         """
+        grid_total = self.grid_columns * self.grid_rows
+
+        if limit is None:
+            open_terminals = count_open_terminals()
+            limit = compute_terminal_deficit(
+                self.grid_columns, self.grid_rows, open_terminals)
+            if limit <= 0:
+                print(
+                    f"\nSkipping terminal grid ({open_terminals} already open, "
+                    f"target {grid_total}).")
+                return []
+            if open_terminals > 0:
+                print(
+                    f"\n{open_terminals} terminals open; launching {limit} more "
+                    f"to reach {grid_total}.")
+        elif limit <= 0:
+            print(f"\nSkipping terminal grid (limit=0, target {grid_total}).")
+            return []
+
         # Get screen dimensions
         screen_x, screen_y, screen_width, screen_height = self.screen_manager.get_screen_dimensions()
 
@@ -246,6 +351,15 @@ class WindowLauncher:
         Returns:
             list: List of created batch file paths
         """
+        app_key = app_name.lower()
+        process_manager = ProcessManager()
+        app_finder = AppFinder()
+        app_config = ConfigManager().get_app_config(app_key)
+        app_path = resolve_launch_path(app_key, app_config, app_finder)
+        if is_app_running(app_key, process_manager, app_finder, exe_path=app_path):
+            print(f"\nSkipping {app_key} editor grid (already running).")
+            return []
+
         # Get screen dimensions
         screen_x, screen_y, screen_width, screen_height = self.screen_manager.get_screen_dimensions()
 

@@ -171,7 +171,7 @@ def install_python_deps():
         ok("Python websockets module installed")
     except Exception:
         info("Installing Python dependencies...")
-        run_cmd(f"{sys.executable} -m pip install -r '{req_file}'", timeout=60)
+        run_cmd(f"{sys.executable} -m pip install --upgrade -r '{req_file}'", timeout=60)
 
     # Check watchdog
     try:
@@ -179,7 +179,7 @@ def install_python_deps():
         ok("Python watchdog module installed")
     except Exception:
         info("Installing watchdog for hot-reload...")
-        run_cmd(f"{sys.executable} -m pip install watchdog", timeout=30)
+        run_cmd(f"{sys.executable} -m pip install --upgrade watchdog", timeout=30)
 
     return True
 

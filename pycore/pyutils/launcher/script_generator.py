@@ -7,6 +7,13 @@ Generates temporary batch scripts for launching applications
 from pathlib import Path
 import os
 
+from pycore.pyfoundations.system_paths import get_system_cache_dir
+
+
+def format_wt_size(term_cols, term_rows):
+    """Format --size per Microsoft Learn: columns,rows (comma-separated character cells)."""
+    return f'{term_cols},{term_rows}'
+
 
 class ScriptGenerator:
     """Generate temporary batch scripts"""
@@ -19,9 +26,9 @@ class ScriptGenerator:
             temp_dir: Temporary directory for scripts. If None, uses default location.
         """
         if temp_dir is None:
-            # Cross-platform home dir (C:\Users\<user> on Windows, ~/ elsewhere);
-            # avoids creating a literal "C:\\Users\\..." dir under cwd on Linux.
-            temp_dir = Path.home() / '.core_node' / 'launch_multiple'
+            # Centralized per-user state dir (D:\programing\Users\<user>\.core_node
+            # on Windows, /var/_core_node on Linux) - see system_paths.
+            temp_dir = get_system_cache_dir() / 'launch_multiple'
 
         self.temp_dir = Path(temp_dir)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
@@ -42,9 +49,10 @@ class ScriptGenerator:
         """
         bat_path = self.temp_dir / f'launch_terminal_{index}.bat'
         
-        # Format: wt.exe -w new --pos "x,y" --size "cols.rows"
-        # -w new forces a new window so each launch gets its own window (not tab in existing)
-        cmd = f'wt.exe -w new --pos "{x},{y}" --size "{term_cols}.{term_rows}"'
+        # Format: wt.exe -w -1 --pos "x,y" --size "cols,rows"  (Learn: --size c,r)
+        # -w -1 forces a new window so each launch gets its own window (not tab in existing)
+        size_arg = format_wt_size(term_cols, term_rows)
+        cmd = f'wt.exe -w -1 --pos "{x},{y}" --size "{size_arg}"'
         
         lines = [
             '@echo off',
@@ -126,16 +134,17 @@ class ScriptGenerator:
         arguments = ubuntu_shortcut.get('arguments', '')
         
         # Build command: Use Windows Terminal to launch Ubuntu with position and size
-        # Format: wt.exe -w new --pos "x,y" --size "cols.rows" <target> <arguments>
+        # Format: wt.exe -w -1 --pos "x,y" --size "cols,rows" <target> <arguments>
+        size_arg = format_wt_size(term_cols, term_rows)
         if target:
             # Combine target and arguments
             if arguments:
                 ubuntu_cmd = f'{target} {arguments}'.strip()
             else:
                 ubuntu_cmd = target
-            
-            # Use Windows Terminal to launch with position and size (-w new = new window)
-            cmd = f'wt.exe -w new --pos "{x},{y}" --size "{term_cols}.{term_rows}" {ubuntu_cmd}'
+
+            # Use Windows Terminal to launch with position and size (-w -1 = new window)
+            cmd = f'wt.exe -w -1 --pos "{x},{y}" --size "{size_arg}" {ubuntu_cmd}'
         else:
             # Fallback: try to launch shortcut directly (won't have position/size control)
             shortcut_path = ubuntu_shortcut.get('path', '')
@@ -143,7 +152,7 @@ class ScriptGenerator:
                 cmd = f'start "" "{shortcut_path}"'
             else:
                 # Last resort: try wsl.exe
-                cmd = f'wt.exe -w new --pos "{x},{y}" --size "{term_cols}.{term_rows}" wsl.exe'
+                cmd = f'wt.exe -w -1 --pos "{x},{y}" --size "{size_arg}" wsl.exe'
         
         lines = [
             '@echo off',

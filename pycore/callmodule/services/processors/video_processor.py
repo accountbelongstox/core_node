@@ -9,6 +9,9 @@ from pathlib import Path
 
 from pycore.pyfoundations.system_paths import get_app_temp_dir
 
+from pycore.callmodule.services.processors.audio_processor import AudioProcessor
+
+
 
 class VideoProcessor:
     """Processor for video processing and audio extraction"""
@@ -48,7 +51,7 @@ class VideoProcessor:
 
             # Check ffmpeg availability
             try:
-                import ffmpeg
+                pass
             except ImportError:
                 return {
                     "success": False,
@@ -79,7 +82,6 @@ class VideoProcessor:
 
             # Generate subtitle if requested
             if config.get("generate_subtitle", True) and extracted_audio_path:
-                from .audio_processor import AudioProcessor
 
                 audio_processor = AudioProcessor()
                 subtitle_format = config.get("subtitle_format", "srt")
@@ -123,7 +125,6 @@ class VideoProcessor:
     def extract_audio(self, video_path: str, audio_format: str = "wav") -> Dict[str, Any]:
         """Extract audio from video"""
         try:
-            import ffmpeg
 
             # Determine output path
             video_name = Path(video_path).stem
@@ -156,7 +157,6 @@ class VideoProcessor:
     def compress_video(self, video_path: str, crf: int = 23) -> Dict[str, Any]:
         """Compress video using H.264"""
         try:
-            import ffmpeg
 
             # Determine output path
             video_name = Path(video_path).stem
@@ -195,7 +195,6 @@ class VideoProcessor:
     def _get_video_metadata(self, video_path: str) -> Dict[str, Any]:
         """Get video metadata using ffprobe"""
         try:
-            import ffmpeg
 
             probe = ffmpeg.probe(video_path)
             video_stream = next((s for s in probe["streams"] if s["codec_type"] == "video"), None)

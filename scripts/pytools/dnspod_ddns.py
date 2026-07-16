@@ -53,8 +53,10 @@ class DNSPodDDNS:
         self.monitor_thread = None
         
         # Configuration file path
-        self.config_file = Path.home() / '.core_node' / 'dnspod_ddns' / 'config.json'
-        self.log_file = Path.home() / '.core_node' / 'dnspod_ddns' / 'ddns.log'
+        username = os.environ.get('USERNAME', os.environ.get('USER', 'default'))
+        core_node_dir = Path('D:/programing/Users') / username / '.core_node'
+        self.config_file = core_node_dir / 'dnspod_ddns' / 'config.json'
+        self.log_file = core_node_dir / 'dnspod_ddns' / 'ddns.log'
         
         # Create configuration directory
         self.config_file.parent.mkdir(exist_ok=True)

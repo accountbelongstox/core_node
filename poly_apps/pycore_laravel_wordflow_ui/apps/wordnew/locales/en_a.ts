@@ -52,6 +52,10 @@ export const enLocaleA: Record<string, string> = {
     'toast.forged': 'Successfully forged {word}!',
     'toast.pinned': '[{name}] pinned! Synced with your custom dashboard.',
     'toast.wipedForge': 'Wiped from custom forge list.',
+    'library.addToStudy': 'Add to Study',
+    'toast.libraryAddedToStudy': 'Added "{name}" to Default Vocabulary Group',
+    'toast.libraryAlreadyInStudy': '"{name}" is already in Default Vocabulary Group',
+    'toast.libraryAddFailed': 'Failed to add library',
     'settings.title': 'Quantum Settings Center',
     // Super-admin console (loopback local-management mode)
     'hdr.admin': 'Super Admin Console',

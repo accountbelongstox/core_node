@@ -23,6 +23,9 @@ from pycore import ColorPrint
 from pycore.pyutils.common.robust_downloader import RobustDownloader
 from pycore.pyutils.device.scrcpy_init import get_initializer
 
+import traceback
+
+
 
 # ✅ Global download lock to prevent concurrent downloads
 _download_lock = threading.Lock()
@@ -298,7 +301,6 @@ class ScrcpyServerManager:
 
         except Exception as e:
             ColorPrint.red(f"[ScrcpyServerManager] Download/extraction failed: {e}")
-            import traceback
             traceback.print_exc()
             return False
 

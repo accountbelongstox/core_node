@@ -17,6 +17,12 @@ from pycore.pyutils.flutter_dev_tools.utils.pageview_updater import (
     add_actual_image,
 )
 
+import traceback
+
+import tempfile
+
+
+
 
 def update_app_pageview_map(
     app_path: Path,
@@ -60,7 +66,6 @@ def update_app_pageview_map(
 
         # Save if there were orphaned entries
         if removed_count > 0:
-            import json
             pageview_map_path = design_docs_dir / "pageview_map.json"
             with open(pageview_map_path, 'w', encoding='utf-8') as f:
                 json.dump(updated_map, f, indent=2, ensure_ascii=False)
@@ -85,7 +90,6 @@ def update_app_pageview_map(
 
     except Exception as e:
         print(f"[ERROR] Failed to update pageview_map.json: {e}")
-        import traceback
         traceback.print_exc()
 
         return {
@@ -135,7 +139,6 @@ def upload_actual_image(
             }
 
         # Create temporary file for image
-        import tempfile
         with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
             temp_file.write(image_data)
             temp_path = Path(temp_file.name)
@@ -162,7 +165,6 @@ def upload_actual_image(
 
     except Exception as e:
         print(f"[ERROR] Failed to upload actual image: {e}")
-        import traceback
         traceback.print_exc()
 
         return {

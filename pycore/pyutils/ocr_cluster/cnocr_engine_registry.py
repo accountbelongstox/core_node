@@ -18,6 +18,9 @@ from pycore.pyfoundations.third_party import (
 )
 from pycore.pyutils.ocr_cluster.ocr_cnocr_engine import CnOCREngine
 
+from pycore.pyfoundations.third_party import get_third_package_PIL_ImageGrab
+
+
 # Official: https://cnocr.readthedocs.io/zh-cn/stable/usage/  default det_model_name='ch_PP-OCRv5_det'
 # Models: https://cnocr.readthedocs.io/zh-cn/stable/models/  v5/v4/v3 det; ch_PP-OCRv5, en_PP-OCRv4, chinese_cht_PP-OCRv3
 MODEL_PROFILES: Dict[str, Dict[str, Any]] = {
@@ -97,7 +100,6 @@ def _print_init_status() -> None:
 def _run_screen_capture_test() -> None:
     """PYCORE_CNOCR_DEBUG=1 或 app 设置时：截屏 -> 用 default 引擎 OCR -> 打印结果。"""
     try:
-        from pycore.pyfoundations.third_party import get_third_package_PIL_ImageGrab
         ImageGrab = get_third_package_PIL_ImageGrab()
         if ImageGrab is None:
             ColorPrint.gray("[CnOCR DEBUG] Screen test skipped: ImageGrab not available")

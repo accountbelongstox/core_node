@@ -20,6 +20,7 @@ import { ApiConfigProvider } from './contexts/ApiConfigContext';
 import { AppStateProvider, useAppState } from './contexts/AppStateContext';
 import { ToastProvider, InviteCodeManager } from './components/admin';
 import { api } from './core/api';
+import { userModel } from './core/models/UserModel';
 import { useUser } from './hooks/useUser';
 import { ViewType } from './types';
 import { useTranslation } from 'react-i18next';
@@ -133,6 +134,11 @@ const AppContent: React.FC = () => {
         if (status.debug_mode === true) {
           setDebugAuthBypass(true);
           console.log('[Auth] Loopback debug bypass enabled:', status.reason, status.client_ip);
+          userModel.bootstrapLoopbackSession().then((ok) => {
+            if (ok) {
+              console.log('[Auth] Loopback session bootstrapped from server profile');
+            }
+          });
           // Force a re-render so already-mounted AuthGuards re-read the flag.
           setDebugProbed(true);
           // Dismiss any login modal an AuthGuard opened before the (async) probe

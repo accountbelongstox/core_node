@@ -36,13 +36,8 @@ class ConfigManager:
                         'Required': True
                     },
                     {
-                        'Name': 'ANTHROPIC_API_KEY',
-                        'Description': 'Anthropic API Key',
-                        'Required': True
-                    },
-                    {
                         'Name': 'ANTHROPIC_MODEL',
-                        'Description': 'Default model (optional, e.g. glm-5.2, opus[1m]); empty = account default',
+                        'Description': 'Default model (optional, e.g. claude-opus-4-8); empty = account default',
                         'Required': False
                     },
                 ],
@@ -71,6 +66,11 @@ class ConfigManager:
                     {
                         'Name': 'OPENAI_BASE_URL',
                         'Description': 'OpenAI API Base URL',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'CODEX_MODEL',
+                        'Description': 'Codex model (optional, e.g. gpt-5-codex); empty = account default',
                         'Required': False
                     }
                 ],
@@ -171,6 +171,31 @@ class ConfigManager:
                         'Description': 'Azure Speech Service Endpoint URL',
                         'InputType': 'Url',
                         'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
+            },
+            'StreamElements TTS': {
+                'Common': 'streamelements_tts',
+                'DisplayName': 'StreamElements TTS',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'STREAMELEMENTS_API_KEY',
+                        'DisplayName': 'StreamElements API Key',
+                        'Description': (
+                            'StreamElements JWT/auth token for kappa/v2/speech. '
+                            'Stored under .secret_keys/.secret_ignore as STREAMELEMENTS_API_KEY_1 '
+                            '(indexed _1.._5 supported). Without this key the streamelements '
+                            'TTS engine is disabled at startup.'
+                        ),
+                        'InputType': 'Token',
+                        'Required': True
                     }
                 ],
                 'MCPSupport': {

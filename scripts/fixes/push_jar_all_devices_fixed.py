@@ -6,8 +6,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Make pycore importable so ADB resolves via the centralized system_paths
+# module (D:\programing\Users\<user>\.core_node\scrcpy\adb.exe on Windows).
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from pycore.pyfoundations.system_paths import get_system_cache_dir
+
 # Configuration
-ADB = r"C:\Users\yun\.core_node\scrcpy\adb.exe"
+ADB = str(get_system_cache_dir() / 'scrcpy' / 'adb.exe')
 JAR_PATH = Path(__file__).parent / "pyapps" / "matrix" / "resources" / "scrcpy-server.jar"
 
 # CRITICAL: Use //data/local/tmp/ to prevent Git Bash path translation

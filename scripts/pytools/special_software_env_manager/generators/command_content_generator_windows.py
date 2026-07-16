@@ -247,17 +247,126 @@ Write-Host ""
 #endregion
 """
 
+    @staticmethod
+    def _has_model_var(variables: List[Dict[str, Any]]) -> bool:
+        for var in variables:
+            if var.get('Name') == 'ANTHROPIC_MODEL':
+                return True
+        return False
+
+    @staticmethod
+    def _has_codex_model_var(variables: List[Dict[str, Any]]) -> bool:
+        for var in variables:
+            if var.get('Name') == 'CODEX_MODEL':
+                return True
+        return False
+
+    def generate_codex_upgrade_prompt_section(self) -> str:
+        """Codex-only: npm upgrade prompt at the SCRIPT START (default y/N).
+
+        Runs `npm install -g @openai/codex` when the user confirms - the latest
+        Codex CLI is installed/upgraded before any env/config step."""
+        return """
+#region Upgrade Codex CLI (npm)
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "Codex CLI - Upgrade Check" -ForegroundColor Yellow
+Write-Host "============================================================" -ForegroundColor Cyan
+$codexUpgradeChoice = Read-Host "Upgrade Codex CLI via 'npm install -g @openai/codex'? (y/N)"
+if ($codexUpgradeChoice -eq "y" -or $codexUpgradeChoice -eq "Y") {
+    Write-Host "[INFO] Running: npm install -g @openai/codex" -ForegroundColor Cyan
+    npm install -g "@openai/codex"
+    Write-Host "[SUCCESS] Codex CLI upgrade complete" -ForegroundColor Green
+} else {
+    Write-Host "[INFO] Skipping Codex CLI upgrade" -ForegroundColor Cyan
+}
+Write-Host ""
+#endregion
+
+"""
+
+    def generate_codex_personalized_config_section(self, has_codex_model: bool) -> str:
+        """Codex-only: write ~/.codex/config.toml (model + latest features) and a
+        personalized global AGENTS.md. Idempotent - never clobbers an existing
+        user-edited config/AGENTS.md. Uses the REAL user profile (no custom dir)."""
+        model_line = "$codexModel = $env:CODEX_MODEL"
+        if not has_codex_model:
+            model_line = '$codexModel = ""'
+        return f"""
+#region Codex Personalized Configuration (config.toml + AGENTS.md)
+# Latest Codex CLI features: model + approval_policy + sandbox_mode + reasoning.
+# Uses the REAL $env:USERPROFILE (no custom user dir) -> ~/.codex.
+$codexHome = Join-Path $env:USERPROFILE ".codex"
+if (-not (Test-Path $codexHome)) {{
+    New-Item -ItemType Directory -Path $codexHome -Force | Out-Null
+    Write-Host "[INFO] Created Codex home: $codexHome" -ForegroundColor Cyan
+}}
+
+# --- config.toml (model + approval + sandbox + reasoning) ---
+$configTomlPath = Join-Path $codexHome "config.toml"
+{model_line}
+if ([string]::IsNullOrWhiteSpace($codexModel)) {{ $codexModel = "gpt-5-codex" }}
+$configTomlContent = @"
+# Codex CLI configuration (managed by core_node Special Software Env Manager)
+model = "$codexModel"
+model_reasoning_effort = "medium"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+"@
+$writeCodexConfig = $true
+if (Test-Path $configTomlPath) {{
+    $existingCodexConfig = Get-Content $configTomlPath -Raw -ErrorAction SilentlyContinue
+    if ($existingCodexConfig -and ($existingCodexConfig -match "^model\\s*=")) {{
+        $writeCodexConfig = $false
+    }}
+}}
+if ($writeCodexConfig) {{
+    $configTomlContent | Out-File -FilePath $configTomlPath -Encoding UTF8 -Force
+    Write-Host "[INFO] Wrote Codex config.toml (model=$codexModel): $configTomlPath" -ForegroundColor Cyan
+}} else {{
+    Write-Host "[INFO] Codex config.toml already exists (kept): $configTomlPath" -ForegroundColor Gray
+}}
+
+# --- Global AGENTS.md (personalized instructions) ---
+$agentsMdPath = Join-Path $codexHome "AGENTS.md"
+$agentsMdContent = @"
+# Codex Global Instructions
+
+- Write all code, comments, logs, and commit messages in English.
+- Follow the project's AGENTS.md / CLAUDE.md conventions when present.
+- Prefer reusing/upgrading existing components over reinventing.
+- Keep changes minimal, idempotent, and aligned with surrounding code style.
+- Never execute destructive actions without explicit approval.
+- Declare variables at the top of each file; no relative paths in PowerShell.
+"@
+if (-not (Test-Path $agentsMdPath)) {{
+    $agentsMdContent | Out-File -FilePath $agentsMdPath -Encoding UTF8 -Force
+    Write-Host "[INFO] Wrote Codex global AGENTS.md: $agentsMdPath" -ForegroundColor Cyan
+}} else {{
+    Write-Host "[INFO] Codex AGENTS.md already exists (kept): $agentsMdPath" -ForegroundColor Gray
+}}
+Write-Host "[INFO] Codex model: $codexModel (config.toml)" -ForegroundColor White
+#endregion
+
+"""
+
     def generate_command_content(self, config_name: str, command_prefix: str,
                                 ps_command: str, file_number: int,
                                 variables: List[Dict[str, Any]],
                                 mcp_section: str = "", file_name: str = "") -> str:
         """Generate complete PowerShell command content"""
+        has_model = self._has_model_var(variables)
+
         # Add --dangerously-skip-permissions for claude commands
         # Add --yolo for codex commands
         if ps_command == "claude":
+            base_cmd = "claude"
             ps_command = "claude --dangerously-skip-permissions"
         elif ps_command == "codex":
+            base_cmd = "codex"
             ps_command = "codex --yolo"
+        else:
+            base_cmd = ps_command
         
         header = f"""# ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
@@ -307,7 +416,26 @@ Write-Host ""
 
         # Generate environment variable loading section
         env_loading_section = self.env_loading_generator.generate_windows_env_loading_section(variables, file_number)
-        
+
+        # Generate model configuration section (Claude Code specific)
+        model_section = ""
+        if has_model:
+            model_section = """
+#region Model Configuration
+# If ANTHROPIC_MODEL is configured, force it everywhere (main + subagents + tiers).
+if (-not [string]::IsNullOrWhiteSpace($env:ANTHROPIC_MODEL)) {
+    $env:CLAUDE_CODE_SUBAGENT_MODEL = $env:ANTHROPIC_MODEL
+    $env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $env:ANTHROPIC_MODEL
+    $env:ANTHROPIC_DEFAULT_SONNET_MODEL = $env:ANTHROPIC_MODEL
+    Write-Host "Model: $env:ANTHROPIC_MODEL (forced: main + subagents + background)" -ForegroundColor White
+} else {
+    Write-Host "Model: account default (no ANTHROPIC_MODEL configured)" -ForegroundColor White
+}
+#endregion
+
+"""
+            ps_command = f"{base_cmd} --model $env:ANTHROPIC_MODEL --dangerously-skip-permissions"
+
         # Build command display code
         build_command_code = """
 #region Build Launch Command Display
@@ -331,7 +459,7 @@ if ($envVarsCommand) {{
 
 """
 
-        env_section = env_loading_section + build_command_code + "\n"
+        env_section = env_loading_section + model_section + build_command_code + "\n"
 
         mcp_section_content = ""
         if mcp_section:
@@ -450,8 +578,22 @@ pause
 #endregion
 """
 
-        # Generate custom user directory section
-        custom_user_dir_section = self.generate_custom_user_directory_section()
+        # Generate custom user directory section (codex SKIPS it - no custom dir)
+        is_codex = (command_prefix or "").lower() == "codex"
+        if is_codex:
+            custom_user_dir_section = ""
+            codex_upgrade_section = self.generate_codex_upgrade_prompt_section()
+            codex_config_section = self.generate_codex_personalized_config_section(
+                self._has_codex_model_var(variables))
+        else:
+            custom_user_dir_section = self.generate_custom_user_directory_section()
+            codex_upgrade_section = ""
+            codex_config_section = ""
+
+        # Codex: upgrade prompt at the SCRIPT START (before env/config); config
+        # section after env loading. Custom user dir is skipped (real USERPROFILE).
+        if is_codex:
+            return f"""{header}{file_name_display}{codex_upgrade_section}{env_section}{codex_config_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
 
         return f"""{header}{file_name_display}{custom_user_dir_section}{env_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
 

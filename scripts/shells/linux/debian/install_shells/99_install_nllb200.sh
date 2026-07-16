@@ -22,11 +22,17 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
 [ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
 command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+# Idempotent HF weight download (sentinel + curl resume + size verify).
+source "$PARENT_DIR_LEVEL_2/common/tts_install_assets_common.sh"
 
 SCRIPT_NAME="[100_install_nllb200]"
 MODEL_NAME="NLLB-200"
 MODEL_PATH="facebook/nllb-200-distilled-600M"
 REQUIRED_PYTHON_VERSION="3.8"
+TARGET_DIR="${NLLB200_DIR:-$CORE_NODE_CACHE_DIR/pycore/nllb200}"
+WEIGHTS_DIR="$TARGET_DIR/weights"
+MODEL_SENTINEL="$TARGET_DIR/.model_installed"
+WEIGHT_ALLOW="*.bin,*.safetensors,*.pt,*.json,*.txt,*.model,*.vocab"
 
 print_info() {
     echo -e "\033[0;36m$SCRIPT_NAME $1\033[0m"
@@ -162,7 +168,7 @@ test_model_load() {
 
 create_interactive_script() {
     local python_cmd=$1
-    local cache_dir="$HOME/.cache/core_node"
+    local cache_dir="${XDG_CACHE_HOME:-${CORE_NODE_CACHE_DIR:-$HOME/.cache}}/core_node"
 
     mkdir -p "$cache_dir"
 
@@ -208,6 +214,34 @@ BASH_EOF
     print_info "  $shell_script"
 }
 
+download_model_weights() {
+    print_info "Pre-downloading model weights (idempotent: sentinel + curl resume + size verify)"
+    print_info "  weights : $WEIGHTS_DIR"
+    print_info "  sentinel: $MODEL_SENTINEL ($([ -f "$MODEL_SENTINEL" ] && echo present || echo absent))"
+    mkdir -p "$TARGET_DIR"
+    local _model_ready=0 _sentinel_model=""
+    if [[ -f "$MODEL_SENTINEL" ]]; then
+        _sentinel_model="$(cat "$MODEL_SENTINEL" 2>/dev/null | tr -d '\r\n')"
+        if [[ -n "$_sentinel_model" && "$_sentinel_model" == "$MODEL_PATH" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$MODEL_PATH" "$VENV_PYTHON3"; then
+            print_success "model weights verified ($MODEL_PATH) - skipping"
+            _model_ready=1
+        elif [[ -n "$_sentinel_model" && "$_sentinel_model" != "$MODEL_PATH" ]]; then
+            print_warning "model changed ($_sentinel_model -> $MODEL_PATH); refreshing weights."
+        elif ! neural_tts_local_weights_ready "$WEIGHTS_DIR" "$MODEL_PATH" "$VENV_PYTHON3"; then
+            print_warning "local weights incomplete or corrupt; repairing download."
+        fi
+    fi
+    if [[ "$_model_ready" -eq 0 ]]; then
+        print_info "downloading/repairing model '$MODEL_PATH' (curl, resumable) ..."
+        if install_hf_repo_flat "$MODEL_PATH" "$WEIGHTS_DIR" "$MODEL_SENTINEL" "$SCRIPT_NAME " "$WEIGHT_ALLOW" "" "$MODEL_PATH" "$VENV_PYTHON3" \
+           && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$MODEL_PATH" "$VENV_PYTHON3"; then
+            print_success "model '$MODEL_PATH' ready at $WEIGHTS_DIR"
+        else
+            print_warning "model download not finished; partial files kept at $WEIGHTS_DIR; will RESUME next run."
+        fi
+    fi
+}
+
 main() {
     print_info "========================================"
     print_info "  NLLB-200 Installation"
@@ -233,7 +267,11 @@ main() {
     install_dependencies "$python_cmd"
 
     echo ""
-    print_info "Step 2: Test model loading"
+    print_info "Step 2: Pre-download model weights (idempotent)"
+    download_model_weights
+
+    echo ""
+    print_info "Step 3: Test model loading (local weights)"
     test_model_load "$python_cmd"
 
     echo ""
@@ -242,16 +280,16 @@ main() {
     print_success "========================================"
     echo ""
     print_success "Model: $MODEL_PATH"
-    print_success "Cache: ${HF_HOME:-${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/huggingface}"
+    print_success "Weights: $WEIGHTS_DIR"
 
     echo ""
-    print_info "Step 3: Create interactive translator"
+    print_info "Step 4: Create interactive translator"
     create_interactive_script "$python_cmd"
 
     echo ""
     print_success "Installation completed successfully!"
     print_info "You can run the translator anytime from:"
-    print_info "  ~/.cache/core_node/nllb200_translate.sh"
+    print_info "  ${XDG_CACHE_HOME:-${CORE_NODE_CACHE_DIR:-$HOME/.cache}}/core_node/nllb200_translate.sh"
 
     return 0
 }

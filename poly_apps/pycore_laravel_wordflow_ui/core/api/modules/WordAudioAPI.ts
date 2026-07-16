@@ -31,6 +31,7 @@ export interface WordAudioStatus {
   backend: string;
   sources: WordAudioSource[];
   forvo_key_present: boolean;
+  streamelements_key_present?: boolean;
   tts_fallback: boolean;
 }
 

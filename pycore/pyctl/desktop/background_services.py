@@ -23,6 +23,9 @@ from pycore.pyctl.desktop import get_voice_subtitle_queue
 from pycore.pyctl.desktop.ai_hooks import ai_generate_text
 from pycore.pyctl.desktop.processor import process_text_input, process_image_input
 
+import traceback
+
+
 
 class VoiceSubtitleBackgroundServices:
     """
@@ -159,7 +162,6 @@ class VoiceSubtitleBackgroundServices:
 
             except Exception as e:
                 ColorPrint.red(f"[AI] Error in processor loop: {e}")
-                import traceback
                 traceback.print_exc()
 
     def _process_clipboard_with_ai(self, text: str):
@@ -186,7 +188,6 @@ class VoiceSubtitleBackgroundServices:
 
         except Exception as e:
             ColorPrint.red(f"[AI] Error processing clipboard: {e}")
-            import traceback
             traceback.print_exc()
             return None
 
@@ -281,7 +282,6 @@ class VoiceSubtitleBackgroundServices:
                 ColorPrint.red(f"[VoiceSubtitle] Error in screenshot loop: {e}")
 
             # Wait for next capture
-            import time
             time.sleep(self._screenshot_interval)
 
     async def _process_screenshot(self, image_path: str):

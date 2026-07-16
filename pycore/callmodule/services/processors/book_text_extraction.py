@@ -28,6 +28,12 @@ from typing import List
 
 from pycore import ColorPrint
 
+from pycore.pyfoundations.third_party import get_third_package_chardet
+from pycore.pyfoundations.third_party import get_third_package_bs4
+from pycore.pyfoundations.third_party import get_third_package_ebooklib
+from pycore.pyfoundations.third_party import get_third_package_striprtf
+
+
 
 def _read_text_file(path: str) -> str:
     """Read a .txt/.md file as text. Detect encoding via chardet if available,
@@ -43,7 +49,6 @@ def _read_text_file(path: str) -> str:
         return ""
     # Prefer chardet's detected encoding when the package is importable.
     try:
-        from pycore.pyfoundations.third_party import get_third_package_chardet
         chardet = get_third_package_chardet()
         guess = chardet.detect(raw) or {}
         enc = guess.get("encoding")
@@ -70,10 +75,6 @@ def _extract_epub(path: str) -> str:
     """
     # Preferred path: ebooklib + BeautifulSoup (both via lazy getters).
     try:
-        from pycore.pyfoundations.third_party import (
-            get_third_package_ebooklib,
-            get_third_package_bs4,
-        )
         ebooklib = get_third_package_ebooklib()
         epub = ebooklib.epub
         BeautifulSoup = get_third_package_bs4().BeautifulSoup
@@ -129,7 +130,6 @@ def _strip_html(html: str) -> str:
     # previous code called the module as a constructor, a latent TypeError that
     # silently fell back to the stdlib strip on every HTML/epub document).
     try:
-        from pycore.pyfoundations.third_party import get_third_package_bs4
         BeautifulSoup = get_third_package_bs4().BeautifulSoup
         soup = BeautifulSoup(html, "html.parser")
         for tag in soup(["script", "style", "noscript"]):
@@ -162,7 +162,6 @@ def _extract_rtf(path: str) -> str:
     if not (raw and raw.strip()):
         return ""
     try:
-        from pycore.pyfoundations.third_party import get_third_package_striprtf
         rtf_to_text = get_third_package_striprtf()
         text = rtf_to_text(raw)
         if text and text.strip():
@@ -190,7 +189,6 @@ def _extract_doc(path: str) -> str:
     # 1) Windows: Microsoft Word via COM automation (pywin32 ships in this env).
     if os.name == "nt":
         try:
-            import win32com.client  # type: ignore
             word = win32com.client.Dispatch("Word.Application")
             word.Visible = False
             try:

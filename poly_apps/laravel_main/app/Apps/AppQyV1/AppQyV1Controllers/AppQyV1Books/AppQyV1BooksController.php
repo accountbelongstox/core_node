@@ -24,7 +24,7 @@ use Illuminate\Support\Str;
  * ingest path (idempotent fill-missing). Same trust posture as the media ingest
  * endpoints: local/no-auth.
  *
- * Staging + caches live under core_node/.data/appqyv1/books/{uploadId}/ so the
+ * Staging + caches live under <cache>/pycore/appqyv1/books/{uploadId}/ so the
  * extract pass runs once at upload time and the paginated list + ingest steps
  * reuse the cached analysis (no re-parsing).
  */
@@ -92,7 +92,7 @@ class AppQyV1BooksController extends Controller
             $language
         );
         $uploadId = (string) Str::uuid();
-        $stagingDir = PathMapper::getCoreNodeDataDir("appqyv1/books/{$uploadId}");
+        $stagingDir = PathMapper::getSharedDownloadCacheDir("pycore/appqyv1/books/{$uploadId}");
 
         $files = $request->file('files');
         if (!is_array($files)) {
@@ -325,7 +325,7 @@ class AppQyV1BooksController extends Controller
         int $start,
         int $limit
     ): JsonResponse {
-        $stagingDir = PathMapper::getCoreNodeDataDir("appqyv1/books/{$uploadId}");
+        $stagingDir = PathMapper::getSharedDownloadCacheDir("pycore/appqyv1/books/{$uploadId}");
         $fileCaches = $this->loadFileCaches($stagingDir);
         if (empty($fileCaches)) {
             return $this->notFound('Upload not found or expired');
@@ -464,7 +464,7 @@ class AppQyV1BooksController extends Controller
             $languageOverride
         );
 
-        $stagingDir = PathMapper::getCoreNodeDataDir("appqyv1/books/{$uploadId}");
+        $stagingDir = PathMapper::getSharedDownloadCacheDir("pycore/appqyv1/books/{$uploadId}");
         $fileCaches = $this->loadFileCaches($stagingDir);
         if (empty($fileCaches)) {
             return $this->notFound('Upload not found or expired');
@@ -911,7 +911,7 @@ class AppQyV1BooksController extends Controller
     /** Absolute path of the lists.json index for an upload. */
     private function listsPath(string $uploadId): string
     {
-        $stagingDir = PathMapper::getCoreNodeDataDir("appqyv1/books/{$uploadId}");
+        $stagingDir = PathMapper::getSharedDownloadCacheDir("pycore/appqyv1/books/{$uploadId}");
         return rtrim($stagingDir, '/\\') . DIRECTORY_SEPARATOR . 'lists.json';
     }
 

@@ -99,9 +99,9 @@ def schedule_book_poster_retry(
     source_type: str = "book",
     delays: Optional[List[int]] = None,
 ) -> None:
-    """Schedule a background delayed retry to fetch + push a book poster."""
-    if not path or not _poster_enabled():
-        return
+    """Schedule a background delayed retry — DISABLED; delegated to apps/mcp-chrome."""
+    ColorPrint.blue("[BookPosterRetry] disabled — poster delegated to apps/mcp-chrome")
+    return
     abs_path = path
     key = source_key_for(abs_path)
     with _lock:

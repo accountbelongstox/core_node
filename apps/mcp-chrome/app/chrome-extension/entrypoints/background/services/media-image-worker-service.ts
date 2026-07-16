@@ -1,0 +1,240 @@
+/**
+ * Media Image Worker — poster + vocabulary cover via Google/Bing image search.
+ *
+ * Fulfils:
+ *   - GlobalTask `poster` on dedicated `remote_poster` lane (capability poster)
+ *   - Laravel assist pool items `cover` + `poster` via /assist/claim + /assist/submit
+ *
+ * Replaces pycore TMDB/OMDB + AI cover generation (delegated to mcp-chrome).
+ */
+
+import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
+import { SimpleWorkerBase, SimpleWorkerConfig } from './task-center/SimpleWorkerBase';
+import { logger } from '@/utils/logger';
+import {
+  buildPosterQuery,
+  buildVocabCoverQuery,
+  resolvePosterImageFromSearch,
+} from '@/utils/media-image-search';
+import {
+  claimAssistItems,
+  releaseAssistItem,
+  submitAssistCover,
+  submitAssistPoster,
+  type AssistClaimItem,
+} from '@/services/assist-image-api';
+
+const LOG = 'Media Image';
+const ASSIST_CLAIMER = 'mcp-chrome-media-image';
+const ASSIST_POLL_MS = 30_000;
+
+class MediaImageWorkerService extends SimpleWorkerBase {
+  private assistTimer: ReturnType<typeof setInterval> | null = null;
+  private assistBusy = false;
+  private assistStats = {
+    coversSubmitted: 0,
+    postersSubmitted: 0,
+    assistFailed: 0,
+    lastAssistRun: null as number | null,
+  };
+
+  protected get processorKey(): string {
+    return 'media_image';
+  }
+
+  protected get workerIdStorageKey(): string {
+    return 'media_image_worker_id_base';
+  }
+
+  protected get capabilities(): WorkerCapability[] {
+    return ['poster'];
+  }
+
+  protected get baseProcessorTypes(): ProcessorType[] {
+    return ['remote_poster'];
+  }
+
+  protected get workerLabel(): string {
+    return LOG;
+  }
+
+  protected handlesTaskType(taskType: string): boolean {
+    return taskType === 'poster';
+  }
+
+  async start(config: SimpleWorkerConfig): Promise<void> {
+    await super.start(config);
+    this.startAssistLoop();
+  }
+
+  stop(): void {
+    this.stopAssistLoop();
+    super.stop();
+  }
+
+  getStatus(): { isRunning: boolean; stats: Record<string, unknown> } {
+    const base = super.getStatus();
+    return {
+      ...base,
+      stats: {
+        ...base.stats,
+        ...this.assistStats,
+      },
+    };
+  }
+
+  private startAssistLoop(): void {
+    if (this.assistTimer) return;
+    const tick = () => {
+      if (!this.getStatus().isRunning || this.assistBusy) return;
+      void this.runAssistCycle();
+    };
+    tick();
+    this.assistTimer = setInterval(tick, ASSIST_POLL_MS);
+  }
+
+  private stopAssistLoop(): void {
+    if (!this.assistTimer) return;
+    clearInterval(this.assistTimer);
+    this.assistTimer = null;
+  }
+
+  private async runAssistCycle(): Promise<void> {
+    if (!this.config?.apiUrl || this.assistBusy) return;
+    this.assistBusy = true;
+    this.assistStats.lastAssistRun = Date.now();
+    try {
+      const items = await claimAssistItems(
+        this.config.apiUrl,
+        ['cover', 'poster'],
+        ASSIST_CLAIMER,
+        3,
+      );
+      if (!items.length) return;
+      logger.info(LOG, `Assist claimed ${items.length} item(s)`);
+      for (const item of items) {
+        if (!this.getStatus().isRunning) break;
+        await this.processAssistItem(item);
+        await this.delay(1200);
+      }
+    } catch (error: any) {
+      logger.warn(LOG, `Assist cycle failed: ${error?.message || String(error)}`);
+    } finally {
+      this.assistBusy = false;
+    }
+  }
+
+  private async processAssistItem(item: AssistClaimItem): Promise<void> {
+    if (!this.config?.apiUrl) return;
+    const baseUrl = this.config.apiUrl;
+    const started = Date.now();
+    const payload = item.payload || {};
+
+    if (item.type === 'cover') {
+      const name = String(payload.name || '').trim();
+      const prompt = String(payload.prompt || '').trim();
+      const query = buildVocabCoverQuery(name, prompt);
+      const image = await resolvePosterImageFromSearch(query, { waitForVerification: false });
+      if (!image) {
+        this.assistStats.assistFailed += 1;
+        await releaseAssistItem(baseUrl, 'cover', item.id, 'mcp-chrome: no cover image found');
+        return;
+      }
+      const result = await submitAssistCover(baseUrl, item.id, image.imageBase64, ASSIST_CLAIMER, {
+        mime: image.mime,
+        provider: image.provider,
+        model: image.engine,
+        latencyMs: Date.now() - started,
+      });
+      if (result.ok) {
+        this.assistStats.coversSubmitted += 1;
+        logger.info(LOG, `Assist cover#${item.id} submitted${result.already_done ? ' (already done)' : ''}`);
+      } else {
+        this.assistStats.assistFailed += 1;
+        await releaseAssistItem(baseUrl, 'cover', item.id, result.error || 'submit rejected');
+      }
+      return;
+    }
+
+    if (item.type === 'poster') {
+      const mediaType = (item.media_type === 'subtitle' ? 'subtitle' : 'book') as 'book' | 'subtitle';
+      const title = String(payload.title || '').trim();
+      const yearRaw = payload.year;
+      const year = yearRaw == null || yearRaw === '' ? null : Number(yearRaw);
+      const kind = mediaType === 'book' ? 'book' : 'movie';
+      const query = buildPosterQuery(title, Number.isFinite(year) ? year : null, kind);
+      const image = await resolvePosterImageFromSearch(query, { waitForVerification: false });
+      if (!image) {
+        this.assistStats.assistFailed += 1;
+        await releaseAssistItem(baseUrl, 'poster', item.id, 'mcp-chrome: no poster image found', {
+          media_type: mediaType,
+        });
+        return;
+      }
+      const result = await submitAssistPoster(
+        baseUrl,
+        mediaType,
+        item.id,
+        image.imageBase64,
+        ASSIST_CLAIMER,
+        {
+          mime: image.mime,
+          provider: image.provider,
+          sourceId: image.sourceUrl.slice(0, 512),
+          latencyMs: Date.now() - started,
+        },
+      );
+      if (result.ok) {
+        this.assistStats.postersSubmitted += 1;
+        logger.info(LOG, `Assist poster#${item.id} (${mediaType}) submitted${result.already_done ? ' (already done)' : ''}`);
+      } else {
+        this.assistStats.assistFailed += 1;
+        await releaseAssistItem(baseUrl, 'poster', item.id, result.error || 'submit rejected', {
+          media_type: mediaType,
+        });
+      }
+    }
+  }
+
+  protected async executeTask(task: Task): Promise<void> {
+    const payload = (task.payload as Record<string, unknown>) || {};
+    const mediaType = payload.media_type === 'subtitle' ? 'subtitle' : 'book';
+    const title = String(payload.title || payload.name || '').trim();
+    const yearRaw = payload.year;
+    const year = yearRaw == null || yearRaw === '' ? null : Number(yearRaw);
+    const kind = mediaType === 'book' ? 'book' : 'movie';
+    const query = buildPosterQuery(title, Number.isFinite(year) ? year : null, kind);
+
+    if (!query) {
+      await this.submitResult(task.task_id, 'failed', undefined, { error: 'poster task missing title' });
+      return;
+    }
+
+    const started = Date.now();
+    const image = await resolvePosterImageFromSearch(query, { waitForVerification: false });
+    if (!image) {
+      await this.submitResult(task.task_id, 'failed', undefined, { error: 'no poster image found via Google/Bing' });
+      return;
+    }
+
+    await this.submitResult(task.task_id, 'completed', {
+      image_base64: image.imageBase64,
+      poster_base64: image.imageBase64,
+      mime: image.mime,
+      provider: image.provider,
+      source_id: image.sourceUrl.slice(0, 512),
+      poster_url: image.sourceUrl,
+      image_url: image.sourceUrl,
+      media_type: mediaType,
+      query,
+      latency_ms: Date.now() - started,
+    });
+    logger.info(LOG, `Poster task ${task.task_id} completed (${mediaType})`);
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+}
+
+export const mediaImageWorkerService = new MediaImageWorkerService();

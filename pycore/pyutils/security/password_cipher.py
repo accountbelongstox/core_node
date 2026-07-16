@@ -15,6 +15,12 @@ from typing import Optional
 
 from pycore.pyutils.security.machine_id import get_machine_id
 
+from pycore.pyfoundations.third_party import get_third_package_cryptography
+
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+
+
 VERIFY_PREFIX = "VX"
 
 _DECRYPT_FAIL_HINT = (
@@ -31,9 +37,7 @@ def _fernet_key_from_machine_id() -> bytes:
 
 
 def _get_fernet():
-    from pycore.pyfoundations.third_party import get_third_package_cryptography
     get_third_package_cryptography()
-    from cryptography.fernet import Fernet
     return Fernet
 
 
@@ -78,7 +82,6 @@ def decrypt_password(cipher_b64: str) -> Optional[str]:
         payload = payload_bytes.decode("utf-8")
         if payload[:2] != VERIFY_PREFIX:
             try:
-                from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
                 ColorPrint.yellow(_DECRYPT_FAIL_HINT)
             except Exception:
                 print(_DECRYPT_FAIL_HINT)
@@ -86,7 +89,6 @@ def decrypt_password(cipher_b64: str) -> Optional[str]:
         return payload[2:]
     except Exception:
         try:
-            from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
             ColorPrint.yellow(_DECRYPT_FAIL_HINT)
         except Exception:
             print(_DECRYPT_FAIL_HINT)

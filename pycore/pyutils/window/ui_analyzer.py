@@ -146,7 +146,7 @@ class SimpleWindow:
         Future development must adhere to this standard.
         """
         try:
-            import win32con
+            win32con = get_third_package_win32con()
             win32gui.SetForegroundWindow(self._hWnd)
             win32gui.ShowWindow(self._hWnd, win32con.SW_RESTORE)
             return True

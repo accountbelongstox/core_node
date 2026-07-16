@@ -4,7 +4,7 @@ Code Sync filter settings — what to exclude from the synced/scanned tree.
 
 Two-tier, exactly like peer_config:
   * PRESETS below  — the code-frozen defaults (single source of truth; what ships).
-  * OVERRIDE file   — per-machine `<core_node>/.data/pycore/codesync/sync_settings.json`
+  * OVERRIDE file   — per-machine `<cache>/pycore/codesync/sync_settings.json`
                       (gitignored). Loaded with priority; only the keys present in
                       the override replace the presets, so each machine can tweak
                       filters WITHOUT touching code, and edits never churn the repo.
@@ -28,7 +28,7 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .runtime import log as ColorPrint, get_core_node_root
+from .runtime import log as ColorPrint, get_local_data_dir
 
 # --------------------------------------------------------------------------- #
 # Presets (code-frozen defaults) — the single source of truth.                #
@@ -84,6 +84,7 @@ PRESET_EXCLUDED_DIRS: List[str] = [
 PRESET_EXCLUDED_FILES: List[str] = [
     "code_sync_peers.json",
     "sync_settings.json",
+    "runtime_prefs.json",
 ]
 
 # Extensions are matched case-INSENSITIVELY (see Excluder). These are binary /
@@ -138,7 +139,7 @@ _KEYS = ("excluded_dirs", "excluded_files", "excluded_extensions",
 
 def get_sync_settings_file() -> Path:
     """Per-machine override (gitignored)."""
-    return get_core_node_root() / ".data" / "pycore" / "codesync" / "sync_settings.json"
+    return get_local_data_dir() / "codesync" / "sync_settings.json"
 
 
 def presets() -> Dict[str, Any]:

@@ -1,6 +1,11 @@
 """
 GPT-SoVITS TTS engine wrapper (HTTP client to a LOCALLY-RUN api server).
 
+Official perfect-support environment (see pycore/tts_install_assets/tts_model_tiers.py):
+  Python 3.9–3.11; git RVC-Boss/GPT-SoVITS; lj1995/GPT-SoVITS HF models.
+  GPU: CUDA torch + GPTSOVITS_HF_ALLOW=* (all pretrained); CPU: v2 set (~1.2GB).
+  Server: api_v2.py :9880; GPTSOVITS_REF_AUDIO required.
+
 GPT-SoVITS is NOT a pip package — it's a cloned repo + conda env + multi-GB
 models + GPU. We therefore do NOT install it; instead, if the user has it running
 (its `api_v2.py` FastAPI server, default 127.0.0.1:9880), we route synthesis to

@@ -20,17 +20,12 @@ from typing import Dict, Any, Optional
 
 from pycore import ColorPrint, THREAD_BUS
 from .registry import SERVICE_STARTERS, THREAD_REGISTRY
-from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
-from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter, TrayBackend as PlatformTrayBackend
-from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import (
-    TrayMenuItem,
-    PYSTRAY_AVAILABLE
-)
-from pycore.pyutils.native_ui.step6_tray.tray_thread import TkinterSystemTrayThread
-from pycore.pyutils.native_ui.step6_tray.win32_system_tray import (
-    Win32SystemTrayThread,
-    WIN32_AVAILABLE,
-)
+from pycore.pyfoundations.thread_bus_constants import BusSignals
+
+from pycore.pyheartbeat import initialize_heartbeat_system
+from pycore.pyutils.rpc_v2 import FastAPIRPCServerRunner
+
+
 
 
 # ============================================================
@@ -89,7 +84,6 @@ def start_heartbeat(config: Dict[str, Any]) -> Any:
     _register_builtin_handlers()
 
     ColorPrint.blue("[heartbeat] Starting Unified Heartbeat System...")
-    from pycore.pyheartbeat import initialize_heartbeat_system
 
     instance = initialize_heartbeat_system()
     instance.start()
@@ -133,7 +127,6 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
     if static_mounts:
         ColorPrint.blue(f"[rpc_v2] Will mount {len(static_mounts)} static directory(ies)")
 
-    from pycore.pyutils.rpc_v2 import FastAPIRPCServerRunner
 
     instance = FastAPIRPCServerRunner(
         host=host,
@@ -177,13 +170,14 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
 
 def start_speech(config: Dict[str, Any]) -> Any:
     """Start speech service (original class)"""
+    from pycore.pyctl.speech.speech_thread import SpeechTranscriptionThread
+
     mode = config.get('mode', 'single')
     mic_language = config.get('mic_language', 'zh-CN')
     system_language = config.get('system_language', 'en-US')
     daemon = config.get('daemon', True)
 
     ColorPrint.blue(f"[speech] Starting Speech Service (mode: {mode})...")
-    from pycore.pyctl.speech.speech_thread import SpeechTranscriptionThread
 
     instance = SpeechTranscriptionThread(
         mode=mode,
@@ -235,15 +229,12 @@ def start_ui(config: Dict[str, Any]) -> Any:
     Returns:
         PySide6Framework instance
     """
+    from pycore.pyutils.native_ui.step5_main_ui.pyside6 import PySide6UIThread, PySide6UIConfig, StartupWindowConfig
+
     ColorPrint.blue("[ui] ========== STARTING PYSIDE6 UI SERVICE ==========")
     ColorPrint.blue(f"[ui] Received config keys: {list(config.keys())}")
     # PySide6 is loaded inside UI thread after tk bootstrap window is shown (bootstrap order: tk first, then PySide6)
 
-    from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
-        PySide6UIThread,
-        PySide6UIConfig,
-        StartupWindowConfig
-    )
 
     # Get configuration with defaults
     app_name = config.get('app_name', 'Pycore Application')
@@ -399,6 +390,16 @@ def start_tray(config: Dict[str, Any]) -> Any:
     """
     ColorPrint.blue("[tray] Starting System Tray...")
 
+    from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
+    from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem, PYSTRAY_AVAILABLE
+    from pycore.pyutils.native_ui.step6_tray.tray_thread import TkinterSystemTrayThread
+    from pycore.pyutils.native_ui.step6_tray.win32_system_tray import Win32SystemTrayThread, WIN32_AVAILABLE
+    from pycore.pyutils.native_ui.step6_tray.appindicator_thread import (
+        AppIndicatorSystemTrayThread,
+        APPINDICATOR_AVAILABLE,
+    )
+    from pycore.pyutils.native_ui.step6_tray._types import build_appindicator_menu_items
+
     # Get configuration
     app_name = config.get('app_name', 'Application')
     icon_path = config.get('icon_path')
@@ -438,11 +439,6 @@ def start_tray(config: Dict[str, Any]) -> Any:
     # ---- Ubuntu/GNOME native: AppIndicator (Ayatana preferred) ----
     if backend != 'pystray' and adapter.is_linux and adapter.can_use_tray():
         try:
-            from pycore.pyutils.native_ui.step6_tray.appindicator_thread import (
-                AppIndicatorSystemTrayThread,
-                build_appindicator_menu_items,
-                APPINDICATOR_AVAILABLE,
-            )
             if APPINDICATOR_AVAILABLE:
                 appindicator_items = build_appindicator_menu_items(menu_items)
                 app_id = config.get('app_id') or (app_name.lower().replace(' ', '_') + "-tray")

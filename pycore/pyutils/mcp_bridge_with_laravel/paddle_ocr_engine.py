@@ -18,6 +18,13 @@ import subprocess
 
 from ocr_config import OCRLimits, APIKeys
 
+from pycore.pyfoundations.third_party import (
+    get_third_package_PIL_Image,
+    get_third_package_PIL_ImageDraw,
+    get_third_package_PIL_ImageFont,
+)
+
+
 # Check for optional dependencies at module level
 _paddle_available = importlib.util.find_spec("paddle") is not None
 _paddleocr_available = importlib.util.find_spec("paddleocr") is not None
@@ -92,14 +99,12 @@ class PaddleOCREngine:
 
     def _check_paddle_availability(self) -> bool:
         """Check if PaddlePaddle is available"""
-        import importlib.util
         paddle_available = importlib.util.find_spec("paddle") is not None
         paddleocr_available = importlib.util.find_spec("paddleocr") is not None
         return paddle_available and paddleocr_available
 
     def _initialize_paddleocr(self) -> Dict[str, Any]:
         """Initialize PaddleOCR instance"""
-        import importlib.util
         if importlib.util.find_spec("paddleocr") is None:
             return {
                 "success": False,
@@ -108,7 +113,6 @@ class PaddleOCREngine:
             }
         
         try:
-            from paddleocr import PaddleOCR
 
             # Initialize with basic configuration
             self.ocr_instance = PaddleOCR(
@@ -173,11 +177,6 @@ class PaddleOCREngine:
 
     def _create_test_image(self) -> Optional[str]:
         """Create a simple test image for initialization testing"""
-        from pycore.pyfoundations.third_party import (
-            get_third_package_PIL_Image,
-            get_third_package_PIL_ImageDraw,
-            get_third_package_PIL_ImageFont,
-        )
 
         Image = get_third_package_PIL_Image()
         ImageDraw = get_third_package_PIL_ImageDraw()
@@ -326,7 +325,6 @@ class PaddleOCREngine:
 # Utility function for package installation
 def install_paddleocr_dependencies() -> Dict[str, Any]:
     """Install PaddleOCR dependencies if needed"""
-    import importlib.util
     try:
         # Check if packages are already installed
         paddle_available = importlib.util.find_spec("paddle") is not None

@@ -10,6 +10,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@fingerprintjs/fingerprintjs": "^5.2.0",
     "@uiw/codemirror-extensions-langs": "^4.23.7",
     "@uiw/react-codemirror": "^4.23.7",
     "epubjs": "^0.3.93",

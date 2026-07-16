@@ -280,16 +280,24 @@ configure_uv() {
 
     # Create basic uv configuration
     local uv_config_file="$uv_config_dir/uv.toml"
+    local uv_cache_dir="${XDG_CACHE_HOME:-${CORE_NODE_CACHE_DIR:-$HOME/.cache}}/uv"
+    mkdir -p "$uv_cache_dir"
+
     if [ ! -f "$uv_config_file" ]; then
-        cat > "$uv_config_file" << 'EOF'
+        cat > "$uv_config_file" << EOF
 # UV configuration
 index-url = "https://pypi.org/simple"
 
 # Cache configuration
-cache-dir = "~/.cache/uv"
+cache-dir = "$uv_cache_dir"
 EOF
         echo "[$SCRIPT_INDEX] Created UV configuration file: $uv_config_file"
     else
+        if grep -q '^cache-dir' "$uv_config_file"; then
+            sed -i "s|^cache-dir.*|cache-dir = \"$uv_cache_dir\"|" "$uv_config_file"
+        else
+            echo "cache-dir = \"$uv_cache_dir\"" >> "$uv_config_file"
+        fi
         echo "[$SCRIPT_INDEX] UV configuration file already exists: $uv_config_file"
     fi
 }

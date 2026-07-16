@@ -11,6 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const PythonCaller = require('./PythonCaller');
+const { getXdgCacheHome } = require('../../../../foundation/common/system_paths');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -20,7 +21,7 @@ class ModelCaller extends PythonCaller {
     constructor(options = {}) {
         super(options);
 
-        this.modelCachePath = options.modelCachePath || path.join(os.homedir(), '.cache', 'huggingface');
+        this.modelCachePath = options.modelCachePath || path.join(getXdgCacheHome(), 'huggingface');
         this.persistentProcesses = new Map();
         this.defaultModelTimeout = options.defaultModelTimeout || 120000;
         this.enableProgressCallback = options.enableProgressCallback !== undefined ? options.enableProgressCallback : true;

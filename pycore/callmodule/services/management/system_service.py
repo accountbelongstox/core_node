@@ -20,6 +20,9 @@ from ...models.management.system_models import (
     ResourceUsage,
 )
 
+from pycore import THREAD_BUS, ColorPrint
+
+
 
 class SystemService:
     """Service for system management operations"""
@@ -146,7 +149,6 @@ class SystemService:
         Returns:
             ControlResponse with result
         """
-        from pycore import THREAD_BUS, ColorPrint
 
         timestamp = datetime.utcnow().isoformat() + 'Z'
 

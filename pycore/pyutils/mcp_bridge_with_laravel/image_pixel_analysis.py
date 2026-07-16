@@ -15,6 +15,16 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import csv
+
+from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyfoundations.third_party import get_third_package_numpy
+
+from collections import Counter
+
+
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -118,9 +128,8 @@ def analyze_image_pixels(
         logger.info(f"Analyzing image pixels: {image_path}, region={region}, strategy={sampling_strategy}")
 
         try:
-            from PIL import Image
-            import numpy as np
-            from collections import Counter
+            Image = get_third_package_PIL_Image()
+            np = get_third_package_numpy()
             IMAGE_PROCESSING_AVAILABLE = True
         except ImportError:
             return {
@@ -152,7 +161,6 @@ def analyze_image_pixels(
 
         # Setup export directory
         try:
-            from constants import FileProcessorConstants
             project_root = FileProcessorConstants.get_project_root()
         except:
             project_root = Path(__file__).parent.parent.parent.parent
@@ -477,7 +485,6 @@ def analyze_image_pixels(
                             json.dump(final_result, f, ensure_ascii=False)
 
                     elif export_format == "csv":
-                        import csv
                         with open(file_path, 'w', newline='', encoding='utf-8') as f:
                             writer = csv.writer(f)
                             # Write header

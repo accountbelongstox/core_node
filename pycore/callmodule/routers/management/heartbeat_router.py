@@ -62,7 +62,11 @@ async def enable_callback(callback_name: str):
     """
     try:
         heartbeat = get_heartbeat_system()
-        heartbeat.enable_callback(callback_name)
+        if not heartbeat.enable_callback(callback_name):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Callback '{callback_name}' not found",
+            )
 
         ColorPrint.green(f"[HeartbeatAPI] Enabled callback: {callback_name}")
 
@@ -99,7 +103,11 @@ async def disable_callback(callback_name: str):
     """
     try:
         heartbeat = get_heartbeat_system()
-        heartbeat.disable_callback(callback_name)
+        if not heartbeat.disable_callback(callback_name):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Callback '{callback_name}' not found",
+            )
 
         ColorPrint.yellow(f"[HeartbeatAPI] Disabled callback: {callback_name}")
 

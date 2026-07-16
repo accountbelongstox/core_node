@@ -44,7 +44,10 @@
       "singleton_port": "シングルトンポート: {port}",
       "autostart": "起動時に自動実行",
       "service_toggle": "システムサービスとして実行",
-      "language": "言語"
+      "language": "言語",
+      "code_sync": "コード同期",
+      "code_sync_distribute": "配信を開始",
+      "code_sync_skip_update": "更新をスキップ"
     }
   },
   "loading": {

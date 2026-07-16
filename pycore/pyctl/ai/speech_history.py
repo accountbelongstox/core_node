@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 """
 Shared speech (TTS/STT) generation history — the audio sibling of
-``ai_image_history`` (same shared ``<core_node>/.data/.ai_state`` channel, same
+``ai_image_history`` (same shared ``<cache>/pycore/.ai_state`` channel, same
 atomic-write + ring-buffer safety). Captures the audio a TTS/STT *test* (or any
 synthesis we choose to log) produced so the unified Records timeline can replay
 it, show its path, and open its folder.
 
 Layout:
-  <core_node>/.data/.ai_state/speech_history.json    — newest-last index (ring)
-  <core_node>/.data/.ai_state/speech_audio/<id>.<ext> — the audio bytes
+  <cache>/pycore/.ai_state/speech_history.json    — newest-last index (ring)
+  <cache>/pycore/.ai_state/speech_audio/<id>.<ext> — the audio bytes
 
 Index entry (the only shape the UI depends on):
   { id, ts, iso, kind: 'tts'|'stt', engine, text, language, mime, bytes, file,
@@ -32,10 +32,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root
+from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_local_data_dir
 
 # Same shared root as ai_image_history (cross-runtime DrvFs-visible).
-_SHARED_STATE_DIR = get_core_node_root() / ".data" / ".ai_state"
+_SHARED_STATE_DIR = get_local_data_dir() / ".ai_state"
 _LEGACY_DIR = APP_DATA_DIR / "ai_state"
 
 # Newest-last ring buffer cap; older entries (and their audio files) are trimmed.

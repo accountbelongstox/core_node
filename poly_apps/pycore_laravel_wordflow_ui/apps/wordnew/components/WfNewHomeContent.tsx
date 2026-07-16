@@ -42,6 +42,8 @@ interface WfNewHomeContentProps {
    * the end. Optional: when absent, the section just reveals what it already has.
    */
   onNeedMore?: (kind: WfNewContentKind) => Promise<boolean>;
+  /** Add a vocabulary library to the default study group (library kind only). */
+  onAddToStudy?: (group: WfNewContentGroup) => void;
 }
 
 const SECTIONS: Array<{
@@ -77,7 +79,8 @@ const HomeGridSection: React.FC<{
   trans: WfNewHomeContentProps['trans'];
   onOpen: WfNewHomeContentProps['onOpen'];
   onNeedMore?: WfNewHomeContentProps['onNeedMore'];
-}> = ({ kind, groups, theme, trans, onOpen, onNeedMore }) => {
+  onAddToStudy?: WfNewHomeContentProps['onAddToStudy'];
+}> = ({ kind, groups, theme, trans, onOpen, onNeedMore, onAddToStudy }) => {
   // ONE shared, resize-aware column count (api/WfNewGrid) — same value for every
   // page and the data layer, so "rows" are identical at a given width everywhere.
   const cols = useWfNewGridCols();
@@ -153,7 +156,7 @@ const HomeGridSection: React.FC<{
 
   return (
     <>
-      <WfNewContentGrid groups={shown} theme={theme} trans={trans} onOpen={onOpen} />
+      <WfNewContentGrid groups={shown} theme={theme} trans={trans} onOpen={onOpen} onAddToStudy={onAddToStudy} />
       {/* Auto-load sentinel + manual Load more + page indicator. */}
       {hasMore && (
         <div ref={sentinelRef} className="flex flex-col items-center gap-2 pt-1">
@@ -182,6 +185,7 @@ export const WfNewHomeContent: React.FC<WfNewHomeContentProps> = ({
   onOpen,
   onMore,
   onNeedMore,
+  onAddToStudy,
 }) => {
   const scrollToSection = (kind: WfNewContentKind) => {
     if (typeof document === 'undefined') return;
@@ -282,7 +286,7 @@ export const WfNewHomeContent: React.FC<WfNewHomeContentProps> = ({
                 <p className="text-[11px] font-mono text-zinc-500">{trans('content.empty')}</p>
               </div>
             ) : isGrid ? (
-              <HomeGridSection kind={kind} groups={groups} theme={theme} trans={trans} onOpen={onOpen} onNeedMore={onNeedMore} />
+              <HomeGridSection kind={kind} groups={groups} theme={theme} trans={trans} onOpen={onOpen} onNeedMore={onNeedMore} onAddToStudy={kind === 'library' ? onAddToStudy : undefined} />
             ) : (
               <div className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory px-1 pb-2 -mx-1">
                 {groups.map((g) => (

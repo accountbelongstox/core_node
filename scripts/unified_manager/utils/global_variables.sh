@@ -1,7 +1,7 @@
 #!/bin/bash
 # Unified Global Variable Manager - Bash Implementation
 # Centralized variable storage system for Linux/Unix
-# Stores variables in: /var/_core_node/_build_global_vars/ or ~/.core_node/.build_global_vars
+# Stores variables in: D:\programing\Users\{username}\.core_node\.build_global_vars / /var/_core_node/_build_global_vars/
 # Format: filename=key, file_content=value
 
 # Variable declarations - all at top
@@ -72,23 +72,16 @@ initialize_global_variables() {
         return 0
     fi
 
-    # Detect platform and set appropriate path
+    # Detect platform and set appropriate path (centralized: CORE_NODE_DATA_DIR
+    # on Linux/macOS, mirrors GlobalVars.ps1 USER_DIR on Windows bash).
     case "$(uname -s)" in
-        Linux*)
-            # Linux: /var/_core_node/_build_global_vars/
-            GLOBAL_VARS_DIR="/var/_core_node/_build_global_vars"
-            ;;
         MINGW*|CYGWIN*|MSYS*)
-            # Windows: C:\Users\用户名\.core_node\.build_global_vars
-            GLOBAL_VARS_DIR="$HOME/.core_node/.build_global_vars"
-            ;;
-        Darwin*)
-            # macOS: /var/_core_node/_build_global_vars/
-            GLOBAL_VARS_DIR="/var/_core_node/_build_global_vars"
+            # Windows (bash): mirrors GlobalVars.ps1 USER_DIR (D:\programing\Users\<user>\.core_node).
+            GLOBAL_VARS_DIR="/d/programing/Users/$USER/.core_node/.build_global_vars"
             ;;
         *)
-            # Default fallback
-            GLOBAL_VARS_DIR="/var/_core_node/_build_global_vars"
+            # Linux/macOS/other: CORE_NODE_DATA_DIR (default /var/_core_node, all-users-writable).
+            GLOBAL_VARS_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/.build_global_vars"
             ;;
     esac
 

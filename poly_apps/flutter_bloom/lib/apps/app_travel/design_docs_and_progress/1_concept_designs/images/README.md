@@ -1,35 +1,35 @@
 # Images Directory
 
-本目录用于存放设计图片。
+This directory holds design images.
 
-## 占位图机制
+## Placeholder Image Mechanism
 
-- **文件名**: `_placeholder.png`
-- **说明**: 当目录为空时自动生成，提醒开发者放置实际设计图
-- **清理**: 当有实际图片时会自动删除
+- **Filename**: `_placeholder.png`
+- **Note**: Auto-generated when the directory is empty; reminds developers to add real design images
+- **Cleanup**: Removed automatically when real images are added
 
-## 建议放置的图片
+## Suggested Images
 
-根据设计需求，可放置以下类型的图片：
+Depending on design needs, you may place:
 
-- `architecture.png`: 架构图
-- `user_flow.png`: 用户流程图
-- `data_model.png`: 数据模型图
+- `architecture.png`: Architecture diagram
+- `user_flow.png`: User flow diagram
+- `data_model.png`: Data model diagram
 
-## 命名规范
+## Naming Conventions
 
-- 使用 `snake_case` 命名（英文目录）或直接中文命名（中文目录）
-- 描述性名称
-- 版本号用 `_v1`, `_v2` 后缀
-- 设备/模式用下划线分隔（如 `_mobile`, `_dark`）
+- Use `snake_case` in English directories, or Chinese names in Chinese directories
+- Descriptive names
+- Version suffixes: `_v1`, `_v2`
+- Device/mode suffixes with underscores (e.g. `_mobile`, `_dark`)
 
-## 支持的格式
+## Supported Formats
 
-- PNG（推荐，支持透明背景）
-- JPG/JPEG（照片级效果图）
-- SVG（矢量图，可缩放）
-- GIF（动图）
+- PNG (recommended; supports transparency)
+- JPG/JPEG (photo-quality renders)
+- SVG (vector; scalable)
+- GIF (animated)
 
-## 参考文档
+## References
 
-完整规范请参考: `doc/DESIGN_IMAGES_PLACEMENT.md`
+See `doc/DESIGN_IMAGES_PLACEMENT.md` for the full image placement guide.

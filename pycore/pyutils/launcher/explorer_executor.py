@@ -11,6 +11,9 @@ import platform
 from pathlib import Path
 import subprocess
 
+import ctypes
+
+
 _IS_WINDOWS = platform.system() == 'Windows'
 
 
@@ -176,4 +179,34 @@ class ExplorerExecutor:
         else:
             # Execute as child process
             return subprocess.Popen(['cmd', '/c', 'start', '', bat_path_str], cwd=working_dir)
+
+    @staticmethod
+    def execute_as_admin(file_path):
+        """
+        Launch an executable with administrator elevation (Windows only).
+
+        Uses ShellExecuteW with the ``runas`` verb so Windows shows the UAC prompt.
+        On Linux/macOS, falls back to a normal detached launch.
+
+        Args:
+            file_path: Path to executable
+
+        Returns:
+            int: ShellExecute return value (>32 on success), or Popen on Linux
+        """
+        file_path = Path(file_path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        file_path_str = str(file_path.resolve())
+
+        if not _IS_WINDOWS:
+            return _open_on_linux(file_path_str)
+
+        ret = ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", file_path_str, None, None, 1)
+        if ret <= 32:
+            raise RuntimeError(
+                f"Failed to launch as administrator (ShellExecute code {ret}): {file_path_str}")
+        return ret
 

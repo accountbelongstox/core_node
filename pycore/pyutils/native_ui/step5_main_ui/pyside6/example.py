@@ -22,7 +22,6 @@ def example_with_startup():
     """
     Example with startup window showing dependency installation.
     """
-    from pyside6 import create_framework
 
     # Create framework
     app = create_framework(
@@ -97,7 +96,6 @@ def example_local_html():
     """
     Example loading local HTML file.
     """
-    from pyside6 import create_framework
 
     # Create a simple HTML file
     html_content = """

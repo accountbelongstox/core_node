@@ -1,20 +1,20 @@
-# 概念设计层 - app_vipclub
+# Concept Design Layer — app_vipclub
 
-**层级**: 第一层 - 概念图（粗设计图）
-**用途**: 宏观概念设计，不涉及具体页面细节
+**Layer**: Level 1 — concept diagrams (rough design)
+**Purpose**: High-level concept design; no page-level detail
 
-## 文件说明
+## Files
 
-- `architecture.md`: 整体架构设计（MVVM、数据流等）
-- `user_flows.md`: 用户使用流程图
-- `data_model.md`: 数据模型设计
+- `architecture.md`: Overall architecture (MVVM, data flow, etc.)
+- `user_flows.md`: User flow diagrams
+- `data_model.md`: Data model design
 
-## 设计原则
+## Design Principles
 
-1. **架构清晰**: 分层明确，职责单一
-2. **可扩展性**: 预留扩展空间
-3. **性能优先**: 考虑性能优化方案
+1. **Clear architecture**: Distinct layers, single responsibility
+2. **Extensibility**: Room for future growth
+3. **Performance first**: Plan for optimization
 
-## 更新记录
+## Changelog
 
-- 2025-11-19: 初始化概念设计层
+- 2025-11-19: Initial concept design layer

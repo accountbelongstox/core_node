@@ -21,6 +21,10 @@ from typing import Any, Dict, List, Optional
 # FastMCP framework
 from pycore.pyfoundations.third_party import get_third_package_FastMCP
 
+import tempfile
+import glob
+
+
 FastMCP = get_third_package_FastMCP()
 
 # Initialize MCP server singleton
@@ -204,7 +208,6 @@ def health_check() -> Dict[str, Any]:
 def _initialize_ocr_engines():
     """Initialize all available OCR engines on startup"""
     try:
-        from ocr_engines import OCRManager
 
         # Check if this is a restart/reconnection scenario
         restart_file = Path("tmp_mcp_restart_marker")
@@ -265,7 +268,6 @@ def _initialize_ocr_engines():
 def _normalize_file_path(file_path: str) -> str:
     """Normalize file path for better compatibility with Chinese characters and Windows paths"""
     try:
-        import os
         # Convert to absolute path
         normalized = os.path.abspath(file_path)
 
@@ -311,8 +313,6 @@ def _validate_image_file(file_path: str) -> bool:
 def _cleanup_temp_files():
     """Clean up temporary files from previous sessions"""
     try:
-        import tempfile
-        import glob
 
         # Clean up temporary OCR files
         temp_dir = tempfile.gettempdir()

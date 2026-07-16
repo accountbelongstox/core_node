@@ -14,6 +14,9 @@ import sys
 import os
 import json
 
+import platform
+
+
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 sys.path.insert(0, project_root)
 
@@ -60,7 +63,6 @@ def get_system_info() -> dict:
     """
     Get system information
     """
-    import platform
 
     return {
         'system': platform.system(),

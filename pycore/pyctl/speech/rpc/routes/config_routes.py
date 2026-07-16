@@ -17,6 +17,9 @@ from typing import Dict, Any
 
 from pycore.pyfoundations import ColorPrint
 
+from pycore.pyutils.common import global_config
+
+
 
 def register_config_routes(rpc_server, service_instances: Dict[str, Any]):
     """
@@ -41,7 +44,6 @@ def register_config_routes(rpc_server, service_instances: Dict[str, Any]):
                 "config": {...} or "value": "..."
             }
         """
-        from pycore.pyutils.common import global_config
 
         key = params.get('key')
         namespace = params.get('namespace', 'speech')
@@ -77,7 +79,6 @@ def register_config_routes(rpc_server, service_instances: Dict[str, Any]):
                 "message": "Configuration updated"
             }
         """
-        from pycore.pyutils.common import global_config
 
         key = params.get('key')
         value = params.get('value')
@@ -116,7 +117,6 @@ def register_config_routes(rpc_server, service_instances: Dict[str, Any]):
                 }
             }
         """
-        from pycore.pyutils.common import global_config
 
         try:
             all_configs = global_config.get_all()
@@ -140,7 +140,6 @@ def register_config_routes(rpc_server, service_instances: Dict[str, Any]):
                 "message": "Configuration reset to defaults"
             }
         """
-        from pycore.pyutils.common import global_config
 
         key = params.get('key')
 

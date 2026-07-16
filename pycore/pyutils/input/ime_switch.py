@@ -47,7 +47,6 @@ def save_and_switch_ime_to_english() -> Optional[Tuple[int, int]]:
     if not hwnd:
         return None
     try:
-        import ctypes
         conv = ctypes.c_ulong(0)
         sent = ctypes.c_ulong(0)
         h_imc = _imm32.ImmGetContext(hwnd)

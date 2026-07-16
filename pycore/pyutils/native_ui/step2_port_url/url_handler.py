@@ -14,6 +14,9 @@ from typing import Literal, Tuple, Optional, Dict
 from pathlib import Path
 from pycore import ColorPrint
 
+from pycore.pyutils.native_ui.step2_port_url.server_manager import get_server_manager
+
+
 
 URLType = Literal["remote", "static", "nuxt_app", "vue_dist", "auto"]
 
@@ -144,7 +147,6 @@ class URLHandler:
         Returns:
             Tuple of (final_url, type, metadata)
         """
-        from pycore.pyutils.native_ui.step2_port_url.server_manager import get_server_manager
 
         app_name = url
         server_mgr = get_server_manager()
@@ -210,7 +212,6 @@ class URLHandler:
         Returns:
             Tuple of (final_url, type, metadata)
         """
-        from pycore.pyutils.native_ui.step2_port_url.server_manager import get_server_manager
 
         dist_path = Path(url).resolve()
         server_mgr = get_server_manager()

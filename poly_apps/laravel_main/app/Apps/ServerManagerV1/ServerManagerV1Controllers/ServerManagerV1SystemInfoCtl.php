@@ -4,6 +4,7 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1StaticResourceAnalyzer;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -286,6 +287,54 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'storage');
+        }
+    }
+
+    /**
+     * Static resources summary (laravel_db/static — audio, video, images, etc.)
+     */
+    public function getStaticResources(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'static_resources');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $analyzer = new ServerManagerV1StaticResourceAnalyzer();
+            $summary = $analyzer->analyze();
+            $summary['disk_usage'] = $this->getDiskUsageDetailed();
+
+            return $this->successResponse($summary, 'Static resources summary retrieved successfully');
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'static_resources');
+        }
+    }
+
+    /**
+     * List files in a static subdirectory with search, sort, pagination.
+     */
+    public function listStaticResourceFiles(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'static_resource_files');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $analyzer = new ServerManagerV1StaticResourceAnalyzer();
+            $result = $analyzer->listFiles(
+                (string) $request->input('path', ''),
+                (string) $request->input('q', ''),
+                (string) $request->input('sort', 'name'),
+                (string) $request->input('order', 'asc'),
+                max(1, (int) $request->input('page', 1)),
+                max(10, min(500, (int) $request->input('per_page', 100)))
+            );
+
+            return $this->successResponse($result, 'Static resource files retrieved successfully');
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'static_resource_files');
         }
     }
     

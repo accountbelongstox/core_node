@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Continue"
 
 # Read variables from unified variable system
-$globalVarDir = Join-Path $env:USERPROFILE ".core_node\.flutter_build\global_vars"
+$globalVarDir = Join-Path "D:\programing\Users\$env:USERNAME\.core_node\.flutter_build\global_vars"
 
 function Get-GlobalVar {
     param($name, $default = "")

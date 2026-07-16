@@ -20,6 +20,11 @@ from pycore.pyutils.native_ui import (
     get_server_manager
 )
 
+import tempfile
+from pathlib import Path
+import time
+
+
 
 def example_nuxt_dev_server():
     """
@@ -69,8 +74,6 @@ def example_vue_static_server():
     4. Wait for the server to be ready (max 10 seconds)
     5. Return the server URL
     """
-    import tempfile
-    from pathlib import Path
 
     # Create a temporary dist directory for demonstration
     temp_dist = Path(tempfile.mkdtemp())
@@ -118,8 +121,6 @@ def example_server_manager_api():
     This demonstrates how to use the ServerManager programmatically
     for more control over server lifecycle.
     """
-    from pathlib import Path
-    import time
 
     server_mgr = get_server_manager()
 

@@ -1,6 +1,10 @@
 """
 MeloTTS offline TTS engine wrapper.
 
+Official perfect-support environment (see pycore/tts_install_assets/tts_model_tiers.py):
+  Python 3.8+; pip/git myshell-ai/MeloTTS; unidic-lite on Windows.
+  GPU preferred; HF models auto-download on first use; MELOTTS_DEVICE=auto|cuda|cpu.
+
 Excellent zh/en mixed reading; torch-based (CPU or GPU). Models auto-download
 from HuggingFace on first use (then fully offline). Installed from git by the
 offline-TTS prerequisite (needs unidic-lite on Windows). Synthesizes to MP3.
@@ -17,6 +21,9 @@ from typing import Any, Dict, Optional, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_melo
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
+
+from pycore.pyfoundations.third_party import get_third_package_torch
+
 
 _LANG_MAP: Dict[str, Tuple[str, str]] = {
     "en": ("EN", "EN-US"),
@@ -36,7 +43,7 @@ def _device() -> str:
     if want != "auto":
         return want
     try:
-        import torch
+        torch = get_third_package_torch()
         return "cuda:0" if torch.cuda.is_available() else "cpu"
     except ImportError:
         return "cpu"
@@ -51,7 +58,6 @@ def _get_model(melo_lang: str) -> Any:
     with _lock:
         if melo_lang in _models:
             return _models[melo_lang]
-        from melo.api import TTS
         model = TTS(language=melo_lang, device=_device())
         _models[melo_lang] = model
         ColorPrint.green(f"[melo-tts] loaded {melo_lang} model (device={_device()})")
@@ -90,4 +96,13 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
             pass
 
 
-__all__ = ["available", "synthesize"]
+def is_model_loaded() -> bool:
+    return bool(_models)
+
+
+def unload_model() -> None:
+    with _lock:
+        _models.clear()
+
+
+__all__ = ["available", "synthesize", "is_model_loaded", "unload_model"]

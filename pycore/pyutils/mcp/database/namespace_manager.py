@@ -14,6 +14,9 @@ from typing import Dict, Optional, Any
 
 from pycore.pygvar import PYTOOLS_TMP_DIR
 
+import shutil
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -232,7 +235,6 @@ class DatabaseNamespaceManager:
             try:
                 workspace = Path(session_info['workspace'])
                 if workspace.exists():
-                    import shutil
                     shutil.rmtree(workspace, ignore_errors=True)
             except Exception as e:
                 logger.warning("[DatabaseNamespaceManager] Failed to cleanup workspace: %s", e)

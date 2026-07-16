@@ -173,6 +173,40 @@ export class UserModel {
   }
 
   /**
+   * Loopback debug bypass: bind the highest-privilege server user into local
+   * state without a Sanctum token (backend dashboard.auth grants access).
+   */
+  async bootstrapLoopbackSession(): Promise<boolean> {
+    try {
+      const [profileRes, prefsRes] = await Promise.all([
+        api.auth.getUserProfile(),
+        api.auth.getUserPreferences(),
+      ]);
+
+      if (!profileRes.success || !profileRes.data?.user) {
+        return false;
+      }
+
+      this.user = profileRes.data.user;
+      this.save();
+
+      if (prefsRes.success && prefsRes.data) {
+        this.preferences = { ...this.preferences, ...prefsRes.data };
+        this.savePreferences();
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('user-session-changed'));
+      }
+
+      return true;
+    } catch (error) {
+      console.warn('Loopback session bootstrap failed:', error);
+      return false;
+    }
+  }
+
+  /**
    * Load user preferences
    */
   private async loadPreferences(): Promise<void> {

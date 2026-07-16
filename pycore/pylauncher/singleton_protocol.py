@@ -20,6 +20,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
+from pycore.pyfoundations.third_party import get_third_package_psutil
+
+
 # Fallback "process start" stamp when psutil is unavailable: module import time
 # (later than the true process start, but preserves ordering between instances
 # whose load times are similar).
@@ -29,7 +32,7 @@ _IMPORT_TIME = time.time()
 def _process_start_time() -> float:
     """This process's creation time (epoch seconds), used for instance ordering."""
     try:
-        import psutil
+        psutil = get_third_package_psutil()
         return float(psutil.Process().create_time())
     except Exception:
         return _IMPORT_TIME

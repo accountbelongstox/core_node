@@ -16,7 +16,7 @@ namespace App\Services\AiGateway;
  *   - AiImageHistory::record (generated images)
  * so it captures all Laravel AI calls without touching each call site.
  *
- * Path:  <core_node>/.data/.ai_state/ai_calls.log   (same dir as the JSON state,
+ * Path:  <cache>/pycore/.ai_state/ai_calls.log   (same dir as the JSON state,
  * resolved via AiUsageLog::stateDir() so pycore + Laravel land on ONE file).
  *
  * Best-effort + size-capped: it never throws into the AI call path, and self-

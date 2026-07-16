@@ -95,7 +95,19 @@
       "Bash(echo \" exit=$?\")",
       "Bash(command -v php)",
       "Bash(awk '/^verify_open_basedir_config_from_php_common\\\\\\(\\\\\\) \\\\{/,/^\\\\}/' debian/debian_com/php_common_functions.sh)",
-      "Read(//etc/php/8.5/cli/**)"
+      "Read(//etc/php/8.5/cli/**)",
+      "Bash(python -m py_compile pycore/callmodule/services/agent_history_article_service.py pycore/callmodule/routers/local/agent_history_router.py)",
+      "Bash(pwsh -NoProfile -Command 'Set-StrictMode -Version Latest; try { $r = Join-Path $Global:DEFINITELY_UNDEFINED_VAR '\\\\''core_node'\\\\''; '\\\\''RESULT='\\\\'' + $r } catch { '\\\\''THREW: '\\\\'' + $_.Exception.Message }')",
+      "Bash(pwsh -NoProfile -Command 'try { $r = Join-Path $Global:DEFINITELY_UNDEFINED_VAR '\\\\''core_node'\\\\''; '\\\\''RESULT=['\\\\'' + $r + '\\\\'']'\\\\'' } catch { '\\\\''THREW: '\\\\'' + $_.Exception.Message }')",
+      "Bash(python -m py_compile pycore/pyutils/ocr_cluster/ocr/ocr_orchestrator.py pycore/pyutils/ocr_cluster/ocr/__init__.py pycore/pyutils/ocr_cluster/__init__.py pycore/callmodule/routers/local/ocr_status_router.py pycore/pyutils/stt/stt_orchestrator.py pycore/callmodule/routers/local/stt_status_router.py)",
+      "Bash(echo \"TSC_EXIT=$?\")",
+      "Bash(python -m py_compile pycore/pyutils/common/managed_service.py)",
+      "Bash(python -m py_compile pycore/pyutils/common/managed_service.py pycore/pyutils/tts/tts_service_manager.py pycore/pyutils/tts/qwen3tts_engine.py pycore/pyutils/tts/bark_engine.py pycore/pyutils/tts/parler_engine.py pycore/pyutils/tts/voxcpm2_engine.py pycore/pyutils/tts/melotts_engine.py pycore/pyutils/tts/kokoro_engine.py pycore/pyutils/tts/sherpa_engine.py)",
+      "Bash(python -c ' *)",
+      "Bash(xxd)",
+      "Bash(python -m py_compile pycore/pyutils/common/hf_local_weights.py)",
+      "Bash(python -m py_compile pycore/pyutils/tts/qwen3tts_weights.py)",
+      "Bash(python -m py_compile pycore/pyutils/tts/bark_engine.py pycore/pyutils/tts/parler_engine.py pycore/pyutils/tts/voxcpm2_engine.py)"
     ]
   }
 }

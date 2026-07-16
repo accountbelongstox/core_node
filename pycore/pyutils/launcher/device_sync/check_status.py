@@ -9,6 +9,9 @@ import sys
 import socket
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 
+from pycore.pyfoundations.third_party import get_third_package_pystray
+
+
 def check_ipc_server():
     """Check if IPC server is running."""
     print("[Check] Testing IPC server connection...")
@@ -34,7 +37,7 @@ def check_pystray():
     print("[Check] Testing pystray availability...")
 
     try:
-        import pystray
+        pystray = get_third_package_pystray()
         print("[Check] ✓ pystray is installed")
         return True
     except ImportError:

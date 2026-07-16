@@ -7,10 +7,12 @@
 
 const os = require('os');
 const path = require('path');
+const { getSystemCacheDir } = require('../../../../ncore/foundation/common/system_paths');
 
-// Root user-data dir for all core_node tools: ~/.core_node
+// Root user-data dir for all core_node tools (centralized via system_paths:
+// D:\programing\Users\<user>\.core_node on Windows, /var/_core_node on Linux).
 function userDataDir() {
-  return path.join(os.homedir(), '.core_node');
+  return getSystemCacheDir();
 }
 
 // Default output dir for this specific tool. Callers mkdir -p this before use.

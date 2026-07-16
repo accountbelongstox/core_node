@@ -30,6 +30,12 @@ from pycore.pyutils.common.speech_task_models import (
     STTTaskResult
 )
 
+from pycore.pyutils.edge_tts.edge_tts_client import EdgeTTSClient
+from pycore.pyutils.whisper_stt import WhisperSTTProvider
+from pycore.pyutils.azure_speech import AzureSpeechRecognitionProvider
+from pycore.pyheartbeat import get_global_thread_pool
+
+
 
 class SpeechSwitch:
     """
@@ -109,7 +115,6 @@ class SpeechSwitch:
         # Edge TTS
         if self._provider_status.is_available('tts', 'edge'):
             try:
-                from pycore.pyutils.edge_tts.edge_tts_client import EdgeTTSClient
                 self._tts_providers['edge'] = EdgeTTSClient()
                 ColorPrint.green("[SpeechSwitch] ✓ Edge TTS provider initialized")
             except Exception as e:
@@ -131,7 +136,6 @@ class SpeechSwitch:
         # Whisper STT
         if self._provider_status.is_available('stt', 'whisper'):
             try:
-                from pycore.pyutils.whisper_stt import WhisperSTTProvider
                 provider = WhisperSTTProvider()
                 # Initialize provider to load model
                 if provider.initialize():
@@ -146,7 +150,6 @@ class SpeechSwitch:
         # Azure STT
         if self._provider_status.is_available('stt', 'azure'):
             try:
-                from pycore.pyutils.azure_speech import AzureSpeechRecognitionProvider
                 provider = AzureSpeechRecognitionProvider()
                 # Initialize provider to verify credentials
                 if provider.initialize():
@@ -513,8 +516,6 @@ class SpeechSwitch:
             True if registered successfully
         """
         try:
-            from pycore.pyheartbeat import get_global_thread_pool
-            import threading
 
             if not self._initialized:
                 self.initialize()

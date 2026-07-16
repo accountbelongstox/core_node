@@ -97,7 +97,7 @@ src/frontend/test/
 - 支持 Vue 3 + TypeScript
 - 集成 UnoCSS
 
-### 依赖关系
+### Dependencies
 - 复用主应用的所有依赖
 - 使用相同的 Naive UI 配置
 - 共享主题和样式系统

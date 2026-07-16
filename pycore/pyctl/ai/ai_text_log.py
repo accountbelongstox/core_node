@@ -7,7 +7,7 @@ capability call to ONE flat file beside the JSON ring buffers so an operator can
 ``tail -f`` what every AI call did (text / vision / probe / image / tts / stt),
 regardless of which runtime produced it.
 
-Path: ``<core_node>/.data/.ai_state/ai_calls.log`` — the same dir
+Path: ``<cache>/pycore/.ai_state/ai_calls.log`` — the same dir
 ``ai_usage_records.json`` / ``ai_image_history.json`` use (see ai_usage_log).
 
 Line shape (MUST match AiTextLog.php so the shared file stays consistent):
@@ -33,13 +33,13 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root
+from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_local_data_dir
 
 RUNTIME = "pycore"
 
-# Shared cross-runtime state dir (mirrors ai_usage_log: .data/.ai_state under the
-# core_node root, legacy app-data fallback when the repo root is not writable).
-_SHARED_STATE_DIR = get_core_node_root() / ".data" / ".ai_state"
+# Shared cross-runtime state dir (mirrors ai_usage_log: <cache>/pycore/.ai_state,
+# legacy app-data fallback when the cache root is not writable).
+_SHARED_STATE_DIR = get_local_data_dir() / ".ai_state"
 _LEGACY_DIR = APP_DATA_DIR / "ai_state"
 
 _LOG_NAME = "ai_calls.log"
@@ -50,7 +50,7 @@ _lock = threading.Lock()
 
 
 def _state_dir():
-    """Shared ``.data/.ai_state`` dir (legacy app-data fallback when unwritable)."""
+    """Shared ``<cache>/pycore/.ai_state`` dir (legacy app-data fallback when unwritable)."""
     try:
         _SHARED_STATE_DIR.mkdir(parents=True, exist_ok=True)
         return _SHARED_STATE_DIR

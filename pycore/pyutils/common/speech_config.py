@@ -17,6 +17,13 @@ from typing import Optional, Dict, Any
 from pycore.pyfoundations import ColorPrint
 from pycore.database import get_database_manager
 
+from pycore.database.models import TableKeys
+
+from pycore.database.models.util_speech import SpeechConfigModel
+from pycore.pyutils.common import global_config
+
+
+
 
 class SpeechConfig:
     """
@@ -63,7 +70,6 @@ class SpeechConfig:
             self._db_manager = get_database_manager()
 
             # Get config model
-            from pycore.database.models.util_speech import SpeechConfigModel
             self._config_model = SpeechConfigModel
 
             # Register speech database if not already registered
@@ -72,7 +78,6 @@ class SpeechConfig:
 
             # Load config table if not already loaded
             if not self._db_manager.is_table_loaded('util_speech.config'):
-                from pycore.database.models import TableKeys
                 self._db_manager.load_tables(
                     table_keys=[TableKeys.SPEECH_CONFIG],
                     models=[SpeechConfigModel],
@@ -97,7 +102,6 @@ class SpeechConfig:
     def _migrate_from_global_config(self):
         """Migrate speech_* configs from GlobalConfig to SpeechConfig"""
         try:
-            from pycore.pyutils.common import global_config
 
             # Get all global configs
             all_global_configs = global_config.get_all()

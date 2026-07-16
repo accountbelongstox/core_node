@@ -69,19 +69,16 @@ read_secret_file() {
 # Load secrets from _3 files
 ANTHROPIC_BASE_URL=$(read_secret_file "$secret_dir/ANTHROPIC_BASE_URL_3")
 ANTHROPIC_AUTH_TOKEN=$(read_secret_file "$secret_dir/ANTHROPIC_AUTH_TOKEN_3")
-ANTHROPIC_API_KEY=$(read_secret_file "$secret_dir/ANTHROPIC_API_KEY_3")
 ANTHROPIC_MODEL=$(read_secret_file "$secret_dir/ANTHROPIC_MODEL_3")
 
 # Export environment variables
 export ANTHROPIC_BASE_URL="$ANTHROPIC_BASE_URL"
 export ANTHROPIC_AUTH_TOKEN="$ANTHROPIC_AUTH_TOKEN"
-export ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
 export ANTHROPIC_MODEL="$ANTHROPIC_MODEL"
 
 # Configuration summary
 echo "ANTHROPIC_BASE_URL: $ANTHROPIC_BASE_URL"
 echo "ANTHROPIC_AUTH_TOKEN: $ANTHROPIC_AUTH_TOKEN"
-echo "ANTHROPIC_API_KEY: $ANTHROPIC_API_KEY"
 echo "ANTHROPIC_MODEL: $ANTHROPIC_MODEL"
 echo "Agent Teams: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (always on)"
 if [ -n "${ANTHROPIC_MODEL:-}" ]; then

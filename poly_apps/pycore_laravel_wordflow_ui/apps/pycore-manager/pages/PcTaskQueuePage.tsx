@@ -19,6 +19,10 @@ import { pycoreApi, connectPycoreWs, subscribe, onWsStatus } from '../../../core
 import type { LocalTaskDetail, PycoreGlobalTaskDetail } from '../../../core/api-libs/pycore/pycoreTypes';
 import { usePersistentTask } from '../../../core/tasks/usePersistentTask';
 import { PcLocalTaskDetailModal } from '../components/PcTaskDetailModal';
+import { extractTaskContentSummary } from '../utils/pcTaskContent';
+import { extractAudioPath } from '../components/PcTaskAudioPreview';
+import { extractEngine, extractSynthCommand } from '../components/PcTaskSynthInfo';
+import { isLaravelGlobalTaskId, mergeTaskResultSources, resolveRemoteTaskId } from '../utils/pcTaskResult';
 
 interface TaskRow {
   task_id: string;
@@ -26,6 +30,10 @@ interface TaskRow {
   status: string;
   progress: number;
   created_at?: string;
+  updated_at?: string;
+  input_data?: Record<string, unknown>;
+  result?: Record<string, unknown> | null;
+  error?: string | null;
 }
 
 const REFRESH_MS = 4000;
@@ -42,20 +50,27 @@ function mergeTask(list: TaskRow[], incoming: Partial<TaskRow> & { task_id?: str
   if (!incoming?.task_id) return list;
   const idx = list.findIndex((t) => t.task_id === incoming.task_id);
   if (idx === -1) {
-    return [{ task_id: incoming.task_id, task_type: incoming.task_type ?? '?', status: incoming.status ?? 'pending', progress: incoming.progress ?? 0, created_at: incoming.created_at }, ...list];
+    return [{
+      task_id: incoming.task_id,
+      task_type: incoming.task_type ?? '?',
+      status: incoming.status ?? 'pending',
+      progress: incoming.progress ?? 0,
+      created_at: incoming.created_at,
+      updated_at: incoming.updated_at,
+      input_data: incoming.input_data,
+      result: incoming.result,
+      error: incoming.error,
+    }, ...list];
   }
   const next = list.slice();
   next[idx] = { ...next[idx], ...incoming } as TaskRow;
   return next;
 }
 
-/** Contract with PcQueueCenterPage (kept local to avoid an import cycle). */
-interface PanelProps {
-  /** Bumped by the parent's refresh button / auto-refresh interval. */
-  refreshTick?: number;
-  /** Report the row count + in-flight state up to the tab bar. */
-  onMeta?: (meta: { count: number | null; loading: boolean }) => void;
-}
+import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
+
+/** Contract with PcQueueCenterPage (shared panel props). */
+type PanelProps = QueueCenterPanelProps;
 
 const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => {
   // Continuous-poll view backed by the global task layer: the list + poll loop
@@ -69,6 +84,8 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [taskDetail, setTaskDetail] = useState<LocalTaskDetail | null>(null);
   const [remoteDetail, setRemoteDetail] = useState<PycoreGlobalTaskDetail | null>(null);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
+  const [laravelReachable, setLaravelReachable] = useState<boolean | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [remoteLoading, setRemoteLoading] = useState(false);
   const mounted = useRef(true);
@@ -158,6 +175,8 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
     const row = tasks.find((t) => t.task_id === taskId);
     setSelectedId(taskId);
     setRemoteDetail(null);
+    setRemoteError(null);
+    setLaravelReachable(null);
     setRemoteLoading(false);
     setDetailLoading(true);
     if (row) {
@@ -166,11 +185,11 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
         task_type: row.task_type,
         status: row.status,
         progress: row.progress ?? 0,
-        input_data: {},
-        result: null,
-        error: null,
+        input_data: (row.input_data as Record<string, unknown>) ?? {},
+        result: row.result ?? null,
+        error: row.error ?? null,
         created_at: row.created_at ?? '',
-        updated_at: row.created_at ?? '',
+        updated_at: row.updated_at ?? row.created_at ?? '',
       });
     } else {
       setTaskDetail(null);
@@ -180,14 +199,30 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
       if (!mounted.current) return;
       if (r?.success && r.task) {
         setTaskDetail(r.task);
-        const remoteId = r.task.input_data?.remote_task_id as string | undefined;
-        if (remoteId) {
+        const remoteId = resolveRemoteTaskId(
+          r.task.input_data as Record<string, unknown> | undefined,
+          r.task.result as Record<string, unknown> | undefined,
+        );
+        if (isLaravelGlobalTaskId(remoteId)) {
           setRemoteLoading(true);
-          const remote = await pycoreApi.getTranslationTaskDetail(String(remoteId));
-          if (mounted.current && remote?.success && remote.task) {
-            setRemoteDetail(remote.task);
+          try {
+            const remote = await pycoreApi.getTranslationTaskDetail(remoteId);
+            if (!mounted.current) return;
+            if (remote?.success && remote.task) {
+              setRemoteDetail(remote.task);
+              setRemoteError(null);
+              setLaravelReachable(remote.laravel_reachable ?? true);
+            } else {
+              setRemoteError(remote?.error ?? 'Remote task detail unavailable');
+              setLaravelReachable(remote?.laravel_reachable ?? null);
+            }
+          } catch (e) {
+            if (mounted.current) {
+              setRemoteError(e instanceof Error ? e.message : 'Remote task detail unavailable');
+            }
+          } finally {
+            if (mounted.current) setRemoteLoading(false);
           }
-          if (mounted.current) setRemoteLoading(false);
         }
       }
     } catch {
@@ -201,6 +236,8 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
     setSelectedId(null);
     setTaskDetail(null);
     setRemoteDetail(null);
+    setRemoteError(null);
+    setLaravelReachable(null);
     setDetailLoading(false);
     setRemoteLoading(false);
   }, []);
@@ -249,6 +286,9 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
                 <tr className="text-slate-400 dark:text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200/50 dark:border-white/5">
                   <th className="py-3 font-semibold">Task ID</th>
                   <th className="py-3 font-semibold">Type</th>
+                  <th className="py-3 font-semibold">Content</th>
+                  <th className="py-3 font-semibold">Engine</th>
+                  <th className="py-3 font-semibold">Output</th>
                   <th className="py-3 font-semibold">Status</th>
                   <th className="py-3 font-semibold w-40">Progress</th>
                   <th className="py-3 font-semibold">Created</th>
@@ -257,6 +297,11 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
               <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                 {tasks.map((tk) => {
                   const pct = Math.max(0, Math.min(100, tk.progress ?? 0));
+                  const contentLabel = extractTaskContentSummary(tk.input_data);
+                  const merged = mergeTaskResultSources(tk.input_data, tk.result ?? undefined);
+                  const engine = extractEngine(merged);
+                  const synthCmd = extractSynthCommand(merged);
+                  const audioPath = extractAudioPath(merged);
                   return (
                     <tr
                       key={tk.task_id}
@@ -265,6 +310,25 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
                     >
                       <td className="py-3 font-mono text-[10px] text-slate-500">{tk.task_id}</td>
                       <td className="py-3 text-slate-700 dark:text-slate-300">{tk.task_type}</td>
+                      <td className="py-3 text-slate-700 dark:text-slate-300 max-w-[12rem] truncate" title={contentLabel}>
+                        {contentLabel}
+                      </td>
+                      <td className="py-3 text-[10px] font-mono text-sky-600 dark:text-sky-400 max-w-[6rem] truncate" title={engine ?? undefined}>
+                        {engine ?? (tk.status === 'processing' ? '…' : '—')}
+                      </td>
+                      <td className="py-3 max-w-[14rem]">
+                        {audioPath ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-600 dark:text-emerald-400" title={audioPath}>
+                            ▶ cached
+                          </span>
+                        ) : synthCmd && tk.status === 'processing' ? (
+                          <span className="text-[10px] font-mono text-slate-500 truncate block" title={synthCmd}>
+                            {synthCmd.slice(0, 48)}{synthCmd.length > 48 ? '…' : ''}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
                       <td className={`py-3 font-bold uppercase text-[10px] ${statusColor(tk.status)}`}>{tk.status}</td>
                       <td className="py-3">
                         <div className="flex items-center gap-2">
@@ -291,6 +355,8 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
         <PcLocalTaskDetailModal
           task={taskDetail}
           remoteTask={remoteDetail}
+          remoteError={remoteError}
+          laravelReachable={laravelReachable}
           loading={detailLoading}
           remoteLoading={remoteLoading}
           onClose={closeTaskDetail}

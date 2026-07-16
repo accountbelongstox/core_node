@@ -6,9 +6,11 @@ Endpoints (prefix /api/local/ai):
   GET /probe[?refresh=1]   -> probe_all(): per-provider configured/available/models
   GET /balance[?provider=] -> balance_all()/balance_one(): account credit/balance
 
-Probing makes live network calls (list-models per provider) and can be slow, so
-the result is cached for ~30s; ``?refresh=1`` forces a fresh probe. The returned
-JSON matches the exact contract in pycore.pyctl.ai.ai_probe (UI depends on it).
+Probing makes live network calls (list-models per provider) and can be slow.
+The result is cached for ~30s; ``?refresh=1`` forces a fresh probe. Unconfigured
+providers and providers on cooldown / over the local rate budget are skipped
+(no network) unless the UI explicitly tests one provider. The returned JSON
+matches the exact contract in pycore.pyctl.ai.ai_probe (UI depends on it).
 """
 
 import time

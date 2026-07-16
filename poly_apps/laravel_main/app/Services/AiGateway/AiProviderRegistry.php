@@ -27,6 +27,7 @@ class AiProviderRegistry
 {
     /** Free OpenRouter models (subset; full list at openrouter.ai/models?q=free). */
     private const OPENROUTER_FREE = [
+        'openrouter/free',
         'meta-llama/llama-3.3-70b-instruct:free',
         'meta-llama/llama-3.2-3b-instruct:free',
         'google/gemma-3-27b-it:free',
@@ -64,7 +65,7 @@ class AiProviderRegistry
         self::$cache = [
             'openrouter' => [
                 'key_base' => 'OPENROUTER_API_KEY',
-                'default_model' => 'meta-llama/llama-3.3-70b-instruct:free',
+                'default_model' => 'openrouter/free',
                 'free_models' => self::OPENROUTER_FREE,
                 'limits' => '20 req/min; 50 req/day (<$10 lifetime topup) or 1000/day; shared :free quota',
                 'tier' => 'free',

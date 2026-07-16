@@ -37,6 +37,9 @@ from .runtime import (
 )
 from .peer_config import PeerConfig
 
+from pycore.pyutils.codesync.peer_config import _local_lan_ip
+
+
 TICK_SECONDS = 5
 # A light client ticks far less often (it only tracks presence, never syncs).
 LIGHT_TICK_SECONDS = 30
@@ -269,7 +272,6 @@ class PeerMeshManager:
     # ----- LAN discovery (helper) ----------------------------------------- #
     def discover(self, port: int = 59000) -> List[Dict[str, Any]]:
         """Scan the local /24 for code-sync peers not already in the config."""
-        from .peer_config import _local_lan_ip
         local_ip = _local_lan_ip()
         me = self.config.get_self()
         scan_port = int(me.get("port", port))

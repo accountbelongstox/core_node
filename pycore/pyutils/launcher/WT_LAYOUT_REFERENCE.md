@@ -9,7 +9,7 @@
 | Option | Description (from Learn) |
 |--------|--------------------------|
 | `--pos x,y` | Launches the terminal at the given position. `x` or `y` can be omitted, to use the default value from the settings. |
-| `--size c,r` | Launches the terminal with the specified number of **columns (`c`)** and **rows (`r`)**. |
+| `--size c,r` | Launches the terminal with the specified number of **columns (`c`)** and **rows (`r`)**, comma-separated (e.g. `wt -w -1 --size 80,25`). |
 
 Learn does not state the unit of `--pos` in the table. Other Microsoft and community sources describe `--pos` as **pixel coordinates** (window top-left on screen). `--size` is explicitly **character cells** (columns and rows), not pixels.
 
@@ -23,6 +23,16 @@ Learn does not state the unit of `--pos` in the table. Other Microsoft and commu
   - Full window = content + title bar + frame/padding.
 
 So the **ratio** (pixels per column / per row) is **not** in the WT docs; it is **font- and profile-dependent**. We use the user’s **measurements** in config (`measurements.columns`, `columns_width_px`, `rows`, `rows_height_px`, and calibration) to compute px/column and px/row, then reserve **window_chrome** and apply **content_scale** so that (content + chrome) fits inside one grid cell and windows do not overlap.
+
+## Dynamic measurement (Windows, primary source)
+
+The config `rows`/`term_rows` calibration is font-dependent and historically wrong (a legacy `term_rows: 270` paired with `485px` gave `char_height ≈ 1.8 px/row` — ~10x too small — so every window overflowed the screen vertically). On Windows, `WindowLauncher` now ignores those values and instead measures the real per-cell size at runtime (`CharSizeMeasurer`):
+
+1. Launch two calibration WT windows with known `--size` values (e.g. `80,25` and `120,40`).
+2. Measure each window’s outer pixel rect via Win32 `GetWindowRect` (matching the `CASCADIA_HOSTING_WINDOW_CLASS` window class).
+3. Subtract: `char_width = Δrect_w / Δcols`, `char_height = Δrect_h / Δrows`. The window chrome (title bar + frame + profile padding) is constant, so it cancels — the result is exact for the installed font/DPI.
+
+The result is cached to `~/.core_node/launch_multiple/char_size_cache.json` keyed by DPI + a cache-version constant, so the calibration windows flash only once per DPI. Set `PYCORE_LAUNCHER_RECALIBRATE=1` to force a re-measure (e.g. after changing the WT profile font). On Linux, or if measurement fails, the config ratios are used but physically-impossible `char_height` (< 4 px/row) is sanitized to `2.0 × char_width` so the old overflow can never recur.
 
 ## Inter-cell gap (no "squeezed together")
 

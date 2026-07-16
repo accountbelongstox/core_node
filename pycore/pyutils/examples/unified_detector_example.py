@@ -8,6 +8,9 @@ Demonstrates how to use the unified object detector
 from pycore.pyutils.window.unified_detector import UnifiedDetector
 from pathlib import Path
 
+import json
+
+
 
 def example_basic_detection():
     """Example 1: Basic Detection"""
@@ -161,7 +164,6 @@ def example_json_output():
     print("Example 8: JSON Format Output")
     print("=" * 80)
 
-    import json
 
     detector = UnifiedDetector("d3-check")
 

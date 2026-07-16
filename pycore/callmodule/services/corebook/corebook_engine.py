@@ -36,6 +36,10 @@ from pycore.callmodule.services.corebook.corebook_completeness import (
 from pycore.callmodule.services.corebook.corebook_translate import translate_sentences
 from pycore.callmodule.services.corebook.corebook_audio import fill_audio_for_slots
 
+from pycore import get_user_data_store
+from pycore.callmodule.controllers.local_processing import books_state
+
+
 COREBOOK_AUTOFLOW_EVENT = "corebook_autoflow"
 # Synthesizing tens of thousands of sentences inline would exceed the UI RPC
 # timeout; above this threshold autoflow submits text and files fill_audio assist
@@ -478,8 +482,6 @@ class CoreBookEngine:
         if not path:
             return
         try:
-            from pycore import get_user_data_store
-            from pycore.callmodule.controllers.local_processing import books_state
             store = get_user_data_store()
             section = books_state.get_section(store)
             sk = bundle.get("source", {}).get("source_key") or source_key_for(path)

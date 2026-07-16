@@ -23,6 +23,9 @@ from ...models.local_processing.user_data_models import (
     PickPathResponse,
 )
 
+from pycore.callmodule.services.system_settings_boot import apply_system_settings_live
+
+
 # Standalone script run in a short-lived child process to show a native folder/file
 # dialog. A subprocess (its own main thread) avoids any conflict with the Qt/PySide6
 # UI thread; tkinter ships with CPython so no extra dependency is needed.
@@ -114,6 +117,10 @@ class UserDataController:
                 i18n.set_language(lang)
             except Exception as exc:
                 ColorPrint.yellow(f"[UserData] i18n language sync failed: {exc}")
+        try:
+            apply_system_settings_live(saved or {}, source="settings_save")
+        except Exception as exc:
+            ColorPrint.yellow(f"[UserData] system_settings live apply failed: {exc}")
         return SystemSettingsResponse(success=True, settings=saved)
 
     # ----- video-extract state -------------------------------------------- #

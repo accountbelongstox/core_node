@@ -13,6 +13,9 @@ from typing import Dict, Any
 
 from pycore.pyfoundations import ColorPrint, ENCYCLOPEDIA, get_global_task_queue
 
+from pycore.pyheartbeat import THREAD_POOL_THREADS_KEY, get_heartbeat_system
+
+
 
 def register_status_routes(rpc_server, service_instances: Dict[str, Any]):
     """
@@ -38,7 +41,6 @@ def register_status_routes(rpc_server, service_instances: Dict[str, Any]):
                 "queue_size": 5
             }
         """
-        from pycore.pyheartbeat import THREAD_POOL_THREADS_KEY, get_heartbeat_system
 
         # Get thread pool info from Encyclopedia
         threads_data = ENCYCLOPEDIA.get(THREAD_POOL_THREADS_KEY) or {}

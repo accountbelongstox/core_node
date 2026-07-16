@@ -46,6 +46,9 @@ from pycore.pyutils.image_tools.media_compressor_models import (
 # Capability detection (GPU + FFmpeg + cache + optimal workers) is delegated here.
 from pycore.pyutils.image_tools.media_capability_detector import MediaCapabilityDetector
 
+import traceback
+
+
 cv2 = get_third_package_cv2()
 
 __all__ = [
@@ -134,7 +137,6 @@ class MediaCompressor:
         Returns:
             CompressionStats object with compression statistics
         """
-        import time
         start_time = time.time()
 
         input_path = Path(input_path)
@@ -238,7 +240,6 @@ class MediaCompressor:
         Returns:
             CompressionStats object with compression statistics
         """
-        import time
         start_time = time.time()
 
         input_path = Path(input_path)
@@ -481,7 +482,6 @@ class MediaCompressor:
         except Exception as e:
             # Catch all other exceptions
             ColorPrint.red(f"Task processing error for {task.task_id}: {e}")
-            import traceback
             if self.verbose:
                 traceback.print_exc()
 

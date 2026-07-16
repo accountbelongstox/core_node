@@ -6,6 +6,12 @@ Displays current voice subtitle text in a floating window using PySide6.
 Window visibility controlled by THREAD_BUS events from tray menu.
 """
 
+from pycore import ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_pyside6
+from pycore.pyutils.native_ui.step5_main_ui.pyside6 import PySide6Framework, PySide6UIConfig
+import threading
+
+
 
 def start_voice_subtitle_ui():
     """
@@ -22,16 +28,10 @@ def start_voice_subtitle_ui():
     Returns:
         threading.Thread: UI thread
     """
-    from pycore import ColorPrint
-    from pycore.pyfoundations.third_party import get_third_package_pyside6
 
     # Ensure PySide6 is installed
     get_third_package_pyside6()
 
-    from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
-        PySide6Framework,
-        PySide6UIConfig
-    )
 
     ColorPrint.green("[VoiceSubtitleUI] Starting PySide6 UI...")
 
@@ -59,7 +59,6 @@ def start_voice_subtitle_ui():
         framework.start()  # Blocks until window closes
 
     # Launch in separate thread
-    import threading
     ui_thread = threading.Thread(
         target=run_pyside6_ui,
         daemon=False,

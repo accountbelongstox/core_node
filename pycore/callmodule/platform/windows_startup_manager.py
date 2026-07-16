@@ -42,6 +42,9 @@ from pycore.callmodule.platform.autostart_target import (
     write_preference,
 )
 
+from pycore.pyfoundations.third_party import get_third_package_pythoncom
+
+
 
 def _ps_single_quote(value: str) -> str:
     """Quote a string as a PowerShell single-quoted literal."""
@@ -220,12 +223,11 @@ class WindowsStartupManager:
 
         # Primary: WScript.Shell COM via pywin32 (the canonical native way).
         try:
-            import pythoncom  # noqa: F401  (initialize COM for this thread)
+            pythoncom = get_third_package_pythoncom()
             try:
                 pythoncom.CoInitialize()
             except Exception:
                 pass
-            from win32com.client import Dispatch
             shell = Dispatch('WScript.Shell')
             sc = shell.CreateShortcut(str(lnk_path))
             sc.TargetPath = target

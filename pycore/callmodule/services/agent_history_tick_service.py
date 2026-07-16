@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyctl.agent_history import get_agent_history_service
+from pycore.callmodule.services.agent_history_article_service import get_agent_history_article_service
 
 DEFAULT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
 
@@ -30,6 +31,16 @@ class AgentHistoryTickService:
                     f"[AgentHistory] updated: {result.get('changed')} sources, "
                     f"{result.get('sessions', '?')} sessions, {result.get('prompts', '?')} prompts"
                 )
+            try:
+                published = get_agent_history_article_service().tick_pipeline()
+                if published:
+                    mode = "live" if published.get("live") else "backfill"
+                    ColorPrint.gray(
+                        f"[AgentHistoryArticle] {mode} article published: "
+                        f"{published.get('title_en') or published.get('article_id')}"
+                    )
+            except Exception as art_err:  # noqa: BLE001
+                ColorPrint.yellow(f"[AgentHistoryArticle] pipeline tick error: {art_err}")
         except Exception as e:  # noqa: BLE001
             ColorPrint.yellow(f"[AgentHistory] tick error: {e}")
 

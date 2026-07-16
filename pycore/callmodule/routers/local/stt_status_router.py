@@ -7,9 +7,10 @@ Endpoints (prefix /api/local/stt):
                     (faster-whisper -> whisper -> vosk -> azure), Azure quota note.
   POST /test     -> live round-trip test for ONE engine (or the best available):
                     synth a known phrase, recognize it, return {success, engine,
-                    text, latency_ms, error}.
+                    text, latency_ms, error, route}.
 
-Shares ONE status/test contract with /api/local/tts and /api/local/ocr so the
+Distinct from TTS (/api/local/tts/test) and AI (/api/local/ai/*). Shares the
+same response shape as /api/local/tts/test and /api/local/ocr/test so the
 capability panel renders TTS/STT/OCR identically.
 """
 
@@ -38,13 +39,18 @@ def status():
 class _SttTestReq(BaseModel):
     engine: Optional[str] = None
     language: str = "en"
+    # Optional phrase to synthesize and then recognize (defaults to the
+    # orchestrator's sample phrase). Lets the popup test arbitrary text.
+    text: Optional[str] = None
 
 
 @router.post("/test")
 def test(req: _SttTestReq):
-    """Live recognition test for ONE engine (or the best available). The sample
+    """DEPRECATED: use WS route ``local.stt.test`` instead.
+    Live recognition test for ONE engine (or the best available). The sample
     clip is persisted to the shared speech history (record id echoed back)."""
-    result = orchestrator_test(engine=req.engine, language=req.language)
+    ColorPrint.yellow("[DEPRECATED] HTTP POST /api/local/stt/test — use WS route local.stt.test")
+    result = orchestrator_test(engine=req.engine, language=req.language, text=req.text)
     try:
         entry = speech_history.record_test_result("stt", result, source="stt-test")
         if entry:

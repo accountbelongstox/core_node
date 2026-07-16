@@ -1,6 +1,8 @@
 import {
   getDuoreaderProgress,
   listDuoreaderBooks,
+  pauseDuoreaderImport,
+  resumeDuoreaderImport,
   startDuoreaderImport,
   stopDuoreaderImport,
   testDuoreaderImportApi,
@@ -19,7 +21,10 @@ export function initDuoreaderImporterListener(): void {
         switch (message.action) {
           case 'start': {
             logger.info(LOG, 'Start requested from popup');
-            void startDuoreaderImport(message.config || {})
+            void startDuoreaderImport({
+              ...(message.config || {}),
+              resume: message.resume === true,
+            })
               .then((result) => {
                 if (!result.success) {
                   logger.warn(LOG, `Import failed to start: ${result.error}`);
@@ -36,11 +41,25 @@ export function initDuoreaderImporterListener(): void {
             logger.info(LOG, 'Stop acknowledged');
             sendResponse({ success: true });
             break;
+          case 'pause':
+            await pauseDuoreaderImport();
+            sendResponse({ success: true });
+            break;
+          case 'resume': {
+            const result = await resumeDuoreaderImport({
+              ...(message.config || {}),
+              resume: true,
+            });
+            sendResponse({ success: result.success, error: result.error, resumed: result.resumed });
+            break;
+          }
           case 'get_status':
             sendResponse({ success: true, progress: await getDuoreaderProgress() });
             break;
           case 'list_books': {
-            const books = await listDuoreaderBooks(message.config || {});
+            const books = await listDuoreaderBooks(message.config || {}, {
+              enrichCovers: message.enrichCovers === true,
+            });
             logger.info(LOG, `list_books → ${books.length} item(s)`);
             sendResponse({ success: true, books });
             break;

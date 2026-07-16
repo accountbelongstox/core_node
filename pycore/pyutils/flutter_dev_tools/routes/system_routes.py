@@ -18,6 +18,9 @@ from pycore.pygvar import (
 
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
 
+import time
+
+
 
 class SystemRoutesHandler(BaseHandler):
     """Handler for system-related routes"""
@@ -42,7 +45,6 @@ class SystemRoutesHandler(BaseHandler):
 
             # Set shutdown event in separate thread
             def delayed_shutdown():
-                import time
                 time.sleep(0.5)
                 self.shutdown_event.set()
 

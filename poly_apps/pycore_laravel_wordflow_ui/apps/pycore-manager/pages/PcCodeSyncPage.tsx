@@ -3,8 +3,9 @@
  *
  * Self-contained port of the pycore desktop-manager CodeSyncPage. This device
  * picks a role (dev = source of truth that can push code; client = always
- * receives). Dev must explicitly enable "distributing" each startup before code
- * is pushed. The peer list shows reachability + live status, fed by the backend
+ * receives). Dev distribution and client skip-update toggles persist in
+ * `<cache>/pycore/codesync/runtime_prefs.json` (same backend path as the tray).
+ * The peer list shows reachability + live status, fed by the backend
  * `code_sync_update` WS tick (subscribe + connectPycoreWs) with a 5s poll
  * fallback against GET /code-sync/peers (PycoreApi.getPeers).
  *
@@ -13,7 +14,7 @@
  * Degrades to an inline "pycore unreachable" banner and the last good snapshot
  * when the backend (:59000) is offline; no call ever crashes the page.
  */
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Code2, RefreshCcw, Server, MonitorSmartphone, Radar, Plus, X, Trash2,
   Pencil, Check, Users, Download, Wifi, WifiOff, PauseCircle, FileText, HardDrive,
@@ -23,7 +24,7 @@ import {
   GitCompare, FileMinus, FilePlus, FileWarning, Feather,
 } from 'lucide-react';
 import {
-  pycoreApi, subscribe, connectPycoreWs, onWsStatus,
+  pycoreApi, subscribe, connectPycoreWs, onWsStatus, PYCORE_PORT,
 } from '../../../core/api-libs/pycore';
 import type {
   CodeSyncRole, SelfStatus, PeerStatus, CodeSyncCandidate, CodeStats,
@@ -31,7 +32,7 @@ import type {
 } from '../../../core/api-libs/pycore';
 import { usePersistentTask } from '../../../core/tasks/usePersistentTask';
 
-const DEFAULT_PORT = 59000;
+const DEFAULT_PORT = PYCORE_PORT;
 
 function relTime(ts: number | null, never = 'never'): string {
   if (!ts) return never;
@@ -232,9 +233,7 @@ const PcCodeSyncPage: React.FC = () => {
 
   // discover / add / edit UI state
   const [discovering, setDiscovering] = useState(false);
-  const [autoScanning, setAutoScanning] = useState(false);
   const [candidates, setCandidates] = useState<CodeSyncCandidate[]>([]);
-  const autoDiscoveredRef = useRef(false);
   const [showAdd, setShowAdd] = useState(false);
   const [addDraft, setAddDraft] = useState<PeerDraft>({ name: '', host: '', port: String(DEFAULT_PORT), role: 'client' });
   const [editId, setEditId] = useState<string | null>(null);
@@ -377,6 +376,7 @@ const PcCodeSyncPage: React.FC = () => {
   const role: CodeSyncRole = self?.role ?? 'client';
   const distributing = !!self?.distributing;
   const skipUpdate = !!(self?.skip_update ?? self?.summary?.skip_update);
+  const scanLan = !!filters?.scan_lan;
   // Start-time RECEIVE-ONLY light mode: read-only indicator (no toggle).
   const light = !!(self?.light ?? self?.summary?.light);
   const selfCode: CodeStats | undefined = self?.code ?? self?.summary?.code;
@@ -396,8 +396,14 @@ const PcCodeSyncPage: React.FC = () => {
     setBusy(true);
     try {
       const r = await pycoreApi.setRole(next);
-      if (r?.success) { flash('Role changed'); await loadPeers(); }
-      else flash(r?.error || 'Request failed');
+      if (r?.success) {
+        mesh.set({
+          self: r.self ?? null,
+          peers: Array.isArray(r.peers) ? r.peers : [],
+        });
+        setCandidates([]);
+        flash('Role changed');
+      } else flash(r?.error || 'Request failed');
     } catch (e: any) { flash(`Request failed: ${e.message}`); }
     finally { setBusy(false); }
   };
@@ -429,30 +435,33 @@ const PcCodeSyncPage: React.FC = () => {
   };
 
   const discover = async () => {
+    if (!scanLan) {
+      flash('Enable LAN scanning first');
+      return;
+    }
     setDiscovering(true);
     try {
       const r = await pycoreApi.discoverPeers();
-      if (r?.success) setCandidates(Array.isArray(r.candidates) ? r.candidates : []);
-      else flash(r?.error || 'Request failed');
+      if (r?.success) {
+        setCandidates(Array.isArray(r.candidates) ? r.candidates : []);
+        if (r.message && !(r.candidates?.length)) flash(r.message);
+      } else flash(r?.error || 'Request failed');
     } catch (e: any) { flash(`Request failed: ${e.message}`); }
     finally { setDiscovering(false); }
   };
 
-  // Delayed auto-discover: ~4s after mount, populate candidates ONCE.
-  // Does not auto-add — candidates still require an explicit Add click.
-  useEffect(() => {
-    if (autoDiscoveredRef.current) return;
-    autoDiscoveredRef.current = true;
-    const timer = window.setTimeout(async () => {
-      setAutoScanning(true);
-      try {
-        const r = await pycoreApi.discoverPeers();
-        if (r?.success && Array.isArray(r.candidates)) setCandidates(r.candidates);
-      } catch { /* best-effort scan; ignore */ }
-      finally { setAutoScanning(false); }
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, []);
+  const toggleScanLan = async (enabled: boolean) => {
+    setBusy(true);
+    try {
+      const r = await pycoreApi.setSyncSettings({ scan_lan: enabled });
+      if (r?.success) {
+        setFilters((f) => (f ? { ...f, scan_lan: enabled } : f));
+        if (!enabled) setCandidates([]);
+        flash(enabled ? 'LAN scanning enabled' : 'LAN scanning disabled');
+      } else flash(r?.error || 'Request failed');
+    } catch (e: any) { flash(`Request failed: ${e.message}`); }
+    finally { setBusy(false); }
+  };
 
   const addPeer = async (peer: { name: string; host: string; port: number; role: CodeSyncRole }) => {
     if (!peer.host.trim()) { flash('Host is required'); return; }
@@ -943,16 +952,33 @@ const PcCodeSyncPage: React.FC = () => {
             <Users className="w-4 h-4" /> Peers
           </h3>
           <div className="flex items-center gap-2">
-            <button onClick={discover} disabled={discovering || autoScanning}
+            <button onClick={discover} disabled={discovering || !scanLan || role === 'client'}
+              title={!scanLan ? 'Enable LAN scanning first' : role === 'client' ? 'Discovery is dev-only' : undefined}
               className="px-3 py-2 pc-glass hover:bg-indigo-500/10 text-xs font-bold rounded-xl flex items-center gap-1 transition disabled:opacity-50 text-slate-700 dark:text-slate-200">
-              <Radar className={`w-3.5 h-3.5 ${discovering || autoScanning ? 'animate-spin' : ''}`} />
-              {discovering ? 'Discovering…' : autoScanning ? 'Scanning…' : 'Discover'}
+              <Radar className={`w-3.5 h-3.5 ${discovering ? 'animate-spin' : ''}`} />
+              {discovering ? 'Discovering…' : 'Discover'}
             </button>
             <button onClick={() => setShowAdd(true)}
               className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow-lg shadow-indigo-600/20 transition">
               <Plus className="w-4 h-4" /> Add peer
             </button>
           </div>
+        </div>
+
+        <div className={`${stat} mt-3 flex items-center justify-between gap-4`}>
+          <div className="min-w-0">
+            <div className="text-sm font-bold text-slate-700 dark:text-zinc-200 flex items-center gap-1.5">
+              <Radar className="w-4 h-4 text-indigo-500" /> Scan LAN
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">Off by default. Enable before using Discover to probe the local /24.</p>
+          </div>
+          <button role="switch" aria-checked={scanLan} disabled={busy || role === 'client'}
+            onClick={() => toggleScanLan(!scanLan)}
+            className={`relative shrink-0 w-12 h-7 rounded-full transition-colors disabled:opacity-50 ${
+              scanLan ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'}`}>
+            <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${
+              scanLan ? 'translate-x-5' : ''}`} />
+          </button>
         </div>
 
         {/* discovered candidates */}

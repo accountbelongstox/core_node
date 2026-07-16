@@ -26,7 +26,11 @@ from pydantic import BaseModel
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.system_paths import get_user_data_store
-from pycore.pyutils.external_apis.movie_poster_client import find_poster
+from pycore.pyutils.external_apis.movie_poster_client import (
+    MCP_CHROME_IMAGE_DELEGATION,
+    POSTER_DELEGATED_TO_MCP_CHROME,
+    find_poster,
+)
 from pycore.pyutils.external_apis.image_search_client import serpapi_configured
 
 router = fastapi.APIRouter(prefix="/api/local/poster", tags=["Local Processing - Poster"])
@@ -71,6 +75,9 @@ def _build_status() -> Dict[str, Any]:
 
     return {
         "enabled": _enabled(),
+        "pycore_fetch_disabled": True,
+        "delegated_to": "apps/mcp-chrome",
+        "delegation_note": MCP_CHROME_IMAGE_DELEGATION,
         "providers": [
             {
                 "name": "serpapi",
@@ -135,27 +142,13 @@ def config(req: PosterConfigRequest):
 
 @router.post("/test")
 def test(req: PosterTestRequest):
-    """Run a poster lookup and return the result (base64 included for preview).
+    """Poster lookup disabled in pycore — delegated to apps/mcp-chrome."""
+    return {"found": False, "error": POSTER_DELEGATED_TO_MCP_CHROME}
 
-    Never raises — on empty input / no match / error returns ``{found:false}``
-    with an optional ``error`` hint.
-    """
-    title = (req.title or "").strip()
-    if not title:
-        return {"found": False, "error": "title is required"}
-    try:
-        result = find_poster(title, req.year)
-    except Exception as exc:  # noqa: BLE001 - find_poster already guards, belt-and-suspenders
-        ColorPrint.yellow(f"[Poster] test lookup failed ({exc})")
-        return {"found": False, "error": str(exc)}
-
-    if not result:
-        return {"found": False}
-    return {
-        "found": True,
-        "provider": result.get("provider"),
-        "source_id": result.get("source_id"),
-        "mime": result.get("mime"),
-        "meta": result.get("meta") or {},
-        "image_base64": result.get("image_base64") or "",
-    }
+    # --- Legacy TMDB/OMDB test (disabled) ---
+    # title = (req.title or "").strip()
+    # if not title:
+    #     return {"found": False, "error": "title is required"}
+    # try:
+    #     result = find_poster(title, req.year)
+    # ...

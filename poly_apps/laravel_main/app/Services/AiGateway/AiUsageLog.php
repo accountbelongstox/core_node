@@ -35,11 +35,11 @@ class AiUsageLog
     // usage history + per-provider rollup reflect EVERY AI call.
     private const KINDS = ['text', 'vision', 'probe', 'image', 'tts', 'stt'];
 
-    /** Absolute path of the shared .data/.ai_state dir (same dir pycore writes). */
+    /** Absolute path of the shared <cache>/pycore/.ai_state dir (same dir pycore writes). */
     public static function stateDir(): string
     {
+        $new = PathMapper::getSharedDownloadCacheDir('pycore/.ai_state');
         $coreNode = PathMapper::getCoreNodeDir() ?: PathMapper::getLaravelMainDir();
-        $new = rtrim($coreNode, '/\\') . '/.data/.ai_state';
         self::migrateLegacyStateDir($coreNode, $new);
         return $new;
     }
@@ -49,7 +49,7 @@ class AiUsageLog
 
     /**
      * One-time PER-FILE move of the prior <core_node>/.ai_state dir into
-     * .data/.ai_state (per-file so a partially-created new dir never orphans files).
+     * <cache>/pycore/.ai_state (per-file so a partially-created new dir never orphans files).
      */
     private static function migrateLegacyStateDir(string $coreNode, string $new): void
     {

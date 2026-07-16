@@ -32,7 +32,14 @@ import sys
 from pathlib import Path
 from typing import Optional, List
 
+from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtWebEngineCore import QWebEngineSettings, qWebEngineVersion
+
 from pycore import ColorPrint
+from pycore.pyfoundations.system_paths import get_system_cache_dir
+
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.codec_diagnostic import check_proprietary_codec_support, print_codec_solutions
+
 
 
 # ---------------------------------------------------------------------------
@@ -49,7 +56,7 @@ _SOFTWARE_GPU_MODES = ('software', 'off', 'disable', 'none')
 
 # Persisted marker: written after repeated GPU/render crashes so the NEXT launch
 # starts in software rendering without user intervention (self-healing fallback).
-_GPU_FALLBACK_MARKER = Path.home() / '.core_node' / 'webengine_gpu_fallback.flag'
+_GPU_FALLBACK_MARKER = get_system_cache_dir() / 'webengine_gpu_fallback.flag'
 
 
 def _gpu_fallback_marker_present() -> bool:
@@ -357,7 +364,6 @@ def configure_webengine_tier3_settings(settings) -> bool:
         - Local content can access remote URLs (for development)
     """
     try:
-        from PySide6.QtWebEngineCore import QWebEngineSettings
 
         if settings is None:
             ColorPrint.red(f"[WebEngineConfig-Tier3] ✗ settings is None")
@@ -455,8 +461,6 @@ def configure_webengine_all_tiers(
     # bundled ANGLE (ANGLE->D3D11 on Windows) regardless. Only AA_ShareOpenGLContexts
     # is still required and kept.
     try:
-        from PySide6.QtCore import QCoreApplication, Qt
-
         if QCoreApplication.instance() is None:
             ColorPrint.blue("\n[WebEngineConfig] >>> Tier 0: OpenGL context sharing (Qt 6)")
 
@@ -519,7 +523,6 @@ def configure_webengine_all_tiers(
 
         # Check proprietary codec support (CRITICAL for H.264)
         ColorPrint.blue("\n[WebEngineConfig] >>> Proprietary Codec Support Check")
-        from .codec_diagnostic import check_proprietary_codec_support, print_codec_solutions
         has_codecs = check_proprietary_codec_support()
         if not has_codecs:
             print_codec_solutions()
@@ -555,7 +558,6 @@ def get_chromium_version() -> Optional[str]:
         Chromium version string, or None if unable to determine
     """
     try:
-        from PySide6.QtWebEngineCore import qWebEngineVersion
         version = qWebEngineVersion()
         ColorPrint.blue(f"[WebEngineConfig] QtWebEngine Chromium version: {version}")
         return version

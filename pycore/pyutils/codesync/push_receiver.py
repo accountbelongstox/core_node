@@ -18,6 +18,7 @@ from pathlib import Path
 
 from .textnorm import normalized_md5
 from .wire_codec import _fmt_bytes, _fmt_diff
+from .runtime import get_local_data_dir
 
 
 # Shell/script extensions that should be executable on Linux/macOS.
@@ -123,8 +124,7 @@ class PushReceiver:
 
     # ----- full-sync manifest (sent by the dev on every (re)connect) -------- #
     def _received_table_path(self) -> Path:
-        return (self.m.sync_target_root() / ".data" / "pycore" / "codesync"
-                / "received_files.json")
+        return get_local_data_dir() / "codesync" / "received_files.json"
 
     def _load_received(self) -> dict:
         """The client's SMALL per-sync table {rel: hash} of files it has received,

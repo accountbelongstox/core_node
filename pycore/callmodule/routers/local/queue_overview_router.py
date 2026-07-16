@@ -41,8 +41,10 @@ from pycore.callmodule.services import (
     get_queue_monitor_service,
     get_translation_worker_service,
 )
-from pycore.callmodule.services.assist_wiring import ensure_assist_worker_wired
 from pycore.callmodule.callmodule_config import Config
+from pycore.callmodule.services.sync.laravel_endpoint_manager import (
+    get_laravel_endpoint_manager,
+)
 from .task_center_router import (
     _CATEGORY_CATALOG,
     _COUNT_KEYS,
@@ -67,14 +69,12 @@ _assist_overview_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
 
 
 def _assist_overview_base() -> Optional[str]:
-    """Base URL of the SELECTED Laravel endpoint (same source assist_router uses)."""
+    """Active Laravel base URL — same cached winner the queue monitor uses."""
     try:
-        endpoint = ensure_assist_worker_wired().resolve_endpoint()
+        base = get_laravel_endpoint_manager().get_active_base_url()
+        return str(base).rstrip("/") if base else None
     except Exception:  # noqa: BLE001 — resolver must never break the overview
         return None
-    if endpoint and endpoint.get("base_url"):
-        return str(endpoint["base_url"]).rstrip("/")
-    return None
 
 
 def _fetch_assist_overview() -> Optional[Dict[str, Any]]:
@@ -88,6 +88,9 @@ def _fetch_assist_overview() -> Optional[Dict[str, Any]]:
     now = time.monotonic()
     cached = _assist_overview_cache.get("data")
     if cached is not None and (now - _assist_overview_cache["ts"]) < _ASSIST_OVERVIEW_TTL:
+        return cached
+    snapshot = _monitor().get_snapshot(refresh=False)
+    if not snapshot.get("laravel_reachable"):
         return cached
     base = _assist_overview_base()
     if not base:
@@ -228,7 +231,7 @@ def _engines() -> Dict[str, Any]:
 
 
 @router.get("/overview")
-async def get_queue_overview():
+def get_queue_overview():
     """
     Return the unified queue overview (PcQueueOverview). One poll for the whole
     Overview tab: every assist/secondary category as a card with LIVE counts

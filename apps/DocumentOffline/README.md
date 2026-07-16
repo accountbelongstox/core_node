@@ -1,23 +1,23 @@
 # DocumentOffline
 
-一个基于ncore的CLI工具，用于将网页文档离线下载到本地缓存。
+An ncore-based CLI tool to download web documents offline into a local cache.
 
-## 功能特性
+## Features
 
-- 🔗 递归下载网页链接
-- 🌐 智能同源URL过滤
-- 📁 自动UTF-8编码转换
-- 💾 本地缓存管理
-- 📊 下载进度显示
-- ⚙️ 可配置参数
+- 🔗 Recursively download linked pages
+- 🌐 Smart same-origin URL filtering
+- 📁 Automatic UTF-8 encoding conversion
+- 💾 Local cache management
+- 📊 Download progress display
+- ⚙️ Configurable parameters
 
-## 安装
+## Installation
 
 ```bash
-# 安装第三方依赖包
+# Install third-party dependencies
 yarn add iconv-lite jsdom
 
-# 或者使用npm
+# Or use npm
 npm install iconv-lite jsdom
 ```
 
@@ -63,86 +63,86 @@ node main.js app=DocumentOffline https://example.com 5
 node main.js app=DocumentOffline www.baidu.com 2
 ```
 
-## 项目结构
+## Project Structure
 
 ```
 DocumentOffline/
-├── main.js                 # 应用入口
-├── package.json            # 项目配置
-├── README.md              # 项目文档
-├── controller/            # 控制器目录
-│   ├── main.js           # 主控制器
-│   ├── download_manager.js # 下载管理器
-│   ├── url_processor.js   # URL处理器
-│   ├── file_manager.js    # 文件管理器
-│   ├── http_downloader.js # HTTP下载器
-│   ├── html_parser.js     # HTML解析器
-│   └── config_manager.js  # 配置管理器
-├── config/               # 配置目录
-│   └── config.json       # 配置文件
-├── utils/                # 工具目录
-│   ├── logger.js         # 日志工具
-│   └── progress.js       # 进度显示
-├── cache/                # 缓存目录（自动创建）
-└── logs/                 # 日志目录（自动创建）
+├── main.js                 # App entry
+├── package.json            # Project config
+├── README.md              # Documentation
+├── controller/            # Controllers
+│   ├── main.js           # Main controller
+│   ├── download_manager.js # Download manager
+│   ├── url_processor.js   # URL processor
+│   ├── file_manager.js    # File manager
+│   ├── http_downloader.js # HTTP downloader
+│   ├── html_parser.js     # HTML parser
+│   └── config_manager.js  # Config manager
+├── config/               # Config
+│   └── config.json       # Config file
+├── utils/                # Utilities
+│   ├── logger.js         # Logger
+│   └── progress.js       # Progress UI
+├── cache/                # Cache (auto-created)
+└── logs/                 # Logs (auto-created)
 ```
 
-## 配置说明
+## Configuration
 
-配置文件位于 `config/config.json`，包含以下设置：
+Settings in `config/config.json`:
 
-### 下载配置
-- `timeout`: 请求超时时间（毫秒）
-- `maxRetries`: 最大重试次数
-- `maxRedirects`: 最大重定向次数
-- `userAgent`: 用户代理字符串
-- `delay`: 请求间隔延迟（毫秒）
+### Download
+- `timeout`: Request timeout (ms)
+- `maxRetries`: Max retries
+- `maxRedirects`: Max redirects
+- `userAgent`: User-Agent string
+- `delay`: Delay between requests (ms)
 
-### 解析配置
-- `ignoredExtensions`: 忽略的文件扩展名
-- `maxLinksPerPage`: 每页最大链接数
+### Parsing
+- `ignoredExtensions`: Ignored file extensions
+- `maxLinksPerPage`: Max links per page
 
-### 文件配置
-- `cacheDir`: 缓存目录
-- `maxFileSize`: 最大文件大小（字节）
-- `encoding`: 文件编码
+### Files
+- `cacheDir`: Cache directory
+- `maxFileSize`: Max file size (bytes)
+- `encoding`: File encoding
 
-### 限制配置
-- `maxDepth`: 最大递归深度
-- `maxPages`: 最大页面数
-- `maxConcurrent`: 最大并发数
+### Limits
+- `maxDepth`: Max recursion depth
+- `maxPages`: Max pages
+- `maxConcurrent`: Max concurrent downloads
 
-## 开发计划
+## Roadmap
 
-### 第一阶段：基础功能 ✅
-- [x] CLI参数解析
-- [x] HTTP下载器
-- [x] URL处理器
-- [x] 文件管理器
-- [x] HTML解析器
-- [x] 配置管理
+### Phase 1: Basics ✅
+- [x] CLI argument parsing
+- [x] HTTP downloader
+- [x] URL processor
+- [x] File manager
+- [x] HTML parser
+- [x] Config management
 
-### 第二阶段：增强功能 🔄
-- [ ] 并发下载支持
-- [ ] 断点续传
-- [ ] 压缩文件支持
-- [ ] 更多文件格式支持
-- [ ] 下载历史记录
+### Phase 2: Enhancements 🔄
+- [ ] Concurrent downloads
+- [ ] Resume downloads
+- [ ] Archive support
+- [ ] More file formats
+- [ ] Download history
 
-### 第三阶段：高级功能 📋
-- [ ] Web界面
-- [ ] 搜索功能
-- [ ] 导出功能
-- [ ] 插件系统
-- [ ] 性能优化
+### Phase 3: Advanced 📋
+- [ ] Web UI
+- [ ] Search
+- [ ] Export
+- [ ] Plugin system
+- [ ] Performance tuning
 
-## 技术栈
+## Stack
 
 - Node.js
-- iconv-lite (编码转换)
-- jsdom (HTML解析)
-- 原生HTTP/HTTPS模块
+- iconv-lite (encoding)
+- jsdom (HTML parsing)
+- Native HTTP/HTTPS modules
 
-## 许可证
+## License
 
 MIT License 

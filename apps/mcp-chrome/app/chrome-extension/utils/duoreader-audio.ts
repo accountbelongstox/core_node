@@ -4,6 +4,13 @@
 
 export const DUOREADER_AUDIO_SERVER = 'https://duoreader-api.botanisense.app';
 export const DUOREADER_AUDIO_ENDPOINT = `${DUOREADER_AUDIO_SERVER}/tts`;
+export const DUOREADER_WEB_ORIGIN = 'https://web.duoreader.cn';
+
+export const AUDIO_FETCH_MAX_RETRIES = 4;
+export const AUDIO_FETCH_RETRY_BASE_MS = 800;
+export const AUDIO_FETCH_MIN_INTERVAL_MS = 200;
+
+let lastAudioFetchAt = 0;
 
 /** Duoreader request signature (fnv-like hash → base36). */
 export function computeDuoreaderAudioSignature(text: string): string {
@@ -19,6 +26,7 @@ export interface DuoreaderAudioFetchOptions {
   speaker?: string;
   rate?: number;
   timeoutMs?: number;
+  maxRetries?: number;
 }
 
 export function buildDuoreaderAudioUrl(
@@ -28,7 +36,8 @@ export function buildDuoreaderAudioUrl(
 ): string {
   const params = new URLSearchParams();
   params.set('text', text);
-  params.set('lang', lang === 'jp' ? 'ja' : lang);
+  const normalizedLang = lang === 'jp' ? 'ja' : lang === 'zh-CN' ? 'zh' : lang;
+  params.set('lang', normalizedLang);
   params.set('stream', 'false');
   params.set('encoding', 'MP3');
   params.set('sig', computeDuoreaderAudioSignature(text));
@@ -37,7 +46,16 @@ export function buildDuoreaderAudioUrl(
   return `${DUOREADER_AUDIO_ENDPOINT}?${params.toString()}`;
 }
 
-export async function fetchDuoreaderAudio(
+async function throttleAudioFetch(): Promise<void> {
+  const now = Date.now();
+  const wait = AUDIO_FETCH_MIN_INTERVAL_MS - (now - lastAudioFetchAt);
+  if (wait > 0) {
+    await new Promise((resolve) => setTimeout(resolve, wait));
+  }
+  lastAudioFetchAt = Date.now();
+}
+
+async function fetchDuoreaderAudioOnce(
   text: string,
   lang: string,
   options: DuoreaderAudioFetchOptions = {},
@@ -47,16 +65,25 @@ export async function fetchDuoreaderAudio(
     throw new Error('empty text');
   }
   const url = buildDuoreaderAudioUrl(trimmed, lang, options);
-  const timeoutMs = options.timeoutMs ?? 30000;
+  const timeoutMs = options.timeoutMs ?? 45000;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let res: Response;
   try {
-    res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
-  } catch (error: any) {
+    await throttleAudioFetch();
+    res = await fetch(url, {
+      signal: controller.signal,
+      cache: 'no-store',
+      headers: {
+        Accept: 'audio/mpeg,*/*',
+        Referer: `${DUOREADER_WEB_ORIGIN}/`,
+      },
+    });
+  } catch (error: unknown) {
     clearTimeout(timer);
-    const timedOut = error?.name === 'AbortError';
-    throw new Error(timedOut ? `audio fetch timeout (${timeoutMs}ms)` : (error?.message || String(error)));
+    const err = error as { name?: string; message?: string };
+    const timedOut = err?.name === 'AbortError';
+    throw new Error(timedOut ? `audio fetch timeout (${timeoutMs}ms)` : (err?.message || String(error)));
   }
   clearTimeout(timer);
   if (!res.ok) {
@@ -67,4 +94,28 @@ export async function fetchDuoreaderAudio(
     throw new Error('Duoreader audio empty body');
   }
   return new Uint8Array(buf);
+}
+
+export async function fetchDuoreaderAudio(
+  text: string,
+  lang: string,
+  options: DuoreaderAudioFetchOptions = {},
+): Promise<Uint8Array> {
+  const maxRetries = options.maxRetries ?? AUDIO_FETCH_MAX_RETRIES;
+  let lastError = 'unknown';
+  for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+    try {
+      return await fetchDuoreaderAudioOnce(text, lang, options);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      lastError = err?.message || String(error);
+      const retryable = /HTTP 5\d\d|timeout|Failed to fetch|network/i.test(lastError);
+      if (!retryable || attempt >= maxRetries - 1) {
+        throw new Error(lastError);
+      }
+      const delay = AUDIO_FETCH_RETRY_BASE_MS * (attempt + 1);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error(lastError);
 }

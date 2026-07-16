@@ -7,6 +7,7 @@
 . (Join-Path $PSScriptRoot 'PythonDependencyMapInstallCommon.ps1')
 . (Join-Path $PSScriptRoot 'TorchCpuGuard.ps1')
 . (Join-Path $PSScriptRoot 'PaddleCpuGuard.ps1')
+. (Join-Path $PSScriptRoot 'NvidiaCuStackAlign.ps1')
 
 $script:OcrBundle = @('paddleocr>=3.7.0', 'paddlex>=3.7.0')
 $script:BackendBundle = @(
@@ -123,11 +124,7 @@ function Invoke-PythonPrereqInstall {
         $PythonCmd = (Resolve-Path -LiteralPath $Global:PYTHON_EXE_PATH).Path
     }
 
-    $PipExe = if ($Global:PIP_EXE_PATH -and (Test-Path -LiteralPath $Global:PIP_EXE_PATH)) {
-        $Global:PIP_EXE_PATH
-    } else {
-        Resolve-InstallerPipExe -PythonExe $PythonCmd
-    }
+    $PipExe = $Global:PIP_EXE_PATH
 
     $version = Get-PythonVersionTextFromExe -PythonExe $PythonCmd
     Write-Host "$LogPrefix Target interpreter: $PythonCmd ($version)" -ForegroundColor White
@@ -157,6 +154,14 @@ function Invoke-PythonPrereqInstall {
     Write-Host ''
 
     Install-PaddleOcrBundle -PythonCmd $PythonCmd -PipExe $PipExe -LogPrefix $LogPrefix
+    Write-Host ''
+
+    # Final cu13 alignment: ensure the system Python's cu13 nvidia stack is
+    # consistent (restore clobbered/missing cu13 DLLs) so paddle/torch import
+    # cleanly. No cu12 nvidia libs are installed in this flow, so this is usually
+    # a no-op; it heals any prior cu12/cu13 clobber left from older installs.
+    Write-Host "$LogPrefix Aligning NVIDIA cu13 stack (idempotent)..." -ForegroundColor Cyan
+    Sync-NvidiaCuStack -PythonCmd $PythonCmd -PipExe $PipExe -TargetMajor 13
     Write-Host ''
 
     Install-PycoreDependencyMapPackages -PipExe $PipExe -PythonExe $PythonCmd -LogPrefix $LogPrefix

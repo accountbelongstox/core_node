@@ -18,8 +18,14 @@
     and file variables for communication between Python and PowerShell
 #>
 
-# File variables directory
-$script:GIT_VARS_DIR = Join-Path $env:USERPROFILE ".core_node\.build_global_vars"
+# File variables directory.
+# $Global:USER_DIR is set by GlobalVars.ps1 (D:\programing\Users\<user>\.core_node).
+# Fallback mirrors it for the rare case this module loads before GlobalVars is sourced.
+$script:GIT_VARS_DIR = if ($Global:USER_DIR) {
+    Join-Path $Global:USER_DIR ".build_global_vars"
+} else {
+    Join-Path (Join-Path (Join-Path 'D:\programing\Users' $env:USERNAME) '.core_node') '.build_global_vars'
+}
 
 # Helper functions for file variables
 function Read-GitVar {

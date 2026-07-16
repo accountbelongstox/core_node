@@ -35,109 +35,12 @@ import threading
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
 from pycore.pyfoundations.thread_bus import THREAD_BUS
-
-
-# ============================================================
-# Namespace Constants - Clear Key Organization
-# ============================================================
-
-class BusNamespaces:
-    """THREAD_BUS namespace organization"""
-
-    # PyCore dependency check namespace
-    PYCORE_DEPS = "pycore.deps"
-
-    # UI configuration namespace
-    UI_CONFIG = "ui.config"
-
-    # Tray system namespace
-    UI_TRAY = "ui.tray"
-
-    # Application state namespace
-    APP_STATE = "app.state"
-
-    # Startup window namespace
-    UI_STARTUP = "ui.startup"
-
-    # UI i18n namespace
-    UI_I18N = "ui.i18n"
-
-
-class BusKeys:
-    """Standardized THREAD_BUS keys with namespaces"""
-
-    # PyCore dependency keys
-    DEPS_CHECKED = f"{BusNamespaces.PYCORE_DEPS}.checked"
-    DEPS_ALL_PACKAGES = f"{BusNamespaces.PYCORE_DEPS}.all_packages"
-    DEPS_INSTALLED = f"{BusNamespaces.PYCORE_DEPS}.installed"
-    DEPS_MISSING = f"{BusNamespaces.PYCORE_DEPS}.missing"
-    DEPS_TOTAL = f"{BusNamespaces.PYCORE_DEPS}.total"
-    DEPS_PLATFORM = f"{BusNamespaces.PYCORE_DEPS}.platform"
-
-    # Tray configuration keys
-    TRAY_CONFIG = f"{BusNamespaces.UI_TRAY}.config"
-    TRAY_BACKEND = f"{BusNamespaces.UI_TRAY}.backend"
-    TRAY_READY = f"{BusNamespaces.UI_TRAY}.ready"
-    TRAY_VISIBLE = f"{BusNamespaces.UI_TRAY}.visible"
-
-    # Startup window keys
-    STARTUP_MODE = f"{BusNamespaces.UI_STARTUP}.mode"  # "debug_only" | "debug_with_tray"
-    STARTUP_THREAD_ID = f"{BusNamespaces.UI_STARTUP}.thread_id"
-
-    # I18n keys
-    I18N_CURRENT_LANGUAGE = f"{BusNamespaces.UI_I18N}.current_language"
-    I18N_SUPPORTED_LANGUAGES = f"{BusNamespaces.UI_I18N}.supported_languages"
-
-
-class BusSignals:
-    """Standardized THREAD_BUS signal names"""
-
-    # PyCore signals
-    DEPS_COMPLETE = "pycore.deps.complete"
-    DEPS_INSTALL_START = "pycore.deps.install_start"
-    DEPS_INSTALL_SUCCESS = "pycore.deps.install_success"
-
-    # Tray signals
-    TRAY_STARTED = "ui.tray.started"
-    TRAY_STOPPED = "ui.tray.stopped"
-    TRAY_SHOW = "ui.tray.show"
-    TRAY_RESTART = "ui.tray.restart"
-    TRAY_EXIT = "ui.tray.exit"
-    TRAY_MENU_CLICKED = "ui.tray.menu_clicked"
-
-    # Commands
-    TRAY_UPDATE_MENU = "ui.tray.update_menu"
-    TRAY_UPDATE_ICON = "ui.tray.update_icon"
-    TRAY_SHOW_MESSAGE = "ui.tray.show_message"
-    TRAY_STOP = "ui.tray.stop"
-
-    # Startup window signals
-    STARTUP_READY = "ui.startup.ready"
-    STARTUP_CLOSED = "ui.startup.closed"
-    STARTUP_STOPPED = "ui.startup.stopped"
-    # Request tk debug window to close (singleton/shutdown). TkinterStartupThread (single tk build) listens;
-    # shutdown handler(s) trigger it so the window exits with process.
-    STARTUP_REQUEST_CLOSE = "ui.startup.request_close"
-
-    # UI i18n signals
-    I18N_SET_LANGUAGE = "ui.i18n.set_language"  # Request to change language (via bus)
-    I18N_LANGUAGE_CHANGED = "ui.i18n.language_changed"  # Language changed notification
-    UI_REDRAW = "ui.redraw"  # Generic UI redraw signal (triggered by language change)
-
-
-# ============================================================
-# Data Classes for Type Safety
-# ============================================================
-
-@dataclass
-class DependencyInfo:
-    """Dependency check information"""
-    checked: bool = False
-    all_packages: List[str] = field(default_factory=list)
-    installed: List[str] = field(default_factory=list)
-    missing: List[str] = field(default_factory=list)
-    total: int = 0
-    platform: str = ""
+from pycore.pyfoundations.thread_bus_constants import (
+    BusNamespaces,
+    BusKeys,
+    BusSignals,
+    DependencyInfo,
+)
 
 
 # ============================================================
@@ -178,7 +81,6 @@ class NativeUIBusManager:
 
         self._bus = THREAD_BUS
 
-        from pycore import ColorPrint
         ColorPrint.print_info("[NativeUIBusManager] Initialized (singleton)")
         self._initialized = True
 
@@ -405,8 +307,6 @@ class NativeUIBusManager:
             bus_mgr = get_bus_manager()
             bus_mgr.setup_language_change_handler("myapp.tray.set_language")
         """
-        from pycore.pyutils.native_ui.step0_i18n import i18n
-        from pycore import ColorPrint
         
         def handle_set_language(event_data):
             """Handle language change request"""
@@ -428,6 +328,7 @@ class NativeUIBusManager:
                 ColorPrint.print_warn(f"[BusManager] Could not determine language from event_data: {event_data}")
         
         # Register handlers for all language signals (dynamic registration)
+        from pycore.pyutils.native_ui.step0_i18n import i18n
         supported_languages = i18n.get_supported_languages()
         for lang in supported_languages:
             signal = f"{tray_set_language_signal}.{lang}"

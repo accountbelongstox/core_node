@@ -3,6 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsVariantSpecModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
 use App\Models\LangSentence;
 use App\Providers\PathMapper;
@@ -56,17 +57,19 @@ class AppQyV1SentenceAudioService
     // ------------------------------------------------------------------
 
     /**
-     * Claim up to $limit sentences whose audio is missing (has_audio=false) and
-     * which are not currently leased, ordered by tts_priority DESC,
-     * occurrence_count DESC, id ASC — across the requested language(s).
+     * Claim up to $limit sentences missing one or more audio variants and not
+     * currently leased, ordered by tts_priority DESC, occurrence_count DESC,
+     * id ASC — across the requested language(s).
+     *
+     * Per-variant: a row is claimable when missingVariantsForRow() finds any
+     * configured variant absent on disk - including rows that already have
+     * has_audio=true (e.g. duoreader_tts present but uk_f absent). The initial
+     * SQL filter only narrows the candidate set; the disk-stat in
+     * missingVariantsForRow() makes the final decision.
      *
      * When $language is null the claim sweeps EVERY supported per-language
      * table. When $limit <= 0 the method returns counts only (FE summary),
      * leasing nothing.
-     *
-     * FUTURE: claim per missing audio_files variant (variantsForLanguage), not only
-     * has_audio=false — e.g. duoreader_tts present but uk_f absent should still lease.
-     * pendingCount() / claimForLanguage() WHERE must join audio_files + disk stat.
      *
      * @return array{count:int,pending:int,leased:int,lock_stale_minutes:int,tasks:array<int,array<string,mixed>>}
      */
@@ -124,43 +127,110 @@ class AppQyV1SentenceAudioService
             return [];
         }
 
-        $now = time();
         $cutoff = now()->subMinutes((int) ceil($window));
         $model = LangSentence::for($lang);
+        $candidateLimit = min(250, max($limit * 8, $limit));
 
-        return $model->getConnection()->transaction(function () use ($lang, $model, $workerId, $cutoff, $limit) {
-            // FUTURE: replace has_audio=false with per-variant missing check (audio_files).
+        return $model->getConnection()->transaction(function () use ($lang, $workerId, $cutoff, $limit, $candidateLimit) {
             $rows = LangSentence::onLang($lang)
-                ->where('has_audio', false)
-                // Not under a LIVE lease: never locked, OR the lease is stale.
                 ->where(function ($q) use ($cutoff) {
                     $q->whereNull('tts_locked_at')
                         ->orWhere('tts_locked_at', '<', $cutoff);
                 })
+                ->where(function ($q) {
+                    // Per-variant claim: candidates are explicitly pending/failed
+                    // OR any row whose variant completeness is not yet reconciled.
+                    // A row with has_audio=true + tts_status='completed' may still
+                    // miss a non-primary variant (e.g. duoreader_tts present, uk_f
+                    // absent) - reconcilePartialRow + missingVariantsForRow make
+                    // the final per-variant decision after the disk stat. Bounded
+                    // by $candidateLimit; reconciled rows flip to 'pending' so the
+                    // completed-branch is drained once per row.
+                    $q->where('has_audio', false)
+                        ->orWhereIn('tts_status', ['pending', 'failed'])
+                        ->orWhere(function ($q2) {
+                            $q2->where('has_audio', true)
+                                ->where('tts_status', 'completed');
+                        });
+                })
                 ->orderByDesc('tts_priority')
                 ->orderByDesc('occurrence_count')
                 ->orderBy('id')
-                ->limit($limit)
+                ->limit($candidateLimit)
                 ->lockForUpdate()
                 ->get();
 
             $tasks = [];
             foreach ($rows as $row) {
+                if (count($tasks) >= $limit) {
+                    break;
+                }
+                $this->reconcilePartialRow($row, $lang);
+                $missing = $this->missingVariantsForRow($lang, $row);
+                if ($missing === []) {
+                    continue;
+                }
+
                 $row->tts_locked_at = now();
                 $row->tts_locked_by = mb_substr($workerId, 0, 100);
                 $row->tts_status = 'processing';
                 $row->save();
 
-                $tasks[] = $this->buildTask($lang, $row);
+                $tasks[] = $this->buildTask($lang, $row, $missing);
             }
             return $tasks;
         }, 1);
     }
 
+    /**
+     * Variant specs still missing on disk for one sentence row.
+     *
+     * @return array<int,array{key:string,accent:?string,gender:string}>
+     */
+    public function missingVariantsForRow(string $lang, LangSentence $sentence): array
+    {
+        $missing = [];
+        foreach ($this->variantsForLanguage($lang) as $spec) {
+            $key = (string) ($spec['key'] ?? '');
+            if ($this->variantExistsOnDisk($lang, (string) $sentence->content_id, $key === '' ? null : $key)) {
+                continue;
+            }
+            $missing[] = $spec;
+        }
+        return $missing;
+    }
+
+    /** True when any configured variant is absent on disk. */
+    public function rowNeedsAudioWork(string $lang, LangSentence $sentence): bool
+    {
+        return $this->missingVariantsForRow($lang, $sentence) !== [];
+    }
+
+    /** Align tts_status with per-variant completeness (handles legacy completed rows). */
+    private function reconcilePartialRow(LangSentence $sentence, string $lang): void
+    {
+        $missing = $this->missingVariantsForRow($lang, $sentence);
+        if ($missing === []) {
+            if ($sentence->tts_status !== 'completed') {
+                $sentence->tts_status = 'completed';
+                $sentence->save();
+            }
+            return;
+        }
+        if ($sentence->tts_status === 'completed') {
+            $sentence->tts_status = 'pending';
+            $sentence->save();
+        }
+    }
+
     /** Build the §6 task descriptor for one claimed sentence. */
-    private function buildTask(string $lang, LangSentence $sentence): array
+    private function buildTask(string $lang, LangSentence $sentence, ?array $variants = null): array
     {
         $contentId = (string) $sentence->content_id;
+        $variantList = $variants ?? $this->missingVariantsForRow($lang, $sentence);
+        if ($variantList === []) {
+            $variantList = $this->variantsForLanguage($lang);
+        }
 
         return [
             'task_id' => 0,
@@ -172,33 +242,21 @@ class AppQyV1SentenceAudioService
             'language' => $lang,
             'audio_relative_path' => $lang . '/' . $contentId . '.mp3',
             'priority' => max(0, (int) ($sentence->tts_priority ?? 0)),
-            'variants' => $this->variantsForLanguage($lang),
+            'variants' => $variantList,
         ];
     }
 
     /**
      * TTS variant specs the pycore worker should synthesize per language.
-     * English: US female (primary), UK female, US male. Others: one voice.
-     *
-     * FUTURE: claim/report should skip variants already in audio_files with has_file=true
-     * (e.g. skip uk_f when edge-tts file exists; still generate when only duoreader_tts).
-     * UK upload example: variant_key=uk_f, accent=uk, provider=edge-tts via /media/audio.
+     * DB-driven via app_qy_v1_tts_variant_specs (seeded at sys:init); falls back
+     * to the hardcoded spec set when the table is missing/empty. Identical return
+     * shape across sentence + word audio (single read path on the model).
      *
      * @return array<int,array{key:string,accent:?string,gender:string}>
      */
     public function variantsForLanguage(string $lang): array
     {
-        $lang = AppQyV1TableMaps::normalizeLangCode($lang);
-        if ($lang === 'en') {
-            return [
-                ['key' => '', 'accent' => 'us', 'gender' => 'female'],
-                ['key' => 'uk_f', 'accent' => 'uk', 'gender' => 'female'],
-                ['key' => 'us_m', 'accent' => 'us', 'gender' => 'male'],
-            ];
-        }
-        return [
-            ['key' => '', 'accent' => null, 'gender' => 'female'],
-        ];
+        return AppQyV1TtsVariantSpecModel::variantsForLanguage($lang);
     }
 
     // ------------------------------------------------------------------
@@ -288,7 +346,9 @@ class AppQyV1SentenceAudioService
             return ['ok' => false, 'status' => 'error', 'error' => 'Persisted audio failed verification', 'http_status' => 500];
         }
 
-        $sentence->has_audio = true;
+        if ($this->variantExistsOnDisk($language, $contentId, null)) {
+            $sentence->has_audio = true;
+        }
         if ($variantKey === null || $variantKey === '') {
             $sentence->audio = $relativePath;
         } else {
@@ -309,10 +369,14 @@ class AppQyV1SentenceAudioService
             'provider' => $provider ?: ('worker:' . $workerId),
             'uploaded_at' => now()->toIso8601String(),
         ], $entryMeta));
-        $sentence->tts_status = 'completed';
-        $sentence->tts_completed_at = now();
         $this->recordProvider($sentence, $provider ?: ('worker:' . $workerId));
         $this->clearLease($sentence);
+        if ($this->missingVariantsForRow($language, $sentence) === []) {
+            $sentence->tts_status = 'completed';
+            $sentence->tts_completed_at = now();
+        } else {
+            $sentence->tts_status = 'pending';
+        }
         $sentence->save();
 
         Log::info('[SentenceAudio] Worker result accepted', [
@@ -336,13 +400,15 @@ class AppQyV1SentenceAudioService
      * Existence is decided by stat-ing the filesystem directly — the DB is read
      * only to reconcile the cache.
      *
-     * FUTURE: optional $variantKey / $accent params — resolve suffixed path
-     * ({lang}/{content_id}_uk_f.mp3) via variantExistsOnDisk(); return audio_files
-     * list in response for FE accent picker. Primary-only today (findOnDisk).
+     * Optional $variantKey resolves a specific suffixed path
+     * ({lang}/{content_id}_{variant_key}.mp3); optional $accent resolves the
+     * first on-disk variant whose spec matches that accent (us/uk/...), falling
+     * back to the extension-preference scan when no variant matches. The
+     * audio_files list is always returned for the FE accent picker.
      *
      * @return array<string,mixed> the JSON body
      */
-    public function resolve(?string $hash, ?string $text, ?string $language): array
+    public function resolve(?string $hash, ?string $text, ?string $language, ?string $variantKey = null, ?string $accent = null): array
     {
         $resolvedLang = ($language !== null && trim($language) !== '')
             ? AppQyV1TableMaps::normalizeLangCode($language)
@@ -359,6 +425,55 @@ class AppQyV1SentenceAudioService
         }
 
         $sentence = $this->locate($resolvedHash, $resolvedLang);
+        $audioFilesPayload = $sentence
+            ? $this->formatAudioFilesForApi($sentence)
+            : [];
+
+        $vkey = ($variantKey !== null && trim($variantKey) !== '') ? trim($variantKey) : null;
+        if ($vkey !== null && $this->variantExistsOnDisk($resolvedLang, $resolvedHash, $vkey)) {
+            $relative = $this->relativePathFor($resolvedLang, $resolvedHash, $vkey);
+            return [
+                'success' => true,
+                'exists' => true,
+                'url' => AppQyV1SentenceAudioUrl::forRelative($relative),
+                'hash' => $resolvedHash,
+                'content_id' => $resolvedHash,
+                'language' => $resolvedLang,
+                'variant_key' => $vkey,
+                'tts_status' => $sentence?->tts_status,
+                'audio_files' => $audioFilesPayload,
+            ];
+        }
+
+        // Accent filter: resolve the first on-disk variant whose spec matches
+        // the requested accent (us/uk/...). Falls through to the extension
+        // preference scan below when no variant matches the accent.
+        $accentNorm = ($accent !== null && trim($accent) !== '') ? strtolower(trim($accent)) : null;
+        if ($vkey === null && $accentNorm !== null) {
+            foreach ($this->variantsForLanguage($resolvedLang) as $spec) {
+                $specAccent = isset($spec['accent']) ? strtolower((string) $spec['accent']) : '';
+                if ($specAccent !== $accentNorm) {
+                    continue;
+                }
+                $specKey = (string) ($spec['key'] ?? '');
+                $specKeyForDisk = $specKey !== '' ? $specKey : null;
+                if ($this->variantExistsOnDisk($resolvedLang, $resolvedHash, $specKeyForDisk)) {
+                    $relative = $this->relativePathFor($resolvedLang, $resolvedHash, $specKeyForDisk);
+                    return [
+                        'success' => true,
+                        'exists' => true,
+                        'url' => AppQyV1SentenceAudioUrl::forRelative($relative),
+                        'hash' => $resolvedHash,
+                        'content_id' => $resolvedHash,
+                        'language' => $resolvedLang,
+                        'variant_key' => $specKey,
+                        'accent' => $spec['accent'],
+                        'tts_status' => $sentence?->tts_status,
+                        'audio_files' => $audioFilesPayload,
+                    ];
+                }
+            }
+        }
 
         // FILE-FIRST: stat the disk, honoring the extension preference order.
         $found = $this->findOnDisk($resolvedLang, $resolvedHash);
@@ -378,23 +493,46 @@ class AppQyV1SentenceAudioService
                 'hash' => $resolvedHash,
                 'content_id' => $resolvedHash,
                 'language' => $resolvedLang,
+                'tts_status' => $sentence?->tts_status ?? 'completed',
+                'audio_files' => $audioFilesPayload,
             ];
         }
 
-        // Missing on disk: mark the cache false and bump priority so workers pick it up.
+        // Missing on disk: ensure a LangSentence row exists so claim/bump can run.
+        // Book-reader resolve always sends text+language; without text we cannot
+        // create a row and must NOT pretend the sentence was queued.
+        $textTrimmed = ($text !== null) ? trim($text) : '';
+        if ($sentence === null && $textTrimmed !== '') {
+            $sentence = $this->ensureSentenceRow($resolvedHash, $resolvedLang, $textTrimmed);
+        }
+
         if ($sentence) {
             if ($sentence->has_audio || $sentence->audio !== null) {
                 $sentence->has_audio = false;
                 $sentence->audio = null;
                 $sentence->save();
             }
-            $this->bumpPriority($resolvedHash, $resolvedLang, true, true);
+            // Priority bump only — pycore tts_sentence_worker claims via tts_priority.
+            // Skip GlobalTask here to avoid racing translation_worker sentence_audio.
+            $this->bumpPriority($resolvedHash, $resolvedLang, false, true, $textTrimmed !== '' ? $textTrimmed : null);
+
+            return [
+                'success' => true,
+                'exists' => false,
+                'queued' => true,
+                'hash' => $resolvedHash,
+                'content_id' => $resolvedHash,
+                'language' => $resolvedLang,
+                'tts_status' => $sentence->tts_status,
+                'audio_files' => $audioFilesPayload,
+            ];
         }
 
         return [
             'success' => true,
             'exists' => false,
-            'queued' => true,
+            'queued' => false,
+            'error' => 'sentence_not_ingested',
             'hash' => $resolvedHash,
             'content_id' => $resolvedHash,
             'language' => $resolvedLang,
@@ -411,7 +549,8 @@ class AppQyV1SentenceAudioService
         string $contentId,
         string $language,
         bool $createTask = true,
-        bool $interactive = true
+        bool $interactive = true,
+        ?string $text = null
     ): array {
         $language = AppQyV1TableMaps::normalizeLangCode($language);
         if ($language === '' || !$this->tableExists($language)) {
@@ -419,9 +558,16 @@ class AppQyV1SentenceAudioService
         }
         $sentence = LangSentence::onLang($language)->where('content_id', $contentId)->first();
         if (!$sentence) {
+            $textTrimmed = ($text !== null) ? trim($text) : '';
+            if ($textTrimmed !== '') {
+                $sentence = $this->ensureSentenceRow($contentId, $language, $textTrimmed);
+            }
+        }
+        if (!$sentence) {
             return ['ok' => false, 'error' => 'Sentence not found'];
         }
-        if ($sentence->has_audio) {
+        $this->reconcilePartialRow($sentence, $language);
+        if (!$this->rowNeedsAudioWork($language, $sentence)) {
             return ['ok' => true, 'tts_priority' => (int) ($sentence->tts_priority ?? 0), 'already_done' => true];
         }
 
@@ -502,7 +648,7 @@ class AppQyV1SentenceAudioService
             if (!$this->tableExists($lang)) {
                 continue;
             }
-            $total += (int) LangSentence::onLang($lang)->where('has_audio', false)->count();
+            $total += $this->pendingCountForLanguage($lang);
         }
 
         $skip = ($page - 1) * $perPage;
@@ -515,21 +661,32 @@ class AppQyV1SentenceAudioService
             if (!$this->tableExists($lang)) {
                 continue;
             }
-            $langTotal = (int) LangSentence::onLang($lang)->where('has_audio', false)->count();
+            $langTotal = $this->pendingCountForLanguage($lang);
             if ($skip >= $langTotal) {
                 $skip -= $langTotal;
                 continue;
             }
             $rows = LangSentence::onLang($lang)
-                ->where('has_audio', false)
+                ->where(function ($q) {
+                    $q->where('has_audio', false)
+                        ->orWhereIn('tts_status', ['pending', 'failed']);
+                })
                 ->orderByDesc('tts_priority')
                 ->orderByDesc('occurrence_count')
                 ->orderBy('id')
                 ->skip($skip)
-                ->take($remaining)
-                ->get(['content_id', 'text', 'language', 'tts_priority', 'tts_status', 'tts_locked_by', 'occurrence_count']);
+                ->take($remaining * 4)
+                ->get(['content_id', 'text', 'language', 'tts_priority', 'tts_status', 'tts_locked_by', 'occurrence_count', 'has_audio', 'audio_files']);
             $skip = 0;
             foreach ($rows as $row) {
+                if ($remaining <= 0) {
+                    break;
+                }
+                $this->reconcilePartialRow($row, $lang);
+                if (!$this->rowNeedsAudioWork($lang, $row)) {
+                    continue;
+                }
+                $missing = $this->missingVariantsForRow($lang, $row);
                 $items[] = [
                     'content_id' => (string) $row->content_id,
                     'text' => (string) $row->text,
@@ -538,6 +695,7 @@ class AppQyV1SentenceAudioService
                     'tts_status' => (string) ($row->tts_status ?? 'pending'),
                     'tts_locked_by' => $row->tts_locked_by,
                     'occurrence_count' => (int) ($row->occurrence_count ?? 0),
+                    'missing_variants' => array_map(fn ($v) => $v['key'] ?? '', $missing),
                 ];
                 $remaining--;
             }
@@ -549,6 +707,28 @@ class AppQyV1SentenceAudioService
             'per_page' => $perPage,
             'items' => $items,
         ];
+    }
+
+    /** @return array<int,array<string,mixed>> */
+    private function formatAudioFilesForApi(LangSentence $sentence): array
+    {
+        $rows = AppQyV1SentenceAudioFiles::list($sentence);
+        $out = [];
+        foreach ($rows as $row) {
+            $path = is_string($row['path'] ?? null) ? $row['path'] : '';
+            $out[] = [
+                'variant_key' => $row['variant_key'] ?? '',
+                'accent' => $row['accent'] ?? null,
+                'gender' => $row['gender'] ?? null,
+                'source' => $row['source'] ?? null,
+                'voice_type' => $row['voice_type'] ?? null,
+                'provider' => $row['provider'] ?? null,
+                'path' => $path,
+                'has_file' => (bool) ($row['has_file'] ?? false),
+                'url' => $path !== '' ? AppQyV1SentenceAudioUrl::forRelative($path) : null,
+            ];
+        }
+        return $out;
     }
 
     /** Relative audio path for a content_id + optional variant suffix. */
@@ -601,6 +781,61 @@ class AppQyV1SentenceAudioService
         return LangSentence::onLang($language)->where('content_id', $contentId)->first();
     }
 
+    /**
+     * Insert or refresh a LangSentence row for book-reader / interactive resolve.
+     * Mirrors MediaIngestService::upsertLangSentence fill-missing semantics so
+     * pycore tts_sentence_worker can claim the row on the next poll.
+     */
+    private function ensureSentenceRow(string $contentId, string $language, string $text): ?LangSentence
+    {
+        if (!$this->tableExists($language)) {
+            return null;
+        }
+
+        $existing = LangSentence::onLang($language)->where('content_id', $contentId)->first();
+        if ($existing) {
+            $existing->occurrence_count = (int) ($existing->occurrence_count ?? 0) + 1;
+            if ($this->isEmptyValue($existing->getAttribute('text'))) {
+                $existing->text = $text;
+            }
+            $existing->save();
+            return $existing;
+        }
+
+        $model = LangSentence::for($language);
+        $model->fill([
+            'content_id' => $contentId,
+            'sentence_id' => MediaIngestService::computeSentenceId($text, $language),
+            'corr_id' => 'reader|' . $contentId,
+            'text' => $text,
+            'language' => $language,
+            'occurrence_count' => 1,
+            'has_audio' => false,
+            'tts_priority' => self::PRIORITY_DEFAULT,
+            'tts_status' => 'pending',
+        ]);
+        $model->save();
+
+        Log::info('[SentenceAudio] Ensured sentence row for reader resolve', [
+            'content_id' => $contentId,
+            'language' => $language,
+        ]);
+
+        return $model;
+    }
+
+    /** True when a stored anchor/text field is empty (fill-missing only). */
+    private function isEmptyValue(mixed $value): bool
+    {
+        if ($value === null) {
+            return true;
+        }
+        if (is_string($value)) {
+            return trim($value) === '';
+        }
+        return false;
+    }
+
     /** Reconcile the cache for a sentence whose file is confirmed present. */
     private function reconcilePresent(LangSentence $sentence, string $relativePath): void
     {
@@ -618,7 +853,7 @@ class AppQyV1SentenceAudioService
     // Counts (FE summary) + lease bookkeeping (tts_* columns)
     // ------------------------------------------------------------------
 
-    /** Sentences still needing audio (has_audio=false), optionally per-language. */
+    /** Sentences still needing one or more audio variants, optionally per-language. */
     public function pendingCount(?string $language = null): int
     {
         $total = 0;
@@ -626,9 +861,19 @@ class AppQyV1SentenceAudioService
             if (!$this->tableExists($lang)) {
                 continue;
             }
-            $total += (int) LangSentence::onLang($lang)->where('has_audio', false)->count();
+            $total += $this->pendingCountForLanguage($lang);
         }
         return $total;
+    }
+
+    private function pendingCountForLanguage(string $lang): int
+    {
+        return (int) LangSentence::onLang($lang)
+            ->where(function ($q) {
+                $q->where('has_audio', false)
+                    ->orWhereIn('tts_status', ['pending', 'failed']);
+            })
+            ->count();
     }
 
     /**
@@ -648,7 +893,10 @@ class AppQyV1SentenceAudioService
             // A lease is live when: an assist owner locked it after assistCutoff,
             // OR any owner locked it after the (stricter) local cutoff.
             $total += (int) LangSentence::onLang($lang)
-                ->where('has_audio', false)
+                ->where(function ($q) {
+                    $q->where('has_audio', false)
+                        ->orWhereIn('tts_status', ['pending', 'failed', 'processing']);
+                })
                 ->whereNotNull('tts_locked_at')
                 ->where(function ($q) use ($localCutoff, $assistCutoff) {
                     $q->where('tts_locked_at', '>=', $localCutoff)

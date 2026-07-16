@@ -14,6 +14,12 @@ from pycore.pyutils.native_ui.step0_i18n import i18n
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
 
+from pycore.pyutils.codesync import get_code_sync_manager
+
+from pycore.callmodule.platform import system_service_manager as ssm
+
+
+
 IS_WINDOWS = platform.system() == 'Windows'
 IS_LINUX = platform.system() == 'Linux'
 
@@ -21,6 +27,64 @@ IS_LINUX = platform.system() == 'Linux'
 # emitted as f"{TRAY_SET_LANGUAGE_SIGNAL}.{code}" (handlers registered in
 # event_handlers.py from the same supported-languages list).
 TRAY_SET_LANGUAGE_SIGNAL = "tray_action_set_language"
+TRAY_TOGGLE_CODE_SYNC_DISTRIBUTE_SIGNAL = "tray_action_toggle_code_sync_distribute"
+TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL = "tray_action_toggle_code_sync_skip_update"
+
+
+def _lazy_code_sync_manager():
+    """Lazy import so tray_menu stays import-light at module load."""
+    return get_code_sync_manager()
+
+
+def build_code_sync_submenu() -> List[TrayMenuItem]:
+    """
+    Code Sync toggles backed by the same CodeSyncManager singleton as the UI API.
+
+    Distribute applies only on dev role; skip-update applies only on client role.
+    State getters read the manager directly so tray and UI stay in sync.
+    """
+
+    def get_distribute_state():
+        try:
+            mgr = _lazy_code_sync_manager()
+            return "[X]" if mgr.is_distributing() else "[ ]"
+        except Exception:
+            return "[ ]"
+
+    def get_skip_update_state():
+        try:
+            mgr = _lazy_code_sync_manager()
+            return "[X]" if mgr.is_skip_update() else "[ ]"
+        except Exception:
+            return "[ ]"
+
+    def distribute_enabled():
+        try:
+            return _lazy_code_sync_manager().get_role() == "dev"
+        except Exception:
+            return False
+
+    def skip_update_enabled():
+        try:
+            mgr = _lazy_code_sync_manager()
+            return mgr.get_role() == "client" and not mgr.light
+        except Exception:
+            return False
+
+    return [
+        TrayMenuItem(
+            text=I18nKeys.TRAY_MENU_CODE_SYNC_DISTRIBUTE,
+            action_signal=TRAY_TOGGLE_CODE_SYNC_DISTRIBUTE_SIGNAL,
+            state_getter=get_distribute_state,
+            enabled_getter=distribute_enabled,
+        ),
+        TrayMenuItem(
+            text=I18nKeys.TRAY_MENU_CODE_SYNC_SKIP_UPDATE,
+            action_signal=TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL,
+            state_getter=get_skip_update_state,
+            enabled_getter=skip_update_enabled,
+        ),
+    ]
 
 
 def build_language_submenu() -> List[TrayMenuItem]:
@@ -75,7 +139,6 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
         try:
             if not IS_LINUX:
                 return "[ ]"
-            from pycore.callmodule.platform import system_service_manager as ssm
             return "[X]" if ssm.pycore_service_enabled() else "[ ]"
         except Exception:
             return "[ ]"
@@ -118,6 +181,11 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
             text=I18nKeys.TRAY_MENU_PYCORE_UI,
             action_signal="tray_action_toggle_voice_subtitle",
             state_getter=get_voice_subtitle_state
+        ),
+        TrayMenuItem(
+            text=I18nKeys.TRAY_MENU_CODE_SYNC,
+            action_signal="",
+            submenu=build_code_sync_submenu(),
         ),
     ])
 
@@ -183,7 +251,7 @@ def tray_menu_to_dicts(items: List[TrayMenuItem]) -> List[Dict[str, Any]]:
             'separator': False,
             'text': item.get_display_text(),
             'action_signal': item.action_signal or "",
-            'enabled': item.enabled,
+            'enabled': item.is_enabled(),
         }
         if item.submenu:
             entry['children'] = tray_menu_to_dicts(item.submenu)

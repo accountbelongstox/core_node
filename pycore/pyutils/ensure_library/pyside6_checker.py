@@ -15,6 +15,9 @@ from pathlib import Path
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon import Commander
 
+from pycore.pyfoundations.third_party import get_third_package_pyside6
+
+
 
 def check_pyside6_installed():
     """
@@ -26,7 +29,6 @@ def check_pyside6_installed():
     ColorPrint.blue("[PySide6Checker] Checking PySide6 installation...")
 
     # Import PySide6 using lazy loader
-    from pycore.pyfoundations.third_party import get_third_package_pyside6
 
     PySide6 = get_third_package_pyside6()
 
@@ -135,7 +137,6 @@ def check_qtwebengine_features():
     }
 
     # Try to import QtWebEngine
-    from pycore.pyfoundations.third_party import get_third_package_pyside6
     PySide6 = get_third_package_pyside6()
 
     if not PySide6:
@@ -143,7 +144,6 @@ def check_qtwebengine_features():
 
     # Check if QtWebEngineCore is available
     try:
-        from PySide6 import QtWebEngineCore
         features['webengine_available'] = True
         ColorPrint.green("[PySide6Checker] ✓ QtWebEngine available")
 

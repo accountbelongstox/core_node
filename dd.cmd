@@ -18,7 +18,9 @@ rem Minimal, clean bootstrap for dd.ps1 with remote installer fallback
 rem Basics
 set "original_dir=%cd%"
 set "script_dir=%~dp0"
-set "local_root=%USERPROFILE%\.core_node\"
+rem Mirrors GlobalVars.ps1 $Global:USER_DIR (D:\programing\Users\<user>\.core_node).
+rem dd.cmd is the pre-PS1 bootstrap, so it cannot source GlobalVars.ps1.
+set "local_root=D:\programing\Users\%USERNAME%\.core_node\"
 set "remote_base_url=https://gitee.com/accountbelongstox/core_node/raw/main"
 
 rem Local project script

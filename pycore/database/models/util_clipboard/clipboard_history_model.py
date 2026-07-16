@@ -14,6 +14,9 @@ from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
 from pycore.database.base_model import BaseModel
 from pycore.database.models import TableNamespaces, TableKeys
 
+import time
+
+
 sqlalchemy = get_third_package_sqlalchemy()
 
 
@@ -103,7 +106,6 @@ class ClipboardHistoryModel(BaseModel):
         Returns:
             Item ID or None if duplicate
         """
-        import time
 
         # Calculate hash
         content_hash = cls.calculate_content_hash(content)
@@ -253,7 +255,6 @@ class ClipboardHistoryModel(BaseModel):
         Returns:
             Number of deleted items
         """
-        import time
         threshold = time.time() - (days * 24 * 60 * 60)
 
         # Custom delete query for < condition

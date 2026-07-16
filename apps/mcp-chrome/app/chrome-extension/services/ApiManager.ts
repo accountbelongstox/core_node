@@ -60,6 +60,20 @@ export class ApiManager {
 
     this.autoMode = settings.autoMode === true;
 
+    const hasSelection = !!(settings.userSelectedEndpointId || settings.autoDetectedEndpointId);
+    if (!hasSelection && !this.autoMode) {
+      const defaultEndpoint = this.resolveEndpoint('remote-laravel');
+      if (defaultEndpoint) {
+        this.currentEndpoint = defaultEndpoint;
+        await this.saveSettings({
+          userSelectedEndpointId: 'remote-laravel',
+          autoMode: false,
+        });
+        console.log('[API Manager] First-run default endpoint: remote-laravel');
+        if (!options.autoDetect) return;
+      }
+    }
+
     // A manual selection only wins while auto mode is OFF. In auto mode we fall
     // through to the last auto-detected endpoint (a provisional starting point)
     // and let the caller re-pick the best available.
@@ -85,7 +99,7 @@ export class ApiManager {
     }
 
     if (!this.currentEndpoint && this.getAllEndpoints().length > 0) {
-      this.currentEndpoint = this.getAllEndpoints()[0];
+      this.currentEndpoint = this.resolveEndpoint('remote-laravel') || this.getAllEndpoints()[0];
     }
   }
 
@@ -289,8 +303,8 @@ export class ApiManager {
 
   getCurrentBaseUrl(): string {
     if (!this.currentEndpoint) {
-      console.warn('[API Manager] No endpoint set, using first available');
-      this.currentEndpoint = this.getAllEndpoints()[0];
+      console.warn('[API Manager] No endpoint set, using default remote-laravel');
+      this.currentEndpoint = this.resolveEndpoint('remote-laravel') || this.getAllEndpoints()[0];
     }
 
     return buildApiUrl(this.currentEndpoint);

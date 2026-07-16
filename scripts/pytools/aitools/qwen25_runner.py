@@ -15,20 +15,37 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from hf_secret import ensure_hf_token
 
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..'))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+from pycore.pyutils.common.hf_local_weights import resolve_model_id
+
+_QWEN25_DEFAULT_REPO = "Qwen/Qwen2.5-0.5B-Instruct"
+
+
+def _resolve_model(model_name=None):
+    """Pre-downloaded local weights (Step38 idempotent install) when available,
+    else the HF repo id. An explicit model_name always wins."""
+    if model_name:
+        return model_name
+    return resolve_model_id("QWEN25_DIR", "qwen25", _QWEN25_DEFAULT_REPO)
+
+
 ensure_hf_token()
 
 
-def test_model(model_name='Qwen/Qwen2.5-0.5B-Instruct', test_prompt=None):
+def test_model(model_name=None, test_prompt=None):
     """
     Validate Qwen2.5 model loading and generation
 
     Args:
-        model_name: HuggingFace model name
+        model_name: HuggingFace model name or local weights dir (default: project staging -> HF repo id)
         test_prompt: Optional test prompt (defaults to a simple introduction)
 
     Returns:
         bool: True if validation succeeded, False otherwise
     """
+    model_name = _resolve_model(model_name)
     try:
         os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
         os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
@@ -37,7 +54,7 @@ def test_model(model_name='Qwen/Qwen2.5-0.5B-Instruct', test_prompt=None):
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         print(f'[INFO] Model: {model_name}')
-        print('[INFO] First run will download model from HuggingFace (~1GB)')
+        print('[INFO] Local staged weights used when present; else downloads from HuggingFace (~1GB)')
         print('[INFO] Download timeout: 3600s (1 hour)')
         print('[INFO] This may take a few minutes...')
         print()
@@ -98,13 +115,14 @@ def test_model(model_name='Qwen/Qwen2.5-0.5B-Instruct', test_prompt=None):
         return False
 
 
-def interactive_chat(model_name='Qwen/Qwen2.5-0.5B-Instruct'):
+def interactive_chat(model_name=None):
     """
     Start an interactive chat session
 
     Args:
-        model_name: HuggingFace model name
+        model_name: HuggingFace model name or local weights dir (default: project staging -> HF repo id)
     """
+    model_name = _resolve_model(model_name)
     try:
         os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
 
@@ -187,11 +205,12 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Qwen2.5-0.5B-Instruct Model Runner')
-    parser.add_argument('--model', default='Qwen/Qwen2.5-0.5B-Instruct', help='Model name')
+    parser.add_argument('--model', default=None, help='Model name or local weights dir (default: project staging -> Qwen/Qwen2.5-0.5B-Instruct)')
     parser.add_argument('--chat', action='store_true', help='Start interactive chat')
     parser.add_argument('--prompt', default=None, help='Validation prompt')
 
     args = parser.parse_args()
+    args.model = _resolve_model(args.model)
 
     if args.chat:
         interactive_chat(args.model)

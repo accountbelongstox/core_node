@@ -13,9 +13,9 @@
 # Environment Detection Module (Windows PowerShell)
 # All code is in English only.
 
-# Ensure cache directory
-$script:userProfile = [Environment]::GetFolderPath("UserProfile")
-$script:cacheRoot = Join-Path $script:userProfile ".core_node\cache"
+# Ensure cache directory (centralized via SharedCacheEnv.ps1 $Global:WWW_CACHE_DIR;
+# literal fallback mirrors it for loaders that have not sourced SharedCacheEnv).
+$script:cacheRoot = if ($Global:WWW_CACHE_DIR) { $Global:WWW_CACHE_DIR } else { 'D:\www\cache' }
 if (-not (Test-Path $script:cacheRoot)) {
     New-Item -ItemType Directory -Path $script:cacheRoot -Force | Out-Null
 }

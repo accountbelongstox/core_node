@@ -9,6 +9,10 @@ from pathlib import Path
 
 from pycore.pyfoundations.system_paths import get_app_temp_dir
 
+from pycore.pyfoundations.third_party import get_third_package_pdfplumber
+from pycore.pyfoundations.third_party import get_third_package_openpyxl
+
+
 
 class FileProcessor:
     """Processor for file analysis (PDF, DOCX, XLSX, etc.)"""
@@ -76,7 +80,7 @@ class FileProcessor:
     def _analyze_pdf(self, file_path: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze PDF file"""
         try:
-            import pdfplumber
+            pdfplumber = get_third_package_pdfplumber()
 
             with pdfplumber.open(file_path) as pdf:
                 # Extract metadata
@@ -129,7 +133,6 @@ class FileProcessor:
     def _analyze_docx(self, file_path: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze DOCX file"""
         try:
-            from docx import Document
 
             doc = Document(file_path)
 
@@ -168,7 +171,7 @@ class FileProcessor:
     def _analyze_xlsx(self, file_path: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze XLSX file"""
         try:
-            import openpyxl
+            openpyxl = get_third_package_openpyxl()
 
             wb = openpyxl.load_workbook(file_path, data_only=True)
 

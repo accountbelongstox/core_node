@@ -133,9 +133,8 @@ def set_json(namespace: str, value: Any, *parts: Any,
 # --------------------------------------------------------------------------- #
 # Binary cache (large results: cover/poster images, TTS audio)                 #
 # --------------------------------------------------------------------------- #
-def get_bytes(namespace: str, *parts: Any, version: str = "1") -> Optional[Tuple[bytes, Dict[str, Any]]]:
-    """Return (data, meta) for these key parts, or None (miss/expired). ``meta``
-    carries whatever was stored at set time (mime, provider, ...)."""
+def get_bytes_path(namespace: str, *parts: Any, version: str = "1") -> Optional[str]:
+    """Return the on-disk path for a cached binary entry, or None (miss/expired)."""
     try:
         h = _key_hash(parts, version)
         ns_dir = _ns_dir(namespace)
@@ -146,7 +145,23 @@ def get_bytes(namespace: str, *parts: Any, version: str = "1") -> Optional[Tuple
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         if not isinstance(meta, dict) or _expired(meta):
             return None
-        return bin_path.read_bytes(), meta
+        return str(bin_path)
+    except Exception as e:  # noqa: BLE001
+        ColorPrint.yellow(f"[result_cache] get_bytes_path {namespace} failed: {e}")
+        return None
+
+
+def get_bytes(namespace: str, *parts: Any, version: str = "1") -> Optional[Tuple[bytes, Dict[str, Any]]]:
+    """Return (data, meta) for these key parts, or None (miss/expired). ``meta``
+    carries whatever was stored at set time (mime, provider, ...)."""
+    try:
+        bin_path = get_bytes_path(namespace, *parts, version=version)
+        if not bin_path:
+            return None
+        h = _key_hash(parts, version)
+        meta_path = _ns_dir(namespace) / f"{h}.meta.json"
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        return Path(bin_path).read_bytes(), meta
     except Exception as e:  # noqa: BLE001
         ColorPrint.yellow(f"[result_cache] get_bytes {namespace} failed: {e}")
         return None
@@ -226,4 +241,6 @@ def clear(namespace: Optional[str] = None) -> int:
     return removed
 
 
-__all__ = ["get_json", "set_json", "get_bytes", "set_bytes", "stats", "clear"]
+__all__ = [
+    "get_json", "set_json", "get_bytes", "get_bytes_path", "set_bytes", "stats", "clear",
+]

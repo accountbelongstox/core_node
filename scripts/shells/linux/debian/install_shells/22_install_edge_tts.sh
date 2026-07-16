@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 # 1. Write all code in English only.
@@ -24,7 +24,7 @@ source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 # Single source of truth for the edge-tts prerequisite (DEFAULT text-to-speech
 # engine for the pycore voice-subtitle pipeline) on Linux/macOS. Prefix 21 sorts
 # AFTER 13_ensure_python.sh in install.sh's numeric-ordered run, so pip is ready.
-# Also invoked directly by scripts/shells/linux/common/iniscripts/install_edge_tts.sh (the
+# Also invoked by prepare_pycore_prerequisites.sh (pyservice).
 # pyservice prerequisite reference) to keep one copy of the logic.
 #
 # LATEST VERSION (>= 7.2.4): the NoAudioReceived "fix" of pinning 7.2.1 was a
@@ -37,6 +37,8 @@ source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 #   - install.sh flow:  23_install_edge_tts.sh             (no args; resolves python)
 #   - pyservice flow:   23_install_edge_tts.sh --python <py> [--force]
 set -uo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
 
 # Serialize pip into the shared venv (safe under the parallel install driver). Defensive.
 PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
@@ -95,7 +97,7 @@ echo "============================================================"
 # --- 0) resolve python (13_ensure_python.sh has already run in install flow) --- #
 if ! PYTHON="$(resolve_python "$PYTHON")"; then
     echo "[X] Python 3 was NOT found. Run 13_ensure_python.sh first, or pass --python <path>." >&2
-    exit 1
+    complete_prereq_step "$PYTHON" "" edge_tts
 fi
 echo "  python : $PYTHON"
 
@@ -109,7 +111,7 @@ ver_ge() {
 CURRENT_VERSION="$(edge_tts_version)"
 if [[ -n "$CURRENT_VERSION" && "$FORCE" -eq 0 ]] && ver_ge "$CURRENT_VERSION" "$MIN_VERSION"; then
     echo "[OK] edge-tts ${CURRENT_VERSION} is current (>= ${MIN_VERSION}); skipping pip."
-    exit 0
+    complete_prereq_step "$PYTHON" "" edge_tts
 fi
 
 if [[ -n "$CURRENT_VERSION" ]]; then
@@ -126,11 +128,11 @@ if ! vpip "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
     echo "[run] $PYTHON -m pip install --upgrade edge-tts"
     if ! vpip "$PYTHON" -m pip install --upgrade edge-tts; then
         echo "[!] edge-tts install did not complete cleanly; pycore will install it at import time."
-        exit 0
+        complete_prereq_step "$PYTHON" "" edge_tts
     fi
 fi
 
 CURRENT_VERSION="$(edge_tts_version)"
 echo "[OK] edge-tts ${CURRENT_VERSION} installed."
 
-exit 0
+complete_prereq_step "$PYTHON" "" edge_tts

@@ -14,8 +14,8 @@ Schema:
 
 The file is replicated across machines over the mesh (see peer_mesh.py) using
 last-writer-wins on (version, updated_at). It is EXCLUDED from the bulk code
-file-sync so the two mechanisms don't fight. The per-session "distributing" flag
-is NOT stored here (it must reset to off on every startup).
+file-sync so the two mechanisms don't fight. Runtime toggles (distributing,
+skip_update) live in runtime_prefs.json under .data, not here.
 
 Stdlib only: identity / lan-ip / paths come from `.runtime` (no pycore import).
 """
@@ -105,6 +105,9 @@ class PeerConfig:
                             f"({len(data.get('peers', []))} peers, v{data.get('version', 0)})")
             # Make sure this machine has an entry (defaults to client = receives).
             self._ensure_self_locked()
+            # Drop stale-id self duplicates left by a machine-id change, migrating
+            # any saved role onto the current entry (runs once on first load).
+            self.prune_self_duplicates()
             return self._data
 
     def _save_locked(self) -> None:
@@ -177,16 +180,33 @@ class PeerConfig:
             return self._is_self_peer_unlocked(peer)
 
     def prune_self_duplicates(self) -> bool:
-        """Drop extra peer rows that point at this machine; keep the machine_id row."""
+        """Drop extra peer rows that point at this machine; keep the machine_id row.
+
+        A stale self entry left under an OLD machine_id (e.g. after the
+        SMBIOS/registry id rewrite 8ac097709) used to be silently dropped,
+        stranding the user's saved role and resetting the machine to 'client'
+        on every load (greyed-out tray Distribute, code sync broken). Before
+        dropping such a stale row, migrate a deliberate (non-default) role onto
+        the current self entry when it is still the default 'client' seed, so a
+        saved 'dev' survives a machine-id change. 'client' is never migrated
+        (it is the default seed, indistinguishable from a user-set client)."""
         with self._lock:
             self._ensure_loaded()
             peers = self._data.get("peers", [])
+            self_entry = next((p for p in peers if p.get("id") == self.machine_id), None)
             kept: List[Dict[str, Any]] = []
             changed = False
+            migrated = False
             for p in peers:
                 if p.get("id") == self.machine_id:
                     kept.append(p)
                 elif self._is_self_peer_unlocked(p):
+                    if (self_entry is not None
+                            and p.get("role") in VALID_ROLES
+                            and p.get("role") != "client"
+                            and self_entry.get("role") == "client"):
+                        self_entry["role"] = p.get("role")
+                        migrated = True
                     changed = True
                 else:
                     kept.append(p)
@@ -195,6 +215,8 @@ class PeerConfig:
             self._data["peers"] = kept
             self._bump_locked()
             self._save_locked()
+            if migrated:
+                ColorPrint.green("[PeerConfig] Migrated saved role from a stale-id self entry")
             return True
 
     def get_role(self) -> str:

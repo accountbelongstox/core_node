@@ -138,6 +138,32 @@ class AppQyV1TableMaps
         ]
     ];
 
+    public const app_qy_v1_USER_BOOK_READING_PROGRESS = [
+        'tablename' => 'user_book_reading_progress',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'source_key' => 'source_key',
+            'chapter_index' => 'chapter_index',
+            'verse_seq' => 'verse_seq',
+            'grain' => 'grain',
+            'page' => 'page',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at',
+        ]
+    ];
+
+    public const app_qy_v1_CLIENT_DEVICE_SETTINGS = [
+        'tablename' => 'client_device_settings',
+        'fields' => [
+            'id' => 'id',
+            'client_key' => 'client_key',
+            'settings' => 'settings',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at',
+        ]
+    ];
+
     public const app_qy_v1_USER_LEARNING_PROGRESS = [
         'tablename' => 'user_learning_progress',
         'fields' => [
@@ -584,6 +610,7 @@ class AppQyV1TableMaps
             "{$prefix}_PERSONAL_DICTIONARY_ENTRIES",
             "{$prefix}_WORD_GROUPS",
             "{$prefix}_GROUP_WORD_PROGRESS",
+            "{$prefix}_USER_BOOK_READING_PROGRESS",
             "{$prefix}_USER_LEARNING_PROGRESS",
             "{$prefix}_USER_FOLLOWS",
             "{$prefix}_DAILY_RECITATION_LOGS",

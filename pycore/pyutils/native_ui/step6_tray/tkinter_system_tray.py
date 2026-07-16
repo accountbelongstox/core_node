@@ -91,6 +91,7 @@ class TrayMenuItem:
         submenu: Optional list of submenu items
         checked: Optional checked state (None = no checkbox, True = checked, False = unchecked)
         state_getter: Optional callable that returns current state for dynamic updates
+        enabled_getter: Optional callable that returns whether the item is enabled
         text_args: Optional format args applied to the (translated) text, e.g.
                    text="tray.menu.rpc_server" + text_args={"port": 59000} with the
                    translation "RPC v2 Server: {port}"
@@ -103,7 +104,17 @@ class TrayMenuItem:
     submenu: Optional[List['TrayMenuItem']] = None
     checked: Optional[bool] = None
     state_getter: Optional[Callable] = None
+    enabled_getter: Optional[Callable] = None
     text_args: Optional[dict] = None
+
+    def is_enabled(self) -> bool:
+        """Resolve enabled state; enabled_getter wins when provided."""
+        if self.enabled_getter is not None:
+            try:
+                return bool(self.enabled_getter())
+            except Exception:
+                return self.enabled
+        return self.enabled
 
     def get_display_text(self) -> str:
         """
@@ -251,7 +262,7 @@ class TkinterSystemTray:
             return pystray.MenuItem(
                 text=item.get_display_text(),
                 action=submenu,  # Menu object as action creates a submenu
-                enabled=item.enabled
+                enabled=item.is_enabled()
             )
 
         # Create menu item with callback
@@ -283,7 +294,7 @@ class TkinterSystemTray:
         return pystray.MenuItem(
             text=item.get_display_text(),
             action=callback,
-            enabled=item.enabled,
+            enabled=item.is_enabled(),
             default=item.default,
             checked=checked_func
         )

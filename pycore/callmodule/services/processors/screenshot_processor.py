@@ -23,6 +23,9 @@ try:
 except ImportError:
     PIL_AVAILABLE = False
 
+from pycore.callmodule.services.processors.ocr_processor import OCRProcessor
+
+
 
 class ScreenshotProcessor:
     """Processor for screenshot capture"""
@@ -121,7 +124,6 @@ class ScreenshotProcessor:
             # Optionally perform OCR
             if auto_ocr:
                 try:
-                    from .ocr_processor import OCRProcessor
                     ocr_processor = OCRProcessor()
                     ocr_result = ocr_processor.process_image(str(file_path), {})
                     result["ocr_result"] = ocr_result

@@ -51,8 +51,8 @@ export type {
 // auto-select + offline retry). Used by the Settings → API Server panel and the
 // http impl. Mock mode ignores it (no network).
 export {
-  wfNewEndpoints, WFNEW_API_HEALTH_EVENT, WFNEW_API_PORT, buildEndpointUrl, CURRENT_URL_TYPE,
-  isCurrentUrlId,
+  wfNewEndpoints, WFNEW_API_HEALTH_EVENT, WFNEW_API_PORT,
+  buildEndpointUrl, CURRENT_URL_TYPE, isCurrentUrlId,
 } from './WfNewEndpoints';
 export { useWfNewEndpoints } from './useWfNewEndpoints';
 

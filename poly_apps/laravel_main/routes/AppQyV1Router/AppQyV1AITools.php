@@ -9,6 +9,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSQueueController
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSWorkerController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1WordImageQueueController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1SentenceAudioController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TtsVariantSpecController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1ArticleController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1AIStatusController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TaskEnqueueController;
@@ -100,10 +101,19 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         Route::get('/sentence/audio', [AppQyV1SentenceAudioController::class, 'audio']);
         Route::post('/sentence/bump', [AppQyV1SentenceAudioController::class, 'bump']);
         Route::get('/sentence/missing', [AppQyV1SentenceAudioController::class, 'missing']);
+
+        // Voice-variant specs CRUD (per-lang accent/gender voices). Drives the
+        // "N voices per sentence/word" default; count is dynamic via
+        // variantsForLanguage(). pycore proxies these via /api/local/sentence-audio/variants.
+        Route::get('/variant-specs', [AppQyV1TtsVariantSpecController::class, 'index']);
+        Route::post('/variant-specs', [AppQyV1TtsVariantSpecController::class, 'store']);
+        Route::delete('/variant-specs', [AppQyV1TtsVariantSpecController::class, 'destroy']);
     });
 
     Route::prefix('article')->group(function () {
         Route::get('/task/{taskId}', [AppQyV1ArticleController::class, 'getTaskStatus']);
+        Route::post('/worker/submit', [AppQyV1ArticleController::class, 'workerSubmit']);
+        Route::get('/worker/recent', [AppQyV1ArticleController::class, 'workerRecent']);
     });
 
     // Word-image queue intake (P3). Mirrors the TTS queue batch/add: a re-request

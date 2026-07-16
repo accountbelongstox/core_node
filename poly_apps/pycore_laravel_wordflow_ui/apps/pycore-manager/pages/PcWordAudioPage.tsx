@@ -1,6 +1,6 @@
 /**
  * PcWordAudioPage — pycore word-audio (real pronunciation lookup) over the
- * /pyapi proxy: report which real-pronunciation sources are wired, then run a
+ * Direct :59000: report which real-pronunciation sources are wired, then run a
  * live fetch of a single word's pronunciation and play it back.
  *
  * Mirrors PcSubtitleSearchPage's "status card + test form" shape, and reuses
@@ -48,6 +48,10 @@ const L = {
   forvoPresent: 'Configured',                                        // 已配置
   forvoMissing: 'Not set',                                           // 未配置
   forvoHint: 'Set FORVO_API_KEY in the Special Software environment manager to enable Forvo.',
+  streamelementsKey: 'StreamElements key',
+  streamelementsPresent: 'Configured',
+  streamelementsMissing: 'Not set',
+  streamelementsHint: 'Set STREAMELEMENTS_API_KEY in the Special Software environment manager (.secret_keys/.secret_ignore) to enable the streamelements TTS engine.',
   ttsFallback: 'TTS fallback',                                       // TTS 回退
   ttsFallbackNote: 'TTS is the last-resort fallback — a word with no real pronunciation is still spoken.',
   noSources: 'No sources reported.',                                // 无来源
@@ -204,6 +208,12 @@ export default function PcWordAudioPage() {
               </div>
             </div>
             <div>
+              <div className="text-slate-400 uppercase tracking-wider flex items-center gap-1"><KeyRound className="w-3 h-3" /> {L.streamelementsKey}</div>
+              <div className="font-mono text-slate-600 dark:text-slate-300">
+                {status ? (status.streamelements_key_present ? L.streamelementsPresent : L.streamelementsMissing) : L.notSet}
+              </div>
+            </div>
+            <div>
               <div className="text-slate-400 uppercase tracking-wider flex items-center gap-1"><AudioLines className="w-3 h-3" /> {L.ttsFallback}</div>
               <div className="font-mono text-slate-600 dark:text-slate-300">
                 {status ? (status.tts_fallback ? L.available : L.unavailable) : L.notSet}
@@ -212,6 +222,9 @@ export default function PcWordAudioPage() {
           </div>
           {status && !status.forvo_key_present && (
             <div className="mt-3 text-[10px] text-amber-500">{L.forvoHint}</div>
+          )}
+          {status && !status.streamelements_key_present && (
+            <div className="mt-3 text-[10px] text-amber-500">{L.streamelementsHint}</div>
           )}
           <div className="mt-3 flex items-start gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
             <Info className="w-3 h-3 mt-0.5 shrink-0" /> {L.ttsFallbackNote}

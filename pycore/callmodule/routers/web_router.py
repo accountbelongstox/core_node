@@ -12,6 +12,16 @@ from fastapi.staticfiles import StaticFiles
 
 from pycore import ColorPrint
 
+import platform
+import sys
+try:
+    from fastapi import HTTPException
+    _HTTPEXCEPTION_AVAILABLE = True
+except ImportError:
+    HTTPException = None
+    _HTTPEXCEPTION_AVAILABLE = False
+
+
 router = APIRouter(tags=["web"])
 
 # Mount static directory for desktop UI assets (CSS, JS)
@@ -246,8 +256,6 @@ async def get_api_info():
     Returns:
         JSONResponse: Detailed service information
     """
-    import platform
-    import sys
 
     return JSONResponse({
         "service": {
@@ -338,7 +346,6 @@ async def get_favicon():
             headers={"Cache-Control": "public, max-age=31536000"}
         )
     else:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Favicon not found")
 
 

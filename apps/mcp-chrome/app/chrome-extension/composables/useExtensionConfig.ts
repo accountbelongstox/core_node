@@ -79,6 +79,22 @@ const EXTENSION_REGISTRY: ExtensionRegistry = {
     iconBg: 'bg-purple-100',
     status: 'active',
   },
+  'web-search': {
+    id: 'web-search',
+    name: 'Web Search',
+    description: 'Google/Bing web, image & news search with CAPTCHA wait',
+    icon: '🔍',
+    iconBg: 'bg-amber-100',
+    status: 'active',
+  },
+  'qwen-tts': {
+    id: 'qwen-tts',
+    name: 'Qwen TTS',
+    description: 'Generate speech on Qwen3-TTS HuggingFace demo and download audio',
+    icon: '🎙️',
+    iconBg: 'bg-indigo-100',
+    status: 'active',
+  },
 };
 
 // ============================================================

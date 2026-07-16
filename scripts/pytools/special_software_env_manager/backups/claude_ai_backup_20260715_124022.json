@@ -1,0 +1,8 @@
+{
+  "config_name": "Claude AI",
+  "timestamp": "20260715_124022",
+  "platform": "windows",
+  "environment_variables": {
+    "ANTHROPIC_MODEL": "glm-5.2"
+  }
+}

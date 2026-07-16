@@ -13,7 +13,7 @@ flutter_icon_reduction/
 └── README.md                    # 本说明文件
 ```
 
-## 功能特性
+## Features
 
 - **多平台支持**: 支持Android和iOS平台
 - **智能尺寸分析**: 基于文件夹名称自动识别DPI级别
@@ -22,7 +22,7 @@ flutter_icon_reduction/
 - **占位图跳过**: 自动跳过1x1px的占位图像
 - **批量处理**: 详细的日志记录和错误处理
 
-## 使用方法
+## Usage
 
 ### 1. Android资产生成
 
@@ -38,7 +38,7 @@ cd scripts/flutter_icon_reduction
 python ios_asset_generator.py
 ```
 
-## 配置说明
+## Configuration
 
 ### 源图像目录
 
@@ -109,7 +109,7 @@ self.ios_mapping = {
 - `android_asset_mapping.json`: Android平台映射
 - `ios_asset_mapping.json`: iOS平台映射
 
-## 注意事项
+## Notes
 
 1. **不要运行脚本**: 在完全配置好之前，请不要运行这些脚本
 2. **备份重要文件**: 运行前请备份重要的图像文件
@@ -136,7 +136,7 @@ self.ios_mapping = {
 - Pillow (PIL) 库
 - 标准库：os, sys, re, pathlib, json, typing
 
-## 错误处理
+## Error Handling
 
 脚本包含完善的错误处理机制：
 - 文件不存在时的警告
@@ -144,7 +144,7 @@ self.ios_mapping = {
 - 压缩失败时的回退机制
 - 详细的日志记录
 
-## 许可证
+## License
 
 Flutter Asset Generator
 

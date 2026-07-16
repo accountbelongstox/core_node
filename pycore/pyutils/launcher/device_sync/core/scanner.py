@@ -22,6 +22,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from .logging import setup_logging
 from ..network_cache import NetworkCache
 
+from pycore.pyutils.launcher.device_sync.core.config import get_global_config
+
+
 logger = setup_logging(__name__)
 
 # Device sync service port
@@ -118,7 +121,6 @@ class SimpleDeviceScanner:
         self.last_scan_time = time.time()
 
         # Update global config
-        from .config import get_global_config
         config = get_global_config()
         config.update_online_devices(devices)
 
@@ -261,7 +263,6 @@ class SimpleDeviceScanner:
             force: Force scan even if recently scanned
             interval: Minimum interval between scans (seconds, default 60)
         """
-        from .config import get_global_config
         config = get_global_config()
 
         # Only scan in SECONDARY mode

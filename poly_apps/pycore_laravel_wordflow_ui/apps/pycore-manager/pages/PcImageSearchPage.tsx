@@ -3,7 +3,7 @@
  * side-by-side with an AI render of the SAME query, plus the search history.
  *
  * Mirrors PcTranslatePage's "compare a free source against AI on one input"
- * shape, over the pycore /pyapi proxy:
+ * shape, direct on pycore :59000:
  *
  *  1. Status — is the SerpApi key configured, the engine, the service URL and
  *     how many searches are in the shared history.

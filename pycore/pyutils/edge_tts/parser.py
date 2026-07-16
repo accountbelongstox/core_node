@@ -15,6 +15,10 @@ from urllib.parse import urlparse
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_requests
 
+import json
+from pycore.pyutils.common.tts_models import SentenceModel
+
+
 requests = get_third_package_requests()
 from pycore.pyutils.common.tts_models import DocumentModel
 from pycore.pyutils.edge_tts.processor import TTSProcessor
@@ -59,7 +63,6 @@ class TTSFileParser:
         
         if cache_file.exists():
             # Load from cache
-            import json
             with open(cache_file, 'r', encoding='utf-8') as f:
                 cached_data = json.load(f)
                 if cached_data.get('mtime') == file_path.stat().st_mtime:
@@ -113,7 +116,6 @@ class TTSFileParser:
         
         if cache_file.exists():
             # Load from cache
-            import json
             with open(cache_file, 'r', encoding='utf-8') as f:
                 cached_data = json.load(f)
                 return self._load_from_cache(cached_data)
@@ -175,7 +177,6 @@ class TTSFileParser:
     
     def _save_to_cache(self, document: DocumentModel, cache_file: Path, mtime: float):
         """Save document to cache"""
-        import json
         cache_data = {
             'md5': document.md5,
             'content': document.content,
@@ -200,7 +201,6 @@ class TTSFileParser:
     
     def _load_from_cache(self, cached_data: Dict[str, Any]) -> DocumentModel:
         """Load document from cache"""
-        from pycore.pyutils.common.tts_models import SentenceModel
         
         document = DocumentModel(
             content=cached_data['content'],

@@ -59,7 +59,34 @@ export class ServerManagerV1API extends BaseAPI {
   }
 
   async getStorage(): Promise<APIResponse> {
-    return this.get('/system/storage');
+    const response = await this.get('/system/storage');
+    const data = response.data as Record<string, unknown> | undefined;
+    if (response.success && data && !Array.isArray(data)) {
+      data.disk_usage_mounts = data.disk_usage ?? [];
+    }
+    return response;
+  }
+
+  async getStaticResourcesSummary(): Promise<APIResponse> {
+    return this.get('/system/static-resources');
+  }
+
+  async listStaticResourceFiles(params: {
+    path: string;
+    q?: string;
+    sort?: 'name' | 'size' | 'modified';
+    order?: 'asc' | 'desc';
+    page?: number;
+    per_page?: number;
+  }): Promise<APIResponse> {
+    return this.get('/system/static-resources/files', {
+      path: params.path,
+      q: params.q || undefined,
+      sort: params.sort || 'name',
+      order: params.order || 'asc',
+      page: params.page ?? 1,
+      per_page: params.per_page ?? 100,
+    });
   }
 
   // Alias methods for UI compatibility
@@ -107,8 +134,60 @@ export class ServerManagerV1API extends BaseAPI {
     return this.get('/files/info', { file_path: path });
   }
 
-  async previewFile(path: string): Promise<APIResponse> {
-    return this.get('/files/preview', { file_path: path });
+  async previewFile(path: string, options?: { forEdit?: boolean; maxLines?: number }): Promise<APIResponse> {
+    return this.get('/files/preview', {
+      file_path: path,
+      for_edit: options?.forEdit ? 1 : undefined,
+      max_lines: options?.maxLines,
+    });
+  }
+
+  async writeFile(
+    path: string,
+    content: string,
+    elevatedToken?: string | null,
+    encoding?: string
+  ): Promise<APIResponse> {
+    return this.request({
+      url: '/files/write',
+      method: 'POST',
+      data: { file_path: path, content, encoding: encoding || undefined },
+      headers: elevatedToken ? { 'X-Elevated-Token': elevatedToken } : undefined,
+    });
+  }
+
+  async elevatedAuth(password: string): Promise<APIResponse> {
+    return this.post('/files/elevated-auth', { password });
+  }
+
+  async revokeElevatedAuth(token?: string | null): Promise<APIResponse> {
+    return this.request({
+      url: '/files/elevated-auth',
+      method: 'DELETE',
+      headers: token ? { 'X-Elevated-Token': token } : undefined,
+    });
+  }
+
+  async downloadFileBlob(path: string): Promise<Blob> {
+    const url = this.addQueryParams(this.buildURL('/files/download'), { file_path: path });
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        ...this.headers,
+        'Cache-Control': 'no-cache',
+      },
+    });
+
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const payload = await response.json();
+        throw new Error(payload.message || payload.error || 'Download failed');
+      }
+      throw new Error(`Download failed (${response.status})`);
+    }
+
+    return response.blob();
   }
 
   // ========== Code Executor ==========
@@ -157,6 +236,18 @@ export class ServerManagerV1API extends BaseAPI {
     return this.delete(`/nginx/sites/${siteName}`);
   }
 
+  /**
+   * Purge a site's actual web-root FILES (deleteNginxSite only removes the
+   * nginx config). Destructive: requires the root password AND typing "delete"
+   * to confirm. core_node is never deletable (server-enforced).
+   */
+  async deleteNginxSiteFiles(
+    siteName: string,
+    payload: { password: string; confirm: string },
+  ): Promise<APIResponse> {
+    return this.post(`/nginx/sites/${siteName}/delete-files`, payload);
+  }
+
   async enableNginxSite(siteName: string): Promise<APIResponse> {
     return this.post('/nginx/enable', { site_name: siteName });
   }
@@ -171,6 +262,16 @@ export class ServerManagerV1API extends BaseAPI {
 
   async reloadNginx(): Promise<APIResponse> {
     return this.post('/nginx/reload');
+  }
+
+  /**
+   * Idempotently repair + reset all nginx config: ensure runtime dirs (log/run),
+   * quarantine broken site configs until `nginx -t` passes, then reload. Use
+   * after add/delete or when the config test / restart fails (e.g. missing
+   * /var/log/nginx/error.log).
+   */
+  async repairNginxConfig(): Promise<APIResponse> {
+    return this.post('/nginx/repair');
   }
 
   async getNginxStatus(): Promise<APIResponse> {
@@ -284,6 +385,23 @@ export class ServerManagerV1API extends BaseAPI {
 
   async renewCertificates(data?: { domain?: string; all?: boolean }): Promise<APIResponse> {
     return this.post('/certificates/renew', data || { all: true });
+  }
+
+  /**
+   * Idempotent: generate a new cert (--keep-until-expiring) when none exists, or
+   * renew when one does (5-min cooldown per domain). Runs certbot in the
+   * background; returns a request_id to poll via certificateProgress().
+   */
+  async ensureCertificate(data: { domain: string; provider?: string; staging?: boolean }): Promise<APIResponse> {
+    return this.post('/certificates/ensure', data);
+  }
+
+  /**
+   * Poll the real-time output of a backgrounded certbot ensure/generate/renew
+   * operation. Returns { status: 'running'|'completed', command, output_lines[] }.
+   */
+  async certificateProgress(requestId: string): Promise<APIResponse> {
+    return this.get(`/certificates/progress/${requestId}`);
   }
 
   async getCertificateStatus(domain: string): Promise<APIResponse> {

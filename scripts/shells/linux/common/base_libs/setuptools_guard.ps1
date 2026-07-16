@@ -21,12 +21,18 @@
 function Ensure-PkgResources {
     param([string]$Py)
     if (-not $Py) { return $false }
-    & $Py -c "import pkg_resources" 2>$null
-    if ($LASTEXITCODE -eq 0) { return $true }
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $out = (& $Py -c "import pkg_resources; print('__FOUND__')" 2>$null) -join ''
+    $ErrorActionPreference = $prevEap
+    if ($out -match '__FOUND__') { return $true }
     Write-Host "[setuptools-guard] pkg_resources missing (setuptools>=81 removed it) -> pinning setuptools<81 ..." -ForegroundColor Yellow
     try { & $Py -m pip install --upgrade 'setuptools<81' } catch { }
-    & $Py -c "import pkg_resources" 2>$null
-    if ($LASTEXITCODE -eq 0) {
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $out = (& $Py -c "import pkg_resources; print('__FOUND__')" 2>$null) -join ''
+    $ErrorActionPreference = $prevEap
+    if ($out -match '__FOUND__') {
         Write-Host "[setuptools-guard] [OK] pkg_resources restored (setuptools<81)." -ForegroundColor Green
         return $true
     }

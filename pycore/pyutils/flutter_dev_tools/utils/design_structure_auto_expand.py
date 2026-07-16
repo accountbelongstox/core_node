@@ -33,6 +33,9 @@ except ImportError:
     PLACEHOLDER_AVAILABLE = False
     print("[Warning] placeholder_generator not available")
 
+import shutil
+
+
 
 # ============================================================
 # 设计文档结构定义
@@ -382,7 +385,6 @@ def cleanup_deprecated_files(base_dir: Path) -> List[str]:
         dir_path = base_dir / dir_name
         if dir_path.exists() and dir_path.is_dir():
             try:
-                import shutil
                 shutil.rmtree(dir_path)
                 removed_items.append(str(dir_path))
                 print(f"[Cleanup] Removed deprecated directory: {dir_path}")

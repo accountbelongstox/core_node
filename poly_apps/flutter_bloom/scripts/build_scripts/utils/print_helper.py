@@ -16,10 +16,20 @@ Provides consistent logging and output formatting with file logging
 """
 
 import os
+import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+# Make pycore importable so the cache path resolves via the centralized
+# system_paths module (matches FlutterGlobalVar.ps1 D:\programing\Users\<user>\.core_node).
+_REPO_ROOT = Path(__file__).resolve()
+while _REPO_ROOT != _REPO_ROOT.parent and not (_REPO_ROOT / 'pycore').is_dir():
+    _REPO_ROOT = _REPO_ROOT.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 class PrintHelper:
     """Helper class for consistent logging and output with file logging"""
@@ -35,9 +45,9 @@ class PrintHelper:
         # Equivalent to: unified_vars.temp_dir / "logs"
         # where unified_vars.temp_dir = flutter_build_base / ".cache" / "flutter_bloom"
         # and flutter_build_base = core_node_base / ".flutter_build"
-        # and core_node_base = Path.home() / ".core_node"
+        # and core_node_base = get_system_cache_dir()
 
-        core_node_base = Path.home() / ".core_node"
+        core_node_base = get_system_cache_dir()
         flutter_build_base = core_node_base / ".flutter_build"
         temp_dir = flutter_build_base / ".cache" / "flutter_bloom"
         log_dir = temp_dir / "logs"

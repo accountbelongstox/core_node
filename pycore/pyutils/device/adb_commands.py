@@ -10,6 +10,9 @@ from pathlib import Path
 from pycore.pyutils.device.adb_manager import ADBManager
 from pycore.pyutils.device.adb_device import ADBDevice
 
+import time
+
+
 
 class ADBCommands:
     """
@@ -89,7 +92,6 @@ class ADBCommands:
         Returns:
             True if device became online, False if timeout
         """
-        import time
         start_time = time.time()
 
         while time.time() - start_time < timeout:
@@ -134,7 +136,6 @@ class ADBCommands:
             return None
 
         # Step 2: Get device IP
-        import time
         time.sleep(2)  # Wait for WiFi ADB to initialize
 
         ip = ADBManager.get_device_ip(serial, adb_path)

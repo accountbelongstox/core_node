@@ -32,6 +32,9 @@ from .service_ops import (
     _service_log_commands,
 )
 
+from urllib.parse import urlparse, parse_qs
+
+
 # A client that disconnects mid-response raises one of these on write; they mean
 # "the caller went away", not a server bug, so we drop them quietly. (BrokenPipe /
 # ConnectionReset / ConnectionAborted are all subclasses of ConnectionError; OSError
@@ -158,7 +161,6 @@ class _Handler(BaseHTTPRequestHandler):
             if path == "/code-sync/logs":
                 limit = 100
                 try:
-                    from urllib.parse import urlparse, parse_qs
                     q = parse_qs(urlparse(self.path).query)
                     limit = int((q.get("limit") or ["100"])[0])
                 except Exception:
@@ -169,7 +171,6 @@ class _Handler(BaseHTTPRequestHandler):
             if path == "/code-sync/peer-file-tree":
                 pid = ""
                 try:
-                    from urllib.parse import urlparse, parse_qs
                     q = parse_qs(urlparse(self.path).query)
                     pid = (q.get("peer_id") or [""])[0]
                 except Exception:

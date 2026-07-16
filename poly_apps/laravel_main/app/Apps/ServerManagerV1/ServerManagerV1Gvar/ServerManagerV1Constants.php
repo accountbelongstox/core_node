@@ -14,8 +14,13 @@ class ServerManagerV1Constants
     
     // Security Configuration
     public const MAX_FILE_DOWNLOAD_SIZE = 104857600; // 100MB
+    public const MAX_FILE_WRITE_SIZE = 2097152; // 2MB
     public const MAX_EXECUTION_TIME = 300; // 5 minutes
     public const MAX_LOG_ENTRIES = 1000;
+    public const ELEVATED_TOKEN_HEADER = 'X-Elevated-Token';
+    public const ELEVATED_TOKEN_TTL = 900; // 15 minutes
+    public const ELEVATED_AUTH_MAX_ATTEMPTS = 5;
+    public const ELEVATED_AUTH_LOCKOUT_SECONDS = 900;
     
     /**
      * Get allowed download paths (environment-aware)
@@ -30,11 +35,13 @@ class ServerManagerV1Constants
         // rejected the (correct) checkout root and the browser 403/404'd.
         $coreNode = PathMapper::getCoreNodeDir();
 
-        return array_values(array_filter([
+        $paths = array_filter([
             $coreNode,
+            $coreNode ? $coreNode . '/scripts' : null,
+            $coreNode ? $coreNode . '/poly_apps' : null,
             PathMapper::mapWebPath('wwwroot') . '/core_node/scripts',
             PathMapper::mapWebPath('wwwroot') . '/core_node/poly_apps',
-            $coreNode ? null : '/www/programing/core_node', // legacy fallback only when getCoreNodeDir() fails
+            $coreNode ? null : '/www/programing/core_node',
             PathMapper::mapWebPath('laravel_data_dir'),
             '/var/log',
             PathMapper::mapWebPath('nginx'),
@@ -42,7 +49,9 @@ class ServerManagerV1Constants
             PathMapper::mapWebPath('shared-data'),
             ServerManagerV1PathConfig::getLetsEncryptDir(),
             PathMapper::getLaravelTmpDir()
-        ]));
+        ]);
+
+        return array_values(array_unique($paths));
     }
     
     /** @deprecated Use getAllowedDownloadPaths() instead */

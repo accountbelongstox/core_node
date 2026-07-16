@@ -39,6 +39,11 @@ from .runtime import (
 from .server_connection import ServerConnection
 from .sync_logger import SyncLogger
 
+import uuid
+import platform
+from pycore.pyutils.codesync.textnorm import normalize_eol
+
+
 
 class CodeSyncClient:
     """
@@ -146,8 +151,6 @@ class CodeSyncClient:
 
     def _generate_client_id(self) -> str:
         """Generate unique client ID"""
-        import uuid
-        import platform
 
         hostname = platform.node()
         mac = uuid.getnode()
@@ -328,7 +331,6 @@ class CodeSyncClient:
         # Canonicalize text line endings to LF (binary untouched) so a Windows
         # dev's CRLF files don't break shell scripts or diverge from git's blobs
         # on a Linux client. Loop-safe: this path skips by mtime, not hash.
-        from .textnorm import normalize_eol
         content = normalize_eol(content)
 
         with open(file_path, 'wb') as f:

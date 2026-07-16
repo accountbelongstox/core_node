@@ -25,7 +25,7 @@ Index    Text         Category    Play Count    Created
   "queue": [
     {
       "text": "Hello, this is a test",
-      "audio_path": "C:\\Users\\accou\\.core_node\\cache\\voice_subtitle_tts\\f16eae25fd6e74e35b1de836c9037012.mp3",
+      "audio_path": "D:\\www\\cache\\voice_subtitle_tts\\f16eae25fd6e74e35b1de836c9037012.mp3",
       "play_count": 113,
       "category": "normal",
       "created_at": "2025-11-28T21:38:29.036518"

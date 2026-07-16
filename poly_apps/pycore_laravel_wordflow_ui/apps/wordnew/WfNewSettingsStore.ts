@@ -36,6 +36,10 @@ export interface WfNewSettings {
   dailyGoal: number;
   speechRate: number;
   voiceAccent: string;
+  /** Auto-generate missing word audio via the Puter.js library (library table
+   *  view): on page load it batch-synthesizes every audio-less word + prefetches
+   *  the next 3 pages, uploading each clip to Laravel for persistence. Default ON. */
+  usePuterAudio: boolean;
   settingNativeLang: string;
   settingTargetLang: string;
   /** Multi-select learning targets (backend learning_languages). settingTargetLang stays as the primary for legacy reads. */
@@ -94,6 +98,24 @@ export interface WfNewSettings {
   /** Preferred reader languages (e.g. ['en','zh']) — intersected with each book's
    *  actually-available languages on open; empty falls back to the book's primary. */
   readerLangs: string[];
+  /** Reader text layout: interleaved (one lang per line) vs stacked blocks. */
+  readerDisplayMode: 'stacked' | 'interleaved';
+  /** Bilingual playback sequence: ordered steps with per-step repeat count. */
+  readerPlaySequence: Array<{ lang: string; repeat: number }>;
+  /** Per-language playback speed (lang code → multiplier). */
+  readerSpeedByLang: Record<string, number>;
+  /** Auto-advance to next verse after the full sequence finishes. */
+  readerAutoAdvance: boolean;
+  /** Repeat the current verse sequence instead of advancing. */
+  readerRepeatOne: boolean;
+  /** Resume playback automatically when reopening a book at saved position. */
+  readerAutoPlayOnOpen: boolean;
+  /** When backend audio is missing, use browser speech (Edge Read Aloud / speechSynthesis). */
+  readerBrowserTts: boolean;
+  /** Per-language preferred sentence audio variant_key (book reader accent picker). */
+  readerVariantByLang: Record<string, string>;
+  /** ISO8601 stamp for last reader-settings cloud sync (merge guard). */
+  readerSettingsUpdatedAt: string | null;
   // ---- user data ----
   favorites: Word[];
   streakDays: number;
@@ -114,6 +136,7 @@ const makeDefaults = (): WfNewSettings => ({
   dailyGoal: 20,
   speechRate: 1.0,
   voiceAccent: 'en-US',
+  usePuterAudio: false,
   settingNativeLang: 'zh',
   settingTargetLang: 'en',
   settingTargetLangs: ['en'],
@@ -148,6 +171,19 @@ const makeDefaults = (): WfNewSettings => ({
   // book reader settings
   readerSimul: false,
   readerLangs: ['en', 'zh'],
+  readerDisplayMode: 'interleaved',
+  readerPlaySequence: [
+    { lang: 'en', repeat: 1 },
+    { lang: 'zh', repeat: 1 },
+    { lang: 'en', repeat: 3 },
+  ],
+  readerSpeedByLang: { en: 1, zh: 1 },
+  readerAutoAdvance: true,
+  readerRepeatOne: false,
+  readerAutoPlayOnOpen: false,
+  readerBrowserTts: true,
+  readerVariantByLang: {},
+  readerSettingsUpdatedAt: null,
   favorites: [],
   streakDays: 8,
 });

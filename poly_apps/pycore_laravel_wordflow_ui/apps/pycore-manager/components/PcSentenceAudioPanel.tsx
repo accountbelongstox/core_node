@@ -87,7 +87,7 @@ const saveState = (s: AudioGenState) => {
 // ---- i18n labels (single source; the pages use literals, not a `t` object) - #
 const L = {
   title: 'Sentence Audio',                          // 句子语音
-  subtitle: 'Generate TTS audio for every sentence in the shared library. Idempotent - skips sentences that already have audio; audio is saved locally.',
+  subtitle: 'Bulk backfill (media.enrich batches). On-demand reader audio: Queue Center → Sentence Voice Assist (claim queue).',
   generate: 'Generate Audio',                       // 生成语音
   resume: 'Resume',                                 // 继续
   generating: 'Generating…',                        // 生成中…

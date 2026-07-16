@@ -20,6 +20,9 @@ from typing import Any, Dict, List, Optional, Union
 from ocr_queue_system import TaskPriority
 from ocr_config import OCRLimits
 
+import tempfile
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -206,7 +209,6 @@ def register_ocr_tools(mcp):
                 # Create a simple test image
                 test_image_path = None
                 try:
-                    import tempfile
                     from PIL import Image, ImageDraw, ImageFont
 
                     # Create test image

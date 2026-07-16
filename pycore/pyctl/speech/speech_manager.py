@@ -21,6 +21,14 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_edge_tts
 from pycore.pyfoundations.system_paths import map_web_path
 
+import concurrent.futures
+from pycore.pyctl.speech.transcription_app import run_app
+from pycore.pyctl.speech.transcription_app import run_app_dual_source
+
+from pycore.pyutils.azure_speech import get_azure_speech_client
+
+
+
 edge_tts_module = get_third_package_edge_tts()
 from pycore.pyutils.azure_speech import speech_recognizer, SPEECH_RECOGNITION_AVAILABLE
 from pycore.database import database_manager, DATABASE_AVAILABLE
@@ -104,7 +112,6 @@ class SpeechManager:
     def _check_azure_tts(self) -> bool:
         """Check if Azure TTS is available"""
         try:
-            from pycore.pyutils.azure_speech import get_azure_speech_client
             client = get_azure_speech_client()
             if client.initialize():
                 ColorPrint.green("[SpeechManager] Azure TTS available")
@@ -377,7 +384,6 @@ class SpeechManager:
                 ColorPrint.red("[SpeechManager] Azure TTS not available")
                 return False
 
-            from pycore.pyutils.azure_speech import get_azure_speech_client
             client = get_azure_speech_client()
             success = client.synthesize(text, output_path, voice)
 
@@ -442,7 +448,6 @@ class SpeechManager:
             try:
                 loop = asyncio.get_running_loop()
                 # If we're here, there's a running loop - we need to run in a new thread
-                import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(asyncio.run, _do_synthesis())
                     future.result()
@@ -492,7 +497,6 @@ class SpeechManager:
         This is the main entry point called by pyapps/speech_transcribe.
         Provides interactive menu for real-time speech recognition.
         """
-        from pycore.pyctl.speech.transcription_app import run_app
         run_app(self)
 
     def run_transcription_app_dual_source(self):
@@ -506,7 +510,6 @@ class SpeechManager:
         - Ctrl+DoubleClick: Replay last system audio text with TTS
         - Silence detection for intelligent sentence segmentation
         """
-        from pycore.pyctl.speech.transcription_app import run_app_dual_source
         run_app_dual_source(self)
 
 

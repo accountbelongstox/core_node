@@ -1,6 +1,6 @@
 /**
- * PcSubtitleSearchPage — pycore subtitle-search (OpenSubtitles) over the /pyapi
- * proxy: search movie & TV subtitles by title, download a result's .srt, and
+ * PcSubtitleSearchPage — pycore subtitle-search (OpenSubtitles) direct on :59000.
+ * Search movie & TV subtitles by title, download a result's .srt, and
  * keep a shared search history.
  *
  * Mirrors PcImageSearchPage's "status + search + history" shape:

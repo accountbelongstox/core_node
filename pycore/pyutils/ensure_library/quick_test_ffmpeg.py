@@ -10,6 +10,9 @@ Usage:
 import sys
 from pathlib import Path
 
+from pycore.pyfoundations.system_paths import map_web_path
+
+
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -22,7 +25,6 @@ def test_import():
     ColorPrint.blue("TEST 1: Module Import")
     ColorPrint.blue("=" * 80)
 
-    from pycore.pyutils.ensure_library import ensure_ffmpeg
     ColorPrint.green("✓ Module imported successfully")
 
 
@@ -32,7 +34,6 @@ def test_ffmpeg_check():
     ColorPrint.blue("TEST 2: FFmpeg Detection (no auto-install)")
     ColorPrint.blue("=" * 80)
 
-    from pycore.pyutils.ensure_library import ensure_ffmpeg
 
     ffmpeg_path = ensure_ffmpeg(auto_install=False)
 
@@ -50,7 +51,6 @@ def test_path_mapping():
     ColorPrint.blue("TEST 3: Path Mapping")
     ColorPrint.blue("=" * 80)
 
-    from pycore.pyfoundations.system_paths import map_web_path
 
     compile_dir = map_web_path("compile_dir", "ffmpeg")
     ColorPrint.green(f"✓ FFmpeg install dir: {compile_dir}")

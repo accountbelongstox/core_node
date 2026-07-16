@@ -350,10 +350,20 @@ class AppQyV1WordTranslationWriteback
                     }
 
                     // --- Audio: decode now, persist after commit (file I/O) ---
-                    if ($hasAudio && empty($entry->has_audio)) {
+                    // Multi-variant: each translations[] item may carry variant_key
+                    // ("" = primary). Queue every item; storeWordAudioBytes does
+                    // per-variant fill-missing (never clobber an existing file).
+                    if ($hasAudio) {
                         $bytes = base64_decode($audioBase64, true);
                         if ($bytes !== false && $bytes !== '') {
-                            $audioQueue[$entry->md5] = $bytes;
+                            $audioQueue[] = [
+                                'md5' => $entry->md5,
+                                'bytes' => $bytes,
+                                'variant_key' => (string) ($item['variant_key'] ?? ''),
+                                'accent' => $item['accent'] ?? null,
+                                'gender' => $item['gender'] ?? null,
+                                'provider' => (string) ($item['provider'] ?? $item['engine'] ?? 'bing'),
+                            ];
                         }
                     }
 
@@ -393,15 +403,28 @@ class AppQyV1WordTranslationWriteback
         // (fill-missing). Best-effort: an audio failure never fails translation.
         if (!empty($audioQueue)) {
             $coordinator = new AppQyV1DictionaryTTSCoordinator();
-            foreach ($audioQueue as $md5 => $bytes) {
+            foreach ($audioQueue as $aq) {
+                $md5 = $aq['md5'];
                 try {
-                    if ($coordinator->storeWordAudioBytes($langCode, $md5, $bytes, 'bing')) {
+                    $meta = array_filter([
+                        'accent' => $aq['accent'] ?? null,
+                        'gender' => $aq['gender'] ?? null,
+                    ], static fn ($v) => $v !== null && $v !== '');
+                    if ($coordinator->storeWordAudioBytes(
+                        $langCode,
+                        $md5,
+                        $aq['bytes'],
+                        $aq['provider'] ?? 'bing',
+                        $aq['variant_key'] ?: null,
+                        $meta
+                    )) {
                         $audioSaved++;
                     }
                 } catch (\Throwable $e) {
                     Log::warning('[AppQyV1WordTranslationWriteback] audio store failed', [
                         'task_id' => $taskId,
                         'md5' => $md5,
+                        'variant_key' => $aq['variant_key'] ?? '',
                         'error' => $e->getMessage(),
                     ]);
                 }

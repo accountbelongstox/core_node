@@ -22,6 +22,9 @@ from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_torch
 
+import os
+
+
 cv2 = get_third_package_cv2()
 
 
@@ -223,7 +226,6 @@ class MediaCapabilityDetector:
         """
         if not self.cuda_available or not self.ffmpeg_cuda_support:
             # CPU mode: use conservative thread count
-            import os
             cpu_count = os.cpu_count() or 4
             return max(2, cpu_count // 2)
 

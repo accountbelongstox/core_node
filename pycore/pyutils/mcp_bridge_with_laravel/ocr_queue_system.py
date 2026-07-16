@@ -20,6 +20,12 @@ from ocr_config import OCRLimits, OCRStrategy, ProcessingConfig
 from image_processor import SmartImageProcessor
 from pdf_processor import PDFProcessor
 
+import socket
+
+from pycore.pyutils.ocr_engines import OCRManager
+
+
+
 logger = logging.getLogger(__name__)
 
 class TaskPriority(Enum):
@@ -92,7 +98,6 @@ class ResourceMonitor:
     def is_network_available(self) -> bool:
         """Check if network connection is available for online OCR"""
         try:
-            import socket
             socket.create_connection(("8.8.8.8", 53), timeout=3)
             return True
         except OSError:
@@ -117,7 +122,6 @@ class ResourceMonitor:
         if self.can_use_engine("paddle"):
             # Check if paddle is actually initialized
             try:
-                from ..ocr_engines import OCRManager
                 ocr_manager = OCRManager()
                 if ocr_manager.initialize_paddle_ocr():
                     return "paddle"
@@ -430,7 +434,6 @@ class OCRQueueProcessor:
             )
 
             # Import OCR engine
-            from ocr_engines import ocr_manager
 
             # Perform OCR
             ocr_result = ocr_manager.recognize(processed_path, task.target_engine)
@@ -470,7 +473,6 @@ class OCRQueueProcessor:
             for chunk in chunks:
                 try:
                     # Import OCR engine
-                    from ocr_engines import ocr_manager
 
                     # Process chunk
                     chunk_result = ocr_manager.recognize(chunk["file_path"], task.target_engine)

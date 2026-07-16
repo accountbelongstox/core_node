@@ -78,8 +78,8 @@ class AiRateLimiter
      */
     public static function usageFile(): string
     {
+        $dir = PathMapper::getSharedDownloadCacheDir('pycore/.ai_state');
         $coreNode = PathMapper::getCoreNodeDir() ?: PathMapper::getLaravelMainDir();
-        $dir = rtrim($coreNode, '/\\') . '/.data/.ai_state';
         self::migrateLegacyStateDir($coreNode, $dir);
         return $dir . '/ai_rate_usage.json';
     }
@@ -89,7 +89,7 @@ class AiRateLimiter
 
     /**
      * One-time PER-FILE move of the prior <core_node>/.ai_state dir into
-     * .data/.ai_state (per-file so a partially-created new dir never orphans files).
+     * <cache>/pycore/.ai_state (per-file so a partially-created new dir never orphans files).
      */
     private static function migrateLegacyStateDir(string $coreNode, string $new): void
     {

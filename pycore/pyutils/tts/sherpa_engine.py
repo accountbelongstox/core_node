@@ -1,6 +1,11 @@
 """
 Sherpa-ONNX offline TTS engine wrapper.
 
+Official perfect-support environment (see pycore/tts_install_assets/tts_model_tiers.py):
+  pip install sherpa-onnx; optional +cuda wheel via SHERPA_ONNX_CUDA_SPEC.
+  GPU model: kokoro-multi-lang-v1_1 (full); CPU model: kokoro-int8-multi-lang-v1_1.
+  SHERPA_TTS_MODEL_DIR defaults to <cache>/tts/sherpa.
+
 Pure-offline, CPU, zero-cost, identical on Windows/Linux (`pip install
 sherpa-onnx`, no system deps — espeak data ships inside the model). The model is
 downloaded by the offline-TTS prerequisite into a model dir; this wrapper
@@ -8,7 +13,7 @@ auto-detects Kokoro (multi-lang zh/en) or VITS/Piper layout there and synthesize
 to MP3.
 
 Config (all optional):
-  SHERPA_TTS_MODEL_DIR  - model directory (default: <APP_CACHE>/tts/sherpa)
+  SHERPA_TTS_MODEL_DIR  - model directory (default: <cache>/tts/sherpa)
   SHERPA_TTS_SID        - speaker id (default 0)
 """
 
@@ -17,7 +22,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import APP_CACHE_DIR
+from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
 from pycore.pyfoundations.third_party import get_third_package_sherpa_onnx
 from pycore.pyutils.tts.audio_utils import samples_to_mp3
 
@@ -28,7 +33,7 @@ def model_dir() -> Path:
     env = (os.environ.get("SHERPA_TTS_MODEL_DIR") or "").strip()
     if env:
         return Path(env)
-    return Path(APP_CACHE_DIR) / "tts" / "sherpa"
+    return get_shared_download_cache_dir() / "tts" / "sherpa"
 
 
 def _find(root: Path, pattern: str) -> Optional[Path]:
@@ -49,16 +54,24 @@ def _build_config(model_root: Path) -> Any:
     if not onnx or not tokens:
         return None
 
-    lexicon = _find(model_root, "lexicon.txt")
-    if not lexicon:
-        lex_matches = sorted(model_root.rglob("lexicon-*.txt"))
-        lexicon = lex_matches[0] if lex_matches else None
+    # Kokoro multi-lang ships BOTH lexicon-us-en.txt and lexicon-zh.txt; the
+    # official config passes them comma-joined so Chinese token ids resolve.
+    # Passing only one (e.g. lexicon-us-en.txt) makes Chinese text fail with
+    # "unknown token". Single-lexicon models (lexicon.txt) pass it as-is.
+    multi_lex = sorted(model_root.rglob("lexicon-*.txt"))
+    single_lex = _find(model_root, "lexicon.txt")
+    if multi_lex:
+        lexicon = ",".join(str(p) for p in multi_lex)
+    elif single_lex:
+        lexicon = str(single_lex)
+    else:
+        lexicon = None
 
     if lexicon:
         kokoro = sherpa.OfflineTtsKokoroModelConfig(
             model=str(onnx),
             tokens=str(tokens),
-            lexicon=str(lexicon),
+            lexicon=lexicon,
             voices=str(_find(model_root, "voices.bin") or ""),
             data_dir=str(_find(model_root, "espeak-ng-data") or model_root),
             dict_dir=str(_find(model_root, "dict") or ""),
@@ -132,4 +145,13 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
     return samples_to_mp3(samples, sample_rate, output_mp3)
 
 
-__all__ = ["available", "synthesize", "model_dir"]
+def is_model_loaded() -> bool:
+    return _tts is not None
+
+
+def unload_model() -> None:
+    global _tts
+    _tts = None
+
+
+__all__ = ["available", "synthesize", "model_dir", "is_model_loaded", "unload_model"]

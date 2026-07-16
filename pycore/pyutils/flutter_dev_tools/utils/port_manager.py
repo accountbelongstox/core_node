@@ -11,6 +11,12 @@ import platform
 from pathlib import Path
 from typing import List, Dict, Optional
 
+import time
+
+import urllib.error
+
+
+
 
 def shutdown_via_http(host: str = "127.0.0.1", port: int = 5757, timeout: int = 5) -> bool:
     """
@@ -26,7 +32,6 @@ def shutdown_via_http(host: str = "127.0.0.1", port: int = 5757, timeout: int = 
     """
     try:
         import urllib.request
-        import urllib.error
 
         url = f"http://{host}:{port}/api/shutdown"
         req = urllib.request.Request(url, method='POST')
@@ -355,7 +360,6 @@ def wait_for_port_release(port: int, timeout: int = 5) -> bool:
     Returns:
         True if port is free
     """
-    import time
     start_time = time.time()
 
     while time.time() - start_time < timeout:

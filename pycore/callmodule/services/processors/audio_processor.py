@@ -10,6 +10,9 @@ from datetime import timedelta
 
 from pycore.pyfoundations.system_paths import get_app_temp_dir
 
+from pycore.pyutils.whisper_stt import WhisperSTTProvider
+
+
 
 class AudioProcessor:
     """Processor for audio transcription and subtitle generation"""
@@ -24,8 +27,7 @@ class AudioProcessor:
         """Lazy load Whisper provider"""
         if self._whisper_model is None:
             try:
-                from pycore.pyutils.whisper_stt import WhisperProvider
-                self._whisper_model = WhisperProvider()
+                self._whisper_model = WhisperSTTProvider()
             except ImportError:
                 raise RuntimeError("Whisper provider not available. Check pycore.pyutils.whisper_stt")
         return self._whisper_model
@@ -33,7 +35,6 @@ class AudioProcessor:
     def _get_vosk_model(self):
         """Lazy load Vosk model"""
         try:
-            import vosk
             # TODO: Initialize Vosk model
             raise NotImplementedError("Vosk integration not yet implemented")
         except ImportError:
@@ -109,14 +110,18 @@ class AudioProcessor:
         """Transcribe using Whisper"""
         try:
             whisper_provider = self._get_whisper_provider()
+            if not whisper_provider.initialize(model_name=model):
+                return {
+                    "success": False,
+                    "error": "Failed to initialize Whisper",
+                }
 
-            # Transcribe audio
-            result = whisper_provider.transcribe(audio_path, language=language, model_size=model)
+            result = whisper_provider.recognize_from_file(Path(audio_path), language=language)
 
             if not result or not result.get("success"):
                 return {
                     "success": False,
-                    "error": "Whisper transcription failed"
+                    "error": result.get("error", "Whisper transcription failed") if result else "Whisper transcription failed",
                 }
 
             # Extract segments
@@ -135,10 +140,10 @@ class AudioProcessor:
 
             return {
                 "success": True,
-                "full_text": " ".join(full_text_parts),
+                "full_text": result.get("text") or " ".join(full_text_parts),
                 "segments": segments,
-                "language": language,
-                "audio_duration": result.get("duration")
+                "language": result.get("language", language),
+                "audio_duration": None,
             }
 
         except Exception as e:

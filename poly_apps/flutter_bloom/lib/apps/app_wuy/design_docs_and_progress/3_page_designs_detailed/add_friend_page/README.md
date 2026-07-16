@@ -1,4 +1,4 @@
-# 添加好友页 (add_friend_page)
+# Add Friend Page (add_friend_page)
 
 This directory contains detailed design specifications for the add_friend_page page.
 

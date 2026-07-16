@@ -14,6 +14,9 @@ from typing import Any, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.safe_subprocess import subprocess
 
+from pycore.pyfoundations.third_party import get_third_package_numpy
+
+
 
 def ffmpeg_available() -> bool:
     return shutil.which("ffmpeg") is not None
@@ -21,7 +24,6 @@ def ffmpeg_available() -> bool:
 
 def write_wav(samples: Any, sample_rate: int, out_path: Path) -> bool:
     try:
-        from pycore.pyfoundations.third_party import get_third_package_numpy
 
         np = get_third_package_numpy()
         arr = np.asarray(samples, dtype=np.float32)

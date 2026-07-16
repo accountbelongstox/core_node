@@ -25,6 +25,11 @@ import json
 import sys
 from pathlib import Path
 
+from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore import get_user_data_store
+from pycore.pyutils.codesync.peer_config import get_peer_config
+
+
 # Make `pycore` importable when run as a script/module from anywhere.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
@@ -41,7 +46,7 @@ def _base(port):
 
 
 def _http_get(port, path, timeout=2.0):
-    import requests
+    requests = get_third_package_requests()
     try:
         r = requests.get(_base(port) + path, timeout=timeout)
         if r.status_code == 200:
@@ -52,7 +57,7 @@ def _http_get(port, path, timeout=2.0):
 
 
 def _http_post(port, path, body, timeout=4.0):
-    import requests
+    requests = get_third_package_requests()
     try:
         r = requests.post(_base(port) + path, json=body, timeout=timeout)
         if r.status_code == 200:
@@ -94,7 +99,6 @@ def cmd_system_get(args):
         settings = data.get("settings") or {}
         source = "service"
     else:
-        from pycore import get_user_data_store
         settings = get_user_data_store().get_section("system_settings") or {}
         source = "file"
     if args.key:
@@ -127,7 +131,6 @@ def cmd_system_set(args):
         _emit({"source": "service", "result": res})
         return 0 if res and res.get("success") else 1
     else:
-        from pycore import get_user_data_store
         saved = get_user_data_store().update_section("system_settings", patch)
         _emit({"source": "file", "success": True, "settings": saved})
         return 0
@@ -157,7 +160,6 @@ def cmd_codesync_show(args):
         _emit({"source": "service", "self": data.get("self"),
                "peers": data.get("peers"), "version": data.get("version")})
         return 0
-    from pycore.pyutils.codesync.peer_config import get_peer_config
     me, peers, version = _offline_snapshot(get_peer_config())
     _emit({"source": "file", "self": me, "peers": peers, "version": version})
     return 0
@@ -169,7 +171,6 @@ def cmd_codesync_role(args):
             data = _http_get(args.port, "/code-sync/peers") or {}
             _emit({"source": "service", "role": (data.get("self") or {}).get("role")})
         else:
-            from pycore.pyutils.codesync.peer_config import get_peer_config
             _emit({"source": "file", "role": get_peer_config().get_role()})
         return 0
     # set
@@ -180,7 +181,6 @@ def cmd_codesync_role(args):
         res = _http_post(args.port, "/code-sync/role", {"role": args.role})
         _emit({"source": "service", "result": res})
         return 0 if res and res.get("success") else 1
-    from pycore.pyutils.codesync.peer_config import get_peer_config
     role = get_peer_config().set_role(args.role)
     _emit({"source": "file", "success": True, "role": role})
     return 0
@@ -192,7 +192,6 @@ def cmd_codesync_peers(args):
     # offline config handle
     cfg = None
     if not up:
-        from pycore.pyutils.codesync.peer_config import get_peer_config
         cfg = get_peer_config()
 
     if op == "list":

@@ -20,6 +20,8 @@ from pycore.callmodule.rpc_routes.video_extract_routes import register_video_ext
 from pycore.callmodule.rpc_routes.media_routes import register_media_routes
 from pycore.callmodule.rpc_routes.corebook_routes import register_corebook_routes
 from pycore.callmodule.rpc_routes.laravel_api_routes import register_laravel_api_routes
+from pycore.callmodule.rpc_routes.local_http_routes import register_local_http_routes
+from pycore.callmodule.rpc_routes.local_engine_test_routes import register_local_engine_test_routes
 
 __all__ = [
     'register_thread_bus_routes',
@@ -27,4 +29,6 @@ __all__ = [
     'register_media_routes',
     'register_corebook_routes',
     'register_laravel_api_routes',
+    'register_local_http_routes',
+    'register_local_engine_test_routes',
 ]

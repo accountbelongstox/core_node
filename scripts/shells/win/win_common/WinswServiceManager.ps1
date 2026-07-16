@@ -35,10 +35,11 @@
 $Global:WinswReleaseTag = "v2.12.0"
 $Global:WinswAssetName = "WinSW-x64.exe"
 
-# Resolve a cached WinSW-x64.exe under <RepoRootDir>\.data\tools\winsw. Returns $null if not found.
+# Resolve a cached WinSW-x64.exe under <cache>\pycore\tools\winsw. Returns $null if not found.
 function Find-WinswExe {
     param([Parameter(Mandatory = $true)][string]$RepoRootDir)
-    $cacheDir = Join-Path $RepoRootDir ".data\tools\winsw"
+    $winswCacheRoot = if ($Global:CORE_NODE_CACHE_DIR) { $Global:CORE_NODE_CACHE_DIR } elseif ($env:CORE_NODE_CACHE_DIR) { $env:CORE_NODE_CACHE_DIR } else { 'D:\www\cache' }
+    $cacheDir = Join-Path $winswCacheRoot 'pycore\tools\winsw'
     $cachedExe = Join-Path $cacheDir $Global:WinswAssetName
     if (Test-Path -LiteralPath $cachedExe) { return $cachedExe }
     return $null
@@ -51,7 +52,8 @@ function Ensure-Winsw {
     $existing = Find-WinswExe -RepoRootDir $RepoRootDir
     if ($existing) { return $existing }
 
-    $cacheDir = Join-Path $RepoRootDir ".data\tools\winsw"
+    $winswCacheRoot = if ($Global:CORE_NODE_CACHE_DIR) { $Global:CORE_NODE_CACHE_DIR } elseif ($env:CORE_NODE_CACHE_DIR) { $env:CORE_NODE_CACHE_DIR } else { 'D:\www\cache' }
+    $cacheDir = Join-Path $winswCacheRoot 'pycore\tools\winsw'
     if (-not (Test-Path -LiteralPath $cacheDir)) { New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null }
     $targetExe = Join-Path $cacheDir $Global:WinswAssetName
     $downloadUrl = "https://github.com/winsw/winsw/releases/download/$($Global:WinswReleaseTag)/$($Global:WinswAssetName)"

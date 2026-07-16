@@ -40,6 +40,9 @@ from .handlers import (
     prompt_translate as h_prompt_translate,
 )
 
+from pycore.callmodule.callmodule_config import Config as _Cfg
+
+
 
 class TranslationWorkerService(BaseLaravelWorkerService):
     """
@@ -161,7 +164,6 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         self._pending_urgent = 0
         # Pull fast-poll knobs from Config (fall back to class defaults).
         try:
-            from pycore.callmodule.callmodule_config import Config as _Cfg
             self.TRANSLATION_FAST_POLL_INTERVAL = float(
                 getattr(_Cfg, "TRANSLATION_FAST_POLL_INTERVAL",
                         self.TRANSLATION_FAST_POLL_INTERVAL))
@@ -333,6 +335,29 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         except Exception:
             pass
 
+    def _patch_local_task(
+        self,
+        task: Dict[str, Any],
+        progress: Optional[int] = None,
+        status: Optional[str] = None,
+        result_patch: Optional[Dict[str, Any]] = None,
+        error: Optional[str] = None,
+    ) -> None:
+        """Push live synthesis progress/result into the pyctl TaskManager row."""
+        local_id = task.get("_local_task_id")
+        if not local_id:
+            return
+        try:
+            get_task_manager().patch_task(
+                local_id,
+                progress=progress,
+                status=status,
+                result_patch=result_patch,
+                error=error,
+            )
+        except Exception:
+            pass
+
     @staticmethod
     def _local_task_label(task: Dict[str, Any]) -> str:
         """Map a pulled task to the local TaskManager lane label for the UI.
@@ -381,13 +406,23 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         try:
             tm = get_task_manager()
             payload = task.get("payload") or {}
+            words = h_translation.words_from_payload(payload)
+            content_preview = h_translation.format_words_preview(words)
             input_data = {
                 "remote_task_id": task_id,
                 "app_name": task.get("app_name"),
                 "task_type": task.get("task_type"),
                 "execution_type": task.get("execution_type"),
                 "capability": task.get("capability"),
-                "words": h_translation.normalize_words(payload.get("words")),
+                "words": words,
+                "content": (
+                    payload.get("content")
+                    or payload.get("text")
+                    or payload.get("word")
+                    or (words[0] if len(words) == 1 else None)
+                ),
+                "content_preview": content_preview or None,
+                "md5": payload.get("md5"),
                 "language": payload.get("language"),
                 "target_language": payload.get("target_language"),
                 "priority": task.get("priority"),
@@ -397,10 +432,24 @@ class TranslationWorkerService(BaseLaravelWorkerService):
                 input_data=input_data,
                 estimated_time=None,
             )
+            task["_local_task_id"] = local_task_id
 
             def executor(_local_task):
-                # Return a small summary dict; the real result already went to Laravel.
                 self._process_task(task)
+                local_id = task.get("_local_task_id")
+                if not local_id:
+                    return {"remote_task_id": task_id, "dispatched": True}
+                live = tm.get_task(local_id)
+                if not live:
+                    return {"remote_task_id": task_id, "dispatched": True}
+                if live.status == "failed":
+                    err = live.error or "failed"
+                    tm.fail_task(local_id, err)
+                    return live.result if isinstance(live.result, dict) else {
+                        "remote_task_id": task_id, "error": err,
+                    }
+                if isinstance(live.result, dict) and live.result:
+                    return dict(live.result)
                 return {"remote_task_id": task_id, "dispatched": True}
 
             tm.execute_task(local_task_id, executor)

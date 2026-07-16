@@ -22,6 +22,7 @@ import type {
   WfNewLiveMsg,
 } from './WfNewApiTypes';
 import type { Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind } from './WfNewApiTypes';
+import { primaryCoverUrl, resolveCoverUrls } from '../constants/coverPlayback';
 
 /** Resolve a backend-relative media/cover path to an absolute URL on the current endpoint. */
 export function absUrl(u?: string): string | undefined {
@@ -38,10 +39,26 @@ export function toBookVerse(s: any): WfNewBookVerse {
   if (s && s.languages && typeof s.languages === 'object') {
     for (const [lang, v] of Object.entries<any>(s.languages)) {
       const audio = absUrl(v?.audio) ?? null;
+      const files = Array.isArray(v?.audio_files)
+        ? v.audio_files.map((f: any) => ({
+          variantKey: f?.variant_key ?? '',
+          accent: f?.accent ?? undefined,
+          gender: f?.gender ?? undefined,
+          source: f?.source ?? undefined,
+          voiceType: f?.voice_type ?? undefined,
+          provider: f?.provider ?? undefined,
+          path: f?.path ?? undefined,
+          hasFile: f?.has_file != null ? !!f.has_file : undefined,
+          url: absUrl(f?.url) ?? undefined,
+        }))
+        : undefined;
+      const hasFileReady = !!(files?.some((f) => f.hasFile && f.url));
       languages[lang] = {
         text: v?.text ?? null,
         audio,
-        hasAudio: v?.has_audio != null ? !!v.has_audio : !!audio,
+        hasAudio: v?.has_audio != null ? !!v.has_audio : !!(audio || hasFileReady),
+        ttsStatus: v?.tts_status ?? null,
+        audioFiles: files,
         explanation: v?.explanation ?? null,
       };
     }
@@ -252,6 +269,10 @@ export function toAbsoluteUrl(url?: string | null): string | undefined {
 
 /** query_all_groups row → WfNewContentGroup (kind 'word'; carries the group cover when present). */
 export function wordRowToContentGroup(raw: any, i = 0): WfNewContentGroup {
+  const absUrls = resolveCoverUrls(
+    absUrl(raw?.cover_url ?? raw?.thumbnail_url ?? raw?.cover_image),
+    Array.isArray(raw?.cover_urls) ? raw.cover_urls.map((u: string) => absUrl(u) || u) : undefined,
+  );
   return {
     id: String(raw?.gid ?? raw?.id ?? `word-${i}`),
     kind: 'word',
@@ -259,7 +280,8 @@ export function wordRowToContentGroup(raw: any, i = 0): WfNewContentGroup {
     count: Number(raw?.total_words ?? raw?.count ?? 0) || 0,
     countUnit: 'words',
     language: raw?.language ?? 'en',
-    imageUrl: toAbsoluteUrl(raw?.cover_url ?? raw?.thumbnail_url),
+    imageUrl: primaryCoverUrl(absUrls),
+    imageUrls: absUrls.length ? absUrls : undefined,
     category: raw?.cover_category ?? raw?.type ?? undefined,
     description: raw?.description ?? undefined,
   };
@@ -270,6 +292,10 @@ export function mediaRowToContentGroup(raw: any, kind: 'book' | 'subtitle', i = 
   const count = kind === 'subtitle'
     ? Number(raw?.subtitle_count ?? raw?.sentence_count ?? 0) || 0
     : Number(raw?.sentence_count ?? 0) || 0;
+  const absUrls = resolveCoverUrls(
+    absUrl(raw?.image_url),
+    Array.isArray(raw?.image_urls) ? raw.image_urls.map((u: string) => absUrl(u) || u) : undefined,
+  );
   return {
     id: String(raw?.id ?? raw?.source_key ?? `${kind}-${i}`),
     kind,
@@ -277,7 +303,8 @@ export function mediaRowToContentGroup(raw: any, kind: 'book' | 'subtitle', i = 
     count,
     countUnit: kind === 'subtitle' ? 'subtitles' : 'sentences',
     language: raw?.language ?? undefined,
-    imageUrl: toAbsoluteUrl(raw?.image_url),
+    imageUrl: primaryCoverUrl(absUrls),
+    imageUrls: absUrls.length ? absUrls : undefined,
     sourceKey: raw?.source_key ? String(raw.source_key) : undefined,
     description: undefined,
   };

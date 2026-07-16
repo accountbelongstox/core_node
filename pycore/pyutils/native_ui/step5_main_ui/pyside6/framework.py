@@ -61,6 +61,12 @@ from .tick_timer import TickTimer
 from .thread_bus_bridge import ThreadBusBridgeMixin
 from .startup_controller import StartupControllerMixin
 
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import configure_webengine_all_tiers
+
+import ctypes
+
+
+
 
 class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
     """
@@ -190,7 +196,6 @@ class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
         # CRITICAL: Configure QtWebEngine BEFORE QApplication creation
         # This enables WebCodecs, WebGL, hardware acceleration for H.264 video streaming
         ColorPrint.blue("[PySide6Framework] Step 2.1: Configuring QtWebEngine (multi-tier redundant)...")
-        from .webengine_config import configure_webengine_all_tiers
         webengine_results = configure_webengine_all_tiers()
         ColorPrint.green(f"[PySide6Framework] QtWebEngine configuration completed: {webengine_results}")
 
@@ -222,7 +227,6 @@ class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
         # Set Windows AppUserModelID for taskbar icon (Windows only)
         if sys.platform == 'win32':
             try:
-                import ctypes
                 # Use custom AppUserModelID if provided, otherwise auto-generate
                 if self.config.app_user_model_id:
                     myappid = self.config.app_user_model_id

@@ -13,6 +13,9 @@ from pathlib import Path
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_google_genai
 
+import json
+
+
 
 class GeminiClient:
     """Google Gemini API client wrapper"""
@@ -316,7 +319,6 @@ normalized to 0-1000.
 
         if response and hasattr(response, 'text'):
             result["success"] = True
-            import json
             try:
                 result["objects"] = json.loads(response.text)
             except json.JSONDecodeError:

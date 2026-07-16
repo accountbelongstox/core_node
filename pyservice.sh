@@ -4,7 +4,8 @@
 #                (Linux / macOS / Git-Bash / WSL).
 #
 # This is ONLY an entry point. It:
-#   1. PREREQUISITES: runs scripts/shells/linux/common/iniscripts/prepare.sh, which installs
+#   1. PREREQUISITES: runs scripts/shells/win/main_powershells/PreparePycorePrerequisites.ps1 (Windows)
+#      or scripts/shells/linux/common/prepare_pycore_prerequisites.sh (Linux),
 #      the heavy third-party packages that are more convenient to set up from a
 #      shell (e.g. whisper). This complements pycore/pyfoundations/third_party.py
 #      (which fast-detects/installs lighter packages at import time). Skip with
@@ -23,7 +24,7 @@
 #   ./pyservice.sh                       # install prereqs, then launch 0.0.0.0:59000
 #   ./pyservice.sh --no-install          # skip prereqs, just launch
 #   ./pyservice.sh --port 8000 --debug   # launch on port 8000 in debug mode
-#   ./pyservice.sh --reload              # dev backend hot-reload (.py -> restart)
+#   ./pyservice.sh --no-reload           # disable backend hot-reload (.py -> restart)
 #   ./pyservice.sh --only -- --whisper-model base   # only run prereqs (args after
 #                                                     # `--` go to prepare.sh)
 #
@@ -66,7 +67,7 @@
 # ---------------------------------------------------------------------------
 # `install` delegates to scripts/shells/linux/common/pycore_service.sh (part of
 # the dd.sh call chain; reuses debian_service_manager.sh). The unit runs headless:
-#   ExecStart=/bin/bash <repo>/pyservice.sh run --no-ui --no-install
+#   ExecStart=/bin/bash <repo>/pyservice.sh run --no-ui --no-install --no-reload
 #   WorkingDirectory=<repo>   User=<real user>   Restart=always
 # On Windows there is no systemd: use the desktop UI's Settings -> Auto-start on
 # boot toggle (a native .lnk in the common Startup folder). `config` is cross-platform.
@@ -110,7 +111,7 @@ BIND_HOST="0.0.0.0"
 PORT="59000"
 RPC_PORT="59000"
 DEBUG=0
-RELOAD=0
+RELOAD=1
 NO_INSTALL=0
 ONLY=0
 NO_UI=0
@@ -180,7 +181,8 @@ Options (apply to 'run'):
   --host HOST      Host the RPC v2 server binds to (default: 0.0.0.0)
   --port PORT      Port the RPC v2 server binds to (default: 59000)
   --debug          Enable the worker's debug mode
-  --reload         Dev backend hot-reload (watch .py -> restart)
+  --no-reload      Disable backend hot-reload (watch .py -> restart; ON by default)
+  --reload         (legacy alias; hot-reload is already the default)
   --no-install     Skip the prerequisite-install step
   --only           Run ONLY the prerequisite step, then exit
   --no-ui          Do not launch the dashboard UI; use legacy /web/subtitle
@@ -316,6 +318,7 @@ while [[ $# -gt 0 ]]; do
         --host)       BIND_HOST="$2"; shift 2 ;;
         --port)       PORT="$2";      shift 2 ;;
         --debug)      DEBUG=1;        shift   ;;
+        --no-reload)  RELOAD=0;       shift   ;;
         --reload)     RELOAD=1;       shift   ;;
         --no-install) NO_INSTALL=1;   shift   ;;
         --only)       ONLY=1;         shift   ;;
@@ -350,7 +353,7 @@ if type pycore_export_python_env_from_common >/dev/null 2>&1; then
     pycore_export_python_env_from_common "$PY"
 fi
 
-PREPARE_REL="scripts/shells/linux/common/iniscripts/prepare.sh"
+PREPARE_REL="scripts/shells/linux/common/prepare_pycore_prerequisites.sh"
 WORKER_REL="pycore/pycore_module_caller.py"
 
 cd "$SCRIPT_DIR"
@@ -360,6 +363,8 @@ if [[ "$NO_INSTALL" -eq 1 ]]; then
     echo "[i] Skipping prerequisite install (--no-install)."
 else
     echo "[..] Running prerequisite installers ..."
+    # Neural TTS batch (ChatTTS/CosyVoice/Fish Speech/Kokoro/VoxCPM2/F5/GPT-SoVITS); idempotent. Opt out: NEURAL_TTS_INSTALL=0
+    [[ -z "${NEURAL_TTS_INSTALL:-}" ]] && export NEURAL_TTS_INSTALL=1
     if ! bash "$PREPARE_REL" --python "$PY" "${PREPARE_ARGS[@]+"${PREPARE_ARGS[@]}"}"; then
         echo "[!] Prerequisite step failed; continuing to launch."
     fi
@@ -571,7 +576,7 @@ fi
 
 PY_ARGS=(-u "$WORKER_REL" --host "$BIND_HOST" --port "$PORT")
 if [[ "$DEBUG" -eq 1 ]]; then PY_ARGS+=(--debug); fi
-if [[ "$RELOAD" -eq 1 ]]; then PY_ARGS+=(--reload); fi   # backend hot-reload (watch .py -> os.execv restart)
+if [[ "$RELOAD" -eq 0 ]]; then PY_ARGS+=(--no-reload); fi   # hot-reload is the default; opt out for headless prod
 
 # Free the RPC port from a foreign Docker publisher before binding it.
 stop_docker_publisher "$PORT" || true

@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root
+from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root, get_local_data_dir
 from pycore.pyctl.ai.ai_keys import PROVIDERS, PROVIDER_ORDER
 
 # Last time limits table was verified against provider documentation.
@@ -43,7 +43,7 @@ _FREE_DEFAULT_RPM = 10
 # Shared rate-usage store (cross-runtime: pycore on Windows + Laravel in WSL). #
 # --------------------------------------------------------------------------- #
 # pycore runs on the Windows host while the Laravel apps run inside WSL, so a
-# per-OS user-data path (APP_DATA_DIR -> C:\Users\..\.core_node\data on Windows
+# per-OS user-data path (APP_DATA_DIR -> D:\programing\Users\..\.core_node\data on Windows
 # vs /var/_core_node/data inside WSL) resolves to DIFFERENT physical files — the
 # two runtimes would each keep their OWN counters and the same provider key would
 # get DOUBLE its real free-tier budget. The only filesystem location both see as
@@ -57,9 +57,9 @@ _FREE_DEFAULT_RPM = 10
 # threading lock serializes this process. True cross-runtime file locking over
 # DrvFs is not reliable, but free-tier requests are seconds apart so the
 # lost-update window is negligible; atomic replace guarantees no corruption.
-# Lives under <core_node>/.data/.ai_state; the prior <core_node>/.ai_state and the
+# Lives under <cache>/pycore/.ai_state; the prior <core_node>/.ai_state and the
 # per-OS APP_DATA location are both migrated once on first access.
-_SHARED_STATE_DIR = get_core_node_root() / ".data" / ".ai_state"
+_SHARED_STATE_DIR = get_local_data_dir() / ".ai_state"
 _OLD_SHARED_DIR = get_core_node_root() / ".ai_state"
 _LEGACY_USAGE_FILE = APP_DATA_DIR / "ai_rate_usage.json"
 
@@ -74,7 +74,7 @@ def _resolve_usage_file():
     shared = _SHARED_STATE_DIR / "ai_rate_usage.json"
     # One-time migration: seed the new shared store from the prior shared dir
     # (<core_node>/.ai_state) or, failing that, the old per-OS location — so
-    # already-accumulated counters survive the move to .data/.ai_state.
+    # already-accumulated counters survive the move to <cache>/pycore/.ai_state.
     try:
         old_shared = _OLD_SHARED_DIR / "ai_rate_usage.json"
         if not shared.exists() and old_shared.is_file():

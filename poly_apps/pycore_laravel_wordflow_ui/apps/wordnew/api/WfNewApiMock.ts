@@ -219,7 +219,22 @@ export const wfNewApiMock: WfNewApi = {
   },
 
   async updatePreferences(patch: WfNewPreferences): Promise<WfNewPreferences> {
-    const merged = { ...readMockPreferences(), ...patch };
+    const current = readMockPreferences();
+    const merged: WfNewPreferences = { ...current, ...patch };
+    if (patch.app_settings && typeof patch.app_settings === 'object') {
+      const base = (current.app_settings && typeof current.app_settings === 'object')
+        ? current.app_settings
+        : {};
+      const incoming = patch.app_settings;
+      const nextApp = { ...base, ...incoming };
+      if (incoming.reader && typeof incoming.reader === 'object') {
+        const existingReader = (base as any).reader && typeof (base as any).reader === 'object'
+          ? (base as any).reader
+          : {};
+        nextApp.reader = { ...existingReader, ...incoming.reader };
+      }
+      merged.app_settings = nextApp;
+    }
     writeMockPreferences(merged);
     return delay(merged);
   },
@@ -597,6 +612,17 @@ export const wfNewApiMock: WfNewApi = {
     });
   },
 
+  async saveWordAudio(payload: {
+    md5: string;
+    lang: string;
+    audio_base64: string;
+    provider?: string;
+    accent?: WfNewWordAccent;
+  }): Promise<{ ok: boolean; stored?: boolean }> {
+    await delay(20);
+    return { ok: true, stored: true };
+  },
+
   async getWordMedia(
     language: string,
     word: string,
@@ -630,21 +656,81 @@ export const wfNewApiMock: WfNewApi = {
     });
   },
 
-  async resolveSentenceAudio(text: string, language: string) {
+  async resolveSentenceAudio(text: string, language: string, _variantKey?: string) {
     const key = `${language}:${text.slice(0, 32)}`;
     const n = (MOCK_WORD_MEDIA_CALLS.get(key) ?? 0) + 1;
     MOCK_WORD_MEDIA_CALLS.set(key, n);
     const ready = n > 2;
+    const url = ready
+      ? `https://example.test/mock-sentence/${encodeURIComponent(language)}.mp3`
+      : null;
     return delay({
       exists: ready,
-      url: ready ? `https://example.test/mock-sentence/${encodeURIComponent(language)}.mp3` : null,
+      url,
       queued: !ready,
       content_id: mockMd5(text),
       hash: mockMd5(text),
+      tts_status: ready ? 'completed' : 'pending',
+      audio_files: ready
+        ? [
+            {
+              variant_key: '',
+              accent: 'us',
+              gender: 'female',
+              source: 'tts',
+              voice_type: 'neural',
+              provider: 'qwen3tts',
+              path: `${language}/${mockMd5(text)}.mp3`,
+              has_file: true,
+              url,
+            },
+          ]
+        : [],
     });
   },
 
   async bumpSentenceAudio(contentId: string, _language: string) {
     return delay({ success: true, task_id: `mock-${contentId}` });
+  },
+
+  async getBookReadingProgress(sourceKey: string) {
+    return delay(null);
+  },
+
+  async saveBookReadingProgress(sourceKey: string, payload: { chapterIndex?: number | null; verseSeq: number; grain?: string; page?: number }) {
+    return delay({
+      sourceKey,
+      chapterIndex: payload.chapterIndex ?? null,
+      verseSeq: payload.verseSeq,
+      grain: payload.grain ?? 'sentence',
+      page: payload.page ?? 1,
+      updatedAt: new Date().toISOString(),
+    });
+  },
+
+  async listBookReadingProgress(_limit = 100) {
+    return delay([]);
+  },
+
+  async getClientDeviceSettings(clientKey: string) {
+    const { readMockDeviceSettings } = await import('./WfNewApiMockHelpers');
+    return delay(readMockDeviceSettings(clientKey));
+  },
+
+  async saveClientDeviceSettings(clientKey: string, reader, updatedAt?: string) {
+    const { writeMockDeviceSettings } = await import('./WfNewApiMockHelpers');
+    const ts = updatedAt ?? new Date().toISOString();
+    return delay(writeMockDeviceSettings(clientKey, reader, ts));
+  },
+
+  async addLibraryToDefaultGroup(libraryId) {
+    return delay({
+      gid: 'mock-default-group',
+      library_id: Number(libraryId),
+      library_name: 'Mock Library',
+      already_linked: false,
+      words_added: 0,
+      total_words_in_library: 0,
+    });
   },
 };

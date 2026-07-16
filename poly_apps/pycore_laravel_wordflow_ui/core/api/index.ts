@@ -7,6 +7,7 @@ import { InviteCodeAPI } from './modules/InviteCodeAPI';
 import { SystemConfigAPI } from './modules/SystemConfigAPI';
 import { AuthAPI } from './modules/AuthAPI';
 import { DatabaseManagerAPI, AuthDebugAPI } from './modules/DatabaseManagerAPI';
+import { CodeUpdateAPI } from './modules/CodeUpdateAPI';
 import { MediaQueryAPI } from './modules/MediaQueryAPI';
 import { BooksAPI } from './modules/BooksAPI';
 import { CodeBrowserAPI } from './modules/CodeBrowserAPI';
@@ -44,6 +45,7 @@ class APIService {
   public auth: AuthAPI;
   public databaseManager: DatabaseManagerAPI;
   public authDebug: AuthDebugAPI;
+  public codeUpdate: CodeUpdateAPI;
   public mediaQuery: MediaQueryAPI;
   public books: BooksAPI;
   public codeBrowser: CodeBrowserAPI;
@@ -119,6 +121,12 @@ class APIService {
     this.authDebug = new AuthDebugAPI({
       baseURL: API_CONFIG.baseURL,
       prefix: '/api/dashboard/auth',
+      timeout: API_CONFIG.timeout
+    });
+
+    this.codeUpdate = new CodeUpdateAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/dashboard',
       timeout: API_CONFIG.timeout
     });
 

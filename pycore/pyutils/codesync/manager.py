@@ -6,9 +6,9 @@ Each machine has a ROLE (from the committed peer config, peer_config.py):
   * client (default): RECEIVES code from dev-ends. Runs the file client on startup
     (always on) plus the status mesh. Pulls the newest version of each file across
     ALL configured dev-ends (per-file mtime).
-  * dev: DISTRIBUTES code to clients. Runs the status mesh on startup, but actual
-    file distribution is OFF by default every startup and must be enabled manually
-    (set_distributing(True)) - so a dev machine never pushes code unintentionally.
+  * dev: DISTRIBUTES code to clients. Runs the status mesh on startup; file
+    distribution defaults OFF but is restored from runtime_prefs.json when the
+    tray/UI last enabled it (set_distributing(True) persists per machine).
 
 Every machine runs the PeerMeshManager (peer_mesh.py): it probes all configured
 peers on a tick, replicates peer-config edits across the mesh (last-writer-wins,
@@ -38,7 +38,14 @@ from .server import CodeSyncServer, get_code_sync_server
 from .client import CodeSyncClient, get_code_sync_client
 from .peer_config import get_peer_config, _local_lan_ip
 from .peer_mesh import PeerMeshManager
+from .runtime_prefs import get_runtime_prefs
 from .sync_ws import PushSender, PushReceiver
+
+from pycore.pyutils.codesync.sync_settings import build_excluder
+from pycore.pyutils.codesync.sync_settings import get_sync_settings
+import os as _os
+from pycore.pyutils.codesync.watcher import get_watch_manager
+
 
 VALID_ROLES = ("dev", "client")
 STATS_REFRESH_SECONDS = 60
@@ -54,7 +61,7 @@ class CodeSyncManager:
         self._lock = threading.RLock()
         self.config = get_peer_config()
         self.role: str = self.config.get_role()           # dev | client (default client)
-        self.distributing: bool = False                   # dev only; never persisted
+        self.distributing: bool = False                   # dev only; restored from runtime_prefs
         # Client may TEMPORARILY reject incoming code updates ("skip update"); the
         # status mesh keeps running so peers still see this node and its skip state.
         self._skip_update: bool = False
@@ -107,6 +114,7 @@ class CodeSyncManager:
 
         # Apply the startup role (client receives by default; dev waits to distribute).
         self._apply_role(self.role)
+        self._restore_runtime_prefs()
         ColorPrint.green(f"[CodeSync Manager] Initialized role={self.role} "
                          f"(distributing={self.distributing}, light={self.light})")
 
@@ -121,6 +129,7 @@ class CodeSyncManager:
             # Switching to client clears any distribution state.
             if self.role != "dev":
                 self.distributing = False
+                self._persist_runtime_prefs()
             # Keep self LAN IP fresh and drop duplicate self rows after a switch.
             try:
                 self.config.update_peer(self.config.machine_id, {"host": _local_lan_ip()})
@@ -161,6 +170,21 @@ class CodeSyncManager:
             ColorPrint.green("[CodeSync Manager] Dev role - distribution OFF "
                              "(enable it in the UI to start pushing code)")
 
+    # ----- runtime prefs (distributing / skip_update survive restart) ------- #
+    def _persist_runtime_prefs(self) -> None:
+        get_runtime_prefs().update({
+            "distributing": self.distributing,
+            "skip_update": self._skip_update,
+        })
+
+    def _restore_runtime_prefs(self) -> None:
+        """Re-apply the last saved tray/UI toggles after a process restart."""
+        prefs = get_runtime_prefs().get()
+        if prefs.get("skip_update"):
+            self.set_skip_update(True)
+        if self.role == "dev" and prefs.get("distributing"):
+            self.set_distributing(True)
+
     # ----- distribution (dev only) ---------------------------------------- #
     def is_distributing(self) -> bool:
         return self.role == "dev" and self.distributing
@@ -180,6 +204,7 @@ class CodeSyncManager:
                 self.distributing = False
                 msg = "Code distribution stopped"
             ColorPrint.green(f"[CodeSync Manager] {msg}")
+        self._persist_runtime_prefs()
         self._broadcast()
         return {"success": True, "distributing": self.distributing, "message": msg}
 
@@ -196,6 +221,7 @@ class CodeSyncManager:
             msg = ("Updates skipped (rejecting pushed code)" if self._skip_update
                    else "Updates resumed (receiving pushed code)")
             ColorPrint.yellow(f"[CodeSync Manager] {msg}")
+        self._persist_runtime_prefs()
         self._broadcast()
         return {"success": True, "skip_update": self._skip_update, "message": msg}
 
@@ -223,7 +249,6 @@ class CodeSyncManager:
         SAME live filter settings as the file-sync (excluded dirs/files/extensions/
         path-substrings + optional .gitignore), so the UI's code stats reflect what
         would actually be distributed."""
-        from .sync_settings import build_excluder
         files = 0
         total = 0
         latest = 0.0
@@ -309,6 +334,7 @@ class CodeSyncManager:
                 self.role = cfg_role
                 if self.role != "dev":
                     self.distributing = False
+                    self._persist_runtime_prefs()
                 self._apply_role(self.role)
             # If apply_remote had to OVERRIDE a remote-claimed self role, it bumped
             # our version above the incoming one — re-broadcast so the correction
@@ -335,12 +361,10 @@ class CodeSyncManager:
 
     # ----- filter settings (presets + per-machine .data override) --------- #
     def get_sync_settings(self) -> dict:
-        from .sync_settings import get_sync_settings
         data = get_sync_settings().get_with_source()
         return {"success": True, **data}
 
     def set_sync_settings(self, patch: Dict[str, Any]) -> dict:
-        from .sync_settings import get_sync_settings
         settings = get_sync_settings().update(patch or {})
         # Recompute local code stats immediately so the UI reflects the new filters,
         # and let the file server rescan on its next tick.
@@ -352,7 +376,6 @@ class CodeSyncManager:
         return {"success": True, "settings": settings}
 
     def reset_sync_settings(self) -> dict:
-        from .sync_settings import get_sync_settings
         settings = get_sync_settings().reset()
         try:
             self._stats = self._compute_code_stats()
@@ -369,7 +392,6 @@ class CodeSyncManager:
     def watch_dirs(self) -> List[str]:
         """The dev's effective watch dirs (configured list, or [root] if empty)."""
         try:
-            from .watcher import get_watch_manager
             return get_watch_manager().watch_dirs_str()
         except Exception:
             return [str(get_core_node_root())]
@@ -468,7 +490,6 @@ class CodeSyncManager:
         if self.role == "client":
             return {"success": True, "candidates": [],
                     "message": "Discovery disabled on a client (passive node)."}
-        from .sync_settings import get_sync_settings
         if not get_sync_settings().get().get("scan_lan"):
             return {"success": True, "candidates": [],
                     "message": "LAN scanning disabled (enable the toggle first)."}
@@ -548,8 +569,6 @@ class CodeSyncManager:
         # non-scanning tree so the UI shows "no files" rather than spinning.
         if self.light and self.role == "client":
             return {"success": False, "light": True, "scanning": False, "children": []}
-        import os as _os
-        from .watcher import get_watch_manager
         wm = get_watch_manager()
         scanning = False
         try:

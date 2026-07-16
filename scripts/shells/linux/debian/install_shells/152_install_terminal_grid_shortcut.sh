@@ -59,7 +59,6 @@ GRID_TOTAL=$((GRID_COLUMNS * GRID_ROWS))
 CORE_NODE_ROOT="$CORE_NODE_ROOT_FROM_SCRIPTS"
 LAUNCHER_PY="$CORE_NODE_ROOT/pycore/pyutils/launcher/launcher.py"
 ICON_PATH="$CORE_NODE_ROOT/pycore/pyutils/launcher/icon.png"
-INISCRIPTS_LAUNCHER="$PARENT_DIR_LEVEL_2/common/iniscripts/install_launcher.sh"
 HELPER_PATH="/usr/local/bin/devlauncher"
 SHORTCUT_ID="pylauncher"
 SHORTCUT_NAME="PyLauncher"
@@ -86,16 +85,15 @@ fi
 
 # ---- functions --------------------------------------------------------------
 
-# Install the grid launcher's system prerequisites (positioners + emulators) via
-# the shared iniscripts installer. Best-effort: a missing/failed step only degrades
-# the launch to whatever positioner/emulator is present.
+# Install grid shortcut prerequisites inline (launcher is a separate script in the
+# numbered sweep / prepare_pycore_prerequisites.sh — do not call it from here).
 ensure_launcher_prerequisites() {
-    if [ -f "$INISCRIPTS_LAUNCHER" ]; then
-        echo "[grid] Ensuring multi-terminal launcher prerequisites..."
-        bash "$INISCRIPTS_LAUNCHER" --python "$PYTHON_BIN" || true
-    else
-        echo "[grid] Prerequisite installer not found ($INISCRIPTS_LAUNCHER); skipping."
+    if command -v wt.exe >/dev/null 2>&1 || command -v wt >/dev/null 2>&1; then
+        echo "[grid] Windows Terminal (wt) present."
+        return 0
     fi
+    echo "[grid] [i] wt not on PATH; run 105_install_launcher.sh or prepare_pycore_prerequisites.sh separately."
+    return 0
 }
 
 # Write the tiny launch helper that the .desktop Exec points at. It forces the

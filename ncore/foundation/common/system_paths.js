@@ -15,7 +15,7 @@
  *
  * Defines system-wide cache and data directories for core_node applications.
  * Platform-specific paths:
- *   Windows: C:\Users\{username}\.core_node
+ *   Windows: D:\programing\Users\{username}\.core_node
  *   Linux:   /var/_core_node
  *
  * Directory Structure:
@@ -33,6 +33,35 @@ const fs = require('fs');
 const path = require('path');
 
 let _systemCacheDir = null;
+let _xdgCacheHome = null;
+
+/**
+ * User-level XDG cache root (~/.cache on Linux, D:\www\cache on Windows).
+ * @returns {string}
+ */
+function getXdgCacheHome() {
+    if (_xdgCacheHome) {
+        return _xdgCacheHome;
+    }
+
+    let cacheHome = process.env.XDG_CACHE_HOME;
+    if (!cacheHome) {
+        if (process.platform === 'win32') {
+            cacheHome = 'D:\\www\\cache';
+        } else if (process.env.CORE_NODE_CACHE_DIR) {
+            cacheHome = path.join(process.env.CORE_NODE_CACHE_DIR, 'xdg');
+        } else {
+            cacheHome = path.join(os.homedir(), '.cache');
+        }
+    }
+
+    if (!fs.existsSync(cacheHome)) {
+        fs.mkdirSync(cacheHome, { recursive: true });
+    }
+
+    _xdgCacheHome = cacheHome;
+    return cacheHome;
+}
 
 /**
  * Check if running in WSL
@@ -85,14 +114,16 @@ function getSystemCacheDir() {
     let cacheDir;
 
     if (process.platform === 'win32') {
-        cacheDir = path.join(os.homedir(), '.core_node');
+        const username = process.env.USERNAME || process.env.USER || 'default';
+        cacheDir = path.join('D:\\programing\\Users', username, '.core_node');
     } else {
         cacheDir = '/var/_core_node';
 
         try {
             fs.accessSync('/var', fs.constants.W_OK);
         } catch (error) {
-            cacheDir = path.join(os.homedir(), '.core_node');
+            const username = process.env.USERNAME || process.env.USER || 'default';
+            cacheDir = path.join('D:\\programing\\Users', username, '.core_node');
         }
     }
 
@@ -242,6 +273,7 @@ const APP_LOGS_DIR = getAppLogsDir();
 module.exports = {
     isWsl,
     isDesktopLinux,
+    getXdgCacheHome,
     getSystemCacheDir,
     getUiStateCacheDir,
     getAppCacheDir,

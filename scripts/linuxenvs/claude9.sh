@@ -351,7 +351,6 @@ load_secret_value() {
 
 load_secret_value "ANTHROPIC_BASE_URL_9" "ANTHROPIC_BASE_URL" "ANTHROPIC_BASE_URL" ""
 load_secret_value "ANTHROPIC_AUTH_TOKEN_9" "ANTHROPIC_AUTH_TOKEN" "ANTHROPIC_AUTH_TOKEN" ""
-load_secret_value "ANTHROPIC_API_KEY_9" "ANTHROPIC_API_KEY" "ANTHROPIC_API_KEY" ""
 
 echo ""
 
@@ -366,8 +365,6 @@ if [ -n "${ANTHROPIC_AUTH_TOKEN:-}" ]; then
     env_vars_parts+=("ANTHROPIC_AUTH_TOKEN='${ANTHROPIC_AUTH_TOKEN}'")
 fi
 
-if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-    env_vars_parts+=("ANTHROPIC_API_KEY='${ANTHROPIC_API_KEY}'")
 fi
 
 if [ ${#env_vars_parts[@]} -gt 0 ]; then
@@ -634,8 +631,6 @@ if ! command -v claude &> /dev/null; then
     if [ -n "${ANTHROPIC_AUTH_TOKEN:-}" ]; then
         env_vars_parts_npx+=("ANTHROPIC_AUTH_TOKEN='${ANTHROPIC_AUTH_TOKEN}'")
     fi
-    if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-        env_vars_parts_npx+=("ANTHROPIC_API_KEY='${ANTHROPIC_API_KEY}'")
     fi
 
     if [ ${#env_vars_parts_npx[@]} -gt 0 ]; then

@@ -17,6 +17,9 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.clipboard import add_recognition_to_clipboard
 from pycore.pyctl.speech.cache_info import print_recognition_cache_info
 
+from pycore.pyctl.speech.provider_status import get_provider_status
+
+
 
 class RecognitionChannel:
     """
@@ -221,7 +224,6 @@ class TranscriptionSession:
 
     def _save_to_file(self, text: str):
         """Save recognized text to file"""
-        from pathlib import Path
         output_file = Path("transcription.txt")
 
         with open(output_file, 'a', encoding='utf-8') as f:
@@ -262,7 +264,6 @@ class TranscriptionSession:
 
         # Report provider failure to ProviderStatus
         try:
-            from pycore.pyctl.speech.provider_status import get_provider_status
             provider_status = get_provider_status()
         except:
             provider_status = None

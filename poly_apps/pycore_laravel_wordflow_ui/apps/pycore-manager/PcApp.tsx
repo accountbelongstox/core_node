@@ -8,6 +8,7 @@
 import React, { Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { PcLayout } from './PcLayout';
+import { PcProviders } from './PcProviders';
 import {
   checkPycoreNow, syncPycoreOfflineRecheckLoop, stopPycoreOfflineRecheckLoop,
 } from '../../core/api-libs/pycore';
@@ -57,6 +58,7 @@ const PcApp: React.FC = () => {
   return (
     <>
     <PcLanguageSync />
+    <PcProviders>
     <Routes>
       <Route element={<PcLayout />}>
         {/* Page routes are generated from PC_PAGES (above) — add a registry
@@ -84,6 +86,7 @@ const PcApp: React.FC = () => {
         <Route path="*" element={<Navigate to="/pycore-manager" replace />} />
       </Route>
     </Routes>
+    </PcProviders>
     </>
   );
 };

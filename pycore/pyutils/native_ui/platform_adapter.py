@@ -44,6 +44,9 @@ from pathlib import Path
 
 from pycore import ColorPrint
 
+import ctypes
+
+
 
 # ============================================================
 # Enums
@@ -138,7 +141,6 @@ class PlatformAdapter:
         else:
             # Windows: check admin privileges
             try:
-                import ctypes
                 return ctypes.windll.shell32.IsUserAnAdmin() != 0
             except:
                 return False
@@ -399,7 +401,6 @@ class PlatformAdapter:
             return False
 
         try:
-            import ctypes
             myappid = self.get_windows_appusermodelid(app_id, app_name)
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
             ColorPrint.green(f"[PlatformAdapter] Set Windows AppUserModelID: {myappid}")

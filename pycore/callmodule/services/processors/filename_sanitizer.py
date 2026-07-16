@@ -34,7 +34,6 @@ def _load_backends(want_translate: bool) -> Dict[str, Any]:
 
     if want_translate:
         try:
-            from deep_translator import GoogleTranslator
             translator = GoogleTranslator(source="auto", target="en")
 
             def _translate(text):
@@ -45,13 +44,11 @@ def _load_backends(want_translate: bool) -> Dict[str, Any]:
             backends["translate"] = None
 
     try:
-        from unidecode import unidecode as _unidecode
         backends["unidecode"] = _unidecode
     except Exception:
         backends["unidecode"] = None
 
     try:
-        from pypinyin import lazy_pinyin as _lazy_pinyin
 
         def _pinyin(text):
             return " ".join(_lazy_pinyin(text))

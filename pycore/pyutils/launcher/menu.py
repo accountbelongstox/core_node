@@ -16,6 +16,13 @@ try:
 except ImportError:
     HAS_MSVCRT = False
 
+import json
+
+import termios
+import tty
+
+
+
 
 class InteractiveMenu:
     """Interactive menu for launcher configuration with arrow key navigation"""
@@ -60,8 +67,6 @@ class InteractiveMenu:
         else:
             # Fallback for non-Windows: use simple input
             try:
-                import termios
-                import tty
                 fd = sys.stdin.fileno()
                 old_settings = termios.tcgetattr(fd)
                 try:
@@ -362,23 +367,25 @@ class InteractiveMenu:
                 return -1
     
     def _toggle_terminal(self):
-        """Toggle terminal configuration (X4 -> X6 -> X8 -> DISABLE -> X4)"""
+        """Toggle terminal configuration (X4 -> X6 -> X8 -> X12 -> DISABLE -> X4)"""
         term_config = self.config_manager.get_terminal_config()
         current_toggle = term_config.get('toggle', 'X6')
-        toggle_sequence = ['X4', 'X6', 'X8', 'DISABLE']
-        
+        if current_toggle == 'X16':
+            current_toggle = 'X12'
+        toggle_sequence = ['X4', 'X6', 'X8', 'X12', 'DISABLE']
+
         try:
             current_index = toggle_sequence.index(current_toggle)
             next_index = (current_index + 1) % len(toggle_sequence)
         except ValueError:
             next_index = 1  # Default to X6
-        
+
         next_toggle = toggle_sequence[next_index]
         enabled = next_toggle != 'DISABLE'
-        
+
         self.config_manager.set('terminal.toggle', next_toggle)
         self.config_manager.set('terminal.enabled', enabled)
-        
+
         # Update grid based on toggle
         if next_toggle == 'X4':
             self.config_manager.set('terminal.columns', 2)
@@ -389,7 +396,10 @@ class InteractiveMenu:
         elif next_toggle == 'X8':
             self.config_manager.set('terminal.columns', 4)
             self.config_manager.set('terminal.rows', 2)
-        
+        elif next_toggle == 'X12':
+            self.config_manager.set('terminal.columns', 4)
+            self.config_manager.set('terminal.rows', 3)
+
         # Save immediately
         self.config_manager.save_config()
     
@@ -455,13 +465,16 @@ class InteractiveMenu:
         
         print(f"Current settings:")
         print(f"  Enabled: {term_config.get('enabled', True)}")
-        print(f"  Toggle: {term_config.get('toggle', 'X6')} (X4/X6/X8/DISABLE)")
+        toggle_label = term_config.get('toggle', 'X6')
+        if toggle_label == 'X16':
+            toggle_label = 'X12'
+        print(f"  Toggle: {toggle_label} (X4/X6/X8/X12/DISABLE)")
         print(f"  Columns: {term_config.get('columns', 3)}")
         print(f"  Rows: {term_config.get('rows', 2)}")
         print("\nOptions:")
         
         menu_items = [
-            "1. Toggle Terminal (X4/X6/X8/DISABLE)",
+            "1. Toggle Terminal (X4/X6/X8/X12/DISABLE)",
             "2. Set Grid Layout (Columns x Rows)",
             "0. Back"
         ]
@@ -477,14 +490,15 @@ class InteractiveMenu:
                 "1. X4 (4 windows)",
                 "2. X6 (6 windows)",
                 "3. X8 (8 windows)",
-                "4. DISABLE",
+                "4. X12 (12 windows)",
+                "5. DISABLE",
                 "0. Back"
             ]
             
             toggle_selected = self.show_menu_with_selection("Toggle Terminal", toggle_items, 1)
             
-            if toggle_selected >= 0 and toggle_selected < 4:
-                toggle_map = ['X4', 'X6', 'X8', 'DISABLE']
+            if toggle_selected >= 0 and toggle_selected < 5:
+                toggle_map = ['X4', 'X6', 'X8', 'X12', 'DISABLE']
                 toggle_value = toggle_map[toggle_selected]
                 
                 self.config_manager.set('terminal.toggle', toggle_value)
@@ -500,6 +514,9 @@ class InteractiveMenu:
                 elif toggle_value == 'X8':
                     self.config_manager.set('terminal.columns', 4)
                     self.config_manager.set('terminal.rows', 2)
+                elif toggle_value == 'X12':
+                    self.config_manager.set('terminal.columns', 4)
+                    self.config_manager.set('terminal.rows', 3)
                 
                 self.config_manager.save_config()
                 print(f"\nUpdated: Toggle set to {toggle_value}")
@@ -752,7 +769,6 @@ class InteractiveMenu:
         print("Current Configuration")
         print("=" * 60)
         
-        import json
         config = self.config_manager.config
         print(json.dumps(config, indent=2, ensure_ascii=False))
         input("\nPress Enter to continue...")

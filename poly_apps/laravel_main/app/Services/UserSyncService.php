@@ -342,7 +342,7 @@ class UserSyncService
         // Line 439: Define all required columns (for checking table structure completeness)
         $requiredColumns = [
             'id', 'content', 'md5', 'translations', 'has_translation', 'translation_provider',
-            'phonetic', 'us_phonetic', 'uk_phonetic', 'tts_files', 'tts_provider',
+            'phonetic', 'us_phonetic', 'uk_phonetic', 'tts_files', 'audio_files', 'tts_provider',
             'has_audio', 'image_files', 'image_provider', 'word_details',
             'is_exist_local', 'has_operations', 'query_count',
             'last_modified', 'last_query_time', 'created_at', 'updated_at'
@@ -365,6 +365,7 @@ class UserSyncService
                     $table->text('us_phonetic')->nullable();
                     $table->text('uk_phonetic')->nullable();
                     $table->text('tts_files')->nullable();
+                    $table->json('audio_files')->nullable();
                     $table->string('tts_provider', 50)->nullable();
                     $table->boolean('has_audio')->default(false);
                     $table->text('image_files')->nullable();
@@ -410,6 +411,7 @@ class UserSyncService
                         'us_phonetic'          => fn ($t) => $t->text('us_phonetic')->nullable(),
                         'uk_phonetic'          => fn ($t) => $t->text('uk_phonetic')->nullable(),
                         'tts_files'            => fn ($t) => $t->text('tts_files')->nullable(),
+                        'audio_files'          => fn ($t) => $t->json('audio_files')->nullable(),
                         'tts_provider'         => fn ($t) => $t->string('tts_provider', 50)->nullable(),
                         'has_audio'            => fn ($t) => $t->boolean('has_audio')->default(false),
                         'image_files'          => fn ($t) => $t->text('image_files')->nullable(),

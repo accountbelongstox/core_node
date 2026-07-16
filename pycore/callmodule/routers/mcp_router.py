@@ -10,6 +10,12 @@ import logging
 from typing import Dict, Any
 from pycore.pyfoundations.third_party import get_third_package_fastapi
 
+import uuid
+import time
+from pycore.pyctl.mcpctl.backend.config import BACKEND_INFO_TEMPLATE
+from pycore.pygvar import MCP_BACKEND_RPC_PORT
+
+
 fastapi = get_third_package_fastapi()
 APIRouter = fastapi.APIRouter
 
@@ -43,10 +49,6 @@ def ensure_mcp_backend_initialized():
     _global_state = get_global_state()
 
     # Initialize backend info
-    import uuid
-    import time
-    from pycore.pyctl.mcpctl.backend.config import BACKEND_INFO_TEMPLATE
-    from pycore.pygvar import MCP_BACKEND_RPC_PORT
 
     backend_id = str(uuid.uuid4())[:8]
     _backend_info = BACKEND_INFO_TEMPLATE.copy()

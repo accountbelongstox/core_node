@@ -19,6 +19,9 @@ import sys
 import uuid
 from typing import Optional
 
+import winreg
+
+
 _INVALID_SMBIOS_UUIDS = frozenset({
     "00000000-0000-0000-0000-000000000000",
     "ffffffff-ffff-ffff-ffff-ffffffffffff",
@@ -56,7 +59,6 @@ def _windows_machine_guid() -> Optional[str]:
     try:
         if sys.platform != "win32":
             return None
-        import winreg
         key = winreg.OpenKey(
             winreg.HKEY_LOCAL_MACHINE,
             r"SOFTWARE\Microsoft\Cryptography",

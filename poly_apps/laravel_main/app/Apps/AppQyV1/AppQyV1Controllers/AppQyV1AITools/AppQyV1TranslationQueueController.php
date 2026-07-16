@@ -427,11 +427,7 @@ class AppQyV1TranslationQueueController extends Controller
                 $payload = [];
             }
 
-            $words = [];
-            if (isset($payload['words']) && is_array($payload['words'])) {
-                $words = array_values($payload['words']);
-            }
-
+            $words = $this->wordsFromPayload($payload);
             $wordCount = count($words);
             if (isset($payload['word_count'])) {
                 $wordCount = (int) $payload['word_count'];
@@ -761,10 +757,7 @@ class AppQyV1TranslationQueueController extends Controller
             $payload = is_array($task->payload) ? $task->payload : [];
             $result = is_array($task->result) ? $task->result : [];
 
-            $words = [];
-            if (isset($payload['words']) && is_array($payload['words'])) {
-                $words = array_values($payload['words']);
-            }
+            $words = $this->wordsFromPayload($payload);
 
             $translations = [];
             if (isset($result['translations']) && is_array($result['translations'])) {
@@ -1267,5 +1260,37 @@ class AppQyV1TranslationQueueController extends Controller
         ];
 
         return $this->success($response, 'Bing assist results applied');
+    }
+
+    /**
+     * Resolve display words from a unified task payload (words[] or single content/text/word).
+     *
+     * @return list<string>
+     */
+    private function wordsFromPayload(array $payload): array
+    {
+        $words = [];
+        if (isset($payload['words']) && is_array($payload['words'])) {
+            foreach ($payload['words'] as $entry) {
+                if (is_string($entry) && trim($entry) !== '') {
+                    $words[] = trim($entry);
+                } elseif (is_array($entry)) {
+                    $w = $entry['word'] ?? $entry['content'] ?? null;
+                    if (is_string($w) && trim($w) !== '') {
+                        $words[] = trim($w);
+                    }
+                }
+            }
+        }
+        if ($words !== []) {
+            return $words;
+        }
+        foreach (['content', 'text', 'word'] as $key) {
+            $val = $payload[$key] ?? null;
+            if (is_string($val) && trim($val) !== '') {
+                return [trim($val)];
+            }
+        }
+        return [];
     }
 }

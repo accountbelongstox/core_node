@@ -178,41 +178,14 @@ class VideoExtractProcessor:
 
     @staticmethod
     def _fetch_video_poster(original_filename: str, out_dir: str, log):
-        """Best-effort movie/TV poster for one video. Returns (poster_name, poster_info).
+        """DISABLED — poster fetch delegated to apps/mcp-chrome."""
+        log("    poster: skipped (delegated to apps/mcp-chrome)")
+        return None, None
 
-        Parses a clean title + year from ``original_filename`` (strip release/
-        quality tokens, SxxExx, year), fetches a poster via the shared
-        movie_poster_client (TMDB -> OMDB, CJK title translated first), and writes
-        ``poster.jpg``/``.png`` into ``out_dir``. ``poster_name`` is the bare
-        filename (for mapping.files.poster); ``poster_info`` is a small dict
-        ({file, provider, source_id, meta}) for the per-item result. Returns
-        ``(None, None)`` when no poster is found. NEVER raises.
-        """
-        try:
-            title, year = parse_title_year(original_filename)
-            if not (title and title.strip()):
-                return None, None
-            poster = find_poster(title.strip(), year=year)
-            if not poster:
-                return None, None
-            saved = save_poster_file(
-                poster.get("image_base64") or "",
-                poster.get("mime") or "image/jpeg",
-                os.path.join(out_dir, "poster"),
-            )
-            if not saved:
-                return None, None
-            poster_name = os.path.basename(saved)
-            log(f"    poster: saved {poster_name} ({poster.get('provider')})")
-            return poster_name, {
-                "file": poster_name,
-                "provider": poster.get("provider"),
-                "source_id": poster.get("source_id"),
-                "meta": poster.get("meta") or {},
-            }
-        except Exception as exc:  # noqa: BLE001 - never fail extraction
-            log(f"    poster: skipped ({exc})")
-            return None, None
+        # --- Legacy TMDB/OMDB extract poster (disabled) ---
+        # try:
+        #     title, year = parse_title_year(original_filename)
+        #     ...
 
     @staticmethod
     def _log_file_footer(log, idx: int, total: int, file_elapsed: float, elapsed_total: float):

@@ -1,4 +1,4 @@
-# 我的资料页 (my_profile_page)
+# My Profile Page (my_profile_page)
 
 This directory contains detailed design specifications for the my_profile_page page.
 

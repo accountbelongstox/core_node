@@ -38,6 +38,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
+from pycore.pyfoundations.system_paths import get_system_cache_dir
+
+
 
 JsonData = Dict[str, Any]
 
@@ -174,13 +177,15 @@ class FileLockManager:
         fallback mirrors system_paths' own resolution so this never hard-fails.
         """
         try:
-            from .system_paths import get_system_cache_dir
+            pass
         except ImportError:
             # Last-resort fallback (mirrors system_paths.get_system_cache_dir).
             # Reached when system_paths is unavailable OR this module runs as
             # __main__ (no parent package for a relative import).
             if sys.platform == 'win32':
-                return Path.home() / '.core_node'
+                # Mirror system_paths.get_system_cache_dir Windows resolution.
+                _user = os.environ.get('USERNAME', os.environ.get('USER', 'default'))
+                return Path('D:/programing/Users') / _user / '.core_node'
             return Path('/var/_core_node')
         return get_system_cache_dir()
 

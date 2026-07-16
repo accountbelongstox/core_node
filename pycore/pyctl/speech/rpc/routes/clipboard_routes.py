@@ -12,6 +12,12 @@ from typing import Dict, Any
 from pycore.pyfoundations import ColorPrint
 from pycore.database import get_database_manager
 
+from pycore.database.models import TableKeys
+
+from pycore.database.models.util_clipboard.clipboard_history_model import ClipboardHistoryModel
+
+
+
 
 def register_clipboard_routes(rpc_server, service_instances: Dict[str, Any] = None):
     """
@@ -24,9 +30,6 @@ def register_clipboard_routes(rpc_server, service_instances: Dict[str, Any] = No
     ColorPrint.blue("[ClipboardRoutes] Registering clipboard routes...")
 
     # Auto-initialize clipboard database if not registered
-    from pycore.database import get_database_manager
-    from pycore.database.models import TableKeys
-    from pycore.database.models.util_clipboard.clipboard_history_model import ClipboardHistoryModel
 
     db_manager = get_database_manager()
 
@@ -64,7 +67,6 @@ def register_clipboard_routes(rpc_server, service_instances: Dict[str, Any] = No
             content_type = params.get('content_type')
 
             # Import model here to avoid circular imports
-            from pycore.database.models.util_clipboard.clipboard_history_model import ClipboardHistoryModel
 
             db_manager = get_database_manager()
 
@@ -124,7 +126,6 @@ def register_clipboard_routes(rpc_server, service_instances: Dict[str, Any] = No
             client_id = params.get('client_id')
 
             # Import model here to avoid circular imports
-            from pycore.database.models.util_clipboard.clipboard_history_model import ClipboardHistoryModel
 
             db_manager = get_database_manager()
 

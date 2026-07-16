@@ -17,6 +17,9 @@ import urllib.error
 from pathlib import Path
 from typing import Optional, Callable
 
+import traceback
+
+
 
 class RobustDownloader:
     """
@@ -162,7 +165,6 @@ class RobustDownloader:
 
             except Exception as e:
                 print(f"[RobustDownloader] Unexpected error: {e}")
-                import traceback
                 traceback.print_exc()
 
             # Retry with exponential backoff

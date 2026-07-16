@@ -17,6 +17,9 @@ from typing import Any, Dict, List, Optional
 
 from package_manager import PackageManager
 
+import glob
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -125,7 +128,6 @@ def register_document_tools(mcp):
             logger.info(f"Output format: {output_format}")
 
             # parser is a runtime singleton owned by server.
-            from server import parser
 
             # Parse document
             result = parser.parse_file(
@@ -140,7 +142,6 @@ def register_document_tools(mcp):
             if output_format.lower() == "xml" and "error" not in result:
                 try:
                     if PackageManager.ensure_packages('xml'):
-                        from dicttoxml import dicttoxml
                         xml_content = dicttoxml(result, custom_root='document', attr_type=False)
                         result["xml_output"] = xml_content.decode('utf-8')
                 except Exception as e:
@@ -281,7 +282,6 @@ def register_document_tools(mcp):
             logger.info(f"Converting from {from_format} to {to_format}")
 
             # converter is a runtime singleton owned by server.
-            from server import converter
 
             # Special handling for Excel to JSON (requires file path)
             if from_format == 'excel' and to_format == 'json':
@@ -402,7 +402,6 @@ def register_document_tools(mcp):
                 # Write as HTML
                 if not content.strip().startswith('<!DOCTYPE html>'):
                     # Convert plain text to HTML
-                    from server import converter
                     html_content = converter.text_to_html(
                         content,
                         title=metadata.get('title', 'Document') if metadata else 'Document'
@@ -466,14 +465,11 @@ def register_document_tools(mcp):
             Dictionary containing batch conversion results
         """
         try:
-            from pathlib import Path
-            import glob
 
             logger.info(f"Batch converting {from_format} to {to_format}")
             logger.info(f"Input: {input_directory}, Output: {output_directory}")
 
             # converter is a runtime singleton owned by server.
-            from server import converter
 
             # Ensure output directory exists
             os.makedirs(output_directory, exist_ok=True)

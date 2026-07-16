@@ -22,6 +22,22 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from hf_secret import ensure_hf_token
 
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..'))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+from pycore.pyutils.common.hf_local_weights import resolve_model_id
+
+_NLLB200_DEFAULT_REPO = "facebook/nllb-200-distilled-600M"
+
+
+def _resolve_model(model_name=None):
+    """Pre-downloaded local weights (Step39 idempotent install) when available,
+    else the HF repo id. An explicit model_name always wins."""
+    if model_name:
+        return model_name
+    return resolve_model_id("NLLB200_DIR", "nllb200", _NLLB200_DEFAULT_REPO)
+
+
 ensure_hf_token()
 
 
@@ -69,12 +85,12 @@ COMMON_LANGUAGES = {
 }
 
 
-def test_model(model_name='facebook/nllb-200-distilled-600M', source_lang='eng_Latn', target_lang='zho_Hans', test_text=None):
+def test_model(model_name=None, source_lang='eng_Latn', target_lang='zho_Hans', test_text=None):
     """
     Test NLLB-200 model loading and translation
 
     Args:
-        model_name: HuggingFace model name
+        model_name: HuggingFace model name or local weights dir (default: project staging -> HF repo id)
         source_lang: Source language code (e.g., 'eng_Latn')
         target_lang: Target language code (e.g., 'zho_Hans')
         test_text: Optional test text to translate
@@ -82,6 +98,7 @@ def test_model(model_name='facebook/nllb-200-distilled-600M', source_lang='eng_L
     Returns:
         bool: True if test succeeded, False otherwise
     """
+    model_name = _resolve_model(model_name)
     try:
         os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
         os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
@@ -90,7 +107,7 @@ def test_model(model_name='facebook/nllb-200-distilled-600M', source_lang='eng_L
         from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
         print(f'[INFO] Model: {model_name}')
-        print('[INFO] First run will download model from HuggingFace (~1.2GB)')
+        print('[INFO] Local staged weights used when present; else downloads from HuggingFace (~1.2GB)')
         print('[INFO] Download timeout: 3600s (1 hour)')
         print('[INFO] This may take a few minutes...')
         print()
@@ -142,13 +159,14 @@ def test_model(model_name='facebook/nllb-200-distilled-600M', source_lang='eng_L
         return False
 
 
-def interactive_translator(model_name='facebook/nllb-200-distilled-600M'):
+def interactive_translator(model_name=None):
     """
     Start an interactive translation session
 
     Args:
-        model_name: HuggingFace model name
+        model_name: HuggingFace model name or local weights dir (default: project staging -> HF repo id)
     """
+    model_name = _resolve_model(model_name)
     try:
         os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
 
@@ -254,13 +272,14 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='NLLB-200 Model Tester and Translator')
-    parser.add_argument('--model', default='facebook/nllb-200-distilled-600M', help='Model name')
+    parser.add_argument('--model', default=None, help='Model name or local weights dir (default: project staging -> facebook/nllb-200-distilled-600M)')
     parser.add_argument('--interactive', action='store_true', help='Start interactive translator')
     parser.add_argument('--source', default='eng_Latn', help='Source language code')
     parser.add_argument('--target', default='zho_Hans', help='Target language code')
     parser.add_argument('--text', default=None, help='Text to translate')
 
     args = parser.parse_args()
+    args.model = _resolve_model(args.model)
 
     if args.interactive:
         interactive_translator(args.model)

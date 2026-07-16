@@ -3,6 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
+use App\CallPycoreUtils\PycoreHttpClient;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -107,6 +108,10 @@ class AppQyV1SentenceAudioController extends Controller
             'error' => 'nullable|string|max:2000',
             'audio_base64' => 'nullable|string',
             'variant_key' => 'nullable|string|max:32',
+            'accent' => 'nullable|string|max:16',
+            'gender' => 'nullable|string|max:16',
+            'source' => 'nullable|string|max:32',
+            'voice_type' => 'nullable|string|max:32',
         ]);
 
         if ($validator->fails()) {
@@ -155,6 +160,12 @@ class AppQyV1SentenceAudioController extends Controller
         }
 
         try {
+            $variantMeta = array_filter([
+                'accent' => $request->input('accent'),
+                'gender' => $request->input('gender'),
+                'source' => $request->input('source'),
+                'voice_type' => $request->input('voice_type'),
+            ], static fn ($v) => $v !== null && $v !== '');
             $result = $this->service->report(
                 (string) $contentId,
                 (string) $request->input('language'),
@@ -163,7 +174,8 @@ class AppQyV1SentenceAudioController extends Controller
                 $audioBinary,
                 $request->input('provider'),
                 $request->input('error'),
-                $request->input('variant_key')
+                $request->input('variant_key'),
+                $variantMeta ?: null
             );
         } catch (\Throwable $e) {
             Log::error('[SentenceAudio] report failed', [
@@ -187,9 +199,11 @@ class AppQyV1SentenceAudioController extends Controller
      * GET /api/app_qy_v1/ai_tools/tts/sentence/audio  (§6) — FILE-FIRST.
      * Query: ?hash=<content_id>&language=<lang>  OR  ?text=<sentence>&language=<lang>
      *
-     * FUTURE: accept ?variant_key=uk_f or ?accent=uk; delegate to
-     * AppQyV1SentenceAudioService::resolve() with variant-aware disk lookup
-     * (relativePathFor + audio_files entry). See AppQyV1SentenceAudioFiles roadmap.
+     * Optional ?variant_key=<key> resolves a specific suffixed variant;
+     * ?accent=<us|uk|...> resolves the first on-disk variant whose spec matches
+     * that accent (falls back to the extension-preference scan when none match).
+     * Delegates to AppQyV1SentenceAudioService::resolve() (variant-aware disk
+     * lookup via relativePathFor + audio_files entry).
      */
     public function audio(Request $request): JsonResponse
     {
@@ -197,6 +211,8 @@ class AppQyV1SentenceAudioController extends Controller
             'hash' => 'nullable|string|max:64',
             'text' => 'nullable|string',
             'language' => 'nullable|string|max:20',
+            'variant_key' => 'nullable|string|max:32',
+            'accent' => 'nullable|string|max:16',
         ]);
 
         if ($validator->fails()) {
@@ -209,6 +225,8 @@ class AppQyV1SentenceAudioController extends Controller
         $hash = $request->query('hash');
         $text = $request->query('text');
         $language = $request->query('language');
+        $variantKey = $request->query('variant_key');
+        $accent = $request->query('accent');
 
         if (($hash === null || $hash === '') && ($text === null || $text === '')) {
             return response()->json([
@@ -218,7 +236,7 @@ class AppQyV1SentenceAudioController extends Controller
         }
 
         try {
-            $result = $this->service->resolve($hash, $text, $language);
+            $result = $this->service->resolve($hash, $text, $language, $variantKey, $accent);
         } catch (\Throwable $e) {
             Log::error('[SentenceAudio] resolve failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Internal error during resolve'], 500);
@@ -239,6 +257,7 @@ class AppQyV1SentenceAudioController extends Controller
             'content_id' => 'nullable|string|max:64',
             'hash' => 'nullable|string|max:64',
             'language' => 'required|string|max:20',
+            'text' => 'nullable|string',
             'interactive' => 'nullable|boolean',
             'create_task' => 'nullable|boolean',
         ]);
@@ -257,11 +276,23 @@ class AppQyV1SentenceAudioController extends Controller
                 (string) $contentId,
                 (string) $request->input('language'),
                 filter_var($request->input('create_task', true), FILTER_VALIDATE_BOOLEAN),
-                filter_var($request->input('interactive', true), FILTER_VALIDATE_BOOLEAN)
+                filter_var($request->input('interactive', true), FILTER_VALIDATE_BOOLEAN),
+                $request->input('text')
             );
         } catch (\Throwable $e) {
             Log::error('[SentenceAudio] bump failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Internal error during bump'], 500);
+        }
+        // Best-effort: ask co-located pycore to claim ASAP. Wordnew never hits
+        // :59000; Laravel is the only relay. Failure is ignored — heartbeat still drains.
+        if (($result['ok'] ?? false) === true) {
+            try {
+                PycoreHttpClient::callDirect('/api/local/sentence-audio/run-once', [], 3);
+            } catch (\Throwable $e) {
+                Log::debug('[SentenceAudio] pycore run-once nudge skipped', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
         $ok = (bool) ($result['ok'] ?? false);
         return response()->json(array_merge(['success' => $ok], $result), $ok ? 200 : 422);

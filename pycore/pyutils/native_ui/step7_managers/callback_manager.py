@@ -15,6 +15,9 @@ import threading
 from typing import List, Callable, Optional
 from pycore import ColorPrint
 
+import traceback
+
+
 
 class CallbackManager:
     """
@@ -128,7 +131,6 @@ class CallbackManager:
                 callback()
             except Exception as e:
                 ColorPrint.print_error(f"[CallbackManager] Error in ready callback {i+1}: {e}")
-                import traceback
                 traceback.print_exc()
 
     def execute_closed_callbacks(self) -> None:
@@ -147,7 +149,6 @@ class CallbackManager:
                 callback()
             except Exception as e:
                 ColorPrint.print_error(f"[CallbackManager] Error in closed callback {i+1}: {e}")
-                import traceback
                 traceback.print_exc()
 
     def execute_closing_callbacks(self) -> None:
@@ -167,7 +168,6 @@ class CallbackManager:
                 callback()
             except Exception as e:
                 ColorPrint.print_error(f"[CallbackManager] Error in closing callback {i+1}: {e}")
-                import traceback
                 traceback.print_exc()
 
     def execute_restart_callback(self) -> None:
@@ -184,7 +184,6 @@ class CallbackManager:
             self._restart_callback()
         except Exception as e:
             ColorPrint.print_error(f"[CallbackManager] Error in restart callback: {e}")
-            import traceback
             traceback.print_exc()
 
     def has_ready_callbacks(self) -> bool:

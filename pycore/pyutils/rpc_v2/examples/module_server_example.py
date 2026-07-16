@@ -30,6 +30,9 @@ Call translator:
 import sys
 from pathlib import Path
 
+from pycore.pyfoundations.third_party import get_third_package_uvicorn
+
+
 # Add project root to path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -87,7 +90,7 @@ def main():
     ColorPrint.yellow("Starting server... (Press Ctrl+C to stop)")
     print()
     
-    import uvicorn
+    uvicorn = get_third_package_uvicorn()
     uvicorn.run(
         server.app,
         host=options["host"],

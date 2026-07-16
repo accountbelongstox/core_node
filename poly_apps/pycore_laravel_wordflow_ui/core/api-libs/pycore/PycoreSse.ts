@@ -25,7 +25,8 @@
  */
 
 import { getClientId, dispatchEvent, setSseEventsActive, isPycoreSuspended } from './PycoreWs';
-import { pycoreSseUrlOverride } from './pycoreTarget';
+import { PYCORE_PORT, buildPycoreSseBaseUrl } from './pycoreEndpoints';
+import { pycoreSseUrlOverride, directPycoreHost } from './pycoreTarget';
 
 // Envelope event names that carry only a cursor (never a channel payload).
 const ENVELOPE_OPEN = 'stream.open';
@@ -54,17 +55,15 @@ function diag(level: string, message: string) {
 }
 
 function resolveSseUrl(): string {
-  // Whole-UI remote target (pycoreTarget): SSE follows the selected node too.
-  const remote = pycoreSseUrlOverride(getClientId(), lastSeq);
-  if (remote) return remote;
-  const proto = location.protocol === 'https:' ? 'https' : 'http';
-  const isSandbox = location.hostname.includes('asia-southeast1.run.app') || location.hostname.includes('run.app') || location.port === '3000';
-  if (isSandbox) {
-    let url = `${proto}://${location.host}/pyapi/rpc/sse?client_id=${encodeURIComponent(getClientId())}`;
+  const override = pycoreSseUrlOverride(getClientId(), lastSeq);
+  if (override) return override;
+  if (typeof location !== 'undefined' && location.port === String(PYCORE_PORT)) {
+    const proto = location.protocol === 'https:' ? 'https' : 'http';
+    let url = `${proto}://${location.host}/rpc/sse?client_id=${encodeURIComponent(getClientId())}`;
     if (lastSeq !== null) url += `&since=${encodeURIComponent(String(lastSeq))}`;
     return url;
   }
-  let url = `${proto}://${location.hostname}:59000/rpc/sse?client_id=${encodeURIComponent(getClientId())}`;
+  let url = `${buildPycoreSseBaseUrl(directPycoreHost())}?client_id=${encodeURIComponent(getClientId())}`;
   if (lastSeq !== null) url += `&since=${encodeURIComponent(String(lastSeq))}`;
   return url;
 }

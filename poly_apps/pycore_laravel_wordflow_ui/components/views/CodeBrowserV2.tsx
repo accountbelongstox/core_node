@@ -279,10 +279,11 @@ const CodeBrowserV2: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
 
     setSaveStatus('saving');
     try {
-      // Mock save - replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await api.serverManagerV1.writeFile(selectedFile.path, editedContent);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to save file');
+      }
 
-      // Update file content
       setFileContent(prev => ({
         ...prev,
         data: prev.data ? { ...prev.data, content: editedContent } : null

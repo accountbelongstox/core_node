@@ -19,5 +19,12 @@ function Test-CudaPresent {
     if ($env:CUDA_VISIBLE_DEVICES -eq '-1') { return $false }
     $smi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
     if (-not $smi) { return $false }
-    try { & $smi.Source -L *> $null; return ($LASTEXITCODE -eq 0) } catch { return $false }
+    # Detect via nvidia-smi -L stdout (lists "GPU N: ..."), not exit code / return value.
+    try {
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $out = & $smi.Source -L 2>$null
+        $ErrorActionPreference = $prevEap
+        return [bool]($out -match 'GPU\s+\d+:')
+    } catch { return $false }
 }

@@ -2,7 +2,7 @@ import React from 'react';
 import { NginxSite, Language } from '../../../types';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
-import { Shield, Power, PowerOff, Settings, Eye, Trash2, Clock } from 'lucide-react';
+import { Shield, Power, PowerOff, Settings, Eye, Trash2, Clock, FolderX } from 'lucide-react';
 
 interface NginxSiteCardProps {
   site: NginxSite;
@@ -17,6 +17,7 @@ interface NginxSiteCardProps {
   onEdit: (site: NginxSite) => void;
   onViewConfig: (siteName: string) => void;
   onDelete: (siteName: string) => void;
+  onDeleteFiles: (siteName: string) => void;
 }
 
 const NginxSiteCard: React.FC<NginxSiteCardProps> = ({
@@ -31,7 +32,8 @@ const NginxSiteCard: React.FC<NginxSiteCardProps> = ({
   onDisable,
   onEdit,
   onViewConfig,
-  onDelete
+  onDelete,
+  onDeleteFiles
 }) => {
   const t = TRANSLATIONS[lang].server;
   const cert = site.cert_expiry;
@@ -134,6 +136,13 @@ const NginxSiteCard: React.FC<NginxSiteCardProps> = ({
             title={t.nginx.delete}
           >
             <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+          </button>
+          <button
+            onClick={() => onDeleteFiles(site.site_name)}
+            className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+            title="Delete Files (purge web root)"
+          >
+            <FolderX className="w-4 h-4 text-red-700 dark:text-red-500" />
           </button>
         </div>
       </div>

@@ -12,6 +12,11 @@ from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
+import hashlib
+from pycore.database import database_manager, DATABASE_AVAILABLE
+from pycore.database.models import SpeechTTSCacheModel, TableKeys
+
+
 
 def print_recognition_cache_info(text: str, language: str, speech_manager=None):
     """
@@ -22,9 +27,6 @@ def print_recognition_cache_info(text: str, language: str, speech_manager=None):
         language: Language code
         speech_manager: SpeechManager instance (optional, to show default TTS provider)
     """
-    import hashlib
-    from pycore.database import database_manager, DATABASE_AVAILABLE
-    from pycore.database.models import SpeechTTSCacheModel, TableKeys
 
     # Calculate MD5 for text
     md5_hash = hashlib.md5(text.encode('utf-8')).hexdigest()

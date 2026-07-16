@@ -50,7 +50,6 @@ from pycore.pyutils.external_apis.movie_poster_client import parse_title_year
 # Re-exported here via thin delegating methods so the public BooksController API
 # and all internal call sites stay unchanged.
 from .books_list_cache import (
-    _BOOKS_NS,
     list_cache_path,
     source_fingerprint,
     write_list_cache,
@@ -60,8 +59,8 @@ from .books_list_cache import (
 # (reuse-batch); thin delegators below preserve the public API.
 from . import books_state
 
-# _BOOKS_NS (the shared "pycore" data namespace) + _LIST_CACHE_SUBDIR now live in
-# books_list_cache.py; _BOOKS_NS is imported above for staging_dir below.
+# _LIST_CACHE_SUBDIR lives in books_list_cache.py; staging_dir below uses
+# get_local_data_dir() directly (the shared <cache>/pycore dir).
 # Where drag-dropped uploads (no OS path in the browser sandbox) are staged on
 # disk so they get a stable absolute path the ingest pipeline can read + key on.
 _STAGING_SUBDIR = "books_staging"
@@ -290,8 +289,8 @@ class BooksController:
     # ----- upload + analyze (drag-drop fallback for sandboxed browsers) ---- #
     def staging_dir(self) -> str:
         """Absolute staging dir for uploads (created on demand), under the shared
-        <core_node>/.data/pycore/books_staging."""
-        d = os.path.join(str(get_local_data_dir()), _BOOKS_NS, _STAGING_SUBDIR)
+        <cache>/pycore/books_staging."""
+        d = os.path.join(str(get_local_data_dir()), _STAGING_SUBDIR)
         os.makedirs(d, exist_ok=True)
         return d
 

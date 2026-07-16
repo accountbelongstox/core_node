@@ -33,7 +33,7 @@ await api.books.getDictionaryWords({ language: 'english', filter: 'all' });
 ## Backend prefixes
 
 - laravel_main: `/api/app_qy_v1/...` (AppQyV1), plus other app prefixes.
-- pycore: reached via the `/pyapi` proxy → pycore `:59000` (`/pyapi/api/local/...`), with structured live events over WS `/rpc/ws` (`pycoreApi` / `callRpc` / `subscribeWs` in `core/api-libs/pycore`).
+- pycore: direct to `:59000` (`/api/local/...`, `/ping`, etc.), with live events over WS `/rpc/ws` (`pycoreApi` / `callRpc` / `subscribeWs` in `core/api-libs/pycore`).
 
 ## Endpoint switching (multi-backend)
 

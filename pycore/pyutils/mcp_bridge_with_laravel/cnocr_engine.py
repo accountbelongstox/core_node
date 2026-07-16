@@ -79,7 +79,7 @@ class CnOCREngine:
 
             # Check if CnOCR is available
             try:
-                from cnocr import CnOcr
+                pass
             except ImportError as e:
                 self.initialization_error = f"CnOCR not installed: {str(e)}"
                 logger.error(self.initialization_error)

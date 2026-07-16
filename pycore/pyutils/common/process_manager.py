@@ -14,6 +14,10 @@ from typing import List, Dict, Optional, Tuple
 
 from pycore.pyfoundations.third_party import get_third_package_psutil
 
+from pycore.pyfoundations.third_party import get_third_package_win32gui
+from pycore.pyfoundations.third_party import get_third_package_win32process
+
+
 psutil = get_third_package_psutil()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -240,8 +244,8 @@ class ProcessManager:
         Returns:
             List of process information dictionaries
         """
-        import win32gui
-        import win32process
+        win32gui = get_third_package_win32gui()
+        win32process = get_third_package_win32process()
         
         matching_processes = []
         

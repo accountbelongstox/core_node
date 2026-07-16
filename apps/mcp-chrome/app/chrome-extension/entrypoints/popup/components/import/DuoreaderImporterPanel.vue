@@ -36,10 +36,39 @@
       <span>Use CDN API (fast) — tab inject + .pz decode, skip DOM scrape</span>
     </label>
 
+    <label class="dr-check">
+      <input v-model="enrichCoversFromSearch" type="checkbox" :disabled="loadingBooks || progress.running" />
+      <span>Search Google/Bing images for book covers when loading catalog</span>
+    </label>
+
+    <label class="dr-check">
+      <input v-model="forceReplaceUpload" type="checkbox" :disabled="progress.running" />
+      <span>Force replace text upload (re-ingest chapters; audio stays idempotent)</span>
+    </label>
+
     <div class="dr-actions">
-      <button class="dr-btn primary" :disabled="progress.running" @click="startImport">Start Import</button>
-      <button class="dr-btn danger" :disabled="!progress.running" @click="stopImport">Stop</button>
-      <button class="dr-btn" :disabled="loadingBooks || progress.running" @click="loadBooks">Refresh Catalog</button>
+      <button
+        class="dr-btn primary"
+        :disabled="progress.running && !progress.paused"
+        @click="startOrResumeImport"
+      >
+        {{ startButtonLabel }}
+      </button>
+      <button
+        class="dr-btn warn"
+        :disabled="!progress.running || progress.paused"
+        @click="pauseImport"
+      >
+        Pause
+      </button>
+      <button
+        class="dr-btn danger"
+        :disabled="!progress.running && !progress.paused"
+        @click="stopImport"
+      >
+        Stop
+      </button>
+      <button class="dr-btn" :disabled="loadingBooks || progress.running" @click="loadBooks({ enrichCovers: true })">Refresh Catalog</button>
       <button class="dr-btn accent" :disabled="testingApi || progress.running" @click="testApi">
         {{ testingApi ? 'Testing API…' : 'Test API' }}
       </button>
@@ -57,8 +86,8 @@
       <div v-if="apiTestResult.error" class="dr-api-err">{{ apiTestResult.error }}</div>
     </div>
 
-    <div v-if="progress.running || progress.phase" class="dr-activity">
-      <span class="dr-dot" :class="{ busy: progress.running }" />
+    <div v-if="progress.running || progress.paused || progress.phase" class="dr-activity">
+      <span class="dr-dot" :class="{ busy: progress.running, paused: progress.paused }" />
       <div class="dr-activity-text">
         <div class="dr-activity-main">
           <span v-if="progress.step" class="dr-step">{{ stepLabel }}</span>
@@ -95,7 +124,7 @@
 
     <div v-if="enableAudio" class="dr-progress-block">
       <div class="dr-progress-head">
-        <span>Audio fetch</span>
+        <span>Audio fetch{{ progress.audioPending ? ' (background)' : '' }}</span>
         <span>
           <template v-if="progress.audioLang">{{ progress.audioLang }} slot {{ progress.audioSlot }}/{{ progress.audioSlotsTotal || '—' }} · </template>
           {{ progress.audioFetchedLearn || 0 }}+{{ progress.audioFetchedMy || 0 }} mp3
@@ -107,7 +136,7 @@
     <div class="dr-progress-block dr-books-row">
       <div class="dr-progress-head">
         <span>Books</span>
-        <span>{{ progress.booksDone }}/{{ progress.booksTotal || '—' }}</span>
+        <span>{{ progress.booksDone }}/{{ progress.booksTotal || books.length || '—' }}</span>
       </div>
     </div>
 
@@ -120,8 +149,17 @@
       <div v-if="loadingBooks" class="dr-empty">Loading catalog…</div>
       <div v-else-if="!books.length" class="dr-empty">No bilingual books found.</div>
       <div v-for="book in books" :key="book.id" class="dr-book">
-        <div class="dr-book-title">{{ book.titleZh || book.titleEn }}</div>
-        <div class="dr-book-meta">{{ book.titleEn }} · {{ book.authorEn }}</div>
+        <div class="dr-book-row">
+          <DuoreaderCoverRotator
+            :urls="book.coverUrls"
+            :cover-url="book.coverUrl"
+            :title="book.titleZh || book.titleEn"
+          />
+          <div>
+            <div class="dr-book-title">{{ book.titleZh || book.titleEn }}</div>
+            <div class="dr-book-meta">{{ book.titleEn }} · {{ book.authorEn }}</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -130,6 +168,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import { useDuoreaderImporter } from '@/entrypoints/popup/composables/useDuoreaderImporter';
+import DuoreaderCoverRotator from './DuoreaderCoverRotator.vue';
 import type { DuoreaderImportStep } from '@/utils/duoreader-importer-core';
 
 const STEP_LABELS: Record<DuoreaderImportStep, string> = {
@@ -148,6 +187,8 @@ const {
   maxBooks,
   enableAudio,
   useCdnApi,
+  enrichCoversFromSearch,
+  forceReplaceUpload,
   apiBaseUrl,
   books,
   progress,
@@ -157,9 +198,16 @@ const {
   error,
   loadBooks,
   testApi,
-  startImport,
+  startOrResumeImport,
+  pauseImport,
   stopImport,
 } = useDuoreaderImporter();
+
+const startButtonLabel = computed(() => {
+  if (progress.value.paused) return 'Resume Import';
+  if (progress.value.phase === 'Stopped' && progress.value.bookId) return 'Resume Import';
+  return 'Start Import';
+});
 
 const stepLabel = computed(() => {
   const step = progress.value.step || 'idle';
@@ -259,9 +307,18 @@ const stepLabel = computed(() => {
   border-radius: 50%;
   background: #64748b;
 }
+.dr-btn.warn {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  color: #fcd34d;
+}
 .dr-dot.busy {
   background: #22c55e;
   animation: pulse 1.2s infinite;
+}
+.dr-dot.paused {
+  background: #f59e0b;
+  animation: pulse 1.6s infinite;
 }
 @keyframes pulse {
   0%, 100% { opacity: 1; }
@@ -312,6 +369,7 @@ const stepLabel = computed(() => {
   padding: 4px 0;
   border-bottom: 1px solid rgba(51, 65, 85, 0.5);
 }
+.dr-book-row { display: flex; gap: 6px; align-items: flex-start; }
 .dr-book:last-child { border-bottom: none; }
 .dr-book-title { font-weight: 700; font-size: 10px; }
 .dr-book-meta { font-size: 8px; color: var(--text-faint); }

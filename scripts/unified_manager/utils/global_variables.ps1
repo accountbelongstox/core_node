@@ -1,6 +1,6 @@
 # Unified Global Variable Manager - PowerShell Implementation
 # Centralized variable storage system for Windows
-# Stores variables in: C:\Users\用户名\.core_node\.build_global_vars
+# Stores variables in: D:\programing\Users\{username}\.core_node\.build_global_vars
 # Format: filename=key, file_content=value
 
 # Variable declarations - all at top
@@ -52,9 +52,14 @@ function Initialize-GlobalVariables {
     Initialize the global variables directory
     #>
 
-    # Get global variables directory
-    $UserHome = $env:USERPROFILE
-    $Script:GlobalVarsDir = Join-Path $UserHome ".core_node\.build_global_vars"
+    # Delegate to the canonical GlobalVars.ps1 $Global:USER_DIR when available;
+    # else mirror its value (D:\programing\Users\<user>\.core_node).
+    $baseDir = if ($Global:USER_DIR) {
+        $Global:USER_DIR
+    } else {
+        Join-Path (Join-Path 'D:\programing\Users' $env:USERNAME) '.core_node'
+    }
+    $Script:GlobalVarsDir = Join-Path $baseDir '.build_global_vars'
 
     # Ensure directory exists
     if (-not (Test-Path $Script:GlobalVarsDir)) {

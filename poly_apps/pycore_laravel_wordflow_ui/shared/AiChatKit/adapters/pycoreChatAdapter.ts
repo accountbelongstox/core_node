@@ -3,8 +3,7 @@
  *
  * pycore exposes a multi-provider AI surface: GET /ai/probe lists available
  * providers (+ models), POST /ai/chat runs a chat turn. This adapter delegates
- * to the self-contained PycoreApi library (which reaches the backend through the
- * dev `/pyapi` reverse proxy — see vite.config.ts) and maps the real
+ * to the self-contained PycoreApi library (direct :59000) and maps the real
  * AiProbeResponse / AiChatResponse shapes to the shared AiChatKit contract.
  */
 import { AiChatAdapter, AiChatProvider, AiChatSendResult } from '../../../shell/shellTypes';

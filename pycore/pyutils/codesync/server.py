@@ -18,6 +18,9 @@ from typing import Dict, List, Set, Optional, Tuple
 
 from .runtime import log as ColorPrint, get_core_node_root
 
+from pycore.pyutils.codesync.sync_settings import build_excluder
+
+
 
 class CodeSyncClient:
     """Represents a connected client"""
@@ -359,7 +362,6 @@ class CodeSyncServer:
 
         # Live filter settings (presets overlaid by the per-machine .data override:
         # excluded dirs/files/extensions/path-substrings + optional .gitignore).
-        from .sync_settings import build_excluder
         excluder = build_excluder(self.root_dir)
 
         for root, dirs, filenames in os.walk(self.root_dir):

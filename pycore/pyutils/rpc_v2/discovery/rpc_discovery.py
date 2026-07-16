@@ -88,7 +88,6 @@ class RPCDiscovery:
 
     def _verify_rpc_service(self, host: str, port: int) -> bool:
         # Delayed import to break circular dependency
-        from pycore.pyutils.rpc_v2.protocol.rpc_protocol import RPCProtocolClient
         
         client = RPCProtocolClient(host=host, port=port, timeout=self.config.connection_timeout)
         try:

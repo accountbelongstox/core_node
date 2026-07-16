@@ -20,6 +20,9 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from .. import lane_gating
 from . import audio as _h_audio
 
+from pycore.pyutils.translator import prompt_translate
+
+
 
 def prompt_ai_paused(worker) -> bool:
     return time.time() < worker._prompt_ai_pause_until
@@ -60,7 +63,6 @@ def process_prompt_translation_task(worker, task: Dict[str, Any]) -> None:
     worker._post_result(task_id, "processing", progress=5, attempts=1)
 
     try:
-        from pycore.pyutils.translator import prompt_translate
         tr = prompt_translate.translate_prompt(text, src=src)
     except Exception as e:
         ColorPrint.red(f"[TranslationWorker] prompt_translation {task_id} failed: {e}")
@@ -87,7 +89,7 @@ def process_prompt_translation_task(worker, task: Dict[str, Any]) -> None:
     # backend stores the bytes and serves them for the wordnew daily reading.
     if want_audio and lane_gating.sentence_audio_enabled():
         try:
-            audio_b64, engine, _ = _h_audio.synthesize_word_audio(english, "en")
+            audio_b64, engine, _, _meta = _h_audio.synthesize_word_audio(english, "en")
             if audio_b64:
                 result["audio_base64"] = audio_b64
                 result["audio"] = {"language": "en", "engine": engine, "mime": "audio/mpeg"}

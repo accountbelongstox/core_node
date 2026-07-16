@@ -90,3 +90,24 @@ The frontend expects each element to have:
   Calls `getStatistics()` then `addLogsToResponse($stats, 100)`, which merges `recent_logs` and `logs_count` into the same `data` object.
 
 So the backend already returns the structure above; the dashboard uses `response.data` as `queueStats` and reads all fields listed in this document.
+
+---
+
+## Worker queue lanes (pycore / mpc-chrome / ai)
+
+The TTS Queue tab also polls **`GET /api/app_qy_v1/assist/overview`** (SHARED CONTRACT v2, no auth) for GlobalTask + assist lanes that pycore and mpc-chrome drain:
+
+| Category key | Label | Typical handler |
+|--------------|-------|-----------------|
+| `word_translation` | Word Translation | pycore / chrome race |
+| `word_image` | Word Image | pycore / chrome |
+| `word_audio` | Word Audio | pycore |
+| `sentence_audio` | Sentence Audio | pycore / chrome |
+| `cover` | Vocabulary Cover | pycore |
+| `poster` | Media Poster | pycore |
+| `notebooklm` / `gemini_image` / `gemini_chat` | Chrome Task Center | chrome |
+| `subtitle_lang` / `book_lang` | Add-language assist | ai |
+
+Drill-down: **`GET /api/app_qy_v1/assist/overview/items?category=&status=&start=&limit=`**
+
+Frontend: `VocabAssistQueuesPanel` + `api.books.getAssistOverview()` / `getAssistCategoryItems()`.

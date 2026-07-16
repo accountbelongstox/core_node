@@ -700,6 +700,23 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
         params: []
     },
     {
+        id: 'sysmgr4b', method: 'GET', path: '/api/servermanager/v1/system/static-resources',
+        description: 'Get static resources summary (laravel_db/static)', section: 'ServerManager - System',
+        params: []
+    },
+    {
+        id: 'sysmgr4c', method: 'GET', path: '/api/servermanager/v1/system/static-resources/files',
+        description: 'List files in a static subdirectory (search, sort, pagination)', section: 'ServerManager - System',
+        params: [
+            { name: 'path', type: 'string', required: true },
+            { name: 'q', type: 'string', required: false },
+            { name: 'sort', type: 'string', required: false, options: ['name', 'size', 'modified'] },
+            { name: 'order', type: 'string', required: false, options: ['asc', 'desc'] },
+            { name: 'page', type: 'integer', required: false },
+            { name: 'per_page', type: 'integer', required: false }
+        ]
+    },
+    {
         id: 'sysmgr5', method: 'GET', path: '/api/servermanager/v1/system/permissions', 
         description: 'Get system permissions check', section: 'ServerManager - System',
         params: []

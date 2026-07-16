@@ -1411,6 +1411,10 @@ function getTaskStatusBadge(status) {
 function getTaskInputPreview(task) {
     if (!task.input_data) return '-';
 
+    if (task.input_data.content_preview) {
+        return String(task.input_data.content_preview).substring(0, 50);
+    }
+
     if (task.input_data.text) {
         return task.input_data.text.substring(0, 50) + (task.input_data.text.length > 50 ? '...' : '');
     }
@@ -1468,6 +1472,20 @@ async function pollActiveTasks() {
     }
 }
 
+function pickTaskResultField(result, key) {
+    if (!result || typeof result !== 'object') return null;
+    const direct = result[key];
+    if (typeof direct === 'string' && direct.trim()) return direct.trim();
+    if (Array.isArray(result.words) && result.words.length > 0) {
+        const row = result.words[0];
+        if (row && typeof row === 'object') {
+            const nested = row[key];
+            if (typeof nested === 'string' && nested.trim()) return nested.trim();
+        }
+    }
+    return null;
+}
+
 function showTaskDetail(task) {
     const panel = document.getElementById('taskDetailPanel');
 
@@ -1483,6 +1501,30 @@ function showTaskDetail(task) {
         document.getElementById('detailTaskResult').textContent = JSON.stringify(task.result, null, 2);
     } else {
         document.getElementById('detailTaskResult').textContent = 'No result yet';
+    }
+
+    const engine = pickTaskResultField(task.result, 'engine')
+        || pickTaskResultField(task.result, 'provider');
+    const synthCommand = pickTaskResultField(task.result, 'synth_command');
+    const audioPath = pickTaskResultField(task.result, 'audio_path');
+    const synthContainer = document.getElementById('detailTaskSynthContainer');
+    if (engine || synthCommand) {
+        document.getElementById('detailTaskEngine').textContent = engine || '-';
+        document.getElementById('detailTaskSynthCommand').textContent = synthCommand || '-';
+        synthContainer.style.display = 'block';
+    } else {
+        synthContainer.style.display = 'none';
+    }
+
+    const audioContainer = document.getElementById('detailTaskAudioContainer');
+    const audioEl = document.getElementById('detailTaskAudio');
+    if (audioPath) {
+        audioEl.src = api.getAudioUrl(audioPath);
+        document.getElementById('detailTaskAudioPath').textContent = audioPath;
+        audioContainer.style.display = 'block';
+    } else {
+        audioEl.removeAttribute('src');
+        audioContainer.style.display = 'none';
     }
 
     const errorContainer = document.getElementById('detailTaskErrorContainer');

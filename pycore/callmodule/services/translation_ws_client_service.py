@@ -71,11 +71,15 @@ import json
 import threading
 import time
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 # ColorPrint is the only allowed logger in pycore processors/services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 # requests is a third-party dep — always via the lazy accessor (SSE transport).
 from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.callmodule.services.sync.laravel_endpoint_manager import (
+    resolve_laravel_base_url,
+)
 # Sibling services (same layer): the monitor (snapshot push) + worker (word dedup).
 from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
 from pycore.callmodule.services.translation_worker_service import (
@@ -190,17 +194,30 @@ class TranslationWsClient:
 
     # -------------------- URL --------------------
 
+    def _resolved_http_parts(self) -> tuple:
+        """Scheme/host/port from the UI-selected Laravel endpoint (live)."""
+        base = resolve_laravel_base_url().rstrip("/")
+        parsed = urlparse(base)
+        scheme = parsed.scheme or self._scheme
+        host = parsed.hostname or self._host
+        if host in ("0.0.0.0", "", "None"):
+            host = "127.0.0.1"
+        port = parsed.port or (443 if scheme == "https" else 9000)
+        return scheme, host, port
+
     def _stream_url(self) -> str:
         """Build the SSE GET URL (cursor lets the server resume from our position)."""
+        scheme, host, port = self._resolved_http_parts()
         return (
-            f"{self._scheme}://{self._host}:{self._port}{self._sse_path}"
+            f"{scheme}://{host}:{port}{self._sse_path}"
             f"?cursor={int(self._cursor)}"
         )
 
     def _public_url(self, masked: bool = False) -> str:
         """Base URL for logging (no secrets in the SSE transport; `masked` kept
         for call-site compatibility)."""
-        return f"{self._scheme}://{self._host}:{self._port}{self._sse_path}"
+        scheme, host, port = self._resolved_http_parts()
+        return f"{scheme}://{host}:{port}{self._sse_path}"
 
     # -------------------- connection status --------------------
 

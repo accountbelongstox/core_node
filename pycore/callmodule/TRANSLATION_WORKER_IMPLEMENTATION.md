@@ -185,6 +185,17 @@ GET the queue list → cache the snapshot → run **priority-bump detection**.
 | GET  | `` (`?refresh=1`) | cached snapshot: `{ summary, items:[ {…, recently_bumped:bool} ], laravel_reachable:bool, age_ms:float }`. `refresh=1` forces a fresh poll first. |
 | POST | `/priority` | `{ task_id, priority }` → proxied to Laravel; envelope `{ success, status, data }`. |
 | POST | `/stack` | `{ words, language, target_language, priority? }` → proxied to Laravel; same envelope. |
+| GET  | `/tasks/{task_id}` | Proxy Laravel `GET /api/task/{taskId}/status` (falls back to `/detail` on miss). Envelope: `{ success, task?, error?, laravel_reachable }`. |
+
+Verify (always hit the **pycore proxy** — it uses the UI-selected Laravel base from
+`LaravelEndpointManager`, which may differ from bare `http://127.0.0.1:9000`):
+
+```bash
+curl "http://localhost:59000/api/local/translation/queue/tasks/task_<uuid>"
+curl "http://localhost:59000/api/local/task-center/tasks/task_<uuid>/detail"
+curl "http://localhost:59000/api/heartbeat/status/translation_queue_monitor"
+# -> includes base_url + laravel_reachable
+```
 
 Wired into `config.py` (active launcher) + `callmodule_main.py` (native_ui path) +
 `routers/local/__init__.py`, following the `ai_probe_router` / `video_extract_router`
@@ -402,5 +413,16 @@ The router does **no network I/O** — all sections come from in-process singlet
 (the remote-queue section reads the monitor's **cached** snapshot, never a forced
 refresh). It is the composition layer, not a replacement: detail/control endpoints
 stay at `/api/heartbeat/*`, `/voice-subtitle/*`, `/api/local/translation/queue/*`.
+
+### Per-task detail proxies (Laravel global_tasks)
+
+| Method | Path | Laravel upstream | Returns |
+| ------ | ---- | ---------------- | ------- |
+| GET | `/api/local/translation/queue/tasks/{task_id}` | `GET /api/task/{id}/status` (+ `/detail` fallback) | `{ success, task?, error?, laravel_reachable }` |
+| GET | `/api/local/task-center/tasks/{task_id}/detail` | `GET /api/task/{id}/detail` (+ `/status` fallback) | same envelope; may include `bundle` (events + phase) |
+
+Both delegate to `QueueMonitorService` and share `resolve_laravel_base_url()` with
+the translation worker — the same base URL the worker uses for pull/result.
+
 Wired into `config.py` + `callmodule_main.py` + `routers/local/__init__.py`,
 exactly like `translation_queue_router`.

@@ -1,4 +1,4 @@
-# 查找好友页 (find_friends_page)
+# Find Friends Page (find_friends_page)
 
 This directory contains detailed design specifications for the find_friends_page page.
 

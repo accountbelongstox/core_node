@@ -12,6 +12,9 @@ from typing import Dict, Any, Optional, Union
 
 from package_manager import PackageManager
 
+from pycore.pyfoundations.third_party import get_third_package_openpyxl
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,7 +39,6 @@ class DocumentConverter:
             if not PackageManager.ensure_packages('html'):
                 raise ImportError("HTML conversion packages not available")
 
-            import html2text
             h = html2text.HTML2Text()
             h.ignore_links = kwargs.get('ignore_links', False)
             h.ignore_images = kwargs.get('ignore_images', False)
@@ -53,7 +55,6 @@ class DocumentConverter:
                 raise ImportError("PDF conversion packages not available")
 
             try:
-                import pdfkit
                 options = {
                     'page-size': kwargs.get('page_size', 'A4'),
                     'encoding': kwargs.get('encoding', 'UTF-8'),
@@ -66,7 +67,6 @@ class DocumentConverter:
                 return True
             except ImportError:
                 # Fallback to weasyprint
-                import weasyprint
                 html_doc = weasyprint.HTML(string=html_content)
                 html_doc.write_pdf(output_path)
                 return True
@@ -81,7 +81,6 @@ class DocumentConverter:
             if not PackageManager.ensure_packages('html'):
                 raise ImportError("HTML conversion packages not available")
 
-            from bs4 import BeautifulSoup
 
             # First convert HTML to markdown, then to docx
             markdown_content = self.html_to_markdown(html_content)
@@ -97,7 +96,6 @@ class DocumentConverter:
             if not PackageManager.ensure_packages('markdown'):
                 raise ImportError("Markdown conversion packages not available")
 
-            import markdown
             md = markdown.Markdown(extensions=kwargs.get('extensions', ['tables', 'fenced_code']))
             return md.convert(markdown_content)
 
@@ -122,8 +120,6 @@ class DocumentConverter:
             if not PackageManager.ensure_packages('office'):
                 raise ImportError("Office conversion packages not available")
 
-            from docx import Document
-            from docx.shared import Inches
 
             doc = Document()
             lines = markdown_content.split('\n')
@@ -195,8 +191,7 @@ class DocumentConverter:
             if not PackageManager.ensure_packages('office'):
                 raise ImportError("Office conversion packages not available")
 
-            import openpyxl
-            from openpyxl import Workbook
+            openpyxl = get_third_package_openpyxl()
 
             wb = Workbook()
             ws = wb.active
@@ -245,7 +240,7 @@ class DocumentConverter:
             if not PackageManager.ensure_packages('office'):
                 raise ImportError("Office conversion packages not available")
 
-            import openpyxl
+            openpyxl = get_third_package_openpyxl()
 
             wb = openpyxl.load_workbook(excel_path)
             result = {}

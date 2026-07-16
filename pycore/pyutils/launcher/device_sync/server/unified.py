@@ -21,6 +21,9 @@ from ..core.config import get_global_config, DEFAULT_ROOT_DIR
 from ..core.logging import setup_logging
 from ..core.database import get_sync_database
 
+import time
+
+
 logger = setup_logging(__name__)
 
 
@@ -332,7 +335,6 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
 
     def _handle_files_list(self):
         """Handle /api/files - Return file list (PRIMARY mode only)"""
-        import time
         config = get_global_config()
         db = get_sync_database()
 
