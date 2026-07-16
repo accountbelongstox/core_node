@@ -263,7 +263,7 @@ async function postJSON<T>(
   softFail = false,
 ): Promise<T> {
   const barePath = localApiPathFromUrl(url).split('?', 1)[0];
-  const wsTimeout = ceilingMs > 0 ? ceilingMs : LIVE_TEST_CEILING_MS;
+  const wsTimeout = ceilingMs > 0 ? ceilingMs : LIVE_TEST_RPC_TIMEOUT_MS;
   if (isWsConnected() && WS_DIRECT_LIVE_TEST_ROUTES[barePath]) {
     return postJSONViaWs<T>(url, body, softFail, wsTimeout);
   }

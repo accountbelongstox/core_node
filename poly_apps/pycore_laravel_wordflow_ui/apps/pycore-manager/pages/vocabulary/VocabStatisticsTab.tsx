@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Database, Languages, BookOpen, Volume2 } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
-import { VL, VocabBanner, VocabLoading, humanInt, humanBytes, pickArray } from './vocabShared';
+import { VL, VocabBanner, VocabLoading, humanInt, humanBytes, vp, toArray } from './vocabShared';
 
 const L = {
   summary: 'Summary',
@@ -55,17 +55,17 @@ export default function VocabStatisticsTab() {
     const s = results[0];
     if (s.status === 'fulfilled') {
       anyOk = true;
-      setSummary(s.value?.summary || null);
+      setSummary(vp<any>(s.value)?.summary || null);
     }
     const b = results[1];
     if (b.status === 'fulfilled') {
       anyOk = true;
-      setBreakdown(pickArray<BreakdownRow>(b.value));
+      setBreakdown(toArray<BreakdownRow>(vp(b.value)));
     }
     const st = results[2];
     if (st.status === 'fulfilled') {
       anyOk = true;
-      setStorage(st.value || null);
+      setStorage(vp<any>(st.value) || null);
     }
     if (!anyOk) {
       setOffline(true);

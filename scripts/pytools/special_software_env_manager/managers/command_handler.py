@@ -290,6 +290,19 @@ class CommandHandler:
             config_name, config, 1, user_inputs
         )
 
+        # Refresh: regenerate ALL scripts for this config so the new env values
+        # (e.g. CODEX_MODEL) take effect immediately in the launch scripts.
+        print()
+        ColorMessage.write("Refreshing launch scripts with the new values...", 'info')
+        try:
+            refreshed = self.script_manager.regenerate_scripts_for_config(config_name, config)
+            ColorMessage.write(
+                f"[OK] Refreshed {refreshed} script set(s) for {config_name}.",
+                'success'
+            )
+        except Exception as exc:
+            ColorMessage.write(f"[WARN] Script refresh failed: {exc}", 'warning')
+
         print()
         ColorMessage.write("Environment variables saved successfully!", 'success')
         ColorMessage.write("Note: These values are stored in encrypted storage only.", 'info')

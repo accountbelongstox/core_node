@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2, Trash2, RefreshCw, BookOpen, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { VocabLibrary, VocabLibraryWordRow, VocabLibraryWordsResponse } from '../../../core/api-libs/pycore';
-import { VL, VocabBanner, VocabLoading, PresenceBadge, humanInt, pickArray } from './vocabShared';
+import { VL, VocabBanner, VocabLoading, PresenceBadge, humanInt, vp, toArray } from './vocabShared';
 
 const L = {
   languagePh: 'english',
@@ -35,7 +35,7 @@ export default function VocabLibrariesTab() {
     setError(null);
     try {
       const r = await pycoreApi.getVocabLibraries({ language, page: 1, per_page: 100 });
-      setLibs(pickArray<VocabLibrary>(r));
+      setLibs(toArray<VocabLibrary>(vp(r)));
       setOffline(false);
     } catch (e) {
       const msg = e instanceof Error ? e.message : VL.error;
@@ -144,9 +144,10 @@ function LibraryDetailModal({ lib, onClose }: { lib: VocabLibrary; onClose: () =
     pycoreApi.getVocabLibraryWords(lib.id, { page, per_page: perPage })
       .then((r) => {
         if (cancelled) return;
-        setWords(pickArray<VocabLibraryWordRow>(r));
-        setStats(r?.stats || null);
-        setPagination(r?.pagination || null);
+        const p = vp<any>(r);
+        setWords(toArray<VocabLibraryWordRow>(p));
+        setStats(p?.stats || null);
+        setPagination(p?.pagination || null);
       })
       .catch(() => { if (!cancelled) setWords([]); })
       .finally(() => { if (!cancelled) setLoading(false); });

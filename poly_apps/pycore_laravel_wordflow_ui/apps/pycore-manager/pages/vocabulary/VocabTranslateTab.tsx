@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Languages, Volume2, Loader2, ArrowRightLeft, Copy, Check } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { VocabLanguageInfo } from '../../../core/api-libs/pycore';
-import { VL, VocabBanner, VocabLoading } from './vocabShared';
+import { VL, VocabBanner, VocabLoading, vp, toArray } from './vocabShared';
 
 const L = {
   title: 'Translate',                                              // 翻译
@@ -47,7 +47,7 @@ export default function VocabTranslateTab() {
     setLoadingLangs(true);
     try {
       const r = await pycoreApi.getVocabTranslationLanguages();
-      setLanguages(r?.languages || []);
+      setLanguages(toArray<VocabLanguageInfo>(vp(r)));
       setOffline(false);
     } catch {
       setOffline(true);
@@ -78,12 +78,16 @@ export default function VocabTranslateTab() {
         source_language: source === 'auto' ? 'auto' : source,
         target_language: target,
       });
-      if (r && r.translated_text) {
-        setResult(r.translated_text);
-        setDetected(r.detected_language || '');
+      // laravel returns {success, data: {translation, source_text, ...}}; the
+      // FE wrapper aliases translation->translated_text. Handle both raw names.
+      const p = vp<any>(r);
+      const out = p.translated_text || p.translation;
+      if (out) {
+        setResult(out);
+        setDetected(p.detected_language || p.source_language || '');
         setOffline(false);
       } else {
-        setError((r && r.error) || VL.error);
+        setError((r && (r as any).error) || VL.error);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : VL.error);
@@ -100,10 +104,11 @@ export default function VocabTranslateTab() {
     setAudioUrl(null);
     try {
       const r = await pycoreApi.generateVocabTts({ text, language: target });
-      if (r && (r.audio_url || r.audio_base64)) {
-        const url = r.audio_url
-          ? r.audio_url
-          : `data:${r.mime || 'audio/mpeg'};base64,${r.audio_base64}`;
+      const p = vp<any>(r);
+      if (p && (p.audio_url || p.audio_base64)) {
+        const url = p.audio_url
+          ? p.audio_url
+          : `data:${p.mime || 'audio/mpeg'};base64,${p.audio_base64}`;
         setAudioUrl(url);
         setOffline(false);
         const audio = new Audio(url);
@@ -111,7 +116,7 @@ export default function VocabTranslateTab() {
         audio.onerror = () => { setTtsBusy(false); setTtsError('playback failed'); };
         void audio.play().catch(() => { setTtsBusy(false); setTtsError('playback blocked'); });
       } else {
-        setTtsError((r && r.error) || 'TTS produced no audio');
+        setTtsError((p && p.error) || 'TTS produced no audio');
         setTtsBusy(false);
       }
     } catch (e) {

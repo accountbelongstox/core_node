@@ -245,6 +245,23 @@ class ScriptManager:
 
         return total
 
+    def regenerate_scripts_for_config(self, config_name: str, config: Dict[str, Any]) -> int:
+        """Regenerate ALL scripts for ONE config (every file number). Used after
+        saving env vars so the new values (e.g. CODEX_MODEL) refresh immediately
+        in the launch scripts. Works for non-v4 configs (codex/droid/ssh)."""
+        file_numbers = self._collect_secret_file_numbers(config)
+        if not file_numbers:
+            file_numbers = [1]
+        total = 0
+        for number in file_numbers:
+            paths = self.generate_scripts_for_config(
+                config_name, config, number, show_next_steps=False,
+                secret_manager_available=True
+            )
+            if paths:
+                total += 1
+        return total
+
     def _generate_v4_sh_template(
         self, display_name: str, file_number: int,
         variables: List[Dict[str, Any]], command_prefix: str

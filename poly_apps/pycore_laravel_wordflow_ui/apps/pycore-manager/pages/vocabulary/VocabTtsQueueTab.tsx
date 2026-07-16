@@ -7,7 +7,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
-import { VL, VocabBanner, VocabLoading, humanInt, pickArray } from './vocabShared';
+import { VL, VocabBanner, VocabLoading, humanInt, vp, toArray } from './vocabShared';
 
 const STATUSES = ['pending', 'processing', 'completed', 'failed', 'leased'] as const;
 const TYPES = ['word', 'sentence', 'article'] as const;
@@ -41,7 +41,7 @@ export default function VocabTtsQueueTab() {
     setLoadingStats(true);
     try {
       const r = await pycoreApi.getVocabTtsQueueStats();
-      setStats(r);
+      setStats(vp<any>(r));
       setOffline(false);
     } catch {
       setOffline(true);
@@ -57,8 +57,9 @@ export default function VocabTtsQueueTab() {
       if (status) params.status = status;
       if (type) params.type = type;
       const r = await pycoreApi.getVocabTtsQueueItems(params);
-      setItems(pickArray(r));
-      setTotal(Number(r?.total || 0));
+      const p = vp<any>(r);
+      setItems(toArray(p));
+      setTotal(Number(p?.total || 0));
       setOffline(false);
     } catch {
       setItems([]);

@@ -89,12 +89,6 @@ export function humanInt(n: number | undefined | null): string {
   return v.toLocaleString('en-US');
 }
 
-/** Decode an array from a response that may put it under `items` or `data`. */
-export function pickArray<T = Record<string, unknown>>(resp: { items?: T[]; data?: T[]; words?: T[]; libraries?: T[] } | null | undefined): T[] {
-  if (!resp) return [];
-  return (resp.items || resp.data || resp.words || resp.libraries || []) as T[];
-}
-
 /**
  * Unwrap the laravel `{ success, data: <payload> }` envelope. The pycore proxy
  * returns laravel's raw JSON verbatim; laravel-manager's BaseAPI extracts
@@ -102,18 +96,19 @@ export function pickArray<T = Record<string, unknown>>(resp: { items?: T[]; data
  * array response or a flat `{ success, items }` response (no `data` key), this
  * returns the body unchanged. Always returns the payload object/array.
  */
-export function vp<T = Record<string, unknown>>(r: any): T {
-  if (r && typeof r === 'object' && !Array.isArray(r) && r.data !== undefined && r.data !== null) {
-    return r.data as T;
+export function vp<T = Record<string, unknown>>(r: unknown): T {
+  if (r && typeof r === 'object' && !Array.isArray(r) && (r as any).data !== undefined && (r as any).data !== null) {
+    return (r as any).data as T;
   }
   return r as T;
 }
 
 /** Coerce a value to an array (handles bare-array payloads + object wrappers). */
-export function toArray<T = Record<string, unknown>>(v: any): T[] {
+export function toArray<T = Record<string, unknown>>(v: unknown): T[] {
   if (Array.isArray(v)) return v as T[];
   if (v && typeof v === 'object') {
-    return (v.items || v.data || v.words || v.libraries || v.languages || v.breakdown || []) as T[];
+    const o = v as Record<string, unknown>;
+    return (o.items || o.data || o.words || o.libraries || o.languages || o.breakdown || []) as T[];
   }
   return [];
 }

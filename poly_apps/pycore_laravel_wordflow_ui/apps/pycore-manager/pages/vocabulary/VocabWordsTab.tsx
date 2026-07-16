@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { VocabDictionaryWordRow } from '../../../core/api-libs/pycore';
-import { VL, VocabBanner, VocabLoading, PresenceBadge, humanInt, pickArray } from './vocabShared';
+import { VL, VocabBanner, VocabLoading, PresenceBadge, humanInt, vp, toArray } from './vocabShared';
 
 const FILTERS: Array<{ value: string; label: string }> = [
   { value: 'all', label: 'All' },
@@ -86,8 +86,9 @@ export default function VocabWordsTab() {
       const r = await pycoreApi.getVocabDictionaryWords({
         language, filter, q, start, limit: PAGE_SIZE, sort, order,
       });
-      setRows(pickArray<VocabDictionaryWordRow>(r));
-      setTotal(Number(r?.total || 0));
+      const p = vp<any>(r);
+      setRows(toArray<VocabDictionaryWordRow>(p));
+      setTotal(Number(p?.total || 0));
       setSelected(new Set());
       setOffline(false);
     } catch (e) {
@@ -137,10 +138,11 @@ export default function VocabWordsTab() {
   };
 
   const requeueTts = async (row: VocabDictionaryWordRow) => {
-    const md5 = row.md5 || '';
-    if (!md5) return;
+    const content = row.content || row.word || '';
+    if (!content) return;
     try {
-      await pycoreApi.queueVocabTtsBatchQuery({ language, md5s: [md5] });
+      // laravel TTS batch/query takes a BARE ARRAY of {content, language, type}.
+      await pycoreApi.queueVocabTtsBatchQuery([{ content, language, type: 'word' }]);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : VL.error);
@@ -166,7 +168,7 @@ export default function VocabWordsTab() {
     setSentences({ md5, items: [], loading: true });
     try {
       const r = await pycoreApi.getVocabDictionarySentences({ word, language, limit: 10 });
-      setSentences({ md5, items: pickArray(r), loading: false });
+      setSentences({ md5, items: toArray(vp<any>(r)), loading: false });
     } catch {
       setSentences({ md5, items: [], loading: false });
     }

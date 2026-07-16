@@ -259,7 +259,15 @@ def _ensure_model_class() -> bool:
     try:
         from qwen_tts import Qwen3TTSModel as _Cls  # lazy one-shot retry
     except Exception as exc:  # noqa: BLE001 - any import-time failure
-        _last_synth_error = f"qwen-tts import failed: {exc}"
+        # Same actionable hint qwen3tts_tester.py's check_import() prints on a
+        # failed import, so the Test button shows a fix, not a bare traceback.
+        _last_synth_error = (
+            f"qwen-tts import failed: {exc} "
+            "[HINT] pip install -U qwen-tts (qwen-tts pins an exact transformers "
+            "version; run 'pip show qwen-tts' to see it, then "
+            "'pip install transformers==<that version>') "
+            "[HINT] Or run Step61_InstallQwen3Tts.ps1 / 140_install_qwen3tts.sh"
+        )
         _QWEN_TTS_AVAILABLE = False
         return False
     Qwen3TTSModel = _Cls

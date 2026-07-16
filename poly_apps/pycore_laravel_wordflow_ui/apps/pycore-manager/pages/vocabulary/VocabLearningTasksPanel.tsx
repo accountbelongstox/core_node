@@ -11,7 +11,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { VocabAssistCategory } from '../../../core/api-libs/pycore';
-import { VL, VocabBanner, VocabLoading, humanInt, pickArray } from './vocabShared';
+import { VL, VocabBanner, VocabLoading, humanInt, vp, toArray } from './vocabShared';
 
 const L = {
   categories: 'Queue categories',
@@ -41,9 +41,10 @@ export default function VocabLearningTasksPanel() {
     setError(null);
     try {
       const r = await pycoreApi.getVocabAssistOverview();
-      setCats(r?.categories || []);
-      setWorkers((r?.workers || []) as Record<string, unknown>[]);
-      setGeneratedAt(r?.generated_at || '');
+      const p = vp<any>(r);
+      setCats(p?.categories || []);
+      setWorkers((p?.workers || []) as Record<string, unknown>[]);
+      setGeneratedAt(p?.generated_at || '');
       setOffline(false);
     } catch (e) {
       const msg = e instanceof Error ? e.message : VL.error;
@@ -152,7 +153,7 @@ function CategoryItems({ cat, onBack }: { cat: VocabAssistCategory; onBack: () =
     let cancelled = false;
     setLoading(true);
     pycoreApi.getVocabAssistOverviewItems({ category: cat.key || '', start, limit })
-      .then((r) => { if (!cancelled) setItems(pickArray(r)); })
+      .then((r) => { if (!cancelled) setItems(toArray(vp<any>(r))); })
       .catch(() => { if (!cancelled) setItems([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
