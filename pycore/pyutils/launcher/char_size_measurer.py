@@ -14,9 +14,12 @@ across both windows, so it cancels out:
     char_height = (rect_h_B - rect_h_A) / (rows_B - rows_A)
 
 The result is cached to ~/.core_node/launch_multiple/char_size_cache.json keyed
-by system DPI + a cache-version constant, so the (briefly visible) calibration
-windows flash only once per DPI. Set PYCORE_LAUNCHER_RECALIBRATE=1 to force a
-re-measure (e.g. after changing the WT profile font).
+by system DPI + a cache-version constant. Dynamic measurement is OPT-IN: by
+default measure() never flashes calibration windows -- it returns a cached result
+if one exists, otherwise None so the caller falls back to config-derived ratios
+(identical to the Linux path). Set PYCORE_LAUNCHER_RECALIBRATE=1 to actively
+measure (two windows flash briefly) and cache the result; later launches then
+reuse the cache with no flash.
 
 Windows-only: on any other platform measure() returns None and the caller falls
 back to config-derived ratios. The Win32 ctypes bindings are touched only inside
@@ -209,11 +212,15 @@ class CharSizeMeasurer:
 
     @staticmethod
     def measure(force=None):
-        """Return (char_width, char_height, source_str) or None if unavailable.
+        """Return (char_width, char_height, source_str), or None to use config ratios.
+
+        Measurement is opt-in: without force it returns a cached result if present,
+        else None (no calibration windows flash). Only force actively measures.
 
         Args:
-            force: If True, ignore the cache and re-measure. Defaults to the
-                PYCORE_LAUNCHER_RECALIBRATE env var (1 = force).
+            force: If True, ignore the cache and actively re-measure (flashing two
+                calibration windows). Defaults to the PYCORE_LAUNCHER_RECALIBRATE
+                env var (1 = force).
         """
         if not _is_windows():
             return None
@@ -231,6 +238,12 @@ class CharSizeMeasurer:
                 src = (f"cached measurement (DPI {dpi}, "
                        f"{cached.get('char_width'):.3f}x{cached.get('char_height'):.3f}px/cell)")
                 return (float(cached['char_width']), float(cached['char_height']), src)
+            # Opt-in only: with no valid cache and no explicit recalibrate request,
+            # do NOT flash two calibration windows on every launch. Return None so
+            # the caller falls back to the config-ratio path (identical to Linux).
+            # Set PYCORE_LAUNCHER_RECALIBRATE=1 to measure once and cache the result;
+            # later launches then reuse the cache with no flash.
+            return None
 
         print("[char-size] Measuring Windows Terminal cell size "
               "(two calibration windows will flash briefly)...")

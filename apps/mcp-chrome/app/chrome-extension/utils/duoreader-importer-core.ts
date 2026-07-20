@@ -3,12 +3,15 @@
  */
 
 import { normalizeCoverUrls } from '@/utils/cover-playback';
+import { MEDIA_PATHS } from '@/utils/api-paths';
 
 export const DUOREADER_SHELF_URL = 'https://duoreader.cn/assets/shelf.json';
 export const DUOREADER_WEB_BASE = 'https://web.duoreader.cn';
-export const INGEST_PATH = '/api/app_qy_v1/media/ingest';
-export const AUDIO_PATH = '/api/app_qy_v1/media/audio';
-export const BOOK_INGEST_STATUS_PATH = '/api/app_qy_v1/media/books';
+// API paths re-exported from the central registry so existing importers keep
+// their names while the value lives in one place.
+export const INGEST_PATH = MEDIA_PATHS.INGEST;
+export const AUDIO_PATH = MEDIA_PATHS.AUDIO;
+export const BOOK_INGEST_STATUS_PATH = MEDIA_PATHS.BOOKS;
 export const PROGRESS_STORAGE_KEY = 'duoreader_importer_progress';
 export const STATE_STORAGE_KEY = 'duoreader_importer_state';
 export const SESSION_STORAGE_KEY = 'duoreader_importer_session';

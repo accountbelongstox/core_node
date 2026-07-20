@@ -29,8 +29,11 @@ via get_secret_key_indexed, logging only via ColorPrint, English-only strings.
 """
 
 import base64
+import tempfile
 import threading
 import traceback
+from collections import OrderedDict
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import fastapi
@@ -43,11 +46,14 @@ from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyutils.common.api_secrets import streamelements_key_present
 from pycore.pyutils.external_apis.word_audio_client import find_pronunciation
 from pycore.pyutils.tts.tts_orchestrator import TTS_ENGINE_PRIORITY, _priority
+from pycore.pyutils.edge_tts.edge_tts_client import get_edge_tts_client
 # Stored-first Laravel endpoint resolution - same plumbing the sentence-audio
 # router uses to proxy laravel_main for the Puter.js word-audio batch surface.
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
 )
+# Unified pycore->Laravel HTTP gateway (times + logs + records every call).
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 
 router = fastapi.APIRouter(prefix="/api/local/word-audio", tags=["Local Processing - Word Audio"])
 
@@ -61,10 +67,12 @@ _LARAVEL_BOOST = "/api/app_qy_v1/word/boost-priority"
 _YOUDAO_URL = "http://dict.youdao.com/dictvoice"
 _YOUDAO_TIMEOUT = 10
 
-# In-memory cache for Youdao fetches. Keyed by "word:type".
-# Avoids re-fetching the same word when the batch re-runs or auto-continues.
-# Value: { audio_base64, mime, bytes } — evicted on process restart only.
-_YOUDAO_CACHE: Dict[str, Dict[str, Any]] = {}
+# In-memory LRU cache for Youdao fetches, capped at 500 entries. Keyed by
+# "word:type". Avoids re-fetching the same word when the batch re-runs or
+# auto-continues. Value: { audio_base64, mime, bytes } — a hit moves the entry
+# to the end; the oldest entry is evicted beyond the cap.
+_YOUDAO_CACHE: OrderedDict = OrderedDict()
+_YOUDAO_CACHE_MAX = 500
 _YOUDAO_CACHE_LOCK = threading.Lock()
 # 10 min - laravel batch endpoints can be slow / briefly unreachable; let the
 # proxy wait instead of surfacing a read-timeout traceback on every tick.
@@ -235,9 +243,9 @@ def missing_batch(limit: int = 1000, language: str = "en"):
         base = _laravel_base()
         if not base:
             return {"success": False, "error": "laravel endpoint not configured", "words": []}
-        requests = get_third_package_requests()
-        resp = requests.get(
-            base + _LARAVEL_MISSING_BATCH,
+        resp = get_laravel_client().get(
+            _LARAVEL_MISSING_BATCH,
+            base_url=base,
             params={"limit": max(1, min(int(limit), 100000)), "language": language or "en"},
             timeout=_BATCH_TIMEOUT,
         )
@@ -262,8 +270,7 @@ def upload_word_audio(payload: Dict[str, Any]):
         base = _laravel_base()
         if not base:
             return {"success": False, "error": "laravel endpoint not configured"}
-        requests = get_third_package_requests()
-        resp = requests.post(base + _LARAVEL_UPLOAD, json=payload, timeout=_BATCH_TIMEOUT)
+        resp = get_laravel_client().post(_LARAVEL_UPLOAD, base_url=base, json=payload, timeout=_BATCH_TIMEOUT)
         if resp.status_code != 200:
             return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
         try:
@@ -279,8 +286,9 @@ def upload_word_audio(payload: Dict[str, Any]):
 def fetch_youdao(word: str, type: int = 2):
     """GET /youdao?word={word}&type={1|2}
     Proxy the Youdao (Longman CDN) audio endpoint for browser-side batch
-    generation. type=1 -> UK, type=2 -> US. Cached in-process: the same
-    word+type is never re-fetched within one pycore session. Returns
+    generation. type=1 -> UK, type=2 -> US. Cached in-process (LRU, max 500
+    entries): the same word+type is not re-fetched while it stays in the
+    cache. Returns
     { success, audio_base64, mime, cached? } or { success:false, error }.
     Never raises."""
     clean_word = (word or "").strip()
@@ -290,6 +298,8 @@ def fetch_youdao(word: str, type: int = 2):
     cache_key = f"{clean_word}:{accent_type}"
     with _YOUDAO_CACHE_LOCK:
         cached = _YOUDAO_CACHE.get(cache_key)
+        if cached:
+            _YOUDAO_CACHE.move_to_end(cache_key)
     if cached:
         return {**cached, "success": True, "cached": True}
     try:
@@ -310,10 +320,72 @@ def fetch_youdao(word: str, type: int = 2):
         entry: Dict[str, Any] = {"audio_base64": audio_b64, "mime": ct, "bytes": len(raw)}
         with _YOUDAO_CACHE_LOCK:
             _YOUDAO_CACHE[cache_key] = entry
+            _YOUDAO_CACHE.move_to_end(cache_key)
+            while len(_YOUDAO_CACHE) > _YOUDAO_CACHE_MAX:
+                _YOUDAO_CACHE.popitem(last=False)
         return {**entry, "success": True, "cached": False}
     except Exception as exc:  # noqa: BLE001 - never 500
         ColorPrint.yellow(f"[WordAudio] /youdao fetch failed for '{clean_word}': {exc}")
         return {"success": False, "error": str(exc)}
+
+
+# Default edge-tts voice per lang+accent combo.
+_EDGE_VOICE_MAP: Dict[str, str] = {
+    "en:us": "en-US-JennyNeural",
+    "en:uk": "en-GB-SoniaNeural",
+    "zh": "zh-CN-XiaoxiaoNeural",
+    "ja": "ja-JP-NanamiNeural",
+    "ko": "ko-KR-SunHiNeural",
+    "fr": "fr-FR-DeniseNeural",
+    "de": "de-DE-KatjaNeural",
+    "es": "es-ES-ElviraNeural",
+}
+
+
+def _pick_edge_voice(lang: str, accent: str) -> str:
+    key = f"{lang}:{accent}" if lang == "en" else lang
+    return _EDGE_VOICE_MAP.get(key, _EDGE_VOICE_MAP.get(lang, "en-US-JennyNeural"))
+
+
+class EdgeSynthRequest(BaseModel):
+    word: str
+    lang: str = "en"
+    accent: Optional[str] = None
+
+
+@router.post("/edge-synth")
+def edge_synth(req: EdgeSynthRequest):
+    """POST /edge-synth {word, lang, accent?}
+    Synthesize word audio via edge-tts and return base64 audio.
+    Uses a temp file (edge-tts writes to path). Never raises — returns
+    {success:false, error} on any failure."""
+    word = (req.word or "").strip()
+    if not word:
+        raise fastapi.HTTPException(status_code=400, detail="word is required")
+    lang = (req.lang or "en").strip() or "en"
+    accent = (req.accent or "").strip().lower()
+    accent = accent if accent in ("us", "uk") else "us"
+    voice = _pick_edge_voice(lang, accent)
+    tmp_path: Optional[Path] = None
+    try:
+        client = get_edge_tts_client()
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        ok = client.synthesize(word, voice, tmp_path)
+        if not ok or not tmp_path.exists() or tmp_path.stat().st_size == 0:
+            return {"success": False, "error": "edge-tts synthesis failed"}
+        raw = tmp_path.read_bytes()
+        audio_b64 = base64.b64encode(raw).decode()
+        return {"success": True, "audio_base64": audio_b64, "accent": accent, "bytes": len(raw), "mime": "audio/mpeg"}
+    except Exception as exc:  # noqa: BLE001
+        ColorPrint.yellow(f"[WordAudio] /edge-synth failed for '{word}': {exc}")
+        return {"success": False, "error": str(exc)}
+    finally:
+        if tmp_path and tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 @router.post("/fix-word")
@@ -325,8 +397,7 @@ def fix_word_text(payload: Dict[str, Any]):
         base = _laravel_base()
         if not base:
             return {"success": False, "error": "laravel endpoint not configured"}
-        requests = get_third_package_requests()
-        resp = requests.post(base + _LARAVEL_FIX_WORD, json=payload, timeout=30)
+        resp = get_laravel_client().post(_LARAVEL_FIX_WORD, base_url=base, json=payload, timeout=30)
         if resp.status_code not in (200, 400):
             return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text[:200]}"}
         try:
@@ -352,10 +423,10 @@ def boost_priority(payload: Dict[str, Any]):
     try:
         base = _laravel_base()
         if base:
-            requests = get_third_package_requests()
             try:
-                resp = requests.post(
-                    base + _LARAVEL_BOOST,
+                resp = get_laravel_client().post(
+                    _LARAVEL_BOOST,
+                    base_url=base,
                     json={"md5": md5, "lang": lang},
                     timeout=10,
                 )

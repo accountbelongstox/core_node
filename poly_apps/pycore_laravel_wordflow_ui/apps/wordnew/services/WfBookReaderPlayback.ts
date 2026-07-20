@@ -15,6 +15,18 @@ export interface WfBookReaderPlaybackSettings {
   repeatOne: boolean;
 }
 
+/**
+ * Word cards (显示单词卡片, ENGLISH ONLY): before/after a sentence's audio the
+ * engine reads the sentence's not-yet-recited Default Vocabulary Group words
+ * aloud (see services/WfBookReaderWordCards). `readForVerse` must be
+ * best-effort and honor `shouldContinue` so a stuck clip never freezes playback.
+ */
+export interface WfBookReaderWordCards {
+  isEnabled: () => boolean;
+  getPosition: () => 'before' | 'after';
+  readForVerse: (verse: WfNewBookVerse, shouldContinue: () => boolean) => Promise<void>;
+}
+
 export interface WfBookReaderPlaybackDeps {
   getVerses: () => WfNewBookVerse[];
   getSettings: () => WfBookReaderPlaybackSettings;
@@ -32,6 +44,9 @@ export interface WfBookReaderPlaybackDeps {
   goNextChapter: () => Promise<boolean>;
   resolveAudioUrl: (verse: WfNewBookVerse, lang: string, shouldContinue?: () => boolean) => Promise<string | null>;
   bumpMissingAudio: (verse: WfNewBookVerse, lang: string, text: string) => void;
+  /** Optional word-card hook (English only) — read unrecited group words
+   *  around the sentence audio. */
+  wordCards?: WfBookReaderWordCards;
 }
 
 const keyOf = (v: WfNewBookVerse, lang: string) => `${v.grain}-${v.seq}-${lang}`;
@@ -160,12 +175,37 @@ export class WfBookReaderPlayback {
     return true;
   }
 
+  /**
+   * Word cards around the sentence audio (English only): fires once per
+   * sentence at the configured position — 'before' at the start of step 0,
+   * 'after' when the play sequence has run through. Guarded by the current
+   * play token so a stop/jump mid-reading cancels it; any failure falls
+   * through so the sentence itself is never blocked.
+   */
+  private async runWordCards(verse: WfNewBookVerse, pos: 'before' | 'after', token: number): Promise<void> {
+    const wc = this.deps.wordCards;
+    if (!wc || !wc.isEnabled() || wc.getPosition() !== pos) return;
+    if (!this.playing || this.playToken !== token) return;
+    try {
+      await wc.readForVerse(verse, () => this.playing && this.playToken === token && !this.paused);
+    } catch {
+      /* best-effort — a word-card failure never blocks the sentence */
+    }
+    while (this.paused && this.playing && this.playToken === token) {
+      await new Promise((r) => setTimeout(r, 120));
+    }
+  }
+
   private async runStep(verse: WfNewBookVerse, stepIdx: number): Promise<void> {
     if (!this.playing || this.paused) return;
     const token = (this.playToken += 1);
     const settings = this.deps.getSettings();
     const seq = settings.sequence.length ? settings.sequence : [{ lang: 'en', repeat: 1 }];
     if (stepIdx >= seq.length) {
+      // Sequence finished — word cards configured 'after' read here, once per
+      // sentence pass, before repeat/advance.
+      await this.runWordCards(verse, 'after', token);
+      if (!this.playing || this.playToken !== token) return;
       if (settings.repeatOne) {
         await this.runStep(verse, 0);
         return;
@@ -180,6 +220,13 @@ export class WfBookReaderPlayback {
     this.stepIndex = stepIdx;
     this.currentLang = lang;
     this.repeatLeft = step.repeat;
+
+    // Word cards configured 'before' read ahead of the sentence's first step
+    // (a mid-sequence startLang jump skips them deliberately).
+    if (stepIdx === 0) {
+      await this.runWordCards(verse, 'before', token);
+      if (!this.playing || this.playToken !== token) return;
+    }
 
     if (!text) {
       await this.runStep(verse, stepIdx + 1);
@@ -255,9 +302,44 @@ export class WfBookReaderPlayback {
     await this.runStep(verse, stepIdx + 1);
   }
 
-  private async advanceFrom(verse: WfNewBookVerse): Promise<void> {
+  /**
+   * Manual previous/next sentence (floating console). Always (re)starts
+   * playback from the target sentence — the console's step buttons double as
+   * "play from here". Next at the last sentence of the page force-crosses to
+   * the next page/chapter even when autoAdvance is off; previous at the first
+   * sentence crosses to the previous page's LAST sentence when one exists.
+   */
+  async stepSentence(delta: 1 | -1): Promise<void> {
+    const verse = this.currentVerse;
+    if (!verse) return;
+    const list = this.deps.getVerses();
+    const idx = list.findIndex((v) => v.grain === verse.grain && v.seq === verse.seq);
+    if (delta > 0) {
+      if (idx >= 0 && idx < list.length - 1) {
+        await this.playFrom(list[idx + 1]);
+        return;
+      }
+      await this.advanceFrom(verse, true);
+      return;
+    }
+    if (idx > 0) {
+      await this.playFrom(list[idx - 1]);
+      return;
+    }
+    const page = this.deps.getPage();
+    if (page > 1) {
+      const myLoad = (this.loadSeq += 1);
+      const items = await this.deps.loadVerses(this.deps.getChapterIndex(), page - 1, { keepOnError: true });
+      if (this.loadSeq !== myLoad || !items?.length) return;
+      await this.playFrom(items[items.length - 1]);
+    }
+  }
+
+  /** `force` = manual next-sentence at a page/chapter boundary: cross over
+   *  even when autoAdvance is off (autoAdvance only gates the AUTO pass). */
+  private async advanceFrom(verse: WfNewBookVerse, force = false): Promise<void> {
     const settings = this.deps.getSettings();
-    if (!settings.autoAdvance) {
+    if (!settings.autoAdvance && !force) {
       this.stop();
       return;
     }

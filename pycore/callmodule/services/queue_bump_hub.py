@@ -10,7 +10,7 @@ lane — not only translation tasks.
 import threading
 import time
 from collections import deque
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any, Callable, Deque, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
@@ -37,7 +37,22 @@ class QueueBumpHub:
         self._lock = threading.Lock()
         self._events: Deque[Dict[str, Any]] = deque(maxlen=_MAX_EVENTS)
         self._active_until: Dict[str, float] = {}
+        # Zero-internal-import observer registry (mirrors LaravelHttpRecorder):
+        # listeners (e.g. the rpc_v2 WS bridge) register plain callables here so
+        # this hub stays import-safe for every lane producer.
+        self._callbacks: List[Callable[[Dict[str, Any]], None]] = []
         self._initialized = True
+
+    def register_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
+        """Register a listener called with each bump record. Never raises."""
+        with self._lock:
+            if callback not in self._callbacks:
+                self._callbacks.append(callback)
+
+    def unregister_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
+        with self._lock:
+            if callback in self._callbacks:
+                self._callbacks.remove(callback)
 
     def record(
         self,
@@ -66,10 +81,18 @@ class QueueBumpHub:
         with self._lock:
             self._active_until[bump_key] = now + _BUMP_TTL_S
             self._events.appendleft(entry)
+            callbacks = list(self._callbacks)
         ColorPrint.blue(
             f"[QueueBump] {lane_key}: '{entry['label']}' priority "
             f"{old_priority}->{new_priority}"
         )
+        # Fan out to observers (WS bridge) after releasing the lock; a listener
+        # must never break the recording path.
+        for cb in callbacks:
+            try:
+                cb(dict(entry))
+            except Exception:
+                pass
 
     def is_bumped(self, lane: str, item_id: str) -> bool:
         bump_key = f"{(lane or '').strip()}:{str(item_id or '').strip()}"
@@ -96,3 +119,9 @@ class QueueBumpHub:
 
 def get_queue_bump_hub() -> QueueBumpHub:
     return QueueBumpHub()
+
+
+def register_queue_bump_callback(callback: Callable[[Dict[str, Any]], None]) -> None:
+    """Module-level registrar (mirrors register_laravel_http_callback) so the
+    rpc_v2 layer can observe bumps without the hub importing upward."""
+    QueueBumpHub().register_callback(callback)

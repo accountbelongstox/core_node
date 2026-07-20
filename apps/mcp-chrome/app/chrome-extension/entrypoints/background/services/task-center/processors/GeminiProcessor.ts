@@ -9,12 +9,13 @@
 import type { ITaskProcessor, ProcessorConfig, ProcessorStatus } from '../ITaskProcessor';
 import type { WorkerCapability } from '../../../api/WorkerApiClient';
 import { geminiWorkerService } from '../../gemini-worker-service';
+import { LANES } from '@/utils/task-center-lanes';
 
 class GeminiProcessor implements ITaskProcessor {
-  readonly processorType = 'remote_gemini_text';
+  readonly processorType = LANES.REMOTE_GEMINI_TEXT;
   readonly processorName = 'Gemini Web';
 
-  readonly processorTypes: string[] = ['remote_gemini_text'];
+  readonly processorTypes: string[] = [LANES.REMOTE_GEMINI_TEXT];
   readonly capabilities: WorkerCapability[] = [];
   readonly concurrency = 1;
 

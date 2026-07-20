@@ -133,6 +133,46 @@ class TabController {
     }
   }
 
+  /**
+   * Open a worker tab in the BACKGROUND (active:false) so the user's focus is
+   * never stolen. No self-activation is recorded because we did not foreground
+   * anything. Result capture (executeScript / sendMessage) works on background
+   * tabs, so page-driving workers should prefer this over an active create.
+   */
+  async openBackgroundTab(url: string): Promise<chrome.tabs.Tab> {
+    return chrome.tabs.create({ url, active: false });
+  }
+
+  /**
+   * Snapshot the user's currently-focused tab so a path that MUST foreground can
+   * restore it afterwards. Best-effort; returns null if none resolvable.
+   */
+  async captureActiveTab(): Promise<{ tabId: number; windowId: number } | null> {
+    try {
+      const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      if (t && typeof t.id === 'number' && typeof t.windowId === 'number') {
+        return { tabId: t.id, windowId: t.windowId };
+      }
+    } catch {
+      // best-effort
+    }
+    return null;
+  }
+
+  /**
+   * Re-activate a tab captured by captureActiveTab (only if it still exists).
+   * Best-effort; swallows errors. Uses activate() so the self-switch is recorded.
+   */
+  async restoreActiveTab(captured: { tabId: number; windowId: number } | null): Promise<void> {
+    if (!captured) return;
+    try {
+      await chrome.tabs.get(captured.tabId);
+    } catch {
+      return; // captured tab is gone
+    }
+    await this.activate(captured.tabId);
+  }
+
   /** The unified pause gate (human-interference; anti-scrape lives on the worker). */
   isPaused(): boolean {
     return Date.now() < this.pausedUntil;

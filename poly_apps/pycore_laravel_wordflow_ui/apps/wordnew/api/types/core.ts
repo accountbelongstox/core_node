@@ -13,7 +13,14 @@ export interface Word {
   /** Grammatical hint shown in the Walkman screen (e.g. 'n.', 'verb'). */
   wordType?: string;
   tags?: string[];
+  /** Absolute primary audio URL (rebased onto the current endpoint), or undefined. */
   audioUrl?: string;
+  /** All generated audio renditions from the Laravel library (absolute urls). */
+  audioFiles?: { url?: string; voice?: string; lang?: string }[];
+  /** How many audio renditions exist for this word (audioFiles.length). */
+  audioCount?: number;
+  /** True when `translation` holds a REAL target string (empty '' = no translation). */
+  hasTranslation?: boolean;
 }
 
 export interface WordGroup {
@@ -25,6 +32,15 @@ export interface WordGroup {
   type?: string;
   description?: string;
 }
+
+/**
+ * The backend name of the user's Default Vocabulary Group
+ * (AppQyV1WordGroupPublicController::$default_group_name). Created lazily at
+ * login/register; the shelf study surface scopes shuffle-once + daily-goal
+ * unread reading to this group. The mapped WordGroup.name carries this value
+ * (WfNewApiMappers.toGroup reads raw.gname).
+ */
+export const DEFAULT_VOCAB_GROUP_NAME = 'Default Vocabulary Group';
 
 /**
  * A WordGroup enriched with the decorative fields the home "bento" grid needs.

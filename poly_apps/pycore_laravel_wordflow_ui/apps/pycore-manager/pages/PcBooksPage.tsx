@@ -662,11 +662,14 @@ const PcBooksPage: React.FC = () => {
       setNotice(`${L.enrichFailed}${r?.error ? ': ' + r.error : ''}`);
       return null;
     }
+    // media.enrich forwards Laravel's {success, data:{...}} envelope unchanged;
+    // the counts live under `data`. Read there, falling back to the top level.
+    const d = (r && typeof r.data === 'object' && r.data) ? r.data : r;
     const res: EnrichResult = {
-      processed: Number(r.processed ?? 0),
-      enriched: Number(r.enriched ?? 0),
-      remaining: Number(r.remaining ?? 0),
-      errors: Array.isArray(r.errors) ? r.errors : undefined,
+      processed: Number(d.processed ?? 0),
+      enriched: Number(d.enriched ?? 0),
+      remaining: Number(d.remaining ?? 0),
+      errors: Array.isArray(d.errors) ? d.errors : undefined,
     };
     setEnrichResult(res);
     if (res.errors && res.errors.length) {

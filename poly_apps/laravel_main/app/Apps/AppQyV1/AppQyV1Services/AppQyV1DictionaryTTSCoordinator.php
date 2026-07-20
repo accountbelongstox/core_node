@@ -427,11 +427,34 @@ class AppQyV1DictionaryTTSCoordinator
         ?string $variantKey = null,
         ?array $variantMeta = null
     ): bool {
+        return $this->storeWordAudioBytesDetailed(
+            $langCode, $md5, $bytes, $providerLabel, $variantKey, $variantMeta
+        )['stored'];
+    }
+
+    /**
+     * Detailed variant of storeWordAudioBytes. Distinguishes WHY a write did not
+     * happen so callers can act correctly (mark-done vs surface-error), and
+     * SELF-HEALS a stale has_audio=false when the primary file already exists on
+     * disk (authoritative) — so a word with a real file but a lagged flag is
+     * marked completed once and never re-served/re-synthesized.
+     *
+     * @return array{stored:bool, reason:string}
+     *   reason in: not_found | exists | variant_exists | invalid | io_error | stored
+     */
+    public function storeWordAudioBytesDetailed(
+        string $langCode,
+        string $md5,
+        string $bytes,
+        string $providerLabel = 'bing',
+        ?string $variantKey = null,
+        ?array $variantMeta = null
+    ): array {
         $entry = AppQyV1LangDictionaryModel::forLanguage($langCode)
             ->where('md5', $md5)
             ->first();
         if (!$entry) {
-            return false;
+            return ['stored' => false, 'reason' => 'not_found'];
         }
 
         $variantKey = ($variantKey === null) ? '' : $variantKey;
@@ -439,16 +462,30 @@ class AppQyV1DictionaryTTSCoordinator
         // variant respects has_audio; non-primary variants check their own slot.
         if ($variantKey === '') {
             if (!empty($entry->has_audio)) {
-                return false;
+                return ['stored' => false, 'reason' => 'exists'];
+            }
+            // Self-heal: file already on disk but has_audio lagged false (crash
+            // between file write and DB save, or a legacy row). Mark the row
+            // completed against the existing file and report a no-op so the word
+            // drops out of missing-batch permanently. pathOnDisk verifies the file
+            // still exists, so a deleted file is NOT falsely marked done.
+            $existingPath = $this->ttsService->buildRelativePath(
+                $entry->content, $langCode, 'word', '+0%', ''
+            );
+            if (AppQyV1WordAudioFiles::pathOnDisk($existingPath)) {
+                $this->markWordCompleted(
+                    $entry, $existingPath, $entry->tts_provider ?: $providerLabel, ['variant_key' => '']
+                );
+                return ['stored' => false, 'reason' => 'exists'];
             }
         } else {
             if (AppQyV1WordAudioFiles::hasVariantWithFile($entry, $variantKey)) {
-                return false;
+                return ['stored' => false, 'reason' => 'variant_exists'];
             }
         }
 
         if (strlen($bytes) < 100 || !self::looksLikeMp3($bytes)) {
-            return false;
+            return ['stored' => false, 'reason' => 'invalid'];
         }
 
         $relativePath = $this->ttsService->buildRelativePath(
@@ -458,12 +495,12 @@ class AppQyV1DictionaryTTSCoordinator
         FileSystemManager::ensureDirectoryExists(dirname($fullPath));
 
         if (@file_put_contents($fullPath, $bytes) === false) {
-            return false;
+            return ['stored' => false, 'reason' => 'io_error'];
         }
         clearstatcache(true, $fullPath);
         if (!file_exists($fullPath) || filesize($fullPath) !== strlen($bytes)) {
             @unlink($fullPath);
-            return false;
+            return ['stored' => false, 'reason' => 'io_error'];
         }
 
         $meta = is_array($variantMeta) ? $variantMeta : [];
@@ -479,7 +516,74 @@ class AppQyV1DictionaryTTSCoordinator
             'variant_key' => $variantKey,
         ]);
 
-        return true;
+        return ['stored' => true, 'reason' => 'stored'];
+    }
+
+    /**
+     * Reconcile DB-flagged missing-audio word rows against the AUTHORITATIVE files
+     * on disk. The missing-batch query trusts the has_audio / audio_files /
+     * tts_files columns, but those lag the real file after a crash between the file
+     * write and the DB save, or after a legacy import. A row whose file actually
+     * exists is SELF-HEALED here (has_audio=true + tts_files + audio_files) and
+     * dropped, so the batch never re-serves a word that already has audio — the FE
+     * no longer wastefully re-synthesizes it and reports "already exists" forever.
+     * A row with a real file is marked completed once; a genuinely missing row is
+     * returned unchanged. "有一个就算有" (one on-disk variant = covered).
+     *
+     * @param iterable<AppQyV1LangDictionaryModel> $rows candidate rows (DB says missing)
+     * @return array<int,AppQyV1LangDictionaryModel> rows that are TRULY missing audio
+     */
+    public function filterTrulyMissingWords(string $langCode, iterable $rows): array
+    {
+        $missing = [];
+        // Read/stat phase (no DB writes): classify each candidate against disk.
+        // heal = [ [entry, relativePath, variantKey], ... ] for rows with a real file.
+        $heal = [];
+        foreach ($rows as $entry) {
+            $content = (string) ($entry->content ?? '');
+            if ($content === '') {
+                $missing[] = $entry;
+                continue;
+            }
+            // Primary (accent-neutral) file first — the cheap, common case.
+            $primaryPath = $this->ttsService->buildRelativePath($content, $langCode, 'word', '+0%', '');
+            if (AppQyV1WordAudioFiles::pathOnDisk($primaryPath)) {
+                $heal[] = [$entry, $primaryPath, ''];
+                continue;
+            }
+            // Otherwise honor any accent/gender variant already on disk (one=covered).
+            $covered = false;
+            foreach (AppQyV1WordAudioFiles::variantsForLanguage($langCode) as $spec) {
+                $vkey = (string) ($spec['key'] ?? '');
+                if ($vkey === '') {
+                    continue;
+                }
+                $vPath = $this->ttsService->buildRelativePath($content, $langCode, 'word', '+0%', $vkey);
+                if (AppQyV1WordAudioFiles::pathOnDisk($vPath)) {
+                    $heal[] = [$entry, $vPath, $vkey];
+                    $covered = true;
+                    break;
+                }
+            }
+            if (!$covered) {
+                $missing[] = $entry;
+            }
+        }
+        // Write phase: commit all stale-flag heals in ONE transaction (up to `limit`
+        // rows) so the missing-batch GET stays fast instead of paying per-row commits.
+        if (!empty($heal)) {
+            $conn = $heal[0][0]->getConnectionName();
+            DB::connection($conn)->transaction(function () use ($heal) {
+                foreach ($heal as [$entry, $path, $vkey]) {
+                    $this->markWordCompleted($entry, $path, $entry->tts_provider ?: 'disk', ['variant_key' => $vkey]);
+                }
+            });
+            Log::info('[DictTTS] missing-batch self-healed stale rows against disk', [
+                'language' => $langCode,
+                'healed' => count($heal),
+            ]);
+        }
+        return $missing;
     }
 
     /**

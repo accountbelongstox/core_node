@@ -1272,6 +1272,8 @@ class AppQyV1AssistService
             'total' => $pending,
             'by_language' => $byLanguage,
             'sample' => $sample,
+            // Declared engine for this lane (qwen3tts-first, GPU-gated by pycore).
+            'engine' => $service->sentenceEngineInfo(),
         ];
     }
 
@@ -1548,6 +1550,8 @@ class AppQyV1AssistService
                     'total' => $sentence['total'],
                     'by_language' => $sentence['by_language'],
                     'sample' => $sentence['sample'],
+                    // Active/primary engine for the lane (qwen3tts-first, GPU-gated).
+                    'engine' => $sentence['engine'] ?? null,
                 ],
                 [
                     'key' => 'subtitle_lang',

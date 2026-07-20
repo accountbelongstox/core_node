@@ -52,7 +52,10 @@ echo "============================================================"
 echo " [install_voxcpm2] VoxCPM2 (OpenBMB)"
 echo "============================================================"
 
-[[ "${VOXCPM2_SKIP:-0}" == "1" ]] && { echo "[install_voxcpm2] [i] VOXCPM2_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm; }
+# Honor the skip flag FIRST (before the opt-in / --full gate) so it wins even when the
+# NEURAL_TTS_INSTALL batch would otherwise force a full install. --absent-ok keeps the skip
+# a clean idempotent no-op (voxcpm legitimately absent), mirroring pyservice.sh --skip-voxcpm2.
+[[ "${VOXCPM2_SKIP:-0}" == "1" ]] && { echo "[install_voxcpm2] [i] VOXCPM2_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "VOXCPM2_SKIP=1" voxcpm; }
 if [[ -f "$DEPS_SENTINEL" && "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "VoxCPM2 already installed"
     complete_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm

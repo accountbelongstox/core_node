@@ -119,13 +119,15 @@ export class WordflowApiGroupMethods {
 
   /**
    * Report study answer(s) against a group (AUTH POST /group/update_progress).
-   * Both backend shapes are supported (contract 2026-06-12):
+   * Three backend shapes are supported (contract 2026-07-18 §5.7):
    *   - legacy single: { word_id, correct, gid? }
+   *   - read action:   { gid?, word_id, action: 'read', play_time? } (per-word
+   *                     play time; the recite loop submits this each pass)
    *   - batch:         { gid?, updates: [{ word_id, correct }] }
    * Queueable offline (idempotent replay). Invalidates the learning-stats +
    * review-queue TTL caches; the held progress blob is dropped by
    * wfProgressCenter (which is how batch reports should be sent —
-   * wfProgressCenter.reportAnswers()).
+   * wfProgressCenter.reportAnswers() / reportReadWithPlayTime()).
    */
   async updateGroupProgress(
     payload:

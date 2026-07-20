@@ -10,6 +10,12 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# Lifecycle: Bucket-A LLM. transformers is installed at the shared pin via
+# Install-PinnedTransformers (version-idempotent, never --upgrade, self-heals a
+# clobbered pin) so NLLB-200 stays aligned with the other LLM steps in the one
+# system Python 3.13. Contract:
+# development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7.
+
 $scriptRoot = $PSScriptRoot
 $shellsWinRoot = Split-Path $scriptRoot -Parent
 $winCommonDir = Join-Path $shellsWinRoot "win_common"
@@ -52,9 +58,12 @@ function Install-NLLB200Dependencies {
     Write-Host "$SCRIPT_INDEX Note: NLLB-200 requires transformers and sentencepiece" -ForegroundColor White
 
     try {
-        Write-Host "$SCRIPT_INDEX Installing transformers, sentencepiece, and protobuf..." -ForegroundColor Cyan
+        Write-Host "$SCRIPT_INDEX Installing transformers (shared pin), sentencepiece, and protobuf..." -ForegroundColor Cyan
         Write-Host ""
-        & $Global:PIP_EXE_PATH install --upgrade transformers sentencepiece protobuf sacremoses
+        # transformers goes in at the shared Bucket-A pin (version-idempotent, never
+        # --upgrade); the other deps install as before. See lifecycle doc §7.
+        Install-PinnedTransformers -PythonExe $PythonCommand -PipExe $Global:PIP_EXE_PATH -Prefix "$SCRIPT_INDEX " | Out-Null
+        & $Global:PIP_EXE_PATH install sentencepiece protobuf sacremoses
         Write-Host ""
 
         Write-Host "$SCRIPT_INDEX Verifying installation..." -ForegroundColor Yellow
@@ -242,7 +251,7 @@ function Install-NLLB200 {
 
     if (-not $depsSuccess) {
         Write-Host "$SCRIPT_INDEX WARNING: Dependency installation may have failed" -ForegroundColor Yellow
-        Write-Host "$SCRIPT_INDEX You can try installing manually: pip install transformers sentencepiece" -ForegroundColor Yellow
+        Write-Host "$SCRIPT_INDEX You can try installing manually: pip install $Global:LLM_TRANSFORMERS_SPEC sentencepiece protobuf sacremoses (do NOT --upgrade transformers)" -ForegroundColor Yellow
     }
 
     Write-Host "`n$SCRIPT_INDEX Step 2: Pre-download model weights (idempotent)" -ForegroundColor Cyan

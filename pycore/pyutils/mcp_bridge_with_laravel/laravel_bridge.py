@@ -5,13 +5,19 @@ Laravel HTTP Bridge
 
 Provides HTTP client for communicating with Laravel OCR API.
 Replaces direct OCR processing with HTTP requests to Laravel backend.
+
+All HTTP now flows through the unified LaravelClient (pycore.callmodule.services.
+sync.laravel_client) so every call is timed + logged + recorded. The module-level
+``requests`` reference is kept ONLY for its ``.exceptions`` classes and the
+``Response`` type hint used by ``_handle_response``.
 """
 
-import logging
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
+from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 
 requests = get_third_package_requests()
 from pycore.pyutils.mcp_bridge_with_laravel.config import (
@@ -21,8 +27,6 @@ from pycore.pyutils.mcp_bridge_with_laravel.config import (
     BATCH_TIMEOUT,
     QUICK_TIMEOUT
 )
-
-logger = logging.getLogger(__name__)
 
 
 class LaravelBridge:
@@ -40,13 +44,8 @@ class LaravelBridge:
         self.timeout = DEFAULT_TIMEOUT
         self.batch_timeout = BATCH_TIMEOUT
         self.quick_timeout = QUICK_TIMEOUT
-        self.session = requests.Session()
 
-        logger.info(f"Laravel bridge initialized: {self.base_url}{self.api_prefix}")
-
-    def _build_url(self, endpoint: str) -> str:
-        """Build full API URL"""
-        return f"{self.base_url}{self.api_prefix}/{endpoint.lstrip('/')}"
+        ColorPrint.blue(f"Laravel bridge initialized: {self.base_url}{self.api_prefix}")
 
     def _handle_response(self, response: requests.Response) -> Dict[str, Any]:
         """Handle HTTP response"""
@@ -54,21 +53,21 @@ class LaravelBridge:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.HTTPError as e:
-            logger.error(f"HTTP error: {e}")
+            ColorPrint.red(f"HTTP error: {e}")
             return {
                 "success": False,
                 "error": f"HTTP {response.status_code}: {str(e)}",
                 "status_code": response.status_code
             }
         except requests.exceptions.JSONDecodeError as e:
-            logger.error(f"JSON decode error: {e}")
+            ColorPrint.red(f"JSON decode error: {e}")
             return {
                 "success": False,
                 "error": f"Invalid JSON response: {str(e)}",
                 "raw_response": response.text[:500]
             }
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
+            ColorPrint.red(f"Unexpected error: {e}")
             return {
                 "success": False,
                 "error": str(e)
@@ -78,11 +77,14 @@ class LaravelBridge:
         """Check Laravel OCR API health"""
         try:
             # Health endpoint is at /api/mcp/v1/health (not under /ocr prefix)
-            url = f"{self.base_url}{LARAVEL_API_PREFIX}/health"
-            response = self.session.get(url, timeout=self.quick_timeout)
-            return self._handle_response(response)
+            resp = get_laravel_client().get(
+                f"{LARAVEL_API_PREFIX}/health",
+                base_url=self.base_url,
+                timeout=self.quick_timeout,
+            )
+            return self._handle_response(resp)
         except requests.exceptions.RequestException as e:
-            logger.error(f"Health check failed: {e}")
+            ColorPrint.red(f"Health check failed: {e}")
             return {
                 "success": False,
                 "error": f"Cannot connect to Laravel: {str(e)}"
@@ -111,33 +113,33 @@ class LaravelBridge:
             }
 
         try:
-            url = self._build_url("recognize")
             payload = {
                 "image_path": image_path,
                 "model_type": model_type
             }
 
-            logger.info(f"OCR request: {image_path} (model: {model_type})")
+            ColorPrint.blue(f"OCR request: {image_path} (model: {model_type})")
 
-            response = self.session.post(
-                url,
+            resp = get_laravel_client().post(
+                f"{self.api_prefix}/recognize",
+                base_url=self.base_url,
                 json=payload,
-                timeout=self.timeout
+                timeout=self.timeout,
             )
 
-            result = self._handle_response(response)
-            logger.info(f"OCR completed: success={result.get('success')}")
+            result = self._handle_response(resp)
+            ColorPrint.blue(f"OCR completed: success={result.get('success')}")
 
             return result
 
         except requests.exceptions.Timeout:
-            logger.error("OCR request timeout")
+            ColorPrint.red("OCR request timeout")
             return {
                 "success": False,
                 "error": f"Request timeout after {self.timeout}s"
             }
         except requests.exceptions.RequestException as e:
-            logger.error(f"OCR request failed: {e}")
+            ColorPrint.red(f"OCR request failed: {e}")
             return {
                 "success": False,
                 "error": f"Request failed: {str(e)}"
@@ -167,33 +169,33 @@ class LaravelBridge:
                 }
 
         try:
-            url = self._build_url("batch")
             payload = {
                 "image_paths": image_paths,
                 "model_type": model_type
             }
 
-            logger.info(f"Batch OCR request: {len(image_paths)} images (model: {model_type})")
+            ColorPrint.blue(f"Batch OCR request: {len(image_paths)} images (model: {model_type})")
 
-            response = self.session.post(
-                url,
+            resp = get_laravel_client().post(
+                f"{self.api_prefix}/batch",
+                base_url=self.base_url,
                 json=payload,
-                timeout=self.batch_timeout
+                timeout=self.batch_timeout,
             )
 
-            result = self._handle_response(response)
-            logger.info(f"Batch OCR completed: success={result.get('success')}")
+            result = self._handle_response(resp)
+            ColorPrint.blue(f"Batch OCR completed: success={result.get('success')}")
 
             return result
 
         except requests.exceptions.Timeout:
-            logger.error("Batch OCR request timeout")
+            ColorPrint.red("Batch OCR request timeout")
             return {
                 "success": False,
                 "error": f"Batch request timeout after {self.batch_timeout}s"
             }
         except requests.exceptions.RequestException as e:
-            logger.error(f"Batch OCR request failed: {e}")
+            ColorPrint.red(f"Batch OCR request failed: {e}")
             return {
                 "success": False,
                 "error": f"Request failed: {str(e)}"
@@ -202,11 +204,14 @@ class LaravelBridge:
     def get_available_models(self) -> Dict[str, Any]:
         """Get available OCR models"""
         try:
-            url = self._build_url("engines")
-            response = self.session.get(url, timeout=self.quick_timeout)
-            return self._handle_response(response)
+            resp = get_laravel_client().get(
+                f"{self.api_prefix}/engines",
+                base_url=self.base_url,
+                timeout=self.quick_timeout,
+            )
+            return self._handle_response(resp)
         except requests.exceptions.RequestException as e:
-            logger.error(f"Get models failed: {e}")
+            ColorPrint.red(f"Get models failed: {e}")
             return {
                 "success": False,
                 "error": str(e)
@@ -215,13 +220,17 @@ class LaravelBridge:
     def get_engine_info(self, model_type: Optional[str] = None) -> Dict[str, Any]:
         """Get OCR engine information"""
         try:
-            url = self._build_url("engine-info")
             params = {"model_type": model_type} if model_type else {}
 
-            response = self.session.get(url, params=params, timeout=self.quick_timeout)
-            return self._handle_response(response)
+            resp = get_laravel_client().get(
+                f"{self.api_prefix}/engine-info",
+                base_url=self.base_url,
+                params=params,
+                timeout=self.quick_timeout,
+            )
+            return self._handle_response(resp)
         except requests.exceptions.RequestException as e:
-            logger.error(f"Get engine info failed: {e}")
+            ColorPrint.red(f"Get engine info failed: {e}")
             return {
                 "success": False,
                 "error": str(e)

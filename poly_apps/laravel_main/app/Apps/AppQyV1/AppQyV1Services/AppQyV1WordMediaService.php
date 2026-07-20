@@ -37,7 +37,8 @@ use Illuminate\Support\Facades\Log;
  *
  * PRIORITY model:
  *   - global_tasks.priority (higher = sooner): PRIORITY_FRONT on bump.
- *   - dictionary image_priority / tts_priority: PRIORITY_FRONT on bump.
+ *   - dictionary image_priority: PRIORITY_FRONT on bump; dictionary
+ *     tts_priority: move-to-front ticket (MAX+1) via the boost-priority endpoint.
  */
 class AppQyV1WordMediaService
 {
@@ -60,6 +61,28 @@ class AppQyV1WordMediaService
 
     /** Max words bundled into one word_media global task. */
     const MAX_WORDS_PER_TASK = 40;
+
+    /** Max audio variants emitted per word in the API payload. */
+    const MAX_AUDIO_VARIANTS = 20;
+
+    /**
+     * Legacy metadata keys inside the translations json that are NOT target
+     * translations: the top-level 'word' holds the SOURCE headword, the rest are
+     * dictionary metadata. Excluded from every translation scan so the headword
+     * never leaks into translations[]. Mirrors
+     * AppQyV1WordGroupWordController::TRANSLATION_META_KEYS.
+     */
+    const TRANSLATION_META_KEYS = [
+        'word',
+        'word_translation',
+        'plural_form',
+        'synonyms',
+        'synonyms_type',
+        'advanced_translate',
+        'advanced_translate_type',
+        'phonetic_symbol',
+        'voice_files',
+    ];
 
     protected TaskManagerService $taskManager;
     protected AppQyV1WordImageQueueService $imageQueue;
@@ -164,7 +187,7 @@ class AppQyV1WordMediaService
             // here keeps a hot word cheap.
         }
 
-        $audioFilesPayload = $row ? $this->formatAudioVariantsForApi($row) : [];
+        $audioFilesPayload = $row ? $this->audioVariantsForApi($row, $langCode) : [];
         return [
             'word' => $word,
             'md5' => $md5,
@@ -698,8 +721,17 @@ class AppQyV1WordMediaService
         return ['url' => null, 'accent' => null, 'fallback' => false];
     }
 
-    /** @return array<int,array<string,mixed>> */
-    private function formatAudioVariantsForApi(AppQyV1LangDictionaryModel $row): array
+    /**
+     * Canonical per-variant audio payload: ONE entry per on-disk audio file for
+     * the row. Single source of truth shared by the media resolve endpoint (GET
+     * /word/{lang}/{word}/media) and the group get_words payload, so the two never
+     * diverge. Each entry carries the playable {url}, a display {voice} label and
+     * the {lang} code, plus the richer per-variant fields. Capped at
+     * MAX_AUDIO_VARIANTS.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function audioVariantsForApi(AppQyV1LangDictionaryModel $row, string $langCode): array
     {
         $out = [];
         foreach (AppQyV1WordAudioFiles::list($row) as $variant) {
@@ -708,17 +740,57 @@ class AppQyV1WordMediaService
             }
             $accent = $variant['accent'] ?? null;
             $out[] = [
+                'url' => AppQyV1TtsUrl::forPath((string) $variant['path']),
+                'voice' => self::voiceLabel($variant),
+                'lang' => $langCode,
                 'variant_key' => $variant['variant_key'] ?? '',
                 'accent' => in_array($accent, ['us', 'uk'], true) ? $accent : 'unknown',
                 'gender' => $variant['gender'] ?? null,
                 'source' => $variant['source'] ?? null,
                 'voice_type' => $variant['voice_type'] ?? null,
                 'provider' => $variant['provider'] ?? null,
-                'url' => AppQyV1TtsUrl::forPath((string) $variant['path']),
                 'status' => 'ready',
             ];
+            if (count($out) >= self::MAX_AUDIO_VARIANTS) {
+                break;
+            }
         }
         return $out;
+    }
+
+    /**
+     * Human-friendly voice label for one audio variant, derived from its
+     * accent/gender, else the variant key, else the provider, else 'default'.
+     *
+     * @param array<string,mixed> $variant
+     */
+    private static function voiceLabel(array $variant): string
+    {
+        $parts = [];
+        $accent = $variant['accent'] ?? null;
+        if ($accent === 'us') {
+            $parts[] = 'US';
+        } elseif ($accent === 'uk') {
+            $parts[] = 'UK';
+        }
+        $gender = $variant['gender'] ?? null;
+        if ($gender === 'f' || $gender === 'female') {
+            $parts[] = 'Female';
+        } elseif ($gender === 'm' || $gender === 'male') {
+            $parts[] = 'Male';
+        }
+        if (!empty($parts)) {
+            return implode(' ', $parts);
+        }
+        $variantKey = (string) ($variant['variant_key'] ?? '');
+        if ($variantKey !== '') {
+            return $variantKey;
+        }
+        $provider = (string) ($variant['provider'] ?? '');
+        if ($provider !== '') {
+            return $provider;
+        }
+        return 'default';
     }
 
     /**
@@ -764,21 +836,34 @@ class AppQyV1WordMediaService
             return [];
         }
 
+        $content = (string) $row->content;
         $out = [];
-        foreach ($translations as $key => $value) {
-            if ($key === 'word_translation') {
-                if (is_array($value)) {
-                    foreach ($value as $pair) {
-                        if (is_array($pair) && isset($pair[1]) && is_string($pair[1]) && $pair[1] !== '') {
-                            $out[] = $pair[1];
-                        }
-                    }
+
+        // Nested word_translation pairs: pair[1] = target meaning. Drop any pair
+        // whose target IS the source headword itself.
+        if (isset($translations['word_translation']) && is_array($translations['word_translation'])) {
+            foreach ($translations['word_translation'] as $pair) {
+                if (is_array($pair) && isset($pair[1]) && is_string($pair[1]) && $pair[1] !== ''
+                    && strcasecmp($pair[1], $content) !== 0) {
+                    $out[] = $pair[1];
                 }
+            }
+        }
+
+        // Flat scalar target values, EXCLUDING the legacy metadata keys (the
+        // top-level 'word' holds the source headword, never a translation) and any
+        // value equal (case-insensitive) to the headword.
+        foreach ($translations as $key => $value) {
+            if (!is_string($value) || $value === '') {
                 continue;
             }
-            if (is_string($value) && $value !== '') {
-                $out[] = $value;
+            if (in_array($key, self::TRANSLATION_META_KEYS, true)) {
+                continue;
             }
+            if (strcasecmp($value, $content) === 0) {
+                continue;
+            }
+            $out[] = $value;
         }
 
         return array_values(array_unique($out));
@@ -808,7 +893,10 @@ class AppQyV1WordMediaService
     }
 
     /**
-     * Optional explanation string from word_details, or null.
+     * Explanation string for the row. Prefers word_details.explanation; when that
+     * is empty, COMPOSES one from the translations json (word_translation pairs,
+     * else advanced_translate). null when truly nothing.
+     * Mirrors AppQyV1WordGroupWordController::wordDefinition.
      */
     private function extractExplanation($row): ?string
     {
@@ -816,9 +904,66 @@ class AppQyV1WordMediaService
             return null;
         }
         $details = $row->word_details;
-        if (is_array($details) && isset($details['explanation']) && is_string($details['explanation'])) {
+        if (is_array($details) && isset($details['explanation']) && is_string($details['explanation']) && $details['explanation'] !== '') {
             return $details['explanation'];
         }
-        return null;
+        $composed = self::composeDefinition($row);
+        return $composed !== '' ? $composed : null;
+    }
+
+    /**
+     * Compose a definition from the translations json when word_details has none:
+     * join the word_translation pairs as "pair[0] pair[1]" with ' / ', else fall
+     * back to advanced_translate. '' when nothing usable.
+     * Mirrors AppQyV1WordGroupWordController::composeDefinition.
+     */
+    private static function composeDefinition(AppQyV1LangDictionaryModel $row): string
+    {
+        $translations = $row->translations;
+        if (!is_array($translations)) {
+            return '';
+        }
+
+        if (isset($translations['word_translation']) && is_array($translations['word_translation'])) {
+            $parts = [];
+            foreach ($translations['word_translation'] as $pair) {
+                if (!is_array($pair)) {
+                    continue;
+                }
+                $meaning = isset($pair[1]) && is_string($pair[1]) ? trim($pair[1]) : '';
+                if ($meaning === '') {
+                    continue;
+                }
+                $tag = isset($pair[0]) && is_string($pair[0]) ? trim($pair[0]) : '';
+                $parts[] = $tag !== '' ? ($tag . ' ' . $meaning) : $meaning;
+            }
+            if (!empty($parts)) {
+                return implode(' / ', array_values(array_unique($parts)));
+            }
+        }
+
+        $advanced = $translations['advanced_translate'] ?? null;
+        if (is_string($advanced) && trim($advanced) !== '') {
+            return trim($advanced);
+        }
+        if (is_array($advanced)) {
+            $parts = [];
+            foreach ($advanced as $item) {
+                if (is_string($item) && trim($item) !== '') {
+                    $parts[] = trim($item);
+                } elseif (is_array($item)) {
+                    $text = isset($item[1]) && is_string($item[1]) ? trim($item[1])
+                        : (isset($item[0]) && is_string($item[0]) ? trim($item[0]) : '');
+                    if ($text !== '') {
+                        $parts[] = $text;
+                    }
+                }
+            }
+            if (!empty($parts)) {
+                return implode(' / ', array_values(array_unique($parts)));
+            }
+        }
+
+        return '';
     }
 }

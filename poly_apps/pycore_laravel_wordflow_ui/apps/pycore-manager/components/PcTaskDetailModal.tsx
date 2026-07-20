@@ -13,6 +13,7 @@ import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { LocalTaskDetail, PycoreGlobalTaskDetail, QueueItem } from '../../../core/api-libs/pycore/pycoreTypes';
 import { extractTaskContentSummary, mergeTaskContentSources } from '../utils/pcTaskContent';
+import { PcBlobAudio } from './PcBlobMedia';
 import {
   isLaravelGlobalTaskId,
   isSentenceQueueJobId,
@@ -433,7 +434,7 @@ export const PcQueueItemDetailModal: React.FC<QueueItemProps> = ({ item, isCurre
         {item.audioUrl && (
           <div>
             <div className="text-[10px] uppercase tracking-wide font-semibold text-slate-500 mb-1.5">Audio</div>
-            <audio controls className="w-full" src={item.audioUrl} />
+            <PcBlobAudio controls className="w-full" path={item.audioUrl} />
           </div>
         )}
 

@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import { rewritePycoreEndpoint } from '../../../core/api-libs/pycore/pycoreTarget';
+import { PcBlobAudio } from './PcBlobMedia';
 
 /** Build a browser-playable URL for a local disk audio path served by pycore. */
 export function buildLocalAudioUrl(audioPath: string): string {
@@ -43,7 +44,7 @@ export const PcTaskAudioPreview: React.FC<PcTaskAudioPreviewProps> = ({
 }) => (
   <div className="space-y-1">
     <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{label}</div>
-    <audio controls preload="none" className="w-full max-w-md" src={buildLocalAudioUrl(audioPath)} />
+    <PcBlobAudio controls preload="none" className="w-full max-w-md" path={buildLocalAudioUrl(audioPath)} />
     {showPath && (
       <p className="text-[10px] font-mono text-slate-400 break-all">{audioPath}</p>
     )}

@@ -4,6 +4,7 @@ namespace App\Services\TimerTasks;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
+use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
 
 /**
  * AppQyV1 Cover Maintenance Timer Task (pull-only architecture).
@@ -48,6 +49,16 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
     private const RECONCILE_EVERY_TICKS = 12;
     private static int $tick = 0;
 
+    // Proactively seed cover-missing PUBLIC libraries into the claim pool this
+    // many rows per pass. Bounded so each tick stays cheap even on a fresh
+    // catalogue with thousands of never-rendered libraries.
+    private const SEED_BATCH = 50;
+
+    // Only seed once every Nth tick (~30s at 5s/tick): a cover-missing library
+    // does not need sub-minute latency to enter the queue, and this keeps the
+    // extra query off most ticks.
+    private const SEED_EVERY_TICKS = 6;
+
     /**
      * @inheritDoc
      */
@@ -82,10 +93,27 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
             ]);
         }
 
+        // Proactively enrol cover-missing PUBLIC libraries into the claim pool
+        // so the media_image / pycore assist workers can scrape/generate a cover
+        // WITHOUT the library first being rendered on the home page (rendering is
+        // what otherwise lazily initialises the cover_* columns via
+        // AppQyV1VocabularyCoverService::getCoverData). Throttled + bounded;
+        // idempotent (only cover_filename-NULL rows are touched).
+        self::$tick++;
+        if (self::$tick % self::SEED_EVERY_TICKS === 0) {
+            try {
+                $seeded = $this->seedMissingCovers();
+                if ($seeded > 0) {
+                    $this->logInfo('Cover seeding enrolled cover-missing libraries', ['seeded' => $seeded]);
+                }
+            } catch (\Throwable $e) {
+                $this->logError('Cover seeding failed', ['error' => $e->getMessage()]);
+            }
+        }
+
         // Dynamic recovery: periodically re-queue covers marked 'ready' whose
         // file vanished on disk (so a missing cover is always regenerated),
         // throttled to ~once/minute since it stat-checks files.
-        self::$tick++;
         if (self::$tick % self::RECONCILE_EVERY_TICKS === 0) {
             try {
                 $r = (new \App\Apps\AppQyV1\AppQyV1Services\AppQyV1AssistService())
@@ -180,5 +208,60 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
                 'total' => (int) $failed + (int) $processing + (int) $staleLeases,
             ];
         }, 1);
+    }
+
+    /**
+     * Enrol cover-missing PUBLIC libraries into the assist claim pool.
+     *
+     * A library is only claimable once its cover_* columns are initialised
+     * (cover_filename set + cover_status 'pending'); until then claimCovers'
+     * whereNotNull('cover_filename') skips it. That initialisation normally
+     * happens lazily inside AppQyV1VocabularyCoverService::getCoverData when the
+     * library is rendered on a home/libraries page — so a never-browsed library
+     * never enters the queue and the media_image worker never scrapes it.
+     *
+     * This pass performs the SAME initialisation proactively for a bounded batch
+     * of public libraries whose cover_filename is still NULL/empty, mirroring the
+     * getCoverData init block exactly (deterministic filename, fresh randomized
+     * prompt, pending status, default priority). Idempotent + fill-missing: a
+     * library that already carries a cover_filename is never touched, so an
+     * existing (scraped or generated) cover is never clobbered.
+     *
+     * @return int number of libraries enrolled this pass
+     */
+    private function seedMissingCovers(): int
+    {
+        $rows = AppQyV1VocabularyLibraryModel::query()
+            ->where('is_public', true)
+            ->where(function ($query) {
+                $query->whereNull('cover_filename')
+                    ->orWhere('cover_filename', '');
+            })
+            ->orderBy('id')
+            ->limit(self::SEED_BATCH)
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return 0;
+        }
+
+        $coverService = new AppQyV1VocabularyCoverService();
+        $seeded = 0;
+
+        foreach ($rows as $library) {
+            // Deterministic filename (md5 of id+slug) matches getCoverData, so a
+            // later render resolves to the same on-disk path — no divergence.
+            $library->cover_filename = $coverService->buildFilename($library);
+            $library->cover_prompt = $coverService->buildPrompt($library);
+            $library->cover_status = 'pending';
+            if (!$library->cover_priority) {
+                $library->cover_priority = 5;
+            }
+            $library->cover_last_requested_at = now();
+            $library->save();
+            $seeded++;
+        }
+
+        return $seeded;
     }
 }

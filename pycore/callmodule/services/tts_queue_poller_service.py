@@ -60,13 +60,18 @@ import socket
 import tempfile
 import threading
 import time
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 # ColorPrint is the only allowed logger in pycore services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+# Live enable flag (the UI toggle lives on the heartbeat callback).
+from pycore.pyheartbeat import get_heartbeat_system
 # requests is a third-party dep — always obtained through the lazy accessor.
-from pycore.pyfoundations.third_party import get_third_package_requests
+# Unified pycore->Laravel HTTP gateway (times + logs + records every request).
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 # Env-backed callmodule config (TTS_WORKER_* knobs live beside the translation
 # worker's in callmodule_config/config.py).
 from pycore.callmodule.callmodule_config import Config
@@ -78,6 +83,12 @@ from pycore.callmodule.services.sync.laravel_endpoint_manager import (
 # ONE entry point for synthesis; local-first engine priority and edge's
 # process-wide serialization live inside the orchestrator.
 from pycore.pyutils.tts import tts_orchestrator
+# Per-engine-class worker fan-out recommendation + clamping.
+from pycore.callmodule.services.tts_concurrency import (
+    effective_concurrency,
+    recommended_concurrency,
+)
+from pycore.pyutils.tts.word_audio_cache import get_cache_path, save_to_cache
 
 
 # --------------------------------------------------------------------------- #
@@ -97,6 +108,10 @@ _MIN_MP3_BYTES = 100
 
 # Server hard cap on the claim batch (contract: limit <= 50).
 _MAX_BATCH = 50
+
+# TTL for the cached tts_status()/best_engine() probe: tts_status() probes ALL
+# engines, which is far too expensive to run per task.
+_ENGINE_PROBE_TTL_S = 60.0
 
 
 def _validate_mp3(path: str) -> Tuple[bool, str]:
@@ -170,6 +185,14 @@ class TTSQueuePollerService:
         self.enabled = bool(getattr(Config, "TTS_WORKER_ENABLED_ON_START", True))
         self.batch_size = max(1, min(_MAX_BATCH,
                                      int(getattr(Config, "TTS_WORKER_BATCH", 10))))
+        # Worker fan-out override: 0 = use the per-engine recommended value
+        # (services/tts_concurrency.py). Live-settable via POST word-tts/config.
+        self.concurrency = max(
+            0, int(getattr(Config, "TTS_WORKER_CONCURRENCY", 0))
+        )
+        # Engine probe cache (60s TTL) — see _planned_engine().
+        self._engine_probe_cache: Optional[str] = None
+        self._engine_probe_ts = 0.0
 
         # ONE batch at a time: also guarantees SEQUENTIAL task processing
         # (edge-tts must never run concurrently).
@@ -186,6 +209,10 @@ class TTSQueuePollerService:
         self._total_succeeded = 0
         self._total_failed = 0
         self._last_tick_summary: Dict[str, Any] = {}
+        # Activity event log for the FE (mirrors the sentence worker's shape).
+        self._events: Deque[Dict[str, Any]] = deque(maxlen=80)
+        # Throttle marker for the idle event (epoch seconds of the last one).
+        self._last_idle_event_ts = 0.0
 
         # Scratch dir for synthesized MP3s (cleaned per task).
         self._tmp_dir = os.path.join(tempfile.gettempdir(), "pycore_tts_worker")
@@ -195,6 +222,91 @@ class TTSQueuePollerService:
             f"[TTSWorker] Service initialized (worker_id={self.worker_id}, "
             f"batch={self.batch_size}, enabled_on_start={self.enabled})"
         )
+
+    def _log_event(self, kind: str, detail: str, task: Optional[Dict[str, Any]] = None) -> None:
+        """Append one activity event (newest first). Mirrors the sentence
+        worker's shape minus the fields word tasks do not carry
+        (content_id / priority)."""
+        entry: Dict[str, Any] = {
+            "at": int(time.time()),
+            "kind": kind,
+            "detail": detail[:240],
+        }
+        if task:
+            entry["task_id"] = task.get("task_id")
+            entry["language"] = task.get("language")
+            text = (task.get("content") or "").strip()
+            if text:
+                entry["text_preview"] = text[:80]
+        self._events.appendleft(entry)
+        # Mirror every event into the live pycore_log stream (the deque alone
+        # never reaches it): failures yellow, idle gray, everything else blue.
+        label = f"[TTSWorker] {kind}"
+        if task and task.get("task_id") is not None:
+            label += f" task={task.get('task_id')}"
+        line = f"{label}: {detail[:160]}" if detail else label
+        if kind.endswith("_fail") or kind in ("report_reject", "synth_error"):
+            ColorPrint.yellow(line)
+        elif kind == "idle":
+            ColorPrint.gray(line)
+        else:
+            ColorPrint.blue(line)
+
+    # -------------------- engine probe / concurrency --------------------
+
+    def _planned_engine(self) -> Optional[str]:
+        """Active/best TTS engine with a 60s TTL cache.
+
+        ``tts_orchestrator.tts_status()`` probes EVERY engine — per-task calls
+        stall synthesis on sequential availability checks, so the result is
+        cached for _ENGINE_PROBE_TTL_S seconds (sentence worker pattern).
+        """
+        now = time.monotonic()
+        if (
+            self._engine_probe_cache is not None
+            and now - self._engine_probe_ts < _ENGINE_PROBE_TTL_S
+        ):
+            return self._engine_probe_cache or None
+        engine = (
+            tts_orchestrator.tts_status().get("active")
+            or tts_orchestrator.best_engine()
+            or ""
+        )
+        self._engine_probe_cache = engine
+        self._engine_probe_ts = now
+        return engine or None
+
+    @staticmethod
+    def _engine_concurrency_class(engine: Optional[str]) -> str:
+        """Concurrency class of the planned engine; unknown -> serial (safe)."""
+        return tts_orchestrator._ENGINE_CONCURRENCY.get(engine or "", "serial")
+
+    def _effective_concurrency(self) -> Tuple[int, str]:
+        """(effective fan-out, planned engine). Serial engines always give 1."""
+        engine = self._planned_engine() or ""
+        kind = self._engine_concurrency_class(engine)
+        return effective_concurrency(kind, self.concurrency), engine
+
+    def concurrency_status(self) -> Dict[str, Any]:
+        """Effective + recommended fan-out for the current planned engine."""
+        engine = self._planned_engine() or ""
+        kind = self._engine_concurrency_class(engine)
+        return {
+            "concurrency": effective_concurrency(kind, self.concurrency),
+            "concurrency_recommended": recommended_concurrency(kind),
+            "concurrency_engine": engine or None,
+            "concurrency_class": kind,
+        }
+
+    def _is_enabled(self) -> bool:
+        """Live enable state: the PyHeartbeat callback flag (UI toggle) with the
+        configured start-state as fallback when the heartbeat is unavailable."""
+        try:
+            return bool(
+                get_heartbeat_system().is_callback_enabled("tts_queue_poller")
+            )
+        except Exception:  # noqa: BLE001 — heartbeat not up yet
+            return self.enabled
 
     # -------------------- identity / plumbing --------------------
 
@@ -221,11 +333,6 @@ class TTSQueuePollerService:
         if self._base_override:
             return self._base_override
         return get_laravel_endpoint_manager().resolve()
-
-    @staticmethod
-    def _requests():
-        """Lazily obtain the third-party requests module (pycore rule)."""
-        return get_third_package_requests()
 
     @staticmethod
     def _short_err(exc: Exception) -> str:
@@ -265,27 +372,33 @@ class TTSQueuePollerService:
 
     # -------------------- Laravel worker API --------------------
 
-    def _claim_tasks(self, base: str) -> Optional[List[Dict[str, Any]]]:
+    def _claim_tasks(self, base: str, limit: Optional[int] = None) -> Optional[List[Dict[str, Any]]]:
         """POST /tts/worker/claim. Returns the task list, or None when Laravel
         could not be reached / answered abnormally (logged per state change)."""
-        requests = self._requests()
+        batch = max(1, min(_MAX_BATCH, int(limit or self.batch_size)))
         try:
-            resp = requests.post(
-                base + CLAIM_PATH,
-                json={"worker_id": self.worker_id, "limit": self.batch_size},
+            resp = get_laravel_client().post(
+                CLAIM_PATH,
+                base_url=base,
+                json={"worker_id": self.worker_id, "limit": batch},
                 timeout=_CLAIM_TIMEOUT,
             )
         except Exception as e:
-            self._note_laravel_down(base, self._short_err(e))
+            reason = self._short_err(e)
+            self._note_laravel_down(base, reason)
+            self._log_event("claim_fail", reason)
             return None
         if resp.status_code != 200:
-            self._note_laravel_down(base, f"claim -> HTTP {resp.status_code}")
+            reason = f"claim -> HTTP {resp.status_code}"
+            self._note_laravel_down(base, reason)
+            self._log_event("claim_fail", reason)
             return None
         self._note_laravel_ok(base)
         try:
             body = resp.json() or {}
         except ValueError:
             ColorPrint.yellow("[TTSWorker] Claim returned non-JSON body — skipping tick")
+            self._log_event("claim_fail", "claim returned non-JSON body")
             return None
         data = body.get("data") if isinstance(body.get("data"), dict) else body
         return list((data or {}).get("tasks") or [])
@@ -295,10 +408,10 @@ class TTSQueuePollerService:
         base = self._base_url()
         if not base:
             return {}
-        requests = self._requests()
         try:
-            resp = requests.post(
-                base + CLAIM_PATH,
+            resp = get_laravel_client().post(
+                CLAIM_PATH,
+                base_url=base,
                 json={"worker_id": self.worker_id, "limit": 0},
                 timeout=_CLAIM_TIMEOUT,
             )
@@ -330,7 +443,6 @@ class TTSQueuePollerService:
     ) -> Tuple[bool, str]:
         """POST /tts/worker/report (multipart upload on success, fields-only on
         failure). Returns ``(accepted, detail)``; never raises."""
-        requests = self._requests()
         fields = {
             "task_id": str(task_id),
             "worker_id": self.worker_id,
@@ -342,15 +454,16 @@ class TTSQueuePollerService:
         try:
             if success:
                 with open(audio_path, "rb") as fh:
-                    resp = requests.post(
-                        base + REPORT_PATH,
+                    resp = get_laravel_client().post(
+                        REPORT_PATH,
+                        base_url=base,
                         data=fields,
                         files={"audio": (os.path.basename(audio_path), fh, "audio/mpeg")},
                         timeout=_REPORT_TIMEOUT,
                     )
             else:
-                resp = requests.post(base + REPORT_PATH, data=fields,
-                                     timeout=_REPORT_TIMEOUT)
+                resp = get_laravel_client().post(REPORT_PATH, base_url=base, data=fields,
+                                                 timeout=_REPORT_TIMEOUT)
         except Exception as e:
             return False, self._short_err(e)
         if resp.status_code == 200:
@@ -361,98 +474,105 @@ class TTSQueuePollerService:
             return False, "unknown task on server (404)"
         return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
 
-    # -------------------- task processing (SEQUENTIAL) --------------------
+    # -------------------- task processing --------------------
 
-    def _synthesize_task(self, task: Dict[str, Any]) -> Tuple[bool, str, str, str]:
-        """Generate + locally validate one task's MP3.
-
-        Returns ``(ok, audio_path, provider, error)``. ``audio_path`` is a temp
-        file the caller must clean up. The local validation mirrors the server
-        so invalid output becomes a failure REPORT, not a doomed upload.
-        """
-        content = (task.get("content") or "").strip()
-        language = (task.get("language") or "en").strip() or "en"
-        if not content:
-            return False, "", "none", "task has empty content"
-
-        os.makedirs(self._tmp_dir, exist_ok=True)
-        name = f"{task.get('task_id')}_{task.get('md5') or 'audio'}.mp3"
-        out_path = os.path.join(self._tmp_dir, name)
-
-        result = tts_orchestrator.synthesize(content, language, Path(out_path))
-        provider = result.get("engine") or (
-            (result.get("tried") or ["none"])[-1]
-        )
-        if not result.get("success"):
-            return False, out_path, provider, result.get("error") or "synthesis failed"
-
-        ok, why = _validate_mp3(out_path)
-        if not ok:
-            return False, out_path, provider, f"invalid audio from {provider}: {why}"
-        return True, out_path, provider, ""
+    def _process_task(self, base: str, task: Dict[str, Any]) -> bool:
+        """Synthesize + validate + report ONE task. Fully self-contained (per-
+        task tmp filename, own report call) so it is safe to run concurrently
+        in the fan-out path. Returns True on success."""
+        task_id = task.get("task_id")
+        audio_path = ""
+        try:
+            self._log_event("synth_start", "", task)
+            ok, audio_path, provider, err = self._synthesize_task(task)
+            if ok:
+                accepted, detail = self._report(
+                    base, task_id, True, provider, audio_path=audio_path
+                )
+                if accepted:
+                    self._log_event("synth_done", f"via {provider}", task)
+                    ColorPrint.green(
+                        f"[TTSWorker] Task {task_id} "
+                        f"'{(task.get('content') or '')[:30]}' done via {provider}"
+                    )
+                    return True
+                # Upload refused (e.g. server-side 422) — follow up with an
+                # explicit failure report so the task fails fast instead of
+                # waiting out the 10-minute lock.
+                self._log_event("synth_fail", f"upload rejected: {detail}", task)
+                ColorPrint.yellow(
+                    f"[TTSWorker] Task {task_id} upload rejected ({detail})"
+                )
+                self._report(base, task_id, False, provider,
+                             error=f"audio upload rejected: {detail}")
+                return False
+            self._log_event("synth_fail", err, task)
+            ColorPrint.yellow(f"[TTSWorker] Task {task_id} failed: {err}")
+            accepted, detail = self._report(
+                base, task_id, False, provider, error=err
+            )
+            if not accepted:
+                ColorPrint.yellow(
+                    f"[TTSWorker] Failure report for task {task_id} "
+                    f"not accepted ({detail}); lock will re-pend it"
+                )
+            return False
+        except Exception as e:  # noqa: BLE001 — one task must not kill the batch
+            ColorPrint.red(f"[TTSWorker] Task {task_id} error: {e}")
+            return False
+        finally:
+            if audio_path:
+                try:
+                    os.remove(audio_path)
+                except OSError:
+                    pass
 
     def _process_batch(self) -> None:
-        """Claim a batch and process every task SEQUENTIALLY (edge-tts holds a
-        process-wide lock — tasks must never synth in parallel). Runs on a
-        background daemon thread; fully exception-safe."""
+        """Claim a batch and process every task. Serial engines (edge-tts holds
+        a process-wide lock) keep the SEQUENTIAL loop; parallel-safe engines
+        fan out to a ThreadPoolExecutor sized by the effective concurrency
+        (services/tts_concurrency.py). Runs on a background daemon thread;
+        fully exception-safe."""
         try:
             base = self._base_url()
-            tasks = self._claim_tasks(base)
+            concurrency, engine = self._effective_concurrency()
+            tasks = self._claim_tasks(base, limit=max(self.batch_size, concurrency))
             if tasks is None:
-                return  # Laravel down / abnormal — already logged per state change
+                return  # Laravel down / abnormal — claim_fail event already logged
             if not tasks:
-                return  # nothing pending — stay quiet
+                # Nothing pending — record an idle event so the FE sees the
+                # worker IS cycling; throttled to one per 60s so the 80-entry
+                # deque is not flooded by idle ticks.
+                now = time.time()
+                if now - self._last_idle_event_ts >= 60:
+                    self._last_idle_event_ts = now
+                    self._log_event("idle", "queue empty — nothing pending")
+                return
 
             claimed = len(tasks)
             succeeded = 0
             failed = 0
             ColorPrint.blue(f"[TTSWorker] Claimed {claimed} task(s) from {base}")
+            self._log_event("claimed", f"count={claimed} from {base}")
 
-            for task in tasks:
-                task_id = task.get("task_id")
-                audio_path = ""
-                try:
-                    ok, audio_path, provider, err = self._synthesize_task(task)
-                    if ok:
-                        accepted, detail = self._report(
-                            base, task_id, True, provider, audio_path=audio_path
-                        )
-                        if accepted:
+            if concurrency > 1 and claimed > 1:
+                self._log_event(
+                    "parallel", f"fan-out x{concurrency} (engine={engine or '?'})"
+                )
+                with ThreadPoolExecutor(
+                    max_workers=concurrency, thread_name_prefix="tts-worker"
+                ) as pool:
+                    for ok in pool.map(lambda t: self._process_task(base, t), tasks):
+                        if ok:
                             succeeded += 1
-                            ColorPrint.green(
-                                f"[TTSWorker] Task {task_id} "
-                                f"'{(task.get('content') or '')[:30]}' done via {provider}"
-                            )
                         else:
-                            # Upload refused (e.g. server-side 422) — follow up
-                            # with an explicit failure report so the task fails
-                            # fast instead of waiting out the 10-minute lock.
                             failed += 1
-                            ColorPrint.yellow(
-                                f"[TTSWorker] Task {task_id} upload rejected ({detail})"
-                            )
-                            self._report(base, task_id, False, provider,
-                                         error=f"audio upload rejected: {detail}")
+            else:
+                for task in tasks:
+                    if self._process_task(base, task):
+                        succeeded += 1
                     else:
                         failed += 1
-                        ColorPrint.yellow(f"[TTSWorker] Task {task_id} failed: {err}")
-                        accepted, detail = self._report(
-                            base, task_id, False, provider, error=err
-                        )
-                        if not accepted:
-                            ColorPrint.yellow(
-                                f"[TTSWorker] Failure report for task {task_id} "
-                                f"not accepted ({detail}); lock will re-pend it"
-                            )
-                except Exception as e:  # noqa: BLE001 — one task must not kill the batch
-                    failed += 1
-                    ColorPrint.red(f"[TTSWorker] Task {task_id} error: {e}")
-                finally:
-                    if audio_path:
-                        try:
-                            os.remove(audio_path)
-                        except OSError:
-                            pass
 
             self._total_claimed += claimed
             self._total_succeeded += succeeded
@@ -469,6 +589,56 @@ class TTSQueuePollerService:
         finally:
             with self._batch_lock:
                 self._batch_running = False
+
+    def _synthesize_task(self, task: Dict[str, Any]) -> Tuple[bool, str, str, str]:
+        """Generate + locally validate one task's MP3.
+
+        Returns ``(ok, audio_path, provider, error)``. ``audio_path`` is a temp
+        file the caller must clean up. The local validation mirrors the server
+        so invalid output becomes a failure REPORT, not a doomed upload.
+        """
+        content = (task.get("content") or "").strip()
+        language = (task.get("language") or "en").strip() or "en"
+        if not content:
+            return False, "", "none", "task has empty content"
+
+        planned_engine = self._planned_engine() or "edge"
+        cache_path = get_cache_path(content, language, planned_engine)
+        if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
+            ok_cache, _why = _validate_mp3(cache_path)
+            if ok_cache:
+                os.makedirs(self._tmp_dir, exist_ok=True)
+                name = f"{task.get('task_id')}_{task.get('md5') or 'audio'}.mp3"
+                out_path = os.path.join(self._tmp_dir, name)
+                import shutil
+                shutil.copy2(cache_path, out_path)
+                return True, out_path, planned_engine, ""
+
+        os.makedirs(self._tmp_dir, exist_ok=True)
+        name = f"{task.get('task_id')}_{task.get('md5') or 'audio'}.mp3"
+        out_path = os.path.join(self._tmp_dir, name)
+
+        # Accent passthrough: the current word claim payload carries NO accent
+        # field, so this is normally None (the word profile's accent-aware
+        # engines then use their default voice); honored if a task ever has one.
+        accent = (str(task.get("accent") or "").strip() or None)
+        result = tts_orchestrator.synthesize(
+            content, language, Path(out_path), accent=accent,
+        )
+        provider = result.get("engine") or (
+            (result.get("tried") or ["none"])[-1]
+        )
+        if not result.get("success"):
+            return False, out_path, provider, result.get("error") or "synthesis failed"
+
+        ok, why = _validate_mp3(out_path)
+        if not ok:
+            return False, out_path, provider, f"invalid audio from {provider}: {why}"
+        
+        save_to_cache(content, language, provider, out_path)
+        return True, out_path, provider, ""
+
+
 
     # -------------------- heartbeat callback --------------------
 
@@ -509,6 +679,9 @@ class TTSQueuePollerService:
             "service": "TTS Queue Worker",
             "worker_id": self.worker_id,
             "enabled_on_start": self.enabled,
+            # Live enable flag from the heartbeat callback (UI toggle) — unlike
+            # enabled_on_start this reflects the CURRENT on/off state.
+            "heartbeat_enabled": self._is_enabled(),
             "batch_size": self.batch_size,
             "batch_running": running,
             "base_url_override": self._base_override or None,
@@ -516,6 +689,7 @@ class TTSQueuePollerService:
             "total_succeeded": self._total_succeeded,
             "total_failed": self._total_failed,
             "last_tick": dict(self._last_tick_summary),
+            "events": list(self._events)[:40],
             "initialized": self._initialized,
         }
 

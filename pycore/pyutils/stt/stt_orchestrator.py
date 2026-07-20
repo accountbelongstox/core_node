@@ -19,6 +19,7 @@ The live test (``stt_test``) synthesizes a known phrase with the TTS orchestrato
 {success, engine, text, latency_ms, error} — the round-trip is the test.
 """
 
+import contextlib
 import importlib.metadata
 import importlib.util
 import os
@@ -31,6 +32,7 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.managed_service import CategorySettings, ServiceSpec, managed_services
+from pycore.pyutils.common import model_load_status
 from pycore.pyfoundations.third_party import (
     get_third_package_vosk,
     get_third_package_whisper,
@@ -303,12 +305,27 @@ def _transcribe_azure(audio_path: Path, language: Optional[str]) -> str:
 _NEEDS_WAV = {"vosk", "azure"}
 
 
+def _model_load_ctx(engine: str):
+    """Report FIRST-load progress for a class-B in-process STT model to the shared
+    model-load registry (surfaced at /api/local/engines/load-status). azure is an
+    API engine (unregistered) and loads no model, so it is a no-op — the registry
+    is written from ONE place per engine. ``managed_services.is_running`` on a model
+    spec reflects the engine's own ``is_model_loaded`` (resident weights)."""
+    spec = managed_services.spec(engine)
+    if spec is None or spec.kind != "model":
+        return contextlib.nullcontext()
+    device = runtime_faster_whisper_device() if engine == "faster-whisper" else ""
+    return model_load_status.report_model_load(
+        engine, is_loaded=lambda: managed_services.is_running(engine), device=device
+    )
+
+
 def transcribe(engine: str, audio_path: Path, language: Optional[str] = None,
                model: Optional[str] = None) -> str:
     # Busy-protected managed lifecycle: STT models load in parallel (no eviction);
     # each idle-unloads after 60s. azure is an API engine (unregistered) ->
     # `using` is a no-op for it.
-    with managed_services.using(engine):
+    with managed_services.using(engine), _model_load_ctx(engine):
         if engine == "faster-whisper":
             return _transcribe_faster_whisper(audio_path, language, model_override=model)
         if engine == "whisper":

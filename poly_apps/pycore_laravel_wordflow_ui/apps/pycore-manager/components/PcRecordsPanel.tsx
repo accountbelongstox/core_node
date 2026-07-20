@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { AiUsageRecord, ImageHistoryEntry, SpeechRecord } from '../../../core/api-libs/pycore';
+import { fetchPycoreBlobUrl } from '../../../core/api-libs/pycore/PycoreBlob';
+import { PcBlobImage } from './PcBlobMedia';
 import { PcImageLightbox } from './PcAiShared';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
 
@@ -124,9 +126,12 @@ export const PcRecordsPanel: React.FC = () => {
       setPlayingId(null);
       return;
     }
-    el.src = pycoreApi.speechHistoryFileUrl(rec.audioId);
-    el.play().then(() => setPlayingId(rec.audioId!)).catch((e) => {
-      logError(LOG_SRC, `playback failed: ${e?.message || e}`);
+    // Fetch the clip bytes over WS (data: URL) then play — no HTTP element src.
+    void fetchPycoreBlobUrl(pycoreApi.speechHistoryFileUrl(rec.audioId)).then((src) => {
+      el.src = src;
+      el.play().then(() => setPlayingId(rec.audioId!)).catch((e) => {
+        logError(LOG_SRC, `playback failed: ${e?.message || e}`);
+      });
     });
   }, [playingId]);
 
@@ -247,7 +252,7 @@ export const PcRecordsPanel: React.FC = () => {
                     })}
                     title="Open image"
                     className="shrink-0 w-8 h-8 rounded overflow-hidden border border-slate-400/20 hover:border-indigo-500/50">
-                    <img src={pycoreApi.imageHistoryFileUrl(rec.imageId)} alt="" loading="lazy" className="w-full h-full object-cover" />
+                    <PcBlobImage path={pycoreApi.imageHistoryFileUrl(rec.imageId)} alt="" loading="lazy" className="w-full h-full object-cover" />
                   </button>
                 )}
 

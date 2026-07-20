@@ -8,7 +8,7 @@ Endpoints (prefix /api/local/assist):
                     batch_limit, counters:{claimed,submitted,released,failures},
                     last_error, last_cycle_at,
                     laravel_status: <passthrough of the selected endpoint's
-                    GET /api/app_qy_v1/assist/status; 2s timeout; null on
+                    GET /api/app_qy_v1/assist/status; 6s timeout; null on
                     any failure> }
   POST /config -> persist {enabled?, capabilities?{cover?,tts?,translation?},
                     poll_interval_s? (5..600), batch_limit? (1..10)} to the
@@ -32,7 +32,6 @@ import fastapi
 from pydantic import BaseModel
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyheartbeat import get_heartbeat_system
 from pycore.pyctl.assist import (
     ASSIST_API_PREFIX,
@@ -50,12 +49,16 @@ from pycore.callmodule.services.assist_wiring import (
     resolve_selected_endpoint_for_ui,
 )
 from pycore.callmodule.services.assist_capability_sync import apply_assist_runtime
+# Unified pycore->Laravel HTTP gateway (times + logs + records every call).
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 
 router = fastapi.APIRouter(prefix="/api/local/assist",
                            tags=["Local Processing - Assist Laravel"])
 
 # Passthrough probe of the selected endpoint's assist status (seconds).
-_LARAVEL_STATUS_TIMEOUT = 2.0
+# Remote (tailscale/cloud) endpoints exceed 2s on a cold hit — 6s keeps the
+# status from falsely reporting the backend as down.
+_LARAVEL_STATUS_TIMEOUT = 6.0
 
 
 class CapabilitiesPatch(BaseModel):
@@ -96,11 +99,13 @@ def _laravel_reachable_from_monitor() -> bool:
 
 
 def _fetch_laravel_status(base_url: str) -> Optional[Dict[str, Any]]:
-    """GET {base}/api/app_qy_v1/assist/status (2s timeout); None on failure."""
+    """GET {base}/api/app_qy_v1/assist/status (6s timeout); None on failure."""
     try:
-        requests = get_third_package_requests()
-        resp = requests.get(f"{base_url}{ASSIST_API_PREFIX}/status",
-                            timeout=_LARAVEL_STATUS_TIMEOUT)
+        resp = get_laravel_client().get(
+            f"{ASSIST_API_PREFIX}/status",
+            base_url=base_url,
+            timeout=_LARAVEL_STATUS_TIMEOUT,
+        )
         if resp.status_code == 200:
             data = resp.json()
             return data if isinstance(data, dict) else None

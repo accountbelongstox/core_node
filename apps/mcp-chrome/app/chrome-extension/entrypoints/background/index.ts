@@ -28,6 +28,8 @@ import { initPuterTranslateListener } from './puter-translate-listener';
 import { initDuoreaderImporterListener } from './duoreader-importer-listener';
 import { initWebSearchListener } from './web-search-listener';
 import { initQwenTtsListener } from './qwen-tts-listener';
+import { initBackendTimeoutCache } from '@/utils/backend-timeout';
+import { submitOutbox } from './services/outbox/submit-outbox';
 import { logger } from '@/utils/logger';
 
 /**
@@ -86,6 +88,12 @@ export default defineBackground(() => {
   initializeProcessors();
   initTaskCenterListener();
   console.log('✅ Task Center initialized with all processors hooked');
+
+  // Seed the configurable backend-timeout cache and start the persistent retry
+  // outbox drain loop. Both are seed/register-only (no worker is started), so the
+  // "only register, never start workers" invariant above is preserved.
+  initBackendTimeoutCache();
+  submitOutbox.start();
 
   // Initialize core services
   initNativeHostListener();

@@ -3,6 +3,8 @@
  * Manages tasks for automated DeepSeek interactions
  */
 
+import { STORAGE_KEYS as SK } from './storage-keys';
+
 /**
  * Task status enum
  */
@@ -82,8 +84,8 @@ export type TaskEventListener = (task: DeepSeekTask, eventType: TaskEventType) =
  * Storage keys
  */
 const STORAGE_KEYS = {
-  TASKS: 'deepseek_tasks',
-  CONFIG: 'deepseek_config',
+  TASKS: SK.DEEPSEEK_TASKS,
+  CONFIG: SK.DEEPSEEK_CONFIG,
 } as const;
 
 /**

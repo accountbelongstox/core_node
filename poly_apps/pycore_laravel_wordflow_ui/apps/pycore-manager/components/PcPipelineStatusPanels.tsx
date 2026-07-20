@@ -8,7 +8,8 @@ import {
   Activity, ScanText, Eye, Cpu, AudioLines, Loader2, RefreshCw, AlertTriangle,
   Languages, Mic, Play,
 } from 'lucide-react';
-import { usePycoreCapability, ttsEngineUiState } from '../../../core/api-libs/pycore';
+import { usePycoreCapability, ttsEngineUiState, usePcEngineLoadStatus } from '../../../core/api-libs/pycore';
+import type { EngineLoadStatusEntry } from '../../../core/api-libs/pycore/pycoreTypes';
 import { PcTtsServerControls } from './PcTtsServerControls';
 import { usePcTestPopup } from './PcTestPopupContext';
 import type { PcTestKind, PcTestPopupState } from './PcTestPopup';
@@ -49,6 +50,42 @@ const Dot: React.FC<{ ok: boolean; warn?: boolean }> = ({ ok, warn }) => (
     warn ? 'bg-amber-500' : ok ? 'bg-emerald-500' : 'bg-slate-400/50'
   }`} />
 );
+
+/**
+ * Live model-load indicator for one engine tile (TTS + STT, servers + in-process
+ * models). 'loading' shows an amber pulsing badge with elapsed seconds; 'error'
+ * shows a red badge with the load message as a tooltip. Nothing for idle/loaded
+ * (loaded is already conveyed by the tile's own availability badges).
+ */
+const EngineLoadTileBadge: React.FC<{
+  entry?: EngineLoadStatusEntry | null;
+  t: (key: string) => string;
+}> = ({ entry, t }) => {
+  if (!entry) return null;
+  if (entry.state === 'loading') {
+    const secs = Math.max(0, Math.round(entry.elapsed_ms / 1000));
+    return (
+      <span
+        title={entry.message || undefined}
+        className="inline-flex items-center gap-1 text-[9px] font-bold uppercase text-amber-600 dark:text-amber-400">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        {t('engineLoad.loading')}
+        <span className="font-mono">{secs}s</span>
+      </span>
+    );
+  }
+  if (entry.state === 'error') {
+    return (
+      <span
+        title={entry.message || undefined}
+        className="inline-flex items-center gap-1 text-[9px] font-bold uppercase text-rose-500">
+        <AlertTriangle className="w-3 h-3" />
+        {t('engineLoad.error')}
+      </span>
+    );
+  }
+  return null;
+};
 
 const Pill: React.FC<{
   ok: boolean; label: string; version?: string; extra?: React.ReactNode; title?: string;
@@ -133,6 +170,10 @@ export const PcPipelineStatusPanels: React.FC<PcPipelineStatusPanelsProps> = ({
   const {
     ocr, tts, stt, aiGateway, caps, loading, refreshing, initialized, errors, retry,
   } = usePycoreCapability();
+
+  // Live per-engine model-load overlay (TTS + STT). The store fast-polls itself
+  // while any engine is loading and merges rpc_v2 'engine_load_status_update' deltas.
+  const { engines: engineLoad } = usePcEngineLoadStatus();
 
   const retryOne = () => { void retry(); };
 
@@ -312,6 +353,7 @@ export const PcPipelineStatusPanels: React.FC<PcPipelineStatusPanelsProps> = ({
               )}
               {cd > 0 && <span className="text-amber-500 font-mono">{cd}s</span>}
               {isActive && <span className="text-[9px] font-bold uppercase">{t('pipeline.active')}</span>}
+              <EngineLoadTileBadge entry={engineLoad[e.name]} t={t} />
               <TestChip
                 kind="tts"
                 target={e.name}
@@ -388,6 +430,7 @@ export const PcPipelineStatusPanels: React.FC<PcPipelineStatusPanelsProps> = ({
               {e.model_loaded && typeof e.model_idle_remaining_s === 'number' && (
                 <span className="font-mono text-amber-600">{Math.ceil(e.model_idle_remaining_s)}s</span>
               )}
+              <EngineLoadTileBadge entry={engineLoad[e.name]} t={t} />
               <TestChip kind="stt" target={e.name} disabled={!e.available}
                 defaults={{
                   model: e.model ?? undefined,

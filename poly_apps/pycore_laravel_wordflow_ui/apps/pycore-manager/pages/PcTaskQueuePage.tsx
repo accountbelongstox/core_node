@@ -69,10 +69,10 @@ function mergeTask(list: TaskRow[], incoming: Partial<TaskRow> & { task_id?: str
 
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
 
-/** Contract with PcQueueCenterPage (shared panel props). */
-type PanelProps = QueueCenterPanelProps;
+/** Contract with PcQueueCenterPage (shared panel props + section live switch). */
+type PanelProps = QueueCenterPanelProps & { live?: boolean };
 
-const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => {
+const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta, live = true }) => {
   // Continuous-poll view backed by the global task layer: the list + poll loop
   // live in <TaskPersistenceProvider> above the router, so they survive leaving
   // and returning to this page, and a full reload re-polls. The poll fn reports
@@ -90,7 +90,7 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
   const [remoteLoading, setRemoteLoading] = useState(false);
   const mounted = useRef(true);
 
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   // Last time a fetch ran (persistent poll OR manual/tick refresh). Used to skip
   // the parent-tick immediate fetch when a persistent poll just ran, so the two
@@ -113,15 +113,18 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
 
   const tasks: TaskRow[] = queue.data ?? [];
 
-  // Start the continuous poll on first mount (idempotent if already running).
-  // Stop it on unmount so the persistent session does NOT poll forever app-wide
-  // after the user leaves this tab (the session is kept alive across navigation
-  // by design, but polling with no consumer is pure waste).
+  // Start/stop the continuous poll with the section live switch (idempotent if
+  // already running). Stop it on unmount so the persistent session does NOT poll
+  // forever app-wide after the user leaves this page (the session is kept alive
+  // across navigation by design, but polling with no consumer is pure waste).
   useEffect(() => {
-    if (!queue.running) queue.begin();
-    return () => { queue.end(); };
+    if (live && !queue.running) queue.begin();
+    else if (!live && queue.running) queue.end();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [live]);
+  useEffect(() => () => { queue.end(); },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []);
 
   // Manual refresh = one immediate poll pushed into the shared session.
   const refresh = useCallback(() => {
@@ -147,11 +150,11 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
   useEffect(() => {
     if (refreshTick !== lastTick.current) {
       lastTick.current = refreshTick;
-      if (Date.now() - lastFetchAt.current >= REFRESH_MS) {
+      if (live && Date.now() - lastFetchAt.current >= REFRESH_MS) {
         refresh();
       }
     }
-  }, [refreshTick, refresh]);
+  }, [refreshTick, refresh, live]);
 
   // Report count + loading up to the tab bar / shared spinner.
   useEffect(() => { onMeta?.({ count: tasks.length, loading }); }, [tasks.length, loading, onMeta]);

@@ -418,6 +418,35 @@ function Test-HfFileDownloadComplete {
     return ($len -gt 0)
 }
 
+function Backup-InstallAssetPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [string]$Prefix = ''
+    )
+    $parent = $null
+    $backupRoot = $null
+    $stamp = $null
+    $target = $null
+    $leaf = $null
+    $suffix = 0
+
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    $parent = Split-Path -Parent $Path
+    if (-not $parent) { $parent = (Get-Location).Path }
+    $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+    $backupRoot = Join-Path $parent ('.backup_{0}' -f $stamp)
+    while (Test-Path -LiteralPath $backupRoot) {
+        $suffix += 1
+        $backupRoot = Join-Path $parent ('.backup_{0}_{1}' -f $stamp, $suffix)
+    }
+    New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
+    $leaf = Split-Path -Leaf $Path
+    $target = Join-Path $backupRoot $leaf
+    Move-Item -LiteralPath $Path -Destination $target -Force
+    Write-Host ("{0} [backup] moved {1} -> {2}" -f $Prefix, $Path, $target) -ForegroundColor Yellow
+    return $target
+}
+
 function Invoke-HfFileDownloadResumable {
     param(
         [Parameter(Mandatory = $true)][string]$RepoId,
@@ -445,8 +474,7 @@ function Invoke-HfFileDownloadResumable {
     if ((Test-Path -LiteralPath $OutPath) -and $expected -gt 0) {
         $have = (Get-Item -LiteralPath $OutPath).Length
         if ($have -gt 0 -and $have -lt $expected) {
-            Write-Host ("{0} [repair] removing incomplete {1} ({2:N0} / {3:N0} bytes)" -f $Prefix, $FileName, $have, $expected) -ForegroundColor Yellow
-            Remove-Item -LiteralPath $OutPath -Force -ErrorAction SilentlyContinue
+            Write-Host ("{0} [resume] continuing incomplete {1} ({2:N0} / {3:N0} bytes)" -f $Prefix, $FileName, $have, $expected) -ForegroundColor Yellow
         }
     }
     if (Test-HfFileDownloadComplete -Path $OutPath -ExpectedBytes $expected) {
@@ -464,8 +492,8 @@ function Invoke-HfFileDownloadResumable {
     }
     if ($FileName -like '*.safetensors') {
         if (-not (Test-SafetensorsReadable -Path $OutPath)) {
-            Write-Host ("{0} [!] {1} failed safetensors verify; removing for retry" -f $Prefix, $FileName) -ForegroundColor DarkYellow
-            Remove-Item -LiteralPath $OutPath -Force -ErrorAction SilentlyContinue
+            Write-Host ("{0} [!] {1} failed safetensors verify; backing up for retry" -f $Prefix, $FileName) -ForegroundColor DarkYellow
+            Backup-InstallAssetPath -Path $OutPath -Prefix $Prefix | Out-Null
             return $false
         }
     }
@@ -628,4 +656,131 @@ function Install-WhisperModelWeights {
     Write-Host ("{0} [..] downloading whisper '{1}' -> {2}" -f $Prefix, $Model, $out) -ForegroundColor Yellow
     & $curl.Source -L -C - --retry 3 --connect-timeout 30 -o $out $url
     return (Test-HfFileDownloadComplete -Path $out -ExpectedBytes $expected)
+}
+
+# --------------------------------------------------------------------------- #
+# Generic isolated per-engine TTS venv (Bucket B) — GENERALISES Step61's proven #
+# qwen3tts approach to any class-C engine via pycore.pyutils.tts.isolated_venv. #
+# melotts + gptsovits pin a transformers that must NEVER touch the shared main  #
+# interpreter, so they run their api server inside a DEDICATED per-engine venv.  #
+# These helpers invoke the SYSTEM Python to build/verify/resolve that venv;      #
+# ensure_venv() is self-repairing (rebuilds a broken venv) and idempotent.       #
+# See development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md. #
+# --------------------------------------------------------------------------- #
+function ConvertTo-PyStringLiteral {
+    # Emit a Python double-quoted string literal. Backslashes are folded to forward
+    # slashes (safe for Windows filesystem paths passed to Python and for package
+    # specs / import code, none of which contain backslashes), quotes are escaped.
+    param([string]$Value)
+    $s = ($Value -replace '\\', '/')
+    $s = ($s -replace '"', '\"')
+    return ('"' + $s + '"')
+}
+
+function ConvertTo-PyListLiteral {
+    param([string[]]$Items)
+    if (-not $Items -or $Items.Count -eq 0) { return '[]' }
+    $parts = @()
+    foreach ($item in $Items) { $parts += (ConvertTo-PyStringLiteral -Value $item) }
+    return ('[' + ($parts -join ', ') + ']')
+}
+
+function Test-IsolatedTtsVenvProvisioned {
+    # Quick, no-build readiness gate: the engine's isolated venv interpreter is
+    # present on disk (isolated_venv.venv_ready(engine)). Never builds. Mirrors
+    # Step61's Test-Qwen3TtsVenvProvisioned but for any engine.
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
+        [Parameter(Mandatory = $true)][string]$Engine
+    )
+    $rootLiteral = ($CoreNodeRoot -replace "'", "''")
+    $engineLit = ConvertTo-PyStringLiteral -Value $Engine
+    $pyCode = @"
+import sys
+sys.path.insert(0, r'$rootLiteral')
+from pycore.pyutils.tts import isolated_venv
+sys.stdout.write('__VENV_READY__' if isolated_venv.venv_ready($engineLit) else '__VENV_NOTREADY__')
+"@
+    # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
+    # check_and_install_dependencies() (it does pip ops and throws under Stop).
+    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
+    $env:PYCORE_SKIP_DEP_CHECK = '1'
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $out = (& $PythonExe -c $pyCode 2>$null) -join ''
+    $ErrorActionPreference = $prevEap
+    $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
+    return ($out -match '__VENV_READY__')
+}
+
+function Resolve-IsolatedTtsVenvPython {
+    # Return the engine's isolated venv interpreter path (or '' when not provisioned).
+    # Used for post-build steps that must run INSIDE the venv (e.g. NLTK data /
+    # model warmup for melotts). Never builds.
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
+        [Parameter(Mandatory = $true)][string]$Engine
+    )
+    $rootLiteral = ($CoreNodeRoot -replace "'", "''")
+    $engineLit = ConvertTo-PyStringLiteral -Value $Engine
+    $pyCode = @"
+import sys
+sys.path.insert(0, r'$rootLiteral')
+from pycore.pyutils.tts import isolated_venv
+sys.stdout.write(isolated_venv.resolve_python($engineLit) or '')
+"@
+    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
+    $env:PYCORE_SKIP_DEP_CHECK = '1'
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $out = (& $PythonExe -c $pyCode 2>$null) -join ''
+    $ErrorActionPreference = $prevEap
+    $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
+    $out = "$out".Trim()
+    if ($out -and (Test-Path -LiteralPath $out)) { return $out }
+    return ''
+}
+
+function Invoke-IsolatedTtsVenvEnsure {
+    # Build/verify an engine's isolated venv via isolated_venv.ensure_venv(). Runs the
+    # system Python LIVE (pip output streams to console; first build takes minutes) and
+    # reads readiness from the process exit code (0 = health-imports succeed in the venv).
+    # ensure_venv() is self-repairing: it re-runs the import-health probe and rebuilds a
+    # broken venv. Mirrors Step61's Invoke-Qwen3TtsEnsureVenv, generalised to any engine.
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
+        [Parameter(Mandatory = $true)][string]$Engine,
+        [string[]]$PipPackages = @(),
+        [string[]]$Pins = @(),
+        [string]$HealthImports = '',
+        [switch]$Force
+    )
+    $rootLiteral = ($CoreNodeRoot -replace "'", "''")
+    $engineLit = ConvertTo-PyStringLiteral -Value $Engine
+    $pkgLit = ConvertTo-PyListLiteral -Items $PipPackages
+    $pinLit = ConvertTo-PyListLiteral -Items $Pins
+    $forceLiteral = if ($Force) { 'True' } else { 'False' }
+    $healthArg = if ($HealthImports) { 'health_imports=' + (ConvertTo-PyStringLiteral -Value $HealthImports) + ', ' } else { '' }
+    $pyCode = @"
+import sys
+sys.path.insert(0, r'$rootLiteral')
+from pycore.pyutils.tts import isolated_venv
+py = isolated_venv.ensure_venv($engineLit, pip_packages=$pkgLit, pins=$pinLit, ${healthArg}force=$forceLiteral)
+sys.exit(0 if py else 1)
+"@
+    # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
+    # check_and_install_dependencies(); ensure_venv() does its own venv provisioning.
+    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
+    $env:PYCORE_SKIP_DEP_CHECK = '1'
+    # Run LIVE (attached): ensure_venv streams pip output; first build takes minutes.
+    # Out-Host (no 2>&1) shows it live WITHOUT letting the child's stdout leak into this
+    # function's return value, and avoids native stderr wrapping into ErrorRecords under
+    # ErrorActionPreference Stop. $LASTEXITCODE stays the exe's.
+    & $PythonExe -c $pyCode | Out-Host
+    $venvOk = ($LASTEXITCODE -eq 0)
+    $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
+    return $venvOk
 }

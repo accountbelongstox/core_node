@@ -9,6 +9,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationQueueController;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 use App\Traits\ApiResponse;
 
 class AppQyV1WordLookupController extends Controller
@@ -120,11 +121,12 @@ class AppQyV1WordLookupController extends Controller
                     ];
                     
                     if (!$wordData->has_audio) {
-                        $wordData->has_audio = true;
-                        $wordData->save();
-                        // Audio coverage changed -> drop the cached dictionary metrics
-                        // so the dashboards don't show a stale audio count.
-                        \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel::forgetMetricsCache($langCode);
+                        (new AppQyV1DictionaryTTSCoordinator())->markWordCompleted(
+                            $wordData,
+                            $audioResult['audio_path'],
+                            'edge-tts',
+                        );
+                        AppQyV1LangDictionaryModel::forgetMetricsCache($langCode);
                     }
                 } else {
                     $result['data']['audio'] = [

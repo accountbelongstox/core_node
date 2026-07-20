@@ -1,5 +1,11 @@
 # Shared Python runtime discovery and PATH helpers for Windows installer scripts.
 # Uses absolute paths from GlobalVars and binary-on-disk checks (not exit codes).
+#
+# Bucket-A pin: Install-PinnedTransformers implements the shared-transformers rule from
+# development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7 — the LLM
+# steps (DeepSeek-VL/OCR, Qwen2.5, NLLB-200, Bark) install transformers at ONE version
+# ($Global:LLM_TRANSFORMERS_SPEC) and NEVER --upgrade, and this helper self-heals a pin a
+# later step clobbered (version-idempotent, so a stale .deps_done sentinel cannot hide drift).
 
 if (-not (Get-Command Normalize-WindowsPath -ErrorAction SilentlyContinue)) {
     . (Join-Path $PSScriptRoot 'WindowsPathFunction.ps1')
@@ -124,6 +130,84 @@ function Get-PipPackageVersion {
     }
 
     return ''
+}
+
+function Install-PinnedTransformers {
+    <#
+    .SYNOPSIS
+        Version-idempotent transformers install for the shared Bucket-A LLM stack.
+    .DESCRIPTION
+        Implements the Bucket-A rule in
+        development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7:
+        DeepSeek-VL/DeepSeek-OCR/Qwen2.5/NLLB-200/Bark share ONE transformers version
+        ($Global:LLM_TRANSFORMERS_SPEC) in the single system Python 3.13. Installs $Spec
+        ONLY when transformers is absent OR the installed version differs from the pinned
+        version; NEVER uses --upgrade (the floating upgrade is the race that clobbers the
+        pin). Because the decision is version-based, this self-heals a pin that another
+        step clobbered even when the caller's .deps_done sentinel already exists.
+        Reuses Get-PipPackageVersion / Test-PipPackageInstalled.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PythonExe,
+        [Parameter(Mandatory = $true)]
+        [string]$PipExe,
+        [string]$Spec = '',
+        [string]$Prefix = ''
+    )
+
+    $effectiveSpec = $Spec
+    $packageName = ''
+    $wantVersion = ''
+    $installedVersion = ''
+    $needInstall = $false
+
+    if (-not $effectiveSpec) {
+        $effectiveSpec = $Global:LLM_TRANSFORMERS_SPEC
+    }
+    if (-not $effectiveSpec) {
+        $effectiveSpec = 'transformers==4.46.3'
+    }
+
+    if ($effectiveSpec -match '^\s*([A-Za-z0-9_.\-]+)\s*==\s*(.+?)\s*$') {
+        $packageName = $Matches[1]
+        $wantVersion = $Matches[2].Trim()
+    } else {
+        $packageName = ($effectiveSpec -split '[\s<>=!~]')[0].Trim()
+    }
+    if (-not $packageName) { $packageName = 'transformers' }
+
+    if (-not (Test-Path -LiteralPath $PipExe)) {
+        Write-Host ("{0}[pinned-transformers] pip not found at {1}; cannot install {2}." -f $Prefix, $PipExe, $effectiveSpec) -ForegroundColor DarkYellow
+        return $false
+    }
+
+    $installedVersion = Get-PipPackageVersion -PipExe $PipExe -PackageName $packageName
+
+    if (-not $installedVersion) {
+        $needInstall = $true
+        Write-Host ("{0}[pinned-transformers] {1} absent -> installing {2} (shared Bucket-A pin)." -f $Prefix, $packageName, $effectiveSpec) -ForegroundColor Yellow
+    } elseif ($wantVersion -and ($installedVersion -ne $wantVersion)) {
+        $needInstall = $true
+        Write-Host ("{0}[pinned-transformers] {1} {2} != pinned {3} -> repairing (self-heal clobbered pin)." -f $Prefix, $packageName, $installedVersion, $wantVersion) -ForegroundColor Yellow
+    } else {
+        Write-Host ("{0}[pinned-transformers] {1} {2} matches shared pin -> skip (idempotent)." -f $Prefix, $packageName, $installedVersion) -ForegroundColor Green
+        return $true
+    }
+
+    if ($needInstall) {
+        # NEVER --upgrade: install the EXACT pinned spec so the shared LLM stack stays aligned.
+        # Out-Host (no 2>&1): show pip output LIVE without leaking stdout into this function's
+        # return value (caller reads only the boolean / discards it with Out-Null); avoiding
+        # 2>&1 keeps native stderr from wrapping into ErrorRecords under ErrorActionPreference Stop.
+        & $PipExe install $effectiveSpec | Out-Host
+    }
+
+    $installedVersion = Get-PipPackageVersion -PipExe $PipExe -PackageName $packageName
+    if ($wantVersion) {
+        return ($installedVersion -eq $wantVersion)
+    }
+    return [bool]$installedVersion
 }
 
 function Resolve-NvidiaSmiExe {

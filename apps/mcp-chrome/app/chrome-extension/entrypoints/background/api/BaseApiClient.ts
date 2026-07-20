@@ -4,6 +4,8 @@
  * Under 200 lines
  */
 
+import { getCachedBackendTimeoutMs } from '@/utils/backend-timeout';
+
 export interface ApiResponse<T = any> {
   success: boolean;
   message: string;
@@ -41,7 +43,10 @@ export abstract class BaseApiClient {
       'Content-Type': 'application/json',
       ...defaultHeaders,
     };
-    this.defaultTimeout = 30000; // 30 seconds
+    // Seed from the configurable backend-timeout cache (default 10 min). Live
+    // changes are picked up per-request via getCachedBackendTimeoutMs() below,
+    // so a settings change takes effect without reconstructing this client.
+    this.defaultTimeout = getCachedBackendTimeoutMs();
   }
 
   /**
@@ -55,10 +60,12 @@ export abstract class BaseApiClient {
       method = 'GET',
       headers = {},
       body,
-      timeout = this.defaultTimeout,
       retries = 3,
       retryDelay = 1000,
     } = config;
+    // An explicit per-call timeout (e.g. pullTasks long-poll) wins; otherwise
+    // resolve the configurable backend timeout live from the cache.
+    const timeout = config.timeout ?? getCachedBackendTimeoutMs();
 
     const url = `${this.baseUrl}${endpoint}`;
     const requestHeaders = { ...this.defaultHeaders, ...headers };

@@ -30,6 +30,7 @@ import os
 import sys
 import importlib
 import platform
+import shutil
 from typing import Dict, Optional, Tuple, Callable
 
 # Intra-pybasecommon imports (allowed: same stdlib-only kernel package).
@@ -94,6 +95,13 @@ class CUDADetector:
         if cuda_env:
             info['available'] = True
 
+        # Fallback positive signal: a working CUDA torch PROVES a GPU is present,
+        # even when nvidia-smi is not resolvable (e.g. a service launched with a
+        # sanitized PATH). Without this a real GPU false-negatives and the torch
+        # CPU-guard destructively downgrades the CUDA build. See _torch_cuda.py.
+        if not info['available'] and cls._torch_cuda_available():
+            info['available'] = True
+
         cls._cached_info = info
         return info
 
@@ -108,14 +116,54 @@ class CUDADetector:
         if cls._check_cuda_env_vars():
             return True
 
+        # Method 3: a working CUDA torch (definitive) - covers nvidia-smi PATH misses.
+        if cls._torch_cuda_available():
+            return True
+
         return False
+
+    @classmethod
+    def _nvidia_smi_cmd(cls) -> str:
+        """Resolve the nvidia-smi executable. Do NOT rely on PATH alone: a service
+        launched with a sanitized PATH (e.g. pyservice) may not have System32 on it,
+        which false-negatives GPU detection and trips the CPU-torch guard. Falls back
+        to the well-known driver install locations, then to the bare name."""
+        found = shutil.which("nvidia-smi")
+        if found:
+            return found
+        candidates = []
+        if platform.system() == "Windows":
+            sysroot = os.environ.get("SystemRoot") or r"C:\Windows"
+            candidates.append(os.path.join(sysroot, "System32", "nvidia-smi.exe"))
+            for pf_var in ("ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"):
+                pf = os.environ.get(pf_var)
+                if pf:
+                    candidates.append(os.path.join(pf, "NVIDIA Corporation", "NVSMI", "nvidia-smi.exe"))
+        else:
+            candidates.extend(["/usr/bin/nvidia-smi", "/usr/local/bin/nvidia-smi", "/bin/nvidia-smi"])
+        for cand in candidates:
+            if cand and os.path.isfile(cand):
+                return cand
+        return "nvidia-smi"
+
+    @classmethod
+    def _torch_cuda_available(cls) -> bool:
+        """Definitive positive GPU signal: a working CUDA torch. Used only as a
+        FALLBACK when nvidia-smi is not resolvable, so a real GPU is never missed."""
+        try:
+            t = _get_torch()
+            return bool(t is not None and getattr(t, "cuda", None) is not None
+                        and t.cuda.is_available())
+        except Exception:
+            return False
 
     @classmethod
     def _check_nvidia_smi(cls) -> Optional[Dict[str, any]]:
         """Check if nvidia-smi is available and get GPU info."""
         try:
-            # Try to run nvidia-smi
-            result = exec_silent(['nvidia-smi', '--query-gpu=name,driver_version,memory.total', '--format=csv,noheader'], info=False)
+            smi = cls._nvidia_smi_cmd()
+            # Try to run nvidia-smi (resolved full path, not PATH-dependent)
+            result = exec_silent([smi, '--query-gpu=name,driver_version,memory.total', '--format=csv,noheader'], info=False)
 
             if result.return_code == 0 and result.stdout.strip():
                 gpus = []
@@ -131,7 +179,7 @@ class CUDADetector:
                 # Get CUDA version
                 cuda_version = None
                 try:
-                    cuda_result = exec_silent(['nvidia-smi', '--query-gpu=compute_cap', '--format=csv,noheader'], info=False)
+                    cuda_result = exec_silent([smi, '--query-gpu=compute_cap', '--format=csv,noheader'], info=False)
                     if cuda_result.return_code == 0:
                         cuda_version = cuda_result.stdout.strip().split('\n')[0] if cuda_result.stdout else None
                 except Exception:

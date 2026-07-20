@@ -23,6 +23,9 @@ export default defineConfig(() => {
       '@capacitor/network': capacitorShim('network'),
       '@capacitor/device': capacitorShim('device'),
       '@capacitor-community/voice-recorder': capacitorShim('voice-recorder'),
+      // The installed replacement package (community one was unpublished) —
+      // web builds keep using the MediaRecorder shim.
+      'capacitor-voice-recorder': capacitorShim('voice-recorder'),
       '@capacitor/haptics': capacitorShim('haptics'),
       '@capacitor-community/text-to-speech': capacitorShim('text-to-speech'),
       '@capacitor-community/speech-recognition': capacitorShim('speech-recognition'),

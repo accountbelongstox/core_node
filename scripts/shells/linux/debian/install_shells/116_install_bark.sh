@@ -1,10 +1,16 @@
 ﻿#!/bin/bash
 # Bark TTS prerequisite (Linux) — Suno via Hugging Face transformers.
-# Category 1: Python 3.13 native (torch>=2.5 + transformers>=4.31).
+# Category 1 / Bucket A: Python 3.x native, in-process local model that SHARES the
+# main interpreter's single pinned transformers with deepseek/qwen25/nllb.
+#
+# Lifecycle rule (see development-guides/cross-docs/
+# TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7, Bucket A): Bark installs transformers
+# at the SHARED pin $LLM_TRANSFORMERS_SPEC, version-idempotently (only when absent) and
+# NEVER with --upgrade. --upgrade is the race that clobbers the pinned stack the parallel
+# LLM installers share, so it is forbidden here.
 #
 # Official: https://huggingface.co/docs/transformers/model_doc/bark
-#   pip install transformers scipy
-#   Do NOT pip install bark (wrong PyPI package).
+#   pip install transformers scipy   (Do NOT pip install bark — wrong PyPI package.)
 #
 # Invocation: 116_install_bark.sh --python <py> [--full] [--force]
 # Env: BARK_SKIP=1, BARK_INSTALL=1, NEURAL_TTS_INSTALL=1, BARK_DIR, BARK_MODEL
@@ -19,7 +25,11 @@ TARGET_DIR="${BARK_DIR:-$CORE_NODE_CACHE_DIR/pycore/bark}"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 WEIGHTS_DIR="$TARGET_DIR/weights"
 MODEL_SENTINEL="$TARGET_DIR/.model_installed"
-WEIGHT_ALLOW="*.bin,*.safetensors,*.pt,*.json,*.txt,*.model,*.vocab"
+WEIGHT_ALLOW="pytorch_model.bin,config.json,generation_config.json,tokenizer.json,tokenizer_config.json,special_tokens_map.json,vocab.txt,speaker_embeddings_path.json,speaker_embeddings/*.npy,speaker_embeddings/v2/*.npy"
+# Shared Bucket-A transformers pin (single source of truth: common/common_functions.sh).
+# Repeated here as an env-overridable default so a standalone bark run still honors the
+# pin that deepseek/qwen25/nllb share; the runner may also export it.
+LLM_TRANSFORMERS_SPEC="${LLM_TRANSFORMERS_SPEC:-transformers==4.46.3}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -86,16 +96,23 @@ if [[ -f "$DEPS_SENTINEL" && "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "dependencies already installed (.deps_done)"
 else
     install_pycore_torch_stack "$PYTHON" "[install_bark] "
-    echo "[install_bark] [..] pip install transformers scipy accelerate ..."
-    pip_i --upgrade transformers scipy accelerate || true
+    # Bucket A: install transformers at the SHARED pin, version-idempotently and NEVER
+    # --upgrade (that clobbers the pin the deepseek/qwen25/nllb stack shares in this
+    # interpreter). Install only when missing; matches 98_install_qwen25.sh. scipy +
+    # accelerate ride along.
+    if "$PYTHON" -c "import transformers, scipy, accelerate" >/dev/null 2>&1; then
+        echo "[install_bark] [OK] transformers/scipy/accelerate already present; keeping the shared pin."
+    else
+        echo "[install_bark] [..] pip install $LLM_TRANSFORMERS_SPEC scipy accelerate ..."
+        pip_i "$LLM_TRANSFORMERS_SPEC" scipy accelerate || true
+    fi
     date -u +%Y-%m-%dT%H:%M:%SZ > "$DEPS_SENTINEL"
     echo "[install_bark] [OK] dependencies installed."
 fi
 
 # --- HF weights (IDEMPOTENT: sentinel + curl resume + HF size verification) --- #
-# allow-list excludes redundant flax/tf/onnx format variants so suno/bark does
-# not pull 3x the bytes; .bin/.safetensors/.pt + config/tokenizer files cover
-# everything transformers BarkModel.from_pretrained needs.
+# Transformers Bark uses the main PyTorch checkpoint plus config/tokenizer and
+# speaker preset files; original Bark component .pt files are not pre-downloaded.
 _model_ready=0
 if [[ -f "$MODEL_SENTINEL" && "$FORCE" -eq 0 ]]; then
     _sentinel_model="$(cat "$MODEL_SENTINEL" 2>/dev/null | tr -d '\r\n')"

@@ -19,6 +19,7 @@
 
 import { PYCORE_PORT, buildPycoreWsUrl } from './pycoreEndpoints';
 import { pycoreWsUrlOverride, isPycoreSecureContext, pnaBlockedReason, directPycoreHost } from './pycoreTarget';
+import { appendHttpDebug, summarizeHttpParams, rpcRouteToHttpMethod } from './pycoreHttpLog';
 
 type EventHandler = (data: any) => void;
 type StatusHandler = (connected: boolean) => void;
@@ -402,13 +403,36 @@ export function subscribeWs(event: string, handler: EventHandler): () => void {
  * loads the backend's shared client script.
  */
 export function callRpc(method: string, params: any = {}, timeoutMs: number = CALL_TIMEOUT_MS): Promise<any> {
+  // Instrument EVERY FE->pycore RPC (local_http.* bridge + direct live-test
+  // routes) for the PcHttpDebugger: route, params path/summary, status, duration.
+  const nowFn = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const started = nowFn();
+  const wsPath = (params && typeof params.path === 'string') ? params.path : method;
+  const paramsSummary = summarizeHttpParams(params);
+  const record = (status: number, error?: string | null) => {
+    appendHttpDebug({
+      direction: 'pycore',
+      method: rpcRouteToHttpMethod(method),
+      route: method,
+      path: wsPath,
+      paramsSummary,
+      status,
+      ms: nowFn() - started,
+      error: error || null,
+    });
+  };
   if (sharedClient && typeof sharedClient.call === 'function') {
     if (!connected) {
+      record(0, 'RPC unavailable: WebSocket not connected.');
       return Promise.reject(new Error('RPC unavailable: WebSocket not connected.'));
     }
-    return sharedClient.call(method, params, timeoutMs);
+    return Promise.resolve(sharedClient.call(method, params, timeoutMs))
+      .then((r: any) => { record(200); return r; })
+      .catch((e: any) => { record(0, e?.message || String(e)); throw e; });
   }
-  return nativeCall(method, params, timeoutMs);
+  return nativeCall(method, params, timeoutMs)
+    .then((r: any) => { record(200); return r; })
+    .catch((e: any) => { record(0, e?.message || String(e)); throw e; });
 }
 
 /** Open the singleton connection (idempotent). Auto-reconnects on close/error.
@@ -436,11 +460,10 @@ export function connectPycoreWs(): void {
     diag('info', 'connect requested while route inactive — deferring until a pycore end is active');
     return;
   }
-  // Broadcast events migrate to SSE (RPC stays on WS). Started lazily here so
-  // every existing consumer that calls connectPycoreWs() also gets SSE, with no
-  // change to their subscribe()/onWsStatus() calls. Lazy import keeps this
-  // module's load dependency-free and avoids a static import cycle.
-  import('./PycoreSse').then(({ connectPycoreSse }) => { connectPycoreSse(); }).catch(() => { /* SSE best-effort; WS fallback dispatches events */ });
+  // Broadcast events ride the SAME WS bus — NO separate HTTP SSE stream. The
+  // onmessage handler dispatches {type:'event'} frames directly (sseEventsActive
+  // stays false), so subscribe()/onWsStatus() work unchanged over WS only. This
+  // removes the last HTTP connection to :59000 for live events.
   const Shared = (typeof window !== 'undefined') ? (window as any).FastAPIWsRpcClient : undefined;
   if (Shared) {
     startSharedClient(Shared);
@@ -464,7 +487,6 @@ export function setPycoreActive(active: boolean): void {
   if (active) {
     diag('info', 'route active — resuming pycore bus');
     reconnectAttempts = 0;
-    import('./PycoreSse').then(({ setPycoreSseActive }) => { setPycoreSseActive(true); }).catch(() => { /* best-effort */ });
     if (started) {
       if (sharedClient && typeof sharedClient.connect === 'function') {
         try { sharedClient.connect(); } catch { /* ignore */ }
@@ -487,6 +509,5 @@ export function setPycoreActive(active: boolean): void {
     }
     rejectAllPendingCalls('pycore bus suspended (route inactive)');
     setConnected(false);
-    import('./PycoreSse').then(({ setPycoreSseActive }) => { setPycoreSseActive(false); }).catch(() => { /* best-effort */ });
   }
 }

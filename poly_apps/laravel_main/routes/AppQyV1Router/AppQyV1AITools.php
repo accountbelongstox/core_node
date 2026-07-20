@@ -100,6 +100,7 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         Route::post('/sentence/report', [AppQyV1SentenceAudioController::class, 'report']);
         Route::get('/sentence/audio', [AppQyV1SentenceAudioController::class, 'audio']);
         Route::post('/sentence/bump', [AppQyV1SentenceAudioController::class, 'bump']);
+        Route::post('/sentence/bump-batch', [AppQyV1SentenceAudioController::class, 'bumpBatch']);
         Route::get('/sentence/missing', [AppQyV1SentenceAudioController::class, 'missing']);
 
         // Voice-variant specs CRUD (per-lang accent/gender voices). Drives the

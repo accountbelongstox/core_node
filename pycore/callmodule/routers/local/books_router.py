@@ -18,6 +18,7 @@ Laravel ingest is still the WS RPC ``book.sync_source``.
 """
 
 import asyncio
+import base64
 from typing import List, Optional
 
 import fastapi
@@ -29,6 +30,7 @@ from ...models.local_processing.books_models import (
     BooksScanResponse,
     BooksAnalyzeRequest,
     BooksAnalyzeResponse,
+    BooksAnalyzeUploadB64Request,
     BooksStateResponse,
     BooksStateAddRequest,
     BooksStateRemoveRequest,
@@ -141,3 +143,21 @@ async def analyze_upload(
     return await asyncio.to_thread(
         controller.analyze_upload, uploads, language,
         max(0, min(20000, int(preview_chars))), persist, languages, source_type)
+
+
+@router.post("/analyze-upload-b64", response_model=BooksAnalyzeResponse)
+async def analyze_upload_b64(request: BooksAnalyzeUploadB64Request):
+    """JSON sibling of /analyze-upload so drag-drop upload rides the WS bridge
+    (local_http.post) instead of a raw HTTP multipart POST. Files arrive as
+    base64; everything else mirrors /analyze-upload exactly."""
+    uploads = []
+    for f in request.files:
+        try:
+            content = base64.b64decode(f.data_b64, validate=False)
+        except (ValueError, TypeError):
+            content = b""
+        uploads.append((f.name or "book", content))
+    return await asyncio.to_thread(
+        controller.analyze_upload, uploads, request.language,
+        max(0, min(20000, int(request.preview_chars))), request.persist,
+        request.languages, request.source_type)

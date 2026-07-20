@@ -5,6 +5,12 @@
  */
 
 import { BaseApiClient, ApiResponse } from './BaseApiClient';
+import { getCachedBackendTimeoutMs } from '@/utils/backend-timeout';
+import {
+  WORKER_PATHS,
+  TRANSLATION_QUEUE_PATHS,
+  taskPath,
+} from '@/utils/api-paths';
 
 // ========== Type Definitions ==========
 
@@ -52,6 +58,23 @@ export type WorkerCapability =
   | 'puter_translate'
   | 'subtitle'
   | 'poster';
+
+/**
+ * Value-level counterpart of the WorkerCapability union — the SINGLE source of
+ * the capability strings. Consumers that need the vocabulary at runtime (e.g.
+ * SimpleWorkerBase's allow-set) build from this instead of re-listing literals.
+ * `satisfies` keeps it in lockstep with the union above.
+ */
+export const WORKER_CAPABILITIES = [
+  'audio',
+  'image',
+  'translate',
+  'sentence_audio',
+  'ai_translate',
+  'puter_translate',
+  'subtitle',
+  'poster',
+] as const satisfies readonly WorkerCapability[];
 
 export type TaskStatus =
   | 'pending'
@@ -162,6 +185,14 @@ export interface WorkerInfo {
  */
 export const PRIORITY_FAST = 100;
 
+// Fail-fast control-plane budget for the SHORT worker RPCs (register / heartbeat
+// / accept). A dead or slow Laravel must fail ONCE, fast — never retry 3x against
+// a long timeout, which floods the console with `Request timeout` and hammers an
+// unreachable backend. Long-poll pulls keep their own budget (see pullTasks) and
+// submitResult uses the CONFIGURABLE backend timeout (a result may be large).
+const CONTROL_RPC_FAILFAST_TIMEOUT_MS = 10000;
+const CONTROL_RPC_OPTS = { retries: 0, timeout: CONTROL_RPC_FAILFAST_TIMEOUT_MS } as const;
+
 export class WorkerApiClient extends BaseApiClient {
   private workerId: string | null = null;
 
@@ -169,7 +200,11 @@ export class WorkerApiClient extends BaseApiClient {
    * Register worker
    */
   async register(registration: WorkerRegistration): Promise<ApiResponse<{ worker_id: string }>> {
-    const response = await this.post<{ worker_id: string }>('/api/worker/register', registration);
+    const response = await this.post<{ worker_id: string }>(
+      WORKER_PATHS.REGISTER,
+      registration,
+      CONTROL_RPC_OPTS,
+    );
 
     if (response.success && response.data) {
       this.workerId = response.data.worker_id;
@@ -190,9 +225,11 @@ export class WorkerApiClient extends BaseApiClient {
       throw new Error('Worker ID not set. Call register() first or provide workerId');
     }
 
-    return this.post<{ pending_urgent: number; pending_fast: number }>('/api/worker/heartbeat', {
-      worker_id: id,
-    });
+    return this.post<{ pending_urgent: number; pending_fast: number }>(
+      WORKER_PATHS.HEARTBEAT,
+      { worker_id: id },
+      CONTROL_RPC_OPTS,
+    );
   }
 
   /**
@@ -230,7 +267,7 @@ export class WorkerApiClient extends BaseApiClient {
     const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
 
     return this.get<{ count: number; pending_urgent: number; pending_fast: number; tasks: Task[] }>(
-      '/api/worker/tasks/pull',
+      WORKER_PATHS.TASKS_PULL,
       {
         worker_id: id,
         // Always send wait; a missing wait makes Laravel long-poll 20s.
@@ -255,10 +292,11 @@ export class WorkerApiClient extends BaseApiClient {
       throw new Error('Worker ID not set. Call register() first or provide workerId');
     }
 
-    return this.post<null>('/api/worker/tasks/accept', {
-      task_id: taskId,
-      worker_id: id,
-    });
+    return this.post<null>(
+      WORKER_PATHS.TASKS_ACCEPT,
+      { task_id: taskId, worker_id: id },
+      CONTROL_RPC_OPTS,
+    );
   }
 
   /**
@@ -274,14 +312,19 @@ export class WorkerApiClient extends BaseApiClient {
       throw new Error('Worker ID not set in result. Call register() first or provide worker_id');
     }
 
-    return this.post<WorkerSubmitOutcome | null>('/api/worker/tasks/result', result);
+    return this.post<WorkerSubmitOutcome | null>(
+      WORKER_PATHS.TASKS_RESULT,
+      result,
+      // Configurable timeout (keep retries:0 — the outbox owns durable retry).
+      { retries: 0, timeout: getCachedBackendTimeoutMs() },
+    );
   }
 
   /**
    * Get worker list
    */
   async getWorkerList(): Promise<ApiResponse<{ count: number; workers: WorkerInfo[] }>> {
-    return this.get<{ count: number; workers: WorkerInfo[] }>('/api/worker/list');
+    return this.get<{ count: number; workers: WorkerInfo[] }>(WORKER_PATHS.LIST);
   }
 
   /**
@@ -291,7 +334,7 @@ export class WorkerApiClient extends BaseApiClient {
    * A control read — no worker_id required.
    */
   async getTaskDetail(taskId: string): Promise<ApiResponse<any>> {
-    return this.get<any>(`/api/task/${encodeURIComponent(taskId)}/detail`);
+    return this.get<any>(taskPath(taskId, 'detail'));
   }
 
   /**
@@ -304,7 +347,7 @@ export class WorkerApiClient extends BaseApiClient {
     priority: number = PRIORITY_FAST,
   ): Promise<ApiResponse<{ task_id: string; priority: number }>> {
     return this.post<{ task_id: string; priority: number }>(
-      `/api/task/${encodeURIComponent(taskId)}/bump`,
+      taskPath(taskId, 'bump'),
       { priority },
     );
   }
@@ -360,7 +403,7 @@ export class WorkerApiClient extends BaseApiClient {
     // `page` (1-based) takes precedence; else a raw `offset`.
     if (page != null) params.page = Math.max(1, Math.floor(page));
     else if (offset != null) params.offset = Math.max(0, Math.floor(offset));
-    return this.get('/api/app_qy_v1/ai_tools/translation/queue/list', params);
+    return this.get(TRANSLATION_QUEUE_PATHS.LIST, params);
   }
 
   /**
@@ -416,7 +459,7 @@ export class WorkerApiClient extends BaseApiClient {
     };
     if (page != null) params.page = Math.max(1, Math.floor(page));
     else if (offset != null) params.offset = Math.max(0, Math.floor(offset));
-    return this.get('/api/app_qy_v1/ai_tools/translation/queue/pending-words', params);
+    return this.get(TRANSLATION_QUEUE_PATHS.PENDING_WORDS, params);
   }
 
   /**
@@ -428,7 +471,7 @@ export class WorkerApiClient extends BaseApiClient {
     options: { language?: string; target_language?: string; limit?: number } = {},
   ): Promise<ApiResponse<{ queued: number; moved: number; skipped: number; task_ids: string[] }>> {
     const { language = 'en', target_language = 'zh', limit = 500 } = options;
-    return this.post('/api/app_qy_v1/ai_tools/translation/queue/enqueue-pending', {
+    return this.post(TRANSLATION_QUEUE_PATHS.ENQUEUE_PENDING, {
       language,
       target_language,
       limit: Math.max(1, Math.min(2000, limit)),
@@ -449,7 +492,7 @@ export class WorkerApiClient extends BaseApiClient {
       };
     }>
   > {
-    return this.get('/api/worker/stats');
+    return this.get(WORKER_PATHS.STATS);
   }
 
   /**

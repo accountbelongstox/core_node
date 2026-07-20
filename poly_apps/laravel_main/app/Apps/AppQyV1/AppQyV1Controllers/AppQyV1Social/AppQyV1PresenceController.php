@@ -18,8 +18,6 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Routing\Controller as BaseController;
 use App\Traits\ApiResponse;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserPresenceModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1FriendRequestModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserFollowModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
 
 /**
@@ -60,9 +58,12 @@ class AppQyV1PresenceController extends BaseController
         $status = $request->input('status');
         $result = AppQyV1UserPresenceModel::heartbeat((int) $currentUser->id, $status);
 
-        // Offline -> online transition: notify friends (best-effort SSE).
+        // Offline -> online transition: notify friends (best-effort SSE). The
+        // symmetric offline push is driven by AppQyV1PresenceSweepTask, which
+        // detects the lapsed heartbeat and emits friend.offline to this same
+        // audience (AppQyV1UserPresenceModel::audienceFor).
         if (!$result['previously_online'] && $result['status'] !== AppQyV1UserPresenceModel::STATUS_OFFLINE) {
-            $friendIds = $this->friendAndFollowerIds((int) $currentUser->id);
+            $friendIds = AppQyV1UserPresenceModel::audienceFor((int) $currentUser->id);
             foreach ($friendIds as $fid) {
                 AppQyV1SocialEventModel::emit($fid, 'friend.online', [
                     'user_id' => (int) $currentUser->id,
@@ -105,31 +106,5 @@ class AppQyV1PresenceController extends BaseController
         $presence = AppQyV1UserPresenceModel::effectiveFor($ids);
 
         return $this->success(['presence' => $presence]);
-    }
-
-    /**
-     * The user ids that should learn about this user's online transition: the
-     * accepted friends PLUS the followers (people who follow this user) — those
-     * are the relationships that render this user's presence dot.
-     *
-     * @return array<int, int>
-     */
-    private function friendAndFollowerIds(int $userId): array
-    {
-        $ids = [];
-        foreach (AppQyV1FriendRequestModel::acceptedFriendIds($userId) as $id) {
-            $ids[$id] = $id;
-        }
-        // People who follow this user (their friends list shows this user).
-        $followerIds = AppQyV1UserFollowModel::query()
-            ->where('followed_user_id', $userId)
-            ->pluck('user_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-        foreach ($followerIds as $id) {
-            $ids[$id] = $id;
-        }
-        unset($ids[$userId]);
-        return array_values($ids);
     }
 }

@@ -29,6 +29,7 @@ import {
 } from '../../../core/api-libs/pycore';
 import type { QueueItem } from '../../../core/api-libs/pycore';
 import { usePycoreCapability } from '../../../core/api-libs/pycore';
+import { fetchPycoreBlobUrl } from '../../../core/api-libs/pycore/PycoreBlob';
 import { PcPipelineStatusPanels } from '../components/PcPipelineStatusPanels';
 
 const CATEGORY_CLS: Record<string, string> = {
@@ -307,12 +308,15 @@ const PcVoiceSubtitlePage: React.FC = () => {
     if (!item.audioUrl) return;
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
     if (browserPlaying === item.id) { setBrowserPlaying(null); return; }
-    const audio = new Audio(item.audioUrl);
-    audioRef.current = audio;
     setBrowserPlaying(item.id);
-    audio.onended = () => { setBrowserPlaying(null); audioRef.current = null; };
-    audio.onerror = () => { setBrowserPlaying(null); audioRef.current = null; };
-    audio.play().catch(() => setBrowserPlaying(null));
+    // Fetch the clip bytes over WS (data: URL) then play — no HTTP element src.
+    void fetchPycoreBlobUrl(item.audioUrl).then((src) => {
+      const audio = new Audio(src);
+      audioRef.current = audio;
+      audio.onended = () => { setBrowserPlaying(null); audioRef.current = null; };
+      audio.onerror = () => { setBrowserPlaying(null); audioRef.current = null; };
+      audio.play().catch(() => setBrowserPlaying(null));
+    });
     pycoreApi.incrementPlayCount(item.index).catch(() => { /* count is best-effort */ });
   }, [browserPlaying]);
 

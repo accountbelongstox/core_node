@@ -46,6 +46,11 @@ Events handled (Phase C broadcast contract):
            other pycores skip this word) — see the worker's coordination model.
   - task.completed  { task_id, target_language, word_count }
         -> QueueMonitorService.apply_task_completed (mark completed)
+  - sentence.priority { content_id, language, priority, text }
+        or aggregate { batch: true, count, languages }
+        -> QueueBumpHub.record (UI toasts + WS push) +
+           TTSSentenceWorkerService.notify_bump / notify_batch_bump
+           (re-key queued task + immediate wake)
 
 ------------------------------------------------------------------------------
 Threading / lifecycle (mirrors translation_worker_service / queue_monitor)
@@ -76,7 +81,7 @@ from urllib.parse import urlparse
 # ColorPrint is the only allowed logger in pycore processors/services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 # requests is a third-party dep — always via the lazy accessor (SSE transport).
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     resolve_laravel_base_url,
 )
@@ -84,6 +89,12 @@ from pycore.callmodule.services.sync.laravel_endpoint_manager import (
 from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
 from pycore.callmodule.services.translation_worker_service import (
     get_translation_worker_service,
+)
+# Sentence-audio lane: bump hub (UI toasts/WS) + worker (re-key + wake) for the
+# sentence.priority events that ride this same SSE stream.
+from pycore.callmodule.services.queue_bump_hub import get_queue_bump_hub
+from pycore.callmodule.services.tts_sentence_worker_service import (
+    get_tts_sentence_worker_service,
 )
 
 
@@ -154,6 +165,7 @@ class TranslationWsClient:
         # Sibling singletons (resolved lazily on first event so init order is free).
         self._monitor = None
         self._worker = None
+        self._sentence_worker = None
 
         # Background thread + control flags.
         self._thread: Optional[threading.Thread] = None
@@ -166,7 +178,11 @@ class TranslationWsClient:
         # reconnects (the server ends each stream ~50s) from spamming the log.
         self._unreachable_warned = False
         self._ever_connected = False
-        self._reconnect_delay = 3  # seconds between reconnect attempts
+        # Exponential reconnect backoff: start at 3s, double per failed attempt,
+        # cap at 30s, reset to 3s on a successful connect. The wait stays
+        # interruptible via _stop_event.wait().
+        self._reconnect_delay = 3
+        self._reconnect_delay_max = 30
 
         # Diagnostics.
         self._events_received = 0
@@ -191,6 +207,12 @@ class TranslationWsClient:
         if self._worker is None:
             self._worker = get_translation_worker_service()
         return self._worker
+
+    def _get_sentence_worker(self):
+        """Resolve the TTSSentenceWorkerService singleton (lazy)."""
+        if self._sentence_worker is None:
+            self._sentence_worker = get_tts_sentence_worker_service()
+        return self._sentence_worker
 
     # -------------------- URL --------------------
 
@@ -301,7 +323,50 @@ class TranslationWsClient:
         # task.completed -> mark completed in snapshot
         elif suffix == "taskcompleted":
             self._get_monitor().apply_task_completed(data)
+
+        # sentence.priority -> sentence-audio lane: record the bump + re-key /
+        # wake the sentence worker (single payload), or wake-only (aggregate).
+        elif suffix == "sentencepriority":
+            self._handle_sentence_priority(data)
         # Unknown channel events are ignored (forward-compatible).
+
+    def _handle_sentence_priority(self, data: Dict[str, Any]) -> None:
+        """
+        Route a sentence.priority event. Payload shapes (laravel contract):
+          single:    { content_id, language, priority, text }
+          aggregate: { batch: true, count, languages: [...] }
+        Fully guarded — a malformed event must never kill the SSE loop.
+        """
+        try:
+            if data.get("batch"):
+                # Aggregate bump: no per-row payload; the next claim already
+                # orders by priority DESC server-side, so wake only.
+                self._get_sentence_worker().notify_batch_bump()
+                return
+            content_id = str(data.get("content_id") or "").strip()
+            language = str(data.get("language") or "").strip()
+            if not content_id or not language:
+                return
+            try:
+                priority = int(data.get("priority") or 0)
+            except (TypeError, ValueError):
+                priority = 0
+            text = str(data.get("text") or "")
+            get_queue_bump_hub().record(
+                lane="sentence_audio",
+                item_id=f"{language}:{content_id}",
+                label=text[:80],
+                old_priority=0,
+                new_priority=priority,
+                meta={
+                    "language": language,
+                    "content_id": content_id,
+                    "source": "sse",
+                },
+            )
+            self._get_sentence_worker().notify_bump(content_id, language, priority)
+        except Exception as e:  # noqa: BLE001 — never break the SSE read loop
+            ColorPrint.yellow(f"[TranslationSSE] sentence.priority handling failed: {e}")
 
     # Envelope events the stream uses for resume/keep-alive (not channel events).
     _ENVELOPE_EVENTS = ("stream.open", "ping", "stream.close")
@@ -338,8 +403,6 @@ class TranslationWsClient:
         The server ends each stream after ~50s; we immediately reconnect carrying
         our cursor, so no event is missed across the gap.
         """
-        requests = get_third_package_requests()
-
         while not self._stop_event.is_set():
             event_name = ""
             data_buf: list = []
@@ -347,9 +410,9 @@ class TranslationWsClient:
                 url = self._stream_url()
                 # (connect timeout, read timeout). Server heartbeats arrive <=15s,
                 # so a 60s read gap means a dead connection -> reconnect.
-                with requests.get(
+                # get_stream opens with stream=True so we can iterate the SSE body.
+                with get_laravel_client().get_stream(
                     url,
-                    stream=True,
                     timeout=(8, 60),
                     headers={"Accept": "text/event-stream", "Cache-Control": "no-cache"},
                 ) as resp:
@@ -367,6 +430,8 @@ class TranslationWsClient:
                         )
                     self._ever_connected = True
                     self._unreachable_warned = False
+                    # Successful connect — reset the reconnect backoff.
+                    self._reconnect_delay = 3
 
                     # SSE framing: accumulate field lines; a blank line ends one
                     # event. iter_lines yields lines without the trailing newline.
@@ -397,6 +462,10 @@ class TranslationWsClient:
                 # Unreachable (Laravel down) / non-200 — ONE concise line, then
                 # silence until it recovers (mirrors the worker's quiet retry).
                 self._set_connected(False)
+                # Back off: 3s -> 6s -> 12s -> 24s -> 30s (cap) per failure.
+                self._reconnect_delay = min(
+                    self._reconnect_delay * 2, self._reconnect_delay_max
+                )
                 if not self._unreachable_warned and not self._stop_event.is_set():
                     self._unreachable_warned = True
                     ColorPrint.yellow(

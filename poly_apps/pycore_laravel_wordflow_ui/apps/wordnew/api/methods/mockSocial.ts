@@ -5,7 +5,8 @@ import type {
   WfNewPost, WfNewPostComment, WfNewLive, WfNewPostFilter, WfNewPostPage,
   WfNewCreatePostPayload, WfNewPostLikeResult, WfNewPostCommentPage,
   WfNewCreateLivePayload, WfNewLiveMsgPage, WfNewLiveMsg, WfNewStatistics,
-  BentoGroup, WordGroup, Word, UserProfile, UserStats, SubtitleCourse,
+  WfNewPublicUserProfile, WfNewPresenceStatus,
+  BentoGroup, WordGroup, Word, WordPage, UserProfile, UserStats, SubtitleCourse,
   AnalyticsStats, BilingualSentence,
 } from '../WfNewApiTypes';
 import {
@@ -28,6 +29,8 @@ import {
   mockFileToUrl,
   DEFAULT_WORD_POOL,
   ALL_MOCK_WORDS,
+  MOCK_DISCOVER_DIRECTORY,
+  readMockFriends,
 } from '../WfNewApiMockHelpers';
 
 export const mockSocialMethods = {
@@ -202,6 +205,31 @@ export const mockSocialMethods = {
     return delay(msg, 80);
   },
 
+  // ---- Public user profile (mirrors GET /social/users/{id}) ----
+  async getPublicUserProfile(userId: number): Promise<WfNewPublicUserProfile> {
+    // Draw from the discover directory so the modal shows a plausible partner;
+    // follow/friend state derives from the mock friend list (follow == friend
+    // offline), matching how discoverByLanguage/sendFriendRequest mutate it.
+    const dir = MOCK_DISCOVER_DIRECTORY.find((u) => u.id === userId);
+    const friendIds = new Set(readMockFriends().map((f) => f.id));
+    const status: WfNewPresenceStatus =
+      dir?.status === 'online' || dir?.status === 'away' || dir?.status === 'studying' ? dir.status : 'offline';
+    return delay({
+      id: userId,
+      name: dir?.nickname ?? dir?.name ?? `User ${userId}`,
+      avatar_url: dir?.avatar_url ?? null,
+      native_language: dir?.native_language ?? null,
+      learning_languages: dir?.learning_languages ?? [],
+      bio: dir ? `${dir.nickname} is practicing ${(dir.learning_languages || []).join(', ') || 'languages'} on WordFlow.` : null,
+      post_count: (userId % 7) + 1,
+      follower_count: 40 + userId,
+      following_count: 12 + (userId % 20),
+      is_following: friendIds.has(userId),
+      is_friend: friendIds.has(userId),
+      presence: { status, last_seen_at: new Date().toISOString() },
+    });
+  },
+
   getBentoGroups: () => delay([...MOCK_BENTO_GROUPS] as BentoGroup[]),
 
   getWordGroups: () =>
@@ -214,6 +242,29 @@ export const mockSocialMethods = {
 
   getVocabulary: (groupId: string) =>
     delay(MOCK_VOCABULARY_MAP[groupId] ?? DEFAULT_WORD_POOL),
+
+  getGroupWordsPage: (
+    gid: string,
+    page: number,
+    perPage: number,
+    _withProgress?: boolean,
+    opts?: { unread_only?: boolean; limit?: number },
+  ): Promise<WordPage> => {
+    let pool = MOCK_VOCABULARY_MAP[gid] ?? DEFAULT_WORD_POOL;
+    // Simulate unread_only: words with no masteryLevel are unread (rc==0).
+    if (opts?.unread_only) {
+      pool = pool.filter((w) => !w.masteryLevel || w.masteryLevel === 0);
+    }
+    // Simulate limit: cap the total pool before paging (shelf passes daily_goal).
+    const cappedPool = opts?.limit && opts.limit > 0 ? pool.slice(0, opts.limit) : pool;
+    const start = (page - 1) * perPage;
+    return delay({
+      words: cappedPool.slice(start, start + perPage),
+      total: cappedPool.length,
+      page,
+      perPage,
+    });
+  },
 
   getUserProfile: (): Promise<UserProfile | null> =>
     delay({
@@ -250,4 +301,13 @@ export const mockSocialMethods = {
   getAnalytics: (): Promise<AnalyticsStats> => delay({ ...MOCK_ANALYTICS_STATS }),
 
   getBilingualSentences: (): Promise<BilingualSentence[]> => delay([...MOCK_BILINGUAL_SENTENCES]),
+
+  getTtsVoices: (): Promise<{ id: string; label: string; lang: string }[]> =>
+    delay([
+      { id: 'en-US-AriaNeural', label: 'en-US-AriaNeural', lang: 'en' },
+      { id: 'en-GB-SoniaNeural', label: 'en-GB-SoniaNeural', lang: 'en' },
+      { id: 'zh-CN-XiaoxiaoNeural', label: 'zh-CN-XiaoxiaoNeural', lang: 'zh' },
+      { id: 'ja-JP-NanamiNeural', label: 'ja-JP-NanamiNeural', lang: 'ja' },
+      { id: 'ko-KR-SunHiNeural', label: 'ko-KR-SunHiNeural', lang: 'ko' },
+    ]),
 };

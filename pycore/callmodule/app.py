@@ -45,6 +45,7 @@ from .routers.local import (
     dictionary_router,
     task_settings_router,
     vocabulary_router,
+    version_router,
 )
 from .routers.upload import router as upload_router
 from .routers.client import router as client_router
@@ -122,6 +123,7 @@ def create_app() -> FastAPI:
     app.include_router(dictionary_router)
     app.include_router(task_settings_router)
     app.include_router(vocabulary_router)
+    app.include_router(version_router)
 
     # Upload layer router
     app.include_router(upload_router)

@@ -18,6 +18,7 @@ import {
   History, Image as ImageIcon, ScanSearch, Captions, Languages,
   Trash2, RefreshCcw, AlertTriangle,
 } from 'lucide-react';
+import { PcBlobImage } from './PcBlobMedia';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type {
   ImageHistoryEntry, ImageSearchHistoryEntry, SubtitleSearchHistoryEntry,
@@ -229,7 +230,7 @@ const PcAiHistoryView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal }
               return (
                 <li key={`${r.kind}:${r.id}`} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-100/50 dark:hover:bg-white/5 transition">
                   {r.thumb ? (
-                    <img src={r.thumb} alt="" loading="lazy"
+                    <PcBlobImage path={r.thumb} alt="" loading="lazy"
                       className="w-10 h-10 rounded-lg object-cover bg-slate-200 dark:bg-slate-800 shrink-0" />
                   ) : (
                     <span className={`w-10 h-10 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-slate-800 shrink-0 ${KIND_ACCENT[r.kind]}`}>

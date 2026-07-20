@@ -29,6 +29,7 @@ import type {
   AutostartStatus, AutostartTarget, PycoreHealthState, AssistCapabilities, AssistStatus, TtsSettings,
 } from '../../../core/api-libs/pycore';
 import PcLaravelEndpointSwitcher from '../components/PcLaravelEndpointSwitcher';
+import PcTtsAutoRunPanel from '../components/PcTtsAutoRunPanel';
 
 interface SystemSettings {
   monitorClipboard: boolean;
@@ -279,7 +280,7 @@ const PcSettingsPage: React.FC = () => {
   // --- Task capability chains (translation + voice fallback) --------------- #
   const [taskChains, setTaskChains] = useState<{ translation: string; voice_tts: string }>({
     translation: 'google, ecdict, wordnet, ai',
-    voice_tts: 'gptsovits, streamelements, sherpa, melotts, edge, gtts_web, azure, chattts, cosyvoice, fishspeech, qwen3tts, bark, parler, voxcpm2, kokoro, f5tts',
+    voice_tts: 'gptsovits, streamelements, sherpa, melotts, edge, gtts_web, azure, chattts, cosyvoice, fishspeech, qwen3tts, bark, voxcpm2, kokoro, f5tts',
   });
   const [chainsSaving, setChainsSaving] = useState<string | null>(null);
   const [chainsNotice, setChainsNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -728,6 +729,10 @@ const PcSettingsPage: React.FC = () => {
           )}
         </div>
       </section>
+
+      {/* edge-tts auto-run toggles (sentence + word). Persisted UI switch — the
+          backend reads these at startup instead of a hardcoded Config default. */}
+      <PcTtsAutoRunPanel />
 
       {/* backend system settings */}
       <section className="pc-glass p-6 space-y-3">

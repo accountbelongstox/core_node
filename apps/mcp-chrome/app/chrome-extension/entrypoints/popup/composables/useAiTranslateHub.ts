@@ -11,6 +11,7 @@ import { apiManager } from '@/services/ApiManager';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
 import { formatTimestamp } from '@/utils/time-helpers';
+import { TASK_CENTER_MSG } from '@/utils/task-center-types';
 
 const LOG = 'AI Translate Hub';
 
@@ -239,7 +240,7 @@ export function useAiTranslateHub() {
     queueOverview.value.error = '';
     try {
       const resp = await chrome.runtime.sendMessage({
-        type: 'task_center',
+        type: TASK_CENTER_MSG,
         action: 'get_status',
       });
       if (resp?.success) {

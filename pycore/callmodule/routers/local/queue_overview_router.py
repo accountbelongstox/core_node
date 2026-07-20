@@ -36,7 +36,6 @@ from typing import Any, Dict, List, Optional
 
 import fastapi
 
-from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.callmodule.services import (
     get_queue_monitor_service,
     get_translation_worker_service,
@@ -45,6 +44,8 @@ from pycore.callmodule.callmodule_config import Config
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
 )
+# Unified pycore->Laravel HTTP gateway (times + logs + records every call).
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from .task_center_router import (
     _CATEGORY_CATALOG,
     _COUNT_KEYS,
@@ -64,7 +65,8 @@ router = fastapi.APIRouter(
 # catalog zeros) so the card grid is never blind even when a single fetch fails.
 _ASSIST_OVERVIEW_PATH = "/api/app_qy_v1/assist/overview"
 _ASSIST_OVERVIEW_TTL = 4.0       # seconds a cached snapshot serves rapid polls
-_ASSIST_OVERVIEW_TIMEOUT = 3.0   # short — a slow Laravel must not stall the card grid
+_ASSIST_OVERVIEW_TIMEOUT = 8.0   # bounded — a slow Laravel must not stall the card grid
+                                 # (TTL cache + last-good fallback absorb the wait)
 _assist_overview_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
 
 
@@ -96,8 +98,9 @@ def _fetch_assist_overview() -> Optional[Dict[str, Any]]:
     if not base:
         return cached
     try:
-        requests = get_third_package_requests()
-        resp = requests.get(f"{base}{_ASSIST_OVERVIEW_PATH}", timeout=_ASSIST_OVERVIEW_TIMEOUT)
+        resp = get_laravel_client().get(
+            _ASSIST_OVERVIEW_PATH, base_url=base, timeout=_ASSIST_OVERVIEW_TIMEOUT
+        )
         if resp.status_code == 200:
             data = resp.json()
             if isinstance(data, dict) and data.get("success") and data.get("categories"):

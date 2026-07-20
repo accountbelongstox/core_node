@@ -6,6 +6,12 @@
  * PcTestEngineProfiles.ts — no more hardcoded per-kind forms.
  *
  * Opened via usePcTestPopup().openTest() from pipeline engine "Test" chips.
+ *
+ * Timeout copy reflects each engine's class (qwen3tts is a class-C isolated-venv
+ * HTTP server whose first start builds the venv + loads the model). Presentational
+ * only — the lifecycle rules live in the spec, not here.
+ * Ref: apps/pycore-manager/docs/TTS_STT_ENGINE_LIFECYCLE.md §3 and
+ * development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,10 +21,12 @@ import {
 } from 'lucide-react';
 import Portal from '../../../components/shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi, usePcEngineLoadStatus } from '../../../core/api-libs/pycore';
 import { rewritePycoreEndpoint } from '../../../core/api-libs/pycore/pycoreTarget';
+import { PcBlobAudio } from './PcBlobMedia';
 import type {
   TtsTestResponse, SttTestResponse, OcrTestResponse, AiChatResponse,
+  EngineLoadStatusEntry,
 } from '../../../core/api-libs/pycore/pycoreTypes';
 import {
   getTestEngineProfile, getTestFormFields,
@@ -267,6 +275,13 @@ export const PcTestPopup: React.FC<PcTestPopupProps> = ({ state, onClose }) => {
   const [latencyS, setLatencyS] = useState<number | null>(null);
   const t0Ref = useRef(0);
 
+  // Live model-load progress for this engine while a test runs. Only class-B/-C
+  // speech engines (TTS/STT) report a load; cloud/CLI (AI/OCR-vision) never do, so
+  // gate polling to those kinds and fall back to the static wait copy otherwise.
+  const engineLoadRelevant = (kind === 'tts' || kind === 'stt') && phase === 'run';
+  const { getEngine } = usePcEngineLoadStatus(engineLoadRelevant);
+  const loadStatus = (kind === 'tts' || kind === 'stt') ? getEngine(target) : null;
+
   // OCR-specific state (image data is separate from form values).
   const [ocrThumb, setOcrThumb] = useState<string>(() =>
     renderTextToPng(formValues.ocrText ?? 'Hello OCR 123\n你好世界'));
@@ -372,7 +387,7 @@ export const PcTestPopup: React.FC<PcTestPopupProps> = ({ state, onClose }) => {
       const raw = e instanceof Error ? e.message : 'request failed';
       const timedOut = /abort|timeout|timed out/i.test(raw);
       setRunError(timedOut
-        ? `${raw} — model engines (e.g. qwen3tts) can take several minutes on first load; wait or retry.`
+        ? `${raw} — server engines (e.g. qwen3tts) build an isolated venv and load the model on first start, which can take minutes; wait or retry.`
         : raw);
     }
   }, [kind, target, formValues, ocrOverride, buildParams]);
@@ -510,7 +525,8 @@ export const PcTestPopup: React.FC<PcTestPopupProps> = ({ state, onClose }) => {
 
             {phase !== 'idle' && (
               <ResultPanel kind={kind} phase={phase} result={result} runError={runError}
-                audioUrl={audioUrl} ocrThumb={ocrThumb} theme={theme} longWait={engineProfile?.longWait} t={t} />
+                audioUrl={audioUrl} ocrThumb={ocrThumb} theme={theme} longWait={engineProfile?.longWait}
+                loadStatus={loadStatus} t={t} />
             )}
           </div>
 
@@ -541,6 +557,66 @@ const Field: React.FC<{ label: string; children: React.ReactNode; hint?: string 
   </label>
 );
 
+// ---- Live model-load progress (streams while an engine loads) --------------
+
+const ENGINE_LOAD_BADGE: Record<
+  string,
+  { cls: string; Icon: React.FC<{ className?: string }>; spin?: boolean }
+> = {
+  loading: { cls: 'bg-amber-500/15 text-amber-600 dark:text-amber-400', Icon: Loader2, spin: true },
+  loaded: { cls: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400', Icon: Check },
+  error: { cls: 'bg-rose-500/15 text-rose-600 dark:text-rose-400', Icon: AlertTriangle },
+};
+
+/**
+ * Live view of one engine's model-load progress while a test runs: a state badge
+ * (loading / loaded / error), an elapsed timer, and the streaming log tail so the
+ * user sees the model actually loading instead of a frozen spinner.
+ */
+const EngineLoadLive: React.FC<{ entry: EngineLoadStatusEntry; t: (key: string) => string }> = ({ entry, t }) => {
+  const logRef = useRef<HTMLPreElement | null>(null);
+  const lines = entry.log_tail ?? [];
+  const badge = ENGINE_LOAD_BADGE[entry.state] ?? ENGINE_LOAD_BADGE.loading;
+  const { Icon } = badge;
+  const elapsedS = Math.max(0, entry.elapsed_ms / 1000);
+  const stateLabel = entry.state === 'loaded'
+    ? t('engineLoad.loaded')
+    : entry.state === 'error'
+      ? t('engineLoad.error')
+      : t('engineLoad.loading');
+
+  // Keep the newest line in view as the tail streams.
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lines.length]);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 flex-wrap text-[11px]">
+        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-bold uppercase ${badge.cls}`}>
+          <Icon className={`w-3 h-3 ${badge.spin ? 'animate-spin' : ''}`} />
+          {stateLabel}
+        </span>
+        <span className="font-mono text-slate-400">{t('engineLoad.elapsed')} {elapsedS.toFixed(1)}s</span>
+        {entry.device && <span className="font-mono text-slate-400 opacity-70">{entry.device}</span>}
+        {entry.message && <span className="text-slate-500 truncate min-w-0">{entry.message}</span>}
+      </div>
+      <div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
+          {t('engineLoad.liveLog')}
+        </div>
+        <pre ref={logRef}
+          className="whitespace-pre-wrap break-words font-mono text-[11px] text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-950 rounded-lg p-2 max-h-44 overflow-auto">
+          {lines.length
+            ? lines.join('\n')
+            : <span className="text-slate-400 italic">{t('engineLoad.waitingOutput')}</span>}
+        </pre>
+      </div>
+    </div>
+  );
+};
+
 // ---- Result panel (unchanged from before) ----------------------------------
 
 const ResultPanel: React.FC<{
@@ -552,8 +628,9 @@ const ResultPanel: React.FC<{
   ocrThumb: string;
   theme: KindTheme;
   longWait?: boolean;
+  loadStatus?: EngineLoadStatusEntry | null;
   t: (key: string) => string;
-}> = ({ kind, phase, result, runError, audioUrl, ocrThumb, theme, longWait, t }) => {
+}> = ({ kind, phase, result, runError, audioUrl, ocrThumb, theme, longWait, loadStatus, t }) => {
   const [copied, setCopied] = useState(false);
   const copy = (txt: string) => {
     if (!txt) return;
@@ -583,21 +660,26 @@ const ResultPanel: React.FC<{
 
   let extra: React.ReactNode = null;
   if (running) {
-    extra = (
-      <p className="text-[11px] text-slate-400 flex items-center gap-2">
-        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-        {longWait
-          ? 'Waiting for backend… first model load can take several minutes — keep this window open.'
-          : 'Waiting for backend…'}
-      </p>
-    );
+    // While the model actually loads, show a LIVE view of its load-status (state
+    // badge + elapsed + streaming log tail). Falls back to the static wait copy
+    // for engines that don't report a load (cloud/CLI) or before the first signal.
+    extra = (loadStatus && loadStatus.state !== 'idle')
+      ? <EngineLoadLive entry={loadStatus} t={t} />
+      : (
+        <p className="text-[11px] text-slate-400 flex items-center gap-2">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          {longWait
+            ? 'Waiting for backend… first model load can take several minutes — keep this window open.'
+            : 'Waiting for backend…'}
+        </p>
+      );
   } else if (result) {
     if (kind === 'tts') {
       const r = result as TtsTestResponse;
       extra = (
         <div className="space-y-2">
           {!ok && r.error && <ErrorBox error={r.error} meta={`${r.engine ?? '?'} · ${r.bytes ?? 0} bytes · ${r.latency_ms ?? 0} ms`} />}
-          {r.record_id && <audio controls src={audioUrl(r.record_id)} className="w-full" />}
+          {r.record_id && <PcBlobAudio controls path={audioUrl(r.record_id)} className="w-full" />}
           {ok && <CopyRow label="Spoken text" value={r.text || ''} copied={copied} onCopy={copy} />}
         </div>
       );
@@ -612,7 +694,7 @@ const ResultPanel: React.FC<{
             </div>
           )}
           <CopyRow label="Recognized" value={r.text || ''} copied={copied} onCopy={copy} />
-          {r.record_id && <audio controls src={audioUrl(r.record_id)} className="w-full" />}
+          {r.record_id && <PcBlobAudio controls path={audioUrl(r.record_id)} className="w-full" />}
         </div>
       );
     } else if (kind === 'ai') {

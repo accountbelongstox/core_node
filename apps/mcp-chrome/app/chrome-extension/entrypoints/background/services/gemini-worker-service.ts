@@ -12,6 +12,7 @@
  */
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
+import { LANES } from '@/utils/task-center-lanes';
 import { geminiWebTool } from '../tools/browser/gemini-web';
 import { logger } from '@/utils/logger';
 import { parseWebChatToolResult, extractAudioParams } from './web-chat-worker-common';
@@ -32,7 +33,7 @@ class GeminiWorkerService extends SimpleWorkerBase {
   }
 
   protected get baseProcessorTypes(): ProcessorType[] {
-    return ['remote_gemini_text'];
+    return [LANES.REMOTE_GEMINI_TEXT];
   }
 
   protected get workerLabel(): string {

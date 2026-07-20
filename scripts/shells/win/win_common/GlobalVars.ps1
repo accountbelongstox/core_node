@@ -566,6 +566,14 @@ $Global:PIPX_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "pipx.exe"
 $Global:POETRY_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "poetry.exe"
 $Global:PYTHON_FLAG_FILE = Join-Path $Global:USER_CACHE_DIR ("python$($Global:PYTHON_VERSION_COMPACT).install_success.flag")
 
+# Bucket-A shared transformers pin — mirrors linux/common/common_functions.sh
+# ($LLM_TRANSFORMERS_SPEC). DeepSeek-VL/DeepSeek-OCR/Qwen2.5/NLLB-200/Bark all install
+# transformers at THIS one version in the single system Python 3.13, so they never race
+# (Windows has no shared venv; every LLM step shares one interpreter). 4.46.3 satisfies
+# all of them. Set $env:LLM_TRANSFORMERS_SPEC to bump it everywhere at once.
+# Contract: development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7.
+$Global:LLM_TRANSFORMERS_SPEC = if ($env:LLM_TRANSFORMERS_SPEC) { $env:LLM_TRANSFORMERS_SPEC } else { 'transformers==4.46.3' }
+
 # NVIDIA tools (optional override; default to System32 nvidia-smi.exe)
 $Global:NVidiaSmiPath = Join-Path $env:SystemRoot 'System32\nvidia-smi.exe'
 

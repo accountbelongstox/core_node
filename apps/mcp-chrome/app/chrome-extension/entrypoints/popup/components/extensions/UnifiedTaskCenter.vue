@@ -5,17 +5,15 @@
       <h3 class="utc-title">🗂️ Unified Task Center</h3>
       <div class="utc-head-right">
         <span class="utc-total-badge" v-if="totalPending > 0">{{ totalPending }}</span>
+        <!-- Load is now driven by the Start button (via exposed loadAll); this is
+             the small manual refresh, spinning while a load/refresh is in flight. -->
         <button
-          class="utc-load-btn"
-          :disabled="loadAllBusy"
-          @click="loadAll"
-          :title="loadAllMsg || 'Load all processable tasks from Laravel'"
+          class="utc-refresh"
+          :disabled="loading || loadAllBusy"
+          @click="refresh"
+          :title="loadAllMsg || 'Refresh tasks'"
         >
-          <span :class="{ 'spin': loadAllBusy }">{{ loadAllBusy ? '↻' : '↓' }}</span>
-          {{ loadAllBusy ? '' : '加载任务' }}
-        </button>
-        <button class="utc-refresh" :disabled="loading" @click="refresh" title="Refresh">
-          <span :class="{ 'spin': loading }">↻</span>
+          <span :class="{ 'spin': loading || loadAllBusy }">↻</span>
         </button>
       </div>
     </div>
@@ -90,7 +88,7 @@
       </div>
       <ul class="utc-list">
         <li
-          v-for="row in liveRows"
+          v-for="row in liveVisible"
           :key="row.task_id"
           class="utc-row"
           @click="openTask(row)"
@@ -113,6 +111,9 @@
           </div>
         </li>
       </ul>
+      <button v-if="liveHasMore" type="button" class="utc-more" @click="showAllLive = !showAllLive">
+        {{ showAllLive ? '收起 Show less' : `展开全部 Show all ${liveRows.length}` }}
+      </button>
     </section>
 
     <!-- HISTORY section -->
@@ -123,7 +124,7 @@
       </div>
       <ul class="utc-list">
         <li
-          v-for="row in historyRows"
+          v-for="row in historyVisible"
           :key="row.task_id"
           class="utc-row utc-row--hist"
           @click="openTask(row)"
@@ -146,6 +147,9 @@
           </div>
         </li>
       </ul>
+      <button v-if="historyHasMore" type="button" class="utc-more" @click="showAllHistory = !showAllHistory">
+        {{ showAllHistory ? '收起 Show less' : `展开全部 Show all ${historyRows.length}` }}
+      </button>
     </section>
 
     <div v-if="!loading && !liveRows.length && !historyRows.length && !error" class="utc-empty">
@@ -164,8 +168,11 @@
 
 <script lang="ts" setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { apiManager } from '@/services/ApiManager';
+import { apiManager, getApiBase } from '@/services/ApiManager';
 import { usePersistedRef } from '@/composables/usePersistedRef';
+import { LANES } from '@/utils/task-center-lanes';
+import { TASK_LIST_PATH } from '@/utils/api-paths';
+import type { TaskRow } from '@/utils/task-center-types';
 import TaskDetailModal from './TaskDetailModal.vue';
 import {
   taskIcon,
@@ -173,21 +180,10 @@ import {
   capabilityLabel,
   isAiTranslate,
   isFastTier,
+  TASK_TYPE_META,
 } from './task-center-meta';
 
-interface TaskRow {
-  task_id: string;
-  app_name: string;
-  task_type: string;
-  execution_type: string;
-  status: string;
-  progress: number;
-  assigned_to: string | null;
-  created_at: string | null;
-  capability?: string | null;
-  priority?: number | null;
-  is_fast_tier?: boolean | null;
-}
+// TaskRow is the canonical task-summary shape from utils/task-center-types.ts.
 
 interface SummaryCat {
   type: string;
@@ -197,17 +193,32 @@ interface SummaryCat {
   color: string;
 }
 
-const SUMMARY_CATS: SummaryCat[] = [
-  { type: 'word_translation', icon: '🔤', label: 'Word Translation', zhLabel: '待翻译任务', color: '#818cf8' },
-  { type: 'word_audio',       icon: '🔊', label: 'Word Audio',       zhLabel: '待生成语音', color: '#2dd4bf' },
-  { type: 'word_media',       icon: '🖼️', label: 'Word Media',       zhLabel: '待生成图片', color: '#a78bfa' },
-  { type: 'gemini_image',     icon: '🎨', label: 'Gemini Image',     zhLabel: '待 AI 生图', color: '#c084fc' },
-  { type: 'gemini_chat',      icon: '🗨️', label: 'Gemini Chat',      zhLabel: '待 AI 对话', color: '#f472b6' },
-  { type: 'poster',           icon: '🎬', label: 'Poster',           zhLabel: '待生成海报', color: '#fb7185' },
-  { type: 'subtitle_search',  icon: '💬', label: 'Subtitle Search',  zhLabel: '待字幕搜索', color: '#60a5fa' },
-  { type: 'notebooklm',       icon: '📓', label: 'NotebookLM',       zhLabel: '待 NLM 处理', color: '#fbbf24' },
-  { type: 'sentence_audio',   icon: '🎧', label: 'Sentence Audio',   zhLabel: '待句子音频', color: '#34d399' },
+// Ordered summary categories. label/zhLabel/color come from the shared
+// TASK_TYPE_META single source; gemini_chat keeps a distinct summary glyph
+// (🗨️) to differentiate it from subtitle_search (💬) in the strip, so it
+// carries an explicit icon override — the only one that diverges from meta.
+const SUMMARY_ORDER: Array<{ type: string; iconOverride?: string }> = [
+  { type: 'word_translation' },
+  { type: 'word_audio' },
+  { type: 'word_media' },
+  { type: 'gemini_image' },
+  { type: 'gemini_chat', iconOverride: '🗨️' },
+  { type: 'poster' },
+  { type: 'subtitle_search' },
+  { type: 'notebooklm' },
+  { type: 'sentence_audio' },
 ];
+
+const SUMMARY_CATS: SummaryCat[] = SUMMARY_ORDER.map(({ type, iconOverride }) => {
+  const meta = TASK_TYPE_META[type];
+  return {
+    type,
+    icon: iconOverride || meta.icon,
+    label: meta.label,
+    zhLabel: meta.zhLabel ?? '',
+    color: meta.color ?? '',
+  };
+});
 
 const LIVE_STATUSES = new Set(['pending', 'assigned', 'processing']);
 
@@ -226,7 +237,7 @@ const selectedProcessorType = ref<string | null>(null);
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-const apiBase = (): string => apiManager.getCurrentBaseUrl().replace(/\/+$/, '');
+const apiBase = getApiBase;
 
 const pendingByType = computed(() => {
   const m: Record<string, number> = {};
@@ -303,6 +314,19 @@ const historyRows = computed(() => {
   }));
 });
 
+// Cap each list to keep the popup short; a "show all" toggle expands it.
+const LIST_CAP = 8;
+const showAllLive = ref(false);
+const showAllHistory = ref(false);
+const liveVisible = computed(() =>
+  showAllLive.value ? liveRows.value : liveRows.value.slice(0, LIST_CAP),
+);
+const historyVisible = computed(() =>
+  showAllHistory.value ? historyRows.value : historyRows.value.slice(0, LIST_CAP),
+);
+const liveHasMore = computed(() => liveRows.value.length > LIST_CAP);
+const historyHasMore = computed(() => historyRows.value.length > LIST_CAP);
+
 const openTask = (row: TaskRow): void => {
   selectedProcessorType.value = row.execution_type || null;
   selectedTaskId.value = row.task_id;
@@ -312,7 +336,7 @@ const refresh = async (): Promise<void> => {
   loading.value = true;
   error.value = '';
   try {
-    const res = await fetch(`${apiBase()}/api/task/list?limit=50`, {
+    const res = await fetch(`${apiBase()}${TASK_LIST_PATH}?limit=50`, {
       headers: { 'Cache-Control': 'no-cache' },
     });
     if (!res.ok) { error.value = `Failed to load tasks (${res.status})`; return; }
@@ -326,9 +350,9 @@ const refresh = async (): Promise<void> => {
   }
 };
 
-const CHROME_EXECUTION_TYPES = new Set([
-  'remote_client', 'remote_translation', 'remote_gemini',
-  'remote_notebooklm', 'remote_gemini_text', 'remote_fast',
+const CHROME_EXECUTION_TYPES = new Set<string>([
+  LANES.REMOTE_CLIENT, LANES.REMOTE_TRANSLATION, LANES.REMOTE_GEMINI,
+  LANES.REMOTE_NOTEBOOKLM, LANES.REMOTE_GEMINI_TEXT, LANES.REMOTE_FAST,
 ]);
 
 const loadAll = async (): Promise<void> => {
@@ -337,7 +361,7 @@ const loadAll = async (): Promise<void> => {
   loadAllMsg.value = '';
   error.value = '';
   try {
-    const url = `${apiBase()}/api/task/list?limit=500&status=pending`;
+    const url = `${apiBase()}${TASK_LIST_PATH}?limit=500&status=pending`;
     const res = await fetch(url, { headers: { 'Cache-Control': 'no-cache' } });
     if (!res.ok) { error.value = `Load failed (${res.status})`; return; }
     const json = await res.json();
@@ -365,6 +389,10 @@ onMounted(async () => {
 onUnmounted(() => {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 });
+
+// Let the parent (TaskCenterPanel Start button) trigger a full lane load so
+// every lane's pending count populates immediately on start.
+defineExpose({ loadAll });
 </script>
 
 <style scoped>
@@ -379,16 +407,6 @@ onUnmounted(() => {
   padding: 1px 6px; border-radius: 999px;
   background: rgba(56,189,248,.18); color: #38bdf8;
 }
-.utc-load-btn {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 700;
-  border: 1px solid rgba(129,140,248,.4);
-  background: rgba(129,140,248,.12); color: #818cf8;
-  cursor: pointer; transition: background 0.12s, opacity 0.12s;
-  white-space: nowrap;
-}
-.utc-load-btn:disabled { opacity: 0.5; cursor: default; }
-.utc-load-btn:not(:disabled):hover { background: rgba(129,140,248,.22); }
 .utc-load-msg {
   font-size: 9px; color: var(--text-muted);
   padding: 2px 4px; border-radius: 4px;
@@ -485,6 +503,19 @@ onUnmounted(() => {
 
 /* ── Task rows ── */
 .utc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.utc-more {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.utc-more:hover { border-color: var(--accent); color: var(--text); }
 .utc-row {
   display: flex; align-items: center; gap: 8px;
   padding: 7px 9px; border: 1px solid var(--border); border-radius: 10px;

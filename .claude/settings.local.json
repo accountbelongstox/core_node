@@ -107,7 +107,8 @@
       "Bash(xxd)",
       "Bash(python -m py_compile pycore/pyutils/common/hf_local_weights.py)",
       "Bash(python -m py_compile pycore/pyutils/tts/qwen3tts_weights.py)",
-      "Bash(python -m py_compile pycore/pyutils/tts/bark_engine.py pycore/pyutils/tts/parler_engine.py pycore/pyutils/tts/voxcpm2_engine.py)"
+      "Bash(python -m py_compile pycore/pyutils/tts/bark_engine.py pycore/pyutils/tts/parler_engine.py pycore/pyutils/tts/voxcpm2_engine.py)",
+      "Bash(curl -sL --max-time 25 \"https://platform.moonshot.cn/docs/guide/start-to-use\")"
     ]
   }
 }

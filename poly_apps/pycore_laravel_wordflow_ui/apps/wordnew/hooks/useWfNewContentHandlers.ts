@@ -1,12 +1,13 @@
 /** useWfNewContentHandlers - content loading, practice/quiz/search handlers
  * extracted from useWfNewAppState so the main hook stays under the 800-line
  * modular limit. Takes state as a deps object; returns all handler functions. */
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { wfNewApi, wfNewEndpoints, WFNEW_API_HEALTH_EVENT } from '../api';
 import type {
   Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind,
   WfNewHomeContent, WfNewStatistics, WfNewLanguage,
 } from '../api';
+import type { PreviewAddLibraryResult } from '../api/types/api';
 import type { WfNewCachedKind } from '../cache/WfNewContentCache';
 import {
   getCachedGroups, putCachedGroups, getCachedWords, putCachedWords, dedupGroups,
@@ -83,6 +84,17 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     trans,
     wordPool,
   } = deps;
+
+  // Confirmation dialog state for "add a library to the Default Vocabulary Group":
+  // opened by handleAddLibraryToStudy (fetches a non-mutating preview), then
+  // resolved by confirmAddLibraryNow (performs the add) or closeAddLibraryConfirm.
+  const [addLibraryConfirm, setAddLibraryConfirm] = useState<{
+    group: WfNewContentGroup;
+    loading: boolean;
+    submitting: boolean;
+    preview: PreviewAddLibraryResult | null;
+    error: string | null;
+  } | null>(null);
 
   const loadContent = async () => {
     setLoading(true);
@@ -487,39 +499,20 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     await loadVocabularyCached(group.id, setCourseWords);
   };
 
-  // Load a group's words then start a practice session (replaces the old
-  // synchronous getFallbackDataset path; data always flows through the API).
+  // Open a group's practice session. Words are NO LONGER loaded here via
+  // getVocabulary (GET /query_gwords) — that returns EMPTY for the Default
+  // Vocabulary Group (its words live in group_word_progress), the "blank arena"
+  // bug. The practice surface now owns loading through useWfNewPracticePager
+  // (POST /group/get_words, paged + auto-advance) and mirrors the current page
+  // into courseWords, so every mode (quiz/cards/reading/auto-play) gets real words.
   const startGroupPractice = async (
     group: WordGroup,
     mode: 'study' | 'quiz' | 'listening' | 'reading',
   ) => {
     setSelectedPracticeGroup(group);
-    // Cache-first word list (instant on a re-open, then API-refreshed + re-cached).
-    await loadVocabularyCached(group.id, setCourseWords);
     setActiveTab('practice');
     startModePractice(mode);
   };
-
-  // Listening continuous loop implementation
-  useEffect(() => {
-    if (isListeningPlaying && courseWords.length > 0) {
-      // Say first word instantly
-      playPhoneticSpeech(courseWords[practiceIndex]);
-
-      listeningIntervalRef.current = setInterval(() => {
-        setPracticeIndex(prev => {
-          const nextVal = (prev + 1) % courseWords.length;
-          playPhoneticSpeech(courseWords[nextVal]);
-          return nextVal;
-        });
-      }, 4300);
-    } else {
-      if (listeningIntervalRef.current) clearInterval(listeningIntervalRef.current);
-    }
-    return () => {
-      if (listeningIntervalRef.current) clearInterval(listeningIntervalRef.current);
-    };
-  }, [isListeningPlaying, courseWords]);
 
   // Launch Practice Session Mode
   const startModePractice = (mode: 'study' | 'quiz' | 'listening' | 'reading') => {
@@ -638,24 +631,46 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     setNewWordDef('');
   };
 
+  // Phase 1: gate on login, then open the confirm dialog and fetch a non-mutating
+  // preview (words already in group / to add / duplicates / status breakdown).
   const handleAddLibraryToStudy = async (group: WfNewContentGroup) => {
     if (!currentUser.isLoggedIn) {
       addToast(trans('social.loginRequired'), 'warning');
       setActiveTab('auth');
       return;
     }
+    setAddLibraryConfirm({ group, loading: true, submitting: false, preview: null, error: null });
+    try {
+      const preview = await wfNewApi.previewAddLibraryToDefaultGroup(group.id);
+      setAddLibraryConfirm((s) => (s && s.group.id === group.id ? { ...s, loading: false, preview } : s));
+    } catch (e: any) {
+      setAddLibraryConfirm((s) => (s && s.group.id === group.id
+        ? { ...s, loading: false, error: e?.message || trans('toast.libraryAddFailed') }
+        : s));
+    }
+  };
+
+  // Phase 2: perform the actual add once the user confirms in the dialog.
+  const confirmAddLibraryNow = async () => {
+    if (!addLibraryConfirm || addLibraryConfirm.submitting) return;
+    const group = addLibraryConfirm.group;
+    setAddLibraryConfirm((s) => (s ? { ...s, submitting: true, error: null } : s));
     try {
       const result = await wfNewApi.addLibraryToDefaultGroup(group.id);
       addToast(
         result.already_linked
           ? trans('toast.libraryAlreadyInStudy', { name: group.title })
-          : trans('toast.libraryAddedToStudy', { name: group.title }),
+          : trans('toast.libraryAddedToStudy', { name: group.title, count: result.words_added }),
         result.already_linked ? 'warning' : 'success',
       );
+      setAddLibraryConfirm(null);
     } catch (e: any) {
       addToast(e?.message || trans('toast.libraryAddFailed'), 'warning');
+      setAddLibraryConfirm((s) => (s ? { ...s, submitting: false } : s));
     }
   };
+
+  const closeAddLibraryConfirm = () => setAddLibraryConfirm(null);
 
   // Current page's header (big title + subtitle) for the global nav's fixed-width
   // info block beside the back/logo control. Recomputed each render from the
@@ -689,6 +704,9 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     handleClearEverything,
     handleForgeCustomWord,
     handleAddLibraryToStudy,
+    addLibraryConfirm,
+    confirmAddLibraryNow,
+    closeAddLibraryConfirm,
     pageHeader,
   };
 }

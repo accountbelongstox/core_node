@@ -2,7 +2,7 @@
  * Laravel assist API client for cover / poster image submit (NO-AUTH machine plane).
  */
 
-const ASSIST_PREFIX = '/api/app_qy_v1/assist';
+import { ASSIST_PATHS } from '@/utils/api-paths';
 
 export type AssistItemType = 'cover' | 'poster';
 
@@ -30,7 +30,7 @@ export async function claimAssistItems(
   claimer: string,
   limit = 3,
 ): Promise<AssistClaimItem[]> {
-  const url = `${baseUrlTrimmed(baseUrl)}${ASSIST_PREFIX}/claim`;
+  const url = `${baseUrlTrimmed(baseUrl)}${ASSIST_PATHS.CLAIM}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -48,7 +48,7 @@ export async function submitAssistCover(
   claimer: string,
   extras: { mime?: string; provider?: string; model?: string; latencyMs?: number } = {},
 ): Promise<AssistSubmitResult> {
-  const url = `${baseUrlTrimmed(baseUrl)}${ASSIST_PREFIX}/submit`;
+  const url = `${baseUrlTrimmed(baseUrl)}${ASSIST_PATHS.SUBMIT}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -74,7 +74,7 @@ export async function submitAssistPoster(
   claimer: string,
   extras: { mime?: string; provider?: string; sourceId?: string; latencyMs?: number } = {},
 ): Promise<AssistSubmitResult> {
-  const url = `${baseUrlTrimmed(baseUrl)}${ASSIST_PREFIX}/submit`;
+  const url = `${baseUrlTrimmed(baseUrl)}${ASSIST_PATHS.SUBMIT}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -100,7 +100,7 @@ export async function releaseAssistItem(
   error: string,
   extra: Record<string, unknown> = {},
 ): Promise<void> {
-  const url = `${baseUrlTrimmed(baseUrl)}${ASSIST_PREFIX}/release`;
+  const url = `${baseUrlTrimmed(baseUrl)}${ASSIST_PATHS.RELEASE}`;
   await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

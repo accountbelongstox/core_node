@@ -6,7 +6,11 @@ import React, {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { PcTaskCenterResponse } from '../../../core/api-libs/pycore/pycoreTypes';
+import type {
+  PcTaskCenterResponse, WordTtsAutoStatus, SentenceAudioAutoStatus,
+  HeartbeatWorkersStatus, AssistStatus, TtsStatus, PcQueueOverview,
+  SentenceAudioQueueSnapshot, PcTaskRecentResponse,
+} from '../../../core/api-libs/pycore/pycoreTypes';
 
 const HUB_POLL_MS = 5000;
 
@@ -19,9 +23,23 @@ export interface QueueCenterHubState {
   laravelStoredEndpoint: string | null;
   /** Last-known healthy Laravel URL the monitor/worker actually uses. */
   laravelActiveEndpoint: string | null;
+  /** Age (seconds) of the monitor snapshot the reachability fields came from. */
+  laravelSnapshotAgeS: number | null;
   localTaskTotal: number | null;
   localProcessing: number | null;
   translationPending: number | null;
+  /** Shared voice auto-run statuses — consumed by the voice strip + panels so
+   *  they no longer each poll getWordTtsAutoStatus/getSentenceAudioAutoStatus. */
+  voiceWord: WordTtsAutoStatus | null;
+  voiceSentence: SentenceAudioAutoStatus | null;
+  /** Shared status/snapshot payloads for every Queue Center strip + panel, all
+   *  fetched by the hub's single poll so no tab/strip fetches its own data. */
+  workers: HeartbeatWorkersStatus | null;
+  assist: AssistStatus | null;
+  tts: TtsStatus | null;
+  overview: PcQueueOverview | null;
+  sentenceQueue: SentenceAudioQueueSnapshot | null;
+  recent: PcTaskRecentResponse | null;
   timestamp: string | null;
   loading: boolean;
   error: string | null;
@@ -33,9 +51,18 @@ const defaultHub: QueueCenterHubState = {
   laravelReachable: null,
   laravelStoredEndpoint: null,
   laravelActiveEndpoint: null,
+  laravelSnapshotAgeS: null,
   localTaskTotal: null,
   localProcessing: null,
   translationPending: null,
+  voiceWord: null,
+  voiceSentence: null,
+  workers: null,
+  assist: null,
+  tts: null,
+  overview: null,
+  sentenceQueue: null,
+  recent: null,
   timestamp: null,
   loading: true,
   error: null,
@@ -44,7 +71,7 @@ const defaultHub: QueueCenterHubState = {
 
 const QueueCenterHubContext = createContext<QueueCenterHubState>(defaultHub);
 
-function parseHubPayload(raw: PcTaskCenterResponse | null): Omit<QueueCenterHubState, 'loading' | 'error' | 'refreshHub' | 'pycoreReachable'> {
+function parseHubPayload(raw: PcTaskCenterResponse | null): Omit<QueueCenterHubState, 'loading' | 'error' | 'refreshHub' | 'pycoreReachable' | 'voiceWord' | 'voiceSentence' | 'workers' | 'assist' | 'tts' | 'overview' | 'sentenceQueue' | 'recent'> {
   const remote = raw?.remote_queue;
   const local = raw?.local_tasks;
   const counts = local?.counts;
@@ -60,6 +87,7 @@ function parseHubPayload(raw: PcTaskCenterResponse | null): Omit<QueueCenterHubS
     laravelReachable: typeof remote?.laravel_reachable === 'boolean' ? remote.laravel_reachable : null,
     laravelStoredEndpoint: stored,
     laravelActiveEndpoint: active,
+    laravelSnapshotAgeS: typeof remote?.laravel_snapshot_age_s === 'number' ? remote.laravel_snapshot_age_s : null,
     localTaskTotal,
     localProcessing: typeof counts?.processing === 'number' ? counts.processing : null,
     translationPending: typeof summary?.pending === 'number' ? summary.pending : null,
@@ -76,36 +104,74 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode; refre
     laravelReachable: null,
     laravelStoredEndpoint: null,
     laravelActiveEndpoint: null,
+    laravelSnapshotAgeS: null,
     localTaskTotal: null,
     localProcessing: null,
     translationPending: null,
+    voiceWord: null,
+    voiceSentence: null,
+    workers: null,
+    assist: null,
+    tts: null,
+    overview: null,
+    sentenceQueue: null,
+    recent: null,
     timestamp: null,
     loading: true,
     error: null,
   });
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const poll = useCallback(async (silent = false) => {
     if (!silent) {
       setHub((prev) => ({ ...prev, loading: true }));
     }
-    try {
-      const raw = await pycoreApi.getTaskCenter();
-      if (!mounted.current) return;
-      setHub({
+    // ONE shared fetch for the whole page — every Queue Center strip + panel
+    // reads its data from this hub instead of polling its own endpoint. allSettled
+    // so any one sub-fetch failing never fails the hub, and a rejected sub-fetch
+    // keeps the previous good value (keep()) instead of blanking the panel.
+    const [tc, vw, vs, wk, as, tt, ov, sq, rc] = await Promise.allSettled([
+      pycoreApi.getTaskCenter(),
+      pycoreApi.getWordTtsAutoStatus(),
+      pycoreApi.getSentenceAudioAutoStatus(),
+      pycoreApi.getHeartbeatWorkersStatus(),
+      pycoreApi.getAssistStatus(),
+      pycoreApi.getTtsStatus(),
+      pycoreApi.getQueueOverview(),
+      pycoreApi.getSentenceAudioQueue(),
+      pycoreApi.getRecentTasks({ limit: 200 }),
+    ]);
+    if (!mounted.current) return;
+    // Surface rejected sub-fetches instead of swallowing them — a silently-kept
+    // null previously made a backend failure indistinguishable from "no data".
+    const names = ['taskCenter', 'wordTts', 'sentenceTts', 'workers', 'assist', 'tts', 'overview', 'sentenceQueue', 'recent'] as const;
+    [tc, vw, vs, wk, as, tt, ov, sq, rc].forEach((r, i) => {
+      if (r.status === 'rejected') console.warn(`[QueueCenterHub] ${names[i]} fetch failed:`, r.reason);
+    });
+    if (tc.status === 'fulfilled') {
+      const keep = <T,>(r: PromiseSettledResult<T>, prev: T | null): T | null =>
+        (r.status === 'fulfilled' ? r.value : prev);
+      setHub((prev) => ({
         pycoreReachable: true,
-        ...parseHubPayload(raw),
+        ...parseHubPayload(tc.value),
+        voiceWord: keep(vw, prev.voiceWord),
+        voiceSentence: keep(vs, prev.voiceSentence),
+        workers: keep(wk, prev.workers),
+        assist: keep(as, prev.assist),
+        tts: keep(tt, prev.tts),
+        overview: keep(ov, prev.overview),
+        sentenceQueue: keep(sq, prev.sentenceQueue),
+        recent: keep(rc, prev.recent),
         loading: false,
         error: null,
-      });
-    } catch (e: any) {
-      if (!mounted.current) return;
+      }));
+    } else {
       setHub((prev) => ({
         ...prev,
         pycoreReachable: false,
         loading: false,
-        error: e?.message || 'task-center unavailable',
+        error: (tc.reason && tc.reason.message) || 'task-center unavailable',
       }));
     }
   }, []);

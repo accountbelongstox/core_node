@@ -23,10 +23,15 @@ import {
   Task,
   ProcessorType,
   WorkerCapability,
+  WORKER_CAPABILITIES,
   TaskResult,
 } from '../../api/WorkerApiClient';
+import { ApiError } from '../../api/BaseApiClient';
 import { logger } from '@/utils/logger';
 import { tabController } from '../tab-controller';
+import { LANES } from '@/utils/task-center-lanes';
+import type { ProcessorStats } from '@/utils/task-center-types';
+import { submitOutbox, isTerminalWorkerResultError } from '../outbox/submit-outbox';
 
 /**
  * Capabilities the Chrome-side fast workers may advertise on the fast lane.
@@ -46,16 +51,7 @@ export const CHROME_FAST_CAPABILITIES: WorkerCapability[] = ['translate'];
 // The full allowed capability vocabulary (mirrors GlobalTask::CAPABILITIES
 // minus the lanes Chrome can never serve from a tab). Anything outside this
 // set is dropped during normalization so a typo can't register a bogus cap.
-const ALLOWED_CAPABILITIES = new Set<WorkerCapability>([
-  'audio',
-  'image',
-  'translate',
-  'sentence_audio',
-  'ai_translate',
-  'puter_translate',
-  'subtitle',
-  'poster',
-]);
+const ALLOWED_CAPABILITIES = new Set<WorkerCapability>(WORKER_CAPABILITIES);
 
 export interface SimpleWorkerConfig {
   apiUrl: string;
@@ -68,18 +64,27 @@ export interface SimpleWorkerConfig {
   batchSize?: number;
 }
 
-export interface SimpleWorkerStats {
-  pending: number;
-  translated: number;
-  failed: number;
-  lastRun: number | null;
-  workerId: string | null;
-  isOnline: boolean;
+export interface SimpleWorkerStats extends ProcessorStats {
+  // Fast-lane bookkeeping — the only fields beyond the canonical ProcessorStats
+  // shape (the base pending/translated/failed/... live in ProcessorStats).
   pendingFast: number;
   pendingUrgent: number;
   currentTaskId: string | null;
-  [key: string]: any;
+  // A SimpleWorkerBase worker ALWAYS tracks the backend-reachability signals
+  // (optional on ProcessorStats), so narrow them to required here — the poll
+  // loop reads consecutiveFailures without a presence guard.
+  backendOnline: boolean;
+  consecutiveFailures: number;
+  lastError: string | null;
+  lastErrorAt: number | null;
+  lastRequestAt: number | null;
 }
+
+// Once this many worker HTTP calls fail in a row the poll loop backs off to a
+// slow cadence instead of the 1s hot-loop — a down backend must not be hammered.
+const BACKEND_DOWN_THRESHOLD = 3;
+const POLL_BACKOFF_FAST_MS = 1000;
+const POLL_BACKOFF_SLOW_MS = 8000;
 
 // Fast re-poll cadence when the backend signals pending_fast>0. Kept short but
 // jittered so multiple workers don't stampede the endpoint in lockstep.
@@ -114,9 +119,21 @@ export abstract class SimpleWorkerBase {
     lastRun: null,
     workerId: null,
     isOnline: false,
+    // Required by the inherited ProcessorStats shape; these workers don't track
+    // a local queue, so they stay 0 (consumers remap stats and never read them).
+    queueTotal: 0,
+    newTasks: 0,
+    duplicateTasks: 0,
     pendingFast: 0,
     pendingUrgent: 0,
     currentTaskId: null,
+    // Optimistic default: assume reachable until a request proves otherwise, so
+    // a freshly-registered worker isn't reported down before its first call.
+    backendOnline: true,
+    consecutiveFailures: 0,
+    lastError: null,
+    lastErrorAt: null,
+    lastRequestAt: null,
   };
 
   // ------------------------------------------------------------------
@@ -179,8 +196,8 @@ export abstract class SimpleWorkerBase {
     caps: WorkerCapability[],
   ): ProcessorType[] {
     const lanes = [...baseLanes];
-    if (caps.length > 0 && !lanes.includes('remote_fast')) {
-      lanes.push('remote_fast');
+    if (caps.length > 0 && !lanes.includes(LANES.REMOTE_FAST)) {
+      lanes.push(LANES.REMOTE_FAST);
     }
     return lanes;
   }
@@ -251,6 +268,63 @@ export abstract class SimpleWorkerBase {
     return { isRunning: this.isRunning, stats: { ...this.stats } };
   }
 
+  /**
+   * Backend-reachability snapshot for the Task Center aggregate (get_status).
+   * Reflects this worker's most recent HTTP outcome against Laravel.
+   */
+  getBackendHealth(): {
+    online: boolean;
+    lastError: string | null;
+    lastRequestAt: number | null;
+    consecutiveFailures: number;
+  } {
+    return {
+      online: this.stats.backendOnline,
+      lastError: this.stats.lastError,
+      lastRequestAt: this.stats.lastRequestAt,
+      consecutiveFailures: this.stats.consecutiveFailures,
+    };
+  }
+
+  // ------------------------------------------------------------------
+  // Backend-reachability bookkeeping
+  // ------------------------------------------------------------------
+
+  /** Record a successful worker HTTP call: backend is up, failure streak reset. */
+  protected noteBackendSuccess(): void {
+    this.stats.backendOnline = true;
+    this.stats.consecutiveFailures = 0;
+    this.stats.lastRequestAt = Date.now();
+  }
+
+  /** Record a failed worker HTTP call: backend is down, bump the failure streak. */
+  protected noteBackendFailure(error: unknown): void {
+    this.stats.backendOnline = false;
+    this.stats.consecutiveFailures++;
+    this.stats.lastError = this.describeError(error);
+    this.stats.lastErrorAt = Date.now();
+  }
+
+  /**
+   * True for an EXPECTED long-poll timeout — the server accepted the poll but did
+   * not return within our client budget (ApiError 408 / 'Request timeout' /
+   * AbortError). These are normal for a wait>0 pull and must NOT be logged at
+   * error or counted as a backend failure.
+   */
+  protected isExpectedTimeout(error: unknown): boolean {
+    const e = error as any;
+    if (e instanceof ApiError && e.statusCode === 408) return true;
+    const name = typeof e?.name === 'string' ? e.name : '';
+    const msg = typeof e?.message === 'string' ? e.message : '';
+    return name === 'AbortError' || name === 'Request timeout' || msg === 'Request timeout';
+  }
+
+  private describeError(error: unknown): string {
+    const e = error as any;
+    if (e?.message) return String(e.message);
+    return String(e ?? 'unknown error');
+  }
+
   // ------------------------------------------------------------------
   // Registration / heartbeat
   // ------------------------------------------------------------------
@@ -283,29 +357,37 @@ export abstract class SimpleWorkerBase {
       }
     }
 
-    const response = await this.workerClient.register({
-      worker_id: workerId,
-      worker_name: this.config.workerName,
-      processor_types: processorTypes,
-      capabilities: caps,
-      hostname: 'chrome-extension',
-      platform: navigator.userAgent,
-      metadata: {
-        version: chrome.runtime.getManifest().version,
-        extensionId: chrome.runtime.id,
-        processor: this.processorKey,
-      },
-    });
+    let response;
+    try {
+      response = await this.workerClient.register({
+        worker_id: workerId,
+        worker_name: this.config.workerName,
+        processor_types: processorTypes,
+        capabilities: caps,
+        hostname: 'chrome-extension',
+        platform: navigator.userAgent,
+        metadata: {
+          version: chrome.runtime.getManifest().version,
+          extensionId: chrome.runtime.id,
+          processor: this.processorKey,
+        },
+      });
+    } catch (error) {
+      this.noteBackendFailure(error);
+      throw error;
+    }
 
     if (response.success && response.data) {
       this.stats.workerId = response.data.worker_id;
       this.stats.isOnline = true;
+      this.noteBackendSuccess();
       logger.info(this.workerLabel, 'Registered', {
         worker_id: response.data.worker_id,
         processor_types: processorTypes,
         capabilities: caps,
       });
     } else {
+      this.noteBackendFailure(new Error(response.message || 'Registration failed'));
       throw new Error(response.message || 'Registration failed');
     }
   }
@@ -317,11 +399,14 @@ export abstract class SimpleWorkerBase {
       try {
         const resp = await this.workerClient.heartbeat();
         this.stats.isOnline = true;
+        this.noteBackendSuccess();
         if (resp.success && resp.data) {
           this.noteFastSignals(resp.data.pending_urgent, resp.data.pending_fast);
         }
       } catch (error) {
         this.stats.isOnline = false;
+        // Heartbeat failures stay quiet (warn) but still flip backendOnline off.
+        this.noteBackendFailure(error);
         logger.warn(this.workerLabel, 'Heartbeat failed', error);
       }
     };
@@ -353,9 +438,21 @@ export abstract class SimpleWorkerBase {
         this.needsFastRepoll = false;
         await this.cycle(wait);
       } catch (error) {
-        logger.error(this.workerLabel, 'Poll cycle error', error);
-        // Brief backoff so a hard failure doesn't hot-loop.
-        await this.delay(1000);
+        if (this.isExpectedTimeout(error)) {
+          // Expected long-poll timeout: the server just didn't hand us work in
+          // time. Quiet (debug) and NOT a backend failure — don't flip online.
+          logger.debug(this.workerLabel, 'Long-poll pull timed out (expected)', error);
+        } else {
+          this.noteBackendFailure(error);
+          logger.error(this.workerLabel, 'Poll cycle error', error);
+        }
+        // Back off longer once the backend looks down so a dead Laravel is not
+        // hammered every second; otherwise a brief pause avoids a hot-loop.
+        const backoff =
+          this.stats.consecutiveFailures >= BACKEND_DOWN_THRESHOLD
+            ? POLL_BACKOFF_SLOW_MS
+            : POLL_BACKOFF_FAST_MS;
+        await this.delay(backoff);
       }
     }
     this.pollLoopActive = false;
@@ -392,6 +489,9 @@ export abstract class SimpleWorkerBase {
         limit: this.config.batchSize,
         wait,
       });
+
+      // A returned response (even an empty batch) proves the backend is up.
+      this.noteBackendSuccess();
 
       if (!resp.success || !resp.data) {
         return;
@@ -524,11 +624,32 @@ export abstract class SimpleWorkerBase {
     if (result !== undefined) payload.result = result;
     if (extra?.error !== undefined) payload.error = extra.error;
     if (extra?.progress !== undefined) payload.progress = extra.progress;
-    // Submit first, then update local state. If the API call throws the task
-    // result was never delivered — marking terminalPosted or bumping stats
-    // before the call would suppress dispatchOne's safety-net retry and
-    // inflate counters for work the server never received.
-    await this.workerClient.submitResult(payload);
+    // Submit; on a NON-terminal failure hand the result to the persistent outbox
+    // so it is durably owned and retried forever (the "results are LOST on
+    // backend interruption" fix). A TERMINAL failure (409 / task reassigned) can
+    // never be accepted, so it is dropped, not enqueued.
+    try {
+      await this.workerClient.submitResult(payload);
+      // Backend proved reachable — opportunistically flush queued retries.
+      submitOutbox.drainNow();
+    } catch (error) {
+      if (isTerminalWorkerResultError(error)) {
+        logger.warn(
+          this.workerLabel,
+          'Result submit terminal (task reassigned) — dropping result',
+          error,
+        );
+      } else {
+        await submitOutbox.enqueue({
+          kind: 'worker_result',
+          baseUrl: this.config?.apiUrl || this.workerClient.getBaseUrl(),
+          payload,
+        });
+        logger.warn(this.workerLabel, 'Result submit failed — queued to outbox for retry', error);
+      }
+    }
+    // The result is now delivered OR durably owned by the outbox (or terminal):
+    // mark terminal + bump stats so dispatchOne's safety-net does not re-submit.
     if (status === 'completed' || status === 'failed') {
       this.terminalPosted = true;
     }

@@ -43,6 +43,13 @@ from pycore.pylauncher.app_executable_launcher import (
 from pycore.pyfoundations.app_launcher import register_executable_launcher_provider
 register_executable_launcher_provider(get_app_executable_launcher)
 
+# Same seam for the ServiceLauncher class: register it DOWN into the pyfoundations
+# provider so pyutils.native_ui can obtain it via get_service_launcher() with a
+# plain top-level import, without a back-edge into pylauncher — this breaks the
+# native_ui <-> pylauncher circular import (see service_launcher_provider.py).
+from pycore.pyfoundations.service_launcher_provider import register_service_launcher_provider
+register_service_launcher_provider(ServiceLauncher)
+
 __all__ = [
     'LauncherConfig',   # Configuration
     'ServiceLauncher',  # Launcher

@@ -19,6 +19,8 @@
         </div>
       </div>
       <div class="flex items-center gap-3">
+        <!-- laravel_main latest-changed-file indicator (polls every 10s). -->
+        <LatestCodeFileWidget />
         <EndpointDropdown />
         <LanguageSelector />
         <button
@@ -281,6 +283,7 @@ import SettingsCenter from './components/SettingsCenter.vue';
 import TaskCenterPanel from './components/extensions/TaskCenterPanel.vue';
 import ImportToolsPanel from './components/ImportToolsPanel.vue';
 import EndpointDropdown from './components/EndpointDropdown.vue';
+import LatestCodeFileWidget from './components/LatestCodeFileWidget.vue';
 import {
   DocumentIcon,
   DatabaseIcon,

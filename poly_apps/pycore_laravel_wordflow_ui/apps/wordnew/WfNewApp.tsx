@@ -57,6 +57,7 @@ import { WfNewPlaybackSettings } from './pages/WfNewPlaybackSettings';
 import { WfNewAbout } from './pages/WfNewAbout';
 import { WfNewAdminPage } from './pages/WfNewAdminPage';
 import { WfNewWordDetailModal } from './components/WfNewWordDetailModal';
+import { WfNewConfirmAddLibraryModal } from './components/WfNewConfirmAddLibraryModal';
 import { WfNewLabsTab } from './components/WfNewLabsTab';
 import { WfNewHomeTab } from './components/WfNewHomeTab';
 import { WfNewShelfTab } from './components/WfNewShelfTab';
@@ -207,6 +208,9 @@ export const WfNewApp: React.FC = () => {
     handleClearEverything,
     handleForgeCustomWord,
     handleAddLibraryToStudy,
+    addLibraryConfirm,
+    confirmAddLibraryNow,
+    closeAddLibraryConfirm,
     pageHeader,
   } = useWfNewAppState({ shellLang, dark });
 
@@ -253,6 +257,7 @@ export const WfNewApp: React.FC = () => {
               <WfNewHomeTab
                 activeTheme={activeTheme}
                 trans={trans}
+                lang={shellLang}
                 dark={dark}
                 currentUser={currentUser}
                 nickname={nickname}
@@ -361,6 +366,7 @@ export const WfNewApp: React.FC = () => {
               <WfNewPracticeTab
                 activeTheme={activeTheme}
                 trans={trans}
+                lang={shellLang}
                 addToast={addToast}
                 gGroups={gGroups}
                 selectedPracticeGroup={selectedPracticeGroup}
@@ -369,6 +375,7 @@ export const WfNewApp: React.FC = () => {
                 startGroupPractice={startGroupPractice}
                 startModePractice={startModePractice}
                 courseWords={courseWords}
+                setCourseWords={setCourseWords}
                 practiceIndex={practiceIndex}
                 setPracticeIndex={setPracticeIndex}
                 isFlipped={isFlipped}
@@ -386,6 +393,8 @@ export const WfNewApp: React.FC = () => {
                 readParagraph={readParagraph}
                 setSelectedWordDetail={setSelectedWordDetail}
                 playPhoneticSpeech={playPhoneticSpeech}
+                favorites={favorites}
+                onToggleFavorite={handleToggleFavorite}
               />
             </motion.div>
           )}
@@ -738,6 +747,19 @@ export const WfNewApp: React.FC = () => {
         onClose={() => setSelectedWordDetail(null)}
         onToggleFavorite={handleToggleFavorite}
         onPlay={playPhoneticSpeech}
+      />
+
+      {/* Confirm "add library to Default Vocabulary Group" dialog */}
+      <WfNewConfirmAddLibraryModal
+        open={!!addLibraryConfirm}
+        groupTitle={addLibraryConfirm?.group.title ?? ''}
+        loading={!!addLibraryConfirm?.loading}
+        submitting={!!addLibraryConfirm?.submitting}
+        preview={addLibraryConfirm?.preview ?? null}
+        error={addLibraryConfirm?.error ?? null}
+        onCancel={closeAddLibraryConfirm}
+        onConfirm={confirmAddLibraryNow}
+        trans={trans}
       />
 
       {/* Floating Bottom Navigator dock */}

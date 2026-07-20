@@ -14,6 +14,8 @@ changes to connected WS clients for real-time UI refresh:
 - system_settings_update: system-settings changes
 - ui.i18n.language_changed: tray/native language switch -> web UI (PcLanguageSync)
 - code_sync_update: Code Sync peer-mesh status/config ticks
+- engine_load_status_update: per-engine model-load progress (idle/loading/loaded/
+  error) for class-B models + class-C servers, TTS+STT
 """
 
 from pycore import ColorPrint, THREAD_BUS
@@ -57,6 +59,9 @@ def register_thread_bus_routes(server):
     server.register_thread_bus_listener('ui.i18n.language_changed')
     # Code Sync peer-mesh status/config ticks -> live UI refresh.
     server.register_thread_bus_listener('code_sync_update')
+    # Engine model-load progress (class-B models + class-C servers, TTS+STT) ->
+    # live UI refresh alongside the polled /api/local/engines/load-status endpoint.
+    server.register_thread_bus_listener('engine_load_status_update')
 
     ColorPrint.green("[ConfigBuilder] Registered thread_bus.trigger_event + broadcast listeners")
 

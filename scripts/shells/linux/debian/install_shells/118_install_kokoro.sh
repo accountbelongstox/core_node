@@ -66,31 +66,43 @@ model_ok() {
 }
 
 download_model() {
-    local archive tmp inner src
-    archive="$(mktemp /tmp/kokoro-XXXX.tar.bz2)"
-    tmp="$(mktemp -d /tmp/kokoro-extract-XXXX)"
+    local archive tmp inner src expected have
+    archive="$MODEL_DIR/.download.tar.bz2"
+    tmp="${MODEL_DIR}/.extract"
     mkdir -p "$MODEL_DIR"
-    echo "[install_kokoro] [..] downloading Kokoro model ..."
+    expected="$(curl -fsI --connect-timeout 30 "$MODEL_URL" 2>/dev/null | awk 'tolower($1)=="content-length:" {print $2}' | tr -d '\r' | tail -n1)"
+    if [[ -f "$archive" ]]; then
+        have="$(wc -c < "$archive" 2>/dev/null | tr -d ' ')"
+        echo "[install_kokoro] [resume] archive ${have:-0} / ${expected:-0} bytes"
+    else
+        echo "[install_kokoro] [..] downloading Kokoro model ..."
+    fi
     if command -v curl >/dev/null 2>&1; then
-        curl -fL --progress-bar -o "$archive" "$MODEL_URL"
+        curl -fL -C - --retry 3 --connect-timeout 30 --progress-bar -o "$archive" "$MODEL_URL" || true
     elif command -v wget >/dev/null 2>&1; then
-        wget -O "$archive" "$MODEL_URL"
+        wget -c -O "$archive" "$MODEL_URL" || true
     else
         echo "[install_kokoro] [!] curl/wget not found."
     fi
-    if [ -s "$archive" ]; then
-        "$PYTHON" -c "import tarfile,sys
+    if ! _hf_file_complete "$archive" "${expected:-0}"; then
+        echo "[install_kokoro] [!] download incomplete; archive kept to resume next run."
+        return 1
+    fi
+    if [[ -e "$tmp" ]]; then
+        _backup_install_asset_path "$tmp" "[install_kokoro] "
+    fi
+    mkdir -p "$tmp"
+    "$PYTHON" -c "import tarfile,sys
 t=tarfile.open(sys.argv[1],'r:bz2')
 try:
  t.extractall(sys.argv[2], filter='data')
 except TypeError:
  t.extractall(sys.argv[2])
 t.close()" "$archive" "$tmp"
-    fi
     inner="$(find "$tmp" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     src="${inner:-$tmp}"
     cp -rf "$src"/* "$MODEL_DIR"/ 2>/dev/null || true
-    rm -rf "$tmp" "$archive"
+    _backup_install_asset_path "$tmp" "[install_kokoro] " >/dev/null
     if model_files_complete; then
         date -u +%Y-%m-%dT%H:%M:%SZ > "$MODEL_SENTINEL"
         return 0

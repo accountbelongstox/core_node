@@ -7,7 +7,8 @@ Priority (highest first), per project decision — local AI / neural models firs
     1. chattts        — ChatTTS local api (dialogue; laughs/sighs/oral tags).
     2. cosyvoice      — CosyVoice local api (multilingual clone + emotion).
     3. fishspeech     — Fish Speech / Fish Audio (clone; local server or SDK).
-    4. qwen3tts       — Qwen3-TTS in-process (Alibaba; pip qwen-tts; 3.13 OK).
+    4. qwen3tts       — Qwen3-TTS class-C HTTP server in a DEDICATED venv (Alibaba;
+                        managed lifecycle, single-active, 3-min idle; see spec §5).
     5. bark           — Bark via transformers (Suno; expressive; 3.13 native).
     6. parler         — Parler-TTS in-process (HF; voice description; 3.13 native).
     7. voxcpm2        — VoxCPM2 in-process (OpenBMB multilingual clone).
@@ -40,10 +41,19 @@ picks Joanna/Amy); other engines still run unchanged, and the result's
 callers can tag accent_fallback.
 
 Override order with env ``TTS_ENGINE_PRIORITY`` (e.g. ``edge->sherpa->melotts``).
+
+Lifecycle: this module owns priority only. For every class-B/class-C candidate it
+calls ``prepare_server_for_use(name)`` and wraps the synth in
+``managed_services.using(name)`` so the shared lifecycle contract (single-active,
+busy protection, 3-minute idle unload) applies. Class-C engines (qwen3tts, melotts
+and gptsovits are isolated-venv HTTP servers) synthesize over HTTP. See
+development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §4-§5.
 """
 
+import contextlib
 import importlib.metadata
 import os
+import shutil
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -53,6 +63,7 @@ from pycore.pyfoundations.system_paths import (
     get_edge_tts_voice_cache_dir,
     get_user_data_store,
 )
+from . import sentence_audio_cache
 from pycore.pyutils.edge_tts.config import TTSConfig
 from pycore.pyutils.edge_tts.edge_tts_client import get_edge_tts_client
 from pycore.pyutils.common.model_tiers import runtime_engine_model
@@ -65,6 +76,7 @@ from .tts_service_manager import (
     record_server_use,
 )
 from pycore.pyutils.common.managed_service import managed_services
+from pycore.pyutils.common import model_load_status
 from . import (
     azure_engine,
     bark_engine,
@@ -83,12 +95,14 @@ from . import (
     voxcpm2_engine,
 )
 
+# Version shown in tts_status(). qwen3tts + melotts are intentionally ABSENT: their
+# packages (qwen-tts / melo) live in their isolated venvs, not the main interpreter,
+# so probing importlib.metadata here would report nothing (or a stray/wrong copy).
+# See spec §5-§6.
 _ENGINE_VERSIONS = {
     "sherpa": "sherpa-onnx",
     "kokoro": "sherpa-onnx",
-    "melotts": "melotts",
     "voxcpm2": "voxcpm",
-    "qwen3tts": "qwen-tts",
 }
 
 
@@ -104,8 +118,8 @@ _USER_FRONT_ORDER = (
     "gptsovits", "streamelements", "sherpa", "melotts", "edge", "gtts_web", "azure",
 )
 _REMAINING_ENGINES = (
-    "chattts", "cosyvoice", "fishspeech", "qwen3tts", "bark", "parler", "voxcpm2",
-    "kokoro", "f5tts",
+    "chattts", "cosyvoice", "fishspeech", "qwen3tts", "bark", "parler",
+    "voxcpm2", "kokoro", "f5tts",
 )
 _DEFAULT_PRIORITY = _USER_FRONT_ORDER + _REMAINING_ENGINES
 _KNOWN_ENGINES = _DEFAULT_PRIORITY
@@ -113,18 +127,27 @@ _KNOWN_ENGINES = _DEFAULT_PRIORITY
 # Sentence-library TTS: qwen3tts first (highest-quality local neural); the rest
 # follow as fallback ONLY when qwen3tts is unavailable/fails (first-success
 # fallback in synthesize() means later engines never run while qwen3tts works).
+# edge is the LAST-resort fallback (online, serialized) — excluded from the
+# middle of the chain and appended at the very end.
 # Used by tts_sentence_worker_service + the assist sentence_audio lane.
 _SENTENCE_FRONT_ORDER = ("qwen3tts",)
+_SENTENCE_BACK_ORDER = ("edge",)
 _DEFAULT_SENTENCE_PRIORITY = _SENTENCE_FRONT_ORDER + tuple(
-    e for e in _DEFAULT_PRIORITY if e not in _SENTENCE_FRONT_ORDER
-)
+    e for e in _DEFAULT_PRIORITY
+    if e not in _SENTENCE_FRONT_ORDER and e not in _SENTENCE_BACK_ORDER
+) + _SENTENCE_BACK_ORDER
 
 # Word-library TTS fallback (after the real-pronunciation chain): edge first -
 # fast, online, accent-aware; words are short (no internal space) so they
 # synthesize sequentially (no parallel batch - edge holds a process-wide lock).
+# qwen3tts (GPU-heavy class-C server) is never used for single words — excluded
+# from the default chain AND filtered out of persisted/merged orders by
+# _priority("word") so a stale saved order cannot reintroduce it.
 _WORD_FRONT_ORDER = ("edge", "streamelements", "gtts_web")
+_WORD_EXCLUDED = ("qwen3tts",)
 _DEFAULT_WORD_PRIORITY = _WORD_FRONT_ORDER + tuple(
-    e for e in _DEFAULT_PRIORITY if e not in _WORD_FRONT_ORDER
+    e for e in _DEFAULT_PRIORITY
+    if e not in _WORD_FRONT_ORDER and e not in _WORD_EXCLUDED
 )
 # Exact saved orders that predate the gptsovits-first default — auto-upgrade.
 _LEGACY_SAVED_ORDERS: Tuple[Tuple[str, ...], ...] = (
@@ -144,9 +167,9 @@ _ENGINE_NOTES = {
     "chattts": "ChatTTS local api (dialogue; laughs/sighs; CHATTTS_URL)",
     "cosyvoice": "CosyVoice local api (multilingual clone; COSYVOICE_URL)",
     "fishspeech": "Fish Speech / Fish Audio (FISHSPEECH_URL or FISH_API_KEY)",
-    "qwen3tts": "Qwen3-TTS in-process (pip qwen-tts; Python 3.13 OK)",
+    "qwen3tts": "Qwen3-TTS class-C HTTP server (isolated venv; managed lifecycle)",
     "bark": "Bark via transformers (suno/bark; expressive; Python 3.13 native)",
-    "parler": "Parler-TTS in-process (HF parler-tts; PARLER_DESCRIPTION)",
+    "parler": "Parler-TTS in-process (HF; voice-description steering)",
     "voxcpm2": "VoxCPM2 in-process (OpenBMB; GPU preferred; pip voxcpm)",
     "kokoro": "Kokoro-82M sherpa-onnx offline (zh/en; KOKORO_TTS_MODEL_DIR)",
     "f5tts": "F5-TTS local api (fast flow-matching clone; F5TTS_URL)",
@@ -163,13 +186,66 @@ _ENGINE_NOTES = {
 }
 # Engines that can honor a requested English accent (us/uk voice selection).
 _ACCENT_AWARE_ENGINES = ("edge", "streamelements")
+# Concurrency class per engine — a capability annotation only (workers still
+# synthesize sequentially); the UI labels "parallel-safe / serial" from this.
+#   serial     — edge: process-wide synth lock (403 protection), never parallel.
+#   cloud      — class-A cloud APIs: no lock, parallel OK (own rate limits).
+#   in_process — class-B in-process models: parallel OK (locks guard load only).
+#   server     — class-C HTTP servers: concurrent HTTP OK (single-active between
+#                class-C engines); qwen3tts also has a GPU batch endpoint.
+_ENGINE_CONCURRENCY = {
+    "edge": "serial",
+    "streamelements": "cloud",
+    "gtts_web": "cloud",
+    "azure": "cloud",
+    "sherpa": "in_process",
+    "kokoro": "in_process",
+    "bark": "in_process",
+    "parler": "in_process",
+    "voxcpm2": "in_process",
+    "qwen3tts": "server",
+    "melotts": "server",
+    "gptsovits": "server",
+    "chattts": "server",
+    "cosyvoice": "server",
+    "fishspeech": "server",
+    "f5tts": "server",
+}
 _TIER_ENGINES = frozenset({
-    "cosyvoice", "fishspeech", "qwen3tts", "bark", "parler", "voxcpm2", "kokoro",
+    "cosyvoice", "fishspeech", "qwen3tts", "bark", "voxcpm2", "kokoro",
     "sherpa", "gptsovits",
 })
 _CAP_SECTION = "capability_priorities"
 _CHAIN_SECTION = "task_capability_chains"
 _STARTUP_REPORTED = False
+
+# Availability gate for the sentence chain: qwen3tts is the PRIMARY sentence
+# engine whenever its isolated venv is ready (the managed service then starts /
+# loads the HTTP server on demand). qwen3tts NEVER runs in the main interpreter —
+# it is a separate subprocess venv (port 57210) that owns its own device — so the
+# MAIN interpreter's CUDA state is the wrong signal and is intentionally NOT
+# consulted (a headless / sanitized-PATH main interpreter would else needlessly
+# demote a GPU-backed qwen server). Only when the venv is NOT ready is qwen3tts
+# demoted to the END of the chain so the request transparently falls back to the
+# rest (edge/sherpa/...). The user directive: qwen3tts first, fall back only when
+# unavailable.
+_GPU_SENTENCE_ENGINE = "qwen3tts"
+
+
+def _apply_sentence_gpu_gate(order: tuple[str, ...]) -> tuple[str, ...]:
+    """Keep qwen3tts at the front of the sentence chain whenever its isolated venv
+    is ready; demote it to the end only when it is unavailable so the request
+    transparently falls back to the rest of the chain. Demote-only: a user who
+    reordered the sentence chain keeps their order. The main-interpreter CUDA state
+    is deliberately NOT consulted — qwen3tts is an out-of-process venv server that
+    owns its own device, so gating on this interpreter's GPU would wrongly demote a
+    GPU-backed qwen server on a headless / sanitized-PATH host."""
+    if _GPU_SENTENCE_ENGINE not in order:
+        return order
+    if engine_available(_GPU_SENTENCE_ENGINE):
+        return order
+    rest = tuple(e for e in order if e != _GPU_SENTENCE_ENGINE)
+    return rest + (_GPU_SENTENCE_ENGINE,)
 
 
 def default_tts_engine_priority() -> tuple[str, ...]:
@@ -253,20 +329,22 @@ def reload_tts_priority() -> tuple[str, ...]:
 
 
 def _priority(profile: str = "default") -> tuple[str, ...]:
-    """Runtime priority tuple for a profile: default|sentence|word."""
+    """Runtime priority tuple for a profile: default|sentence|word.
+
+    The sentence profile is GPU-gated: qwen3tts stays first only when a CUDA GPU
+    is available and qwen3tts is usable; otherwise it is demoted to the end so the
+    request falls back to the rest of the chain. The word profile filters
+    ``_WORD_EXCLUDED`` (qwen3tts) at the return point so a persisted/merged order
+    can never reintroduce the GPU engine for single words."""
     if profile == "sentence":
-        return TTS_SENTENCE_PRIORITY
+        return _apply_sentence_gpu_gate(TTS_SENTENCE_PRIORITY)
     if profile == "word":
-        return TTS_WORD_PRIORITY
+        return tuple(e for e in TTS_WORD_PRIORITY if e not in _WORD_EXCLUDED)
     return TTS_ENGINE_PRIORITY
 
 
 def is_word_text(text: str) -> bool:
-    """Classify a TTS request as a WORD (no internal whitespace).
-
-    "只要是生成语音的只要中间没人空格即判断为单词生成" - any voice-generation text with no
-    internal space is a word; else a sentence. Used by synthesize(priority_profile="auto").
-    """
+    """Classify a TTS request as a word when it has no internal whitespace."""
     cleaned = (text or "").strip()
     if not cleaned:
         return False
@@ -483,6 +561,22 @@ def engine_available(name: str) -> bool:
     return False
 
 
+def _model_load_ctx(name: str):
+    """Report FIRST-load progress for a class-B in-process TTS model to the shared
+    model-load registry (surfaced at /api/local/engines/load-status). Class-C
+    servers report from managed_service (their status comes from the subprocess
+    start), and class-A engines (edge/streamelements/gtts/azure) load no model, so
+    both are a no-op here — the registry is written from ONE place per engine class.
+    ``managed_services.is_running`` on a model spec reflects the engine's own
+    ``is_model_loaded`` (resident weights)."""
+    spec = managed_services.spec(name)
+    if spec is None or spec.kind != "model":
+        return contextlib.nullcontext()
+    return model_load_status.report_model_load(
+        name, is_loaded=lambda: managed_services.is_running(name)
+    )
+
+
 def _engine_disabled_reason(name: str) -> Optional[str]:
     """UI hint when an engine is off (not installed, needs config, or server down)."""
     if engine_available(name):
@@ -511,6 +605,7 @@ def tts_status() -> Dict[str, Any]:
             "available": avail,
             "installed": installed,
             "note": _ENGINE_NOTES.get(name, ""),
+            "concurrency": _ENGINE_CONCURRENCY.get(name, "unknown"),
         }
         if is_server_engine(name):
             entry.update(server_runtime_status(name))
@@ -665,7 +760,7 @@ def describe_synth_command(
     if eng == "fishspeech":
         return f'fishspeech POST /v1/tts text="{sample}" lang={lang} -> {out}'
     if eng == "qwen3tts":
-        return f'qwen3tts.generate_custom_voice(text="{sample}", lang={lang}) -> {out}'
+        return f'qwen3tts POST /synthesize text="{sample}" lang={lang} -> {out}'
     if eng == "bark":
         return f'bark BarkModel.generate(text="{sample}", lang={lang}) -> {out}'
     if eng == "parler":
@@ -717,6 +812,24 @@ _SYNTHESIZERS: Dict[str, Callable[..., bool]] = {
 }
 
 
+def _sentence_cache_identity(
+    accent: Optional[str], gender: Optional[str]
+) -> Tuple[str, str, str]:
+    """Build the (speaker, instruct, model_id) key fields for the sentence cache.
+
+    ``speaker`` folds the requested voice identity — an explicit qwen3tts speaker
+    plus the accent/gender descriptor — so two variants of the SAME text (e.g.
+    us-female vs uk-male) never collide on one cache entry. ``instruct`` /
+    ``model_id`` come from the qwen3tts synthesis env (the params that change the
+    produced audio); empty for engines that ignore them."""
+    speaker = (os.environ.get("QWEN3TTS_SPEAKER") or "").strip()
+    voice_desc = f"{(accent or 'any')}:{(gender or 'female')}"
+    speaker_field = f"{speaker}|{voice_desc}" if speaker else voice_desc
+    instruct = (os.environ.get("QWEN3TTS_INSTRUCT") or "").strip()
+    model_id = (os.environ.get("QWEN3TTS_MODEL") or "").strip()
+    return speaker_field, instruct, model_id
+
+
 def synthesize(
     text: str,
     language: Optional[str],
@@ -749,9 +862,48 @@ def synthesize(
     if profile == "auto":
         profile = "word" if is_word_text(cleaned) else "sentence"
 
+    # Resolve the engine order once (the sentence profile applies the GPU gate).
+    engine_order = _priority(profile)
+    # Sentence-audio cache: an identical sentence request (same text/lang/voice/
+    # engine/format) returns the previously-synthesized file WITHOUT re-synth.
+    # Word audio is intentionally not cached here (short, edge-first, cheap).
+    cache_ext = (output_path.suffix.lstrip(".").lower() or "mp3")
+    cache_speaker = cache_instruct = cache_model = ""
+    if profile == "sentence":
+        cache_speaker, cache_instruct, cache_model = _sentence_cache_identity(
+            want_accent, gender
+        )
+        for cand in engine_order:
+            hit = sentence_audio_cache.lookup_or_none(
+                text=cleaned, lang=language or "en", speaker=cache_speaker,
+                instruct=cache_instruct, engine=cand, fmt=cache_ext,
+                model_id=cache_model,
+            )
+            if hit is None:
+                continue
+            try:
+                shutil.copyfile(str(hit), str(output_path))
+            except OSError as exc:
+                ColorPrint.yellow(f"[tts] sentence cache copy failed ({exc}); synthesizing")
+                break
+            ColorPrint.gray(
+                f"[tts] sentence cache HIT (engine={cand}) -> {output_path.name}"
+            )
+            return {
+                "success": True,
+                "engine": cand,
+                "accent": _engine_actual_accent(cand, language, want_accent),
+                "error": None,
+                "cached": True,
+                "tried": [],
+                "synth_command": describe_synth_command(
+                    cand, cleaned, language, output_path, want_accent, rate, gender),
+            }
+        ColorPrint.gray("[tts] sentence cache MISS; synthesizing")
+
     tried: List[str] = []
     last_error: Optional[str] = None
-    for name in _priority(profile):
+    for name in engine_order:
         # Skip a recently-failed edge endpoint so a whole batch doesn't repeatedly
         # pay the per-attempt timeout when edge is down — go straight to offline.
         if name == "edge" and _edge_in_cooldown():
@@ -771,7 +923,7 @@ def synthesize(
         if synth is None:
             continue
         tried.append(name)
-        with managed_services.using(name):
+        with managed_services.using(name), _model_load_ctx(name):
             try:
                 if name == "edge":
                     ok = _synth_edge(cleaned, language, output_path, rate, want_accent, gender)
@@ -786,11 +938,23 @@ def synthesize(
             if ok and output_path.exists() and output_path.stat().st_size > 0:
                 if is_server_engine(name):
                     record_server_use(name)
+                # Populate the sentence cache under the engine that ACTUALLY
+                # produced the audio so the next identical request is a hit.
+                if profile == "sentence":
+                    try:
+                        sentence_audio_cache.store_result(
+                            text=cleaned, lang=language or "en", speaker=cache_speaker,
+                            instruct=cache_instruct, engine=name, fmt=cache_ext,
+                            model_id=cache_model, data_bytes=output_path.read_bytes(),
+                        )
+                    except OSError as exc:
+                        ColorPrint.gray(f"[tts] sentence cache store skipped ({exc})")
                 return {
                     "success": True,
                     "engine": name,
                     "accent": _engine_actual_accent(name, language, want_accent),
                     "error": None,
+                    "cached": False,
                     "tried": tried,
                     "synth_command": describe_synth_command(
                         name, cleaned, language, output_path, want_accent, rate, gender),
@@ -843,9 +1007,10 @@ def synthesize_variants(
 ) -> List[Dict[str, Any]]:
     """Synthesize ONE text to N voice variants (different accent/gender/speaker).
 
-    Uses the qwen3tts official BATCH list API (one ``generate_custom_voice`` call
-    with ``non_streaming_mode=True``) when qwen3tts is available AND first in the
-    sentence priority - so all variants generate at the GPU's max parallel speed.
+    Uses the qwen3tts BATCH endpoint (POST /synthesize_batch on the isolated-venv
+    server, one ``generate_custom_voice`` list call server-side) when qwen3tts is
+    available AND first in the sentence priority - so all variants generate at the
+    GPU's max parallel speed.
     Otherwise falls back to per-variant sequential ``synthesize()`` (still the
     sentence chain). ``out_paths[i]`` corresponds to ``variants[i]``.
 
@@ -917,6 +1082,7 @@ _LAST_ENGINE_SYNTH_ERROR: Optional[str] = None
 _DETAIL_ENGINES = {
     "fishspeech": fishspeech_engine,
     "qwen3tts": qwen3tts_engine,
+    "melotts": melotts_engine,
     "chattts": chattts_engine,
     "f5tts": f5tts_engine,
     "cosyvoice": cosyvoice_engine,
@@ -970,9 +1136,17 @@ def synthesize_engine(
     applied_env = _apply_engine_extra_params(engine, extra_params)
     ok = False
     try:
-        with managed_services.using(engine):
+        with managed_services.using(engine), _model_load_ctx(engine):
             try:
-                ok = synth((text or "").strip(), language, output_path, rate, _normalize_accent(accent))
+                if engine == "qwen3tts":
+                    ok = qwen3tts_engine.synthesize(
+                        (text or "").strip(), language or "en", output_path,
+                        speed=_rate_to_speed(rate),
+                        speaker=extra_params.get("speaker"),
+                        instruct=extra_params.get("instruct"),
+                    )
+                else:
+                    ok = synth((text or "").strip(), language, output_path, rate, _normalize_accent(accent))
             except Exception as e:  # noqa: BLE001
                 _LAST_ENGINE_SYNTH_ERROR = str(e)
                 ColorPrint.yellow(f"[tts] {engine} test failed ({e})")

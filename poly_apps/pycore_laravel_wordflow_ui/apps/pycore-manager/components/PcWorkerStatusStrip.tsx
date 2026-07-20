@@ -1,72 +1,42 @@
 /**
  * PcWorkerStatusStrip — PyHeartbeat callback on/off, run counts, aux toggles.
+ *
+ * Reads worker status from the SHARED Queue Center hub (useQueueCenterHub) — no
+ * self-polling. Toggling an aux worker calls pycoreApi then refreshes the hub.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Cpu, RefreshCw, Loader2, AlertTriangle, Power, Check, Radio, Eye,
 } from 'lucide-react';
 import { pycoreApi, getPycoreHealth } from '../../../core/api-libs/pycore';
-import type { HeartbeatWorkersStatus, HeartbeatCallbackRow } from '../../../core/api-libs/pycore';
-import { pnaBlockedReason, pycoreEffectiveHost } from '../../../core/api-libs/pycore/pycoreTarget';
+import type { HeartbeatCallbackRow } from '../../../core/api-libs/pycore';
+import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 
-const POLL_MS = 12000;
 const AUX_KEYS = ['translation_queue_monitor', 'translation_ws_client'] as const;
 
-const PcWorkerStatusStrip: React.FC<{ refreshTick?: number }> = ({ refreshTick = 0 }) => {
+const PcWorkerStatusStrip: React.FC<{ refreshTick?: number }> = () => {
   const { t } = useTranslation('pc');
-  const [data, setData] = useState<HeartbeatWorkersStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const hub = useQueueCenterHub();
+  const data = hub.workers;
+  const loading = hub.loading;
   const [busy, setBusy] = useState<string | null>(null);
+  const [toggleErr, setToggleErr] = useState<string | null>(null);
+  const err = toggleErr || (hub.pycoreReachable ? null : hub.error);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
-
-  const fetchStatus = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    else setRefreshing(true);
-    try {
-      const s = await pycoreApi.getHeartbeatWorkersStatus();
-      if (!mounted.current) return;
-      if (s && Array.isArray(s.callbacks)) {
-        setData(s);
-        setErr(null);
-      } else {
-        setErr(t('queueCenter.heartbeatWorkers.unavailable'));
-      }
-    } catch (e: any) {
-      if (!mounted.current) return;
-      const pna = pnaBlockedReason(pycoreEffectiveHost());
-      setErr(pna || e?.message || t('queueCenter.heartbeatWorkers.unavailable'));
-    } finally {
-      if (mounted.current) {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    }
-  }, [t]);
-
-  useEffect(() => {
-    void fetchStatus(false);
-    const id = window.setInterval(() => { void fetchStatus(true); }, POLL_MS);
-    return () => window.clearInterval(id);
-  }, [fetchStatus]);
-
-  const fetchRef = useRef(fetchStatus);
-  fetchRef.current = fetchStatus;
-  useEffect(() => { void fetchRef.current(true); }, [refreshTick]);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const toggleAux = async (name: string) => {
     if (!data || busy) return;
     const row = data.callbacks.find((c) => c.name === name);
     if (!row) return;
     setBusy(name);
+    setToggleErr(null);
     try {
       await pycoreApi.setHeartbeatWorkerConfig(name, !row.enabled);
-      await fetchStatus(true);
+      hub.refreshHub();
     } catch (e: any) {
-      if (mounted.current) setErr(e?.message || 'toggle failed');
+      if (mounted.current) setToggleErr(e?.message || 'toggle failed');
     } finally {
       if (mounted.current) setBusy(null);
     }
@@ -97,10 +67,10 @@ const PcWorkerStatusStrip: React.FC<{ refreshTick?: number }> = ({ refreshTick =
           {t('queueCenter.heartbeatWorkers.title')}
         </span>
         <span className="text-[10px] text-slate-400">{t('queueCenter.heartbeatWorkers.subtitle')}</span>
-        <button onClick={() => fetchStatus(!!data)} disabled={(loading && !data) || !!busy}
+        <button onClick={() => hub.refreshHub()} disabled={(loading && !data) || !!busy}
           className="ml-auto p-1.5 rounded-lg pc-glass hover:bg-violet-500/10 text-violet-500 transition disabled:opacity-50 shrink-0"
           title={t('queueCenter.refreshActive')}>
-          <RefreshCw className={`w-3.5 h-3.5 ${(loading && !data) || refreshing ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 

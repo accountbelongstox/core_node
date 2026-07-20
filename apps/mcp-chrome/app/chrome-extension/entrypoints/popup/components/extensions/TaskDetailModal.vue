@@ -109,7 +109,8 @@ import {
   type TaskStreamEvent,
   type TaskStreamHandle,
 } from '../../composables/useTaskCenter';
-import { apiManager } from '@/services/ApiManager';
+import { getApiBase } from '@/services/ApiManager';
+import { taskPath } from '@/utils/api-paths';
 import { WorkerApiClient, PRIORITY_FAST } from '@/entrypoints/background/api/WorkerApiClient';
 import {
   taskIcon,
@@ -287,12 +288,12 @@ const upsertEvent = (ev: TaskStreamEvent): void => {
   timeline.value = [...timeline.value, ev];
 };
 
-const apiBase = (): string => apiManager.getCurrentBaseUrl().replace(/\/+$/, '');
+const apiBase = getApiBase;
 
 /** One-shot refetch via the /detail endpoint after a terminal close. */
 const refetch = async (): Promise<void> => {
   try {
-    const res = await fetch(`${apiBase()}/api/task/${encodeURIComponent(props.taskId)}/detail`, {
+    const res = await fetch(`${apiBase()}${taskPath(props.taskId, 'detail')}`, {
       headers: { 'Cache-Control': 'no-cache' },
     });
     if (!res.ok) return;

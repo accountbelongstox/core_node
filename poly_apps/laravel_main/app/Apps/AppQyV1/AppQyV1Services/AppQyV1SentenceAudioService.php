@@ -3,6 +3,8 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsEngineConfigModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsVariantSpecModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
 use App\Models\LangSentence;
@@ -31,7 +33,11 @@ use Illuminate\Support\Facades\Log;
  */
 class AppQyV1SentenceAudioService
 {
-    /** User-facing / book-reader priority bump (mirrors word-media front). */
+    /**
+     * Global-task fast-lane priority (global_tasks.priority lane only).
+     * Sentence-table bumps do NOT use this constant: tts_priority is a
+     * move-to-front ticket assigned by assignFrontTicket() (MAX+1).
+     */
     public const PRIORITY_FRONT = 100;
 
     /** Default backfill priority when no explicit bump occurred. */
@@ -51,6 +57,9 @@ class AppQyV1SentenceAudioService
      * .mp3 is the canonical write target; the rest are accepted on read.
      */
     public const AUDIO_EXTENSIONS = ['mp3', 'aac', 'm4a', 'wav'];
+
+    /** Per-instance memo of the sentence engine profile (one DB read per request). */
+    private ?array $sentenceEngineInfoCache = null;
 
     // ------------------------------------------------------------------
     // §6  Claim sentences needing audio (priority ordered)
@@ -78,13 +87,16 @@ class AppQyV1SentenceAudioService
         $pending = $this->pendingCount($language);
         $leased = $this->leasedCount($language);
 
-        // Summary-only mode for the Queue Center "Sentence Audio" strip.
+        // Summary-only mode for the Queue Center "Sentence Audio" strip. The
+        // `engine` block surfaces the qwen3tts-first sentence profile (preference
+        // only; pycore GPU-gates the actual selection).
         if ($limit <= 0) {
             return [
                 'count' => 0,
                 'pending' => $pending,
                 'leased' => $leased,
                 'lock_stale_minutes' => self::LOCK_STALE_MINUTES,
+                'engine' => $this->sentenceEngineInfo(),
                 'tasks' => [],
             ];
         }
@@ -111,8 +123,33 @@ class AppQyV1SentenceAudioService
             'pending' => $pending,
             'leased' => $leased,
             'lock_stale_minutes' => self::LOCK_STALE_MINUTES,
+            'engine' => $this->sentenceEngineInfo(),
             'tasks' => $tasks,
         ];
+    }
+
+    /**
+     * Declared sentence-audio engine profile carried on claim tasks / assist
+     * requests and surfaced by the Queue Center. qwen3tts-first (GPU) with a
+     * fallback chain. This is a PREFERENCE only — laravel never runs models;
+     * pycore's tts_orchestrator resolves the actual engine and is GPU-gated, so
+     * it falls back down the chain when qwen3tts is unavailable. Derived from the
+     * DB-driven engine config so an operator-disabled qwen3tts is honored.
+     *
+     * @return array{profile:string,primary:string,chain:array<int,string>,gpu_gated:bool}
+     */
+    public function sentenceEngineInfo(): array
+    {
+        if ($this->sentenceEngineInfoCache === null) {
+            $chain = AppQyV1TtsEngineConfigModel::sentenceEngineChain();
+            $this->sentenceEngineInfoCache = [
+                'profile' => AppQyV1TtsEngineConfigModel::SENTENCE_PROFILE,
+                'primary' => $chain[0] ?? AppQyV1TtsEngineConfigModel::SENTENCE_PRIMARY_DEFAULT,
+                'chain' => $chain,
+                'gpu_gated' => true,
+            ];
+        }
+        return $this->sentenceEngineInfoCache;
     }
 
     /**
@@ -242,6 +279,15 @@ class AppQyV1SentenceAudioService
             'language' => $lang,
             'audio_relative_path' => $lang . '/' . $contentId . '.mp3',
             'priority' => max(0, (int) ($sentence->tts_priority ?? 0)),
+            // Engine PREFERENCE for this lane: qwen3tts-first (GPU). pycore's
+            // orchestrator uses the "sentence" priority_profile and GPU-gates the
+            // real choice — this label never forces the engine. Memoized so a
+            // 50-task batch reads the engine config once.
+            'engine_profile' => $this->sentenceEngineInfo()['profile'],
+            'preferred_engine' => $this->sentenceEngineInfo()['primary'],
+            // Only the MISSING variants are handed out (file-first / cache-aware):
+            // a variant whose {lang}/{content_id}[_{key}].mp3 exists is never
+            // re-requested, matching pycore's per-variant sentence cache.
             'variants' => $variantList,
         ];
     }
@@ -540,8 +586,15 @@ class AppQyV1SentenceAudioService
     }
 
     /**
-     * Raise a sentence's audio priority (book-reader / manual retry). Optionally
-     * creates a deduped interactive global_task so the fast lane can claim it.
+     * Raise a sentence's audio priority (book-reader / manual retry) with a
+     * move-to-front ticket: the row gets tts_priority = MAX(tts_priority)+1 on
+     * its language table, so the newest bump sorts strictly ahead of everything
+     * while the relative order of unbumped rows is preserved (see
+     * assignFrontTicket). Optionally creates a deduped interactive global_task
+     * so the fast lane can claim it. After the DB write succeeds, a
+     * `sentence.priority` event carrying the REAL ticket is appended to the SSE
+     * outbox so pycore wakes immediately ($emitEvent=false defers that to a
+     * batch caller emitting ONE aggregate event instead of N singles).
      *
      * @return array{ok:bool,tts_priority?:int,task_id?:string,error?:string}
      */
@@ -550,7 +603,8 @@ class AppQyV1SentenceAudioService
         string $language,
         bool $createTask = true,
         bool $interactive = true,
-        ?string $text = null
+        ?string $text = null,
+        bool $emitEvent = true
     ): array {
         $language = AppQyV1TableMaps::normalizeLangCode($language);
         if ($language === '' || !$this->tableExists($language)) {
@@ -571,12 +625,20 @@ class AppQyV1SentenceAudioService
             return ['ok' => true, 'tts_priority' => (int) ($sentence->tts_priority ?? 0), 'already_done' => true];
         }
 
-        $sentence->tts_priority = self::PRIORITY_FRONT;
         $sentence->tts_requested_at = now();
         if ($sentence->tts_status !== 'processing') {
             $sentence->tts_status = 'pending';
         }
-        $sentence->save();
+        $ticket = $this->assignFrontTicket($sentence, $language);
+
+        if ($emitEvent) {
+            $this->emitPriorityEvent([
+                'content_id' => $contentId,
+                'language' => $language,
+                'priority' => $ticket,
+                'text' => (string) $sentence->text,
+            ]);
+        }
 
         $taskId = null;
         if ($createTask) {
@@ -607,6 +669,10 @@ class AppQyV1SentenceAudioService
                             'content_id' => $contentId,
                             'language' => $language,
                             'content' => (string) $sentence->text,
+                            // Engine preference carried to the sentence_audio assist
+                            // worker: qwen3tts-first (GPU), pycore GPU-gated fallback.
+                            'engine_profile' => $this->sentenceEngineInfo()['profile'],
+                            'preferred_engine' => $this->sentenceEngineInfo()['primary'],
                         ],
                         120,
                         self::PRIORITY_FRONT,
@@ -627,15 +693,120 @@ class AppQyV1SentenceAudioService
 
         return [
             'ok' => true,
-            'tts_priority' => self::PRIORITY_FRONT,
+            'tts_priority' => $ticket,
             'task_id' => $taskId,
         ];
     }
 
     /**
+     * Batch high-priority bump for the now-visible book-reader page (chapter
+     * switch). Each item is {text, language}; the content_id is derived from the
+     * text (MediaIngestService::computeContentId), rows are created on demand, and
+     * each row gets a move-to-front ticket (MAX+1 via bumpPriority) so the next
+     * pycore /sentence/claim (ordered tts_priority DESC) serves these sentences
+     * first — qwen3tts-first per the engine profile. No per-item GlobalTask is
+     * created (createTask=false): the priority-ordered claim already fronts them,
+     * and N fast tasks would be heavy. Per-item SSE events are suppressed; ONE
+     * aggregate `sentence.priority` event ({batch:true,count,languages}) is
+     * emitted after the loop so a page bump of hundreds of sentences does not
+     * flood the outbox.
+     *
+     * @param array<int,array{text?:string,language?:string}> $items
+     * @return array{ok:bool,queued:int,total:int}
+     */
+    public function bumpPriorityBatch(array $items, bool $interactive = true): array
+    {
+        $queued = 0;
+        $total = 0;
+        // Dedup by language:content_id so a repeated sentence bumps once.
+        $seen = [];
+        $bumpedLanguages = [];
+        foreach ($items as $item) {
+            $text = isset($item['text']) ? trim((string) $item['text']) : '';
+            $language = isset($item['language']) ? (string) $item['language'] : '';
+            if ($text === '' || $language === '') {
+                continue;
+            }
+            $contentId = MediaIngestService::computeContentId($text);
+            $dedupKey = $language . ':' . $contentId;
+            if (isset($seen[$dedupKey])) {
+                continue;
+            }
+            $seen[$dedupKey] = true;
+            $total++;
+            try {
+                $result = $this->bumpPriority($contentId, $language, false, $interactive, $text, false);
+                if (($result['ok'] ?? false) === true && !($result['already_done'] ?? false)) {
+                    $queued++;
+                    $bumpedLanguages[$language] = true;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('[SentenceAudio] batch bump item failed', [
+                    'language' => $language,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        if ($queued > 0) {
+            $this->emitPriorityEvent([
+                'batch' => true,
+                'count' => $queued,
+                'languages' => array_keys($bumpedLanguages),
+            ]);
+        }
+        return ['ok' => true, 'queued' => $queued, 'total' => $total];
+    }
+
+    /**
+     * Move-to-front ticket: atomically raise the sentence's tts_priority to
+     * MAX(tts_priority)+1 on its language table, so the newest bump sorts
+     * strictly ahead of every existing row while the relative order of all
+     * unbumped rows is preserved (the claim ordering needs no change). The
+     * MAX read is taken FOR UPDATE inside a transaction so two concurrent
+     * bumps cannot be assigned the same ticket; any attributes the caller
+     * already set on $sentence (tts_requested_at / tts_status) are persisted
+     * by the same save. Returns the assigned ticket.
+     */
+    private function assignFrontTicket(LangSentence $sentence, string $lang): int
+    {
+        return $sentence->getConnection()->transaction(function () use ($sentence) {
+            $sentence->save();
+            $table = $sentence->getTable();
+            $id = $sentence->id;
+            $sentence->getConnection()->statement(
+                "UPDATE {$table} SET tts_priority = (SELECT m FROM (SELECT COALESCE(MAX(tts_priority), 0) + 1 AS m FROM {$table}) x) WHERE id = ?",
+                [$id]
+            );
+            $sentence->refresh();
+            return (int) $sentence->tts_priority;
+        });
+    }
+
+    /**
+     * Append a `sentence.priority` event to the SSE outbox. Fully best-effort:
+     * any failure is swallowed so event emission can never break the bump flow.
+     *
+     * @param array<string,mixed> $payload
+     */
+    private function emitPriorityEvent(array $payload): void
+    {
+        try {
+            AppQyV1TranslationEventModel::emit('sentence.priority', $payload);
+        } catch (\Throwable $e) {
+            Log::warning('[SentenceAudio] sentence.priority emit failed', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
      * Paginated list of sentences missing audio (task-center / queue UI).
      *
-     * @return array{total:int,page:int,per_page:int,items:array<int,array<string,mixed>>}
+     * ``summary`` gives pycore's poller enough detail to explain an empty page:
+     * per-language SQL pending counts plus how many candidate rows were dropped
+     * because their audio files already exist on disk (stale flags reconciled).
+     *
+     * @return array{total:int,page:int,per_page:int,items:array<int,array<string,mixed>>,summary:array{languages:array<string,int>,reconciled:int}}
      */
     public function listMissing(?string $language, int $page, int $perPage): array
     {
@@ -643,12 +814,16 @@ class AppQyV1SentenceAudioService
         $perPage = max(1, min(100, $perPage));
         $items = [];
         $total = 0;
+        $langTotals = [];
+        $reconciled = 0;
 
         foreach ($this->languagesFor($language) as $lang) {
             if (!$this->tableExists($lang)) {
                 continue;
             }
-            $total += $this->pendingCountForLanguage($lang);
+            $langTotal = $this->pendingCountForLanguage($lang);
+            $langTotals[$lang] = $langTotal;
+            $total += $langTotal;
         }
 
         $skip = ($page - 1) * $perPage;
@@ -684,6 +859,7 @@ class AppQyV1SentenceAudioService
                 }
                 $this->reconcilePartialRow($row, $lang);
                 if (!$this->rowNeedsAudioWork($lang, $row)) {
+                    $reconciled++;
                     continue;
                 }
                 $missing = $this->missingVariantsForRow($lang, $row);
@@ -706,6 +882,10 @@ class AppQyV1SentenceAudioService
             'page' => $page,
             'per_page' => $perPage,
             'items' => $items,
+            'summary' => [
+                'languages' => $langTotals,
+                'reconciled' => $reconciled,
+            ],
         ];
     }
 

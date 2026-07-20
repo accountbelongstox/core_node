@@ -65,12 +65,21 @@ export interface WfNewSettings {
   wmPlaybackSpeed: number;
   /** Seconds of silence between words (default 0). */
   wmPlayInterval: number;
-  /** After a word plays, how many words later it is replayed (default 0 = immediate). */
+  /** After a word plays, how many words later it is replayed (default 1 = the
+   *  回跳/glimpse jump-back is active). */
   wmReplayGapWords: number;
   /** Replay speed multiplier (default 0.8). */
   wmReplaySpeed: number;
   /** Seconds of silence before a replay (default 0). */
   wmReplayInterval: number;
+  /** Practice-pack paged loader window: words fetched per page (clamp 1..100,
+   *  default 100). Mirrors the legacy dict-client per_words buffer size. */
+  wmPerPage: number;
+  /** Chosen SpeechSynthesisVoice.voiceURI for the recite speech fallback;
+   *  '' = auto (accent-matched). */
+  wmVoiceUri: string;
+  /** Larger word font on the practice surface (default off). */
+  wmLargeFont: boolean;
   // ---- review settings ----
   /** Max review cards per day. */
   reviewDailyLimit: number;
@@ -114,6 +123,12 @@ export interface WfNewSettings {
   readerBrowserTts: boolean;
   /** Per-language preferred sentence audio variant_key (book reader accent picker). */
   readerVariantByLang: Record<string, string>;
+  /** Word cards (显示单词卡片): read not-yet-recited Default Vocabulary Group
+   *  words found in each sentence aloud around the sentence audio.
+   *  ENGLISH ONLY — tokens are matched against English group words. */
+  readerWordCards: boolean;
+  /** Where the word-card words are read relative to the sentence audio. */
+  readerWordCardPosition: 'before' | 'after';
   /** ISO8601 stamp for last reader-settings cloud sync (merge guard). */
   readerSettingsUpdatedAt: string | null;
   // ---- user data ----
@@ -154,9 +169,12 @@ const makeDefaults = (): WfNewSettings => ({
   wmReadExplanation: false,
   wmPlaybackSpeed: 0.8,
   wmPlayInterval: 0,
-  wmReplayGapWords: 0,
+  wmReplayGapWords: 1,
   wmReplaySpeed: 0.8,
   wmReplayInterval: 0,
+  wmPerPage: 100,
+  wmVoiceUri: '',
+  wmLargeFont: false,
   // review settings
   reviewDailyLimit: 50,
   reviewOrder: 'due_first',
@@ -183,6 +201,8 @@ const makeDefaults = (): WfNewSettings => ({
   readerAutoPlayOnOpen: false,
   readerBrowserTts: true,
   readerVariantByLang: {},
+  readerWordCards: false,
+  readerWordCardPosition: 'before',
   readerSettingsUpdatedAt: null,
   favorites: [],
   streakDays: 8,

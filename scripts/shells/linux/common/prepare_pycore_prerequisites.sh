@@ -5,6 +5,22 @@
 # Prerequisite chain (after 13_ensure_python / venv):
 #   UI & system -> ffmpeg -> light pip -> OCR -> STT -> TTS -> neural TTS (opt-in) -> melotts (opt-in, last) -> device tools
 #
+# Install-time environment shielding (see development-guides/cross-docs/
+# TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7). Every installer is IDEMPOTENT and
+# self-REPAIRING, so re-running this whole sweep is always safe and heals drift:
+#   * Bucket A (deepseek/qwen25/nllb/bark): SHARE one pinned transformers
+#     ($LLM_TRANSFORMERS_SPEC) in the main interpreter — installed version-idempotently,
+#     NEVER --upgrade (that is the race that clobbers the shared pin).
+#   * Bucket B (qwen3tts, melotts, gptsovits): INCOMPATIBLE transformers pins are kept OUT
+#     of the main interpreter — each installs into a DEDICATED per-engine venv
+#     (qwen3tts via qwen3tts_venv.ensure_venv; melotts/gptsovits via isolated_venv.ensure_venv),
+#     built --system-site-packages so it reuses the system CUDA torch and self-rebuilds on a
+#     broken import; the pinned transformers never touches the shared interpreter. melotts and
+#     gptsovits keep an explicit --full opt-in only because the venv build + model download is
+#     heavy (an already-built venv is still maintained + self-repaired on every sweep).
+#   Sentinels (.deps_done / .model_installed) gate re-work; weight verification re-downloads
+#   incomplete files; a version-idempotent transformers install self-heals a clobbered pin.
+#
 # Usage:
 #   scripts/shells/linux/common/prepare_pycore_prerequisites.sh --python /usr/bin/python3
 #   scripts/shells/linux/common/prepare_pycore_prerequisites.sh --include whisper --whisper-model base

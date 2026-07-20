@@ -3,33 +3,38 @@
 """
 Qwen3-TTS Web UI tester (pycore-backed).
 
+qwen-tts hard-pins transformers==4.57.3, which conflicts with this (main)
+interpreter's transformers==4.46.x (parler-tts pin). So qwen-tts is NEVER imported
+here; the tester launches the official HTTP api server (qwen3tts_api_server.py) in
+the DEDICATED venv (pycore.pyutils.tts.qwen3tts_venv) and talks to it over HTTP via
+pycore.pyutils.tts.qwen3tts_service. The subprocess stdout (model loading) streams
+to this console, and every HTTP request/response is logged in full.
+
 Run with no arguments to open a local browser UI: upload or paste text from any
-file, synthesize speech via pycore.pyutils.tts, and play the result inline.
+file, synthesize speech through the isolated server, and play the result inline.
 
-Optional CLI diagnostics (backward compatible):
-  python qwen3tts_tester.py --import-only
-  python qwen3tts_tester.py --verify-weights
+Optional CLI diagnostics:
+  python qwen3tts_tester.py --import-only      # isolated venv availability
+  python qwen3tts_tester.py --verify-weights   # local weights integrity
+  python qwen3tts_tester.py --text "Hello" --lang en
   python qwen3tts_tester.py --engine --lang en
-  python qwen3tts_tester.py --batch-test --lang en
-  python qwen3tts_tester.py --batch-test --batch-size 8 --batch-items 16
+  python qwen3tts_tester.py --batch-test --lang en --batch-items 8
 
-Batch / parallel generation uses the official list API (non_streaming_mode=True).
-Max parallel is auto-tuned from GPU VRAM + utilization; override with --batch-size
-or env QWEN3TTS_MAX_PARALLEL. Docs:
+Batch / parallel generation uses the official list API (non_streaming_mode=True),
+auto-tuned server-side from GPU VRAM; override with --batch-size or env
+QWEN3TTS_MAX_PARALLEL. Docs:
   https://qwenlm-qwen3-tts.mintlify.app/guides/batch-processing
 """
 
 import argparse
-import importlib.util
+import base64
 import json
 import mimetypes
 import os
-import shutil
 import socket
 import sys
 import threading
 import time
-import traceback
 import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -43,7 +48,7 @@ AITOOLS_DIR = str(SCRIPT_DIR)
 PROJECT_ROOT_STR = str(PROJECT_ROOT)
 
 DEFAULT_TEXT_EN = "Hello! This is a Qwen3-TTS validation sample."
-DEFAULT_TEXT_ZH = "你好，这是 Qwen3 语音合成测试。"
+DEFAULT_TEXT_ZH = "Hello, this is a Qwen3-TTS validation sample for Chinese mode."
 
 WEB_HOST = "127.0.0.1"
 WEB_PORT_START = 18765
@@ -58,6 +63,8 @@ TEXT_FILE_SUFFIXES = {
 _jobs_lock = threading.Lock()
 _jobs: Dict[str, Dict[str, Any]] = {}
 _output_dir: Optional[Path] = None
+_service_lock = threading.Lock()
+_service: Any = None
 
 
 def _bootstrap_cache_env() -> None:
@@ -81,12 +88,42 @@ def _load_hf_secret():
     return ensure_hf_token
 
 
-def _load_qwen_tts():
-    try:
-        from qwen_tts import Qwen3TTSModel
-        return Qwen3TTSModel, True
-    except ImportError:
-        return None, False
+def _load_service_module():
+    _bootstrap_cache_env()
+    _ensure_project_paths()
+    from pycore.pyutils.tts import qwen3tts_service
+    return qwen3tts_service
+
+
+def _service_output(line: str) -> None:
+    """Stream a raw line from the isolated api-server subprocess to the console."""
+    print(f"[qwen3tts-server] {line}")
+
+
+def _service_log(msg: str) -> None:
+    print(msg)
+
+
+def _get_service():
+    """Lazily build the shared Qwen3-TTS service client (subprocess in isolated venv)."""
+    global _service
+    with _service_lock:
+        if _service is not None:
+            return _service
+        svc_mod = _load_service_module()
+        weights = _load_weights_module()
+        model_id = weights.resolve_model_id()
+        device = (os.environ.get("QWEN3TTS_DEVICE") or "").strip() or None
+        env_port = (os.environ.get("QWEN3TTS_PORT") or "").strip()
+        _service = svc_mod.Qwen3TtsService(
+            host=(os.environ.get("QWEN3TTS_HOST") or "127.0.0.1").strip() or "127.0.0.1",
+            port=int(env_port) if env_port.isdigit() else None,
+            model_id=model_id,
+            device=device,
+            on_output=_service_output,
+            log=_service_log,
+        )
+        return _service
 
 
 def _load_weights_module():
@@ -94,13 +131,6 @@ def _load_weights_module():
     _ensure_project_paths()
     from pycore.pyutils.tts import qwen3tts_weights
     return qwen3tts_weights
-
-
-def _load_engine_module():
-    _bootstrap_cache_env()
-    _ensure_project_paths()
-    from pycore.pyutils.tts import qwen3tts_engine
-    return qwen3tts_engine
 
 
 def _load_tts_params():
@@ -120,26 +150,6 @@ def _output_root() -> Path:
         root.mkdir(parents=True, exist_ok=True)
         _output_dir = root
     return _output_dir
-
-
-def _require_pytorch():
-    try:
-        import torch
-        return torch
-    except ImportError:
-        print("[ERROR] PyTorch (torch) is not installed in this Python environment.")
-        print("        Install torch first, then run this script again.")
-        print("        https://pytorch.org/get-started/locally/")
-        sys.exit(1)
-
-
-def _resolve_device(requested: str):
-    torch = _require_pytorch()
-    want = (requested or "auto").strip() or "auto"
-    if want != "auto":
-        return want, torch
-    dev = "cuda:0" if torch.cuda.is_available() else "cpu"
-    return dev, torch
 
 
 def _speaker_presets() -> Dict[str, List[str]]:
@@ -165,24 +175,27 @@ def _default_speaker(lang: str) -> str:
 
 
 def check_import(verbose: bool = True) -> bool:
-    spec_ok = False
-    try:
-        spec_ok = importlib.util.find_spec("qwen_tts") is not None
-    except Exception:
-        spec_ok = False
-
-    model_cls, import_ok = _load_qwen_tts()
+    """qwen-tts pins transformers==4.57.3 and cannot be imported in this (main)
+    interpreter, so readiness is the isolated venv, not an in-process import."""
+    _bootstrap_cache_env()
+    _ensure_project_paths()
+    from pycore.pyutils.tts import qwen3tts_venv
+    py = qwen3tts_venv.resolve_python()
+    ready = py is not None
 
     if verbose:
-        print("[CHECK] importlib.util.find_spec('qwen_tts'):", "OK" if spec_ok else "missing")
-        print("[CHECK] from qwen_tts import Qwen3TTSModel:", "OK" if import_ok else "ImportError")
-        if import_ok:
-            print(f"[CHECK] Qwen3TTSModel: {model_cls}")
+        print("[CHECK] isolated Qwen3-TTS venv:", "OK" if ready else "missing")
+        if ready:
+            print(f"[CHECK] venv python: {py}")
+            print(f"[CHECK] api server:  {_get_service().api_server_path()}")
         else:
-            print("[HINT]  pip install -U qwen-tts")
-            print("[HINT]  Or run Step61_InstallQwen3Tts.ps1 / 140_install_qwen3tts.sh")
+            print("[HINT]  qwen-tts requires transformers==4.57.3, which conflicts with")
+            print("[HINT]  the main interpreter's transformers==4.46.x (parler-tts pin).")
+            print("[HINT]  It runs in a DEDICATED venv - provision it with:")
+            print("[HINT]    scripts/shells/win/install_powershells/Step61_InstallQwen3Tts.ps1")
+            print("[HINT]    scripts/shells/linux/debian/install_shells/140_install_qwen3tts.sh")
 
-    return spec_ok and import_ok
+    return ready
 
 
 def _print_redownload_hints(model_id: str | None = None) -> None:
@@ -193,21 +206,31 @@ def _print_redownload_hints(model_id: str | None = None) -> None:
 
 
 def _engine_status() -> Dict[str, Any]:
-    engine = _load_engine_module()
+    svc_mod = _load_service_module()
     weights = _load_weights_module()
     params = _load_tts_params()
     model_id = weights.resolve_model_id()
-    device, torch = _resolve_device(os.environ.get("QWEN3TTS_DEVICE") or "auto")
     weights_ok, _, weight_detail = weights.audit_local_weights(verbose=False)
+    venv_ready = svc_mod.venv_ready()
+
+    svc = _get_service()
+    health = svc.health() if svc.port else None
+    server_running = health is not None
+    model_loaded = bool((health or {}).get("model_loaded"))
+    device = (health or {}).get("device") or (os.environ.get("QWEN3TTS_DEVICE") or "auto")
+    last_error = (health or {}).get("load_error")
+
     return {
-        "package_available": engine.available(),
-        "model_loaded": engine.is_model_loaded(),
+        "package_available": venv_ready,
+        "engine_available": venv_ready,
+        "server_running": server_running,
+        "model_loaded": model_loaded,
         "model_id": model_id,
         "device": device,
-        "cuda_available": bool(torch.cuda.is_available()),
+        "cuda_available": str(device).lower().startswith("cuda"),
         "weights_ok": weights_ok,
         "weights_detail": weight_detail,
-        "last_error": engine.last_synth_error(),
+        "last_error": last_error,
         "params": params,
         "speaker_presets": _speaker_presets(),
         "max_text_chars": MAX_TEXT_CHARS,
@@ -243,6 +266,43 @@ def _normalize_job_text(text: str, language: str) -> str:
     return DEFAULT_TEXT_EN
 
 
+def _generate_via_service(
+    text: str,
+    language: str,
+    speaker: str,
+    instruct: str,
+    output_wav: Path,
+) -> Tuple[bool, Optional[str]]:
+    """Synthesize through the isolated Qwen3-TTS api-server subprocess over HTTP and
+    write the returned WAV bytes. All HTTP request/response detail is logged by the
+    service; the model-loading process streams from the subprocess to the console."""
+    svc = _get_service()
+    if not svc.is_running():
+        if not svc.start(wait_healthy=True, timeout=180.0):
+            return False, "Qwen3-TTS isolated api server failed to start (see console log)."
+
+    lang_code = (language or "en").strip().lower()[:2]
+    picked_speaker = (speaker or "").strip() or _default_speaker(lang_code)
+    ok, audio, meta = svc.synthesize(
+        text=text,
+        language=language or "en",
+        speaker=picked_speaker,
+        instruct=instruct,
+        fmt="wav",
+    )
+    if not ok or not audio:
+        err_text = str(meta.get("error") or "Qwen3-TTS synthesis failed")
+        if "incomplete metadata" in err_text.lower() or "safetensor" in err_text.lower():
+            _print_redownload_hints()
+        return False, err_text
+
+    output_wav.parent.mkdir(parents=True, exist_ok=True)
+    output_wav.write_bytes(audio)
+    if output_wav.exists() and output_wav.stat().st_size > 0:
+        return True, None
+    return False, "Qwen3-TTS wrote an empty audio file"
+
+
 def _run_synthesis_job(
     job_id: str,
     text: str,
@@ -262,20 +322,18 @@ def _run_synthesis_job(
     _ensure_project_paths()
     _load_hf_secret()()
 
-    from pycore.pyutils.tts.tts_orchestrator import tts_test
-
     sample = _normalize_job_text(text, language)
     out_dir = _output_root()
     stamp = int(time.time() * 1000)
-    out_path = out_dir / f"qwen3tts_{stamp}_{job_id[:8]}.mp3"
+    out_path = out_dir / f"qwen3tts_{stamp}_{job_id[:8]}.wav"
 
     t0 = time.monotonic()
-    result = tts_test(
-        engine="qwen3tts",
-        text=sample,
-        language=language or "en",
-        speaker=(speaker or "").strip() or None,
-        instruct=(instruct or "").strip() or None,
+    ok, error = _generate_via_service(
+        sample,
+        language or "en",
+        speaker,
+        instruct,
+        out_path,
     )
     elapsed_ms = round((time.monotonic() - t0) * 1000)
 
@@ -291,19 +349,15 @@ def _run_synthesis_job(
         job["source_name"] = source_name or "textarea"
         job["finished_at"] = time.time()
 
-        if result.get("success") and result.get("path"):
-            src = Path(str(result["path"]))
-            if src.exists() and src.stat().st_size > 0:
-                if src.resolve() != out_path.resolve():
-                    shutil.copy2(src, out_path)
-                job["status"] = "done"
-                job["audio_name"] = out_path.name
-                job["bytes"] = out_path.stat().st_size
-                job["error"] = None
-                return
+        if ok:
+            job["status"] = "done"
+            job["audio_name"] = out_path.name
+            job["bytes"] = out_path.stat().st_size
+            job["error"] = None
+            return
 
         job["status"] = "error"
-        job["error"] = result.get("error") or "Synthesis failed"
+        job["error"] = error or "Synthesis failed"
         job["audio_name"] = None
         job["bytes"] = 0
 
@@ -545,7 +599,8 @@ def _html_page(status: Dict[str, Any]) -> str:
     function renderStatus() {{
       const row = document.getElementById("statusRow");
       row.innerHTML = [
-        pill(STATUS.package_available, STATUS.package_available ? "qwen-tts OK" : "qwen-tts missing"),
+        pill(STATUS.package_available, STATUS.package_available ? "venv OK" : "venv missing"),
+        pill(STATUS.server_running, STATUS.server_running ? "server up" : "server down"),
         pill(STATUS.weights_ok, STATUS.weights_ok ? "weights OK" : "weights check"),
         pill(STATUS.model_loaded, STATUS.model_loaded ? "model loaded" : "model idle"),
         pill(STATUS.cuda_available, STATUS.cuda_available ? "CUDA" : "CPU"),
@@ -846,18 +901,31 @@ def run_web_ui(host: str = WEB_HOST, port: Optional[int] = None, open_browser: b
     chosen_port = port or _pick_port(host, WEB_PORT_START, WEB_PORT_TRIES)
     httpd = ThreadingHTTPServer((host, chosen_port), Qwen3TtsWebHandler)
     url = f"http://{host}:{chosen_port}/"
+    svc = _get_service()
 
     print()
     print("[INFO] Qwen3-TTS Web UI (pycore)")
     print(f"[INFO] URL: {url}")
     print(f"[INFO] Output dir: {_output_root()}")
-    status = _engine_status()
-    print(f"[INFO] Package: {'OK' if status['package_available'] else 'missing'}")
-    print(f"[INFO] Model:   {status['model_id']} ({status['device']})")
-    if status.get("long_wait"):
-        print("[INFO] First synthesis may take 2-5 minutes while weights load.")
+    weights = _load_weights_module()
+    from pycore.pyutils.tts import qwen3tts_venv as _qv
+    print(f"[INFO] Model:   {weights.resolve_model_id()}")
+    print(f"[INFO] Venv:    {_qv.venv_dir()} "
+          f"({'ready' if _qv.venv_ready() else 'will build with --system-site-packages on start'})")
+    print("[INFO] Starting isolated Qwen3-TTS api server (model loading streams below)...")
     print("[INFO] Press Ctrl+C to stop.")
     print()
+
+    started = svc.start(wait_healthy=True, timeout=180.0)
+    if started:
+        # Warm the model now so the loading process is visible before the first synth.
+        threading.Thread(
+            target=lambda: svc.load_model(timeout=1800.0),
+            name="Qwen3TtsWarmup",
+            daemon=True,
+        ).start()
+    else:
+        print("[WARN] Isolated api server did not start; synthesis will report the reason.")
 
     if open_browser:
         threading.Thread(
@@ -873,6 +941,7 @@ def run_web_ui(host: str = WEB_HOST, port: Optional[int] = None, open_browser: b
         print("[INFO] Stopping web UI.")
     finally:
         httpd.server_close()
+        svc.stop()
 
 
 def test_synthesis(
@@ -882,99 +951,58 @@ def test_synthesis(
     device: str = "auto",
     output_wav: Path | None = None,
 ) -> bool:
+    """Single-shot CLI synthesis through the isolated api-server subprocess."""
     if not check_import(verbose=True):
         return False
 
     weights = _load_weights_module()
     _load_hf_secret()()
 
-    model_cls, _ = _load_qwen_tts()
-    if model_cls is None:
-        return False
-
-    dev, torch = _resolve_device(device)
     model_id = (model_name or "").strip() or weights.resolve_model_id()
-    local_path = Path(model_id)
-    if local_path.is_dir():
-        ok, _, _ = weights.audit_local_weights(verbose=True)
-        if not ok:
-            fallback = weights.sentinel_model_id(weights.staging_dir()) or weights.resolve_model_id()
-            print(f"[WARN] Falling back to Hugging Face repo id: {fallback}")
-            model_id = fallback
-
     sample_text = (text or "").strip()
     if not sample_text:
         sample_text = DEFAULT_TEXT_ZH if lang.lower().startswith("zh") else DEFAULT_TEXT_EN
 
-    lang_map = {
-        "en": "English",
-        "zh": "Chinese",
-        "ja": "Japanese",
-        "ko": "Korean",
-    }
-    speaker_map = {
-        "en": "Ryan",
-        "zh": "Vivian",
-        "ja": "Ono_Anna",
-        "ko": "Sohee",
-    }
     lang_code = (lang or "en").strip().lower()[:2]
-    qwen_language = lang_map.get(lang_code, "Auto")
-    speaker = (os.environ.get("QWEN3TTS_SPEAKER") or "").strip() or speaker_map.get(lang_code, "Ryan")
+    speaker = (os.environ.get("QWEN3TTS_SPEAKER") or "").strip() or _default_speaker(lang_code)
     instruct = (os.environ.get("QWEN3TTS_INSTRUCT") or "").strip()
-
     out_path = output_wav or (Path.cwd() / "qwen3tts_test.wav")
-    dtype = torch.float32 if dev == "cpu" else torch.bfloat16
+
+    svc = _get_service()
+    if (model_name or "").strip():
+        svc.model_id = model_name.strip()
+    if device and device.strip().lower() != "auto":
+        svc.device = device.strip()
 
     print()
-    print(f"[INFO] Model:   {model_id}")
-    print(f"[INFO] Device:  {dev}")
-    print(f"[INFO] Lang:    {qwen_language} (speaker={speaker})")
+    print(f"[INFO] Model:   {svc.model_id or model_id}")
+    print(f"[INFO] Device:  {svc.device or 'auto'}")
+    print(f"[INFO] Lang:    {lang} (speaker={speaker})")
     print(f"[INFO] Text:    {sample_text}")
     print(f"[INFO] Output:  {out_path}")
+    if instruct:
+        print(f"[INFO] Instruct: {instruct}")
     print()
 
-    try:
-        print("[RUN] Loading Qwen3TTSModel...")
-        kwargs = {"device_map": dev, "dtype": dtype}
-        try:
-            model = model_cls.from_pretrained(model_id, **kwargs)
-        except TypeError:
-            kwargs.pop("dtype", None)
-            model = model_cls.from_pretrained(model_id, **kwargs)
-        print("[OK] Model loaded")
+    print("[RUN] Starting isolated api server (model loading streams below)...")
+    if not svc.start(wait_healthy=True, timeout=180.0):
+        print("[ERROR] Isolated Qwen3-TTS api server failed to start.")
+        return False
 
-        gen_kwargs = {
-            "text": sample_text,
-            "language": qwen_language,
-            "speaker": speaker,
-        }
-        if instruct:
-            gen_kwargs["instruct"] = instruct
-            print(f"[INFO] Instruct: {instruct}")
+    print("[RUN] Generating speech...")
+    ok, error = _generate_via_service(sample_text, lang, speaker, instruct, out_path)
+    svc.stop()
 
-        print("[RUN] Generating speech...")
-        wavs, sr = model.generate_custom_voice(**gen_kwargs)
-
-        import soundfile as sf
-
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        sf.write(str(out_path), wavs[0], int(sr))
-        print(f"[OK] Wrote {out_path} ({int(sr)} Hz)")
-
+    if ok:
+        print(f"[OK] Wrote {out_path}")
         print()
         print("[SUCCESS] ========================================")
         print("[SUCCESS]   Qwen3-TTS synthesis test passed")
         print("[SUCCESS] ========================================")
         return True
 
-    except Exception as exc:
-        print(f"[ERROR] Synthesis test failed: {exc}")
-        err_text = str(exc).lower()
-        if "incomplete metadata" in err_text or "safetensor" in err_text:
-            _print_redownload_hints(model_id if "/" in model_id else None)
-        traceback.print_exc()
-        return False
+    print(f"[ERROR] Synthesis test failed: {error}")
+    return False
 
 
 def test_batch(
@@ -985,57 +1013,64 @@ def test_batch(
     batch_items: int | None = None,
     output_dir: Path | None = None,
 ) -> bool:
-    """Official batch API throughput test with GPU-aware max parallel."""
+    """Batch / parallel synthesis via the isolated api server (/synthesize_batch).
+    Max parallel is auto-tuned server-side from GPU VRAM; override with --batch-size
+    (forwarded as QWEN3TTS_MAX_PARALLEL) or env."""
     if not check_import(verbose=True):
         return False
 
-    from qwen3tts_batch import run_batch_test
-
     weights = _load_weights_module()
     _load_hf_secret()()
-
-    model_cls, _ = _load_qwen_tts()
-    if model_cls is None:
-        return False
-
-    dev, torch = _resolve_device(device)
     model_id = (model_name or "").strip() or weights.resolve_model_id()
-    local_path = Path(model_id)
-    if local_path.is_dir():
-        ok, _, _ = weights.audit_local_weights(verbose=True)
-        if not ok:
-            fallback = weights.sentinel_model_id(weights.staging_dir()) or weights.resolve_model_id()
-            print(f"[WARN] Falling back to Hugging Face repo id: {fallback}")
-            model_id = fallback
 
-    dtype = torch.float32 if dev == "cpu" else torch.bfloat16
+    lang_code = (lang or "en").strip().lower()[:2]
+    n = batch_items if (batch_items and batch_items > 0) else max(4, (batch_size or 4))
+    combos = [("us", "female"), ("uk", "female"), ("us", "male"), ("uk", "male")]
+    variants = [
+        {"key": f"v{i}", "accent": combos[i % len(combos)][0], "gender": combos[i % len(combos)][1]}
+        for i in range(n)
+    ]
+    sample_text = DEFAULT_TEXT_ZH if lang_code == "zh" else DEFAULT_TEXT_EN
     out_dir = output_dir or (Path.cwd() / "qwen3tts_batch_out")
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    try:
-        ok, report = run_batch_test(
-            model_cls=model_cls,
-            model_id=model_id,
-            device=dev,
-            dtype=dtype,
-            lang=lang,
-            batch_size=batch_size,
-            item_count=batch_items,
-            output_dir=out_dir,
-        )
-        if not ok:
-            err = report.get("error") or "batch test failed"
-            print(f"[ERROR] {err}")
-            return False
-        return True
-    except Exception as exc:
-        print(f"[ERROR] Batch test failed: {exc}")
-        err_text = str(exc).lower()
-        if "out of memory" in err_text or "cuda" in err_text:
-            print("[HINT] Reduce --batch-size or use the 0.6B model on smaller GPUs.")
-        if "incomplete metadata" in err_text or "safetensor" in err_text:
-            _print_redownload_hints(model_id if "/" in model_id else None)
-        traceback.print_exc()
+    svc = _get_service()
+    if (model_name or "").strip():
+        svc.model_id = model_name.strip()
+    if device and device.strip().lower() != "auto":
+        svc.device = device.strip()
+    if batch_size and batch_size > 0:
+        os.environ["QWEN3TTS_MAX_PARALLEL"] = str(batch_size)
+
+    print()
+    print(f"[INFO] Model:    {svc.model_id or model_id}")
+    print(f"[INFO] Variants: {n}")
+    print(f"[INFO] Output:   {out_dir}")
+    print()
+    print("[RUN] Starting isolated api server (model loading streams below)...")
+    if not svc.start(wait_healthy=True, timeout=180.0):
+        print("[ERROR] Isolated Qwen3-TTS api server failed to start.")
         return False
+
+    ok, results, meta = svc.synthesize_batch(sample_text, lang, variants, fmt="wav")
+    svc.stop()
+    if not ok:
+        print(f"[ERROR] Batch test failed: {meta.get('error')}")
+        return False
+
+    written = 0
+    for item in results:
+        if not item or not item.get("ok") or not item.get("audio_base64"):
+            print(f"[WARN] variant {(item or {}).get('key', '?')} failed: {(item or {}).get('error')}")
+            continue
+        data = base64.b64decode(item["audio_base64"])
+        dest = out_dir / f"qwen3tts_batch_{item['key']}.wav"
+        dest.write_bytes(data)
+        written += 1
+        print(f"[OK] {dest} ({len(data)} bytes)")
+
+    print(f"[INFO] Batch done in {meta.get('elapsed_ms')} ms; {written}/{n} written")
+    return written > 0
 
 
 def test_engine(
@@ -1043,39 +1078,44 @@ def test_engine(
     lang: str = "en",
     output_mp3: Path | None = None,
 ) -> bool:
+    """Synthesis through the isolated api server, matching what the pycore engine
+    resolves to (qwen-tts cannot be imported in this interpreter)."""
     if not check_import(verbose=True):
         return False
 
-    _bootstrap_cache_env()
-    _ensure_project_paths()
-    _load_hf_secret()()
+    sample_text = (text or DEFAULT_TEXT_EN).strip()
+    out_path = output_mp3 or (Path.cwd() / "qwen3tts_engine_test.wav")
+    fmt = "wav" if out_path.suffix.lower() == ".wav" else "mp3"
+    lang_code = (lang or "en").strip().lower()[:2]
+    speaker = (os.environ.get("QWEN3TTS_SPEAKER") or "").strip() or _default_speaker(lang_code)
+    instruct = (os.environ.get("QWEN3TTS_INSTRUCT") or "").strip()
 
-    try:
-        from pycore.pyutils.tts import qwen3tts_engine
-    except Exception as exc:
-        print(f"[ERROR] Failed to import pycore qwen3tts_engine: {exc}")
-        traceback.print_exc()
+    svc = _get_service()
+    print()
+    print(f"[INFO] Isolated venv ready: {_load_service_module().venv_ready()}")
+    print(f"[INFO] Text:   {sample_text}")
+    print(f"[INFO] Output: {out_path} (format={fmt})")
+    if fmt == "mp3":
+        print("[INFO] mp3 output needs ffmpeg in the venv; use a .wav output to avoid it.")
+    print()
+
+    print("[RUN] Starting isolated api server (model loading streams below)...")
+    if not svc.start(wait_healthy=True, timeout=180.0):
+        print("[ERROR] Isolated Qwen3-TTS api server failed to start.")
         return False
 
-    sample_text = (text or DEFAULT_TEXT_EN).strip()
-    out_path = output_mp3 or (Path.cwd() / "qwen3tts_engine_test.mp3")
-
-    print()
-    print(f"[INFO] Engine available(): {qwen3tts_engine.available()}")
-    print(f"[INFO] Text:   {sample_text}")
-    print(f"[INFO] Output: {out_path}")
-    print()
-
-    ok = qwen3tts_engine.synthesize(sample_text, lang, out_path)
-    if ok:
-        print(f"[OK] Engine wrote {out_path}")
-        print("[SUCCESS] pycore qwen3tts_engine synthesis passed")
+    ok, audio, meta = svc.synthesize(sample_text, lang, speaker, instruct, fmt=fmt)
+    svc.stop()
+    if ok and audio:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_bytes(audio)
+        print(f"[OK] Engine wrote {out_path} ({len(audio)} bytes)")
+        print("[SUCCESS] Qwen3-TTS (isolated) synthesis passed")
         return True
 
-    err = qwen3tts_engine.last_synth_error()
-    print(f"[ERROR] Engine synthesis failed: {err or 'unknown error'}")
-    err_text = (err or "").lower()
-    if "incomplete metadata" in err_text or "safetensor" in err_text:
+    err = str(meta.get("error") or "unknown error")
+    print(f"[ERROR] Engine synthesis failed: {err}")
+    if "incomplete metadata" in err.lower() or "safetensor" in err.lower():
         _print_redownload_hints()
     return False
 
@@ -1085,7 +1125,7 @@ def main() -> None:
     parser.add_argument(
         "--import-only",
         action="store_true",
-        help="Only check qwen_tts import availability",
+        help="Only check the isolated Qwen3-TTS venv availability",
     )
     parser.add_argument(
         "--verify-weights",
@@ -1095,12 +1135,12 @@ def main() -> None:
     parser.add_argument(
         "--engine",
         action="store_true",
-        help="Run synthesis via pycore.pyutils.tts.qwen3tts_engine",
+        help="Synthesize via the isolated api server (what the pycore engine resolves to)",
     )
     parser.add_argument(
         "--batch-test",
         action="store_true",
-        help="Run official batch/parallel API test (list inputs, non_streaming_mode=True)",
+        help="Run batch/parallel synthesis via the isolated api server (/synthesize_batch)",
     )
     parser.add_argument(
         "--batch-size",
@@ -1121,7 +1161,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         default=None,
-        help="Output path (.wav for direct test, .mp3 for --engine)",
+        help="Output path; .wav (no ffmpeg) or .mp3 (needs ffmpeg in the venv)",
     )
     parser.add_argument("--port", type=int, default=None, help="Web UI port (default: auto)")
     parser.add_argument("--no-browser", action="store_true", help="Do not open a browser tab")

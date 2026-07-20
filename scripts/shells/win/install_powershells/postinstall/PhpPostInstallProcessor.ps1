@@ -131,6 +131,7 @@ function Configure-PhpIniForPackage {
 
     $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
     $phpConfigScriptPath = Join-Path $parentDir "1_phpconfig\configure_php_ini.php"
+    $phpIniDepsFixPath = Join-Path $parentDir "1_phpconfig\fix_php_ini_deps.php"
 
     if (-not (Test-Path $phpConfigScriptPath)) {
         Write-Host "$LogPrefix Error: configure_php_ini.php not found at $phpConfigScriptPath" -ForegroundColor Red
@@ -144,6 +145,27 @@ function Configure-PhpIniForPackage {
     }
     catch {
         Write-Host "$LogPrefix Error running configure_php_ini.php: $($_.Exception.Message)" -ForegroundColor Red
+    }
+
+    # Idempotent php.ini dependency + duplicate-load cleanup, run right after
+    # configure_php_ini.php so the rest of Step16 (Composer/Swoole spawn PHP
+    # subprocesses) does not log "Module <ext> already loaded". Comments out
+    # auto-dep extensions (pgsql, auto-loaded by pdo_pgsql) and deduplicates
+    # same-extension lines in different Windows forms (extension=pdo_pgsql vs
+    # extension=php_pdo_pgsql.dll - both resolve to the same DLL). No-op when
+    # the ini is already clean. Best-effort: never blocks the step.
+    if (Test-Path $phpIniDepsFixPath) {
+        try {
+            Write-Host "$LogPrefix Running fix_php_ini_deps.php (idempotent ini cleanup)..." -ForegroundColor Yellow
+            & $PhpExePath $phpIniDepsFixPath | Out-Null
+            Write-Host "$LogPrefix php.ini dependency/duplicate cleanup completed" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "$LogPrefix Warning: fix_php_ini_deps.php reported an error: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+    else {
+        Write-Host "$LogPrefix Warning: fix_php_ini_deps.php not found at $phpIniDepsFixPath" -ForegroundColor Yellow
     }
 }
 

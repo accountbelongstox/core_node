@@ -22,6 +22,7 @@ import {
   clampRecheckInterval,
 } from '../../health/OfflineRecheckScheduler';
 import { rewritePycoreEndpoint } from './pycoreTarget';
+import { isWsConnected } from './PycoreWs';
 
 export interface PycoreHealthState {
   /** null until the first check finishes. */
@@ -68,15 +69,23 @@ export function checkPycoreNow(): Promise<boolean> {
   inFlight = (async () => {
     const start = performance.now();
     let up = false;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), PYCORE_HEALTH_DEFAULTS.timeout);
-    try {
-      const response = await fetch(rewritePycoreEndpoint('/ping'), { signal: controller.signal });
-      up = response.ok;
-    } catch {
-      up = false;
-    } finally {
-      clearTimeout(timeoutId);
+    // WS liveness IS reachability: when the RPC bus is connected, pycore is up, so
+    // health rides the WS transport with no HTTP probe. Only when WS is NOT
+    // connected do we fall back to a one-shot HTTP /ping (you cannot probe over a
+    // socket that isn't open) to detect recovery.
+    if (isWsConnected()) {
+      up = true;
+    } else {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), PYCORE_HEALTH_DEFAULTS.timeout);
+      try {
+        const response = await fetch(rewritePycoreEndpoint('/ping'), { signal: controller.signal });
+        up = response.ok;
+      } catch {
+        up = false;
+      } finally {
+        clearTimeout(timeoutId);
+      }
     }
     lastState = {
       up,

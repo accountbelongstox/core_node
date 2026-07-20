@@ -569,6 +569,19 @@ export const wfNewApiHttp: WfNewApi = {
     return { success: !!(res?.success ?? res?.ok), task_id: res?.task_id ?? null };
   },
 
+  async prioritizeSentenceAudio(items: { text: string; language: string }[]) {
+    const clean = (items || []).filter((it) => it && it.text?.trim() && it.language);
+    if (!clean.length) return { success: true, queued: 0 };
+    const res = await postJSON<any>(WfNewApiPaths.sentenceAudioBumpBatch, {
+      items: clean.map((it) => ({ text: it.text, language: it.language })),
+      interactive: true,
+    });
+    return {
+      success: !!(res?.success ?? res?.ok),
+      queued: Number(res?.queued ?? res?.data?.queued ?? 0) || 0,
+    };
+  },
+
   async getBookReadingProgress(sourceKey: string) {
     if (!authToken) return null;
     try {
@@ -689,6 +702,40 @@ export const wfNewApiHttp: WfNewApi = {
       already_linked: !!(data?.already_linked),
       words_added: Number(data?.words_added ?? 0),
       total_words_in_library: Number(data?.total_words_in_library ?? 0),
+    };
+  },
+
+  async previewAddLibraryToDefaultGroup(libraryId) {
+    const groupsRes = await authedGetJSON<any>(WfNewApiPaths.queryAllGroups, null);
+    const all: any[] = asArray(groupsRes, 'groups');
+    const def = all.find((g: any) => g.gname === 'Default Vocabulary Group');
+    if (!def) throw new Error('Default Vocabulary Group not found');
+    const res = await postJSON<any>(WfNewApiPaths.groupPreviewAddLibrary, {
+      gid: String(def.gid),
+      library_id: Number(libraryId),
+    });
+    const data = unwrapEnvelope(res) ?? res;
+    const sb: any = data?.status_breakdown ?? {};
+    return {
+      gid: String(data?.gid ?? def.gid),
+      library_id: Number(data?.library_id ?? libraryId),
+      library_name: data?.library_name ?? '',
+      already_linked: !!(data?.already_linked),
+      current_in_group: Number(data?.current_in_group ?? 0),
+      library_total: Number(data?.library_total ?? 0),
+      to_add: Number(data?.to_add ?? 0),
+      projected_total: Number(data?.projected_total ?? 0),
+      duplicates: Array.isArray(data?.duplicates)
+        ? data.duplicates.map((d: any) => ({ word_id: Number(d?.word_id), word: String(d?.word ?? '') }))
+        : [],
+      duplicates_count: Number(data?.duplicates_count ?? 0),
+      language_match: data?.language_match !== false,
+      status_breakdown: {
+        read: Number(sb?.read ?? 0),
+        memorized: Number(sb?.memorized ?? 0),
+        due: Number(sb?.due ?? 0),
+        total: Number(sb?.total ?? 0),
+      },
     };
   },
 };

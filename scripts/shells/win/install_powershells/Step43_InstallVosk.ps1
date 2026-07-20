@@ -141,6 +141,7 @@ while (-not $complete -and $attempt -lt 6) {
         & curl.exe -L -C - --retry 2 --connect-timeout 30 --progress-bar -o $archivePath $modelUrl
         $ErrorActionPreference = $prevEAP
     } else {
+        Write-Host "$SCRIPT_INDEX [!] curl.exe missing; fallback download cannot resume." -ForegroundColor DarkYellow
         $ProgressPreference = 'Continue'
         try { Invoke-WebRequest -Uri $modelUrl -OutFile $archivePath -UseBasicParsing -ErrorAction Stop } catch { }
     }
@@ -160,17 +161,17 @@ if (-not $complete) {
 
 Write-Host "$SCRIPT_INDEX [..] extracting model ..." -ForegroundColor Yellow
 try {
-    if (Test-Path $tmpExtract) { Remove-Item -Recurse -Force $tmpExtract -ErrorAction SilentlyContinue }
+    if (Test-Path $tmpExtract) { Backup-InstallAssetPath -Path $tmpExtract -Prefix $SCRIPT_INDEX | Out-Null }
     New-Item -ItemType Directory -Force -Path $tmpExtract | Out-Null
     Expand-Archive -Path $archivePath -DestinationPath $tmpExtract -Force
     $inner = Get-ChildItem -Path $tmpExtract -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
     $src = if ($inner) { $inner.FullName } else { $tmpExtract }
-    if (Test-Path $modelDir) { Remove-Item -Recurse -Force $modelDir -ErrorAction SilentlyContinue }
+    if (Test-Path $modelDir) { Backup-InstallAssetPath -Path $modelDir -Prefix $SCRIPT_INDEX | Out-Null }
     Move-Item -Path $src -Destination $modelDir -Force
-    Remove-Item -Recurse -Force $tmpExtract -ErrorAction SilentlyContinue
+    Backup-InstallAssetPath -Path $tmpExtract -Prefix $SCRIPT_INDEX | Out-Null
 } catch {
     Write-Host ("$SCRIPT_INDEX [!] extract failed ({0}); .zip KEPT to RESUME next run." -f $_.Exception.Message) -ForegroundColor DarkYellow
-    Remove-Item -Recurse -Force $tmpExtract -ErrorAction SilentlyContinue
+    if (Test-Path $tmpExtract) { Backup-InstallAssetPath -Path $tmpExtract -Prefix $SCRIPT_INDEX | Out-Null }
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('vosk')
 }
 

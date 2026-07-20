@@ -44,6 +44,7 @@ type SubTab = 'plaza' | 'post' | 'gallery' | 'video' | 'live' | 'partners' | 'ch
 
 import { relativeTime, presenceClass } from '../components/social/socialPresence';
 import { WfNewSocialChat } from '../components/social/WfNewSocialChat';
+import { WfNewUserProfileModal } from '../components/social/WfNewUserProfileModal';
 
 
 export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast, trans, currentUser, onRequireAuth }) => {
@@ -245,9 +246,10 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
       .catch(() => addToast(trans('social.sendFailed'), 'warning'));
   }, [draft, selectedConvId, addToast, trans]);
 
-  // Partners → "Message": open/create the conversation and jump to Chat.
-  const handleMessageUser = useCallback((user: WfNewDiscoverUser) => {
-    wfNewApi.openConversation(user.id)
+  // Open/create the conversation with a user (by id) and jump to Chat. Shared by
+  // the partner-card "Message" button, the peer header and the profile modal.
+  const openConversationWithUser = useCallback((userId: number) => {
+    wfNewApi.openConversation(userId)
       .then(conv => {
         setConversations(prev => (prev.some(c => c.id === conv.id) ? prev.map(c => (c.id === conv.id ? conv : c)) : [conv, ...prev]));
         setActiveSubTab('chat');
@@ -255,6 +257,13 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
       })
       .catch(() => addToast(trans('social.sendFailed'), 'warning'));
   }, [openConversation, addToast, trans]);
+
+  // Partners → "Message": open/create the conversation and jump to Chat.
+  const handleMessageUser = useCallback((user: WfNewDiscoverUser) => openConversationWithUser(user.id), [openConversationWithUser]);
+
+  // ---- Public user-profile modal (opened by user id from cards / chat peers) --
+  const [profileUserId, setProfileUserId] = useState<number | null>(null);
+  const openProfile = useCallback((id: number) => { if (Number.isFinite(id)) setProfileUserId(id); }, []);
 
   // ------------------------------------------------------- LEADERBOARD -------
   const [leaderboard, setLeaderboard] = useState<WfNewLeaderboardEntry[]>([]);
@@ -578,7 +587,11 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                       className="p-5 rounded-2xl bg-white/3 border border-white/5 hover:border-white/10 transition-all flex flex-col justify-between space-y-4"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          onClick={() => openProfile(user.id)}
+                          title={trans('social.profile.viewProfile')}
+                          className="group flex items-center gap-3 min-w-0 cursor-pointer"
+                        >
                           <div className="relative">
                             <div className="w-11 h-11 rounded-full bg-zinc-800 flex items-center justify-center text-xl select-none overflow-hidden">
                               {/^https?:/i.test(user.avatar)
@@ -588,7 +601,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                             <span className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-950 ${presenceClass(presence[user.id] || user.presence)}`} />
                           </div>
                           <div className="min-w-0">
-                            <h4 className="text-sm font-black text-slate-200 truncate">{user.nickname}</h4>
+                            <h4 className="text-sm font-black text-slate-200 truncate group-hover:text-indigo-300 transition-colors">{user.nickname}</h4>
                             <p className="text-[10px] text-indigo-400 font-mono">
                               <span className="uppercase text-slate-300 font-bold">{user.native_language}</span>
                               {' → '}
@@ -659,6 +672,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
             draft={draft}
             setDraft={setDraft}
             setActiveSubTab={(t) => setActiveSubTab(t as SubTab)}
+            onOpenProfile={openProfile}
           />
         )}
 
@@ -749,6 +763,18 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
           </div>
         )}
       </div>
+
+      {/* Read-only public profile overlay (opened by user id from partner cards
+          + chat peer headers). Portaled, so tree placement here is fine. */}
+      <WfNewUserProfileModal
+        userId={profileUserId}
+        onClose={() => setProfileUserId(null)}
+        trans={trans}
+        addToast={addToast}
+        isLoggedIn={isLoggedIn}
+        requireAuth={requireAuth}
+        onMessage={openConversationWithUser}
+      />
     </div>
   );
 };

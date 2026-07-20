@@ -10,6 +10,7 @@ Endpoints (prefix /api/local/word-tts):
 
 import fastapi
 from pydantic import BaseModel
+from typing import Optional
 
 from pycore.callmodule.services import get_tts_queue_poller_service
 from pycore.callmodule.services.word_tts_auto import apply_auto_start, get_status
@@ -19,6 +20,8 @@ router = fastapi.APIRouter(prefix="/api/local/word-tts", tags=["Local Processing
 
 class WordTtsConfigRequest(BaseModel):
     auto_start: bool
+    # Optional worker fan-out override; None = leave unchanged, 0 = recommended.
+    concurrency: Optional[int] = None
 
 
 @router.get("/status")
@@ -28,7 +31,7 @@ def status():
 
 @router.post("/config")
 def config(req: WordTtsConfigRequest):
-    return apply_auto_start(bool(req.auto_start))
+    return apply_auto_start(bool(req.auto_start), concurrency=req.concurrency)
 
 
 @router.post("/run-once")

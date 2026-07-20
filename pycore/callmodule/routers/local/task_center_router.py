@@ -217,11 +217,17 @@ def _remote_queue_section() -> Dict[str, Any]:
     """
     snapshot = _monitor().get_snapshot(refresh=False)
     worker_status = _worker().get_status()
+    # Snapshot age in seconds, derived from the monitor's age_ms (the queue
+    # monitor exposes age_ms; sentence_queue_monitor exposes snapshot_age_s) so
+    # the hub can judge staleness without triangulating timestamps.
+    age_ms = snapshot.get("age_ms")
+    snapshot_age_s = round(age_ms / 1000.0, 1) if isinstance(age_ms, (int, float)) else None
 
     return {
         "laravel_reachable": snapshot.get("laravel_reachable", False),
         "laravel_endpoint": get_laravel_endpoint_manager().peek_stored_base_url(),
         "laravel_active_endpoint": get_laravel_endpoint_manager().get_active_base_url(),
+        "laravel_snapshot_age_s": snapshot_age_s,
         "ws_connected": snapshot.get("ws_connected", False),
         "summary": snapshot.get("summary", {}),
         "age_ms": snapshot.get("age_ms"),

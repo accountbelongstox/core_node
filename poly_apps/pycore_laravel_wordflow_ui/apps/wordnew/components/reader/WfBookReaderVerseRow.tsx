@@ -86,7 +86,11 @@ export const WfBookReaderVerseRow: React.FC<WfBookReaderVerseRowProps> = ({
         >
           {text || <span className="text-zinc-700/70 italic select-none" aria-hidden="true">{' '}</span>}
         </p>
-        <div className="shrink-0 flex flex-col items-end gap-0.5">
+        <div
+          className="shrink-0 flex flex-col items-end gap-0.5"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
           {pickerVariants.length > 1 && onVariantSelect ? (
             <WfAudioVariantPicker
               variants={pickerVariants}
@@ -104,8 +108,13 @@ export const WfBookReaderVerseRow: React.FC<WfBookReaderVerseRowProps> = ({
               : state === 'queued' ? trans('reader.audioQueued')
                 : trans('reader.retryAudio')}
           onClick={() => {
-            if (state === 'ready' || state === 'playing') onPlay(v, lang);
-            else if (text?.trim()) onRetryAudio(v, lang, text);
+            if (!text?.trim()) return;
+            // A tap always plays this language: the playback engine bumps missing
+            // audio and falls back to browser TTS, so the icon is never a dead end.
+            // When no clip is ready yet, also kick a server-side (re)generation so
+            // the cell still surfaces its queued/processing status.
+            onPlay(v, lang);
+            if (state !== 'ready' && state !== 'playing') onRetryAudio(v, lang, text);
           }}
           className={state === 'ready' || state === 'playing' ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}
         />
@@ -147,7 +156,7 @@ export const WfBookReaderVerseRow: React.FC<WfBookReaderVerseRowProps> = ({
           </span>
           {v.book && <span className="text-[8px] font-mono uppercase text-zinc-600 max-w-12 truncate">{v.book}</span>}
         </div>
-        <div className="min-w-0 flex-1" role="group" aria-label={trans('reader.verseContent')} onClick={(e) => e.stopPropagation()}>
+        <div className="min-w-0 flex-1" role="group" aria-label={trans('reader.verseContent')}>
           {displayMode === 'interleaved' ? (
             <div className="space-y-0">
               {orderedDisplayLangs.map((lang, li) => renderCell(lang, li, true))}

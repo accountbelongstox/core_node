@@ -11,12 +11,13 @@
 import type { ITaskProcessor, ProcessorConfig, ProcessorStatus } from '../ITaskProcessor';
 import type { WorkerCapability } from '../../../api/WorkerApiClient';
 import { wordValidityWebWorkerService } from '../../word-validity-web-worker-service';
+import { LANES } from '@/utils/task-center-lanes';
 
 class WordValidityWebProcessor implements ITaskProcessor {
-  readonly processorType = 'word_validity_web';
+  readonly processorType = LANES.WORD_VALIDITY_WEB;
   readonly processorName = 'Word-Validity Web';
 
-  readonly processorTypes: string[] = ['remote_validity'];
+  readonly processorTypes: string[] = [LANES.REMOTE_VALIDITY];
   readonly capabilities: WorkerCapability[] = [];
   readonly concurrency = 1;
 

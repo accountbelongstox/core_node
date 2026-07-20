@@ -8,6 +8,8 @@ import { apiManager } from '@/services/ApiManager';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
 import { formatTimestamp } from '@/utils/time-helpers';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { BING_DICT_MSG } from '@/common/message-types';
 import { readJson, writeJson } from './useCacheStore';
 
 const LOG = 'Bing Client';
@@ -141,7 +143,7 @@ export function useBingDictionaryClient() {
     queueOverview.value.error = '';
     try {
       const resp = await chrome.runtime.sendMessage({
-        type: 'bing_dictionary_worker_service',
+        type: BING_DICT_MSG,
         action: 'queue_overview',
         config: clientConfig.value,
         status: 'pending',
@@ -178,7 +180,7 @@ export function useBingDictionaryClient() {
 
   const toggleClientMode = async () => {
     clientMode.value = !clientMode.value;
-    await chrome.storage.local.set({ bing_dictionary_client_mode: clientMode.value });
+    await chrome.storage.local.set({ [STORAGE_KEYS.BING_DICTIONARY_CLIENT_MODE]: clientMode.value });
 
     if (clientMode.value) {
       await loadClientConfig();
@@ -241,7 +243,7 @@ export function useBingDictionaryClient() {
       if (!clientService.value.isRunning) return;
       try {
         await chrome.runtime.sendMessage({
-          type: 'bing_dictionary_worker_service',
+          type: BING_DICT_MSG,
           action: 'update_config',
           config: clientConfig.value,
         });
@@ -260,7 +262,7 @@ export function useBingDictionaryClient() {
     connectionStatus.value = { state: 'testing', message: 'Testing…' };
     try {
       const response = await chrome.runtime.sendMessage({
-        type: 'bing_dictionary_worker_service',
+        type: BING_DICT_MSG,
         action: 'test_connection',
         config: clientConfig.value,
         mode: 'worker',
@@ -292,7 +294,7 @@ export function useBingDictionaryClient() {
     testResults.value = [];
     try {
       const response = await chrome.runtime.sendMessage({
-        type: 'bing_dictionary_worker_service',
+        type: BING_DICT_MSG,
         action: 'test_scrape',
         words,
         config: clientConfig.value,
@@ -329,7 +331,7 @@ export function useBingDictionaryClient() {
 
   const saveClientConfig = async () => {
     try {
-      await chrome.storage.local.set({ bing_dictionary_client_config: clientConfig.value });
+      await chrome.storage.local.set({ [STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG]: clientConfig.value });
       logger.debug(LOG, 'Client config saved');
     } catch (err) {
       logger.error(LOG, 'Failed to save client config', err);
@@ -338,9 +340,9 @@ export function useBingDictionaryClient() {
 
   const loadClientConfig = async () => {
     try {
-      const result = await chrome.storage.local.get('bing_dictionary_client_config');
-      if (result.bing_dictionary_client_config) {
-        clientConfig.value = { ...clientConfig.value, ...result.bing_dictionary_client_config };
+      const result = await chrome.storage.local.get(STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG);
+      if (result[STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG]) {
+        clientConfig.value = { ...clientConfig.value, ...result[STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG] };
       }
     } catch (err) {
       logger.error(LOG, 'Failed to load client config', err);
@@ -364,7 +366,7 @@ export function useBingDictionaryClient() {
       // Worker service is the only path aligned with laravel_main's /api/worker/*.
       if (clientService.value.isRunning) {
         const resp = await chrome.runtime.sendMessage({
-          type: 'bing_dictionary_worker_service',
+          type: BING_DICT_MSG,
           action: 'stop',
           config: clientConfig.value,
         });
@@ -386,7 +388,7 @@ export function useBingDictionaryClient() {
 
       // Step 2: confirmed — start crawling per settings.
       const resp = await chrome.runtime.sendMessage({
-        type: 'bing_dictionary_worker_service',
+        type: BING_DICT_MSG,
         action: 'start',
         config: clientConfig.value,
       });
@@ -406,7 +408,7 @@ export function useBingDictionaryClient() {
   const loadClientServiceState = async () => {
     try {
       const response = await chrome.runtime.sendMessage({
-        type: 'bing_dictionary_worker_service',
+        type: BING_DICT_MSG,
         action: 'get_status',
       });
 
@@ -435,9 +437,9 @@ export function useBingDictionaryClient() {
   };
 
   const initialize = async () => {
-    const result = await chrome.storage.local.get('bing_dictionary_client_mode');
-    if (result.bing_dictionary_client_mode) {
-      clientMode.value = result.bing_dictionary_client_mode;
+    const result = await chrome.storage.local.get(STORAGE_KEYS.BING_DICTIONARY_CLIENT_MODE);
+    if (result[STORAGE_KEYS.BING_DICTIONARY_CLIENT_MODE]) {
+      clientMode.value = result[STORAGE_KEYS.BING_DICTIONARY_CLIENT_MODE];
       await loadClientConfig();
       await loadClientServiceState();
       if (clientMode.value) {

@@ -46,13 +46,15 @@ interface WfNewSocialChatProps {
   draft: string;
   setDraft: (v: string) => void;
   setActiveSubTab: (tab: string) => void;
+  /** Open the public profile of a user by id (peer header → profile modal). */
+  onOpenProfile?: (userId: number) => void;
 }
 
 export const WfNewSocialChat: React.FC<WfNewSocialChatProps> = (props) => {
   const {
     trans, convLoading, conversations, selectedConvId, presence,
     openConversation, selectedConv, messagesLoading, messages,
-    handleSend, draft, setDraft, setActiveSubTab,
+    handleSend, draft, setDraft, setActiveSubTab, onOpenProfile,
   } = props;
   return (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[550px]">
@@ -114,7 +116,11 @@ export const WfNewSocialChat: React.FC<WfNewSocialChatProps> = (props) => {
             <div className="lg:col-span-3 rounded-2xl bg-slate-950/40 border border-white/5 flex flex-col overflow-hidden max-h-full">
               {selectedConv ? (
                 <>
-                  <div className="p-4 bg-white/3 border-b border-white/5 flex items-center gap-3">
+                  <div
+                    onClick={() => { const pid = selectedConv.peer?.id; if (onOpenProfile && typeof pid === 'number') onOpenProfile(pid); }}
+                    title={onOpenProfile ? trans('social.profile.viewProfile') : undefined}
+                    className={`group p-4 bg-white/3 border-b border-white/5 flex items-center gap-3 ${onOpenProfile ? 'cursor-pointer' : ''}`}
+                  >
                     <div className="relative">
                       <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center text-sm select-none overflow-hidden">
                         {/^https?:/i.test(selectedConv.peer?.avatar || '')
@@ -124,7 +130,7 @@ export const WfNewSocialChat: React.FC<WfNewSocialChatProps> = (props) => {
                       <span className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-slate-950 ${presenceClass(presence[selectedConv.peer?.id] || selectedConv.peer?.presence)}`} />
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold text-slate-200">{selectedConv.peer?.nickname}</h4>
+                      <h4 className="text-xs font-bold text-slate-200 group-hover:text-indigo-300 transition-colors">{selectedConv.peer?.nickname}</h4>
                       <p className="text-[10px] text-zinc-500 font-mono">
                         {trans('social.status.' + (presence[selectedConv.peer?.id] || selectedConv.peer?.presence || 'offline'))}
                       </p>

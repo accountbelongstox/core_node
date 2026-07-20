@@ -81,6 +81,10 @@ Route::prefix($apiVersionPrefix)->middleware(['custom.authenticate'])->group(fun
         Route::post('/live/{id}/chat', [AppQyV1LiveController::class, 'sendChat'])->whereNumber('id');
 
         // ---- Per-user real-time SSE (scoped to the authenticated user) ----
-        Route::get('/stream', [AppQyV1SocialStreamController::class, 'stream']);
+        // EventSource cannot send an Authorization header, so this route reads the
+        // Sanctum token from the ?token= query param inside the controller
+        // (resolveUserFromQueryToken). It must bypass the bearer-only
+        // custom.authenticate middleware, otherwise every logged-in client 401s.
+        Route::get('/stream', [AppQyV1SocialStreamController::class, 'stream'])->withoutMiddleware('custom.authenticate');
     });
 });

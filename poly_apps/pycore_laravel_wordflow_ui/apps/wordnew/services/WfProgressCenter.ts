@@ -227,6 +227,31 @@ class WfProgressCenterClass {
   }
 
   /**
+   * Report ONE word's read event with its play_time (POST /group/update_progress
+   * { gid, word_id, action: 'read', play_time }). Used by the recite loop to
+   * submit per-word play time so the Default Vocabulary Group's progress map
+   * accumulates read/reread duration (the §5.5 word mapping table). Mirrors
+   * reportAnswers: drops the held blob + broadcasts 'learning-stats-updated'.
+   * Rethrows on failure (callers wrap fire-and-forget).
+   */
+  async reportReadWithPlayTime(
+    gid: string | undefined,
+    wordId: string | number,
+    playTimeSeconds: number,
+  ): Promise<any> {
+    const payload: { gid?: string; word_id: string | number; action: 'read'; play_time: number } = {
+      word_id: wordId,
+      action: 'read',
+      play_time: playTimeSeconds,
+    };
+    if (gid) payload.gid = gid;
+    const result = await wordflowApi.updateGroupProgress(payload);
+    this.invalidate(gid);
+    wfEventBus.emit('learning-stats-updated', { gid, read: 1 });
+    return result;
+  }
+
+  /**
    * Subscribe to 'learning-stats-updated' (any reported answer — single via
    * wfLearningStatsCenter.reportAnswer or batch via reportAnswers). Returns an
    * unsubscribe function.

@@ -167,11 +167,16 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
     if (!r || r.error || r.success === false) {
       return null;
     }
+    // media.enrich forwards Laravel's ApiResponse envelope {success, data:{...}}
+    // unchanged (the WS layer resolves the raw result). The counts live under
+    // `data`; read them there, falling back to the top level for a flat/legacy
+    // shape. Reading r.* directly yielded undefined -> 0 -> instant "completed".
+    const d = (r && typeof r.data === 'object' && r.data) ? r.data : r;
     return {
-      processed: Number(r.processed ?? 0),
-      enriched: Number(r.enriched ?? 0),
-      remaining: Number(r.remaining ?? 0),
-      errors: Array.isArray(r.errors) ? r.errors.map((e: any) => (typeof e === 'string' ? e : JSON.stringify(e))) : [],
+      processed: Number(d.processed ?? 0),
+      enriched: Number(d.enriched ?? 0),
+      remaining: Number(d.remaining ?? 0),
+      errors: Array.isArray(d.errors) ? d.errors.map((e: any) => (typeof e === 'string' ? e : JSON.stringify(e))) : [],
     };
   }, []);
 

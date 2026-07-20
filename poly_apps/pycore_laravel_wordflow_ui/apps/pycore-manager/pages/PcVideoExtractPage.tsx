@@ -164,7 +164,7 @@ const PcMoviePosterStrip: React.FC = () => {
   const [testResult, setTestResult] = useState<PosterTestResponse | null>(null);
   const [testErr, setTestErr] = useState<string | null>(null);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const load = useCallback(async () => {
     setLoading(true);

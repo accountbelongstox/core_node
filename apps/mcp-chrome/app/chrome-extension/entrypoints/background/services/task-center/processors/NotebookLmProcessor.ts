@@ -9,12 +9,13 @@
 import type { ITaskProcessor, ProcessorConfig, ProcessorStatus } from '../ITaskProcessor';
 import type { WorkerCapability } from '../../../api/WorkerApiClient';
 import { notebookLmWorkerService } from '../../notebooklm-worker-service';
+import { LANES } from '@/utils/task-center-lanes';
 
 class NotebookLmProcessor implements ITaskProcessor {
-  readonly processorType = 'remote_notebooklm';
+  readonly processorType = LANES.REMOTE_NOTEBOOKLM;
   readonly processorName = 'NotebookLM';
 
-  readonly processorTypes: string[] = ['remote_notebooklm'];
+  readonly processorTypes: string[] = [LANES.REMOTE_NOTEBOOKLM];
   readonly capabilities: WorkerCapability[] = [];
   readonly concurrency = 1;
 

@@ -12,7 +12,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services.sync.laravel_endpoint_manager import resolve_laravel_base_url
 from pycore.callmodule.services.queue_bump_hub import get_queue_bump_hub
 
@@ -45,6 +45,10 @@ class SentenceQueueMonitorService:
         self._snapshot_ts = 0.0
         self._laravel_reachable = False
         self._unreachable_warned = False
+        self._last_logged_shape: Optional[Tuple[int, int]] = None
+        # Non-reentrant guard: the fetch runs on its own daemon thread so the
+        # heartbeat thread never blocks on network I/O (up to _HTTP_TIMEOUT).
+        self._poll_running = False
         self._initialized = True
 
     @staticmethod
@@ -63,24 +67,25 @@ class SentenceQueueMonitorService:
     def _base_url(self) -> str:
         return (resolve_laravel_base_url() or "").rstrip("/")
 
-    def _requests(self):
-        return get_third_package_requests()
-
     def _fetch_missing(self) -> Optional[Dict[str, Any]]:
         base = self._base_url()
         if not base:
             return None
         try:
-            resp = self._requests().get(
-                base + _MISSING_PATH,
+            resp = get_laravel_client().get(
+                _MISSING_PATH,
+                base_url=base,
                 params={"page": 1, "per_page": _POLL_LIMIT},
                 timeout=_HTTP_TIMEOUT,
             )
         except Exception as exc:  # noqa: BLE001
             if not self._unreachable_warned:
                 self._unreachable_warned = True
+                # Name the exact Laravel base (:9000) that was probed so this can
+                # never be mistaken for the code-sync peer mesh (pycore :59000).
                 ColorPrint.yellow(
-                    f"[SentenceQueueMonitor] Laravel unreachable ({exc}); polling quietly."
+                    f"[SentenceQueueMonitor] Laravel backend ({base}) unreachable "
+                    f"({exc}); polling quietly."
                 )
             return None
         if resp.status_code != 200:
@@ -136,7 +141,27 @@ class SentenceQueueMonitorService:
         return out
 
     def poll_once(self) -> None:
-        """Heartbeat callback — fetch missing rows, detect bumps, cache snapshot."""
+        """Heartbeat callback — LIGHT: spawn the fetch on a daemon thread and
+        return immediately; skip when the previous poll is still running. The
+        heartbeat thread never blocks on network I/O (mirrors the worker's
+        supervise pattern)."""
+        with self._lock:
+            if self._poll_running:
+                return
+            self._poll_running = True
+        try:
+            threading.Thread(
+                target=self._poll_worker,
+                daemon=True,
+                name="sentence-queue-monitor-poll",
+            ).start()
+        except Exception as exc:  # noqa: BLE001 — never raise into heartbeat
+            with self._lock:
+                self._poll_running = False
+            ColorPrint.red(f"[SentenceQueueMonitor] poll_once error: {exc}")
+
+    def _poll_worker(self) -> None:
+        """Background poll: fetch missing rows, detect bumps, cache snapshot."""
         try:
             body = self._fetch_missing()
             if body is None:
@@ -145,11 +170,24 @@ class SentenceQueueMonitorService:
                 return
             items = list(body.get("items") or [])
             total = int(body.get("total") or len(items))
+            summary = body.get("summary") if isinstance(body.get("summary"), dict) else None
+            shape = (total, len(items))
+            if shape != self._last_logged_shape:
+                # Log only on CHANGE (every poll is 5s — a per-poll line would
+                # flood the terminal). This is the answer to "the 200s return
+                # nothing?": total/items counts from the response body itself.
+                detail = f" summary={summary}" if summary else ""
+                ColorPrint.cyan(
+                    f"[SentenceQueueMonitor] missing: total={total} "
+                    f"items={len(items)} (page 1, per_page {_POLL_LIMIT}){detail}"
+                )
+                self._last_logged_shape = shape
             with self._lock:
                 self._apply_bump_detection(items)
                 self._snapshot = {
                     "items": self._decorate_items(items),
                     "total": total,
+                    "summary": summary,
                     "reachable": True,
                 }
                 self._snapshot_ts = time.monotonic()
@@ -161,6 +199,9 @@ class SentenceQueueMonitorService:
                 self._unreachable_warned = False
         except Exception as exc:  # noqa: BLE001
             ColorPrint.red(f"[SentenceQueueMonitor] poll_once error: {exc}")
+        finally:
+            with self._lock:
+                self._poll_running = False
 
     def get_snapshot(self) -> Dict[str, Any]:
         with self._lock:

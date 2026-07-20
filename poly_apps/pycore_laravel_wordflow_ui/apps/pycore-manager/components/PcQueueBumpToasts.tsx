@@ -1,39 +1,73 @@
 /**
  * PcQueueBumpToasts — cross-lane priority bump notifications (translation, sentence, …).
+ * Primary channel: WS `queue_bump` events (instant). The 4s getQueueBumps poll
+ * stays as a fallback; both paths dedupe through the same seenRef.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Zap, X } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi, subscribe, connectPycoreWs } from '../../../core/api-libs/pycore';
 import type { QueueBumpEvent } from '../../../core/api-libs/pycore/pycoreTypes';
 
 const POLL_MS = 4000;
 const DISMISS_MS = 12000;
 
+/** Defensively normalize a WS payload into QueueBumpEvent shape. */
+const normalizeWsEvent = (d: any): QueueBumpEvent => ({
+  lane: String(d?.lane ?? 'queue'),
+  item_id: String(d?.item_id ?? d?.id ?? ''),
+  label: String(d?.label ?? d?.text ?? ''),
+  old_priority: d?.old_priority ?? '?',
+  new_priority: d?.new_priority ?? d?.priority ?? '?',
+  at: typeof d?.at === 'number' ? d.at : undefined,
+  meta: d?.meta && typeof d.meta === 'object' ? d.meta : undefined,
+});
+
 export const PcQueueBumpToasts: React.FC = () => {
   const [toasts, setToasts] = useState<QueueBumpEvent[]>([]);
   const seenRef = useRef<Set<string>>(new Set());
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
+  const pushEvents = useCallback((events: QueueBumpEvent[]) => {
+    if (!mounted.current || !events.length) return;
+    const fresh: QueueBumpEvent[] = [];
+    for (const ev of events) {
+      const key = `${ev.at ?? 0}:${ev.lane}:${ev.item_id}:${ev.new_priority}`;
+      if (seenRef.current.has(key)) continue;
+      seenRef.current.add(key);
+      fresh.push(ev);
+    }
+    if (!fresh.length) return;
+    setToasts((prev) => [...fresh.slice(0, 5), ...prev].slice(0, 8));
+    window.setTimeout(() => {
+      if (!mounted.current) return;
+      setToasts((prev) => prev.filter((t) => !fresh.includes(t)));
+    }, DISMISS_MS);
+  }, []);
+
+  // Instant channel: pycore broadcasts one `queue_bump` WS event per bump record.
+  useEffect(() => {
+    connectPycoreWs();
+    const off = subscribe('queue_bump', (data: any) => {
+      const list: any[] = Array.isArray(data) ? data
+        : Array.isArray(data?.events) ? data.events
+        : data ? [data] : [];
+      const events = list
+        .map(normalizeWsEvent)
+        .filter((ev) => ev.item_id !== '' || ev.label !== '');
+      pushEvents(events);
+    });
+    return () => { off(); };
+  }, [pushEvents]);
+
+  // Fallback: poll the bump hub snapshot (covers WS-down / reconnect gaps).
   const poll = useCallback(async () => {
     try {
       const r = await pycoreApi.getQueueBumps(20);
       if (!mounted.current || !r?.events?.length) return;
-      const fresh: QueueBumpEvent[] = [];
-      for (const ev of r.events) {
-        const key = `${ev.at}:${ev.lane}:${ev.item_id}:${ev.new_priority}`;
-        if (seenRef.current.has(key)) continue;
-        seenRef.current.add(key);
-        fresh.push(ev);
-      }
-      if (!fresh.length) return;
-      setToasts((prev) => [...fresh.slice(0, 5), ...prev].slice(0, 8));
-      window.setTimeout(() => {
-        if (!mounted.current) return;
-        setToasts((prev) => prev.filter((t) => !fresh.includes(t)));
-      }, DISMISS_MS);
+      pushEvents(r.events);
     } catch { /* ignore */ }
-  }, []);
+  }, [pushEvents]);
 
   useEffect(() => {
     void poll();

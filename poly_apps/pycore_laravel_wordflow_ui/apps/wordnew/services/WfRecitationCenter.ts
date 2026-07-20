@@ -184,7 +184,15 @@ class WfRecitationCenterClass {
         } satisfies WfRecitationUpdate);
         return;
       }
-      // Real failure (auth / validation / server error): keep the events for
+      // Auth failure is terminal, not transient: the token is missing/invalid
+      // and every retry will 401 again, so drop the batch instead of re-queueing
+      // it (the recite loop keeps feeding events — re-queueing floods the API).
+      const status = (error as { status?: number } | null)?.status;
+      if (status === 401 || status === 403) {
+        console.warn('[WfRecitationCenter] log flush dropped (unauthenticated)');
+        return;
+      }
+      // Real failure (validation / server error): keep the events for
       // the next flush so a transient failure never silently drops progress.
       console.error('[WfRecitationCenter] log flush failed:', error);
       this.pending.unshift(...words);

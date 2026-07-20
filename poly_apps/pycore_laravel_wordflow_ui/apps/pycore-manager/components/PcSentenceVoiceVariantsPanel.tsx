@@ -51,7 +51,7 @@ export const PcSentenceVoiceVariantsPanel: React.FC<{ lang?: string }> = ({
   const [err, setErr] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const load = useCallback(async (l: string) => {
     setLoading(true);

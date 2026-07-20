@@ -14,6 +14,7 @@
  */
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
+import { LANES } from '@/utils/task-center-lanes';
 import { chatgptWebTool } from '../tools/browser/chatgpt-web';
 import { geminiWebTool } from '../tools/browser/gemini-web';
 import { getPreferredProvider } from '../tools/browser/ai-web-common';
@@ -44,7 +45,7 @@ class PromptTranslateWebWorkerService extends SimpleWorkerBase {
 
   // prompt_translation tasks are dispatched as execution_type remote_translation.
   protected get baseProcessorTypes(): ProcessorType[] {
-    return ['remote_translation'] as unknown as ProcessorType[];
+    return [LANES.REMOTE_TRANSLATION] as unknown as ProcessorType[];
   }
 
   protected get workerLabel(): string {

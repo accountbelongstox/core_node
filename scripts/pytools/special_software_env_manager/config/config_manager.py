@@ -84,6 +84,67 @@ class ConfigManager:
                     'Enabled': False
                 }
             },
+            'Kimi Code CLI': {
+                'Common': 'kimi',
+                'DisplayName': 'Kimi Code CLI',
+                'CommandPrefix': 'kimi',
+                'WindowsCommand': 'kimi',
+                'LinuxCommand': 'kimi',
+                'Variables': [
+                    {
+                        'Name': 'KIMI_API_KEY',
+                        'Description': 'Kimi Code API Key (from Kimi Code Console)',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'KIMI_BASE_URL',
+                        'Description': 'Kimi Coding Base URL (ignored: relay URLs are blocked by upstream WAF, always uses official endpoint)',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'KIMI_MODEL',
+                        'Description': 'Kimi model (optional, e.g. k3, kimi-for-coding); empty = k3 (latest)',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
+            },
+            'Ark CLI': {
+                'Common': 'ark',
+                'DisplayName': 'Ark CLI (Volcano Ark / GLM)',
+                'CommandPrefix': 'ark',
+                'WindowsCommand': 'arkcli',
+                'LinuxCommand': 'arkcli',
+                'UseV4Launcher': True,
+                'Variables': [
+                    {
+                        'Name': 'ARK_API_KEY',
+                        'Description': 'Volcano Ark API Key. Reuses the key stored by the Volcano Ark encrypted-constant config. Kept for secret-slot discovery only - the native arkcli launcher authenticates via "arkcli auth login" and does NOT read this key (no ANTHROPIC_* env mapping).',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'ARK_BASE_URL',
+                        'Description': 'Ark endpoint (optional). Shared with claudevolc.ps1 / the Volcano Ark config; NOT read by the native arkcli launcher (arkcli owns its endpoint via auth).',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'ANTHROPIC_MODEL',
+                        'Description': 'Model id (optional). NOT read by the native arkcli launcher - arkcli selects the model via "arkcli helper" / auth profile.',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
+            },
             'SSH Connection': {
                 'Common': 'ssh',
                 'DisplayName': 'SSH Connection',

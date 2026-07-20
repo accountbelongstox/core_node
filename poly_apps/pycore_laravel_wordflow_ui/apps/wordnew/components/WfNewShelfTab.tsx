@@ -66,6 +66,9 @@ import { WfNewHomeDashboard } from './WfNewHomeDashboard';
 import { WfNewOnboarding } from '../pages/WfNewOnboarding';
 import { WfNewNavLogo } from './WfNewNavLogo';
 import { WfNewNotificationBell } from './WfNewNotificationBell';
+// Ported dictionary-study experience (recite loop / flashcards / review / stats)
+// for the Default Vocabulary Group deep-dive. See ./study + docs/设计文档.md.
+import { WfNewGroupStudyPanel } from './study/WfNewGroupStudyPanel';
 
 interface WfNewShelfTabProps {
   activeTheme: ElementTheme; trans: (k: string, r?: Record<string, string|number>) => string;
@@ -79,7 +82,7 @@ interface WfNewShelfTabProps {
 }
 
 export const WfNewShelfTab: React.FC<WfNewShelfTabProps> = (props) => {
-  const { activeTheme, trans, lang, gGroups, selectedCourse, courseWords, favorites, setSelectedCourse, setCourseWords, setSelectedPracticeGroup, setActiveTab, selectBookCourse, startModePractice, handleToggleFavorite, playPhoneticSpeech, setSelectedWordDetail } = props;
+  const { activeTheme, trans, lang, gGroups, selectedCourse, courseWords, favorites, setSelectedCourse, setCourseWords, setSelectedPracticeGroup, selectBookCourse, handleToggleFavorite, playPhoneticSpeech, setSelectedWordDetail } = props;
   return (
     <>
               {!selectedCourse ? (
@@ -96,7 +99,7 @@ export const WfNewShelfTab: React.FC<WfNewShelfTabProps> = (props) => {
                         group={g}
                         theme={activeTheme}
                         onClick={() => selectBookCourse(g)}
-                        lang={shellLang}
+                        lang={lang}
                         trans={trans}
                       />
                     ))}
@@ -121,82 +124,28 @@ export const WfNewShelfTab: React.FC<WfNewShelfTabProps> = (props) => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Course Overview */}
-                    <div className="space-y-4">
-                      <div className={`p-6 rounded-3xl ${activeTheme.cardClass} space-y-4`}>
-                        <span className="text-[10px] font-mono font-bold uppercase tracking-widest bg-indigo-500/10 text-indigo-400 px-2.5 py-1 rounded">
-                          {trans('detail.syllabus')}
-                        </span>
-                        
-                        <p className="text-xs text-zinc-400 leading-relaxed font-mono">
-                          {selectedCourse.description || trans('home.courseDescFallback')}
-                        </p>
-
-                        <div className="pt-2 border-t border-white/5 grid grid-cols-2 gap-3 text-center">
-                          <div className="p-3 bg-white/5 rounded-xl">
-                            <p className="text-xl font-bold font-mono">{selectedCourse.count}</p>
-                            <span className="text-[9px] uppercase font-mono text-zinc-500">Lexemes</span>
-                          </div>
-                          <div className="p-3 bg-white/5 rounded-xl">
-                            <p className="text-xl font-bold font-mono">~4 days</p>
-                            <span className="text-[9px] uppercase font-mono text-zinc-500">Repetitions</span>
-                          </div>
-                        </div>
-
-                        {/* Controls */}
-                        <div className="space-y-2 pt-2">
-                          <button
-                            onClick={() => {
-                              setSelectedPracticeGroup(selectedCourse);
-                              setActiveTab('practice');
-                              startModePractice('study');
-                            }}
-                            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-mono uppercase tracking-widest py-3.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg"
-                          >
-                            <GraduationCap className="w-4 h-4" />
-                            {trans('detail.learn')}
-                          </button>
-                          
-                          <button
-                            onClick={() => {
-                              setSelectedPracticeGroup(selectedCourse);
-                              setActiveTab('practice');
-                              startModePractice('quiz');
-                            }}
-                            className="w-full bg-white/5 hover:bg-white/10 text-zinc-300 font-mono uppercase tracking-widest py-3.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 border border-white/5"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            {trans('detail.quiz')}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Word row lists (2 Columns wide) */}
-                    <div className="lg:col-span-2 space-y-3">
-                      <div className="flex justify-between items-center mb-1">
-                        <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 font-mono">
-                          {trans('detail.vocab')} ({courseWords.length})
-                        </h3>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-2 max-h-[550px] overflow-y-auto pr-1 no-scrollbar">
-                        {courseWords.map(word => (
-                          <WordRowItem
-                            key={word.id}
-                            word={word}
-                            isFav={favorites.some(f => f.id === word.id)}
-                            onToggleFav={() => handleToggleFavorite(word)}
-                            onPlayAudio={() => playPhoneticSpeech(word)}
-                            onClick={() => setSelectedWordDetail(word)}
-                            theme={activeTheme}
-                            trans={trans}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  {/* Ported study experience: Browse / Cards / Recite / Review +
+                      stats header, per-word reveal/pronounce/mark, and the Quiz
+                      handoff. Words = already-loaded courseWords. */}
+                  <WfNewGroupStudyPanel
+                    group={selectedCourse}
+                    words={courseWords}
+                    lang={lang}
+                    trans={trans}
+                    theme={activeTheme}
+                    favorites={favorites}
+                    onToggleFavorite={handleToggleFavorite}
+                    playPhoneticSpeech={playPhoneticSpeech}
+                    onOpenDetail={setSelectedWordDetail}
+                    onStartQuiz={() => {
+                      // R1 (§5.2): Start Quiz Arena defaults to list + sequential
+                      // playback, NOT the multiple-choice quiz. The panel
+                      // owns the mode/recite start (handleStartQuiz); here we only
+                      // record the practice-group context. The quiz stays reachable
+                      // as a manual mode switch (startModePractice still exists).
+                      setSelectedPracticeGroup(selectedCourse);
+                    }}
+                  />
                 </div>
               )}
     </>

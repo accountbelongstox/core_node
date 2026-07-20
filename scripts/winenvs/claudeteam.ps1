@@ -12,21 +12,27 @@
 
 <#
 .SYNOPSIS
-    Launches Claude Code with multiple roles (experimental agent teams),
-    ultracode enabled by default, and the model forced to Opus 4.8 or newer
-    everywhere.
+    Launches Claude Code with multiple roles (experimental agent teams) always on,
+    an opt-in ultracode prompt (default No), and - when ultracode is enabled - an
+    opt-in prompt (default Yes) to force Opus 4.8 everywhere.
 
 .DESCRIPTION
-    Sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple
-    roles), forces the newest Opus model (alias "opus[1m]" = latest Opus, e.g.
-    Opus 4.8, with the 1M-context window) for the main session, subagents and the
-    background "Haiku slot", then runs:
-    claude --model opus[1m] --settings '{"ultracode":true}' --dangerously-skip-permissions
+    Always sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session
+    (multiple roles). Then prompts "Enable ultracode?" (default No); when enabled it
+    adds --effort ultracode (session-only xhigh effort + automatic workflow
+    orchestration; official CLI reference, requires Claude Code v2.1.203+) and
+    prompts "Use Opus 4.8 1M as the ultracode model?" (default Yes). If accepted,
+    the pinned Opus 4.8 id plus the 1M-context suffix ("claude-opus-4-8[1m]") is
+    forced for the main session, subagents and the background Haiku/Sonnet slots,
+    running:
+    claude --effort ultracode --model claude-opus-4-8[1m] --dangerously-skip-permissions
     The --model flag pins the main interactive model; CLAUDE_CODE_SUBAGENT_MODEL
-    pins subagents/agent-teams; ANTHROPIC_DEFAULT_HAIKU_MODEL /
-    ANTHROPIC_DEFAULT_SONNET_MODEL redirect background + sonnet-aliased traffic to
-    Opus too. Claude Code strips the [1m] suffix client-side before calling the
-    provider. The --settings flag turns on ultracode via inline JSON.
+    pins subagents/agent-teams; ANTHROPIC_DEFAULT_OPUS_MODEL /
+    ANTHROPIC_DEFAULT_SONNET_MODEL / ANTHROPIC_DEFAULT_HAIKU_MODEL redirect the
+    opus/sonnet/haiku aliases + background traffic to Opus 4.8 too. Claude Code
+    interprets the [1m] suffix client-side as the 1M-context selector. Using
+    --effort (not an inline --settings JSON) avoids PowerShell native-exe quote
+    mangling. When ultracode is declined, Claude runs on the account default model.
     Any script arguments are appended to that command line.
 
 .EXAMPLE
@@ -43,10 +49,10 @@ $scriptsDirPath = $null
 $shellsWinPath = $null
 $winCommonDirPath = $null
 $windowsPathFunctionScript = $null
-$ultraSettingsJson = $null
-$ultraSettingsFile = $null
 $forceModel = $null
-$forceOpusChoice = $null
+$ultraChoice = $null
+$enableUltra = $false
+$modelChoice = $null
 $forceOpusEnabled = $false
 $teammateMode = $null
 $claudeArgs = $null
@@ -67,45 +73,55 @@ Set-CoreNodePaths
 
 $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
 
-# Newest-Opus alias plus the 1M-context window ("opus[1m]"); Claude Code strips
-# the [1m] suffix client-side before calling the provider.
-$forceModel = 'opus[1m]'
+# Pinned Opus 4.8 id plus the "[1m]" 1M-context suffix; Claude Code interprets the
+# suffix client-side as the 1M-context selector (official model-config reference).
+$forceModel = 'claude-opus-4-8[1m]'
 
 # Windows default: run experimental agent teams in-process.
 $teammateMode = 'in-process'
 
-# Default-enable ultracode. Pass it through a temp settings FILE rather than an
-# inline JSON string: Windows PowerShell 5.1 strips the double quotes when handing
-# a JSON literal to a native exe, so `claude --settings {"ultracode":true}` arrives
-# as `{ultracode:true}` -> "Invalid JSON provided to --settings". --settings also
-# accepts a file path (official CLI reference), which sidesteps all shell quoting.
-$ultraSettingsJson = '{"ultracode":true}'
-$ultraSettingsFile = Join-Path $env:TEMP "claudeteam_ultracode_settings.json"
-[System.IO.File]::WriteAllText($ultraSettingsFile, $ultraSettingsJson)
+# Ultracode: opt-in prompt, default No. When enabled, ultracode is turned on via
+# the dedicated effort flag "--effort ultracode" (official CLI reference; requires
+# Claude Code v2.1.203+): session-only xhigh effort with automatic workflow
+# orchestration. Using --effort avoids the Windows PowerShell 5.1 native-exe quote
+# mangling that breaks an inline "--settings '{"ultracode":true}'" (it arrives as
+# invalid JSON), so no temp settings file is needed. Ultracode cannot be persisted
+# (effortLevel / CLAUDE_CODE_EFFORT_LEVEL accept only low/medium/high/xhigh).
+$ultraChoice = Read-Host "Enable ultracode? [y/N]"
+$enableUltra = (($ultraChoice -eq 'y') -or ($ultraChoice -eq 'Y'))
 
-# Optional: force Opus 4.8 (or newer) everywhere. Opt-in prompt, default No.
-$forceOpusChoice = Read-Host "Force model $forceModel everywhere (main + subagents + background)? [y/N]"
-$forceOpusEnabled = (($forceOpusChoice -eq 'y') -or ($forceOpusChoice -eq 'Y'))
+if ($enableUltra) {
+    # Ultracode model: only asked when ultracode is enabled, default Yes. Forces
+    # Opus 4.8 with the 1M-context window everywhere.
+    $modelChoice = Read-Host "Use Opus 4.8 1M ($forceModel) as the ultracode model everywhere? [Y/n]"
+    $forceOpusEnabled = (($modelChoice -ne 'n') -and ($modelChoice -ne 'N'))
+}
 
 if ($forceOpusEnabled) {
-    # Env vars cover the model slots that have no CLI flag: subagents/agent-teams
-    # (CLAUDE_CODE_SUBAGENT_MODEL), the background quick-task "Haiku slot"
-    # (ANTHROPIC_DEFAULT_HAIKU_MODEL) and anything resolving via the sonnet alias
-    # (ANTHROPIC_DEFAULT_SONNET_MODEL).
+    # Env vars cover the model slots that have no CLI flag (official model-config
+    # reference): CLAUDE_CODE_SUBAGENT_MODEL (all subagents / experimental agent
+    # teams / workflow agents), ANTHROPIC_DEFAULT_OPUS_MODEL (the "opus" alias and
+    # opusplan in plan mode), ANTHROPIC_DEFAULT_SONNET_MODEL (the "sonnet" alias and
+    # opusplan execution) and ANTHROPIC_DEFAULT_HAIKU_MODEL (the "haiku"/background
+    # quick-task slot).
     $env:CLAUDE_CODE_SUBAGENT_MODEL = $forceModel
-    $env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $forceModel
+    $env:ANTHROPIC_DEFAULT_OPUS_MODEL = $forceModel
     $env:ANTHROPIC_DEFAULT_SONNET_MODEL = $forceModel
+    $env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $forceModel
     # Light note shown only when the user opted in.
     Write-Host "[NOTE] $forceModel forced for main session, subagents and background (Haiku/Sonnet) slots - background tasks run on Opus too (higher cost/latency)." -ForegroundColor Yellow
 }
 
-# Build the claude argument list. --settings always carries ultracode;
-# --teammate-mode in-process and --dangerously-skip-permissions are Windows
-# defaults; --model is included only when Opus forcing is opted in.
+# Build the claude argument list. --teammate-mode in-process, --permission-mode
+# bypassPermissions and --dangerously-skip-permissions are Windows defaults;
+# --effort ultracode is added only when ultracode is enabled; --model only when
+# Opus forcing is opted in.
+$claudeArgs = @("--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+if ($enableUltra) {
+    $claudeArgs += @("--effort", "ultracode")
+}
 if ($forceOpusEnabled) {
-    $claudeArgs = @("--model", $forceModel, "--settings", $ultraSettingsFile, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
-} else {
-    $claudeArgs = @("--settings", $ultraSettingsFile, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+    $claudeArgs += @("--model", $forceModel)
 }
 
 $claudeInvokeDisplayArgs = if ($args.Count -gt 0) {
@@ -119,13 +135,17 @@ Write-Host "============================================================" -Foreg
 Write-Host "claudeteam.ps1" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)" -ForegroundColor Green
-if ($forceOpusEnabled) {
-    Write-Host "[INFO] Forced model: $forceModel (main session + subagents + background Haiku/Sonnet slots)" -ForegroundColor Green
+if ($enableUltra) {
+    Write-Host "[INFO] Ultracode: ON (--effort ultracode)" -ForegroundColor Green
 } else {
-    Write-Host "[INFO] Forced model: off (default N) - using the account default model" -ForegroundColor Green
+    Write-Host "[INFO] Ultracode: off (default N)" -ForegroundColor Green
+}
+if ($forceOpusEnabled) {
+    Write-Host "[INFO] Ultracode model: $forceModel (main session + subagents + background Haiku/Sonnet slots)" -ForegroundColor Green
+} else {
+    Write-Host "[INFO] Ultracode model: account default" -ForegroundColor Green
 }
 Write-Host "[INFO] Teammate mode: $teammateMode (Windows default)" -ForegroundColor Green
-Write-Host "[INFO] Ultracode settings: $ultraSettingsJson (via temp file $ultraSettingsFile)" -ForegroundColor Green
 Write-Host "[INFO] Invoking: claude $($claudeArgs -join ' ')$claudeInvokeDisplayArgs" -ForegroundColor Green
 if ($args.Count -gt 0) {
     Write-Host "[INFO] Extra arguments ($($args.Count)): $($args -join ' ')" -ForegroundColor DarkGray
@@ -140,11 +160,6 @@ Write-Host ""
 $exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) {
     $exitCode = 0
-}
-
-# Remove the temp settings file (claude reads it only at startup).
-if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
-    Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
 }
 
 exit $exitCode

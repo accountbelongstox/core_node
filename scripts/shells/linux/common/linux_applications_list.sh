@@ -285,6 +285,16 @@ declare -gA AI_PACKAGES=(
     ["cursor_agent_description"]="Cursor Agent - AI-first code editor with intelligent code completion"
     ["cursor_agent_verify_command"]="--version"
 
+    # Kimi Code CLI
+    ["kimi_name"]="Kimi Code CLI"
+    ["kimi_exec"]="kimi"
+    ["kimi_package_id"]="https://code.kimi.com/kimi-code/install.sh"
+    ["kimi_install_method"]="$METHOD_CURL"
+    ["kimi_category"]="$CATEGORY_AI_TOOLS"
+    ["kimi_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
+    ["kimi_description"]="Kimi Code CLI - AI coding agent for the terminal by Moonshot AI"
+    ["kimi_verify_command"]="--version"
+
     # SuperClaude
     ["superclaude_name"]="SuperClaude Framework"
     ["superclaude_exec"]="superclaude"
@@ -349,7 +359,7 @@ APP_PACKAGE_LIST=(
 # the dedicated install_shells/133_install_claude_code.sh step (official native
 # installer), the single source of truth shared with the dd.sh AI workflow.
 AI_PACKAGE_LIST=(
-    "gemini" "codex" "cursor_agent" "superclaude" "opencode" "auggie" "droid"
+    "gemini" "codex" "cursor_agent" "kimi" "superclaude" "opencode" "auggie" "droid"
 )
 
 MCP_PACKAGE_LIST=(

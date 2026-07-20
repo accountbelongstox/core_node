@@ -5,10 +5,25 @@
  */
 
 import { ref, onUnmounted, watch } from 'vue';
-import { apiManager } from '@/services/ApiManager';
+import { apiManager, getApiBase } from '@/services/ApiManager';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
 import { formatTimestamp } from '@/utils/time-helpers';
+import type { CapabilityKey } from '@/utils/task-capabilities';
+import { taskPath } from '@/utils/api-paths';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
+// Canonical control-protocol types + message constants (shared with background).
+import {
+  TASK_CENTER_MSG,
+  VALIDITY_RUNNER_MSG,
+  TASK_CENTER_DEFAULTS,
+  type TaskCenterConfig,
+  type TaskCenterStats,
+  type ProcessorStatus,
+  type BackendHealth,
+  type ValidityStatus,
+  type FullTaskCenterStatus,
+} from '@/utils/task-center-types';
 
 // ==================== Live task drilldown (detail / events / SSE stream) ====================
 // laravel_main control-plane SSE route (no-auth), tailed straight from the popup
@@ -104,12 +119,12 @@ export function subscribeToTaskStream(taskId: string, handlers: TaskStreamHandle
   let terminal = false;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // apiManager.getCurrentBaseUrl() returns `protocol://host[:port]/` — strip the
-  // trailing slash so we land on exactly `{base}/api/task/{id}/stream`.
-  const apiBase = (): string => apiManager.getCurrentBaseUrl().replace(/\/+$/, '');
+  // getApiBase() returns `protocol://host[:port]` (trailing slash stripped) so we
+  // land on exactly `{base}/api/task/{id}/stream`.
+  const apiBase = getApiBase;
 
   const buildUrl = (): string => {
-    const url = `${apiBase()}/api/task/${encodeURIComponent(taskId)}/stream`;
+    const url = `${apiBase()}${taskPath(taskId, 'stream')}`;
     return cursor !== null ? `${url}?cursor=${encodeURIComponent(cursor)}` : url;
   };
 
@@ -189,44 +204,24 @@ export function subscribeToTaskStream(taskId: string, handlers: TaskStreamHandle
   };
 }
 
-export interface TaskCenterConfig {
-  apiUrl: string;
-  pollInterval?: number;
-  processors: {
-    [processorType: string]: any;
-  };
+/** Config forwarded to the background client-driven validity runner. */
+export interface ValidityRunnerConfig {
+  apiUrl?: string;
+  language?: string;
+  limit?: number;
 }
 
-export interface ProcessorStatus {
-  isRunning: boolean;
-  stats: {
-    pending: number;
-    translated: number;
-    failed: number;
-    lastRun: number | null;
-    workerId: string | null;
-    isOnline: boolean;
-    queueTotal: number;
-    newTasks: number;
-    duplicateTasks: number;
-    [key: string]: any;
-  };
-}
+// TaskCenterConfig / TaskCenterStats / ProcessorStatus / BackendHealth /
+// ValidityStatus are imported from the shared canonical module — no local copies.
+export type { TaskCenterConfig, TaskCenterStats, ProcessorStatus, ValidityStatus };
 
-export interface TaskCenterStats {
-  totalProcessors: number;
-  runningProcessors: number;
-  totalPending: number;
-  totalTranslated: number;
-  totalFailed: number;
-  processors: {
-    [processorType: string]: ProcessorStatus;
-  };
-}
-
+/** Popup-local reactive state, built from the shared status shapes. */
 export interface TaskCenterState {
   isRunning: boolean;
   stats: TaskCenterStats | null;
+  backend: BackendHealth | null;
+  validity: ValidityStatus | null;
+  activeCapabilities: CapabilityKey[];
 }
 
 export function useTaskCenter() {
@@ -234,18 +229,21 @@ export function useTaskCenter() {
   const { apiBaseUrl } = useApiEndpoint();
   const config = ref<TaskCenterConfig>({
     apiUrl: '',
-    pollInterval: 5,
+    pollInterval: TASK_CENTER_DEFAULTS.pollInterval,
     processors: {
       bing_dictionary: {
         apiUrl: '',
-        pollInterval: 5,
-        batchSize: 5,
+        pollInterval: TASK_CENTER_DEFAULTS.pollInterval,
+        batchSize: TASK_CENTER_DEFAULTS.batchSize,
       },
     },
   });
   const state = ref<TaskCenterState>({
     isRunning: false,
     stats: null,
+    backend: null,
+    validity: null,
+    activeCapabilities: [],
   });
   const error = ref('');
 
@@ -261,7 +259,7 @@ export function useTaskCenter() {
 
   const toggleTaskCenter = async () => {
     isActive.value = !isActive.value;
-    await chrome.storage.local.set({ task_center_active: isActive.value });
+    await chrome.storage.local.set({ [STORAGE_KEYS.TASK_CENTER_ACTIVE]: isActive.value });
 
     if (isActive.value) {
       await loadConfig();
@@ -279,7 +277,7 @@ export function useTaskCenter() {
 
   const saveConfig = async () => {
     try {
-      await chrome.storage.local.set({ task_center_config: config.value });
+      await chrome.storage.local.set({ [STORAGE_KEYS.TASK_CENTER_CONFIG]: config.value });
       logger.debug(LOG, 'Config saved');
     } catch (err) {
       logger.error(LOG, 'Failed to save config', err);
@@ -288,27 +286,33 @@ export function useTaskCenter() {
 
   const loadConfig = async () => {
     try {
-      const result = await chrome.storage.local.get('task_center_config');
-      if (result.task_center_config) {
-        config.value = { ...config.value, ...result.task_center_config };
+      const result = await chrome.storage.local.get(STORAGE_KEYS.TASK_CENTER_CONFIG);
+      if (result[STORAGE_KEYS.TASK_CENTER_CONFIG]) {
+        config.value = { ...config.value, ...result[STORAGE_KEYS.TASK_CENTER_CONFIG] };
       }
     } catch (err) {
       logger.error(LOG, 'Failed to load config', err);
     }
   };
 
-  const startTaskCenter = async () => {
+  // Start the center with the checked, NON-stub capability keys. The background
+  // derives the concrete processorTypes and boots the validity runner itself
+  // (whenever 'validity' is present) — the popup only names capabilities.
+  const startTaskCenter = async (activeCapabilities: CapabilityKey[]) => {
     try {
       await apiManager.initialize({ autoDetect: false });
       const response = await chrome.runtime.sendMessage({
-        type: 'task_center',
+        type: TASK_CENTER_MSG,
         action: 'start',
-        config: config.value,
+        config: { apiUrl: config.value.apiUrl, activeCapabilities },
       });
 
       if (response && response.success) {
         state.value.isRunning = true;
         logger.info(LOG, 'Started successfully');
+        await loadState();
+        // Keep the backend-health + validity-progress strip live while running.
+        startStatsPolling();
       } else {
         logger.error(LOG, 'Failed to start', response?.error);
         error.value = response?.error || 'Failed to start Task Center';
@@ -319,16 +323,44 @@ export function useTaskCenter() {
     }
   };
 
+  // Live switch: flip a single capability on/off without a full restart. The
+  // background enables/disables the lane (and the validity runner) in place.
+  const setCapability = async (capability: CapabilityKey, enabled: boolean) => {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: TASK_CENTER_MSG,
+        action: 'set_capability',
+        capability,
+        enabled,
+        config: { apiUrl: config.value.apiUrl },
+      });
+
+      if (response && response.success) {
+        logger.info(LOG, `Capability ${capability} -> ${enabled}`);
+        await loadState();
+      } else {
+        logger.error(LOG, 'Failed to set capability', response?.error);
+        error.value = response?.error || 'Failed to update capability';
+      }
+    } catch (err: any) {
+      logger.error(LOG, 'Set capability error', err);
+      error.value = err.message || 'Failed to update capability';
+    }
+  };
+
   const stopTaskCenter = async () => {
     try {
       const response = await chrome.runtime.sendMessage({
-        type: 'task_center',
+        type: TASK_CENTER_MSG,
         action: 'stop',
       });
 
       if (response && response.success) {
         state.value.isRunning = false;
         logger.info(LOG, 'Stopped successfully');
+        // Reflect the final stopped status, then halt the recurring poll.
+        await loadState();
+        stopStatsPolling();
       } else {
         logger.error(LOG, 'Failed to stop', response?.error);
         error.value = response?.error || 'Failed to stop Task Center';
@@ -339,16 +371,48 @@ export function useTaskCenter() {
     }
   };
 
+  const startValidityRunner = async (runnerConfig?: ValidityRunnerConfig) => {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: VALIDITY_RUNNER_MSG,
+        action: 'start',
+        config: { apiUrl: config.value.apiUrl, ...(runnerConfig || {}) },
+      });
+      if (response && response.success) {
+        logger.info(LOG, 'Validity runner started');
+      } else {
+        logger.error(LOG, 'Failed to start validity runner', response?.error);
+      }
+    } catch (err: any) {
+      logger.error(LOG, 'Validity runner start error', err);
+    }
+  };
+
+  const stopValidityRunner = async () => {
+    try {
+      await chrome.runtime.sendMessage({ type: VALIDITY_RUNNER_MSG, action: 'stop' });
+      logger.info(LOG, 'Validity runner stopped');
+    } catch (err: any) {
+      logger.error(LOG, 'Validity runner stop error', err);
+    }
+  };
+
   const loadState = async () => {
     try {
       const response = await chrome.runtime.sendMessage({
-        type: 'task_center',
+        type: TASK_CENTER_MSG,
         action: 'get_status',
       });
 
       if (response && response.success) {
-        state.value.isRunning = response.isRunning;
-        state.value.stats = response.stats;
+        const status = response as { success: boolean } & FullTaskCenterStatus;
+        state.value.isRunning = status.isRunning;
+        state.value.stats = status.stats;
+        state.value.backend = status.backend ?? null;
+        state.value.validity = status.validity ?? null;
+        state.value.activeCapabilities = Array.isArray(status.activeCapabilities)
+          ? status.activeCapabilities
+          : [];
       }
     } catch (err) {
       logger.error(LOG, 'Failed to load state', err);
@@ -371,14 +435,15 @@ export function useTaskCenter() {
   };
 
   const initialize = async () => {
-    const result = await chrome.storage.local.get('task_center_active');
-    if (result.task_center_active) {
-      isActive.value = result.task_center_active;
-      await loadConfig();
-      await loadState();
-      if (isActive.value) {
-        startStatsPolling();
-      }
+    // Always reconcile with the background so reopening the popup mid-run shows
+    // the true state; resume the live poll whenever the center is running (the
+    // background run-intent, not a popup flag, is the source of truth now).
+    const result = await chrome.storage.local.get(STORAGE_KEYS.TASK_CENTER_ACTIVE);
+    isActive.value = result[STORAGE_KEYS.TASK_CENTER_ACTIVE] === true;
+    await loadConfig();
+    await loadState();
+    if (state.value.isRunning) {
+      startStatsPolling();
     }
   };
 
@@ -395,6 +460,9 @@ export function useTaskCenter() {
     saveConfig,
     startTaskCenter,
     stopTaskCenter,
+    setCapability,
+    startValidityRunner,
+    stopValidityRunner,
     formatTimestamp,
     initialize,
   };

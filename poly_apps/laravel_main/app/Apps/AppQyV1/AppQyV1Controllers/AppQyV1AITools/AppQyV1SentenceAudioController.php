@@ -299,6 +299,51 @@ class AppQyV1SentenceAudioController extends Controller
     }
 
     /**
+     * POST /api/app_qy_v1/ai_tools/tts/sentence/bump-batch
+     * Body: { items: [{ text, language }], interactive?: bool }
+     *
+     * Book-reader chapter/page switch: raise tts_priority for every now-visible
+     * sentence lacking audio in ONE round-trip, then a SINGLE pycore run-once
+     * nudge so the front-of-queue sentences are processed immediately.
+     */
+    public function bumpBatch(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'items' => 'required|array|min:1|max:400',
+            'items.*.text' => 'required|string',
+            'items.*.language' => 'required|string|max:20',
+            'interactive' => 'nullable|boolean',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation failed: ' . $validator->errors()->first(),
+            ], 422);
+        }
+        try {
+            $result = $this->service->bumpPriorityBatch(
+                (array) $request->input('items'),
+                filter_var($request->input('interactive', true), FILTER_VALIDATE_BOOLEAN)
+            );
+        } catch (\Throwable $e) {
+            Log::error('[SentenceAudio] bump-batch failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'error' => 'Internal error during bump-batch'], 500);
+        }
+        // One nudge for the whole batch (not per item). Wordnew never hits :59000;
+        // Laravel is the only relay. Failure is ignored — heartbeat still drains.
+        if ((int) ($result['queued'] ?? 0) > 0) {
+            try {
+                PycoreHttpClient::callDirect('/api/local/sentence-audio/run-once', [], 3);
+            } catch (\Throwable $e) {
+                Log::debug('[SentenceAudio] pycore run-once nudge skipped (batch)', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        return response()->json(array_merge(['success' => true], $result), 200);
+    }
+
+    /**
      * GET /api/app_qy_v1/ai_tools/tts/sentence/missing
      * Query: language?, page?, per_page?
      */

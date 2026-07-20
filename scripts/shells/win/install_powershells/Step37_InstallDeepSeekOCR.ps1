@@ -10,6 +10,12 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# Lifecycle: Bucket-A LLM. transformers is installed at the shared pin via
+# Install-PinnedTransformers (version-idempotent, never --upgrade, self-heals a
+# clobbered pin) so DeepSeek-OCR stays aligned with the other LLM steps in the one
+# system Python 3.13. Contract:
+# development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7.
+
 $scriptRoot = $PSScriptRoot
 $shellsWinRoot = Split-Path $scriptRoot -Parent
 $winCommonDir = Join-Path $shellsWinRoot "win_common"
@@ -169,7 +175,10 @@ function Install-DeepSeekOCRDependencies {
 
         Write-Host "$SCRIPT_INDEX Step 2: Installing core dependencies..." -ForegroundColor Cyan
         Write-Host ""
-        & $Global:PIP_EXE_PATH install transformers accelerate pillow einops timm sentencepiece protobuf
+        # transformers goes in at the shared Bucket-A pin (version-idempotent, never
+        # --upgrade); the other deps install as before. See lifecycle doc §7.
+        Install-PinnedTransformers -PythonExe $PythonCommand -PipExe $Global:PIP_EXE_PATH -Prefix "$SCRIPT_INDEX " | Out-Null
+        & $Global:PIP_EXE_PATH install accelerate pillow einops timm sentencepiece protobuf
         Write-Host ""
 
         Write-Host "$SCRIPT_INDEX Step 3: Installing flash-attn (optional on Windows)..." -ForegroundColor Cyan

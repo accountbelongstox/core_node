@@ -407,6 +407,11 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   };
 
   const handleLogout = () => {
+    // Persist any pending reader-settings change to the STILL-authenticated
+    // account before the token is cleared, so the roamer's debounce never drops
+    // the final change on logout (push() targets user preferences while the
+    // token is live; after logout it would fall back to anonymous device state).
+    wfReaderSettingsRoamer.flush();
     // Best-effort: clear the API session token (real impl); the mock is stateless.
     void wfNewApi.logout().catch(() => {});
     clearUserSession(true);

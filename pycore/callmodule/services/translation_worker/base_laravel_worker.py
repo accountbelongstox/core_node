@@ -46,6 +46,7 @@ from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
 )
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 
 
 class BaseLaravelWorkerService:
@@ -297,14 +298,14 @@ class BaseLaravelWorkerService:
                 f"({self.api_url} -> {resolved}); re-registering")
             self._registered = False
 
-        requests = self._requests()
         last_reason = ""
         processor_types = self._effective_processor_types()
         capabilities = self._effective_capabilities()
         for base in self._candidates:
             try:
-                resp = requests.post(
-                    f"{base}/api/worker/register",
+                resp = get_laravel_client().post(
+                    "/api/worker/register",
+                    base_url=base,
                     json={
                         "worker_id": self.worker_id,
                         "worker_name": self.worker_name,
@@ -373,9 +374,9 @@ class BaseLaravelWorkerService:
         pending_urgent which we fold into the fast-drain signal.
         """
         try:
-            requests = self._requests()
-            resp = requests.post(
-                f"{self.api_url}/api/worker/heartbeat",
+            resp = get_laravel_client().post(
+                "/api/worker/heartbeat",
+                base_url=self.api_url,
                 json={
                     "worker_id": self.worker_id,
                     "capabilities": self._effective_capabilities(),
@@ -414,9 +415,9 @@ class BaseLaravelWorkerService:
         """
         base = base or self.api_url
         try:
-            requests = self._requests()
-            resp = requests.get(
-                f"{base}/api/worker/tasks/pull",
+            resp = get_laravel_client().get(
+                "/api/worker/tasks/pull",
+                base_url=base,
                 params={"worker_id": self.worker_id, "wait": wait},
                 timeout=self._http_timeout,
             )
@@ -484,14 +485,14 @@ class BaseLaravelWorkerService:
         if error is not None:
             body["error"] = error
 
-        requests = self._requests()
         last_note = ""
         last_was_5xx = False
         max_attempts = self.RESULT_POST_ATTEMPTS if attempts is None else max(1, int(attempts))
         for attempt in range(1, max_attempts + 1):
             try:
-                resp = requests.post(
-                    f"{self.api_url}/api/worker/tasks/result",
+                resp = get_laravel_client().post(
+                    "/api/worker/tasks/result",
+                    base_url=self.api_url,
                     json=body,
                     timeout=self._http_timeout,
                 )

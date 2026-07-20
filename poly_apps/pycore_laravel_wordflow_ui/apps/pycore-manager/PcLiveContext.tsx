@@ -18,6 +18,7 @@ import React, {
 import {
   connectPycoreWs, subscribe, onWsStatus, onWsDiag,
 } from '../../core/api-libs/pycore';
+import { appendHttpDebug } from '../../core/api-libs/pycore/pycoreHttpLog';
 
 const LOG_CAP = 1000;
 
@@ -93,7 +94,22 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
       settingsHandlers.current.forEach((h) => { h(s); });
     });
 
-    return () => { offStatus(); offDiag(); offLog(); offSettings(); };
+    // pycore -> Laravel request records (LaravelClient -> LaravelHttpRecorder ->
+    // rpc_v2 broadcast) feed the HTTP debugger's 'laravel' direction rows.
+    const offLaravelHttp = subscribe('laravel_http', (data: any) => {
+      appendHttpDebug({
+        direction: 'laravel',
+        method: typeof data?.method === 'string' ? data.method : '',
+        path: typeof data?.path === 'string' ? data.path : '',
+        fullUrl: typeof data?.url === 'string' ? data.url : undefined,
+        paramsSummary: typeof data?.params_summary === 'string' ? data.params_summary : '',
+        status: Number(data?.status) || 0,
+        ms: Number(data?.ms) || 0,
+        error: data?.error ? String(data.error) : null,
+      });
+    });
+
+    return () => { offStatus(); offDiag(); offLog(); offSettings(); offLaravelHttp(); };
   }, []);
 
   const value: PcLiveContextValue = {

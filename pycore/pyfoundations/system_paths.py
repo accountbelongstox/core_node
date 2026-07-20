@@ -374,16 +374,16 @@ def get_core_node_root() -> Path:
 get_repo_root = get_core_node_root
 
 
-# Constants - Auto-initialized paths
-SYSTEM_CACHE_DIR = get_system_cache_dir()
-UI_STATE_CACHE_DIR = get_ui_state_cache_dir()
-APP_CACHE_DIR = get_app_cache_dir()
-APP_CONFIG_DIR = get_app_config_dir()
-APP_DATA_DIR = get_app_data_dir()
-APP_LOGS_DIR = get_app_logs_dir()
-CORE_NODE_ROOT = get_core_node_root()
-LOCAL_DATA_DIR = get_local_data_dir()
-APP_TEMP_DIR = get_app_temp_dir()
+def get_lang_compiler_dir() -> Path:
+    r"""Language/runtime install base (where pythonNNN, node-vX, etc. live).
+
+    Mirrors GlobalVars.ps1 ``$Global:LANG_COMPILER_DIR = "D:\.dev_<sys>"`` (e.g.
+    ``D:\.dev_win10``). Derived from the RUNNING interpreter (``sys.executable`` is
+    authoritative), so it stays correct across win10/win11 and any relocation
+    without hardcoding the suffix:
+        ``D:\.dev_win10\python313\python.exe`` -> ``D:\.dev_win10``
+    """
+    return Path(sys.executable).resolve().parent.parent
 
 
 # --------------------------------------------------------------------------- #
@@ -647,6 +647,21 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
     return mapped_path
 
 
+# Constants - Auto-initialized paths
+# NOTE: must be initialized AFTER map_web_path() is defined below -- on Windows
+# get_local_data_dir() -> get_shared_download_cache_dir() -> map_web_path('cache'),
+# so an earlier placement raises NameError at import time.
+SYSTEM_CACHE_DIR = get_system_cache_dir()
+UI_STATE_CACHE_DIR = get_ui_state_cache_dir()
+APP_CACHE_DIR = get_app_cache_dir()
+APP_CONFIG_DIR = get_app_config_dir()
+APP_DATA_DIR = get_app_data_dir()
+APP_LOGS_DIR = get_app_logs_dir()
+CORE_NODE_ROOT = get_core_node_root()
+LOCAL_DATA_DIR = get_local_data_dir()
+APP_TEMP_DIR = get_app_temp_dir()
+
+
 # ===========================================================================
 # User Data Store -- split into its own module (user_data_store.py). Imported
 # here and re-exported so the public API (pyfoundations/__init__.py and the many
@@ -675,6 +690,7 @@ __all__ = [
     'get_app_temp_dir',
     'get_core_node_root',
     'get_repo_root',
+    'get_lang_compiler_dir',
     'map_web_path',
     'SYSTEM_CACHE_DIR',
     'UI_STATE_CACHE_DIR',

@@ -147,7 +147,12 @@ class PushSender:
             retry["logged"] = True
         if first:
             what = "link dropped mid-sync" if mid_sync else "unreachable"
-            ColorPrint.yellow(f"[WsPush] {host}:{port} {what} ({exc}); "
+            name = peer.get("name") or host
+            # Be explicit this is a CODE-SYNC PEER (a remote pycore on its :59000 RPC
+            # port) — NOT the Laravel backend (:9000). The two share a host in some
+            # deployments; naming the service here avoids mistaking one for the other.
+            ColorPrint.yellow(f"[CodeSync WsPush] code-sync peer '{name}' "
+                              f"(pycore {host}:{port}) {what} ({exc}); "
                               f"retrying with backoff (next in {delay}s)")
         # Reflect backoff in the UI as a 'retrying' phase for THIS peer's channel
         # (channel = peer id, matching the UI's per-peer lookup).

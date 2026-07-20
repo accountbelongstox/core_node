@@ -3,6 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordTranslationWriteback;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
@@ -57,7 +58,12 @@ class AppQyV1VocabularyValidityController extends Controller
             ]);
         }
 
+        // Give-data idempotency: never hand back a word that already carries a
+        // translation. Mirrors getWordsNeedingTranslation's where('has_translation',
+        // false) predicate, so a word already filled by any lane is skipped here in
+        // addition to words a third-party check has already touched (validityUnchecked).
         $words = $dictModel->validityUnchecked()
+            ->where('has_translation', false)
             ->orderByDesc('query_count')
             ->orderBy('id')
             ->limit($limit)
@@ -85,14 +91,17 @@ class AppQyV1VocabularyValidityController extends Controller
      * Record verification results from the third-party client.
      *
      * Body:
-     *   language: code or name (default en)
-     *   source:   optional label identifying the checking client/source
-     *   results:  array of { word|md5, is_valid:bool, note?:string, source?:string }
+     *   language:        source code or name (default en)
+     *   target_language: target code for carried translations (e.g. zh)
+     *   source:          optional label identifying the checking client/source
+     *   results:  array of { word|md5, is_valid:bool, note?, source?, translation? }
+     *             valid results MAY carry translation (target_language); invalid never do.
      */
     public function report(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'language' => 'nullable|string',
+            'target_language' => 'nullable|string|max:10',
             'source' => 'nullable|string|max:100',
             'results' => 'required|array|min:1',
             'results.*.word' => 'nullable|string',
@@ -100,6 +109,7 @@ class AppQyV1VocabularyValidityController extends Controller
             'results.*.is_valid' => 'required|boolean',
             'results.*.note' => 'nullable|string',
             'results.*.source' => 'nullable|string|max:100',
+            'results.*.translation' => 'nullable|string',
         ]);
 
         $languageCode = $this->resolveLanguageCode($request->input('language'));
@@ -108,6 +118,25 @@ class AppQyV1VocabularyValidityController extends Controller
         if (isset($validated['source']) && $validated['source'] !== '') {
             $defaultSource = $validated['source'];
         }
+
+        // Target language for any carried translations (NEW). When absent, the
+        // report is validity-only and no translation write-back is attempted.
+        $targetLanguage = null;
+        if (isset($validated['target_language']) && $validated['target_language'] !== '') {
+            $targetLanguage = $validated['target_language'];
+        }
+
+        // Provider label recorded on written translations (translation_provider).
+        $provider = 'deepseek-web';
+        if ($defaultSource !== null) {
+            $provider = $defaultSource;
+        }
+
+        // Valid results carrying a non-empty translation are collected here and
+        // written in one batch AFTER the validity loop, via the canonical
+        // AppQyV1WordTranslationWriteback::apply (dual-write: translations[target]
+        // + word_translation pair + has_translation + translation_provider).
+        $translationsToWrite = [];
 
         $dictModel = AppQyV1LangDictionaryModel::forLanguage($languageCode);
         $hasTable = Schema::connection($dictModel->getConnectionName())->hasTable($dictModel->getTable());
@@ -148,6 +177,18 @@ class AppQyV1VocabularyValidityController extends Controller
 
             $didUpdate = AppQyV1LangDictionaryModel::markValidity($languageCode, $md5, $isValid, $source, $note);
 
+            // Independent of validity write above: a VALID result may also carry a
+            // translation. Collect it (needs the raw word — apply keys entries by
+            // md5(word)); invalid results never carry one. Written once after the loop.
+            if ($isValid
+                && isset($result['word']) && $result['word'] !== ''
+                && isset($result['translation']) && $result['translation'] !== '') {
+                $translationsToWrite[] = [
+                    'word' => $result['word'],
+                    'translation' => $result['translation'],
+                ];
+            }
+
             if ($didUpdate) {
                 $updated++;
                 if ($isValid) {
@@ -160,12 +201,35 @@ class AppQyV1VocabularyValidityController extends Controller
             }
         }
 
+        // Batch-write the collected translations through the CANONICAL writer so the
+        // exact dual-write is reused (translations[targetCode] + word_translation
+        // pair + has_translation + translation_provider). Only when a target language
+        // was supplied and at least one valid result carried a translation.
+        // NOTE ON IDEMPOTENCY: apply() OVERWRITES the translation text, so it does
+        // NOT skip already-translated words on its own. The skip is enforced
+        // read-side in getPending() (where('has_translation', false)) — a word with a
+        // translation is never handed out again — so in practice apply() here only
+        // ever writes a fresh translation.
+        $translated = 0;
+        if ($targetLanguage !== null && !empty($translationsToWrite)) {
+            $taskId = 'validity-report-' . uniqid('', true);
+            $outcome = AppQyV1WordTranslationWriteback::apply(
+                $taskId,
+                $languageCode,
+                $targetLanguage,
+                $provider,
+                $translationsToWrite
+            );
+            $translated = (int) $outcome['processed'];
+        }
+
         return $this->success([
             'language' => $languageCode,
             'updated' => $updated,
             'not_found' => $notFound,
             'marked_valid' => $validMarked,
             'marked_invalid' => $invalidMarked,
+            'translated' => $translated,
         ]);
     }
 

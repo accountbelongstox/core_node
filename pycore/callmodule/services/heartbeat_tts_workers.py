@@ -15,6 +15,7 @@ from pycore.callmodule.services import (
 )
 from pycore.callmodule.services.sentence_audio_auto import (
     restore_persisted_auto_start as restore_sentence_audio_auto_start,
+    sentence_audio_auto_enabled_on_start,
 )
 from pycore.callmodule.services.sentence_queue_monitor_service import (
     get_sentence_queue_monitor_service,
@@ -50,18 +51,24 @@ def register_tts_sentence_worker() -> None:
     """Register the TTS sentence-audio worker callback (idempotent)."""
     heartbeat = get_heartbeat_system()
     worker = get_tts_sentence_worker_service()
+    # Register with the PERSISTED user intent (UI toggle / assist plane), not the
+    # hardcoded Config default — the env flag is only the legacy fallback. This is
+    # what makes edge-tts auto-run a UI setting instead of a backend hardcode.
+    enabled_on_start = sentence_audio_auto_enabled_on_start(
+        Config.TTS_SENTENCE_WORKER_ENABLED_ON_START
+    )
     heartbeat.register_callback(
         name="tts_sentence_worker",
         callback=worker.poll_and_process,
         interval=Config.TTS_SENTENCE_WORKER_INTERVAL,
-        enabled=Config.TTS_SENTENCE_WORKER_ENABLED_ON_START,
+        enabled=enabled_on_start,
     )
     ColorPrint.green("[Callmodule] Registered TTS sentence-audio worker callback")
     ColorPrint.blue("  - Callback name: tts_sentence_worker")
     ColorPrint.blue(f"  - Interval: {Config.TTS_SENTENCE_WORKER_INTERVAL} seconds")
     ColorPrint.blue(
         f"  - Initial state: "
-        f"{'enabled' if Config.TTS_SENTENCE_WORKER_ENABLED_ON_START else 'disabled'}"
+        f"{'enabled' if enabled_on_start else 'disabled'}"
     )
     ColorPrint.blue(f"  - Batch size: {Config.TTS_SENTENCE_WORKER_BATCH}")
     ColorPrint.blue("  - Control: POST /api/heartbeat/disable/tts_sentence_worker")

@@ -206,7 +206,16 @@ export function toWord(raw: any, i = 0): Word {
       : typeof raw?.mastery_level === 'number' ? raw.mastery_level : undefined,
     wordType: raw?.wordType ?? raw?.word_type ?? raw?.pos ?? undefined,
     tags: Array.isArray(raw?.tags) ? raw.tags : undefined,
-    audioUrl: raw?.audioUrl ?? raw?.audio_url ?? undefined,
+    // ABSOLUTE-ize the primary audio path (rebased onto the current endpoint) so a
+    // real MP3 plays instead of the speechSynthesis fallback. Same for each variant.
+    audioUrl: absUrl(raw?.audioUrl ?? raw?.audio_url) ?? undefined,
+    audioFiles: Array.isArray(raw?.audio_files)
+      ? raw.audio_files.map((f: any) => ({ url: absUrl(f?.url), voice: f?.voice ?? '', lang: f?.lang ?? '' }))
+      : undefined,
+    audioCount: Number(raw?.audio_count ?? (raw?.audio_files?.length ?? 0)) || 0,
+    hasTranslation: raw?.has_translation != null
+      ? !!raw.has_translation
+      : !!(raw?.translation ?? raw?.meaning ?? raw?.definition_zh),
   };
 }
 

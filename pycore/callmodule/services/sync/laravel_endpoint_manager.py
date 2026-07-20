@@ -30,11 +30,11 @@ defaults; see _load).
 
 Health probe: GET {base}/api/health — laravel_main's liveness-only route
 (routes/api.php; no DB, no auth, heavy middleware stripped). The parallel sweep
-uses a 3.0s cap (kept fast across many candidates); the stored-first probe of the
-single known-good endpoint uses a more forgiving 6.0s + one retry so a cold-start
-first hit (Octane worker warm-up ~4-5s) does not needlessly fail the happy path
-and trigger a sweep. Per the dashboard rule ("reachable counts as healthy") any
-HTTP status < 500 is healthy.
+uses a 6.0s cap (remote tailscale/cloud candidates exceed 3s on a cold hit); the
+stored-first probe of the single known-good endpoint uses a more forgiving 12.0s
++ one retry so a cold-start first hit (Octane worker warm-up ~4-5s) does not
+needlessly fail the happy path and trigger a sweep. Per the dashboard rule
+("reachable counts as healthy") any HTTP status < 500 is healthy.
 
 Architecture / layering (pycore rules):
   * App layer (callmodule.services.sync), beside the media-sync client that
@@ -53,6 +53,7 @@ from typing import Any, Dict, List, Optional
 from pycore import ColorPrint, get_user_data_store
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.callmodule.callmodule_config.config import Config as CallmoduleConfig
+from pycore.callmodule.services.sync.laravel_http_recorder import notify_laravel_http
 
 
 # --------------------------------------------------------------------------- #
@@ -62,14 +63,17 @@ from pycore.callmodule.callmodule_config.config import Config as CallmoduleConfi
 USER_DATA_SECTION = "laravel_api"
 # laravel_main's cheap liveness route (no DB, no auth — see routes/api.php).
 HEALTH_PATH = "/api/health"
-# Probe timeout (seconds) — load-bearing, mirrors the dashboard's ~3000ms cap.
+# Probe timeout (seconds) — load-bearing, mirrors the dashboard's probe cap.
 # Used for the PARALLEL sweep, where many candidates must stay fast together.
-PROBE_TIMEOUT = 3.0
+# Cross-machine tailscale/cloud candidates routinely exceed 3s on a cold hit,
+# so 6s keeps slow-but-alive endpoints from being falsely swept as down.
+PROBE_TIMEOUT = 6.0
 # Stored-first probe is a SINGLE call to the known-good endpoint, so it can afford
 # a more forgiving budget: a cold Octane worker's first /api/health hit after idle
-# can take ~4-5s (worker warm-up) even though the backend is healthy. A short cap
-# here would needlessly fail the happy path and trigger a full LAN sweep.
-STORED_PROBE_TIMEOUT = 6.0
+# can take ~4-5s (worker warm-up) even though the backend is healthy, and remote
+# tailscale candidates need even more headroom. A short cap here would needlessly
+# fail the happy path and trigger a full LAN sweep.
+STORED_PROBE_TIMEOUT = 12.0
 # Retry the stored-first probe once on failure — the cold first hit warms the
 # worker, so the immediate second hit succeeds.
 STORED_PROBE_RETRIES = 1
@@ -77,7 +81,7 @@ STORED_PROBE_RETRIES = 1
 # down backend from periodic callers like backend_status).
 FAILED_SWEEP_TTL = 10.0
 # Hot HTTP paths (assist status, queue overview) — one stored probe, no sweep.
-UI_PROBE_TIMEOUT = 1.5
+UI_PROBE_TIMEOUT = 3.0
 UI_NEGATIVE_TTL = 30.0
 # Baseline local default — the loopback (local-first so a laravel on the same
 # box as pycore is the fast happy path). `localhost` is merged into 127.0.0.1
@@ -240,6 +244,24 @@ class LaravelEndpointManager:
         except Exception as e:
             result["latency_ms"] = int((time.monotonic() - started) * 1000)
             result["error"] = str(e).splitlines()[0][:200]
+        # Surface the probe as a structured pycore->Laravel request (same pipeline
+        # as LaravelClient) so it appears in the pyservice terminal + the dashboard
+        # HTTP debugger. The probe stays on raw requests.get (routing it through
+        # LaravelClient would cycle: client -> resolve_laravel_base_url -> probe).
+        latency = result.get("latency_ms") or 0
+        status = result.get("status") or 0
+        probe_url = u + HEALTH_PATH
+        err = result.get("error")
+        if err:
+            ColorPrint.red(f"[laravel] GET {HEALTH_PATH} -> ERR ({latency}ms) {err}")
+        else:
+            line = f"[laravel] GET {HEALTH_PATH} -> {status} ({latency}ms)"
+            ColorPrint.yellow(line) if status >= 400 else ColorPrint.cyan(line)
+        notify_laravel_http({
+            "ts": time.time(), "method": "GET", "url": probe_url, "path": HEALTH_PATH,
+            "params_summary": "", "status": status, "ms": float(latency),
+            "error": err, "base_url": u,
+        })
         with self._lock:
             self._probe_results[u] = dict(result)
         return result
@@ -304,7 +326,7 @@ class LaravelEndpointManager:
                 f"[LaravelEndpoints] Stored endpoint {current} unhealthy "
                 f"({res.get('error')}) — sweeping {len(endpoints)} candidate(s)")
 
-        # 2) full sweep (parallel, ~3s wall time); first healthy in order wins.
+        # 2) full sweep (parallel, ~PROBE_TIMEOUT wall time); first healthy in order wins.
         sweep = self._probe_many(endpoints)
         winner = next((u for u in endpoints if sweep.get(u, {}).get("healthy")), None)
         if winner:

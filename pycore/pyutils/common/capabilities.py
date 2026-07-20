@@ -67,14 +67,12 @@ _PIP_LIBS = (
     {"name": "kokoro", "module": "sherpa_onnx", "dist": "sherpa-onnx",
      "category": "tts", "tier_engine": "kokoro", "probe_engine": "kokoro",
      "note": "Kokoro-82M via sherpa-onnx (zh/en offline)"},
-    {"name": "melotts", "module": "melo", "dist": "melotts", "category": "tts",
-     "note": "MeloTTS offline TTS (zh/en mixed)"},
     {"name": "voxcpm", "module": "voxcpm", "dist": "voxcpm", "category": "tts",
      "tier_engine": "voxcpm2", "probe_engine": "voxcpm2",
      "note": "VoxCPM2 in-process TTS (OpenBMB multilingual clone)"},
-    {"name": "qwen_tts", "module": "qwen_tts", "dist": "qwen-tts", "category": "tts",
-     "tier_engine": "qwen3tts", "probe_engine": "qwen3tts",
-     "note": "Qwen3-TTS in-process (pip qwen-tts; Python 3.13 OK)"},
+    # qwen3tts and melotts are class-C isolated-venv HTTP servers, NOT main-interpreter
+    # pip packages - they appear once each in _API_TTS_LIBS below (installed/available
+    # reflect venv readiness + server health, not a stray main-interpreter probe).
 )
 
 # Local HTTP / in-process neural TTS engines (orchestrator availability probe).
@@ -89,7 +87,10 @@ _API_TTS_LIBS = (
      "note": "Fish Speech clone (openaudio-s1 GPU / openaudio-s1-mini CPU)"},
     {"name": "qwen3tts", "category": "tts", "tier_engine": "qwen3tts",
      "probe_engine": "qwen3tts",
-     "note": "Qwen3-TTS multilingual (qwen-tts; 1.7B GPU / 0.6B CPU)"},
+     "note": "Qwen3-TTS multilingual (isolated-venv HTTP server; 1.7B GPU / 0.6B CPU)"},
+    {"name": "melotts", "category": "tts", "tier_engine": "melotts",
+     "probe_engine": "melotts",
+     "note": "MeloTTS offline TTS (isolated-venv HTTP server; zh/en mixed)"},
     {"name": "bark", "category": "tts", "tier_engine": "bark", "probe_engine": "bark",
      "note": "Bark expressive TTS (transformers suno/bark; Python 3.13 native)"},
     {"name": "parler", "category": "tts", "tier_engine": "parler", "probe_engine": "parler",

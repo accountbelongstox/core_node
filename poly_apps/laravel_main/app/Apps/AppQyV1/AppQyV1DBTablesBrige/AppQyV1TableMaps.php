@@ -133,6 +133,7 @@ class AppQyV1TableMaps
             'language_code' => 'language_code',
             'words' => 'words',
             'total_words' => 'total_words',
+            'shuffled_at' => 'shuffled_at',
             'created_at' => 'created_at',
             'updated_at' => 'updated_at'
         ]

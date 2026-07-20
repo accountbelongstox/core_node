@@ -11,6 +11,7 @@
  */
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
+import { LANES } from '@/utils/task-center-lanes';
 import { notebookLmTool } from '../tools/browser/notebooklm';
 import { logger } from '@/utils/logger';
 import { parseWebChatToolResult } from './web-chat-worker-common';
@@ -32,7 +33,7 @@ class NotebookLmWorkerService extends SimpleWorkerBase {
   }
 
   protected get baseProcessorTypes(): ProcessorType[] {
-    return ['remote_notebooklm'];
+    return [LANES.REMOTE_NOTEBOOKLM];
   }
 
   protected get workerLabel(): string {

@@ -17,8 +17,7 @@ from typing import Any, Deque, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_user_data_store
-from pycore.pyfoundations.third_party import get_third_package_requests
-from pycore.pyctl.agent_history import get_agent_history_service
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.pyctl.agent_history.agent_history_fragments import (
     build_raw_batches,
     collect_fragments,
@@ -29,8 +28,6 @@ from pycore.pyctl.ai import generate_text
 from pycore.pyctl.ai.ai_rate_limits import rate_status
 from pycore.pyutils.tts import synthesize
 from pycore.callmodule.services.sync.laravel_endpoint_manager import get_laravel_endpoint_manager
-
-requests = get_third_package_requests()
 
 _SECTION = "agent_history_article"
 _DEFAULT_MODEL = "openrouter/free"
@@ -80,6 +77,16 @@ class AgentHistoryArticleService:
     def __init__(self) -> None:
         # In-memory event ring (newest first) - mirrors tts_sentence_worker_service.
         self._events: Deque[Dict[str, Any]] = deque(maxlen=_LOG_RING_MAX)
+        # Cached pending-fragment count so the 4s UI log poll never re-scans every
+        # session file (that O(all-sessions) disk+regex scan blew the 12s GET
+        # ceiling). The heartbeat tick is the ONLY place fragments are scanned; it
+        # refreshes this cache via _set_pending_cache().
+        self._pending_cache: int = 0
+        self._pending_at: float = 0.0
+
+    def _set_pending_cache(self, count: int) -> None:
+        self._pending_cache = int(count)
+        self._pending_at = time.time()
 
     def _log(self, level: str, message: str, **extra: Any) -> None:
         """Append a UI-visible pipeline event (newest first)."""
@@ -140,14 +147,17 @@ class AgentHistoryArticleService:
         return rows[: max(1, min(int(limit or 50), 200))]
 
     def get_logs(self) -> Dict[str, Any]:
-        """UI log panel snapshot: recent events + progress + openrouter rate usage."""
+        """UI log panel snapshot: recent events + progress + openrouter rate usage.
+
+        Pure in-memory (events ring + config JSON + cached pending count + rate
+        status) so the 4s poll can NEVER exceed the GET ceiling regardless of how
+        large the history is — the pending count is refreshed by the heartbeat tick,
+        not recomputed here.
+        """
         cfg = self.get_config()
         cursor = cfg.get("cursor") or {}
         published = list(cfg.get("published") or [])
-        pending = len(collect_fragments(
-            after_ts=int(cursor.get("after_ts") or 0),
-            after_fragment_id=str(cursor.get("after_fragment_id") or ""),
-        )) if cfg.get("phase") in ("live", "done") else len(collect_fragments())
+        pending = int(self._pending_cache)
         ai_usage: Dict[str, Any] = {}
         try:
             ai_usage = rate_status("openrouter") or {}
@@ -186,8 +196,11 @@ class AgentHistoryArticleService:
                 "phase": "backfill",
                 "live_listen": True,
             })
-            get_agent_history_service().extract(force=True)
+            # Don't force a full re-extract inline (it blocks this request on a
+            # user-dir walk); the heartbeat tick extracts continuously. Read the
+            # already-extracted fragments to report the pending count + seed cache.
             pending = len(collect_fragments())
+            self._set_pending_cache(pending)
             self._log("info", f"pipeline started: backfill ({pending} fragments pending)")
             return {
                 "started": True,
@@ -223,6 +236,7 @@ class AgentHistoryArticleService:
 
     def _tick_backfill_batch(self, cfg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         frags = collect_fragments()
+        self._set_pending_cache(len(frags))
         min_words = int(cfg.get("min_raw_words") or 200)
         start_idx = int((cfg.get("cursor") or {}).get("fragment_index") or 0)
         batches, next_idx = build_raw_batches(frags, min_words=min_words, start_index=start_idx)
@@ -266,6 +280,7 @@ class AgentHistoryArticleService:
             after_ts=int(cfg["cursor"].get("after_ts") or 0),
             after_fragment_id=str(cfg["cursor"].get("after_fragment_id") or ""),
         )
+        self._set_pending_cache(len(frags))
         min_words = int(cfg.get("min_raw_words") or 200)
         batches, _ = build_raw_batches(frags, min_words=min_words, start_index=0)
         if not batches:
@@ -443,7 +458,7 @@ class AgentHistoryArticleService:
             "tts_accent": audio.get("accent"),
             "openrouter_model": article.get("model"),
         }
-        resp = requests.post(url, json=payload, timeout=120)
+        resp = get_laravel_client().post(url, json=payload, timeout=120)
         if resp.status_code >= 400:
             err = f"Laravel article submit HTTP {resp.status_code}: {resp.text[:400]}"
             self._log("error", f"laravel rejected: HTTP {resp.status_code}")

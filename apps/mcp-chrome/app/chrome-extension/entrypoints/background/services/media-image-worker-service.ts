@@ -10,6 +10,7 @@
 
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase, SimpleWorkerConfig } from './task-center/SimpleWorkerBase';
+import { LANES } from '@/utils/task-center-lanes';
 import { logger } from '@/utils/logger';
 import {
   buildPosterQuery,
@@ -23,6 +24,7 @@ import {
   submitAssistPoster,
   type AssistClaimItem,
 } from '@/services/assist-image-api';
+import { submitOutbox } from './outbox/submit-outbox';
 
 const LOG = 'Media Image';
 const ASSIST_CLAIMER = 'mcp-chrome-media-image';
@@ -51,7 +53,7 @@ class MediaImageWorkerService extends SimpleWorkerBase {
   }
 
   protected get baseProcessorTypes(): ProcessorType[] {
-    return ['remote_poster'];
+    return [LANES.REMOTE_POSTER];
   }
 
   protected get workerLabel(): string {
@@ -151,7 +153,24 @@ class MediaImageWorkerService extends SimpleWorkerBase {
         logger.info(LOG, `Assist cover#${item.id} submitted${result.already_done ? ' (already done)' : ''}`);
       } else {
         this.assistStats.assistFailed += 1;
-        await releaseAssistItem(baseUrl, 'cover', item.id, result.error || 'submit rejected');
+        // Idempotent (fill-missing) submit failed: queue the fetched cover for
+        // infinite retry instead of only releasing, so it is never lost.
+        await submitOutbox.enqueue({
+          kind: 'assist_submit',
+          baseUrl,
+          payload: {
+            type: 'cover',
+            id: item.id,
+            imageBase64: image.imageBase64,
+            claimer: ASSIST_CLAIMER,
+            extras: {
+              mime: image.mime,
+              provider: image.provider,
+              model: image.engine,
+              latencyMs: Date.now() - started,
+            },
+          },
+        });
       }
       return;
     }
@@ -189,8 +208,24 @@ class MediaImageWorkerService extends SimpleWorkerBase {
         logger.info(LOG, `Assist poster#${item.id} (${mediaType}) submitted${result.already_done ? ' (already done)' : ''}`);
       } else {
         this.assistStats.assistFailed += 1;
-        await releaseAssistItem(baseUrl, 'poster', item.id, result.error || 'submit rejected', {
-          media_type: mediaType,
+        // Idempotent (fill-missing) submit failed: queue the fetched poster for
+        // infinite retry instead of only releasing, so it is never lost.
+        await submitOutbox.enqueue({
+          kind: 'assist_submit',
+          baseUrl,
+          payload: {
+            type: 'poster',
+            media_type: mediaType,
+            id: item.id,
+            imageBase64: image.imageBase64,
+            claimer: ASSIST_CLAIMER,
+            extras: {
+              mime: image.mime,
+              provider: image.provider,
+              sourceId: image.sourceUrl.slice(0, 512),
+              latencyMs: Date.now() - started,
+            },
+          },
         });
       }
     }

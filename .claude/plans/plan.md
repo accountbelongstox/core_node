@@ -1,122 +1,88 @@
-# Vocabulary page -> pycore-manager (UI -> pycore -> laravel proxy)
+# Plan: Ark CLI — numbered launcher (ark${index}.ps1 / .sh)
 
 ## Goal
-Surface the laravel-manager `#/vocabulary` page's endpoints in pycore-manager's
-sidebar nav (middle slot), with UI talking to pycore and pycore proxying laravel
-- matching the existing `word_audio_router.py` + `PcWordAudioPage` style. Full
-tab-for-tab replica (user-approved scope). No commands run.
+Add a new **Ark CLI** tool type to the Special Software Environment Manager,
+parallel to Claude AI / Codex CLI / Kimi Code CLI. Selecting it generates
+numbered `ark1.ps1` / `ark1.sh` … launchers (via the existing v4 launcher path)
+that run Claude Code against the Volcano Ark Coding Plan endpoint with:
 
-## Architecture decision (verified)
-The shared `components/views/VocabularyLearning.tsx` (+ sub-components) import the
-`api` singleton (hits laravel DIRECTLY) and shell hooks that pycore-manager does
-NOT provide: `useToast` (`components/admin/Toast.tsx:242`) **throws** outside a
-`ToastProvider`, `useAppState` needs `UnifiedAppContext`; `PcProviders.tsx` only
-mounts PcLive/PcLaravelEndpoint/PcCapability/PcVideoExtract. Reusing the shared
-component would crash. => Build a **fresh self-contained `PcVocabularyPage`** that
-uses `pycoreApi` + local state (the `PcWordAudioPage` pattern: `L` label object,
-guarded calls, no laravel-manager shell contexts).
+- **glm-5.2** model forced everywhere (default; overridable per-slot)
+- **bypass all permissions** by default (`--permission-mode bypassPermissions --dangerously-skip-permissions`)
+- **team multi-agent** default ON (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` always)
+- **prompt**: multi-agent teammate mode? `[Y/n]` → adds `--teammate-mode in-process`
+- **prompt**: ultracode? `[y/N]` → adds `--effort ultracode` (canonical flag; avoids PS JSON quote-mangling, per `[[claudeteam-ultracode-launcher]]`)
 
-## Backend - new proxy router (UI->pycore->laravel)
-**New `pycore/callmodule/routers/local/vocabulary_router.py`** - prefix
-`/api/local/vocabulary`, follows `word_audio_router.py`:
-- `_laravel_base()` via `get_laravel_endpoint_manager().resolve() or ""` (try/except, never raises).
-- `get_third_package_requests()` for HTTP; `ColorPrint.red(... + traceback.format_exc())` on error.
-- Never raises -> `{success:False, error:...}` envelope.
-- Module-private `_proxy(method, laravel_path, *, params=None, json_body=None)` helper
-  (justified: 23 endpoints inlined would exceed the 800-line split rule; this is the
-  scoped departure from the "inline per endpoint" norm, kept inside the one router file).
-- `_VOCAB_TIMEOUT = 600` (laravel can be slow/unreachable - matches the word-audio batch timeout).
+## Official-doc facts (verified against working state; web search returned nothing)
+Repo-documented in `claudevolc.ps1` + the existing `'Volcano Ark'` config, and
+confirmed by the current session running on glm-5.2 via this gateway:
+- Endpoint: `https://ark.cn-beijing.volces.com/api/coding` (Anthropic-compatible)
+- Model id: `glm-5.2`
+- Auth: Ark API key as Bearer → `ANTHROPIC_AUTH_TOKEN`
 
-Endpoint map (pycore path -> laravel path):
-- GET  `/translation/languages`      -> `/api/app_qy_v1/ai_tools/translation/languages`
-- POST `/translation/translate`      -> `/api/app_qy_v1/ai_tools/translation/translate`
-- POST `/tts/generate`               -> `/api/app_qy_v1/ai_tools/tts/generate`
-- GET  `/tts-queue/stats`            -> `/api/app_qy_v1/ai_tools/tts/queue/stats`
-- GET  `/tts-queue/items`            -> `/api/app_qy_v1/tts/queue/items`
-- GET  `/assist/overview`            -> `/api/app_qy_v1/assist/overview`
-- GET  `/assist/overview/items`      -> `/api/app_qy_v1/assist/overview/items`
-- GET  `/libraries`                  -> `/api/app_qy_v1/vocabulary/libraries`
-- GET  `/libraries/{id}/words`       -> `/api/app_qy_v1/vocabulary/libraries/{id}/words`
-- DEL  `/libraries/{id}`             -> `/api/app_qy_v1/learning/libraries/{id}`
-- POST `/cover/retry`                -> `/api/app_qy_v1/assist/cover/retry`
-- GET  `/statistics`                 -> `/api/app_qy_v1/vocabulary/statistics`
-- GET  `/language-breakdown`         -> `/api/app_qy_v1/vocabulary/language-breakdown`
-- GET  `/dictionary/words`           -> `/api/app_qy_v1/dictionary/words`
-- POST `/dictionary/words`           -> `/api/app_qy_v1/dictionary/words`
-- PUT  `/dictionary/words/{md5}`     -> `/api/app_qy_v1/dictionary/words/{md5}`
-- DEL  `/dictionary/words/{md5}`     -> `/api/app_qy_v1/dictionary/words/{md5}`
-- POST `/dictionary/words/batch`     -> `/api/app_qy_v1/dictionary/words/batch`
-- GET  `/dictionary/sentences`       -> `/api/app_qy_v1/dictionary/sentences`
-- POST `/translation/queue/batch/add`-> `/api/app_qy_v1/ai_tools/translation/queue/batch/add`
-- POST `/tts/queue/batch/query`      -> `/api/app_qy_v1/ai_tools/tts/queue/batch/query`
-- POST `/validity/report`            -> `/api/app_qy_v1/vocabulary/validity/report`
-- GET  `/tts/sentence-audio`         -> `/api/app_qy_v1/ai_tools/tts/sentence/audio`
-- GET  `/storage-summary`            -> `/api/servermanager/v1/system/static-resources`
+## How it plugs in (no menu/script-handler edits needed)
+- `MenuHandler` auto-discovers configs from `ConfigManager` + sorts A→Z by
+  `DisplayName` → adding the entry makes "Ark CLI" appear + get a submenu
+  (Add Global Command / Set Env Vars / View Scripts / Restore). Item numbers
+  auto-adjust.
+- `CommandHandler.add_global_command` for a `UseV4Launcher:True` config:
+  `generate_scripts_for_config` (full template, then discarded) →
+  `regenerate_all_v4_launchers_for_config` **overwrites** with the v4 lean
+  template. So the final `ark1.ps1/.sh` = our ark v4 template.
+- `file_number_manager.list_existing_scripts('ark')` globs `ark*.ps1/.sh` — works.
+- `_collect_secret_file_numbers` scans `ARK_API_KEY_*` etc. → finds `#1`
+  (key already stored by the existing `'Volcano Ark'` encrypted-constant config;
+  ark-cli reuses the same `ARK_API_KEY_1` — no duplicate secret).
+- `MCPSupport.Enabled=False` (lean launcher, like claudevolc/claudeteam; also
+  avoids `get_mcp_sync_script_path('ark')` looking for a non-existent
+  `ark_sync_mcp_servers.py`).
 
-**Register (2 places):** export `vocabulary_router` in
-`pycore/callmodule/routers/local/__init__.py` (import + `__all__`); import +
-`app.include_router(vocabulary_router)` in `pycore/callmodule/app.py` (import block
-lines 28-47 + mount block lines 112-122, alongside `word_audio_router`).
+## Changes
 
-## Frontend - pycoreApi methods + types
-**`core/api-libs/pycore/PycoreApi.ts`** - add a `// --- Vocabulary (pycore proxies laravel)` section
-with one method per endpoint above (GET->`getJSON`, POST->`postJSON`, PUT->`putJSON`,
-DEL->`deleteJSON`), mirroring the word-audio section's style (lines 1045-1082). Types
-declared alongside (DictionaryWordRow, LibraryWordRow, VocabStatistics, AssistOverviewResponse,
-TtsQueueStats, TranslationResponse, etc. - shapes from the laravel page, agent-confirmed).
+### 1. NEW `scripts/pytools/special_software_env_manager/script_sections/ark_launcher_section.py`
+`ArkLauncherSectionGenerator` with `generate_ps1()` + `generate_sh()`.
+Modeled on `claudevolc.ps1` + `claudeteam.ps1` + the v4 template
+(`ScriptManager._generate_v4_*_template`). Each generated script:
+- path-init + dot-source `WindowsPathFunction.ps1` (Win) / `BASH_SOURCE` resolve (Linux)
+- `Read-SecretFile` (BOM-safe) — reused verbatim from v4 template
+- load `ARK_API_KEY_{n}`, `ARK_BASE_URL_{n}` (opt), `ANTHROPIC_MODEL_{n}` (opt)
+- map: `ANTHROPIC_BASE_URL=ARK_BASE_URL or default`; `ANTHROPIC_AUTH_TOKEN=ARK_API_KEY`;
+  `ANTHROPIC_MODEL=override or glm-5.2`; force into `CLAUDE_CODE_SUBAGENT_MODEL` +
+  `ANTHROPIC_DEFAULT_HAIKU/SONNET_MODEL`
+- `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` always
+- error+exit if `ARK_API_KEY` missing
+- prompt multi `[Y/n]` (default Y) + prompt ultracode `[y/N]` (default N)
+- args: `--model glm-5.2 --permission-mode bypassPermissions --dangerously-skip-permissions`
+  always (Win); `--teammate-mode in-process` if multi; `--effort ultracode` if ultra
+- Linux gates the bypass flags behind `EUID -ne 0` (matches v4 sh template)
+- launch `& claude @args @args` (Win) / `exec claude "${args[@]}" "$@"` (Linux)
 
-## Frontend - new page + tabs (self-contained, no shell contexts)
-**`apps/pycore-manager/pages/PcVocabularyPage.tsx`** - default export; tab bar shell
-(`VocabSubTabBar`-style local tabs: Translate / Words / Libraries / Statistics / TTS Queue /
-Learning Tasks) with `localStorage`-persisted active tab; lazy `Suspense` per tab. Uses
-`pycoreApi.vocabulary.*`; local React state; `L` label object (en literals + zh comments);
-guarded calls; never crashes when pycore offline.
+### 2. MODIFY `config/config_manager.py`
+Add `'Ark CLI'` entry (placed right after `'Kimi Code CLI'` to group CLI tools):
+`Common='ark'`, `DisplayName='Ark CLI (Volcano Ark / GLM)'`, `CommandPrefix='ark'`,
+`WindowsCommand='claude'`, `LinuxCommand='claude'`, `UseV4Launcher=True`,
+`Variables=[ARK_API_KEY(req), ARK_BASE_URL(opt), ANTHROPIC_MODEL(opt)]`,
+`MCPSupport={Enabled:False}`, `SmartRecognition={Enabled:False}`.
 
-Co-located sub-components (split to stay <800 lines each), under
-`apps/pycore-manager/pages/vocabulary/`:
-- `vocabTypes.ts` - shared row/response types + `L` labels.
-- `VocabTranslateTab.tsx` - translate panel (source/target lang, detect, TTS generate + play).
-- `VocabWordsTab.tsx` - dictionary words table: filter (language/validity/has-audio) + search
-  + sort + paging + batch (delete/mark_valid/mark_invalid/requeue_tts) + per-word actions
-  (requeue translation, validity report, sentence audio). Reuses the column-builder idiom.
-- `VocabLibrariesTab.tsx` - libraries list by language + cover-retry + delete; opens detail modal.
-- `VocabLibraryDetailModal.tsx` - paginated library words + stats.
-- `VocabStatisticsTab.tsx` - summary totals + per-language breakdown table.
-- `VocabTtsQueueTab.tsx` - TTS queue stats + paginated items by status/type.
-- `VocabLearningTasksPanel.tsx` - learning tasks list (read-only-ish).
-- `vocabColumns.tsx` - shared table column builders (dictionary / assist-queue / tts-queue).
+### 3. MODIFY `managers/script_manager.py` (≈6 lines)
+- import `ArkLauncherSectionGenerator`
+- `self.ark_generator = ArkLauncherSectionGenerator()` in `__init__`
+- in `generate_v4_launcher_for_config`: branch on `command_prefix.lower()=='ark'`
+  → call `self.ark_generator.generate_ps1/generate_sh`; else existing v4 template.
+  (script_manager.py is already 882 lines; only ~6 lines added — bulk goes in the
+  new module to honor the modular rule.)
 
-Style: Tailwind + lucide-react icons; `pycoreApi` envelope `{success,error,...}` consumed
-directly (no `APIResponse` wrapper, no BaseAPI); offline banner when pycore unreachable.
-
-## Frontend - nav registration
-**`apps/pycore-manager/pcPages.tsx`** - add `export const PcVocabularyPage = lazy(() => import('./pages/PcVocabularyPage'));`
-near line 36; insert into `PC_PAGES` between `content` (line 56) and `ai` (line 60):
-`{ id: 'vocabulary', labelKey: 'nav.vocabulary', Icon: BookOpen, Component: PcVocabularyPage }`
-(`BookOpen` from lucide-react, added to the import list). No router edits (PcApp.tsx auto-generates).
-**`pc-locales/en.ts` + `zh.ts`** - add `vocabulary: 'Vocabulary'` / `'词汇'` to the `nav` block.
-
-## Files touched
-- NEW `pycore/callmodule/routers/local/vocabulary_router.py`
-- EDIT `pycore/callmodule/routers/local/__init__.py`
-- EDIT `pycore/callmodule/app.py`
-- EDIT `core/api-libs/pycore/PycoreApi.ts`
-- NEW `apps/pycore-manager/pages/PcVocabularyPage.tsx`
-- NEW `apps/pycore-manager/pages/vocabulary/*` (8 files)
-- EDIT `apps/pycore-manager/pcPages.tsx`
-- EDIT `apps/pycore-manager/pc-locales/en.ts`, `zh.ts`
+## Result
+`dd.cmd`/`dd.sh` → Special Software Environment Variables → **Ark CLI** →
+Add Global Command → Create #1 (press Enter on ARK_API_KEY to reuse the stored
+key) → writes `scripts/winenvs/ark1.ps1` + `scripts/linuxenvs/ark1.sh`.
+Running it: prompts multi + ultracode, then launches `claude` against Ark with
+glm-5.2 forced + permissions bypassed + teams on. More slots = ark2, ark3…
 
 ## Rules honored
-English code/comments/logs; no test code; no run/build/test; split >800-line files; imports
-at file top; follow existing `word_audio_router.py` + `PcWordAudioPage` style; FE no
-`import.meta.env` (config in JS). UI->pycore->laravel only - never `api` direct to laravel.
+English-only code/comments/logs. No test code. No git. No commands run.
+New file <800 lines; script_manager kept lean. Reused v4/claudevolc/claudeteam
+patterns + existing `UseV4Launcher` infrastructure.
 
-## Risks / notes
-- Translate + TTS-queue tabs duplicate surfaces already in pycore-manager (AI page, Queue
-  Center) - user accepted this by choosing full replica.
-- Response shapes: pycore proxy is pure passthrough of laravel JSON, so FE consumes laravel's
-  native shapes (agent-confirmed). No BaseAPI envelope.
-- Auth: laravel vocabulary read/CRUD routes are public; translate/TTS-generate/library-delete
-  need `auth:sanctum`. Proxy passes through; if laravel returns 401 the envelope surfaces it.
-- Large build (~10 new FE files). Will implement in order: BE router -> register -> pycoreApi ->
-  nav+locales -> page shell -> tabs.
+## Note
+Overwrote the prior unrelated Laravel-plan content in this scratch file
+(that plan lives on in memory `[[laravel-client-unified-gateway]]` + git history).

@@ -104,14 +104,13 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
       const existingTabs = await chrome.tabs.query({ url: DEEPSEEK_URL + '*' });
 
       if (existingTabs.length > 0 && existingTabs[0].id) {
-        // Reuse existing tab — activate via TabController so this programmatic
-        // switch is recorded and never mis-counted as human tab activity.
+        // Reuse existing tab in the BACKGROUND — do NOT foreground it. Prompt
+        // injection + result capture run via executeScript, which works on an
+        // inactive tab, so the user's focus is never stolen.
         tab = existingTabs[0];
-        await tabController.activate(tab.id);
       } else {
-        // Create new tab (active) and record the activation we just caused.
-        tab = await chrome.tabs.create({ url: DEEPSEEK_URL, active: true });
-        tabController.recordActivation(tab.id ?? -1);
+        // Create the worker tab in the BACKGROUND (active:false) — no focus steal.
+        tab = await tabController.openBackgroundTab(DEEPSEEK_URL);
       }
 
       if (!tab.id) {
@@ -135,45 +134,106 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
       try {
         const result = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          func: (promptText: string) => {
-            // Find input textarea (supports both Chinese and English interfaces)
-            const input = document.querySelector(
-              'textarea[placeholder*="输入"], textarea[placeholder*="Ask"], textarea[data-id="chat-input"]'
-            ) as HTMLTextAreaElement;
+          // Runs in the page. Kept resilient to DeepSeek UI drift: broad input
+          // selectors (textarea OR contenteditable), a React-safe value set, a
+          // short settle so the send button can enable, and an Enter-key
+          // fallback when no send button is present. Returns a structured
+          // {success, reason?} instead of throwing so the caller can report a
+          // clean message.
+          func: async (promptText: string) => {
+            const isVisible = (el: any): boolean => {
+              if (!el) return false;
+              const r = el.getBoundingClientRect();
+              return r.width > 0 && r.height > 0;
+            };
+            const pick = (selectors: string[], extra?: (el: any) => boolean): any => {
+              for (const sel of selectors) {
+                const list = Array.from(document.querySelectorAll(sel)).filter(
+                  (el) => isVisible(el) && (!extra || extra(el)),
+                );
+                if (list.length) return list[list.length - 1];
+              }
+              return null;
+            };
 
-            if (!input) {
-              throw new Error('Input textarea not found');
+            const input: any = pick([
+              '#chat-input',
+              'textarea[placeholder]',
+              'textarea',
+              'div[contenteditable="true"]',
+              '[role="textbox"]',
+            ]);
+            if (!input) return { success: false, reason: 'input control not found' };
+
+            const tag = input.tagName;
+            if (tag === 'TEXTAREA' || tag === 'INPUT') {
+              // React overrides the value setter — go through the native one so
+              // the framework registers the change and enables the send button.
+              const proto =
+                tag === 'TEXTAREA'
+                  ? window.HTMLTextAreaElement.prototype
+                  : window.HTMLInputElement.prototype;
+              const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+              if (desc && desc.set) desc.set.call(input, promptText);
+              else input.value = promptText;
+            } else {
+              input.focus();
+              input.textContent = promptText;
             }
-
-            // Set the value
-            input.value = promptText;
             input.dispatchEvent(new Event('input', { bubbles: true }));
             input.dispatchEvent(new Event('change', { bubbles: true }));
 
-            // Find and click send button
-            const sendButton = document.querySelector(
-              'button[type="submit"], button[aria-label*="Send"]'
-            ) as HTMLButtonElement;
+            // Let the framework react (enable the send button) before sending.
+            await new Promise((r) => setTimeout(r, 200));
 
-            if (!sendButton) {
-              throw new Error('Send button not found');
+            const sendBtn: any = pick(
+              [
+                'button[type="submit"]',
+                'button[aria-label*="Send" i]',
+                'button[aria-label*="发送"]',
+                'div[role="button"][aria-label*="Send" i]',
+              ],
+              (el) => !el.disabled && el.getAttribute('aria-disabled') !== 'true',
+            );
+            if (sendBtn) {
+              sendBtn.click();
+            } else {
+              const opts: any = {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+                cancelable: true,
+              };
+              input.dispatchEvent(new KeyboardEvent('keydown', opts));
+              input.dispatchEvent(new KeyboardEvent('keypress', opts));
+              input.dispatchEvent(new KeyboardEvent('keyup', opts));
             }
-
-            sendButton.click();
 
             return {
               success: true,
               conversationUrl: window.location.href,
+              sentVia: sendBtn ? 'button' : 'enter',
             };
           },
           args: [prompt],
         });
 
-        if (!result || result.length === 0 || !result[0].result.success) {
-          throw new Error('Failed to send prompt');
+        // executeScript returns result[0].result = null when the injected func
+        // threw/failed. The func returns {success:false, reason} for a missing
+        // control. The OUTER catch prefixes "Failed to send prompt:" — so the
+        // message thrown here must NOT include that prefix (avoids doubling).
+        const frame = result && result.length > 0 ? result[0] : null;
+        const injected = frame
+          ? (frame.result as { success?: boolean; conversationUrl?: string; reason?: string } | null)
+          : null;
+        if (!injected || !injected.success) {
+          const reason = injected && injected.reason ? injected.reason : 'input/send controls not found';
+          throw new Error(`DeepSeek ${reason} — open chat.deepseek.com and sign in, then retry`);
         }
 
-        const conversationUrl = result[0].result.conversationUrl;
+        const conversationUrl = injected.conversationUrl;
 
         // Update task status to pending
         await taskManager.updateTask(task.id, {

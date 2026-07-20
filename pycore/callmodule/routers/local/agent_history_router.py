@@ -107,8 +107,9 @@ def article_config_get():
 def article_config_post(body: dict):
     svc = get_agent_history_article_service()
     cfg = svc.save_config(body or {})
-    if cfg.get("extract_as_article"):
-        get_agent_history_service().extract(force=False)
+    # No inline extract here: AgentHistoryTickService already extracts every
+    # heartbeat (~10s), so enabling the toggle returns immediately instead of
+    # blocking the request on a full user-dir scan.
     return {"success": True, "data": cfg}
 
 

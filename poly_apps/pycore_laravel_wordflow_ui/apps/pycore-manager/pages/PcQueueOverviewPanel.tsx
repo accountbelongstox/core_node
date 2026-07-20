@@ -2,16 +2,15 @@
  * PcQueueOverviewPanel — Queue Center Overview tab.
  * GET /api/local/queue/overview + hub task-center reachability.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutGrid, Loader2, AlertTriangle, Wifi, WifiOff, Globe, Cpu, Sparkles, Chrome,
   Users, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import {
-  pycoreApi, loadOverviewCache, saveOverviewCache,
+  loadOverviewCache, saveOverviewCache,
 } from '../../../core/api-libs/pycore';
-import { pnaBlockedReason, pycoreEffectiveHost } from '../../../core/api-libs/pycore/pycoreTarget';
 import type { PcQueueOverview, PcQueueCategory, PcQueueWorker, PcQueueHandler } from '../../../core/api-libs/pycore';
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
 import { useQueueCenterHub, laravelLiveSyncOffline, laravelEndpointMismatch } from '../hooks/useQueueCenterHub';
@@ -22,48 +21,32 @@ const HANDLER_STYLE: Record<PcQueueHandler, { chip: string; Icon: React.FC<{ cla
   ai: { chip: 'bg-violet-500/15 text-violet-500', Icon: Sparkles },
 };
 
-const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick = 0, onMeta }) => {
+const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
   const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
-  const [data, setData] = useState<PcQueueOverview | null>(() => loadOverviewCache());
-  const [loading, setLoading] = useState(() => !loadOverviewCache());
-  const [err, setErr] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  // Data comes from the SHARED hub (validated shape — getQueueOverview can resolve
+  // to a {success:false} error shape with no categories), falling back to the last
+  // persisted snapshot so a reopen shows instantly.
+  const raw = hub.overview as any;
+  const data: PcQueueOverview | null =
+    (raw && raw.success !== false && Array.isArray(raw.categories)) ? (raw as PcQueueOverview) : loadOverviewCache();
+  const loading = hub.loading;
+  const err = hub.pycoreReachable ? null : hub.error;
 
-  const fetchOverview = useCallback(async (silent = false) => {
-    if (!silent) {
-      setLoading(true);
-      onMeta?.({ count: null, loading: true });
-    }
-    try {
-      const r = await pycoreApi.getQueueOverview();
-      if (!mounted.current) return;
-      if (r && (r as any).success !== false && Array.isArray(r.categories)) {
-        setData(r); setErr(null);
-        saveOverviewCache(r);
-        const pending = r.categories.reduce((s, c) => s + (c.pending || 0), 0);
-        onMeta?.({ count: pending, loading: false });
-      } else {
-        setErr((r as any)?.error || t('queueCenter.overview.unavailable'));
-        onMeta?.({ count: null, loading: false });
-      }
-    } catch (e: any) {
-      if (mounted.current) {
-        const pna = pnaBlockedReason(pycoreEffectiveHost());
-        setErr(pna || e?.message || t('queueCenter.overview.unavailable'));
-        onMeta?.({ count: null, loading: false });
-      }
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, [onMeta, t]);
+  // Persist the last good snapshot for instant reopen.
+  useEffect(() => {
+    const ov = hub.overview as any;
+    if (ov && Array.isArray(ov.categories)) saveOverviewCache(ov as PcQueueOverview);
+  }, [hub.overview]);
 
-  const fetchRef = useRef(fetchOverview);
-  fetchRef.current = fetchOverview;
-  useEffect(() => { void fetchRef.current(false); }, []);
-  useEffect(() => { void fetchRef.current(true); }, [refreshTick]);
+  // Report the pending-count badge to the tab bar (guarded — never reduce undefined).
+  useEffect(() => {
+    const ov = hub.overview as any;
+    const cats = (ov && Array.isArray(ov.categories)) ? ov.categories : null;
+    const pending = cats ? cats.reduce((s: number, c: any) => s + (c.pending || 0), 0) : null;
+    onMeta?.({ count: pending, loading: hub.loading });
+  }, [hub.overview, hub.loading, onMeta]);
 
   if (!data) {
     return (
@@ -79,7 +62,9 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick = 0
   const MCP_CHROME_HIDDEN = new Set(['cover', 'poster', 'image', 'movie_poster']);
   const categories = (data.categories ?? []).filter((c) => !MCP_CHROME_HIDDEN.has(c.key));
   const workers = data.workers ?? [];
-  const laravelReachable = data.laravel_reachable || hub.laravelReachable === true;
+  // Reachability comes ONLY from the hub's task-center fields — the cached
+  // snapshot above may be days old and must never supply the flag.
+  const laravelReachable = hub.laravelReachable === true;
   const liveSyncOffline = laravelLiveSyncOffline(hub);
   const endpointMismatch = laravelEndpointMismatch(hub);
 

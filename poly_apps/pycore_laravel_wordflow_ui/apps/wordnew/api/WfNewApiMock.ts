@@ -693,6 +693,11 @@ export const wfNewApiMock: WfNewApi = {
     return delay({ success: true, task_id: `mock-${contentId}` });
   },
 
+  async prioritizeSentenceAudio(items: { text: string; language: string }[]) {
+    const clean = (items || []).filter((it) => it && it.text?.trim() && it.language);
+    return delay({ success: true, queued: clean.length });
+  },
+
   async getBookReadingProgress(sourceKey: string) {
     return delay(null);
   },
@@ -731,6 +736,23 @@ export const wfNewApiMock: WfNewApi = {
       already_linked: false,
       words_added: 0,
       total_words_in_library: 0,
+    });
+  },
+
+  async previewAddLibraryToDefaultGroup(libraryId) {
+    return delay({
+      gid: 'mock-default-group',
+      library_id: Number(libraryId),
+      library_name: 'Mock Library',
+      already_linked: false,
+      current_in_group: 120,
+      library_total: 500,
+      to_add: 480,
+      projected_total: 600,
+      duplicates: [],
+      duplicates_count: 20,
+      language_match: true,
+      status_breakdown: { read: 60, memorized: 25, due: 15, total: 120 },
     });
   },
 };

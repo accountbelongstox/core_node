@@ -885,10 +885,12 @@ export interface TtsEngine {
   server_managed?: boolean;
   server_enabled?: boolean;
   server_idle_remaining_s?: number | null;
-  /** In-process model engine (qwen3tts/sherpa/…): weights resident in memory. */
+  /** In-process model engine (sherpa/kokoro/bark/…): weights resident in memory. Class-C server engines like qwen3tts report server_* instead. */
   model_loaded?: boolean;
   /** Seconds until idle-unload for an in-process model (null when not loaded). */
   model_idle_remaining_s?: number | null;
+  /** Parallel-safety annotation: 'serial' (edge lock) | 'cloud' | 'in_process' | 'server'. */
+  concurrency?: string;
 }
 
 export interface TtsStatus {
@@ -1000,6 +1002,37 @@ export interface SttTestResponse {
   record_id?: string;
   /** Echo of the backend route that handled this test. */
   route?: string;
+}
+
+// --- Engine model-load progress (GET /api/local/engines/load-status) ------- #
+/** Load state of a single speech engine (TTS/STT), server or in-process model. */
+export type EngineLoadState = 'idle' | 'loading' | 'loaded' | 'error';
+
+/**
+ * One engine's live model-load progress. Populated for class-B in-process models
+ * and class-C HTTP servers as they load; class-A cloud/CLI engines never appear.
+ * `log_tail` is the last lines of the engine's startup/load output (bounded).
+ */
+export interface EngineLoadStatusEntry {
+  name: string;
+  state: EngineLoadState;
+  message: string;
+  device: string;
+  /** Epoch seconds when the current load started (null when idle). */
+  started_at: number | null;
+  /** Epoch seconds of the last state change. */
+  updated_at: number | null;
+  /** Milliseconds elapsed since the load started (ticks while loading). */
+  elapsed_ms: number;
+  /** Bounded tail of recent load/startup log lines. */
+  log_tail: string[];
+}
+
+/** GET /api/local/engines/load-status — name -> live load-progress entry. */
+export interface EnginesLoadStatusResponse {
+  success: boolean;
+  engines: Record<string, EngineLoadStatusEntry>;
+  error?: string;
 }
 
 // --- Speech (TTS/STT) clip history — the audio side of the Records timeline - #
@@ -1801,6 +1834,8 @@ export interface PcTaskCenterRemoteQueue {
   ws_connected?: boolean;
   summary?: TranslationQueueSummary;
   age_ms?: number | null;
+  /** Age of the cached monitor snapshot (seconds); lets the hub skip triangulation. */
+  laravel_snapshot_age_s?: number | null;
 }
 
 export interface PcTaskCenterResponse {
@@ -1823,9 +1858,25 @@ export interface PcQueueOverview {
   error?: string;
 }
 
+/** One in-flight sentence-audio task (sentence worker get_status). */
+export interface SentenceWorkerTask {
+  task_id?: number;
+  content_id?: string;
+  language?: string;
+  priority?: number;
+  content?: string;
+  variant_count?: number;
+  current_variant_index?: number;
+  current_variant_key?: string;
+  current_provider?: string;
+}
+
 /** GET /api/local/sentence-audio/status — auto-start toggle + worker + Laravel counts. */
 export interface SentenceAudioAutoStatus {
   auto_start: boolean;
+  /** Effective worker concurrency + recommended value for the current engine. */
+  concurrency?: number;
+  concurrency_recommended?: number;
   heartbeat_enabled: boolean;
   sentence_audio_capability: boolean;
   laravel?: {
@@ -1842,13 +1893,10 @@ export interface SentenceAudioAutoStatus {
     total_succeeded?: number;
     total_failed?: number;
     last_cycle?: Record<string, unknown>;
-    current_task?: {
-      task_id?: number;
-      content_id?: string;
-      language?: string;
-      priority?: number;
-      content?: string;
-    } | null;
+    /** Live heartbeat flag (sentence worker get_status; replaces enabled_on_start). */
+    heartbeat_enabled?: boolean;
+    /** Single task before the concurrent worker; a list of in-flight tasks after. */
+    current_task?: SentenceWorkerTask | SentenceWorkerTask[] | null;
     events?: Array<{
       at?: number;
       kind?: string;
@@ -1914,6 +1962,9 @@ export interface QueueBumpsSnapshot {
 /** Word-dictionary TTS worker auto-start strip (tts_queue_poller). */
 export interface WordTtsAutoStatus {
   auto_start: boolean;
+  /** Effective worker concurrency + recommended value for the current engine. */
+  concurrency?: number;
+  concurrency_recommended?: number;
   heartbeat_enabled: boolean;
   laravel?: {
     pending?: number;
@@ -1926,7 +1977,33 @@ export interface WordTtsAutoStatus {
     total_succeeded?: number;
     total_failed?: number;
     last_tick?: Record<string, unknown>;
+    /** Live heartbeat flag (word worker get_status). */
+    heartbeat_enabled?: boolean;
+    /** Recent processing records ({at, kind, detail, ...}), same shape as the sentence worker's. */
+    events?: Array<{
+      at?: number;
+      kind?: string;
+      detail?: string;
+      text_preview?: string;
+      language?: string;
+    }>;
   };
+}
+
+// --- Code version indicator (pycore + pointed-to laravel backend) ----------- #
+// Served by pycore GET /api/local/version. The UI reads BOTH through pycore
+// (UI -> pycore -> laravel); the browser never calls laravel directly.
+export interface PcCodeVersion {
+  last_modified_unix: number;
+  last_modified_at: string;
+  latest_file: string;
+  scan_ms?: number;
+}
+export interface PcVersionInfo {
+  success: boolean;
+  backend_configured: boolean;
+  pycore: PcCodeVersion;
+  backend: PcCodeVersion & { base_url: string; reachable: boolean };
 }
 
 export interface HeartbeatCallbackRow {

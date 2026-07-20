@@ -26,6 +26,8 @@ $winCommonDir       = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 Write-Host '------------------------------------------------------' -ForegroundColor Cyan
 Write-Host ' Pycore prerequisites (PreparePycorePrerequisites)' -ForegroundColor Cyan
 Write-Host '------------------------------------------------------' -ForegroundColor Cyan
+Write-Host '[i] Idempotent and SELF-REPAIRING: re-running repairs environment drift (e.g. a clobbered' -ForegroundColor Cyan
+Write-Host '    transformers pin is restored to the shared version). See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.' -ForegroundColor Cyan
 
 foreach ($entry in $PycorePrerequisiteScripts) {
     $name = $entry.Key

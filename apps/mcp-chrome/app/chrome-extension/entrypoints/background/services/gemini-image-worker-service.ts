@@ -13,6 +13,7 @@
  */
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
+import { LANES } from '@/utils/task-center-lanes';
 import { geminiImageTool } from '../tools/browser/gemini-image';
 import { logger } from '@/utils/logger';
 
@@ -35,7 +36,7 @@ class GeminiImageWorkerService extends SimpleWorkerBase {
   }
 
   protected get baseProcessorTypes(): ProcessorType[] {
-    return ['remote_gemini'];
+    return [LANES.REMOTE_GEMINI];
   }
 
   protected get workerLabel(): string {

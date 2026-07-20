@@ -10,6 +10,10 @@
  * TaskDetailModal.vue (header label/icon) so the two views never drift.
  */
 
+// PRIORITY_FAST (value) + WorkerCapability (type) come from the worker API client
+// — the single source for the fast-tier threshold and the capability vocabulary.
+import { PRIORITY_FAST, type WorkerCapability } from '@/entrypoints/background/api/WorkerApiClient';
+
 export interface TaskTypeMeta {
   /** Friendly label shown in rows + modal header. */
   label: string;
@@ -17,19 +21,23 @@ export interface TaskTypeMeta {
   icon: string;
   /** Short uppercase badge tag. */
   badge: string;
+  /** Chinese label for the popup summary strip (SUMMARY_CATS builds from this). */
+  zhLabel?: string;
+  /** Accent color for the popup summary strip. */
+  color?: string;
 }
 
 /** Covers all 8 unified task types + the local bing_dictionary worker kind. */
 export const TASK_TYPE_META: Record<string, TaskTypeMeta> = {
-  word_translation: { label: 'Word Translation', icon: '🔤', badge: 'TRANSLATE' },
-  word_media: { label: 'Word Media', icon: '🖼️', badge: 'MEDIA' },
-  word_audio: { label: 'Word Audio', icon: '🔊', badge: 'AUDIO' },
-  gemini_image: { label: 'Gemini Image', icon: '🎨', badge: 'IMAGE' },
-  gemini_chat: { label: 'Gemini Chat', icon: '💬', badge: 'CHAT' },
-  notebooklm: { label: 'NotebookLM', icon: '📓', badge: 'NOTEBOOK' },
-  sentence_audio: { label: 'Sentence Audio', icon: '🎧', badge: 'SENTENCE' },
-  poster: { label: 'Poster', icon: '🎬', badge: 'POSTER' },
-  subtitle_search: { label: 'Subtitle Search', icon: '💬', badge: 'SUBTITLE' },
+  word_translation: { label: 'Word Translation', icon: '🔤', badge: 'TRANSLATE', zhLabel: '待翻译任务', color: '#818cf8' },
+  word_media: { label: 'Word Media', icon: '🖼️', badge: 'MEDIA', zhLabel: '待生成图片', color: '#a78bfa' },
+  word_audio: { label: 'Word Audio', icon: '🔊', badge: 'AUDIO', zhLabel: '待生成语音', color: '#2dd4bf' },
+  gemini_image: { label: 'Gemini Image', icon: '🎨', badge: 'IMAGE', zhLabel: '待 AI 生图', color: '#c084fc' },
+  gemini_chat: { label: 'Gemini Chat', icon: '💬', badge: 'CHAT', zhLabel: '待 AI 对话', color: '#f472b6' },
+  notebooklm: { label: 'NotebookLM', icon: '📓', badge: 'NOTEBOOK', zhLabel: '待 NLM 处理', color: '#fbbf24' },
+  sentence_audio: { label: 'Sentence Audio', icon: '🎧', badge: 'SENTENCE', zhLabel: '待句子音频', color: '#34d399' },
+  poster: { label: 'Poster', icon: '🎬', badge: 'POSTER', zhLabel: '待生成海报', color: '#fb7185' },
+  subtitle_search: { label: 'Subtitle Search', icon: '💬', badge: 'SUBTITLE', zhLabel: '待字幕搜索', color: '#60a5fa' },
   bing_dictionary: { label: 'Bing Dictionary', icon: '📖', badge: 'DICT' },
 };
 
@@ -41,7 +49,10 @@ export const UNKNOWN_TASK_META: TaskTypeMeta = { label: 'Task', icon: '📦', ba
  * ({audio,image,translate,sentence_audio,ai_translate,subtitle,poster}); a
  * null / unset capability means "any client may claim it".
  */
-export const CAPABILITY_LABEL: Record<string, string> = {
+// Typed by WorkerCapability so an unknown capability key can't be added; Partial
+// because not every capability needs a bespoke label (unknowns fall back to the
+// raw key in capabilityLabel).
+export const CAPABILITY_LABEL: Partial<Record<WorkerCapability, string>> = {
   audio: 'Audio',
   image: 'Image',
   translate: 'Translate',
@@ -70,7 +81,7 @@ export function taskTypeLabel(taskType?: string | null, fallbackType?: string | 
 /** Capability label; null / '' / undefined → 'any'. */
 export function capabilityLabel(capability?: string | null): string {
   if (capability === null || capability === undefined || capability === '') return 'any';
-  return CAPABILITY_LABEL[capability] || capability;
+  return CAPABILITY_LABEL[capability as WorkerCapability] || capability;
 }
 
 /** True when the capability is the AI Translate fast-lane subset. */
@@ -86,5 +97,5 @@ export function isFastTier(opts: {
 }): boolean {
   if (opts.is_fast_tier) return true;
   if (opts.execution_type === 'remote_fast') return true;
-  return typeof opts.priority === 'number' && opts.priority >= 100;
+  return typeof opts.priority === 'number' && opts.priority >= PRIORITY_FAST;
 }

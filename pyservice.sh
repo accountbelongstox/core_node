@@ -117,6 +117,7 @@ ONLY=0
 NO_UI=0
 UI_BUILD=0
 UI_PORT="13054"
+SKIP_VOXCPM2=0
 PREPARE_ARGS=()
 
 # --- locate a Python 3 interpreter --------------------------------------- #
@@ -188,12 +189,15 @@ Options (apply to 'run'):
   --no-ui          Do not launch the dashboard UI; use legacy /web/subtitle
   --ui-build       Build the dashboard UI and serve it (vite preview)
   --ui-port PORT   Port the UI server listens on (default: 13054)
+  --skip-voxcpm2   Skip VoxCPM2 + Bark + Parler prerequisite installs
+                   (sets VOXCPM2_SKIP=1 / BARK_SKIP=1 / PARLER_SKIP=1)
   --               Everything after a bare -- is forwarded to prepare.sh
 
 Examples:
   ./pyservice.sh                              # run: install prereqs, launch 0.0.0.0:59000
   ./pyservice.sh run --no-ui --port 8000      # run on port 8000, legacy UI
   ./pyservice.sh --port 8000                  # no subcommand == run
+  ./pyservice.sh --skip-voxcpm2               # run, but skip VoxCPM2/Bark/Parler installs
   ./pyservice.sh config --show                # show headless config
   ./pyservice.sh install                      # install the systemd service (Linux)
   ./pyservice.sh --only -- --whisper-model base  # only prereqs (args after -- -> prepare.sh)
@@ -325,6 +329,7 @@ while [[ $# -gt 0 ]]; do
         --no-ui)      NO_UI=1;        shift   ;;
         --ui-build)   UI_BUILD=1;     shift   ;;
         --ui-port)    UI_PORT="$2";   shift 2 ;;
+        --skip-voxcpm2) SKIP_VOXCPM2=1; shift ;;
         --)           shift; PREPARE_ARGS+=("$@"); break ;;
         *) echo "[!] Unknown argument: $1" >&2; shift ;;
     esac
@@ -333,7 +338,7 @@ done
 echo "======================================================"
 echo " Pycore Service - entry point"
 echo "======================================================"
-echo "[i] pyservice run - run \`pyservice.sh help\` for all commands (host=$BIND_HOST port=$PORT ui=$([[ "$NO_UI" -eq 1 ]] && echo legacy || echo 'dashboard (pycore-manager)'))"
+echo "[i] pyservice run - run \`pyservice.sh help\` for all commands (host=$BIND_HOST port=$PORT ui=$([[ "$NO_UI" -eq 1 ]] && echo legacy || echo 'dashboard (pycore-manager)') skip_tts=$([[ "$SKIP_VOXCPM2" -eq 1 ]] && echo 'voxcpm2+bark+parler skipped' || echo default))"
 
 if ! PY="$(resolve_python)"; then
     echo "[X] Python 3 was NOT found. Install it, then re-run:" >&2
@@ -359,12 +364,26 @@ WORKER_REL="pycore/pycore_module_caller.py"
 cd "$SCRIPT_DIR"
 
 # --- 1) prerequisites ---------------------------------------------------- #
+# prepare_pycore_prerequisites.sh runs the numbered installers. Every one is IDEMPOTENT
+# and self-REPAIRING, so this step is safe to re-run on every boot and heals drift: the
+# Bucket-A LLM stack shares ONE pinned transformers (never --upgrade) and Bucket-B engines
+# with incompatible pins (qwen3tts, melotts, gptsovits — each in its own isolated per-engine
+# venv; melotts/gptsovits build opt-in only) never touch the main interpreter. See
+# development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5 & §7.
 if [[ "$NO_INSTALL" -eq 1 ]]; then
     echo "[i] Skipping prerequisite install (--no-install)."
 else
     echo "[..] Running prerequisite installers ..."
     # Neural TTS batch (ChatTTS/CosyVoice/Fish Speech/Kokoro/VoxCPM2/F5/GPT-SoVITS); idempotent. Opt out: NEURAL_TTS_INSTALL=0
     [[ -z "${NEURAL_TTS_INSTALL:-}" ]] && export NEURAL_TTS_INSTALL=1
+    # --skip-voxcpm2 (mirrors Windows -SkipVoxcpm2): export the per-engine skip flags so the
+    # numbered installers (119_voxcpm2 / 116_bark / 139_parler) skip cleanly even though the
+    # NEURAL_TTS_INSTALL batch would otherwise force them (each checks its *_SKIP flag first).
+    if [[ "$SKIP_VOXCPM2" -eq 1 ]]; then
+        export VOXCPM2_SKIP=1
+        export BARK_SKIP=1
+        export PARLER_SKIP=1
+    fi
     if ! bash "$PREPARE_REL" --python "$PY" "${PREPARE_ARGS[@]+"${PREPARE_ARGS[@]}"}"; then
         echo "[!] Prerequisite step failed; continuing to launch."
     fi

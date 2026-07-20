@@ -6,28 +6,15 @@
 
 import { Task } from '../../api/WorkerApiClient';
 
-export interface ProcessorConfig {
-  apiUrl: string;
-  [key: string]: any;
-}
-
-export interface ProcessorStats {
-  pending: number;
-  translated: number;
-  failed: number;
-  lastRun: number | null;
-  workerId: string | null;
-  isOnline: boolean;
-  queueTotal: number;
-  newTasks: number;
-  duplicateTasks: number;
-  [key: string]: any; // Allow additional custom stats
-}
-
-export interface ProcessorStatus {
-  isRunning: boolean;
-  stats: ProcessorStats;
-}
+// Processor-level shapes are centralized in utils/task-center-types.ts so the
+// popup and background share ONE definition. Re-exported here for the many
+// existing importers of './ITaskProcessor'.
+export type {
+  ProcessorConfig,
+  ProcessorStats,
+  ProcessorStatus,
+} from '@/utils/task-center-types';
+import type { ProcessorConfig, ProcessorStatus } from '@/utils/task-center-types';
 
 /**
  * Task Processor Interface

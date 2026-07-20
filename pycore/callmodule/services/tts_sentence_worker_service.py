@@ -71,8 +71,10 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 # ColorPrint is the only allowed logger in pycore services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_cache_dir
+# Live enable flag for bump-wake (UI toggle lives on the heartbeat callback).
+from pycore.pyheartbeat import get_heartbeat_system
 # requests is a third-party dep — always obtained through the lazy accessor.
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 # Env-backed callmodule config (TTS_SENTENCE_WORKER_* knobs live beside the word
 # worker's TTS_WORKER_* in callmodule_config/config.py).
 from pycore.callmodule.callmodule_config import Config
@@ -84,10 +86,13 @@ from pycore.callmodule.services.sync.laravel_endpoint_manager import (
 # ONE entry point for synthesis; local-first engine priority and edge's
 # process-wide serialization live in the orchestrator.
 from pycore.pyutils.tts import tts_orchestrator
-# REUSE the word worker's local MP3 validation (identical to the server's check).
 from pycore.callmodule.services.tts_queue_poller_service import _validate_mp3
 from pycore.callmodule.services.task_history_store import append_record
 from pycore.pyctl.desktop.task_manager import get_task_manager
+from pycore.callmodule.services.tts_concurrency import (
+    effective_concurrency,
+    recommended_concurrency,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -103,6 +108,10 @@ _REPORT_TIMEOUT = 60
 
 # Server hard cap on the claim batch (contract: limit <= 50).
 _MAX_BATCH = 50
+
+# TTL for the cached tts_status()/best_engine() probe: tts_status() probes ALL
+# engines, which is far too expensive to run per task.
+_ENGINE_PROBE_TTL_S = 60.0
 
 
 class _PriorityQueue:
@@ -134,6 +143,28 @@ class _PriorityQueue:
             if not self._heap:
                 return None
             return heapq.heappop(self._heap)[2]
+
+    def bump(self, content_id: str, language: str, priority: int) -> bool:
+        """Re-key the queued task matching content_id+language to ``priority``.
+
+        heapq has no decrease-key; the heap holds at most a few claim batches,
+        so a full heapify after mutating the one entry is the simple correct
+        move. Returns True when a matching queued entry was found and re-keyed.
+        """
+        try:
+            new_priority = int(priority)
+        except (TypeError, ValueError):
+            return False
+        with self._lock:
+            for index, (_neg, seq, task) in enumerate(self._heap):
+                cid = task.get("content_id") or task.get("sentence_id") or ""
+                lang = task.get("language") or ""
+                if str(cid) == str(content_id) and str(lang) == str(language):
+                    task["priority"] = new_priority
+                    self._heap[index] = (-new_priority, seq, task)
+                    heapq.heapify(self._heap)
+                    return True
+            return False
 
     def __len__(self) -> int:
         with self._lock:
@@ -189,6 +220,9 @@ class TTSSentenceWorkerService:
         self.batch_size = max(
             1, min(_MAX_BATCH, int(getattr(Config, "TTS_SENTENCE_WORKER_BATCH", 10)))
         )
+        self.concurrency = max(
+            0, int(getattr(Config, "TTS_SENTENCE_WORKER_CONCURRENCY", 0))
+        )
 
         # §5.3 ONE shared priority queue across ALL claim batches.
         self._queue = _PriorityQueue()
@@ -211,8 +245,11 @@ class TTSSentenceWorkerService:
         self._processing = 0
         # `leased` = claimed-but-not-yet-synthesized (still in the queue).
         self._last_cycle_summary: Dict[str, Any] = {}
-        self._current_task: Optional[Dict[str, Any]] = None
+        self._current_tasks: Dict[Any, Dict[str, Any]] = {}
+        self._current_tasks_lock = threading.Lock()
         self._events: Deque[Dict[str, Any]] = deque(maxlen=80)
+        # Throttle marker for the idle event (epoch seconds of the last one).
+        self._last_idle_event_ts = 0.0
 
         # Persistent local cache for synthesized sentence MP3s (keyed by
         # lang/content_id/variant_key). A claimed sentence whose cache file is
@@ -220,6 +257,10 @@ class TTSSentenceWorkerService:
         # file is NEVER deleted (it is the local copy the pipeline must retain
         # and re-report if laravel ever loses it).
         self._cache_dir = str(get_app_cache_dir() / "sentence_audio")
+
+        # Engine probe cache (60s TTL) — see _planned_engine().
+        self._engine_probe_cache: Optional[str] = None
+        self._engine_probe_ts = 0.0
 
         self._initialized = True
         ColorPrint.green(
@@ -242,6 +283,17 @@ class TTSSentenceWorkerService:
             if text:
                 entry["text_preview"] = text[:80]
         self._events.appendleft(entry)
+        
+        label = f"[TTSSentenceWorker] {kind}"
+        if task and task.get("task_id") is not None:
+            label += f" task={task.get('task_id')}"
+        line = f"{label}: {detail[:160]}" if detail else label
+        if kind.endswith("_fail") or kind in ("report_reject", "synth_error"):
+            ColorPrint.yellow(line)
+        elif kind == "idle":
+            ColorPrint.gray(line)
+        else:
+            ColorPrint.blue(line)
 
     # -------------------- identity / plumbing --------------------
 
@@ -268,11 +320,6 @@ class TTSSentenceWorkerService:
         if self._base_override:
             return self._base_override
         return get_laravel_endpoint_manager().resolve()
-
-    @staticmethod
-    def _requests():
-        """Lazily obtain the third-party requests module (pycore rule)."""
-        return get_third_package_requests()
 
     @staticmethod
     def _short_err(exc: Exception) -> str:
@@ -312,21 +359,26 @@ class TTSSentenceWorkerService:
 
     # -------------------- Laravel worker API --------------------
 
-    def _claim_tasks(self, base: str) -> Optional[List[Dict[str, Any]]]:
+    def _claim_tasks(self, base: str, limit: Optional[int] = None) -> Optional[List[Dict[str, Any]]]:
         """POST /tts/sentence/claim. Returns the task list, or None when Laravel
         could not be reached / answered abnormally (logged per state change)."""
-        requests = self._requests()
+        batch = max(1, min(_MAX_BATCH, int(limit or self.batch_size)))
         try:
-            resp = requests.post(
-                base + CLAIM_PATH,
-                json={"worker_id": self.worker_id, "limit": self.batch_size},
+            resp = get_laravel_client().post(
+                CLAIM_PATH,
+                base_url=base,
+                json={"worker_id": self.worker_id, "limit": batch},
                 timeout=_CLAIM_TIMEOUT,
             )
         except Exception as e:
-            self._note_laravel_down(base, self._short_err(e))
+            reason = self._short_err(e)
+            self._note_laravel_down(base, reason)
+            self._log_event("claim_fail", reason)
             return None
         if resp.status_code != 200:
-            self._note_laravel_down(base, f"claim -> HTTP {resp.status_code}")
+            reason = f"claim -> HTTP {resp.status_code}"
+            self._note_laravel_down(base, reason)
+            self._log_event("claim_fail", reason)
             return None
         self._note_laravel_ok(base)
         try:
@@ -335,6 +387,7 @@ class TTSSentenceWorkerService:
             ColorPrint.yellow(
                 "[TTSSentenceWorker] Claim returned non-JSON body — skipping tick"
             )
+            self._log_event("claim_fail", "claim returned non-JSON body")
             return None
         data = body.get("data") if isinstance(body.get("data"), dict) else body
         return list((data or {}).get("tasks") or [])
@@ -344,10 +397,10 @@ class TTSSentenceWorkerService:
         base = self._base_url()
         if not base:
             return {}
-        requests = self._requests()
         try:
-            resp = requests.post(
-                base + CLAIM_PATH,
+            resp = get_laravel_client().post(
+                CLAIM_PATH,
+                base_url=base,
                 json={"worker_id": self.worker_id, "limit": 0},
                 timeout=_CLAIM_TIMEOUT,
             )
@@ -381,7 +434,6 @@ class TTSSentenceWorkerService:
     ) -> Tuple[bool, str]:
         """POST /tts/sentence/report (multipart upload on success, fields-only on
         failure). Returns ``(accepted, detail)``; never raises."""
-        requests = self._requests()
         content_id = (task.get("content_id") or task.get("sentence_id") or "").strip()
         language = (task.get("language") or "en").strip() or "en"
         task_id = task.get("task_id")
@@ -408,15 +460,16 @@ class TTSSentenceWorkerService:
         try:
             if success:
                 with open(audio_path, "rb") as fh:
-                    resp = requests.post(
-                        base + REPORT_PATH,
+                    resp = get_laravel_client().post(
+                        REPORT_PATH,
+                        base_url=base,
                         data=fields,
                         files={"audio": (os.path.basename(audio_path), fh, "audio/mpeg")},
                         timeout=_REPORT_TIMEOUT,
                     )
             else:
-                resp = requests.post(
-                    base + REPORT_PATH, data=fields, timeout=_REPORT_TIMEOUT
+                resp = get_laravel_client().post(
+                    REPORT_PATH, base_url=base, data=fields, timeout=_REPORT_TIMEOUT
                 )
         except Exception as e:
             return False, self._short_err(e)
@@ -452,6 +505,47 @@ class TTSSentenceWorkerService:
         except Exception:  # noqa: BLE001
             pass
 
+    def _planned_engine(self) -> Optional[str]:
+        """Active/best TTS engine with a 60s TTL cache.
+
+        ``tts_orchestrator.tts_status()`` probes EVERY engine — per-task calls
+        (the old behavior) stall synthesis on 16 sequential availability
+        checks, so the result is cached for _ENGINE_PROBE_TTL_S seconds.
+        """
+        now = time.monotonic()
+        if (
+            self._engine_probe_cache is not None
+            and now - self._engine_probe_ts < _ENGINE_PROBE_TTL_S
+        ):
+            return self._engine_probe_cache or None
+        engine = (
+            tts_orchestrator.tts_status().get("active")
+            or tts_orchestrator.best_engine()
+            or ""
+        )
+        self._engine_probe_cache = engine
+        self._engine_probe_ts = now
+        return engine or None
+
+    @staticmethod
+    def _engine_concurrency_class(engine: Optional[str]) -> str:
+        return tts_orchestrator._ENGINE_CONCURRENCY.get(engine or "", "serial")
+
+    def _effective_concurrency(self) -> Tuple[int, str]:
+        engine = self._planned_engine() or ""
+        kind = self._engine_concurrency_class(engine)
+        return effective_concurrency(kind, self.concurrency), engine
+
+    def concurrency_status(self) -> Dict[str, Any]:
+        engine = self._planned_engine() or ""
+        kind = self._engine_concurrency_class(engine)
+        return {
+            "concurrency": effective_concurrency(kind, self.concurrency),
+            "concurrency_recommended": recommended_concurrency(kind),
+            "concurrency_engine": engine or None,
+            "concurrency_class": kind,
+        }
+
     def _begin_local_task(self, task: Dict[str, Any]) -> Optional[str]:
         """Register one sentence job in pyctl TaskManager for the 任务队列 tab."""
         try:
@@ -459,10 +553,7 @@ class TTSSentenceWorkerService:
             content = (task.get("content") or "").strip()
             language = (task.get("language") or "en").strip() or "en"
             preview = content[:120] if content else ""
-            planned_engine = (
-                tts_orchestrator.tts_status().get("active")
-                or tts_orchestrator.best_engine()
-            )
+            planned_engine = self._planned_engine()
             planned_cmd = tts_orchestrator.describe_synth_command(
                 planned_engine or "pending",
                 preview or "…",
@@ -573,8 +664,7 @@ class TTSSentenceWorkerService:
         local_id = getattr(self, "_current_local_tm_id", None)
         if local_id:
             planned = (
-                tts_orchestrator.tts_status().get("active")
-                or tts_orchestrator.best_engine()
+                self._planned_engine()
                 or provider
                 or "pending"
             )
@@ -624,7 +714,8 @@ class TTSSentenceWorkerService:
     def _process_one(self, base: str, task: Dict[str, Any]) -> bool:
         """Synthesize + report ONE task (all language variants). Returns True on primary success."""
         task_id = task.get("task_id")
-        self._current_task = dict(task)
+        with self._current_tasks_lock:
+            self._current_tasks[task_id] = dict(task)
         self._log_event("synth_start", f"priority={task.get('priority')}", task)
         local_tm_id = self._begin_local_task(task)
         self._current_local_tm_id = local_tm_id
@@ -691,10 +782,12 @@ class TTSSentenceWorkerService:
                 # (the Sentence tab "synthesizing" line shows this so the user sees
                 # qwen3tts parallel batch progress per variant).
                 try:
-                    self._current_task["current_variant_index"] = _i + 1
-                    self._current_task["variant_count"] = len(variants)
-                    self._current_task["current_variant_key"] = vkey or "primary"
-                    self._current_task["current_provider"] = provider or "pending"
+                    with self._current_tasks_lock:
+                        if task_id in self._current_tasks:
+                            self._current_tasks[task_id]["current_variant_index"] = _i + 1
+                            self._current_tasks[task_id]["variant_count"] = len(variants)
+                            self._current_tasks[task_id]["current_variant_key"] = vkey or "primary"
+                            self._current_tasks[task_id]["current_provider"] = provider or "pending"
                 except Exception:  # noqa: BLE001
                     pass
                 if ok:
@@ -741,6 +834,7 @@ class TTSSentenceWorkerService:
                         )
                     elif not accepted:
                         fail_reason = detail or "upload rejected"
+                        self._log_event("report_reject", fail_reason, task)
                         ColorPrint.yellow(
                             f"[TTSSentenceWorker] Task {task_id} variant '{vkey or 'primary'}' "
                             f"upload rejected ({detail})"
@@ -773,7 +867,8 @@ class TTSSentenceWorkerService:
                 language=task_language,
             )
             self._current_local_tm_id = None
-            self._current_task = None
+            with self._current_tasks_lock:
+                self._current_tasks.pop(task_id, None)
             with self._cycle_lock:
                 self._processing = max(0, self._processing - 1)
             # NOTE: synthesized MP3s live in the persistent cache dir and are NEVER
@@ -788,7 +883,8 @@ class TTSSentenceWorkerService:
         exception-safe."""
         try:
             base = self._base_url()
-            tasks = self._claim_tasks(base)
+            concurrency, engine = self._effective_concurrency()
+            tasks = self._claim_tasks(base, limit=max(self.batch_size, concurrency))
             if tasks is None:
                 # Laravel down / abnormal — already logged per state change. Still
                 # drain any leftover queued items so prior batches make progress.
@@ -805,20 +901,43 @@ class TTSSentenceWorkerService:
                     )
 
             if len(self._queue) == 0:
-                return  # nothing pending — stay quiet
+                # Empty queue — record an idle event so the FE sees the worker
+                # IS cycling; throttled to one per 60s so the 80-entry deque
+                # is not flooded by idle ticks.
+                now = time.time()
+                if now - self._last_idle_event_ts >= 60:
+                    self._last_idle_event_ts = now
+                    self._log_event("idle", "queue empty — nothing pending")
+                return
 
             processed = 0
             succeeded = 0
             failed = 0
-            while True:
-                task = self._queue.pop()
-                if task is None:
-                    break
-                processed += 1
-                if self._process_one(base, task):
-                    succeeded += 1
-                else:
-                    failed += 1
+
+            def _pop_and_process() -> Tuple[int, int, int]:
+                p = s = f = 0
+                while True:
+                    task = self._queue.pop()
+                    if task is None:
+                        break
+                    p += 1
+                    if self._process_one(base, task):
+                        s += 1
+                    else:
+                        f += 1
+                return p, s, f
+
+            if concurrency > 1:
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=concurrency, thread_name_prefix="tts-sentence-worker") as pool:
+                    futures = [pool.submit(_pop_and_process) for _ in range(concurrency)]
+                    for future in futures:
+                        p, s, f = future.result()
+                        processed += p
+                        succeeded += s
+                        failed += f
+            else:
+                processed, succeeded, failed = _pop_and_process()
 
             if processed == 0:
                 return
@@ -878,6 +997,56 @@ class TTSSentenceWorkerService:
                 self._cycle_running = False
             ColorPrint.red(f"[TTSSentenceWorker] poll_and_process error: {e}")
 
+    # -------------------- priority-bump wake (SSE sentence.priority) --------------------
+
+    def notify_bump(self, content_id: str, language: str, priority: int) -> None:
+        """Handle a sentence.priority bump: re-key the matching queued task (if
+        it is still sitting in the priority heap) and wake an idle worker so the
+        bumped sentence is claimed without waiting for the next interval tick.
+        Exception-safe — a bump must never break the caller (SSE loop)."""
+        try:
+            if self._queue.bump(content_id, language, priority):
+                ColorPrint.blue(
+                    f"[TTSSentenceWorker] Re-keyed queued sentence "
+                    f"{language}:{content_id} -> priority {priority}"
+                )
+            self._wake_if_idle()
+        except Exception as e:  # noqa: BLE001
+            ColorPrint.yellow(f"[TTSSentenceWorker] notify_bump error: {e}")
+
+    def notify_batch_bump(self) -> None:
+        """Aggregate bump (no per-row payload) — wake only. The next claim
+        already selects ORDER BY priority DESC server-side, so no re-key."""
+        try:
+            self._wake_if_idle()
+        except Exception as e:  # noqa: BLE001
+            ColorPrint.yellow(f"[TTSSentenceWorker] notify_batch_bump error: {e}")
+
+    def _wake_if_idle(self) -> None:
+        """Spawn a poll_and_process cycle on a daemon thread when the worker is
+        enabled and no cycle is in flight (poll_and_process is non-reentrant,
+        so this is equivalent to the laravel run-once nudge)."""
+        if not self._is_enabled():
+            return
+        with self._cycle_lock:
+            if self._cycle_running:
+                return  # in-flight cycle already pops by (re-keyed) priority
+        threading.Thread(
+            target=self.poll_and_process,
+            daemon=True,
+            name="tts-sentence-worker-bump",
+        ).start()
+
+    def _is_enabled(self) -> bool:
+        """Live enable state: the PyHeartbeat callback flag (UI toggle) with the
+        configured start-state as fallback when the heartbeat is unavailable."""
+        try:
+            return bool(
+                get_heartbeat_system().is_callback_enabled("tts_sentence_worker")
+            )
+        except Exception:  # noqa: BLE001 — heartbeat not up yet
+            return self.enabled
+
     # -------------------- introspection --------------------
 
     def get_status(self) -> Dict[str, Any]:
@@ -890,12 +1059,17 @@ class TTSSentenceWorkerService:
         with self._cycle_lock:
             running = self._cycle_running
             processing = self._processing
-            current = dict(self._current_task) if self._current_task else None
+        with self._current_tasks_lock:
+            current_tasks = list(self._current_tasks.values())
+            current = current_tasks[0] if current_tasks else None
         queued = len(self._queue)
         return {
             "service": "TTS Sentence-Audio Worker",
             "worker_id": self.worker_id,
             "enabled_on_start": self.enabled,
+            # Live enable flag from the heartbeat callback (UI toggle) — unlike
+            # enabled_on_start this reflects the CURRENT on/off state.
+            "heartbeat_enabled": self._is_enabled(),
             "batch_size": self.batch_size,
             "cycle_running": running,
             "base_url_override": self._base_override or None,

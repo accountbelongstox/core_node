@@ -8,7 +8,7 @@ uses the top-level ``pathlib.Path`` import (kept as-is).
 
 CIRCULAR-IMPORT SAFE: imports stdlib + pyutils.stt (lazy) + ColorPrint + the sibling
 ``lane_gating`` module - never worker.py. The worker instance is passed at call time
-(for ``_post_result`` + ``_requests``).
+(for ``_post_result``). Audio downloads go through the unified LaravelClient.
 """
 
 import base64
@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 
 from .. import lane_gating
 
@@ -60,11 +61,12 @@ def process_stt_task(worker, task: Dict[str, Any]) -> None:
             tmp_path = file_path
         elif audio_url:
             try:
-                requests = worker._requests()
                 fd, tmp_path = tempfile.mkstemp(prefix="worker_stt_", suffix=".mp3")
                 os.close(fd)
                 owned_file = True
-                resp = requests.get(audio_url, timeout=60, stream=True)
+                # Route via the unified client so the download is logged/recorded
+                # like every other pycore->Laravel call (full URL used as-is).
+                resp = get_laravel_client().get_stream(audio_url, timeout=60)
                 if resp.status_code != 200:
                     worker._post_result(task_id, "failed",
                                         error=f"stt audio download failed: HTTP {resp.status_code}")

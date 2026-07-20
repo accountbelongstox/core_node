@@ -10,12 +10,13 @@
 import type { ITaskProcessor, ProcessorConfig, ProcessorStatus } from '../ITaskProcessor';
 import type { WorkerCapability } from '../../../api/WorkerApiClient';
 import { promptTranslateWebWorkerService } from '../../prompt-translate-web-worker-service';
+import { LANES } from '@/utils/task-center-lanes';
 
 class PromptTranslateWebProcessor implements ITaskProcessor {
-  readonly processorType = 'prompt_translate_web';
+  readonly processorType = LANES.PROMPT_TRANSLATE_WEB;
   readonly processorName = 'Prompt-Translate Web';
 
-  readonly processorTypes: string[] = ['remote_translation'];
+  readonly processorTypes: string[] = [LANES.REMOTE_TRANSLATION];
   readonly capabilities: WorkerCapability[] = [];
   readonly concurrency = 1;
 

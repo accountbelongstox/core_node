@@ -1,6 +1,11 @@
 /**
  * PcCapabilityDrawer — Queue Center capability priority/options drawer.
  * GET/POST /api/local/capabilities/settings
+ *
+ * The TTS server-idle option defaults to 180s (3-min idle-unload) to match the
+ * canonical default; this drawer only reads/edits the persisted settings.
+ * Ref: apps/pycore-manager/docs/TTS_STT_ENGINE_LIFECYCLE.md §4 and
+ * development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,11 +23,11 @@ const CAP_ICON: Record<PcCapabilityKey, React.FC<{ className?: string }>> = {
 };
 const CAP_DEFAULT_PRIORITY: Record<PcCapabilityKey, string[]> = {
   stt: ['whisper', 'ai', 'vosk'],
-  tts: ['gptsovits', 'streamelements', 'sherpa', 'melotts', 'edge', 'gtts_web', 'azure', 'chattts', 'cosyvoice', 'fishspeech', 'qwen3tts', 'bark', 'parler', 'voxcpm2', 'kokoro', 'f5tts'],
+  tts: ['gptsovits', 'streamelements', 'sherpa', 'melotts', 'edge', 'gtts_web', 'azure', 'chattts', 'cosyvoice', 'fishspeech', 'qwen3tts', 'bark', 'voxcpm2', 'kokoro', 'f5tts'],
   // Sentence TTS: qwen3tts-first (high-quality neural voices for sentence audio).
-  sentence_tts: ['qwen3tts', 'chattts', 'cosyvoice', 'fishspeech', 'bark', 'parler', 'voxcpm2', 'kokoro', 'gptsovits', 'f5tts', 'melotts', 'sherpa', 'edge', 'streamelements', 'gtts_web', 'azure'],
+  sentence_tts: ['qwen3tts', 'chattts', 'cosyvoice', 'fishspeech', 'bark', 'voxcpm2', 'kokoro', 'gptsovits', 'f5tts', 'melotts', 'sherpa', 'edge', 'streamelements', 'gtts_web', 'azure'],
   // Word TTS: edge-first (fast lightweight single-word pronunciation).
-  word_tts: ['edge', 'streamelements', 'gtts_web', 'sherpa', 'melotts', 'gptsovits', 'chattts', 'cosyvoice', 'fishspeech', 'qwen3tts', 'bark', 'parler', 'voxcpm2', 'kokoro', 'f5tts', 'azure'],
+  word_tts: ['edge', 'streamelements', 'gtts_web', 'sherpa', 'melotts', 'gptsovits', 'chattts', 'cosyvoice', 'fishspeech', 'qwen3tts', 'bark', 'voxcpm2', 'kokoro', 'f5tts', 'azure'],
   image: ['zhipuai', 'dashscope', 'pollinations'],
   translation: ['ecdict', 'wordnet', 'google', 'ai'],
 };
@@ -51,7 +56,7 @@ export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }
   const [savingCap, setSavingCap] = useState<PcCapabilityKey | null>(null);
   const [notice, setNotice] = useState<{ cap: PcCapabilityKey; ok: boolean; text: string } | null>(null);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const load = useCallback(async () => {
     setAvailable(null);
@@ -286,7 +291,7 @@ export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }
                           {t('pipeline.ttsServerIdle')} (s)
                         </span>
                         <input type="number" min={0} max={600} step={5}
-                          value={typeof block.options.server_idle_shutdown_s === 'number' ? block.options.server_idle_shutdown_s : 30}
+                          value={typeof block.options.server_idle_shutdown_s === 'number' ? block.options.server_idle_shutdown_s : 180}
                           onChange={(e) => setOption('tts', 'server_idle_shutdown_s', Number(e.target.value))}
                           className="w-full px-2 py-1.5 text-xs rounded-lg border border-slate-300/50 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-zinc-200" />
                       </label>

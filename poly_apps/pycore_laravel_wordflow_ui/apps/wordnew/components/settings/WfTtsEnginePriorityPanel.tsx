@@ -14,7 +14,7 @@ import { pycoreApi, ttsEngineUiState, ttsEngineBadgeLabel } from '../../../../co
  *  tts_orchestrator._DEFAULT_PRIORITY: gptsovits-first). */
 const DEFAULT_TTS_PRIORITY: string[] = [
   'gptsovits', 'streamelements', 'sherpa', 'melotts', 'edge', 'gtts_web', 'azure',
-  'chattts', 'cosyvoice', 'fishspeech', 'qwen3tts', 'bark', 'parler', 'voxcpm2', 'kokoro', 'f5tts',
+  'chattts', 'cosyvoice', 'fishspeech', 'qwen3tts', 'bark', 'voxcpm2', 'kokoro', 'f5tts',
 ];
 
 interface Props {

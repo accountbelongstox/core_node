@@ -314,16 +314,21 @@ function enableExtension($iniContent, $name) {
     }
     
     $iniContent = removeDuplicateExtensions($iniContent, $name);
-    
+
     $pattern = '/^\s*(;)?\s*extension\s*=\s*' . preg_quote($matchingDll, '/') . '\s*$/mi';
     $extensionPattern = '/^\s*(;)?\s*extension\s*=\s*.*?' . preg_quote($name, '/') . '.*?\.dll\s*$/mi';
-    
+    // Bare Windows form (e.g. extension=pdo_pgsql) - PHP resolves it to the DLL,
+    // so it is the same extension. Match it so enableExtension normalizes it to
+    // extension=php_<name>.dll in place and drops the duplicate, instead of
+    // appending a second .dll line (which caused "Module <name> already loaded").
+    $barePattern = '/^\s*(;)?\s*extension\s*=\s*' . preg_quote($name, '/') . '\s*$/mi';
+
     $lines = explode("\n", $iniContent);
     $resultLines = [];
     $found = false;
-    
+
     foreach ($lines as $line) {
-        if (preg_match($pattern, $line) || preg_match($extensionPattern, $line)) {
+        if (preg_match($pattern, $line) || preg_match($extensionPattern, $line) || preg_match($barePattern, $line)) {
             if (!$found) {
                 $resultLines[] = "extension=$matchingDll";
                 $found = true;

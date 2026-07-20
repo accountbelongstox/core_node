@@ -14,6 +14,11 @@
 
 import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
+// The shared wordnew session token (localStorage 'wfnew_auth_token') written by
+// the canonical wfNewApi login. The wordflow stack reads the SAME token so a
+// wfNewApi login authenticates its calls too, instead of a second, empty
+// 'wf_auth_token' that would 401 every authed wordflow request.
+import { loadToken as loadSharedAuthToken } from '../../api/WfNewApiTransport';
 
 export enum StorageKey {
   // Auth
@@ -156,7 +161,10 @@ class WordflowStorageClass {
    */
   auth = {
     setToken: async (token: string) => await this.set(StorageKey.AUTH_TOKEN, token),
-    getToken: async () => await this.get<string>(StorageKey.AUTH_TOKEN),
+    // Prefer the shared wfNewApi session token (raw 'wfnew_auth_token'); fall
+    // back to the legacy per-end 'wf_auth_token'. This is the ONE session for
+    // the whole wordnew app.
+    getToken: async () => loadSharedAuthToken() ?? (await this.get<string>(StorageKey.AUTH_TOKEN)),
     removeToken: async () => await this.remove(StorageKey.AUTH_TOKEN),
     hasToken: async () => await this.has(StorageKey.AUTH_TOKEN),
 

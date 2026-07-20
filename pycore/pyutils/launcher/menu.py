@@ -18,8 +18,15 @@ except ImportError:
 
 import json
 
-import termios
-import tty
+# termios/tty are Unix-only stdlib modules (absent on Windows, where msvcrt is
+# used instead). Guarded so the module imports on Windows; the non-Windows
+# branch of get_key() falls back to input() if these are unavailable.
+try:
+    import termios
+    import tty
+    HAS_TERMIOS = True
+except ImportError:
+    HAS_TERMIOS = False
 
 
 

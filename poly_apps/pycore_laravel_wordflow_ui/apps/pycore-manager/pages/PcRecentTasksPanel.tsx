@@ -10,12 +10,13 @@ import {
   CheckCircle2, XCircle, MinusCircle, Chrome, Cpu,
 } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { PcTaskRecord, PcTaskRecentStats } from '../../../core/api-libs/pycore';
+import type { PcTaskRecord } from '../../../core/api-libs/pycore';
 import { extractAudioPath, PcTaskAudioPreview } from '../components/PcTaskAudioPreview';
 import { PcTaskSynthInfo } from '../components/PcTaskSynthInfo';
 import { mergeTaskResultSources } from '../utils/pcTaskResult';
 import { humanBytes, relativeTime } from '../utils/pcFormat';
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
+import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 
 /** Status icon: green check for success, amber for released/skipped, red x else. */
 const RecentStatusIcon: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
@@ -25,56 +26,29 @@ const RecentStatusIcon: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
   return <XCircle className="w-4 h-4 text-rose-500 shrink-0" />;
 };
 
-const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick = 0, onMeta }) => {
+const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
   const { t } = useTranslation('pc');
-  const [records, setRecords] = useState<PcTaskRecord[]>([]);
-  const [stats, setStats] = useState<PcTaskRecentStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const hub = useQueueCenterHub();
+  // Records/stats from the SHARED hub (unfiltered base list); the end+worker
+  // filters are applied client-side below (`filtered`).
+  const records = hub.recent?.records ?? [];
+  const stats = hub.recent?.stats ?? null;
+  const loading = hub.loading;
+  const err = hub.pycoreReachable ? null : hub.error;
   const [endFilter, setEndFilter] = useState<string>('all');
   const [workerFilter, setWorkerFilter] = useState<string>('all');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [clearing, setClearing] = useState(false);
   const [clearMsg, setClearMsg] = useState<string | null>(null);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
-  const fetchRecent = useCallback(async (silent = false) => {
-    if (!silent) {
-      setLoading(true);
-      onMeta?.({ count: null, loading: true });
-    }
-    try {
-      // Pass the active filters server-side so the backend returns only matching
-      // records (less data per poll). The client-side `filtered` filter below
-      // stays as a fallback for the already-loaded list between fetches.
-      const r = await pycoreApi.getRecentTasks({
-        limit: 200,
-        worker: workerFilter !== 'all' ? workerFilter : undefined,
-        end: endFilter !== 'all' ? endFilter : undefined,
-      });
-      if (!mounted.current) return;
-      if (r && (r as any).success !== false && Array.isArray(r.records)) {
-        setRecords(r.records);
-        setStats(r.stats ?? null);
-        setErr(null);
-        onMeta?.({ count: r.stats?.total ?? r.count ?? r.records.length, loading: false });
-      } else {
-        setErr((r as any)?.error || t('queueCenter.recent.unavailable'));
-        onMeta?.({ count: null, loading: false });
-      }
-    } catch (e: any) {
-      if (mounted.current) {
-        setErr(e?.message || t('queueCenter.recent.unavailable'));
-        onMeta?.({ count: null, loading: false });
-      }
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, [onMeta, t, workerFilter, endFilter]);
-
-  useEffect(() => { void fetchRecent(false); }, [fetchRecent]);
-  useEffect(() => { void fetchRecent(true); }, [refreshTick]);
+  useEffect(() => {
+    onMeta?.({
+      count: hub.recent ? (stats?.total ?? hub.recent.count ?? records.length) : null,
+      loading: hub.loading,
+    });
+  }, [hub.recent, stats, records.length, hub.loading, onMeta]);
 
   const clearHistory = useCallback(async () => {
     if (clearing) return;
@@ -85,13 +59,13 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick = 0, 
       if (!mounted.current) return;
       if (r?.ok) setClearMsg(t('queueCenter.recent.cleared'));
       else setClearMsg(t('queueCenter.recent.clearFailed', { error: (r as any)?.error || 'unavailable' }));
-      await fetchRecent(false);
+      hub.refreshHub();
     } catch (e: any) {
       if (mounted.current) setClearMsg(t('queueCenter.recent.clearFailed', { error: e?.message || 'pycore unreachable' }));
     } finally {
       if (mounted.current) setClearing(false);
     }
-  }, [clearing, fetchRecent, t]);
+  }, [clearing, hub, t]);
 
   // Distinct workers seen (for the worker filter chips).
   const workers = Array.from(new Set(records.map((r) => r.worker).filter(Boolean)));
@@ -133,7 +107,7 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick = 0, 
               {clearing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
               {clearing ? t('queueCenter.recent.clearing') : t('queueCenter.recent.clear')}
             </button>
-            <button onClick={() => fetchRecent(false)} disabled={loading}
+            <button onClick={() => hub.refreshHub()} disabled={loading}
               className="p-1.5 rounded-lg pc-glass hover:bg-indigo-500/10 text-indigo-500 transition disabled:opacity-50"
               title={t('queueCenter.recent.refresh')}>
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />

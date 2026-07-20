@@ -25,6 +25,10 @@
     Step Number: 95
     Category: AI Tools
     Dependencies: Git, Python 3.13 (Step8 / $Global:PYTHON_EXE_PATH)
+    Lifecycle: Bucket-A LLM. transformers is installed at the shared pin via
+    Install-PinnedTransformers (version-idempotent, never --upgrade, self-heals a
+    clobbered pin). Contract:
+    development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7.
 #>
 
 $scriptRoot = $PSScriptRoot
@@ -195,7 +199,10 @@ function Install-DeepSeekDependencies {
 
         Write-Host "$SCRIPT_INDEX Installing core dependencies..." -ForegroundColor White
         Write-Host ""
-        & $Global:PIP_EXE_PATH install torch transformers pillow numpy einops timm accelerate attrdict
+        # transformers goes in at the shared Bucket-A pin (version-idempotent, never
+        # --upgrade); the other deps install as before. See lifecycle doc §7.
+        Install-PinnedTransformers -PythonExe $Global:PYTHON_EXE_PATH -PipExe $Global:PIP_EXE_PATH -Prefix "$SCRIPT_INDEX " | Out-Null
+        & $Global:PIP_EXE_PATH install torch pillow numpy einops timm accelerate attrdict
         Write-Host ""
 
         Pop-Location

@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import Portal from '../../../components/shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
+import { usePycoreBlobUrl } from './PcBlobMedia';
 
 /** Shared sub-tab cross-fade/slide preset (used by PcAiPage). */
 export const SUBTAB_MOTION = {
@@ -59,7 +60,10 @@ interface LightboxProps {
  */
 export const PcImageLightbox: React.FC<LightboxProps> = ({
   open, src, alt, caption, actions, closeLabel = 'Close', onClose,
-}) => (
+}) => {
+  // Image bytes ride WS (data: URL) — pass-through for base64/data URLs.
+  const resolvedSrc = usePycoreBlobUrl(src);
+  return (
   <AnimatePresence>
     {open && src && (
       <Portal>
@@ -85,7 +89,7 @@ export const PcImageLightbox: React.FC<LightboxProps> = ({
               <X className="w-4 h-4" />
             </button>
             <div className="flex-1 min-h-0 overflow-auto bg-slate-100 dark:bg-black/40 flex items-center justify-center">
-              <img src={src} alt={alt || ''} className="max-w-full max-h-[60vh] object-contain" />
+              <img src={resolvedSrc || undefined} alt={alt || ''} className="max-w-full max-h-[60vh] object-contain" />
             </div>
             {(caption || actions) && (
               <div className="p-4 space-y-2 border-t border-slate-200/80 dark:border-slate-800/80">
@@ -98,4 +102,5 @@ export const PcImageLightbox: React.FC<LightboxProps> = ({
       </Portal>
     )}
   </AnimatePresence>
-);
+  );
+};

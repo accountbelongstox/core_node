@@ -147,6 +147,23 @@ class BooksAnalyzeRequest(BaseModel):
     persist: bool = Field(False, description="Persist a compact summary to the 'books' state.")
 
 
+class BooksUploadFileB64(BaseModel):
+    """One uploaded file carried as base64 (the WS-bridge drag-drop fallback)."""
+    name: str
+    data_b64: str = Field(..., description="Base64 of the raw file bytes.")
+
+
+class BooksAnalyzeUploadB64Request(BaseModel):
+    """JSON sibling of the multipart /analyze-upload so the drag-drop upload rides
+    the WS bridge (local_http.post) instead of a raw HTTP multipart POST."""
+    files: List[BooksUploadFileB64] = Field(..., description="Uploaded files as base64.")
+    language: Optional[str] = None
+    languages: Optional[List[str]] = None
+    preview_chars: int = Field(800, ge=0, le=20000)
+    persist: bool = False
+    source_type: str = Field("book", description="'book' or 'document'.")
+
+
 class BooksAnalyzeResponse(BaseModel):
     """Per-file analyses + a folder-level aggregate."""
     success: bool

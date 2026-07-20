@@ -108,6 +108,13 @@ class SentenceAudioScheduler {
     this.entries.set(key, entry);
     if (entry.urgent) this.queue.unshift(key);
     else this.queue.push(key);
+    // Bump immediately at enqueue: content_id is only known after the first
+    // resolve response, and a queued entry may wait long for a free poller
+    // slot, so notify laravel now via the text-based batch endpoint (single
+    // item). e.bumped dedupes the later tick bump for this stint; requeue()
+    // still resets it, so stint/retry caps and per-stint re-bump are unchanged.
+    entry.bumped = true;
+    void wfNewApi.prioritizeSentenceAudio([{ text: trimmed, language: lang }]).catch(() => { /* ignore */ });
     this.drain();
   }
 

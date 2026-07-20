@@ -101,8 +101,8 @@ _PROVIDER_LIMITS: Dict[str, Dict[str, Any]] = {
     },
     "openrouter": {
         "rpm": 20,
-        "rpd": 50,
-        "note": "OpenRouter :free with <$10 lifetime credits",
+        "rpd": 1000,
+        "note": "OpenRouter :free router (~1000 req/day with >=$10 lifetime top-up); shared :free quota",
     },
     "gemini": {
         "rpm": 5,

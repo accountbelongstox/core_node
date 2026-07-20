@@ -120,13 +120,14 @@ class WindowLauncher:
     def _ensure_char_size_measured(self):
         """Resolve char_width/char_height to real measured values (Windows Terminal).
 
-        On Windows, launch two calibration WT windows and measure their pixel
-        rects to derive the exact per-cell size for the installed font/DPI
-        (cached). This supersedes the config calibration, whose legacy
-        term_rows=270 made char_height ~1.8px/row (~10x too small) so every
-        window overflowed the screen vertically. On Linux, or if measurement
-        fails, keep the config ratio but sanitize physically-impossible values
-        so the old overflow can never recur.
+        On Windows, dynamic per-cell measurement is OPT-IN
+        (PYCORE_LAUNCHER_RECALIBRATE=1, or a previously cached result): by default
+        it is skipped so no calibration windows flash, matching the Linux path.
+        When a measurement/cache is available it supersedes the config calibration
+        (whose legacy term_rows=270 made char_height ~1.8px/row, ~10x too small, so
+        every window overflowed the screen vertically). On Linux, when opted out,
+        or if measurement fails, keep the config ratio but sanitize
+        physically-impossible values so the old overflow can never recur.
 
         Runs at most once per instance (guarded by _char_size_resolved); the
         cache makes repeat calls instant.

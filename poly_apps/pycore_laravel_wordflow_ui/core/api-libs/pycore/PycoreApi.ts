@@ -16,7 +16,7 @@ import type {
   AiUsageResponse,
   AiImageResponse, ImageHistoryResponse, ImageHistoryClearResponse, ImageHistoryDeleteResponse,
   AiKeysResponse, AiKeySetRequest, AiKeySetResponse, AiKeyDeleteResponse, AiKeyResetCooldownResponse,
-  OcrStatus, OcrTestResponse, TtsStatus, TtsSettings, TtsServerActionResponse, TtsTestResponse, SttStatus, SttTestResponse, SpeechHistoryResponse, RevealResponse, CapabilityStatus, SystemInfo, OpenDirResponse,
+  OcrStatus, OcrTestResponse, TtsStatus, TtsSettings, TtsServerActionResponse, TtsTestResponse, SttStatus, SttTestResponse, EnginesLoadStatusResponse, SpeechHistoryResponse, RevealResponse, CapabilityStatus, SystemInfo, OpenDirResponse,
   TranslationQueueResponse, TranslationQueueActionResponse,
   LocalTaskDetailResponse, PycoreGlobalTaskDetailResponse,
   AssistStatus, AssistConfigPatch, AssistConfigResponse, AssistCycleResponse,
@@ -40,6 +40,7 @@ import type {
   SentenceVoiceVariant,
   QueueBumpsSnapshot, WordTtsAutoStatus,
   HeartbeatWorkersStatus,
+  PcVersionInfo,
 } from './pycoreTypes';
 
 import { MasterApiClient, isNetworkLevelFailure } from '../base';
@@ -47,6 +48,7 @@ import type { MasterRequestOptions } from '../base';
 import { buildPycoreHttpUrl, buildPycoreWsUrl, normalizePycorePath } from './pycoreEndpoints';
 import { rewritePycoreEndpoint, pycoreWsUrlOverride, directPycoreHost } from './pycoreTarget';
 import { callRpc, isWsConnected } from './PycoreWs';
+import { appendHttpDebug, summarizeHttpParams } from './pycoreHttpLog';
 import {
   buildVocabQuery,
   type VocabLanguagesResponse,
@@ -75,9 +77,27 @@ class PycoreMasterClient extends MasterApiClient {
     return '';
   }
 
-  /** Re-point every pycore HTTP call via rewritePycoreEndpoint (direct :59000). */
+  /** Re-point every pycore HTTP call via rewritePycoreEndpoint (direct :59000),
+   *  and record the outcome for the PcHttpDebugger (FE->pycore HTTP path). */
   async request(endpoint: string, options: MasterRequestOptions = {}): Promise<Response> {
-    return super.request(rewritePycoreEndpoint(endpoint), options);
+    const nowFn = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const started = nowFn();
+    const method = (options.method || 'GET').toUpperCase();
+    const paramsSummary = summarizeHttpParams(options.body);
+    try {
+      const r = await super.request(rewritePycoreEndpoint(endpoint), options);
+      appendHttpDebug({
+        direction: 'pycore', method, path: endpoint, fullUrl: endpoint,
+        paramsSummary, status: r.status, ms: nowFn() - started, error: null,
+      });
+      return r;
+    } catch (e: any) {
+      appendHttpDebug({
+        direction: 'pycore', method, path: endpoint, fullUrl: endpoint,
+        paramsSummary, status: 0, ms: nowFn() - started, error: e?.message || String(e),
+      });
+      throw e;
+    }
   }
 }
 export const pycoreMasterClient = new PycoreMasterClient({ defaultCeilingMs: 0 });
@@ -92,6 +112,21 @@ export const pycoreMasterClient = new PycoreMasterClient({ defaultCeilingMs: 0 }
  */
 const GET_CEILING_MS = 12_000;
 const WS_GET_TIMEOUT_MS = 8_000;
+/** Max raw upload bytes to send base64-over-WS (base64 inflates ~33%; stays under
+ *  the 10MB WS frame). Larger uploads fall back to HTTP multipart. */
+const WS_UPLOAD_MAX_RAW_BYTES = 7 * 1024 * 1024;
+
+/** Encode a File to base64, chunked so String.fromCharCode never stack-overflows
+ *  on a large binary (used for base64-over-WS uploads). */
+async function fileToBase64(file: File): Promise<string> {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  let binary = '';
+  const CHUNK = 0x8000; // 32KB
+  for (let i = 0; i < buf.length; i += CHUNK) {
+    binary += String.fromCharCode(...buf.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
 
 function localApiPathFromUrl(url: string): string {
   const rewritten = rewritePycoreEndpoint(url);
@@ -106,9 +141,13 @@ function localApiPathFromUrl(url: string): string {
   return normalizePycorePath(rewritten);
 }
 
-async function getJSONViaWs<T>(url: string): Promise<T> {
+async function getJSONViaWs<T>(url: string, timeoutMs: number = WS_GET_TIMEOUT_MS): Promise<T> {
   const path = localApiPathFromUrl(url);
-  const body = await callRpc('local_http.get', { path }, WS_GET_TIMEOUT_MS);
+  // timeout_s tells the backend loopback how long to wait (its own default is 5s);
+  // the WS call gets a small buffer over that so the backend's timeout/error frame
+  // arrives before the FE gives up. Keeps large reads (books/vocab) from a spurious
+  // WS-timeout that HTTP's 12s ceiling would not have hit.
+  const body = await callRpc('local_http.get', { path, timeout_s: timeoutMs / 1000 }, timeoutMs + 2000);
   if (body && body.success === false && body.error) {
     throw new Error(String(body.error));
   }
@@ -116,12 +155,21 @@ async function getJSONViaWs<T>(url: string): Promise<T> {
 }
 
 /** Like getJSON but keeps `{ success:false, error, laravel_reachable }` envelopes (Laravel proxies). */
-async function getJSONEnvelopeViaWs<T>(url: string): Promise<T> {
+async function getJSONEnvelopeViaWs<T>(url: string, timeoutMs: number = WS_GET_TIMEOUT_MS): Promise<T> {
   const path = localApiPathFromUrl(url);
-  return callRpc('local_http.get', { path }, WS_GET_TIMEOUT_MS) as Promise<T>;
+  return callRpc('local_http.get', { path, timeout_s: timeoutMs / 1000 }, timeoutMs + 2000) as Promise<T>;
 }
 
 async function getJSONEnvelope<T>(url: string): Promise<T> {
+  // WS-PRIMARY: this helper PRESERVES the {success:false, laravel_reachable} envelope
+  // (Laravel proxies) rather than throwing, so read it over WS first when connected.
+  if (isWsConnected()) {
+    try {
+      return await getJSONEnvelopeViaWs<T>(url, GET_CEILING_MS);
+    } catch {
+      // WS failed — fall through to HTTP.
+    }
+  }
   try {
     const r = await pycoreMasterClient.request(url, { ceilingMs: GET_CEILING_MS });
     let body: unknown;
@@ -177,6 +225,18 @@ async function getJSON<T>(url: string): Promise<T> {
       // Fall through to HTTP below.
     }
   }
+  // WS-PRIMARY: ride the local_http.get bridge first when the bus is connected
+  // (browser HTTP to loopback :59000 is blocked by Private Network Access; WS is
+  // not). GET is idempotent, so a WS error safely falls through to HTTP. A small
+  // opt-out set keeps deliberately-HTTP-first routes (tts/status) on HTTP.
+  if (isWsConnected() && !WS_HTTP_PREFERRED_ROUTES.has(barePath)) {
+    try {
+      return await getJSONViaWs<T>(url, GET_CEILING_MS);
+    } catch {
+      // WS failed (bus may have just dropped, or a business error) — fall through
+      // to HTTP, which re-derives the same result for an idempotent read.
+    }
+  }
   try {
     const r = await pycoreMasterClient.request(url, { ceilingMs: GET_CEILING_MS });
     return await parseGetResponse<T>(r);
@@ -204,16 +264,20 @@ const WS_DIRECT_LIVE_TEST_ROUTES: Record<string, string> = {
   '/api/local/stt/test': 'local.stt.test',
   '/api/local/ocr/test': 'local.ocr.test',
 };
-// Status routes that prefer WS. NOTE: /api/local/tts/status is intentionally
-// NOT here - it goes direct HTTP (127.0.0.1:59000) so a slow/stuck pycore
-// surfaces as a clear HTTP error instead of an 8s WS-RPC timeout (and the
-// Queue Center "always spinning" symptom). WS remains the fallback on network
-// failure (private-network-access), via getJSON's catch.
+// Dedicated WS status routes (thin {refresh} payload). Everything else JSON rides
+// the generic local_http.get bridge — ALL over WS.
 const WS_DIRECT_STATUS_ROUTES: Record<string, string> = {
   '/api/local/stt/status': 'local.stt.status',
   '/api/local/ocr/status': 'local.ocr.status',
   '/api/local/ai/gateway': 'local.ai.status',
 };
+
+// HTTP-first opt-out — now EMPTY. The old /api/local/tts/status exception (HTTP
+// first to avoid an 8s WS-timeout spinner) is obsolete: the backend bridge is a
+// fast native in-process ASGI dispatch, so WS is no slower than HTTP. Everything
+// is WS-primary now.
+const WS_HTTP_PREFERRED_ROUTES: Set<string> = new Set<string>([
+]);
 
 async function parsePostResponse<T>(r: Response, softFail = false): Promise<T> {
   let body: any;
@@ -264,7 +328,11 @@ async function postJSON<T>(
 ): Promise<T> {
   const barePath = localApiPathFromUrl(url).split('?', 1)[0];
   const wsTimeout = ceilingMs > 0 ? ceilingMs : LIVE_TEST_RPC_TIMEOUT_MS;
-  if (isWsConnected() && WS_DIRECT_LIVE_TEST_ROUTES[barePath]) {
+  // WS-PRIMARY: when the bus is connected, a POST rides WS EXCLUSIVELY (no HTTP
+  // retry). A POST is not idempotent — retrying it on the other transport could
+  // double-execute (double enqueue/generate). postJSONViaWs already routes direct
+  // live-test routes to their dedicated RPC and everything else to local_http.post.
+  if (isWsConnected() && !WS_HTTP_PREFERRED_ROUTES.has(barePath)) {
     return postJSONViaWs<T>(url, body, softFail, wsTimeout);
   }
   try {
@@ -287,7 +355,24 @@ async function postJSON<T>(
     throw e;
   }
 }
+async function deleteJSONViaWs<T>(url: string): Promise<T> {
+  // DELETE args ride the query string (preserved by the backend bridge). Returns
+  // the raw envelope (no throw on success:false) to mirror the HTTP deleteJSON,
+  // whose callers inspect the { success } flag themselves.
+  const path = localApiPathFromUrl(url);
+  return callRpc(
+    'local_http.delete',
+    { path, timeout_s: WS_GET_TIMEOUT_MS / 1000 },
+    WS_GET_TIMEOUT_MS + 2000,
+  ) as Promise<T>;
+}
+
 async function deleteJSON<T>(url: string): Promise<T> {
+  // WS-PRIMARY when connected (DELETE is idempotent — a specific resource is gone
+  // either way, so no double-execution hazard); HTTP otherwise.
+  if (isWsConnected()) {
+    return deleteJSONViaWs<T>(url);
+  }
   const r = await pycoreMasterClient.request(url, { method: 'DELETE' });
   return (await r.json()) as T;
 }
@@ -647,6 +732,29 @@ export const pycoreApi = {
     files: File[],
     opts: { language?: string; languages?: string[]; preview_chars?: number; persist?: boolean; source_type?: string } = {},
   ): Promise<BooksAnalyzeResponse> => {
+    // WS-PRIMARY: for reasonably-sized uploads, send the files base64-over-WS
+    // (local_http.post bridge) so drag-drop upload rides the WS bus. Larger
+    // uploads (over the WS frame budget) fall back to HTTP multipart.
+    const totalRaw = files.reduce((s, f) => s + (f.size || 0), 0);
+    if (isWsConnected() && totalRaw <= WS_UPLOAD_MAX_RAW_BYTES) {
+      const b64Files = await Promise.all(
+        files.map(async (f) => ({ name: f.name, data_b64: await fileToBase64(f) })),
+      );
+      return postJSON<BooksAnalyzeResponse>(
+        '/api/local/books/analyze-upload-b64',
+        {
+          files: b64Files,
+          language: opts.language,
+          languages: opts.languages || [],
+          preview_chars: opts.preview_chars,
+          persist: !!opts.persist,
+          source_type: opts.source_type || 'book',
+        },
+        POST_CEILING_MS,
+        true, // softFail: return the envelope (matches the multipart r.json() path)
+      );
+    }
+    // HTTP multipart fallback (oversized upload / WS not connected).
     const fd = new FormData();
     files.forEach((f) => fd.append('files', f, f.name));
     if (opts.language) fd.append('language', opts.language);
@@ -679,12 +787,10 @@ export const pycoreApi = {
     postJSON<CoreBookEnrichResponse>('/api/local/corebook/fill-audio', req),
   corebookSubmit: (req: CoreBookSubmitRequest) =>
     postJSON<CoreBookSubmitResponse>('/api/local/corebook/submit', req),
-  corebookDelete: async (source_key: string): Promise<CoreBookDeleteResponse> => {
-    const r = await pycoreMasterClient.request(
-      `/api/local/corebook/delete?source_key=${encodeURIComponent(source_key)}`,
-      { method: 'DELETE' });
-    return (await r.json()) as CoreBookDeleteResponse;
-  },
+  corebookDelete: (source_key: string): Promise<CoreBookDeleteResponse> =>
+    // WS-primary (inherits deleteJSON's transport choice); query preserved by the bridge.
+    deleteJSON<CoreBookDeleteResponse>(
+      `/api/local/corebook/delete?source_key=${encodeURIComponent(source_key)}`),
 
   // --- code sync (peer mesh: dev/client roles + peer list) ---------------- #
   getPeers: () => getJSON<CodeSyncPeersResponse>('/code-sync/peers'),
@@ -914,8 +1020,21 @@ export const pycoreApi = {
     return callRpc('local.ai.image.test', params, LIVE_TEST_RPC_TIMEOUT_MS) as Promise<AiImageResponse>;
   },
 
+  // --- Engine model-load progress (class-B models + class-C servers) ------- #
+  // Live per-engine load state (idle|loading|loaded|error) + elapsed + a tail of
+  // the startup/load log, for TTS and STT alike. The authoritative snapshot; the
+  // rpc_v2 'engine_load_status_update' WS event pushes per-engine deltas between polls.
+  getEnginesLoadStatus: () =>
+    getJSON<EnginesLoadStatusResponse>('/api/local/engines/load-status'),
+
   // --- Capabilities: CUDA/compute + free-library availability -------------- #
   getCapabilities: () => getJSON<CapabilityStatus>('/api/local/capabilities/status'),
+
+  // --- Code version: pycore's own + the pointed-to laravel backend's -------- #
+  // UI -> pycore -> laravel: pycore reports its own newest-source mtime AND
+  // proxies the laravel /api/dashboard/code-last-modified probe. Inherits WS via
+  // getJSON (the /api/local/ bridge). TTL-cached backend-side.
+  getVersion: () => getJSON<PcVersionInfo>('/api/local/version'),
 
   // --- System info: read-only constants + static dirs (one-click open) ----- #
   getSystemInfo: () => getJSON<SystemInfo>('/api/local/capabilities/info'),
@@ -1087,6 +1206,10 @@ export const pycoreApi = {
     getJSON<{ success: boolean; audio_base64?: string; mime?: string; bytes?: number; error?: string }>(
       `/api/local/word-audio/youdao?word=${encodeURIComponent(word)}&type=${type}`,
     ),
+  synthesizeWordEdgeTts: (word: string, lang = 'en', accent = 'us') =>
+    postJSON<{ success: boolean; audio_base64?: string; accent?: string; bytes?: number; mime?: string; error?: string }>(
+      '/api/local/word-audio/edge-synth', { word, lang, accent },
+    ),
   // Write back the cleaned word text to the laravel dictionary row (garbled
   // text / HTML markup -> '-' replacement detected during browser-side batch).
   fixWordText: (payload: { md5: string; lang: string; cleaned_word: string }) =>
@@ -1172,6 +1295,9 @@ export const pycoreApi = {
     getJSON<SentenceAudioAutoStatus>('/api/local/sentence-audio/status'),
   setSentenceAudioAutoConfig: (autoStart: boolean) =>
     postJSON<SentenceAudioAutoStatus>('/api/local/sentence-audio/config', { auto_start: autoStart }),
+  // Backend config model requires auto_start, so the current value goes along.
+  setSentenceAudioConcurrency: (concurrency: number, autoStart: boolean) =>
+    postJSON<SentenceAudioAutoStatus>('/api/local/sentence-audio/config', { auto_start: autoStart, concurrency }),
   runSentenceAudioOnce: () =>
     postJSON<{ ok: boolean; error?: string }>('/api/local/sentence-audio/run-once', {}),
   getSentenceAudioQueue: () =>
@@ -1227,6 +1353,9 @@ export const pycoreApi = {
     getJSON<WordTtsAutoStatus>('/api/local/word-tts/status'),
   setWordTtsAutoConfig: (autoStart: boolean) =>
     postJSON<WordTtsAutoStatus>('/api/local/word-tts/config', { auto_start: autoStart }),
+  // Backend config model requires auto_start, so the current value goes along.
+  setWordTtsConcurrency: (concurrency: number, autoStart: boolean) =>
+    postJSON<WordTtsAutoStatus>('/api/local/word-tts/config', { auto_start: autoStart, concurrency }),
   runWordTtsOnce: () =>
     postJSON<{ ok: boolean; error?: string }>('/api/local/word-tts/run-once', {}),
 

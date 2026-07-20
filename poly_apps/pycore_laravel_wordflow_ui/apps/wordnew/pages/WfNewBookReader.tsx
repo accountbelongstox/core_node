@@ -134,7 +134,9 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const progressSaverRef = useRef<WfBookReaderProgressSaver | null>(null);
   const playingRef = useRef(false);
   const requestedCellKeys = useRef<Set<string>>(new Set());
-  const reloadRef = useRef<() => void>(() => {});
+  const resolvedAudioUrlsRef = useRef<Record<string, string>>({});
+  const lastBumpBatchSigRef = useRef('');
+  const reloadRef = useRef<() => void>(() => { });
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const scrollPausedUntil = useRef(0);
   const userPickedVerse = useRef(false);
@@ -152,6 +154,10 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       if (changed) syncReaderStateFromStore();
     });
   }, [syncReaderStateFromStore]);
+
+  // Flush any pending reader-settings change on unmount so a fast navigate-away
+  // right after a change is never dropped by the roamer's debounce window.
+  useEffect(() => () => { wfReaderSettingsRoamer.flush(); }, []);
 
   const langName = useCallback((code: string) => formatBookLangLabel(code, trans), [trans]);
   const activeLang = selectedLangs[0] || languages[0] || 'en';
@@ -222,7 +228,7 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       },
       onReady: (url) => {
         setCellStatus(verse, lang, 'ready');
-        if (url) reloadRef.current();
+        if (url) resolvedAudioUrlsRef.current[cellKeyOf(verse.grain, verse.seq, lang)] = url;
       },
       onSettled: (url) => {
         if (!url) requestedCellKeys.current.delete(cellKey);
@@ -241,7 +247,7 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       },
       onReady: (url) => {
         setCellStatus(verse, lang, 'ready');
-        if (url) reloadRef.current();
+        if (url) resolvedAudioUrlsRef.current[cellKeyOf(verse.grain, verse.seq, lang)] = url;
       },
       onSettled: (url) => {
         if (!url) requestedCellKeys.current.delete(cellKey);
@@ -259,14 +265,13 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
     const preferredAccent = readerPreferredAccent(wfNewSettings.get('voiceAccent'));
     const picked = pickSentenceAudioUrl(cell, { variantKey, preferredAccent });
     if (picked.url) return picked.url;
+
+    const k = cellKeyOf(verse.grain, verse.seq, lang);
+    if (resolvedAudioUrlsRef.current[k]) return resolvedAudioUrlsRef.current[k];
+
     const text = cell?.text?.trim();
     if (!text) return null;
-    return waitForSentenceAudioUrl(text, lang, {
-      urgent: true,
-      shouldContinue,
-      variantKey: variantKey || undefined,
-      onReady: () => reloadRef.current(),
-    });
+    return null;
   }, []);
 
   const goNextChapterInternal = useCallback(async (): Promise<boolean> => {
@@ -414,8 +419,41 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
 
   useEffect(() => {
     requestedCellKeys.current = new Set();
+    lastBumpBatchSigRef.current = '';
     resetSentenceAudioScheduler();
   }, [sourceKey, activeChapter, flat, page]);
+
+  // On the initial verses load AND on every chapter/page switch (verses change)
+  // send ONE high-priority batch hint to laravel for every now-visible sentence
+  // that still lacks audio, so pycore bumps those sentences to the FRONT of its
+  // queue (qwen3tts-first, per the backend engine order) ahead of the background
+  // fill-missing sweep. Fire-and-forget: a failure never blocks the reader
+  // (per-cell polling still requests each one). The signature ref dedupes repeat
+  // invocations over the same data (e.g. StrictMode/double load), so each
+  // distinct missing-audio set is sent exactly once.
+  useEffect(() => {
+    const seen = new Set<string>();
+    const items: { text: string; language: string }[] = [];
+    for (const v of verses) {
+      for (const lang of orderedDisplayLangs) {
+        const cell = v.languages?.[lang];
+        const text = cell?.text?.trim();
+        if (!text) continue;
+        if (cell.hasAudio || cell.audioFiles?.some((f) => f.hasFile && f.url)) continue;
+        const key = `${lang}:${text}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        items.push({ text, language: lang });
+      }
+    }
+    if (!items.length) return;
+    const sig = items.map((it) => `${it.language}:${it.text}`).join('|');
+    if (sig === lastBumpBatchSigRef.current) return;
+    lastBumpBatchSigRef.current = sig;
+    void wfNewApi.prioritizeSentenceAudio(items).catch((e) => {
+      console.warn('[wordnew] Failed to prioritize visible sentence audio.', e);
+    });
+  }, [verses, orderedDisplayLangs]);
 
   useEffect(() => {
     if (!resumeTarget || resumeApplied || loadingVerses || !verses.length) return;

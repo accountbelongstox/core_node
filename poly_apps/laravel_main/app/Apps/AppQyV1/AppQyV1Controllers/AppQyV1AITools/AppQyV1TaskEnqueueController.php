@@ -10,6 +10,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsEngineConfigModel;
 use App\Http\Controllers\Controller;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
@@ -296,6 +297,14 @@ class AppQyV1TaskEnqueueController extends Controller
     private function enrichPayload(string $taskType, array $payload, ?string &$error): array
     {
         if ($taskType === 'sentence_audio') {
+            // Engine preference for the lane (qwen3tts-first, GPU-gated by pycore).
+            // Carried so a manually enqueued task matches the claim/bump lanes.
+            if (!isset($payload['engine_profile'])) {
+                $payload['engine_profile'] = AppQyV1TtsEngineConfigModel::SENTENCE_PROFILE;
+            }
+            if (!isset($payload['preferred_engine'])) {
+                $payload['preferred_engine'] = AppQyV1TtsEngineConfigModel::sentencePrimaryEngine();
+            }
             if (isset($payload['content']) && is_string($payload['content']) && $payload['content'] !== '') {
                 return $payload;
             }

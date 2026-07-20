@@ -17,6 +17,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordMediaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
@@ -121,7 +122,9 @@ class AppQyV1WordMediaController extends BaseController
 
         $langCode = AppQyV1DictionaryService::getLanguageCode($langInput);
         $coordinator = new AppQyV1DictionaryTTSCoordinator();
-        $stored = $coordinator->storeWordAudioBytes($langCode, $md5, $bytes, $provider);
+        $result = $coordinator->storeWordAudioBytesDetailed($langCode, $md5, $bytes, $provider);
+        $stored = $result['stored'];
+        $reason = $result['reason'];
 
         // Notify (log) when the FE/pycore cleaned the word before synth. We do NOT
         // mutate the row's word/md5 here - changing either would break the
@@ -135,10 +138,27 @@ class AppQyV1WordMediaController extends BaseController
             ]);
         }
 
+        // Row-not-found is a genuine error the FE must surface (do NOT mark done);
+        // exists/stored/io_error/invalid are reported with an explicit status so the
+        // FE can mark-done ('exists','stored') vs retry/flag the rest.
+        if ($reason === 'not_found') {
+            return response()->json([
+                'success' => false,
+                'message' => 'No dictionary row for the given md5/lang',
+                'data' => [
+                    'stored' => false,
+                    'status' => 'not_found',
+                    'md5' => $md5,
+                    'language' => $langCode,
+                ],
+            ], 404);
+        }
+
         return response()->json([
             'success' => true,
             'data' => [
                 'stored' => $stored,
+                'status' => $reason,
                 'md5' => $md5,
                 'language' => $langCode,
                 'cleaned_word' => $cleanedWord !== '' ? $cleanedWord : null,
@@ -150,8 +170,10 @@ class AppQyV1WordMediaController extends BaseController
      * POST /api/app_qy_v1/word/boost-priority
      *
      * Bump a word's tts_priority so it rises to the front of the audio
-     * generation queue on the next missing-batch call. Safe to call multiple
-     * times (additive). Skips is_valid=false rows.
+     * generation queue on the next missing-batch call. Move-to-front ticket:
+     * the row gets MAX(tts_priority)+1 atomically (FOR UPDATE inside a
+     * transaction), so the newest boost always sorts strictly ahead of every
+     * other row. Safe to call multiple times. Skips is_valid=false rows.
      *
      * Body: { md5, lang }
      *
@@ -171,12 +193,12 @@ class AppQyV1WordMediaController extends BaseController
 
         $langCode = AppQyV1DictionaryService::getLanguageCode($langInput);
         try {
-            $updated = AppQyV1LangDictionaryModel::forLanguage($langCode)
-                ->where('md5', $md5)
-                ->where(function ($q) {
-                    $q->whereNull('is_valid')->orWhere('is_valid', true);
-                })
-                ->increment('tts_priority', 1000);
+            $dictModel = AppQyV1LangDictionaryModel::forLanguage($langCode);
+            $table = $dictModel->getModel()->getTable();
+            $updated = $dictModel->getConnection()->update(
+                "UPDATE {$table} SET tts_priority = (SELECT m FROM (SELECT COALESCE(MAX(tts_priority), 0) + 1 AS m FROM {$table}) x) WHERE md5 = ? AND (is_valid IS NULL OR is_valid = 1)",
+                [$md5]
+            );
             return response()->json(['success' => true, 'updated' => $updated]);
         } catch (\Throwable $e) {
             Log::warning('[WordMedia] boostPriority failed: ' . $e->getMessage());
@@ -268,6 +290,7 @@ class AppQyV1WordMediaController extends BaseController
             // Guard optional columns / missing table so the endpoint never 500s.
             $hasHasAudio = Schema::connection($connName)->hasColumn($dictTable, 'has_audio');
             $hasIsValid = Schema::connection($connName)->hasColumn($dictTable, 'is_valid');
+            $hasTtsStatus = Schema::connection($connName)->hasColumn($dictTable, 'tts_status');
             // The word text lives in the `content` column (the tts_cache_{lang}
             // table has no `word` column); guard it for safety.
             $hasContent = Schema::connection($connName)->hasColumn($dictTable, 'content');
@@ -281,13 +304,53 @@ class AppQyV1WordMediaController extends BaseController
                     $q->where('is_valid', true)->orWhereNull('is_valid');
                 });
             }
+            if ($hasTtsStatus) {
+                // Skip permanently-failed words so the batch doesn't cycle through
+                // TTS-worker rejects that will never recover.
+                $query->where(function ($q) {
+                    $q->whereNull('tts_status')->orWhere('tts_status', '!=', 'failed');
+                });
+            }
+            // Exclude words that already have at least one audio file in the JSON
+            // arrays — has_audio flag can be stale. "有一个就算有" (one = covered).
+            $hasAudioFilesCol = Schema::connection($connName)->hasColumn($dictTable, 'audio_files');
+            $hasTtsFilesCol   = Schema::connection($connName)->hasColumn($dictTable, 'tts_files');
+            $dbDriver = DB::connection($connName)->getDriverName();
+            // Independent guards (NOT elseif): when both columns exist a row must be
+            // excluded if EITHER array is non-empty. The old elseif checked only
+            // audio_files, so a legacy row with tts_files populated but audio_files
+            // still empty (promotion is read-time only) was re-served every batch.
+            if ($hasAudioFilesCol) {
+                if ($dbDriver === 'pgsql') {
+                    $query->whereRaw("(audio_files IS NULL OR audio_files::jsonb = '[]'::jsonb)");
+                } else {
+                    $query->whereRaw("(audio_files IS NULL OR json_array_length(audio_files) = 0)");
+                }
+            }
+            if ($hasTtsFilesCol) {
+                if ($dbDriver === 'pgsql') {
+                    $query->whereRaw("(tts_files IS NULL OR tts_files::jsonb = '[]'::jsonb)");
+                } else {
+                    $query->whereRaw("(tts_files IS NULL OR json_array_length(tts_files) = 0)");
+                }
+            }
             // Word rows only: sentences are also stored in tts_cache_{lang} (long
             // content); restrict to short content so the batch targets words.
             if ($hasContent) {
                 $query->whereRaw('LENGTH(content) <= 50');
             }
-            $selectCols = $hasContent ? ['content', 'md5'] : ['md5'];
-            $rows = $query->orderBy('id')->limit($limit)->get($selectCols);
+            // Full model instances (need id + tts_* columns) so stale rows whose
+            // audio file actually exists on disk can be self-healed and excluded.
+            $rows = $query->orderBy('id')->limit($limit)->get();
+            // The DB flags (has_audio / audio_files / tts_files) can lag the real
+            // file on disk (crash between file write and DB save, or legacy import).
+            // Reconcile every candidate against the authoritative file: rows with a
+            // real file are marked completed and dropped so the batch ONLY returns
+            // words that TRULY have no audio (no more "already exists" re-serving).
+            if ($hasContent) {
+                $rows = (new AppQyV1DictionaryTTSCoordinator())
+                    ->filterTrulyMissingWords($langCode, $rows);
+            }
             foreach ($rows as $row) {
                 $words[] = [
                     'word' => $hasContent ? (string) $row->content : '',

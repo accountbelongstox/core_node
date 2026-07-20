@@ -77,7 +77,7 @@ import threading
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.pyfoundations.system_paths import get_user_data_store
 from pycore.pyutils.worker_base import CircuitBreaker, _short_err
 
@@ -426,10 +426,10 @@ class AssistWorker(CircuitBreaker):
     def _claim(self, base: str, types: List[str], limit: int,
                result: Dict[str, Any]) -> List[Dict[str, Any]]:
         """POST /assist/claim; returns claimed items ([] on any failure)."""
-        requests = get_third_package_requests()
         try:
-            resp = requests.post(
-                f"{base}{ASSIST_API_PREFIX}/claim",
+            resp = get_laravel_client().post(
+                f"{ASSIST_API_PREFIX}/claim",
+                base_url=base,
                 json={"types": types, "limit": limit, "claimer": self.claimer},
                 timeout=self.CLAIM_TIMEOUT,
             )
@@ -472,10 +472,9 @@ class AssistWorker(CircuitBreaker):
         """POST /assist/submit; on rejection the item is released instead so
         Laravel can reassign it. Returns True when the result was accepted."""
         item_type, item_id = body.get("type"), body.get("id")
-        requests = get_third_package_requests()
         try:
-            resp = requests.post(
-                f"{base}{ASSIST_API_PREFIX}/submit", json=body, timeout=self.SUBMIT_TIMEOUT)
+            resp = get_laravel_client().post(
+                f"{ASSIST_API_PREFIX}/submit", base_url=base, json=body, timeout=self.SUBMIT_TIMEOUT)
         except Exception as e:  # noqa: BLE001
             msg = f"submit {item_type}#{item_id} failed: {_short_err(e)}"
             self._record_error(msg)
@@ -531,7 +530,6 @@ class AssistWorker(CircuitBreaker):
             self._last_error = f"{item_type}#{item_id}: {error}"
         result["errors"].append(f"{item_type}#{item_id}: {error}")
         ColorPrint.yellow(f"[AssistWorker] Releasing {item_type}#{item_id}: {error}")
-        requests = get_third_package_requests()
         body: Dict[str, Any] = {
             "type": item_type, "ids": [item_id],
             "error": error[:500], "claimer": self.claimer,
@@ -539,8 +537,9 @@ class AssistWorker(CircuitBreaker):
         if extra:
             body.update(extra)
         try:
-            resp = requests.post(
-                f"{base}{ASSIST_API_PREFIX}/release",
+            resp = get_laravel_client().post(
+                f"{ASSIST_API_PREFIX}/release",
+                base_url=base,
                 json=body,
                 timeout=self.RELEASE_TIMEOUT,
             )

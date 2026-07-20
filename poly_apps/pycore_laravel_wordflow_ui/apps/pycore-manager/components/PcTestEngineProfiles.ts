@@ -5,6 +5,11 @@
  * Kind-level chrome lives in PcTestPopup; this file differentiates each target
  * by declaring what form fields it needs, what options they have, and what the
  * engine's status display should include (quota, server state, model loaded, etc.).
+ *
+ * Engine hints must reflect each engine's class (qwen3tts is a class-C isolated-venv
+ * HTTP server, not an in-process model). Copy only — no lifecycle rules restated here.
+ * Ref: apps/pycore-manager/docs/TTS_STT_ENGINE_LIFECYCLE.md §2/§3 and
+ * development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.
  */
 import type { PcTestKind } from './PcTestPopup';
 
@@ -85,11 +90,6 @@ const TTS_FORM_FIELDS: Record<string, PcTestFormField[]> = {
     { key: 'language', label: 'Language', type: 'select', options: LANG_OPTS, defaultValue: 'en' },
     { key: 'speed', label: 'Speed', type: 'number', defaultValue: '1.0', min: 0.5, max: 2.0, step: 0.1, optional: true },
   ],
-  melotts: [
-    { key: 'text', label: 'Text', type: 'textarea', rows: 3, defaultValue: 'This is a MeloTTS synthesis test.' },
-    { key: 'language', label: 'Language', type: 'select', options: LANG_OPTS, defaultValue: 'en' },
-    { key: 'speed', label: 'Speed', type: 'number', defaultValue: '1.0', min: 0.5, max: 2.0, step: 0.1, optional: true },
-  ],
 
   // -- engines with unique per-engine params --
   qwen3tts: [
@@ -115,6 +115,11 @@ const TTS_FORM_FIELDS: Record<string, PcTestFormField[]> = {
   ],
 
   // -- managed server engines --
+  melotts: [
+    { key: 'text', label: 'Text', type: 'textarea', rows: 3, defaultValue: 'This is a MeloTTS synthesis test.' },
+    { key: 'language', label: 'Language', type: 'select', options: LANG_OPTS, defaultValue: 'en' },
+    { key: 'speed', label: 'Speed', type: 'number', defaultValue: '1.0', min: 0.5, max: 2.0, step: 0.1, optional: true },
+  ],
   chattts: [
     { key: 'text', label: 'Text', type: 'textarea', rows: 3, defaultValue: 'Hello, this is a ChatTTS dialogue test [oral_2][laugh_0].' },
     { key: 'language', label: 'Language', type: 'select', options: LANG_OPTS, defaultValue: 'en' },
@@ -227,7 +232,7 @@ export interface PcTestEngineProfile {
 
 const TTS_PROFILES: Record<string, PcTestEngineProfile> = {
   qwen3tts: {
-    hint: 'Qwen3-TTS in-process. First run downloads and loads the HF model — often 2–5 minutes before audio returns.',
+    hint: 'Qwen3-TTS isolated venv HTTP server. First start builds the venv and loads the model (can take minutes) before audio returns.',
     longWait: true,
     accent: 'text-orange-500',
     accentBg: 'bg-orange-500/10',
@@ -304,7 +309,7 @@ const TTS_PROFILES: Record<string, PcTestEngineProfile> = {
     form: TTS_FORM_FIELDS.azure,
   },
   melotts: {
-    hint: 'MeloTTS offline — install via PreparePycorePrerequisites first.',
+    hint: 'MeloTTS class-C isolated-venv HTTP server. First start builds the venv and loads the model (can take minutes) before audio returns.',
     longWait: true,
     form: TTS_FORM_FIELDS.melotts,
   },

@@ -39,12 +39,13 @@ from typing import Any, Dict, List, Optional
 import fastapi
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_requests
 # Stored-first Laravel endpoint resolution - same plumbing word_audio_router and
 # sentence_audio_router use to know which laravel_main to proxy.
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
 )
+# Unified pycore->Laravel HTTP gateway (times + logs + records every call).
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 
 router = fastapi.APIRouter(prefix="/api/local/vocabulary", tags=["Local Processing - Vocabulary"])
 
@@ -106,9 +107,9 @@ def _proxy(
     if not base:
         return {"success": False, "error": "laravel endpoint not configured"}
     try:
-        requests = get_third_package_requests()
-        resp = requests.request(
-            method, base + laravel_path, params=params, json=json_body, timeout=timeout
+        resp = get_laravel_client().request(
+            method, laravel_path, base_url=base,
+            params=params, json=json_body, timeout=timeout,
         )
         if resp.status_code >= 400:
             return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text[:200]}"}

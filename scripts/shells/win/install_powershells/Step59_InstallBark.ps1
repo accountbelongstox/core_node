@@ -10,6 +10,12 @@
 
     GPU: suno/bark; CPU: suno/bark-small (via tts_model_tiers.py).
     Opt-in: -Full or BARK_INSTALL=1 or NEURAL_TTS_INSTALL=1. Skip with BARK_SKIP=1.
+
+    Lifecycle: Bucket-A LLM. Bark is transformers-based and shares the pinned
+    transformers version via Install-PinnedTransformers (version-idempotent, never
+    --upgrade, self-heals a clobbered pin) so it is compatible with the DeepSeek/
+    Qwen2.5/NLLB stack in the one system Python 3.13. Contract:
+    development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7.
 #>
 [CmdletBinding()]
 param(
@@ -26,7 +32,7 @@ $targetDir      = $null
 $depsSentinel   = $null
 $weightsDir     = $null
 $modelSentinel  = $null
-$weightAllow    = @('*.bin', '*.safetensors', '*.pt', '*.json', '*.txt', '*.model', '*.vocab')
+$weightAllow    = @('pytorch_model.bin', 'config.json', 'generation_config.json', 'tokenizer.json', 'tokenizer_config.json', 'special_tokens_map.json', 'vocab.txt', 'speaker_embeddings_path.json', 'speaker_embeddings/*.npy', 'speaker_embeddings/v2/*.npy')
 $resolvedPython = $null
 $hasCuda        = $false
 $doFull         = ($Full -or $env:BARK_INSTALL -eq '1' -or $env:NEURAL_TTS_INSTALL -eq '1')
@@ -86,16 +92,18 @@ if ((Test-Path $depsSentinel) -and -not $Force) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'dependencies already installed (.deps_done)' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 } else {
     Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
-    Write-Host "$SCRIPT_INDEX [..] pip install transformers scipy accelerate ..." -ForegroundColor Yellow
-    try { & $Global:PIP_EXE_PATH install --upgrade transformers scipy accelerate } catch { }
+    Write-Host "$SCRIPT_INDEX [..] pip install transformers (shared pin) scipy accelerate ..." -ForegroundColor Yellow
+    # transformers goes in at the shared Bucket-A pin (version-idempotent, never
+    # --upgrade); scipy/accelerate install as before. See lifecycle doc §7.
+    try { Install-PinnedTransformers -PythonExe $resolvedPython -PipExe $Global:PIP_EXE_PATH -Prefix "$SCRIPT_INDEX " | Out-Null } catch { }
+    try { & $Global:PIP_EXE_PATH install scipy accelerate } catch { }
     Set-Content -Path $depsSentinel -Value (Get-Date -Format o) -Encoding utf8
     Write-Host "$SCRIPT_INDEX [OK] Bark dependencies installed." -ForegroundColor Green
 }
 
 # --- HF weights (IDEMPOTENT: sentinel + curl resume + HF size verification) --- #
-# allow-list excludes redundant flax/tf/onnx format variants so suno/bark does
-# not pull 3x the bytes; .bin/.safetensors/.pt + config/tokenizer files cover
-# everything transformers BarkModel.from_pretrained needs.
+# Transformers Bark uses the main PyTorch checkpoint plus config/tokenizer and
+# speaker preset files; original Bark component .pt files are not pre-downloaded.
 $modelReady = $false
 if ((Test-Path $modelSentinel) -and -not $Force) {
     $sentinelModel = (Get-Content -LiteralPath $modelSentinel -Raw -ErrorAction SilentlyContinue)

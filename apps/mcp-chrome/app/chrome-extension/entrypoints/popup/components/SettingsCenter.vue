@@ -39,6 +39,12 @@
             <div :class="['absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all', appStore.settings.value.debugMode ? 'left-3.5' : 'left-0.5']" />
           </button>
         </div>
+        <div class="mb-2">
+          <label class="block text-[9px] mb-1" style="color: var(--text-muted)">Backend Timeout (ms)</label>
+          <input type="number" :value="backendTimeoutMs" @input="updateBackendTimeout"
+            class="tk-input w-full px-2 py-1 border rounded text-[10px]" min="1000" max="3600000" step="1000" />
+          <span class="block text-[8px] mt-1" style="color: var(--text-faint)">Pending retries: {{ outboxPending }}</span>
+        </div>
         <button class="w-full px-2 py-1.5 bg-rose-900/20 border border-rose-900/40 text-rose-400 rounded text-[9px] font-bold transition-all hover:bg-rose-900/30" @click="handleReset">
           Reset All Settings
         </button>
@@ -58,11 +64,58 @@
 </template>
 
 <script lang="ts" setup>
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useAppStore } from '@/composables/useAppStore';
 import CacheSettings from './CacheSettings.vue';
 import AiWebProviderSettings from './AiWebProviderSettings.vue';
+import {
+  getBackendTimeoutMs,
+  setBackendTimeoutMs,
+  DEFAULT_BACKEND_TIMEOUT_MS,
+  MIN_BACKEND_TIMEOUT_MS,
+  MAX_BACKEND_TIMEOUT_MS,
+} from '@/utils/backend-timeout';
+import { SUBMIT_OUTBOX_MSG } from '@/utils/task-center-types';
 
 const appStore = useAppStore();
+
+// Backend timeout — single-sourced in utils/backend-timeout (NOT in AppSettings,
+// to avoid a second source of truth). Hydrated from storage, written on input.
+const backendTimeoutMs = ref<number>(DEFAULT_BACKEND_TIMEOUT_MS);
+const outboxPending = ref<number>(0);
+let outboxTimer: ReturnType<typeof setInterval> | null = null;
+
+const updateBackendTimeout = (e: Event) => {
+  const value = parseInt((e.target as HTMLInputElement).value, 10);
+  if (!Number.isFinite(value)) return;
+  backendTimeoutMs.value = Math.max(MIN_BACKEND_TIMEOUT_MS, Math.min(MAX_BACKEND_TIMEOUT_MS, value));
+  void setBackendTimeoutMs(backendTimeoutMs.value);
+};
+
+const refreshOutbox = () => {
+  try {
+    chrome.runtime.sendMessage({ type: SUBMIT_OUTBOX_MSG, action: 'status' }, (resp: any) => {
+      if (chrome.runtime.lastError) return;
+      if (resp?.success && resp.status) outboxPending.value = resp.status.pending ?? 0;
+    });
+  } catch {
+    /* popup may be detached */
+  }
+};
+
+onMounted(async () => {
+  try {
+    backendTimeoutMs.value = await getBackendTimeoutMs();
+  } catch {
+    /* keep default */
+  }
+  refreshOutbox();
+  outboxTimer = setInterval(refreshOutbox, 3000);
+});
+
+onUnmounted(() => {
+  if (outboxTimer) clearInterval(outboxTimer);
+});
 
 // Server settings
 const toggleAutoConnect = () => {

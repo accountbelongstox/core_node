@@ -13,6 +13,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 
 use Illuminate\Http\Request;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordProgressModel;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
 use Illuminate\Support\Facades\Validator;
@@ -353,7 +354,21 @@ class AppQyV1WordGroupQueryController
             'with_words' => 'nullable|boolean',
         ]);
 
-        DGroupAPublic::ensureDefaultGroupIfNotExist($user->id, $user->username);
+        // Read-side shuffle-ensure hook for the Default Vocabulary Group
+        // (design doc §5.3 R2): the one-time random shuffle is applied on
+        // the first list request, then gated by shuffled_at forever after.
+        // Wrapped so a shuffle failure never breaks the groups listing.
+        $defaultGroupResult = DGroupAPublic::ensureDefaultGroupIfNotExist($user->id, $user->username);
+        try {
+            if (isset($defaultGroupResult['did'])) {
+                $defaultProgress = AppQyV1GroupWordProgressModel::where('group_id', $defaultGroupResult['did'])->first();
+                if ($defaultProgress) {
+                    $defaultProgress->ensureShuffledOnce();
+                }
+            }
+        } catch (\Throwable $e) {
+            // Shuffle is best-effort; the listing must still return.
+        }
 
         $start = $validated['start'] ?? 0;
         $limit = $validated['limit'] ?? 1000;

@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Cpu } from 'lucide-react';
 import { PC_PAGES } from './pcPages';
 import { PcFloatingLog } from './PcFloatingLog';
+import { PcHttpDebugger } from './PcHttpDebugger';
 import { PcTestPopupProvider } from './components/PcTestPopupContext';
 import { PcTopBar } from './components/PcTopBar';
 
@@ -71,6 +72,8 @@ export const PcLayout: React.FC = () => {
         </main>
         {/* Global floating live-log: present on every pycore page. */}
         <PcFloatingLog />
+        {/* Global HTTP/RPC request debugger (FE->pycore + pycore->Laravel). */}
+        <PcHttpDebugger />
       </div>
     </PcTestPopupProvider>
   );

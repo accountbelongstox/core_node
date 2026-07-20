@@ -33,6 +33,9 @@ import {
   WATCHDOG_ALARM,
   WATCHDOG_PERIOD_MINUTES,
 } from './bing-worker-lifecycle';
+import { isCapabilityActive } from './task-center/run-intent';
+import { LANES } from '@/utils/task-center-lanes';
+import { DEFAULT_SOURCE_LANG, DEFAULT_TARGET_LANG } from '@/utils/task-center-types';
 
 // Re-export so existing importers (background/index.ts) keep working.
 export const initBingWorkerLifecycle = () =>
@@ -346,6 +349,23 @@ class BingDictionaryWorkerService {
     logger.info(LOG, 'Service stopped');
   }
 
+  /**
+   * Force-clear the MV3 resurrection state (session run-intent + watchdog alarm)
+   * regardless of the in-memory running flag, then stop if running. Called from
+   * the Task Center stop path so the watchdog can NEVER resurrect the crawler
+   * after a Stop/uncheck — even if the SW was terminated and the in-memory
+   * isRunning=false while a stale session run-intent + armed alarm survive.
+   */
+  async stopAndClear(): Promise<void> {
+    if (this.isRunning) {
+      // stop() already clears persisted intent + disarms the watchdog.
+      this.stop();
+      return;
+    }
+    await this.persistRuntime(false);
+    await this.clearWatchdog();
+  }
+
   /** Report the current pool tab ids to the shared TabController (self-recovery). */
   private syncManagedTabs(): void {
     tabController.registerManagedTabs(this.pool.ids);
@@ -531,17 +551,23 @@ class BingDictionaryWorkerService {
   private normalizeConfig(raw: WorkerConfig, base?: Required<WorkerConfig>): Required<WorkerConfig> {
     const clamp = (n: number, lo: number, hi: number, fallback: number) =>
       Number.isFinite(n) ? Math.max(lo, Math.min(hi, Math.round(n))) : fallback;
-    const pollRaw = raw.pollInterval ?? (raw as any).fetchInterval ?? base?.pollInterval ?? 5;
+    const pollRaw =
+      raw.pollInterval ?? (raw as any).fetchInterval ?? base?.pollInterval ?? TASK_CENTER_DEFAULTS.pollInterval;
     return {
       // Trim + strip trailing slashes so base + '/api/...' never double-slashes.
       apiUrl: (raw.apiUrl ?? base?.apiUrl ?? '').trim().replace(/\/+$/, ''),
       workerName: raw.workerName ?? base?.workerName ?? 'MCP Chrome Bing Translation Worker',
-      pollInterval: clamp(Number(pollRaw), 1, 3600, 5),
-      heartbeatInterval: clamp(Number(raw.heartbeatInterval ?? base?.heartbeatInterval ?? 60), 5, 3600, 60),
-      batchSize: clamp(Number(raw.batchSize ?? base?.batchSize ?? 5), 1, 50, 5),
+      pollInterval: clamp(Number(pollRaw), 1, 3600, TASK_CENTER_DEFAULTS.pollInterval),
+      heartbeatInterval: clamp(
+        Number(raw.heartbeatInterval ?? base?.heartbeatInterval ?? TASK_CENTER_DEFAULTS.heartbeatInterval),
+        5,
+        3600,
+        TASK_CENTER_DEFAULTS.heartbeatInterval,
+      ),
+      batchSize: clamp(Number(raw.batchSize ?? base?.batchSize ?? TASK_CENTER_DEFAULTS.batchSize), 1, 50, TASK_CENTER_DEFAULTS.batchSize),
       tabCount: clamp(Number(raw.tabCount ?? base?.tabCount ?? 3), 1, MAX_BING_TABS, 3),
-      sourceLanguage: (raw.sourceLanguage ?? base?.sourceLanguage ?? 'en').trim().toLowerCase() || 'en',
-      targetLanguage: (raw.targetLanguage ?? base?.targetLanguage ?? 'zh').trim().toLowerCase() || 'zh',
+      sourceLanguage: (raw.sourceLanguage ?? base?.sourceLanguage ?? DEFAULT_SOURCE_LANG).trim().toLowerCase() || DEFAULT_SOURCE_LANG,
+      targetLanguage: (raw.targetLanguage ?? base?.targetLanguage ?? DEFAULT_TARGET_LANG).trim().toLowerCase() || DEFAULT_TARGET_LANG,
     };
   }
 
@@ -628,6 +654,17 @@ class BingDictionaryWorkerService {
     if (this.isRunning) {
       // Already alive — just make sure the watchdog stays armed.
       await this.ensureWatchdog();
+      return;
+    }
+
+    // Run-intent gate (single source of truth): NEVER resurrect the crawler
+    // unless the Task Center run-intent the popup checkboxes write says assist is
+    // running AND 'bing' is an active capability. This is what stops the
+    // watchdog + session run-intent from resurrecting Bing after the user
+    // Stopped / unchecked it. When not intended, disarm the watchdog so it can't
+    // keep firing every minute for nothing.
+    if (!(await isCapabilityActive('bing'))) {
+      await this.clearWatchdog();
       return;
     }
 
@@ -720,7 +757,7 @@ class BingDictionaryWorkerService {
       // `remote_translation`; the worker must register that processor type to be
       // assigned them. It also joins the shared `remote_fast` lane so the
       // dispatcher can route fast-tier translate work here.
-      processor_types: ['remote_translation', 'remote_fast'] as ProcessorType[],
+      processor_types: [LANES.REMOTE_TRANSLATION, LANES.REMOTE_FAST] as ProcessorType[],
       // Advertise ONLY 'translate' (B18: bing is the sole translate owner on the
       // fast lane; WebAiTranslate owns ai_translate). 'image' is no longer in the
       // shared fast set (B17) — a Bing dictionary tab can scrape a word lookup but
@@ -1445,12 +1482,12 @@ class BingDictionaryWorkerService {
     status = 'pending',
     limit = 10,
     page = 1,
-    language = 'en',
+    language = DEFAULT_SOURCE_LANG,
     targetLanguage?: string,
   ): Promise<{ ok: boolean; summary?: any; items?: any[]; pagination?: any; message?: string }> {
     const base = (apiUrl || this.config?.apiUrl || '').trim().replace(/\/+$/, '');
     if (!base) return { ok: false, message: 'No endpoint configured in Settings' };
-    const target = targetLanguage || this.config?.targetLanguage || 'zh';
+    const target = targetLanguage || this.config?.targetLanguage || DEFAULT_TARGET_LANG;
     try {
       const client =
         this.workerClient && this.config?.apiUrl === base

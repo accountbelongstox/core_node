@@ -118,4 +118,67 @@ class AppQyV1TtsEngineConfigModel extends Model
             return [];
         }
     }
+
+    // ------------------------------------------------------------------
+    // Sentence-audio engine profile (qwen3tts-first, GPU)
+    // ------------------------------------------------------------------
+
+    /** Engine-profile name carried on sentence-audio claim tasks / assist requests. */
+    public const SENTENCE_PROFILE = 'sentence';
+
+    /**
+     * Preferred sentence primary engine (GPU neural). This is a PREFERENCE label
+     * only: pycore's orchestrator resolves the actual engine at synth time and is
+     * GPU-gated — it falls back down the chain when qwen3tts is unavailable.
+     * laravel never runs models and never forces this choice.
+     */
+    public const SENTENCE_PRIMARY_DEFAULT = 'qwen3tts';
+
+    /**
+     * Fallback sentence chain used when the engine-config table is missing/empty
+     * (pre-migration). qwen3tts-first, cloud (azure) last — mirrors the
+     * "sentence" priority_profile pycore's tts_orchestrator resolves.
+     *
+     * @var array<int,string>
+     */
+    public const SENTENCE_FALLBACK_CHAIN = ['qwen3tts', 'melotts', 'sherpa', 'edge', 'azure'];
+
+    /**
+     * Sentence-profile engine chain: the enabled engines ordered by priority with
+     * the sentence primary (qwen3tts) hoisted to the front (sentence audio is
+     * qwen3tts-first per SENTENCE_AUDIO_GENERATION_PIPELINE.md). Returns the
+     * hardcoded SENTENCE_FALLBACK_CHAIN when the table is missing/empty.
+     *
+     * PREFERENCE ONLY — pycore makes the final, GPU-gated choice and falls back
+     * when the primary is unavailable. qwen3tts is hoisted only when it is an
+     * enabled engine here, so an operator who disables it is honored.
+     *
+     * @return array<int,string>
+     */
+    public static function sentenceEngineChain(): array
+    {
+        $ordered = self::orderedPriority();
+        if ($ordered === []) {
+            return self::SENTENCE_FALLBACK_CHAIN;
+        }
+        if (in_array(self::SENTENCE_PRIMARY_DEFAULT, $ordered, true)) {
+            $ordered = array_values(array_filter(
+                $ordered,
+                static fn ($engine) => $engine !== self::SENTENCE_PRIMARY_DEFAULT
+            ));
+            array_unshift($ordered, self::SENTENCE_PRIMARY_DEFAULT);
+        }
+        return $ordered;
+    }
+
+    /**
+     * Preferred sentence primary engine — the first entry of sentenceEngineChain()
+     * (qwen3tts when enabled, else the first enabled engine, else the default).
+     * A PREFERENCE only: pycore GPU-gates and falls back when it is unavailable.
+     */
+    public static function sentencePrimaryEngine(): string
+    {
+        $chain = self::sentenceEngineChain();
+        return $chain[0] ?? self::SENTENCE_PRIMARY_DEFAULT;
+    }
 }

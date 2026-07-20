@@ -41,6 +41,7 @@ from pycore.pyfoundations.thread_bus_constants import (
     BusSignals,
     DependencyInfo,
 )
+from pycore.pyutils.native_ui.step0_i18n import i18n
 
 
 # ============================================================
@@ -328,7 +329,6 @@ class NativeUIBusManager:
                 ColorPrint.print_warn(f"[BusManager] Could not determine language from event_data: {event_data}")
         
         # Register handlers for all language signals (dynamic registration)
-        from pycore.pyutils.native_ui.step0_i18n import i18n
         supported_languages = i18n.get_supported_languages()
         for lang in supported_languages:
             signal = f"{tray_set_language_signal}.{lang}"

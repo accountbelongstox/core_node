@@ -200,21 +200,30 @@ class Config:
     TTS_WORKER_BATCH = int(os.getenv("PYCORE_TTS_WORKER_BATCH", "10"))
     # Heartbeat-callback interval (seconds) for the TTS worker poll loop.
     TTS_WORKER_INTERVAL = int(os.getenv("PYCORE_TTS_WORKER_INTERVAL", "60"))
+    # Worker fan-out override (0 = use the per-engine recommended value from
+    # services/tts_concurrency.py; serial engines are always forced to 1).
+    TTS_WORKER_CONCURRENCY = int(os.getenv("PYCORE_TTS_WORKER_CONCURRENCY", "0"))
 
     # ==================== TTS Sentence-Audio Worker (Laravel sentence-library queue) ====================
     # The sentence-audio worker claims pending SENTENCE TTS tasks from laravel_main
     # (/api/app_qy_v1/ai_tools/tts/sentence/claim), merges every claimed task into
     # ONE in-process priority queue (§5.3), synthesizes MP3s with the pyutils TTS
     # orchestrator and reports them back (/tts/sentence/report).
-    # ON by default; disable with PYCORE_TTS_SENTENCE_WORKER=0 (or at runtime via
-    # POST /api/heartbeat/disable/tts_sentence_worker).
+    # OFF by default (legacy fallback only). The effective startup state is the
+    # PERSISTED UI toggle via sentence_audio_auto_enabled_on_start(); this env flag
+    # is just the fallback when assist was never configured. Force-enable a headless
+    # deploy with PYCORE_TTS_SENTENCE_WORKER=1, or toggle at runtime via the UI /
+    # POST /api/heartbeat/enable/tts_sentence_worker.
     TTS_SENTENCE_WORKER_ENABLED_ON_START = (
-        os.getenv("PYCORE_TTS_SENTENCE_WORKER", "1") in ("1", "true", "True")
+        os.getenv("PYCORE_TTS_SENTENCE_WORKER", "0") in ("1", "true", "True")
     )
     # Tasks claimed per tick (server caps the claim at 50).
     TTS_SENTENCE_WORKER_BATCH = int(os.getenv("PYCORE_TTS_SENTENCE_WORKER_BATCH", "10"))
     # Heartbeat-callback interval (seconds) for the sentence-audio worker poll loop.
     TTS_SENTENCE_WORKER_INTERVAL = int(os.getenv("PYCORE_TTS_SENTENCE_WORKER_INTERVAL", "60"))
+    # Worker fan-out override (0 = use the per-engine recommended value from
+    # services/tts_concurrency.py; serial engines are always forced to 1).
+    TTS_SENTENCE_WORKER_CONCURRENCY = int(os.getenv("PYCORE_TTS_SENTENCE_WORKER_CONCURRENCY", "0"))
 
     # ==================== Translation Queue Monitor (Laravel queue API) ====================
     # The monitor + control proxy poll/steer Laravel's translation QUEUE

@@ -3,6 +3,13 @@
  * Note: Native message types are imported from the shared package
  */
 
+/**
+ * chrome.runtime message `type` for the Bing dictionary worker control channel
+ * (popup composables -> background listener). One const so a rename can't desync
+ * sender and listener.
+ */
+export const BING_DICT_MSG = 'bing_dictionary_worker_service' as const;
+
 // Message targets for routing
 export enum MessageTarget {
   Offscreen = 'offscreen',

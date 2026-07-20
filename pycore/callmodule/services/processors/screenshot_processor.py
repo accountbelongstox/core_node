@@ -18,7 +18,6 @@ except ImportError:
 
 try:
     from PIL import Image
-    import io
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False

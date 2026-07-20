@@ -19,6 +19,7 @@ from utils.common_utils import (
 )
 from generators.command_content_generator_windows import WindowsCommandContentGenerator
 from generators.command_content_generator_linux import LinuxCommandContentGenerator
+from script_sections.ark_launcher_section import ArkLauncherSectionGenerator
 from utils.secret_manager import LOCAL_SECRET_MANAGER
 
 
@@ -60,6 +61,7 @@ class ScriptManager:
     def __init__(self, windows_generator: WindowsCommandContentGenerator, linux_generator: LinuxCommandContentGenerator):
         self.windows_generator = windows_generator
         self.linux_generator = linux_generator
+        self.ark_generator = ArkLauncherSectionGenerator()
 
     def generate_scripts_for_config(
         self,
@@ -101,8 +103,14 @@ class ScriptManager:
         else:
             mcp_section = ""
             if mcp_enabled:
+                # Codex has its own npm upgrade prompt at the script start, so the
+                # MCP-section upgrade prompt (codex_update.bat) is suppressed to
+                # avoid a double upgrade prompt.
+                codex_no_mcp_upgrade = (command_prefix or "").lower() == "codex"
                 mcp_section = self.windows_generator.generate_mcp_section(
-                    command_prefix, config['DisplayName'], command_prefix, support_upgrade=True
+                    command_prefix, config['DisplayName'], command_prefix,
+                    support_upgrade=not codex_no_mcp_upgrade,
+                    include_launch_pause=not codex_no_mcp_upgrade
                 )
 
             windows_content = self.windows_generator.generate_command_content(
@@ -131,8 +139,11 @@ class ScriptManager:
         else:
             linux_mcp_section = ""
             if mcp_enabled:
+                codex_no_mcp_upgrade = (command_prefix or "").lower() == "codex"
                 linux_mcp_section = self.linux_generator.generate_mcp_section(
-                    command_prefix, config['DisplayName'], command_prefix, support_upgrade=True
+                    command_prefix, config['DisplayName'], command_prefix,
+                    support_upgrade=not codex_no_mcp_upgrade,
+                    include_launch_pause=not codex_no_mcp_upgrade
                 )
 
             linux_content = self.linux_generator.generate_command_content(
@@ -195,12 +206,24 @@ class ScriptManager:
         variables = config.get('Variables', [])
         script_paths = []
 
-        sh_content = self._generate_v4_sh_template(
-            display_name, file_number, variables, command_prefix
-        )
-        ps1_content = self._generate_v4_ps1_template(
-            display_name, file_number, variables, command_prefix
-        )
+        # Ark CLI has its own v4 template (native arkcli: idempotent install +
+        # opt-in arkcli auth login + exec arkcli - no ANTHROPIC_* env, no claude);
+        # other v4 configs use the shared team+ultracode template.
+        is_ark = (command_prefix or '').lower() == 'ark'
+        if is_ark:
+            sh_content = self.ark_generator.generate_sh(
+                display_name, file_number, variables, command_prefix
+            )
+            ps1_content = self.ark_generator.generate_ps1(
+                display_name, file_number, variables, command_prefix
+            )
+        else:
+            sh_content = self._generate_v4_sh_template(
+                display_name, file_number, variables, command_prefix
+            )
+            ps1_content = self._generate_v4_ps1_template(
+                display_name, file_number, variables, command_prefix
+            )
 
         linuxenvs_dir = get_linuxenvs_dir()
         ensure_directory_exists(str(linuxenvs_dir))

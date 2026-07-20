@@ -395,3 +395,12 @@ export class ApiManager {
 }
 
 export const apiManager = new ApiManager();
+
+/**
+ * Current API base URL with any trailing slashes stripped, so callers can append
+ * `/api/...` without double-slashing. Single home for the
+ * `getCurrentBaseUrl().replace(/\/+$/, '')` idiom shared across the popup.
+ */
+export function getApiBase(): string {
+  return apiManager.getCurrentBaseUrl().replace(/\/+$/, '');
+}

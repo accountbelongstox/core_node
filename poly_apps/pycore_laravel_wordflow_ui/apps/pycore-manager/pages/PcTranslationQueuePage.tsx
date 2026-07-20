@@ -48,7 +48,6 @@ function wordsLabel(words: string[]): string {
 interface QueueSnapshot {
   items: TranslationQueueItem[];
   summary: TranslationQueueSummary;
-  reachable: boolean;
   /** Live-log WS bridge state from pycore (`ws_connected`); null = backend didn't report it. */
   wsConnected: boolean | null;
   error: string | null;
@@ -56,12 +55,15 @@ interface QueueSnapshot {
 
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
 
-/** Contract with PcQueueCenterPage (shared panel props). */
-type PanelProps = QueueCenterPanelProps;
+/** Contract with PcQueueCenterPage (shared panel props + section live switch). */
+type PanelProps = QueueCenterPanelProps & { live?: boolean };
 
-const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => {
-  const { laravelStoredEndpoint, laravelActiveEndpoint } = useQueueCenterHub();
+const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta, live = true }) => {
+  const { laravelReachable, laravelStoredEndpoint, laravelActiveEndpoint } = useQueueCenterHub();
   const laravelEndpoint = laravelStoredEndpoint || laravelActiveEndpoint;
+  // Reachability verdict comes ONLY from the shared hub (task-center remote_queue);
+  // the panel's own poll below supplies items/summary/ws state only.
+  const reachable = laravelReachable !== false;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -77,7 +79,7 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta
   const [detailLoading, setDetailLoading] = useState(false);
 
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   // Last time a fetch ran (persistent poll OR manual/tick refresh). Used to skip
   // the parent-tick immediate fetch when a persistent poll just ran, so the two
@@ -95,7 +97,6 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta
         return {
           items: Array.isArray(r?.items) ? r.items : [],
           summary: r?.summary ?? EMPTY_SUMMARY,
-          reachable: r?.laravel_reachable !== false,
           wsConnected: typeof r?.ws_connected === 'boolean' ? r.ws_connected : null,
           error: r?.error ?? null,
         };
@@ -104,25 +105,32 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta
         if (mounted.current) setLoading(false);
         // keep the last good snapshot; surface only the unreachable state
         const prev = queue.data;
-        return { ...(prev ?? { items: [], summary: EMPTY_SUMMARY, wsConnected: null }), reachable: false, error: e?.message || 'pycore unreachable' } as QueueSnapshot;
+        return { ...(prev ?? { items: [], summary: EMPTY_SUMMARY, wsConnected: null }), error: e?.message || 'pycore unreachable' } as QueueSnapshot;
       }),
   });
 
   const snap = queue.data;
   const items: TranslationQueueItem[] | null = snap ? snap.items : null;
   const summary: TranslationQueueSummary = snap?.summary ?? EMPTY_SUMMARY;
-  const reachable = snap ? snap.reachable : true;
   const wsConnected = snap?.wsConnected ?? null;
   const error = snap?.error ?? null;
 
-  // Start the continuous poll on first mount. Stop it on unmount so the
-  // persistent session does NOT poll forever app-wide after the user leaves
-  // this tab (polling with no consumer is pure waste).
+  // Start/stop the continuous poll with the section live switch. Stop it on
+  // unmount so the persistent session does NOT poll forever app-wide after the
+  // user leaves this page (polling with no consumer is pure waste). Turning
+  // live off also clears `loading` so "Loading queue…" can never get stuck
+  // when the switch is flipped before the first poll completes.
   useEffect(() => {
-    if (!queue.running) queue.begin();
-    return () => { queue.end(); };
+    if (live && !queue.running) queue.begin();
+    else if (!live) {
+      if (queue.running) queue.end();
+      setLoading(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [live]);
+  useEffect(() => () => { queue.end(); },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []);
 
   // Manual / post-action refresh = one immediate fetch pushed into the session.
   const fetchQueue = useCallback(async (refresh: boolean) => {
@@ -132,12 +140,11 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta
     if (!mounted.current) return;
     if (r && r.__err) {
       const prev = queue.data;
-      queue.set({ ...(prev ?? { items: [], summary: EMPTY_SUMMARY, wsConnected: null }), reachable: false, error: r.__err } as QueueSnapshot);
+      queue.set({ ...(prev ?? { items: [], summary: EMPTY_SUMMARY, wsConnected: null }), error: r.__err } as QueueSnapshot);
     } else {
       queue.set({
         items: Array.isArray(r?.items) ? r.items : [],
         summary: r?.summary ?? EMPTY_SUMMARY,
-        reachable: r?.laravel_reachable !== false,
         wsConnected: typeof r?.ws_connected === 'boolean' ? r.ws_connected : null,
         error: r?.error ?? null,
       });
@@ -152,11 +159,11 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta
   useEffect(() => {
     if (refreshTick !== lastTick.current) {
       lastTick.current = refreshTick;
-      if (Date.now() - lastFetchAt.current >= REFRESH_MS) {
+      if (live && Date.now() - lastFetchAt.current >= REFRESH_MS) {
         fetchQueue(true);
       }
     }
-  }, [refreshTick, fetchQueue]);
+  }, [refreshTick, fetchQueue, live]);
 
   // Report the pending count + in-flight state up to the tab bar.
   useEffect(() => {

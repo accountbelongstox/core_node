@@ -9,6 +9,7 @@ Endpoints (prefix /api/local/sentence-audio):
   GET  /queue    — missing rows + worker events + bump hub
 """
 
+import traceback
 from typing import Any, Dict, List, Optional
 
 import fastapi
@@ -26,18 +27,22 @@ from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
 )
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_requests
+# Unified pycore->Laravel HTTP gateway (times + logs + records every call).
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 
 router = fastapi.APIRouter(prefix="/api/local/sentence-audio", tags=["Local Processing - Sentence Audio"])
 
 # Larvel variant-specs CRUD surface (proxied so the pycore-manager UI edits
 # laravel-owned data through pycore, matching the sentence-audio pattern).
 VARIANT_SPECS_PATH = "/api/app_qy_v1/ai_tools/tts/variant-specs"
-_VARIANT_TIMEOUT = 10
+# Remote variant endpoints can be slow — give the proxy room (was 10s).
+_VARIANT_TIMEOUT = 30
 
 
 class SentenceAudioConfigRequest(BaseModel):
     auto_start: bool
+    # Optional worker fan-out override; None = leave unchanged, 0 = recommended.
+    concurrency: Optional[int] = None
 
 
 class VariantSpecsReplaceRequest(BaseModel):
@@ -52,7 +57,7 @@ def status():
 
 @router.post("/config")
 def config(req: SentenceAudioConfigRequest):
-    return apply_auto_start(bool(req.auto_start))
+    return apply_auto_start(bool(req.auto_start), concurrency=req.concurrency)
 
 
 @router.post("/run-once")
@@ -80,7 +85,6 @@ def queue_snapshot():
             "bumps": bumps,
         }
     except Exception as exc:  # noqa: BLE001 - never 500; print full traceback
-        import traceback
         ColorPrint.red(f"[SentenceAudio] /queue failed: {exc}\n{traceback.format_exc()}")
         return {
             "success": False,
@@ -103,10 +107,9 @@ def variants_index(lang: str = "en"):
     base = _laravel_base()
     if not base:
         return {"success": False, "error": "laravel endpoint not configured", "specs": []}
-    requests = get_third_package_requests()
     try:
-        resp = requests.get(
-            base + VARIANT_SPECS_PATH, params={"lang": lang}, timeout=_VARIANT_TIMEOUT
+        resp = get_laravel_client().get(
+            VARIANT_SPECS_PATH, base_url=base, params={"lang": lang}, timeout=_VARIANT_TIMEOUT
         )
     except Exception as exc:  # noqa: BLE001
         return {"success": False, "error": str(exc), "specs": []}
@@ -124,10 +127,10 @@ def variants_store(req: VariantSpecsReplaceRequest):
     base = _laravel_base()
     if not base:
         return {"success": False, "error": "laravel endpoint not configured", "specs": []}
-    requests = get_third_package_requests()
     try:
-        resp = requests.post(
-            base + VARIANT_SPECS_PATH,
+        resp = get_laravel_client().post(
+            VARIANT_SPECS_PATH,
+            base_url=base,
             json={"lang": req.lang, "specs": req.specs},
             timeout=_VARIANT_TIMEOUT,
         )
@@ -147,10 +150,10 @@ def variants_destroy(lang: str, variant_key: str):
     base = _laravel_base()
     if not base:
         return {"success": False, "error": "laravel endpoint not configured"}
-    requests = get_third_package_requests()
     try:
-        resp = requests.delete(
-            base + VARIANT_SPECS_PATH,
+        resp = get_laravel_client().delete(
+            VARIANT_SPECS_PATH,
+            base_url=base,
             params={"lang": lang, "variant_key": variant_key},
             timeout=_VARIANT_TIMEOUT,
         )

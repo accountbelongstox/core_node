@@ -42,6 +42,7 @@ Route::prefix($apiVersionPrefix)->group(function () {
 
         // Group Library Management Routes
         Route::any('/group/add_library', [DGLibController::class, 'addLibraryToGroup']);
+        Route::any('/group/preview_add_library', [DGLibController::class, 'previewAddLibraryToGroup']);
         Route::any('/group/remove_library', [DGLibController::class, 'removeLibraryFromGroup']);
         Route::any('/group/get_libraries', [DGLibController::class, 'getGroupLibraries']);
 

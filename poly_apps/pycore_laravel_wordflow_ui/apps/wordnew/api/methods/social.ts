@@ -13,12 +13,12 @@ import {
 import { unwrapEnvelope } from '../WfNewApiTransport';
 import type {
   WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity,
-  WfNewDiscoverUser, WfNewFriendRequest, WfNewConversation, WfNewMessage,
+  WfNewDiscoverUser, WfNewFriendRequest, WfNewPublicUserProfile, WfNewConversation, WfNewMessage,
   WfNewMessagePage, WfNewPresenceStatus, WfNewPresenceInfo, WfNewNotificationPage,
   WfNewPostFilter, WfNewPostPage, WfNewPost, WfNewCreatePostPayload,
   WfNewPostLikeResult, WfNewPostCommentPage, WfNewPostComment, WfNewLive,
   WfNewCreateLivePayload, WfNewLiveMsg, WfNewLiveMsgPage, WfNewStatistics,
-  BentoGroup, WordGroup, Word, UserProfile, UserStats, SubtitleCourse,
+  BentoGroup, WordGroup, Word, WordPage, UserProfile, UserStats, SubtitleCourse,
   AnalyticsStats, BilingualSentence,
 } from '../WfNewApiTypes';
 import {
@@ -109,6 +109,33 @@ export const socialMethods = {
 
   async blockUser(userId: number): Promise<void> {
     await postJSON(WfNewApiPaths.socialBlock, { user_id: userId });
+  },
+
+  async getPublicUserProfile(userId: number): Promise<WfNewPublicUserProfile> {
+    // GET /social/users/{id} → data.user (custom.authenticate). Do NOT confuse
+    // with the self getUserProfile() (/user/profile), which reads the CURRENT
+    // user's own profile. authedGetJSON returns null without a token → surface an
+    // empty profile shell so the modal shows a "sign in" state instead of throwing.
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialUser(userId), null);
+    const u = res?.user ?? res ?? {};
+    const presence = u?.presence && typeof u.presence === 'object' ? u.presence : null;
+    return {
+      id: Number(u?.id ?? userId) || userId,
+      name: u?.name ?? u?.nickname ?? u?.username ?? '',
+      avatar_url: absUrl(u?.avatar_url ?? u?.avatar) ?? null,
+      native_language: u?.native_language ?? null,
+      learning_languages: Array.isArray(u?.learning_languages) ? u.learning_languages : [],
+      bio: u?.bio ?? null,
+      post_count: Number(u?.post_count ?? 0) || 0,
+      follower_count: Number(u?.follower_count ?? 0) || 0,
+      following_count: Number(u?.following_count ?? 0) || 0,
+      is_following: !!u?.is_following,
+      is_friend: !!u?.is_friend,
+      presence: {
+        status: normPresence(presence?.status ?? u?.presence),
+        last_seen_at: presence?.last_seen_at ?? null,
+      },
+    };
   },
 
   async getConversations(): Promise<WfNewConversation[]> {
@@ -319,8 +346,88 @@ export const socialMethods = {
   },
 
   async getVocabulary(groupId: string): Promise<Word[]> {
-    const res = await authedGetJSON<any>(WfNewApiPaths.queryGroupWords(groupId), null);
-    return asArray(res, 'gwords', 'words').map(toWord);
+    // A group's words live in TWO stores: the progress-map (group_word_progress,
+    // filled by add_library and the Default Vocabulary Group) and the legacy
+    // `gwords` column. UNION both so this returns real words for progress-map
+    // groups AND legacy groups. Neither sub-fetch may throw — each is guarded so
+    // one source still populates the list if the other fails.
+    const PER_PAGE = 100;
+    const MAX_WORDS = 1000; // cap loaded words to protect render/network on huge groups
+
+    // 1) Progress-map words via POST /group/get_words (enriched text/translation/
+    //    phonetic/audio_url/definition). Page until covered or the cap is hit.
+    let progressWords: Word[] = [];
+    try {
+      let page = 1;
+      let total = 0;
+      let more = true;
+      while (more && progressWords.length < MAX_WORDS) {
+        const res = await this.getGroupWordsPage(groupId, page, PER_PAGE, true);
+        total = res.total || total;
+        if (!res.words.length) break;
+        progressWords = progressWords.concat(res.words);
+        more = page * PER_PAGE < total;
+        page++;
+      }
+      if (progressWords.length > MAX_WORDS) progressWords = progressWords.slice(0, MAX_WORDS);
+      if (progressWords.length >= MAX_WORDS && total > progressWords.length) {
+        // Explicit note — no silent truncation of very large groups.
+        console.info(`[getVocabulary] group ${groupId}: loaded ${progressWords.length} of ${total} words (cap ${MAX_WORDS}).`);
+      }
+    } catch {
+      // ignore — the legacy gwords source below may still populate the list
+    }
+
+    // 2) Legacy gwords via GET /query_gwords (empty for progress-map groups).
+    let legacyWords: Word[] = [];
+    try {
+      const res = await authedGetJSON<any>(WfNewApiPaths.queryGroupWords(groupId), null);
+      legacyWords = asArray(res, 'gwords', 'words').map(toWord);
+    } catch {
+      // ignore — progress-map words above may already cover the group
+    }
+
+    // 3) Concatenate (enriched progress words first so they win) and dedupe by
+    //    word id, with lowercased text as a secondary key.
+    const out: Word[] = [];
+    const seenIds = new Set<string>();
+    const seenText = new Set<string>();
+    for (const w of [...progressWords, ...legacyWords]) {
+      const id = w.id;
+      const textKey = (w.text || '').trim().toLowerCase();
+      if (id && seenIds.has(id)) continue;
+      if (textKey && seenText.has(textKey)) continue;
+      if (id) seenIds.add(id);
+      if (textKey) seenText.add(textKey);
+      out.push(w);
+    }
+    return out;
+  },
+
+  async getGroupWordsPage(
+    gid: string,
+    page: number,
+    perPage: number,
+    withProgress?: boolean,
+    opts?: { unread_only?: boolean; limit?: number },
+  ): Promise<WordPage> {
+    const perPageCapped = Math.min(perPage, 100);
+    // Cross-stack contract (§5.7): unread_only + limit are added to the POST
+    // /group/get_words body when present. unread_only filters to rc==0 words
+    // before paging; limit caps the returned count (shelf passes daily_goal).
+    const body: Record<string, any> = {
+      gid, page, per_page: perPageCapped, with_progress: !!withProgress,
+    };
+    if (opts?.unread_only) body.unread_only = true;
+    if (opts?.limit != null && opts.limit > 0) body.limit = opts.limit;
+    const res = await postJSON<any>(WfNewApiPaths.groupGetWords, body);
+    const data = unwrapEnvelope(res) ?? {};
+    return {
+      words: asArray(data, 'words').map(toWord),
+      total: Number(data?.total_words ?? 0) || 0,
+      page: Number(data?.page ?? page) || page,
+      perPage: Number(data?.per_page ?? perPageCapped) || perPageCapped,
+    };
   },
 
   async getUserProfile(): Promise<UserProfile | null> {
@@ -410,5 +517,21 @@ export const socialMethods = {
   async getBilingualSentences(): Promise<BilingualSentence[]> {
     logContentFallback();
     return [...MOCK_BILINGUAL_SENTENCES];
+  },
+
+  async getTtsVoices(): Promise<{ id: string; label: string; lang: string }[]> {
+    try {
+      // GET /ai_tools/tts/voices → data.voices = { lang: voice_id } (the Laravel
+      // audio library). Flatten to the picker shape; never throw → [] on failure so
+      // the Voice selector falls back to the browser's Web-Speech voice list.
+      const res = await authedGetJSON<any>(WfNewApiPaths.ttsVoices, null);
+      const map = (res && typeof res === 'object') ? (res.voices ?? res) : null;
+      if (!map || typeof map !== 'object') return [];
+      return Object.entries<any>(map)
+        .map(([lang, voiceId]) => ({ id: String(voiceId ?? ''), label: String(voiceId ?? ''), lang: String(lang) }))
+        .filter((v) => v.id);
+    } catch {
+      return [];
+    }
   },
 };

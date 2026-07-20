@@ -154,10 +154,24 @@ export interface WfGroupProgressBlob {
   words: Record<string, WfProgressEntryShort>;
 }
 
-/** One study answer of the batch shape of POST /group/update_progress. */
+/**
+ * One study answer of the batch shape of POST /group/update_progress.
+ *
+ * Two backend shapes are supported (contract 2026-07-18 §5.7):
+ *   - legacy answer: { word_id, correct }
+ *   - read action:   { word_id, action: 'read', play_time } (correct omitted)
+ * `correct` is optional so a read-action update (action='read' + play_time) can
+ * be sent without it. `play_time` is the seconds spent on this word this pass
+ * (accumulated into the group progress map's pt/rpt accumulators server-side).
+ */
 export interface WfGroupProgressUpdate {
   word_id: string | number;
-  correct: boolean;
+  /** Legacy answer correctness. Omitted when `action: 'read'|'review'` is used. */
+  correct?: boolean;
+  /** Explicit action kind for read/review logging (omitted = legacy answer shape). */
+  action?: 'read' | 'review';
+  /** Seconds spent on this word this pass (read action only). */
+  play_time?: number;
 }
 
 /**

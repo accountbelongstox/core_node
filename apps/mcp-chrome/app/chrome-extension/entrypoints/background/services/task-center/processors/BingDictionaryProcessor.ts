@@ -6,13 +6,14 @@
 
 import type { ITaskProcessor, ProcessorConfig, ProcessorStatus } from '../ITaskProcessor';
 import { bingDictionaryWorkerService } from '../../bing-dictionary-worker-service';
+import { LANES } from '@/utils/task-center-lanes';
 
 /**
  * Bing Dictionary Task Processor
  * Handles dictionary translation tasks from backend
  */
 class BingDictionaryProcessor implements ITaskProcessor {
-  readonly processorType = 'bing_dictionary';
+  readonly processorType = LANES.BING_DICTIONARY;
   readonly processorName = 'Bing Dictionary Translation';
 
   /**

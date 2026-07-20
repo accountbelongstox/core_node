@@ -106,6 +106,18 @@ def _ensure_torch_cpu_build_when_no_gpu():
         return
     if getattr(torch.version, "cuda", None) is None:
         return  # already a CPU build
+    # SAFETY: never downgrade a CUDA torch that actually WORKS. nvidia-smi can be
+    # missing from a sanitized PATH (false 'no GPU'); if torch itself sees the GPU
+    # there IS a GPU, so keep the CUDA build instead of a destructive ~5G reinstall.
+    try:
+        if torch.cuda.is_available():
+            ColorPrint.blue(
+                "[CUDA] torch reports CUDA available; keeping the CUDA build "
+                "(ignoring the nvidia-smi PATH miss)."
+            )
+            return
+    except Exception:  # noqa: BLE001
+        pass
     ColorPrint.yellow(
         "[CUDA] No GPU detected, but torch is a CUDA build (pulls ~4.3G nvidia-*). "
         "Reinstalling the CPU build and removing nvidia-* wheels."
@@ -170,9 +182,10 @@ def _detect_driver_cuda_version() -> Optional[Tuple[int, int]]:
     None. This bounds which torch CUDA wheel can actually initialize here - a wheel built for
     a newer CUDA than the driver supports trips torch.cuda.is_available()=False (the 'driver
     too old' UserWarning). nvidia-smi prints 'CUDA Version: X.Y' in its header."""
-    if shutil.which("nvidia-smi") is None:
+    smi = CUDADetector._nvidia_smi_cmd()
+    if not (os.path.isfile(smi) or shutil.which(smi)):
         return None
-    proc = run_third_party_command(["nvidia-smi"], capture_output=True, timeout=15)
+    proc = run_third_party_command([smi], capture_output=True, timeout=15)
     out = (getattr(proc, "stdout", "") or "") if proc is not None else ""
     marker = "CUDA Version:"
     idx = out.find(marker)

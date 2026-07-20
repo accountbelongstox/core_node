@@ -75,8 +75,15 @@ export const WfNewApiPaths = {
     p(`/client/device-settings?client_key=${encodeURIComponent(clientKey)}`),
   clientDeviceSettingsSave: p('/client/device-settings'),
 
+  // ---- AI Tools: TTS (AppQyV1AITools.php — prefix app_qy_v1/ai_tools/tts, PUBLIC) ----
+  /** Available TTS voices = the Laravel audio library. GET → data.voices = { lang: voice_id }. */
+  ttsVoices: p('/ai_tools/tts/voices'),
+
   // ---- Sentence audio (book reader on-demand TTS) ----
   sentenceAudioBump: p('/ai_tools/tts/sentence/bump'),
+  /** Batch high-priority hint for the now-visible reader page (chapter switch):
+   *  raises tts_priority for many sentences in ONE round-trip + one pycore nudge. */
+  sentenceAudioBumpBatch: p('/ai_tools/tts/sentence/bump-batch'),
   sentenceAudio: (text: string, language: string, variantKey?: string): string =>
     p(`/ai_tools/tts/sentence/audio?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}${
       variantKey ? `&variant_key=${encodeURIComponent(variantKey)}` : ''}`),
@@ -89,6 +96,10 @@ export const WfNewApiPaths = {
   queryAllGroups: p('/query_all_groups'),
   /** Words inside one group, by group id. */
   queryGroupWords: (gid: string): string => p(`/query_gwords?gid=${encodeURIComponent(gid)}`),
+  /** Paginated words of ONE group from group_word_progress (POST {gid, page, per_page,
+   *  with_progress}). Unlike queryGroupWords (gwords only), this reads the Default
+   *  Vocabulary Group's words and returns enriched text/translation/phonetic/audio/definition. */
+  groupGetWords: p('/group/get_words'),
 
   // ---- Media browse (MediaBrowseController — prefix app_qy_v1/media, PUBLIC) ----
   // Paginated source lists; each row carries title / language / count + image_url.
@@ -188,6 +199,9 @@ export const WfNewApiPaths = {
   socialUnfollow: p('/social/friends/unfollow'),
   socialLeaderboard: (period: 'week' | 'all'): string => p(`/social/leaderboard?period=${period}`),
   socialActivities: p('/social/activities'),
+  /** Public profile of another user by id (GET /social/users/{id}) — powers the
+   *  #/social/user/<id> profile modal (avatar, languages, stats, follow/friend state). */
+  socialUser: (id: number): string => p(`/social/users/${id}`),
 
   // ---- Social v2: discover / friend-requests / chat / presence / notifications ----
   /** Language-partner discovery (GET): ?native=&target=&q=&limit=. */
@@ -290,6 +304,8 @@ export const WfNewApiPaths = {
   // ---- Vocabulary group membership (AppQyV1Dict.php — auth:sanctum) ----
   /** Add a vocabulary library to a word group (POST {gid, library_id}). */
   groupAddLibrary: p('/group/add_library'),
+  /** Non-mutating preview of adding a library to a word group (POST {gid, library_id}). */
+  groupPreviewAddLibrary: p('/group/preview_add_library'),
 } as const;
 
 /**

@@ -92,6 +92,54 @@ export function speakWordWithAccent(
 }
 
 /**
+ * The browser's installed speech voices, shaped for the practice voice picker.
+ * Empty when the list hasn't loaded yet — getVoices() is async in some browsers;
+ * the UI re-reads this on the `voiceschanged` event.
+ */
+export function listPracticeVoices(): { uri: string; label: string; lang: string }[] {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return [];
+  try {
+    return window.speechSynthesis.getVoices().map((v) => ({
+      uri: v.voiceURI,
+      label: `${v.name} (${v.lang})`,
+      lang: v.lang,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Resolve the SpeechSynthesisVoice for the recite fallback. Order: the user-chosen
+ * voiceURI, then an accent-matched locale (mirrors speakWordWithAccent), then any
+ * en-* voice, then the first available. Null when the API is unavailable or no
+ * voices are loaded yet.
+ */
+export function resolvePracticeVoice(
+  voiceUri: string,
+  accent: WfNewWordAccent,
+): SpeechSynthesisVoice | null {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null;
+  let voices: SpeechSynthesisVoice[];
+  try {
+    voices = window.speechSynthesis.getVoices();
+  } catch {
+    return null;
+  }
+  if (!voices.length) return null;
+  if (voiceUri) {
+    const chosen = voices.find((v) => v.voiceURI === voiceUri);
+    if (chosen) return chosen;
+  }
+  const lang = accentToBcp47(accent);
+  const exact = voices.find((v) => v.lang === lang || v.lang.replace('_', '-') === lang);
+  if (exact) return exact;
+  const anyEn = voices.find((v) => v.lang.replace('_', '-').toLowerCase().startsWith('en'));
+  if (anyEn) return anyEn;
+  return voices[0] ?? null;
+}
+
+/**
  * Tier 4a — dictionaryapi.dev direct fetch (external, opt-in). Picks the
  * phonetics[].audio entry whose filename carries the -us/-uk accent suffix;
  * falls back to any non-empty audio url. Null on miss/network error.

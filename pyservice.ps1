@@ -315,6 +315,9 @@ try {
     # --- 1) idempotent prerequisites (always run; each Step*.ps1 is a no-op when satisfied) --- #
     $provisionOnly = ($Command.ToLowerInvariant() -eq 'install') -or $Only
 
+    Write-Host '[i] Installation is idempotent and SELF-REPAIRING: re-running repairs environment drift' -ForegroundColor Cyan
+    Write-Host '    (e.g. a clobbered transformers pin is restored to the shared version; incomplete model' -ForegroundColor Cyan
+    Write-Host '    weights resume). Safe to re-run any time. See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.' -ForegroundColor Cyan
     Write-Host '[..] Running idempotent prerequisite installers (PreparePycorePrerequisites -> Step*.ps1) ...' -ForegroundColor Yellow
     if (-not $env:NEURAL_TTS_INSTALL) { $env:NEURAL_TTS_INSTALL = '1' }
     if ($SkipVoxcpm2) {

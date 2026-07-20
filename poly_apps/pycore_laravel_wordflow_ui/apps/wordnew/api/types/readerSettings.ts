@@ -12,6 +12,10 @@ export interface WfNewReaderSettingsBlob {
   readerAutoPlayOnOpen?: boolean;
   readerBrowserTts?: boolean;
   readerVariantByLang?: Record<string, string>;
+  /** Word cards (English only): read unrecited Default Vocabulary Group words aloud. */
+  readerWordCards?: boolean;
+  /** Word-card reading position relative to the sentence audio. */
+  readerWordCardPosition?: 'before' | 'after';
   /** ISO8601 — used for last-write-wins merge on pull. */
   updatedAt?: string | null;
 }

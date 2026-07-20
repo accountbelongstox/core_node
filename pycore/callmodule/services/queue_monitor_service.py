@@ -57,7 +57,7 @@ from typing import Any, Dict, List, Optional
 # ColorPrint is the only allowed logger in pycore processors/services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 # requests is a third-party dep — always obtained through the lazy accessor.
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 # Reuse the shared Laravel endpoint resolver (same as the UI laravel_api.* RPCs).
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
@@ -120,6 +120,10 @@ class QueueMonitorService:
         # One-shot "unreachable" notice bookkeeping (quiet after the first hint).
         self._unreachable_warned = False
 
+        # Non-reentrant guard: the fetch runs on its own daemon thread so the
+        # heartbeat thread never blocks on network I/O.
+        self._poll_running = False
+
         # ---- Phase C WS push state ----
         # Live WebSocket connection status (set by TranslationWsClient). Surfaced
         # additively in the snapshot as `ws_connected` so the UI can show whether
@@ -157,10 +161,6 @@ class QueueMonitorService:
         if "name or service not known" in low or "getaddrinfo" in low:
             return "host not resolvable"
         return text.splitlines()[0][:120] if text else name
-
-    def _requests(self):
-        """Lazily obtain the third-party requests module (pycore rule)."""
-        return get_third_package_requests()
 
     # -------------------- bump detection --------------------
 
@@ -251,8 +251,7 @@ class QueueMonitorService:
         limit: int = 100,
     ) -> Optional[Dict[str, Any]]:
         try:
-            requests = self._requests()
-            resp = requests.get(
+            resp = get_laravel_client().get(
                 f"{base}{_QUEUE_API_PREFIX}/list",
                 params={"status": status, "limit": limit},
                 timeout=self._http_timeout,
@@ -281,8 +280,32 @@ class QueueMonitorService:
         """
         PyHeartbeat callback (invoked every ~interval seconds WHEN ENABLED).
 
-        Light + exception-safe: GET the queue list, cache the snapshot, run
-        bump-detection. NEVER raises into the heartbeat loop.
+        LIGHT: spawn the fetch on a daemon thread and return immediately; skip
+        when the previous poll is still running. The heartbeat thread never
+        blocks on network I/O. NEVER raises into the heartbeat loop.
+        """
+        try:
+            with self._lock:
+                if self._poll_running:
+                    return
+                self._poll_running = True
+            threading.Thread(
+                target=self._do_poll,
+                daemon=True,
+                name="queue-monitor-poll",
+            ).start()
+        except Exception as e:
+            # Never propagate into the heartbeat thread; reset the guard so a
+            # failed spawn does not wedge future ticks.
+            with self._lock:
+                self._poll_running = False
+            ColorPrint.red(f"[QueueMonitor] poll_once error: {e}")
+
+    def _do_poll(self) -> None:
+        """
+        The actual poll: GET the queue list, cache the snapshot, run
+        bump-detection. Runs on the poll daemon thread (via poll_once) or
+        synchronously on a request thread (get_snapshot refresh=True).
         """
         try:
             body = self._fetch_list_at(self._poll_base_url())
@@ -304,8 +327,10 @@ class QueueMonitorService:
                 self._laravel_reachable = True
                 self._unreachable_warned = False
         except Exception as e:
-            # Never propagate into the heartbeat thread.
             ColorPrint.red(f"[QueueMonitor] poll_once error: {e}")
+        finally:
+            with self._lock:
+                self._poll_running = False
 
     # -------------------- WS real-time push (Phase C) --------------------
     #
@@ -414,7 +439,9 @@ class QueueMonitorService:
               laravel_reachable:bool, age_ms:float, ws_connected:bool }
         """
         if refresh:
-            self.poll_once()
+            # Synchronous poll on THIS request thread (not poll_once, which is
+            # async now) so ?refresh=1 still returns fresh data.
+            self._do_poll()
 
         with self._lock:
             items = self._decorate_items(self._snapshot.get("items") or [])
@@ -473,8 +500,7 @@ class QueueMonitorService:
         base = self._base_url()
         url = f"{base}/api/task/{task_id}/{suffix}"
         try:
-            requests = self._requests()
-            resp = requests.get(url, timeout=self._http_timeout)
+            resp = get_laravel_client().get(url, timeout=self._http_timeout)
             try:
                 body = resp.json()
             except Exception:
@@ -551,8 +577,7 @@ class QueueMonitorService:
         base = self._base_url()
         url = f"{base}{_QUEUE_API_PREFIX}/{action}"
         try:
-            requests = self._requests()
-            resp = requests.post(url, json=payload, timeout=self._http_timeout)
+            resp = get_laravel_client().post(url, json=payload, timeout=self._http_timeout)
             try:
                 data = resp.json()
             except Exception:

@@ -14,6 +14,8 @@ const READER_KEYS = [
   'readerAutoPlayOnOpen',
   'readerBrowserTts',
   'readerVariantByLang',
+  'readerWordCards',
+  'readerWordCardPosition',
 ] as const satisfies ReadonlyArray<keyof WfNewSettings>;
 
 const PUSH_DEBOUNCE_MS = 900;
@@ -85,6 +87,17 @@ class WfReaderSettingsRoamerClass {
       this.pushTimer = null;
       void this.push();
     }, PUSH_DEBOUNCE_MS);
+  }
+
+  /**
+   * Immediately run any pending debounced push. Call on navigate-away / logout
+   * so a change made within the debounce window is never dropped.
+   */
+  flush(): void {
+    if (!this.pushTimer) return;
+    clearTimeout(this.pushTimer);
+    this.pushTimer = null;
+    void this.push();
   }
 
   private async push(): Promise<void> {

@@ -18,7 +18,9 @@
  *   - Helpers: base64<->Blob, object-URL lifecycle, mm:ss formatting.
  *
  * NATIVE vs WEB (always falls back to web)
- *   - Native: @capacitor-community/voice-recorder (base64 result, OS encoder).
+ *   - Native: capacitor-voice-recorder (base64 result, OS encoder) — the
+ *     maintained continuation of the unpublished
+ *     @capacitor-community/voice-recorder (same VoiceRecorder API).
  *   - Web: getUserMedia + MediaRecorder (Blob result; base64 derived for parity).
  *     On the web build the plugin is aliased to a MediaRecorder-backed shim too.
  *
@@ -33,7 +35,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { VoiceRecorder } from '@capacitor-community/voice-recorder';
+import { VoiceRecorder } from 'capacitor-voice-recorder';
 
 // ---------------------------------------------------------------------------
 // Types

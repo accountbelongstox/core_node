@@ -26,6 +26,10 @@ $modelDir         = $null
 $modelUrl         = $null
 $modelArchive     = $null
 $tmpExtract       = $null
+$expectedBytes    = 0L
+$curl             = $null
+$complete         = $false
+$attempt          = 0
 $sherpaCudaSpec   = $env:SHERPA_ONNX_CUDA_SPEC
 $sherpaCudaIndex  = if ($env:SOG_CUDA_INDEX_URL) { $env:SOG_CUDA_INDEX_URL } else { 'https://k2-fsa.github.io/sherpa/onnx/cuda.html' }
 $winCommonDir     = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
@@ -58,7 +62,7 @@ function Test-KokoroMultiLangComplete {
 function Install-KokoroModel {
     param([string]$Py, [string]$Archive, [string]$Tmp, [string]$Dir, [string]$Sentinel, [string]$Url)
     if (-not (Test-Path $Archive)) { return $false }
-    if (Test-Path $Tmp) { Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue }
+    if (Test-Path $Tmp) { Backup-InstallAssetPath -Path $Tmp -Prefix $SCRIPT_INDEX | Out-Null }
     New-Item -ItemType Directory -Force -Path $Tmp | Out-Null
     & $Py -c "import tarfile,sys;t=tarfile.open(sys.argv[1],'r:bz2');t.extractall(sys.argv[2]);t.close()" $Archive $Tmp
     $inner = Get-ChildItem -Path $Tmp -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -69,7 +73,7 @@ function Install-KokoroModel {
         Set-Content -Path $Sentinel -Value $Url -Encoding utf8
         return $true
     }
-    Remove-Item -Recurse -Force $Tmp -ErrorAction SilentlyContinue
+    Backup-InstallAssetPath -Path $Tmp -Prefix $SCRIPT_INDEX | Out-Null
     return $false
 }
 
@@ -131,20 +135,40 @@ Set-SherpaOnnxBuild -PipExe $pipExePath
 $modelArchive = Join-Path $modelDir '.download.tar.bz2'
 $tmpExtract = Join-Path $env:TEMP 'kokoro-tts-extract'
 New-Item -ItemType Directory -Force -Path $modelDir | Out-Null
-if (-not (Test-Path $modelArchive)) {
-    Write-Host "$SCRIPT_INDEX [..] downloading Kokoro model ..." -ForegroundColor Yellow
-    try {
-        Invoke-WebRequest -Uri $modelUrl -OutFile $modelArchive -UseBasicParsing
-    } catch {
-        Write-Host "$SCRIPT_INDEX [!] download failed: $($_.Exception.Message)" -ForegroundColor DarkYellow
-        if (Test-Path $modelArchive) { Remove-Item -Force $modelArchive -ErrorAction SilentlyContinue }
-        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('sherpa_onnx')
+$expectedBytes = 0L
+try {
+    $head = Invoke-WebRequest -Uri $modelUrl -Method Head -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
+    if ($head.Headers['Content-Length']) { $expectedBytes = [int64]($head.Headers['Content-Length']) }
+} catch { $expectedBytes = 0L }
+$curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+$complete = Test-HfFileDownloadComplete -Path $modelArchive -ExpectedBytes $expectedBytes
+$attempt = 0
+while (-not $complete -and $attempt -lt 6) {
+    $attempt += 1
+    $have = if (Test-Path -LiteralPath $modelArchive) { (Get-Item -LiteralPath $modelArchive).Length } else { 0 }
+    if ($have -gt 0) {
+        Write-Host ("$SCRIPT_INDEX [resume] Kokoro archive {0:N0} / {1:N0} bytes" -f $have, $expectedBytes) -ForegroundColor Yellow
+    } else {
+        Write-Host "$SCRIPT_INDEX [..] downloading Kokoro model ..." -ForegroundColor Yellow
     }
+    if ($curl) {
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & $curl.Source -L -C - --retry 3 --connect-timeout 30 --progress-bar -o $modelArchive $modelUrl
+        $ErrorActionPreference = $prevEap
+    } else {
+        Write-Host "$SCRIPT_INDEX [!] curl.exe missing; fallback download cannot resume." -ForegroundColor DarkYellow
+        try { Invoke-WebRequest -Uri $modelUrl -OutFile $modelArchive -UseBasicParsing -ErrorAction Stop } catch { }
+    }
+    $complete = Test-HfFileDownloadComplete -Path $modelArchive -ExpectedBytes $expectedBytes
+}
+if (-not $complete) {
+    Write-Host "$SCRIPT_INDEX [!] download incomplete; archive kept to resume next run." -ForegroundColor DarkYellow
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('sherpa_onnx')
 }
 if (Install-KokoroModel -Py $resolvedPython -Archive $modelArchive -Tmp $tmpExtract -Dir $modelDir -Sentinel $modelSentinel -Url $modelUrl) {
     Write-Host "$SCRIPT_INDEX [OK] Kokoro model installed." -ForegroundColor Green
 } else {
-    Write-Host "$SCRIPT_INDEX [!] model extract failed; removing archive to retry next run." -ForegroundColor DarkYellow
-    if (Test-Path $modelArchive) { Remove-Item -Force $modelArchive -ErrorAction SilentlyContinue }
+    Write-Host "$SCRIPT_INDEX [!] model extract failed; archive kept. Back it up manually only if retry keeps failing." -ForegroundColor DarkYellow
 }
 Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('sherpa_onnx')

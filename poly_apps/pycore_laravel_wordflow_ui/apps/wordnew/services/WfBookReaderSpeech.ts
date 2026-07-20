@@ -21,10 +21,21 @@ function pickVoice(lang: string): SpeechSynthesisVoice | null {
   if (!voices.length) return null;
   const bcp = langCodeToBcp47(lang).toLowerCase();
   const primary = lang.toLowerCase().split('-')[0];
-  return voices.find((v) => v.lang.toLowerCase() === bcp)
-    || voices.find((v) => v.lang.toLowerCase().startsWith(`${primary}-`))
-    || voices.find((v) => v.lang.toLowerCase().startsWith(primary))
-    || null;
+  const matchLang = (v: SpeechSynthesisVoice) =>
+    v.lang.toLowerCase() === bcp ||
+    v.lang.toLowerCase().startsWith(`${primary}-`) ||
+    v.lang.toLowerCase().startsWith(primary);
+
+  const matchingVoices = voices.filter(matchLang);
+  if (!matchingVoices.length) return null;
+
+  const edgeNatural = matchingVoices.find(v => v.name.includes('Natural') && (v.name.includes('Microsoft') || v.name.includes('Edge')));
+  if (edgeNatural) return edgeNatural;
+
+  const microsoft = matchingVoices.find(v => v.name.includes('Microsoft') || v.name.includes('Edge'));
+  if (microsoft) return microsoft;
+
+  return matchingVoices[0];
 }
 
 export function cancelBookSpeech(): void {

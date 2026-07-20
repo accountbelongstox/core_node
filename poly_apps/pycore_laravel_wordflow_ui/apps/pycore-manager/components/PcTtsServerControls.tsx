@@ -1,5 +1,13 @@
 /**
  * Managed local TTS HTTP server controls (enable / start / stop + global options).
+ *
+ * Surfaces class-C (isolated HTTP server) TTS engines ONLY. The controlled list is
+ * DERIVED from engines flagged `server_engine` (qwen3tts included) so any future
+ * server gains controls automatically; the hardcoded list below is only a fallback
+ * for older backends that omit the flag. Presentational + settings passthrough —
+ * the lifecycle rules themselves are NOT restated here.
+ * Ref: apps/pycore-manager/docs/TTS_STT_ENGINE_LIFECYCLE.md §2 and the canonical
+ * development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -7,7 +15,10 @@ import { Loader2, Power, PowerOff } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { TtsEngine, TtsSettings } from '../../../core/api-libs/pycore';
 
-const SERVER_ENGINES = ['chattts', 'cosyvoice', 'fishspeech', 'gptsovits', 'f5tts'] as const;
+// Fallback class-C (isolated HTTP server) engine names for backends that omit the
+// `server_engine` flag. Mirrors the dev-spec §1 class-C set so melotts/gptsovits/qwen3tts
+// still get server controls even before the backend reports the flag — never model-only.
+const FALLBACK_SERVER_ENGINES = ['chattts', 'cosyvoice', 'fishspeech', 'gptsovits', 'f5tts', 'qwen3tts', 'melotts'] as const;
 
 type Props = {
   engines: TtsEngine[];
@@ -59,12 +70,12 @@ export const PcTtsServerControls: React.FC<Props> = ({ engines, onChanged }) => 
     }
   };
 
-  const serverRows = engines.filter((e) => e.server_engine || SERVER_ENGINES.includes(e.name as typeof SERVER_ENGINES[number]));
+  const serverRows = engines.filter((e) => e.server_engine || FALLBACK_SERVER_ENGINES.includes(e.name as typeof FALLBACK_SERVER_ENGINES[number]));
   if (serverRows.length === 0 && !settings) return null;
 
   const enabledMap = settings?.server_enabled ?? {};
   const single = settings?.server_single_active !== false;
-  const idle = settings?.server_idle_shutdown_s ?? 30;
+  const idle = settings?.server_idle_shutdown_s ?? 180;
 
   return (
     <div className="mb-2 rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-2.5 space-y-2">
@@ -110,11 +121,11 @@ export const PcTtsServerControls: React.FC<Props> = ({ engines, onChanged }) => 
         </label>
       </div>
       <div className="flex flex-wrap gap-2">
-        {SERVER_ENGINES.map((name) => {
-          const row = serverRows.find((e) => e.name === name);
-          const installed = row?.installed;
-          const running = row?.server_running;
-          const managed = row?.server_managed;
+        {serverRows.map((row: TtsEngine) => {
+          const name = row.name;
+          const installed = row.installed;
+          const running = row.server_running;
+          const managed = row.server_managed;
           const en = enabledMap[name] !== false;
           const isBusy = busy === name || busy === `${name}-run`;
           if (!installed) return null;

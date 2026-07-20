@@ -54,6 +54,10 @@ class AppQyV1WordGroupProgressController
             'next_review_at' => self::tsToCarbon($entry['nr']),
             'last_read_at' => self::tsToCarbon($entry['lr']),
             'last_review_at' => self::tsToCarbon($entry['lv']),
+            // Design §5.5 R4 word mapping table fields: cumulative play
+            // time (pt) and reread time (rpt) in seconds.
+            'play_time' => (float) $entry['pt'],
+            'reread_time' => (float) $entry['rpt'],
         ];
     }
 
@@ -68,7 +72,7 @@ class AppQyV1WordGroupProgressController
      */
     public function updateProgress(Request $request): JsonResponse
     {
-        $supported_params = ['gid', 'word_id', 'action', 'proficiency', 'is_correct', 'updates'];
+        $supported_params = ['gid', 'word_id', 'action', 'proficiency', 'is_correct', 'play_time', 'updates'];
 
         $validator = Validator::make($request->all(), [
             'gid' => 'required|string',
@@ -76,6 +80,7 @@ class AppQyV1WordGroupProgressController
             'action' => 'required_without:updates|in:read,review',
             'proficiency' => 'nullable|numeric|min:0|max:100',
             'is_correct' => 'nullable|boolean',
+            'play_time' => 'nullable|numeric|min:0',
             'updates' => 'sometimes|array|min:1',
             'updates.*.word_id' => 'required_with:updates|integer',
             'updates.*.correct' => 'required_with:updates|boolean',
@@ -117,8 +122,12 @@ class AppQyV1WordGroupProgressController
         $action = $request->input('action');
         $proficiency = $request->input('proficiency');
         $isCorrect = $request->input('is_correct');
+        $playTime = $request->input('play_time');
+        if ($playTime !== null) {
+            $playTime = (float) $playTime;
+        }
 
-        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($group, $userId, $wordId, $action, $proficiency, $isCorrect, $supported_params) {
+        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($group, $userId, $wordId, $action, $proficiency, $isCorrect, $playTime, $supported_params) {
             $languageCode = self::resolveGroupLanguageCode($group);
             $progressRow = AppQyV1GroupWordProgressModel::forUserGroup($userId, $group->id, $languageCode);
             $locked = AppQyV1GroupWordProgressModel::lockForGroup($group->id);
@@ -139,16 +148,25 @@ class AppQyV1WordGroupProgressController
                 $progressRow->putWords([$wordId], (string) now(), [$wordId => strlen((string) $word->content)]);
             }
 
-            $map = $progressRow->getWordsMap();
-            $entry = array_merge(AppQyV1GroupWordProgressModel::EMPTY_ENTRY, $map[(string) $wordId]);
-
-            $patch = [];
+            // Read path: recordRead handles the lr/rc bump, optional pt/rpt
+            // accumulation, and the fr/nr normalize side effects (design
+            // §5.5 R4). Review path keeps the lv/vc/pf patch via
+            // updateWordProgress.
             if ($action === 'read') {
-                $patch['lr'] = time();
-                $patch['rc'] = ((int) $entry['rc']) + 1;
+                $entry = $progressRow->recordRead($wordId, $playTime);
+                // Optional proficiency override (sentinel value, not typical
+                // for read actions); apply after recordRead so it wins.
+                if ($proficiency !== null) {
+                    $entry = $progressRow->updateWordProgress($wordId, ['pf' => (float) $proficiency]);
+                }
             } else {
-                $patch['lv'] = time();
-                $patch['vc'] = ((int) $entry['vc']) + 1;
+                $map = $progressRow->getWordsMap();
+                $entry = array_merge(AppQyV1GroupWordProgressModel::EMPTY_ENTRY, $map[(string) $wordId]);
+
+                $patch = [
+                    'lv' => time(),
+                    'vc' => ((int) $entry['vc']) + 1,
+                ];
 
                 if ($isCorrect !== null) {
                     $newProficiency = (float) $entry['pf'];
@@ -159,15 +177,16 @@ class AppQyV1WordGroupProgressController
                     }
                     $patch['pf'] = $newProficiency;
                 }
+
+                if ($proficiency !== null) {
+                    $patch['pf'] = (float) $proficiency;
+                }
+
+                // updateWordProgress normalizes the entry (first_read_at stamp +
+                // next_review_at recompute - the ported observer rules).
+                $entry = $progressRow->updateWordProgress($wordId, $patch);
             }
 
-            if ($proficiency !== null) {
-                $patch['pf'] = (float) $proficiency;
-            }
-
-            // updateWordProgress normalizes the entry (first_read_at stamp +
-            // next_review_at recompute - the ported observer rules).
-            $entry = $progressRow->updateWordProgress($wordId, $patch);
             $progressRow->save();
 
             return $this->success([

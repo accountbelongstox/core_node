@@ -24,7 +24,7 @@ $PYCORE_PREREQ_F5TTS             = 'Step53_InstallF5Tts.ps1'
 $PYCORE_PREREQ_GPTSOVITS         = 'Step54_InstallGptsovits.ps1'
 $PYCORE_PREREQ_MELOTTS           = 'Step55_InstallMelotts.ps1'
 
-# Dependency order: UI -> light pip -> OCR -> STT -> TTS -> neural (opt-in) -> melotts (opt-in, last; pins old transformers)
+# Dependency order: UI -> light pip -> OCR -> STT -> TTS -> neural (opt-in) -> melotts (opt-in, last; isolated venv)
 $PycorePrerequisiteScripts = @(
     @{ Key = 'desktop_manager';  Script = $PYCORE_PREREQ_DESKTOP_MANAGER }
     @{ Key = 'launcher';         Script = $PYCORE_PREREQ_LAUNCHER }
@@ -47,7 +47,12 @@ $PycorePrerequisiteScripts = @(
     @{ Key = 'melotts';          Script = $PYCORE_PREREQ_MELOTTS }
 )
 
-$NeuralTtsOptInKeys = @('chattts', 'cosyvoice', 'f5tts', 'gptsovits', 'fishspeech', 'kokoro', 'voxcpm2', 'bark', 'parler', 'qwen3tts')
+# NEURAL_TTS_INSTALL=1 batch passes -Full to these. gptsovits and melotts are EXCLUDED:
+# they build a DEDICATED per-engine ISOLATED venv (their old transformers pin lands there,
+# NEVER the main interpreter), and cloning/building it takes minutes, so they stay
+# EXPLICIT-opt-in only (-Full / GPTSOVITS_INSTALL / MELOTTS_INSTALL), never the unattended
+# default batch. See development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5/§7.
+$NeuralTtsOptInKeys = @('chattts', 'cosyvoice', 'f5tts', 'fishspeech', 'kokoro', 'voxcpm2', 'bark', 'parler', 'qwen3tts')
 
 function Get-PycorePrerequisiteScriptPath {
     param([string]$ScriptName)

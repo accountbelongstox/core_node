@@ -15,10 +15,14 @@ callback, reusing ServiceLauncher._singleton_detect's pattern (the body is
 byte-identical to the former inline singleton_state_checker closure).
 
 CIRCULAR IMPORT NOTE:
-    A documented cycle (pylauncher -> pythreadpool -> native_ui.step6_tray ->
-    native_ui -> step3_launcher -> pylauncher) is broken by LAZY, function-local
-    imports of pylauncher / step6_tray / port_utils below. These MUST stay
-    function-local; moving them to module top-level re-bites the cycle.
+    The native_ui <-> pylauncher cycle (pylauncher -> pythreadpool ->
+    native_ui.step6_tray -> native_ui -> step3_launcher -> pylauncher) is broken
+    by the PROVIDER SEAM in pyfoundations.service_launcher_provider: pylauncher
+    registers its ServiceLauncher class DOWN into that leaf at import time, and
+    this module obtains it via get_service_launcher() (top-level import of the
+    leaf, resolved at runtime) — so there is NO pyutils -> pylauncher edge for
+    ServiceLauncher. (SingletonDetector at line 34 remains a direct submodule
+    import, which resolves even mid-cycle.)
 """
 
 from pathlib import Path
@@ -33,6 +37,11 @@ from pycore.pyutils.native_ui.step9_frontend import (
 )
 from pycore.pylauncher.singleton_detector import SingletonDetector
 from pycore.pyfoundations.launcher_config import LauncherConfig
+# ServiceLauncher lives in the higher pylauncher layer; obtain it via the
+# pyfoundations provider seam (registered by pylauncher at import time) so this
+# module never imports UP into pylauncher — that back-edge is the native_ui <->
+# pylauncher circular import. This lets the import stay at file top per §1.4.
+from pycore.pyfoundations.service_launcher_provider import get_service_launcher
 
 import traceback
 
@@ -216,8 +225,8 @@ def _start_rpc_v2_service(
     Returns:
         RPC v2 service instance or None
     """
-    # Lazy import to avoid circular dependency:
-    # pylauncher -> pythreadpool -> native_ui.step6_tray -> native_ui -> step3_launcher -> pylauncher
+    # ServiceLauncher obtained via the pyfoundations provider seam (registered by
+    # pylauncher at import time) — no native_ui -> pylauncher import edge.
 
     if config.debug:
         ColorPrint.print_info("[NativeLauncher] Phase 4.7: Starting RPC v2 service...")
@@ -280,7 +289,7 @@ def _start_rpc_v2_service(
             ColorPrint.blue(f"  - Static mounts: {len(static_mounts)}")
 
         # ========== 3. Start RPC v2 via ServiceLauncher ==========
-        from pycore.pylauncher import ServiceLauncher
+        ServiceLauncher = get_service_launcher()
         launcher_config = LauncherConfig(
             app_id=f"{config.app_id}_rpc",
             app_name=f"{config.app_name} RPC",
@@ -352,7 +361,7 @@ def _start_pylauncher_tray_service(config: NativeUIConfig) -> Optional[Any]:
     Returns:
         Tray service instance or None
     """
-    # Lazy import to avoid circular dependency
+    # ServiceLauncher obtained via the pyfoundations provider seam — no import edge.
 
     if config.debug:
         ColorPrint.print_info("[NativeLauncher] Starting pylauncher tray service (pystray backend)...")
@@ -435,8 +444,8 @@ def _start_pylauncher_tray_service(config: NativeUIConfig) -> Optional[Any]:
             'trigger_shutdown_on_exit': True
         }
 
-        # Use pylauncher to start tray service
-        from pycore.pylauncher import ServiceLauncher
+        # Use pylauncher to start tray service (via the provider seam — no back-edge)
+        ServiceLauncher = get_service_launcher()
         launcher_config = LauncherConfig(
             app_id=f"{config.app_id}_tray",
             app_name=f"{config.app_name} Tray",

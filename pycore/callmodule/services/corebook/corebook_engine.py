@@ -15,7 +15,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pyfoundations.text_parsing import normalize_language_codes
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services.processors.book_processor import extract_text
 from pycore.callmodule.services.sync.book_payload import build_book_payload_v3
 from pycore.callmodule.services.sync.laravel_media_sync import (
@@ -465,11 +465,14 @@ class CoreBookEngine:
         if not source_key or not items:
             return
         base = resolve_laravel_base_url()
-        url = base.rstrip("/") + "/api/app_qy_v1/assist/requests"
         body = {"record_type": record_type, "source_key": source_key, "items": items}
         try:
-            requests = get_third_package_requests()
-            resp = requests.post(url, json=body, timeout=30)
+            resp = get_laravel_client().post(
+                "/api/app_qy_v1/assist/requests",
+                base_url=base,
+                json=body,
+                timeout=30,
+            )
             if resp.status_code not in (200, 201):
                 errors.append(f"assist requests HTTP {resp.status_code}")
         except Exception as exc:

@@ -25,6 +25,7 @@ import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { AiProvider, ImageHistoryEntry } from '../../../core/api-libs/pycore';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
 import { PcImageLightbox } from './PcAiShared';
+import { PcBlobImage } from './PcBlobMedia';
 
 const LOG_SRC = 'pc-ai-studio';
 const SIZE_OPTIONS = ['1:1', '16:9', '9:16', '4:3'] as const;
@@ -391,8 +392,8 @@ const PcAiStudioView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal })
                           onClick={() => setLightbox(m)}
                           title={t('aiImage.enlargeTitle')}
                           className="block">
-                          <img
-                            src={m.imageSrc}
+                          <PcBlobImage
+                            path={m.imageSrc}
                             alt={m.text}
                             loading="lazy"
                             className="max-h-72 w-auto object-contain"

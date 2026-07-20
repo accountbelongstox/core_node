@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Server, Cpu, GraduationCap, ArrowRight, Coins, ShoppingBag } from 'lucide-react';
 import { rewritePycoreEndpoint } from '../core/api-libs/pycore/pycoreTarget';
+import { isWsConnected } from '../core/api-libs/pycore/PycoreWs';
 import { END_META } from './shellTypes';
 
 type Health = 'checking' | 'up' | 'down' | 'unknown';
@@ -71,6 +72,15 @@ export const ShellHome: React.FC = () => {
 
   useEffect(() => {
     let alive = true;
+    // Prefer WS liveness when the bus happens to be connected.
+    if (isWsConnected()) {
+      setPycoreHealth('up');
+      return () => { alive = false; };
+    }
+    // DOCUMENTED EXCEPTION: the home route is a non-pycore end where the pycore WS
+    // bus is intentionally SUSPENDED (shell-per-app live-service gate), so the
+    // health dot uses a one-shot HTTP /ping — the only liveness signal available
+    // here. Do NOT migrate this to the WS bridge; there is no live bus to ride.
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 4000);
     const pingUrl = rewritePycoreEndpoint('/ping');

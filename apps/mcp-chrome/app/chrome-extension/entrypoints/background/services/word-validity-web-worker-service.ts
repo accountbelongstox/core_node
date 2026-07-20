@@ -25,23 +25,21 @@
 
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
+import { LANES } from '@/utils/task-center-lanes';
 import { chatgptWebTool } from '../tools/browser/chatgpt-web';
 import { geminiWebTool } from '../tools/browser/gemini-web';
 import { deepseekSendPromptTool } from '../tools/browser/deepseek';
 import { getValidityProvider, AiWebProvider } from '../tools/browser/ai-web-common';
+import {
+  buildValidityPrompt,
+  parseValidityClassification,
+  type ClassifierWord,
+} from './word-validity/word-validity-classifier';
 import { logger } from '@/utils/logger';
 
 const LOG = 'Word-Validity Web';
 
-interface NormalizedWord {
-  word: string;
-  md5?: string;
-}
-
-interface Verdict {
-  word: string;
-  md5?: string;
-}
+type NormalizedWord = ClassifierWord;
 
 class WordValidityWebWorkerService extends SimpleWorkerBase {
   protected get processorKey(): string {
@@ -59,7 +57,7 @@ class WordValidityWebWorkerService extends SimpleWorkerBase {
 
   // word_validity tasks ride the dedicated remote_validity lane.
   protected get baseProcessorTypes(): ProcessorType[] {
-    return ['remote_validity'];
+    return [LANES.REMOTE_VALIDITY];
   }
 
   protected get workerLabel(): string {
@@ -78,7 +76,7 @@ class WordValidityWebWorkerService extends SimpleWorkerBase {
     }
 
     const provider = await getValidityProvider();
-    const prompt = this.buildPrompt(words.map((w) => w.word));
+    const prompt = buildValidityPrompt(words.map((w) => w.word));
 
     let answer: string;
     try {
@@ -91,7 +89,10 @@ class WordValidityWebWorkerService extends SimpleWorkerBase {
       return;
     }
 
-    const { valid_words, invalid_words } = this.parseClassification(answer, words);
+    const { valid: valid_words, invalid: invalid_words } = parseValidityClassification(
+      answer,
+      words,
+    );
     if (valid_words.length === 0 && invalid_words.length === 0) {
       await this.submitResult(task.task_id, 'failed', undefined, {
         error: 'web-ai produced no parseable verdicts',
@@ -169,74 +170,6 @@ class WordValidityWebWorkerService extends SimpleWorkerBase {
     if (typeof content === 'string' && content) return content;
     if (typeof outer?.result === 'string') return outer.result;
     throw new Error('web-ai tool result carried no assistant content');
-  }
-
-  /** Build a strict-JSON classification prompt the model can answer mechanically. */
-  private buildPrompt(words: string[]): string {
-    const list = words.map((w) => `- ${w}`).join('\n');
-    return [
-      'You are a strict English dictionary validator.',
-      'For each item below, decide whether it is a REAL word or phrase that exists in a standard dictionary (or a valid proper noun / common term), versus INVALID (nonsense, random characters, a clear typo, or a non-word).',
-      'Only put a word in "invalid" when you are confident it is not a real word — when unsure, treat it as valid.',
-      'Classify EVERY item. Use the EXACT original text for each word.',
-      'Respond with ONLY a JSON object, no prose, no code fence, of the exact form:',
-      '{"valid":["<word>"],"invalid":["<word>"]}',
-      'Words:',
-      list,
-    ].join('\n');
-  }
-
-  /**
-   * Parse a {valid:[...],invalid:[...]} object out of the answer, tolerating a
-   * surrounding code fence / prose. Only words actually requested are kept
-   * (case-insensitive whitelist) so a chatty model cannot inject spurious
-   * entries; each kept verdict carries the REQUESTED word + its md5 so the
-   * backend keys on the stored md5. A word omitted from both lists is left
-   * unmarked (row stays validity_checked_at IS NULL -> re-pulled next cycle):
-   * a parse miss is NEVER force-marked invalid.
-   */
-  private parseClassification(
-    answer: string,
-    requested: NormalizedWord[],
-  ): { valid_words: Verdict[]; invalid_words: Verdict[] } {
-    const empty = { valid_words: [] as Verdict[], invalid_words: [] as Verdict[] };
-    const start = answer.indexOf('{');
-    const end = answer.lastIndexOf('}');
-    if (start === -1 || end <= start) return empty;
-    let obj: any;
-    try {
-      obj = JSON.parse(answer.slice(start, end + 1));
-    } catch {
-      return empty;
-    }
-    if (!obj || typeof obj !== 'object') return empty;
-
-    const byKey = new Map<string, NormalizedWord>();
-    for (const w of requested) {
-      byKey.set(w.word.toLowerCase(), w);
-    }
-    const seen = new Set<string>();
-    const pick = (arr: any): Verdict[] => {
-      if (!Array.isArray(arr)) return [];
-      const out: Verdict[] = [];
-      for (const it of arr) {
-        const raw =
-          typeof it === 'string'
-            ? it
-            : it && typeof it === 'object' && typeof it.word === 'string'
-              ? it.word
-              : '';
-        const key = raw.trim().toLowerCase();
-        if (!key) continue;
-        const match = byKey.get(key);
-        // Whitelist: only words we asked about; de-dupe across BOTH lists.
-        if (!match || seen.has(key)) continue;
-        seen.add(key);
-        out.push({ word: match.word, md5: match.md5 });
-      }
-      return out;
-    };
-    return { valid_words: pick(obj.valid), invalid_words: pick(obj.invalid) };
   }
 
   /** Payload words may be plain strings or {word, md5, ...} objects. */

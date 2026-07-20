@@ -201,6 +201,25 @@ _hf_file_complete() {
     [[ -s "$path" ]]
 }
 
+_backup_install_asset_path() {
+    local path="$1" prefix="${2:-}"
+    local parent leaf stamp backup suffix target
+    [[ -e "$path" ]] || return 0
+    parent="$(dirname "$path")"
+    leaf="$(basename "$path")"
+    stamp="$(date +%Y%m%d_%H%M%S)"
+    backup="${parent}/.backup_${stamp}"
+    suffix=0
+    while [[ -e "$backup" ]]; do
+        suffix=$((suffix + 1))
+        backup="${parent}/.backup_${stamp}_${suffix}"
+    done
+    mkdir -p "$backup"
+    target="${backup}/${leaf}"
+    mv -f "$path" "$target"
+    echo "${prefix}[backup] moved ${path} -> ${target}"
+}
+
 _hf_download_file() {
     local repo="$1" name="$2" out="$3" mirror="$4" prefix="$5" catalog_bytes="${6:-0}"
     local url parent expected have py="${7:-python3}"
@@ -215,8 +234,7 @@ _hf_download_file() {
     if [[ -f "$out" && "${expected:-0}" -gt 0 ]]; then
         have="$(wc -c < "$out" 2>/dev/null | tr -d ' ')"
         if [[ "${have:-0}" -gt 0 && "${have:-0}" -lt "${expected:-0}" ]]; then
-            echo "${prefix}[repair] removing incomplete ${name} (${have} / ${expected} bytes)"
-            rm -f "$out"
+            echo "${prefix}[resume] continuing incomplete ${name} (${have} / ${expected} bytes)"
         fi
     fi
     if _hf_file_complete "$out" "${expected:-0}"; then
@@ -234,8 +252,8 @@ _hf_download_file() {
     case "$name" in
         *.safetensors)
             if ! _test_safetensors_readable "$out" "$py"; then
-                echo "${prefix}[!] ${name} failed safetensors verify; removing for retry" >&2
-                rm -f "$out"
+                echo "${prefix}[!] ${name} failed safetensors verify; backing up for retry" >&2
+                _backup_install_asset_path "$out" "$prefix"
                 return 1
             fi
             ;;

@@ -39,6 +39,23 @@ Write-Host "Running: codex1.ps1" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
+#region Upgrade Codex CLI (npm)
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "Codex CLI - Upgrade Check" -ForegroundColor Yellow
+Write-Host "============================================================" -ForegroundColor Cyan
+$codexUpgradeChoice = Read-Host "Upgrade Codex CLI via 'npm install -g @openai/codex'? (y/N)"
+if ($codexUpgradeChoice -eq "y" -or $codexUpgradeChoice -eq "Y") {
+    Write-Host "[INFO] Running: npm install -g @openai/codex" -ForegroundColor Cyan
+    npm install -g "@openai/codex"
+    Write-Host "[SUCCESS] Codex CLI upgrade complete" -ForegroundColor Green
+} else {
+    Write-Host "[INFO] Skipping Codex CLI upgrade" -ForegroundColor Cyan
+}
+Write-Host ""
+#endregion
+
+
 #region Initialize Path Variables
 $scriptActualPath = $PSCommandPath
 $item = Get-Item -LiteralPath $PSCommandPath
@@ -59,167 +76,43 @@ $winDirPath = Join-Path $shellsDirPath "win"
 $winCommonDirPath = Join-Path $winDirPath "win_common"
 $pytoolsDirPath = Join-Path $scriptsDirPath "pytools"
 $aiToolsDirPath = Join-Path $pytoolsDirPath "ai_tools"
-# Path resolution algorithm:
-#   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 Write-Host "[DEBUG] Script Path: $scriptCurrentPath" -ForegroundColor DarkGray
 Write-Host "[DEBUG] Scripts Dir: $scriptsDirPath" -ForegroundColor DarkGray
 Write-Host "[DEBUG] Project Root: $projectRootPath" -ForegroundColor DarkGray
 #endregion
-# Path resolution algorithm:
-#   Script -> Scripts Dir -> Project Root -> Tool-specific directories
 
 # Ensure PATH is prepared via WindowsPathFunction script
 $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
 . $windowsPathFunctionScript
 Set-CoreNodePaths
 
-#region Custom User Directory Configuration
-# ============================================================================
-# CUSTOM USER DIRECTORY SETTING
-# ============================================================================
-# Auto-scans D:\.tmp\Users\ for existing MyBest1, MyBest2, etc.
-# Usage: script.ps1 [number|MyBestX]
-#   - If number is provided: uses D:\.tmp\Users\MyBest[number]
-#   - If full name is provided (e.g., MyBest1): uses D:\.tmp\Users\MyBest1
-#   - If no argument: auto-finds next available MyBest[X] or creates new one
-# ============================================================================
-
-$baseTempDir = "D:\.tmp\Users"
-$userDirPrefix = "MyBest"
-
-# Get directory name/number from command line argument (if provided)
-$userDirName = $null
-if ($args.Count -gt 0) {
-    $argValue = $args[0]
-    # Check if it's a number
-    if ($argValue -match '^\d+$') {
-        $userDirName = "$userDirPrefix$argValue"
-        Write-Host "[INFO] Using specified number: $argValue -> $userDirName" -ForegroundColor Cyan
-    }
-    # Check if it's a full name (MyBestX format)
-    elseif ($argValue -match "^$userDirPrefix\d+$") {
-        $userDirName = $argValue
-        Write-Host "[INFO] Using specified full name: $userDirName" -ForegroundColor Cyan
-    }
+#region Custom User Directory (Codex1)
+# Isolate codex's ~/.codex (config.toml, auth, sessions) per launch slot.
+$codexUserBase = "D:\programing\Users"
+$codexUserDir = Join-Path $codexUserBase "Codex1"
+if (-not (Test-Path $codexUserDir)) {
+    New-Item -ItemType Directory -Path $codexUserDir -Force | Out-Null
+    Write-Host "[INFO] Created Codex user dir: $codexUserDir" -ForegroundColor Cyan
 }
-
-# If no argument specified, auto-scan for existing MyBest directories
-if ($null -eq $userDirName) {
-    Write-Host "[INFO] Auto-scanning for existing MyBest directories..." -ForegroundColor Cyan
-    
-    # Create base directory if it doesn't exist
-    if (-not (Test-Path $baseTempDir)) {
-        Write-Host "[INFO] Creating base directory: $baseTempDir" -ForegroundColor Cyan
-        New-Item -ItemType Directory -Path $baseTempDir -Force | Out-Null
-    }
-    
-    # Find existing MyBest directories
-    $existingNumbers = @()
-    if (Test-Path $baseTempDir) {
-        $existingDirs = Get-ChildItem -Path $baseTempDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "^$userDirPrefix(\d+)$" }
-        foreach ($dir in $existingDirs) {
-            if ($dir.Name -match "^$userDirPrefix(\d+)$") {
-                $num = [int]$matches[1]
-                $existingNumbers += $num
-            }
-        }
-    }
-    
-    # Find next available number
-    if ($existingNumbers.Count -gt 0) {
-        $existingNumbers = $existingNumbers | Sort-Object
-        $maxNumber = $existingNumbers[-1]
-        $nextNumber = $maxNumber + 1
-        $userDirName = "$userDirPrefix$nextNumber"
-        Write-Host "[INFO] Found existing MyBest directories: $($existingNumbers -join ', ')" -ForegroundColor Gray
-        Write-Host "[INFO] Using next available number: $nextNumber -> $userDirName" -ForegroundColor Cyan
-    } else {
-        $userDirName = "$userDirPrefix" + "1"
-        Write-Host "[INFO] No existing MyBest directories found, starting with: $userDirName" -ForegroundColor Cyan
-    }
+# Explicitly set ALL user-directory env vars so codex + node use this profile.
+$env:USERPROFILE = $codexUserDir
+$env:HOME = $codexUserDir
+$env:USER_HOME = $codexUserDir
+$env:HOMEPATH = $codexUserDir
+$env:USER_DIR = $codexUserDir
+# CODEX_HOME is the ONLY reliable way to relocate codex's config dir (it does
+# NOT honor USERPROFILE for ~/.codex on Windows - it reads CODEX_HOME first,
+# else the real C:\Users\<user>\.codex which has a stale auth.json + default
+# config that overrides this slot's config). Force it to this slot's .codex.
+$env:CODEX_HOME = Join-Path $env:USERPROFILE ".codex"
+if (-not (Test-Path $env:CODEX_HOME)) {
+    New-Item -ItemType Directory -Path $env:CODEX_HOME -Force | Out-Null
 }
-
-# Build directory path
-$CustomUserDirectory = Join-Path $baseTempDir $userDirName
-
-# Create the directory if it doesn't exist
-try {
-    if (-not (Test-Path $baseTempDir)) {
-        Write-Host "[INFO] Creating base directory: $baseTempDir" -ForegroundColor Cyan
-        New-Item -ItemType Directory -Path $baseTempDir -Force | Out-Null
-    }
-
-    if (-not (Test-Path $CustomUserDirectory)) {
-        Write-Host "[INFO] Creating custom user directory: $CustomUserDirectory" -ForegroundColor Cyan
-        New-Item -ItemType Directory -Path $CustomUserDirectory -Force | Out-Null
-    }
-
-    # Verify directory was created successfully
-    if (Test-Path $CustomUserDirectory) {
-        $userProfilePath = $CustomUserDirectory
-        Write-Host "[SUCCESS] Using MyBest directory: $userProfilePath" -ForegroundColor Green
-    } else {
-        Write-Host "[WARNING] Failed to create custom directory, falling back to system default" -ForegroundColor Yellow
-        $userProfilePath = $env:USERPROFILE
-        if (-not $userProfilePath) {
-            $userProfilePath = [Environment]::GetFolderPath("UserProfile")
-        }
-        Write-Host "[INFO] Using system default user directory: $userProfilePath" -ForegroundColor Cyan
-    }
-} catch {
-    Write-Host "[ERROR] Failed to create custom user directory: $($_.Exception.Message)" -ForegroundColor Red
-    Write-Host "[INFO] Falling back to system default..." -ForegroundColor Yellow
-    $userProfilePath = $env:USERPROFILE
-    if (-not $userProfilePath) {
-        $userProfilePath = [Environment]::GetFolderPath("UserProfile")
-    }
-    Write-Host "[INFO] Using system default user directory: $userProfilePath" -ForegroundColor Cyan
-}
-
-$userHomePath = $userProfilePath
-$usersDirectoryPath = Split-Path $userProfilePath -Parent
-
-# Set environment variables for Node.js, React, Python, and other applications
-# ============================================================================
-# These environment variables will be available to all child processes
-# including Node.js, React, Python, and other applications launched from this script
-#
-# Python usage examples:
-#   import os
-#   user_home = os.path.expanduser("~")  # Uses HOME or USERPROFILE
-#   user_home = os.getenv("USERPROFILE") or os.getenv("HOME")
-#   from pathlib import Path
-#   user_home = Path.home()  # Uses HOME or USERPROFILE
-# ============================================================================
-$env:USERPROFILE = $userProfilePath
-$env:HOME = $userProfilePath
-$env:USER_HOME = $userProfilePath
-$env:HOMEPATH = $userProfilePath
-$env:USER_DIR = $userProfilePath
-
-Write-Host "[INFO] Environment variables set for Node.js/React/Python applications:" -ForegroundColor Cyan
-Write-Host "  USERPROFILE = $env:USERPROFILE" -ForegroundColor Gray
-Write-Host "  HOME = $env:HOME" -ForegroundColor Gray
-Write-Host "  USER_HOME = $env:USER_HOME" -ForegroundColor Gray
-Write-Host "  HOMEPATH = $env:HOMEPATH" -ForegroundColor Gray
-Write-Host "  USER_DIR = $env:USER_DIR" -ForegroundColor Gray
-Write-Host ""
+Write-Host "[INFO] USERPROFILE = $env:USERPROFILE" -ForegroundColor Cyan
+Write-Host "[INFO] CODEX_HOME   = $env:CODEX_HOME" -ForegroundColor Cyan
+Write-Host "[INFO] Codex home   = $env:CODEX_HOME" -ForegroundColor Cyan
 #endregion
 
-# Test path resolution (can be removed in production)
-Write-Host "[DEBUG] Path Resolution Test:" -ForegroundColor Magenta
-Write-Host "  Script Path: $scriptCurrentPath" -ForegroundColor Gray
-Write-Host "  Scripts Dir: $scriptsDirPath" -ForegroundColor Gray
-Write-Host "  Shells Dir: $shellsDirPath" -ForegroundColor Gray
-Write-Host "  Win Dir: $winDirPath" -ForegroundColor Gray
-Write-Host "  Win Common Dir: $winCommonDirPath" -ForegroundColor Gray
-Write-Host "  PyTools Dir: $pytoolsDirPath" -ForegroundColor Gray
-Write-Host "  AI Tools Dir: $aiToolsDirPath" -ForegroundColor Gray
-Write-Host "  User Profile: $userProfilePath" -ForegroundColor Gray
-Write-Host "  User Home: $userHomePath" -ForegroundColor Gray
-Write-Host "  Users Directory: $usersDirectoryPath" -ForegroundColor Gray
-Write-Host ""
-#endregion
 
 #region Load Environment Variables from Secret Files
 Write-Host ""
@@ -343,6 +236,13 @@ if ($env:OPENAI_BASE_URL) {
     Write-Host "[WARNING] Failed to load OPENAI_BASE_URL" -ForegroundColor Yellow
 }
 
+$env:CODEX_MODEL = Get-SecretValue "CODEX_MODEL_1"
+if ($env:CODEX_MODEL) {
+    Write-Host "[SUCCESS] Loaded CODEX_MODEL = $($env:CODEX_MODEL)" -ForegroundColor Green
+} else {
+    Write-Host "[WARNING] Failed to load CODEX_MODEL" -ForegroundColor Yellow
+}
+
 
 
 #region Build Launch Command Display
@@ -356,6 +256,10 @@ if ($env:OPENAI_BASE_URL) {
     $envVarsParts += "`$env:OPENAI_BASE_URL='$($env:OPENAI_BASE_URL)'"
 }
 
+if ($env:CODEX_MODEL) {
+    $envVarsParts += "`$env:CODEX_MODEL='$($env:CODEX_MODEL)'"
+}
+
 $envVarsCommand = $envVarsParts -join '; '
 if ($envVarsCommand) {
     $fullCommandDisplay = "$envVarsCommand; codex --yolo"
@@ -364,6 +268,23 @@ if ($envVarsCommand) {
 }
 #endregion
 
+
+
+#region Codex Config (py helper -> config.toml + AGENTS.md, wire_api=responses)
+$codexConfigHelper = Join-Path $aiToolsDirPath "codex_config_helper.py"
+$codexHomeDir = $env:CODEX_HOME
+if (-not $codexHomeDir) { $codexHomeDir = Join-Path $env:USERPROFILE ".codex" }
+$codexBaseUrl = $env:OPENAI_BASE_URL
+$codexModel = $env:CODEX_MODEL
+if (-not $codexModel) { $codexModel = "gpt-5-codex" }
+if (Test-Path $codexConfigHelper) {
+    Write-Host "[INFO] Ensuring Codex config.toml (wire_api=responses, supports_websockets=false, no wss fallback)..." -ForegroundColor Cyan
+    python "$codexConfigHelper" --codex-home "$codexHomeDir" --base-url "$codexBaseUrl" --model "$codexModel"
+} else {
+    Write-Host "[WARN] codex_config_helper.py not found: $codexConfigHelper" -ForegroundColor Yellow
+    Write-Host "[WARN] Codex may fall back to the OpenAI WebSocket (401 on non-OpenAI keys)." -ForegroundColor Yellow
+}
+#endregion
 
 
 #region MCP Server Synchronization
@@ -388,40 +309,6 @@ if (Test-Path $preLaunchScript) {
 }
 
 
-Write-Host ""
-Write-Host "============================================================" -ForegroundColor Red
-Write-Host "WARNING: Upgrade Option" -ForegroundColor Red
-Write-Host "============================================================" -ForegroundColor Red
-Write-Host "Upgrading Codex CLI may cause damage to your installation." -ForegroundColor Yellow
-Write-Host "Only proceed if you are absolutely sure." -ForegroundColor Yellow
-Write-Host "============================================================" -ForegroundColor Red
-Write-Host ""
-
-$upgradeChoice = Read-Host "Do you want to upgrade Codex CLI? (y/N)"
-if ($upgradeChoice -eq "y" -or $upgradeChoice -eq "Y") {
-    Write-Host ""
-    Write-Host "============================================================" -ForegroundColor Red
-    Write-Host "FINAL CONFIRMATION REQUIRED" -ForegroundColor Red
-    Write-Host "============================================================" -ForegroundColor Red
-    Write-Host "This upgrade process has been known to cause issues." -ForegroundColor Yellow
-    Write-Host "Are you ABSOLUTELY SURE you want to continue?" -ForegroundColor Yellow
-    Write-Host "============================================================" -ForegroundColor Red
-    $finalConfirm = Read-Host "Type 'YES' in capital letters to confirm"
-
-    if ($finalConfirm -eq "YES") {
-        $upgradeScript = Join-Path $aiToolsDirPath "codex_update.bat"
-        Write-Host ""
-        Write-Host "[INFO] Launching Codex CLI upgrade in separate window..." -ForegroundColor Yellow
-        Start-Process -FilePath "cmd.exe" -ArgumentList "/c","`"$upgradeScript`"" -WindowStyle Normal
-        Write-Host "[SUCCESS] Upgrade window opened" -ForegroundColor Green
-    } else {
-        Write-Host "[INFO] Upgrade cancelled - confirmation not received" -ForegroundColor Cyan
-    }
-} else {
-    Write-Host "[INFO] Skipping upgrade" -ForegroundColor Cyan
-}
-
-
 $syncScript = Join-Path $aiToolsDirPath "codex_sync_mcp_servers.py"
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -441,12 +328,6 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host ""
     Write-Host "[SUCCESS] MCP synchronization completed" -ForegroundColor Green
 }
-
-Write-Host ""
-Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Press Enter to start Codex CLI..." -ForegroundColor Cyan
-Write-Host "============================================================" -ForegroundColor Cyan
-$null = Read-Host "Press Enter to continue"
 
 
 #endregion
@@ -580,6 +461,9 @@ if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
     if ($env:OPENAI_BASE_URL) {
         $envVarsPartsNpx += "`$env:OPENAI_BASE_URL='$($env:OPENAI_BASE_URL)'"
     }
+    if ($env:CODEX_MODEL) {
+        $envVarsPartsNpx += "`$env:CODEX_MODEL='$($env:CODEX_MODEL)'"
+    }
 
     $envVarsCommandNpx = $envVarsPartsNpx -join '; '
     if ($envVarsCommandNpx) {
@@ -593,22 +477,24 @@ if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
 }
 
 
-#region Launch Tool
+#region Variable Summary + Single Continue
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "Variable Summary" -ForegroundColor Yellow
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "OPENAI_API_KEY = $env:OPENAI_API_KEY" -ForegroundColor Gray
+Write-Host "OPENAI_BASE_URL = $env:OPENAI_BASE_URL" -ForegroundColor Gray
+Write-Host "CODEX_MODEL = $env:CODEX_MODEL" -ForegroundColor Gray
+Write-Host "Codex home: $env:USERPROFILE\.codex" -ForegroundColor Gray
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Press Enter to start Codex CLI..." -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 $null = Read-Host "Press Enter to continue"
+#endregion
 
+#region Launch Tool
 Write-Host ""
 Write-Host "Executing: codex --yolo" -ForegroundColor White
-Write-Host ""
-Write-Host "PowerShell Command: powershell -NoProfile -ExecutionPolicy Bypass -Command `"$fullCommandDisplay`"" -ForegroundColor White
-Write-Host ""
-Write-Host "Press any key to continue..." -ForegroundColor Yellow
-$null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 powershell -NoProfile -ExecutionPolicy Bypass -Command $fullCommandDisplay
-
-Write-Host ""
-pause
 #endregion

@@ -31,11 +31,15 @@ import { ElementTheme } from '../WfNewTypes';
 import { getLanguageConfig } from '../WfNewLocales';
 import { WfNewLanguagePanel } from './WfNewLanguagePanel';
 import { wfNewSettings } from '../WfNewSettingsStore';
+// Shared daily-goal editor (◀ input ▶) — writes wfNewSettings + roams the
+// value to the backend itself; see ./WfNewDailyGoalEditor.
+import { WfNewDailyGoalEditor } from './WfNewDailyGoalEditor';
 import type { WfNewStatistics, WfNewLanguage } from '../api';
 
 interface WfNewHomeDashboardProps {
   activeTheme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
+  lang: string;
   isLoggedIn: boolean;
   /** Commander identity shown in the panel header. */
   nickname: string;
@@ -65,7 +69,7 @@ const Kpi: React.FC<{ icon: React.ReactNode; label: string; value: React.ReactNo
 );
 
 export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
-  activeTheme, trans, isLoggedIn, nickname, avatarUrl, stats, groupName, groupCount,
+  activeTheme, trans, lang, isLoggedIn, nickname, avatarUrl, stats, groupName, groupCount,
   targetLang, dailyGoal, languageOptions, onSave,
 }) => {
   // Local editable draft (kept in sync when the upstream values change).
@@ -221,15 +225,14 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
             </button>
           </div>
 
-          {/* Daily goal stepper */}
-          <label className="block">
-            <span className="text-[9px] font-mono uppercase tracking-wider text-emerald-400 flex items-center gap-1"><Target className="w-3 h-3" /> {trans('dashboard.dailyGoal')}</span>
-            <div className="mt-1.5 flex items-center gap-2">
-              <button type="button" onClick={() => setDraftGoal((g) => Math.max(1, g - 5))} className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 text-zinc-300 hover:bg-white/10 font-mono font-black">−</button>
-              <span className="flex-1 text-center text-lg font-black font-mono text-slate-100">{draftGoal}</span>
-              <button type="button" onClick={() => setDraftGoal((g) => Math.min(500, g + 5))} className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 text-zinc-300 hover:bg-white/10 font-mono font-black">+</button>
-            </div>
-          </label>
+          {/* Daily goal — the SHARED editor (writes wfNewSettings + roams the
+              value to the backend itself, so it needs no Save and stays in
+              sync with every other editor instance); replaces the old local
+              −/+ draft stepper. Save below still re-saves the LIVE store goal
+              (never a stale draft) together with the target language. */}
+          <div className="flex items-center">
+            <WfNewDailyGoalEditor lang={lang} className="flex-1" />
+          </div>
 
           {/* Current group (read-only) */}
           <div className="block">
@@ -245,7 +248,7 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
           {!isLoggedIn && <span className="block text-center text-[10px] font-mono text-amber-400">{trans('dashboard.loginHint')}</span>}
           <button
             type="button"
-            onClick={() => onSave({ targetLang: draftLang, dailyGoal: draftGoal })}
+            onClick={() => onSave({ targetLang: draftLang, dailyGoal: wfNewSettings.get('dailyGoal') })}
             disabled={isLoggedIn && !dirty}
             className="w-full flex items-center justify-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl transition-all"
           >
@@ -271,7 +274,9 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
           wfNewSettings.setField('settingTargetLangs', sel.learning_languages);
           wfNewSettings.setField('settingTargetLang', primary);
           // Propagate the primary target up so the host (WfNewApp) updates too.
-          onSave({ targetLang: primary, dailyGoal: draftGoal });
+          // The goal half always carries the LIVE store value (the shared
+          // editor owns it now), never the stale local draft.
+          onSave({ targetLang: primary, dailyGoal: wfNewSettings.get('dailyGoal') });
         }}
         trans={trans}
       />

@@ -2,18 +2,32 @@
 """
 Managed lifecycle for local TTS services - the TTS-category facade over the
 unified `managed_services` manager (pycore/pyutils/common/managed_service.py).
+Implements the TTS view of the shared contract in
+development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md (§3-§5).
 
 Covers TWO kinds of TTS services under category "tts":
   - kind="server" : subprocess HTTP API servers (chattts, cosyvoice, fishspeech,
-                    gptsovits, f5tts). start = Popen + HTTP health; stop = terminate.
-                    Single-active applies ONLY among these servers.
-  - kind="model"  : in-process model engines (qwen3tts, bark, parler, voxcpm2,
-                    melotts, kokoro, sherpa). load on first synth; parallel OK;
-                    each idle-unloads independently after 60s without a call.
+                    gptsovits, f5tts, qwen3tts, melotts). start = Popen + HTTP
+                    health; stop = terminate. Single-active applies ONLY among
+                    these servers (class C, spec §1). qwen3tts, melotts and
+                    gptsovits are ISOLATED-VENV class-C servers (Bucket B): their
+                    api server (qwen3tts_api_server.py / melotts_api_server.py /
+                    the cloned GPT-SoVITS api_v2.py) runs under a DEDICATED
+                    per-engine venv - qwen3tts via qwen3tts_venv, melotts +
+                    gptsovits via isolated_venv.resolve_python(<engine>) - because
+                    each pins a transformers that cannot coexist with the main
+                    interpreter's shared pin. PYTHONPATH/PYTHONHOME are stripped so
+                    the venv's packages are never shadowed. Per-engine venv dirs +
+                    ports: qwen3tts py_venv_<ver> :57210, melotts
+                    py_venv_melotts_<ver> :57212, gptsovits py_venv_gptsovits_<ver>
+                    :9880 (existing GPTSOVITS_URL bind).
+  - kind="model"  : in-process model engines (bark, voxcpm2, kokoro, sherpa).
+                    load on first synth; parallel OK; each idle-unloads
+                    independently (class B, spec §1).
 
 Unified contract (enforced by managed_services):
   - idempotent start on call (`prepare_server_for_use` / `managed_services.using`).
-  - default no memory: auto-stop after `server_idle_shutdown_s` idle (default 60s).
+  - default no memory: auto-stop after `server_idle_shutdown_s` idle (default 180s).
   - single-active: starting one SERVER stops other TTS servers (not models).
   - busy protection: a service with an in-flight call is never stopped/unloaded.
 
@@ -23,7 +37,9 @@ server_idle_shutdown_s / server_enabled (per-service map, servers + models).
 """
 
 import importlib
+import os
 import shutil
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
@@ -35,30 +51,35 @@ from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.tts.tts_engine_probe import engine_installed, staging_dir
 
 from pycore.pyutils.tts import chattts_engine
-import sys
 from pycore.pyutils.tts import cosyvoice_engine
 from pycore.pyutils.tts import gptsovits_engine
 from pycore.pyutils.tts import f5tts_engine
 
 from pycore.pyutils.tts import fishspeech_engine
-
-import os
-
-
+from pycore.pyutils.tts import melotts_engine
+from pycore.pyutils.tts import qwen3tts_engine
+from pycore.pyutils.tts import qwen3tts_venv
+from pycore.pyutils.tts import qwen3tts_weights
+from pycore.pyutils.tts import isolated_venv
 
 
 _TTS_SECTION = "tts"
-_SERVER_ENGINES = ("chattts", "cosyvoice", "fishspeech", "gptsovits", "f5tts")
-_MODEL_ENGINES = ("qwen3tts", "bark", "parler", "voxcpm2", "melotts", "kokoro", "sherpa")
+# Parler is disabled because it pins an older transformers release. qwen3tts,
+# melotts and gptsovits are class-C API servers running in DEDICATED per-engine
+# venvs (Bucket B), never in-process - their pinned transformers conflicts with
+# the main interpreter's shared pin.
+_SERVER_ENGINES = (
+    "chattts", "cosyvoice", "fishspeech", "gptsovits", "f5tts", "qwen3tts", "melotts",
+)
+_MODEL_ENGINES = ("bark", "voxcpm2", "kokoro", "sherpa")
 _MODEL_MODULE = {
-    "qwen3tts": "qwen3tts_engine",
     "bark": "bark_engine",
-    "parler": "parler_engine",
     "voxcpm2": "voxcpm2_engine",
-    "melotts": "melotts_engine",
     "kokoro": "kokoro_engine",
     "sherpa": "sherpa_engine",
 }
+_QWEN3TTS_API_SERVER = "qwen3tts_api_server.py"
+_MELOTTS_API_SERVER = "melotts_api_server.py"
 
 
 # --------------------------------------------------------------------------- #
@@ -93,6 +114,10 @@ def _server_spec(engine: str) -> Optional[_ServerSpec]:
         return _ServerSpec(("/",), gptsovits_engine.base_url())
     if engine == "f5tts":
         return _ServerSpec(("/health", "/"), f5tts_engine.base_url())
+    if engine == "qwen3tts":
+        return _ServerSpec(("/health", "/"), qwen3tts_engine.base_url())
+    if engine == "melotts":
+        return _ServerSpec(("/health", "/"), melotts_engine.base_url())
     return None
 
 
@@ -131,7 +156,9 @@ def _sync_server_script(staging: Path, filename: str) -> None:
             pass
 
 
-def _start_command(engine: str) -> Optional[Tuple[Path, List[str]]]:
+def _start_command(engine: str) -> Optional[Tuple]:
+    """Return (cwd, argv) for same-interpreter servers, or (cwd, argv, env) for
+    servers that need a custom environment (qwen3tts runs under its isolated venv)."""
     staging = staging_dir(engine)
     py = _python_exe()
     if engine == "chattts":
@@ -159,17 +186,103 @@ def _start_command(engine: str) -> Optional[Tuple[Path, List[str]]]:
             return staging, [py, str(script)]
         return staging, [py, str(script), "--listen", f"0.0.0.0:{port}"]
     if engine == "gptsovits":
-        script = staging / "api_v2.py"
-        if not script.is_file():
-            return None
-        return staging, [py, str(script)]
+        return _gptsovits_start_command(staging)
     if engine == "f5tts":
         _sync_server_script(staging, "f5tts_api_server.py")
         script = staging / "f5tts_api_server.py"
         if not script.is_file():
             return None
         return staging, [py, str(script)]
+    if engine == "qwen3tts":
+        return _qwen3tts_start_command(staging)
+    if engine == "melotts":
+        return _melotts_start_command(staging)
     return None
+
+
+def _isolated_env(extra: Dict[str, str]) -> Dict[str, str]:
+    """Base environment for a class-C server run under an ISOLATED per-engine venv:
+    inherit os.environ, strip PYTHONPATH/PYTHONHOME (so the main interpreter's
+    site-packages cannot shadow the venv's pinned packages), force unbuffered
+    stdout, then apply the engine-specific overrides."""
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    env.pop("PYTHONHOME", None)
+    env["PYTHONUNBUFFERED"] = "1"
+    env.update(extra)
+    return env
+
+
+def _gptsovits_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dict[str, str]]]:
+    """Class-C start command for gptsovits: launch its api_v2.py under the ISOLATED
+    per-engine venv (never the main interpreter, whose transformers pin conflicts
+    with GPT-SoVITS's). RUNTIME only RESOLVES the pre-built venv - a missing venv
+    -> no start (the installer provisions it via isolated_venv.ensure_venv)."""
+    script = staging / "api_v2.py"
+    if not script.is_file():
+        return None
+    venv_python = isolated_venv.resolve_python("gptsovits")
+    if not venv_python:
+        return None
+    return staging, [venv_python, str(script)], _isolated_env({})
+
+
+def _melotts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dict[str, str]]]:
+    """Class-C start command for melotts: launch the api server under the ISOLATED
+    per-engine venv (never the main interpreter, which lacks - and must not gain -
+    MeloTTS's old transformers pin). Mirrors _qwen3tts_start_command; PYTHONPATH/
+    PYTHONHOME are stripped so the venv's packages are not shadowed.
+
+    RUNTIME only RESOLVES the pre-built venv (resolve_python) - it never builds/pips
+    at start time; a missing venv -> no start (the installer provisions it)."""
+    venv_python = isolated_venv.resolve_python("melotts")
+    if not venv_python:
+        return None
+    api_server = Path(__file__).resolve().parents[2] / "tts_install_assets" / _MELOTTS_API_SERVER
+    if not api_server.is_file():
+        return None
+    parsed = urlparse(melotts_engine.base_url())
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or 57212
+    extra: Dict[str, str] = {"MELOTTS_HOST": host, "MELOTTS_PORT": str(port)}
+    model = (os.environ.get("MELOTTS_MODEL") or "").strip()
+    if model:
+        extra["MELOTTS_MODEL"] = model
+    device = (os.environ.get("MELOTTS_DEVICE") or "").strip()
+    if device:
+        extra["MELOTTS_DEVICE"] = device
+    return staging, [venv_python, str(api_server)], _isolated_env(extra)
+
+
+def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dict[str, str]]]:
+    """Class-C start command for qwen3tts: launch the api server under the ISOLATED
+    venv (never the main interpreter, which lacks the required transformers pin).
+    Mirrors Qwen3TtsService.start's env; PYTHONPATH/PYTHONHOME are stripped so the
+    venv's pinned transformers is not shadowed by the main interpreter.
+
+    RUNTIME only RESOLVES the pre-built venv (resolve_python) - it never builds/pips
+    at start time. Provisioning is done idempotently by the install scripts
+    (Step61_InstallQwen3Tts.ps1 / 140_install_qwen3tts.sh) that pyservice runs; a
+    missing venv -> no start + disabled_reason points at the installer."""
+    venv_python = qwen3tts_venv.resolve_python()
+    if not venv_python:
+        return None
+    api_server = Path(__file__).resolve().parents[2] / "tts_install_assets" / _QWEN3TTS_API_SERVER
+    if not api_server.is_file():
+        return None
+    base = qwen3tts_engine.base_url()
+    parsed = urlparse(base)
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or 57210
+    extra: Dict[str, str] = {
+        "QWEN3TTS_HOST": host,
+        "QWEN3TTS_PORT": str(port),
+        "QWEN3TTS_MODEL": qwen3tts_weights.resolve_model_id(),
+    }
+    device = (os.environ.get("QWEN3TTS_DEVICE") or "").strip()
+    if device:
+        extra["QWEN3TTS_DEVICE"] = device
+    return staging, [venv_python, str(api_server)], _isolated_env(extra)
 
 
 def _http_healthy(engine: str) -> bool:
@@ -206,6 +319,13 @@ def _config_ready(engine: str) -> bool:
         return f5tts_engine.disabled_reason() is None
     if engine == "fishspeech":
         return fishspeech_engine.synth_ready()
+    if engine == "qwen3tts":
+        # Class C: without the isolated venv the api server cannot start, so
+        # auto-start would only churn (and evict the active server single-active).
+        return qwen3tts_venv.venv_ready()
+    if engine == "melotts":
+        # Class C: same as qwen3tts - the per-engine isolated venv gates start.
+        return isolated_venv.venv_ready("melotts")
     return True
 
 
@@ -217,6 +337,8 @@ def invalidate_server_engine_cache(engine: str) -> None:
         "fishspeech": "fishspeech_engine",
         "gptsovits": "gptsovits_engine",
         "f5tts": "f5tts_engine",
+        "qwen3tts": "qwen3tts_engine",
+        "melotts": "melotts_engine",
     }
     mod_name = mod_map.get(engine)
     if not mod_name:
@@ -225,6 +347,8 @@ def invalidate_server_engine_cache(engine: str) -> None:
         mod = importlib.import_module(f"pycore.pyutils.tts.{mod_name}")
         lock = getattr(mod, "_avail_lock", None)
         cache = getattr(mod, "_avail_cache", None)
+        # qwen3tts_engine / melotts_engine are stateless HTTP clients with no
+        # availability cache - nothing to invalidate; skip gracefully.
         if lock is not None and isinstance(cache, dict):
             with lock:
                 cache["ts"] = 0.0
@@ -265,7 +389,7 @@ def _model_unload(engine: str) -> None:
 # Registration into the unified manager                                        #
 # --------------------------------------------------------------------------- #
 def _register_services() -> None:
-    managed_services.register_category("tts", CategorySettings("tts", "server_", idle_default=60))
+    managed_services.register_category("tts", CategorySettings("tts", "server_", idle_default=180))
     for e in _SERVER_ENGINES:
         managed_services.register(ServiceSpec(
             name=e, category="tts", kind="server",
@@ -377,13 +501,14 @@ def server_runtime_status(engine: str) -> Dict[str, Any]:
         return {}
     st = managed_services.runtime_status(engine)
     if spec.kind == "server":
-        return {
+        status = {
             "server_engine": True,
             "server_running": st["running"],
             "server_managed": st["managed"],
             "server_enabled": st["enabled"],
             "server_idle_remaining_s": st["idle_remaining_s"],
         }
+        return status
     return {
         "server_engine": False,
         "model_loaded": st["running"],
@@ -392,7 +517,8 @@ def server_runtime_status(engine: str) -> Dict[str, Any]:
 
 
 def all_server_runtime_status() -> Dict[str, Dict[str, Any]]:
-    return {name: server_runtime_status(name) for name in _SERVER_ENGINES}
+    names = list(_SERVER_ENGINES) + list(_MODEL_ENGINES)
+    return {name: server_runtime_status(name) for name in names}
 
 
 __all__ = [

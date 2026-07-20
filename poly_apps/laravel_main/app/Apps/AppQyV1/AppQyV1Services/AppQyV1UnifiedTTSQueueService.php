@@ -61,9 +61,6 @@ class AppQyV1UnifiedTTSQueueService
     /** Default priority floor applied when a row is queued without 'beginning'. */
     const PRIORITY_DEFAULT = 30;
 
-    /** Priority applied when a task is moved to the front of the queue. */
-    const PRIORITY_FRONT = 100;
-
     /** Max ARTICLE rows processed per processQueue() run (articles are heavy). */
     const ARTICLES_PER_RUN = 2;
 
@@ -492,31 +489,43 @@ class AppQyV1UnifiedTTSQueueService
     /**
      * Flip a canonical row (word or article) to tts_status='pending' and
      * return the external add-status string (queued|moved_to_front).
+     * 'beginning' assigns a move-to-front ticket — MAX(tts_priority)+1 on the
+     * row's table, read FOR UPDATE inside the same transaction as the save,
+     * so the newest front-add always sorts strictly ahead of every existing
+     * row and two concurrent front-adds cannot share a ticket.
      */
     private function markRowPending($row, string $position): string
     {
-        $row->tts_status = self::STATUS_PENDING;
-        if (!$row->tts_requested_at) {
-            $row->tts_requested_at = now();
-        }
+        return $row->getConnection()->transaction(function () use ($row, $position) {
+            $row->tts_status = self::STATUS_PENDING;
+            if (!$row->tts_requested_at) {
+                $row->tts_requested_at = now();
+            }
 
-        // Re-adding a failed row re-queues it with a fresh retry budget.
-        $row->tts_attempts = 0;
-        $row->tts_error = null;
-        $row->tts_locked_at = null;
-        $row->tts_locked_by = null;
+            // Re-adding a failed row re-queues it with a fresh retry budget.
+            $row->tts_attempts = 0;
+            $row->tts_error = null;
+            $row->tts_locked_at = null;
+            $row->tts_locked_by = null;
 
-        if ($position === 'beginning') {
-            $row->tts_priority = self::PRIORITY_FRONT;
-            $status = 'moved_to_front';
-        } else {
-            $row->tts_priority = max((int) ($row->tts_priority ?? 0), self::PRIORITY_DEFAULT);
-            $status = 'queued';
-        }
+            if ($position === 'beginning') {
+                $row->save();
+                $table = $row->getTable();
+                $id = $row->id;
+                $row->getConnection()->statement(
+                    "UPDATE {$table} SET tts_priority = (SELECT m FROM (SELECT COALESCE(MAX(tts_priority), 0) + 1 AS m FROM {$table}) x) WHERE id = ?",
+                    [$id]
+                );
+                $row->refresh();
+                $status = 'moved_to_front';
+            } else {
+                $row->tts_priority = max((int) ($row->tts_priority ?? 0), self::PRIORITY_DEFAULT);
+                $row->save();
+                $status = 'queued';
+            }
 
-        $row->save();
-
-        return $status;
+            return $status;
+        });
     }
 
     /**
@@ -1907,11 +1916,12 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
-     * Re-queue failed tasks to front of queue (highest priority).
+     * Re-queue failed tasks to front of queue (move-to-front ticket).
      *
      * Per-language UPDATE on the canonical tables: failed rows that still
-     * lack audio get tts_status='pending', a fresh retry budget and front
-     * priority.
+     * lack audio get tts_status='pending', a fresh retry budget and the
+     * table's front ticket (MAX(tts_priority)+1, assigned by one atomic
+     * same-table derived subquery per table).
      *
      * @return array
      */
@@ -1924,7 +1934,6 @@ class AppQyV1UnifiedTTSQueueService
         $resetValues = [
             'tts_status' => self::STATUS_PENDING,
             'tts_attempts' => 0,
-            'tts_priority' => self::PRIORITY_FRONT,
             'tts_error' => null,
             'tts_locked_at' => null,
             'tts_locked_by' => null,
@@ -1936,7 +1945,9 @@ class AppQyV1UnifiedTTSQueueService
                 $requeued += $conn->table($dictTable)
                     ->where('tts_status', self::STATUS_FAILED)
                     ->where('has_audio', false)
-                    ->update($resetValues);
+                    ->update(array_merge($resetValues, [
+                        'tts_priority' => DB::raw("(SELECT m FROM (SELECT MAX(tts_priority)+1 AS m FROM `{$dictTable}`) x)"),
+                    ]));
             }
 
             $articleTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
@@ -1945,7 +1956,9 @@ class AppQyV1UnifiedTTSQueueService
                 $requeued += $conn->table($articleTable)
                     ->where('tts_status', self::STATUS_FAILED)
                     ->where('has_audio', false)
-                    ->update($resetValues);
+                    ->update(array_merge($resetValues, [
+                        'tts_priority' => DB::raw("(SELECT m FROM (SELECT MAX(tts_priority)+1 AS m FROM `{$articleTable}`) x)"),
+                    ]));
             }
         }
 

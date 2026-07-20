@@ -17,6 +17,7 @@ Core rules for `laravel_main`. Follow the existing code style; English only; reu
 - PostgreSQL is the **only** active engine (Linux+Windows); driver/host/port/user are fixed in `config/database.php`, password comes from the shell secret store — never read DB config from `.env`. MySQL/SQLite entries are inert stubs.
 - One database per sub-app on `localhost:5432` (shared `core_node_main` + `app_qy_v1`, …). Resolve via `AppTablePrefixServiceProvider::getConnection()/buildTableName()` + `App\Constants\AppKeys`; never hardcode connection/table strings (use `{app}TablesMaps` / `GlobalTablesMap`).
 - Idempotent never-rebuild migrations: `SafeMigrationHelper::alignTableStructureFromArray()` (create-if-missing + add columns; never drop/truncate in `up()`), enforced by `CheckMigrationSafety`, executed only by `sys:init`. `global_*` files use the default connection; `{appNameWithVersion}_*` files set their own app connection.
+- Idempotent extensions may only add/modify table structure & data — never drop or delete columns or data.
 
 ## 4. Multi sub-app model framework
 - Each app lives in `app/Apps/{appNameWithVersion}/` (version-pinned `{Vx}`); **every filename carries `{appNameWithVersion}`**. Controllers use the **`Ctl`** suffix under `{app}Controllers/`; per-app `{app}Models`/`{app}Services`/`{app}Utils`/`{app}Gvar`. Shared code only in `app/Utils`, `app/Providers`, `app/Helpers` (don't grow Helpers).

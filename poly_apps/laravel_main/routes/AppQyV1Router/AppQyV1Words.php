@@ -79,8 +79,10 @@ Route::get('/word/audio/missing-batch', [AppQyV1WordMediaController::class, 'mis
 Route::post('/word/fix-text', [AppQyV1WordMediaController::class, 'fixWordText']);
 
 // Boost a word's tts_priority to move it to the front of the audio queue.
-// Called from the wordnew library UI; pycore re-broadcasts via WS so the
-// batch bar re-orders its in-flight pending list immediately.
+// Move-to-front ticket (MAX+1, atomic): the newest boost always sorts strictly
+// ahead of every other row. Called from the wordnew library UI; pycore
+// re-broadcasts via WS so the batch bar re-orders its in-flight pending list
+// immediately.
 //   POST /api/app_qy_v1/word/boost-priority  { md5, lang }
 Route::post('/word/boost-priority', [AppQyV1WordMediaController::class, 'boostPriority']);
 });

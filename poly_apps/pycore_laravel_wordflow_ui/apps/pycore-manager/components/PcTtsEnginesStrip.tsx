@@ -1,45 +1,20 @@
 /**
  * PcTtsEnginesStrip — active TTS engine + fallback chain (Queue Center).
- * GET /api/local/tts/status
+ * Reads TTS status from the SHARED Queue Center hub (useQueueCenterHub) — no
+ * self-polling; the refresh button re-polls the whole hub.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, AudioLines, RefreshCw, Loader2 } from 'lucide-react';
-import { pycoreApi, ttsEngineUiState } from '../../../core/api-libs/pycore';
+import React from 'react';
+import { AlertTriangle, AudioLines, RefreshCw } from 'lucide-react';
+import { ttsEngineUiState, ttsConcurrencyAnnotation } from '../../../core/api-libs/pycore';
 import type { TtsStatus } from '../../../core/api-libs/pycore';
-import { QC_TTS_POLL_MS } from '../utils/pcQueueCenterTypes';
-
-const TTS_POLL_MS = QC_TTS_POLL_MS;
+import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 
 export const PcTtsEnginesStrip: React.FC = () => {
-  const [status, setStatus] = useState<TtsStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-  const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
-
-  const fetchStatus = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const s = await pycoreApi.getTtsStatus();
-      if (s && (s as any).success !== false && Array.isArray((s as any).engines)) {
-        setStatus(s as TtsStatus); setErr(null);
-      } else {
-        setErr((s as any)?.error || (s as any)?.detail || 'tts status unavailable');
-      }
-    } catch (e: any) {
-      setErr(e?.message || 'tts status unavailable');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const fetchRef = useRef(fetchStatus);
-  fetchRef.current = fetchStatus;
-  useEffect(() => {
-    void fetchRef.current(false);
-    const id = window.setInterval(() => { void fetchRef.current(true); }, TTS_POLL_MS);
-    return () => window.clearInterval(id);
-  }, []);
+  const hub = useQueueCenterHub();
+  const raw = hub.tts as any;
+  const status = raw && raw.success !== false && Array.isArray(raw.engines) ? (raw as TtsStatus) : null;
+  const loading = hub.loading;
+  const err = hub.pycoreReachable ? null : hub.error;
 
   if (!status) {
     return (
@@ -51,7 +26,7 @@ export const PcTtsEnginesStrip: React.FC = () => {
         ) : loading ? (
           <span className="text-slate-400">loading…</span>
         ) : null}
-        <button onClick={() => fetchStatus(false)} disabled={loading}
+        <button onClick={() => hub.refreshHub()} disabled={loading}
           className="ml-auto p-1.5 rounded-lg pc-glass hover:bg-indigo-500/10 text-indigo-500 transition disabled:opacity-50 shrink-0" title="Refresh TTS status">
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
@@ -87,12 +62,13 @@ export const PcTtsEnginesStrip: React.FC = () => {
                     ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
                     : 'bg-slate-500/10 text-slate-400 opacity-50 line-through';
             const title = [e.note, e.disabled_reason].filter(Boolean).join(' — ') || e.name;
+            const concurrency = ttsConcurrencyAnnotation(e.concurrency, e.name);
             return (
             <React.Fragment key={e.name}>
               {i > 0 && <span className="text-slate-300 dark:text-slate-600 text-[10px]">→</span>}
               <span
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold tracking-wide ${chipClass}`}
-                title={title}>
+                title={concurrency ? `${title} · ${concurrency}` : title}>
                 {e.name}
                 {e.name === 'edge' && (e.cooldown_remaining ?? 0) > 0 && (
                   <span className="font-mono text-amber-500">{Math.round(e.cooldown_remaining as number)}s</span>
@@ -103,12 +79,15 @@ export const PcTtsEnginesStrip: React.FC = () => {
                 {e.server_engine && e.server_running && (
                   <span className="font-mono text-emerald-500/80 text-[9px]">svc</span>
                 )}
+                {concurrency && (
+                  <span className="font-mono font-normal text-[9px] opacity-75">{concurrency}</span>
+                )}
               </span>
             </React.Fragment>
             );
           })}
         </div>
-        <button onClick={() => fetchStatus(false)} disabled={loading}
+        <button onClick={() => hub.refreshHub()} disabled={loading}
           className="ml-auto p-1.5 rounded-lg pc-glass hover:bg-indigo-500/10 text-indigo-500 transition disabled:opacity-50 shrink-0" title="Refresh TTS status">
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>

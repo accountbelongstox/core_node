@@ -129,4 +129,81 @@ class AppQyV1UserPresenceModel extends Model
         }
         return \Illuminate\Support\Carbon::parse($lastSeenAt)->gt(now()->subSeconds(self::STALE_SECONDS));
     }
+
+    /**
+     * The user ids that should learn about $userId's presence transitions: the
+     * accepted friends PLUS the followers (people who follow this user) — exactly
+     * the relationships that render this user's presence dot. Shared by the
+     * heartbeat online-push and the offline sweep so both notify the same audience.
+     *
+     * @return array<int, int>
+     */
+    public static function audienceFor(int $userId): array
+    {
+        $ids = [];
+        foreach (AppQyV1FriendRequestModel::acceptedFriendIds($userId) as $id) {
+            $ids[$id] = $id;
+        }
+        // People who follow this user (their friends list shows this user).
+        $followerIds = AppQyV1UserFollowModel::query()
+            ->where('followed_user_id', $userId)
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        foreach ($followerIds as $id) {
+            $ids[$id] = $id;
+        }
+        unset($ids[$userId]);
+        return array_values($ids);
+    }
+
+    /**
+     * Detect users who JUST crossed the offline threshold and mark them offline,
+     * returning each transition so the caller can push friend.offline. A user is
+     * "newly offline" when their stored status is still a live value yet their
+     * last_seen_at is now older than STALE_SECONDS (i.e. their heartbeat lapsed).
+     *
+     * Exactly-once per transition: the stored `status` column doubles as the
+     * emitted marker. Each candidate is claimed with a CONDITIONAL update
+     * (status != offline AND still stale -> offline); only the tick whose update
+     * affects the row reports the transition, so concurrent ticks never double
+     * emit and no extra column/migration is needed. A later heartbeat flips the
+     * status back to a live value (last_seen_at stays stale until then), which
+     * re-arms the next offline detection and lets heartbeat() emit friend.online.
+     *
+     * @return array<int, array{user_id:int, last_seen_at:?string}>
+     */
+    public static function sweepNewlyOffline(int $limit = 500): array
+    {
+        $threshold = now()->subSeconds(self::STALE_SECONDS);
+        $transitioned = [];
+        $candidates = static::query()
+            ->where('status', '!=', self::STATUS_OFFLINE)
+            ->where('last_seen_at', '<', $threshold)
+            ->orderBy('user_id')
+            ->limit($limit)
+            ->get(['user_id', 'last_seen_at']);
+
+        foreach ($candidates as $row) {
+            $uid = (int) $row->user_id;
+            // Atomic claim: only the tick that actually flips the row (affected
+            // rows >= 1) owns this transition. last_seen_at is left untouched so
+            // it keeps reflecting the real last heartbeat.
+            $claimed = static::query()
+                ->where('user_id', $uid)
+                ->where('status', '!=', self::STATUS_OFFLINE)
+                ->where('last_seen_at', '<', $threshold)
+                ->update([
+                    'status' => self::STATUS_OFFLINE,
+                    'updated_at' => now(),
+                ]);
+            if ($claimed >= 1) {
+                $transitioned[] = [
+                    'user_id' => $uid,
+                    'last_seen_at' => $row->last_seen_at ? $row->last_seen_at->toISOString() : null,
+                ];
+            }
+        }
+        return $transitioned;
+    }
 }

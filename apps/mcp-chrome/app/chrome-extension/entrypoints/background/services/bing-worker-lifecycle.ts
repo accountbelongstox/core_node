@@ -11,14 +11,15 @@
  */
 
 import { logger } from '@/utils/logger';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 const LOG = 'Bing Worker';
 
 /** Storage key for the persisted run intent (session storage). */
-export const RUNTIME_STORAGE_KEY = 'bing_worker_runtime';
+export const RUNTIME_STORAGE_KEY = STORAGE_KEYS.BING_WORKER_RUNTIME;
 
 /** Alarm name for the periodic watchdog that resurrects the worker. */
-export const WATCHDOG_ALARM = 'bing-translation-worker-watchdog';
+export const WATCHDOG_ALARM = STORAGE_KEYS.BING_WATCHDOG_ALARM;
 
 // 1 min: above the 30s production floor, frequent enough to recover quickly.
 export const WATCHDOG_PERIOD_MINUTES = 1;

@@ -5,6 +5,8 @@
 
 import { ref } from 'vue';
 import { usePersistedRef } from '@/composables/usePersistedRef';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { BING_DICT_MSG } from '@/common/message-types';
 
 export interface Translation {
   type: string;
@@ -83,7 +85,7 @@ export function useBingDictionary() {
       // not expose a dictionary lookup API — only the worker task queue — so the
       // extension owns single-word lookups itself.
       const response = await chrome.runtime.sendMessage({
-        type: 'bing_dictionary_worker_service',
+        type: BING_DICT_MSG,
         action: 'test_scrape',
         words: [query],
         mode: 'worker',
@@ -166,7 +168,7 @@ export function useBingDictionary() {
     // Also reset the persisted current view so [CLEAR] fully empties the panel.
     currentResult.value = null;
     searchQuery.value = '';
-    await chrome.storage.local.remove('bing_dictionary_history');
+    await chrome.storage.local.remove(STORAGE_KEYS.BING_DICTIONARY_HISTORY);
   };
 
   const formatTime = (timestamp: number): string => {
@@ -189,7 +191,7 @@ export function useBingDictionary() {
 
   const saveHistory = async () => {
     try {
-      await chrome.storage.local.set({ bing_dictionary_history: history.value });
+      await chrome.storage.local.set({ [STORAGE_KEYS.BING_DICTIONARY_HISTORY]: history.value });
     } catch (err) {
       console.error('[Bing Dictionary] Failed to save history:', err);
     }
@@ -197,9 +199,9 @@ export function useBingDictionary() {
 
   const loadHistory = async () => {
     try {
-      const result = await chrome.storage.local.get('bing_dictionary_history');
-      if (result.bing_dictionary_history) {
-        history.value = result.bing_dictionary_history;
+      const result = await chrome.storage.local.get(STORAGE_KEYS.BING_DICTIONARY_HISTORY);
+      if (result[STORAGE_KEYS.BING_DICTIONARY_HISTORY]) {
+        history.value = result[STORAGE_KEYS.BING_DICTIONARY_HISTORY];
       }
     } catch (err) {
       console.error('[Bing Dictionary] Failed to load history:', err);

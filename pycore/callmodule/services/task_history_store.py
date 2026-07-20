@@ -7,11 +7,13 @@ import re
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+import threading
 
 from pycore.pyfoundations.system_paths import get_user_data_store
 
 _SECTION = "task_history"
 _MAX_ENTRIES = 2000
+_lock = threading.Lock()
 
 
 def _now_iso() -> str:
@@ -20,16 +22,17 @@ def _now_iso() -> str:
 
 def append_record(record: Dict[str, Any]) -> None:
     """Append one finished task unit (best-effort, capped ring)."""
-    store = get_user_data_store()
-    section = store.get_section(_SECTION) or {}
-    entries = list(section.get("entries") or [])
-    row = dict(record)
-    row.setdefault("ts", _now_iso())
-    row.setdefault("at", int(time.time()))
-    entries.insert(0, row)
-    if len(entries) > _MAX_ENTRIES:
-        entries = entries[:_MAX_ENTRIES]
-    store.set_section(_SECTION, {"entries": entries, "updated_at": _now_iso()})
+    with _lock:
+        store = get_user_data_store()
+        section = store.get_section(_SECTION) or {}
+        entries = list(section.get("entries") or [])
+        row = dict(record)
+        row.setdefault("ts", _now_iso())
+        row.setdefault("at", int(time.time()))
+        entries.insert(0, row)
+        if len(entries) > _MAX_ENTRIES:
+            entries = entries[:_MAX_ENTRIES]
+        store.set_section(_SECTION, {"entries": entries, "updated_at": _now_iso()})
 
 
 def query_records(
@@ -70,8 +73,9 @@ def query_records(
 
 
 def clear_records() -> int:
-    store = get_user_data_store()
-    section = store.get_section(_SECTION) or {}
-    count = len(section.get("entries") or [])
-    store.set_section(_SECTION, {"entries": [], "updated_at": _now_iso()})
-    return count
+    with _lock:
+        store = get_user_data_store()
+        section = store.get_section(_SECTION) or {}
+        count = len(section.get("entries") or [])
+        store.set_section(_SECTION, {"entries": [], "updated_at": _now_iso()})
+        return count

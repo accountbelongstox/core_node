@@ -16,23 +16,28 @@
 # =============================================================================
 #
 # Synopsis:
-#     Launches Claude Code with multiple roles (experimental agent teams),
-#     ultracode enabled by default, and the model forced to Opus 4.8 or newer
-#     everywhere (Linux).
+#     Launches Claude Code with multiple roles (experimental agent teams) always
+#     on, an opt-in ultracode prompt (default No), and - when ultracode is enabled
+#     - an opt-in prompt (default Yes) to force Opus 4.8 everywhere (Linux).
 #
 # Description:
-#     Linux mirror of scripts/winenvs/claudeteam.ps1. Sets
+#     Linux mirror of scripts/winenvs/claudeteam.ps1. Always sets
 #     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple
-#     roles), forces the newest Opus model (alias "opus[1m]" = latest Opus, e.g.
-#     Opus 4.8, with the 1M-context window) for the main session, subagents and
-#     the background "Haiku slot", then runs:
-#         claude --model opus[1m] --settings '{"ultracode":true}' --dangerously-skip-permissions [args...]
+#     roles). Then prompts "Enable ultracode?" (default No); when enabled it adds
+#     --effort ultracode (session-only xhigh effort + automatic workflow
+#     orchestration; official CLI reference, requires Claude Code v2.1.203+) and
+#     prompts "Use Opus 4.8 1M as the ultracode model?" (default Yes). If accepted,
+#     the pinned Opus 4.8 id plus the 1M-context suffix ("claude-opus-4-8[1m]") is
+#     forced for the main session, subagents and the background Haiku/Sonnet slots,
+#     running:
+#         claude --effort ultracode --model claude-opus-4-8[1m] --dangerously-skip-permissions [args...]
 #     The --model flag pins the main interactive model; CLAUDE_CODE_SUBAGENT_MODEL
-#     pins subagents/agent-teams; ANTHROPIC_DEFAULT_HAIKU_MODEL /
-#     ANTHROPIC_DEFAULT_SONNET_MODEL redirect background + sonnet-aliased traffic
-#     to Opus too. Claude Code strips the [1m] suffix client-side before calling
-#     the provider. The --settings flag turns on ultracode via inline JSON. Any
-#     script arguments are appended to that command line.
+#     pins subagents/agent-teams; ANTHROPIC_DEFAULT_OPUS_MODEL /
+#     ANTHROPIC_DEFAULT_SONNET_MODEL / ANTHROPIC_DEFAULT_HAIKU_MODEL redirect the
+#     opus/sonnet/haiku aliases + background traffic to Opus 4.8 too. Claude Code
+#     interprets the [1m] suffix client-side as the 1M-context selector. When
+#     ultracode is declined, Claude runs on the account default model. Any script
+#     arguments are appended to that command line.
 #
 #     Root safety: when running as root, the --dangerously-skip-permissions flag
 #     is dropped (root already has full permissions and Claude Code refuses that
@@ -49,9 +54,10 @@
 set -e
 
 # Variable declarations (declared at the beginning of the file)
-ultra_settings_json='{"ultracode":true}'
-force_model="opus[1m]"
-force_opus_choice=""
+force_model="claude-opus-4-8[1m]"
+ultra_choice=""
+ultra_enabled=0
+model_choice=""
 force_opus_enabled=0
 claude_args=()
 claude_invoke_display=""
@@ -60,28 +66,41 @@ claude_team_args_display=""
 # Multiple roles: enable experimental agent teams for the session.
 export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
 
-# Always-on: enable ultracode via inline JSON settings. Built as an array so the
-# JSON value is always passed as a single argument (string-splitting would break
-# it if the JSON ever contained spaces).
-claude_args+=(--settings "$ultra_settings_json")
+# Ultracode: opt-in prompt, default No. When enabled, ultracode is turned on via
+# the dedicated effort flag "--effort ultracode" (official CLI reference; requires
+# Claude Code v2.1.203+): it starts the session at xhigh effort with automatic
+# workflow orchestration. Session-only - it cannot be persisted (effortLevel /
+# CLAUDE_CODE_EFFORT_LEVEL accept only low/medium/high/xhigh), so it is passed on
+# every launch.
+read -r -p "Enable ultracode? [y/N]: " ultra_choice || ultra_choice=""
+if [ "$ultra_choice" = "y" ] || [ "$ultra_choice" = "Y" ]; then
+    ultra_enabled=1
+    claude_args+=(--effort ultracode)
+fi
 
-# Optional: force Opus 4.8 (or newer) everywhere. Opt-in prompt, default No.
-# "$force_model" is the newest-Opus alias plus the 1M-context window ("opus[1m]");
-# Claude Code strips the [1m] suffix client-side before calling the provider.
-read -r -p "Force model ${force_model} everywhere (main + subagents + background)? [y/N]: " force_opus_choice || force_opus_choice=""
-if [ "$force_opus_choice" = "y" ] || [ "$force_opus_choice" = "Y" ]; then
-    force_opus_enabled=1
+# Ultracode model: only asked when ultracode is enabled, default Yes. Forces Opus
+# 4.8 with the 1M-context window everywhere. "$force_model" is the pinned Opus 4.8
+# id plus the "[1m]" suffix ("claude-opus-4-8[1m]"), which Claude Code interprets
+# client-side as the 1M-context selector (official model-config reference).
+if [ "$ultra_enabled" -eq 1 ]; then
+    read -r -p "Use Opus 4.8 1M (${force_model}) as the ultracode model everywhere? [Y/n]: " model_choice || model_choice=""
+    if [ "$model_choice" != "n" ] && [ "$model_choice" != "N" ]; then
+        force_opus_enabled=1
+    fi
 fi
 
 if [ "$force_opus_enabled" -eq 1 ]; then
-    # Env vars cover the model slots that have no CLI flag:
-    #   - CLAUDE_CODE_SUBAGENT_MODEL     : subagents / experimental agent teams
-    #   - ANTHROPIC_DEFAULT_HAIKU_MODEL  : background quick tasks (summaries, titles)
-    #   - ANTHROPIC_DEFAULT_SONNET_MODEL : anything resolving via the sonnet alias
+    # Env vars cover the model slots that have no CLI flag (official model-config
+    # reference); values are the pinned Opus 4.8 1M model:
+    #   - CLAUDE_CODE_SUBAGENT_MODEL     : all subagents / agent teams / workflow agents
+    #   - ANTHROPIC_DEFAULT_OPUS_MODEL   : the "opus" alias (and opusplan in plan mode)
+    #   - ANTHROPIC_DEFAULT_SONNET_MODEL : the "sonnet" alias (and opusplan execution)
+    #   - ANTHROPIC_DEFAULT_HAIKU_MODEL  : the "haiku"/background quick-task slot
     export CLAUDE_CODE_SUBAGENT_MODEL="$force_model"
-    export ANTHROPIC_DEFAULT_HAIKU_MODEL="$force_model"
+    export ANTHROPIC_DEFAULT_OPUS_MODEL="$force_model"
     export ANTHROPIC_DEFAULT_SONNET_MODEL="$force_model"
-    # --model pins the main interactive model (highest-precedence selector).
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL="$force_model"
+    # --model pins the main interactive model (highest-precedence startup selector).
     claude_args+=(--model "$force_model")
     # Light note shown only when the user opted in.
     echo "[NOTE] ${force_model} forced for main session, subagents and background (Haiku/Sonnet) slots - background tasks run on Opus too (higher cost/latency)."
@@ -103,12 +122,16 @@ echo "============================================================"
 echo "claudeteam.sh"
 echo "============================================================"
 echo "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)"
-if [ "$force_opus_enabled" -eq 1 ]; then
-    echo "[INFO] Forced model: ${force_model} (main session + subagents + background Haiku/Sonnet slots)"
+if [ "$ultra_enabled" -eq 1 ]; then
+    echo "[INFO] Ultracode: ON (--effort ultracode)"
 else
-    echo "[INFO] Forced model: off (default N) - using the account default model"
+    echo "[INFO] Ultracode: off (default N)"
 fi
-echo "[INFO] Ultracode settings: --settings ${ultra_settings_json}"
+if [ "$force_opus_enabled" -eq 1 ]; then
+    echo "[INFO] Ultracode model: ${force_model} (main session + subagents + background Haiku/Sonnet slots)"
+else
+    echo "[INFO] Ultracode model: account default"
+fi
 echo "[INFO] Invoking: ${claude_invoke_display}${claude_team_args_display}"
 echo "============================================================"
 echo ""

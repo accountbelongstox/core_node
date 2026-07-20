@@ -86,6 +86,7 @@ from pycore.callmodule.routers.local import (
     ocr_status_router,
     tts_status_router,
     stt_status_router,
+    engines_load_status_router,
     speech_history_router,
     capability_status_router,
     translation_queue_router,
@@ -103,6 +104,7 @@ from pycore.callmodule.routers.local import (
     heartbeat_workers_router,
     agent_history_router,
     task_settings_router,
+    version_router,
 )
 
 # Upload Layer (1 router)
@@ -564,6 +566,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
             ocr_status_router,
             tts_status_router,
             stt_status_router,
+            engines_load_status_router,
             speech_history_router,
             capability_status_router,
             translation_queue_router,
@@ -581,6 +584,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
             heartbeat_workers_router,
             agent_history_router,
             task_settings_router,
+            version_router,
             # === Upload Layer ===
             upload_router,
             # === Client Layer ===

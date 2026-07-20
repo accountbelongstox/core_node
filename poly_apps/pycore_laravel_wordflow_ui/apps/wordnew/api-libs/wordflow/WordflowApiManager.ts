@@ -24,6 +24,12 @@ import {
   WF_PROBE_ERROR,
   classifyProbeFailure,
 } from './wordflowApiMessages';
+// Unified endpoint source: the Settings-selected endpoint the canonical
+// wfNewApi transport uses (WfNewEndpoints). Request routing delegates to it so
+// the wordflow stack targets the SAME base URL the user picked in Settings,
+// not this manager's own probe list — the probe machinery below is kept only
+// for the offline-recheck loop, never for building request/media URLs.
+import { wfNewEndpoints } from '../../api/WfNewEndpoints';
 
 /** Fired whenever a full wordflow health pass settles (interval retry / manual re-detect). */
 export const WORDFLOW_API_HEALTH_EVENT = 'wf-api-health-changed';
@@ -371,19 +377,15 @@ class WordflowApiManager {
   }
 
   getCurrentBaseUrl(): string {
-    if (!this.currentEndpoint) {
-      console.warn('[WordflowApiManager] currentEndpoint is null, using fallback endpoint');
-      this.currentEndpoint = getAllEndpoints()[0];
-    }
-    return buildApiUrl(this.currentEndpoint);
+    // Delegate to the Settings-selected endpoint so every wordflow request +
+    // media/avatar URL resolves to the ONE API the user chose in Settings
+    // (unified with wfNewApi). This manager's own currentEndpoint is not used
+    // for routing — see the wfNewEndpoints import note.
+    return wfNewEndpoints.getCurrentBaseUrl();
   }
 
   buildUrl(path: string): string {
-    if (!this.currentEndpoint) {
-      console.warn('[WordflowApiManager] currentEndpoint is null, using fallback endpoint');
-      this.currentEndpoint = getAllEndpoints()[0];
-    }
-    return buildApiUrl(this.currentEndpoint, path);
+    return wfNewEndpoints.buildUrl(path);
   }
 
   getAllEndpoints(): ApiEndpoint[] {

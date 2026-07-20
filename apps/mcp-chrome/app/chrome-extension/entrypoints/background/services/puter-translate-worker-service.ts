@@ -16,6 +16,7 @@ import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { puterAiTranslate } from './puter-ai-client';
 import { logger } from '@/utils/logger';
+import { DEFAULT_TARGET_LANG } from '@/utils/task-center-types';
 
 const LOG = 'Puter Translate';
 
@@ -69,7 +70,7 @@ class PuterTranslateWorkerService extends SimpleWorkerBase {
     }
 
     const targetLanguage =
-      (task.payload as any)?.target_language || (task.payload as any)?.language || 'zh';
+      (task.payload as any)?.target_language || (task.payload as any)?.language || DEFAULT_TARGET_LANG;
 
     let pairs: Array<{ word: string; translation: string }>;
     try {

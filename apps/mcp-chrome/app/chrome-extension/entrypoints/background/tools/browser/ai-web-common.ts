@@ -14,6 +14,7 @@
  */
 
 import { tabController } from '../../services/tab-controller';
+import { MEDIA_PATHS } from '@/utils/api-paths';
 
 const DEFAULT_BACKEND_BASE = 'http://127.0.0.1:9000';
 
@@ -123,8 +124,8 @@ export async function findOrCreateProviderTab(
     try {
       const t = await chrome.tabs.get(explicitTabId);
       if (t && t.id) {
-        // Foreground the reused tab via TabController (records the self-switch).
-        await tabController.activate(t.id);
+        // Reuse in the BACKGROUND — page-driving runs via executeScript/sendMessage
+        // on the inactive tab, so we never steal the user's focus.
         return { tabId: t.id, created: false };
       }
     } catch {
@@ -134,15 +135,13 @@ export async function findOrCreateProviderTab(
   const all = await chrome.tabs.query({});
   const match = all.find((t) => typeof t.url === 'string' && t.url.includes(urlIncludes) && typeof t.id === 'number');
   if (match && match.id) {
-    await tabController.activate(match.id);
     return { tabId: match.id, created: false };
   }
-  const created = await chrome.tabs.create({ url: createUrl, active: true });
+  // Create the provider tab in the BACKGROUND (active:false) — no focus steal.
+  const created = await tabController.openBackgroundTab(createUrl);
   if (!created.id) {
     throw new Error(`Failed to open ${createUrl}`);
   }
-  // Created active — record the activation so it isn't read as human tab activity.
-  tabController.recordActivation(created.id);
   return { tabId: created.id, created: true };
 }
 
@@ -188,7 +187,7 @@ export async function uploadReplyAudio(params: {
 
   const mime = audio.mime && audio.mime.length > 0 ? audio.mime : 'audio/mpeg';
   const ext = mime.includes('webm') ? 'webm' : mime.includes('wav') ? 'wav' : mime.includes('ogg') ? 'ogg' : 'mp3';
-  const url = `${baseUrl}/api/app_qy_v1/media/ai-audio`;
+  const url = `${baseUrl}${MEDIA_PATHS.AI_AUDIO}`;
 
   let lastError = '';
   for (let attempt = 0; attempt < 3; attempt++) {

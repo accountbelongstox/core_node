@@ -13,8 +13,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
 
-. "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
-
 PYTHON="python3"
 MODEL="auto"
 FORCE=0
@@ -95,7 +93,7 @@ echo "[install_vosk]  source    : $MODEL_URL"
 # IDEMPOTENT: any model with a conf/ dir already present -> done.
 if find "$MODEL_ROOT" -type d -name conf 2>/dev/null | grep -q . && [[ "$FORCE" -eq 0 ]]; then
     echo "[install_vosk] [OK] A Vosk model is already installed (conf/ present) -> skipping download."
-    rm -rf "$TMP_EXTRACT" 2>/dev/null || true
+    _backup_install_asset_path "$TMP_EXTRACT" "[install_vosk] " >/dev/null
     complete_prereq_step "$PYTHON" "[install_vosk] " vosk
 fi
 
@@ -132,7 +130,7 @@ done
 
 if [[ "$COMPLETE" -eq 0 ]]; then
     echo "[install_vosk] [!] still incomplete after $attempt attempts; partial .zip KEPT to RESUME next run (continues, never restarts). whisper/azure STT still work."
-    rm -rf "$TMP_EXTRACT" 2>/dev/null || true
+    _backup_install_asset_path "$TMP_EXTRACT" "[install_vosk] " >/dev/null
     complete_prereq_step "$PYTHON" "[install_vosk] " vosk
 fi
 
@@ -144,12 +142,12 @@ else
 fi
 inner="$(find "$TMP_EXTRACT" -mindepth 1 -maxdepth 1 -type d | head -n1)"
 src="${inner:-$TMP_EXTRACT}"
-rm -rf "$MODEL_DIR"
+_backup_install_asset_path "$MODEL_DIR" "[install_vosk] " >/dev/null
 mv "$src" "$MODEL_DIR" 2>/dev/null || true
 if [[ -d "$MODEL_DIR/conf" ]]; then
     echo "[install_vosk] [OK] Vosk model installed: $MODEL_DIR (free, offline). .zip KEPT at $ARCHIVE."
 else
     echo "[install_vosk] [!] Extract produced no conf/ (archive may be partial); .zip KEPT to RESUME."
 fi
-rm -rf "$TMP_EXTRACT" 2>/dev/null || true
+_backup_install_asset_path "$TMP_EXTRACT" "[install_vosk] " >/dev/null
 complete_prereq_step "$PYTHON" "[install_vosk] " vosk

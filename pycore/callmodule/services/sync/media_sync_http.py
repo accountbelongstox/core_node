@@ -10,15 +10,15 @@ Every Laravel-facing network call + the local-output discovery helpers shared by
     discovery so sync_source and backend_status always see the SAME sources + source_keys.
   * ``_fetch_backend_subtitles``              - paginated probe of Laravel's subtitle list.
 
-Networking uses the lazily-imported third-party ``requests`` via
-``pycore.pyfoundations.third_party.get_third_package_requests`` (never a bare
-import) - same rule the translation worker follows.
+Networking goes through the unified ``LaravelClient``
+(``pycore.callmodule.services.sync.laravel_client.get_laravel_client``) which
+times + logs + records every request - same gateway the translation worker uses.
 """
 
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 
 # Reuse the processor's output-dir resolution (no duplication). video_extract_processor
 # imports nothing from this package, so this stays cycle-free.
@@ -45,9 +45,8 @@ from pycore.callmodule.services.sync._media_sync_helpers import (
 # --------------------------------------------------------------------------- #
 def _post_ingest(base_url: str, payload: Dict[str, Any]) -> Tuple[bool, str]:
     """POST the JSON ingest body. Returns (ok, detail)."""
-    requests = get_third_package_requests()
     try:
-        resp = requests.post(base_url + INGEST_PATH, json=payload, timeout=_INGEST_TIMEOUT)
+        resp = get_laravel_client().post(INGEST_PATH, base_url=base_url, json=payload, timeout=_INGEST_TIMEOUT)
         if resp.status_code in (200, 201):
             return True, f"HTTP {resp.status_code}"
         return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
@@ -57,11 +56,11 @@ def _post_ingest(base_url: str, payload: Dict[str, Any]) -> Tuple[bool, str]:
 
 def _post_clip(base_url: str, source_key: str, name: str, file_path: str) -> Tuple[bool, str]:
     """Upload one clip (multipart). Returns (ok, detail)."""
-    requests = get_third_package_requests()
     try:
         with open(file_path, "rb") as fh:
-            resp = requests.post(
-                base_url + INGEST_CLIP_PATH,
+            resp = get_laravel_client().post(
+                INGEST_CLIP_PATH,
+                base_url=base_url,
                 data={"source_key": source_key, "name": name},
                 files={"file": (name, fh)},
                 timeout=_CLIP_TIMEOUT,
@@ -150,14 +149,14 @@ def _fetch_backend_subtitles(base_url: str) -> Tuple[bool, Dict[str, Dict[str, A
     ``(reachable, rows_by_source_key, total)``; any failure degrades to
     ``(False, {}, None)`` - never raises.
     """
-    requests = get_third_package_requests()
     rows: Dict[str, Dict[str, Any]] = {}
     total: Optional[int] = None
     try:
         page = 1
         while page <= _STATUS_MAX_PAGES:
-            resp = requests.get(
-                base_url + SUBTITLES_PATH,
+            resp = get_laravel_client().get(
+                SUBTITLES_PATH,
+                base_url=base_url,
                 params={"per_page": _STATUS_PER_PAGE, "page": page},
                 timeout=_STATUS_TIMEOUT,
             )

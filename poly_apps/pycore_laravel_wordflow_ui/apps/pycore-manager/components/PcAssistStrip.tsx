@@ -11,12 +11,10 @@ import {
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { AssistStatus, AssistCapabilities, PcTaskRecord } from '../../../core/api-libs/pycore';
 import { humanBytes } from '../utils/pcFormat';
-import { QC_ASSIST_POLL_MS } from '../utils/pcQueueCenterTypes';
 import { useQueueCenterHub, laravelLiveSyncOffline, laravelEndpointMismatch } from '../hooks/useQueueCenterHub';
 
 type AssistCapKey = keyof AssistCapabilities;
 const ASSIST_CAP_KEYS: AssistCapKey[] = ['translation', 'ai_translate', 'tts', 'subtitle', 'stt'];
-const ASSIST_POLL_MS = QC_ASSIST_POLL_MS;
 
 const isAssistStatus = (s: unknown): s is AssistStatus =>
   !!s && typeof (s as AssistStatus).enabled === 'boolean' && !!(s as AssistStatus).capabilities;
@@ -39,46 +37,22 @@ const lastTaskSummary = (rec: PcTaskRecord): string => {
 export const PcAssistStrip: React.FC = () => {
   const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
-  const [status, setStatus] = useState<AssistStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  // All status now comes from the SHARED hub (one poll for the whole page).
+  const status = isAssistStatus(hub.assist) ? hub.assist : null;
+  const loading = hub.loading;
+  const err = status
+    ? null
+    : ((hub.assist && (hub.assist as any).error) || (hub.pycoreReachable ? null : hub.error));
+  // The single most recent assist task, filtered client-side from the shared
+  // recent-tasks list the hub already fetches (no separate request).
+  const lastTask: PcTaskRecord | null = hub.recent?.records?.find((r) => r.worker === 'assist') ?? null;
   const [cycling, setCycling] = useState(false);
   const [cycleMsg, setCycleMsg] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
   // A per-capability toggle is in flight; disables the whole grid until done.
   const [capBusy, setCapBusy] = useState(false);
-  // The single most recent assist task (compact one-line summary). Degrades
-  // silently to null when the recent-task endpoint is unavailable.
-  const [lastTask, setLastTask] = useState<PcTaskRecord | null>(null);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
-
-  const fetchStatus = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const s = await pycoreApi.getAssistStatus();
-      if (isAssistStatus(s)) { setStatus(s); setErr(null); }
-      else setErr((s as any)?.error || (s as any)?.detail || 'assist status unavailable');
-    } catch (e: any) {
-      setErr(e?.message || 'assist status unavailable');
-    } finally {
-      setLoading(false);
-    }
-    try {
-      const r = await pycoreApi.getRecentTasks({ limit: 1, worker: 'assist' });
-      setLastTask(r?.records?.[0] ?? null);
-    } catch {
-      setLastTask(null);
-    }
-  }, []);
-
-  const fetchRef = useRef(fetchStatus);
-  fetchRef.current = fetchStatus;
-  useEffect(() => {
-    void fetchRef.current(false);
-    const id = window.setInterval(() => { void fetchRef.current(true); }, ASSIST_POLL_MS);
-    return () => window.clearInterval(id);
-  }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const runCycle = useCallback(async () => {
     if (cycling) return;
@@ -93,13 +67,13 @@ export const PcAssistStrip: React.FC = () => {
       } else {
         setCycleMsg(`Cycle failed: ${(r as any)?.error || (r as any)?.detail || 'assist disabled?'}`);
       }
-      await fetchStatus(true);
+      hub.refreshHub();
     } catch (e: any) {
       if (mounted.current) setCycleMsg(`Cycle failed: ${e?.message || 'pycore unreachable'}`);
     } finally {
       if (mounted.current) setCycling(false);
     }
-  }, [cycling, fetchStatus]);
+  }, [cycling, hub]);
 
   // Auto-On: the master enable toggle. When on, the worker polls Laravel every
   // ~30s and assists (per the per-capability switches) without manual cycles.
@@ -113,13 +87,13 @@ export const PcAssistStrip: React.FC = () => {
       if ((r as any)?.success === false) {
         setCycleMsg(`Toggle failed: ${(r as any)?.error || (r as any)?.detail || 'unavailable'}`);
       }
-      await fetchStatus(true);
+      hub.refreshHub();
     } catch (e: any) {
       if (mounted.current) setCycleMsg(`Toggle failed: ${e?.message || 'pycore unreachable'}`);
     } finally {
       if (mounted.current) setToggling(false);
     }
-  }, [toggling, status, fetchStatus]);
+  }, [toggling, status, hub]);
 
   // Flip a single assist capability ON/OFF (independent of the master enable).
   const toggleCap = useCallback(async (cap: AssistCapKey) => {
@@ -136,13 +110,13 @@ export const PcAssistStrip: React.FC = () => {
       if ((r as any)?.success === false) {
         setCycleMsg(`Toggle failed: ${(r as any)?.error || (r as any)?.detail || 'unavailable'}`);
       }
-      await fetchStatus(true);
+      hub.refreshHub();
     } catch (e: any) {
       if (mounted.current) setCycleMsg(`Toggle failed: ${e?.message || 'pycore unreachable'}`);
     } finally {
       if (mounted.current) setCapBusy(false);
     }
-  }, [capBusy, status, fetchStatus]);
+  }, [capBusy, status, hub]);
 
   // Degraded strip while assist status loads — never block the queue tabs below.
   const liveSyncOffline = laravelLiveSyncOffline(hub);
@@ -172,7 +146,7 @@ export const PcAssistStrip: React.FC = () => {
         ) : loading ? (
           <span className="text-slate-400">loading…</span>
         ) : null}
-        <button onClick={() => fetchStatus(false)} disabled={loading}
+        <button onClick={() => hub.refreshHub()} disabled={loading}
           className="ml-auto p-1.5 rounded-lg pc-glass hover:bg-rose-500/10 text-rose-500 transition disabled:opacity-50 shrink-0" title="Refresh assist status">
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
@@ -210,7 +184,7 @@ export const PcAssistStrip: React.FC = () => {
             → {status.endpoint.base_url}
           </span>
         )}
-        {(status.laravel_reachable === false || liveSyncOffline) && hub.laravelReachable !== true && (
+        {liveSyncOffline && (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wide bg-amber-500/15 text-amber-500">
             <WifiOff className="w-3 h-3" /> Laravel live sync paused
           </span>
@@ -239,7 +213,7 @@ export const PcAssistStrip: React.FC = () => {
             {cycling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
             Run cycle now
           </button>
-          <button onClick={() => fetchStatus(false)} disabled={loading}
+          <button onClick={() => hub.refreshHub()} disabled={loading}
             className="p-1.5 rounded-lg pc-glass hover:bg-rose-500/10 text-rose-500 transition disabled:opacity-50" title="Refresh assist status">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>

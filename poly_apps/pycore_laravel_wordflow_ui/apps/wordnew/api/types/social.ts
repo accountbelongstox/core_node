@@ -139,6 +139,28 @@ export interface WfNewPresenceInfo {
   last_seen_at?: string | null;
 }
 
+/**
+ * Public profile of another user (GET /social/users/{id} → data.user). Read-only
+ * view shown by the profile modal — merges the user row (name/avatar/languages/bio)
+ * with the viewer-relative relationship + counts (follow/friend/posts/presence).
+ */
+export interface WfNewPublicUserProfile {
+  id: number;
+  name: string;
+  avatar_url: string | null;
+  native_language: string | null;
+  learning_languages: string[];
+  bio: string | null;
+  post_count: number;
+  follower_count: number;
+  following_count: number;
+  /** Whether the current viewer follows this user. */
+  is_following: boolean;
+  /** Whether the current viewer and this user are accepted friends. */
+  is_friend: boolean;
+  presence: WfNewPresenceInfo;
+}
+
 // ---- Social Center: posts / comments / live ------------------------------- #
 // Backend-aligned shapes (AppQyV1 /social/posts + /social/live). Image/video/cover
 // urls are ROOT-RELATIVE ('/static/...') from the backend — always wrap with

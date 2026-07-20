@@ -14,9 +14,10 @@
 import type { ITaskProcessor, ProcessorConfig, ProcessorStatus } from '../ITaskProcessor';
 import type { WorkerCapability } from '../../../api/WorkerApiClient';
 import { webAiTranslateWorkerService } from '../../web-ai-translate-worker-service';
+import { LANES } from '@/utils/task-center-lanes';
 
 class WebAiTranslateProcessor implements ITaskProcessor {
-  readonly processorType = 'web_ai_translate';
+  readonly processorType = LANES.WEB_AI_TRANSLATE;
   readonly processorName = 'Web-AI Translate';
 
   /** Own no dedicated lane — fast lane only via the advertised capability. */

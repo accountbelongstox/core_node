@@ -3,7 +3,7 @@
 import type { Word, WordGroup, BentoGroup, UserStats, WfNewStatistics, UserProfile, WfNewContentKind, WfNewContentGroup, WfNewHomeContent, WfNewLanguage, WfNewLanguageSelection } from './core';
 import type { WfNewBookChapter, WfNewBookChapters, WfNewBookVerseLang, WfNewBookVerse, WfNewBookVersesPage, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewSubtitleDetail, WfNewDictWord, WfNewWordPage, WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordAccent, WfNewWordAudioVariant, WfNewWordMedia, WfAudioFileVariant, SubtitleWord, SubtitleLine, SubtitleCourse, BilingualWord, BilingualSentence } from './media';
 import type { WfNewAuthUser, WfNewAuthResult, WfNewPreferences, WfNewRegisterPayload, WfNewSocialCredential, WfNewProfileUpdate, WfNewAvatarResult, WfNewSocialStats } from './user';
-import type { WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity, WfNewPresenceStatus, WfNewDiscoverUser, WfNewFriendRequest, WfNewConversation, WfNewMessage, WfNewMessagePage, WfNewNotification, WfNewNotificationPage, WfNewPresenceInfo, WfNewSocialActor, WfNewPostImage, WfNewPostType, WfNewPostVisibility, WfNewPostFilter, WfNewPost, WfNewPostPage, WfNewPostComment, WfNewPostCommentPage, WfNewPostLikeResult, WfNewCreatePostPayload, WfNewLiveStatus, WfNewLive, WfNewCreateLivePayload, WfNewLiveMsg, WfNewLiveMsgPage } from './social';
+import type { WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity, WfNewPresenceStatus, WfNewDiscoverUser, WfNewFriendRequest, WfNewConversation, WfNewMessage, WfNewMessagePage, WfNewNotification, WfNewNotificationPage, WfNewPresenceInfo, WfNewPublicUserProfile, WfNewSocialActor, WfNewPostImage, WfNewPostType, WfNewPostVisibility, WfNewPostFilter, WfNewPost, WfNewPostPage, WfNewPostComment, WfNewPostCommentPage, WfNewPostLikeResult, WfNewCreatePostPayload, WfNewLiveStatus, WfNewLive, WfNewCreateLivePayload, WfNewLiveMsg, WfNewLiveMsgPage } from './social';
 import type { WeeklyActivity, CategoryScore, StudiedTimelineItem, AnalyticsStats } from './analytics';
 import type { WfNewEndpointKind, WfNewEndpoint, WfNewEndpointHealth, WfNewEndpointSnapshot } from './endpoints';
 import type { WfNewBookReadingProgress } from './bookProgress';
@@ -84,6 +84,11 @@ export interface WfNewApi {
   /** Block a user (POST /social/friends/block). */
   blockUser(userId: number): Promise<void>;
 
+  /** Public profile of another user by id (GET /social/users/{id}). Powers the
+   *  read-only profile modal opened from partner cards / chat peer headers —
+   *  distinct from getUserProfile() which reads the CURRENT user's own profile. */
+  getPublicUserProfile(userId: number): Promise<WfNewPublicUserProfile>;
+
   /** My conversations (GET /social/conversations). */
   getConversations(): Promise<WfNewConversation[]>;
   /** Get-or-create a direct conversation with a user (POST /social/conversations). */
@@ -158,6 +163,14 @@ export interface WfNewApi {
   getWordGroups(): Promise<WordGroup[]>;
   /** Words inside one group/course. */
   getVocabulary(groupId: string): Promise<Word[]>;
+  /** A page of one group's words (POST /group/get_words, per_page capped at 100).
+   *  Reads the Default Vocabulary Group's words from group_word_progress (which
+   *  getVocabulary/query_gwords misses) with enriched text/translation/phonetic/
+   *  audio/definition. Pass withProgress to also load the SRS/read-count fields.
+   *  opts.unread_only filters to never-read words (rc==0) BEFORE paging - used by
+   *  the shelf daily-goal flow on the Default Vocabulary Group. opts.limit caps the
+   *  total returned word count (0 / undefined = no cap; the shelf passes daily_goal). */
+  getGroupWordsPage(gid: string, page: number, perPage: number, withProgress?: boolean, opts?: WfNewGroupWordsOpts): Promise<WordPage>;
   /** Current user's profile, or null when unauthenticated/offline. */
   getUserProfile(): Promise<UserProfile | null>;
   /** Home dashboard counters (derived from the profile when real). */
@@ -174,6 +187,10 @@ export interface WfNewApi {
   getAnalytics(): Promise<AnalyticsStats>;
   /** Bilingual recital sentence pairs. */
   getBilingualSentences(): Promise<BilingualSentence[]>;
+  /** Available TTS voices from the Laravel audio library (GET /ai_tools/tts/voices),
+   *  flattened from the backend { lang: voice_id } map. Never throws → [] on failure,
+   *  so the Voice selector can fall back to the browser voice list when empty. */
+  getTtsVoices(): Promise<{ id: string; label: string; lang: string }[]>;
 
   // ---- Home content groups (words / books / subtitles / libraries / documents) ----
   /** User word/vocabulary groups as normalized home cards (GET /query_all_groups, auth). */
@@ -256,6 +273,14 @@ export interface WfNewApi {
   /** Explicit priority bump + fast task for one sentence (book-reader retry). */
   bumpSentenceAudio(contentId: string, language: string): Promise<{ success: boolean; task_id?: string | null }>;
 
+  /** Batch high-priority hint for the now-visible reader page: on a chapter/page
+   *  switch, raise tts_priority for every visible sentence that lacks audio in ONE
+   *  round-trip so pycore processes them (qwen3tts-first) ahead of the background
+   *  fill-missing sweep. Rows are created on demand from `text` when never ingested. */
+  prioritizeSentenceAudio(
+    items: { text: string; language: string }[],
+  ): Promise<{ success: boolean; queued: number }>;
+
   // ---- Book reading progress (server-side, auth:sanctum) ----
   getBookReadingProgress(sourceKey: string): Promise<WfNewBookReadingProgress | null>;
   saveBookReadingProgress(
@@ -276,6 +301,30 @@ export interface WfNewApi {
    *  Internally resolves the default group gid via /query_all_groups, then POST /group/add_library.
    *  Returns already_linked: true (with no error) if the library is already in the group. */
   addLibraryToDefaultGroup(libraryId: string | number): Promise<AddLibraryToDefaultGroupResult>;
+
+  /** Non-mutating preview of adding a library to the Default Vocabulary Group:
+   *  words already in the group, new words to add, duplicates, and the group's
+   *  current read / memorized / due-for-review breakdown. Does not write. */
+  previewAddLibraryToDefaultGroup(libraryId: string | number): Promise<PreviewAddLibraryResult>;
+}
+
+/** A page of a group's words (page/perPage pagination, with the grand total). */
+export interface WordPage {
+  words: Word[];
+  total: number;
+  page: number;
+  perPage: number;
+}
+
+/**
+ * Optional parameters for getGroupWordsPage (POST /group/get_words).
+ *   - unread_only: filter to never-read words (rc==0) before paging/slicing.
+ *   - limit: cap the returned word count (0 = no cap; shelf passes daily_goal).
+ * Cross-stack contract (§5.7): both are included in the POST body when present.
+ */
+export interface WfNewGroupWordsOpts {
+  unread_only?: boolean;
+  limit?: number;
 }
 
 export interface AddLibraryToDefaultGroupResult {
@@ -285,4 +334,19 @@ export interface AddLibraryToDefaultGroupResult {
   already_linked: boolean;
   words_added: number;
   total_words_in_library: number;
+}
+
+export interface PreviewAddLibraryResult {
+  gid: string;
+  library_id: number;
+  library_name: string;
+  already_linked: boolean;
+  current_in_group: number;
+  library_total: number;
+  to_add: number;
+  projected_total: number;
+  duplicates: Array<{ word_id: number; word: string }>;
+  duplicates_count: number;
+  language_match: boolean;
+  status_breakdown: { read: number; memorized: number; due: number; total: number };
 }

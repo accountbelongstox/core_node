@@ -26,7 +26,7 @@ use Illuminate\Http\StreamedEvent;
  * Streams translation-queue events over the SAME Octane :9000 HTTP port using
  * Laravel 12's response()->eventStream + StreamedEvent — no separate Reverb /
  * WebSocket process. Events mirror the original broadcast contract exactly:
- *   task.queued | task.priority | word.translated | task.completed
+ *   task.queued | task.priority | word.translated | task.completed | sentence.priority
  * plus stream.open / ping / stream.close envelope events. Every payload carries
  * `_id` (the outbox row id) so the consumer (pycore) advances its cursor and
  * reconnects from exactly where it left off (no missed/duplicated events).

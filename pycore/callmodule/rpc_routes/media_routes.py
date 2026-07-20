@@ -14,12 +14,13 @@ import asyncio
 import os
 
 from pycore import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.callmodule.services.sync.laravel_media_sync import (
     resolve_laravel_base_url,
     sync_book_source,
 )
 from pycore.callmodule.services.processors.book_processor import iter_books
+# Unified pycore->Laravel HTTP gateway (times + logs + records every call).
+from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 
 
 def register_media_routes(server):
@@ -99,9 +100,13 @@ def register_media_routes(server):
         def _do_enrich():
             base = resolve_laravel_base_url()
             url = base + '/api/app_qy_v1/media/enrich'
-            requests = get_third_package_requests()
             try:
-                resp = requests.post(url, json=body, timeout=120)
+                resp = get_laravel_client().post(
+                    '/api/app_qy_v1/media/enrich',
+                    base_url=base,
+                    json=body,
+                    timeout=120,
+                )
             except Exception as e:
                 return {'success': False, 'error': f'enrich unreachable: {e}', 'url': url}
             if resp.status_code in (200, 201):

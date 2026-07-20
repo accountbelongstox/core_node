@@ -12,7 +12,9 @@
     to that server. This installer:
       1. clones RVC-Boss/GPT-SoVITS into <cache>\pycore\gptsovits  (the
          staging/data root; override with GPTSOVITS_DIR) — skipped if already cloned.
-      2. installs torch (CUDA build on a GPU host, else CPU) + the repo requirements.
+      2. builds a DEDICATED isolated venv (isolated_venv.ensure_venv,
+         --system-site-packages reuses the system CUDA torch) and installs the repo
+         requirements INTO it -- the main interpreter is NEVER touched.
       3. downloads the pretrained models from HuggingFace lj1995/GPT-SoVITS into
          GPT_SoVITS\pretrained_models via curl mirror download (resumable,
          hash-verified, SKIPS files already present) — a
@@ -22,10 +24,22 @@
     Best-effort: never fails the boot (always exit 0). Skip entirely with
     GPTSOVITS_SKIP=1. Repo: https://github.com/RVC-Boss/GPT-SoVITS
 
+    LIFECYCLE — Bucket B (isolated per-engine venv), see
+    development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5/§7:
+    GPT-SoVITS's requirements.txt pins an OLD transformers that is incompatible with the
+    shared Bucket-A pin (transformers==4.46.x) in the single system Python 3.13. It is
+    therefore installed INTO a DEDICATED isolated venv (py_venv_gptsovits_<ver>) and NEVER
+    into the main interpreter, so it can no longer clobber DeepSeek/Qwen2.5/NLLB. pycore
+    launches api_v2.py under that venv (isolated_venv.resolve_python('gptsovits')). The
+    build is kept EXPLICIT-opt-in (-Full or GPTSOVITS_INSTALL=1), NOT the default
+    NEURAL_TTS_INSTALL batch, because cloning the multi-GB repo + building the venv takes
+    minutes and should not run unrequested on an unattended boot.
+
 .PARAMETER Python
-    python.exe for the deps + model download. Default: 'python' on PATH.
+    python.exe (the SYSTEM interpreter that builds the venv + downloads models). Default: 'python'.
 .PARAMETER Full
-    Perform clone, pip, and model download. Also enabled by GPTSOVITS_INSTALL=1 or NEURAL_TTS_INSTALL=1.
+    Perform clone, isolated-venv build, and model download. Also enabled by
+    GPTSOVITS_INSTALL=1 (explicit opt-in only; NOT the default NEURAL_TTS_INSTALL batch).
 .PARAMETER Force
     Re-run the model snapshot even if the sentinel says it is complete.
 #>
@@ -43,6 +57,7 @@ $SCRIPT_INDEX   = '[Step54-Gptsovits]'
 $REPO_URL       = 'https://github.com/RVC-Boss/GPT-SoVITS.git'
 $HF_REPO        = 'lj1995/GPT-SoVITS'
 $serverUrl      = if ($env:GPTSOVITS_URL) { $env:GPTSOVITS_URL.TrimEnd('/') } else { 'http://127.0.0.1:9880' }
+$coreNodeRoot   = $null
 $stagingDefault = $null
 $targetDir      = $null
 $modelsDir      = $null
@@ -51,10 +66,16 @@ $depsSentinel   = $null
 $resolvedPython = $null
 $hasCuda        = $false
 $reqFile        = $null
-$doFull         = ($Full -or $env:GPTSOVITS_INSTALL -eq '1' -or $env:NEURAL_TTS_INSTALL -eq '1')
+$dlOk           = $false
+$gptsovitsVenvReady = $false
+# EXPLICIT opt-in only (NOT the default NEURAL_TTS_INSTALL batch): a fresh install clones a
+# multi-GB repo and builds the isolated venv (minutes), so run it only when asked. The
+# old-transformers pin now lands in the venv, never the main interpreter. See the header.
+$doFull         = ($Full -or $env:GPTSOVITS_INSTALL -eq '1')
 
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
+$coreNodeRoot = $Global:CORE_NODE_DIR
 
 # Staging area = PYCORE_LOCAL_DATA_DIR (D:\www\cache\pycore\gptsovits); override with GPTSOVITS_DIR.
 $stagingDefault = Get-PycoreLocalDataSubDir -SubDir 'gptsovits'
@@ -73,42 +94,49 @@ function Test-ServerUp {
 }
 
 Write-Host '============================================================' -ForegroundColor Cyan
-Write-Host " $SCRIPT_INDEX GPT-SoVITS TTS (free voice-clone server)" -ForegroundColor Cyan
+Write-Host " $SCRIPT_INDEX GPT-SoVITS TTS (free voice-clone server, isolated venv)" -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
 
 if ($env:GPTSOVITS_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] GPTSOVITS_SKIP=1 -> skipping." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
 }
 if (Test-ServerUp -Url $serverUrl) {
     Write-Host "$SCRIPT_INDEX [OK] server reachable at $serverUrl -> nothing to do." -ForegroundColor Green
     Write-Host "$SCRIPT_INDEX      Set GPTSOVITS_REF_AUDIO to a reference clip to enable the engine." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
 }
-# Fully installed already (repo + models) -> instant idempotent exit, no re-pip.
-if ((Test-Path (Join-Path $targetDir 'api_v2.py')) -and (Test-Path $sentinel) -and -not $Force) {
-    Write-TtsIdempotentSkip -PythonExe $Python -Reason 'GPT-SoVITS repo + models already present' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
-    Write-Host ("$SCRIPT_INDEX  START:  cd `"{0}`"; python api_v2.py   (serves {1})" -f $targetDir, $serverUrl) -ForegroundColor Cyan
-    Write-Host "$SCRIPT_INDEX  Then set GPTSOVITS_REF_AUDIO to a reference clip." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch')
+
+$resolvedPython = $Global:PYTHON_EXE_PATH
+if ($resolvedPython) {
+    $gptsovitsVenvReady = Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'gptsovits'
 }
-# Opt-in: clone + pip pins an old transformers; install only when explicitly requested.
+
+# Fully installed already (repo + models + isolated venv) -> instant idempotent exit.
+if ((Test-Path (Join-Path $targetDir 'api_v2.py')) -and (Test-Path $sentinel) -and (Test-Path $depsSentinel) -and $gptsovitsVenvReady -and -not $Force) {
+    Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'GPT-SoVITS repo + models + isolated venv already present' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
+    Write-Host "$SCRIPT_INDEX  Runtime: pycore launches api_v2.py (class C) under the isolated venv on demand; set GPTSOVITS_REF_AUDIO to a reference clip." -ForegroundColor Cyan
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+}
+# EXPLICIT opt-in only: cloning the multi-GB repo + building the isolated venv takes
+# minutes, so run ONLY when the user asks (NOT via the default NEURAL_TTS batch). The
+# build is now SAFE -- the old-transformers pin lands in the venv, never the main interp.
 if (-not $doFull -and -not $Force) {
-    Write-Host "$SCRIPT_INDEX [i] opt-in only -> NOT installing. Pass -Full, GPTSOVITS_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch')
+    Write-Host "$SCRIPT_INDEX [i] opt-in only -> NOT installing. Pass -Full or GPTSOVITS_INSTALL=1." -ForegroundColor DarkGray
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+}
+
+if (-not $resolvedPython) {
+    Write-Host "$SCRIPT_INDEX [!] Python 3 not found; cannot install. Run Step8_InstallPython first." -ForegroundColor DarkYellow
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
 }
 
 $hasCuda = Test-CudaPresent
-Write-TtsOfficialEnv -PythonExe $Python -Engine gptsovits -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
+Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine gptsovits -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 Write-Host ("$SCRIPT_INDEX  staging : {0}" -f $targetDir) -ForegroundColor DarkGray
 Write-Host ("$SCRIPT_INDEX  models  : {0}" -f $modelsDir) -ForegroundColor DarkGray
+Write-Host ("$SCRIPT_INDEX  venv    : {0}" -f $(if ($gptsovitsVenvReady) { 'provisioned' } else { 'absent' })) -ForegroundColor DarkGray
 Write-Host ("$SCRIPT_INDEX  compute : {0}" -f $(if ($hasCuda) { 'CUDA GPU -> GPU build + models' } else { 'CPU only -> CPU build' })) -ForegroundColor DarkGray
-
-$resolvedPython = $Global:PYTHON_EXE_PATH
-if (-not $resolvedPython) {
-    Write-Host "$SCRIPT_INDEX [!] Python 3 not found; cannot install. Run Step8_InstallPython first." -ForegroundColor DarkYellow
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch')
-}
 
 # 1) clone (idempotent: skip if the repo is already there) ---------------- #
 if (Test-Path (Join-Path $targetDir 'api_v2.py')) {
@@ -117,36 +145,46 @@ if (Test-Path (Join-Path $targetDir 'api_v2.py')) {
     $git = Get-Command git -ErrorAction SilentlyContinue
     if (-not $git) {
         Write-Host "$SCRIPT_INDEX [!] git not found; cannot clone GPT-SoVITS. Install git, then re-run." -ForegroundColor DarkYellow
-        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch')
+        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
     }
     Write-Host ("$SCRIPT_INDEX [..] cloning {0} -> {1} (progress shown)" -f $REPO_URL, $targetDir) -ForegroundColor Yellow
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $targetDir) | Out-Null
     try { & git.exe clone --depth 1 --progress $REPO_URL $targetDir } catch {
         Write-Host ("$SCRIPT_INDEX [!] clone failed: {0}" -f $_.Exception.Message) -ForegroundColor DarkYellow
-        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch')
+        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
     }
 }
 
-# 2) torch (CPU/GPU) + requirements -- ONE-TIME via a .deps_done sentinel.
-# Re-running pip every boot caused a huggingface_hub upgrade<->downgrade ping-pong
-# (the repo requirements pin transformers, which needs huggingface_hub<1.0) and
-# repeatedly rebuilt native deps. Do it once; skip forever after.
-if ((Test-Path $depsSentinel) -and -not $Force) {
-    Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'dependencies already installed (.deps_done)' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
+# 2) isolated per-engine venv (Bucket B) + the system torch it reuses -- ONE-TIME via a
+#    .deps_done sentinel + a venv-ready probe. GPT-SoVITS's requirements.txt pins an OLD
+#    transformers that would clobber the shared Bucket-A pin, so it is installed INTO a
+#    DEDICATED venv (isolated_venv.ensure_venv, --system-site-packages reuses the system
+#    CUDA torch), NEVER the main interpreter. Self-repairing: ensure_venv re-runs an
+#    import-health probe and rebuilds a broken venv. pycore launches api_v2.py under this
+#    venv. See lifecycle doc §5/§7.
+if ((Test-Path $depsSentinel) -and $gptsovitsVenvReady -and -not $Force) {
+    Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'isolated venv already provisioned (.deps_done)' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 } else {
+    # System CUDA torch the venv will REUSE (idempotent), plus the huggingface_hub the
+    # weight downloader falls back to (install only when MISSING -- NEVER --upgrade).
+    # Neither touches the shared transformers pin.
     Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
-    # huggingface_hub: snapshot_download works on the version the repo pins, so only
-    # install when it is MISSING -- NEVER --upgrade (that breaks transformers).
     if (-not (Test-PycorePythonModulePresent -PythonExe $resolvedPython -ModuleName 'huggingface_hub')) {
         try { & $Global:PIP_EXE_PATH install huggingface_hub } catch { }
     }
     $reqFile = Join-Path $targetDir 'requirements.txt'
     if (Test-Path $reqFile) {
-        Write-Host "$SCRIPT_INDEX [..] pip install -r requirements.txt (one-time) ..." -ForegroundColor Yellow
-        try { & $Global:PIP_EXE_PATH install -r $reqFile } catch { Write-Host "$SCRIPT_INDEX [!] some requirements failed." -ForegroundColor DarkYellow }
+        Write-Host "$SCRIPT_INDEX [..] building/verifying isolated gptsovits venv (ensure_venv -r requirements.txt; first build takes minutes) ..." -ForegroundColor Yellow
+        $gptsovitsVenvReady = Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'gptsovits' -PipPackages @('-r', $reqFile) -HealthImports 'import torch, transformers' -Force:$Force
+    } else {
+        Write-Host "$SCRIPT_INDEX [!] requirements.txt not found in the cloned repo; cannot build the isolated venv." -ForegroundColor DarkYellow
     }
-    Set-Content -Path $depsSentinel -Value (Get-Date -Format o) -Encoding utf8
-    Write-Host "$SCRIPT_INDEX [OK] dependencies installed (.deps_done written; won't re-run)." -ForegroundColor Green
+    if ($gptsovitsVenvReady) {
+        Set-Content -Path $depsSentinel -Value (Get-Date -Format o) -Encoding utf8
+        Write-Host "$SCRIPT_INDEX [OK] isolated gptsovits venv ready; main interpreter transformers pin left untouched (.deps_done written)." -ForegroundColor Green
+    } else {
+        Write-Host "$SCRIPT_INDEX [!] venv build incomplete; will retry next run (main interpreter untouched)." -ForegroundColor DarkYellow
+    }
 }
 
 # 3) pretrained models from HuggingFace (IDEMPOTENT: sentinel + curl resume) #
@@ -175,7 +213,6 @@ if ((Test-Path $sentinel) -and -not $Force) {
 }
 
 Write-Host "$SCRIPT_INDEX [OK] GPT-SoVITS ready ($targetDir)." -ForegroundColor Green
-$gpuFlag = if ($hasCuda) { '' } else { ' (CPU: slower)' }
-Write-Host ("$SCRIPT_INDEX  START the server{0}:  cd `"{1}`"; python api_v2.py   (serves {2})" -f $gpuFlag, $targetDir, $serverUrl) -ForegroundColor Cyan
-Write-Host "$SCRIPT_INDEX  Then set GPTSOVITS_REF_AUDIO (+ optional GPTSOVITS_PROMPT_TEXT/LANG) to a reference clip." -ForegroundColor Cyan
-Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch')
+Write-Host "$SCRIPT_INDEX  Runtime: pycore launches api_v2.py (class C) under the isolated venv on demand; no manual start needed." -ForegroundColor Cyan
+Write-Host "$SCRIPT_INDEX  Then set GPTSOVITS_REF_AUDIO (+ optional GPTSOVITS_PROMPT_TEXT/LANG) to a reference clip to enable the engine." -ForegroundColor Cyan
+Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()

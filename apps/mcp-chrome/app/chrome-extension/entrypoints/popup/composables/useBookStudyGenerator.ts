@@ -35,6 +35,7 @@ import {
 } from './useArticleStudyGuide';
 import { buildBookStudySegmentPrompt, type BookStudySlot } from './promptPresets';
 import { parseStudySegmentReply } from './studyReplyParser';
+import { studyGenPath } from '@/utils/api-paths';
 
 const LOG = 'Book Study Generator';
 
@@ -154,7 +155,7 @@ export function useBookStudyGenerator() {
 
   const keyOf = (sourceType: string, sourceKey: string): string => `${sourceType}:${sourceKey}`;
   const apiBase = (): string => apiBaseNormalized() || apiManager.getCurrentBaseUrl().replace(/\/+$/, '');
-  const studyUrl = (path: string): string => `${apiBase()}/api/app_qy_v1/study-gen/${path}`;
+  const studyUrl = (path: string): string => `${apiBase()}${studyGenPath(path)}`;
 
   const ensureClaimer = (): void => {
     if (!claimerId.value) {

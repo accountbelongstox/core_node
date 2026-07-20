@@ -76,6 +76,14 @@ export {
 } from './PycoreCapabilityStore';
 export type { PycoreCapabilityState, CapabilityKey, PycoreCapabilityHook } from './PycoreCapabilityStore';
 
+export {
+  PYCORE_ENGINE_LOAD_EVENT,
+  getPycoreEngineLoadState,
+  subscribePycoreEngineLoad,
+  usePcEngineLoadStatus,
+} from './PycoreEngineLoadStore';
+export type { PycoreEngineLoadState, PycoreEngineLoadHook } from './PycoreEngineLoadStore';
+
 export * from './pycoreTypes';
 export * from './ttsEngineState';
 export * from './PycoreVocabTypes';

@@ -5,11 +5,12 @@
 import type { ITaskProcessor, ProcessorConfig, ProcessorStatus } from './ITaskProcessor';
 import type { WorkerCapability } from '../../../api/WorkerApiClient';
 import { mediaImageWorkerService } from '../../media-image-worker-service';
+import { LANES } from '@/utils/task-center-lanes';
 
 class MediaImageProcessor implements ITaskProcessor {
-  readonly processorType = 'media_image';
+  readonly processorType = LANES.MEDIA_IMAGE;
   readonly processorName = 'Poster & Cover (Google Images)';
-  readonly processorTypes: string[] = ['remote_poster'];
+  readonly processorTypes: string[] = [LANES.REMOTE_POSTER];
   readonly capabilities: WorkerCapability[] = ['poster'];
   readonly concurrency = 1;
 

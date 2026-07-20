@@ -6,6 +6,12 @@ Cheap TTS engine install vs runtime-ready probes for status UI.
 cloned repo, or model cache) without network or heavy import.
 ``engine_unavailable_reason`` — human hint when an engine is off (not installed,
 missing config, server down, or model files absent).
+
+qwen3tts and melotts are class-C isolated-venv HTTP servers (see
+development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5): their
+readiness is the DEDICATED per-engine venv (qwen3tts_venv.venv_ready /
+isolated_venv.venv_ready("melotts")), NOT a main-interpreter qwen_tts/melo import -
+those pinned packages are never installed in the main interpreter.
 """
 
 import importlib.util
@@ -24,6 +30,10 @@ from pycore.pyutils.tts import fishspeech_engine
 from pycore.pyutils.tts import sherpa_engine
 from pycore.pyutils.tts import kokoro_engine
 from pycore.pyutils.tts import azure_engine
+from pycore.pyutils.tts import qwen3tts_engine
+from pycore.pyutils.tts import qwen3tts_venv
+from pycore.pyutils.tts import melotts_engine
+from pycore.pyutils.tts import isolated_venv
 
 
 _STAGING_ENV: Dict[str, str] = {
@@ -85,11 +95,13 @@ def engine_installed(name: str) -> bool:
             or _staging_clone_ready("fishspeech", ("tools/api_server.py",))
         )
     if name == "qwen3tts":
-        return _spec("qwen_tts") or staging_deps_done("qwen3tts")
+        # Class C: readiness is the isolated venv (real `import qwen_tts` inside it),
+        # never a main-interpreter qwen_tts probe.
+        return qwen3tts_venv.venv_ready()
     if name == "bark":
         return (_spec("transformers") and _spec("scipy")) or staging_deps_done("bark")
     if name == "parler":
-        return _spec("parler_tts") or staging_deps_done("parler")
+        return False  # disabled: conflicts with qwen-tts transformers pin
     if name == "voxcpm2":
         return _spec("voxcpm") or staging_deps_done("voxcpm2")
     if name == "kokoro":
@@ -105,7 +117,10 @@ def engine_installed(name: str) -> bool:
     if name == "f5tts":
         return staging_deps_done("f5tts") or _spec("f5_tts")
     if name == "melotts":
-        return _spec("melo")
+        # Class C: readiness is the per-engine isolated venv (real `import melo`
+        # inside it), never a main-interpreter melo probe - melo pins an old
+        # transformers and must not be installed in the main interpreter.
+        return isolated_venv.venv_ready("melotts")
     if name == "sherpa":
         return _spec("sherpa_onnx")
     if name == "edge":
@@ -121,6 +136,22 @@ def engine_installed(name: str) -> bool:
 
 def engine_unavailable_reason(name: str) -> Optional[str]:
     """Why an engine cannot synthesize now; None when no hint applies."""
+    if name == "qwen3tts":
+        # Class C: distinguish "venv not built" (needs the installer) from a
+        # provisioned-but-not-yet-serving state (defer to the HTTP client hint).
+        if not qwen3tts_venv.venv_ready():
+            return (
+                "Qwen3-TTS isolated venv not built - run Step61_InstallQwen3Tts.ps1 / "
+                "140_install_qwen3tts.sh"
+            )
+        return qwen3tts_engine.disabled_reason()
+
+    if name == "melotts":
+        # Class C: readiness is the per-engine isolated venv (see engine_installed).
+        if not isolated_venv.venv_ready("melotts"):
+            return melotts_engine.disabled_reason()
+        return None
+
     if not engine_installed(name):
         return _NOT_INSTALLED
 
@@ -179,8 +210,8 @@ def engine_unavailable_reason(name: str) -> Optional[str]:
     if name == "edge":
         return "edge-tts client failed to initialize (check package / network)"
 
-    if name in ("melotts", "bark", "parler", "qwen3tts", "voxcpm2", "gtts_web"):
-        return None
+    if name == "parler":
+        return "Parler-TTS is disabled because qwen-tts requires transformers==4.57.3"
 
     return None
 

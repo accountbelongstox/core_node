@@ -1,18 +1,21 @@
 /**
  * PcSentenceQueuePanel — dedicated sentence-audio generation queue (Queue Center tab).
- * Shows Laravel missing rows, pycore worker events, and priority-bump highlights.
+ * Single merged panel: status row, current-task banner, Laravel missing rows,
+ * worker events log, and the voice-variant editor as a collapsible sub-section.
+ * Reachability comes from the shared hub (task-center), never from the snapshot.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  MessageSquareText, RefreshCw, AlertTriangle, Zap, Loader2, Play, ChevronDown, ChevronUp,
+  MessageSquareText, RefreshCw, AlertTriangle, Zap, Loader2, Play, ChevronDown, ChevronUp, Cpu,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { SentenceAudioQueueSnapshot } from '../../../core/api-libs/pycore/pycoreTypes';
+import { pycoreApi, ttsConcurrencyAnnotation } from '../../../core/api-libs/pycore';
+import type { SentenceAudioQueueSnapshot, SentenceWorkerTask, TtsStatus } from '../../../core/api-libs/pycore/pycoreTypes';
 
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
-
-const REFRESH_MS = 5000;
+import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
+import PcSentenceVoiceVariantsPanel from '../components/PcSentenceVoiceVariantsPanel';
+import PcTagFilteredLog from '../components/PcTagFilteredLog';
 
 type PcSentenceQueuePanelProps = QueueCenterPanelProps;
 
@@ -22,61 +25,37 @@ const preview = (text?: string | null, max = 72): string => {
   return t.length > max ? `${t.slice(0, max)}…` : t;
 };
 
-export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({
-  refreshTick = 0,
-  onMeta,
-}) => {
+export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({ onMeta }) => {
   const { t } = useTranslation('pc');
-  const [snap, setSnap] = useState<SentenceAudioQueueSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const hub = useQueueCenterHub();
+  // Snapshot from the SHARED hub (one poll for the whole page).
+  const raw = hub.sentenceQueue as any;
+  const snap: SentenceAudioQueueSnapshot | null =
+    raw && raw.success !== false ? (raw as SentenceAudioQueueSnapshot) : null;
+  const loading = hub.loading;
   const [busy, setBusy] = useState(false);
   const [logOpen, setLogOpen] = useState(true);
+  const [variantsOpen, setVariantsOpen] = useState(false);
+  const [actionErr, setActionErr] = useState<string | null>(null);
+  const [concurrencyInput, setConcurrencyInput] = useState(() => localStorage.getItem('pc_sentence_worker_concurrency') ?? '');
+  const err = actionErr || (hub.pycoreReachable ? null : hub.error);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
-  const fetchQueue = useCallback(async (silent = false) => {
-    if (!silent) {
-      setLoading(true);
-      onMeta?.({ count: null, loading: true });
-    }
-    try {
-      const r = await pycoreApi.getSentenceAudioQueue();
-      if (!mounted.current) return;
-      if (r && r.success !== false) {
-        setSnap(r);
-        setErr(null);
-        const total = r.queue?.total ?? r.queue?.items?.length ?? 0;
-        onMeta?.({ count: total, loading: false });
-      } else {
-        setErr((r as any)?.error || t('queueCenter.sentenceQueue.unavailable'));
-        onMeta?.({ count: null, loading: false });
-      }
-    } catch (e: any) {
-      if (!mounted.current) return;
-      setErr(e?.message || t('queueCenter.sentenceQueue.unavailable'));
-      onMeta?.({ count: null, loading: false });
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, [onMeta, t]);
-
-  const fetchRef = useRef(fetchQueue);
-  fetchRef.current = fetchQueue;
+  // Report the missing-rows count badge to the tab bar.
   useEffect(() => {
-    void fetchRef.current(false);
-    const id = window.setInterval(() => { void fetchRef.current(true); }, REFRESH_MS);
-    return () => window.clearInterval(id);
-  }, []);
-  useEffect(() => { void fetchRef.current(true); }, [refreshTick]);
+    const total = snap ? (snap.queue?.total ?? snap.queue?.items?.length ?? 0) : null;
+    onMeta?.({ count: total, loading: hub.loading });
+  }, [snap, hub.loading, onMeta]);
 
   const runOnce = async () => {
     setBusy(true);
+    setActionErr(null);
     try {
       await pycoreApi.runSentenceAudioOnce();
-      await fetchQueue(true);
+      hub.refreshHub();
     } catch (e: any) {
-      if (mounted.current) setErr(e?.message || 'run-once failed');
+      if (mounted.current) setActionErr(e?.message || 'run-once failed');
     } finally {
       if (mounted.current) setBusy(false);
     }
@@ -84,8 +63,58 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({
 
   const items = snap?.queue?.items ?? [];
   const events = snap?.worker?.events ?? [];
-  const current = snap?.worker?.current_task;
-  const reachable = snap?.queue?.laravel_reachable !== false;
+  // Concurrent worker exposes a LIST of in-flight tasks; older builds a single dict.
+  const currentRaw = snap?.worker?.current_task;
+  const inFlight: SentenceWorkerTask[] = Array.isArray(currentRaw)
+    ? currentRaw
+    : currentRaw
+      ? [currentRaw]
+      : [];
+  // Reachability verdict comes ONLY from the shared hub (task-center remote_queue).
+  const reachable = hub.laravelReachable !== false;
+
+  // Status-row figures: live heartbeat + Laravel counts from the shared voice
+  // status, worker totals from the queue snapshot (falling back to the status).
+  const voiceSentence = hub.voiceSentence;
+  const heartbeatOn = snap?.worker?.heartbeat_enabled ?? voiceSentence?.heartbeat_enabled ?? false;
+  const laravelPending = voiceSentence?.laravel?.pending ?? null;
+  const laravelLeased = voiceSentence?.laravel?.leased ?? null;
+  const totalClaimed = snap?.worker?.total_claimed ?? voiceSentence?.worker?.total_claimed ?? null;
+  const totalSucceeded = snap?.worker?.total_succeeded ?? voiceSentence?.worker?.total_succeeded ?? null;
+  const totalFailed = snap?.worker?.total_failed ?? voiceSentence?.worker?.total_failed ?? null;
+
+  // Sentence-audio engine indicator (presentational): sentence TTS is qwen3tts-first
+  // (GPU neural voice). Read the qwen3tts entry from the shared TTS status; when it is
+  // not ready (venv not ready / server down) show the highest-priority available fallback engine.
+  const ttsRaw = hub.tts as any;
+  const ttsStatus: TtsStatus | null =
+    ttsRaw && ttsRaw.success !== false && Array.isArray(ttsRaw.engines) ? (ttsRaw as TtsStatus) : null;
+  const qwen = ttsStatus?.engines?.find((e) => e.name === 'qwen3tts') ?? null;
+  const qwenReady = !!qwen?.available;
+  const sentenceFallback = ttsStatus
+    ? ((ttsStatus.engines ?? [])
+        .filter((e) => e.name !== 'qwen3tts' && e.available)
+        .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))[0]?.name
+        ?? ttsStatus.active
+        ?? null)
+    : null;
+
+  const activeEngineName = qwenReady ? 'qwen3tts' : sentenceFallback;
+  const activeEngine = ttsStatus?.engines?.find(e => e.name === activeEngineName);
+  const concurrencyAnn = ttsConcurrencyAnnotation(activeEngine?.concurrency, activeEngineName || '');
+  const isSerialEngine = (activeEngine?.concurrency ?? (activeEngineName === 'edge' ? 'serial' : undefined)) === 'serial';
+
+  const workerConcurrency = snap?.worker?.concurrency ?? hub.voiceSentence?.concurrency;
+  const concurrencyRecommended = snap?.worker?.concurrency_recommended ?? hub.voiceSentence?.concurrency_recommended;
+  const onConcurrencyChange = React.useCallback((raw: string) => {
+    setConcurrencyInput(raw);
+    localStorage.setItem('pc_sentence_worker_concurrency', raw);
+    const n = Math.min(8, Math.max(0, parseInt(raw, 10) || 0));
+    setActionErr(null);
+    pycoreApi.setSentenceAudioConcurrency(n, hub.voiceSentence?.auto_start === true)
+      .then(() => hub.refreshHub())
+      .catch((e: any) => setActionErr(e?.message || 'concurrency save failed'));
+  }, [hub]);
 
   return (
     <div className="space-y-3">
@@ -95,6 +124,9 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({
           {t('queueCenter.sentenceQueue.title')}
         </span>
         <span className="text-[10px] text-slate-400">{t('queueCenter.sentenceQueue.subtitle')}</span>
+        {snap?.queue?.total != null && (
+          <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-500">{snap.queue.total}</span>
+        )}
         {!reachable && (
           <span className="text-[10px] text-amber-500 inline-flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" /> Laravel unreachable
@@ -105,23 +137,90 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({
           {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
           {t('queueCenter.sentenceAudio.runOnce')}
         </button>
-        <button type="button" onClick={() => fetchQueue(false)} disabled={loading}
+        <button type="button" onClick={() => hub.refreshHub()} disabled={loading}
           className="ml-auto p-1.5 rounded-lg pc-glass hover:bg-teal-500/10 text-teal-500 transition disabled:opacity-50">
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {current && (
-        <div className="pc-glass p-2.5 text-[11px] font-mono text-teal-600 dark:text-teal-300">
-          <span className="text-slate-400 uppercase text-[9px] tracking-wide mr-2">synthesizing</span>
-          [{current.language}] p={current.priority} · {preview(current.content as string, 96)}
-          {(current as any).variant_count > 1 && (
-            <span className="ml-2 text-sky-400">
-              · variant {(current as any).current_variant_index}/{(current as any).variant_count}
-              {' '}({(current as any).current_variant_key || 'primary'})
-              {' '}via <b>{(current as any).current_provider || 'pending'}</b>
+      {ttsStatus && (
+        <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-slate-500">
+          <Cpu className="w-3 h-3 text-teal-400 shrink-0" />
+          <span className="uppercase tracking-wide text-slate-400">
+            {t('queueCenter.sentenceQueue.engineLabel')}
+          </span>
+          {qwenReady ? (
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+              title={t('queueCenter.sentenceQueue.engineQwenTitle')}>
+              qwen3tts
+              <span className="font-mono text-[9px] opacity-80">{t('queueCenter.sentenceQueue.engineGpu')}</span>
+              {qwen?.server_running && <span className="font-mono text-[9px] opacity-80">svc</span>}
+            </span>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400"
+              title={qwen?.disabled_reason || qwen?.note || t('queueCenter.sentenceQueue.engineFallbackTitle')}>
+              <AlertTriangle className="w-3 h-3 shrink-0" />
+              {sentenceFallback
+                ? t('queueCenter.sentenceQueue.engineFallback', { engine: sentenceFallback })
+                : t('queueCenter.sentenceQueue.engineFallbackNone')}
             </span>
           )}
+          {concurrencyAnn && (
+            <span className="text-[10px] font-mono text-slate-500">{concurrencyAnn}</span>
+          )}
+          <label className="inline-flex items-center gap-1 text-[10px] text-slate-400 ml-2">
+            concurrency
+            <input
+              type="text"
+              value={isSerialEngine ? '1' : concurrencyInput || (workerConcurrency ? String(workerConcurrency) : '')}
+              placeholder={concurrencyRecommended ? String(concurrencyRecommended) : 'auto'}
+              onChange={(e) => onConcurrencyChange(e.target.value)}
+              disabled={isSerialEngine}
+              title={isSerialEngine
+                ? 'Serial engine — concurrency is fixed at 1'
+                : 'pycore sentence worker concurrency (0/empty = recommended)'}
+              className="w-20 rounded border border-slate-600 bg-slate-800 px-2 py-0.5 text-xs text-slate-200 disabled:opacity-50"
+            />
+          </label>
+        </div>
+      )}
+
+      {/* status row: live heartbeat + Laravel counts + worker totals */}
+      <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-[10px] font-mono text-slate-500">
+        <span className={`inline-flex items-center gap-1 ${heartbeatOn ? 'text-emerald-500' : 'text-slate-400'}`}
+          title="Sentence worker live heartbeat">
+          <span className={`w-1.5 h-1.5 rounded-full ${heartbeatOn ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+          heartbeat {heartbeatOn ? 'on' : 'off'}
+        </span>
+        <span title="Laravel sentence-audio queue (pending / leased)">
+          laravel pending <b className="text-sky-500">{laravelPending ?? '—'}</b>
+          {' · '}leased <b className="text-violet-500">{laravelLeased ?? '—'}</b>
+        </span>
+        <span title="Worker totals (this process)">
+          claimed <b className="text-slate-700 dark:text-slate-300">{totalClaimed ?? 0}</b>
+          {' · '}ok <b className="text-emerald-500">{totalSucceeded ?? 0}</b>
+          {' · '}fail <b className={totalFailed ? 'text-rose-500' : 'text-slate-700 dark:text-slate-300'}>{totalFailed ?? 0}</b>
+        </span>
+      </div>
+
+      {inFlight.length > 0 && (
+        <div className="space-y-1.5">
+          {inFlight.map((task, i) => (
+            <div key={task.task_id ?? task.content_id ?? i}
+              className="pc-glass p-2.5 text-[11px] font-mono text-teal-600 dark:text-teal-300">
+              <span className="text-slate-400 uppercase text-[9px] tracking-wide mr-2">synthesizing</span>
+              [{task.language}] p={task.priority} · {preview(task.content as string, 96)}
+              {(task.variant_count ?? 0) > 1 && (
+                <span className="ml-2 text-sky-400">
+                  · variant {task.current_variant_index}/{task.variant_count}
+                  {' '}({task.current_variant_key || 'primary'})
+                  {' '}via <b>{task.current_provider || 'pending'}</b>
+                </span>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
@@ -182,6 +281,27 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({
               </li>
             ))}
           </ul>
+        )}
+      </div>
+
+      {/* Live pycore_log stream filtered to the sentence TTS worker + qwen3tts subprocess. */}
+      <PcTagFilteredLog
+        tags={['[TTSSentenceWorker]', '[qwen3tts]', '[managed]']}
+        title="Live log (qwen3tts + worker)"
+        emptyHint="No qwen3tts / sentence-worker log lines yet."
+      />
+
+      {/* Voice variants editor — merged into this panel as a collapsible sub-section. */}
+      <div className="pc-glass overflow-hidden">
+        <button type="button" onClick={() => setVariantsOpen((v) => !v)}
+          className="w-full px-3 py-2 flex items-center justify-between text-[10px] uppercase tracking-wide text-slate-400 hover:bg-slate-500/5">
+          <span>Voice variants (per-language accent / gender)</span>
+          {variantsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
+        {variantsOpen && (
+          <div className="p-2 border-t border-slate-500/10">
+            <PcSentenceVoiceVariantsPanel />
+          </div>
         )}
       </div>
     </div>

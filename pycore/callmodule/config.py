@@ -42,6 +42,16 @@ from pycore.callmodule.rpc_routes import (
     register_local_engine_test_routes,
 )
 
+# Structured pycore->Laravel request recorder: every LaravelClient call (and the
+# endpoint-manager health probe) notify it. Wired below into a 'laravel_http' WS
+# event so the dashboard PcHttpDebugger sees URL/params/status/duration live.
+from pycore.callmodule.services.sync.laravel_http_recorder import register_laravel_http_callback
+
+# Unified priority-bump hub (any queue lane): wired below into a 'queue_bump'
+# WS event so the dashboard PcQueueBumpToasts sees bumps pushed in real time
+# (the 4s poll stays as fallback).
+from pycore.callmodule.services.queue_bump_hub import register_queue_bump_callback
+
 # Unified AI gateway -> desktop pipeline composition (pyctl/* packages must not
 # import each other, so the APP layer wires the gateway into the desktop hooks).
 from pycore.pyctl.ai import generate_text as ai_generate_text, describe_image as ai_describe_image
@@ -79,6 +89,7 @@ from pycore.callmodule.routers.local import (
     ocr_status_router,
     tts_status_router,
     stt_status_router,
+    engines_load_status_router,
     speech_history_router,
     capability_status_router,
     translation_queue_router,
@@ -96,6 +107,7 @@ from pycore.callmodule.routers.local import (
     heartbeat_workers_router,
     agent_history_router,
     task_settings_router,
+    version_router,
 )
 
 # Import upload layer routers (NEW)
@@ -317,6 +329,23 @@ def _init_rpc_routes(server):
         # Live backend output -> UI ('pycore_log') needs NO wiring here: ColorPrint
         # streams every line to this server's WS clients directly (the server
         # registered itself + enabled streaming in FastAPIRPCServer.__init__).
+        # Structured pycore->Laravel request records -> UI 'laravel_http' WS event
+        # (PcHttpDebugger). Mirrors the ColorPrint->pycore_log pipe but carries
+        # structured fields (method/path/params/status/ms) instead of free text.
+        try:
+            def _laravel_http_ws_callback(record):
+                server.broadcast_event_sync("laravel_http", record)
+            register_laravel_http_callback(_laravel_http_ws_callback)
+        except Exception as e:
+            ColorPrint.yellow(f"[ConfigBuilder] laravel_http WS bridge not wired: {e}")
+        # Priority-bump records (any queue lane) -> UI 'queue_bump' WS event
+        # (PcQueueBumpToasts). Same observer pattern as the laravel_http bridge.
+        try:
+            def _queue_bump_ws_callback(record):
+                server.broadcast_event_sync("queue_bump", record)
+            register_queue_bump_callback(_queue_bump_ws_callback)
+        except Exception as e:
+            ColorPrint.yellow(f"[ConfigBuilder] queue_bump WS bridge not wired: {e}")
         ColorPrint.green("[ConfigBuilder] Registered RPC WS bridge (thread_bus.trigger_event + broadcasts)")
     except Exception as e:
         ColorPrint.yellow(f"[ConfigBuilder] Failed to register RPC WS bridge: {e}")
@@ -413,6 +442,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 ocr_status_router,       # OCR engine availability (/api/local/ocr/status): windows/easyocr/cnocr priority
                 tts_status_router,       # TTS live availability + version (/api/local/tts/status) + live /test per engine
                 stt_status_router,       # STT engine availability (/api/local/stt/status) + live /test: faster-whisper/whisper/vosk/azure
+                engines_load_status_router, # Unified model-load progress for ALL engines (/api/local/engines/load-status): class-B models + class-C servers, TTS+STT
                 speech_history_router,   # Speech (TTS/STT) clip history (/api/local/speech/history): list/file/reveal/delete/clear for the Records timeline
                 capability_status_router,# CUDA/GPU readiness + free-library availability (/api/local/capabilities/status)
                 translation_queue_router,# Translation queue monitor + control proxy (/api/local/translation/queue)
@@ -430,6 +460,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 word_audio_router,       # Real word pronunciation chain status+test (/api/local/word-audio): free-dict/cambridge/forvo + base64 audio
                 agent_history_router,    # Local AI agent history (/api/local/agent-history): Claude/Codex/Cursor/Gemini txt store
                 task_settings_router,    # Per-task-type capability chains (/api/local/task-settings/chains)
+                version_router,          # Code-version chip: pycore own newest-source mtime + proxied laravel version (/api/local/version)
 
                 # === Upload Layer Routers ===
                 upload_router,           # Upload task management and server config

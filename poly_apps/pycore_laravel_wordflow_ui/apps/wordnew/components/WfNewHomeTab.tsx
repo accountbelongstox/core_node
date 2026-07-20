@@ -14,7 +14,7 @@ import {
 import { useShell } from '../../../shell/ShellContext';
 // Single data gateway — mock vs real backend is decided ONLY by ./api/index.ts
 // (swap one import line there). All data shapes come from the same TYPE surface.
-import { wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WFNEW_API_HEALTH_EVENT, startSocialSse, stopSocialSse, subscribeSocial } from '../api';
+import { wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WFNEW_API_HEALTH_EVENT, startSocialSse, stopSocialSse, subscribeSocial, DEFAULT_VOCAB_GROUP_NAME } from '../api';
 import type { Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind, WfNewHomeContent, WfNewStatistics, WfNewLanguage, WfNewSuperAdminStatus } from '../api';
 // Unified local cache (CapDatabase: native SQLite / web IndexedDB). Lets the home
 // hub paint INSTANTLY from cache, then refresh from the API, and lets a re-opened
@@ -70,6 +70,7 @@ import { WfNewNotificationBell } from './WfNewNotificationBell';
 
 interface WfNewHomeTabProps {
   activeTheme: ElementTheme; trans: (k: string, r?: Record<string, string|number>) => string;
+  lang: string;
   dark: boolean; currentUser: any; nickname: string; avatarUrl: string; statistics: any;
   gGroups: WordGroup[]; bentoGroups: BentoGroup[]; userStats: UserStats;
   languageOptions: WfNewLanguage[]; homeContent: WfNewHomeContent; homeContentLoading: boolean;
@@ -85,7 +86,26 @@ interface WfNewHomeTabProps {
 }
 
 export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
-  const { activeTheme, trans, dark, currentUser, nickname, avatarUrl, statistics, gGroups, bentoGroups, userStats, languageOptions, homeContent, homeContentLoading, addToast, setActiveTab, setContentListKind, handleSaveDashboard, openHomeGroup, loadMoreGroups, selectBookCourse, startGroupPractice, startModePractice, addLibraryToStudy } = props;
+  const { activeTheme, trans, lang, dark, currentUser, nickname, avatarUrl, statistics, gGroups, bentoGroups, userStats, languageOptions, homeContent, homeContentLoading, addToast, setActiveTab, setContentListKind, handleSaveDashboard, openHomeGroup, loadMoreGroups, selectBookCourse, startGroupPractice, startModePractice, addLibraryToStudy } = props;
+
+  // The pinned Default Vocabulary Group as a content-group card model — shown
+  // ONCE, as the FIRST card of the WORD GROUPS section (it is the fixed
+  // default pack; any word groups the user adds follow after it). It used to
+  // ALSO render as a large hero card in the bento waterfall below — that
+  // duplicate is filtered out there.
+  const defaultWordGroup = useMemo<WfNewContentGroup | undefined>(() => {
+    const g = gGroups.find((gr) => gr.name === DEFAULT_VOCAB_GROUP_NAME) ?? gGroups[0];
+    if (!g) return undefined;
+    return {
+      id: g.id,
+      kind: 'word',
+      title: g.name,
+      count: g.count,
+      countUnit: 'words',
+      language: g.language,
+      description: g.description,
+    };
+  }, [gGroups]);
   return (
     <>
               {/* Unified learning dashboard. When LOGGED IN: identity + real backend
@@ -95,6 +115,7 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
               <WfNewHomeDashboard
                 activeTheme={activeTheme}
                 trans={trans}
+                lang={lang}
                 isLoggedIn={currentUser.isLoggedIn}
                 nickname={nickname}
                 avatarUrl={avatarUrl}
@@ -251,9 +272,12 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                   </button>
                 </div>
 
-                {/* Staggered Bento Grid */}
+                {/* Staggered Bento Grid. The Default Vocabulary Group is
+                    EXCLUDED here: it renders once, pinned as the first card of
+                    the WORD GROUPS section below (the large hero card here was
+                    its duplicate representation). */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-auto">
-                  {bentoGroups.map((group, idx) => {
+                  {bentoGroups.filter((group) => group.name !== DEFAULT_VOCAB_GROUP_NAME).map((group, idx) => {
                     // Match decoration variables
                     const progressVal = group.progress;
                     
@@ -434,6 +458,7 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                 loading={homeContentLoading}
                 theme={activeTheme}
                 trans={trans}
+                defaultWordGroup={defaultWordGroup}
                 onOpen={openHomeGroup}
                 onMore={(kind) => { setContentListKind(kind); setActiveTab('content-list'); }}
                 onNeedMore={loadMoreGroups}

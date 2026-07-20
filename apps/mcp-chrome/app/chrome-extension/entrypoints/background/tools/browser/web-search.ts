@@ -60,12 +60,15 @@ class WebSearchTool extends BaseBrowserToolExecutor {
           tab = allTabs.find((t) => t.url && t.url.includes(engineHost(engine)));
         }
         if (!tab?.id) {
-          tab = await chrome.tabs.create({ url, active: true });
+          // Drive the search tab in the BACKGROUND — readPage uses sendMessage,
+          // which works on an inactive tab, so the user's focus is never stolen.
+          tab = await chrome.tabs.create({ url, active: false });
         } else {
-          await chrome.tabs.update(tab.id, { url, active: true });
+          // Reuse: navigate without foregrounding (don't force-activate).
+          await chrome.tabs.update(tab.id, { url, active: false });
         }
       } else {
-        await chrome.tabs.update(tab.id, { url, active: true });
+        await chrome.tabs.update(tab.id, { url, active: false });
       }
 
       if (!tab?.id) {

@@ -38,10 +38,10 @@ function statusLabel(s: QueueItem['status']): { text: string; cls: string } {
 
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
 
-/** Contract with PcQueueCenterPage (shared panel props). */
-type PanelProps = QueueCenterPanelProps;
+/** Contract with PcQueueCenterPage (shared panel props + section live switch). */
+type PanelProps = QueueCenterPanelProps & { live?: boolean };
 
-const PcQueueManagerPanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => {
+const PcQueueManagerPanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta, live = true }) => {
   const [queue, setQueue] = useState<QueueItem[]>(() => loadQueueCache() ?? []);
   const [currentIndex, setCurrentIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,16 +69,19 @@ const PcQueueManagerPanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) 
     }
   }, []);
 
-  useEffect(() => { fetchQueue(); }, [fetchQueue]);
+  // Section live switch gates fetching (WS push updates stay active either way).
+  // Turning live off clears `loading` so "Loading queue…" never gets stuck when
+  // the switch is flipped before the first fetch completes.
+  useEffect(() => { if (live) fetchQueue(); else setLoading(false); }, [fetchQueue, live]);
 
   // Parent-driven refresh (manual button or the shared auto-refresh interval).
   const lastTick = useRef(refreshTick);
   useEffect(() => {
     if (refreshTick !== lastTick.current) {
       lastTick.current = refreshTick;
-      fetchQueue();
+      if (live) fetchQueue();
     }
-  }, [refreshTick, fetchQueue]);
+  }, [refreshTick, fetchQueue, live]);
 
   // Report count + loading up to the tab bar / shared spinner.
   useEffect(() => { onMeta?.({ count: queue.length, loading }); }, [queue.length, loading, onMeta]);

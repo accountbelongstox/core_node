@@ -115,6 +115,13 @@ function openSource(): void {
     diag('warn', 'EventSource unavailable — social realtime disabled');
     return;
   }
+  // No credential → the stream can only 401. Disarm so startSocialSse() can
+  // re-arm on the next login instead of reconnect-looping forever.
+  if (!readToken()) {
+    started = false;
+    diag('warn', 'no auth token — social realtime disabled until login');
+    return;
+  }
   const url = resolveUrl();
   manualClose = false;
   diag('info', `connecting (cursor=${lastId ?? 'tail'})`);
@@ -165,9 +172,16 @@ function openSource(): void {
 
   es.onerror = () => {
     if (manualClose) return;
-    diag('warn', `error — reopening with cursor=${lastId ?? 'tail'} in ${RECONNECT_MS / 1000}s`);
     closeSource();
+    // Token gone (logged out, or cleared after a 401 elsewhere) → stop the
+    // reconnect loop; startSocialSse() re-arms on the next login.
+    if (!readToken()) {
+      started = false;
+      diag('warn', 'stopped — no auth token');
+      return;
+    }
     manualClose = false;
+    diag('warn', `error — reopening with cursor=${lastId ?? 'tail'} in ${RECONNECT_MS / 1000}s`);
     scheduleReconnect();
   };
 }
