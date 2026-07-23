@@ -1,7 +1,13 @@
 <template>
   <div class="rounded-xl p-3 shadow-sm space-y-3" style="background: var(--surface); border: 1px solid var(--border)">
+    <TaskCapabilitySelector
+      title="生产任务 · Production tasks"
+      description="Laravel queue → MCP shared runtime → result write-back. Extension panels remain single-feature tests."
+      compact
+    />
+
     <div class="tk-cap-summary">
-      <span>Execution settings are managed in Settings Center.</span>
+      <span>Selections are synchronized with Settings Center.</span>
       <strong>{{ checkedNonStubKeys.length }} selected</strong>
       <span v-if="isRunning">{{ state.activeCapabilities.length }} active</span>
     </div>
@@ -20,7 +26,7 @@
         <button
           class="px-4 py-2 bg-purple-500 text-white font-medium rounded-lg hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm"
           @click="toggleCenter"
-          :disabled="!config.apiUrl"
+          :disabled="!config.apiUrl || (!isRunning && checkedNonStubKeys.length === 0)"
         >
           {{ isRunning ? 'Stop' : 'Start' }}
         </button>
@@ -137,10 +143,12 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref, computed, watch, type Ref } from 'vue';
+import { onMounted, ref, computed, watch } from 'vue';
 import { useTaskCenter } from '../../composables/useTaskCenter';
+import { useTaskCapabilities } from '../../composables/useTaskCapabilities';
 import { usePersistedRef } from '@/composables/usePersistedRef';
-import { CAPABILITIES, type CapabilityKey } from '@/utils/task-capabilities';
+import { CAPABILITIES } from '@/utils/task-capabilities';
+import TaskCapabilitySelector from '../TaskCapabilitySelector.vue';
 import UnifiedTaskCenter from './UnifiedTaskCenter.vue';
 
 const {
@@ -164,20 +172,12 @@ const showProcessors = usePersistedRef('tkShowProcessors', false);
 // Rendered straight from the shared catalog so the popup UI and the background
 // scheduler can never drift on which lanes a checkbox turns on. One persisted
 // ref per capability (survives popup blur/close), keyed by its catalog storageKey.
-const capState = CAPABILITIES.reduce(
-  (acc, def) => {
-    acc[def.key] = usePersistedRef(def.storageKey, false);
-    return acc;
-  },
-  {} as Record<CapabilityKey, Ref<boolean>>,
-);
+const {
+  capabilityState: capState,
+  enabledKeys: checkedNonStubKeys,
+} = useTaskCapabilities();
 
 const isRunning = computed(() => state.value.isRunning);
-
-// Checked, NON-stub keys — the exact `activeCapabilities` sent to the background.
-const checkedNonStubKeys = computed<CapabilityKey[]>(() =>
-  CAPABILITIES.filter((c) => !c.stub && capState[c.key].value).map((c) => c.key),
-);
 
 // Live switches: WHILE running, toggling a (non-stub) checkbox flips that lane
 // on/off immediately via set_capability — no full restart. While stopped, the
