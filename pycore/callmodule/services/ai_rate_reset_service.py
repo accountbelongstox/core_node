@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyctl.ai import prune_expired, clear_expired_cooldowns
 
 
@@ -34,15 +35,15 @@ class AiRateResetService:
     def __init__(self) -> None:
         self._tick_count = 0
         self._last_summary: Dict[str, Any] = {}
+        init_serialized_owner(self, "ai_rate_reset.state", "AiRateResetState", timeout=60.0)
 
+    @serialized_method
     def tick(self) -> None:
         """
         Heartbeat callback. NEVER raises (the heartbeat loop must not break).
         Prunes expired rate counters and clears elapsed cooldowns; only logs
         when something actually reset, to keep the tick quiet.
         """
-        # Rule §4: single-writer field — tick() only ever runs on the ONE
-        # heartbeat thread, so the increment needs no lock.
         self._tick_count += 1
         try:
             pruned = prune_expired()
@@ -62,20 +63,29 @@ class AiRateResetService:
         except Exception as e:  # noqa: BLE001 — keep the heartbeat alive
             ColorPrint.yellow(f"[AiRateReset] tick error: {e}")
 
+    @serialized_method
     def get_status(self) -> Dict[str, Any]:
         """Last reset summary (for status endpoints / debugging)."""
         return {"tick_count": self._tick_count, "last": self._last_summary}
 
 
-_service: Optional[AiRateResetService] = None
+class _AiRateResetProvider:
+    """Create and retain the service on one THREAD_BUS state owner."""
+
+    def __init__(self) -> None:
+        self._service: Optional[AiRateResetService] = None
+        init_serialized_owner(self, "ai_rate_reset.provider", "AiRateResetProvider")
+
+    @serialized_method
+    def get(self) -> AiRateResetService:
+        if self._service is None:
+            self._service = AiRateResetService()
+        return self._service
+
+
+_provider = _AiRateResetProvider()
 
 
 def get_ai_rate_reset_service() -> AiRateResetService:
     """Return the process-wide AiRateResetService singleton."""
-    global _service
-    # Rule §4: NO locks — module-global assignment is GIL-atomic (same idiom as
-    # pyheartbeat); the worst-case race is one duplicate instance built and
-    # discarded, harmless for this stateless-per-tick service.
-    if _service is None:
-        _service = AiRateResetService()
-    return _service
+    return _provider.get()

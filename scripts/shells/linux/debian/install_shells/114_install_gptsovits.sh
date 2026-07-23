@@ -13,14 +13,14 @@
 # under that venv (isolated_venv.resolve_python("gptsovits")) and the gptsovits engine talks
 # to it over HTTP as a managed class-C server, so the conflicting pins never touch the main
 # interpreter. The heavy clone + venv build + model download is nonetheless OPT-IN so a normal
-# boot is never ambushed — it runs only when requested (--full / GPTSOVITS_INSTALL=1 /
-# NEURAL_TTS_INSTALL=1); an already-built install (.deps_done) is still maintained + self-repaired.
+# boot is never ambushed — it runs only when requested (--full / GPTSOVITS_INSTALL=1);
+# an already-built install (.deps_done) is still maintained + self-repaired.
 # Everything is IDEMPOTENT (never re-clones/re-downloads what is present). CPU/GPU: CUDA
 # torch when a GPU is present, else CPU (the post-install torch_cpu_guard.sh also reconciles).
 # Repo: https://github.com/RVC-Boss/GPT-SoVITS ; models: HF lj1995/GPT-SoVITS.
 #
 # Invocation (prepare_pycore_prerequisites.sh):  install_gptsovits.sh --python <py> [--full] [--force]
-# Env: GPTSOVITS_SKIP=1 (skip), GPTSOVITS_INSTALL=1 / NEURAL_TTS_INSTALL=1 (== --full), GPTSOVITS_DIR, GPTSOVITS_URL
+# Env: GPTSOVITS_SKIP=1 (skip), GPTSOVITS_INSTALL=1 (== --full), GPTSOVITS_DIR, GPTSOVITS_URL
 set -uo pipefail
 
 PYTHON="python3"
@@ -53,7 +53,7 @@ while [[ $# -gt 0 ]]; do
 done
 SERVER_URL="${SERVER_URL%/}"
 # Env opt-in (mirrors --full): GPTSOVITS_INSTALL=1 enables a fresh install.
-[[ "${GPTSOVITS_INSTALL:-0}" == "1" || "${NEURAL_TTS_INSTALL:-0}" == "1" ]] && DO_FULL=1
+[[ "${GPTSOVITS_INSTALL:-0}" == "1" ]] && DO_FULL=1
 [[ "$FORCE" -eq 1 ]] && _GPTSOVITS_FORCE_PY=True
 
 resolve_python() {

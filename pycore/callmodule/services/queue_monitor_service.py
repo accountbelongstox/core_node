@@ -49,17 +49,20 @@ Logging: ColorPrint only (pycore rule). Networking: third-party `requests` via
 get_third_package_requests() (never a bare import). This module imports only
 pyfoundations + the sibling worker service (same layer) — never rpc_v2 / routers.
 
-Threading (PYTHON_PYCORE.md §4): no locks — the poll runs on a named Thread
-subclass, shared state is swapped via single GIL-atomic assignments, and every
-fresh snapshot is signalled over THREAD_BUS for cross-thread readers.
+Threading (PYTHON_PYCORE.md §4): polls and all mutable state are routed through
+THREAD_BUS-backed workers; fresh snapshots are also published on THREAD_BUS.
 """
 
-import threading
 import time
 from typing import Any, Dict, List, Optional
 
 # ColorPrint is the only allowed logger in pycore processors/services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 # requests is a third-party dep — always obtained through the lazy accessor.
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
@@ -79,17 +82,6 @@ _QUEUE_API_PREFIX = "/api/app_qy_v1/ai_tools/translation/queue"
 _BUS_SNAPSHOT = "translation_queue_monitor.snapshot"
 
 
-class QueueMonitorPollThread(threading.Thread):
-    """One queue-list poll on its own daemon thread (rule §4: Thread subclass)."""
-
-    def __init__(self, monitor: "QueueMonitorService") -> None:
-        super().__init__(daemon=True, name="queue-monitor-poll")
-        self._monitor = monitor
-
-    def run(self) -> None:
-        self._monitor._do_poll()
-
-
 class QueueMonitorService:
     """
     Translation queue monitor (singleton).
@@ -99,14 +91,6 @@ class QueueMonitorService:
     backs the control proxy (priority / stack) routes — those reuse this service's
     shared base URL + the same `requests` helper.
     """
-
-    _instance: Optional["QueueMonitorService"] = None
-
-    def __new__(cls, *args, **kwargs):
-        """Singleton — rule §4: class-attr assignment is GIL-atomic, no lock."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
 
     def __init__(self, laravel_api_url: str = "http://127.0.0.1:9000", bump_ttl_seconds: int = 30):
         """
@@ -124,8 +108,7 @@ class QueueMonitorService:
         self._bump_ttl = max(1, int(bump_ttl_seconds))
         self._http_timeout = 6  # seconds for list/priority/stack calls
 
-        # Cached snapshot state (rule §4: swapped via single GIL-atomic
-        # assignments — no locks anywhere in this service).
+        # Cached snapshot state is owned by one THREAD_BUS-backed worker.
         self._snapshot: Dict[str, Any] = {"summary": {}, "items": []}
         self._snapshot_ts = 0.0          # monotonic time of the last successful poll
         self._laravel_reachable = False
@@ -147,6 +130,12 @@ class QueueMonitorService:
         self._ws_connected = False
 
         self._initialized = True
+        init_serialized_owner(
+            self,
+            "translation_queue_monitor.state",
+            "TranslationQueueMonitorState",
+            timeout=90.0,
+        )
         ColorPrint.green(
             f"[QueueMonitor] Service initialized "
             f"(base={self._base_url()}, bump_ttl={self._bump_ttl}s)"
@@ -192,8 +181,7 @@ class QueueMonitorService:
         """
         Diff each task's priority vs the previous snapshot. A task whose priority
         INCREASED is flagged `recently_bumped` for `_bump_ttl` seconds and logged
-        once. Rule §4: both bump dicts are rebuilt locally, then swapped in with
-        one GIL-atomic assignment each (no lock needed).
+        once. Both bump dictionaries are updated on the state-owner thread.
         """
         now = time.monotonic()
         new_prev: Dict[Any, float] = {}
@@ -298,29 +286,28 @@ class QueueMonitorService:
         """
         PyHeartbeat callback (invoked every ~interval seconds WHEN ENABLED).
 
-        LIGHT: hand the fetch to a QueueMonitorPollThread and return immediately;
+        LIGHT: hand the fetch to a THREAD_BUS task and return immediately;
         skip when the previous poll is still running. The heartbeat thread never
         blocks on network I/O. NEVER raises into the heartbeat loop.
-        Rule §4: plain GIL-atomic flag guard + named Thread subclass, no lock.
+        Rule §4: lifecycle state and task data travel through THREAD_BUS.
         """
         try:
             if THREAD_BUS.get_signal(self._poll_running_signal, False):
                 return
             THREAD_BUS.signal(self._poll_running_signal, True)
-            QueueMonitorPollThread(self).start()
+            start_bus_task(self._do_poll, thread_name="queue-monitor-poll")
         except Exception as e:
             # Never propagate into the heartbeat thread; reset the guard so a
             # failed spawn does not wedge future ticks.
             THREAD_BUS.signal(self._poll_running_signal, False)
             ColorPrint.red(f"[QueueMonitor] poll_once error: {e}")
 
+    @serialized_method
     def _do_poll(self) -> None:
         """
         The actual poll: GET the queue list, cache the snapshot, run
-        bump-detection. Runs on the QueueMonitorPollThread (via poll_once) or
-        synchronously on a request thread (get_snapshot refresh=True).
-        Rule §4: state swaps are single GIL-atomic assignments; the snapshot is
-        also signalled over THREAD_BUS for cross-thread readers.
+        bump-detection. All mutable state is owned by the service's serialized
+        worker, and the resulting snapshot is published on THREAD_BUS.
         """
         try:
             body = self._fetch_list_at(self._poll_base_url())
@@ -351,12 +338,12 @@ class QueueMonitorService:
     # broadcasts arrive, so the cached snapshot reflects changes INSTANTLY instead
     # of waiting for the next 5s HTTP poll. The HTTP poll remains the safety-net
     # reconciler: if the WS drops, poll_once() re-syncs the full list. All updates
-    # are best-effort and reuse the same GIL-atomic swap + bump-detection logic
-    # (rule §4: build a new items list, then assign the snapshot once).
+    # are best-effort and execute on the same serialized state owner.
 
+    @serialized_method
     def set_ws_connected(self, connected: bool) -> None:
         """Record live WS connection status (surfaced as snapshot.ws_connected)."""
-        self._ws_connected = bool(connected)  # rule §4: single GIL-atomic assignment
+        self._ws_connected = bool(connected)
 
     def _find_item(self, items: List[Dict[str, Any]], task_id: Any) -> Optional[Dict[str, Any]]:
         """Locate an item by task_id (string-compared, since ids may be int/str)."""
@@ -366,6 +353,7 @@ class QueueMonitorService:
                 return it
         return None
 
+    @serialized_method
     def apply_task_queued(self, data: Dict[str, Any]) -> None:
         """
         Handle a Reverb `task.queued` event: insert/update the task in the cached
@@ -376,8 +364,7 @@ class QueueMonitorService:
         if task_id is None:
             return
         words = data.get("words") or []
-        # Rule §4: copy the current items, mutate the copy, then swap the whole
-        # snapshot in with one GIL-atomic assignment (no in-place shared edits).
+        # Copy the current items before updating the state-owner snapshot.
         items = [dict(it) for it in (self._snapshot.get("items") or [])]
         existing = self._find_item(items, task_id)
         new_item = {
@@ -399,6 +386,7 @@ class QueueMonitorService:
         self._apply_bump_detection(items)
         ColorPrint.blue(f"[QueueMonitor] WS task.queued -> task {task_id} ({len(words)} word(s))")
 
+    @serialized_method
     def apply_task_priority(self, data: Dict[str, Any]) -> None:
         """
         Handle a Reverb `task.priority` event: update the task's priority in the
@@ -408,8 +396,7 @@ class QueueMonitorService:
         if task_id is None or "priority" not in data:
             return
         new_priority = self._as_float(data.get("priority"))
-        # Rule §4: copy the current items, mutate the copy, then swap the whole
-        # snapshot in with one GIL-atomic assignment.
+        # Copy the current items before updating the state-owner snapshot.
         items = [dict(it) for it in (self._snapshot.get("items") or [])]
         existing = self._find_item(items, task_id)
         if existing is not None:
@@ -422,6 +409,7 @@ class QueueMonitorService:
         # an increase as `recently_bumped` (same logic the HTTP poll uses).
         self._apply_bump_detection(items)
 
+    @serialized_method
     def apply_task_completed(self, data: Dict[str, Any]) -> None:
         """
         Handle a Reverb `task.completed` event: mark the task completed in the
@@ -430,14 +418,13 @@ class QueueMonitorService:
         task_id = data.get("task_id")
         if task_id is None:
             return
-        # Rule §4: copy the current items, mutate the copy, then swap the whole
-        # snapshot in with one GIL-atomic assignment (no in-place shared edits).
+        # Copy the current items before updating the state-owner snapshot.
         items = [dict(it) for it in (self._snapshot.get("items") or [])]
         existing = self._find_item(items, task_id)
         if existing is not None:
             existing["status"] = "completed"
         # Clear any bump flag for a now-completed task (rebuilt, then swapped in
-        # once — concurrent readers always see a whole, stable dict).
+        # on the same state-owner thread).
         self._bumped_until = {
             tid: exp for tid, exp in self._bumped_until.items() if tid != task_id
         }
@@ -447,6 +434,7 @@ class QueueMonitorService:
 
     # -------------------- snapshot accessor (for the GET route) --------------------
 
+    @serialized_method
     def get_snapshot(self, refresh: bool = False) -> Dict[str, Any]:
         """
         Return the cached queue snapshot decorated with `recently_bumped`, plus
@@ -462,8 +450,6 @@ class QueueMonitorService:
             # async now) so ?refresh=1 still returns fresh data.
             self._do_poll()
 
-        # Rule §4: every read below is a single GIL-atomic attribute/dict op;
-        # writers only ever swap whole objects, never mutate them in place.
         items = self._decorate_items(self._snapshot.get("items") or [])
         summary = dict(self._snapshot.get("summary") or {})
         reachable = self._laravel_reachable
@@ -623,9 +609,9 @@ class QueueMonitorService:
 
     # -------------------- introspection --------------------
 
+    @serialized_method
     def get_status(self) -> Dict[str, Any]:
-        """Service status snapshot (read-only; rule §4: GIL-atomic reads only —
-        _bumped_until is grabbed once so the iteration sees a stable dict)."""
+        """Return a state-owner snapshot of the service status."""
         bumped_until = self._bumped_until
         return {
             "service": "Translation Queue Monitor",
@@ -645,6 +631,23 @@ class QueueMonitorService:
 # Global singleton accessor
 # ============================================================
 
+
+class _QueueMonitorProvider:
+    """Create and retain the service on one THREAD_BUS state owner."""
+
+    def __init__(self) -> None:
+        self._service: Optional[QueueMonitorService] = None
+        init_serialized_owner(self, "queue_monitor.provider", "QueueMonitorProvider")
+
+    @serialized_method
+    def get(self, laravel_api_url: str, bump_ttl_seconds: int) -> QueueMonitorService:
+        if self._service is None:
+            self._service = QueueMonitorService(laravel_api_url, bump_ttl_seconds)
+        return self._service
+
+
+_queue_monitor_provider = _QueueMonitorProvider()
+
 def get_queue_monitor_service(
     laravel_api_url: str = "http://127.0.0.1:9000",
     bump_ttl_seconds: int = 30,
@@ -659,4 +662,4 @@ def get_queue_monitor_service(
     Returns:
         The shared QueueMonitorService instance.
     """
-    return QueueMonitorService(laravel_api_url, bump_ttl_seconds)
+    return _queue_monitor_provider.get(laravel_api_url, bump_ttl_seconds)

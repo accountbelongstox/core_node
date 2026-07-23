@@ -15,6 +15,7 @@ import {
 } from '@/utils/qwen-tts-core';
 
 const LOG = 'Qwen TTS';
+let runQueue: Promise<void> = Promise.resolve();
 
 export async function saveQwenTtsProgress(patch: Partial<QwenTtsProgress>): Promise<void> {
   const prev = (await chrome.storage.local.get([QWEN_TTS_PROGRESS_KEY]))[QWEN_TTS_PROGRESS_KEY]
@@ -33,7 +34,16 @@ export async function getQwenTtsProgress(): Promise<QwenTtsProgress> {
   return stored ? { ...emptyQwenTtsProgress(), ...stored } : emptyQwenTtsProgress();
 }
 
-export async function runQwenTts(request: QwenTtsRequest): Promise<QwenTtsResult> {
+export function runQwenTts(request: QwenTtsRequest): Promise<QwenTtsResult> {
+  const run = runQueue.then(() => executeQwenTts(request));
+  runQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+async function executeQwenTts(request: QwenTtsRequest): Promise<QwenTtsResult> {
   const text = String(request.text || '').trim();
   const mode = request.mode || 'voice_design';
 

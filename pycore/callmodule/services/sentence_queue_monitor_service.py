@@ -6,16 +6,19 @@ Mirrors queue_monitor_service (translation) for the sentence-library lane so the
 Queue Center can show live rows, bump highlights, and generation activity while
 book-reader bumps tts_priority.
 
-Threading (PYTHON_PYCORE.md §4): no locks — poll runs on a named Thread
-subclass, shared state is swapped via single GIL-atomic assignments, and every
-fresh snapshot is published to THREAD_BUS for the FastAPI readers.
+Threading (PYTHON_PYCORE.md §4): polls and mutable state use THREAD_BUS-backed
+workers, and every fresh snapshot is published to THREAD_BUS.
 """
 
-import threading
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services.sync.laravel_endpoint_manager import resolve_laravel_base_url
@@ -30,27 +33,8 @@ _POLL_LIMIT = 100
 _BUS_SNAPSHOT = "sentence_queue_monitor.snapshot"
 
 
-class SentenceQueuePollThread(threading.Thread):
-    """One missing-rows poll on its own daemon thread (rule §4: Thread subclass)."""
-
-    def __init__(self, monitor: "SentenceQueueMonitorService") -> None:
-        super().__init__(daemon=True, name="sentence-queue-monitor-poll")
-        self._monitor = monitor
-
-    def run(self) -> None:
-        self._monitor._poll_worker()
-
-
 class SentenceQueueMonitorService:
     """Monitor missing sentence audio rows and detect tts_priority bumps."""
-
-    _instance: Optional["SentenceQueueMonitorService"] = None
-
-    def __new__(cls, *args, **kwargs):
-        """Singleton — rule §4: class-attr assignment is GIL-atomic, no lock."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
 
     def __init__(self, bump_ttl_seconds: int = 30) -> None:
         if getattr(self, "_initialized", False):
@@ -66,6 +50,12 @@ class SentenceQueueMonitorService:
         self._poll_running_signal = f"sentence_queue_monitor.poll_running.{id(self)}"
         THREAD_BUS.signal(self._poll_running_signal, False)
         self._initialized = True
+        init_serialized_owner(
+            self,
+            "sentence_queue_monitor.state",
+            "SentenceQueueMonitorState",
+            timeout=90.0,
+        )
 
     @staticmethod
     def _row_key(item: Dict[str, Any]) -> str:
@@ -157,7 +147,7 @@ class SentenceQueueMonitorService:
         return out
 
     def poll_once(self) -> None:
-        """Heartbeat callback — LIGHT: hand the fetch to a SentenceQueuePollThread
+        """Heartbeat callback — LIGHT: hand the fetch to a THREAD_BUS task
         and return immediately; skip when the previous poll is still running. The
         heartbeat thread never blocks on network I/O (mirrors the worker's
         supervise pattern). Rule §4: lifecycle state travels through THREAD_BUS."""
@@ -165,15 +155,15 @@ class SentenceQueueMonitorService:
             return
         THREAD_BUS.signal(self._poll_running_signal, True)
         try:
-            SentenceQueuePollThread(self).start()
+            start_bus_task(self._poll_worker, thread_name="sentence-queue-monitor-poll")
         except Exception as exc:  # noqa: BLE001 — never raise into heartbeat
             THREAD_BUS.signal(self._poll_running_signal, False)
             ColorPrint.red(f"[SentenceQueueMonitor] poll_once error: {exc}")
 
+    @serialized_method
     def _poll_worker(self) -> None:
         """Background poll: fetch missing rows, detect bumps, cache + publish
-        the snapshot (state swap is one GIL-atomic assignment; the same snapshot
-        is signalled over THREAD_BUS for FastAPI readers)."""
+        the snapshot on the state owner and publish it for FastAPI readers."""
         try:
             body = self._fetch_missing()
             if body is None:
@@ -213,6 +203,7 @@ class SentenceQueueMonitorService:
         finally:
             THREAD_BUS.signal(self._poll_running_signal, False)
 
+    @serialized_method
     def get_snapshot(self) -> Dict[str, Any]:
         snap = dict(self._snapshot)
         snap["snapshot_age_s"] = round(max(0.0, time.monotonic() - self._snapshot_ts), 1)
@@ -224,4 +215,25 @@ def get_sentence_queue_monitor_service(
     bump_ttl_seconds: int = 30,
 ) -> SentenceQueueMonitorService:
     """Get the SentenceQueueMonitorService singleton (idempotent)."""
-    return SentenceQueueMonitorService(bump_ttl_seconds=max(1, int(bump_ttl_seconds)))
+    return _sentence_queue_monitor_provider.get(max(1, int(bump_ttl_seconds)))
+
+
+class _SentenceQueueMonitorProvider:
+    """Create and retain the service on one THREAD_BUS state owner."""
+
+    def __init__(self) -> None:
+        self._service: Optional[SentenceQueueMonitorService] = None
+        init_serialized_owner(
+            self,
+            "sentence_queue_monitor.provider",
+            "SentenceQueueMonitorProvider",
+        )
+
+    @serialized_method
+    def get(self, bump_ttl_seconds: int) -> SentenceQueueMonitorService:
+        if self._service is None:
+            self._service = SentenceQueueMonitorService(bump_ttl_seconds)
+        return self._service
+
+
+_sentence_queue_monitor_provider = _SentenceQueueMonitorProvider()

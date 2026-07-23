@@ -49,6 +49,7 @@ SHARED_TRANSFORMERS_VERSION = (
     if "==" in SHARED_TRANSFORMERS_SPEC
     else ""
 )
+CTRANSLATE2_CUDA_MAJOR = int(_POLICY.get("AI_CTRANSLATE2_CUDA_MAJOR", "12"))
 
 
 def _csv(name: str) -> Tuple[str, ...]:
@@ -292,6 +293,7 @@ __all__ = [
     "BACKEND_COMMON_PACKAGES",
     "BACKEND_WINDOWS_PACKAGES",
     "CUDA_TIERS",
+    "CTRANSLATE2_CUDA_MAJOR",
     "OCR_PACKAGES",
     "PADDLE_CPU_INDEX",
     "PADDLE_INDEX_BASE",

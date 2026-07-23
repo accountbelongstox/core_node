@@ -25,6 +25,8 @@ $scriptPath         = ''
 $invokeArgs         = @{}
 $previousStepEap    = 'Stop'
 $failurePosition    = ''
+$skipVariable       = ''
+$skipValue          = ''
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
 . $manifestPath
 
@@ -36,6 +38,13 @@ Write-Host '    transformers pin is restored to the shared version). See TTS_STT
 
 foreach ($entry in $PycorePrerequisiteScripts) {
     $name = $entry.Key
+
+    $skipVariable = if ($entry.ContainsKey('SkipEnv')) { [string]$entry.SkipEnv } else { '' }
+    $skipValue = if ($skipVariable) { [Environment]::GetEnvironmentVariable($skipVariable, 'Process') } else { '' }
+    if ($skipValue -eq '1') {
+        Write-Host ("[skip] {0} ({1}=1)" -f $name, $skipVariable) -ForegroundColor DarkGray
+        continue
+    }
 
     Write-Host ("[..] Prerequisite: {0}" -f $name) -ForegroundColor Yellow
 

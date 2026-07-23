@@ -61,6 +61,10 @@
     </div>
 
     <div class="mt-2">
+      <QwenTtsSettings />
+    </div>
+
+    <div class="mt-2">
       <BingWorkerSettings />
     </div>
 
@@ -86,6 +90,7 @@ import CacheSettings from './CacheSettings.vue';
 import AiWebProviderSettings from './AiWebProviderSettings.vue';
 import ApiSettings from './ApiSettings.vue';
 import TaskCapabilitySettings from './TaskCapabilitySettings.vue';
+import QwenTtsSettings from './QwenTtsSettings.vue';
 import BingWorkerSettings from './BingWorkerSettings.vue';
 import AudioRecordingSettings from './AudioRecordingSettings.vue';
 import {

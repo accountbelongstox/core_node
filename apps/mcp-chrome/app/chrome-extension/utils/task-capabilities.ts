@@ -3,8 +3,7 @@
  * popup checkboxes and the background scheduler / run-intent gate.
  *
  * A "capability" is one user-facing switch. It maps to the TaskCenter
- * processorTypes it activates (and, for word validity, to the client-driven
- * runner). Keeping this catalog in one neutral module guarantees the popup UI
+ * processorTypes it activates. Keeping this catalog in one neutral module guarantees the popup UI
  * and the background can never disagree on which lanes a checkbox turns on.
  *
  * Every capability maps to a real in-extension runner or processor lane.
@@ -18,7 +17,8 @@ export type CapabilityKey =
   | 'validity'
   | 'article'
   | 'notebooklm'
-  | 'bing';
+  | 'bing'
+  | 'aiTranslate';
 
 export interface CapabilityDef {
   key: CapabilityKey;
@@ -48,22 +48,18 @@ export const CAPABILITIES: CapabilityDef[] = [
     key: 'audio',
     storageKey: 'tkCapAudio',
     zhLabel: '执行语音生成任务',
-    hint: 'Bing pronunciation audio tasks',
-    processors: [LANES.BING_DICTIONARY],
+    hint: 'Laravel audio queue → shared Qwen3-TTS runtime → write-back',
+    processors: [LANES.QWEN_TTS],
     usesValidityRunner: false,
     stub: false,
   },
   {
-    // Validity runs the CLIENT-DRIVEN runner only (pending -> DeepSeek -> report),
-    // NOT the word_validity_web global-task lane worker — that lane heartbeats the
-    // worker API and depends on the backend enqueueing word_validity tasks, which
-    // duplicated/competed with the runner and spammed heartbeat timeouts. One path.
     key: 'validity',
     storageKey: 'tkCapValidity',
-    zhLabel: '执行单词有效检测',
-    hint: 'Client-driven DeepSeek word validity runner',
-    processors: [],
-    usesValidityRunner: true,
+    zhLabel: '执行单词有效性检测',
+    hint: 'Laravel validity queue → shared web classifier → write-back',
+    processors: [LANES.WORD_VALIDITY_WEB],
+    usesValidityRunner: false,
     stub: false,
   },
   {
@@ -78,8 +74,8 @@ export const CAPABILITIES: CapabilityDef[] = [
   {
     key: 'notebooklm',
     storageKey: 'tkCapNotebooklm',
-    zhLabel: '执行notebookllm生成任务',
-    hint: 'NotebookLM generation',
+    zhLabel: '执行 NotebookLM 生成任务',
+    hint: 'Laravel NotebookLM queue → shared browser runtime → write-back',
     processors: [LANES.REMOTE_NOTEBOOKLM],
     usesValidityRunner: false,
     stub: false,
@@ -87,9 +83,18 @@ export const CAPABILITIES: CapabilityDef[] = [
   {
     key: 'bing',
     storageKey: 'tkCapBing',
-    zhLabel: '执行bing翻译功能',
-    hint: 'Bing dictionary + web-AI translate',
-    processors: [LANES.BING_DICTIONARY, LANES.WEB_AI_TRANSLATE],
+    zhLabel: '执行 Bing 翻译功能',
+    hint: 'Bing dictionary translation, phonetics and media capture',
+    processors: [LANES.BING_DICTIONARY],
+    usesValidityRunner: false,
+    stub: false,
+  },
+  {
+    key: 'aiTranslate',
+    storageKey: 'tkCapAiTranslate',
+    zhLabel: '执行 Web-AI 翻译任务',
+    hint: 'DeepSeek web translation tasks on the AI fast lane',
+    processors: [LANES.WEB_AI_TRANSLATE],
     usesValidityRunner: false,
     stub: false,
   },

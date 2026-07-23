@@ -28,6 +28,7 @@ export const LANES = {
   REMOTE_STT: 'remote_stt',
   // ── Processor / worker identifier keys (a processor's own processorType) ──
   MEDIA_IMAGE: 'media_image',
+  QWEN_TTS: 'qwen_tts',
   BING_DICTIONARY: 'bing_dictionary',
   WEB_AI_TRANSLATE: 'web_ai_translate',
   WORD_VALIDITY_WEB: 'word_validity_web',

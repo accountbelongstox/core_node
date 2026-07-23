@@ -38,6 +38,9 @@ $hasGpu                = $false
 $reasons               = @()
 $sysPip                = $null
 $modelExplicit         = (-not [string]::IsNullOrWhiteSpace($Model) -and $Model -ne 'auto')
+$cudaPolicy            = $null
+$ctranslateCudaMajor   = 12
+$useCtranslateCuda     = $false
 
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
@@ -48,6 +51,19 @@ function Test-PyModule {
     param([string]$Py, [string]$PackageName)
     $pipExe = $Global:PIP_EXE_PATH
     return Test-PipPackageInstalled -PipExe $pipExe -PackageName $PackageName
+}
+
+function Test-CtranslateCudaUsable {
+    param([string]$PythonExe)
+    $previousErrorActionPreference = $ErrorActionPreference
+    $output = ''
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = (& $PythonExe -c "import ctranslate2; print('__CT2_CUDA_OK__' if ctranslate2.get_cuda_device_count() > 0 else '__CT2_CUDA_OFF__')" 2>$null) -join ''
+        return ($LASTEXITCODE -eq 0 -and $output -match '__CT2_CUDA_OK__')
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
 }
 
 Write-Host '============================================================' -ForegroundColor Cyan
@@ -81,9 +97,13 @@ if (-not $Force) {
 
 $hasGpu = Test-NvidiaGpuPresent
 $sysPip = $Global:PIP_EXE_PATH
+$cudaPolicy = Get-CudaRuntimePolicy
+$ctranslateCudaMajor = [int](Get-AiRuntimePolicyValue -Name 'AI_CTRANSLATE2_CUDA_MAJOR' -Default '12')
 
 if ($hasGpu) {
-    Write-Host "$SCRIPT_INDEX [i] GPU host: faster-whisper runs in system Python (CPU int8; cu13-only, no cu12 venv)." -ForegroundColor DarkGray
+    if (-not $cudaPolicy.Enabled -or $cudaPolicy.Major -ne $ctranslateCudaMajor) {
+        Write-Host ("$SCRIPT_INDEX [i] GPU host uses canonical {0}; CTranslate2 requires CUDA {1}, so faster-whisper uses CPU int8 without installing a second CUDA stack." -f $cudaPolicy.Tag, $ctranslateCudaMajor) -ForegroundColor DarkGray
+    }
 }
 
 if ((Test-PyModule -Py $resolvedPython -PackageName 'faster-whisper') -and -not $Force) {
@@ -99,10 +119,15 @@ if (Test-PyModule -Py $resolvedPython -PackageName 'faster-whisper') {
     Write-Host "$SCRIPT_INDEX [X] faster-whisper still not importable after install." -ForegroundColor Red
 }
 
+$useCtranslateCuda = ($hasGpu -and $cudaPolicy.Enabled -and $cudaPolicy.Major -eq $ctranslateCudaMajor -and (Test-CtranslateCudaUsable -PythonExe $resolvedPython))
+if ($hasGpu -and $cudaPolicy.Major -eq $ctranslateCudaMajor -and -not $useCtranslateCuda) {
+    Write-Host "$SCRIPT_INDEX [i] CTranslate2 CUDA probe is unavailable; using CPU int8 without mutating the canonical CUDA stack." -ForegroundColor DarkGray
+}
+
 if ($modelExplicit -or $Force) {
     Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine faster_whisper -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     if (-not $Model -or $Model -eq 'auto') {
-        $Model = Resolve-TtsModelTier -PythonExe $resolvedPython -Key faster_whisper_model -InstallScriptRoot $PSScriptRoot -Gpu:($hasGpu)
+        $Model = Resolve-TtsModelTier -PythonExe $resolvedPython -Key faster_whisper_model -InstallScriptRoot $PSScriptRoot -Gpu:($useCtranslateCuda)
     }
     if ($Model -and $Model -ne 'auto') {
         Write-Host ("$SCRIPT_INDEX [..] Pre-downloading faster-whisper model '{0}' ..." -f $Model) -ForegroundColor Yellow

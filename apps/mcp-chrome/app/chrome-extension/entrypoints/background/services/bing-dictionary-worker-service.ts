@@ -755,12 +755,11 @@ class BingDictionaryWorkerService {
     const response = await this.workerClient.register({
       worker_id: workerId,
       worker_name: this.config.workerName,
-      // Translation and pronunciation tasks use separate Laravel lanes. The
-      // same Bing worker can fulfill both because each lookup already captures
-      // the rendered dictionary entry and its MP3 bytes.
+      // Production Bing work owns translation. Pronunciation capture remains
+      // part of each dictionary lookup and the Extension diagnostic tools, while
+      // dedicated audio-generation tasks are owned by the shared Qwen TTS worker.
       processor_types: [
         LANES.REMOTE_TRANSLATION,
-        LANES.REMOTE_AUDIO,
         LANES.REMOTE_FAST,
       ] as ProcessorType[],
       // Advertise ONLY 'translate' (B18: bing is the sole translate owner on the

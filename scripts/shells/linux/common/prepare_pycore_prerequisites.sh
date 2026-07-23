@@ -35,6 +35,14 @@ INCLUDE=()
 WHISPER_MODEL=""
 NEURAL_BATCH_INSTALL=0
 failed=()
+entry=""
+name=""
+script=""
+skip_env=""
+skip_value=""
+install_mode=""
+script_path=""
+args=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -57,58 +65,32 @@ __scc_env="$COMMON_DIR/shared_cache_env.sh"
 [[ "${NEURAL_TTS_INSTALL:-0}" == "1" ]] && NEURAL_BATCH_INSTALL=1
 
 # Order = dependency order (also matches numeric 103-116 after 15/22/23 in dd.sh sweep).
-PREREQ_SCRIPTS=(
-    "13_cuda_nvidia_prereq.sh"
-    "14_install_python_prereq_packages.sh"
-    "104_install_desktop_manager.sh"
-    "105_install_launcher.sh"
-    "103_install_ffmpeg.sh"
-    "106_install_document_parsing.sh"
-    "107_install_dictionaries.sh"
-    "108_install_ocr.sh"
-    "15_install_faster_whisper.sh"
-    "109_install_whisper.sh"
-    "110_install_vosk.sh"
-    "22_install_edge_tts.sh"
-    "111_install_chattts.sh"
-    "112_install_cosyvoice.sh"
-    "117_install_fishspeech.sh"
-    "118_install_kokoro.sh"
-    "119_install_voxcpm2.sh"
-    "116_install_bark.sh"
-    "139_install_parler.sh"
-    "140_install_qwen3tts.sh"
-    "113_install_f5tts.sh"
-    "114_install_gptsovits.sh"
-    "115_install_melotts.sh"
-    "120_install_device_tools.sh"
-)
-
-PREREQ_KEYS=(
-    "cuda_policy"
-    "python_prereqs"
-    "desktop_manager"
-    "launcher"
-    "ffmpeg"
-    "document_parsing"
-    "dictionaries"
-    "ocr"
-    "faster_whisper"
-    "whisper"
-    "vosk"
-    "edge_tts"
-    "chattts"
-    "cosyvoice"
-    "fishspeech"
-    "kokoro"
-    "voxcpm2"
-    "bark"
-    "parler"
-    "qwen3tts"
-    "f5tts"
-    "gptsovits"
-    "melotts"
-    "device_tools"
+# Central prerequisite manifest: key|script|skip environment variable|install mode.
+PREREQ_ENTRIES=(
+    "cuda_policy|13_cuda_nvidia_prereq.sh||"
+    "python_prereqs|14_install_python_prereq_packages.sh||"
+    "desktop_manager|104_install_desktop_manager.sh||"
+    "launcher|105_install_launcher.sh||"
+    "ffmpeg|103_install_ffmpeg.sh||"
+    "document_parsing|106_install_document_parsing.sh||"
+    "dictionaries|107_install_dictionaries.sh||"
+    "ocr|108_install_ocr.sh||"
+    "faster_whisper|15_install_faster_whisper.sh||"
+    "whisper|109_install_whisper.sh||"
+    "vosk|110_install_vosk.sh||"
+    "edge_tts|22_install_edge_tts.sh||"
+    "chattts|111_install_chattts.sh|CHATTTS_SKIP|neural"
+    "cosyvoice|112_install_cosyvoice.sh|COSYVOICE_SKIP|neural"
+    "fishspeech|117_install_fishspeech.sh|FISHSPEECH_SKIP|neural"
+    "kokoro|118_install_kokoro.sh|KOKORO_SKIP|neural"
+    "voxcpm2|119_install_voxcpm2.sh|VOXCPM2_SKIP|neural"
+    "bark|116_install_bark.sh|BARK_SKIP|neural"
+    "parler|139_install_parler.sh|PARLER_SKIP|neural"
+    "qwen3tts|140_install_qwen3tts.sh|QWEN3TTS_SKIP|neural"
+    "f5tts|113_install_f5tts.sh|F5TTS_SKIP|neural"
+    "gptsovits|114_install_gptsovits.sh|GPTSOVITS_SKIP|explicit"
+    "melotts|115_install_melotts.sh|MELOTTS_SKIP|explicit"
+    "device_tools|120_install_device_tools.sh||"
 )
 
 in_include() {
@@ -118,25 +100,24 @@ in_include() {
     return 1
 }
 
-is_neural_key() {
-    case "$1" in
-        chattts|cosyvoice|f5tts|gptsovits|fishspeech|kokoro|voxcpm2|bark|parler|qwen3tts) return 0 ;;
-        *) return 1 ;;
-    esac
-}
-
 echo "------------------------------------------------------"
 echo " Pycore prerequisites (prepare_pycore_prerequisites)"
 echo "------------------------------------------------------"
 
-idx=0
-for script in "${PREREQ_SCRIPTS[@]}"; do
-    name="${PREREQ_KEYS[$idx]}"
-    idx=$((idx + 1))
+for entry in "${PREREQ_ENTRIES[@]}"; do
+    IFS='|' read -r name script skip_env install_mode <<< "$entry"
 
     if ! in_include "$name"; then
         echo "[skip] $name (not in --include)"
         continue
+    fi
+
+    if [[ -n "$skip_env" ]]; then
+        skip_value="${!skip_env:-0}"
+        if [[ "$skip_value" == "1" ]]; then
+            echo "[skip] $name ($skip_env=1)"
+            continue
+        fi
     fi
 
     echo "[..] Prerequisite: $name"
@@ -151,7 +132,7 @@ for script in "${PREREQ_SCRIPTS[@]}"; do
     if [[ ( "$name" == "whisper" || "$name" == "faster_whisper" ) && -n "$WHISPER_MODEL" ]]; then
         args+=(--model "$WHISPER_MODEL")
     fi
-    if [[ "$NEURAL_BATCH_INSTALL" -eq 1 ]] && is_neural_key "$name"; then
+    if [[ "$NEURAL_BATCH_INSTALL" -eq 1 && "$install_mode" == "neural" ]]; then
         args+=(--full)
     elif [[ "${MELOTTS_INSTALL:-0}" == "1" && "$name" == "melotts" ]]; then
         args+=(--full)

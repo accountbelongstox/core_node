@@ -3,48 +3,14 @@
     <p class="qt-meta">
       Space: <a :href="spaceUrl" target="_blank" rel="noopener">{{ spaceUrl }}</a>
       · MCP: <code>chrome_qwen_tts</code>
+      · Mode: <strong>{{ mode }}</strong> (Settings Center)
     </p>
-
-    <label class="qt-field">
-      <span>Mode</span>
-      <select v-model="mode" :disabled="loading">
-        <option value="voice_design">Voice Design</option>
-        <option value="voice_clone">Voice Clone (Base)</option>
-        <option value="custom_voice">TTS (CustomVoice)</option>
-      </select>
-    </label>
 
     <label class="qt-field">
       <span>Text to Synthesize</span>
       <textarea v-model="text" rows="3" :disabled="loading" placeholder="Enter text for Qwen3-TTS…" />
     </label>
 
-    <label v-if="mode === 'voice_design'" class="qt-field">
-      <span>Voice Description</span>
-      <textarea v-model="voiceDescription" rows="2" :disabled="loading" />
-    </label>
-
-    <label v-if="mode === 'custom_voice'" class="qt-field">
-      <span>Style Instruction (optional)</span>
-      <textarea v-model="styleInstruction" rows="2" :disabled="loading" />
-    </label>
-
-    <div class="qt-row">
-      <label class="qt-field narrow">
-        <span>Wait (sec)</span>
-        <input v-model.number="waitTimeoutSec" type="number" min="30" max="600" :disabled="loading" />
-      </label>
-    </div>
-
-    <label class="qt-check">
-      <input v-model="autoDownload" type="checkbox" :disabled="loading" />
-      <span>Auto-download audio via Chrome downloads API</span>
-    </label>
-
-    <label class="qt-check">
-      <input v-model="openInNewTab" type="checkbox" :disabled="loading" />
-      <span>Always open a new tab</span>
-    </label>
 
     <div class="qt-actions">
       <button class="qt-btn primary" :disabled="loading || !text.trim()" @click="generate">
@@ -93,6 +59,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import { useQwenTts } from '@/entrypoints/popup/composables/useQwenTts';
+import { bytesToBase64 } from '@/utils/binary';
 import { QWEN_TTS_SPACE_URL } from '@/utils/qwen-tts-core';
 
 const spaceUrl = QWEN_TTS_SPACE_URL;
@@ -100,11 +67,6 @@ const spaceUrl = QWEN_TTS_SPACE_URL;
 const {
   text,
   mode,
-  voiceDescription,
-  styleInstruction,
-  waitTimeoutSec,
-  openInNewTab,
-  autoDownload,
   loading,
   error,
   result,
@@ -115,12 +77,7 @@ const {
 } = useQwenTts();
 
 function bytesToDataUrl(bytes: number[], mime: string): string {
-  let binary = '';
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.slice(i, i + chunk));
-  }
-  return `data:${mime};base64,${btoa(binary)}`;
+  return `data:${mime};base64,${bytesToBase64(bytes)}`;
 }
 
 const audioDataUrl = computed(() => {

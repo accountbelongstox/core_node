@@ -19,17 +19,17 @@ $PycorePrerequisiteScripts = @(
     @{ Key = 'whisper';          Script = $InstallerScriptsMap['InstallWhisper'] }
     @{ Key = 'vosk';             Script = $InstallerScriptsMap['InstallVosk'] }
     @{ Key = 'edge_tts';         Script = $InstallerScriptsMap['InstallEdgeTts'] }
-    @{ Key = 'chattts';          Script = $InstallerScriptsMap['InstallChatTts'] }
-    @{ Key = 'cosyvoice';        Script = $InstallerScriptsMap['InstallCosyVoice'] }
-    @{ Key = 'fishspeech';       Script = $InstallerScriptsMap['InstallFishspeech'] }
-    @{ Key = 'kokoro';           Script = $InstallerScriptsMap['InstallKokoro'] }
-    @{ Key = 'voxcpm2';          Script = $InstallerScriptsMap['InstallVoxcpm2'] }
-    @{ Key = 'bark';             Script = $InstallerScriptsMap['InstallBark'] }
-    @{ Key = 'parler';           Script = $InstallerScriptsMap['InstallParler'] }
-    @{ Key = 'qwen3tts';         Script = $InstallerScriptsMap['InstallQwen3Tts'] }
-    @{ Key = 'f5tts';            Script = $InstallerScriptsMap['InstallF5Tts'] }
-    @{ Key = 'gptsovits';        Script = $InstallerScriptsMap['InstallGptsovits'] }
-    @{ Key = 'melotts';          Script = $InstallerScriptsMap['InstallMelotts'] }
+    @{ Key = 'chattts';          Script = $InstallerScriptsMap['InstallChatTts'];      SkipEnv = 'CHATTTS_SKIP' }
+    @{ Key = 'cosyvoice';        Script = $InstallerScriptsMap['InstallCosyVoice'];    SkipEnv = 'COSYVOICE_SKIP' }
+    @{ Key = 'fishspeech';       Script = $InstallerScriptsMap['InstallFishspeech'];   SkipEnv = 'FISHSPEECH_SKIP' }
+    @{ Key = 'kokoro';           Script = $InstallerScriptsMap['InstallKokoro'];       SkipEnv = 'KOKORO_SKIP' }
+    @{ Key = 'voxcpm2';          Script = $InstallerScriptsMap['InstallVoxcpm2'];      SkipEnv = 'VOXCPM2_SKIP' }
+    @{ Key = 'bark';             Script = $InstallerScriptsMap['InstallBark'];         SkipEnv = 'BARK_SKIP' }
+    @{ Key = 'parler';           Script = $InstallerScriptsMap['InstallParler'];       SkipEnv = 'PARLER_SKIP' }
+    @{ Key = 'qwen3tts';         Script = $InstallerScriptsMap['InstallQwen3Tts'];     SkipEnv = 'QWEN3TTS_SKIP' }
+    @{ Key = 'f5tts';            Script = $InstallerScriptsMap['InstallF5Tts'];        SkipEnv = 'F5TTS_SKIP' }
+    @{ Key = 'gptsovits';        Script = $InstallerScriptsMap['InstallGptsovits'];    SkipEnv = 'GPTSOVITS_SKIP' }
+    @{ Key = 'melotts';          Script = $InstallerScriptsMap['InstallMelotts'];      SkipEnv = 'MELOTTS_SKIP' }
 )
 
 $NeuralTtsOptInKeys = @(

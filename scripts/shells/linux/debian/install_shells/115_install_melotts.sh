@@ -25,7 +25,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-[[ "${MELOTTS_INSTALL:-0}" == "1" || "${NEURAL_TTS_INSTALL:-0}" == "1" ]] && DO_FULL=1
+[[ "${MELOTTS_INSTALL:-0}" == "1" ]] && DO_FULL=1
 
 . "$SCRIPT_DIR/../../common/base_libs/lib_gpu.sh"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"

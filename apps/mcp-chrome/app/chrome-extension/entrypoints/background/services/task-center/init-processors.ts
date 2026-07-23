@@ -15,6 +15,7 @@ import { promptTranslateWebProcessor } from './processors/PromptTranslateWebProc
 import { wordValidityWebProcessor } from './processors/WordValidityWebProcessor';
 import { puterAiTranslateProcessor } from './processors/PuterAiTranslateProcessor';
 import { mediaImageProcessor } from './processors/MediaImageProcessor';
+import { qwenTtsProcessor } from './processors/QwenTtsProcessor';
 
 /**
  * Initialize and register all task processors
@@ -52,6 +53,10 @@ export function initializeProcessors(): void {
   // web LLM (Gemini/DeepSeek/ChatGPT) to classify untranslated+unchecked words
   // valid/invalid on the dedicated remote_validity lane, so translation skips junk.
   taskCenter.registerProcessor(wordValidityWebProcessor, false);
+
+  // Qwen3-TTS uses the same runtime as the Extension diagnostic panel, but in
+  // Task Center it consumes Laravel remote_audio tasks and posts the bytes back.
+  taskCenter.registerProcessor(qwenTtsProcessor, false);
 
   // Register Puter AI Translate Processor (DISABLED by default, opt-in):
   // calls Puter's OpenAI-compatible REST API for translation (no API key, no

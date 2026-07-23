@@ -4,13 +4,13 @@
 
 import { ref, onMounted, onUnmounted } from 'vue';
 import { usePersistedRef } from '@/composables/usePersistedRef';
+import { useQwenTtsSettings } from './useQwenTtsSettings';
 import { logger } from '@/utils/logger';
 import { sendWithWake } from '@/utils/sendWithWake';
 import {
   DEFAULT_QWEN_TTS_TEXT,
-  DEFAULT_QWEN_VOICE_DESCRIPTION,
+  QWEN_TTS_SETTING_KEYS,
   QWEN_TTS_LAST_VERIFIED,
-  type QwenTtsMode,
   type QwenTtsProgress,
   type QwenTtsResult,
   emptyQwenTtsProgress,
@@ -24,13 +24,15 @@ const sendQwen = <T>(payload: Record<string, unknown>): Promise<QwenTtsResponse<
   sendWithWake(() => chrome.runtime.sendMessage(payload), LOG);
 
 export function useQwenTts() {
-  const text = usePersistedRef('qwenTtsText', DEFAULT_QWEN_TTS_TEXT);
-  const mode = usePersistedRef<QwenTtsMode>('qwenTtsMode', 'voice_design');
-  const voiceDescription = usePersistedRef('qwenTtsVoiceDescription', DEFAULT_QWEN_VOICE_DESCRIPTION);
-  const styleInstruction = usePersistedRef('qwenTtsStyleInstruction', '');
-  const waitTimeoutSec = usePersistedRef('qwenTtsWaitTimeoutSec', 180);
-  const openInNewTab = usePersistedRef('qwenTtsOpenInNewTab', false);
-  const autoDownload = usePersistedRef('qwenTtsAutoDownload', true);
+  const text = usePersistedRef(QWEN_TTS_SETTING_KEYS.TEXT, DEFAULT_QWEN_TTS_TEXT);
+  const {
+    mode,
+    voiceDescription,
+    styleInstruction,
+    waitTimeoutSec,
+    openInNewTab,
+    autoDownload,
+  } = useQwenTtsSettings();
 
   const loading = ref(false);
   const error = ref('');

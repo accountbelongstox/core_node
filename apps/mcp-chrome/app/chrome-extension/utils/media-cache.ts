@@ -15,6 +15,8 @@
  * without limit.
  */
 
+import { bytesToBase64 } from './binary';
+
 const STORAGE_PREFIX = 'media:';
 const MAX_ENTRIES = 300;
 
@@ -117,12 +119,7 @@ class MediaCache {
 
   /** number[] (0–255) -> base64 string. */
   static bytesToBase64(bytes: number[]): string {
-    let binary = '';
-    const chunk = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunk) {
-      binary += String.fromCharCode.apply(null, bytes.slice(i, i + chunk));
-    }
-    return btoa(binary);
+    return bytesToBase64(bytes);
   }
 }
 

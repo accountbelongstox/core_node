@@ -18,14 +18,15 @@ bridge) goes through here. Each request:
   * returns the raw ``requests.Response`` so callers keep
     ``.status_code`` / ``.json()`` / ``.text`` / ``.iter_lines()``.
 
-Uses a single ``requests.Session`` for connection pooling. Synchronous (matches
-every existing call site). The SSE reader (translation_ws_client_service) uses
-``get_stream()`` which returns the open response for ``iter_lines()``.
+Uses one ``requests.Session`` per caller thread for connection pooling without
+sharing mutable session state. Synchronous (matches every existing call site).
+The SSE reader uses ``get_stream()`` and consumes the response on its own thread.
 
 Layering: imports ``laravel_endpoint_manager`` (one-way, top-level). The recorder
 lives in its own zero-dep module so the endpoint manager can import it too without
 cycling back here. No function-level internal imports.
 """
+import threading
 import time
 from typing import Any, Dict, Optional
 from urllib.parse import urlsplit
@@ -132,14 +133,14 @@ class LaravelClient:
     """Singleton unified pycore->Laravel HTTP client."""
 
     def __init__(self):
-        self._session = None
+        self._thread_state = threading.local()
 
     def _session_get(self):
-        # Rule §4: no lock — session creation is idempotent; worst case one
-        # duplicate Session is built and discarded. Assignment is GIL-atomic.
-        if self._session is None:
-            self._session = get_third_package_requests().Session()
-        return self._session
+        session = getattr(self._thread_state, "session", None)
+        if session is None:
+            session = get_third_package_requests().Session()
+            self._thread_state.session = session
+        return session
 
     def _resolve_base(self, base_url: Optional[str]) -> str:
         if base_url:
@@ -248,14 +249,9 @@ class LaravelClient:
         return self.request("GET", path, **kwargs)
 
 
-_client: Optional[LaravelClient] = None
+_client = LaravelClient()
 
 
 def get_laravel_client() -> LaravelClient:
-    """Singleton accessor (created on first use)."""
-    global _client
-    # Rule §4: no lock — creation is idempotent; worst case one duplicate
-    # client is built and discarded. Module-attr assignment is GIL-atomic.
-    if _client is None:
-        _client = LaravelClient()
+    """Return the process-wide client with caller-local HTTP sessions."""
     return _client

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
+from pycore.pyfoundations.ai_runtime_policy import CTRANSLATE2_CUDA_MAJOR
 from pycore.pyfoundations.system_paths import get_user_data_store
 
 try:
@@ -46,6 +47,27 @@ _STT_SECTION = "stt"
 def gpu_present() -> bool:
     try:
         return bool(CUDADetector.is_cuda_available())
+    except Exception:
+        return False
+
+
+def _runtime_torch_cuda_major() -> Optional[int]:
+    try:
+        from pycore.pyfoundations.third_party import get_third_package_torch
+
+        torch = get_third_package_torch()
+        version = str(getattr(getattr(torch, "version", None), "cuda", "") or "")
+        major = version.split(".", 1)[0]
+        return int(major) if major.isdigit() else None
+    except Exception:
+        return None
+
+
+def _faster_whisper_gpu_usable() -> bool:
+    if not gpu_present() or _runtime_torch_cuda_major() != CTRANSLATE2_CUDA_MAJOR:
+        return False
+    try:
+        return bool(ctranslate2 is not None and ctranslate2.get_cuda_device_count() > 0)
     except Exception:
         return False
 
@@ -94,16 +116,11 @@ def runtime_faster_whisper_model() -> str:
     saved = _persisted(_STT_SECTION, "faster_whisper_model")
     if saved:
         return saved
-    return faster_whisper_model(gpu_present())
+    return faster_whisper_model(_faster_whisper_gpu_usable())
 
 
 def runtime_faster_whisper_device() -> str:
-    try:
-        if ctranslate2 is not None and ctranslate2.get_cuda_device_count() > 0:
-            return "cuda"
-    except Exception:
-        pass
-    return "cuda" if gpu_present() else "cpu"
+    return "cuda" if _faster_whisper_gpu_usable() else "cpu"
 
 
 def runtime_faster_whisper_compute_type(device: Optional[str] = None) -> str:
