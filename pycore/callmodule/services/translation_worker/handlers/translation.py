@@ -2,9 +2,8 @@
 """
 Word-translation lane handler.
 
-Extracted verbatim (behavior-preserving) from the former translation_worker_service.py
-monolith: ``_normalize_words`` (payload hygiene), ``_translate_words`` (configurable
-provider chain), and the word_translation branch shaping from ``_process_task``.
+Extracted from the former translation_worker_service.py monolith: payload
+normalization, the shared provider chain, and word-translation result shaping.
 
 CIRCULAR-IMPORT SAFE: imports only stdlib + pyutils engines + ColorPrint - never
 worker.py. The worker instance is passed at call time.
@@ -13,14 +12,36 @@ worker.py. The worker instance is passed at call time.
 import asyncio
 from typing import Any, Dict, List, Tuple
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.translator.google_translator import GoogleTranslator
-from pycore.pyutils.translator.dictionary import get_dictionary_service
+from pycore.callmodule.services import ai_batch_translate
 from pycore.callmodule.services.task_capability_chains import get_chains
 from pycore.callmodule.services.task_history_store import append_record
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.translator.dictionary import get_dictionary_service
+from pycore.pyutils.translator.google_translator import GoogleTranslator
 
-from pycore.callmodule.services import ai_batch_translate
+_LANGUAGE_NAME_TO_CODE = {
+    "english": "en",
+    "chinese": "zh",
+    "spanish": "es",
+    "french": "fr",
+    "german": "de",
+    "japanese": "ja",
+    "korean": "ko",
+    "vietnamese": "vi",
+    "lao": "lo",
+}
 
+
+def _google_language(language: str, fallback: str) -> str:
+    """Normalize Laravel and wordnew language names for googletrans."""
+    value = str(language or "").strip().lower().replace("_", "-")
+    if not value:
+        return fallback
+    if value in _LANGUAGE_NAME_TO_CODE:
+        return _LANGUAGE_NAME_TO_CODE[value]
+    if 2 <= len(value.split("-", 1)[0]) <= 3:
+        return value
+    return fallback
 
 
 def normalize_words(raw_words: Any) -> List[str]:
@@ -69,11 +90,16 @@ def format_words_preview(words: List[str], max_items: int = 5) -> str:
     return head
 
 
-def _google_batch(words: List[str], target_language: str) -> List[str]:
+def _google_batch(
+    words: List[str], source_language: str, target_language: str
+) -> List[str]:
     async def _run() -> List[str]:
         async with GoogleTranslator() as translator:
             results = await translator.translate_batch(
-                words, src="auto", dest=target_language, use_cache=True
+                words,
+                src=_google_language(source_language, "auto"),
+                dest=_google_language(target_language, "en"),
+                use_cache=True,
             )
         return [getattr(res, "translated_text", "") or "" for res in results]
 
@@ -81,10 +107,6 @@ def _google_batch(words: List[str], target_language: str) -> List[str]:
 
 
 def _ai_batch(words: List[str], source_language: str, target_language: str) -> List[str]:
-    try:
-        pass
-    except ImportError:
-        return [""] * len(words)
     pairs = ai_batch_translate.translate_lines(
         words, source_language, target_language,
         domain="text", source="translation_worker",
@@ -124,24 +146,30 @@ def translate_words(
         key = str(provider or "").strip().lower()
         outs: List[str] = []
 
-        if key == "google":
-            outs = _google_batch(misses, target_language)
-        elif key == "ecdict":
-            outs = [
-                (dict_svc.translate(w, target_language) or "").strip()
-                if dict_svc.available() else ""
-                for w in misses
-            ]
-        elif key == "wordnet":
-            outs = [
-                (dict_svc.wordnet_definition(w) or "").strip()
-                if dict_svc.available() else ""
-                for w in misses
-            ]
-        elif key == "ai":
-            outs = _ai_batch(misses, source_language, target_language)
-        else:
-            continue
+        try:
+            if key == "google":
+                outs = _google_batch(misses, source_language, target_language)
+            elif key == "ecdict":
+                outs = [
+                    (dict_svc.translate(w, target_language) or "").strip()
+                    if dict_svc.available() else ""
+                    for w in misses
+                ]
+            elif key == "wordnet":
+                outs = [
+                    (dict_svc.wordnet_definition(w) or "").strip()
+                    if dict_svc.available() else ""
+                    for w in misses
+                ]
+            elif key == "ai":
+                outs = _ai_batch(misses, source_language, target_language)
+            else:
+                continue
+        except Exception as exc:  # noqa: BLE001
+            ColorPrint.yellow(
+                f"[TranslationWorker] provider {key} failed; continuing fallback: {exc}"
+            )
+            outs = [""] * len(misses)
 
         filled = 0
         for idx, translated in zip(miss_idx, outs):
@@ -196,19 +224,33 @@ def process_word_translation(worker, task: Dict[str, Any]) -> None:
         to_translate, target_language, source_language
     )
 
-    if translations:
+    completed_translations = [
+        row for row in translations if (row.get("translation") or "").strip()
+    ]
+    untranslated_words = [
+        row.get("word") or ""
+        for row in translations
+        if not (row.get("translation") or "").strip()
+    ]
+    if completed_translations:
         worker.mark_words_done(
-            [t["word"] for t in translations], source_language, target_language
+            [row["word"] for row in completed_translations],
+            source_language,
+            target_language,
         )
+    if to_translate and not completed_translations:
+        raise RuntimeError("All translation providers returned empty results")
 
     result: Dict[str, Any] = {
-        "translations": translations,
+        "translations": completed_translations,
         "target_language": target_language,
         "provider": provider_label,
         "content": content_preview,
     }
     if already_done:
         result["skipped_words"] = already_done
+    if untranslated_words:
+        result["untranslated_words"] = untranslated_words
     worker._post_result(task_id, "completed", result=result, progress=100)
 
     try:
@@ -221,9 +263,9 @@ def process_word_translation(worker, task: Dict[str, Any]) -> None:
             "language": target_language,
             "success": True,
             "detail": {
-                "word_count": len(translations),
+                "word_count": len(completed_translations),
                 "provider": provider_label,
-                "translations": translations[:20],
+                "translations": completed_translations[:20],
             },
         })
     except Exception:  # noqa: BLE001

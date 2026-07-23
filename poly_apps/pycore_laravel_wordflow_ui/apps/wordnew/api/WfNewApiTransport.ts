@@ -4,8 +4,12 @@
  * authExpiredSubs are live bindings so the composer's isAuthenticated/onAuthExpired
  * reflect token changes. */
 import { wfNewEndpoints } from './WfNewEndpoints';
-import { absUrl } from './WfNewApiMappers';
-import type { WfNewAuthResult } from './WfNewApiTypes';
+import {
+  mirrorServerResponse,
+  queryServerResource,
+  requestVariant,
+} from '../cache/WfNewServerMirror';
+import type { WfNewAuthResult, WfNewAuthUser } from './WfNewApiTypes';
 
 // --- auth token ------------------------------------------------------------ #
 
@@ -70,8 +74,9 @@ export function notifyAuthExpired(): void {
 /** If a response is a 401, clear the token and notify ONCE. Returns the status' 401-ness.
  *  Only a token that JUST expired flips the UI to logged-out + toast — a 401 with NO
  *  token present must never trigger a spurious "session expired" (there was no session). */
-export function handleMaybe401(status: number): boolean {
+export function handleMaybe401(status: number, expectedToken?: string | null): boolean {
   if (status !== 401) return false;
+  if (expectedToken !== undefined && authToken !== expectedToken) return true;
   const hadToken = !!authToken;
   if (hadToken) setToken(null);
   if (hadToken && !expiredNotified) {
@@ -95,18 +100,31 @@ export function unwrapEnvelope(body: any): any {
 
 // --- transport ------------------------------------------------------------- #
 
-/** GET <currentEndpoint>/path as JSON (envelope-unwrapped). Waits for detection. */
-export async function getJSON<T>(path: string): Promise<T> {
+async function requestJSON<T>(path: string, authenticated: boolean): Promise<T> {
   await wfNewEndpoints.whenReady();
-  const res = await fetch(wfNewEndpoints.buildUrl(path), {
-    method: 'GET',
-    headers: authHeaders({ Accept: 'application/json' }),
-  });
-  if (!res.ok) {
-    handleMaybe401(res.status);
-    throw new Error(`HTTP ${res.status} for ${path}`);
-  }
-  return unwrapEnvelope(await res.json()) as T;
+  const requestToken = authenticated ? authToken : null;
+  const fetchRemote = async (): Promise<T> => {
+    const headers = requestToken
+      ? { Accept: 'application/json', Authorization: `Bearer ${requestToken}` }
+      : { Accept: 'application/json' };
+    const res = await fetch(wfNewEndpoints.buildUrl(path), {
+      method: 'GET',
+      headers,
+    });
+    if (!res.ok) {
+      if (authenticated) handleMaybe401(res.status, requestToken);
+      throw new Error(`HTTP ${res.status} for ${path}`);
+    }
+    const rawText = stripBom(await res.text());
+    const parsed = rawText ? JSON.parse(rawText) : null;
+    return unwrapEnvelope(parsed) as T;
+  };
+  return queryServerResource(path, requestToken, fetchRemote);
+}
+
+/** GET a public endpoint without leaking or invalidating the current Bearer token. */
+export async function getJSON<T>(path: string): Promise<T> {
+  return requestJSON<T>(path, false);
 }
 
 /**
@@ -118,7 +136,7 @@ export async function getJSON<T>(path: string): Promise<T> {
  */
 export async function authedGetJSON<T>(path: string, fallback: T): Promise<T> {
   if (!authToken) return fallback;
-  return getJSON<T>(path);
+  return requestJSON<T>(path, true);
 }
 
 /**
@@ -127,32 +145,54 @@ export async function authedGetJSON<T>(path: string, fallback: T): Promise<T> {
  * errors) plus `.status`, so callers can branch on it.
  */
 export async function postJSON<T>(path: string, body: Record<string, any>): Promise<T> {
+  return requestPostJSON<T>(path, body, false);
+}
+
+/** Read-only POST whose response participates in the local-first resource package. */
+export async function queryPostJSON<T>(path: string, body: Record<string, any>): Promise<T> {
+  return requestPostJSON<T>(path, body, true);
+}
+
+async function requestPostJSON<T>(path: string, body: Record<string, any>, localFirst: boolean): Promise<T> {
   await wfNewEndpoints.whenReady();
-  const res = await fetch(wfNewEndpoints.buildUrl(path), {
-    method: 'POST',
-    headers: authHeaders({ Accept: 'application/json', 'Content-Type': 'application/json' }),
-    body: JSON.stringify(body),
-  });
-  const rawText = stripBom(await res.text());
-  let parsed: any = null;
-  if (rawText) {
-    try {
-      parsed = JSON.parse(rawText);
-    } catch {
-      parsed = null;
+  const requestToken = authToken;
+  const variant = requestVariant('POST', body);
+  const fetchRemote = async (): Promise<T> => {
+    const headers = requestToken
+      ? { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${requestToken}` }
+      : { Accept: 'application/json', 'Content-Type': 'application/json' };
+    const res = await fetch(wfNewEndpoints.buildUrl(path), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+    const rawText = stripBom(await res.text());
+    let parsed: any = null;
+    if (rawText) {
+      try {
+        parsed = JSON.parse(rawText);
+      } catch {
+        parsed = null;
+      }
     }
+    if (!res.ok) {
+      handleMaybe401(res.status, requestToken);
+      let message = `HTTP ${res.status} for ${path}`;
+      if (parsed && typeof parsed.message === 'string' && parsed.message) message = parsed.message;
+      else if (parsed && typeof parsed.error === 'string' && parsed.error) message = parsed.error;
+      const err = new Error(message) as Error & { status: number; body: any };
+      err.status = res.status;
+      err.body = parsed;
+      throw err;
+    }
+    return parsed as T;
+  };
+  if (localFirst) return queryServerResource(path, requestToken, fetchRemote, variant);
+  const result = await fetchRemote();
+  if (!/\/(login|register|logout|password|social\/(login|bind|unbind))(\/|\?|$)/i.test(path)) {
+    await mirrorServerResponse(path, result, requestToken, variant);
   }
-  if (!res.ok) {
-    handleMaybe401(res.status);
-    let message = `HTTP ${res.status} for ${path}`;
-    if (parsed && typeof parsed.message === 'string' && parsed.message) message = parsed.message;
-    else if (parsed && typeof parsed.error === 'string' && parsed.error) message = parsed.error;
-    const err = new Error(message) as Error & { status: number; body: any };
-    err.status = res.status;
-    err.body = parsed;
-    throw err;
-  }
-  return parsed as T;
+  return result;
 }
 
 /**
@@ -162,9 +202,12 @@ export async function postJSON<T>(path: string, body: Record<string, any>): Prom
  */
 export async function postMultipart<T>(path: string, form: FormData): Promise<T> {
   await wfNewEndpoints.whenReady();
+  const requestToken = authToken;
   const res = await fetch(wfNewEndpoints.buildUrl(path), {
     method: 'POST',
-    headers: authHeaders({ Accept: 'application/json' }),
+    headers: requestToken
+      ? { Accept: 'application/json', Authorization: `Bearer ${requestToken}` }
+      : { Accept: 'application/json' },
     body: form,
   });
   const rawText = stripBom(await res.text());
@@ -173,7 +216,7 @@ export async function postMultipart<T>(path: string, form: FormData): Promise<T>
     try { parsed = JSON.parse(rawText); } catch { parsed = null; }
   }
   if (!res.ok) {
-    handleMaybe401(res.status);
+    handleMaybe401(res.status, requestToken);
     let message = `HTTP ${res.status} for ${path}`;
     if (parsed && typeof parsed.message === 'string' && parsed.message) message = parsed.message;
     const err = new Error(message) as Error & { status: number; body: any };
@@ -181,6 +224,7 @@ export async function postMultipart<T>(path: string, form: FormData): Promise<T>
     err.body = parsed;
     throw err;
   }
+  await mirrorServerResponse(path, parsed, requestToken, 'POST-MULTIPART');
   return parsed as T;
 }
 

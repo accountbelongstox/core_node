@@ -11,6 +11,7 @@
 import { wordflowApi } from '../api-libs/wordflow/WordflowApi';
 import { apiManager } from '../api-libs/wordflow/WordflowApiManager';
 import { wfEventBus } from './WfEventBus';
+import { resolveAudioSync } from '../cache/WfNewAudioCache';
 
 /** Resolved-URL cache lifetime (~24 hours, matching the backend audio TTL). */
 const URL_TTL_MS = 24 * 60 * 60 * 1000;
@@ -95,7 +96,8 @@ class WfAudioCenterClass {
    */
   playUrl(audioUrl: string): void {
     try {
-      const audio = new Audio(this.resolveAudioUrl(audioUrl));
+      const resolved = this.resolveAudioUrl(audioUrl);
+      const audio = new Audio(resolveAudioSync(resolved) ?? resolved);
       audio.play().catch((err) => console.error('[WfAudioCenter] Audio play failed:', err));
     } catch (err) {
       console.error('[WfAudioCenter] Audio error:', err);

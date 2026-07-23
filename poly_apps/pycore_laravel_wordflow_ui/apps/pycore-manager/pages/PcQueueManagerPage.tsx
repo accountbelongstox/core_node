@@ -1,22 +1,13 @@
 /**
- * PcQueueManagerPanel — pycore queue inspector (Queue Manager tab body).
- *
- * Formerly the standalone PcQueueManagerPage (route /pycore-manager/queue);
- * now one tab of PcQueueCenterPage, which owns the page header, the shared
- * refresh button (`refreshTick`) and the auto-refresh interval. The data logic
- * is unchanged: a read-only table of queued system operations
- * (PycoreApi.getQueue) with per-category badges and a status column, kept live
- * via the `voice_subtitle_queue_update` WS snapshot (subscribe +
- * connectPycoreWs), with the queue cache covering the WS-down case. Degrades
- * to an inline "pycore unreachable" banner and the last cached snapshot when
- * the backend is offline. Count/loading are reported up through `onMeta` so
- * the tab label can show a live count and the shared refresh button a spinner.
+ * PcQueueManagerPanel — voice/subtitle playback queue from the shared,
+ * versioned Queue Center snapshot.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Layers, AlertTriangle, Layers2, Loader2 } from 'lucide-react';
-import { pycoreApi, mapQueueSnapshot, subscribe, connectPycoreWs, loadQueueCache, saveQueueCache } from '../../../core/api-libs/pycore';
 import type { QueueItem } from '../../../core/api-libs/pycore';
 import { PcQueueItemDetailModal } from '../components/PcTaskDetailModal';
+import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
+import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
 
 const CATEGORY_CLS: Record<string, string> = {
   Voice: 'bg-blue-500/15 text-blue-500',
@@ -36,68 +27,21 @@ function statusLabel(s: QueueItem['status']): { text: string; cls: string } {
   }
 }
 
-import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
+/** Contract with PcQueueCenterPage. */
+type PanelProps = QueueCenterPanelProps;
 
-/** Contract with PcQueueCenterPage (shared panel props + section live switch). */
-type PanelProps = QueueCenterPanelProps & { live?: boolean };
-
-const PcQueueManagerPanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta, live = true }) => {
-  const [queue, setQueue] = useState<QueueItem[]>(() => loadQueueCache() ?? []);
-  const [currentIndex, setCurrentIndex] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [unreachable, setUnreachable] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const PcQueueManagerPanel: React.FC<PanelProps> = ({ onMeta }) => {
+  const hub = useQueueCenterHub();
+  const queue = hub.managerQueue?.items ?? [];
+  const currentIndex = hub.managerQueue?.currentIndex ?? null;
+  const loading = hub.loading && hub.managerQueue === null;
+  const unreachable = !hub.pycoreReachable;
+  const error = hub.sliceErrors.manager_queue ?? hub.error;
   const [selectedItem, setSelectedItem] = useState<QueueItem | null>(null);
-
-  const fetchQueue = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await pycoreApi.getQueue();
-      const list = Array.isArray(r?.items) ? r.items : [];
-      setQueue(list);
-      saveQueueCache(list);
-      setCurrentIndex(typeof r?.currentIndex === 'number' ? r.currentIndex : null);
-      setUnreachable(false);
-      setError(r?.error ?? null);
-    } catch (e: any) {
-      // Dev proxy returns 502 / fetch throws when the backend is down. Keep the
-      // last good snapshot and flag the unreachable state.
-      setUnreachable(true);
-      setError(e?.message || 'pycore unreachable');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Section live switch gates fetching (WS push updates stay active either way).
-  // Turning live off clears `loading` so "Loading queue…" never gets stuck when
-  // the switch is flipped before the first fetch completes.
-  useEffect(() => { if (live) fetchQueue(); else setLoading(false); }, [fetchQueue, live]);
-
-  // Parent-driven refresh (manual button or the shared auto-refresh interval).
-  const lastTick = useRef(refreshTick);
-  useEffect(() => {
-    if (refreshTick !== lastTick.current) {
-      lastTick.current = refreshTick;
-      if (live) fetchQueue();
-    }
-  }, [refreshTick, fetchQueue, live]);
 
   // Report count + loading up to the tab bar / shared spinner.
   useEffect(() => { onMeta?.({ count: queue.length, loading }); }, [queue.length, loading, onMeta]);
 
-  // Live updates: the backend broadcasts a full snapshot on every queue mutation.
-  useEffect(() => {
-    connectPycoreWs();
-    const off = subscribe('voice_subtitle_queue_update', (data: any) => {
-      const r = mapQueueSnapshot(data);
-      setQueue(r.items ?? []);
-      saveQueueCache(r.items ?? []);
-      if (typeof r.currentIndex === 'number') setCurrentIndex(r.currentIndex);
-      setUnreachable(false);
-    });
-    return () => { off(); };
-  }, []);
 
   return (
     <div className="space-y-6">

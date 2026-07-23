@@ -135,9 +135,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { apiManager } from '@/services/ApiManager';
 import type { ApiEndpoint, EndpointStatus } from '@/services/ApiManager';
-import { useAppStore } from '@/composables/useAppStore';
-
-const appStore = useAppStore();
+import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 const BASE_INTERVAL_MS = 15000;
 const MAX_INTERVAL_MS = 60000;
@@ -161,6 +159,7 @@ const customPort = ref<number | undefined>(undefined);
 let autoDetectTimer: ReturnType<typeof setTimeout> | null = null;
 let currentBackoff = BASE_INTERVAL_MS;
 let disposed = false;
+let unsubscribeEndpoint: (() => void) | null = null;
 
 const sortedEndpoints = computed(() =>
   [...apiManager.getAllEndpoints()].sort((a, b) => a.priority - b.priority),
@@ -198,14 +197,6 @@ const dotClass = (id: string): string => {
 const formatResponseTime = (ms: number): string =>
   ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`;
 
-const syncAppStore = (endpointId: string) => {
-  try {
-    appStore.setCurrentEndpoint(endpointId);
-  } catch {
-    // appStore unavailable; apiManager remains authoritative
-  }
-};
-
 const refreshEndpoints = async () => {
   if (isRefreshing.value) return;
   isRefreshing.value = true;
@@ -238,7 +229,6 @@ const selectEndpoint = async (endpointId: string) => {
     autoMode.value = false;
     open.value = false;
     currentEndpoint.value = apiManager.getCurrentEndpoint();
-    syncAppStore(endpointId);
     currentBackoff = BASE_INTERVAL_MS;
   }
 };
@@ -253,7 +243,6 @@ const selectAuto = async () => {
     endpointStatuses.value = [...apiManager.getAllEndpointStatuses()];
     if (best) {
       currentEndpoint.value = best;
-      syncAppStore(best.id);
     }
   } finally {
     isAutoDetecting.value = false;
@@ -297,7 +286,6 @@ const tick = async () => {
       endpointStatuses.value = [...apiManager.getAllEndpointStatuses()];
       if (best) {
         currentEndpoint.value = best;
-        syncAppStore(best.id);
         currentBackoff = BASE_INTERVAL_MS;
       } else {
         currentBackoff = Math.min(currentBackoff * 1.5, MAX_INTERVAL_MS);
@@ -323,14 +311,30 @@ const onDocumentClick = (e: MouseEvent) => {
   if (rootRef.value && !rootRef.value.contains(e.target as Node)) open.value = false;
 };
 
+const syncSelection = () => {
+  currentEndpoint.value = apiManager.getCurrentEndpoint();
+  autoMode.value = apiManager.isAutoMode();
+};
+
+const onStorageChanged = async (
+  changes: Record<string, chrome.storage.StorageChange>,
+  area: string,
+) => {
+  if (area !== 'local' || !changes[STORAGE_KEYS.API_SETTINGS]) return;
+  await apiManager.initialize({ autoDetect: false });
+  syncSelection();
+};
+
 onMounted(async () => {
   await apiManager.initialize({ autoDetect: false });
   autoMode.value = apiManager.isAutoMode();
   currentEndpoint.value = apiManager.getCurrentEndpoint();
+  unsubscribeEndpoint = apiManager.onEndpointChange(syncSelection);
+  chrome.storage.onChanged.addListener(onStorageChanged);
   await refreshEndpoints();
   if (autoMode.value) {
     const best = await apiManager.selectBestAvailable(PROBE_TIMEOUT_MS);
-    if (best) { currentEndpoint.value = best; syncAppStore(best.id); }
+    if (best) currentEndpoint.value = best;
   }
   document.addEventListener('click', onDocumentClick);
   scheduleNext();
@@ -338,6 +342,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   disposed = true;
+  unsubscribeEndpoint?.();
+  chrome.storage.onChanged.removeListener(onStorageChanged);
   document.removeEventListener('click', onDocumentClick);
   if (autoDetectTimer !== null) { clearTimeout(autoDetectTimer); autoDetectTimer = null; }
 });

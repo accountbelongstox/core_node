@@ -13,9 +13,7 @@ import { useTranslation } from 'react-i18next';
 import {
   ListOrdered, RefreshCw, TimerReset, AlertTriangle, SlidersHorizontal,
 } from 'lucide-react';
-import { getPycoreHealth, PYCORE_HEALTH_EVENT, pycoreApi } from '../../../core/api-libs/pycore';
-import PcQueueManagerPanel from './PcQueueManagerPage';
-import PcTaskQueuePanel from './PcTaskQueuePage';
+import { getPycoreHealth, PYCORE_HEALTH_EVENT } from '../../../core/api-libs/pycore';
 import PcTranslationQueuePanel from './PcTranslationQueuePage';
 import PcSentenceQueuePanel from './PcSentenceQueuePanel';
 import { PcPuterWordAudioBatchBar } from '../components/PcPuterWordAudioBatchBar';
@@ -58,7 +56,7 @@ interface QcSectionCardProps {
   section: QcSection;
   count: number | null;
   highlight: boolean;
-  toggle?: { on: boolean; busy: boolean; onToggle: () => void; title: string };
+  toggle?: { on: boolean; running?: boolean; busy: boolean; onToggle: () => void; title: string };
   extra?: React.ReactNode;
   children: React.ReactNode;
 }
@@ -89,8 +87,10 @@ const QcSectionCard: React.FC<QcSectionCardProps> = ({
           {toggle && (
             <>
               <QcSectionSwitch on={toggle.on} busy={toggle.busy} onToggle={toggle.onToggle} title={toggle.title} />
-              <span className={`text-[10px] font-bold uppercase tracking-wide ${toggle.on ? 'text-emerald-500' : 'text-slate-400'}`}>
-                {toggle.on ? t('queueCenter.autoOn') : t('queueCenter.autoOff')}
+              <span className={`text-[10px] font-bold uppercase tracking-wide ${
+                toggle.on && toggle.running ? 'text-emerald-500' : toggle.on ? 'text-amber-500' : 'text-slate-400'
+              }`}>
+                {toggle.on ? (toggle.running ? 'running' : 'configured') : t('queueCenter.autoOff')}
               </span>
             </>
           )}
@@ -102,7 +102,10 @@ const QcSectionCard: React.FC<QcSectionCardProps> = ({
 };
 
 /** Page body — lives under QueueCenterHubProvider so it can drive toggles. */
-const QueueCenterBody: React.FC = () => {
+const QueueCenterBody: React.FC<{
+  auto: boolean;
+  setAuto: React.Dispatch<React.SetStateAction<boolean>>;
+}> = ({ auto, setAuto }) => {
   const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
   const [searchParams] = useSearchParams();
@@ -112,21 +115,12 @@ const QueueCenterBody: React.FC = () => {
   const [drawerOpen, setDrawerOpen] = useState(() => localStorage.getItem(QC_DRAWER_KEY) === '1');
   useEffect(() => { localStorage.setItem(QC_DRAWER_KEY, drawerOpen ? '1' : '0'); }, [drawerOpen]);
 
-  // Page-level auto refresh (shared tick → hub + panels).
+  // Manual refresh token for child-only secondary reads.
   const [tick, setTick] = useState(0);
-  const [auto, setAuto] = useState(() => localStorage.getItem(QC_AUTO_KEY) === '1');
-  useEffect(() => { localStorage.setItem(QC_AUTO_KEY, auto ? '1' : '0'); }, [auto]);
-  useEffect(() => {
-    if (!auto) return;
-    const id = window.setInterval(() => setTick((n) => n + 1), QC_AUTO_REFRESH_MS);
-    return () => window.clearInterval(id);
-  }, [auto]);
 
   // Per-section live counts reported up by the body panels.
   const [meta, setMeta] = useState<Record<QcSection, PanelMeta>>(() => ({
     overview: { count: null, loading: false },
-    manager: { count: null, loading: false },
-    tasks: { count: null, loading: false },
     translation: { count: null, loading: false },
     wordAudio: { count: null, loading: false },
     sentence: { count: null, loading: false },
@@ -137,8 +131,6 @@ const QueueCenterBody: React.FC = () => {
       prev[key].count === m.count && prev[key].loading === m.loading ? prev : { ...prev, [key]: m });
   }, []);
   const onOverviewMeta = useCallback((m: PanelMeta) => reportMeta('overview', m), [reportMeta]);
-  const onManagerMeta = useCallback((m: PanelMeta) => reportMeta('manager', m), [reportMeta]);
-  const onTasksMeta = useCallback((m: PanelMeta) => reportMeta('tasks', m), [reportMeta]);
   const onTranslationMeta = useCallback((m: PanelMeta) => reportMeta('translation', m), [reportMeta]);
   const onSentenceMeta = useCallback((m: PanelMeta) => reportMeta('sentence', m), [reportMeta]);
   const onRecentMeta = useCallback((m: PanelMeta) => reportMeta('recent', m), [reportMeta]);
@@ -156,40 +148,37 @@ const QueueCenterBody: React.FC = () => {
 
   // Section toggles — every mutation is idempotent and followed by a hub refresh.
   const [busySection, setBusySection] = useState<QcSection | null>(null);
+  const [toggleError, setToggleError] = useState<string | null>(null);
   const runToggle = useCallback(async (key: QcSection, fn: () => Promise<unknown>) => {
     if (busySection) return;
     setBusySection(key);
+    setToggleError(null);
     try {
       await fn();
-      hub.refreshHub();
     } catch (e: any) {
-      console.warn(`[QueueCenter] ${key} toggle failed:`, e?.message || e);
+      if (mounted.current) setToggleError(`${key}: ${e?.message || 'control update failed'}`);
     } finally {
       if (mounted.current) setBusySection(null);
     }
   }, [busySection, hub]);
 
-  // Frontend-only live switches (start/stop the panel's own polling).
-  const [managerLive, setManagerLive] = useState(true);
-  const [tasksLive, setTasksLive] = useState(true);
-  const [translationLive, setTranslationLive] = useState(true);
-
-  const assistOn = hub.assist?.enabled === true;
-  const translationWorkerOn =
-    hub.workers?.callbacks?.find((c) => c.name === 'translation_worker')?.enabled === true;
-  const sentenceOn = hub.voiceSentence?.auto_start === true;
+  const assistOn = hub.controls.assist?.configured === true;
+  const translationWorkerOn = hub.controls.translation?.configured === true;
+  const sentenceOn = hub.controls.sentence_audio?.configured === true;
+  const wordAudioOn = hub.controls.word_audio?.configured === true;
 
   const toggleAssist = useCallback(
-    () => runToggle('overview', () => pycoreApi.setAssistConfig({ enabled: !assistOn })),
+    () => runToggle('overview', () => hub.setControl('assist', !assistOn)),
     [runToggle, assistOn]);
-  const toggleTranslation = useCallback(async () => {
-    const next = !translationWorkerOn;
-    setTranslationLive(next);
-    await runToggle('translation', () => pycoreApi.setHeartbeatWorkerConfig('translation_worker', next));
-  }, [runToggle, translationWorkerOn]);
+  const toggleTranslation = useCallback(
+    () => runToggle('translation', () => hub.setControl('translation', !translationWorkerOn)),
+    [runToggle, translationWorkerOn]);
   const toggleSentence = useCallback(
-    () => runToggle('sentence', () => pycoreApi.setSentenceAudioAutoConfig(!sentenceOn)),
+    () => runToggle('sentence', () => hub.setControl('sentence_audio', !sentenceOn)),
     [runToggle, sentenceOn]);
+  const toggleWordAudio = useCallback(
+    () => runToggle('wordAudio', () => hub.setControl('word_audio', !wordAudioOn)),
+    [runToggle, wordAudioOn]);
 
   const [pycoreUp, setPycoreUp] = useState<boolean | null>(() => getPycoreHealth().up);
   useEffect(() => {
@@ -208,6 +197,18 @@ const QueueCenterBody: React.FC = () => {
         <section className="pc-glass p-3 text-xs text-rose-500 flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{t('queueCenter.overview.unavailable')}</span>
+        </section>
+      )}
+      {toggleError && (
+        <section className="pc-glass p-3 text-xs text-rose-500 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{toggleError}</span>
+        </section>
+      )}
+      {hub.error && pycoreUp !== false && (
+        <section className="pc-glass p-3 text-xs text-amber-500 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>Queue Center partial snapshot: {hub.error}</span>
         </section>
       )}
 
@@ -251,47 +252,20 @@ const QueueCenterBody: React.FC = () => {
         </div>
       </div>
 
-      {/* Heartbeat worker status — once, page level. */}
-      <PcWorkerStatusStrip refreshTick={tick} />
-
       <QcSectionCard
         section="overview"
         count={meta.overview.count}
         highlight={highlight === 'overview'}
         toggle={{
           on: assistOn,
+          running: hub.controls.assist?.running === true,
           busy: busySection === 'overview',
           onToggle: toggleAssist,
           title: assistOn ? t('queueCenter.sectionsToggle.assistOff') : t('queueCenter.sectionsToggle.assistOn'),
         }}>
         <PcAssistStrip />
+        <PcWorkerStatusStrip refreshTick={tick} />
         <PcQueueOverviewPanel refreshTick={tick} onMeta={onOverviewMeta} />
-      </QcSectionCard>
-
-      <QcSectionCard
-        section="manager"
-        count={meta.manager.count}
-        highlight={highlight === 'manager'}
-        toggle={{
-          on: managerLive,
-          busy: false,
-          onToggle: () => setManagerLive((v) => !v),
-          title: managerLive ? t('queueCenter.sectionsToggle.pollOff') : t('queueCenter.sectionsToggle.pollOn'),
-        }}>
-        <PcQueueManagerPanel refreshTick={tick} onMeta={onManagerMeta} live={managerLive} />
-      </QcSectionCard>
-
-      <QcSectionCard
-        section="tasks"
-        count={meta.tasks.count}
-        highlight={highlight === 'tasks'}
-        toggle={{
-          on: tasksLive,
-          busy: false,
-          onToggle: () => setTasksLive((v) => !v),
-          title: tasksLive ? t('queueCenter.sectionsToggle.pollOff') : t('queueCenter.sectionsToggle.pollOn'),
-        }}>
-        <PcTaskQueuePanel refreshTick={tick} onMeta={onTasksMeta} live={tasksLive} />
       </QcSectionCard>
 
       <QcSectionCard
@@ -300,17 +274,25 @@ const QueueCenterBody: React.FC = () => {
         highlight={highlight === 'translation'}
         toggle={{
           on: translationWorkerOn,
+          running: hub.controls.translation?.running === true,
           busy: busySection === 'translation',
           onToggle: toggleTranslation,
           title: translationWorkerOn ? t('queueCenter.sectionsToggle.workerOff') : t('queueCenter.sectionsToggle.workerOn'),
         }}>
-        <PcTranslationQueuePanel refreshTick={tick} onMeta={onTranslationMeta} live={translationLive} />
+        <PcTranslationQueuePanel refreshTick={tick} onMeta={onTranslationMeta} />
       </QcSectionCard>
 
       <QcSectionCard
         section="wordAudio"
         count={wordPending}
-        highlight={highlight === 'wordAudio'}>
+        highlight={highlight === 'wordAudio'}
+        toggle={{
+          on: wordAudioOn,
+          running: hub.controls.word_audio?.running === true,
+          busy: busySection === 'wordAudio',
+          onToggle: toggleWordAudio,
+          title: wordAudioOn ? 'Disable Word Audio worker' : 'Enable Word Audio worker',
+        }}>
         <PcTtsEnginesStrip />
         <PcPuterWordAudioBatchBar />
       </QcSectionCard>
@@ -321,6 +303,7 @@ const QueueCenterBody: React.FC = () => {
         highlight={highlight === 'sentence'}
         toggle={{
           on: sentenceOn,
+          running: hub.controls.sentence_audio?.running === true,
           busy: busySection === 'sentence',
           onToggle: toggleSentence,
           title: sentenceOn ? t('queueCenter.sectionsToggle.sentenceOff') : t('queueCenter.sectionsToggle.sentenceOn'),
@@ -340,10 +323,14 @@ const QueueCenterBody: React.FC = () => {
   );
 };
 
-const PcQueueCenterPage: React.FC = () => (
-  <QueueCenterHubProvider>
-    <QueueCenterBody />
-  </QueueCenterHubProvider>
-);
+const PcQueueCenterPage: React.FC = () => {
+  const [auto, setAuto] = useState(() => localStorage.getItem(QC_AUTO_KEY) === '1');
+  useEffect(() => { localStorage.setItem(QC_AUTO_KEY, auto ? '1' : '0'); }, [auto]);
+  return (
+    <QueueCenterHubProvider autoRefresh={auto}>
+      <QueueCenterBody auto={auto} setAuto={setAuto} />
+    </QueueCenterHubProvider>
+  );
+};
 
 export default PcQueueCenterPage;

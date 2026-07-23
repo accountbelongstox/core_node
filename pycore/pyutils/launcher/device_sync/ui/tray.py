@@ -18,8 +18,8 @@ from tkinter import messagebox
 from typing import Optional
 
 from pycore.pyfoundations.third_party import get_third_package_pystray, get_third_package_PIL_Image, get_third_package_PIL_ImageDraw
-
-import threading
+from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 
 pystray = get_third_package_pystray()
@@ -62,6 +62,8 @@ class SimpleTrayMenu:
 
         # Running flag (don't rely on icon.visible which may be False during setup)
         self.running = False
+        self._running_signal = f"device_sync.tray.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
         # Last scan time
         self.last_scan_time = time.time()
@@ -74,6 +76,7 @@ class SimpleTrayMenu:
 
         # Set running flag BEFORE creating icon
         self.running = True
+        THREAD_BUS.signal(self._running_signal, True)
         logger.info(f"  self.running = {self.running}")
 
         # Create tray icon
@@ -126,7 +129,7 @@ class SimpleTrayMenu:
         # Keep main thread alive (no except block per user request)
         logger.info("  Entering infinite loop to keep main thread alive...")
         logger.info("  (Use Exit menu item to quit)")
-        while self.running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             time.sleep(1)
 
         logger.info("!!! Tray icon main loop ENDED (self.running=False) !!!")
@@ -137,6 +140,7 @@ class SimpleTrayMenu:
 
         # Clear running flag to stop periodic scan thread
         self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
         logger.info(f"  self.running = {self.running}")
 
         # Stop tray icon
@@ -171,7 +175,7 @@ class SimpleTrayMenu:
             counter = 0
 
             # Use self.running instead of icon.visible (which may be False during setup)
-            while self.running:
+            while THREAD_BUS.get_signal(self._running_signal, False):
                 counter += 1
                 logger.debug(f"Periodic scan tick #{counter} (running={self.running})")
 
@@ -189,13 +193,15 @@ class SimpleTrayMenu:
 
         # Run periodic scan in a separate thread
         logger.info("Creating periodic scan thread...")
-        scan_thread = threading.Thread(target=periodic_scan, daemon=True)
+        scan_thread = start_bus_task(
+            periodic_scan,
+            thread_name="DeviceSyncPeriodicScanThread",
+        )
         logger.info(f"  Thread created: {scan_thread}")
         logger.info(f"  Thread name: {scan_thread.name}")
         logger.info(f"  Thread daemon: {scan_thread.daemon}")
 
         logger.info("Starting scan thread...")
-        scan_thread.start()
         logger.info(f"  ✓ Thread started, is_alive={scan_thread.is_alive()}")
 
         logger.info("=" * 70)

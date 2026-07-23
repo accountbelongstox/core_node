@@ -77,7 +77,8 @@ class Win32SystemTray:
 
         self.hwnd = None
         self._hicon = None
-        self._running = False
+        self._running_signal = f"native_ui.win32_tray.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
         self._id_to_signal = {}     # menu command id -> action_signal
         self._default_signal = None  # left-click default action
         self._taskbar_created_msg = None
@@ -263,20 +264,20 @@ class Win32SystemTray:
 
     def run(self):
         """Create the icon and pump messages (blocks until stop())."""
-        if self._running:
+        if THREAD_BUS.get_signal(self._running_signal, False):
             return
         ColorPrint.blue(f"[Win32Tray] Starting native system tray: {self.app_name}")
         self._taskbar_created_msg = win32gui.RegisterWindowMessage("TaskbarCreated")
         self._create_window()
         self._add_icon()
         self._register_thread_bus_handlers()
-        self._running = True
+        THREAD_BUS.signal(self._running_signal, True)
         THREAD_BUS.signal("Win32Tray_ready", {"app_name": self.app_name})
         ColorPrint.green(f"[Win32Tray] Tray icon ready: {self.app_name}")
 
         win32gui.PumpMessages()  # blocks until WM_QUIT (PostQuitMessage)
 
-        self._running = False
+        THREAD_BUS.signal(self._running_signal, False)
         try:
             win32gui.UnregisterClass(self._class_atom, self._hinst)
         except Exception:
@@ -286,7 +287,7 @@ class Win32SystemTray:
 
     def stop(self):
         """Stop the tray. Thread-safe: PostMessage marshals to the tray thread."""
-        if not self._running:
+        if not THREAD_BUS.get_signal(self._running_signal, False):
             return
         ColorPrint.blue("[Win32Tray] Stopping native system tray...")
         try:

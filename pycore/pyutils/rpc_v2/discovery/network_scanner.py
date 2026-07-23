@@ -8,16 +8,17 @@ import http.client
 import ipaddress
 import json
 import socket
-import threading
 import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
-from pycore import ColorPrint
+from pycore import ColorPrint, THREAD_BUS
 from pycore.pyfoundations.third_party import get_third_package_psutil
 
 from pycore.pyutils.rpc_v2.config import get_rpc_config
 from pycore.pyutils.rpc_v2.constants import RPC_STATUS_PATH
+from pycore.pyfoundations.serialized_worker import start_bus_task
 
 psutil = get_third_package_psutil()
 
@@ -78,27 +79,29 @@ class NetworkScanner:
     def _scan_network(self, network: ipaddress.IPv4Network) -> List[NetworkHost]:
         hosts: List[NetworkHost] = []
         ip_list = list(network.hosts())
-        results: List[NetworkHost] = []
-        lock = threading.Lock()
-
-        def scan_ip(ip: str):
-            host = self._check_host(ip, self.port)
-            if host and host.is_active:
-                with lock:
-                    results.append(host)
-
-        threads: List[threading.Thread] = []
-        for idx, ip in enumerate(ip_list):
-            if idx % self.max_threads == 0 and idx > 0:
-                for thread in threads:
-                    thread.join()
-                threads = []
-            thread = threading.Thread(target=scan_ip, args=(str(ip),), daemon=True)
-            thread.start()
-            threads.append(thread)
-        for thread in threads:
-            thread.join()
-        hosts.extend(results)
+        for start_index in range(0, len(ip_list), self.max_threads):
+            response_signals = []
+            for ip in ip_list[start_index:start_index + self.max_threads]:
+                response_signal = f'pyutils.rpc_v2.scan.{uuid.uuid4().hex}'
+                response_signals.append(response_signal)
+                start_bus_task(
+                    self._check_host,
+                    str(ip),
+                    self.port,
+                    thread_name='RPCNetworkScanThread',
+                    response_signal=response_signal,
+                )
+            for response_signal in response_signals:
+                response = THREAD_BUS.wait_signal(
+                    response_signal,
+                    timeout=self.timeout + 1.0,
+                )
+                THREAD_BUS.clear_signal(response_signal)
+                if not isinstance(response, dict) or not response.get('success'):
+                    continue
+                host = response.get('result')
+                if isinstance(host, NetworkHost) and host.is_active:
+                    hosts.append(host)
         return hosts
 
     def _check_host(self, ip: str, port: int) -> Optional[NetworkHost]:

@@ -28,6 +28,7 @@ import {
   type FullTaskCenterStatus,
 } from '@/utils/task-center-types';
 import { submitOutbox } from './services/outbox/submit-outbox';
+import { LANES } from '@/utils/task-center-lanes';
 
 /**
  * Last successful start config, so a live `set_capability` toggle can start a
@@ -66,9 +67,13 @@ export function initTaskCenterListener() {
 async function buildFullStatus(): Promise<FullTaskCenterStatus> {
   const status = taskCenter.getStatus(); // { isRunning, stats, backend }
   const intent = await getRunIntent();
+  const validity = wordValidityRunnerService.getStatus();
   return {
     ...status,
-    validity: wordValidityRunnerService.getStatus(),
+    isRunning: status.isRunning || validity.running || (
+      intent.running && intent.activeCapabilities.length > 0
+    ),
+    validity,
     activeCapabilities: intent.activeCapabilities,
   };
 }
@@ -261,15 +266,11 @@ async function handleStart(
 
   const usesValidity = activeCapabilities.some((k) => CAPABILITY_BY_KEY[k]?.usesValidityRunner);
 
-  // No task-center lanes AND no runner capability => nothing to run. This is a
-  // valid state (e.g. only stub capabilities checked); succeed with a note.
+  // Reject an empty selection instead of persisting a misleading running state.
   if (enabledProcessors.length === 0 && !usesValidity) {
-    await setRunIntent({ running: true, activeCapabilities });
-    lastStartConfig = config;
     sendResponse({
-      success: true,
-      message: 'No active lanes (only stub/no-worker capabilities selected)',
-      status: await buildFullStatus(),
+      success: false,
+      error: 'Select at least one task capability before starting Task Center',
     });
     return;
   }
@@ -311,10 +312,16 @@ async function handleSetCapability(
     return;
   }
   const def = CAPABILITY_BY_KEY[capability];
+  const intent = await getRunIntent();
+  const capSet = new Set(intent.activeCapabilities);
+  if (enabled) capSet.add(capability);
+  else capSet.delete(capability);
+  const activeCapabilities = Array.from(capSet);
 
-  // apiUrl needed to start a processor: reuse the last start config or the
-  // message config's apiUrl.
-  const apiUrl = (config?.apiUrl || lastStartConfig?.apiUrl || '').trim();
+  // Reuse the complete last/start config so live toggles keep each processor's
+  // persisted batch, interval, language, and parallelism settings.
+  const effectiveConfig = config || lastStartConfig;
+  const apiUrl = (effectiveConfig?.apiUrl || '').trim();
 
   if (enabled) {
     if (def.processors.length > 0 && !apiUrl) {
@@ -325,24 +332,43 @@ async function handleSetCapability(
       return;
     }
     for (const p of def.processors) {
+      const processorConfig = effectiveConfig?.processors?.[p] || { apiUrl };
       taskCenter.enableProcessor(p);
-      await taskCenter.startProcessor(p, { apiUrl });
+      await taskCenter.startProcessor(p, { ...processorConfig, apiUrl });
     }
     if (def.usesValidityRunner) {
       await wordValidityRunnerService.start({ apiUrl });
     }
     // Remember the apiUrl so a later toggle can start more lanes.
-    if (apiUrl && !lastStartConfig) {
-      lastStartConfig = { apiUrl, processors: {} };
+    if (apiUrl) {
+      lastStartConfig = {
+        ...(lastStartConfig || {}),
+        ...(effectiveConfig || {}),
+        apiUrl,
+        processors: {
+          ...(lastStartConfig?.processors || {}),
+          ...(effectiveConfig?.processors || {}),
+        },
+      };
     }
   } else {
     for (const p of def.processors) {
-      taskCenter.disableProcessor(p); // disableProcessor stops it if running
+      const stillNeeded = activeCapabilities.some((key) =>
+        CAPABILITY_BY_KEY[key]?.processors.includes(p),
+      );
+      if (!stillNeeded) {
+        taskCenter.disableProcessor(p);
+      }
     }
     if (def.usesValidityRunner) {
       wordValidityRunnerService.stop();
     }
-    if (capability === 'bing') {
+    if (
+      capability === 'bing' &&
+      !activeCapabilities.some((key) =>
+        CAPABILITY_BY_KEY[key]?.processors.includes(LANES.BING_DICTIONARY),
+      )
+    ) {
       // Ensure the Bing watchdog + session run-intent are cleared so the crawler
       // cannot resurrect after being toggled off.
       await bingDictionaryWorkerService.stopAndClear();
@@ -350,11 +376,6 @@ async function handleSetCapability(
   }
 
   // Update run-intent's active set; running is true while >=1 capability active.
-  const intent = await getRunIntent();
-  const capSet = new Set(intent.activeCapabilities);
-  if (enabled) capSet.add(capability);
-  else capSet.delete(capability);
-  const activeCapabilities = Array.from(capSet);
   await setRunIntent({ running: activeCapabilities.length > 0, activeCapabilities });
 
   sendResponse({ success: true, status: await buildFullStatus() });

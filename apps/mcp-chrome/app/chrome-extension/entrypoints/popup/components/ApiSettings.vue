@@ -176,9 +176,6 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { apiManager } from '@/services/ApiManager';
 import type { ApiEndpoint, EndpointStatus } from '@/services/ApiManager';
 import { getMessage as t } from '@/utils/i18n';
-import { useAppStore } from '@/composables/useAppStore';
-
-const appStore = useAppStore();
 
 const BASE_INTERVAL_MS = 15000;
 const MAX_INTERVAL_MS = 60000;
@@ -242,15 +239,6 @@ const dotClass = (id: string): string => {
 const formatResponseTime = (ms: number): string =>
   ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`;
 
-// Keep the appStore endpoint id in sync so other consumers stay consistent.
-const syncAppStore = (endpointId: string) => {
-  try {
-    appStore.setCurrentEndpoint(endpointId);
-  } catch (error) {
-    console.warn('[API Settings] Failed to sync appStore endpoint:', error);
-  }
-};
-
 const refreshEndpoints = async () => {
   if (isRefreshing.value) return;
   isRefreshing.value = true;
@@ -294,7 +282,6 @@ const selectEndpoint = async (endpointId: string) => {
     autoMode.value = false;
     dropdownOpen.value = false;
     currentEndpoint.value = apiManager.getCurrentEndpoint();
-    syncAppStore(endpointId);
     currentBackoff = BASE_INTERVAL_MS;
   }
 };
@@ -311,7 +298,6 @@ const selectAuto = async () => {
     endpointStatuses.value = [...apiManager.getAllEndpointStatuses()];
     if (best) {
       currentEndpoint.value = best;
-      syncAppStore(best.id);
     }
   } finally {
     isAutoDetecting.value = false;
@@ -376,7 +362,6 @@ const tick = async () => {
       endpointStatuses.value = [...apiManager.getAllEndpointStatuses()];
       if (best) {
         currentEndpoint.value = best;
-        syncAppStore(best.id);
         currentBackoff = BASE_INTERVAL_MS;
       } else {
         currentBackoff = Math.min(currentBackoff * 1.5, MAX_INTERVAL_MS);
@@ -413,7 +398,6 @@ onMounted(async () => {
     const best = await apiManager.selectBestAvailable(PROBE_TIMEOUT_MS);
     if (best) {
       currentEndpoint.value = best;
-      syncAppStore(best.id);
     }
   }
   document.addEventListener('click', onDocumentClick);

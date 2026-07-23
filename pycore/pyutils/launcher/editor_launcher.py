@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Editor Launcher
-Handles launching Chrome/VSCode/Cursor windows
+Handles launching Chrome/VSCode/Antigravity windows
 """
 
 from pycore.pyutils.launcher.script_generator import ScriptGenerator
@@ -13,13 +13,13 @@ import subprocess
 
 
 class EditorLauncher:
-    """Launch editor applications (Chrome, VSCode, Cursor) windows"""
+    """Launch editor applications (Chrome, VSCode, Antigravity) windows"""
 
     # Linux PATH binaries per app (Debian/Ubuntu/Kali). First found on PATH wins.
     _LINUX_BINARIES = {
         'chrome': ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'],
         'vscode': ['code', 'code-insiders'],
-        'cursor': ['cursor'],
+        'antigravity': ['antigravity'],
     }
     
     def __init__(self, script_generator=None, executor=None):
@@ -59,18 +59,18 @@ class EditorLauncher:
         """
         return self._launch_editor('vscode', windows_config, delay)
     
-    def launch_cursor(self, windows_config, delay=0.2):
+    def launch_antigravity(self, windows_config, delay=0.2):
         """
-        Launch Cursor windows
-        
+        Launch Antigravity windows
+
         Args:
             windows_config: List of tuples (x, y, width, height, file_path=None)
             delay: Delay between launches in seconds
-        
+
         Returns:
             list: List of created batch file paths
         """
-        return self._launch_editor('cursor', windows_config, delay)
+        return self._launch_editor('antigravity', windows_config, delay)
     
     def _launch_editor(self, app_name, windows_config, delay):
         """Internal method to launch editor windows"""
@@ -106,7 +106,7 @@ class EditorLauncher:
     def _launch_editor_linux(self, app_name, windows_config, delay):
         """Launch editor windows on Linux via the PATH binary (no .bat / explorer).
 
-        Debian/Ubuntu/Kali ship code/cursor/chrome on PATH; we open one --new-window
+        Debian/Ubuntu/Kali ship code/antigravity/chrome on PATH; we open one --new-window
         per grid cell (window positioning is left to the WM, same as the terminal grid).
         """
         binary = None

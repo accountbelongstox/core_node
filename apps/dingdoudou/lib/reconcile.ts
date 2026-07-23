@@ -8,6 +8,7 @@
 // also build a printable report.
 
 import type { Order } from './types';
+import { localeFor, reconciliationReportText } from './uiI18n';
 
 export interface ReconcileBatch {
   id: string;
@@ -185,31 +186,11 @@ export function buildReportHtml(
   batches: ReconcileBatch[],
   lang: 'zh' | 'en',
 ): string {
-  const zh = lang === 'zh';
-  const T = {
-    title: zh ? '订多多 · 订单快递核算报表' : 'DingDuoDuo · Order Reconciliation Report',
-    generated: zh ? '生成时间' : 'Generated',
-    overview: zh ? '核算概览' : 'Overview',
-    batchNumbers: zh ? '批次单号总数' : 'Batch numbers',
-    orderNumbers: zh ? '订单单号总数' : 'Order numbers',
-    matched: zh ? '匹配命中' : 'Matched',
-    missing: zh ? '批次缺失(未在订单中)' : 'Missing (not in orders)',
-    extra: zh ? '订单多余(未在批次中)' : 'Unaccounted (not in batches)',
-    batchSummary: zh ? '各批次命中情况' : 'Per-batch summary',
-    batch: zh ? '批次' : 'Batch',
-    total: zh ? '单号数' : 'Count',
-    tracking: zh ? '快递单号' : 'Tracking No',
-    order: zh ? '订单号' : 'Order',
-    account: zh ? '账号' : 'Account',
-    product: zh ? '商品' : 'Product',
-    recipient: zh ? '收件人' : 'Recipient',
-    status: zh ? '状态' : 'Status',
-    inBatches: zh ? '所属批次' : 'In batches',
-  };
+  const T = reconciliationReportText(lang);
   const esc = (s: unknown) =>
     String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
   const batchName = (id: string) => batches.find((b) => b.id === id)?.name ?? id;
-  const dt = new Date(result.generatedAt).toLocaleString(zh ? 'zh-CN' : 'en-US');
+  const dt = new Date(result.generatedAt).toLocaleString(localeFor(lang));
 
   const summaryRows = result.batchSummaries
     .map(
@@ -240,7 +221,7 @@ export function buildReportHtml(
     )
     .join('');
 
-  return `<!doctype html><html lang="${zh ? 'zh-CN' : 'en'}"><head><meta charset="utf-8"/>
+  return `<!doctype html><html lang="${T.htmlLanguage}"><head><meta charset="utf-8"/>
 <title>${esc(T.title)}</title>
 <style>
   * { box-sizing: border-box; }

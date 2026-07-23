@@ -387,12 +387,7 @@ install_dependencies() {
             echo ""
         fi
     elif [ "$has_gpu" = true ]; then
-        # cu124 (CUDA 12.x major) rather than cu126: it runs on the common 12.x
-        # drivers (cu126 needs a >=12.6 driver) and its major-12 matches a CUDA 12.x
-        # toolkit, which is what flash-attn's source build requires.
-        # Driver-matched CUDA wheel (single source of truth: base_libs/cuda_index.sh,
-        # provided here via torch_cpu_guard.sh). Yields cu124 on a 12.4 driver; cu126 needs
-        # a >=12.6 driver. major-12 still matches a CUDA 12.x toolkit for flash-attn's build.
+        # Driver-matched CUDA wheel from the unified CUDA policy.
         _ocr_torch_idx="$(torch_cuda_index_url)"
         print_info "Step 1: torch not found - installing driver-matched CUDA PyTorch ($_ocr_torch_idx)..."
         echo ""
@@ -404,8 +399,8 @@ install_dependencies() {
         print_info "DeepSeek-OCR's bundled run scripts expect a CUDA GPU; CPU torch is"
         print_info "installed so dependencies resolve, but the model run will need a GPU."
         echo ""
-        echo "[run] ${pip_install[*]} torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu"
-        "${pip_install[@]}" torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        echo "[run] ${pip_install[*]} torch torchvision torchaudio --index-url $AI_TORCH_CPU_INDEX"
+        "${pip_install[@]}" torch torchvision torchaudio --index-url "$AI_TORCH_CPU_INDEX"
         echo ""
     fi
 

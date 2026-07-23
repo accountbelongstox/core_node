@@ -15,9 +15,10 @@ instance of this class (those methods are part of the public API consumed by
 translation_ws_client_service + get_status).
 """
 
-import threading
 import time
 from typing import List, Optional, Tuple
+
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 
 
 class DoneWordsCache:
@@ -29,8 +30,8 @@ class DoneWordsCache:
 
     def __init__(self, ttl: int = 120) -> None:
         self._done_words: dict = {}
-        self._done_words_lock = threading.Lock()
         self._done_word_ttl = ttl
+        init_serialized_owner(self, "translation.done_words", "DoneWordsCacheState")
 
     @staticmethod
     def _word_key(word: str, source_language: str, target_language: str) -> Tuple[str, str, str]:
@@ -41,6 +42,7 @@ class DoneWordsCache:
             (word or "").strip().lower(),
         )
 
+    @serialized_method
     def mark_words_done(
         self,
         words: List[str],
@@ -61,14 +63,15 @@ class DoneWordsCache:
         ttl = self._done_word_ttl if ttl_seconds is None else max(1, int(ttl_seconds))
         now = time.monotonic()
         expiry = now + ttl
-        with self._done_words_lock:
-            for w in words:
-                if w:
-                    self._done_words[self._word_key(w, source_language, target_language)] = expiry
-            # Opportunistic prune so the set never grows unbounded.
-            if len(self._done_words) > 4096:
-                self._done_words = {k: e for k, e in self._done_words.items() if e > now}
+        for w in words:
+            if w:
+                self._done_words[self._word_key(w, source_language, target_language)] = expiry
+        # Opportunistic prune (build-then-swap: build the pruned dict, assign once)
+        # so the set never grows unbounded.
+        if len(self._done_words) > 4096:
+            self._done_words = {k: e for k, e in self._done_words.items() if e > now}
 
+    @serialized_method
     def partition_words(
         self,
         words: List[str],
@@ -86,17 +89,17 @@ class DoneWordsCache:
         now = time.monotonic()
         to_translate: List[str] = []
         already_done: List[str] = []
-        with self._done_words_lock:
-            for w in words:
-                exp = self._done_words.get(self._word_key(w, source_language, target_language))
-                if exp and exp > now:
-                    already_done.append(w)
-                else:
-                    to_translate.append(w)
+        for w in words:
+            exp = self._done_words.get(self._word_key(w, source_language, target_language))
+            if exp and exp > now:
+                already_done.append(w)
+            else:
+                to_translate.append(w)
         return to_translate, already_done
 
+    @serialized_method
     def done_words_count(self) -> int:
         """Number of live (non-expired) entries in the done-words set."""
         now = time.monotonic()
-        with self._done_words_lock:
-            return sum(1 for e in self._done_words.values() if e > now)
+        expiries = list(self._done_words.values())
+        return sum(1 for e in expiries if e > now)

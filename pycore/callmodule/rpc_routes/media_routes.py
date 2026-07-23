@@ -10,10 +10,10 @@ Routes:
 - media.enrich: trigger laravel_main sentence-library enrichment
 """
 
-import asyncio
 import os
 
 from pycore import ColorPrint
+from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.callmodule.services.sync.laravel_media_sync import (
     resolve_laravel_base_url,
     sync_book_source,
@@ -31,7 +31,7 @@ def register_media_routes(server):
 
         params: { source_path | paths:[...], language? }. Books map ONLY to the
         sentence library (no segments/clips). Runs the (blocking, network-heavy)
-        ingest on a worker thread via asyncio.to_thread. Progress streams over
+        ingest on a THREAD_BUS worker. Progress streams over
         ColorPrint AND a 'video_extract_sync' THREAD_BUS event per stage. Returns
         the summary (one book) or a {results:[...]} aggregate (multiple paths).
         """
@@ -66,12 +66,12 @@ def register_media_routes(server):
 
         try:
             if len(targets) == 1:
-                return await asyncio.to_thread(
+                return await await_bus_task(
                     sync_book_source, targets[0], language, None, None, None, None,
                     languages, 3, source_type)
             results = []
             for p in targets:
-                results.append(await asyncio.to_thread(
+                results.append(await await_bus_task(
                     sync_book_source, p, language, None, None, None, None,
                     languages, 3, source_type))
             return {
@@ -118,7 +118,7 @@ def register_media_routes(server):
                     'error': f'HTTP {resp.status_code}: {resp.text[:200]}', 'url': url}
 
         try:
-            return await asyncio.to_thread(_do_enrich)
+            return await await_bus_task(_do_enrich)
         except Exception as e:
             ColorPrint.red(f"[ConfigBuilder] media.enrich failed: {e}")
             return {'success': False, 'error': str(e)}

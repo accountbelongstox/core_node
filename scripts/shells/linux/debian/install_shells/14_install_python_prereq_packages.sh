@@ -34,20 +34,32 @@ source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/torch_cpu_guard.sh"
 source "$PARENT_DIR_LEVEL_2/common/paddle_cpu_guard.sh"
+source "$PARENT_DIR_LEVEL_2/common/pycore_package_policy_install.sh"
 
 PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
 [ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
 command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
 
 TARGET_PY=""
+REQUESTED_PYTHON=""
 PY_VERSION=""
 PIP_SYSFLAGS=()
-OCR_BUNDLE=("paddleocr>=3.7.0" "paddlex>=3.7.0")
-BACKEND_BUNDLE=("fastapi" "uvicorn[standard]" "psutil" "opencv-contrib-python" "pillow" "numpy" "scipy" "pyclipper" "shapely" "websocket-client")
+OCR_BUNDLE=()
+BACKEND_BUNDLE=()
 TORCH_PROBE="import torch, torchvision, torchaudio, ultralytics"
 OCR_PROBE="import paddleocr, paddlex"
 DEPS_PROBE="import paddle, paddleocr, paddlex, fastapi, uvicorn, psutil, cv2, PIL, numpy, scipy, pyclipper, shapely, websocket"
 ALL_PROBE="import torch, torchvision, torchaudio, ultralytics, paddle, paddleocr, paddlex, fastapi, uvicorn, psutil, cv2, PIL, numpy, scipy, pyclipper, shapely, websocket"
+IFS=',' read -ra OCR_BUNDLE <<< "${AI_OCR_PACKAGES:-paddleocr>=3.7.0,paddlex>=3.7.0}"
+IFS=',' read -ra BACKEND_BUNDLE <<< "${AI_BACKEND_COMMON_PACKAGES:-fastapi,uvicorn[standard],psutil,opencv-contrib-python,pillow,numpy,scipy,pyclipper,shapely,websocket-client}"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --python) REQUESTED_PYTHON="${2:-}"; shift 2 ;;
+        --force) shift ;;
+        *) shift ;;
+    esac
+done
 
 ipp_resolve_pip_flags() {
     PIP_SYSFLAGS=()
@@ -57,6 +69,10 @@ ipp_resolve_pip_flags() {
 }
 
 ipp_resolve_target_python() {
+    if [[ -n "$REQUESTED_PYTHON" && -x "$REQUESTED_PYTHON" ]]; then
+        TARGET_PY="$REQUESTED_PYTHON"
+        return 0
+    fi
     TARGET_PY="$VENV_PYTHON3"
     if [ -n "$TARGET_PY" ] && [ -x "$TARGET_PY" ]; then
         return 0
@@ -86,23 +102,29 @@ ipp_verify_pip_ready() {
 
 ipp_report_cuda_state() {
     if tcg_gpu_present; then
-        local cuda_ver=""
-        if command -v nvidia-smi >/dev/null 2>&1; then
-            cuda_ver="$(nvidia-smi 2>/dev/null | grep -o 'CUDA Version: [0-9.]*' | head -1)"
+        local cuda_ver="" policy_tag=""
+        cuda_ver="$(cuda_driver_version)"
+        [[ -n "$cuda_ver" ]] && cuda_ver="CUDA Version: $cuda_ver"
+        policy_tag="$(cuda_policy_tag)"
+        if [[ -n "$policy_tag" ]]; then
+            echo "[$SCRIPT_INDEX] NVIDIA GPU detected ${cuda_ver:+($cuda_ver)} — unified $policy_tag policy."
+            echo "[$SCRIPT_INDEX]   torch  -> $(torch_cuda_index_url)"
+            echo "[$SCRIPT_INDEX]   paddle -> $(paddle_cuda_index_url) ($(pcg_expected_version))"
+        else
+            echo "[$SCRIPT_INDEX] NVIDIA GPU detected but no common CUDA tier supports this driver; incompatible GPU packages are skipped."
         fi
-        echo "[$SCRIPT_INDEX] NVIDIA GPU detected ${cuda_ver:+($cuda_ver)} — GPU wheels when driver supports them."
     else
         echo "[$SCRIPT_INDEX] No NVIDIA GPU — CPU wheels for torch and paddle."
     fi
 }
 
 ipp_install_torch_yolo_bundle() {
+    echo "[$SCRIPT_INDEX] Ensuring canonical torch build (CPU/GPU guard)..."
+    TCG_PYTHON="$TARGET_PY" tcg_ensure_torch_build
     if "$TARGET_PY" -c "$TORCH_PROBE" >/dev/null 2>&1; then
         echo "[$SCRIPT_INDEX] [SKIP] torch/torchvision/torchaudio/ultralytics already importable"
         return 0
     fi
-    echo "[$SCRIPT_INDEX] Ensuring torch build (CPU/GPU guard)..."
-    TCG_PYTHON="$TARGET_PY" tcg_ensure_torch_build
     echo "[$SCRIPT_INDEX] Installing ultralytics (YOLO) with torch bundle..."
     echo "[$SCRIPT_INDEX] $TARGET_PY -m pip install --upgrade ${PIP_SYSFLAGS[*]} ultralytics"
     if ! vpip "$TARGET_PY" -m pip install --upgrade "${PIP_SYSFLAGS[@]}" ultralytics; then
@@ -120,12 +142,15 @@ ipp_install_torch_yolo_bundle() {
 }
 
 ipp_install_paddle_ocr_bundle() {
+    echo "[$SCRIPT_INDEX] Ensuring canonical paddle build (CPU/GPU guard)..."
+    if ! PCG_PYTHON="$TARGET_PY" pcg_ensure_paddle_build; then
+        echo "[$SCRIPT_INDEX] [ERROR] canonical Paddle installation or repair failed."
+        return 1
+    fi
     if "$TARGET_PY" -c "$DEPS_PROBE" >/dev/null 2>&1; then
         echo "[$SCRIPT_INDEX] [SKIP] paddle ecosystem + backend deps already importable"
         return 0
     fi
-    echo "[$SCRIPT_INDEX] Ensuring paddle build (CPU/GPU guard)..."
-    PCG_PYTHON="$TARGET_PY" pcg_ensure_paddle_build
     echo "[$SCRIPT_INDEX] Installing paddleocr + paddlex + backend deps (single resolver pass)..."
     echo "[$SCRIPT_INDEX] $TARGET_PY -m pip install ${PIP_SYSFLAGS[*]} ${OCR_BUNDLE[*]} ${BACKEND_BUNDLE[*]}"
     if ! vpip "$TARGET_PY" -m pip install "${PIP_SYSFLAGS[@]}" "${OCR_BUNDLE[@]}" "${BACKEND_BUNDLE[@]}"; then
@@ -166,13 +191,20 @@ if ! ipp_install_paddle_ocr_bundle; then
 fi
 echo ""
 
+if ! install_pycore_package_policy "$TARGET_PY" "[$SCRIPT_INDEX]"; then
+    echo "[$SCRIPT_INDEX] [ERROR] some central pycore packages remain unavailable."
+    exit 1
+fi
+echo ""
+
 echo "[$SCRIPT_INDEX] Verifying all imports..."
 if "$TARGET_PY" -c "$ALL_PROBE" >/dev/null 2>&1; then
     echo "[$SCRIPT_INDEX] [OK] all prerequisite packages importable in $TARGET_PY"
 else
-    echo "[$SCRIPT_INDEX] [WARN] some imports failed:"
+    echo "[$SCRIPT_INDEX] [ERROR] some required imports failed:"
     "$TARGET_PY" -c "$ALL_PROBE" 2>&1 | tail -8
-    echo "[$SCRIPT_INDEX]        Re-run this script or install the missing package manually."
+    echo "[$SCRIPT_INDEX]        Re-run this script to resume the idempotent repair."
+    exit 1
 fi
 
 echo ""

@@ -134,6 +134,8 @@ return [
 
     'asset_url' => env('ASSET_URL'),
 
+    'server_manager_api_key' => env('SERVER_MANAGER_API_KEY'),
+
     /*
     |--------------------------------------------------------------------------
     | Server Headers

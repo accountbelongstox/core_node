@@ -153,7 +153,7 @@ class InteractiveMenu:
         # Build menu items dynamically from APP_DEFINITIONS
         menu_items = []
         toggle_callbacks = []
-        app_order = []  # Track order: ['terminal', 'chrome', 'chrome_beta', 'cursor', ...]
+        app_order = []  # Track order: ['terminal', 'chrome', 'chrome_beta', 'antigravity', ...]
         
         # First: Terminal (special case)
         term_config = self.config_manager.get_terminal_config()
@@ -189,8 +189,8 @@ class InteractiveMenu:
                 menu_items.append(f"{app_name.upper()}: {enabled}")
                 
                 # Create toggle callback for each app
-                if app_name == 'cursor':
-                    toggle_callbacks.append(self._toggle_cursor)
+                if app_name == 'antigravity':
+                    toggle_callbacks.append(self._toggle_antigravity)
                 else:
                     toggle_callbacks.append(lambda name=app_name: self._toggle_other_app(name))
                 
@@ -314,22 +314,22 @@ class InteractiveMenu:
             # Refresh menu items with current status
             term_config = self.config_manager.get_terminal_config()
             chrome_config = self.config_manager.get_app_config('chrome')
-            cursor_config = self.config_manager.get_app_config('cursor')
-            
+            antigravity_config = self.config_manager.get_app_config('antigravity')
+
             term_toggle = term_config.get('toggle', 'X6')
             term_enabled = term_config.get('enabled', True)
             term_status = f"{term_toggle}" if term_enabled else "DISABLE"
             chrome_enabled = chrome_config.get('enabled', True)
             chrome_status = "ON" if chrome_enabled else "OFF"
-            cursor_enabled = cursor_config.get('enabled', True)
-            cursor_status = "ON" if cursor_enabled else "OFF"
-            
+            antigravity_enabled = antigravity_config.get('enabled', True)
+            antigravity_status = "ON" if antigravity_enabled else "OFF"
+
             # Update menu items with current status
             if len(items) >= 3:
                 items = [
                     f"1. Terminal: {term_status}",
                     f"2. Chrome: {chrome_status}",
-                    f"3. Cursor: {cursor_status}",
+                    f"3. Antigravity: {antigravity_status}",
                     items[3] if len(items) > 3 else "4. Other Applications",
                     items[4] if len(items) > 4 else "5. Find Applications (Refresh Cache)",
                     items[5] if len(items) > 5 else "6. View Current Configuration",
@@ -454,11 +454,11 @@ class InteractiveMenu:
         
         self.config_manager.save_config()
     
-    def _toggle_cursor(self):
-        """Toggle Cursor enabled/disabled"""
-        cursor_config = self.config_manager.get_app_config('cursor')
-        enabled = not cursor_config.get('enabled', True)
-        self.config_manager.set('applications.cursor.enabled', enabled)
+    def _toggle_antigravity(self):
+        """Toggle Antigravity enabled/disabled"""
+        antigravity_config = self.config_manager.get_app_config('antigravity')
+        enabled = not antigravity_config.get('enabled', True)
+        self.config_manager.set('applications.antigravity.enabled', enabled)
         # Save immediately
         self.config_manager.save_config()
     
@@ -621,54 +621,54 @@ class InteractiveMenu:
                 print("Chrome not found")
             input("\nPress Enter to continue...")
     
-    def show_cursor_menu(self):
-        """Show Cursor configuration menu"""
+    def show_antigravity_menu(self):
+        """Show Antigravity configuration menu"""
         os.system('cls' if os.name == 'nt' else 'clear')
         print("\n" + "-" * 60)
-        print("Cursor Configuration")
+        print("Antigravity Configuration")
         print("-" * 60)
-        cursor_config = self.config_manager.get_app_config('cursor')
-        
+        antigravity_config = self.config_manager.get_app_config('antigravity')
+
         print(f"Current settings:")
-        print(f"  Enabled: {cursor_config.get('enabled', True)}")
+        print(f"  Enabled: {antigravity_config.get('enabled', True)}")
         # Path is not shown here - it's in cache, not config
         print("\nOptions:")
-        
+
         menu_items = [
-            "1. Enable/Disable Cursor",
-            "2. Find Cursor (Refresh)",
+            "1. Enable/Disable Antigravity",
+            "2. Find Antigravity (Refresh)",
             "0. Back"
         ]
-        
-        selected = self.show_menu_with_selection("Cursor Configuration", menu_items, 0)
-        
+
+        selected = self.show_menu_with_selection("Antigravity Configuration", menu_items, 0)
+
         if selected == -1 or selected == 2:
             return
-        
+
         if selected == 0:
-            enabled = not cursor_config.get('enabled', True)
-            self.config_manager.set('applications.cursor.enabled', enabled)
+            enabled = not antigravity_config.get('enabled', True)
+            self.config_manager.set('applications.antigravity.enabled', enabled)
             self.config_manager.save_config()
-            print(f"\nCursor {'enabled' if enabled else 'disabled'}")
+            print(f"\nAntigravity {'enabled' if enabled else 'disabled'}")
             input("\nPress Enter to continue...")
-        
+
         elif selected == 1:
-            print("\nSearching for Cursor...")
-            cursor_path = self.app_finder.find_app('cursor', force_refresh=True)
-            if cursor_path:
+            print("\nSearching for Antigravity...")
+            antigravity_path = self.app_finder.find_app('antigravity', force_refresh=True)
+            if antigravity_path:
                 # Path is automatically saved to cache by find_app
                 # Do NOT save to config - paths belong in cache only
-                print(f"Found Cursor: {cursor_path}")
+                print(f"Found Antigravity: {antigravity_path}")
                 print("Path saved to cache (app_cache.json)")
             else:
-                print("Cursor not found")
+                print("Antigravity not found")
             input("\nPress Enter to continue...")
     
     def show_other_apps_menu(self):
         """Show other applications menu with toggle support"""
-        # Get all apps except chrome and cursor (they have their own menus)
+        # Get all apps except chrome and antigravity (they have their own menus)
         all_apps = list(self.app_finder.APP_DEFINITIONS.keys())
-        apps = [app for app in all_apps if app not in ['chrome', 'cursor']]
+        apps = [app for app in all_apps if app not in ['chrome', 'antigravity']]
         
         if not apps:
             print("No other applications configured.")

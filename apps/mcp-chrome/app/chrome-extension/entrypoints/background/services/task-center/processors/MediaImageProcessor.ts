@@ -2,7 +2,7 @@
  * Media Image Processor — poster + assist cover/poster via Google/Bing search.
  */
 
-import type { ITaskProcessor, ProcessorConfig, ProcessorStatus } from './ITaskProcessor';
+import type { ITaskProcessor, ProcessorConfig, ProcessorStatus } from '../ITaskProcessor';
 import type { WorkerCapability } from '../../../api/WorkerApiClient';
 import { mediaImageWorkerService } from '../../media-image-worker-service';
 import { LANES } from '@/utils/task-center-lanes';

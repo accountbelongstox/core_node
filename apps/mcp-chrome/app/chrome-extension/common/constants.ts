@@ -1,12 +1,11 @@
-/**
- * Chrome Extension Constants
- * Centralized configuration values and magic constants
- */
+import { DEFAULT_SERVER_PORT, HOST_NAME } from 'chrome-mcp-shared';
+
+export { STORAGE_KEYS } from '@/utils/storage-keys';
 
 // Native Host Configuration
 export const NATIVE_HOST = {
-  NAME: 'com.chromemcp.nativehost',
-  DEFAULT_PORT: 12306,
+  NAME: HOST_NAME,
+  DEFAULT_PORT: DEFAULT_SERVER_PORT,
 } as const;
 
 // Chrome Extension Icons
@@ -94,14 +93,6 @@ export const SEMANTIC_CONFIG = {
   CHUNK_OVERLAP: 50,
   BATCH_SIZE: 32,
   CACHE_SIZE: 1000,
-} as const;
-
-// Storage Keys
-export const STORAGE_KEYS = {
-  SERVER_STATUS: 'serverStatus',
-  SEMANTIC_MODEL: 'selectedModel',
-  USER_PREFERENCES: 'userPreferences',
-  VECTOR_INDEX: 'vectorIndex',
 } as const;
 
 // Notification Configuration

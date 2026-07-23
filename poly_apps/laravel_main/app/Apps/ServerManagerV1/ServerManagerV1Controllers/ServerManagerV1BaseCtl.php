@@ -13,16 +13,10 @@ class ServerManagerV1BaseCtl extends Controller
 {
     /**
      * Authenticate request using API key
-     * In debug/local mode or CLI mode, authentication is bypassed for easier development
+     * In debug/local mode, authentication is bypassed for easier development
      */
     protected function authenticate(Request $request): bool
     {
-        // Check if we're running in console (CLI) - skip authentication for command line
-        if (app()->runningInConsole()) {
-            Log::info('ServerManagerV1: Authentication bypassed for CLI/console environment');
-            return true;
-        }
-
         // Check if we're in debug or local environment - skip authentication
         $appEnv = config('app.env');
         $appDebug = config('app.debug');
@@ -43,20 +37,14 @@ class ServerManagerV1BaseCtl extends Controller
             return false;
         }
 
-        // Get API key from environment or use default
-        $validApiKey = env('SERVER_MANAGER_API_KEY', config('app.server_manager_api_key', 'default-server-manager-key'));
+        $validApiKey = (string) config('app.server_manager_api_key', '');
+
+        if ($validApiKey === '') {
+            Log::error('ServerManagerV1: SERVER_MANAGER_API_KEY is not configured');
+            return false;
+        }
 
         return hash_equals($validApiKey, $apiKey);
-    }
-    
-    /**
-     * Check rate limiting
-     */
-    protected function checkRateLimit(Request $request): bool
-    {
-        // Simple rate limiting implementation
-        // In production, use Laravel's built-in rate limiting
-        return true;
     }
     
     /**
@@ -97,7 +85,7 @@ class ServerManagerV1BaseCtl extends Controller
     }
     
     /**
-     * Validate request authentication and rate limiting
+     * Validate request authentication
      */
     protected function validateRequest(Request $request, string $action): ?JsonResponse
     {
@@ -109,14 +97,6 @@ class ServerManagerV1BaseCtl extends Controller
             return $this->errorResponse(
                 'Authentication required. Please provide valid API key in ' . ServerManagerV1Constants::AUTH_HEADER . ' header.',
                 ServerManagerV1Constants::RESPONSE_UNAUTHORIZED
-            );
-        }
-        
-        // Check rate limiting
-        if (!$this->checkRateLimit($request)) {
-            return $this->errorResponse(
-                'Rate limit exceeded. Please try again later.',
-                429
             );
         }
         

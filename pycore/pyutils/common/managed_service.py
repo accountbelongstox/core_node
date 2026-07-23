@@ -56,7 +56,6 @@ import gc
 import os
 import subprocess
 import sys
-import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -66,6 +65,11 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from pycore import get_user_data_store
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_logs_dir
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
 
 from pycore.pyfoundations.third_party import get_third_package_torch
 from pycore.pyutils.common import model_load_status
@@ -106,6 +110,11 @@ class ServiceSpec:
     # kind="model":
     unload: Optional[Callable[[], None]] = None
     is_loaded: Optional[Callable[[], bool]] = None
+    # kind="server": called when the health endpoint answers but the process is
+    # NOT one we launched (stale orphan from a previous run, manual start). It
+    # should terminate that foreign process and return True when the port is
+    # free; returning False keeps the legacy attach-to-foreign behavior.
+    stop_foreign: Optional[Callable[[], bool]] = None
 
 
 def _gpu_release() -> None:
@@ -122,13 +131,25 @@ def _gpu_release() -> None:
         pass
 
 
+def _relay_managed_log(proc: subprocess.Popen, logfile: Any, service_name: str) -> None:
+    """Relay subprocess output after receiving all task data through THREAD_BUS."""
+    try:
+        for line in iter(proc.stdout.readline, b''):
+            text = line.decode("utf-8", errors="replace")
+            logfile.write(text)
+            logfile.flush()
+            ColorPrint.gray(f"[{service_name}] {text.strip()}")
+    except Exception:
+        pass
+
+
 class ManagedServiceManager:
     """Singleton registry + lifecycle supervisor. Use the `managed_services` instance."""
 
     def __init__(self) -> None:
         self._specs: Dict[str, ServiceSpec] = {}
         self._categories: Dict[str, CategorySettings] = {}
-        self._lock = threading.RLock()
+        # Every registry below is owned by one THREAD_BUS-backed state thread.
         # server-only subprocess handles
         self._processes: Dict[str, subprocess.Popen] = {}
         # per-server append log handles (subprocess stdout/stderr -> file, not DEVNULL,
@@ -136,30 +157,45 @@ class ManagedServiceManager:
         self._logfiles: Dict[str, Any] = {}
         # shared across kinds
         self._last_activity: Dict[str, float] = {}
-        self._in_flight: Dict[str, int] = {}
+        # busy tokens per service (a SET, not a counter: setdefault/add/discard
+        # are each single GIL-atomic ops, so concurrent using() calls for the
+        # same service can never lose an in-flight mark)
+        self._in_flight: Dict[str, set] = {}
         # server health cache (short TTL - status polls hit many at once)
         self._run_cache: Dict[str, Tuple[float, bool]] = {}
         self._watchdog_started = False
+        init_serialized_owner(
+            self,
+            "pyutils.managed_service.state",
+            "ManagedServiceState",
+            timeout=_START_TIMEOUT_S + 30.0,
+        )
         self._start_watchdog()
 
     # --- registration --------------------------------------------------- #
 
+    @serialized_method
     def register_category(self, category: str, layout: CategorySettings) -> None:
         self._categories[category] = layout
 
+    @serialized_method
     def register(self, spec: ServiceSpec) -> None:
         self._specs[spec.name] = spec
 
+    @serialized_method
     def is_registered(self, name: str) -> bool:
         return name in self._specs
 
+    @serialized_method
     def spec(self, name: str) -> Optional[ServiceSpec]:
         return self._specs.get(name)
 
+    @serialized_method
     def category(self, name: str) -> Optional[str]:
         s = self._specs.get(name)
         return s.category if s else None
 
+    @serialized_method
     def services_in(self, category: str) -> List[ServiceSpec]:
         return [s for s in self._specs.values() if s.category == category]
 
@@ -182,6 +218,7 @@ class ManagedServiceManager:
     def _layout(self, category: str) -> Optional[CategorySettings]:
         return self._categories.get(category)
 
+    @serialized_method
     def get_settings(self, category: str) -> Dict[str, Any]:
         layout = self._layout(category)
         if layout is None:
@@ -208,6 +245,7 @@ class ManagedServiceManager:
             f"{p}enabled": enabled,
         }
 
+    @serialized_method
     def apply_settings(self, category: str, patch: Dict[str, Any]) -> Dict[str, Any]:
         layout = self._layout(category)
         if layout is None:
@@ -255,6 +293,7 @@ class ManagedServiceManager:
     def _invalidate_run_cache(self, name: str) -> None:
         self._run_cache.pop(name, None)
 
+    @serialized_method
     def is_running(self, name: str) -> bool:
         """Reachability: server HTTP health (cached) or model loaded."""
         spec = self._specs.get(name)
@@ -275,12 +314,15 @@ class ManagedServiceManager:
         if name in self._specs:
             self._last_activity[name] = time.monotonic()
 
+    @serialized_method
     def record_use(self, name: str) -> None:
         """Refresh the idle timer after a successful call."""
         self._touch(name)
 
+    @serialized_method
     def in_flight(self, name: str) -> int:
-        return self._in_flight.get(name, 0)
+        tokens = self._in_flight.get(name)
+        return len(tokens) if tokens else 0
 
     # --- start / stop --------------------------------------------------- #
 
@@ -288,6 +330,7 @@ class ManagedServiceManager:
     def _server_log_path(spec: ServiceSpec) -> Path:
         return get_app_logs_dir() / "services" / f"{spec.category}_{spec.name}.log"
 
+    @serialized_method
     def read_log_tail(self, name: str, lines: int = 40) -> List[str]:
         """Last `lines` of a server's per-service log (model-load progress +
         errors already captured there). Best-effort: [] when unreadable / no
@@ -370,50 +413,56 @@ class ManagedServiceManager:
             cwd, argv, env = cmd[0], cmd[1], cmd[2]
         else:
             cwd, argv = cmd[0], cmd[1]
-        with self._lock:
-            if self._is_managed_process(spec.name):
-                self._touch(spec.name)
-                return True
-            popen_kwargs = self._popen_kwargs(cwd)
-            logf = self._open_server_log(spec)
-            if logf is not None:
-                popen_kwargs["stdout"] = subprocess.PIPE
-                popen_kwargs["stderr"] = subprocess.STDOUT
-            if env is not None:
-                popen_kwargs["env"] = self._launch_env(argv, env)
-            try:
-                proc = subprocess.Popen(argv, **popen_kwargs)
-                self._processes[spec.name] = proc
-                if logf is not None:
-                    self._logfiles[spec.name] = logf
-                    
-                    def _relay_log(p, f, n):
-                        try:
-                            for line in iter(p.stdout.readline, b''):
-                                text = line.decode("utf-8", errors="replace")
-                                f.write(text)
-                                f.flush()
-                                ColorPrint.gray(f"[{n}] {text.strip()}")
-                        except Exception:
-                            pass
-                    
-                    threading.Thread(
-                        target=_relay_log, 
-                        args=(proc, logf, spec.name), 
-                        daemon=True,
-                        name=f"managed-log-{spec.name}"
-                    ).start()
-                    
-                self._last_activity[spec.name] = time.monotonic()
-            except Exception as e:  # noqa: BLE001
+        # Rule §4: no lock around this check-then-start — the early exit is an
+        # idempotent double-check and the registry insert below uses the
+        # GIL-atomic dict.setdefault, so a lost race terminates the duplicate
+        # instead of corrupting state.
+        if self._is_managed_process(spec.name):
+            self._touch(spec.name)
+            return True
+        popen_kwargs = self._popen_kwargs(cwd)
+        logf = self._open_server_log(spec)
+        if logf is not None:
+            popen_kwargs["stdout"] = subprocess.PIPE
+            popen_kwargs["stderr"] = subprocess.STDOUT
+        if env is not None:
+            popen_kwargs["env"] = self._launch_env(argv, env)
+        try:
+            proc = subprocess.Popen(argv, **popen_kwargs)
+            # Single GIL-atomic insert; if a concurrent start already registered
+            # a process for this name, kill the duplicate we just spawned.
+            existing = self._processes.setdefault(spec.name, proc)
+            if existing is not proc:
+                try:
+                    proc.terminate()
+                except Exception:  # noqa: BLE001
+                    pass
                 if logf is not None:
                     try:
                         logf.close()
                     except OSError:
                         pass
-                ColorPrint.yellow(f"[managed] {spec.name} start failed: {e}")
-                self._report_load_error(spec.name, f"process start failed: {e}")
-                return False
+                self._touch(spec.name)
+                return True
+            if logf is not None:
+                self._logfiles[spec.name] = logf
+                start_bus_task(
+                    _relay_managed_log,
+                    proc,
+                    logf,
+                    spec.name,
+                    thread_name=f"ManagedLogRelay-{spec.name}-Thread",
+                )
+            self._last_activity[spec.name] = time.monotonic()
+        except Exception as e:  # noqa: BLE001
+            if logf is not None:
+                try:
+                    logf.close()
+                except OSError:
+                    pass
+            ColorPrint.yellow(f"[managed] {spec.name} start failed: {e}")
+            self._report_load_error(spec.name, f"process start failed: {e}")
+            return False
         ColorPrint.blue(
             f"[managed] starting {spec.name}: {' '.join(argv)} "
             f"(log: {self._server_log_path(spec)})"
@@ -462,12 +511,13 @@ class ManagedServiceManager:
         for s in self.services_in(category):
             if s.name == except_name or s.kind != "server":
                 continue
-            if self._in_flight.get(s.name, 0) > 0:
+            if self.in_flight(s.name) > 0:
                 continue  # never stop a busy peer
             if self._is_managed_process(s.name):
                 ColorPrint.gray(f"[managed] single-active: stopping {s.name} for {except_name}")
                 self.stop(s.name)
 
+    @serialized_method
     def ensure_running(self, name: str, *, force: bool = False) -> bool:
         """Idempotent: make sure the service is usable for an upcoming call.
         For servers this may Popen+health-wait (respects auto_manage+enabled);
@@ -494,8 +544,31 @@ class ManagedServiceManager:
             if not st.get("enabled", {}).get(name, True):
                 return self.is_running(name)
         if self.is_running(name):
-            self._touch(name)
-            return True
+            if (
+                spec.kind == "server"
+                and not self._is_managed_process(name)
+                and spec.stop_foreign is not None
+            ):
+                # A process we did NOT launch answers the health endpoint — a
+                # stale orphan from a previous run. It serves old code with a
+                # dead stdout pipe (requests 500 instantly), so reclaim the
+                # port and fall through to a fresh managed start.
+                ColorPrint.yellow(
+                    f"[managed] {name}: foreign process holds the service port — reclaiming"
+                )
+                try:
+                    if spec.stop_foreign():
+                        self._invalidate_run_cache(name)
+                    else:
+                        self._touch(name)
+                        return True
+                except Exception as e:  # noqa: BLE001
+                    ColorPrint.yellow(f"[managed] {name} stop_foreign failed: {e}")
+                    self._touch(name)
+                    return True
+            else:
+                self._touch(name)
+                return True
         if spec.kind == "server":
             return self._start_server(spec)
         # model: the engine loads on use; just record activity so the watchdog
@@ -503,18 +576,19 @@ class ManagedServiceManager:
         self._touch(name)
         return True
 
+    @serialized_method
     def stop(self, name: str) -> Dict[str, Any]:
         spec = self._specs.get(name)
         if spec is None:
             return {"success": False, "error": f"unknown service: {name}"}
         # Don't kill a busy service (caller should release first).
-        if self._in_flight.get(name, 0) > 0:
+        if self.in_flight(name) > 0:
             return {"success": False, "error": f"{name} busy (in-flight)"}
         if spec.kind == "server":
-            with self._lock:
-                proc = self._processes.pop(name, None)
-                logf = self._logfiles.pop(name, None)
-                self._last_activity.pop(name, None)
+            # Rule §4: three independent GIL-atomic dict pops, no lock.
+            proc = self._processes.pop(name, None)
+            logf = self._logfiles.pop(name, None)
+            self._last_activity.pop(name, None)
             if proc is not None and proc.poll() is None:
                 try:
                     proc.terminate()
@@ -553,30 +627,41 @@ class ManagedServiceManager:
 
     # --- busy-protected call wrapper ------------------------------------ #
 
-    @contextmanager
-    def using(self, name: str):
-        """Wrap a synth/transcribe call: ensure running, mark in-flight (busy
-        protection), touch activity on exit. No-op for unregistered services."""
+    @serialized_method
+    def _begin_use(self, name: str) -> Optional[object]:
         spec = self._specs.get(name)
         if spec is None:
-            yield
-            return
+            return None
         try:
             self.ensure_running(name)
         except Exception as e:  # noqa: BLE001
             ColorPrint.yellow(f"[managed] ensure_running {name} failed: {e}")
-        with self._lock:
-            self._in_flight[name] = self._in_flight.get(name, 0) + 1
+        token = object()
+        self._in_flight.setdefault(name, set()).add(token)
         self._touch(name)
+        return token
+
+    @serialized_method
+    def _end_use(self, name: str, token: object) -> None:
+        tokens = self._in_flight.get(name)
+        if tokens is not None:
+            tokens.discard(token)
+        self._touch(name)
+
+    @contextmanager
+    def using(self, name: str):
+        """Wrap a synth/transcribe call: ensure running, mark in-flight (busy
+        protection), touch activity on exit. No-op for unregistered services."""
+        token = self._begin_use(name)
         try:
             yield
         finally:
-            with self._lock:
-                self._in_flight[name] = max(0, self._in_flight.get(name, 0) - 1)
-            self._touch(name)
+            if token is not None:
+                self._end_use(name, token)
 
     # --- status --------------------------------------------------------- #
 
+    @serialized_method
     def runtime_status(self, name: str) -> Dict[str, Any]:
         spec = self._specs.get(name)
         if spec is None:
@@ -596,10 +681,11 @@ class ManagedServiceManager:
             "running": running,
             "managed": managed,
             "enabled": bool(st.get("enabled", {}).get(name, True)),
-            "in_flight": self._in_flight.get(name, 0),
+            "in_flight": self.in_flight(name),
             "idle_remaining_s": idle_remaining,
         }
 
+    @serialized_method
     def all_runtime_status(self, category: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
         names = [s.name for s in self._specs.values() if category is None or s.category == category]
         return {n: self.runtime_status(n) for n in names}
@@ -620,7 +706,7 @@ class ManagedServiceManager:
             cat_idle[cat] = self._settings(cat).get("idle_s", layout.idle_default)
         now = time.monotonic()
         for name, spec in list(self._specs.items()):
-            if self._in_flight.get(name, 0) > 0:
+            if self.in_flight(name) > 0:
                 continue  # busy - never idle-stop
             idle_s = cat_idle.get(spec.category, DEFAULT_IDLE_S)
             if idle_s <= 0:
@@ -637,22 +723,30 @@ class ManagedServiceManager:
     def _watchdog_loop(self) -> None:
         while True:
             try:
-                with self._lock:
-                    self._reap_dead()
-                self._shutdown_idle()
+                self._watchdog_tick()
             except Exception:  # noqa: BLE001
                 pass
             time.sleep(_WATCHDOG_POLL_S)
 
+    @serialized_method
+    def _watchdog_tick(self) -> None:
+        self._reap_dead()
+        self._shutdown_idle()
+
+    @serialized_method
     def _start_watchdog(self) -> None:
         if self._watchdog_started:
             return
         self._watchdog_started = True
-        threading.Thread(target=self._watchdog_loop, name="managed-service-idle", daemon=True).start()
+        start_bus_task(
+            self._watchdog_loop,
+            thread_name="ManagedServiceWatchdogThread",
+        )
 
+    @serialized_method
     def shutdown_all(self) -> None:
         for name in list(self._specs.keys()):
-            if self._in_flight.get(name, 0) > 0:
+            if self.in_flight(name) > 0:
                 continue
             try:
                 self.stop(name)

@@ -60,7 +60,7 @@ echo "============================================================"
 
 if ! PYTHON="$(resolve_python)"; then
     echo "[install_vosk] [X] Python 3 not found. Run 13_ensure_python.sh first, or pass --python <path>." >&2
-    complete_prereq_step "$PYTHON" "[install_vosk] " vosk
+    fail_prereq_step "$PYTHON" "[install_vosk] " vosk
 fi
 echo "[install_vosk] python : $PYTHON"
 
@@ -131,14 +131,21 @@ done
 if [[ "$COMPLETE" -eq 0 ]]; then
     echo "[install_vosk] [!] still incomplete after $attempt attempts; partial .zip KEPT to RESUME next run (continues, never restarts). whisper/azure STT still work."
     _backup_install_asset_path "$TMP_EXTRACT" "[install_vosk] " >/dev/null
-    complete_prereq_step "$PYTHON" "[install_vosk] " vosk
+    fail_prereq_step "$PYTHON" "[install_vosk] " vosk
 fi
 
 echo "[install_vosk] [..] extracting ..."
 if command -v unzip >/dev/null 2>&1; then
-    unzip -q -o "$ARCHIVE" -d "$TMP_EXTRACT" || "$PYTHON" -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$ARCHIVE" "$TMP_EXTRACT"
+    if ! unzip -q -o "$ARCHIVE" -d "$TMP_EXTRACT" \
+        && ! "$PYTHON" -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$ARCHIVE" "$TMP_EXTRACT"; then
+        echo "[install_vosk] [!] archive extraction failed; retrying next run." >&2
+        fail_prereq_step "$PYTHON" "[install_vosk] " vosk
+    fi
 else
-    "$PYTHON" -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$ARCHIVE" "$TMP_EXTRACT"
+    if ! "$PYTHON" -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$ARCHIVE" "$TMP_EXTRACT"; then
+        echo "[install_vosk] [!] archive extraction failed; retrying next run." >&2
+        fail_prereq_step "$PYTHON" "[install_vosk] " vosk
+    fi
 fi
 inner="$(find "$TMP_EXTRACT" -mindepth 1 -maxdepth 1 -type d | head -n1)"
 src="${inner:-$TMP_EXTRACT}"
@@ -148,6 +155,7 @@ if [[ -d "$MODEL_DIR/conf" ]]; then
     echo "[install_vosk] [OK] Vosk model installed: $MODEL_DIR (free, offline). .zip KEPT at $ARCHIVE."
 else
     echo "[install_vosk] [!] Extract produced no conf/ (archive may be partial); .zip KEPT to RESUME."
+    fail_prereq_step "$PYTHON" "[install_vosk] " vosk
 fi
 _backup_install_asset_path "$TMP_EXTRACT" "[install_vosk] " >/dev/null
 complete_prereq_step "$PYTHON" "[install_vosk] " vosk

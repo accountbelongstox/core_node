@@ -194,8 +194,8 @@ class TkinterSystemTray:
         self.trigger_shutdown_on_exit = trigger_shutdown_on_exit
 
         self._tray_icon: Optional[pystray.Icon] = None
-        self._running = False
-        self._stop_requested = False
+        self._running_signal = f"native_ui.tkinter_tray.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
     def _load_icon(self) -> Image:
         """
@@ -277,7 +277,7 @@ class TkinterSystemTray:
                 })
 
                 # Auto-refresh menu after action to reflect state changes
-                if self._tray_icon and self._running:
+                if self._tray_icon and THREAD_BUS.get_signal(self._running_signal, False):
                     self._refresh_menu()
 
         # Handle checked state
@@ -341,7 +341,7 @@ class TkinterSystemTray:
 
         This method blocks until stop() is called.
         """
-        if self._running:
+        if THREAD_BUS.get_signal(self._running_signal, False):
             ColorPrint.yellow("[TRAY] Already running")
             return
 
@@ -369,13 +369,13 @@ class TkinterSystemTray:
             menu=menu
         )
 
-        self._running = True
+        THREAD_BUS.signal(self._running_signal, True)
 
         # Run tray with setup callback (blocking)
         self._tray_icon.run(setup=on_setup)
 
         # Cleanup after tray stops
-        self._running = False
+        THREAD_BUS.signal(self._running_signal, False)
         ColorPrint.blue("[TRAY] System tray stopped")
         THREAD_BUS.signal('TkinterTray_stopped', {"app_name": self.app_name})
 
@@ -386,12 +386,10 @@ class TkinterSystemTray:
         This will cause run() to return.
         If trigger_shutdown_on_exit=True, this will also trigger global shutdown.
         """
-        if not self._running:
+        if not THREAD_BUS.get_signal(self._running_signal, False):
             return
 
         ColorPrint.blue("[TRAY] Stopping system tray...")
-        self._stop_requested = True
-
         if self._tray_icon:
             self._tray_icon.stop()
 
@@ -409,7 +407,7 @@ class TkinterSystemTray:
 
         This is called automatically after menu actions to reflect state changes.
         """
-        if self._tray_icon and self._running:
+        if self._tray_icon and THREAD_BUS.get_signal(self._running_signal, False):
             self._tray_icon.menu = self._build_menu()
             # On Windows, reassigning .menu alone does not refresh the live popup;
             # update_menu() forces pystray to rebuild the Win32 menu handle.
@@ -427,7 +425,7 @@ class TkinterSystemTray:
         """
         self.menu_items = menu_items
 
-        if self._tray_icon and self._running:
+        if self._tray_icon and THREAD_BUS.get_signal(self._running_signal, False):
             self._tray_icon.menu = self._build_menu()
             # On Windows, reassigning .menu alone does not refresh the live popup;
             # update_menu() forces pystray to rebuild the Win32 menu handle.

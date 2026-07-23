@@ -25,9 +25,12 @@ import importlib.metadata
 import importlib.util
 import os
 import tempfile
-import threading
 import time
 from pathlib import Path
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -50,7 +53,9 @@ OCR_ENGINE_PRIORITY = tuple(name for name, _, _ in _ENGINE_SPECS)
 
 # Lazily-built engine instances (built once, reused). Guarded for the screenshot
 # monitor thread + request threads hitting extract_text concurrently.
-_lock = threading.Lock()
+_OCR_QUEUE = 'pyutils.ocr.orchestrator'
+_OCR_WORKER = SerializedWorkerThread(_OCR_QUEUE, 'OCROrchestratorThread')
+_OCR_WORKER.start()
 _windows_engine: Any = None       # WindowsOCREngine or False (init failed)
 _easyocr_reader: Any = None       # easyocr.Reader or False
 _easyocr_langs = ["ch_sim", "en"]
@@ -125,10 +130,9 @@ def ocr_status() -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 def _extract_windows(image_path: str) -> str:
     global _windows_engine
-    with _lock:
-        if _windows_engine is None:
-            _windows_engine = create_windows_ocr() or False
-        engine = _windows_engine
+    if _windows_engine is None:
+        _windows_engine = create_windows_ocr() or False
+    engine = _windows_engine
     if not engine:
         return ""
     return (engine.ocr(img_path=image_path).get("text") or "").strip()
@@ -136,10 +140,9 @@ def _extract_windows(image_path: str) -> str:
 
 def _extract_easyocr(image_path: str) -> str:
     global _easyocr_reader
-    with _lock:
-        if _easyocr_reader is None:
-            _easyocr_reader = easyocr.Reader(_easyocr_langs)
-        reader = _easyocr_reader
+    if _easyocr_reader is None:
+        _easyocr_reader = easyocr.Reader(_easyocr_langs)
+    reader = _easyocr_reader
     if not reader:
         return ""
     # detail=0 -> list of plain strings, top-to-bottom reading order.
@@ -174,7 +177,7 @@ _EXTRACTORS = {
 }
 
 
-def extract_text(image_path: str, lang: Optional[str] = None) -> Dict[str, Any]:
+def _extract_text(image_path: str, lang: Optional[str] = None) -> Dict[str, Any]:
     """
     Extract text from an image using the best available local OCR engine.
 
@@ -220,7 +223,7 @@ def extract_text(image_path: str, lang: Optional[str] = None) -> Dict[str, Any]:
     }
 
 
-def extract_text_engine(engine: str, image_path: str, lang: Optional[str] = None,
+def _extract_text_engine(engine: str, image_path: str, lang: Optional[str] = None,
                          model_type: Optional[str] = None,
                          languages: Optional[List[str]] = None) -> Dict[str, Any]:
     """Extract text with ONE specific engine (no fallback). Returns
@@ -251,6 +254,33 @@ def extract_text_engine(engine: str, image_path: str, lang: Optional[str] = None
         return {"success": False, "text": "", "engine": engine,
                 "error": f"{engine} returned no text"}
     return {"success": True, "text": text, "engine": engine, "error": None}
+
+
+def extract_text(image_path: str, lang: Optional[str] = None) -> Dict[str, Any]:
+    """Extract text through the OCR owner thread."""
+    return call_serialized(
+        _OCR_QUEUE,
+        _extract_text,
+        image_path,
+        lang,
+        timeout=300.0,
+    )
+
+
+def extract_text_engine(engine: str, image_path: str, lang: Optional[str] = None,
+                        model_type: Optional[str] = None,
+                        languages: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Run one OCR engine through the OCR owner thread."""
+    return call_serialized(
+        _OCR_QUEUE,
+        _extract_text_engine,
+        engine,
+        image_path,
+        lang,
+        model_type,
+        languages,
+        timeout=300.0,
+    )
 
 
 def _extract_with_extra(engine: str, image_path: str, lang: Optional[str],

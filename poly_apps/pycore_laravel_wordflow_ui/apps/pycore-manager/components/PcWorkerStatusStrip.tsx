@@ -33,8 +33,9 @@ const PcWorkerStatusStrip: React.FC<{ refreshTick?: number }> = () => {
     setBusy(name);
     setToggleErr(null);
     try {
-      await pycoreApi.setHeartbeatWorkerConfig(name, !row.enabled);
-      hub.refreshHub();
+      const result = await pycoreApi.setHeartbeatWorkerConfig(name, !row.enabled);
+      if (!result?.success) throw new Error(result?.error || 'toggle rejected');
+      await hub.refreshHub();
     } catch (e: any) {
       if (mounted.current) setToggleErr(e?.message || 'toggle failed');
     } finally {

@@ -51,14 +51,48 @@ class AppQyV1UserPresenceModel extends Model
         'user_id',
         'status',
         'last_seen_at',
+        'latitude',
+        'longitude',
+        'location_accuracy',
+        'location_visible',
+        'location_updated_at',
         'updated_at',
     ];
 
     protected $casts = [
         'user_id' => 'integer',
         'last_seen_at' => 'datetime',
+        'latitude' => 'float',
+        'longitude' => 'float',
+        'location_accuracy' => 'float',
+        'location_visible' => 'boolean',
+        'location_updated_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function updateLocation(int $userId, float $latitude, float $longitude, ?float $accuracy, bool $visible): void
+    {
+        $now = now();
+        static::query()->updateOrCreate(
+            ['user_id' => $userId],
+            [
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+                'location_accuracy' => $accuracy,
+                'location_visible' => $visible,
+                'location_updated_at' => $now,
+                'updated_at' => $now,
+            ]
+        );
+    }
+
+    public static function setLocationVisibility(int $userId, bool $visible): void
+    {
+        static::query()->where('user_id', $userId)->update([
+            'location_visible' => $visible,
+            'updated_at' => now(),
+        ]);
+    }
 
     /**
      * Upsert a heartbeat. Returns the PREVIOUS effective-online state so the

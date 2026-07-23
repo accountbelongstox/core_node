@@ -32,11 +32,11 @@ Usage:
 """
 
 import time
-import threading
 from enum import Enum
 from typing import List, Dict, Any, Optional, Callable, Iterator
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyutils.ai_cluster.openrouter.openrouter_client import get_openrouter_client
 
 
@@ -96,8 +96,8 @@ class ChatSession:
         self._current_response: str = ""
 
         # State management
-        self._state: SessionState = SessionState.IDLE
-        self._state_lock = threading.Lock()
+        self._state_signal = f'pyutils.openrouter.chat_session.{id(self)}.state'
+        THREAD_BUS.signal(self._state_signal, SessionState.IDLE)
 
         # Statistics
         self._total_messages = 0
@@ -136,9 +136,8 @@ class ChatSession:
         return 'free'
 
     def _set_state(self, state: SessionState):
-        """Set session state (thread-safe)"""
-        with self._state_lock:
-            self._state = state
+        """Publish the session state through THREAD_BUS."""
+        THREAD_BUS.signal(self._state_signal, state)
 
     def get_state(self) -> SessionState:
         """
@@ -147,8 +146,7 @@ class ChatSession:
         Returns:
             SessionState: Current state
         """
-        with self._state_lock:
-            return self._state
+        return THREAD_BUS.get_signal(self._state_signal, SessionState.IDLE)
 
     def is_idle(self) -> bool:
         """Check if session is idle"""

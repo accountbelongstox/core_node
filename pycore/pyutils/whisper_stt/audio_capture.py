@@ -23,6 +23,7 @@ import wave
 import platform
 import tempfile
 import threading
+from pycore.pyfoundations.serialized_worker import start_bus_task
 import time
 from pathlib import Path
 from typing import Optional, Callable, Any
@@ -143,8 +144,10 @@ class MicrophoneCapture:
         )
 
         self._is_recording = True
-        self._recording_thread = threading.Thread(target=self._record_loop, daemon=True)
-        self._recording_thread.start()
+        self._recording_thread = start_bus_task(
+            self._record_loop,
+            thread_name="MicrophoneCaptureThread",
+        )
 
         ColorPrint.green("[MicrophoneCapture] Recording started")
         return True
@@ -378,8 +381,10 @@ class SystemAudioCapture:
         )
 
         self._is_recording = True
-        self._recording_thread = threading.Thread(target=self._record_loop, daemon=True)
-        self._recording_thread.start()
+        self._recording_thread = start_bus_task(
+            self._record_loop,
+            thread_name="SystemAudioCaptureThread",
+        )
 
         ColorPrint.green(f"[SystemAudioCapture] Recording started (device: {self._loopback_device.get('name', 'Unknown')})")
         return True

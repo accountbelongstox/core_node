@@ -18,13 +18,31 @@ import threading
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyutils.translator.google_translator import GoogleTranslator
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 from pycore.pyutils.external_apis.image_search_client import (
     build_poster_query,
     find_first_image_poster,
 )
+
+
+_POSTER_ASYNC_QUEUE = 'pyutils.external_apis.movie_poster.async'
+_POSTER_ASYNC_WORKER = SerializedWorkerThread(
+    _POSTER_ASYNC_QUEUE,
+    'PosterTranslateThread',
+)
+_POSTER_ASYNC_WORKER.start()
+
+
+def _execute_coro(coro):
+    """Run one coroutine on the poster async owner thread."""
+    return asyncio.run(coro)
 
 
 # --------------------------------------------------------------------------- #
@@ -184,21 +202,12 @@ def _run_async(coro):
         # No running loop on this thread — the normal path.
         return asyncio.run(coro)
 
-    # A loop is running here — offload to a fresh thread with its own loop.
-    result: Dict[str, Any] = {}
-
-    def _worker():
-        try:
-            result["value"] = asyncio.run(coro)
-        except Exception as exc:  # noqa: BLE001 - best-effort
-            result["error"] = exc
-
-    t = threading.Thread(target=_worker, daemon=True, name="poster-translate")
-    t.start()
-    t.join()
-    if "error" in result:
-        raise result["error"]
-    return result.get("value")
+    return call_serialized(
+        _POSTER_ASYNC_QUEUE,
+        _execute_coro,
+        coro,
+        timeout=120.0,
+    )
 
 
 def _translate_to_english(title: str) -> str:
@@ -337,14 +346,13 @@ def _tmdb_find(title: str, year: Optional[int], language: str) -> Optional[Dict[
 # a single 401 would otherwise burn the rest of the run (and more quota) for
 # nothing. Latch a process-wide disable on the first 401 (mirrors the AI
 # gateway's 429 cooldown) and short-circuit every later OMDB lookup.
-_omdb_disabled_reason: Optional[str] = None
-_omdb_lock = threading.Lock()
+_OMDB_DISABLED_SIGNAL = 'pyutils.movie_poster.omdb.disabled'
 
 
 def _omdb_find(title: str, year: Optional[int]) -> Optional[Dict[str, Any]]:
     """Query OMDB (?apikey=&t=&y=) and build the poster result object, or None."""
-    global _omdb_disabled_reason
-    if _omdb_disabled_reason is not None:
+    omdb_disabled_reason = THREAD_BUS.get_signal(_OMDB_DISABLED_SIGNAL)
+    if omdb_disabled_reason is not None:
         return None
 
     api_key = get_secret_key_indexed("OMDB_API_KEY")
@@ -365,9 +373,8 @@ def _omdb_find(title: str, year: Optional[int]) -> Optional[Dict[str, Any]]:
             except Exception:  # noqa: BLE001 - body may not be JSON
                 detail = (resp.text or "").strip()[:160]
             if resp.status_code == 401:
-                with _omdb_lock:
-                    if _omdb_disabled_reason is None:
-                        _omdb_disabled_reason = detail or "HTTP 401"
+                if THREAD_BUS.get_signal(_OMDB_DISABLED_SIGNAL) is None:
+                    THREAD_BUS.signal(_OMDB_DISABLED_SIGNAL, detail or "HTTP 401")
                 ColorPrint.yellow(
                     f"[MoviePoster] OMDB HTTP 401 ({detail or 'unauthorized'}); "
                     "disabling OMDB for this run — verify OMDB_API_KEY is valid and "

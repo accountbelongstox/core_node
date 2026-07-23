@@ -143,7 +143,8 @@ class AppIndicatorSystemTray:
         self.indicator: Optional["AppIndicator3.Indicator"] = None
 
         # Running state
-        self._running = False
+        self._running_signal = f"native_ui.appindicator_tray.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
         ColorPrint.blue(f"[AppIndicatorSystemTray] Initialized - App ID: {app_id}")
 
@@ -324,7 +325,7 @@ class AppIndicatorSystemTray:
 
         This starts the GTK main loop and blocks until Gtk.main_quit() is called.
         """
-        if self._running:
+        if THREAD_BUS.get_signal(self._running_signal, False):
             ColorPrint.yellow("[AppIndicatorSystemTray] Already running")
             return
 
@@ -349,7 +350,7 @@ class AppIndicatorSystemTray:
         self.indicator.set_menu(self.gtk_menu)
 
         # Mark as running
-        self._running = True
+        THREAD_BUS.signal(self._running_signal, True)
 
         # Register THREAD_BUS handlers so shutdown/update_menu work
         self._register_thread_bus_handlers()
@@ -367,7 +368,7 @@ class AppIndicatorSystemTray:
         except KeyboardInterrupt:
             ColorPrint.yellow("[AppIndicatorSystemTray] Interrupted by user")
         finally:
-            self._running = False
+            THREAD_BUS.signal(self._running_signal, False)
 
             # Trigger shutdown if configured
             if self.trigger_shutdown_on_exit:
@@ -391,7 +392,7 @@ class AppIndicatorSystemTray:
 
     def is_running(self) -> bool:
         """Check if tray is running."""
-        return self._running
+        return bool(THREAD_BUS.get_signal(self._running_signal, False))
 
 
 def check_appindicator_available() -> bool:

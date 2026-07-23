@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import json
 import os
-import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -30,6 +29,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root, get_local_data_dir
 from pycore.pyctl.ai.ai_keys import PROVIDERS, PROVIDER_ORDER
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
 # Last time limits table was verified against provider documentation.
 RATE_LIMITS_LAST_UPDATED = "2026-06-13"
@@ -89,7 +92,7 @@ def _resolve_usage_file():
 
 
 _USAGE_FILE = _resolve_usage_file()
-_lock = threading.Lock()
+_WORK_QUEUE = 'pyctl.ai.rate_limits.operations'
 
 # provider -> default limits; optional model keys override by exact id or suffix match.
 # None = no local enforcement (paid / balance-only providers).
@@ -309,97 +312,97 @@ def _prune_timestamps(entries: List[float], window_s: float, now: float) -> List
     return [t for t in entries if t >= cutoff]
 
 
-def check_rate_limit(provider: str, model: Optional[str] = None) -> RateCheckResult:
+def _check_rate_limit(provider: str, model: Optional[str] = None) -> RateCheckResult:
     """Return whether a request is allowed under local counters."""
     spec = resolve_limit(provider, model)
     if spec is None:
         return RateCheckResult(allowed=True, limits=None)
 
     now = time.time()
-    with _lock:
-        data = _load_usage()
-        bucket = _provider_bucket(data, provider)
-        minute = _prune_timestamps(bucket.get("minute", []), 60.0, now)
-        day_count = int(_coerce_day_map(bucket.get("day")).get(_day_key(now), 0))
-        month_count = int(_as_count_map(bucket.get("month")).get(_month_key(now), 0))
+    data = _load_usage()
+    bucket = _provider_bucket(data, provider)
+    minute = _prune_timestamps(bucket.get("minute", []), 60.0, now)
+    day_count = int(_coerce_day_map(bucket.get("day")).get(_day_key(now), 0))
+    month_count = int(_as_count_map(bucket.get("month")).get(_month_key(now), 0))
 
-        if spec.rps and spec.rps > 0:
-            min_gap = 1.0 / spec.rps
-            last = minute[-1] if minute else 0.0
-            if last and (now - last) < min_gap:
-                wait = min_gap - (now - last)
-                return RateCheckResult(
-                    allowed=False,
-                    message=(
-                        f"Rate limit ({provider}): max {spec.rps} req/s "
-                        f"(docs updated {RATE_LIMITS_LAST_UPDATED}). Retry in {wait:.0f}s."
-                    ),
-                    retry_after_s=round(wait, 1),
-                    limits=spec,
-                )
-
-        if spec.rpm is not None and len(minute) >= spec.rpm:
-            wait = 60.0 - (now - minute[0]) if minute else 60.0
+    if spec.rps and spec.rps > 0:
+        min_gap = 1.0 / spec.rps
+        last = minute[-1] if minute else 0.0
+        if last and (now - last) < min_gap:
+            wait = min_gap - (now - last)
             return RateCheckResult(
                 allowed=False,
                 message=(
-                    f"Rate limit ({provider}): {spec.rpm} requests/minute exceeded. "
-                    f"Retry in {max(wait, 1):.0f}s."
+                    f"Rate limit ({provider}): max {spec.rps} req/s "
+                    f"(docs updated {RATE_LIMITS_LAST_UPDATED}). Retry in {wait:.0f}s."
                 ),
-                retry_after_s=round(max(wait, 1), 1),
+                retry_after_s=round(wait, 1),
                 limits=spec,
             )
 
-        if spec.rpd is not None and day_count >= spec.rpd:
-            wait = _seconds_to_next_utc_midnight(now)
-            return RateCheckResult(
-                allowed=False,
-                message=(
-                    f"Rate limit ({provider}): {spec.rpd} requests/day exceeded. "
-                    f"Resets at UTC midnight (in {max(wait, 1):.0f}s)."
-                ),
-                retry_after_s=round(max(wait, 1), 1),
-                limits=spec,
-            )
+    if spec.rpm is not None and len(minute) >= spec.rpm:
+        wait = 60.0 - (now - minute[0]) if minute else 60.0
+        return RateCheckResult(
+            allowed=False,
+            message=(
+                f"Rate limit ({provider}): {spec.rpm} requests/minute exceeded. "
+                f"Retry in {max(wait, 1):.0f}s."
+            ),
+            retry_after_s=round(max(wait, 1), 1),
+            limits=spec,
+        )
 
-        if spec.rpm_month is not None and month_count >= spec.rpm_month:
-            wait = _seconds_to_next_utc_month(now)
-            return RateCheckResult(
-                allowed=False,
-                message=(
-                    f"Rate limit ({provider}): {spec.rpm_month} requests/month exceeded "
-                    f"(resets on the 1st, in {max(wait, 60):.0f}s)."
-                ),
-                retry_after_s=round(max(wait, 60), 1),
-                limits=spec,
-            )
+    if spec.rpd is not None and day_count >= spec.rpd:
+        wait = _seconds_to_next_utc_midnight(now)
+        return RateCheckResult(
+            allowed=False,
+            message=(
+                f"Rate limit ({provider}): {spec.rpd} requests/day exceeded. "
+                f"Resets at UTC midnight (in {max(wait, 1):.0f}s)."
+            ),
+            retry_after_s=round(max(wait, 1), 1),
+            limits=spec,
+        )
+
+    if spec.rpm_month is not None and month_count >= spec.rpm_month:
+        wait = _seconds_to_next_utc_month(now)
+        return RateCheckResult(
+            allowed=False,
+            message=(
+                f"Rate limit ({provider}): {spec.rpm_month} requests/month exceeded "
+                f"(resets on the 1st, in {max(wait, 60):.0f}s)."
+            ),
+            retry_after_s=round(max(wait, 60), 1),
+            limits=spec,
+        )
 
     return RateCheckResult(allowed=True, limits=spec)
 
 
-def record_request(provider: str) -> None:
+def _record_request(provider: str) -> None:
     """Record one successful chat request for local rate counters."""
     if resolve_limit(provider) is None:
         return
     now = time.time()
-    with _lock:
-        data = _load_usage()
-        bucket = _provider_bucket(data, provider)
-        bucket["minute"] = _prune_timestamps(bucket.get("minute", []), 60.0, now) + [now]
-        # Calendar-day counter: increment today, drop past days (midnight reset).
-        day_map = _coerce_day_map(bucket.get("day"))
-        dk = _day_key(now)
-        day_map[dk] = int(day_map.get(dk, 0)) + 1
-        bucket["day"] = {dk: day_map[dk]}
-        # Calendar-month counter: increment this month, drop past months.
-        month_map = _as_count_map(bucket.get("month"))
-        mk = _month_key(now)
-        month_map[mk] = int(month_map.get(mk, 0)) + 1
-        bucket["month"] = {mk: month_map[mk]}
-        _save_usage(data)
+    data = _load_usage()
+    bucket = _provider_bucket(data, provider)
+    bucket["minute"] = _prune_timestamps(
+        bucket.get("minute", []),
+        60.0,
+        now,
+    ) + [now]
+    day_map = _coerce_day_map(bucket.get("day"))
+    day_key = _day_key(now)
+    day_map[day_key] = int(day_map.get(day_key, 0)) + 1
+    bucket["day"] = {day_key: day_map[day_key]}
+    month_map = _as_count_map(bucket.get("month"))
+    month_key = _month_key(now)
+    month_map[month_key] = int(month_map.get(month_key, 0)) + 1
+    bucket["month"] = {month_key: month_map[month_key]}
+    _save_usage(data)
 
 
-def prune_expired() -> Dict[str, Any]:
+def _prune_expired() -> Dict[str, Any]:
     """
     Actively prune expired rate-counter entries for EVERY provider and persist.
 
@@ -417,43 +420,52 @@ def prune_expired() -> Dict[str, Any]:
     freed: Dict[str, Dict[str, int]] = {}
     cur_day = _day_key(now)
     cur_month = _month_key(now)
-    with _lock:
-        data = _load_usage()
-        providers = data.get("providers", {})
-        for name, bucket in list(providers.items()):
-            before_min = len(bucket.get("minute", []))
-            raw_day = bucket.get("day")
-            raw_month = bucket.get("month")
-            day_map = _coerce_day_map(raw_day)
-            month_map = _as_count_map(raw_month)
+    data = _load_usage()
+    providers = data.get("providers", {})
+    for name, bucket in list(providers.items()):
+        before_min = len(bucket.get("minute", []))
+        raw_day = bucket.get("day")
+        raw_month = bucket.get("month")
+        day_map = _coerce_day_map(raw_day)
+        month_map = _as_count_map(raw_month)
 
-            minute = _prune_timestamps(bucket.get("minute", []), 60.0, now)
-            # Keep only the CURRENT local calendar day / month -> past days and
-            # months drop out at midnight / on the 1st (the real budget reset).
-            new_day = {k: v for k, v in day_map.items() if k == cur_day}
-            new_month = {k: v for k, v in month_map.items() if k == cur_month}
+        minute = _prune_timestamps(bucket.get("minute", []), 60.0, now)
+        new_day = {key: value for key, value in day_map.items() if key == cur_day}
+        new_month = {
+            key: value for key, value in month_map.items() if key == cur_month
+        }
 
-            day_changed = (not isinstance(raw_day, dict)) or (len(new_day) != len(day_map))
-            month_changed = (not isinstance(raw_month, dict)) or (len(new_month) != len(month_map))
+        day_changed = (
+            not isinstance(raw_day, dict)
+            or len(new_day) != len(day_map)
+        )
+        month_changed = (
+            not isinstance(raw_month, dict)
+            or len(new_month) != len(month_map)
+        )
 
-            if len(minute) != before_min or day_changed or month_changed:
-                bucket["minute"] = minute
-                bucket["day"] = new_day
-                bucket["month"] = new_month
-                changed = True
-                f: Dict[str, int] = {}
-                if before_min - len(minute) > 0:
-                    f["minute"] = before_min - len(minute)
-                dropped_day = sum(v for k, v in day_map.items() if k != cur_day)
-                if dropped_day:
-                    f["day"] = dropped_day
-                dropped_month = sum(v for k, v in month_map.items() if k != cur_month)
-                if dropped_month:
-                    f["month"] = dropped_month
-                if f:
-                    freed[name] = f
-        if changed:
-            _save_usage(data)
+        if len(minute) != before_min or day_changed or month_changed:
+            bucket["minute"] = minute
+            bucket["day"] = new_day
+            bucket["month"] = new_month
+            changed = True
+            released: Dict[str, int] = {}
+            if before_min - len(minute) > 0:
+                released["minute"] = before_min - len(minute)
+            dropped_day = sum(
+                value for key, value in day_map.items() if key != cur_day
+            )
+            if dropped_day:
+                released["day"] = dropped_day
+            dropped_month = sum(
+                value for key, value in month_map.items() if key != cur_month
+            )
+            if dropped_month:
+                released["month"] = dropped_month
+            if released:
+                freed[name] = released
+    if changed:
+        _save_usage(data)
     return {"changed": changed, "freed": freed, "ts": now}
 
 
@@ -469,11 +481,10 @@ def _resets_in(entries: List[float], window_s: float, now: float, at_limit: bool
     return round(max(0.0, remaining), 1)
 
 
-def rate_status(provider: Optional[str] = None) -> Dict[str, Any]:
+def _rate_status(provider: Optional[str] = None) -> Dict[str, Any]:
     """Current local usage vs encoded limits (for UI)."""
     now = time.time()
-    with _lock:
-        data = _load_usage()
+    data = _load_usage()
 
     def one(name: str) -> Dict[str, Any]:
         spec = resolve_limit(name)
@@ -522,6 +533,29 @@ def rate_status(provider: Optional[str] = None) -> Dict[str, Any]:
         "storage_path": str(_USAGE_FILE),
         "providers": [one(n) for n in enforced],
     }
+
+
+_WORKER = SerializedWorkerThread(_WORK_QUEUE, 'AIRateLimitsThread')
+_WORKER.start()
+
+
+def check_rate_limit(
+    provider: str,
+    model: Optional[str] = None,
+) -> RateCheckResult:
+    return call_serialized(_WORK_QUEUE, _check_rate_limit, provider, model)
+
+
+def record_request(provider: str) -> None:
+    call_serialized(_WORK_QUEUE, _record_request, provider)
+
+
+def rate_status(provider: Optional[str] = None) -> Dict[str, Any]:
+    return call_serialized(_WORK_QUEUE, _rate_status, provider)
+
+
+def prune_expired() -> Dict[str, Any]:
+    return call_serialized(_WORK_QUEUE, _prune_expired)
 
 
 def chat_nickname(provider: str, model: str) -> str:

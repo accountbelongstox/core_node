@@ -6,11 +6,12 @@ URL Queue
 Thread-safe URL queue with deduplication and depth tracking for document offline downloads.
 """
 
-import threading
-from collections import deque
-from typing import Optional, Tuple, Set
+import uuid
+from typing import Optional, Tuple
 from urllib.parse import urlparse, urlunparse
+
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 
 class URLQueue:
@@ -27,11 +28,15 @@ class URLQueue:
 
     def __init__(self):
         """Initialize URL queue"""
-        self._queue = deque()
-        self._processed: Set[str] = set()
-        self._lock = threading.Lock()
-        self._total_enqueued = 0
-        self._total_dequeued = 0
+        queue_id = uuid.uuid4().hex
+        self._queue_name = f"pybrowserauto.urls.{queue_id}"
+        self._state_signal = f"{self._queue_name}.state"
+        THREAD_BUS.signal(self._state_signal, {
+            'processed': frozenset(),
+            'pending': frozenset(),
+            'total_enqueued': 0,
+            'total_dequeued': 0,
+        })
 
     def enqueue(self, url: str, depth: int = 0) -> bool:
         """
@@ -51,21 +56,18 @@ class URLQueue:
             ColorPrint.yellow(f'[URLQueue] Invalid URL, skipping: {url}')
             return False
 
-        with self._lock:
-            # Skip if already processed
-            if normalized in self._processed:
-                return False
-
-            # Check if already in queue
-            for queued_url, _ in self._queue:
-                if queued_url == normalized:
-                    return False
-
-            # Add to queue
-            self._queue.append((normalized, depth))
-            self._total_enqueued += 1
-
-            return True
+        state = self._state()
+        if normalized in state['processed'] or normalized in state['pending']:
+            return False
+        pending = set(state['pending'])
+        pending.add(normalized)
+        THREAD_BUS.send_message(self._queue_name, (normalized, depth))
+        self._publish_state(
+            state,
+            pending=frozenset(pending),
+            total_enqueued=state['total_enqueued'] + 1,
+        )
+        return True
 
     def dequeue(self) -> Optional[Tuple[str, int]]:
         """
@@ -74,14 +76,19 @@ class URLQueue:
         Returns:
             Tuple of (url, depth) or None if queue is empty
         """
-        with self._lock:
-            if len(self._queue) == 0:
-                return None
-
-            url, depth = self._queue.popleft()
-            self._total_dequeued += 1
-
-            return (url, depth)
+        item = THREAD_BUS.receive_message(self._queue_name)
+        if not isinstance(item, tuple) or len(item) != 2:
+            return None
+        url, depth = item
+        state = self._state()
+        pending = set(state['pending'])
+        pending.discard(url)
+        self._publish_state(
+            state,
+            pending=frozenset(pending),
+            total_dequeued=state['total_dequeued'] + 1,
+        )
+        return url, depth
 
     def mark_processed(self, url: str):
         """
@@ -95,8 +102,10 @@ class URLQueue:
         if not normalized:
             return
 
-        with self._lock:
-            self._processed.add(normalized)
+        state = self._state()
+        processed = set(state['processed'])
+        processed.add(normalized)
+        self._publish_state(state, processed=frozenset(processed))
 
     def has_processed(self, url: str) -> bool:
         """
@@ -113,8 +122,7 @@ class URLQueue:
         if not normalized:
             return False
 
-        with self._lock:
-            return normalized in self._processed
+        return normalized in self._state()['processed']
 
     def requeue(self, url: str, depth: int = 0) -> bool:
         """
@@ -134,16 +142,20 @@ class URLQueue:
         if not normalized:
             return False
 
-        with self._lock:
-            # Remove from processed set
-            self._processed.discard(normalized)
-
-            # Add to queue
-            self._queue.append((normalized, depth))
-            self._total_enqueued += 1
-
-            ColorPrint.yellow(f'[URLQueue] Requeued URL: {url}')
-            return True
+        state = self._state()
+        processed = set(state['processed'])
+        pending = set(state['pending'])
+        processed.discard(normalized)
+        pending.add(normalized)
+        THREAD_BUS.send_message(self._queue_name, (normalized, depth))
+        self._publish_state(
+            state,
+            processed=frozenset(processed),
+            pending=frozenset(pending),
+            total_enqueued=state['total_enqueued'] + 1,
+        )
+        ColorPrint.yellow(f'[URLQueue] Requeued URL: {url}')
+        return True
 
     def is_empty(self) -> bool:
         """
@@ -152,8 +164,7 @@ class URLQueue:
         Returns:
             True if queue is empty
         """
-        with self._lock:
-            return len(self._queue) == 0
+        return THREAD_BUS.queue_size(self._queue_name) == 0
 
     def size(self) -> int:
         """
@@ -162,8 +173,7 @@ class URLQueue:
         Returns:
             Number of URLs in queue
         """
-        with self._lock:
-            return len(self._queue)
+        return THREAD_BUS.queue_size(self._queue_name)
 
     def processed_count(self) -> int:
         """
@@ -172,8 +182,7 @@ class URLQueue:
         Returns:
             Number of processed URLs
         """
-        with self._lock:
-            return len(self._processed)
+        return len(self._state()['processed'])
 
     def get_stats(self) -> dict:
         """
@@ -182,21 +191,26 @@ class URLQueue:
         Returns:
             Dictionary with queue stats
         """
-        with self._lock:
-            return {
-                'queue_size': len(self._queue),
-                'processed_count': len(self._processed),
-                'total_enqueued': self._total_enqueued,
-                'total_dequeued': self._total_dequeued,
-                'pending_count': len(self._queue)
-            }
+        state = self._state()
+        queue_size = THREAD_BUS.queue_size(self._queue_name)
+        return {
+            'queue_size': queue_size,
+            'processed_count': len(state['processed']),
+            'total_enqueued': state['total_enqueued'],
+            'total_dequeued': state['total_dequeued'],
+            'pending_count': queue_size,
+        }
 
     def clear(self):
         """Clear queue and processed set"""
-        with self._lock:
-            self._queue.clear()
-            self._processed.clear()
-            ColorPrint.blue('[URLQueue] Queue cleared')
+        THREAD_BUS.clear_queue(self._queue_name)
+        state = self._state()
+        self._publish_state(
+            state,
+            processed=frozenset(),
+            pending=frozenset(),
+        )
+        ColorPrint.blue('[URLQueue] Queue cleared')
 
     def get_processed_urls(self) -> list:
         """
@@ -205,8 +219,15 @@ class URLQueue:
         Returns:
             List of processed URLs
         """
-        with self._lock:
-            return list(self._processed)
+        return list(self._state()['processed'])
+
+    def _state(self) -> dict:
+        """Return the current THREAD_BUS state snapshot."""
+        return THREAD_BUS.get_signal(self._state_signal, {}) or {}
+
+    def _publish_state(self, state: dict, **updates) -> None:
+        """Publish one complete queue state snapshot."""
+        THREAD_BUS.signal(self._state_signal, {**state, **updates})
 
     def _normalize_url(self, url: str) -> Optional[str]:
         """

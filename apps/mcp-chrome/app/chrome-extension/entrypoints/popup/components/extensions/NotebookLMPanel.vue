@@ -68,6 +68,7 @@
 import { ref } from 'vue';
 import { getMessage as t } from '../../../../utils/i18n';
 import { buildNotebookLmDialoguePrompt } from '../../composables/promptPresets';
+import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 
 const question = ref('');
 const notebookUrl = ref('');
@@ -87,7 +88,7 @@ const onAsk = async () => {
   answer.value = '';
   try {
     const response = await chrome.runtime.sendMessage({
-      type: 'notebooklm_service',
+      type: FEATURE_MESSAGE_TYPES.NOTEBOOK_LM,
       action: 'ask',
       question: question.value.trim(),
       notebookUrl: notebookUrl.value.trim() || undefined,
@@ -114,7 +115,7 @@ const onDialogueTest = async () => {
   dialogueAnswer.value = '';
   try {
     const response = await chrome.runtime.sendMessage({
-      type: 'notebooklm_service',
+      type: FEATURE_MESSAGE_TYPES.NOTEBOOK_LM,
       action: 'ask',
       question: buildNotebookLmDialoguePrompt(dialogueInput.value),
       notebookUrl: notebookUrl.value.trim() || undefined,

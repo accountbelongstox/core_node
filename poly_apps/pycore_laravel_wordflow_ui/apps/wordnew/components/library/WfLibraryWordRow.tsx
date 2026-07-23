@@ -40,6 +40,7 @@ export interface WfLibraryWordRowProps {
   imagePending: boolean;
   effImages: string[];
   theme: ElementTheme;
+  rowRef?: (element: HTMLElement | null) => void;
 }
 
 export const wordRowKey = (w: WfNewLibraryWord, lang: string) => `${w.md5 || w.index}:${lang}`;
@@ -61,7 +62,7 @@ const resolveRowState = (
 export const WfLibraryWordRow: React.FC<WfLibraryWordRowProps> = ({
   word: w, resolved, lang, open, playingKey, activeKey, cellStatuses,
   variantByKey, onVariantSelect, onPlay, onRetry, onToggleExpand, trans,
-  requested, imagePending, effImages, theme,
+  requested, imagePending, effImages, theme, rowRef,
 }) => {
   const cell = buildWordCell(w, resolved);
   const key = wordRowKey(w, lang);
@@ -73,6 +74,7 @@ export const WfLibraryWordRow: React.FC<WfLibraryWordRowProps> = ({
 
   return (
     <div
+      ref={rowRef}
       id={`libword-${w.md5 || w.index}`}
       className={`px-4 py-2.5 transition cursor-pointer scroll-mt-32 ${
         isActive ? `bg-indigo-500/[0.08] ${theme.glowClass}` : 'hover:bg-white/[0.03]'

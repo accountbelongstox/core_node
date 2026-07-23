@@ -25,9 +25,9 @@ import socket
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-import threading
 import time
 from dataclasses import dataclass
+from pycore.pyfoundations.serialized_worker import BusTaskThread, start_bus_task
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -123,7 +123,7 @@ class UniversalFrontendLauncher:
     def __init__(self, config: UniversalFrontendConfig):
         self.config = config
         self.process: Optional[subprocess.Popen] = None
-        self._static_http_thread: Optional[threading.Thread] = None
+        self._static_http_thread: Optional[BusTaskThread] = None
         self._static_server: Optional[ThreadingHTTPServer] = None
         self._last_install_check: Optional[float] = None
 
@@ -180,8 +180,10 @@ class UniversalFrontendLauncher:
         handler = self._build_static_handler(self.config.static_dir)
         server = ThreadingHTTPServer((host, port), handler)
         self._static_server = server
-        thread = threading.Thread(target=server.serve_forever, name="UniversalFrontendStaticServer", daemon=True)
-        thread.start()
+        thread = start_bus_task(
+            server.serve_forever,
+            thread_name="UniversalFrontendStaticServer",
+        )
         self._static_http_thread = thread
 
         # THREAD_BUS Integration: Register shutdown handler

@@ -97,7 +97,7 @@ echo "============================================================"
 # --- 0) resolve python (13_ensure_python.sh has already run in install flow) --- #
 if ! PYTHON="$(resolve_python "$PYTHON")"; then
     echo "[X] Python 3 was NOT found. Run 13_ensure_python.sh first, or pass --python <path>." >&2
-    complete_prereq_step "$PYTHON" "" edge_tts
+    fail_prereq_step "$PYTHON" "" edge_tts
 fi
 echo "  python : $PYTHON"
 
@@ -128,7 +128,7 @@ if ! vpip "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
     echo "[run] $PYTHON -m pip install --upgrade edge-tts"
     if ! vpip "$PYTHON" -m pip install --upgrade edge-tts; then
         echo "[!] edge-tts install did not complete cleanly; pycore will install it at import time."
-        complete_prereq_step "$PYTHON" "" edge_tts
+        fail_prereq_step "$PYTHON" "" edge_tts
     fi
 fi
 

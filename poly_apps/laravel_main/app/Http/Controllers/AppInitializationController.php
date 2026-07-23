@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Services\AppInitializationManager;
-use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
@@ -20,8 +19,7 @@ class AppInitializationController extends Controller
 
     public function __construct()
     {
-        $this->manager = new AppInitializationManager();
-        $this->manager->register(new AppQyV1Initializer());
+        $this->manager = AppInitializationManager::withDefaultInitializers();
     }
 
     public function status(Request $request): JsonResponse

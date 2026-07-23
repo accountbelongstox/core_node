@@ -25,7 +25,7 @@ command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
 # Driver-matched CUDA wheel index (single source of truth).
 TORCH_CUDA_IDX_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/cuda_index.sh"
 [ -f "$TORCH_CUDA_IDX_LIB" ] && . "$TORCH_CUDA_IDX_LIB"
-command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "https://download.pytorch.org/whl/cu124"; }
+command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "${AI_TORCH_CPU_INDEX:-https://download.pytorch.org/whl/cpu}"; }
 # Idempotent HF weight download (sentinel + curl resume + size verify).
 source "$PARENT_DIR_LEVEL_2/common/tts_install_assets_common.sh"
 
@@ -149,24 +149,21 @@ install_dependencies() {
     else
         print_info "torch not found and no GPU - installing CPU torch..."
         echo ""
-        echo "[99] $VENV_PYTHON3 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu"
-        vpip "$VENV_PYTHON3" -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        echo "[99] $VENV_PYTHON3 -m pip install torch torchvision torchaudio --index-url $AI_TORCH_CPU_INDEX"
+        vpip "$VENV_PYTHON3" -m pip install torch torchvision torchaudio --index-url "$AI_TORCH_CPU_INDEX"
         echo ""
     fi
 
-    echo "[99] $VENV_PYTHON3 -c \"import transformers, accelerate\""
-    if "$VENV_PYTHON3" -c "import transformers, accelerate" >/dev/null 2>&1; then
+    echo "[99] checking the centralized transformers pin and accelerate"
+    if shared_transformers_matches_from_common_functions "$VENV_PYTHON3" && "$VENV_PYTHON3" -c "import accelerate" >/dev/null 2>&1; then
         print_success "transformers and accelerate already installed, skipping installation"
         echo ""
     else
         print_info "Installing transformers and accelerate..."
         echo ""
-        # No --upgrade: install only the missing package, never force-upgrade an
-        # already-present transformers (the LLM installers share this venv and pin ONE
-        # version via $LLM_TRANSFORMERS_SPEC). Qwen2.5 needs transformers>=4.37.0 (official
-        # model card); the shared 4.46.3 pin satisfies that and keeps all four models aligned.
-        echo "[99] $VENV_PYTHON3 -m pip install $LLM_TRANSFORMERS_SPEC accelerate"
-        vpip "$VENV_PYTHON3" -m pip install "$LLM_TRANSFORMERS_SPEC" accelerate
+        ensure_shared_transformers_from_common_functions "$VENV_PYTHON3"
+        echo "[99] $VENV_PYTHON3 -m pip install accelerate"
+        vpip "$VENV_PYTHON3" -m pip install accelerate
         echo ""
     fi
 
@@ -284,11 +281,14 @@ download_model_weights() {
         print_info "downloading/repairing model '$MODEL_PATH' (curl, resumable) ..."
         if install_hf_repo_flat "$MODEL_PATH" "$WEIGHTS_DIR" "$MODEL_SENTINEL" "$SCRIPT_NAME " "$WEIGHT_ALLOW" "" "$MODEL_PATH" "$VENV_PYTHON3" \
            && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$MODEL_PATH" "$VENV_PYTHON3"; then
+            _model_ready=1
             print_success "model '$MODEL_PATH' ready at $WEIGHTS_DIR"
         else
             print_warning "model download not finished; partial files kept at $WEIGHTS_DIR; will RESUME next run."
+            return 1
         fi
     fi
+    [[ "$_model_ready" -eq 1 ]]
 }
 
 main() {

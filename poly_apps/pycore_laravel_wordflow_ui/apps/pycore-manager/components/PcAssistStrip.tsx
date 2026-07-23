@@ -14,7 +14,7 @@ import { humanBytes } from '../utils/pcFormat';
 import { useQueueCenterHub, laravelLiveSyncOffline, laravelEndpointMismatch } from '../hooks/useQueueCenterHub';
 
 type AssistCapKey = keyof AssistCapabilities;
-const ASSIST_CAP_KEYS: AssistCapKey[] = ['translation', 'ai_translate', 'tts', 'subtitle', 'stt'];
+const ASSIST_CAP_KEYS: AssistCapKey[] = ['ai_translate', 'subtitle', 'stt'];
 
 const isAssistStatus = (s: unknown): s is AssistStatus =>
   !!s && typeof (s as AssistStatus).enabled === 'boolean' && !!(s as AssistStatus).capabilities;
@@ -48,7 +48,6 @@ export const PcAssistStrip: React.FC = () => {
   const lastTask: PcTaskRecord | null = hub.recent?.records?.find((r) => r.worker === 'assist') ?? null;
   const [cycling, setCycling] = useState(false);
   const [cycleMsg, setCycleMsg] = useState<string | null>(null);
-  const [toggling, setToggling] = useState(false);
   // A per-capability toggle is in flight; disables the whole grid until done.
   const [capBusy, setCapBusy] = useState(false);
   const mounted = useRef(true);
@@ -67,7 +66,7 @@ export const PcAssistStrip: React.FC = () => {
       } else {
         setCycleMsg(`Cycle failed: ${(r as any)?.error || (r as any)?.detail || 'assist disabled?'}`);
       }
-      hub.refreshHub();
+      await hub.refreshHub();
     } catch (e: any) {
       if (mounted.current) setCycleMsg(`Cycle failed: ${e?.message || 'pycore unreachable'}`);
     } finally {
@@ -75,42 +74,18 @@ export const PcAssistStrip: React.FC = () => {
     }
   }, [cycling, hub]);
 
-  // Auto-On: the master enable toggle. When on, the worker polls Laravel every
-  // ~30s and assists (per the per-capability switches) without manual cycles.
-  const toggleEnabled = useCallback(async () => {
-    if (toggling || !status) return;
-    setToggling(true);
-    setCycleMsg(null);
-    try {
-      const r = await pycoreApi.setAssistConfig({ enabled: !status.enabled });
-      if (!mounted.current) return;
-      if ((r as any)?.success === false) {
-        setCycleMsg(`Toggle failed: ${(r as any)?.error || (r as any)?.detail || 'unavailable'}`);
-      }
-      hub.refreshHub();
-    } catch (e: any) {
-      if (mounted.current) setCycleMsg(`Toggle failed: ${e?.message || 'pycore unreachable'}`);
-    } finally {
-      if (mounted.current) setToggling(false);
-    }
-  }, [toggling, status, hub]);
-
   // Flip a single assist capability ON/OFF (independent of the master enable).
   const toggleCap = useCallback(async (cap: AssistCapKey) => {
     if (capBusy || !status) return;
     setCapBusy(true);
     setCycleMsg(null);
     const next = !status.capabilities?.[cap];
-    const caps: Partial<AssistCapabilities> = cap === 'tts'
-      ? { tts: next, sentence_audio: next }
-      : { [cap]: next };
     try {
-      const r = await pycoreApi.setAssistConfig({ capabilities: caps });
-      if (!mounted.current) return;
+      const r = await pycoreApi.setAssistConfig({ capabilities: { [cap]: next } });
       if ((r as any)?.success === false) {
-        setCycleMsg(`Toggle failed: ${(r as any)?.error || (r as any)?.detail || 'unavailable'}`);
+        throw new Error((r as any)?.error || (r as any)?.detail || 'unavailable');
       }
-      hub.refreshHub();
+      await hub.refreshHub();
     } catch (e: any) {
       if (mounted.current) setCycleMsg(`Toggle failed: ${e?.message || 'pycore unreachable'}`);
     } finally {
@@ -196,17 +171,6 @@ export const PcAssistStrip: React.FC = () => {
           </span>
         )}
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
-          <button onClick={toggleEnabled} disabled={toggling}
-            title={status.enabled
-              ? 'Auto-assist is ON — pycore polls Laravel (~30s) and drains cover/tts/poster. Click to turn off.'
-              : 'Turn Auto-assist ON — pycore starts draining Laravel cover/tts/poster queues automatically.'}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition disabled:opacity-50 ${
-              status.enabled
-                ? 'bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25'
-                : 'pc-glass text-slate-500 hover:bg-emerald-500/10'}`}>
-            {toggling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Power className="w-3.5 h-3.5" />}
-            {status.enabled ? 'Auto On' : 'Auto Off'}
-          </button>
           <button onClick={runCycle} disabled={!status.enabled || cycling}
             title={status.enabled ? 'Run one claim→process→submit pass now' : 'Turn Auto On first (or it stays idle)'}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold pc-glass hover:bg-rose-500/10 text-rose-500 transition disabled:opacity-50">
@@ -257,9 +221,7 @@ export const PcAssistStrip: React.FC = () => {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
           {ASSIST_CAP_KEYS.map((cap) => {
-            const on = cap === 'tts'
-              ? !!(status.capabilities?.tts || status.capabilities?.sentence_audio)
-              : !!status.capabilities?.[cap];
+            const on = !!status.capabilities?.[cap];
             return (
               <button key={cap} onClick={() => toggleCap(cap)} disabled={capBusy}
                 title={t(`queueCenter.assist.cap.${cap}` as const)}

@@ -11,7 +11,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -19,13 +18,17 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root, get_local_data_dir
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
 _SHARED_STATE_DIR = get_local_data_dir() / ".ai_state"
 _OLD_SHARED_DIR = get_core_node_root() / ".ai_state"
 _LEGACY_DIR = APP_DATA_DIR / "ai_state"
 _INDEX_NAME = "image_search_history.json"
 _MAX_ENTRIES = 200
-_lock = threading.Lock()
+_WORK_QUEUE = 'pyctl.ai.image_search_history.operations'
 
 
 def _migrate_old_state() -> None:
@@ -89,7 +92,7 @@ def _trim(doc: Dict[str, Any]) -> None:
     doc["entries"] = entries[len(entries) - _MAX_ENTRIES:]
 
 
-def record_search(
+def _record_search(
     *,
     query: str,
     engine: str,
@@ -116,44 +119,67 @@ def record_search(
         "ai": ai,
         "origin": origin or "pycore",
     }
-    with _lock:
-        doc = _load_index()
-        doc.setdefault("entries", []).append(entry)
-        _trim(doc)
-        _save_index(doc)
+    doc = _load_index()
+    doc.setdefault("entries", []).append(entry)
+    _trim(doc)
+    _save_index(doc)
     return entry_id
 
 
-def list_history(limit: int = 50) -> List[Dict[str, Any]]:
+def _list_history(limit: int = 50) -> List[Dict[str, Any]]:
     lim = max(1, min(int(limit or 50), _MAX_ENTRIES))
-    with _lock:
-        entries = list(_load_index().get("entries") or [])
+    entries = list(_load_index().get("entries") or [])
     entries.reverse()
     return entries[:lim]
 
 
-def delete_entry(entry_id: str) -> bool:
+def _delete_entry(entry_id: str) -> bool:
     if not entry_id:
         return False
-    with _lock:
-        doc = _load_index()
-        before = len(doc.get("entries") or [])
-        doc["entries"] = [e for e in (doc.get("entries") or []) if e.get("id") != entry_id]
-        if len(doc["entries"]) == before:
-            return False
-        _save_index(doc)
+    doc = _load_index()
+    before = len(doc.get("entries") or [])
+    doc["entries"] = [
+        entry
+        for entry in (doc.get("entries") or [])
+        if entry.get("id") != entry_id
+    ]
+    if len(doc["entries"]) == before:
+        return False
+    _save_index(doc)
     return True
 
 
-def clear_history() -> int:
-    with _lock:
-        doc = _load_index()
-        removed = len(doc.get("entries") or [])
-        doc["entries"] = []
-        _save_index(doc)
+def _clear_history() -> int:
+    doc = _load_index()
+    removed = len(doc.get("entries") or [])
+    doc["entries"] = []
+    _save_index(doc)
     return removed
 
 
+def _history_count() -> int:
+    return len(_load_index().get("entries") or [])
+
+
+_WORKER = SerializedWorkerThread(_WORK_QUEUE, 'ImageSearchHistoryThread')
+_WORKER.start()
+
+
+def record_search(**kwargs: Any) -> Optional[str]:
+    return call_serialized(_WORK_QUEUE, _record_search, **kwargs)
+
+
+def list_history(limit: int = 50) -> List[Dict[str, Any]]:
+    return call_serialized(_WORK_QUEUE, _list_history, limit)
+
+
+def delete_entry(entry_id: str) -> bool:
+    return bool(call_serialized(_WORK_QUEUE, _delete_entry, entry_id))
+
+
+def clear_history() -> int:
+    return int(call_serialized(_WORK_QUEUE, _clear_history))
+
+
 def history_count() -> int:
-    with _lock:
-        return len(_load_index().get("entries") or [])
+    return int(call_serialized(_WORK_QUEUE, _history_count))

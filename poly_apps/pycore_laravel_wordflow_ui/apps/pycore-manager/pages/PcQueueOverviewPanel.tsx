@@ -8,9 +8,6 @@ import {
   LayoutGrid, Loader2, AlertTriangle, Wifi, WifiOff, Globe, Cpu, Sparkles, Chrome,
   Users, ChevronDown, ChevronRight,
 } from 'lucide-react';
-import {
-  loadOverviewCache, saveOverviewCache,
-} from '../../../core/api-libs/pycore';
 import type { PcQueueOverview, PcQueueCategory, PcQueueWorker, PcQueueHandler } from '../../../core/api-libs/pycore';
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
 import { useQueueCenterHub, laravelLiveSyncOffline, laravelEndpointMismatch } from '../hooks/useQueueCenterHub';
@@ -19,26 +16,19 @@ const HANDLER_STYLE: Record<PcQueueHandler, { chip: string; Icon: React.FC<{ cla
   chrome: { chip: 'bg-amber-500/15 text-amber-500', Icon: Chrome },
   pycore: { chip: 'bg-indigo-500/15 text-indigo-500', Icon: Cpu },
   ai: { chip: 'bg-violet-500/15 text-violet-500', Icon: Sparkles },
+  any: { chip: 'bg-sky-500/15 text-sky-500', Icon: Users },
 };
 
 const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
   const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  // Data comes from the SHARED hub (validated shape — getQueueOverview can resolve
-  // to a {success:false} error shape with no categories), falling back to the last
-  // persisted snapshot so a reopen shows instantly.
+  // Data and errors come from the same generated Queue Center snapshot.
   const raw = hub.overview as any;
   const data: PcQueueOverview | null =
-    (raw && raw.success !== false && Array.isArray(raw.categories)) ? (raw as PcQueueOverview) : loadOverviewCache();
+    (raw && raw.success !== false && Array.isArray(raw.categories)) ? (raw as PcQueueOverview) : null;
   const loading = hub.loading;
-  const err = hub.pycoreReachable ? null : hub.error;
-
-  // Persist the last good snapshot for instant reopen.
-  useEffect(() => {
-    const ov = hub.overview as any;
-    if (ov && Array.isArray(ov.categories)) saveOverviewCache(ov as PcQueueOverview);
-  }, [hub.overview]);
+  const err = hub.sliceErrors.overview ?? (!hub.pycoreReachable ? hub.error : null);
 
   // Report the pending-count badge to the tab bar (guarded — never reduce undefined).
   useEffect(() => {
@@ -93,9 +83,9 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
             {laravelReachable ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
             {laravelReachable ? t('queueCenter.overview.reachable') : t('queueCenter.overview.backendOffline')}
           </span>
-          {data.generated_at && (
-            <span className="ml-auto text-[10px] font-mono text-slate-400" title={data.generated_at}>
-              {t('queueCenter.overview.generatedAt', { time: new Date(data.generated_at).toLocaleTimeString() })}
+          {hub.timestamp && (
+            <span className="ml-auto text-[10px] font-mono text-slate-400" title={hub.timestamp}>
+              {t('queueCenter.overview.generatedAt', { time: new Date(hub.timestamp).toLocaleTimeString() })}
             </span>
           )}
         </div>

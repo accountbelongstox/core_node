@@ -9,6 +9,7 @@ missing sentence audio from Laravel's priority queue.
 
 from typing import Any, Dict, Optional
 
+import threading
 import time
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -121,7 +122,7 @@ def restore_persisted_auto_start() -> None:
 
     ColorPrint.blue(f"[SentenceAudioAuto] Restored auto_start={desired} from user_data")
     try:
-        get_tts_sentence_worker_service().concurrency = get_config()["concurrency"]
+        get_tts_sentence_worker_service().set_concurrency(get_config()["concurrency"])
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[SentenceAudioAuto] restore concurrency failed ({exc})")
     if not enabled:
@@ -131,6 +132,32 @@ def restore_persisted_auto_start() -> None:
         get_tts_sentence_worker_service().poll_and_process()
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[SentenceAudioAuto] restore immediate cycle failed ({exc})")
+
+
+def _warm_sentence_engine() -> None:
+    """Preload the sentence TTS engine (qwen3tts) into memory right after the
+    ON toggle — do not wait for the first claimed task to pay the model-load
+    cost. Runs on a daemon thread; the managed-service settings gates
+    (server_enabled / server_auto_manage) still apply inside ensure_running."""
+    try:
+        from pycore.pyutils.tts import tts_service_manager
+
+        if tts_service_manager.prepare_server_for_use("qwen3tts"):
+            ColorPrint.green("[SentenceAudioAuto] qwen3tts server warm — model loaded")
+        else:
+            ColorPrint.yellow("[SentenceAudioAuto] qwen3tts warm-up skipped (disabled/unavailable)")
+    except Exception as exc:  # noqa: BLE001
+        ColorPrint.yellow(f"[SentenceAudioAuto] qwen3tts warm-up failed ({exc})")
+
+
+class SentenceEngineWarmThread(threading.Thread):
+    """Engine warm-up on its own daemon thread (rule §4: Thread subclass)."""
+
+    def __init__(self) -> None:
+        super().__init__(daemon=True, name="sentence-audio-engine-warm")
+
+    def run(self) -> None:
+        _warm_sentence_engine()
 
 
 def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[str, Any]:
@@ -145,7 +172,7 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
 
     if concurrency is not None:
         try:
-            get_tts_sentence_worker_service().concurrency = max(0, int(concurrency))
+            get_tts_sentence_worker_service().set_concurrency(max(0, int(concurrency)))
         except Exception as exc:  # noqa: BLE001
             ColorPrint.yellow(f"[SentenceAudioAuto] live concurrency apply failed ({exc})")
 
@@ -169,6 +196,10 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
             worker.poll_and_process()
         except Exception as exc:  # noqa: BLE001
             ColorPrint.yellow(f"[SentenceAudioAuto] immediate cycle failed ({exc})")
+        try:
+            SentenceEngineWarmThread().start()
+        except Exception as exc:  # noqa: BLE001
+            ColorPrint.yellow(f"[SentenceAudioAuto] engine warm-up spawn failed ({exc})")
 
     ColorPrint.blue(f"[SentenceAudioAuto] auto_start set to {bool(enabled)}")
     return get_status()

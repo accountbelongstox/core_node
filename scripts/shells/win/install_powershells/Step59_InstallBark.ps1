@@ -58,18 +58,18 @@ Write-Host '============================================================' -Foreg
 
 if ($env:BARK_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] BARK_SKIP=1 -> skipping." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('transformers')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('transformers') -AbsentOk -AbsentNote 'BARK_SKIP=1'
     return
 }
 
 $resolvedPython = $Global:PYTHON_EXE_PATH
-if ((Test-PyModule -Py $resolvedPython -ModuleName 'transformers') -and (Test-Path $depsSentinel) -and -not $Force -and -not $doFull) {
+if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'bark' -Path $depsSentinel) -and -not $Force -and -not $doFull) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'Bark (transformers) already installed' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('transformers')
 }
 if (-not $doFull -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [i] status-only. Pass -Full, BARK_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('transformers')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('transformers') -AbsentOk -AbsentNote 'opt-in'
 }
 
 $hasCuda = Test-CudaPresent
@@ -88,7 +88,7 @@ if (-not $resolvedPython) {
 
 New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 
-if ((Test-Path $depsSentinel) -and -not $Force) {
+if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'bark' -Path $depsSentinel) -and -not $Force) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'dependencies already installed (.deps_done)' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 } else {
     Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
@@ -97,8 +97,10 @@ if ((Test-Path $depsSentinel) -and -not $Force) {
     # --upgrade); scipy/accelerate install as before. See lifecycle doc §7.
     try { Install-PinnedTransformers -PythonExe $resolvedPython -PipExe $Global:PIP_EXE_PATH -Prefix "$SCRIPT_INDEX " | Out-Null } catch { }
     try { & $Global:PIP_EXE_PATH install scipy accelerate } catch { }
-    Set-Content -Path $depsSentinel -Value (Get-Date -Format o) -Encoding utf8
-    Write-Host "$SCRIPT_INDEX [OK] Bark dependencies installed." -ForegroundColor Green
+    if (Test-TtsEngineHealth -PythonExe $resolvedPython -Engine 'bark') {
+        Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'bark' -Path $depsSentinel | Out-Null
+        Write-Host "$SCRIPT_INDEX [OK] Bark dependencies installed (policy stamp written)." -ForegroundColor Green
+    }
 }
 
 # --- HF weights (IDEMPOTENT: sentinel + curl resume + HF size verification) --- #
@@ -121,10 +123,15 @@ if (-not $modelReady) {
     Write-Host ("$SCRIPT_INDEX [..] downloading/repairing model '{0}' (curl, resumable) ..." -f $barkModel) -ForegroundColor Yellow
     $dlOk = Install-HfRepoFlat -RepoId $barkModel -DestDir $weightsDir -SentinelPath $modelSentinel -AllowPatterns $weightAllow -Prefix "$SCRIPT_INDEX " -SentinelValue $barkModel
     if ($dlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $barkModel)) {
+        $modelReady = $true
         Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready at {1}." -f $barkModel, $weightsDir) -ForegroundColor Green
     } else {
         Write-Host ("$SCRIPT_INDEX [!] model download not finished; partial files kept at {0}; will RESUME next run." -f $weightsDir) -ForegroundColor DarkYellow
     }
+}
+
+if (-not (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'bark' -Path $depsSentinel) -or -not $modelReady) {
+    throw "$SCRIPT_INDEX Bark is not ready; incomplete components will retry next run."
 }
 
 Write-Host "$SCRIPT_INDEX [OK] Bark ready. Weights pre-downloaded (idempotent); engine auto-detects local." -ForegroundColor Green

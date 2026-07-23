@@ -133,6 +133,7 @@ def build_raw_batches(
             "first_ts": int(used[0].get("ts") or 0) if used else 0,
             "last_ts": int(used[-1].get("ts") or 0) if used else 0,
             "last_fragment_id": str(used[-1].get("fragment_id") or "") if used else "",
+            "next_fragment_index": idx,
             "fragments": used,
         })
     return batches, idx

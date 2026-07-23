@@ -1,28 +1,17 @@
 /**
  * PcQueueBumpToasts — cross-lane priority bump notifications (translation, sentence, …).
- * Primary channel: WS `queue_bump` events (instant). The 4s getQueueBumps poll
- * stays as a fallback; both paths dedupe through the same seenRef.
+ * Events come from the shared Queue Center snapshot and therefore obey the
+ * page's single auto-refresh switch.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Zap, X } from 'lucide-react';
-import { pycoreApi, subscribe, connectPycoreWs } from '../../../core/api-libs/pycore';
 import type { QueueBumpEvent } from '../../../core/api-libs/pycore/pycoreTypes';
+import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 
-const POLL_MS = 4000;
 const DISMISS_MS = 12000;
 
-/** Defensively normalize a WS payload into QueueBumpEvent shape. */
-const normalizeWsEvent = (d: any): QueueBumpEvent => ({
-  lane: String(d?.lane ?? 'queue'),
-  item_id: String(d?.item_id ?? d?.id ?? ''),
-  label: String(d?.label ?? d?.text ?? ''),
-  old_priority: d?.old_priority ?? '?',
-  new_priority: d?.new_priority ?? d?.priority ?? '?',
-  at: typeof d?.at === 'number' ? d.at : undefined,
-  meta: d?.meta && typeof d.meta === 'object' ? d.meta : undefined,
-});
-
 export const PcQueueBumpToasts: React.FC = () => {
+  const hub = useQueueCenterHub();
   const [toasts, setToasts] = useState<QueueBumpEvent[]>([]);
   const seenRef = useRef<Set<string>>(new Set());
   const mounted = useRef(true);
@@ -45,35 +34,9 @@ export const PcQueueBumpToasts: React.FC = () => {
     }, DISMISS_MS);
   }, []);
 
-  // Instant channel: pycore broadcasts one `queue_bump` WS event per bump record.
   useEffect(() => {
-    connectPycoreWs();
-    const off = subscribe('queue_bump', (data: any) => {
-      const list: any[] = Array.isArray(data) ? data
-        : Array.isArray(data?.events) ? data.events
-        : data ? [data] : [];
-      const events = list
-        .map(normalizeWsEvent)
-        .filter((ev) => ev.item_id !== '' || ev.label !== '');
-      pushEvents(events);
-    });
-    return () => { off(); };
-  }, [pushEvents]);
-
-  // Fallback: poll the bump hub snapshot (covers WS-down / reconnect gaps).
-  const poll = useCallback(async () => {
-    try {
-      const r = await pycoreApi.getQueueBumps(20);
-      if (!mounted.current || !r?.events?.length) return;
-      pushEvents(r.events);
-    } catch { /* ignore */ }
-  }, [pushEvents]);
-
-  useEffect(() => {
-    void poll();
-    const id = window.setInterval(() => { void poll(); }, POLL_MS);
-    return () => window.clearInterval(id);
-  }, [poll]);
+    pushEvents(hub.sentenceQueue?.bumps?.events ?? []);
+  }, [hub.timestamp, hub.sentenceQueue, pushEvents]);
 
   if (!toasts.length) return null;
 

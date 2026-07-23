@@ -106,12 +106,30 @@ class AppQyV1SentenceAudioService
         $window = $isAssist ? self::ASSIST_LEASE_MINUTES : self::LOCK_STALE_MINUTES;
 
         $tasks = [];
-        foreach ($this->languagesFor($language) as $lang) {
+        $languages = $this->languagesFor($language);
+        $langCount = count($languages);
+        // Pass 1: fair per-language quota. Filling the whole batch from the
+        // first language table (old behavior) lets a large backlog in one
+        // language (e.g. zh) starve every other language out of each cycle.
+        $quota = $langCount > 1 ? max(1, (int) ceil($limit / $langCount)) : $limit;
+        foreach ($languages as $lang) {
             if (count($tasks) >= $limit) {
                 break;
             }
-            $remaining = $limit - count($tasks);
-            $claimed = $this->claimForLanguage($lang, $workerId, $window, $remaining);
+            $claimed = $this->claimForLanguage($lang, $workerId, $window, min($quota, $limit - count($tasks)));
+            foreach ($claimed as $task) {
+                $task['task_id'] = count($tasks);
+                $tasks[] = $task;
+            }
+        }
+        // Pass 2: top up from languages in order when some language had fewer
+        // claimable rows than its quota (rows leased in pass 1 are locked now,
+        // so re-claiming the same language never duplicates a task).
+        foreach ($languages as $lang) {
+            if (count($tasks) >= $limit) {
+                break;
+            }
+            $claimed = $this->claimForLanguage($lang, $workerId, $window, $limit - count($tasks));
             foreach ($claimed as $task) {
                 $task['task_id'] = count($tasks);
                 $tasks[] = $task;
@@ -596,7 +614,7 @@ class AppQyV1SentenceAudioService
      * outbox so pycore wakes immediately ($emitEvent=false defers that to a
      * batch caller emitting ONE aggregate event instead of N singles).
      *
-     * @return array{ok:bool,tts_priority?:int,task_id?:string,error?:string}
+     * @return array{ok:bool,tts_priority?:int,task_id?:string,already_done?:bool,error?:string}
      */
     public function bumpPriority(
         string $contentId,
@@ -629,7 +647,7 @@ class AppQyV1SentenceAudioService
         if ($sentence->tts_status !== 'processing') {
             $sentence->tts_status = 'pending';
         }
-        $ticket = $this->assignFrontTicket($sentence, $language);
+        $ticket = $this->assignFrontTicket($sentence);
 
         if ($emitEvent) {
             $this->emitPriorityEvent([
@@ -761,19 +779,22 @@ class AppQyV1SentenceAudioService
      * Move-to-front ticket: atomically raise the sentence's tts_priority to
      * MAX(tts_priority)+1 on its language table, so the newest bump sorts
      * strictly ahead of every existing row while the relative order of all
-     * unbumped rows is preserved (the claim ordering needs no change). The
-     * MAX read is taken FOR UPDATE inside a transaction so two concurrent
-     * bumps cannot be assigned the same ticket; any attributes the caller
-     * already set on $sentence (tts_requested_at / tts_status) are persisted
-     * by the same save. Returns the assigned ticket.
+     * unbumped rows is preserved (the claim ordering needs no change). A
+     * transaction-scoped advisory lock on the table serializes concurrent
+     * bumps of different rows (the MAX+1 derived subquery alone is not atomic
+     * across rows - an aggregate read locks nothing); any attributes the
+     * caller already set on $sentence (tts_requested_at / tts_status) are
+     * persisted by the same save. Returns the assigned ticket.
      */
-    private function assignFrontTicket(LangSentence $sentence, string $lang): int
+    private function assignFrontTicket(LangSentence $sentence): int
     {
         return $sentence->getConnection()->transaction(function () use ($sentence) {
-            $sentence->save();
+            $conn = $sentence->getConnection();
             $table = $sentence->getTable();
+            AppQyV1TableMaps::lockTableForFrontTicket($conn, $table);
+            $sentence->save();
             $id = $sentence->id;
-            $sentence->getConnection()->statement(
+            $conn->statement(
                 "UPDATE {$table} SET tts_priority = (SELECT m FROM (SELECT COALESCE(MAX(tts_priority), 0) + 1 AS m FROM {$table}) x) WHERE id = ?",
                 [$id]
             );
@@ -827,54 +848,40 @@ class AppQyV1SentenceAudioService
         }
 
         $skip = ($page - 1) * $perPage;
-        $remaining = $perPage;
+        $languages = $this->languagesFor($language);
+        $langCount = count($languages);
+        // Interleave languages: a fair per-language quota per pass keeps the
+        // queue head from being dominated by the first language table (e.g. a
+        // large zh backlog hiding pending en rows). The global page offset is
+        // distributed evenly across languages for the same reason.
+        $quota = $langCount > 1 ? max(1, (int) ceil($perPage / $langCount)) : $perPage;
+        $perLangSkip = $langCount > 1 ? intdiv($skip, $langCount) : $skip;
+        $collectedByLang = [];
 
-        foreach ($this->languagesFor($language) as $lang) {
-            if ($remaining <= 0) {
+        // Pass 1: fair quota per language.
+        foreach ($languages as $lang) {
+            if (count($items) >= $perPage) {
                 break;
             }
-            if (!$this->tableExists($lang)) {
-                continue;
+            $take = min($quota, $perPage - count($items));
+            $collectedByLang[$lang] = $this->collectMissingItemsForLanguage(
+                $lang, $perLangSkip, $take, $items, $reconciled
+            );
+        }
+        // Pass 2: fill leftover slots from languages in order, skipping past
+        // the rows already collected in pass 1.
+        foreach ($languages as $lang) {
+            if (count($items) >= $perPage) {
+                break;
             }
-            $langTotal = $this->pendingCountForLanguage($lang);
-            if ($skip >= $langTotal) {
-                $skip -= $langTotal;
-                continue;
-            }
-            $rows = LangSentence::onLang($lang)
-                ->where(function ($q) {
-                    $q->where('has_audio', false)
-                        ->orWhereIn('tts_status', ['pending', 'failed']);
-                })
-                ->orderByDesc('tts_priority')
-                ->orderByDesc('occurrence_count')
-                ->orderBy('id')
-                ->skip($skip)
-                ->take($remaining * 4)
-                ->get(['content_id', 'text', 'language', 'tts_priority', 'tts_status', 'tts_locked_by', 'occurrence_count', 'has_audio', 'audio_files']);
-            $skip = 0;
-            foreach ($rows as $row) {
-                if ($remaining <= 0) {
-                    break;
-                }
-                $this->reconcilePartialRow($row, $lang);
-                if (!$this->rowNeedsAudioWork($lang, $row)) {
-                    $reconciled++;
-                    continue;
-                }
-                $missing = $this->missingVariantsForRow($lang, $row);
-                $items[] = [
-                    'content_id' => (string) $row->content_id,
-                    'text' => (string) $row->text,
-                    'language' => $lang,
-                    'tts_priority' => (int) ($row->tts_priority ?? 0),
-                    'tts_status' => (string) ($row->tts_status ?? 'pending'),
-                    'tts_locked_by' => $row->tts_locked_by,
-                    'occurrence_count' => (int) ($row->occurrence_count ?? 0),
-                    'missing_variants' => array_map(fn ($v) => $v['key'] ?? '', $missing),
-                ];
-                $remaining--;
-            }
+            $take = $perPage - count($items);
+            $this->collectMissingItemsForLanguage(
+                $lang,
+                $perLangSkip + (int) ($collectedByLang[$lang] ?? 0),
+                $take,
+                $items,
+                $reconciled
+            );
         }
 
         return [
@@ -887,6 +894,54 @@ class AppQyV1SentenceAudioService
                 'reconciled' => $reconciled,
             ],
         ];
+    }
+
+    /**
+     * Collect up to $take missing-audio items from ONE language table into
+     * $items (disk-reconciled, variant-aware). Returns how many were appended.
+     *
+     * @param array<int,array<string,mixed>> $items
+     */
+    private function collectMissingItemsForLanguage(string $lang, int $skip, int $take, array &$items, int &$reconciled): int
+    {
+        if ($take <= 0 || !$this->tableExists($lang)) {
+            return 0;
+        }
+        $rows = LangSentence::onLang($lang)
+            ->where(function ($q) {
+                $q->where('has_audio', false)
+                    ->orWhereIn('tts_status', ['pending', 'failed']);
+            })
+            ->orderByDesc('tts_priority')
+            ->orderByDesc('occurrence_count')
+            ->orderBy('id')
+            ->skip($skip)
+            ->take($take * 4)
+            ->get(['content_id', 'text', 'language', 'tts_priority', 'tts_status', 'tts_locked_by', 'occurrence_count', 'has_audio', 'audio_files']);
+        $collected = 0;
+        foreach ($rows as $row) {
+            if ($collected >= $take) {
+                break;
+            }
+            $this->reconcilePartialRow($row, $lang);
+            if (!$this->rowNeedsAudioWork($lang, $row)) {
+                $reconciled++;
+                continue;
+            }
+            $missing = $this->missingVariantsForRow($lang, $row);
+            $items[] = [
+                'content_id' => (string) $row->content_id,
+                'text' => (string) $row->text,
+                'language' => $lang,
+                'tts_priority' => (int) ($row->tts_priority ?? 0),
+                'tts_status' => (string) ($row->tts_status ?? 'pending'),
+                'tts_locked_by' => $row->tts_locked_by,
+                'occurrence_count' => (int) ($row->occurrence_count ?? 0),
+                'missing_variants' => array_map(fn ($v) => $v['key'] ?? '', $missing),
+            ];
+            $collected++;
+        }
+        return $collected;
     }
 
     /** @return array<int,array<string,mixed>> */

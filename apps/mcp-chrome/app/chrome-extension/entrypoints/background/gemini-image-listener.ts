@@ -7,12 +7,13 @@
 
 import { geminiImageTool } from './tools/browser/gemini-image';
 import { logger } from '@/utils/logger';
+import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 
 const LOG = 'Gemini Listener';
 
 export function initGeminiImageListener() {
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type !== 'gemini_image_service') return;
+    if (message?.type !== FEATURE_MESSAGE_TYPES.GEMINI_IMAGE) return;
 
     (async () => {
       try {

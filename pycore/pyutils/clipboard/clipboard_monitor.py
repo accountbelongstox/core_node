@@ -12,12 +12,12 @@ THREAD_BUS Integration:
 - Backwards compatible: keeps existing callback mechanism
 """
 
-import threading
 import time
 from typing import Optional, Callable
 from pycore import THREAD_BUS, ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_pyperclip
 from pycore.pyutils.clipboard.clipboard_history import get_clipboard_history
+from pycore.pyfoundations.serialized_worker import start_bus_task
 
 pyperclip = get_third_package_pyperclip()
 
@@ -65,12 +65,10 @@ class ClipboardMonitor:
         self.last_content = pyperclip.paste()
 
         # Start monitor thread
-        self.monitor_thread = threading.Thread(
-            target=self._monitor_loop,
-            daemon=True,
-            name=f"ClipboardMonitor-{self.client_id}"
+        self.monitor_thread = start_bus_task(
+            self._monitor_loop,
+            thread_name=f"ClipboardMonitor-{self.client_id}",
         )
-        self.monitor_thread.start()
 
         # THREAD_BUS Integration: Register shutdown handler
         # Priority=80 ensures clipboard monitor stops before core services

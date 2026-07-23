@@ -24,8 +24,8 @@ Stdlib only: HTTP via `.runtime.http` (urllib), events/shutdown via `.runtime`.
 """
 
 import socket
-import threading
 import time
+import uuid
 from typing import Any, Callable, Dict, List, Optional
 
 from .runtime import (
@@ -34,10 +34,12 @@ from .runtime import (
     emit_event,
     is_shutdown_requested,
     register_shutdown_handler,
+    THREAD_BUS,
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
 )
-from .peer_config import PeerConfig
-
-from pycore.pyutils.codesync.peer_config import _local_lan_ip
+from .peer_config import PeerConfig, _local_lan_ip
 
 
 TICK_SECONDS = 5
@@ -68,32 +70,48 @@ class PeerMeshManager:
         # NAT'd client adopt the dev's peer-config without being push-reachable.
         self._apply_remote_config_fn = apply_remote_config_fn
         self._running = False
-        self._thread: Optional[threading.Thread] = None
-        self._lock = threading.Lock()
+        self._thread = None
+        self._running_signal = f"codesync.peer_mesh.running.{uuid.uuid4().hex}"
         # peer_id -> {reachable, last_seen, status}  (OUTBOUND probe results)
         self._peer_state: Dict[str, Dict[str, Any]] = {}
         # sender_id -> {last_checkin, status, source, lan_ip}  (INBOUND heartbeats)
         self._heartbeats: Dict[str, Dict[str, Any]] = {}
         # peer_ids that still need the latest config pushed (offline at push time)
         self._pending: set = set()
+        init_serialized_owner(self, "codesync.peer_mesh.state", "CodeSyncPeerMeshState")
+        THREAD_BUS.signal(self._running_signal, False)
 
     # ----- lifecycle ------------------------------------------------------- #
     def start(self) -> None:
-        if self._running:
+        if not self._begin_start():
             return
-        self._running = True
-        self._thread = threading.Thread(target=self._loop, daemon=True, name="CodeSync-PeerMesh")
-        self._thread.start()
+        self._thread = start_bus_task(self._loop, thread_name="CodeSync-PeerMesh")
         register_shutdown_handler(self.stop, priority=70, name="code_sync_peer_mesh")
         ColorPrint.green("[PeerMesh] Started")
 
     def stop(self) -> None:
-        if not self._running:
+        worker = self._begin_stop()
+        if worker is None:
             return
-        self._running = False
-        if self._thread:
-            self._thread.join(timeout=2.0)
+        if worker:
+            worker.join(timeout=2.0)
         ColorPrint.yellow("[PeerMesh] Stopped")
+
+    @serialized_method
+    def _begin_start(self) -> bool:
+        if self._running:
+            return False
+        self._running = True
+        THREAD_BUS.signal(self._running_signal, True)
+        return True
+
+    @serialized_method
+    def _begin_stop(self):
+        if not self._running:
+            return None
+        self._running = False
+        THREAD_BUS.signal(self._running_signal, False)
+        return self._thread
 
     # ----- tick cadence ---------------------------------------------------- #
     def _tick_seconds(self) -> int:
@@ -118,7 +136,7 @@ class PeerMeshManager:
         return None
 
     def _loop(self) -> None:
-        while self._running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             try:
                 if is_shutdown_requested():
                     break
@@ -126,7 +144,7 @@ class PeerMeshManager:
             except Exception as exc:
                 ColorPrint.yellow(f"[PeerMesh] tick error: {exc}")
             for _ in range(self._tick_seconds() * 2):
-                if not self._running or is_shutdown_requested():
+                if not THREAD_BUS.get_signal(self._running_signal, False) or is_shutdown_requested():
                     break
                 time.sleep(0.5)
 
@@ -143,16 +161,7 @@ class PeerMeshManager:
                     continue
                 status = self._probe(peer)
                 reachable = status is not None
-                with self._lock:
-                    prev = self._peer_state.get(pid, {})
-                    was_reachable = prev.get("reachable", False)
-                    self._peer_state[pid] = {
-                        "reachable": reachable,
-                        "last_seen": time.time() if reachable else prev.get("last_seen"),
-                        "status": status if reachable else prev.get("status"),
-                    }
-                    newly_reachable = reachable and not was_reachable
-                    has_pending = pid in self._pending
+                newly_reachable, has_pending = self._record_probe(pid, reachable, status)
                 # Deliver any queued config to a peer that just came back online.
                 if reachable and (newly_reachable or has_pending):
                     self._push_config_to(peer)
@@ -165,6 +174,22 @@ class PeerMeshManager:
         except Exception:
             pass
         return snap
+
+    @serialized_method
+    def _record_probe(
+        self,
+        peer_id: str,
+        reachable: bool,
+        status: Optional[Dict[str, Any]],
+    ) -> tuple[bool, bool]:
+        previous = self._peer_state.get(peer_id, {})
+        was_reachable = previous.get("reachable", False)
+        self._peer_state[peer_id] = {
+            "reachable": reachable,
+            "last_seen": time.time() if reachable else previous.get("last_seen"),
+            "status": status if reachable else previous.get("status"),
+        }
+        return reachable and not was_reachable, peer_id in self._pending
 
     # ----- heartbeat (inbound presence; NAT-friendly) --------------------- #
     def _send_heartbeats(self) -> None:
@@ -196,6 +221,7 @@ class PeerMeshManager:
             except Exception:
                 continue
 
+    @serialized_method
     def record_heartbeat(self, payload: Dict[str, Any],
                          source: Optional[str] = None) -> None:
         """Record an inbound heartbeat from a peer (keyed by its reported id, with
@@ -206,13 +232,12 @@ class PeerMeshManager:
         sender = str(payload.get("id") or source or "").strip()
         if not sender:
             return
-        with self._lock:
-            self._heartbeats[sender] = {
-                "last_checkin": time.time(),
-                "status": payload,
-                "source": source,
-                "lan_ip": payload.get("lan_ip"),
-            }
+        self._heartbeats[sender] = {
+            "last_checkin": time.time(),
+            "status": payload,
+            "source": source,
+            "lan_ip": payload.get("lan_ip"),
+        }
         # Reflect new presence in the UI immediately (snapshot() takes the lock,
         # so build it AFTER releasing ours to avoid re-entrancy).
         try:
@@ -247,12 +272,15 @@ class PeerMeshManager:
             ok = r.status_code == 200
         except Exception:
             ok = False
-        with self._lock:
-            if ok:
-                self._pending.discard(pid)
-            else:
-                self._pending.add(pid)
+        self._record_push_result(pid, ok)
         return ok
+
+    @serialized_method
+    def _record_push_result(self, peer_id: str, succeeded: bool) -> None:
+        if succeeded:
+            self._pending.discard(peer_id)
+        else:
+            self._pending.add(peer_id)
 
     def broadcast_config(self) -> None:
         """Push the current config to all peers; queue the ones that are offline."""
@@ -283,7 +311,6 @@ class PeerMeshManager:
         except Exception:
             pass
         found: List[Dict[str, Any]] = []
-        flock = threading.Lock()
 
         def check(ip: str):
             try:
@@ -295,23 +322,34 @@ class PeerMeshManager:
                                    "role": d.get("role", "client"),
                                    "id": d.get("id")}
                     if self.config.is_self_peer(candidate):
-                        return
-                    with flock:
-                        found.append(candidate)
+                        return None
+                    return candidate
             except Exception:
                 pass
+            return None
 
-        threads = []
+        probe_signals = []
         for i in range(1, 255):
             ip = f"{prefix}.{i}"
             if ip in skip_ips:
                 continue
-            t = threading.Thread(target=check, args=(ip,), daemon=True)
-            threads.append(t)
-            t.start()
+            response_signal = f"codesync.peer_mesh.probe.{uuid.uuid4().hex}"
+            probe_signals.append(response_signal)
+            start_bus_task(
+                check,
+                ip,
+                thread_name=f"CodeSync-PeerProbe-{i}",
+                response_signal=response_signal,
+            )
         start = time.time()
-        for t in threads:
-            t.join(timeout=max(0, 5 - (time.time() - start)))
+        for response_signal in probe_signals:
+            response = THREAD_BUS.wait_signal(
+                response_signal,
+                timeout=max(0, 5 - (time.time() - start)),
+            )
+            THREAD_BUS.clear_signal(response_signal)
+            if isinstance(response, dict) and response.get("success") and response.get("result"):
+                found.append(response["result"])
 
         existing = {(p.get("host"), int(p.get("port", 0))) for p in self.config.list_peers()}
         return [c for c in found
@@ -319,48 +357,48 @@ class PeerMeshManager:
                 and (c["host"], c["port"]) not in existing]
 
     # ----- snapshot -------------------------------------------------------- #
+    @serialized_method
     def snapshot(self) -> Dict[str, Any]:
         self_id = self.config.machine_id
         now = time.time()
         peers_out: List[Dict[str, Any]] = []
-        with self._lock:
-            for peer in self.config.list_peers():
-                pid = peer.get("id")
-                if pid == self_id:
-                    continue
-                st = self._peer_state.get(pid, {})
-                probe_ok = bool(st.get("reachable", False))
-                probe_seen = st.get("last_seen")
-                probe_status = st.get("status")
+        for peer in self.config.list_peers():
+            pid = peer.get("id")
+            if pid == self_id:
+                continue
+            st = self._peer_state.get(pid, {})
+            probe_ok = bool(st.get("reachable", False))
+            probe_seen = st.get("last_seen")
+            probe_status = st.get("status")
 
-                hb = self._match_heartbeat(peer)
-                hb_checkin = hb.get("last_checkin") if hb else None
-                hb_fresh = bool(hb_checkin and (now - hb_checkin) <= self._heartbeat_stale_seconds())
+            hb = self._match_heartbeat(peer)
+            hb_checkin = hb.get("last_checkin") if hb else None
+            hb_fresh = bool(hb_checkin and (now - hb_checkin) <= self._heartbeat_stale_seconds())
 
-                # Merge the two directions.
-                reachable = probe_ok or hb_fresh
-                last_seen = max([t for t in (probe_seen, hb_checkin) if t], default=None)
-                # Prefer the fresher status payload.
-                if probe_ok and (not hb_fresh or (probe_seen or 0) >= (hb_checkin or 0)):
-                    status = probe_status
-                elif hb_fresh:
-                    status = hb.get("status")
-                else:
-                    status = probe_status or (hb.get("status") if hb else None)
-                via = ("both" if (probe_ok and hb_fresh)
-                       else "probe" if probe_ok
-                       else "heartbeat" if hb_fresh
-                       else None)
+            # Merge the two directions.
+            reachable = probe_ok or hb_fresh
+            last_seen = max([t for t in (probe_seen, hb_checkin) if t], default=None)
+            # Prefer the fresher status payload.
+            if probe_ok and (not hb_fresh or (probe_seen or 0) >= (hb_checkin or 0)):
+                status = probe_status
+            elif hb_fresh:
+                status = hb.get("status")
+            else:
+                status = probe_status or (hb.get("status") if hb else None)
+            via = ("both" if (probe_ok and hb_fresh)
+                   else "probe" if probe_ok
+                   else "heartbeat" if hb_fresh
+                   else None)
 
-                peers_out.append({
-                    **peer,
-                    "reachable": reachable,
-                    "last_seen": last_seen,
-                    "last_checkin": hb_checkin,
-                    "via": via,
-                    "status": status,
-                    "pending": pid in self._pending,
-                })
+            peers_out.append({
+                **peer,
+                "reachable": reachable,
+                "last_seen": last_seen,
+                "last_checkin": hb_checkin,
+                "via": via,
+                "status": status,
+                "pending": pid in self._pending,
+            })
         local = {}
         try:
             local = self._local_status_fn() or {}

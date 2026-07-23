@@ -14,6 +14,11 @@ THREAD_BUS Integration:
 """
 
 import threading
+from contextlib import nullcontext
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+)
 import time
 from typing import Dict, Optional
 
@@ -49,7 +54,8 @@ class BaseTTSWorkerThread(threading.Thread):
         self.thread_id = thread_id
         self.item_type = item_type
         self.interval = interval
-        self._stop_event = threading.Event()
+        self._stop_signal = f"tts.worker.stop.{id(self)}"
+        THREAD_BUS.clear_signal(self._stop_signal)
         self.translator = TTSTranslator()
         self.translator.initialize()
     
@@ -66,7 +72,7 @@ class BaseTTSWorkerThread(threading.Thread):
 
         THREAD_BUS.set_thread_state(self.name, 'running')
 
-        while not self._stop_event.is_set():
+        while not THREAD_BUS.get_signal(self._stop_signal, False):
             # THREAD_BUS Integration: Check if global shutdown was requested
             if THREAD_BUS.is_shutdown_requested():
                 ColorPrint.yellow(f"[TTSWorker] {self.name} THREAD_BUS shutdown detected, stopping...")
@@ -151,7 +157,7 @@ class BaseTTSWorkerThread(threading.Thread):
     
     def stop(self):
         """Stop thread"""
-        self._stop_event.set()
+        THREAD_BUS.signal(self._stop_signal, True)
 
 
 class TTSNetworkThread(threading.Thread):
@@ -170,7 +176,8 @@ class TTSNetworkThread(threading.Thread):
         self.thread_id = thread_id
         self.api_url = api_url
         self.interval = interval
-        self._stop_event = threading.Event()
+        self._stop_signal = f"tts.network.stop.{id(self)}"
+        THREAD_BUS.clear_signal(self._stop_signal)
     
     def run(self):
         """
@@ -184,7 +191,7 @@ class TTSNetworkThread(threading.Thread):
 
         THREAD_BUS.set_thread_state(self.name, 'running')
 
-        while not self._stop_event.is_set():
+        while not THREAD_BUS.get_signal(self._stop_signal, False):
             # THREAD_BUS Integration: Check if global shutdown was requested
             if THREAD_BUS.is_shutdown_requested():
                 ColorPrint.yellow(f"[TTSNetwork] {self.name} THREAD_BUS shutdown detected, stopping...")
@@ -195,11 +202,11 @@ class TTSNetworkThread(threading.Thread):
                 self._request_model_data()
 
                 # Wait for interval
-                self._stop_event.wait(self.interval)
+                THREAD_BUS.wait_signal(self._stop_signal, timeout=self.interval)
 
             except Exception as e:
                 ColorPrint.red(f"[TTSNetwork] {self.name} error: {e}")
-                self._stop_event.wait(self.interval)
+                THREAD_BUS.wait_signal(self._stop_signal, timeout=self.interval)
 
         THREAD_BUS.set_thread_state(self.name, 'stopped')
         ColorPrint.blue(f"[TTSNetwork] {self.name} stopped")
@@ -211,7 +218,7 @@ class TTSNetworkThread(threading.Thread):
     
     def stop(self):
         """Stop thread"""
-        self._stop_event.set()
+        THREAD_BUS.signal(self._stop_signal, True)
 
 
 class TTSThreadManager:
@@ -231,7 +238,12 @@ class TTSThreadManager:
     def __init__(self):
         """Initialize thread manager"""
         self._threads: Dict[str, threading.Thread] = {}
-        self._lock = threading.RLock()
+        init_serialized_owner(
+            self,
+            'pyutils.edge_tts.thread_manager',
+            'TTSThreadManagerStateThread',
+        )
+        self._state_scope = nullcontext()
         self._shutdown_registered = False
 
     def _ensure_shutdown_handler(self):
@@ -250,6 +262,7 @@ class TTSThreadManager:
             ColorPrint.blue("[TTSThreadManager] Registered THREAD_BUS shutdown handler (priority=75)")
             self._shutdown_registered = True
     
+    @serialized_method
     def start_worker(self, thread_id: int, item_type: ItemType, interval: float = 1.0) -> bool:
         """
         Start a worker thread
@@ -262,7 +275,7 @@ class TTSThreadManager:
         Returns:
             bool: True if started successfully
         """
-        with self._lock:
+        with self._state_scope:
             # Ensure shutdown handler is registered (first worker start)
             self._ensure_shutdown_handler()
 
@@ -281,6 +294,7 @@ class TTSThreadManager:
             ColorPrint.green(f"[TTSThreadManager] Started {thread_name}")
             return True
     
+    @serialized_method
     def start_network_thread(self, thread_id: int, api_url: str, interval: float = 60.0) -> bool:
         """
         Start a network thread
@@ -293,7 +307,7 @@ class TTSThreadManager:
         Returns:
             bool: True if started successfully
         """
-        with self._lock:
+        with self._state_scope:
             # Ensure shutdown handler is registered (first thread start)
             self._ensure_shutdown_handler()
 
@@ -310,6 +324,7 @@ class TTSThreadManager:
             ColorPrint.green(f"[TTSThreadManager] Started {thread_name}")
             return True
     
+    @serialized_method
     def stop_thread(self, thread_name: str) -> bool:
         """
         Stop a thread
@@ -320,7 +335,7 @@ class TTSThreadManager:
         Returns:
             bool: True if stopped successfully
         """
-        with self._lock:
+        with self._state_scope:
             if thread_name not in self._threads:
                 return False
             
@@ -334,15 +349,17 @@ class TTSThreadManager:
             ColorPrint.blue(f"[TTSThreadManager] Stopped {thread_name}")
             return True
     
+    @serialized_method
     def stop_all(self):
         """Stop all threads"""
-        with self._lock:
+        with self._state_scope:
             for thread_name in list(self._threads.keys()):
                 self.stop_thread(thread_name)
     
+    @serialized_method
     def get_thread_status(self) -> Dict[str, str]:
         """Get status of all threads"""
-        with self._lock:
+        with self._state_scope:
             status = {}
             for thread_name, thread in self._threads.items():
                 state = THREAD_BUS.get_thread_state(thread_name)
@@ -352,14 +369,12 @@ class TTSThreadManager:
 
 # Global thread manager instance
 _global_thread_manager: Optional[TTSThreadManager] = None
-_manager_lock = threading.Lock()
 
 
 def get_tts_thread_manager() -> TTSThreadManager:
     """Get global TTS thread manager instance"""
     global _global_thread_manager
-    with _manager_lock:
-        if _global_thread_manager is None:
-            _global_thread_manager = TTSThreadManager()
-        return _global_thread_manager
+    if _global_thread_manager is None:
+        _global_thread_manager = TTSThreadManager()
+    return _global_thread_manager
 

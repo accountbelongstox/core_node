@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.serialized_worker import submit_coroutine_via_bus
 from pycore.pyfoundations.third_party import get_third_package_fastapi
 
 fastapi = get_third_package_fastapi()
@@ -236,20 +237,23 @@ class FastAPIRPCServer:
         # print library so every printed line is relayed to connected WS clients.
         # rpc_v2 imports ColorPrint, never the reverse - ColorPrint stays decoupled.
         # The callback is a no-op until a client connects / the loop is running.
-        self._log_guard = threading.local()
+        self._log_guard_prefix = f'pyutils.rpc_v2.log_guard.{id(self)}'
         ColorPrint.register_callback(self._colorprint_ws_callback)
 
     def _colorprint_ws_callback(self, message, color_type="white", log_level=None):
         """ColorPrint callback: relay every printed line to connected WS clients as a 'pycore_log' event. Never raises; no-op when no client/loop."""
-        if getattr(self._log_guard, "active", False):
+        guard_signal = f'{self._log_guard_prefix}.{threading.get_ident()}'
+        if THREAD_BUS.get_signal(guard_signal, False):
             return
         # The broadcast path logs "[Broadcast] ..." in debug mode (on the loop thread,
         # where this guard doesn't apply); skip those to avoid a log->broadcast->log loop.
         if isinstance(message, str) and message.lstrip().startswith("[Broadcast]"):
             return
-        self._log_guard.active = True
-        self.broadcast_event_sync("pycore_log", {"message": message, "color": color_type or "white", "level": log_level or "INFO"})
-        self._log_guard.active = False
+        THREAD_BUS.signal(guard_signal, True)
+        try:
+            self.broadcast_event_sync("pycore_log", {"message": message, "color": color_type or "white", "level": log_level or "INFO"})
+        finally:
+            THREAD_BUS.clear_signal(guard_signal)
 
     # ------------------------------------------------------------------ Public API
     def route(self, name: str, handler: Callable, sync: bool = False, description: Optional[str] = None):
@@ -330,8 +334,7 @@ class FastAPIRPCServer:
             event_name: Event name
             data: Event data
         """
-        # Precondition check (no try/except): run_coroutine_threadsafe raises if the
-        # loop is missing or not running (e.g. during shutdown), so guard against both.
+        # Guard against a missing or stopped server loop during shutdown.
         loop = self._broadcast_loop
         if loop is None or not loop.is_running():
             if self.debug and loop is None:
@@ -339,7 +342,11 @@ class FastAPIRPCServer:
             return
 
         # Schedule the coroutine in the uvicorn event loop
-        asyncio.run_coroutine_threadsafe(self.broadcast_event(event_name, data), loop)
+        submit_coroutine_via_bus(
+            loop,
+            self.broadcast_event(event_name, data),
+            thread_name="RPCBroadcastBridgeThread",
+        )
 
     def register_thread_bus_listener(self, event_name: str):
         """
@@ -357,9 +364,10 @@ class FastAPIRPCServer:
                 return
 
             # Schedule the coroutine in the uvicorn loop
-            asyncio.run_coroutine_threadsafe(
+            submit_coroutine_via_bus(
+                self._broadcast_loop,
                 self.broadcast_event(event_name, event_data),
-                self._broadcast_loop
+                thread_name="RPCThreadBusBroadcastBridgeThread",
             )
 
         THREAD_BUS.register_event_handler(event_name, handler)

@@ -311,7 +311,7 @@ class WorkerController extends Controller
                     'worker_id' => $worker->worker_id,
                     'worker_name' => $worker->worker_name,
                     'processor_types' => $worker->processor_types,
-                    'status' => $worker->status,
+                    'status' => $worker->isAlive() ? $worker->status : \App\Models\Worker::STATUS_OFFLINE,
                     'hostname' => $worker->hostname,
                     'platform' => $worker->platform,
                     'completed_tasks' => $worker->completed_tasks,

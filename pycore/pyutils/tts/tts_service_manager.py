@@ -45,7 +45,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.isolated_venv import resolve_python as resolve_isolated_python
+from pycore.pyfoundations.isolated_venv import venv_ready as isolated_venv_ready
+from pycore.pyfoundations.third_party import get_third_package_psutil, get_third_package_requests
 from pycore.pyutils.common.managed_service import CategorySettings, ServiceSpec, managed_services
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.tts.tts_engine_probe import engine_installed, staging_dir
@@ -58,9 +60,7 @@ from pycore.pyutils.tts import f5tts_engine
 from pycore.pyutils.tts import fishspeech_engine
 from pycore.pyutils.tts import melotts_engine
 from pycore.pyutils.tts import qwen3tts_engine
-from pycore.pyutils.tts import qwen3tts_venv
 from pycore.pyutils.tts import qwen3tts_weights
-from pycore.pyutils.tts import isolated_venv
 
 
 _TTS_SECTION = "tts"
@@ -221,7 +221,7 @@ def _gptsovits_start_command(staging: Path) -> Optional[Tuple[Path, List[str], D
     script = staging / "api_v2.py"
     if not script.is_file():
         return None
-    venv_python = isolated_venv.resolve_python("gptsovits")
+    venv_python = resolve_isolated_python("gptsovits")
     if not venv_python:
         return None
     return staging, [venv_python, str(script)], _isolated_env({})
@@ -235,7 +235,7 @@ def _melotts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dic
 
     RUNTIME only RESOLVES the pre-built venv (resolve_python) - it never builds/pips
     at start time; a missing venv -> no start (the installer provisions it)."""
-    venv_python = isolated_venv.resolve_python("melotts")
+    venv_python = resolve_isolated_python("melotts")
     if not venv_python:
         return None
     api_server = Path(__file__).resolve().parents[2] / "tts_install_assets" / _MELOTTS_API_SERVER
@@ -264,7 +264,7 @@ def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Di
     at start time. Provisioning is done idempotently by the install scripts
     (Step61_InstallQwen3Tts.ps1 / 140_install_qwen3tts.sh) that pyservice runs; a
     missing venv -> no start + disabled_reason points at the installer."""
-    venv_python = qwen3tts_venv.resolve_python()
+    venv_python = resolve_isolated_python("qwen3tts")
     if not venv_python:
         return None
     api_server = Path(__file__).resolve().parents[2] / "tts_install_assets" / _QWEN3TTS_API_SERVER
@@ -322,10 +322,10 @@ def _config_ready(engine: str) -> bool:
     if engine == "qwen3tts":
         # Class C: without the isolated venv the api server cannot start, so
         # auto-start would only churn (and evict the active server single-active).
-        return qwen3tts_venv.venv_ready()
+        return isolated_venv_ready("qwen3tts")
     if engine == "melotts":
         # Class C: same as qwen3tts - the per-engine isolated venv gates start.
-        return isolated_venv.venv_ready("melotts")
+        return isolated_venv_ready("melotts")
     return True
 
 
@@ -388,6 +388,48 @@ def _model_unload(engine: str) -> None:
 # --------------------------------------------------------------------------- #
 # Registration into the unified manager                                        #
 # --------------------------------------------------------------------------- #
+def _stop_foreign_server(engine: str) -> bool:
+    """Terminate a process we did NOT launch that is LISTENING on this engine's
+    port — typically a stale orphan from a previous pycore run (its stdout pipe
+    is dead, so every synth request 500s instantly while /health keeps passing).
+    Returns True when the foreign listener was stopped and the port is free."""
+    spec = _server_spec(engine)
+    if spec is None:
+        return False
+    port = _parse_port(spec.base_url, 0)
+    if not port:
+        return False
+    try:
+        psutil = get_third_package_psutil()
+    except Exception:  # noqa: BLE001
+        return False
+    killed = False
+    try:
+        for conn in psutil.net_connections(kind="tcp"):
+            laddr = getattr(conn, "laddr", None)
+            if not laddr or getattr(laddr, "port", None) != port:
+                continue
+            if conn.status != psutil.CONN_LISTEN or not conn.pid or conn.pid == os.getpid():
+                continue
+            try:
+                proc = psutil.Process(conn.pid)
+                proc.terminate()
+                proc.wait(timeout=8)
+                killed = True
+                ColorPrint.yellow(
+                    f"[tts] stopped foreign {engine} server (pid={conn.pid}) on port {port}"
+                )
+            except Exception:  # noqa: BLE001
+                try:
+                    psutil.Process(conn.pid).kill()
+                    killed = True
+                except Exception:  # noqa: BLE001
+                    pass
+    except Exception:  # noqa: BLE001
+        return False
+    return killed
+
+
 def _register_services() -> None:
     managed_services.register_category("tts", CategorySettings("tts", "server_", idle_default=180))
     for e in _SERVER_ENGINES:
@@ -399,6 +441,7 @@ def _register_services() -> None:
             health=lambda e=e: _http_healthy(e),
             on_started=lambda e=e: invalidate_server_engine_cache(e),
             on_stopped=lambda e=e: invalidate_server_engine_cache(e),
+            stop_foreign=lambda e=e: _stop_foreign_server(e),
         ))
     for e in _MODEL_ENGINES:
         managed_services.register(ServiceSpec(

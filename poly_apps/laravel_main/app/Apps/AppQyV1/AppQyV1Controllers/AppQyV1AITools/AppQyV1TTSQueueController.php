@@ -66,7 +66,7 @@ class AppQyV1TTSQueueController extends Controller
         }
 
         // FE fast-track: interactive=true forces the row to the FRONT of the
-        // audio queue (tts_priority=100) — the working fast path for word audio
+        // audio queue (tts_priority=MAX(tts_priority)+1 move-to-front ticket) — the working fast path for word audio
         // via pycore's assist worker. The front priority also propagates into
         // the linked GlobalTask when APPQYV1_DUAL_WRITE_GLOBAL is enabled.
         $position = (bool) $request->input('interactive', false)
@@ -358,7 +358,7 @@ class AppQyV1TTSQueueController extends Controller
         $defaultPosition = $request->input('default_position', 'end');
 
         // FE fast-track: interactive=true sends the batch to the FRONT of the
-        // audio queue (tts_priority=100) — the working fast path for word audio
+        // audio queue (tts_priority=MAX(tts_priority)+1 move-to-front ticket) — the working fast path for word audio
         // via pycore's assist worker (the `audio` capability is pycore's; chrome
         // serves only `sentence_audio`). Propagates into the linked GlobalTask
         // when APPQYV1_DUAL_WRITE_GLOBAL is enabled.

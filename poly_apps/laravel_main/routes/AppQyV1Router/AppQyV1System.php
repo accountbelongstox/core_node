@@ -39,7 +39,7 @@ Route::prefix($apiVersionPrefix)->group(function () {
     });
 
     // Enhanced word query routes
-    Route::middleware(['custom.authenticate'])->group(function () {
+    Route::middleware(['auth:sanctum'])->group(function () {
         
         // Enhanced word queries
         Route::get('/word/{word}/enhanced', [AppQyV1WordQueryController::class, 'queryWordEnhanced']);

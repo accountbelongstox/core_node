@@ -1,14 +1,20 @@
-import os
-import threading
 import time
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
-from queue import Queue, Empty
+import uuid
+from pycore.pyfoundations.pybasecommon import exec_silent
 from typing import Callable, Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
 
 from pycore.pyfoundations.third_party import get_third_package_psutil
+from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
 import subprocess
 
 psutil = get_third_package_psutil()
@@ -16,8 +22,6 @@ psutil = get_third_package_psutil()
 from pycore.pygvar import (
     SEVEN_ZIP_EXECUTABLE,
     MAX_CONCURRENT_ZIP_TASKS,
-    CPU_COUNT,
-    IS_WINDOWS
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -60,25 +64,29 @@ class TaskGroup:
 
 class ZipTaskQueue:
     def __init__(self, max_concurrent_tasks: int = MAX_CONCURRENT_ZIP_TASKS):
+        owner_id = uuid.uuid4().hex
         self.max_concurrent_tasks = max_concurrent_tasks
-        self.task_queue = Queue()
+        self.task_queue_name = f"zip_task_queue.tasks.{owner_id}"
+        self.running_signal = f"zip_task_queue.running.{owner_id}"
         self.active_tasks = 0
-        self.active_tasks_lock = threading.Lock()
 
         self.tasks_registry: Dict[str, ZipTask] = {}
         self.groups_registry: Dict[str, TaskGroup] = {}
-        self.registry_lock = threading.Lock()
 
         self.global_callbacks: List[Callable] = []
-        self.global_callbacks_lock = threading.Lock()
 
-        self.worker_threads: List[threading.Thread] = []
-        self.stop_event = threading.Event()
+        self.worker_threads = []
         self.running = False
 
         self.cpu_threshold = 80
         self.completed_tasks_count = 0
         self.failed_tasks_count = 0
+        init_serialized_owner(
+            self,
+            "zip_task_queue.state",
+            "ZipTaskQueueState",
+        )
+        THREAD_BUS.signal(self.running_signal, False)
 
         if not SEVEN_ZIP_EXECUTABLE:
             raise RuntimeError("7-Zip executable not found. Please install 7-Zip.")
@@ -86,59 +94,74 @@ class ZipTaskQueue:
         logger.info(f"ZipTaskQueue initialized with {max_concurrent_tasks} concurrent tasks")
         logger.info(f"Using 7-Zip executable: {SEVEN_ZIP_EXECUTABLE}")
 
+    @serialized_method
     def start(self):
         if self.running:
             logger.warning("ZipTaskQueue is already running")
             return
 
         self.running = True
-        self.stop_event.clear()
+        THREAD_BUS.signal(self.running_signal, True)
 
         for i in range(self.max_concurrent_tasks):
-            thread = threading.Thread(target=self._worker, args=(i,), daemon=True)
-            thread.start()
+            thread = start_bus_task(
+                self._worker,
+                i,
+                thread_name=f"ZipTaskWorker-{i}",
+            )
             self.worker_threads.append(thread)
             logger.info(f"Started worker thread {i}")
 
     def stop(self, wait=True):
-        if not self.running:
+        worker_threads = self._stop_workers()
+        if worker_threads is None:
             return
 
         logger.info("Stopping ZipTaskQueue...")
-        self.stop_event.set()
-        self.running = False
 
         if wait:
-            for thread in self.worker_threads:
+            for thread in worker_threads:
                 thread.join(timeout=5)
 
-        self.worker_threads.clear()
         logger.info("ZipTaskQueue stopped")
+
+    @serialized_method
+    def _stop_workers(self):
+        if not self.running:
+            return None
+        self.running = False
+        THREAD_BUS.signal(self.running_signal, False)
+        worker_threads = list(self.worker_threads)
+        self.worker_threads.clear()
+        return worker_threads
 
     def _worker(self, worker_id: int):
         logger.info(f"Worker {worker_id} started")
 
-        while not self.stop_event.is_set():
+        while THREAD_BUS.get_signal(self.running_signal, False):
             if self._should_skip_due_to_cpu():
                 time.sleep(2)
                 continue
 
-            try:
-                task = self.task_queue.get(timeout=1)
-            except Empty:
+            task = THREAD_BUS.receive_message(
+                self.task_queue_name,
+                block=True,
+                timeout=1,
+            )
+            if not isinstance(task, ZipTask):
                 time.sleep(0.5)
                 continue
 
             try:
-                with self.active_tasks_lock:
-                    self.active_tasks += 1
-
+                self._change_active_tasks(1)
                 self._execute_task(task, worker_id)
 
             finally:
-                with self.active_tasks_lock:
-                    self.active_tasks -= 1
-                self.task_queue.task_done()
+                self._change_active_tasks(-1)
+
+    @serialized_method
+    def _change_active_tasks(self, delta: int) -> None:
+        self.active_tasks = max(0, self.active_tasks + delta)
 
     def _should_skip_due_to_cpu(self) -> bool:
         try:
@@ -157,7 +180,7 @@ class ZipTaskQueue:
             command = self._build_command(task)
             logger.debug(f"Executing command: {command}")
 
-            result = exec_silent(
+            exec_silent(
                 command,
                 shell=True,
                 check=True,
@@ -168,76 +191,63 @@ class ZipTaskQueue:
 
             task.status = TaskStatus.COMPLETED
             task.end_time = time.time()
-            self.completed_tasks_count += 1
 
             logger.info(f"Task {task.task_id} completed in {task.end_time - task.start_time:.2f}s")
-
-            if task.callback:
-                try:
-                    task.callback(task)
-                except Exception as e:
-                    logger.error(f"Task callback error: {e}")
-
-            self._handle_task_completion(task)
 
         except subprocess.CalledProcessError as e:
             task.status = TaskStatus.FAILED
             task.end_time = time.time()
             task.error = str(e)
-            self.failed_tasks_count += 1
 
             logger.error(f"Task {task.task_id} failed: {e}")
-
-            if task.callback:
-                try:
-                    task.callback(task)
-                except Exception as e:
-                    logger.error(f"Task callback error: {e}")
-
-            self._handle_task_completion(task)
 
         except Exception as e:
             task.status = TaskStatus.FAILED
             task.end_time = time.time()
             task.error = str(e)
-            self.failed_tasks_count += 1
 
             logger.error(f"Task {task.task_id} exception: {e}")
 
-            if task.callback:
-                try:
-                    task.callback(task)
-                except Exception as e:
-                    logger.error(f"Task callback error: {e}")
+        if task.callback:
+            try:
+                task.callback(task)
+            except Exception as callback_error:
+                logger.error(f"Task callback error: {callback_error}")
 
-            self._handle_task_completion(task)
+        group_callback, group, global_callbacks = self._record_task_completion(task)
+        if group_callback and group:
+            try:
+                group_callback(group)
+            except Exception as callback_error:
+                logger.error(f"Group callback error: {callback_error}")
+        for callback in global_callbacks:
+            try:
+                callback(task)
+            except Exception as callback_error:
+                logger.error(f"Global callback error: {callback_error}")
 
-    def _handle_task_completion(self, task: ZipTask):
+    @serialized_method
+    def _record_task_completion(self, task: ZipTask):
+        group = None
+        group_callback = None
+        if task.status == TaskStatus.COMPLETED:
+            self.completed_tasks_count += 1
+        elif task.status == TaskStatus.FAILED:
+            self.failed_tasks_count += 1
+
         if task.group_id:
-            with self.registry_lock:
-                if task.group_id in self.groups_registry:
-                    group = self.groups_registry[task.group_id]
+            group = self.groups_registry.get(task.group_id)
+            if group:
+                if task.status == TaskStatus.COMPLETED:
+                    group.completed_count += 1
+                elif task.status == TaskStatus.FAILED:
+                    group.failed_count += 1
 
-                    if task.status == TaskStatus.COMPLETED:
-                        group.completed_count += 1
-                    elif task.status == TaskStatus.FAILED:
-                        group.failed_count += 1
+                if (group.completed_count + group.failed_count) >= group.total_count:
+                    logger.info(f"Group {task.group_id} completed: {group.completed_count}/{group.total_count} succeeded")
+                    group_callback = group.callback
 
-                    if (group.completed_count + group.failed_count) >= group.total_count:
-                        logger.info(f"Group {task.group_id} completed: {group.completed_count}/{group.total_count} succeeded")
-
-                        if group.callback:
-                            try:
-                                group.callback(group)
-                            except Exception as e:
-                                logger.error(f"Group callback error: {e}")
-
-        with self.global_callbacks_lock:
-            for callback in self.global_callbacks:
-                try:
-                    callback(task)
-                except Exception as e:
-                    logger.error(f"Global callback error: {e}")
+        return group_callback, group, list(self.global_callbacks)
 
     def _build_command(self, task: ZipTask) -> str:
         seven_zip = f'"{SEVEN_ZIP_EXECUTABLE}"'
@@ -249,6 +259,7 @@ class ZipTaskQueue:
 
         return command
 
+    @serialized_method
     def add_task(
         self,
         task_id: str,
@@ -271,18 +282,17 @@ class ZipTaskQueue:
             metadata=metadata or {}
         )
 
-        with self.registry_lock:
-            self.tasks_registry[task_id] = task
+        self.tasks_registry[task_id] = task
 
-            if group_id:
-                if group_id not in self.groups_registry:
-                    self.groups_registry[group_id] = TaskGroup(group_id=group_id)
+        if group_id:
+            if group_id not in self.groups_registry:
+                self.groups_registry[group_id] = TaskGroup(group_id=group_id)
 
-                group = self.groups_registry[group_id]
-                group.tasks.append(task)
-                group.total_count += 1
+            group = self.groups_registry[group_id]
+            group.tasks.append(task)
+            group.total_count += 1
 
-        self.task_queue.put(task)
+        THREAD_BUS.send_message(self.task_queue_name, task)
         logger.info(f"Task {task_id} added to queue")
 
         if not self.running:
@@ -290,6 +300,7 @@ class ZipTaskQueue:
 
         return task
 
+    @serialized_method
     def add_task_group(
         self,
         group_id: str,
@@ -298,8 +309,7 @@ class ZipTaskQueue:
     ) -> TaskGroup:
         group = TaskGroup(group_id=group_id, callback=group_callback)
 
-        with self.registry_lock:
-            self.groups_registry[group_id] = group
+        self.groups_registry[group_id] = group
 
         for task_data in tasks:
             task_id = task_data.get('task_id', f"{group_id}_{len(group.tasks)}")
@@ -317,54 +327,65 @@ class ZipTaskQueue:
         logger.info(f"Task group {group_id} added with {len(tasks)} tasks")
         return group
 
+    @serialized_method
     def register_global_callback(self, callback: Callable):
-        with self.global_callbacks_lock:
-            if callback not in self.global_callbacks:
-                self.global_callbacks.append(callback)
-                logger.info("Global callback registered")
+        if callback not in self.global_callbacks:
+            self.global_callbacks.append(callback)
+            logger.info("Global callback registered")
 
+    @serialized_method
     def unregister_global_callback(self, callback: Callable):
-        with self.global_callbacks_lock:
-            if callback in self.global_callbacks:
-                self.global_callbacks.remove(callback)
-                logger.info("Global callback unregistered")
+        if callback in self.global_callbacks:
+            self.global_callbacks.remove(callback)
+            logger.info("Global callback unregistered")
 
+    @serialized_method
     def get_task_status(self, task_id: str) -> Optional[ZipTask]:
-        with self.registry_lock:
-            return self.tasks_registry.get(task_id)
+        return self.tasks_registry.get(task_id)
 
+    @serialized_method
     def get_group_status(self, group_id: str) -> Optional[TaskGroup]:
-        with self.registry_lock:
-            return self.groups_registry.get(group_id)
+        return self.groups_registry.get(group_id)
 
     def wait_for_completion(self, timeout: Optional[float] = None):
-        self.task_queue.join()
+        started_at = time.time()
+        while True:
+            statistics = self.get_statistics()
+            if statistics['pending_tasks'] == 0 and statistics['active_tasks'] == 0:
+                break
+            if timeout is not None and time.time() - started_at >= timeout:
+                return False
+            time.sleep(0.1)
         logger.info("All tasks completed")
+        return True
 
+    @serialized_method
     def get_statistics(self) -> Dict[str, Any]:
-        with self.active_tasks_lock:
-            active = self.active_tasks
-
         return {
             'total_tasks': len(self.tasks_registry),
             'completed_tasks': self.completed_tasks_count,
             'failed_tasks': self.failed_tasks_count,
-            'active_tasks': active,
-            'pending_tasks': self.task_queue.qsize(),
+            'active_tasks': self.active_tasks,
+            'pending_tasks': THREAD_BUS.queue_size(self.task_queue_name),
             'total_groups': len(self.groups_registry),
         }
 
 
 _global_queue_instance: Optional[ZipTaskQueue] = None
-_queue_lock = threading.Lock()
+_GLOBAL_QUEUE_NAME = "zip_task_queue.global"
+_global_queue_worker = SerializedWorkerThread(
+    _GLOBAL_QUEUE_NAME,
+    "GlobalZipTaskQueueState",
+)
+_global_queue_worker.start()
+
+
+def _get_or_create_global_queue() -> ZipTaskQueue:
+    global _global_queue_instance
+    if _global_queue_instance is None:
+        _global_queue_instance = ZipTaskQueue()
+    return _global_queue_instance
 
 
 def get_global_zip_queue() -> ZipTaskQueue:
-    global _global_queue_instance
-
-    if _global_queue_instance is None:
-        with _queue_lock:
-            if _global_queue_instance is None:
-                _global_queue_instance = ZipTaskQueue()
-
-    return _global_queue_instance
+    return call_serialized(_GLOBAL_QUEUE_NAME, _get_or_create_global_queue)

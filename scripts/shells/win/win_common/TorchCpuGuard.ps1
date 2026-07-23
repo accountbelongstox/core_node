@@ -4,7 +4,8 @@
 . (Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1')
 . (Join-Path $PSScriptRoot 'NvidiaCuStackAlign.ps1')
 
-$script:TorchCpuIndexUrl = 'https://download.pytorch.org/whl/cpu'
+$script:TorchCpuIndexUrl = Get-AiRuntimePolicyValue -Name 'AI_TORCH_CPU_INDEX' -Default 'https://download.pytorch.org/whl/cpu'
+$script:TorchPackages = Get-AiRuntimePolicyList -Name 'AI_TORCH_PACKAGES'
 
 function Get-TcgPython {
     param([string]$Override)
@@ -14,7 +15,7 @@ function Get-TcgPython {
 }
 
 function Test-TcgGpuPresent {
-    return Test-NvidiaGpuPresent
+    return [bool](Get-CudaRuntimePolicy).Enabled
 }
 
 function Get-TorchCudaState {
@@ -26,10 +27,18 @@ function Get-TorchCudaState {
     $out = & $PythonCmd -c "import torch; print(str(torch.version.cuda))" 2>&1
     $text = ("$out").Trim()
     if ($text -match 'Error|Traceback|No module') {
-        return ''
+        return 'Broken'
     }
 
     return $text
+}
+
+function Convert-TorchCudaStateToTag {
+    param([string]$State)
+    if ($State -match '^(\d+)\.(\d+)') {
+        return ('cu{0}{1}' -f $Matches[1], $Matches[2])
+    }
+    return ''
 }
 
 function Test-TorchCudaUsable {
@@ -71,7 +80,17 @@ function Install-CpuTorch {
     param(
         [string]$PipExe
     )
-    & $PipExe install --ignore-installed --force-reinstall --index-url $script:TorchCpuIndexUrl torch torchvision torchaudio
+    & $PipExe install --ignore-installed --force-reinstall --index-url $script:TorchCpuIndexUrl @script:TorchPackages
+}
+
+function Install-GpuTorch {
+    param(
+        [string]$PythonCmd,
+        [string]$PipExe,
+        [PSCustomObject]$Policy
+    )
+    & $PipExe install --ignore-installed --force-reinstall --index-url $Policy.TorchIndexUrl @script:TorchPackages
+    Sync-NvidiaCuStack -PythonCmd $PythonCmd -PipExe $PipExe -TargetMajor $Policy.Major
 }
 
 function Ensure-TorchBuild {
@@ -95,40 +114,40 @@ function Ensure-TorchBuild {
     }
 
     $state = Get-TorchCudaState -PythonCmd $PythonCmd
+    $policy = Get-CudaRuntimePolicy
 
-    if (Test-TcgGpuPresent) {
+    if ($policy.Enabled) {
         if (-not $state) {
             if ($RepairOnly) {
                 Write-Host '[torch-guard] GPU present, torch missing (repair-only) -> nothing to repair.'
             } else {
-                $idx = Get-TorchCudaIndexUrl
-                Write-Host "[torch-guard] GPU present, torch missing -> installing driver-matched CUDA build ($idx)."
-                & $PipExe install --ignore-installed --index-url $idx torch torchvision torchaudio
-                # Align the nvidia stack to torch's CUDA major (removes stray cu12
-                # libs that clobber torch's cu13 DLLs -> WinError 127).
-                Sync-NvidiaCuStack -PythonCmd $PythonCmd -PipExe $PipExe
+                Write-Host "[torch-guard] GPU present, torch missing -> installing canonical $($policy.Tag) build."
+                Install-GpuTorch -PythonCmd $PythonCmd -PipExe $PipExe -Policy $policy
             }
             return
         }
         if ($state -eq 'None') {
-            Write-Host '[torch-guard] GPU present, torch is CPU build; no change (CPU build runs on GPU hosts too).'
+            Write-Host "[torch-guard] GPU present, torch is CPU-only -> switching to canonical $($policy.Tag) build."
+            Install-GpuTorch -PythonCmd $PythonCmd -PipExe $PipExe -Policy $policy
             return
         }
+        $installedTag = Convert-TorchCudaStateToTag -State $state
+        if ($state -eq 'Broken' -or $installedTag -ne $policy.Tag) {
+            Write-Host "[torch-guard] torch state '$state' does not match $($policy.Tag) -> repairing once."
+            Install-GpuTorch -PythonCmd $PythonCmd -PipExe $PipExe -Policy $policy
+            return
+        }
+        Sync-NvidiaCuStack -PythonCmd $PythonCmd -PipExe $PipExe -TargetMajor $policy.Major
         if (Test-TorchCudaUsable -PythonCmd $PythonCmd) {
-            Write-Host "[torch-guard] GPU present, torch cuda=$state usable on this driver; no change."
+            Write-Host "[torch-guard] GPU present, canonical $installedTag torch is usable; no change."
         } else {
-            # torch is installed (binary present) but CUDA cannot init here. This is a
-            # driver / nvidia-smi problem, not a torch-install problem: reinstalling torch
-            # cannot fix a broken driver, would call pip uninstall (forbidden), and would
-            # fire every run (non-idempotent). Leave torch as-is; the app falls back to CPU.
-            # Fix the NVIDIA driver (nvidia-smi) to enable CUDA.
-            Write-Host "[torch-guard] GPU hardware present but torch cuda=$state cannot init (nvidia-smi/driver not working); leaving torch installed. App runs on CPU until the driver is fixed." -ForegroundColor DarkYellow
+            Write-Host "[torch-guard] canonical $installedTag is installed but CUDA cannot initialize; leaving it unchanged to avoid a reinstall loop. Repair the NVIDIA driver/runtime." -ForegroundColor DarkYellow
         }
         return
     }
 
     switch ($state) {
-        '' {
+        { $_ -in @('', 'Broken') } {
             if ($RepairOnly) {
                 Write-Host '[torch-guard] No GPU, torch not installed -> nothing to repair.'
             } else {

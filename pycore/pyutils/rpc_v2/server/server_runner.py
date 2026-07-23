@@ -12,11 +12,12 @@ tracebacks during shutdown. Imports FastAPIRPCServer from fastapi_server only
 from __future__ import annotations
 
 import logging
-import threading
 from typing import Any, Callable, Optional
 
 from pycore import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.third_party import get_third_package_uvicorn
+from pycore.pyfoundations.serialized_worker import start_bus_task
 
 from pycore.pyutils.rpc_v2.server.fastapi_server import FastAPIRPCServer
 
@@ -43,9 +44,9 @@ class FastAPIRPCServerRunner:
 
     def __init__(self, **server_options):
         self.server = FastAPIRPCServer(options=server_options)
-        self._thread: Optional[threading.Thread] = None
+        self._thread: Optional[Any] = None
         self._uvicorn_server: Optional[uvicorn.Server] = None
-        self._start_event = threading.Event()
+        self._start_signal = f"rpc.server.started.{id(self)}"
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -57,7 +58,7 @@ class FastAPIRPCServerRunner:
         cancel_filter = SuppressCancelledErrorFilter()
         uvicorn_error_logger.addFilter(cancel_filter)
 
-        self._start_event.clear()
+        THREAD_BUS.clear_signal(self._start_signal)
         config = uvicorn.Config(
             app=self.server.app,
             host=self.server.host,
@@ -72,16 +73,18 @@ class FastAPIRPCServerRunner:
             ColorPrint.green(
                 f"[FastAPIRPCRunner] Starting FastAPI RPC server on {self.server.host}:{self.server.port}"
             )
-            self._start_event.set()
+            THREAD_BUS.signal(self._start_signal, True)
             try:
                 self._uvicorn_server.run()
             except Exception:
                 # Suppress expected errors during shutdown (CancelledError, etc.)
                 pass
 
-        self._thread = threading.Thread(target=runner, name="FastAPIRPCServerThread", daemon=True)
-        self._thread.start()
-        self._start_event.wait(timeout=5)
+        self._thread = start_bus_task(
+            runner,
+            thread_name="FastAPIRPCServerThread",
+        )
+        THREAD_BUS.wait_signal(self._start_signal, timeout=5)
 
     def stop(self):
         if not self._uvicorn_server:

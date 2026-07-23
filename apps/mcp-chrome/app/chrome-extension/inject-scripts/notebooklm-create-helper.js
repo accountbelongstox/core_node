@@ -145,14 +145,16 @@
   async function addSourceText(text) {
     let input = findTextInput();
     let via = 'direct';
-    if (!input) {
-      const tile = findByText(/copied text|paste text|paste|search the web|new sources|text\b/i);
-      if (tile) {
-        tile.click();
-        via = `tile:${norm(tile.textContent).slice(0, 24)}`;
-        await sleep(700);
-        input = findTextInput();
-      }
+    const inputLabel = input
+      ? `${input.getAttribute('aria-label') || ''} ${input.getAttribute('placeholder') || ''}`
+      : '';
+    if (!input || /discover sources|search/i.test(inputLabel)) {
+      const tile = findByText(/copied text|paste text|paste/i);
+      if (!tile) return { submitted: false, error: 'Copied-text source control not found' };
+      tile.click();
+      via = `tile:${norm(tile.textContent).slice(0, 24)}`;
+      await sleep(700);
+      input = findTextInput();
     }
     if (!input) return { submitted: false, error: 'No text input found (add-source dialog DOM changed?)' };
 
@@ -173,6 +175,7 @@
 
   function getStatus() {
     const bodyText = (document.body && document.body.innerText) || '';
+    const sourceCountMatch = bodyText.match(/\b(\d+)\s+sources?\b/i);
     const generating =
       /Generating|Creating|Loading sources|Processing|Analyzing|正在生成|生成中|加载/i.test(bodyText) ||
       deepQueryAll([
@@ -182,15 +185,16 @@
         '.loading',
       ]).some(isVisible);
     // A rough "ready" signal: source items / studio panel present.
-    const sourceCount = deepQueryAll([
+    const detectedSourceCount = deepQueryAll([
       '[data-source-id]',
       'source-list-item',
       '.source-item',
       'mat-list-item',
     ]).filter(isVisible).length;
+    const sourceCount = sourceCountMatch ? Number.parseInt(sourceCountMatch[1], 10) : detectedSourceCount;
     const title = norm(document.title);
     return {
-      ready: !generating && (sourceCount > 0 || /\/notebook\//.test(location.href)),
+      ready: !generating && sourceCount > 0,
       generating,
       sourceCount,
       title,

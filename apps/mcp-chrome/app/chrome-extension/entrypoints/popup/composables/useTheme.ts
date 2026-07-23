@@ -7,10 +7,11 @@
  * the whole UI. The choice is persisted to chrome.storage.local.
  */
 import { ref } from 'vue';
+import { localStorage } from '@/services/ExtensionStorage';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 export type ThemeMode = 'dark' | 'light';
 
-const STORAGE_KEY = 'popup_theme';
 const theme = ref<ThemeMode>('dark');
 
 /** Apply the theme class to the popup root (the element with [data-popup-root]). */
@@ -27,7 +28,7 @@ export function useTheme() {
     theme.value = mode;
     applyTheme(mode);
     try {
-      await chrome.storage.local.set({ [STORAGE_KEY]: mode });
+      await localStorage.set(STORAGE_KEYS.POPUP_THEME, mode);
     } catch {
       /* storage may be unavailable in some contexts; the class is already applied */
     }
@@ -38,10 +39,8 @@ export function useTheme() {
   const initTheme = async () => {
     let mode: ThemeMode = 'dark';
     try {
-      const stored = await chrome.storage.local.get(STORAGE_KEY);
-      if (stored[STORAGE_KEY] === 'light' || stored[STORAGE_KEY] === 'dark') {
-        mode = stored[STORAGE_KEY];
-      }
+      const stored = await localStorage.get<ThemeMode>(STORAGE_KEYS.POPUP_THEME, 'dark');
+      if (stored === 'light' || stored === 'dark') mode = stored;
     } catch {
       /* fall back to dark */
     }

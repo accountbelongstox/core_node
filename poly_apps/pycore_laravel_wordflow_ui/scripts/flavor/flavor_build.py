@@ -5,10 +5,9 @@ flavor_build.py — asset + Capacitor config preparation for a flavor build.
 Reads `flavors/<app>/flavor.json` (the single source of truth) and:
   1. writes `capacitor.config.json` at the project root (appId / appName / webDir
      / theme + background colors) so `npx cap sync` packages the right app;
-  2. prepares `resources/icon.png` (1024) + `resources/splash.png` (2732) for
-     `npx @capacitor/assets generate` — copied from the flavor folder when a PNG
-     is supplied, else rasterized from the flavor's themeColor + initial (when
-     Pillow is available), else a clear instruction is printed.
+  2. prepares the declared flavor icon under `resources/` for
+     `npx @capacitor/assets generate`. SVG, PNG, and JPEG sources are preserved;
+     a PNG placeholder is generated only when no declared source is available.
 
 Called by build_app.ps1 BEFORE `vite build`. Pure-stdlib except the OPTIONAL
 Pillow import used only to synthesize placeholder art.
@@ -52,6 +51,7 @@ def write_capacitor_config(root: str, flavor: dict) -> None:
         "webDir": "dist",
         "backgroundColor": flavor.get("backgroundColor", "#0f172a"),
         "server": {"androidScheme": "https"},
+        "android": {"path": f"native/{flavor['id']}/android"},
         "plugins": {
             "SplashScreen": {
                 "backgroundColor": flavor.get("backgroundColor", "#0f172a"),
@@ -84,23 +84,36 @@ def _try_pillow():
 def prepare_resources(root: str, app: str, flavor: dict) -> None:
     flavor_dir = os.path.join(root, "flavors", app)
     res_dir = os.path.join(root, "resources")
+    assets = flavor.get("assets") or {}
     os.makedirs(res_dir, exist_ok=True)
 
-    def ensure(kind: str, size: int, dest_name: str) -> None:
-        src_png = os.path.join(flavor_dir, f"{kind}.png")
-        dest = os.path.join(res_dir, dest_name)
-        if os.path.isfile(src_png):
-            shutil.copyfile(src_png, dest)
-            log(f"copied {kind}.png -> resources/{dest_name}")
+    def clear_generated(kind: str) -> None:
+        for extension in (".svg", ".png", ".jpg", ".jpeg"):
+            candidate = os.path.join(res_dir, kind + extension)
+            if os.path.isfile(candidate):
+                os.remove(candidate)
+
+    def ensure_icon(size: int) -> None:
+        declared = assets.get("icon") or flavor.get("icon") or "icon.png"
+        source = os.path.abspath(os.path.join(flavor_dir, declared))
+        extension = os.path.splitext(source)[1].lower()
+        if os.path.commonpath((source, flavor_dir)) != os.path.abspath(flavor_dir):
+            log("ERROR: flavor icon must stay inside its flavor directory.")
+            sys.exit(2)
+        clear_generated("icon")
+        if os.path.isfile(source) and extension in (".svg", ".png", ".jpg", ".jpeg"):
+            destination = os.path.join(res_dir, "icon" + extension)
+            shutil.copyfile(source, destination)
+            log(f"copied {declared} -> resources/{os.path.basename(destination)}")
             return
         pil = _try_pillow()
         if pil is None:
-            log(f"NOTE: no {kind}.png for '{app}' and Pillow not installed — "
-                f"provide flavors/{app}/{kind}.png ({size}x{size}) then re-run, "
+            log(f"ERROR: no usable icon for '{app}' and Pillow is not installed. "
+                f"Provide the path in flavor.json assets.icon, "
                 f"or `pip install Pillow`.")
-            return
+            sys.exit(2)
         Image, ImageDraw, ImageFont = pil
-        bg = _hex_to_rgb(flavor.get("themeColor" if kind == "icon" else "backgroundColor", "#4f46e5"))
+        bg = _hex_to_rgb(flavor.get("themeColor", "#4f46e5"))
         img = Image.new("RGB", (size, size), bg)
         draw = ImageDraw.Draw(img)
         letter = (flavor.get("shortName") or flavor.get("name") or app)[:1].upper()
@@ -114,11 +127,12 @@ def prepare_resources(root: str, app: str, flavor: dict) -> None:
             draw.text(((size - tw) / 2 - bbox[0], (size - th) / 2 - bbox[1]), letter, fill=(255, 255, 255), font=font)
         except Exception:
             draw.text((size / 2, size / 2), letter, fill=(255, 255, 255))
-        img.save(dest)
-        log(f"generated placeholder {kind} -> resources/{dest_name} ({size}px, {flavor.get('themeColor')})")
+        destination = os.path.join(res_dir, "icon.png")
+        img.save(destination)
+        log(f"generated placeholder icon -> resources/icon.png ({size}px, {flavor.get('themeColor')})")
 
-    ensure("icon", 1024, "icon.png")
-    ensure("splash", 2732, "splash.png")
+    clear_generated("splash")
+    ensure_icon(1024)
 
 
 def main() -> int:

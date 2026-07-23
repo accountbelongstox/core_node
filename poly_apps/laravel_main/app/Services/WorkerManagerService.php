@@ -131,11 +131,20 @@ class WorkerManagerService
         // File store (not the configured `database` default, whose `cache` table
         // is not provisioned by any migration); persists across php -S requests.
         return Cache::store('file')->remember('workers:stats', 3, static function (): array {
+            $aliveCutoff = now()->subSeconds(Worker::HEARTBEAT_TIMEOUT);
+            $total = Worker::count();
+            $online = Worker::where('status', Worker::STATUS_ONLINE)
+                ->where('last_heartbeat_at', '>=', $aliveCutoff)
+                ->count();
+            $busy = Worker::where('status', Worker::STATUS_BUSY)
+                ->where('last_heartbeat_at', '>=', $aliveCutoff)
+                ->count();
+
             return [
-                'total' => Worker::count(),
-                'online' => Worker::where('status', Worker::STATUS_ONLINE)->count(),
-                'busy' => Worker::where('status', Worker::STATUS_BUSY)->count(),
-                'offline' => Worker::where('status', Worker::STATUS_OFFLINE)->count(),
+                'total' => $total,
+                'online' => $online,
+                'busy' => $busy,
+                'offline' => max(0, $total - $online - $busy),
                 'total_completed' => Worker::sum('completed_tasks'),
                 'total_failed' => Worker::sum('failed_tasks'),
             ];

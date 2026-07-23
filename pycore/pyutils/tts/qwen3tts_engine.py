@@ -29,8 +29,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from pycore.pyfoundations.isolated_venv import venv_ready as isolated_venv_ready
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.tts import qwen3tts_venv
 
 _DEFAULT_HOST = "127.0.0.1"
 _DEFAULT_PORT = 57210
@@ -55,15 +55,15 @@ def base_url() -> str:
 def available() -> bool:
     """The engine is usable when the isolated venv is provisioned (the managed
     service starts/loads the server on demand)."""
-    return qwen3tts_venv.venv_ready()
+    return isolated_venv_ready("qwen3tts")
 
 
 def disabled_reason() -> Optional[str]:
-    if qwen3tts_venv.venv_ready():
+    if isolated_venv_ready("qwen3tts"):
         return None
     return (
         "Qwen3-TTS isolated venv not built - run Step61_InstallQwen3Tts.ps1 / "
-        "140_install_qwen3tts.sh (or it auto-builds via ensure_venv on first use)"
+        "140_install_qwen3tts.sh"
     )
 
 
@@ -116,12 +116,28 @@ def _post(path: str, payload: Dict[str, Any]) -> "tuple[int, bytes]":
         return resp.status, resp.read()
 
 
+def _http_error_detail(exc: urllib.error.HTTPError) -> str:
+    """Human-readable synth failure: HTTP status + server-provided error body.
+    A bare 'Internal Server Error' body means the server crashed OUTSIDE its
+    endpoint guards (e.g. an orphaned process with a broken stdout pipe) —
+    say so explicitly so the log points at the server console, not the model."""
+    detail = _extract_error(exc.read())
+    prefix = f"HTTP {exc.code}"
+    if detail.strip() == "Internal Server Error":
+        return (
+            f"{prefix}: unhandled server-side crash (no detail; check the "
+            "qwen3tts server console/[managed] log — the running server may be "
+            "a stale orphan, restart it)"
+        )
+    return f"{prefix}: {detail}"
+
+
 def _post_bytes(path: str, payload: Dict[str, Any]) -> "tuple[bool, bytes, Optional[str]]":
     try:
         _status, data = _post(path, payload)
         return True, data, None
     except urllib.error.HTTPError as exc:
-        return False, b"", _extract_error(exc.read())
+        return False, b"", _http_error_detail(exc)
     except Exception as exc:  # noqa: BLE001
         return False, b"", str(exc)
 
@@ -131,7 +147,7 @@ def _post_json(path: str, payload: Dict[str, Any]) -> "tuple[bool, Any, Optional
         _status, data = _post(path, payload)
         return True, json.loads(data.decode("utf-8")), None
     except urllib.error.HTTPError as exc:
-        return False, None, _extract_error(exc.read())
+        return False, None, _http_error_detail(exc)
     except Exception as exc:  # noqa: BLE001
         return False, None, str(exc)
 

@@ -14,7 +14,7 @@
           </button>
         </div>
         <div class="mb-2">
-          <label class="block text-[9px] mb-1" style="color: var(--text-muted)">Server Port</label>
+          <label class="block text-[9px] mb-1" style="color: var(--text-muted)">Native MCP Port</label>
           <input type="number" :value="appStore.settings.value.serverPort" @input="updateServerPort"
             class="tk-input w-full px-2 py-1 border rounded text-[10px]" min="1024" max="65535" />
         </div>
@@ -53,6 +53,22 @@
 
     <!-- AI Web Provider (full width) -->
     <div class="mt-2">
+      <ApiSettings />
+    </div>
+
+    <div class="mt-2">
+      <TaskCapabilitySettings />
+    </div>
+
+    <div class="mt-2">
+      <BingWorkerSettings />
+    </div>
+
+    <div class="mt-2">
+      <AudioRecordingSettings />
+    </div>
+
+    <div class="mt-2">
       <AiWebProviderSettings />
     </div>
 
@@ -68,6 +84,10 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useAppStore } from '@/composables/useAppStore';
 import CacheSettings from './CacheSettings.vue';
 import AiWebProviderSettings from './AiWebProviderSettings.vue';
+import ApiSettings from './ApiSettings.vue';
+import TaskCapabilitySettings from './TaskCapabilitySettings.vue';
+import BingWorkerSettings from './BingWorkerSettings.vue';
+import AudioRecordingSettings from './AudioRecordingSettings.vue';
 import {
   getBackendTimeoutMs,
   setBackendTimeoutMs,

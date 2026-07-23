@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "DingDuoDuo"
+  },
+  "extensionShortName": {
+    "message": "DingDuoDuo"
+  },
+  "extensionDescription": {
+    "message": "Multi-account Pinduoduo order management with synchronization, search, reconciliation, and one-click ERP CSV export. Not affiliated with Pinduoduo."
+  },
+  "actionTitle": {
+    "message": "DingDuoDuo | Pinduoduo Order Management and ERP Export"
+  }
+}

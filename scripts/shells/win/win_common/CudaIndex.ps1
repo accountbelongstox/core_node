@@ -1,17 +1,19 @@
-# Driver-matched CUDA wheel index URLs (Windows). Mirrors linux/common/base_libs/cuda_index.sh.
+# Unified CUDA runtime policy (Windows). Mirrors linux/common/base_libs/cuda_index.sh.
 
 if (-not (Get-Command Resolve-NvidiaSmiExe -ErrorAction SilentlyContinue)) {
     . (Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1')
 }
+. (Join-Path $PSScriptRoot 'AiRuntimePolicy.ps1')
 
 function Resolve-CudaIndexNvidiaSmiExe {
     param([string]$SmiPath = 'nvidia-smi')
+    $candidate = if ([string]::IsNullOrWhiteSpace($SmiPath)) { 'nvidia-smi' } else { $SmiPath }
 
-    if ($SmiPath -and (Test-Path -LiteralPath $SmiPath)) {
-        return (Resolve-Path -LiteralPath $SmiPath).Path
+    if (Test-Path -LiteralPath $candidate) {
+        return (Resolve-Path -LiteralPath $candidate).Path
     }
 
-    $cmd = Get-Command $SmiPath -ErrorAction SilentlyContinue
+    $cmd = Get-Command $candidate -ErrorAction SilentlyContinue
     if ($cmd -and $cmd.Source -and (Test-Path -LiteralPath $cmd.Source)) {
         return $cmd.Source
     }
@@ -26,8 +28,13 @@ function Resolve-CudaIndexNvidiaSmiExe {
 function Get-NvidiaSmiOutputText {
     param([string]$SmiPath = 'nvidia-smi')
     $exe = Resolve-CudaIndexNvidiaSmiExe -SmiPath $SmiPath
+    $output = $null
+    $exitCode = 1
     if (-not $exe) { return '' }
-    return ("$(& $exe 2>&1)").Trim()
+    $output = & $exe 2>&1
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) { return '' }
+    return ("$output").Trim()
 }
 
 function Get-NvidiaSmiCudaVersionString {
@@ -54,11 +61,18 @@ function Get-NvidiaDriverCudaVersionLine {
 function Get-NvidiaSmiFirstGpuLine {
     param([string]$SmiPath = 'nvidia-smi')
     $exe = Resolve-CudaIndexNvidiaSmiExe -SmiPath $SmiPath
+    $output = $null
+    $exitCode = 1
+    $line = $null
     if (-not $exe) { return '' }
     $output = & $exe -L 2>&1
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) { return '' }
     $line = ("$output" -split "`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
     if ($null -eq $line) { return '' }
-    return ([string]$line).Trim()
+    $line = ([string]$line).Trim()
+    if ($line -notmatch '^GPU\s+\d+:') { return '' }
+    return $line
 }
 
 function Get-CudaDriverCv {
@@ -77,30 +91,83 @@ function Get-CudaDriverCv {
     }
 }
 
-function Get-TorchCudaIndexUrl {
-    if ($env:PYTORCH_CUDA_INDEX_URL) { return $env:PYTORCH_CUDA_INDEX_URL }
-    $tag = 'cu124'
-    $cv = Get-CudaDriverCv
-    if ($null -ne $cv) {
-        if ($cv -ge 1300) { $tag = 'cu130' }
-        elseif ($cv -ge 1208) { $tag = 'cu128' }
-        elseif ($cv -ge 1206) { $tag = 'cu126' }
-        elseif ($cv -ge 1204) { $tag = 'cu124' }
-        elseif ($cv -ge 1201) { $tag = 'cu121' }
-        elseif ($cv -ge 1108) { $tag = 'cu118' }
+function Get-CudaTagFromIndexUrl {
+    param([string]$Url)
+    if (([string]$Url).ToLowerInvariant() -match '/(cu\d{3})/?(?:$|[?#])') {
+        return $Matches[1]
     }
-    return "https://download.pytorch.org/whl/$tag"
+    return ''
+}
+
+function Get-CudaRuntimePolicy {
+    $driverCv = Get-CudaDriverCv
+    $gpuPresent = Test-NvidiaGpuPresent
+    $requestedTag = ([string]$env:CORE_CUDA_TAG).Trim().ToLowerInvariant()
+    $torchOverrideTag = Get-CudaTagFromIndexUrl -Url $env:PYTORCH_CUDA_INDEX_URL
+    $paddleOverrideTag = Get-CudaTagFromIndexUrl -Url $env:PADDLE_CUDA_INDEX_URL
+    $overrideConflict = $false
+    $tier = $null
+    $reason = ''
+
+    if (-not $requestedTag) {
+        if ($torchOverrideTag -and $paddleOverrideTag -and $torchOverrideTag -ne $paddleOverrideTag) {
+            $overrideConflict = $true
+        } elseif ($torchOverrideTag) {
+            $requestedTag = $torchOverrideTag
+        } elseif ($paddleOverrideTag) {
+            $requestedTag = $paddleOverrideTag
+        }
+    }
+
+    if (-not $gpuPresent) {
+        $reason = 'No NVIDIA GPU detected.'
+    } elseif ($null -eq $driverCv) {
+        $reason = 'NVIDIA GPU detected but the driver CUDA version is unavailable.'
+    } elseif ($requestedTag) {
+        $requestedTier = Get-AiCudaTierByTag -Tag $requestedTag
+        if ($requestedTier -and $driverCv -ge $requestedTier.MinimumDriverCv) {
+            $tier = $requestedTier
+        } else {
+            $reason = "Requested CUDA tag '$requestedTag' is unsupported by the current policy or driver; using the canonical tier."
+        }
+    }
+    if (-not $tier -and $null -ne $driverCv) {
+        $tier = Get-AiCudaTierForDriver -DriverCv $driverCv
+    }
+    if (-not $tier -and -not $reason) {
+        $reason = 'No common PyTorch/Paddle CUDA tier supports this driver; CPU builds are required.'
+    }
+
+    $enabled = [bool]($gpuPresent -and $null -ne $driverCv -and $tier)
+    $torchBase = Get-AiRuntimePolicyValue -Name 'AI_TORCH_INDEX_BASE' -Default 'https://download.pytorch.org/whl'
+    $paddleBase = Get-AiRuntimePolicyValue -Name 'AI_PADDLE_INDEX_BASE' -Default 'https://www.paddlepaddle.org.cn/packages/stable'
+    $torchCpu = Get-AiRuntimePolicyValue -Name 'AI_TORCH_CPU_INDEX' -Default 'https://download.pytorch.org/whl/cpu'
+    $paddleCpu = Get-AiRuntimePolicyValue -Name 'AI_PADDLE_CPU_INDEX' -Default 'https://www.paddlepaddle.org.cn/packages/stable/cpu/'
+    $torchUrl = if ($enabled) { "$torchBase/$($tier.Tag)" } else { $torchCpu }
+    $paddleUrl = if ($enabled) { "$paddleBase/$($tier.Tag)/" } else { $paddleCpu }
+    if ($enabled -and $torchOverrideTag -eq $tier.Tag) { $torchUrl = $env:PYTORCH_CUDA_INDEX_URL }
+    if ($enabled -and $paddleOverrideTag -eq $tier.Tag) { $paddleUrl = $env:PADDLE_CUDA_INDEX_URL }
+
+    return [PSCustomObject]@{
+        Enabled          = $enabled
+        GpuPresent       = $gpuPresent
+        DriverCv         = $driverCv
+        Tag              = if ($tier) { $tier.Tag } else { '' }
+        Major            = if ($tier) { $tier.Major } else { 0 }
+        ToolkitVersion   = if ($tier) { $tier.ToolkitVersion } else { '' }
+        ToolkitDriver    = if ($tier) { $tier.ToolkitDriver } else { '' }
+        PaddleVersion    = if ($tier) { $tier.PaddleVersion } else { '' }
+        TorchIndexUrl    = $torchUrl
+        PaddleIndexUrl   = $paddleUrl
+        OverrideConflict = $overrideConflict
+        Reason           = $reason
+    }
+}
+
+function Get-TorchCudaIndexUrl {
+    return (Get-CudaRuntimePolicy).TorchIndexUrl
 }
 
 function Get-PaddleCudaIndexUrl {
-    if ($env:PADDLE_CUDA_INDEX_URL) { return $env:PADDLE_CUDA_INDEX_URL }
-    $tag = 'cu126'
-    $cv = Get-CudaDriverCv
-    if ($null -ne $cv) {
-        if ($cv -ge 1300) { $tag = 'cu130' }
-        elseif ($cv -ge 1209) { $tag = 'cu129' }
-        elseif ($cv -ge 1206) { $tag = 'cu126' }
-        elseif ($cv -ge 1108) { $tag = 'cu118' }
-    }
-    return "https://www.paddlepaddle.org.cn/packages/stable/$tag/"
+    return (Get-CudaRuntimePolicy).PaddleIndexUrl
 }

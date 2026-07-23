@@ -58,6 +58,8 @@ __scc_env="$COMMON_DIR/shared_cache_env.sh"
 
 # Order = dependency order (also matches numeric 103-116 after 15/22/23 in dd.sh sweep).
 PREREQ_SCRIPTS=(
+    "13_cuda_nvidia_prereq.sh"
+    "14_install_python_prereq_packages.sh"
     "104_install_desktop_manager.sh"
     "105_install_launcher.sh"
     "103_install_ffmpeg.sh"
@@ -83,6 +85,8 @@ PREREQ_SCRIPTS=(
 )
 
 PREREQ_KEYS=(
+    "cuda_policy"
+    "python_prereqs"
     "desktop_manager"
     "launcher"
     "ffmpeg"
@@ -179,7 +183,7 @@ fi
 
 if [[ ${#failed[@]} -gt 0 ]]; then
     echo "[!] Some prerequisites did not complete cleanly: ${failed[*]}"
-    exit 0
+    exit 1
 fi
 
 echo "[OK] All prerequisites complete."

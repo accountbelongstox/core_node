@@ -25,8 +25,42 @@ from pycore.callmodule.services.sync._media_sync_helpers import (
 from pycore.callmodule.services.sync.media_sync_http import _post_ingest
 
 _RETRY_DELAYS_SEC: Tuple[int, ...] = (5, 15, 45, 120)
-_lock = threading.Lock()
-_scheduled: set = set()
+# Rule §4: no locks — busy-token store mutated only via single GIL-atomic
+# ops (dict.setdefault check-and-mark, dict.pop release).
+_scheduled: Dict[str, object] = {}
+
+
+class BookPosterRetryThread(threading.Thread):
+    """Rule §4: named Thread subclass for the delayed retry (no target= spawn)."""
+
+    def __init__(
+        self,
+        abs_path: str,
+        use_title: str,
+        use_year: Optional[int],
+        source_type: str,
+        delay_tuple: Tuple[int, ...],
+        key: str,
+    ) -> None:
+        super().__init__(daemon=True, name=f"book-poster-retry-{key[:8]}")
+        self._abs_path = abs_path
+        self._use_title = use_title
+        self._use_year = use_year
+        self._source_type = source_type
+        self._delay_tuple = delay_tuple
+        self._key = key
+
+    def run(self) -> None:
+        try:
+            _retry_worker(
+                self._abs_path,
+                self._use_title,
+                self._use_year,
+                self._source_type,
+                self._delay_tuple,
+            )
+        finally:
+            _scheduled.pop(self._key, None)  # rule §4: single GIL-atomic op
 
 
 def push_book_poster(
@@ -104,32 +138,22 @@ def schedule_book_poster_retry(
     return
     abs_path = path
     key = source_key_for(abs_path)
-    with _lock:
-        if key in _scheduled:
-            return
-        _scheduled.add(key)
+    # Rule §4: atomic check-and-mark via dict.setdefault (busy-token, no lock).
+    marker = object()
+    if _scheduled.setdefault(key, marker) is not marker:
+        return
 
     parsed_title, parsed_year = parse_title_year(title or abs_path)
     use_title = parsed_title or (title or "").strip()
     use_year = year if year is not None else parsed_year
     if not use_title:
-        with _lock:
-            _scheduled.discard(key)
+        _scheduled.pop(key, None)  # rule §4: single GIL-atomic op
         return
 
     delay_tuple = tuple(delays) if delays else _RETRY_DELAYS_SEC
 
-    def _run():
-        try:
-            _retry_worker(abs_path, use_title, use_year, source_type, delay_tuple)
-        finally:
-            with _lock:
-                _scheduled.discard(key)
-
-    threading.Thread(
-        target=_run,
-        name=f"book-poster-retry-{key[:8]}",
-        daemon=True,
+    BookPosterRetryThread(
+        abs_path, use_title, use_year, source_type, delay_tuple, key
     ).start()
     ColorPrint.blue(
         f"[BookPosterRetry] scheduled {len(delay_tuple)} attempt(s) for '{use_title}'")

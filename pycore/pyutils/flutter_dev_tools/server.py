@@ -11,13 +11,13 @@ from __future__ import annotations
 
 import io
 import json
-import threading
 import time
 from http import HTTPStatus
 from pathlib import Path
 from typing import Dict, Optional
 
 from pycore import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.third_party import get_third_package_fastapi
 from pycore.pyutils.rpc_v2.server.server_runner import FastAPIRPCServerRunner
 
@@ -108,7 +108,8 @@ class FlutterDevToolsServer:
         self.debug = debug
         self.color_print = ColorPrint()
         self.runner = FastAPIRPCServerRunner(host=self.host, port=self.port, debug=self.debug)
-        self.shutdown_event = threading.Event()
+        self.shutdown_signal = f"flutter_dev_tools.shutdown.{id(self)}"
+        THREAD_BUS.clear_signal(self.shutdown_signal)
         self.router: Optional[Router] = None
         self._setup_environment()
         self._mount_static()
@@ -125,7 +126,7 @@ class FlutterDevToolsServer:
         """
         Stop the FastAPI RPC server.
         """
-        self.shutdown_event.set()
+        THREAD_BUS.signal(self.shutdown_signal, True)
         self.runner.stop()
 
     # ------------------------------------------------------------------ setup helpers
@@ -163,7 +164,7 @@ class FlutterDevToolsServer:
         Wire HTTP routes on the FastAPI app to mirror the legacy server.
         """
         app = self.runner.app
-        self.router = Router(STATIC_DIR, self.shutdown_event)
+        self.router = Router(STATIC_DIR, self.shutdown_signal)
 
         @app.api_route("/", methods=["GET", "POST"])
         async def root(request: Request) -> Response:

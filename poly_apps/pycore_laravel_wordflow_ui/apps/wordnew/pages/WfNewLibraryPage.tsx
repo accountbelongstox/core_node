@@ -38,6 +38,7 @@ import { pickSentenceAudioUrl, readerPreferredAccent } from '../utils/WfSentence
 import { buildWordCell } from '../utils/WfLibraryWordCell';
 import { WfLibraryWordRow, wordRowKey } from '../components/library/WfLibraryWordRow';
 import { useLibraryPuterAudio } from '../hooks/useLibraryPuterAudio';
+import { useVisibleWordPriority } from '../hooks/useVisibleWordPriority';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 
 type LibraryView = 'dash' | 'table';
@@ -121,6 +122,8 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
 
   const libName = data?.library?.name || title || libraryId;
   const libLang = data?.library?.language || language || 'english';
+  const nativeLang = wfNewSettings.get('settingNativeLang') || 'zh';
+  const bindVisiblePriority = useVisibleWordPriority(libLang, nativeLang);
   langRef.current = libLang;
   const stats = data?.stats;
   const pg = data?.pagination;
@@ -576,6 +579,12 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
                       imagePending={imagePending}
                       effImages={effImages}
                       theme={theme}
+                      rowRef={bindVisiblePriority({
+                        md5,
+                        word: w.word,
+                        hasTranslation: w.hasTranslation,
+                        hasAudio: w.hasAudio,
+                      })}
                     />
                     {/* Priority boost button — visible on hover, moves word to front of audio queue */}
                     {!w.hasAudio && (

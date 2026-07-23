@@ -12,6 +12,11 @@ Handles:
 
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import threading
+from contextlib import nullcontext
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+)
 import time
 import socket
 from typing import Optional, Dict, List
@@ -50,15 +55,12 @@ class ServerManager:
     """
 
     _instance: Optional['ServerManager'] = None
-    _lock = threading.Lock()
 
     def __new__(cls):
         """Singleton pattern implementation"""
         if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
-                    cls._instance._initialized = False
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
         return cls._instance
 
     def __init__(self):
@@ -67,7 +69,13 @@ class ServerManager:
             return
 
         self._servers: Dict[str, ServerProcess] = {}
-        self._servers_lock = threading.Lock()
+        init_serialized_owner(
+            self,
+            'pyutils.native_ui.server_manager',
+            'NativeUIServerManagerThread',
+            timeout=120.0,
+        )
+        self._servers_scope = nullcontext()
         self._shutdown_registered = False
 
         ColorPrint.print_info("[ServerManager] Initialized (singleton)")
@@ -129,6 +137,7 @@ class ServerManager:
             time.sleep(0.5)
         return False
 
+    @serialized_method
     def start_nuxt_dev_server(
         self,
         app_name: str,
@@ -146,7 +155,7 @@ class ServerManager:
         Returns:
             ServerProcess if successful, None otherwise
         """
-        with self._servers_lock:
+        with self._servers_scope:
             # Check if already started
             if app_name in self._servers:
                 ColorPrint.print_warn(f"[ServerManager] Nuxt server already running: {app_name}")
@@ -242,6 +251,7 @@ class ServerManager:
                 traceback.print_exc()
                 return None
 
+    @serialized_method
     def start_vue_static_server(
         self,
         dist_path: Path,
@@ -257,7 +267,7 @@ class ServerManager:
         Returns:
             ServerProcess if successful, None otherwise
         """
-        with self._servers_lock:
+        with self._servers_scope:
             # Generate unique name for this dist
             server_name = f"vue_dist_{dist_path.name}"
 
@@ -327,6 +337,7 @@ class ServerManager:
                 traceback.print_exc()
                 return None
 
+    @serialized_method
     def stop_server(self, name: str) -> bool:
         """
         Stop a managed server
@@ -337,7 +348,7 @@ class ServerManager:
         Returns:
             True if stopped successfully
         """
-        with self._servers_lock:
+        with self._servers_scope:
             if name not in self._servers:
                 ColorPrint.print_warn(f"[ServerManager] Server not found: {name}")
                 return False
@@ -373,11 +384,12 @@ class ServerManager:
                 ColorPrint.print_error(f"[ServerManager] Error stopping server {name}: {e}")
                 return False
 
+    @serialized_method
     def stop_all_servers(self):
         """Stop all managed servers"""
         ColorPrint.print_info("[ServerManager] Stopping all servers...")
 
-        with self._servers_lock:
+        with self._servers_scope:
             server_names = list(self._servers.keys())
 
         for name in server_names:
@@ -385,14 +397,16 @@ class ServerManager:
 
         ColorPrint.print_success("[ServerManager] All servers stopped")
 
+    @serialized_method
     def get_server_info(self, name: str) -> Optional[ServerProcess]:
         """Get information about a server"""
-        with self._servers_lock:
+        with self._servers_scope:
             return self._servers.get(name)
 
+    @serialized_method
     def list_servers(self) -> List[ServerProcess]:
         """List all managed servers"""
-        with self._servers_lock:
+        with self._servers_scope:
             return list(self._servers.values())
 
     def _register_shutdown_hook(self):

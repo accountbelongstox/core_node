@@ -32,6 +32,8 @@ $voxcpm2Model   = $null
 $modelReady     = $false
 $dlOk           = $false
 $sentinelModel  = $null
+$voxcpmPolicy   = $null
+$voxcpmPackages = @()
 
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
@@ -49,19 +51,29 @@ Write-Host '============================================================' -Foreg
 
 if ($env:VOXCPM2_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] VOXCPM2_SKIP=1 -> skipping." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('voxcpm')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('voxcpm') -AbsentOk -AbsentNote 'VOXCPM2_SKIP=1'
     return
 }
 
 $resolvedPython = $Global:PYTHON_EXE_PATH
-if ((Test-PyModule -Py $resolvedPython -ModuleName 'voxcpm') -and (Test-Path $depsSentinel) -and -not $Force -and -not $doFull) {
+if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'voxcpm2' -Path $depsSentinel) -and -not $Force -and -not $doFull) {
     Write-Host "$SCRIPT_INDEX [OK] VoxCPM2 already installed -> skipping." -ForegroundColor Green
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('voxcpm')
 }
 if (-not $doFull -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [i] status-only. Pass -Full, VOXCPM2_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('voxcpm') -AbsentOk -AbsentNote 'opt-in'
+}
+
+if (-not $resolvedPython) {
+    Write-Host "$SCRIPT_INDEX [!] Python 3 not found. Run Step8_InstallPython first." -ForegroundColor DarkYellow
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('voxcpm')
 }
+if (-not (Test-TtsEngineCompatible -PythonExe $resolvedPython -Engine 'voxcpm2' -Prefix "$SCRIPT_INDEX ")) {
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+}
+$voxcpmPolicy = Get-TtsEngineInstallPolicy -PythonExe $resolvedPython -Engine 'voxcpm2'
+if ($voxcpmPolicy) { $voxcpmPackages = @($voxcpmPolicy.packages) }
 
 $hasCuda = Test-CudaPresent
 $voxcpm2Model = Resolve-TtsModelTier -PythonExe $resolvedPython -Key voxcpm2_model -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)
@@ -71,21 +83,18 @@ Write-Host ("$SCRIPT_INDEX  compute : {0}" -f $(if ($hasCuda) { 'CUDA GPU (defau
 Write-Host ("$SCRIPT_INDEX  model   : {0}" -f $voxcpm2Model) -ForegroundColor DarkGray
 Write-Host ("$SCRIPT_INDEX  sentinel: {0} ({1})" -f $modelSentinel, $(if (Test-Path $modelSentinel) { 'present' } else { 'absent' })) -ForegroundColor DarkGray
 
-if (-not $resolvedPython) {
-    Write-Host "$SCRIPT_INDEX [!] Python 3 not found. Run Step8_InstallPython first." -ForegroundColor DarkYellow
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('voxcpm')
-}
-
 New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 
-if ((Test-Path $depsSentinel) -and -not $Force) {
+if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'voxcpm2' -Path $depsSentinel) -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [OK] dependencies already installed (.deps_done) -> skipping pip." -ForegroundColor Green
 } else {
     Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
-    Write-Host "$SCRIPT_INDEX [..] pip install voxcpm soundfile ..." -ForegroundColor Yellow
-    try { & $Global:PIP_EXE_PATH install voxcpm soundfile } catch { Write-Host "$SCRIPT_INDEX [!] voxcpm pip failed." -ForegroundColor DarkYellow }
-    Set-Content -Path $depsSentinel -Value (Get-Date -Format o) -Encoding utf8
-    Write-Host "$SCRIPT_INDEX [OK] dependencies installed (.deps_done written)." -ForegroundColor Green
+    Write-Host "$SCRIPT_INDEX [..] installing the central VoxCPM2 dependency plan ..." -ForegroundColor Yellow
+    try { & $Global:PIP_EXE_PATH install @voxcpmPackages } catch { Write-Host "$SCRIPT_INDEX [!] voxcpm pip failed." -ForegroundColor DarkYellow }
+    if (Test-TtsEngineHealth -PythonExe $resolvedPython -Engine 'voxcpm2') {
+        Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'voxcpm2' -Path $depsSentinel | Out-Null
+        Write-Host "$SCRIPT_INDEX [OK] dependencies installed (policy stamp written)." -ForegroundColor Green
+    }
 }
 
 # --- HF weights (IDEMPOTENT: sentinel + curl resume + HF size verification) --- #
@@ -107,16 +116,17 @@ if (-not $modelReady) {
     Write-Host ("$SCRIPT_INDEX [..] downloading/repairing model '{0}' (curl, resumable) ..." -f $voxcpm2Model) -ForegroundColor Yellow
     $dlOk = Install-HfRepoFlat -RepoId $voxcpm2Model -DestDir $weightsDir -SentinelPath $modelSentinel -AllowPatterns $weightAllow -Prefix "$SCRIPT_INDEX " -SentinelValue $voxcpm2Model
     if ($dlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $voxcpm2Model)) {
+        $modelReady = $true
         Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready at {1}." -f $voxcpm2Model, $weightsDir) -ForegroundColor Green
     } else {
         Write-Host ("$SCRIPT_INDEX [!] model download not finished; partial files kept at {0}; will RESUME next run." -f $weightsDir) -ForegroundColor DarkYellow
     }
 }
 
-if (Test-PyModule -Py $resolvedPython -ModuleName 'voxcpm') {
+if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'voxcpm2' -Path $depsSentinel) -and $modelReady) {
     Write-Host "$SCRIPT_INDEX [OK] VoxCPM2 ready. Weights pre-downloaded (idempotent); engine auto-detects local." -ForegroundColor Green
 } else {
-    Write-Host "$SCRIPT_INDEX [!] voxcpm not importable after install." -ForegroundColor DarkYellow
+    throw "$SCRIPT_INDEX VoxCPM2 is not ready; incomplete components will retry next run."
 }
 if ((Test-Path $modelSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $voxcpm2Model)) {
     Write-Host ("$SCRIPT_INDEX  local weights auto-detected: {0}" -f $weightsDir) -ForegroundColor Cyan

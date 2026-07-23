@@ -24,11 +24,15 @@ Stdlib only: paths/log via `.runtime`; no pycore import, no third_party.
 import json
 import os
 import re
-import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .runtime import log as ColorPrint, get_local_data_dir
+from .runtime import (
+    get_local_data_dir,
+    init_serialized_owner,
+    log as ColorPrint,
+    serialized_method,
+)
 
 # --------------------------------------------------------------------------- #
 # Presets (code-frozen defaults) — the single source of truth.                #
@@ -269,8 +273,8 @@ class Excluder:
 class SyncSettings:
     def __init__(self, override_path: Optional[Path] = None):
         self._override_path = Path(override_path) if override_path else get_sync_settings_file()
-        self._lock = threading.RLock()
         self._cache: Optional[Dict[str, Any]] = None
+        init_serialized_owner(self, "codesync.sync_settings", "CodeSyncSettings")
 
     def _load_override(self) -> Dict[str, Any]:
         try:
@@ -282,72 +286,78 @@ class SyncSettings:
             ColorPrint.yellow(f"[SyncSettings] read {self._override_path} failed: {exc}")
         return {}
 
+    @serialized_method
     def get(self) -> Dict[str, Any]:
         """Presets overlaid by the per-machine override (per key)."""
-        with self._lock:
-            if self._cache is not None:
-                return {k: (list(v) if isinstance(v, list) else v) for k, v in self._cache.items()}
-            merged = presets()
-            ovr = self._load_override()
-            for k in _KEYS:
-                if k in ovr and ovr[k] is not None:
-                    merged[k] = ovr[k]
-            for k in ("excluded_dirs", "excluded_files", "excluded_extensions",
-                      "excluded_path_substrings", "watch_dirs"):
-                merged[k] = sorted({str(x).strip() for x in (merged.get(k) or []) if str(x).strip()})
-            merged["apply_gitignore"] = bool(merged.get("apply_gitignore"))
-            merged["scan_lan"] = bool(merged.get("scan_lan"))
-            self._cache = merged
-            return self.get()
+        if self._cache is not None:
+            return {k: (list(v) if isinstance(v, list) else v) for k, v in self._cache.items()}
+        merged = presets()
+        ovr = self._load_override()
+        for k in _KEYS:
+            if k in ovr and ovr[k] is not None:
+                merged[k] = ovr[k]
+        for k in ("excluded_dirs", "excluded_files", "excluded_extensions",
+                  "excluded_path_substrings", "watch_dirs"):
+            merged[k] = sorted({str(x).strip() for x in (merged.get(k) or []) if str(x).strip()})
+        merged["apply_gitignore"] = bool(merged.get("apply_gitignore"))
+        merged["scan_lan"] = bool(merged.get("scan_lan"))
+        self._cache = merged
+        return self.get()
 
     def get_with_source(self) -> Dict[str, Any]:
         return {"settings": self.get(), "presets": presets(),
                 "override_path": str(self._override_path),
                 "overridden": self._override_path.exists()}
 
+    @serialized_method
     def update(self, patch: Dict[str, Any]) -> Dict[str, Any]:
-        with self._lock:
-            ovr = self._load_override()
-            for k in _KEYS:
-                if k in patch and patch[k] is not None:
-                    ovr[k] = patch[k]
-            try:
-                self._override_path.parent.mkdir(parents=True, exist_ok=True)
-                tmp = self._override_path.with_suffix(self._override_path.suffix + ".tmp")
-                tmp.write_text(json.dumps(ovr, ensure_ascii=False, indent=2, sort_keys=True),
-                               encoding="utf-8")
-                os.replace(str(tmp), str(self._override_path))
-            except Exception as exc:
-                ColorPrint.red(f"[SyncSettings] save failed: {exc}")
-            self._cache = None
-            return self.get()
+        ovr = self._load_override()
+        for k in _KEYS:
+            if k in patch and patch[k] is not None:
+                ovr[k] = patch[k]
+        try:
+            self._override_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self._override_path.with_suffix(self._override_path.suffix + ".tmp")
+            tmp.write_text(json.dumps(ovr, ensure_ascii=False, indent=2, sort_keys=True),
+                           encoding="utf-8")
+            os.replace(str(tmp), str(self._override_path))
+        except Exception as exc:
+            ColorPrint.red(f"[SyncSettings] save failed: {exc}")
+        self._cache = None
+        return self.get()
 
+    @serialized_method
     def reset(self) -> Dict[str, Any]:
         """Drop the override -> back to code presets."""
-        with self._lock:
-            try:
-                if self._override_path.exists():
-                    self._override_path.unlink()
-            except Exception:
-                pass
-            self._cache = None
-            return self.get()
+        try:
+            if self._override_path.exists():
+                self._override_path.unlink()
+        except Exception:
+            pass
+        self._cache = None
+        return self.get()
 
     def build_excluder(self, root) -> Excluder:
         return Excluder(root, self.get())
 
 
-_instance: Optional[SyncSettings] = None
-_inst_lock = threading.Lock()
+class _SyncSettingsProvider:
+    def __init__(self) -> None:
+        self._instance: Optional[SyncSettings] = None
+        init_serialized_owner(self, "codesync.sync_settings_provider", "CodeSyncSettingsProvider")
+
+    @serialized_method
+    def get(self) -> SyncSettings:
+        if self._instance is None:
+            self._instance = SyncSettings()
+        return self._instance
+
+
+_sync_settings_provider = _SyncSettingsProvider()
 
 
 def get_sync_settings() -> SyncSettings:
-    global _instance
-    if _instance is None:
-        with _inst_lock:
-            if _instance is None:
-                _instance = SyncSettings()
-    return _instance
+    return _sync_settings_provider.get()
 
 
 def build_excluder(root) -> Excluder:

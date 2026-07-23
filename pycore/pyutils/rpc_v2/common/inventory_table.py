@@ -4,13 +4,16 @@
 Inventory table for retrying failed notifications.
 """
 
-import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Dict, Optional
 
 from pycore import ColorPrint
 from pycore.pyutils.rpc_v2.constants import INVENTORY_TTL, INVENTORY_MAX_SIZE
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+)
 
 
 @dataclass
@@ -34,10 +37,15 @@ class InventoryTable:
         self.default_ttl = default_ttl
         self.debug = debug
         self.items: Dict[str, InventoryItem] = {}
-        self._lock = threading.RLock()
+        init_serialized_owner(
+            self,
+            'pyutils.rpc_v2.inventory_table',
+            'RPCInventoryTableThread',
+        )
         if self.debug:
             ColorPrint.green(f"[InventoryTable] Initialized (max_size={max_size}, ttl={default_ttl}s)")
 
+    @serialized_method
     def store(
         self,
         request_id: str,
@@ -47,55 +55,54 @@ class InventoryTable:
         client_type: str = "unknown",
         error: Optional[str] = None,
     ) -> bool:
-        with self._lock:
-            if len(self.items) >= self.max_size:
-                self._cleanup_oldest()
-            self.items[request_id] = InventoryItem(
-                request_id=request_id,
-                route=route,
-                result=result,
-                error=error,
-                client_id=client_id,
-                client_type=client_type,
-            )
-            if self.debug:
-                ColorPrint.blue(f"[InventoryTable] Stored result for request {request_id[:8]} route={route}")
-            return True
+        if len(self.items) >= self.max_size:
+            self._cleanup_oldest()
+        self.items[request_id] = InventoryItem(
+            request_id=request_id,
+            route=route,
+            result=result,
+            error=error,
+            client_id=client_id,
+            client_type=client_type,
+        )
+        if self.debug:
+            ColorPrint.blue(f"[InventoryTable] Stored result for request {request_id[:8]} route={route}")
+        return True
 
+    @serialized_method
     def get(self, request_id: str, remove: bool = False) -> Optional[InventoryItem]:
-        with self._lock:
-            item = self.items.get(request_id)
-            if not item:
-                return None
-            item.accessed_at = time.time()
-            item.access_count += 1
-            if remove:
-                self.items.pop(request_id, None)
-            return item
+        item = self.items.get(request_id)
+        if not item:
+            return None
+        item.accessed_at = time.time()
+        item.access_count += 1
+        if remove:
+            self.items.pop(request_id, None)
+        return replace(item)
 
+    @serialized_method
     def delete(self, request_id: str) -> bool:
-        with self._lock:
-            return self.items.pop(request_id, None) is not None
+        return self.items.pop(request_id, None) is not None
 
+    @serialized_method
     def get_by_client(self, client_id: str):
-        with self._lock:
-            return [item for item in self.items.values() if item.client_id == client_id]
+        return [replace(item) for item in self.items.values() if item.client_id == client_id]
 
+    @serialized_method
     def cleanup(self, max_age: Optional[float] = None) -> int:
-        with self._lock:
-            now = time.time()
-            ttl = max_age or self.default_ttl
-            expired = [rid for rid, item in self.items.items() if now - item.stored_at > ttl]
-            for rid in expired:
-                self.items.pop(rid, None)
-            return len(expired)
+        now = time.time()
+        ttl = max_age or self.default_ttl
+        expired = [rid for rid, item in self.items.items() if now - item.stored_at > ttl]
+        for request_id in expired:
+            self.items.pop(request_id, None)
+        return len(expired)
 
+    @serialized_method
     def get_stats(self) -> Dict[str, Any]:
-        with self._lock:
-            stats: Dict[str, Any] = {"total": len(self.items), "max_size": self.max_size, "by_client_type": {}}
-            for item in self.items.values():
-                stats["by_client_type"][item.client_type] = stats["by_client_type"].get(item.client_type, 0) + 1
-            return stats
+        stats: Dict[str, Any] = {"total": len(self.items), "max_size": self.max_size, "by_client_type": {}}
+        for item in self.items.values():
+            stats["by_client_type"][item.client_type] = stats["by_client_type"].get(item.client_type, 0) + 1
+        return stats
 
     def _cleanup_oldest(self):
         if not self.items:

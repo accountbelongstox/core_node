@@ -1,0 +1,165 @@
+/** Daily Reading block on the wordnew home tab. Lists the latest reading
+ * articles (title_en + title_cn + date); clicking a row expands the reading
+ * text inline (article_en with reference_cn). A Play button (header = play
+ * all, per row = start from that article) opens the fullscreen sequential
+ * player overlay; the book button opens the read-along reader. */
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { BookOpen, ChevronDown, Headphones, ListMusic, Loader2, Newspaper } from 'lucide-react';
+import type { ElementTheme } from '../../WfNewTypes';
+import { fetchDailyReadings, type DailyReadingRow } from './dailyReadingApi';
+import { useDailyReadingPlayer } from './useDailyReadingPlayer';
+import { WfDailyReadingPlayerOverlay } from './WfDailyReadingPlayerOverlay';
+
+interface Props {
+  theme: ElementTheme;
+  trans: (k: string, r?: Record<string, string | number>) => string;
+  onOpenBook: (sourceKey: string, title: string) => void;
+}
+
+const POLL_MS = 12_000;
+
+export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBook }) => {
+  const [rows, setRows] = useState<DailyReadingRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const mounted = useRef(true);
+  const player = useDailyReadingPlayer();
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const items = await fetchDailyReadings(20);
+      if (mounted.current) {
+        setRows(items);
+        setError(null);
+      }
+    } catch (loadError) {
+      if (mounted.current) {
+        setError(loadError instanceof Error ? loadError.message : 'Daily reading unavailable');
+      }
+    } finally {
+      if (mounted.current) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    load(false);
+    const id = setInterval(() => load(true), POLL_MS);
+    return () => {
+      mounted.current = false;
+      clearInterval(id);
+    };
+  }, [load]);
+
+  const playableCount = rows.filter((r) => !!r.audio_url).length;
+
+  return (
+    <section className={`${theme.cardClass} rounded-3xl border border-white/5 p-5 space-y-4`}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-black font-mono uppercase tracking-widest text-indigo-400 flex items-center gap-2">
+            <Newspaper className="w-4 h-4" />
+            {trans('home.dailyReading.title')}
+          </h2>
+          <p className="text-[11px] text-zinc-500 mt-1">{trans('home.dailyReading.subtitle')}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {loading && <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />}
+          {playableCount > 0 && (
+            <button
+              type="button"
+              onClick={() => player.start(rows)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-gradient-to-tr from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-transform"
+              title={trans('home.dailyReading.playAll')}
+            >
+              <ListMusic className="w-3.5 h-3.5" />
+              {trans('home.dailyReading.playAll')}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className={`text-xs ${error ? 'text-rose-400' : 'text-zinc-500'}`}>
+          {loading ? '…' : error || trans('home.dailyReading.empty')}
+        </p>
+      ) : (
+        <ul className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+          {rows.map((row) => {
+            const expanded = expandedId === row.id;
+            const dateLabel = row.reading_date ?? row.created_at;
+            return (
+            <li
+              key={row.id}
+              className="rounded-2xl border border-white/5 bg-slate-900/40 p-4 hover:border-indigo-500/30 transition-colors"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(expanded ? null : row.id)}
+                  className="min-w-0 flex-1 text-left"
+                  title={trans('home.dailyReading.toggleText')}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold text-zinc-100 truncate">{row.title_en}</span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 shrink-0 text-zinc-500 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                    />
+                  </div>
+                  {row.title_cn && (
+                    <div className="text-xs text-zinc-400 mt-0.5 truncate">{row.title_cn}</div>
+                  )}
+                  <div className="text-[10px] font-mono text-zinc-600 mt-2">
+                    {row.word_count ? `${row.word_count} words · ` : ''}
+                    {dateLabel ? new Date(dateLabel).toLocaleDateString() : ''}
+                  </div>
+                </button>
+                <div className="shrink-0 flex flex-col gap-2">
+                  {row.audio_url && (
+                    <button
+                      type="button"
+                      onClick={() => player.start(rows, row.id)}
+                      className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 transition-colors"
+                      title={trans('home.dailyReading.playFrom')}
+                    >
+                      <Headphones className="w-4 h-4" />
+                    </button>
+                  )}
+                  {row.source_key && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenBook(row.source_key!, row.title_en)}
+                      className="p-2 rounded-xl border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500/10 transition-colors"
+                      title={trans('home.agentArticles.read')}
+                    >
+                      <BookOpen className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              {expanded && (row.article_en || row.reference_cn) && (
+                <div className="mt-3 space-y-3 border-t border-white/5 pt-3">
+                  {row.article_en && (
+                    <p className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap">
+                      {row.article_en}
+                    </p>
+                  )}
+                  {row.reference_cn && (
+                    <p className="text-xs text-zinc-500 leading-relaxed whitespace-pre-wrap">
+                      {row.reference_cn}
+                    </p>
+                  )}
+                </div>
+              )}
+            </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <WfDailyReadingPlayerOverlay player={player} trans={trans} />
+    </section>
+  );
+};

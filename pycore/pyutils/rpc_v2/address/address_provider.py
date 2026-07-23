@@ -4,12 +4,11 @@
 RPC address provider for FastAPI v2 server.
 """
 
-import threading
 import time
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from pycore import ColorPrint
+from pycore import ColorPrint, THREAD_BUS
 
 from pycore.pyutils.rpc_v2.config import get_rpc_config
 from pycore.pyutils.rpc_v2.discovery.rpc_discovery import RPCDiscovery, DiscoveredRPCService
@@ -34,8 +33,8 @@ class RPCAddressProvider:
         self.config = get_rpc_config()
         self.port = self.config.get_port()
         self.discovery = RPCDiscovery(debug=debug)
-        self._cached_addresses: List[RPCAddress] = []
-        self._cache_lock = threading.Lock()
+        self._cache_signal = f'pyutils.rpc_v2.addresses.{id(self)}'
+        THREAD_BUS.signal(self._cache_signal, ())
 
     def get_available_addresses(self, use_localhost: bool = True) -> List[RPCAddress]:
         services = self.discovery.discover_services(use_localhost=use_localhost)
@@ -52,8 +51,7 @@ class RPCAddressProvider:
             )
             for svc in services
         ]
-        with self._cache_lock:
-            self._cached_addresses = addresses
+        THREAD_BUS.signal(self._cache_signal, tuple(addresses))
         if self.debug:
             ColorPrint.green(f"[RPCAddressProvider] Found {len(addresses)} address(es)")
         return addresses
@@ -80,12 +78,10 @@ class RPCAddressProvider:
         )
 
     def get_cached_addresses(self) -> List[RPCAddress]:
-        with self._cache_lock:
-            return list(self._cached_addresses)
+        return list(THREAD_BUS.get_signal(self._cache_signal, ()) or ())
 
     def clear_cache(self):
-        with self._cache_lock:
-            self._cached_addresses = []
+        THREAD_BUS.signal(self._cache_signal, ())
 
 
 __all__ = ["RPCAddress", "RPCAddressProvider"]

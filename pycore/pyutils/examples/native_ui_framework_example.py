@@ -8,9 +8,8 @@ Demonstrates how to use the native UI framework to create desktop applications
 import sys
 import os
 import time
-
-import threading
 import traceback
+from pycore.pyfoundations.serialized_worker import start_bus_task
 
 
 # Add project root directory to path
@@ -197,7 +196,7 @@ def example_custom_signals():
                 'value': 42
             })
 
-        threading.Thread(target=send_signal, daemon=True).start()
+        start_bus_task(send_signal, thread_name="ExampleCustomSignalThread")
 
     app.register_handler(SignalType.UI_READY, on_ui_ready)
 
@@ -284,7 +283,7 @@ def example_hidden_start():
         print("Showing window...")
         app.show_window()
 
-    threading.Thread(target=delayed_show, daemon=True).start()
+    start_bus_task(delayed_show, thread_name="ExampleDelayedShowThread")
 
     # Start application
     app.start()
@@ -373,7 +372,10 @@ def example_complete_app():
             'task': 'Code review'
         })
 
-    threading.Thread(target=simulate_user_actions, daemon=True).start()
+    start_bus_task(
+        simulate_user_actions,
+        thread_name="ExampleUserActionsThread",
+    )
 
     # Start application
     app.start()

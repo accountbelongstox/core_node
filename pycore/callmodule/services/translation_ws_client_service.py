@@ -73,13 +73,19 @@ callmodule routers (no upward layer import).
 """
 
 import json
-import threading
 import time
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 # ColorPrint is the only allowed logger in pycore processors/services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
+# Rule §4: all inter-thread data exchange goes through the global bus.
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 # requests is a third-party dep — always via the lazy accessor (SSE transport).
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
@@ -98,6 +104,11 @@ from pycore.callmodule.services.tts_sentence_worker_service import (
 )
 
 
+# THREAD_BUS signal asking the SSE read loop to exit (rule §4: threads never
+# exchange data directly — the stop request rides the bus, not an Event).
+_BUS_STOP = "translation_ws_client.stop"
+
+
 class TranslationWsClient:
     """
     Laravel SSE client (singleton) — replaces the retired Reverb WebSocket.
@@ -113,14 +124,12 @@ class TranslationWsClient:
     """
 
     _instance: Optional["TranslationWsClient"] = None
-    _instance_lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
-        """Singleton — one WS client per process."""
+        """Singleton — one WS client per process. Rule §4: no locks; class-attr
+        assignment is GIL-atomic (same idiom as pyheartbeat)."""
         if cls._instance is None:
-            with cls._instance_lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(
@@ -167,10 +176,10 @@ class TranslationWsClient:
         self._worker = None
         self._sentence_worker = None
 
-        # Background thread + control flags.
-        self._thread: Optional[threading.Thread] = None
-        self._thread_lock = threading.Lock()
-        self._stop_event = threading.Event()  # set() asks the read loop to exit
+        # Background thread + control flags. Rule §4: no lock/Event — the
+        # thread reference is a plain GIL-atomic attribute and the stop request
+        # rides the THREAD_BUS _BUS_STOP signal (has_signal/signal/clear_signal).
+        self._thread: Optional[Any] = None
         self._connected = False
 
         # Quiet-retry bookkeeping: emit ONE "unreachable" line, then stay silent
@@ -180,13 +189,14 @@ class TranslationWsClient:
         self._ever_connected = False
         # Exponential reconnect backoff: start at 3s, double per failed attempt,
         # cap at 30s, reset to 3s on a successful connect. The wait stays
-        # interruptible via _stop_event.wait().
+        # interruptible via THREAD_BUS.wait_signal(_BUS_STOP, ...).
         self._reconnect_delay = 3
         self._reconnect_delay_max = 30
 
         # Diagnostics.
         self._events_received = 0
         self._last_event_ts = 0.0
+        init_serialized_owner(self, "translation.sse_client.state", "TranslationSSEState")
 
         self._initialized = True
         ColorPrint.green(
@@ -196,18 +206,21 @@ class TranslationWsClient:
 
     # -------------------- sibling accessors --------------------
 
+    @serialized_method
     def _get_monitor(self):
         """Resolve the QueueMonitorService singleton (lazy)."""
         if self._monitor is None:
             self._monitor = get_queue_monitor_service()
         return self._monitor
 
+    @serialized_method
     def _get_worker(self):
         """Resolve the TranslationWorkerService singleton (lazy)."""
         if self._worker is None:
             self._worker = get_translation_worker_service()
         return self._worker
 
+    @serialized_method
     def _get_sentence_worker(self):
         """Resolve the TTSSentenceWorkerService singleton (lazy)."""
         if self._sentence_worker is None:
@@ -227,6 +240,7 @@ class TranslationWsClient:
         port = parsed.port or (443 if scheme == "https" else 9000)
         return scheme, host, port
 
+    @serialized_method
     def _stream_url(self) -> str:
         """Build the SSE GET URL (cursor lets the server resume from our position)."""
         scheme, host, port = self._resolved_http_parts()
@@ -243,6 +257,7 @@ class TranslationWsClient:
 
     # -------------------- connection status --------------------
 
+    @serialized_method
     def _set_connected(self, connected: bool) -> None:
         """Update local + monitor-visible WS connection status."""
         self._connected = connected
@@ -330,6 +345,20 @@ class TranslationWsClient:
             self._handle_sentence_priority(data)
         # Unknown channel events are ignored (forward-compatible).
 
+    @staticmethod
+    def _refresh_sentence_queue_monitor() -> None:
+        """Kick the sentence-queue monitor so the Queue Center 'awaiting
+        synthesis' list reflects a bump/change immediately instead of waiting
+        for the next monitor poll (non-blocking, re-entrancy-guarded)."""
+        try:
+            from pycore.callmodule.services.sentence_queue_monitor_service import (
+                get_sentence_queue_monitor_service,
+            )
+
+            get_sentence_queue_monitor_service().poll_once()
+        except Exception as e:  # noqa: BLE001 — never break the SSE read loop
+            ColorPrint.yellow(f"[TranslationSSE] sentence queue monitor kick failed: {e}")
+
     def _handle_sentence_priority(self, data: Dict[str, Any]) -> None:
         """
         Route a sentence.priority event. Payload shapes (laravel contract):
@@ -342,6 +371,7 @@ class TranslationWsClient:
                 # Aggregate bump: no per-row payload; the next claim already
                 # orders by priority DESC server-side, so wake only.
                 self._get_sentence_worker().notify_batch_bump()
+                self._refresh_sentence_queue_monitor()
                 return
             content_id = str(data.get("content_id") or "").strip()
             language = str(data.get("language") or "").strip()
@@ -365,6 +395,7 @@ class TranslationWsClient:
                 },
             )
             self._get_sentence_worker().notify_bump(content_id, language, priority)
+            self._refresh_sentence_queue_monitor()
         except Exception as e:  # noqa: BLE001 — never break the SSE read loop
             ColorPrint.yellow(f"[TranslationSSE] sentence.priority handling failed: {e}")
 
@@ -381,6 +412,7 @@ class TranslationWsClient:
         if new_id > self._cursor:
             self._cursor = new_id
 
+    @serialized_method
     def _dispatch_sse(self, event_name: str, data_str: str) -> None:
         """Parse one SSE event's data and route it (envelope vs channel event)."""
         data = self._parse_data(data_str)
@@ -394,6 +426,35 @@ class TranslationWsClient:
         self._last_event_ts = time.monotonic()
         self._route_event(event_name, data)
 
+    @serialized_method
+    def _mark_connected_success(self) -> Dict[str, Any]:
+        was_unreachable = self._unreachable_warned
+        first_connection = not self._ever_connected
+        self._set_connected(True)
+        self._ever_connected = True
+        self._unreachable_warned = False
+        self._reconnect_delay = 3
+        return {
+            "was_unreachable": was_unreachable,
+            "first_connection": first_connection,
+        }
+
+    @serialized_method
+    def _mark_connection_failure(self) -> Dict[str, Any]:
+        self._set_connected(False)
+        self._reconnect_delay = min(
+            self._reconnect_delay * 2,
+            self._reconnect_delay_max,
+        )
+        should_log = not self._unreachable_warned and not THREAD_BUS.has_signal(_BUS_STOP)
+        if should_log:
+            self._unreachable_warned = True
+        return {"should_log": should_log, "delay": self._reconnect_delay}
+
+    @serialized_method
+    def _reconnect_wait(self) -> int:
+        return self._reconnect_delay
+
     # -------------------- SSE read loop (background thread) --------------------
 
     def _run_loop(self) -> None:
@@ -403,7 +464,7 @@ class TranslationWsClient:
         The server ends each stream after ~50s; we immediately reconnect carrying
         our cursor, so no event is missed across the gap.
         """
-        while not self._stop_event.is_set():
+        while not THREAD_BUS.has_signal(_BUS_STOP):
             event_name = ""
             data_buf: list = []
             try:
@@ -419,24 +480,19 @@ class TranslationWsClient:
                     if resp.status_code != 200:
                         raise RuntimeError(f"HTTP {resp.status_code}")
 
-                    self._set_connected(True)
-                    if self._unreachable_warned:
+                    connection_state = self._mark_connected_success()
+                    if connection_state["was_unreachable"]:
                         ColorPrint.green(
                             f"[TranslationSSE] Reconnected to Laravel SSE at {self._public_url()}"
                         )
-                    elif not self._ever_connected:
+                    elif connection_state["first_connection"]:
                         ColorPrint.green(
                             f"[TranslationSSE] Connected to Laravel SSE at {self._public_url()}"
                         )
-                    self._ever_connected = True
-                    self._unreachable_warned = False
-                    # Successful connect — reset the reconnect backoff.
-                    self._reconnect_delay = 3
-
                     # SSE framing: accumulate field lines; a blank line ends one
                     # event. iter_lines yields lines without the trailing newline.
                     for raw in resp.iter_lines(decode_unicode=True):
-                        if self._stop_event.is_set():
+                        if THREAD_BUS.has_signal(_BUS_STOP):
                             break
                         if raw is None:
                             continue
@@ -461,13 +517,8 @@ class TranslationWsClient:
             except Exception as e:
                 # Unreachable (Laravel down) / non-200 — ONE concise line, then
                 # silence until it recovers (mirrors the worker's quiet retry).
-                self._set_connected(False)
-                # Back off: 3s -> 6s -> 12s -> 24s -> 30s (cap) per failure.
-                self._reconnect_delay = min(
-                    self._reconnect_delay * 2, self._reconnect_delay_max
-                )
-                if not self._unreachable_warned and not self._stop_event.is_set():
-                    self._unreachable_warned = True
+                failure_state = self._mark_connection_failure()
+                if failure_state["should_log"]:
                     ColorPrint.yellow(
                         f"[TranslationSSE] Laravel SSE unreachable at {self._public_url()} "
                         f"({self._short_err(e)}). Will keep retrying quietly "
@@ -476,10 +527,12 @@ class TranslationWsClient:
             finally:
                 self._set_connected(False)
 
-            # Wait before reconnecting (interruptible by stop). A clean server-side
-            # stream end falls through here too; the cursor prevents any gap.
-            if not self._stop_event.is_set():
-                self._stop_event.wait(self._reconnect_delay)
+            # Wait before reconnecting (interruptible by the stop signal — rule
+            # §4: wait_signal returns as soon as _BUS_STOP lands). A clean
+            # server-side stream end falls through here too; the cursor prevents
+            # any gap.
+            if not THREAD_BUS.has_signal(_BUS_STOP):
+                THREAD_BUS.wait_signal(_BUS_STOP, timeout=self._reconnect_wait())
 
         ColorPrint.blue("[TranslationSSE] SSE loop stopped")
 
@@ -503,26 +556,35 @@ class TranslationWsClient:
 
     # -------------------- thread lifecycle --------------------
 
+    @serialized_method
     def _start_thread(self) -> None:
-        """Start the background SSE thread if it isn't already running."""
-        with self._thread_lock:
-            if self._thread and self._thread.is_alive():
-                return
-            self._stop_event.clear()
-            self._unreachable_warned = False
-            self._thread = threading.Thread(
-                target=self._run_loop, name="translation-ws", daemon=True
-            )
-            self._thread.start()
-            ColorPrint.blue("[TranslationSSE] Background SSE thread started")
+        """Start the background SSE thread if it isn't already running.
 
+        Rule §4: no lock — the alive check and the thread assignment are plain
+        GIL-atomic ops; the heartbeat supervisor is the only periodic caller,
+        and the worst-case race is one extra is_alive() pass on the next tick.
+        """
+        thread = self._thread
+        if thread and thread.is_alive():
+            return
+        THREAD_BUS.clear_signal(_BUS_STOP)
+        self._unreachable_warned = False
+        self._thread = start_bus_task(
+            self._run_loop,
+            thread_name="TranslationSSEClientThread",
+        )
+        ColorPrint.blue("[TranslationSSE] Background SSE thread started")
+
+    @serialized_method
     def _stop_thread(self) -> None:
-        """Signal the background SSE thread to stop (non-blocking)."""
-        with self._thread_lock:
-            if not (self._thread and self._thread.is_alive()):
-                return
-            self._stop_event.set()
-            ColorPrint.blue("[TranslationSSE] Background SSE thread stop requested")
+        """Signal the background SSE thread to stop (non-blocking).
+
+        Rule §4: the stop request is a THREAD_BUS signal, not an Event."""
+        thread = self._thread
+        if not (thread and thread.is_alive()):
+            return
+        THREAD_BUS.signal(_BUS_STOP, True)
+        ColorPrint.blue("[TranslationSSE] Background SSE thread stop requested")
 
     # -------------------- heartbeat supervisor callback --------------------
 
@@ -550,10 +612,12 @@ class TranslationWsClient:
 
     # -------------------- introspection --------------------
 
+    @serialized_method
     def get_status(self) -> Dict[str, Any]:
         """Service status snapshot (read-only)."""
-        with self._thread_lock:
-            alive = bool(self._thread and self._thread.is_alive())
+        # Rule §4: plain GIL-atomic attribute read, no lock.
+        thread = self._thread
+        alive = bool(thread and thread.is_alive())
         return {
             "service": "Translation SSE Client",
             "url": self._public_url(),
@@ -567,9 +631,21 @@ class TranslationWsClient:
         }
 
 
-# ============================================================
-# Global singleton accessor
-# ============================================================
+class _TranslationWsClientProvider:
+    """Create the SSE client singleton on a THREAD_BUS state owner."""
+
+    def __init__(self) -> None:
+        self._client: Optional[TranslationWsClient] = None
+        init_serialized_owner(self, "translation.sse_client.provider", "TranslationSSEProvider")
+
+    @serialized_method
+    def get(self, **kwargs: Any) -> TranslationWsClient:
+        if self._client is None:
+            self._client = TranslationWsClient(**kwargs)
+        return self._client
+
+
+_translation_ws_client_provider = _TranslationWsClientProvider()
 
 def get_translation_ws_client(
     host: str = "127.0.0.1",
@@ -587,7 +663,7 @@ def get_translation_ws_client(
     derived); see callmodule_main's _register_translation_ws_client for the
     Config-driven wiring.
     """
-    return TranslationWsClient(
+    return _translation_ws_client_provider.get(
         host=host,
         port=port,
         scheme=scheme,

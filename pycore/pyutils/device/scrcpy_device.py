@@ -24,6 +24,7 @@ import socket
 import struct
 import subprocess
 import threading
+from pycore.pyfoundations.serialized_worker import start_bus_task
 import time
 from typing import Optional, Callable
 
@@ -198,18 +199,18 @@ class ScrcpyDevice(AndroidDevice):
             except Exception as e:
                 print(f"[Server-{self.serial}] [{prefix}] Thread error: {e}")
 
-        self._server_stdout_thread = threading.Thread(
-            target=_read_server_output,
-            args=(self._server_process.stdout, "OUT"),
-            daemon=True
+        self._server_stdout_thread = start_bus_task(
+            _read_server_output,
+            self._server_process.stdout,
+            "OUT",
+            thread_name="ScrcpyServerOutputThread",
         )
-        self._server_stderr_thread = threading.Thread(
-            target=_read_server_output,
-            args=(self._server_process.stderr, "ERR"),
-            daemon=True
+        self._server_stderr_thread = start_bus_task(
+            _read_server_output,
+            self._server_process.stderr,
+            "ERR",
+            thread_name="ScrcpyServerErrorThread",
         )
-        self._server_stdout_thread.start()
-        self._server_stderr_thread.start()
 
         print(f"[ScrcpyDevice] Server process started (PID: {self._server_process.pid})")
 

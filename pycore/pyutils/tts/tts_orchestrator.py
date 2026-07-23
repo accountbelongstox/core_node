@@ -186,8 +186,8 @@ _ENGINE_NOTES = {
 }
 # Engines that can honor a requested English accent (us/uk voice selection).
 _ACCENT_AWARE_ENGINES = ("edge", "streamelements")
-# Concurrency class per engine — a capability annotation only (workers still
-# synthesize sequentially); the UI labels "parallel-safe / serial" from this.
+# Concurrency class per engine. Queue workers use this shared capability map to
+# choose sequential or bounded parallel lanes; the UI renders the same map.
 #   serial     — edge: process-wide synth lock (403 protection), never parallel.
 #   cloud      — class-A cloud APIs: no lock, parallel OK (own rate limits).
 #   in_process — class-B in-process models: parallel OK (locks guard load only).

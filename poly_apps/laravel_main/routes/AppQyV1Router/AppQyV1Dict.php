@@ -24,7 +24,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group\AppQyV1WordGroupLanguageCon
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'app_qy_v1';
 Route::prefix($apiVersionPrefix)->group(function () {
-    Route::middleware(['custom.authenticate'])->group(function () {
+    Route::middleware(['auth:sanctum'])->group(function () {
         Route::any('/create_group', [DGAController::class, 'createDictGroup']);
         Route::any('/query_all_groups', [DGQController::class, 'getAllGroup']);
 
@@ -75,4 +75,3 @@ Route::prefix($apiVersionPrefix)->group(function () {
     Route::get('/covers/{filename}', [CoverImageController::class, 'serveCoverImage']);
 
 });
-

@@ -17,11 +17,11 @@ step7_managers/timer_manager.TimerManager, which is Qt-free (callback-based)
 and therefore cannot marshal ticks into the Qt main thread.
 """
 
-import time
-import threading
-from typing import Optional
+from pycore.pyfoundations.serialized_worker import start_bus_task
+from typing import Any, Optional
 
 from PySide6.QtCore import QObject, Signal
+from pycore import THREAD_BUS
 
 
 class TickTimer(QObject):
@@ -44,36 +44,41 @@ class TickTimer(QObject):
         super().__init__(parent)
 
         self.interval = interval
-        self._running = False
-        self._thread: Optional[threading.Thread] = None
+        self._running_signal = f"native_ui.tick_timer.running.{id(self)}"
+        self._stop_signal = f"native_ui.tick_timer.stop.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
+        THREAD_BUS.signal(self._stop_signal, False)
+        self._thread: Optional[Any] = None
 
     def start(self):
         """Start tick timer thread."""
-        if self._running:
+        if THREAD_BUS.get_signal(self._running_signal, False):
             return
 
-        self._running = True
-        self._thread = threading.Thread(target=self._run, daemon=True)
-        self._thread.start()
+        THREAD_BUS.signal(self._stop_signal, False)
+        THREAD_BUS.signal(self._running_signal, True)
+        self._thread = start_bus_task(
+            self._run,
+            thread_name="PySideTickTimerThread",
+        )
 
     def stop(self):
         """Stop tick timer thread."""
-        self._running = False
+        THREAD_BUS.signal(self._stop_signal, True)
+        THREAD_BUS.signal(self._running_signal, False)
 
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2.0)
 
     def _run(self):
         """Tick timer thread main loop."""
-        while self._running:
-            try:
+        try:
+            while THREAD_BUS.get_signal(self._running_signal, False):
                 self.tick.emit()
-            except RuntimeError as e:
-                if "Signal source has been deleted" in str(e) or "wrapped C/C++ object" in str(e):
+                if THREAD_BUS.wait_signal(self._stop_signal, timeout=self.interval):
                     break
+        except RuntimeError as e:
+            if "Signal source has been deleted" not in str(e) and "wrapped C/C++ object" not in str(e):
                 raise
-            # Sleep in small steps so we can exit promptly when _running becomes False
-            for _ in range(int(self.interval / 0.1) or 1):
-                if not self._running:
-                    return
-                time.sleep(0.1)
+        finally:
+            THREAD_BUS.signal(self._running_signal, False)

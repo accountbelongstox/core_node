@@ -28,6 +28,7 @@ import {
   type WfNewCachedKind,
 } from '../cache/WfNewContentCache';
 import { wfNewSettings } from '../WfNewSettingsStore';
+import { resolveAudioSync } from '../cache/WfNewAudioCache';
 import { WfNewHomeContent as WfNewHomeContentWidget } from './WfNewHomeContent';
 
 // Modular Imports
@@ -141,7 +142,7 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
     !!u && (u.startsWith('http://') || u.startsWith('https://'));
   const speakWord = useCallback((w: Word) => {
     if (isAbsoluteAudio(w.audioUrl)) {
-      try { void new Audio(w.audioUrl).play().catch(() => playPhoneticSpeech(w)); return; } catch { /* fall through */ }
+      try { void new Audio(resolveAudioSync(w.audioUrl) ?? w.audioUrl).play().catch(() => playPhoneticSpeech(w)); return; } catch { /* fall through */ }
     }
     playPhoneticSpeech(w);
   }, [playPhoneticSpeech]);

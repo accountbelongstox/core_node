@@ -14,9 +14,8 @@ Port: 45679 (sync server port)
 
 import socket
 import ipaddress
-import threading
 from typing import Optional, List, Dict
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from pycore.pyfoundations.serialized_worker import map_bus_tasks
 
 import time
 
@@ -161,18 +160,15 @@ class DeviceDiscovery:
         network_prefix = str(network_obj).split('/')[0].rsplit('.', 1)[0]
 
         found_devices = []
-        futures = []
-
-        with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-            for host_num in range(1, 256):
-                ip = f"{network_prefix}.{host_num}"
-                future = executor.submit(self._probe_device, ip)
-                futures.append((future, ip))
-
-            for future, ip in futures:
-                result = future.result()
-                if result:
-                    found_devices.append(result)
+        addresses = [f"{network_prefix}.{host_num}" for host_num in range(1, 256)]
+        for result in map_bus_tasks(
+            self._probe_device,
+            addresses,
+            MAX_THREADS,
+            thread_prefix="LegacyDeviceProbe",
+        ):
+            if result:
+                found_devices.append(result)
 
         return sorted(found_devices, key=lambda d: d['response_time'])
 

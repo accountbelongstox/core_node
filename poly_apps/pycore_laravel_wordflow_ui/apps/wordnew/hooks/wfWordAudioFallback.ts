@@ -139,35 +139,7 @@ export function resolvePracticeVoice(
   return voices[0] ?? null;
 }
 
-/**
- * Tier 4a — dictionaryapi.dev direct fetch (external, opt-in). Picks the
- * phonetics[].audio entry whose filename carries the -us/-uk accent suffix;
- * falls back to any non-empty audio url. Null on miss/network error.
- */
-export async function fetchDictionaryApiAudio(
-  word: string,
-  accent: WfNewWordAccent,
-): Promise<string | null> {
-  try {
-    const res = await fetch(
-      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
-    );
-    if (!res.ok) return null;
-    const entries = await res.json();
-    const audios: string[] = [];
-    for (const entry of Array.isArray(entries) ? entries : []) {
-      for (const ph of Array.isArray(entry?.phonetics) ? entry.phonetics : []) {
-        if (typeof ph?.audio === 'string' && ph.audio) audios.push(ph.audio);
-      }
-    }
-    const suffix = `-${accent}.`;
-    return audios.find((u) => u.includes(suffix)) ?? audios[0] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-// --- Tier 4b: Puter.js txt2speech (external, opt-in) ------------------------ #
+// --- Puter.js txt2speech (external, opt-in) --------------------------------- #
 
 const PUTER_SRC = 'https://js.puter.com/v2/';
 let puterLoadPromise: Promise<boolean> | null = null;

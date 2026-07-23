@@ -132,7 +132,8 @@ fi
 if py_has_module sherpa_onnx; then
     echo "[OK] sherpa-onnx present."
 else
-    echo "[!] sherpa-onnx not importable; offline TTS will fall back to edge/ai."
+    echo "[!] sherpa-onnx not importable; retrying next run." >&2
+    fail_prereq_step "$PYTHON" "[install_tts_offline] " sherpa_onnx
 fi
 
 MODEL_SENTINEL="$MODEL_DIR/.model_installed"
@@ -154,10 +155,16 @@ if [[ "$MODEL_OK" -eq 0 ]]; then
     if curl -fL -C - --retry 3 --connect-timeout 30 "$MODEL_URL" -o "$MODEL_ARCHIVE" \
         || wget -c -q "$MODEL_URL" -O "$MODEL_ARCHIVE"; then
         install_sherpa_model "$MODEL_ARCHIVE" "$TMP_EXTRACT" "$MODEL_DIR" "$MODEL_SENTINEL" "$MODEL_URL" \
+            && MODEL_OK=1 \
             || echo "[!] Archive incomplete after download; KEPT to RESUME next boot."
     else
         echo "[!] Download incomplete; partial archive KEPT. edge/ai TTS still work."
     fi
 fi
 rm -rf "$TMP_EXTRACT" 2>/dev/null || true
+if [[ "$MODEL_OK" -ne 1 ]] || [[ ! -f "$MODEL_SENTINEL" ]] \
+    || ! find "$MODEL_DIR" -name '*.onnx' -type f 2>/dev/null | grep -q .; then
+    echo "[!] Kokoro model is incomplete; retrying next run." >&2
+    fail_prereq_step "$PYTHON" "[install_tts_offline] " sherpa_onnx
+fi
 complete_prereq_step "$PYTHON" "[install_tts_offline] " sherpa_onnx

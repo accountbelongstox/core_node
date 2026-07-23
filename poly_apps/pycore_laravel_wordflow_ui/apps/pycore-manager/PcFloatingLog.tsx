@@ -36,7 +36,7 @@ function lineColor(l: PcLogLine): string {
 export const PcFloatingLog: React.FC = () => {
   const { logs, wsConnected, clearLogs } = usePcLive();
   const [open, setOpen] = useState<boolean>(readOpen);
-  const endRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -46,7 +46,9 @@ export const PcFloatingLog: React.FC = () => {
 
   // Auto-scroll to bottom whenever new lines arrive while expanded.
   useLayoutEffect(() => {
-    if (open) endRef.current?.scrollIntoView({ block: 'end' });
+    if (open && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
   }, [logs, open]);
 
   return (
@@ -66,9 +68,8 @@ export const PcFloatingLog: React.FC = () => {
               <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
             )}
             <span
-              className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                wsConnected ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-600'
-              }`}
+              className={`relative inline-flex rounded-full h-2.5 w-2.5 ${wsConnected ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-600'
+                }`}
             />
           </span>
           <Terminal className="w-4 h-4 text-indigo-500 shrink-0" />
@@ -102,7 +103,7 @@ export const PcFloatingLog: React.FC = () => {
 
         {/* terminal body */}
         {open && (
-          <div className="flex-1 min-h-0 m-2 mt-2 rounded-xl bg-slate-950 border border-white/5 overflow-auto p-3 text-[11px] font-mono leading-relaxed">
+          <div ref={containerRef} className="flex-1 min-h-0 m-2 mt-2 rounded-xl bg-slate-950 border border-white/5 overflow-auto p-3 text-[11px] font-mono leading-relaxed">
             {logs.length === 0 ? (
               <div className="text-slate-600">No log output yet.</div>
             ) : (
@@ -116,7 +117,6 @@ export const PcFloatingLog: React.FC = () => {
                 </div>
               ))
             )}
-            <div ref={endRef} />
           </div>
         )}
       </div>

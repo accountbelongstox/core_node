@@ -36,6 +36,7 @@ import {
 import { isCapabilityActive } from './task-center/run-intent';
 import { LANES } from '@/utils/task-center-lanes';
 import { DEFAULT_SOURCE_LANG, DEFAULT_TARGET_LANG } from '@/utils/task-center-types';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 // Re-export so existing importers (background/index.ts) keep working.
 export const initBingWorkerLifecycle = () =>
@@ -154,6 +155,7 @@ const IDLE_DISCARD_MS = 60_000;
 const HANDLED_TASK_TYPES = new Set([
   'word_translation',
   'word_media',
+  'word_audio',
   'bing_dictionary',
   'dictionary_translation',
 ]);
@@ -519,8 +521,8 @@ class BingDictionaryWorkerService {
    */
   private async readActivateFlag(): Promise<boolean> {
     try {
-      const r = await chrome.storage.local.get('bingActivatePerWord');
-      return r.bingActivatePerWord !== false;
+      const r = await chrome.storage.local.get(STORAGE_KEYS.BING_ACTIVATE_PER_WORD);
+      return r[STORAGE_KEYS.BING_ACTIVATE_PER_WORD] !== false;
     } catch {
       return true;
     }
@@ -533,8 +535,8 @@ class BingDictionaryWorkerService {
    */
   private async readHowtopronounceEnabled(): Promise<boolean> {
     try {
-      const r = await chrome.storage.local.get('howtopronounceEnabled');
-      return r.howtopronounceEnabled !== false;
+      const r = await chrome.storage.local.get(STORAGE_KEYS.HOW_TO_PRONOUNCE_ENABLED);
+      return r[STORAGE_KEYS.HOW_TO_PRONOUNCE_ENABLED] !== false;
     } catch {
       return true;
     }
@@ -753,11 +755,14 @@ class BingDictionaryWorkerService {
     const response = await this.workerClient.register({
       worker_id: workerId,
       worker_name: this.config.workerName,
-      // word_translation tasks are dispatched as execution_type
-      // `remote_translation`; the worker must register that processor type to be
-      // assigned them. It also joins the shared `remote_fast` lane so the
-      // dispatcher can route fast-tier translate work here.
-      processor_types: [LANES.REMOTE_TRANSLATION, LANES.REMOTE_FAST] as ProcessorType[],
+      // Translation and pronunciation tasks use separate Laravel lanes. The
+      // same Bing worker can fulfill both because each lookup already captures
+      // the rendered dictionary entry and its MP3 bytes.
+      processor_types: [
+        LANES.REMOTE_TRANSLATION,
+        LANES.REMOTE_AUDIO,
+        LANES.REMOTE_FAST,
+      ] as ProcessorType[],
       // Advertise ONLY 'translate' (B18: bing is the sole translate owner on the
       // fast lane; WebAiTranslate owns ai_translate). 'image' is no longer in the
       // shared fast set (B17) — a Bing dictionary tab can scrape a word lookup but
@@ -1273,6 +1278,14 @@ class BingDictionaryWorkerService {
       };
 
       await Promise.all(tabIds.map((tabId, slot) => runSlot(tabId, slot)));
+
+      // An audio-only task is complete only when real MP3 bytes were captured.
+      // Do not let a translation-only Bing result mark a still-missing audio
+      // row complete; retain invalid-word verdicts, but re-pend valid misses.
+      if (task.task_type === 'word_audio') {
+        const audioEntries = translations.filter((entry) => !!entry.audio_base64);
+        translations.splice(0, translations.length, ...audioEntries);
+      }
 
       // Sustained anti-scrape: enter a cooldown so the next polls back off (no tab
       // churn) until Bing relaxes. Whatever WAS scraped is still submitted below;

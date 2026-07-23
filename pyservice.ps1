@@ -9,13 +9,14 @@
            PreparePycorePrerequisites (Step*.ps1 installers skip when already satisfied).
            Orchestration lives in scripts\shells\win\main_powershells\PreparePycorePrerequisites.ps1.
            Use `install` / `-Only` to provision without launching
-           the worker. All Python work uses the single system Python 3.13 (no venv).
+           the worker. The main worker uses system Python 3.13; incompatible TTS
+           subprocesses use pre-built, engine-specific isolated environments.
 
         2. LAUNCH: starts pycore\pycore_module_caller.py (the real worker, which
            now lives inside the pycore package, not at the repo root).
 
-    Both the prerequisite scripts and the worker are invoked through RELATIVE
-    paths from this script's own folder, so the repo can live anywhere.
+    Prerequisites and the worker are invoked through absolute paths resolved from
+    this script's own folder, so the repo can live anywhere.
 
 .PARAMETER BindHost
     Host the RPC v2 server binds to. Default: 0.0.0.0
@@ -304,9 +305,9 @@ Ensure-CoreNodePythonPath -LogPrefix '[pyservice]'
 Write-Host ("[OK] Python : {0}" -f $py.Version) -ForegroundColor Green
 Write-Host ("       path : {0}" -f $py.Path)    -ForegroundColor DarkGray
 
-# Relative paths from this script's folder (repo root).
-$prepareRel = '.\scripts\shells\win\main_powershells\PreparePycorePrerequisites.ps1'
-$workerRel  = '.\pycore\pycore_module_caller.py'
+# Absolute paths resolved from this script's folder (repo root).
+$preparePath = Join-Path $PSScriptRoot 'scripts\shells\win\main_powershells\PreparePycorePrerequisites.ps1'
+$workerPath = Join-Path $PSScriptRoot 'pycore\pycore_module_caller.py'
 
 $uiProc = $null   # React UI server process (stopped in finally)
 
@@ -325,9 +326,9 @@ try {
         $env:BARK_SKIP = '1'
         $env:PARLER_SKIP = '1'
     }
-    & $prepareRel
+    & $preparePath
     if ($LASTEXITCODE -ne 0) {
-        Write-Host ("[!] Prerequisite step exited with {0}; continuing." -f $LASTEXITCODE) -ForegroundColor DarkYellow
+        throw "Prerequisite step exited with $LASTEXITCODE; worker launch cancelled."
     }
 
     if ($provisionOnly) {
@@ -435,12 +436,12 @@ try {
     }
 
     # --- 3) launch the worker -------------------------------------------- #
-    $pyArgs = @('-u', $workerRel, '--host', $BindHost, '--port', $Port)
+    $pyArgs = @('-u', $workerPath, '--host', $BindHost, '--port', $Port)
     if ($DebugMode) { $pyArgs += '--debug' }
     if ($NoReload)  { $pyArgs += '--no-reload' }   # hot-reload is the default; opt out for headless prod
 
     Write-Host ''
-    Write-Host ("[>] Launching worker: {0}" -f $workerRel) -ForegroundColor Cyan
+    Write-Host ("[>] Launching worker: {0}" -f $workerPath) -ForegroundColor Cyan
     Write-Host ''
     & $py.Path @pyArgs
     $code = $LASTEXITCODE

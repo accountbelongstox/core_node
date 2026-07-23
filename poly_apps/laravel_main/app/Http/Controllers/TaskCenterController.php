@@ -189,6 +189,76 @@ class TaskCenterController extends Controller
     }
 
     /**
+     * GET /api/task-center/completed
+     * Cursor-paginated terminal GlobalTask records for pycore's local archive.
+     */
+    public function completed(Request $request): JsonResponse
+    {
+        $limit = max(1, min((int) $request->input('limit', 200), 500));
+        $cursorId = max(0, (int) $request->input('cursor_id', 0));
+        $taskType = trim((string) $request->input('task_type', ''));
+        $terminal = [
+            GlobalTask::STATUS_COMPLETED,
+            GlobalTask::STATUS_COMPLETED_DEMO,
+            GlobalTask::STATUS_FAILED,
+            GlobalTask::STATUS_CANCELLED,
+        ];
+        $query = GlobalTask::query()->whereIn('status', $terminal);
+        if ($cursorId > 0) {
+            $query->where('id', '<', $cursorId);
+        }
+        if ($taskType !== '') {
+            $query->where('task_type', $taskType);
+        }
+        $tasks = $query
+            ->select([
+                'id', 'task_id', 'app_name', 'task_type', 'execution_type',
+                'capability', 'status', 'assigned_to', 'payload', 'result',
+                'error', 'retry_count', 'created_at', 'updated_at', 'completed_at',
+            ])
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
+        $types = GlobalTask::query()
+            ->whereIn('status', $terminal)
+            ->whereNotNull('task_type')
+            ->groupBy('task_type')
+            ->selectRaw('task_type, count(*) as total')
+            ->orderBy('task_type')
+            ->get()
+            ->mapWithKeys(static function ($row) {
+                return [(string) $row->task_type => (int) $row->total];
+            });
+        $records = $tasks->map(static function (GlobalTask $task) {
+            return [
+                'source_id' => (int) $task->id,
+                'task_id' => $task->task_id,
+                'app_name' => $task->app_name,
+                'task_type' => $task->task_type,
+                'execution_type' => $task->execution_type,
+                'capability' => $task->capability,
+                'status' => $task->status,
+                'worker' => $task->assigned_to,
+                'payload' => $task->payload,
+                'result' => $task->result,
+                'error' => $task->error,
+                'retry_count' => (int) $task->retry_count,
+                'created_at' => $task->created_at?->toISOString(),
+                'updated_at' => $task->updated_at?->toISOString(),
+                'completed_at' => $task->completed_at?->toISOString(),
+            ];
+        })->values();
+        $nextCursor = $tasks->isEmpty() ? null : (int) $tasks->last()->id;
+
+        return $this->success([
+            'records' => $records,
+            'count' => $records->count(),
+            'types' => $types,
+            'next_cursor_id' => $records->count() === $limit ? $nextCursor : null,
+        ], 'Completed task history retrieved successfully');
+    }
+
+    /**
      * Build the per-capability category breakdown.
      *
      * For each capability we report, in TWO orthogonal lanes:

@@ -30,6 +30,7 @@ use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Providers\PathMapper;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingDocumentService;
 use Illuminate\Support\Facades\Log;
 
 class AppQyV1ArticleController
@@ -648,6 +649,17 @@ class AppQyV1ArticleController
                 }
             }
 
+            // Also persist the article body as an uploaded document (same table
+            // as the /learning/upload document feature) categorized as daily
+            // reading; metadata.document_id links back. Best-effort — a failure
+            // here is logged inside the service and never breaks article creation.
+            $documentId = (new AppQyV1DailyReadingDocumentService())->createForWorkerArticle(
+                $article,
+                $articleText,
+                $request->input('reference_cn'),
+                $language
+            );
+
             $this->mapArticleToLibrary($articleId, $articleText, $language);
             $bumpedSentences = $this->bumpWorkerArticleSentences($parsedResult, $language);
 
@@ -655,6 +667,7 @@ class AppQyV1ArticleController
                 'article_id' => $articleId,
                 'source_key' => $articleId,
                 'audio_url' => $audioUrl,
+                'document_id' => $documentId,
                 'title' => $article->title,
                 'sentence_bumps' => $bumpedSentences,
             ], 'Agent history article stored');
@@ -682,7 +695,7 @@ class AppQyV1ArticleController
             ->where('source', 'agent_history')
             ->orderByDesc('id')
             ->limit($limit)
-            ->get(['article_id', 'title', 'language', 'word_count', 'metadata', 'created_at']);
+            ->get(['article_id', 'title', 'language', 'word_count', 'content', 'metadata', 'created_at']);
 
         $items = [];
         foreach ($rows as $row) {
@@ -691,11 +704,14 @@ class AppQyV1ArticleController
                 'article_id' => $row->article_id,
                 'source_key' => $row->article_id,
                 'title' => $row->title,
+                'title_en' => $row->title,
                 'title_cn' => $meta['title_cn'] ?? null,
+                'article_en' => $row->content,
                 'reference_cn' => $meta['reference_cn'] ?? null,
                 'language' => $row->language,
                 'word_count' => (int) $row->word_count,
                 'audio_url' => $meta['audio_url'] ?? null,
+                'document_id' => $meta['document_id'] ?? null,
                 'created_at' => $row->created_at ? $row->created_at->toIso8601String() : null,
             ];
         }

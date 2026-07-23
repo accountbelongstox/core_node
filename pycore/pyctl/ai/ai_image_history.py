@@ -30,13 +30,16 @@ import base64
 import hashlib
 import json
 import os
-import threading
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root, get_local_data_dir
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
 # Cross-runtime shared store (see module docstring + ai_rate_limits rationale).
 # Lives under <cache>/pycore/.ai_state; the prior <core_node>/.ai_state location
@@ -53,7 +56,7 @@ _MIME_EXT = {
     "image/webp": "webp", "image/gif": "gif",
 }
 
-_lock = threading.Lock()
+_WORK_QUEUE = 'pyctl.ai.image_history.operations'
 
 
 def _migrate_old_state():
@@ -147,7 +150,7 @@ def _trim(doc: Dict[str, Any]) -> None:
                 pass
 
 
-def record_image(
+def _record_image(
     *,
     provider: str,
     model: str,
@@ -195,81 +198,76 @@ def record_image(
         "origin": origin or "pycore",
         "ok": bool(ok),
     }
-    with _lock:
-        try:
-            (_images_dir().parent / rel).write_bytes(raw)
-        except Exception as e:  # noqa: BLE001
-            ColorPrint.yellow(f"[ai_image_history] image write failed: {e}")
-            return None
-        doc = _load_index()
-        doc["entries"].append(entry)
-        _trim(doc)
-        _save_index(doc)
+    try:
+        (_images_dir().parent / rel).write_bytes(raw)
+    except Exception as e:  # noqa: BLE001
+        ColorPrint.yellow(f"[ai_image_history] image write failed: {e}")
+        return None
+    doc = _load_index()
+    doc["entries"].append(entry)
+    _trim(doc)
+    _save_index(doc)
     ColorPrint.green(
         f"[ai_image_history] recorded {provider}/{model} ({len(raw)//1024}KB) id={digest}")
     return entry
 
 
-def list_history(limit: int = 50) -> List[Dict[str, Any]]:
+def _list_history(limit: int = 50) -> List[Dict[str, Any]]:
     """Newest-first index entries (metadata only), capped at ``limit`` (1..200)."""
     limit = max(1, min(_MAX_ENTRIES, int(limit) if str(limit).isdigit() else 50))
-    with _lock:
-        entries = list((_load_index().get("entries") or []))
+    entries = list((_load_index().get("entries") or []))
     return list(reversed(entries))[:limit]
 
 
-def read_image(image_id: str) -> Tuple[bytes, str]:
+def _read_image(image_id: str) -> Tuple[bytes, str]:
     """(bytes, mime) for a stored image id, or (b'', '') when missing."""
     image_id = (image_id or "").strip()
     if not image_id:
         return b"", ""
-    with _lock:
-        for e in (_load_index().get("entries") or []):
-            if e.get("id") == image_id:
-                rel = e.get("file")
-                mime = e.get("mime") or "image/png"
-                break
-        else:
-            return b"", ""
+    for entry in (_load_index().get("entries") or []):
+        if entry.get("id") == image_id:
+            rel = entry.get("file")
+            mime = entry.get("mime") or "image/png"
+            break
+    else:
+        return b"", ""
     try:
         return (_state_dir() / rel).read_bytes(), mime
     except Exception:  # noqa: BLE001
         return b"", ""
 
 
-def entry_path(image_id: str) -> Optional[str]:
+def _entry_path(image_id: str) -> Optional[str]:
     """Absolute path of a stored image file (for reveal / show-location), or None."""
     image_id = (image_id or "").strip()
     if not image_id:
         return None
-    with _lock:
-        for e in (_load_index().get("entries") or []):
-            if e.get("id") == image_id and e.get("file"):
-                try:
-                    return str((_state_dir() / e["file"]).resolve())
-                except Exception:
-                    return str(_state_dir() / e["file"])
+    for entry in (_load_index().get("entries") or []):
+        if entry.get("id") == image_id and entry.get("file"):
+            try:
+                return str((_state_dir() / entry["file"]).resolve())
+            except Exception:
+                return str(_state_dir() / entry["file"])
     return None
 
 
-def delete_entry(image_id: str) -> bool:
+def _delete_entry(image_id: str) -> bool:
     """Remove one history entry and its image file. True when an entry was removed."""
     image_id = (image_id or "").strip()
     if not image_id:
         return False
-    with _lock:
-        doc = _load_index()
-        entries = doc.get("entries") or []
-        keep, removed = [], None
-        for e in entries:
-            if e.get("id") == image_id and removed is None:
-                removed = e
-            else:
-                keep.append(e)
-        if removed is None:
-            return False
-        doc["entries"] = keep
-        _save_index(doc)
+    doc = _load_index()
+    entries = doc.get("entries") or []
+    keep, removed = [], None
+    for entry in entries:
+        if entry.get("id") == image_id and removed is None:
+            removed = entry
+        else:
+            keep.append(entry)
+    if removed is None:
+        return False
+    doc["entries"] = keep
+    _save_index(doc)
     rel = removed.get("file")
     if rel:
         try:
@@ -279,23 +277,50 @@ def delete_entry(image_id: str) -> bool:
     return True
 
 
-def clear_history() -> int:
+def _clear_history() -> int:
     """Delete ALL history entries + image files. Returns the count removed."""
-    with _lock:
-        doc = _load_index()
-        entries = doc.get("entries") or []
-        base = _state_dir()
-        for e in entries:
-            rel = e.get("file")
-            if rel:
-                try:
-                    (base / rel).unlink()
-                except OSError:
-                    pass
-        n = len(entries)
-        doc["entries"] = []
-        _save_index(doc)
-    return n
+    doc = _load_index()
+    entries = doc.get("entries") or []
+    base = _state_dir()
+    for entry in entries:
+        rel = entry.get("file")
+        if rel:
+            try:
+                (base / rel).unlink()
+            except OSError:
+                pass
+    removed_count = len(entries)
+    doc["entries"] = []
+    _save_index(doc)
+    return removed_count
+
+
+_WORKER = SerializedWorkerThread(_WORK_QUEUE, 'AIImageHistoryThread')
+_WORKER.start()
+
+
+def record_image(**kwargs: Any) -> Optional[Dict[str, Any]]:
+    return call_serialized(_WORK_QUEUE, _record_image, **kwargs)
+
+
+def list_history(limit: int = 50) -> List[Dict[str, Any]]:
+    return call_serialized(_WORK_QUEUE, _list_history, limit)
+
+
+def read_image(image_id: str) -> Tuple[bytes, str]:
+    return call_serialized(_WORK_QUEUE, _read_image, image_id)
+
+
+def entry_path(image_id: str) -> Optional[str]:
+    return call_serialized(_WORK_QUEUE, _entry_path, image_id)
+
+
+def delete_entry(image_id: str) -> bool:
+    return bool(call_serialized(_WORK_QUEUE, _delete_entry, image_id))
+
+
+def clear_history() -> int:
+    return int(call_serialized(_WORK_QUEUE, _clear_history))
 
 
 __all__ = [

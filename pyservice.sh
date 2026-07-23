@@ -385,7 +385,8 @@ else
         export PARLER_SKIP=1
     fi
     if ! bash "$PREPARE_REL" --python "$PY" "${PREPARE_ARGS[@]+"${PREPARE_ARGS[@]}"}"; then
-        echo "[!] Prerequisite step failed; continuing to launch."
+        echo "[!] Prerequisite step failed; worker launch cancelled." >&2
+        exit 1
     fi
 fi
 

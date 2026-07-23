@@ -21,6 +21,7 @@ export type ProcessorType =
   | 'remote_translation'
   | 'remote_video'
   | 'remote_io'
+  | 'remote_audio'
   // Unified-task fast lane: a worker that advertises >=1 capability also
   // subscribes to `remote_fast` so the dispatcher can hand it any fast-tier
   // task that matches one of its capabilities (see SimpleWorkerBase.withFastLane).
@@ -31,6 +32,7 @@ export type ProcessorType =
   | 'remote_subtitle'
   | 'remote_poster'
   | 'remote_sentence_audio'
+  | 'remote_stt'
   // Dedicated chrome web-LLM invalid-word detection lane (word_validity tasks).
   // Own lane so it never co-mingles with word_translation/prompt_translation on
   // remote_translation (pull assigns by execution_type with no task_type filter).

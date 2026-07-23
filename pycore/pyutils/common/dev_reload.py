@@ -30,11 +30,11 @@ Design notes
 """
 
 import os
-import threading
 import time
 from pathlib import Path
 
 from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.serialized_worker import start_bus_task
 
 # Directories never worth watching: caches, vendored JS (Vite owns the FE),
 # backups, generated trees. Pruned in-place so os.walk never descends into them.
@@ -150,6 +150,4 @@ def start_reload_watcher(roots=None, interval=1.0, debounce=0.4):
             )
             return  # restart in flight; this process image is about to be replaced
 
-    thread = threading.Thread(target=_run, name="DevReloadWatcher", daemon=True)
-    thread.start()
-    return thread
+    return start_bus_task(_run, thread_name="DevReloadWatcher")

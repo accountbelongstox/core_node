@@ -1,18 +1,6 @@
 /**
- * PcTranslationQueuePanel — Laravel's pending translation queue, steered via
- * pycore (Translation Queue tab body).
- *
- * Formerly the standalone PcTranslationQueuePage (route
- * /pycore-manager/translation-queue); now one tab of PcQueueCenterPage, which
- * owns the page header, the shared refresh button (`refreshTick`) and the
- * auto-refresh interval. The data logic is unchanged: a ~5s continuous poll of
- * pycoreApi.queueTranslation through the global task layer renders summary
- * counts, a Laravel-reachable indicator and the pending items. Each item
- * exposes priority controls (raise / boost / lower → setQueuePriority) and a
- * stack control (stackQueue) dedups+bumps or enqueues at high priority. Items
- * the backend flagged `recently_bumped` get an animated ring. Every backend
- * call is guarded; the last good snapshot is kept on a transient failure.
- * Pending count/loading are reported up via `onMeta`.
+ * PcTranslationQueuePanel — Laravel translation queue from the shared Queue
+ * Center snapshot, with mutations proxied through pycore.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -21,11 +9,10 @@ import {
 } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { TranslationQueueItem, TranslationQueueSummary, PycoreGlobalTaskDetail } from '../../../core/api-libs/pycore/pycoreTypes';
-import { usePersistentTask } from '../../../core/tasks/usePersistentTask';
 import { PcGlobalTaskDetailModal } from '../components/PcTaskDetailModal';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
+import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
 
-const REFRESH_MS = 5000;
 const EMPTY_SUMMARY: TranslationQueueSummary = {
   pending: 0, processing: 0, completed: 0, failed: 0, total: 0,
 };
@@ -43,28 +30,20 @@ function wordsLabel(words: string[]): string {
   return words.length > 3 ? `${head} +${words.length - 3}` : head;
 }
 
-// The backend-owned snapshot kept alive across navigation/reload by the global
-// task layer. Page-only UI (stack form, busy flags, notices) stays local.
-interface QueueSnapshot {
-  items: TranslationQueueItem[];
-  summary: TranslationQueueSummary;
-  /** Live-log WS bridge state from pycore (`ws_connected`); null = backend didn't report it. */
-  wsConnected: boolean | null;
-  error: string | null;
-}
+/** Contract with PcQueueCenterPage. */
+type PanelProps = QueueCenterPanelProps;
 
-import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
-
-/** Contract with PcQueueCenterPage (shared panel props + section live switch). */
-type PanelProps = QueueCenterPanelProps & { live?: boolean };
-
-const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta, live = true }) => {
-  const { laravelReachable, laravelStoredEndpoint, laravelActiveEndpoint } = useQueueCenterHub();
+const PcTranslationQueuePanel: React.FC<PanelProps> = ({ onMeta }) => {
+  const hub = useQueueCenterHub();
+  const { laravelReachable, laravelStoredEndpoint, laravelActiveEndpoint } = hub;
   const laravelEndpoint = laravelStoredEndpoint || laravelActiveEndpoint;
-  // Reachability verdict comes ONLY from the shared hub (task-center remote_queue);
-  // the panel's own poll below supplies items/summary/ws state only.
-  const reachable = laravelReachable !== false;
-  const [loading, setLoading] = useState(true);
+  const reachable = laravelReachable === true;
+  const snap = hub.translationQueue;
+  const items: TranslationQueueItem[] | null = snap?.items ?? null;
+  const summary: TranslationQueueSummary = snap?.summary ?? EMPTY_SUMMARY;
+  const wsConnected = snap?.ws_connected ?? null;
+  const error = hub.sliceErrors.translation ?? snap?.error ?? null;
+  const loading = hub.loading && snap === null;
   const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyTask, setBusyTask] = useState<string | null>(null);
@@ -81,89 +60,13 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
-  // Last time a fetch ran (persistent poll OR manual/tick refresh). Used to skip
-  // the parent-tick immediate fetch when a persistent poll just ran, so the two
-  // don't double-fetch the same endpoint.
-  const lastFetchAt = useRef(0);
-
-  // Continuous-poll view: the snapshot + poll loop live in the global provider
-  // above the router (survive navigation; reload re-polls).
-  const queue = usePersistentTask<QueueSnapshot>('pycore.translation-queue', {
-    intervalMs: REFRESH_MS,
-    poll: () => pycoreApi.queueTranslation(false)
-      .then((r: any) => {
-        if (mounted.current) setLoading(false);
-        lastFetchAt.current = Date.now();
-        return {
-          items: Array.isArray(r?.items) ? r.items : [],
-          summary: r?.summary ?? EMPTY_SUMMARY,
-          wsConnected: typeof r?.ws_connected === 'boolean' ? r.ws_connected : null,
-          error: r?.error ?? null,
-        };
-      })
-      .catch((e: any) => {
-        if (mounted.current) setLoading(false);
-        // keep the last good snapshot; surface only the unreachable state
-        const prev = queue.data;
-        return { ...(prev ?? { items: [], summary: EMPTY_SUMMARY, wsConnected: null }), error: e?.message || 'pycore unreachable' } as QueueSnapshot;
-      }),
-  });
-
-  const snap = queue.data;
-  const items: TranslationQueueItem[] | null = snap ? snap.items : null;
-  const summary: TranslationQueueSummary = snap?.summary ?? EMPTY_SUMMARY;
-  const wsConnected = snap?.wsConnected ?? null;
-  const error = snap?.error ?? null;
-
-  // Start/stop the continuous poll with the section live switch. Stop it on
-  // unmount so the persistent session does NOT poll forever app-wide after the
-  // user leaves this page (polling with no consumer is pure waste). Turning
-  // live off also clears `loading` so "Loading queue…" can never get stuck
-  // when the switch is flipped before the first poll completes.
-  useEffect(() => {
-    if (live && !queue.running) queue.begin();
-    else if (!live) {
-      if (queue.running) queue.end();
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live]);
-  useEffect(() => () => { queue.end(); },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []);
-
-  // Manual / post-action refresh = one immediate fetch pushed into the session.
+  // Force Laravel's monitor once after a mutation, then refresh the shared snapshot.
   const fetchQueue = useCallback(async (refresh: boolean) => {
-    if (refresh) setRefreshing(true); else if (queue.data === null) setLoading(true);
-    lastFetchAt.current = Date.now();
-    const r = await pycoreApi.queueTranslation(refresh).catch((e: any) => ({ __err: e?.message || 'pycore unreachable' } as any));
-    if (!mounted.current) return;
-    if (r && r.__err) {
-      const prev = queue.data;
-      queue.set({ ...(prev ?? { items: [], summary: EMPTY_SUMMARY, wsConnected: null }), error: r.__err } as QueueSnapshot);
-    } else {
-      queue.set({
-        items: Array.isArray(r?.items) ? r.items : [],
-        summary: r?.summary ?? EMPTY_SUMMARY,
-        wsConnected: typeof r?.ws_connected === 'boolean' ? r.ws_connected : null,
-        error: r?.error ?? null,
-      });
-    }
-    setLoading(false); setRefreshing(false);
-  }, [queue]);
-
-  // Parent-driven refresh (manual button or the shared auto-refresh interval).
-  // Skip when the persistent poll fetched within the last interval - the two
-  // would otherwise hit the same endpoint back-to-back on every tick.
-  const lastTick = useRef(refreshTick);
-  useEffect(() => {
-    if (refreshTick !== lastTick.current) {
-      lastTick.current = refreshTick;
-      if (live && Date.now() - lastFetchAt.current >= REFRESH_MS) {
-        fetchQueue(true);
-      }
-    }
-  }, [refreshTick, fetchQueue, live]);
+    setRefreshing(true);
+    if (refresh) await pycoreApi.queueTranslation(true);
+    await hub.refreshHub();
+    if (mounted.current) setRefreshing(false);
+  }, [hub]);
 
   // Report the pending count + in-flight state up to the tab bar.
   useEffect(() => {
@@ -253,11 +156,11 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
           <div>
             <h2 className="text-sm font-bold flex items-center gap-2 text-slate-700 dark:text-slate-200">
-              <ListOrdered className="w-4 h-4 text-sky-500" /> Pending translations
+              <ListOrdered className="w-4 h-4 text-sky-500" /> Missing word translations
               <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500">{summary.pending}</span>
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Laravel's pending translation queue, steerable from pycore.
+              Laravel owns the queue; pycore translates with Google first and shared fallbacks.
             </p>
           </div>
           <div className="flex items-center gap-2">

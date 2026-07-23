@@ -11,7 +11,6 @@ import sys
 import platform
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import shutil
-import threading
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
@@ -26,6 +25,11 @@ import tempfile
 
 edge_tts = get_third_package_edge_tts()
 from pycore.pyutils.edge_tts.config import TTSConfig
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+    start_bus_task,
+)
 
 # Microsoft's speech endpoint periodically returns HTTP 403 on the WebSocket
 # handshake — usually rate-limiting or regional network blocking, NOT a code bug
@@ -49,7 +53,12 @@ _AVAIL_TTL_S = 60.0
 # several at once is a fast path to HTTP 403 (rate-limit). This PROCESS-WIDE lock
 # serializes every edge-tts synthesis so there is never more than one in flight,
 # no matter how many callers/threads/pipelines request TTS at the same time.
-_EDGE_SYNTH_LOCK = threading.Lock()
+_EDGE_SYNTH_QUEUE = 'pyutils.edge_tts.synthesize'
+_EDGE_SYNTH_WORKER = SerializedWorkerThread(
+    _EDGE_SYNTH_QUEUE,
+    'EdgeTTSSynthesisThread',
+)
+_EDGE_SYNTH_WORKER.start()
 
 # Default speech rate. edge-tts wants a signed percentage string ("-20%", "+0%").
 # For a language-learning subtitle tool, a slight slowdown (~0.8x) sharpens word
@@ -257,9 +266,9 @@ class EdgeTTSClient:
         
         return voices
     
-    def synthesize(self, text: str, voice: str, output_path: Path,
-                   subtitle_path: Optional[Path] = None,
-                   rate: Optional[str] = None) -> bool:
+    def _synthesize(self, text: str, voice: str, output_path: Path,
+                    subtitle_path: Optional[Path] = None,
+                    rate: Optional[str] = None) -> bool:
         """
         Synthesize text to speech (synchronous wrapper).
 
@@ -288,8 +297,8 @@ class EdgeTTSClient:
 
         self._mark_task_start()
         try:
-            # Serialize ALL edge-tts synthesis (no concurrency -> no 403 storms).
-            with _EDGE_SYNTH_LOCK:
+            # This method runs only on the process-wide synthesis owner thread.
+            if True:
                 if edge_tts:
                     try:
                         loop = asyncio.get_event_loop()
@@ -354,6 +363,21 @@ class EdgeTTSClient:
                 return True
         finally:
             self._mark_task_end()
+
+    def synthesize(self, text: str, voice: str, output_path: Path,
+                   subtitle_path: Optional[Path] = None,
+                   rate: Optional[str] = None) -> bool:
+        """Synthesize through the process-wide edge-tts owner thread."""
+        return call_serialized(
+            _EDGE_SYNTH_QUEUE,
+            self._synthesize,
+            text,
+            voice,
+            output_path,
+            subtitle_path,
+            rate,
+            timeout=300.0,
+        )
     
     def find_voice_by_locale(self, locale: str, gender: str = 'female') -> Optional[str]:
         """
@@ -419,7 +443,7 @@ class EdgeTTSClient:
             finally:
                 self._avail_probing = False
 
-        threading.Thread(target=_run, name="edge-tts-probe", daemon=True).start()
+        start_bus_task(_run, thread_name="EdgeTTSProbeThread")
 
     def test_availability(self, force: bool = False) -> Dict[str, Any]:
         """

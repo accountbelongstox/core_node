@@ -19,12 +19,18 @@ Endpoints:
 """
 
 import socket
-import threading
 import json
 import os
 import time
 import hashlib
-from typing import Optional, Dict, List
+from contextlib import nullcontext
+from typing import Any, Optional, Dict, List
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pathlib import Path
 
 from pycore.pyutils.launcher.device_sync._deprecated._old_servers.web_server import DeviceSyncWebServer
@@ -59,11 +65,14 @@ class FileSyncServer:
         self.web_port = web_port
         self.running = False
         self.server_socket: Optional[socket.socket] = None
-        self.server_thread: Optional[threading.Thread] = None
+        self.server_thread: Optional[Any] = None
+        self._running_signal = f"device_sync.legacy_server.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
         # File metadata cache
         self.file_cache: Dict[str, Dict] = {}
-        self.cache_lock = threading.Lock()
+        self.cache_scope = nullcontext()
+        init_serialized_owner(self, "device_sync.legacy_server", "LegacySyncServerState")
 
         # Web server
         self.web_server = None
@@ -92,8 +101,11 @@ class FileSyncServer:
             return False
 
         self.running = True
-        self.server_thread = threading.Thread(target=self._server_loop, daemon=True)
-        self.server_thread.start()
+        THREAD_BUS.signal(self._running_signal, True)
+        self.server_thread = start_bus_task(
+            self._server_loop,
+            thread_name="LegacySyncServerThread",
+        )
 
         print(f"[SyncServer] Started on port {self.port}, serving: {self.root_dir}")
 
@@ -109,6 +121,7 @@ class FileSyncServer:
     def stop(self):
         """Stop sync server."""
         self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         # Stop web server
         if self.web_server:
@@ -127,18 +140,19 @@ class FileSyncServer:
 
     def _server_loop(self):
         """Server main loop."""
-        while self.running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             try:
                 client_socket, addr = self.server_socket.accept()
-                threading.Thread(
-                    target=self._handle_client,
-                    args=(client_socket, addr),
-                    daemon=True
-                ).start()
+                start_bus_task(
+                    self._handle_client,
+                    client_socket,
+                    addr,
+                    thread_name="LegacySyncClientThread",
+                )
             except socket.timeout:
                 continue
             except Exception as e:
-                if self.running:
+                if THREAD_BUS.get_signal(self._running_signal, False):
                     print(f"[SyncServer] Error: {e}")
 
     def _handle_client(self, client_socket: socket.socket, addr):
@@ -184,6 +198,7 @@ class FileSyncServer:
         finally:
             client_socket.close()
 
+    @serialized_method
     def _handle_list_request(self, client_socket: socket.socket):
         """
         Handle file list request.
@@ -191,7 +206,7 @@ class FileSyncServer:
         Args:
             client_socket: Client socket
         """
-        with self.cache_lock:
+        with self.cache_scope:
             file_list = list(self.file_cache.values())
 
         response = json.dumps({
@@ -234,11 +249,12 @@ class FileSyncServer:
             error_msg = f'ERROR: {str(e)}'
             client_socket.sendall(error_msg.encode('utf-8'))
 
+    @serialized_method
     def _rebuild_cache(self):
         """Rebuild file metadata cache."""
         print("[SyncServer] Building file cache...")
 
-        with self.cache_lock:
+        with self.cache_scope:
             self.file_cache.clear()
 
             for file_path in self._walk_directory(self.root_dir):
@@ -324,6 +340,7 @@ class FileSyncServer:
         except ValueError:
             return False
 
+    @serialized_method
     def get_cache_stats(self) -> Dict:
         """
         Get cache statistics.
@@ -331,7 +348,7 @@ class FileSyncServer:
         Returns:
             Stats dict
         """
-        with self.cache_lock:
+        with self.cache_scope:
             total_size = sum(f['size'] for f in self.file_cache.values())
 
             return {

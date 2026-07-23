@@ -20,17 +20,16 @@ Config:
 """
 
 import os
-import threading
 import time
 from pathlib import Path
 from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
-_avail_lock = threading.Lock()
-_avail_cache = {"ts": 0.0, "ok": False}
+_AVAIL_SIGNAL = 'pyutils.tts.f5tts.available'
 _AVAIL_TTL_S = 30.0
 _last_synth_error: Optional[str] = None
 
@@ -64,9 +63,9 @@ def available() -> bool:
     if _ref_audio() is None or not _ref_text():
         return False
     now = time.time()
-    with _avail_lock:
-        if now - _avail_cache["ts"] < _AVAIL_TTL_S:
-            return _avail_cache["ok"]
+    cache = THREAD_BUS.get_signal(_AVAIL_SIGNAL, {}) or {}
+    if now - float(cache.get("ts", 0.0)) < _AVAIL_TTL_S:
+        return bool(cache.get("ok"))
     ok = False
     requests = get_third_package_requests()
     if requests is not None:
@@ -78,8 +77,7 @@ def available() -> bool:
                     break
             except Exception:
                 pass
-    with _avail_lock:
-        _avail_cache.update(ts=now, ok=ok)
+    THREAD_BUS.signal(_AVAIL_SIGNAL, {"ts": now, "ok": ok})
     return ok
 
 

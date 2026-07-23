@@ -1139,6 +1139,29 @@ export interface AgentHistorySessionResponse {
   error: string | null;
 }
 
+/** One generated article row from GET …/agent-history/article/records. */
+export interface AgentHistoryArticleRecord {
+  id: string;
+  created_at: string;
+  title_cn: string;
+  title_en: string;
+  reference_cn?: string;
+  article_en?: string;
+  word_count: number;
+  openrouter_model?: string;
+  translation_engine?: string;
+  audio_available: boolean;
+  uploaded: boolean;
+  uploaded_at?: string | null;
+}
+
+export interface AgentHistoryArticleRecordsResponse {
+  success?: boolean;
+  records?: AgentHistoryArticleRecord[];
+  data?: { records?: AgentHistoryArticleRecord[] };
+  error?: string | null;
+}
+
 /** POST …/reveal — opened the file's folder in the OS file manager. */
 export interface RevealResponse {
   success: boolean;
@@ -1166,6 +1189,57 @@ export interface TtsServerActionResponse {
   enabled?: boolean;
   running?: boolean;
   managed?: boolean;
+  error?: string;
+  note?: string;
+}
+
+// --- Local LLM engines (article pipeline) — mirrors the TTS status shape --- #
+/** One local LLM engine row (priority order; e.g. ollama -> lmstudio -> llamacpp). */
+export interface LlmEngine {
+  name: string;
+  /** 1-based priority (1 = tried first). */
+  priority: number;
+  /** Runtime-ready — reachable + has a usable model now. */
+  available: boolean;
+  /** Prerequisites installed (binary/server present); may still need a running server. */
+  installed: boolean;
+  note?: string;
+  base_url?: string;
+  default_model?: string;
+  /** Managed local HTTP server engine (ollama is startable via /api/local/llm/server). */
+  server_engine?: boolean;
+  server_running?: boolean;
+  /** Why this engine is off (e.g. not installed / server down). */
+  disabled_reason?: string | null;
+}
+
+export interface LlmStatus {
+  success: boolean;
+  /** Highest-priority AVAILABLE engine, or null. */
+  best?: string | null;
+  /** Engine the next generation would actually use, or null (falls back to OpenRouter). */
+  active?: string | null;
+  available_count: number;
+  engines: LlmEngine[];
+  auto_manage: boolean;
+  single_active: boolean;
+  idle_shutdown_s: number;
+}
+
+/** Live per-engine generation test (POST /api/local/llm/test). */
+export interface LlmTestResponse {
+  success: boolean;
+  engine?: string | null;
+  model?: string | null;
+  text?: string;
+  error?: string;
+}
+
+export interface LlmServerActionResponse {
+  success: boolean;
+  engine?: string;
+  enabled?: boolean;
+  running?: boolean;
   error?: string;
   note?: string;
 }
@@ -1772,7 +1846,7 @@ export interface WordAudioTestResponse {
 // laravel_reachable is false.
 
 /** Who actually processes a queue category's work. */
-export type PcQueueHandler = 'chrome' | 'pycore' | 'ai';
+export type PcQueueHandler = 'chrome' | 'pycore' | 'ai' | 'any';
 
 /** One sample row for a category (loose — only a few fields are present). */
 export interface PcQueueSample {
@@ -1848,10 +1922,60 @@ export interface PcTaskCenterResponse {
   timestamp?: string;
 }
 
+export type QueueCenterControlName = 'assist' | 'translation' | 'word_audio' | 'sentence_audio';
+
+export interface QueueCenterControlState {
+  configured: boolean;
+  running: boolean;
+  owner: string;
+}
+
+export interface QueueCenterLocalTaskRow {
+  task_id: string;
+  task_type: string;
+  status: string;
+  progress: number;
+  created_at?: string;
+  updated_at?: string;
+  input_data?: Record<string, unknown>;
+  result?: Record<string, unknown> | null;
+  error?: string | null;
+}
+
+export interface QueueCenterSnapshot {
+  success: boolean;
+  schema_version: number;
+  generated_at: string;
+  source: {
+    pycore_reachable: boolean;
+    laravel_reachable: boolean;
+    laravel_stored_endpoint: string | null;
+    laravel_active_endpoint: string | null;
+    laravel_snapshot_age_s: number | null;
+  };
+  controls: Record<QueueCenterControlName, QueueCenterControlState>;
+  data: {
+    task_center: PcTaskCenterResponse;
+    manager_queue?: Record<string, unknown> | null;
+    local_tasks?: { success: boolean; tasks: QueueCenterLocalTaskRow[]; count: number } | null;
+    translation: TranslationQueueResponse | null;
+    word_audio: WordTtsAutoStatus | null;
+    sentence_audio: SentenceAudioAutoStatus | null;
+    workers: HeartbeatWorkersStatus | null;
+    assist: AssistStatus | null;
+    tts: TtsStatus | null;
+    overview: PcQueueOverview | null;
+    sentence_queue: SentenceAudioQueueSnapshot | null;
+    recent: PcTaskRecentResponse | null;
+  };
+  errors: Record<string, string>;
+}
+
 export interface PcQueueOverview {
   success: boolean;
   generated_at?: string;
   laravel_reachable: boolean;
+  laravel_snapshot_age_s?: number | null;
   categories: PcQueueCategory[];
   workers: PcQueueWorker[];
   engines: PcQueueEngines;
@@ -1897,6 +2021,8 @@ export interface SentenceAudioAutoStatus {
     heartbeat_enabled?: boolean;
     /** Single task before the concurrent worker; a list of in-flight tasks after. */
     current_task?: SentenceWorkerTask | SentenceWorkerTask[] | null;
+    /** "lang:content_id" keys of the in-flight tasks (queue-row spinner marker). */
+    current_keys?: string[];
     events?: Array<{
       at?: number;
       kind?: string;
@@ -1917,6 +2043,8 @@ export interface SentenceQueueRow {
   tts_locked_by?: string | null;
   occurrence_count?: number;
   recently_bumped?: boolean;
+  /** Flagged by the queue endpoint when this row is mid-synthesis in the worker. */
+  processing?: boolean;
 }
 
 export interface SentenceAudioQueueSnapshot {
@@ -1927,6 +2055,10 @@ export interface SentenceAudioQueueSnapshot {
     total?: number;
     laravel_reachable?: boolean;
     snapshot_age_s?: number;
+    summary?: {
+      languages?: Record<string, number>;
+      reconciled?: number;
+    };
   };
   bumps?: QueueBumpsSnapshot;
 }
@@ -2133,6 +2265,17 @@ export interface PcTaskDetailTranslation {
   [k: string]: unknown;
 }
 
+/** A result resource copied into pycore's persistent completed-task cache. */
+export interface PcTaskCachedResource {
+  source: string;
+  cache_key?: string;
+  local_url?: string;
+  mime?: string;
+  size?: number;
+  cached: boolean;
+  error?: string;
+}
+
 /** Free-form per-task detail. Common keys typed; extras allowed. */
 export interface PcTaskDetail {
   text?: string;
@@ -2189,6 +2332,10 @@ export interface PcTaskRecord {
   latency_ms: number | null;
   error: string | null;
   detail: PcTaskDetail;
+  execution_type?: string;
+  capability?: string;
+  archive_id?: string | number;
+  resources?: PcTaskCachedResource[];
 }
 
 /** Roll-up stats for the recent-task ring. */
@@ -2209,6 +2356,34 @@ export interface PcTaskRecentResponse {
   records: PcTaskRecord[];
   count: number;
   stats: PcTaskRecentStats;
+  types?: Record<string, number>;
+  resource_count?: number;
+  last_sync_at?: string | null;
+  error?: string;
+}
+
+/** GET /api/local/tasks/completed — persistent terminal-task archive. */
+export interface PcCompletedTaskArchiveResponse {
+  success: boolean;
+  records: PcTaskRecord[];
+  count: number;
+  types: Record<string, number>;
+  resource_count: number;
+  last_sync_at: string | null;
+  total?: number;
+  offset?: number;
+  limit?: number;
+  next_offset?: number | null;
+  error?: string;
+}
+
+/** POST /api/local/tasks/completed/sync — Laravel archive synchronization. */
+export interface PcCompletedTaskSyncResponse {
+  success: boolean;
+  synced: number;
+  resource_count: number;
+  last_sync_at: string | null;
+  types: Record<string, number>;
   error?: string;
 }
 

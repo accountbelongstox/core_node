@@ -115,7 +115,7 @@ echo "============================================================"
 echo " [install_kokoro] Kokoro-82M (sherpa-onnx)"
 echo "============================================================"
 
-[[ "${KOKORO_SKIP:-0}" == "1" ]] && { echo "[install_kokoro] [i] KOKORO_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx; }
+[[ "${KOKORO_SKIP:-0}" == "1" ]] && { echo "[install_kokoro] [i] KOKORO_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_kokoro] " --absent-ok "KOKORO_SKIP=1" sherpa_onnx; }
 if model_ok; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "Kokoro multi-lang model present at $MODEL_DIR"
     complete_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx
@@ -123,7 +123,7 @@ fi
 
 if ! PYTHON="$(resolve_python)"; then
     echo "[install_kokoro] [!] Python 3 not found."
-    complete_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx
+    fail_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx
 fi
 
 echo "[install_kokoro]  model dir : $MODEL_DIR"
@@ -144,7 +144,15 @@ fi
 if model_ok; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "Kokoro multi-lang model already downloaded"
 else
-    download_model || echo "[install_kokoro] [!] model download failed; retry later."
+    if ! download_model; then
+        echo "[install_kokoro] [!] model download failed; retrying next run." >&2
+        fail_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx
+    fi
+fi
+
+if ! model_ok; then
+    echo "[install_kokoro] [!] model verification failed; retrying next run." >&2
+    fail_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx
 fi
 
 echo "[install_kokoro] [OK] Kokoro ready. Export KOKORO_TTS_MODEL_DIR=$MODEL_DIR if needed."

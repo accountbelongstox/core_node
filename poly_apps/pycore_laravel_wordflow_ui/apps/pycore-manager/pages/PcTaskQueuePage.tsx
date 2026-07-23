@@ -1,28 +1,20 @@
 /**
- * PcTaskQueuePanel — pycore voice-subtitle task list with live progress
- * (Task Queue tab body).
- *
- * Formerly the standalone PcTaskQueuePage (route /pycore-manager/task-queue);
- * now one tab of PcQueueCenterPage, which owns the page header, the shared
- * refresh button (`refreshTick`) and the auto-refresh interval. The data logic
- * is unchanged: polls /voice-subtitle/tasks (via pycoreApi.pyGet) through the
- * global task layer (usePersistentTask, survives navigation) and keeps tasks
- * live through a WS `task_update` subscription + connectPycoreWs. Every
- * backend call is guarded; an inline "pycore unreachable" state is shown when
- * the backend (:59000) is offline. Count/loading are reported up via `onMeta`.
+ * PcTaskQueuePanel — current pycore TaskManager records from the shared,
+ * versioned Queue Center snapshot. Detail requests remain on demand.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ListChecks, RefreshCw, AlertTriangle, Wifi, WifiOff, Layers2,
 } from 'lucide-react';
-import { pycoreApi, connectPycoreWs, subscribe, onWsStatus } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { LocalTaskDetail, PycoreGlobalTaskDetail } from '../../../core/api-libs/pycore/pycoreTypes';
-import { usePersistentTask } from '../../../core/tasks/usePersistentTask';
 import { PcLocalTaskDetailModal } from '../components/PcTaskDetailModal';
 import { extractTaskContentSummary } from '../utils/pcTaskContent';
 import { extractAudioPath } from '../components/PcTaskAudioPreview';
 import { extractEngine, extractSynthCommand } from '../components/PcTaskSynthInfo';
 import { isLaravelGlobalTaskId, mergeTaskResultSources, resolveRemoteTaskId } from '../utils/pcTaskResult';
+import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
+import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
 
 interface TaskRow {
   task_id: string;
@@ -36,8 +28,6 @@ interface TaskRow {
   error?: string | null;
 }
 
-const REFRESH_MS = 4000;
-
 function statusColor(s: string): string {
   return s === 'completed' ? 'text-emerald-500'
     : s === 'failed' ? 'text-rose-500'
@@ -45,42 +35,15 @@ function statusColor(s: string): string {
     : 'text-slate-400';
 }
 
-// Merge an incoming task into the list, keyed by task_id (newest fields win).
-function mergeTask(list: TaskRow[], incoming: Partial<TaskRow> & { task_id?: string }): TaskRow[] {
-  if (!incoming?.task_id) return list;
-  const idx = list.findIndex((t) => t.task_id === incoming.task_id);
-  if (idx === -1) {
-    return [{
-      task_id: incoming.task_id,
-      task_type: incoming.task_type ?? '?',
-      status: incoming.status ?? 'pending',
-      progress: incoming.progress ?? 0,
-      created_at: incoming.created_at,
-      updated_at: incoming.updated_at,
-      input_data: incoming.input_data,
-      result: incoming.result,
-      error: incoming.error,
-    }, ...list];
-  }
-  const next = list.slice();
-  next[idx] = { ...next[idx], ...incoming } as TaskRow;
-  return next;
-}
+/** Contract with PcQueueCenterPage. */
+type PanelProps = QueueCenterPanelProps;
 
-import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
-
-/** Contract with PcQueueCenterPage (shared panel props + section live switch). */
-type PanelProps = QueueCenterPanelProps & { live?: boolean };
-
-const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta, live = true }) => {
-  // Continuous-poll view backed by the global task layer: the list + poll loop
-  // live in <TaskPersistenceProvider> above the router, so they survive leaving
-  // and returning to this page, and a full reload re-polls. The poll fn reports
-  // reachability/error through refs that React state mirrors for the banner.
-  const [unreachable, setUnreachable] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [wsConnected, setWsConnected] = useState(false);
-  const [loading, setLoading] = useState(true);
+const PcTaskQueuePanel: React.FC<PanelProps> = ({ onMeta }) => {
+  const hub = useQueueCenterHub();
+  const tasks: TaskRow[] = hub.localTasks ?? [];
+  const unreachable = !hub.pycoreReachable;
+  const error = hub.sliceErrors.local_tasks ?? hub.error;
+  const loading = hub.loading && hub.localTasks === null;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [taskDetail, setTaskDetail] = useState<LocalTaskDetail | null>(null);
   const [remoteDetail, setRemoteDetail] = useState<PycoreGlobalTaskDetail | null>(null);
@@ -92,87 +55,8 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta, live 
 
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
-  // Last time a fetch ran (persistent poll OR manual/tick refresh). Used to skip
-  // the parent-tick immediate fetch when a persistent poll just ran, so the two
-  // don't double-fetch the same endpoint.
-  const lastFetchAt = useRef(0);
-
-  const queue = usePersistentTask<TaskRow[]>('pycore.task-queue', {
-    intervalMs: REFRESH_MS,
-    poll: () => pycoreApi.pyGet<any>('/voice-subtitle/tasks?limit=50')
-      .then((r: any) => {
-        if (mounted.current) { setUnreachable(false); setError(null); setLoading(false); }
-        lastFetchAt.current = Date.now();
-        return Array.isArray(r?.tasks) ? r.tasks : Array.isArray(r) ? r : [];
-      })
-      .catch((e: any) => {
-        if (mounted.current) { setUnreachable(true); setError(e?.message || 'pycore unreachable'); setLoading(false); }
-        return null; // keep the last good list (don't clobber on a transient failure)
-      }),
-  });
-
-  const tasks: TaskRow[] = queue.data ?? [];
-
-  // Start/stop the continuous poll with the section live switch (idempotent if
-  // already running). Stop it on unmount so the persistent session does NOT poll
-  // forever app-wide after the user leaves this page (the session is kept alive
-  // across navigation by design, but polling with no consumer is pure waste).
-  useEffect(() => {
-    if (live && !queue.running) queue.begin();
-    else if (!live && queue.running) queue.end();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live]);
-  useEffect(() => () => { queue.end(); },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []);
-
-  // Manual refresh = one immediate poll pushed into the shared session.
-  const refresh = useCallback(() => {
-    setLoading(true);
-    lastFetchAt.current = Date.now();
-    pycoreApi.pyGet<any>('/voice-subtitle/tasks?limit=50')
-      .then((r: any) => {
-        if (!mounted.current) return;
-        const list = Array.isArray(r?.tasks) ? r.tasks : Array.isArray(r) ? r : [];
-        queue.set(list);
-        setUnreachable(false); setError(null); setLoading(false);
-      })
-      .catch((e: any) => {
-        if (!mounted.current) return;
-        setUnreachable(true); setError(e?.message || 'pycore unreachable'); setLoading(false);
-      });
-  }, [queue]);
-
-  // Parent-driven refresh (manual button or the shared auto-refresh interval).
-  // Skip when the persistent poll fetched within the last interval - the two
-  // would otherwise hit the same endpoint back-to-back on every tick.
-  const lastTick = useRef(refreshTick);
-  useEffect(() => {
-    if (refreshTick !== lastTick.current) {
-      lastTick.current = refreshTick;
-      if (live && Date.now() - lastFetchAt.current >= REFRESH_MS) {
-        refresh();
-      }
-    }
-  }, [refreshTick, refresh, live]);
-
-  // Report count + loading up to the tab bar / shared spinner.
-  useEffect(() => { onMeta?.({ count: tasks.length, loading }); }, [tasks.length, loading, onMeta]);
-
-  // Optional live updates: a task tick patches the matching row in place.
-  useEffect(() => {
-    connectPycoreWs();
-    const offStatus = onWsStatus(setWsConnected);
-    const offTask = subscribe('task_update', (data: any) => {
-      if (!data) return;
-      if (Array.isArray(data.tasks)) { queue.set(data.tasks); return; }
-      queue.set(mergeTask(queue.data ?? [], data));
-    });
-    return () => { offStatus(); offTask(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const active = tasks.filter((t) => t.status === 'processing' || t.status === 'pending').length;
+  useEffect(() => { onMeta?.({ count: active, loading }); }, [active, loading, onMeta]);
 
   const openTaskDetail = useCallback(async (taskId: string) => {
     const row = tasks.find((t) => t.task_id === taskId);
@@ -260,14 +144,14 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta, live 
         <div className="p-5 border-b border-slate-200/40 dark:border-white/5 flex items-center justify-between gap-4">
           <h2 className="text-sm font-bold flex items-center gap-2 text-slate-700 dark:text-slate-200">
             <ListChecks className="w-4 h-4 text-sky-500" /> Tasks
-            <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500">{tasks.length}</span>
-            <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">{active} active</span>
+            <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500">{active}</span>
+            <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">active · {tasks.length} retained</span>
           </h2>
           <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide ${
-            wsConnected ? 'bg-emerald-500/15 text-emerald-500' : 'bg-slate-500/15 text-slate-400'}`}
-            title={wsConnected ? 'Live connected' : 'Live disconnected'}>
-            {wsConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-            {wsConnected ? 'Live' : 'Polling'}
+            hub.pycoreReachable ? 'bg-emerald-500/15 text-emerald-500' : 'bg-slate-500/15 text-slate-400'}`}
+            title="Shared Queue Center snapshot">
+            {hub.pycoreReachable ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+            Snapshot
           </span>
         </div>
 

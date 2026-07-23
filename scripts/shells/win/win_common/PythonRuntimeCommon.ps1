@@ -166,7 +166,7 @@ function Install-PinnedTransformers {
         $effectiveSpec = $Global:LLM_TRANSFORMERS_SPEC
     }
     if (-not $effectiveSpec) {
-        $effectiveSpec = 'transformers==4.46.3'
+        $effectiveSpec = Get-AiRuntimePolicyValue -Name 'AI_SHARED_TRANSFORMERS_SPEC' -Default 'transformers'
     }
 
     if ($effectiveSpec -match '^\s*([A-Za-z0-9_.\-]+)\s*==\s*(.+?)\s*$') {

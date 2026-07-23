@@ -53,6 +53,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyctl.ai.ai_keys import (
     PROVIDERS, PROVIDER_ORDER, active_image_secret, active_secret, all_image_secrets,
     first_secret, has_image_key, image_key_rate_ok, image_key_status, image_ready_now,
@@ -65,8 +66,9 @@ from pycore.pyctl.ai.ai_image_history import record_image as _record_image_histo
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit
 # Singleton state + state-mutation primitives (LEAF) - imported, NEVER re-declared.
 from pycore.pyctl.ai.ai_gateway_state import (
-    _TIER_ORDER, _lock, _records, _stats,
+    _TIER_ORDER,
     _IMG_BOUND_S, _IMG_DISABLED_COOLDOWN_S, _IMG_TOTAL_BUDGET_S, _IMG_UNREACHABLE_COOLDOWN_S,
+    get_provider_stats, get_recent_records,
     _in_cooldown, _is_hard_disable_error, _is_net_timeout_error, _is_quota_error,
     _on_result, _rate_caps, _record, clear_expired_cooldowns,
 )
@@ -75,6 +77,47 @@ from pycore.pyctl.ai.ai_gateway_quota import (
 )
 from pycore.pyctl.ai.ai_gateway_vision import _VISION_DISPATCH
 from pycore.pyctl.ai.ai_image_providers import _IMAGE_DISPATCH, _IMAGE_PREFERENCE
+
+
+class ImageProviderThread(threading.Thread):
+    """Run one image provider from a THREAD_BUS work item."""
+
+    def __init__(
+        self,
+        provider: str,
+        queue_name: str,
+        response_signal: str,
+    ) -> None:
+        super().__init__(name=f"ImageProvider-{provider}", daemon=True)
+        self._provider = provider
+        self._queue_name = queue_name
+        self._response_signal = response_signal
+
+    def run(self) -> None:
+        payload = THREAD_BUS.receive_message(self._queue_name)
+        if not isinstance(payload, dict):
+            return
+        result = {
+            "success": False,
+            "provider": self._provider,
+            "model": "",
+            "image_base64": "",
+            "mime": "",
+            "latency_ms": None,
+            "error": None,
+        }
+        try:
+            _IMAGE_DISPATCH[self._provider](
+                payload.get('prompt', ''),
+                payload.get('size'),
+                payload.get('use_model'),
+                result,
+            )
+        except Exception as exc:
+            result["error"] = str(exc)
+        if time.time() <= float(payload.get('deadline') or 0.0):
+            THREAD_BUS.signal(self._response_signal, result)
+        THREAD_BUS.clear_queue(self._queue_name)
 
 
 # --------------------------------------------------------------------------- #
@@ -134,26 +177,37 @@ def _no_image_provider(provider: str = "") -> Dict[str, Any]:
     }
 
 
-def _run_image_helper(name: str, prompt: str, size: Optional[str],
-                      use_model: Optional[str], out: Dict[str, Any],
-                      secs: float = _IMG_BOUND_S) -> None:
-    """Run one image dispatch helper with a HARD time bound (daemon thread) so a
-    hanging provider (SDK with no timeout, blocked host) can't stall the pipeline.
-    On overrun ``out['error']`` is set to a timeout and we move on; the orphaned
-    thread dies with the process."""
-    done = threading.Event()
-
-    def _target() -> None:
-        try:
-            _IMAGE_DISPATCH[name](prompt, size, use_model, out)
-        except Exception as e:  # noqa: BLE001 - surface SDK failures, try next provider
-            out["error"] = str(e)
-        finally:
-            done.set()
-
-    threading.Thread(target=_target, daemon=True, name=f"img-{name}").start()
-    if not done.wait(secs):
-        out["error"] = f"timed out (> {int(secs)}s, provider unreachable)"
+def _run_image_helper(
+    name: str,
+    prompt: str,
+    size: Optional[str],
+    use_model: Optional[str],
+    secs: float = _IMG_BOUND_S,
+) -> Dict[str, Any]:
+    """Run one image provider with a hard THREAD_BUS response timeout."""
+    request_id = f"{threading.get_ident()}.{time.time_ns()}"
+    queue_name = f"pyctl.ai.image_provider.{name}.{request_id}"
+    response_signal = f"{queue_name}.result"
+    THREAD_BUS.send_message(queue_name, {
+        'prompt': prompt,
+        'size': size,
+        'use_model': use_model,
+        'deadline': time.time() + secs,
+    })
+    ImageProviderThread(name, queue_name, response_signal).start()
+    result = THREAD_BUS.wait_signal(response_signal, timeout=secs)
+    THREAD_BUS.clear_signal(response_signal)
+    if isinstance(result, dict):
+        return result
+    return {
+        "success": False,
+        "provider": name,
+        "model": "",
+        "image_base64": "",
+        "mime": "",
+        "latency_ms": None,
+        "error": f"timed out (> {int(secs)}s, provider unreachable)",
+    }
 
 
 def generate_text(
@@ -342,11 +396,9 @@ def generate_image(
                        "mime": "", "latency_ms": None,
                        "error": "per-key rate budget reached (all keys)"}
                 break
-            out = {"success": False, "provider": name, "model": "", "image_base64": "",
-                   "mime": "", "latency_ms": None, "error": None}
             start = time.time()
             # HARD time bound: a hanging/blocked provider can't stall the request.
-            _run_image_helper(name, prompt, size, use_model, out)
+            out = _run_image_helper(name, prompt, size, use_model)
             out["latency_ms"] = round((time.time() - start) * 1000, 1)
             record_image_key(name, idx, bool(out["success"]), out.get("error"))
             if out["success"]:
@@ -423,8 +475,7 @@ def gateway_status() -> Dict[str, Any]:
     for name in PROVIDER_ORDER:
         meta = PROVIDERS[name]
         probed = avail.get(name) or {}
-        with _lock:
-            st = dict(_stats[name])
+        st = get_provider_stats(name)
         cooldown_s = max(0.0, st["cooldown_until"] - now)
         rate = check_rate_limit(name)
         paused = cooldown_s > 0 or not rate.allowed
@@ -453,8 +504,7 @@ def gateway_status() -> Dict[str, Any]:
             "image_keys": image_key_status(name) if meta.get("image") else [],
         })
     providers.sort(key=_sort_key)
-    with _lock:
-        records = list(reversed(_records))
+    records = list(reversed(get_recent_records()))
     return {"success": True, "providers": providers, "records": records}
 
 

@@ -1,3 +1,5 @@
+import { STORAGE_KEYS } from './storage-keys';
+
 /**
  * Global logger (extension-wide).
  *
@@ -28,7 +30,7 @@ export interface LogEntry {
 const MAX_ENTRIES = 100;
 /** Storage key for the persisted ring buffer. Exported so the popup DEBUG
  *  center can subscribe to chrome.storage.onChanged for live cross-context logs. */
-export const LOG_STORAGE_KEY = 'mcp_global_logs';
+export const LOG_STORAGE_KEY = STORAGE_KEYS.GLOBAL_LOGS;
 const MAX_DATA_CHARS = 1000;
 // Short debounce so logs surface in the DEBUG center in near-real-time while
 // still coalescing bursts (per-word crawl logging is high-frequency).

@@ -35,8 +35,12 @@ from typing import Any, List, Optional, Union
 import fastapi
 from pydantic import BaseModel, Field
 
-from pycore.callmodule.services import get_queue_monitor_service
+from pycore.callmodule.services import (
+    get_queue_monitor_service,
+    get_translation_worker_service,
+)
 from pycore.callmodule.callmodule_config import Config
+from pycore.pyheartbeat import get_heartbeat_system
 
 router = fastapi.APIRouter(
     prefix="/api/local/translation/queue",
@@ -88,12 +92,18 @@ async def set_priority(request: QueuePriorityRequest):
 @router.post("/stack")
 async def stack(request: QueueStackRequest):
     """Proxy a new translation request (stack) to Laravel; returns its result."""
-    return _monitor().stack(
+    result = _monitor().stack(
         words=request.words,
         language=request.language,
         target_language=request.target_language,
         priority=request.priority,
     )
+    if (
+        result.get("success") is not False
+        and get_heartbeat_system().is_callback_enabled("translation_worker")
+    ):
+        get_translation_worker_service().poll_once()
+    return result
 
 
 @router.get("/tasks/{task_id}")

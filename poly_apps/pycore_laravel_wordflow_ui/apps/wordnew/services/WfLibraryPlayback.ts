@@ -11,6 +11,7 @@
  * keeps playing from there (matches the book reader "click row -> playFrom").
  */
 import type { WfNewLibraryWord } from '../api';
+import { ensureAudio } from '../cache/WfNewAudioCache';
 
 export interface WfLibraryPlaybackDeps {
   /** Current ordered word list (the rendered page). */
@@ -117,7 +118,8 @@ export class WfLibraryPlayback {
     const hasReady = !!word.audioUrl || !!(word.audioFiles ?? word.audioVariants)?.some((f) => f.hasFile && f.url);
     if (!hasReady) this.deps.bumpMissingAudio(word, lang);
 
-    const url = await this.deps.resolveAudioUrl(word, () => this.playing && this.playToken === token);
+    const remoteUrl = await this.deps.resolveAudioUrl(word, () => this.playing && this.playToken === token);
+    const url = remoteUrl ? (await ensureAudio(remoteUrl)) ?? remoteUrl : null;
     if (!this.playing || this.playToken !== token) return;
 
     if (!url) {

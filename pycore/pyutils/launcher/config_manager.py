@@ -50,9 +50,9 @@ class ConfigManager:
                     'enabled': False  # Disabled by default
                 }
             else:
-                # Default enabled state: only cursor enabled by default
+                # Default enabled state: only antigravity enabled by default
                 defaults[app_name] = {
-                    'enabled': True if app_name == 'cursor' else False
+                    'enabled': True if app_name == 'antigravity' else False
                 }
         
         return defaults

@@ -490,9 +490,10 @@ class AppQyV1UnifiedTTSQueueService
      * Flip a canonical row (word or article) to tts_status='pending' and
      * return the external add-status string (queued|moved_to_front).
      * 'beginning' assigns a move-to-front ticket — MAX(tts_priority)+1 on the
-     * row's table, read FOR UPDATE inside the same transaction as the save,
-     * so the newest front-add always sorts strictly ahead of every existing
-     * row and two concurrent front-adds cannot share a ticket.
+     * row's table under a transaction-scoped advisory lock, so the newest
+     * front-add always sorts strictly ahead of every existing row and two
+     * concurrent front-adds cannot share a ticket (the MAX+1 subquery alone
+     * is not atomic across rows - an aggregate read locks nothing).
      */
     private function markRowPending($row, string $position): string
     {
@@ -509,10 +510,12 @@ class AppQyV1UnifiedTTSQueueService
             $row->tts_locked_by = null;
 
             if ($position === 'beginning') {
-                $row->save();
+                $conn = $row->getConnection();
                 $table = $row->getTable();
+                AppQyV1TableMaps::lockTableForFrontTicket($conn, $table);
+                $row->save();
                 $id = $row->id;
-                $row->getConnection()->statement(
+                $conn->statement(
                     "UPDATE {$table} SET tts_priority = (SELECT m FROM (SELECT COALESCE(MAX(tts_priority), 0) + 1 AS m FROM {$table}) x) WHERE id = ?",
                     [$id]
                 );
@@ -1942,23 +1945,35 @@ class AppQyV1UnifiedTTSQueueService
         foreach (AppQyV1DictionaryTTSCoordinator::supportedLanguages() as $lang) {
             $dictTable = AppQyV1TableMaps::getDictionaryTableName($lang);
             if (Schema::connection($connName)->hasTable($dictTable)) {
-                $requeued += $conn->table($dictTable)
-                    ->where('tts_status', self::STATUS_FAILED)
-                    ->where('has_audio', false)
-                    ->update(array_merge($resetValues, [
-                        'tts_priority' => DB::raw("(SELECT m FROM (SELECT MAX(tts_priority)+1 AS m FROM `{$dictTable}`) x)"),
-                    ]));
+                $requeued += $conn->transaction(function () use ($conn, $dictTable, $resetValues) {
+                    AppQyV1TableMaps::lockTableForFrontTicket($conn, $dictTable);
+                    return $conn->table($dictTable)
+                        ->where('tts_status', self::STATUS_FAILED)
+                        ->where('has_audio', false)
+                        ->update(array_merge($resetValues, [
+                            // Batch move-to-front: every requeued failed row in this
+                            // table shares the table's current MAX+1 front ticket (they
+                            // are re-queued as one batch; the claim tiebreaker orders
+                            // them). The advisory lock prevents a concurrent user bump
+                            // from reading the same MAX and colliding. No backticks -
+                            // PG uses double-quotes for identifiers, not backticks.
+                            'tts_priority' => DB::raw("(SELECT m FROM (SELECT COALESCE(MAX(tts_priority), 0) + 1 AS m FROM {$dictTable}) x)"),
+                        ]));
+                });
             }
 
             $articleTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
             if (Schema::connection($connName)->hasTable($articleTable)
                 && Schema::connection($connName)->hasColumn($articleTable, 'tts_status')) {
-                $requeued += $conn->table($articleTable)
-                    ->where('tts_status', self::STATUS_FAILED)
-                    ->where('has_audio', false)
-                    ->update(array_merge($resetValues, [
-                        'tts_priority' => DB::raw("(SELECT m FROM (SELECT MAX(tts_priority)+1 AS m FROM `{$articleTable}`) x)"),
-                    ]));
+                $requeued += $conn->transaction(function () use ($conn, $articleTable, $resetValues) {
+                    AppQyV1TableMaps::lockTableForFrontTicket($conn, $articleTable);
+                    return $conn->table($articleTable)
+                        ->where('tts_status', self::STATUS_FAILED)
+                        ->where('has_audio', false)
+                        ->update(array_merge($resetValues, [
+                            'tts_priority' => DB::raw("(SELECT m FROM (SELECT COALESCE(MAX(tts_priority), 0) + 1 AS m FROM {$articleTable}) x)"),
+                        ]));
+                });
             }
         }
 

@@ -150,17 +150,15 @@ class DeepSeekClient:
 
 # Global singleton instance
 _global_client: Optional[DeepSeekClient] = None
-_client_lock = threading.Lock()
 
 
 def get_deepseek_client(api_key: Optional[str] = None,
                         base_url: Optional[str] = None) -> DeepSeekClient:
     """Get the global DeepSeek client singleton (loads key from secret manager)."""
     global _global_client
-    with _client_lock:
-        if _global_client is None:
-            _global_client = DeepSeekClient(api_key=api_key, base_url=base_url)
-        return _global_client
+    if _global_client is None:
+        _global_client = DeepSeekClient(api_key=api_key, base_url=base_url)
+    return _global_client
 
 
 __all__ = ['DeepSeekClient', 'get_deepseek_client']

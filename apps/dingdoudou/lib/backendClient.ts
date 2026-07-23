@@ -14,10 +14,36 @@ interface BackendLicenseDTO {
   mode?: 'member' | 'locked';
   tier?: string;
   features?: string[];
+  permissions?: string[];
   max_binds?: number;
   expires_at?: number | string | null;
   label?: string;
+  remark?: string;
+  username?: string;
   token?: string;
+}
+
+const REQUEST_TIMEOUT_MS = 15_000;
+
+function normalizeBaseUrl(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    throw new Error('后台地址格式无效');
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('后台地址仅支持 HTTP 或 HTTPS');
+  }
+  return url.toString().replace(/\/$/, '');
+}
+
+function errorMessage(value: unknown, fallback: string): string {
+  if (value && typeof value === 'object' && 'message' in value) {
+    const message = (value as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
 }
 
 function toLicense(dto: BackendLicenseDTO, token?: string): LicenseState {
@@ -30,30 +56,49 @@ function toLicense(dto: BackendLicenseDTO, token?: string): LicenseState {
     mode: dto.mode === 'locked' ? 'locked' : 'member',
     token: token ?? dto.token,
     tier: dto.tier ?? 'free',
-    features: dto.features ?? [],
+    features: dto.features ?? dto.permissions ?? [],
     maxBinds: dto.max_binds ?? 1,
     expiresAt,
-    label: dto.label,
+    label: dto.label ?? dto.remark ?? dto.username,
     verifiedAt: Date.now(),
     offline: false,
   };
 }
 
 async function call<T>(cfg: BackendConfig, path: string, body?: unknown): Promise<T> {
-  const url = `${cfg.baseUrl.replace(/\/$/, '')}/api/ding_duo_duo_v1/${path}`;
-  const res = await fetch(url, {
-    method: body ? 'POST' : 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      ...(cfg.memberToken ? { 'X-DD-Token': cfg.memberToken } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`backend ${path} HTTP ${res.status}`);
-  const json = await res.json();
-  if (json && json.success === false) throw new Error(json.message || `backend ${path} failed`);
-  return (json?.data ?? json) as T;
+  const url = `${normalizeBaseUrl(cfg.baseUrl)}/api/ding_duo_duo_v1/${path}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(cfg.memberToken ? { 'X-DD-Token': cfg.memberToken } : {}),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const json: unknown = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(errorMessage(json, `后台请求失败（HTTP ${res.status}）`));
+    }
+    if (json && typeof json === 'object' && 'success' in json && json.success === false) {
+      throw new Error(errorMessage(json, `后台请求 ${path} 失败`));
+    }
+    if (json && typeof json === 'object' && 'data' in json) {
+      return (json as { data: T }).data;
+    }
+    return json as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('后台连接超时');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function memberLogin(

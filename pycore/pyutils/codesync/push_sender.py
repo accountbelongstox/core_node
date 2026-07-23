@@ -17,13 +17,13 @@ import base64
 import gzip
 import json
 import os
-import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+import uuid
 from pathlib import Path
 
 from .runtime import (
     log as ColorPrint, is_shutdown_requested, register_shutdown_handler,
+    THREAD_BUS, init_serialized_owner, serialized_method, start_bus_task,
 )
 from .textnorm import normalize_eol
 from .wire_codec import (
@@ -32,8 +32,8 @@ from .wire_codec import (
     ENCODE_WORKERS, ENCODE_LOOKAHEAD, _fmt_bytes,
 )
 
-from pycore.pyutils.codesync.ws_client import WSClient
-from pycore.pyutils.codesync.watcher import get_watch_manager
+from .ws_client import WSClient
+from .watcher import get_watch_manager
 
 
 
@@ -59,25 +59,39 @@ class PushSender:
         self._client_seen = {}    # client_id -> bool
         self._peer_retry = {}     # peer_id -> retry state
         self._index_wait_logged = False  # one-shot "waiting for first scan" log
-        self._lock = threading.Lock()
+        self._running_signal = f"codesync.push_sender.running.{uuid.uuid4().hex}"
+        init_serialized_owner(self, "codesync.push_sender.state", "CodeSyncPushState")
+        THREAD_BUS.signal(self._running_signal, False)
 
     def start(self) -> None:
-        if self._running:
+        if not self._begin_start():
             return
-        self._running = True
-        threading.Thread(target=self._supervisor, daemon=True, name="CodeSync-WsPush").start()
+        start_bus_task(self._supervisor, thread_name="CodeSync-WsPush")
         register_shutdown_handler(self.stop, priority=68, name="code_sync_ws_push")
         ColorPrint.green("[WsPush] Sender supervisor started")
 
     def stop(self) -> None:
-        self._running = False
+        self._set_running(False)
+
+    @serialized_method
+    def _begin_start(self) -> bool:
+        if self._running:
+            return False
+        self._running = True
+        THREAD_BUS.signal(self._running_signal, True)
+        return True
+
+    @serialized_method
+    def _set_running(self, running: bool) -> None:
+        self._running = running
+        THREAD_BUS.signal(self._running_signal, running)
 
     def _supervisor(self) -> None:
         """Ensure a live push thread per client peer while we are distributing.
 
         Respects per-peer backoff: a peer in backoff is not respawned before its
         next_retry_at, so unreachable peers stop spamming the log."""
-        while self._running and not is_shutdown_requested():
+        while THREAD_BUS.get_signal(self._running_signal, False) and not is_shutdown_requested():
             try:
                 if self.m.is_distributing():
                     # Start the file index scanning AS SOON AS we are distributing -
@@ -107,25 +121,31 @@ class PushSender:
                             if peer.get("role") != "client" or peer.get("id") == self_id:
                                 continue
                             pid = peer.get("id")
-                            with self._lock:
-                                th = self._threads.get(pid)
-                                if th is not None and th.is_alive():
-                                    continue
-                                retry = self._peer_retry.get(pid)
-                                if retry and now < retry.get("next_retry_at", 0):
-                                    continue
-                                t = threading.Thread(target=self._push_to, args=(peer,),
-                                                     daemon=True, name=f"WsPush-{pid}")
-                                self._threads[pid] = t
-                                t.start()
+                            self._ensure_peer_worker(peer, now)
             except Exception as exc:
                 ColorPrint.yellow(f"[WsPush] supervisor error: {exc}")
             for _ in range(6):  # re-check every ~3s
-                if not self._running or is_shutdown_requested():
+                if not THREAD_BUS.get_signal(self._running_signal, False) or is_shutdown_requested():
                     return
                 time.sleep(0.5)
 
+    @serialized_method
+    def _ensure_peer_worker(self, peer: dict, now: float) -> None:
+        peer_id = peer.get("id")
+        worker = self._threads.get(peer_id)
+        if worker is not None and worker.is_alive():
+            return
+        retry = self._peer_retry.get(peer_id)
+        if retry and now < retry.get("next_retry_at", 0):
+            return
+        self._threads[peer_id] = start_bus_task(
+            self._push_to,
+            peer,
+            thread_name=f"WsPush-{peer_id}",
+        )
+
     # ----- retry/backoff bookkeeping -------------------------------------- #
+    @serialized_method
     def _note_failure(self, peer: dict, exc, mid_sync: bool = False) -> None:
         """Schedule the next retry with exponential backoff; log only the FIRST
         failure of a streak to avoid spam, and surface a 'retrying' phase. Applies
@@ -134,15 +154,14 @@ class PushSender:
         pid = peer.get("id")
         host = peer.get("host")
         port = int(peer.get("port", 59000))
-        with self._lock:
-            retry = self._peer_retry.setdefault(
-                pid, {"attempt": 0, "next_retry_at": 0.0, "logged": False})
-            attempt = retry["attempt"]
-            # Cap the exponent: an offline peer otherwise grows `attempt` without
-            # bound and recomputes an ever-larger 2**attempt every ~30s forever.
-            delay = min(MAX_BACKOFF, 2 ** min(attempt, 16))
-            retry["next_retry_at"] = time.time() + delay
-            retry["attempt"] = min(attempt + 1, 16)
+        retry = self._peer_retry.setdefault(
+            pid, {"attempt": 0, "next_retry_at": 0.0, "logged": False})
+        attempt = retry["attempt"]
+        # Cap the exponent: an offline peer otherwise grows `attempt` without
+        # bound and recomputes an ever-larger 2**attempt every ~30s forever.
+        delay = min(MAX_BACKOFF, 2 ** min(attempt, 16))
+        retry["next_retry_at"] = time.time() + delay
+        retry["attempt"] = min(attempt + 1, 16)
             first = not retry["logged"]
             retry["logged"] = True
         if first:
@@ -162,12 +181,12 @@ class PushSender:
         except Exception:
             pass
 
+    @serialized_method
     def _note_success(self, peer: dict) -> None:
         """Reset the backoff streak on a successful connect."""
         pid = peer.get("id")
-        with self._lock:
-            self._peer_retry[pid] = {"attempt": 0, "next_retry_at": 0.0,
-                                     "logged": False}
+        self._peer_retry[pid] = {"attempt": 0, "next_retry_at": 0.0,
+                                 "logged": False}
 
     # ----- one peer connection -------------------------------------------- #
     def _push_to(self, peer: dict) -> None:
@@ -204,15 +223,13 @@ class PushSender:
             # window without ever removing client files. Incremental deltas follow.
             gz_note = " (gzip)" if gzip_ok else ""
             ColorPrint.green(f"[WsPush] Connected to {client_name}; running full sync{gz_note}")
-            with self._lock:
-                self._client_sent.pop(client_id, None)   # clear the per-peer table
+            self._clear_client_state(client_id)
             last = self._full_sync(ws, wm, client_id, client_name, pid, gzip_ok)
-            with self._lock:
-                self._client_sent[client_id] = dict(last)
+            self._store_client_state(client_id, last)
             ColorPrint.green(f"[WsPush] {client_name} in sync ({len(last)} files); "
                              f"pushing deltas every {PUSH_TICK}s")
 
-            while self._running and self.m.is_distributing() and not is_shutdown_requested():
+            while THREAD_BUS.get_signal(self._running_signal, False) and self.m.is_distributing() and not is_shutdown_requested():
                 last = self._push_deltas(ws, wm, last, client_id, "delta",
                                          client_name, pid=pid, gzip_ok=gzip_ok)
                 time.sleep(PUSH_TICK)
@@ -225,8 +242,19 @@ class PushSender:
             self._note_failure(peer, exc, mid_sync=connected)
         finally:
             ws.close()
-            with self._lock:
-                self._threads.pop(peer.get("id"), None)
+            self._remove_peer_worker(peer.get("id"))
+
+    @serialized_method
+    def _clear_client_state(self, client_id: str) -> None:
+        self._client_sent.pop(client_id, None)
+
+    @serialized_method
+    def _store_client_state(self, client_id: str, snapshot: dict) -> None:
+        self._client_sent[client_id] = dict(snapshot)
+
+    @serialized_method
+    def _remove_peer_worker(self, peer_id: str) -> None:
+        self._threads.pop(peer_id, None)
 
     # ----- wire transform: read + normalize + compress + encode AHEAD ------- #
     @staticmethod
@@ -278,22 +306,37 @@ class PushSender:
         batch_ack, so disk + CPU overlap the network round-trip instead of running
         strictly between round-trips. zlib and the read both drop the GIL, so the
         workers parallelize for real. Memory is bounded by the look-ahead window."""
-        with ThreadPoolExecutor(max_workers=ENCODE_WORKERS,
-                                thread_name_prefix="CsEnc") as ex:
-            it = iter(items)
-            window = []
-            for _ in range(ENCODE_LOOKAHEAD):
-                try:
-                    window.append(ex.submit(self._prepare_entry, next(it), gzip_ok))
-                except StopIteration:
-                    break
-            while window:
-                fut = window.pop(0)
-                try:
-                    window.append(ex.submit(self._prepare_entry, next(it), gzip_ok))
-                except StopIteration:
-                    pass
-                yield fut.result()
+        item_iterator = iter(items)
+        window = []
+
+        def submit(item) -> None:
+            response_signal = f"codesync.push_sender.encode.{uuid.uuid4().hex}"
+            start_bus_task(
+                self._prepare_entry,
+                item,
+                gzip_ok,
+                thread_name="CodeSync-Encode",
+                response_signal=response_signal,
+            )
+            window.append(response_signal)
+
+        for _ in range(min(ENCODE_WORKERS, ENCODE_LOOKAHEAD)):
+            try:
+                submit(next(item_iterator))
+            except StopIteration:
+                break
+        while window:
+            response_signal = window.pop(0)
+            try:
+                submit(next(item_iterator))
+            except StopIteration:
+                pass
+            response = THREAD_BUS.wait_signal(response_signal)
+            THREAD_BUS.clear_signal(response_signal)
+            if not isinstance(response, dict) or not response.get("success"):
+                error = response.get("error", "encoding failed") if isinstance(response, dict) else "encoding failed"
+                raise RuntimeError(error)
+            yield response.get("result")
 
     # ----- shared batch streaming (full sync AND delta go through this) ------ #
     def _send_batch(self, ws, entries: list, reason: str, dev_id: str,
@@ -395,7 +438,7 @@ class PushSender:
         # client's 120s read timeout) and, if STILL empty, ABORT - the supervisor
         # retries once the index is populated.
         waited = 0.0
-        while not snap and waited < 30.0 and self._running and not is_shutdown_requested():
+        while not snap and waited < 30.0 and THREAD_BUS.get_signal(self._running_signal, False) and not is_shutdown_requested():
             time.sleep(0.5)
             waited += 0.5
             snap = wm.snapshot()
@@ -466,8 +509,7 @@ class PushSender:
                 pruned = True
         if not changed:
             if pruned:
-                with self._lock:
-                    self._client_sent[client_id] = dict(last)
+                self._store_client_state(client_id, last)
             return last
 
         queued = len(changed)
@@ -491,8 +533,7 @@ class PushSender:
                 rel = r.get("rel")
                 if r.get("status") in ("written", "skipped") and rel in cur:
                     last[rel] = cur[rel]
-            with self._lock:
-                self._client_sent[client_id] = dict(last)
+            self._store_client_state(client_id, last)
 
         # "new file" vs "content changed" is decided against `last` AT LOG TIME (before
         # this batch's ack advances it) - each dest is unique, so this stays correct

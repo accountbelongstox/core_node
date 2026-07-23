@@ -22,8 +22,9 @@ import socket
 import json
 import os
 import time
-import threading
-from typing import Optional, Dict, List, Callable
+from typing import Any, Optional, Dict, List, Callable
+from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pathlib import Path
 
 from pycore.pyutils.launcher.device_sync._deprecated._old_servers.discovery import DeviceDiscovery
@@ -65,7 +66,9 @@ class FileSyncClient:
         # Sync state
         self.enabled = False
         self.running = False
-        self.sync_thread: Optional[threading.Thread] = None
+        self.sync_thread: Optional[Any] = None
+        self._running_signal = f"device_sync.legacy_client.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
         # Local file cache
         self.local_files: Dict[str, Dict] = {}
@@ -142,14 +145,18 @@ class FileSyncClient:
             return
 
         self.running = True
-        self.sync_thread = threading.Thread(target=self._sync_loop, daemon=True)
-        self.sync_thread.start()
+        THREAD_BUS.signal(self._running_signal, True)
+        self.sync_thread = start_bus_task(
+            self._sync_loop,
+            thread_name="LegacySyncClientThread",
+        )
 
         print("[SyncClient] Auto sync started")
 
     def stop_auto_sync(self):
         """Stop auto sync thread."""
         self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         if self.sync_thread and self.sync_thread.is_alive():
             self.sync_thread.join(timeout=SYNC_INTERVAL + 1)
@@ -212,13 +219,13 @@ class FileSyncClient:
 
     def _sync_loop(self):
         """Auto sync loop (runs in background thread)."""
-        while self.running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             if self.enabled:
                 self.sync_now()
 
             # Sleep interval
             for _ in range(SYNC_INTERVAL * 10):
-                if not self.running:
+                if not THREAD_BUS.get_signal(self._running_signal, False):
                     break
                 time.sleep(0.1)
 
@@ -414,7 +421,7 @@ class FileSyncClient:
         """
         return {
             'enabled': self.enabled,
-            'running': self.running,
+            'running': bool(THREAD_BUS.get_signal(self._running_signal, False)),
             'primary_host': self.primary_host,
             'last_sync': self.last_sync_time,
             'total_synced': self.total_synced,

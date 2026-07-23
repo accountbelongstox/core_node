@@ -120,7 +120,7 @@ def _apply_translation_gate(config: Dict[str, Any]) -> None:
 
 
 @router.get("/status")
-def assist_status():
+def assist_status(include_laravel: bool = True):
     """
     Full assist snapshot: persisted settings, selected endpoint, worker run
     state + counters, and a best-effort passthrough of the selected Laravel
@@ -133,7 +133,7 @@ def assist_status():
         endpoint = resolve_selected_endpoint_for_ui(monitor_reachable=laravel_reachable)
         laravel_status = (
             _fetch_laravel_status(endpoint["base_url"])
-            if laravel_reachable and endpoint and endpoint.get("base_url") else None
+            if include_laravel and laravel_reachable and endpoint and endpoint.get("base_url") else None
         )
         worker_state = worker.get_status()
         return {
@@ -200,11 +200,6 @@ def assist_config(req: ConfigRequest):
     if req.capabilities is not None:
         caps = {k: v for k, v in req.capabilities.dict().items() if v is not None}
         if caps:
-            # Voice (TTS): words + sentences share one toggle.
-            if "tts" in caps:
-                caps["sentence_audio"] = caps["tts"]
-            elif "sentence_audio" in caps:
-                caps["tts"] = caps["sentence_audio"]
             patch["capabilities"] = caps
 
     config = save_assist_settings(patch)

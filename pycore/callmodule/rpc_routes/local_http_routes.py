@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Tuple
 from urllib.parse import urlparse
 
 from pycore import ColorPrint
+from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.third_party import get_third_package_requests
 
 # Pycore's own HTTP route families. The WS bridge dispatches ONLY into the running
@@ -250,7 +251,7 @@ async def _bridge(app: Any, method: str, path: str, payload: Any, timeout_s: Any
     if not _path_allowed(safe):
         return {"success": False, "error": f"path not allowed for local_http.{method.lower()}"}
     if app is None:
-        return await asyncio.to_thread(_loopback_request, method, path, payload, timeout_s)
+        return await await_bus_task(_loopback_request, method, path, payload, timeout_s)
     return await _dispatch_native(app, method, safe, payload, timeout_s)
 
 
@@ -259,7 +260,7 @@ async def _bridge_blob(app: Any, path: str, timeout_s: Any) -> Dict[str, Any]:
     if not _path_allowed(safe):
         return {"success": False, "error": "path not allowed for local_http.blob"}
     if app is None:
-        return await asyncio.to_thread(_loopback_blob, path, timeout_s)
+        return await await_bus_task(_loopback_blob, path, timeout_s)
     return await _dispatch_blob_native(app, safe, timeout_s)
 
 

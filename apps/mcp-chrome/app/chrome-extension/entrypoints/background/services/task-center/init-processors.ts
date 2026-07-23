@@ -6,8 +6,6 @@
 
 import { taskCenter } from './TaskCenter';
 import { bingDictionaryProcessor } from './processors/BingDictionaryProcessor';
-import { deepSeekProcessor } from './processors/DeepSeekProcessor';
-import { googleNewsProcessor } from './processors/GoogleNewsProcessor';
 import { webAiTranslateProcessor } from './processors/WebAiTranslateProcessor';
 import { chatGptProcessor } from './processors/ChatGPTProcessor';
 import { geminiProcessor } from './processors/GeminiProcessor';
@@ -26,13 +24,6 @@ export function initializeProcessors(): void {
 
   // Register Bing Dictionary Processor (enabled by default)
   taskCenter.registerProcessor(bingDictionaryProcessor, true);
-
-  // Register DeepSeek Processor (disabled by default, placeholder)
-  taskCenter.registerProcessor(deepSeekProcessor, false);
-
-  // Register Google News Processor (B4: DISABLED — demo/testing only, must not be
-  // in the default-on profile or it claims lane work it cannot fulfil).
-  taskCenter.registerProcessor(googleNewsProcessor, false);
 
   // Register Web-AI Translate Processor (B4: ENABLED). Advertises capability
   // ai_translate (remote_fast lane); it is the sole ai_translate owner (B18).

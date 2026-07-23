@@ -17,11 +17,11 @@ uploaded bytes into a local staging dir so they gain a real path. The actual
 Laravel ingest is still the WS RPC ``book.sync_source``.
 """
 
-import asyncio
 import base64
 from typing import List, Optional
 
 import fastapi
+from pycore.pyfoundations.serialized_worker import await_bus_task
 
 from ...controllers.local_processing.books_controller import BooksController
 from ...models.local_processing.books_models import (
@@ -54,7 +54,7 @@ async def supported_formats():
 async def scan(request: BooksScanRequest):
     """Recursively list book files under a folder (or echo a single file)."""
     # Off the event loop: a deep folder scan must not block the WS / other requests.
-    return await asyncio.to_thread(controller.scan, request.path, request.formats)
+    return await await_bus_task(controller.scan, request.path, request.formats)
 
 
 @router.post("/analyze", response_model=BooksAnalyzeResponse)
@@ -65,7 +65,7 @@ async def analyze(request: BooksAnalyzeRequest):
     UI can reload it after a switch/reopen.
     """
     # Off the event loop: text extraction + multi-language stats are CPU/IO heavy.
-    return await asyncio.to_thread(
+    return await await_bus_task(
         controller.analyze, request.path, request.formats, request.language,
         request.preview_chars, request.max_files, request.persist, request.languages)
 
@@ -99,7 +99,7 @@ async def submit(request: BooksSubmitRequest):
     # CRITICAL: runs the (blocking) extract + build + chunked HTTP ingest on a
     # worker thread so the event loop stays free — otherwise the WS progress
     # events never reach the UI and the page freezes at the first 'scan' stage.
-    return await asyncio.to_thread(
+    return await await_bus_task(
         controller.submit, request.paths, request.language, request.languages,
         request.source_type)
 
@@ -111,7 +111,7 @@ async def list_items(request: BooksListRequest):
     The full lists are built once and cached per source, so paging is cheap even
     for a huge book. Runs off the event loop (first build can be heavy).
     """
-    return await asyncio.to_thread(
+    return await await_bus_task(
         controller.list_items, request.path, request.kind, request.start,
         request.limit, request.formats, request.language, request.refresh,
         request.max_files, request.chapter_index, request.languages, request.grain,
@@ -140,7 +140,7 @@ async def analyze_upload(
         content = await f.read()
         uploads.append((f.filename or "book", content))
     # Off the event loop: staging + extraction + stats are heavy for large files.
-    return await asyncio.to_thread(
+    return await await_bus_task(
         controller.analyze_upload, uploads, language,
         max(0, min(20000, int(preview_chars))), persist, languages, source_type)
 
@@ -157,7 +157,7 @@ async def analyze_upload_b64(request: BooksAnalyzeUploadB64Request):
         except (ValueError, TypeError):
             content = b""
         uploads.append((f.name or "book", content))
-    return await asyncio.to_thread(
+    return await await_bus_task(
         controller.analyze_upload, uploads, request.language,
         max(0, min(20000, int(request.preview_chars))), request.persist,
         request.languages, request.source_type)

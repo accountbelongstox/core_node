@@ -27,12 +27,13 @@ export const WfNewSocialVideo: React.FC<WfNewSocialVideoProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(() => {
+    if (!isLoggedIn) { setPosts([]); setLoading(false); return; }
     setLoading(true);
     wfNewApi.getPosts({ filter: 'videos', limit: 40 })
       .then(page => setPosts(page.items))
       .catch(() => setPosts([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [isLoggedIn]);
 
   useEffect(() => { load(); }, [load]);
 

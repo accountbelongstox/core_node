@@ -345,6 +345,29 @@ export const wfNewApiMock: WfNewApi = {
     return delay(opts.limit ? rows.slice(0, opts.limit) : rows);
   },
 
+  async updateSocialLocation(_location: { latitude: number; longitude: number; accuracy?: number; visible?: boolean }): Promise<void> {
+    await delay(null, 40);
+  },
+
+  async disableSocialLocation(): Promise<void> {
+    await delay(null, 40);
+  },
+
+  async getNearbyUsers(_radiusKm = 50, limit = 50): Promise<import('./types/social').WfNewNearbyUser[]> {
+    const rows = MOCK_DISCOVER_DIRECTORY
+      .filter((user) => user.id !== MOCK_SELF_ID)
+      .slice(0, limit)
+      .map((user, index) => ({
+        id: user.id,
+        nickname: user.name || user.username,
+        avatar: user.avatar_url,
+        native_language: user.native_language,
+        learning_languages: user.learning_languages,
+        distance_km: Number((1.5 + index * 3.7).toFixed(1)),
+      }));
+    return delay(rows);
+  },
+
   async sendFriendRequest(userId: number): Promise<void> {
     const reqs = readRequests();
     if (!reqs.some((r) => r.addressee_id === userId && r.requester_id === MOCK_SELF_ID)) {
@@ -503,6 +526,8 @@ export const wfNewApiMock: WfNewApi = {
     ]);
     return { words, books, subtitles, libraries, documents };
   },
+
+  getRecentAgentArticles: (): Promise<import('./WfNewApiTypes').WfNewAgentArticle[]> => delay([]),
 
   // ---- Book reading (book -> chapter -> verses) ----
   // Offline placeholders: 3 chapters x 4 verses; zh text is an ASCII placeholder

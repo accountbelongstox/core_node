@@ -36,8 +36,10 @@ const SESSION_COOKIE_NAMES = [
 ];
 
 export interface PddRawOrder {
-  [k: string]: any;
+  [key: string]: unknown;
 }
+
+let credentialQueue: Promise<void> = Promise.resolve();
 
 function expire(): number {
   return Math.floor(Date.now() / 1000) + 3600 * 24 * 30;
@@ -103,13 +105,24 @@ function authHeaders(cred: PddCredential): Record<string, string> {
 }
 
 async function pddFetch(cred: PddCredential, path: string, init?: RequestInit): Promise<Response> {
-  await activateCredential(cred);
   const url = path.startsWith('http') ? path : `${PDD_ORIGIN}${path}`;
-  return fetch(url, {
-    credentials: 'include',
-    ...init,
-    headers: { ...authHeaders(cred), ...(init?.headers as Record<string, string> | undefined) },
+  const previous = credentialQueue;
+  let release = () => {};
+  credentialQueue = new Promise<void>((resolve) => {
+    release = resolve;
   });
+
+  await previous;
+  try {
+    await activateCredential(cred);
+    return await fetch(url, {
+      credentials: 'include',
+      ...init,
+      headers: { ...authHeaders(cred), ...(init?.headers as Record<string, string> | undefined) },
+    });
+  } finally {
+    release();
+  }
 }
 
 // Fetch one page of orders. Returns the raw order array (defensively unwrapped).
@@ -130,18 +143,26 @@ export async function fetchOrderListPage(
   return unwrapOrders(json);
 }
 
-function unwrapOrders(json: any): PddRawOrder[] {
-  if (!json) return [];
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function unwrapOrders(json: unknown): PddRawOrder[] {
   if (Array.isArray(json)) return json;
-  if (Array.isArray(json.orders)) return json.orders;
-  if (Array.isArray(json.order_list)) return json.order_list;
-  if (json.data) {
-    if (Array.isArray(json.data)) return json.data;
-    if (Array.isArray(json.data.orders)) return json.data.orders;
-    if (Array.isArray(json.data.order_list)) return json.data.order_list;
-    if (Array.isArray(json.data.list)) return json.data.list;
+  const root = asRecord(json);
+  if (!root) return [];
+  if (Array.isArray(root.orders)) return root.orders;
+  if (Array.isArray(root.order_list)) return root.order_list;
+  if (Array.isArray(root.data)) return root.data;
+  const data = asRecord(root.data);
+  if (data) {
+    if (Array.isArray(data.orders)) return data.orders;
+    if (Array.isArray(data.order_list)) return data.order_list;
+    if (Array.isArray(data.list)) return data.list;
   }
-  if (Array.isArray(json.result)) return json.result;
+  if (Array.isArray(root.result)) return root.result;
   return [];
 }
 
@@ -152,16 +173,13 @@ export async function fetchAllOrders(
   size = 10,
 ): Promise<PddRawOrder[]> {
   const out: PddRawOrder[] = [];
-  for (let p = 1; p <= maxPages; p++) {
-    let page: PddRawOrder[] = [];
-    try {
-      page = await fetchOrderListPage(cred, p, size);
-    } catch {
-      break;
-    }
+  const pageLimit = Math.min(Math.max(Math.trunc(maxPages), 1), 100);
+  const pageSize = Math.min(Math.max(Math.trunc(size), 1), 100);
+  for (let p = 1; p <= pageLimit; p++) {
+    const page = await fetchOrderListPage(cred, p, pageSize);
     if (!page.length) break;
     out.push(...page);
-    if (page.length < size) break;
+    if (page.length < pageSize) break;
   }
   return out;
 }
@@ -203,8 +221,8 @@ export async function createAfterSale(cred: PddCredential, orderSn: string): Pro
     body: JSON.stringify({ order_sn: orderSn, after_sales_type: 1, refund_reason: 1 }),
   });
   if (!res.ok) return false;
-  const json = await res.json().catch(() => ({}));
-  return json?.success === true || json?.result === true || res.ok;
+  const json = asRecord(await res.json().catch(() => ({})));
+  return json?.success === true || json?.result === true;
 }
 
 // Update the buyer memo on an order.

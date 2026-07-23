@@ -16,6 +16,7 @@ from .ai_image_router import router as ai_image_router
 from .ai_keys_router import router as ai_keys_router
 from .ocr_status_router import router as ocr_status_router
 from .tts_status_router import router as tts_status_router
+from .llm_status_router import router as llm_status_router
 from .stt_status_router import router as stt_status_router
 from .engines_load_status_router import router as engines_load_status_router
 from .speech_history_router import router as speech_history_router

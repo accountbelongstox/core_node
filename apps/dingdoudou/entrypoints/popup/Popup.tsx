@@ -20,6 +20,7 @@ import {
   UserRound,
   ShieldCheck,
   Crown,
+  Languages,
 } from 'lucide-react';
 import {
   getLicense,
@@ -32,8 +33,11 @@ import {
   removeAccount,
   setActiveAccount,
   syncOrders,
+  getSettings,
+  patchSettings,
 } from '@/lib/dashboardBridge';
 import { isLicenseActive } from '@/lib/superCode';
+import { nextLanguage, popupText, type UiLanguage } from '@/lib/uiI18n';
 import type { LicenseState, PinduoduoAccount } from '@/lib/types';
 
 const DEFAULT_BASE_URL = 'http://127.0.0.1:9000';
@@ -44,10 +48,11 @@ function errMsg(e: unknown): string {
 
 type ChipKind = 'super' | 'member' | 'locked';
 
-function licenseChip(license: LicenseState | null): { kind: ChipKind; label: string } {
-  if (!isLicenseActive(license)) return { kind: 'locked', label: '未授权' };
-  if (license?.mode === 'super') return { kind: 'super', label: '超级码' };
-  return { kind: 'member', label: '会员' };
+function licenseChip(license: LicenseState | null, lang: UiLanguage): { kind: ChipKind; label: string } {
+  const text = popupText(lang);
+  if (!isLicenseActive(license)) return { kind: 'locked', label: text.locked };
+  if (license?.mode === 'super') return { kind: 'super', label: text.super };
+  return { kind: 'member', label: text.member };
 }
 
 const CHIP_CLASS: Record<ChipKind, string> = {
@@ -57,6 +62,7 @@ const CHIP_CLASS: Record<ChipKind, string> = {
 };
 
 export function Popup() {
+  const [lang, setLang] = useState<UiLanguage>('zh');
   // License / backend state
   const [license, setLicense] = useState<LicenseState | null>(null);
   const [bootLoading, setBootLoading] = useState(true);
@@ -102,8 +108,13 @@ export function Popup() {
     let alive = true;
     (async () => {
       try {
-        const [lic] = await Promise.all([getLicense().catch(() => null), refreshAccounts()]);
+        const [lic, settings] = await Promise.all([
+          getLicense().catch(() => null),
+          getSettings().catch(() => null),
+          refreshAccounts(),
+        ]);
         if (alive) setLicense(lic);
+        if (alive && settings) setLang(settings.lang);
       } finally {
         if (alive) setBootLoading(false);
       }
@@ -115,13 +126,14 @@ export function Popup() {
   }, [refreshAccounts]);
 
   const active = isLicenseActive(license);
-  const chip = licenseChip(license);
+  const text = popupText(lang);
+  const chip = licenseChip(license, lang);
 
   // --- License actions ---
   async function handleActivate() {
     const code = superCode.trim();
     if (!code) {
-      setLicenseError('请输入超级码');
+      setLicenseError(text.enterSuperCode);
       return;
     }
     setActivating(true);
@@ -130,9 +142,9 @@ export function Popup() {
       const lic = await submitSuperCode(code);
       setLicense(lic);
       setSuperCode('');
-      showToast('授权成功');
+      showToast(text.activated);
     } catch (e) {
-      setLicenseError(errMsg(e) || '超级码无效');
+      setLicenseError(errMsg(e) || text.invalidSuperCode);
     } finally {
       setActivating(false);
     }
@@ -140,7 +152,7 @@ export function Popup() {
 
   async function handleLogin() {
     if (!baseUrl.trim() || !username.trim() || !password) {
-      setLicenseError('请填写后台地址、用户名与密码');
+      setLicenseError(text.enterBackendCredentials);
       return;
     }
     setLoggingIn(true);
@@ -149,9 +161,9 @@ export function Popup() {
       const lic = await loginMember(baseUrl.trim(), username.trim(), password);
       setLicense(lic);
       setPassword('');
-      showToast('会员登录成功');
+      showToast(text.loginSucceeded);
     } catch (e) {
-      setLicenseError(errMsg(e) || '登录失败');
+      setLicenseError(errMsg(e) || text.loginFailed);
     } finally {
       setLoggingIn(false);
     }
@@ -163,7 +175,7 @@ export function Popup() {
     try {
       await clearLicense();
       setLicense(null);
-      showToast('已退出授权');
+      showToast(text.loggedOut);
     } catch (e) {
       setLicenseError(errMsg(e));
     } finally {
@@ -180,16 +192,16 @@ export function Popup() {
       const payload = await bindAccount(cap.pddUserId, cap.accessToken, cap.nickname, cap.avatar);
       setAccounts(payload.accounts);
       setActivePddUserId(payload.activePddUserId);
-      showToast(`已绑定 ${cap.nickname || cap.pddUserId}`);
+      showToast(text.bound(cap.nickname || cap.pddUserId));
     } catch (e) {
-      setAccountError(errMsg(e) || '请先在已登录的拼多多页面打开此插件');
+      setAccountError(errMsg(e) || text.captureFromPdd);
     } finally {
       setCapturing(false);
     }
   }
 
   async function handleSetActive(pddUserId: string) {
-    if (pddUserId === activePddUserId || busyAccountId) return;
+    if (!active || pddUserId === activePddUserId || busyAccountId) return;
     setBusyAccountId(pddUserId);
     setAccountError(null);
     try {
@@ -205,14 +217,14 @@ export function Popup() {
 
   async function handleRemove(e: MouseEvent, pddUserId: string) {
     e.stopPropagation();
-    if (busyAccountId) return;
+    if (!active || busyAccountId) return;
     setBusyAccountId(pddUserId);
     setAccountError(null);
     try {
       const payload = await removeAccount(pddUserId);
       setAccounts(payload.accounts);
       setActivePddUserId(payload.activePddUserId);
-      showToast('已移除账号');
+      showToast(text.removed);
     } catch (err) {
       setAccountError(errMsg(err));
     } finally {
@@ -222,16 +234,16 @@ export function Popup() {
 
   async function handleSync() {
     if (!activePddUserId) {
-      setAccountError('请先捕获并选择一个拼多多账号');
+      setAccountError(text.selectAccountFirst);
       return;
     }
     setSyncing(true);
     setAccountError(null);
     try {
       const result = await syncOrders();
-      showToast(`已同步 ${result.fetched} 条订单`);
+      showToast(text.synced(result.fetched));
     } catch (e) {
-      setAccountError(errMsg(e) || '同步失败');
+      setAccountError(errMsg(e) || text.syncFailed);
     } finally {
       setSyncing(false);
     }
@@ -253,11 +265,15 @@ export function Popup() {
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-600 text-white shadow-sm">
             <Package className="h-4 w-4" />
           </span>
-          <span className="text-base font-semibold tracking-tight text-slate-50">订多多</span>
+          <span className="text-base font-semibold tracking-tight text-slate-50">{text.appName}</span>
         </div>
-        <span
-          className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${CHIP_CLASS[chip.kind]}`}
-        >
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => {
+            const next = nextLanguage(lang);
+            setLang(next);
+            void patchSettings({ lang: next });
+          }} className="rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100" title="Language"><Languages className="h-3.5 w-3.5" /></button>
+          <span className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${CHIP_CLASS[chip.kind]}`}>
           {chip.kind === 'super' ? (
             <Crown className="h-3 w-3" />
           ) : chip.kind === 'member' ? (
@@ -266,13 +282,14 @@ export function Popup() {
             <KeyRound className="h-3 w-3" />
           )}
           {chip.label}
-        </span>
+          </span>
+        </div>
       </header>
 
       {bootLoading ? (
         <div className="flex items-center justify-center gap-2 py-8 text-slate-400">
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span>加载中…</span>
+          <span>{text.loading}</span>
         </div>
       ) : (
         <>
@@ -282,11 +299,11 @@ export function Popup() {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate font-medium text-slate-100">
-                    {license?.label || (license?.mode === 'super' ? '超级码授权' : '会员授权')}
+                    {license?.label || (license?.mode === 'super' ? text.superLicense : text.memberLicense)}
                   </p>
                   <p className="mt-0.5 truncate text-xs text-slate-400">
-                    版本：{license?.tier || 'free'}
-                    {license?.offline ? ' · 离线' : ''}
+                    {text.tier}: {license?.tier || 'free'}
+                    {license?.offline ? ` · ${text.offline}` : ''}
                   </p>
                 </div>
                 <button
@@ -300,14 +317,14 @@ export function Popup() {
                   ) : (
                     <LogOut className="h-3 w-3" />
                   )}
-                  退出授权
+                  {text.logout}
                 </button>
               </div>
             </section>
           ) : (
             <section className="rounded-xl border border-slate-700/70 bg-slate-800/50 p-3">
               {/* Super-code */}
-              <label className="mb-1 block text-xs font-medium text-slate-300">超级码</label>
+              <label className="mb-1 block text-xs font-medium text-slate-300">{text.super}</label>
               <div className="flex gap-2">
                 <input
                   value={superCode}
@@ -324,11 +341,11 @@ export function Popup() {
                   className="flex shrink-0 items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 font-medium text-white transition hover:bg-red-500 disabled:opacity-50"
                 >
                   {activating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                  激活
+                  {text.activate}
                 </button>
               </div>
               <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-                无后台时输入超级码即可离线使用全部功能。
+                {text.offlineHint}
               </p>
 
               {/* Collapsible backend login */}
@@ -339,7 +356,7 @@ export function Popup() {
               >
                 <span className="flex items-center gap-1.5">
                   <ServerCog className="h-3.5 w-3.5" />
-                  连接后台登录
+                  {text.backendLogin}
                 </span>
                 {showBackend ? (
                   <ChevronUp className="h-3.5 w-3.5" />
@@ -352,14 +369,14 @@ export function Popup() {
                   <input
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
-                    placeholder="后台地址"
+                    placeholder={text.backendUrl}
                     spellCheck={false}
                     className="w-full rounded-lg border border-slate-600/60 bg-slate-900/70 px-2 py-1.5 text-slate-100 placeholder:text-slate-500 outline-none focus:border-red-500/70"
                   />
                   <input
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="用户名"
+                    placeholder={text.username}
                     autoComplete="username"
                     className="w-full rounded-lg border border-slate-600/60 bg-slate-900/70 px-2 py-1.5 text-slate-100 placeholder:text-slate-500 outline-none focus:border-red-500/70"
                   />
@@ -368,7 +385,7 @@ export function Popup() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                    placeholder="密码"
+                    placeholder={text.password}
                     autoComplete="current-password"
                     className="w-full rounded-lg border border-slate-600/60 bg-slate-900/70 px-2 py-1.5 text-slate-100 placeholder:text-slate-500 outline-none focus:border-red-500/70"
                   />
@@ -379,7 +396,7 @@ export function Popup() {
                     className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-600/60 bg-slate-700/50 px-3 py-1.5 font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
                   >
                     {loggingIn ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                    登录
+                    {text.login}
                   </button>
                 </div>
               )}
@@ -396,13 +413,13 @@ export function Popup() {
           {/* Accounts section */}
           <section className="rounded-xl border border-slate-700/70 bg-slate-800/50 p-3">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-300">拼多多账号</span>
-              <span className="text-[11px] text-slate-500">{accounts.length} 个</span>
+              <span className="text-xs font-medium text-slate-300">{text.accounts}</span>
+              <span className="text-[11px] text-slate-500">{accounts.length} {text.accountUnit}</span>
             </div>
 
             {accounts.length === 0 ? (
               <p className="rounded-lg border border-dashed border-slate-700/70 px-2 py-3 text-center text-[11px] text-slate-500">
-                暂无绑定账号
+                {text.noAccounts}
               </p>
             ) : (
               <ul className="flex flex-col gap-1.5">
@@ -440,7 +457,7 @@ export function Popup() {
                               acc.status === 'EXPIRED' ? 'text-amber-400' : 'text-slate-500'
                             }`}
                           >
-                            {acc.status === 'EXPIRED' ? '登录已过期' : '正常'}
+                            {acc.status === 'EXPIRED' ? text.expired : text.normal}
                           </p>
                         </div>
                         {busy ? (
@@ -450,9 +467,9 @@ export function Popup() {
                         ) : null}
                         <button
                           type="button"
-                          title="移除账号"
+                          title={text.remove}
                           onClick={(e) => handleRemove(e, acc.pddUserId)}
-                          disabled={busy}
+                          disabled={busy || !active}
                           className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-slate-500 transition hover:bg-slate-700 hover:text-red-400 disabled:opacity-40"
                         >
                           <X className="h-3.5 w-3.5" />
@@ -467,7 +484,7 @@ export function Popup() {
             <button
               type="button"
               onClick={handleCapture}
-              disabled={capturing}
+              disabled={capturing || !active}
               className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-600/70 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-red-500/60 hover:text-red-300 disabled:opacity-50"
             >
               {capturing ? (
@@ -475,7 +492,7 @@ export function Popup() {
               ) : (
                 <Plus className="h-3.5 w-3.5" />
               )}
-              捕获当前拼多多账号
+              {text.capture}
             </button>
 
             {accountError && (
@@ -488,7 +505,7 @@ export function Popup() {
             <button
               type="button"
               onClick={handleSync}
-              disabled={syncing}
+              disabled={syncing || !active}
               className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-600/60 bg-slate-700/50 px-3 py-2 font-medium text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
             >
               {syncing ? (
@@ -496,7 +513,7 @@ export function Popup() {
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              同步当前账号订单
+              {text.sync}
             </button>
             <button
               type="button"
@@ -504,7 +521,7 @@ export function Popup() {
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-3 py-2 font-semibold text-white transition hover:bg-red-500"
             >
               <ExternalLink className="h-4 w-4" />
-              打开订单管理终端
+              {text.dashboard}
             </button>
           </footer>
         </>

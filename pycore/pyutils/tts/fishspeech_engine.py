@@ -25,20 +25,19 @@ Config:
 
 import json
 import os
-import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
 import importlib.util
 
 
-_avail_lock = threading.Lock()
-_avail_cache = {"ts": 0.0, "ok": False}
+_AVAIL_SIGNAL = 'pyutils.tts.fishspeech.available'
 _AVAIL_TTL_S = 30.0
 _last_synth_error: Optional[str] = None
 
@@ -134,12 +133,11 @@ def disabled_reason() -> Optional[str]:
 def available() -> bool:
     """Local fish-speech server can synth OR Fish Audio SDK + FISH_API_KEY."""
     now = time.time()
-    with _avail_lock:
-        if now - _avail_cache["ts"] < _AVAIL_TTL_S:
-            return _avail_cache["ok"]
+    cache = THREAD_BUS.get_signal(_AVAIL_SIGNAL, {}) or {}
+    if now - float(cache.get("ts", 0.0)) < _AVAIL_TTL_S:
+        return bool(cache.get("ok"))
     ok = synth_ready()
-    with _avail_lock:
-        _avail_cache.update(ts=now, ok=ok)
+    THREAD_BUS.signal(_AVAIL_SIGNAL, {"ts": now, "ok": ok})
     return ok
 
 

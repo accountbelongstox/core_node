@@ -3,7 +3,7 @@
 
 pycore_repo_root_from_install_shells() {
     local script_dir="$1"
-    (cd "$script_dir/../../../../../.." && pwd)
+    (cd "$script_dir/../../../../.." && pwd)
 }
 
 pycore_tts_install_assets_dir() {
@@ -44,6 +44,100 @@ tts_idempotent_msg() {
     "$py" "$tier_script" idempotent "$reason" 2>/dev/null
 }
 
+tts_runtime_policy_path() {
+    local repo_root
+    repo_root="$(_core_node_repo_root_from_tts_common)"
+    printf '%s' "$repo_root/pycore/pyfoundations/ai_runtime_policy.py"
+}
+
+tts_engine_compatible() {
+    local py="$1" engine="$2" prefix="${3:-}"
+    local policy_path python_version result override_name override_python
+    policy_path="$(tts_runtime_policy_path)"
+    python_version="$("$py" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)"
+    result="$("$py" "$policy_path" compatibility "$engine" --python-version "$python_version" 2>/dev/null)" || return 1
+    if printf '%s' "$result" | grep -q '"compatible": true'; then
+        return 0
+    fi
+    override_name="${engine^^}_PYTHON"
+    override_python="${!override_name:-}"
+    if [[ -n "$override_python" && -x "$override_python" ]]; then
+        python_version="$("$override_python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)"
+        result="$("$py" "$policy_path" compatibility "$engine" --python-version "$python_version" 2>/dev/null)" || return 1
+        if printf '%s' "$result" | grep -q '"compatible": true'; then
+            return 0
+        fi
+    fi
+    echo "${prefix}[SKIP] $engine is incompatible with Python $python_version; configure ${engine^^}_PYTHON with a supported interpreter." >&2
+    return 1
+}
+
+tts_dependency_fingerprint() {
+    local py="$1" engine="$2" policy_path
+    policy_path="$(tts_runtime_policy_path)"
+    "$py" "$policy_path" fingerprint "$engine" 2>/dev/null
+}
+
+tts_dependency_stamp_matches() {
+    local py="$1" engine="$2" stamp="$3"
+    local expected actual
+    [[ -f "$stamp" ]] || return 1
+    expected="$(tts_dependency_fingerprint "$py" "$engine")"
+    actual="$(tr -d '\r\n\ufeff' < "$stamp" 2>/dev/null || true)"
+    [[ -n "$expected" && "$actual" == "$expected" ]]
+}
+
+tts_engine_health_ok() {
+    local py="$1" engine="$2" policy_path
+    policy_path="$(tts_runtime_policy_path)"
+    "$py" "$policy_path" health-probe "$engine" >/dev/null 2>&1
+}
+
+tts_dependencies_ready() {
+    local py="$1" engine="$2" stamp="$3"
+    tts_dependency_stamp_matches "$py" "$engine" "$stamp" \
+        && tts_engine_health_ok "$py" "$engine"
+}
+
+tts_write_dependency_stamp() {
+    local py="$1" engine="$2" stamp="$3"
+    local expected
+    expected="$(tts_dependency_fingerprint "$py" "$engine")"
+    [[ -n "$expected" ]] || return 1
+    mkdir -p "$(dirname "$stamp")"
+    printf '%s\n' "$expected" > "$stamp"
+}
+
+tts_provision_isolated_venv() {
+    local py="$1" engine="$2" force="${3:-0}"
+    local repo_root force_value
+    repo_root="$(_core_node_repo_root_from_tts_common)"
+    force_value="0"
+    [[ "$force" == "1" ]] && force_value="1"
+    PYCORE_ISOLATED_ROOT="$repo_root" \
+    PYCORE_ISOLATED_ENGINE="$engine" \
+    PYCORE_ISOLATED_FORCE="$force_value" \
+    "$py" -c 'import os, sys
+sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
+from pycore.pyfoundations import isolated_venv
+result = isolated_venv.ensure_venv(
+    os.environ["PYCORE_ISOLATED_ENGINE"],
+    force=os.environ.get("PYCORE_ISOLATED_FORCE") == "1",
+)
+sys.exit(0 if result else 1)'
+}
+
+tts_resolve_isolated_python() {
+    local py="$1" engine="$2"
+    local repo_root
+    repo_root="$(_core_node_repo_root_from_tts_common)"
+    PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" \
+    "$py" -c 'import os, sys
+sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
+from pycore.pyfoundations import isolated_venv
+print(isolated_venv.resolve_python(os.environ["PYCORE_ISOLATED_ENGINE"]) or "")' 2>/dev/null
+}
+
 _tts_assets_common_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=torch_cuda_install.sh
 . "$_tts_assets_common_dir/torch_cuda_install.sh"
@@ -76,6 +170,7 @@ prereq_install_probe() {
     shift 2 || true
     local absent_ok=0
     local absent_note=""
+    local failed=0
     local mod args=()
     if [[ "${1:-}" == "--absent-ok" ]]; then
         absent_ok=1
@@ -84,6 +179,14 @@ prereq_install_probe() {
     fi
     args=("$@")
     echo "${prefix}[idempotent-probe] running post-install verification ..."
+    if [[ -z "$py" ]] || ! command -v "$py" >/dev/null 2>&1; then
+        if [[ "$absent_ok" -eq 1 ]]; then
+            echo "${prefix}[idempotent-probe] SKIP interpreter (${absent_note:-explicitly skipped})"
+            return 0
+        fi
+        echo "${prefix}[idempotent-probe] FAIL Python interpreter is unavailable" >&2
+        return 1
+    fi
     for mod in "${args[@]}"; do
         if "$py" -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$mod') else 1)" 2>/dev/null; then
             echo "${prefix}[idempotent-probe] OK  import $mod"
@@ -95,16 +198,28 @@ prereq_install_probe() {
             fi
         else
             echo "${prefix}[idempotent-probe] FAIL import $mod" >&2
+            failed=1
         fi
     done
+    return "$failed"
 }
 
 complete_prereq_step() {
     local py="$1"
     local prefix="$2"
     shift 2 || true
-    prereq_install_probe "$py" "$prefix" "$@"
-    exit 0
+    if prereq_install_probe "$py" "$prefix" "$@"; then
+        exit 0
+    fi
+    exit 1
+}
+
+fail_prereq_step() {
+    local py="$1"
+    local prefix="$2"
+    shift 2 || true
+    prereq_install_probe "$py" "$prefix" "$@" || true
+    exit 1
 }
 
 _hf_mirror_base() {

@@ -7,12 +7,11 @@ Signal system module with signal management and timer system
 
 # Import ColorPrint for logging
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
-import queue
 import time
-import threading
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Optional, Callable, Dict, Any, List
 
 
@@ -54,11 +53,9 @@ class SignalManager:
     def __init__(self, debug: bool = False):
         self.debug = debug
 
-        # Signal queue (thread-safe)
-        self.signal_queue = queue.Queue()
-
-        # Signal handler mapping {SignalType: [handlers]}
-        self.handlers: Dict[SignalType, List[Callable]] = {}
+        self._queue_name = f'pyutils.native_ui.signals.{id(self)}'
+        self._handlers_signal = f'{self._queue_name}.handlers'
+        THREAD_BUS.signal(self._handlers_signal, {})
 
         # Running state
         self.running = False
@@ -78,10 +75,11 @@ class SignalManager:
             signal_type: Signal type
             handler: Handler function, receives Signal object as parameter
         """
-        if signal_type not in self.handlers:
-            self.handlers[signal_type] = []
-
-        self.handlers[signal_type].append(handler)
+        handlers = dict(THREAD_BUS.get_signal(self._handlers_signal, {}) or {})
+        type_handlers = list(handlers.get(signal_type, ()))
+        type_handlers.append(handler)
+        handlers[signal_type] = tuple(type_handlers)
+        THREAD_BUS.signal(self._handlers_signal, handlers)
         self._log(f"Registered handler: {signal_type.value}")
 
     def emit(self, signal_type: SignalType, data: Optional[Dict[str, Any]] = None,
@@ -100,19 +98,18 @@ class SignalManager:
             callback=callback
         )
 
-        self.signal_queue.put(signal)
+        THREAD_BUS.send_message(self._queue_name, signal)
 
         if self.debug:
             self._log(f"Signal emitted: {signal_type.value}", 'cyan')
 
     def process_signals(self):
         """Process all signals in the queue (called from main thread)"""
-        try:
-            while not self.signal_queue.empty():
-                signal = self.signal_queue.get_nowait()
-                self._process_signal(signal)
-        except queue.Empty:
-            pass
+        while True:
+            signal = THREAD_BUS.receive_message(self._queue_name)
+            if not isinstance(signal, Signal):
+                break
+            self._process_signal(signal)
 
     def _process_signal(self, signal: Signal):
         """
@@ -125,7 +122,9 @@ class SignalManager:
             self._log(f"Processing signal: {signal.signal_type.value}", 'yellow')
 
         # Find and execute corresponding handlers
-        handlers = self.handlers.get(signal.signal_type, [])
+        handlers = (
+            THREAD_BUS.get_signal(self._handlers_signal, {}) or {}
+        ).get(signal.signal_type, ())
 
         for handler in handlers:
             try:
@@ -197,8 +196,8 @@ class TaskTimer:
         self.debug = debug
 
         # Timer task list
-        self.tasks: List[TimerTask] = []
-        self.tasks_lock = threading.Lock()
+        self._tasks_signal = f'pyutils.native_ui.task_timer.{id(self)}.tasks'
+        THREAD_BUS.signal(self._tasks_signal, ())
 
         # Tick counter
         self.tick_count = 0
@@ -231,8 +230,9 @@ class TaskTimer:
             interval=interval
         )
 
-        with self.tasks_lock:
-            self.tasks.append(task)
+        tasks = list(THREAD_BUS.get_signal(self._tasks_signal, ()) or ())
+        tasks.append(task)
+        THREAD_BUS.signal(self._tasks_signal, tuple(tasks))
 
         self._log(f"Registered timer task: {name} (interval={interval})", 'cyan')
         return task
@@ -247,12 +247,13 @@ class TaskTimer:
         Returns:
             bool: Whether successfully unregistered
         """
-        with self.tasks_lock:
-            for i, task in enumerate(self.tasks):
-                if task.name == name:
-                    self.tasks.pop(i)
-                    self._log(f"Unregistered timer task: {name}", 'yellow')
-                    return True
+        tasks = list(THREAD_BUS.get_signal(self._tasks_signal, ()) or ())
+        for index, task in enumerate(tasks):
+            if task.name == name:
+                tasks.pop(index)
+                THREAD_BUS.signal(self._tasks_signal, tuple(tasks))
+                self._log(f"Unregistered timer task: {name}", 'yellow')
+                return True
 
         return False
 
@@ -266,12 +267,13 @@ class TaskTimer:
         Returns:
             bool: Whether successful
         """
-        with self.tasks_lock:
-            for task in self.tasks:
-                if task.name == name:
-                    task.enabled = True
-                    self._log(f"Enabled timer task: {name}", 'green')
-                    return True
+        tasks = list(THREAD_BUS.get_signal(self._tasks_signal, ()) or ())
+        for index, task in enumerate(tasks):
+            if task.name == name:
+                tasks[index] = replace(task, enabled=True)
+                THREAD_BUS.signal(self._tasks_signal, tuple(tasks))
+                self._log(f"Enabled timer task: {name}", 'green')
+                return True
 
         return False
 
@@ -285,12 +287,13 @@ class TaskTimer:
         Returns:
             bool: Whether successful
         """
-        with self.tasks_lock:
-            for task in self.tasks:
-                if task.name == name:
-                    task.enabled = False
-                    self._log(f"Disabled timer task: {name}", 'yellow')
-                    return True
+        tasks = list(THREAD_BUS.get_signal(self._tasks_signal, ()) or ())
+        for index, task in enumerate(tasks):
+            if task.name == name:
+                tasks[index] = replace(task, enabled=False)
+                THREAD_BUS.signal(self._tasks_signal, tuple(tasks))
+                self._log(f"Disabled timer task: {name}", 'yellow')
+                return True
 
         return False
 
@@ -302,17 +305,15 @@ class TaskTimer:
             self._log(f"Tick #{self.tick_count}", 'blue')
 
         # Execute all eligible tasks
-        with self.tasks_lock:
-            for task in self.tasks:
-                if task.should_execute(self.tick_count):
-                    try:
-                        if self.debug:
-                            self._log(f"Executing task: {task.name}", 'green')
-
-                        task.callback()
-
-                    except Exception as e:
-                        ColorPrint.red(f"[TaskTimer] Task '{task.name}' execution error: {e}")
+        tasks = tuple(THREAD_BUS.get_signal(self._tasks_signal, ()) or ())
+        for task in tasks:
+            if task.should_execute(self.tick_count):
+                try:
+                    if self.debug:
+                        self._log(f"Executing task: {task.name}", 'green')
+                    task.callback()
+                except Exception as e:
+                    ColorPrint.red(f"[TaskTimer] Task '{task.name}' execution error: {e}")
 
     def run(self):
         """Run timer (blocking)"""
@@ -355,11 +356,9 @@ class MainThreadExecutor:
     def __init__(self, debug: bool = False):
         self.debug = debug
 
-        # Method queue
-        self.method_queue = queue.Queue()
-
-        # Registered method mapping {name: method}
-        self.registered_methods: Dict[str, Callable] = {}
+        self._queue_name = f'pyutils.native_ui.main_executor.{id(self)}'
+        self._methods_signal = f'{self._queue_name}.methods'
+        THREAD_BUS.signal(self._methods_signal, {})
 
         self._log("Main thread executor initialized", 'green')
 
@@ -376,7 +375,9 @@ class MainThreadExecutor:
             name: Method name
             method: Method function
         """
-        self.registered_methods[name] = method
+        methods = dict(THREAD_BUS.get_signal(self._methods_signal, {}) or {})
+        methods[name] = method
+        THREAD_BUS.signal(self._methods_signal, methods)
         self._log(f"Registered main thread method: {name}", 'cyan')
 
     def call(self, name: str, *args, **kwargs):
@@ -388,29 +389,26 @@ class MainThreadExecutor:
             *args: Positional arguments
             **kwargs: Keyword arguments
         """
-        if name not in self.registered_methods:
+        methods = THREAD_BUS.get_signal(self._methods_signal, {}) or {}
+        if name not in methods:
             ColorPrint.red(f"[MainThreadExecutor] Method not registered: {name}")
             return
 
         # Put method call into queue
-        self.method_queue.put((name, args, kwargs))
+        THREAD_BUS.send_message(self._queue_name, (name, args, kwargs))
 
     def execute_pending(self):
         """Execute all pending method calls (called from main thread)"""
-        try:
-            while not self.method_queue.empty():
-                name, args, kwargs = self.method_queue.get_nowait()
-
-                method = self.registered_methods.get(name)
-                if method:
-                    try:
-                        if self.debug:
-                            self._log(f"Executing method: {name}", 'green')
-
-                        method(*args, **kwargs)
-
-                    except Exception as e:
-                        ColorPrint.red(f"[MainThreadExecutor] Method '{name}' execution error: {e}")
-
-        except queue.Empty:
-            pass
+        while True:
+            payload = THREAD_BUS.receive_message(self._queue_name)
+            if not isinstance(payload, tuple) or len(payload) != 3:
+                break
+            name, args, kwargs = payload
+            method = (THREAD_BUS.get_signal(self._methods_signal, {}) or {}).get(name)
+            if method:
+                try:
+                    if self.debug:
+                        self._log(f"Executing method: {name}", 'green')
+                    method(*args, **kwargs)
+                except Exception as e:
+                    ColorPrint.red(f"[MainThreadExecutor] Method '{name}' execution error: {e}")

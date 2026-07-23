@@ -39,6 +39,7 @@ import {
 } from '../services/WfBookReaderSentenceAudio';
 import { cellKeyOf, ttsStatusToCellState, type WfAudioCellState } from '../utils/WfAudioCellState';
 import { pickSentenceAudioUrl, readerPreferredAccent } from '../utils/WfSentenceAudioPick';
+import { ensureAudio } from '../cache/WfNewAudioCache';
 
 interface WfNewBookReaderProps {
   sourceKey: string;
@@ -142,6 +143,28 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const userPickedVerse = useRef(false);
   const [cellStatuses, setCellStatuses] = useState<Record<string, WfAudioCellState>>({});
 
+  // Stable refs for every value the WfBookReaderPlayback engine reads, so the
+  // playback instance is created ONCE per sourceKey and never torn down on a
+  // re-render. A teardown calls stop() mid-playback, which surfaced as the
+  // reader "auto-refreshing" whenever a state change flipped a callback
+  // identity (chapter advance rebuilt goNextChapterInternal; an unmemoized
+  // trans/addToast rebuilt loadVerses, which in turn re-ran the chapter-load
+  // effect and reset verses). The engine reads the LIVE value through the ref.
+  const transRef = useRef(trans);
+  const addToastRef = useRef(addToast);
+  const sequenceRef = useRef(sequence);
+  const speedByLangRef = useRef(speedByLang);
+  const autoAdvanceRef = useRef(autoAdvance);
+  const repeatOneRef = useRef(repeatOne);
+  const languagesRef = useRef(languages);
+  useEffect(() => { transRef.current = trans; }, [trans]);
+  useEffect(() => { addToastRef.current = addToast; }, [addToast]);
+  useEffect(() => { sequenceRef.current = sequence; }, [sequence]);
+  useEffect(() => { speedByLangRef.current = speedByLang; }, [speedByLang]);
+  useEffect(() => { autoAdvanceRef.current = autoAdvance; }, [autoAdvance]);
+  useEffect(() => { repeatOneRef.current = repeatOne; }, [repeatOne]);
+  useEffect(() => { languagesRef.current = languages; }, [languages]);
+
   useEffect(() => { versesRef.current = verses; }, [verses]);
   useEffect(() => { pageRef.current = page; }, [page]);
   useEffect(() => { lastPageRef.current = lastPage; }, [lastPage]);
@@ -193,13 +216,13 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       return res.items;
     } catch (e) {
       console.warn('[wordnew] Failed to load verses.', e);
-      addToast(trans('content.loadFailed'), 'warning');
+      addToastRef.current(transRef.current('content.loadFailed'), 'warning');
       setVerses([]);
       return [];
     } finally {
       setLoadingVerses(false);
     }
-  }, [sourceKey, addToast, trans]);
+  }, [sourceKey]);
 
   useEffect(() => { readerVariantByLangRef.current = readerVariantByLang; }, [readerVariantByLang]);
 
@@ -264,10 +287,13 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
     const variantKey = readerVariantByLangRef.current[lang] ?? '';
     const preferredAccent = readerPreferredAccent(wfNewSettings.get('voiceAccent'));
     const picked = pickSentenceAudioUrl(cell, { variantKey, preferredAccent });
-    if (picked.url) return picked.url;
+    if (picked.url) return (await ensureAudio(picked.url)) ?? picked.url;
 
     const k = cellKeyOf(verse.grain, verse.seq, lang);
-    if (resolvedAudioUrlsRef.current[k]) return resolvedAudioUrlsRef.current[k];
+    if (resolvedAudioUrlsRef.current[k]) {
+      const remoteUrl = resolvedAudioUrlsRef.current[k];
+      return (await ensureAudio(remoteUrl)) ?? remoteUrl;
+    }
 
     const text = cell?.text?.trim();
     if (!text) return null;
@@ -299,39 +325,51 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
     return () => { progressSaverRef.current?.cancel(); };
   }, [sourceKey, trans]);
 
+  // Refs for the callbacks the engine invokes, synced each render so the
+  // single playback instance always calls the LATEST closure without being
+  // rebuilt (which would stop() mid-playback).
+  const loadVersesRef = useRef(loadVerses);
+  const goNextChapterRef = useRef(goNextChapterInternal);
+  const resolveAudioUrlRef = useRef(resolveAudioUrl);
+  const persistProgressRef = useRef(persistProgress);
+  useEffect(() => { loadVersesRef.current = loadVerses; }, [loadVerses]);
+  useEffect(() => { goNextChapterRef.current = goNextChapterInternal; }, [goNextChapterInternal]);
+  useEffect(() => { resolveAudioUrlRef.current = resolveAudioUrl; }, [resolveAudioUrl]);
+  useEffect(() => { persistProgressRef.current = persistProgress; }, [persistProgress]);
+
   useEffect(() => {
     playbackRef.current = new WfBookReaderPlayback({
       getVerses: () => versesRef.current,
       getSettings: () => ({
-        sequence: sequence.length ? sequence : [{ lang: languages[0] || 'en', repeat: 1 }],
-        speedByLang,
-        autoAdvance,
-        repeatOne,
+        sequence: sequenceRef.current.length ? sequenceRef.current : [{ lang: languagesRef.current[0] || 'en', repeat: 1 }],
+        speedByLang: speedByLangRef.current,
+        autoAdvance: autoAdvanceRef.current,
+        repeatOne: repeatOneRef.current,
       }),
       useBrowserTts: () => browserTtsRef.current,
       onPlayingKey: setPlayingKey,
       onPlaying: setPlaying,
       onPaused: setPaused,
       onVerseActive: setActiveVerse,
-      onProgress: persistProgress,
+      onProgress: (verse, pageNum) => persistProgressRef.current(verse, pageNum),
       onLiveReadText: (text, lang) => {
         setLiveReadText(text);
         setLiveReadLang(lang);
       },
       loadVerses: async (chapterIndex, pageNum, opts) => {
         if (opts?.requirePlaying && !playbackRef.current?.isPlaying()) return null;
-        const items = await loadVerses(chapterIndex, pageNum);
+        const items = await loadVersesRef.current(chapterIndex, pageNum);
         return items.length ? items : null;
       },
       getChapterIndex: () => activeChapterRef.current,
       getPage: () => pageRef.current,
       getLastPage: () => lastPageRef.current,
-      goNextChapter: goNextChapterInternal,
-      resolveAudioUrl,
+      goNextChapter: () => goNextChapterRef.current(),
+      resolveAudioUrl: (verse, lang, shouldContinue) => resolveAudioUrlRef.current(verse, lang, shouldContinue),
       bumpMissingAudio: (v, lang, text) => { void bumpSentenceAudioImmediate(text, lang); },
     });
     return () => { playbackRef.current?.stop(); };
-  }, [sequence, speedByLang, autoAdvance, repeatOne, browserTts, languages, loadVerses, goNextChapterInternal, resolveAudioUrl, requestCellMedia, persistProgress]);
+  }, [sourceKey]);
 
   useEffect(() => {
     let cancelled = false;

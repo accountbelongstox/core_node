@@ -26,11 +26,12 @@ Uses socket port detection to implement singleton pattern
 """
 
 import socket
-import threading
 import json
 import time
 import sys
 from typing import Optional, Callable, Dict, Any
+from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 
 class SingletonLauncher:
@@ -88,12 +89,13 @@ class SingletonLauncher:
         self.debug = debug
 
         # Running state
-        self._running = False
         self._is_primary_instance = False
 
         # Thread objects
-        self._backend_thread: Optional[threading.Thread] = None
-        self._communication_thread: Optional[threading.Thread] = None
+        self._backend_thread: Optional[Any] = None
+        self._communication_thread: Optional[Any] = None
+        self._running_signal = f"example.singleton.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
         # Server socket (only used by primary instance)
         self._server_socket: Optional[socket.socket] = None
@@ -204,7 +206,7 @@ class SingletonLauncher:
             # Handle shutdown signal
             elif msg_type == self.SIGNAL_SHUTDOWN:
                 self._log("Received shutdown signal", 'WARNING')
-                self._running = False
+                THREAD_BUS.signal(self._running_signal, False)
                 response = json.dumps({
                     'type': 'SHUTDOWN_ACK',
                     'timestamp': time.time()
@@ -221,21 +223,22 @@ class SingletonLauncher:
         """Server socket listening loop (primary instance)"""
         self._log("Server socket listening loop started")
 
-        while self._running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             try:
                 client_socket, address = self._server_socket.accept()
                 # Use new thread to handle connection
-                threading.Thread(
-                    target=self._handle_client_connection,
-                    args=(client_socket, address),
-                    daemon=True
-                ).start()
+                start_bus_task(
+                    self._handle_client_connection,
+                    client_socket,
+                    address,
+                    thread_name="ExampleSingletonClientThread",
+                )
 
             except socket.timeout:
                 continue  # Timeout, continue loop
 
             except Exception as e:
-                if self._running:
+                if self.is_running():
                     self._log(f"Server socket error: {e}", 'ERROR')
                 break
 
@@ -284,7 +287,7 @@ class SingletonLauncher:
 
         Example:
             def run_backend(self):
-                while self._running:
+                while self.is_running():
                     # Execute backend tasks
                     time.sleep(1)
         """
@@ -299,7 +302,7 @@ class SingletonLauncher:
 
         Example:
             def run_client_communication(self):
-                while self._running:
+                while self.is_running():
                     # Handle client communication
                     time.sleep(1)
         """
@@ -317,7 +320,7 @@ class SingletonLauncher:
             True: Started successfully (as primary or secondary instance)
             False: Failed to start
         """
-        if self._running:
+        if self.is_running():
             self._log("Application already running", 'WARNING')
             return False
 
@@ -345,44 +348,38 @@ class SingletonLauncher:
                 self._log("Cannot start server socket, startup failed", 'ERROR')
                 return False
 
-            # Start backend thread
-            self._backend_thread = threading.Thread(
-                target=self._backend_thread_entry,
-                name="BackendThread",
-                daemon=False
-            )
-
             # Trigger primary instance startup callback
             if self._on_primary_started:
                 self._on_primary_started()
 
-        # Start client communication thread (all instances need this)
-        self._communication_thread = threading.Thread(
-            target=self._communication_thread_entry,
-            name="ClientCommunicationThread",
-            daemon=False
-        )
-
         # Set running flag
-        self._running = True
+        THREAD_BUS.signal(self._running_signal, True)
 
         # Start threads
-        if self._is_primary_instance and self._backend_thread:
-            self._backend_thread.start()
+        if self._is_primary_instance:
+            self._backend_thread = start_bus_task(
+                self._backend_thread_entry,
+                thread_name="BackendThread",
+                daemon=False,
+            )
 
-        self._communication_thread.start()
+        self._communication_thread = start_bus_task(
+            self._communication_thread_entry,
+            thread_name="ClientCommunicationThread",
+            daemon=False,
+        )
 
         self._log(f"=== Startup complete (Primary instance: {self._is_primary_instance}) ===")
         return True
 
     def stop(self):
         """Stop application"""
-        if not self._running:
+        if not self.is_running():
             return
 
         self._log("=== Starting application shutdown ===")
 
-        self._running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         # Trigger shutdown callback
         if self._on_shutdown:
@@ -406,7 +403,7 @@ class SingletonLauncher:
 
     def is_running(self) -> bool:
         """Check if running"""
-        return self._running
+        return bool(THREAD_BUS.get_signal(self._running_signal, False))
 
     def is_primary_instance(self) -> bool:
         """Check if primary instance"""
@@ -443,7 +440,7 @@ class ExampleLauncher(SingletonLauncher):
         """Backend logic example"""
         print("Backend thread starting...")
         counter = 0
-        while self._running:
+        while self.is_running():
             counter += 1
             print(f"Backend task executing... (count: {counter})")
             time.sleep(2)
@@ -453,7 +450,7 @@ class ExampleLauncher(SingletonLauncher):
         """Client communication logic example"""
         print("Client communication thread starting...")
         counter = 0
-        while self._running:
+        while self.is_running():
             counter += 1
             print(f"Client communication processing... (count: {counter})")
             time.sleep(3)

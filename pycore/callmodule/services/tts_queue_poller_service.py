@@ -36,11 +36,9 @@ Architecture (mirrors translation_worker_service.py conventions)
     PYCORE_TTS_WORKER_BATCH, default 10, server cap 50).
   * The heartbeat callback (poll_and_process) stays LIGHT: it only hands the
     claim+synthesize+report batch to ONE background daemon thread. A
-    non-reentrant in-flight guard ensures at most one batch runs at a time —
-    which also guarantees the tasks are processed SEQUENTIALLY (edge-tts has a
-    process-wide no-concurrency lock; tasks must NEVER synth in parallel, so we
-    deliberately do NOT fan tasks out to the TaskManager like the translation
-    worker does).
+    non-reentrant in-flight guard ensures at most one batch runs at a time.
+    Serial engines process that batch sequentially; parallel-safe engines use
+    bounded named lanes derived from the selected engine's concurrency class.
   * Laravel base URL resolves the SAME way the media-sync service does: via the
     stored-first LaravelEndpointManager (probe persisted endpoint -> parallel
     sweep -> persist + cache), so worker and sync always agree on the host.
@@ -56,17 +54,19 @@ Architecture (mirrors translation_worker_service.py conventions)
 """
 
 import os
+import shutil
 import socket
 import tempfile
-import threading
 import time
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
 # ColorPrint is the only allowed logger in pycore services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+# Rule §4: all inter-thread data exchange goes through the global bus.
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 # Live enable flag (the UI toggle lives on the heartbeat callback).
 from pycore.pyheartbeat import get_heartbeat_system
 # requests is a third-party dep — always obtained through the lazy accessor.
@@ -87,6 +87,11 @@ from pycore.pyutils.tts import tts_orchestrator
 from pycore.callmodule.services.tts_concurrency import (
     effective_concurrency,
     recommended_concurrency,
+)
+from pycore.callmodule.services.tts_queue_worker_threads import (
+    TTSWorkerBatchThread,
+    TTSWorkerLaneThread,
+    task_deque,
 )
 from pycore.pyutils.tts.word_audio_cache import get_cache_path, save_to_cache
 
@@ -112,6 +117,10 @@ _MAX_BATCH = 50
 # TTL for the cached tts_status()/best_engine() probe: tts_status() probes ALL
 # engines, which is far too expensive to run per task.
 _ENGINE_PROBE_TTL_S = 60.0
+
+# THREAD_BUS queue carrying per-lane result counts back to the batch thread
+# (rule §4: threads never exchange data directly — only via the bus).
+_BUS_TASK_RESULT = "tts_queue_poller.task_result"
 
 
 def _validate_mp3(path: str) -> Tuple[bool, str]:
@@ -147,7 +156,7 @@ class TTSQueuePollerService:
     Lifecycle per heartbeat tick (when enabled):
       poll_and_process() -> spawn ONE background batch thread (skipped if the
       previous batch is still running) -> claim up to `batch_size` tasks ->
-      per task SEQUENTIALLY: synthesize MP3 -> validate locally -> report
+      per task: synthesize MP3 -> validate locally -> report
       (multipart upload / failure) -> per-tick summary line.
 
     Idempotent: __init__ and registration are safe to run repeatedly; an
@@ -155,14 +164,12 @@ class TTSQueuePollerService:
     """
 
     _instance: Optional["TTSQueuePollerService"] = None
-    _instance_lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
-        """Singleton — one TTS worker per process."""
+        """Singleton — one TTS worker per process. Rule §4: no locks;
+        class-attr assignment is GIL-atomic (same idiom as pyheartbeat)."""
         if cls._instance is None:
-            with cls._instance_lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self, laravel_api_url: str = ""):
@@ -187,17 +194,17 @@ class TTSQueuePollerService:
                                      int(getattr(Config, "TTS_WORKER_BATCH", 10))))
         # Worker fan-out override: 0 = use the per-engine recommended value
         # (services/tts_concurrency.py). Live-settable via POST word-tts/config.
-        self.concurrency = max(
+        self._concurrency = max(
             0, int(getattr(Config, "TTS_WORKER_CONCURRENCY", 0))
         )
         # Engine probe cache (60s TTL) — see _planned_engine().
         self._engine_probe_cache: Optional[str] = None
         self._engine_probe_ts = 0.0
+        self._active_tasks = task_deque([])
 
-        # ONE batch at a time: also guarantees SEQUENTIAL task processing
-        # (edge-tts must never run concurrently).
-        self._batch_running = False
-        self._batch_lock = threading.Lock()
+        # ONE batch at a time; lifecycle state is exchanged through THREAD_BUS.
+        self._batch_running_signal = f"tts_queue_poller.batch_running.{id(self)}"
+        THREAD_BUS.signal(self._batch_running_signal, False)
 
         # Connection-failure bookkeeping — ONE concise warning per state change
         # instead of a traceback every tick (translation worker pattern).
@@ -213,6 +220,12 @@ class TTSQueuePollerService:
         self._events: Deque[Dict[str, Any]] = deque(maxlen=80)
         # Throttle marker for the idle event (epoch seconds of the last one).
         self._last_idle_event_ts = 0.0
+        init_serialized_owner(
+            self,
+            "tts.word_worker.state",
+            "TTSWordState",
+            timeout=180.0,
+        )
 
         # Scratch dir for synthesized MP3s (cleaned per task).
         self._tmp_dir = os.path.join(tempfile.gettempdir(), "pycore_tts_worker")
@@ -223,6 +236,7 @@ class TTSQueuePollerService:
             f"batch={self.batch_size}, enabled_on_start={self.enabled})"
         )
 
+    @serialized_method
     def _log_event(self, kind: str, detail: str, task: Optional[Dict[str, Any]] = None) -> None:
         """Append one activity event (newest first). Mirrors the sentence
         worker's shape minus the fields word tasks do not carry
@@ -252,10 +266,41 @@ class TTSQueuePollerService:
         else:
             ColorPrint.blue(line)
 
+    @serialized_method
+    def _record_batch(self, claimed: int, succeeded: int, failed: int) -> None:
+        self._total_claimed += claimed
+        self._total_succeeded += succeeded
+        self._total_failed += failed
+        self._last_tick_summary = {
+            "claimed": claimed,
+            "succeeded": succeeded,
+            "failed": failed,
+            "at": int(time.time()),
+        }
+
+    @serialized_method
+    def _state_snapshot(self) -> Dict[str, Any]:
+        return {
+            "total_claimed": self._total_claimed,
+            "total_succeeded": self._total_succeeded,
+            "total_failed": self._total_failed,
+            "last_tick": dict(self._last_tick_summary),
+            "events": [dict(event) for event in list(self._events)[:40]],
+        }
+
+    @serialized_method
+    def set_concurrency(self, concurrency: int) -> None:
+        self._concurrency = max(0, int(concurrency))
+
+    @serialized_method
+    def get_concurrency(self) -> int:
+        return self._concurrency
+
     # -------------------- engine probe / concurrency --------------------
 
+    @serialized_method
     def _planned_engine(self) -> Optional[str]:
-        """Active/best TTS engine with a 60s TTL cache.
+        """First usable engine in the selected Word Audio profile.
 
         ``tts_orchestrator.tts_status()`` probes EVERY engine — per-task calls
         stall synthesis on sequential availability checks, so the result is
@@ -267,11 +312,23 @@ class TTSQueuePollerService:
             and now - self._engine_probe_ts < _ENGINE_PROBE_TTL_S
         ):
             return self._engine_probe_cache or None
-        engine = (
-            tts_orchestrator.tts_status().get("active")
-            or tts_orchestrator.best_engine()
-            or ""
-        )
+        status = tts_orchestrator.tts_status()
+        entries = {
+            str(row.get("name") or ""): row
+            for row in status.get("engines", [])
+            if isinstance(row, dict)
+        }
+        engine = ""
+        for candidate in tts_orchestrator._priority("word"):
+            row = entries.get(candidate) or {}
+            concurrency_class = self._engine_concurrency_class(candidate)
+            usable = bool(row.get("available")) or (
+                concurrency_class == "server" and bool(row.get("installed"))
+            )
+            if not usable or float(row.get("cooldown_remaining") or 0) > 0:
+                continue
+            engine = candidate
+            break
         self._engine_probe_cache = engine
         self._engine_probe_ts = now
         return engine or None
@@ -285,18 +342,34 @@ class TTSQueuePollerService:
         """(effective fan-out, planned engine). Serial engines always give 1."""
         engine = self._planned_engine() or ""
         kind = self._engine_concurrency_class(engine)
-        return effective_concurrency(kind, self.concurrency), engine
+        return effective_concurrency(kind, self.get_concurrency()), engine
 
     def concurrency_status(self) -> Dict[str, Any]:
         """Effective + recommended fan-out for the current planned engine."""
         engine = self._planned_engine() or ""
         kind = self._engine_concurrency_class(engine)
         return {
-            "concurrency": effective_concurrency(kind, self.concurrency),
+            "concurrency": effective_concurrency(kind, self.get_concurrency()),
             "concurrency_recommended": recommended_concurrency(kind),
             "concurrency_engine": engine or None,
             "concurrency_class": kind,
         }
+
+    @serialized_method
+    def invalidate_engine_plan(self) -> None:
+        """Apply a changed Word Audio engine order on the next worker cycle."""
+        self._engine_probe_cache = None
+        self._engine_probe_ts = 0.0
+
+    def prioritize_word(self, md5: str, language: str) -> None:
+        """Prioritize a visible word inside an already-claimed local batch."""
+        self._active_tasks.prioritize(md5, language)
+
+    def _next_active_task(
+        self, tasks: Any
+    ) -> Optional[Dict[str, Any]]:
+        """Pop the newest visible-word ticket first, otherwise FIFO."""
+        return tasks.pop()
 
     def _is_enabled(self) -> bool:
         """Live enable state: the PyHeartbeat callback flag (UI toggle) with the
@@ -530,9 +603,10 @@ class TTSQueuePollerService:
     def _process_batch(self) -> None:
         """Claim a batch and process every task. Serial engines (edge-tts holds
         a process-wide lock) keep the SEQUENTIAL loop; parallel-safe engines
-        fan out to a ThreadPoolExecutor sized by the effective concurrency
-        (services/tts_concurrency.py). Runs on a background daemon thread;
-        fully exception-safe."""
+        fan out to named lane Thread subclasses sized by the effective
+        concurrency (services/tts_concurrency.py) — rule §4, no
+        ThreadPoolExecutor. Runs on a background daemon thread; fully
+        exception-safe."""
         try:
             base = self._base_url()
             concurrency, engine = self._effective_concurrency()
@@ -555,40 +629,49 @@ class TTSQueuePollerService:
             ColorPrint.blue(f"[TTSWorker] Claimed {claimed} task(s) from {base}")
             self._log_event("claimed", f"count={claimed} from {base}")
 
+            self._active_tasks.replace(tasks)
+            active_tasks = self._active_tasks
             if concurrency > 1 and claimed > 1:
                 self._log_event(
                     "parallel", f"fan-out x{concurrency} (engine={engine or '?'})"
                 )
-                with ThreadPoolExecutor(
-                    max_workers=concurrency, thread_name_prefix="tts-worker"
-                ) as pool:
-                    for ok in pool.map(lambda t: self._process_task(base, t), tasks):
-                        if ok:
-                            succeeded += 1
-                        else:
-                            failed += 1
+                # Concurrent lanes use named threads and the serialized shared
+                # priority queue; per-lane counts come back through THREAD_BUS.
+                THREAD_BUS.clear_queue(_BUS_TASK_RESULT)
+                lanes = [
+                    TTSWorkerLaneThread(
+                        self, base, active_tasks, index, _BUS_TASK_RESULT
+                    )
+                    for index in range(concurrency)
+                ]
+                for lane in lanes:
+                    lane.start()
+                for lane in lanes:
+                    lane.join()
+                for _lane in lanes:
+                    result = THREAD_BUS.receive_message(_BUS_TASK_RESULT)
+                    if not isinstance(result, dict):
+                        continue
+                    succeeded += int(result.get("succeeded") or 0)
+                    failed += int(result.get("failed") or 0)
             else:
-                for task in tasks:
+                while True:
+                    task = self._next_active_task(active_tasks)
+                    if task is None:
+                        break
                     if self._process_task(base, task):
                         succeeded += 1
                     else:
                         failed += 1
 
-            self._total_claimed += claimed
-            self._total_succeeded += succeeded
-            self._total_failed += failed
-            self._last_tick_summary = {
-                "claimed": claimed, "succeeded": succeeded, "failed": failed,
-                "at": int(time.time()),
-            }
+            self._record_batch(claimed, succeeded, failed)
             line = (f"[TTSWorker] Tick summary: claimed={claimed} "
                     f"succeeded={succeeded} failed={failed}")
             (ColorPrint.green if failed == 0 else ColorPrint.yellow)(line)
         except Exception as e:  # noqa: BLE001 — never raise out of the batch thread
             ColorPrint.red(f"[TTSWorker] Batch error: {e}")
         finally:
-            with self._batch_lock:
-                self._batch_running = False
+            THREAD_BUS.signal(self._batch_running_signal, False)
 
     def _synthesize_task(self, task: Dict[str, Any]) -> Tuple[bool, str, str, str]:
         """Generate + locally validate one task's MP3.
@@ -610,7 +693,6 @@ class TTSQueuePollerService:
                 os.makedirs(self._tmp_dir, exist_ok=True)
                 name = f"{task.get('task_id')}_{task.get('md5') or 'audio'}.mp3"
                 out_path = os.path.join(self._tmp_dir, name)
-                import shutil
                 shutil.copy2(cache_path, out_path)
                 return True, out_path, planned_engine, ""
 
@@ -623,7 +705,11 @@ class TTSQueuePollerService:
         # engines then use their default voice); honored if a task ever has one.
         accent = (str(task.get("accent") or "").strip() or None)
         result = tts_orchestrator.synthesize(
-            content, language, Path(out_path), accent=accent,
+            content,
+            language,
+            Path(out_path),
+            accent=accent,
+            priority_profile="word",
         )
         provider = result.get("engine") or (
             (result.get("tried") or ["none"])[-1]
@@ -647,34 +733,28 @@ class TTSQueuePollerService:
         PyHeartbeat callback (every 60s when the callback is enabled).
 
         LIGHT by design: spawn one background batch thread; skip the tick when
-        the previous batch is still running (keeps task processing strictly
-        sequential). Enable/disable is governed by the PyHeartbeat callback
+        the previous batch is still running. The batch uses serial or bounded
+        parallel lanes according to the selected engine. Enable/disable is governed by the PyHeartbeat callback
         flag (start-state from Config.TTS_WORKER_ENABLED_ON_START, runtime via
         /api/heartbeat/enable|disable/tts_queue_poller) — no second gate here.
         Exception-safe — it must never raise into the heartbeat loop.
         """
         try:
-            with self._batch_lock:
-                if self._batch_running:
-                    return  # previous batch still in flight — stay sequential
-                self._batch_running = True
+            if THREAD_BUS.get_signal(self._batch_running_signal, False):
+                return  # previous batch still in flight
+            THREAD_BUS.signal(self._batch_running_signal, True)
 
-            threading.Thread(
-                target=self._process_batch,
-                daemon=True,
-                name="tts-worker-batch",
-            ).start()
+            TTSWorkerBatchThread(self).start()
         except Exception as e:  # noqa: BLE001 — heartbeat must never see a raise
-            with self._batch_lock:
-                self._batch_running = False
+            THREAD_BUS.signal(self._batch_running_signal, False)
             ColorPrint.red(f"[TTSWorker] poll_and_process error: {e}")
 
     # -------------------- introspection --------------------
 
     def get_status(self) -> Dict[str, Any]:
         """Service status snapshot (read-only)."""
-        with self._batch_lock:
-            running = self._batch_running
+        running = bool(THREAD_BUS.get_signal(self._batch_running_signal, False))
+        state = self._state_snapshot()
         return {
             "service": "TTS Queue Worker",
             "worker_id": self.worker_id,
@@ -685,11 +765,11 @@ class TTSQueuePollerService:
             "batch_size": self.batch_size,
             "batch_running": running,
             "base_url_override": self._base_override or None,
-            "total_claimed": self._total_claimed,
-            "total_succeeded": self._total_succeeded,
-            "total_failed": self._total_failed,
-            "last_tick": dict(self._last_tick_summary),
-            "events": list(self._events)[:40],
+            "total_claimed": state["total_claimed"],
+            "total_succeeded": state["total_succeeded"],
+            "total_failed": state["total_failed"],
+            "last_tick": state["last_tick"],
+            "events": state["events"],
             "initialized": self._initialized,
         }
 

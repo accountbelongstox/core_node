@@ -234,6 +234,7 @@ export const zhLocaleA: Record<string, string> = {
     'cache.clearItem': '清除此项',
     'cache.clearSelected': '清除所选',
     'cache.clearAll': '全部清除',
+    'cache.serverResources': '离线接口资源',
     'cache.wordflowTtl': '其他数据缓存',
     'detail.vocab': '大纲核心词汇汇整',
     'detail.syllabus': '对称性记忆路线图深度解构',

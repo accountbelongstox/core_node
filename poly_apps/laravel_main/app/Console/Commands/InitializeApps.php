@@ -6,15 +6,11 @@ use Illuminate\Console\Command;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\AppInitializationManager;
-use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
-use App\Apps\McpV1\McpV1Utils\McpV1Initializer;
-use App\Apps\PddToolV1\Utils\PddToolV1Initializer;
-use App\Apps\DingDuoDuoV1\Utils\DingDuoDuoV1Initializer;
 use App\Apps\AppQyV1\Services\AppQyV1UserInitializationTableService;
 use App\Apps\AppQyV1\Services\AppQyV1BookReadingProgressTableService;
 use App\Apps\AppQyV1\Services\AppQyV1ClientDeviceSettingsTableService;
-use App\Apps\AppQyV1\Services\AppQyV1VocabularyService;
 use App\Services\OctaneTaskStatusService;
+use App\Services\SystemDependencyInitializer;
 use App\Services\AI\UnifiedAIRouter;
 
 class InitializeApps extends Command
@@ -25,15 +21,17 @@ class InitializeApps extends Command
 
     public function handle()
     {
+        $dependencyInitializer = new SystemDependencyInitializer($this);
+
         $this->info('Initializing system...');
         $this->newLine();
 
         $this->info('Checking Octane/Swoole compatibility...');
-        $this->fixOctaneSwooleCompatibility();
+        $dependencyInitializer->fixOctaneSwooleCompatibility();
         $this->newLine();
 
         $this->info('Checking Octane hot-reload dependencies...');
-        $this->installChokidar();
+        $dependencyInitializer->installChokidar();
         $this->newLine();
 
         $this->info('Creating external storage directories...');
@@ -60,7 +58,10 @@ class InitializeApps extends Command
         $this->newLine();
 
         $this->info('Running migrations (safe mode - only new tables)...');
-        $this->runSafeMigrations();
+        if (!$this->runSafeMigrations()) {
+            $this->error('System initialization stopped because migrations failed.');
+            return Command::FAILURE;
+        }
         $this->newLine();
 
         $this->info('Creating invite code tables...');
@@ -495,58 +496,6 @@ class InitializeApps extends Command
         }
         $this->newLine();
         
-        $this->info('Checking vocabulary library tables...');
-        $vocabResults = AppQyV1VocabularyService::ensureVocabularyTablesExist();
-        $missingCount = 0;
-        foreach ($vocabResults as $table => $status) {
-            $icon = $status === 'exists' ? '✅' : ($status === 'missing' ? '⚠️' : '❌');
-            $this->line("  {$icon} {$table}: {$status}");
-            if ($status === 'missing') {
-                $missingCount++;
-            }
-        }
-        if ($missingCount > 0) {
-            // These tables are created by the migrations that already ran earlier in
-            // THIS command (see "Running migrations" above). If any are still missing,
-            // a migration failed -- check that output -- rather than re-running sys:init.
-            $this->line("  <fg=yellow>⚠️  {$missingCount} vocabulary table(s) missing despite migrations; check the migration output above.</>");
-        }
-
-        $this->newLine();
-
-        $this->info('Importing vocabulary libraries from files...');
-        $importResults = AppQyV1VocabularyService::importVocabularyFromFiles();
-        $this->line("  ✅ Imported: {$importResults['imported']} libraries");
-        $this->line("  ✓ Skipped: {$importResults['skipped']} libraries");
-        if ($importResults['errors'] > 0) {
-            $this->line("  ❌ Errors: {$importResults['errors']}");
-        }
-        
-        foreach ($importResults['libraries'] as $file => $status) {
-            $this->line("    • {$file}: {$status}");
-        }
-        
-        $this->newLine();
-        
-        $this->info('Vocabulary library summary:');
-        try {
-            $appKey = AppKeys::APPQYV1;
-            $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel();
-            $libraries = $model->getConnection()
-                ->table(AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_libraries'))
-                ->select('name', 'total_words', 'difficulty_level')
-                ->where('is_public', true)
-                ->get();
-            
-            foreach ($libraries as $lib) {
-                $this->line("  • {$lib->name}: {$lib->total_words} words ({$lib->difficulty_level})");
-            }
-        } catch (\Exception $e) {
-            $this->line("  <fg=red>Error: {$e->getMessage()}</>");
-        }
-        
-        $this->newLine();
-
         $this->info('Initializing Global Task System...');
         $globalTaskResults = \App\Services\GlobalTaskSystemInitializer::ensureTablesExist();
 
@@ -658,11 +607,7 @@ class InitializeApps extends Command
         $this->newLine();
 
         $this->info('Initializing apps...');
-        $manager = new AppInitializationManager();
-        $manager->register(new AppQyV1Initializer());
-        $manager->register(new McpV1Initializer());
-        $manager->register(new PddToolV1Initializer());
-        $manager->register(new DingDuoDuoV1Initializer());
+        $manager = AppInitializationManager::withDefaultInitializers();
         $result = $manager->initializeAll(false);
         
         foreach ($result['results'] as $appName => $appResult) {
@@ -701,179 +646,6 @@ class InitializeApps extends Command
         return false;
     }
 
-    private function showStatus(AppInitializationManager $manager)
-    {
-        $this->info('Checking initialization status...');
-        $this->newLine();
-        
-        $status = $manager->checkStatus();
-        $detailedStatus = $manager->getDetailedStatus();
-        
-        foreach ($status['apps'] as $appName => $appStatus) {
-            $initialized = $appStatus['initialized'] ?? false;
-            $statusIcon = $initialized ? '✅' : '❌';
-            
-            $this->line("{$statusIcon} <fg=cyan;options=bold>{$appName}</>");
-            
-            $details = $detailedStatus[$appName] ?? [];
-            if (isset($details['registered_class'])) {
-                $this->line("   <fg=gray>Initializer: {$details['registered_class']}</>");
-            }
-            
-            if (isset($appStatus['error'])) {
-                $this->error("   Error: {$appStatus['error']}");
-            } else {
-                $completedSteps = $appStatus['completed_steps'] ?? [];
-                $stepCount = count(array_filter($completedSteps));
-                $totalSteps = count($completedSteps);
-                
-                $this->line("   <fg=yellow>Progress: {$stepCount}/{$totalSteps} steps completed</>");
-                $this->newLine();
-                
-                if (!empty($completedSteps)) {
-                    foreach ($completedSteps as $step => $completed) {
-                        $stepIcon = $completed ? '✓' : '○';
-                        $stepColor = $completed ? 'green' : 'gray';
-                        $this->line("   <fg={$stepColor}>{$stepIcon} {$step}</>");
-                    }
-                }
-                
-                $this->newLine();
-                
-                if (isset($appStatus['last_run'])) {
-                    $this->line("   <fg=gray>Last run: {$appStatus['last_run']}</>");
-                }
-                
-                if (isset($details['database'])) {
-                    $this->newLine();
-                    $this->line("   <fg=cyan;options=bold>📊 Database Information:</>");
-                    $dbInfo = $details['database'];
-                    
-                    if (isset($dbInfo['connection'])) {
-                        $this->line("   Connection: <fg=yellow>{$dbInfo['connection']}</>");
-                    }
-                    
-                    if (isset($dbInfo['path'])) {
-                        $this->line("   Path: <fg=yellow>{$dbInfo['path']}</>");
-                    }
-                    
-                    if (isset($dbInfo['size'])) {
-                        $this->line("   Size: <fg=yellow>{$dbInfo['size']}</>");
-                    }
-                    
-                    if (isset($dbInfo['tables'])) {
-                        $tableCount = count($dbInfo['tables']);
-                        $this->line("   Tables: <fg=yellow>{$tableCount}</>");
-                        
-                        if ($tableCount > 0 && $tableCount <= 10) {
-                            $this->newLine();
-                            $this->line("   <fg=cyan>Table Structure:</>");
-                            foreach ($dbInfo['tables'] as $table) {
-                                $this->line("   • {$table['name']} ({$table['columns']} columns, {$table['rows']} rows)");
-                            }
-                        } elseif ($tableCount > 10) {
-                            $this->newLine();
-                            $this->line("   <fg=cyan>Sample Tables (showing first 5):</>");
-                            foreach (array_slice($dbInfo['tables'], 0, 5) as $table) {
-                                $this->line("   • {$table['name']} ({$table['columns']} columns, {$table['rows']} rows)");
-                            }
-                            $this->line("   <fg=gray>... and " . ($tableCount - 5) . " more tables</>");
-                        }
-                    }
-                }
-            }
-            
-            $this->newLine();
-            $this->line("   " . str_repeat('─', 70));
-            $this->newLine();
-        }
-        
-        return 0;
-    }
-    
-    private function resetStatus(AppInitializationManager $manager)
-    {
-        $appName = $this->argument('app');
-        
-        if (!$appName) {
-            $this->error('Please specify an app to reset');
-            return 1;
-        }
-        
-        if (!$this->confirm("Reset initialization status for {$appName}?")) {
-            $this->info('Reset cancelled');
-            return 0;
-        }
-        
-        $result = $manager->reset($appName);
-        
-        if ($result['success']) {
-            $this->info("✅ Reset successful for {$appName}");
-            return 0;
-        } else {
-            $this->error("❌ Reset failed: {$result['error']}");
-            return 1;
-        }
-    }
-    
-    private function initializeAll(AppInitializationManager $manager, bool $force)
-    {
-        $this->info('Initializing all registered apps...');
-        
-        if ($force) {
-            $this->warn('⚠️  Force mode enabled - all steps will be re-executed');
-        }
-        
-        $this->newLine();
-        
-        $result = $manager->initializeAll($force);
-        
-        foreach ($result['results'] as $appName => $appResult) {
-            $this->displayAppResult($appName, $appResult);
-        }
-        
-        $this->newLine();
-        
-        if ($result['success']) {
-            $this->info('✅ All apps initialized successfully!');
-            return 0;
-        } else {
-            $this->error('❌ Some apps failed to initialize');
-            return 1;
-        }
-    }
-    
-    private function initializeApp(AppInitializationManager $manager, string $appName, bool $force)
-    {
-        $this->info("Initializing {$appName}...");
-        
-        if ($force) {
-            $this->warn('⚠️  Force mode enabled - all steps will be re-executed');
-        }
-        
-        $this->newLine();
-        
-        $result = $manager->initialize($appName, $force);
-        
-        if (isset($result['available_apps'])) {
-            $this->error("App '{$appName}' not found");
-            $this->info('Available apps: ' . implode(', ', $result['available_apps']));
-            return 1;
-        }
-        
-        $this->displayAppResult($appName, $result);
-        
-        $this->newLine();
-        
-        if ($result['success']) {
-            $this->info("✅ {$appName} initialized successfully!");
-            return 0;
-        } else {
-            $this->error("❌ {$appName} initialization failed");
-            return 1;
-        }
-    }
-    
     private function displayAppResult(string $appName, array $result)
     {
         $this->line("<fg=cyan;options=bold>═══ {$appName} ═══</>");
@@ -923,105 +695,26 @@ class InitializeApps extends Command
         }
     }
 
-    /**
-     * Run database migrations with idempotency (safe mode)
-     * 
-     * ============================================================================
-     * IMPORTANT: DATA SAFETY GUARANTEES
-     * ============================================================================
-     * 
-     * 1. The --force flag ONLY bypasses confirmation prompts in production.
-     *    It does NOT delete tables or modify existing data.
-     * 
-     * 2. Migration behavior (idempotent):
-     *    - If table doesn't exist: Creates the table with all required columns
-     *    - If table exists: Checks for missing columns and adds them (preserves data)
-     *    - If table exists with all columns: Skips (no changes)
-     * 
-     * 3. All migration files MUST use hasTable() checks to ensure idempotency.
-     *    Migration files that don't check table existence are unsafe.
-     * 
-     * 4. This ensures:
-     *    - Tables are created if missing (no data loss, table doesn't exist)
-     *    - Missing columns are added without data loss (preserves existing data)
-     *    - Existing data is always preserved (never deleted or modified)
-     *    - Code aligns with database structure (not rebuilding tables)
-     * 
-     * 5. Why use --force?
-     *    - In production, Laravel asks for confirmation before running migrations
-     *    - --force bypasses this prompt (required for automated scripts)
-     *    - --force does NOT change migration behavior (migrations are still idempotent)
-     *    - --force does NOT delete data (migrations use hasTable() checks)
-     * 
-     * ============================================================================
-     * LINE-BY-LINE EXPLANATION
-     * ============================================================================
-     */
-    private function runSafeMigrations()
+    private function runSafeMigrations(): bool
     {
-        try {
-            // Line 793: Display message to user about migration mode
-            // This informs the user that migrations run in idempotent mode (preserves data)
-            $this->line("  <fg=cyan>Running database migrations (idempotent mode - preserves data)</>");
+        $successful = false;
 
-            // ====================================================================
-            // DEFAULT CONNECTION MIGRATIONS
-            // ====================================================================
-            // Line 798-800: Run migrations on default connection (usually 'sqlite')
-            // 
-            // --force parameter explanation:
-            //   - Purpose: Bypass production confirmation prompts
-            //   - Does NOT: Delete tables, modify data, or change migration behavior
-            //   - Safe to use: Yes, because migrations use hasTable() checks
-            // 
-            // Migration execution flow:
-            //   1. Laravel reads migration files from database/migrations/
-            //   2. Checks migrations table to see which migrations have run
-            //   3. Runs only NEW migrations (not already executed)
-            //   4. Each migration file checks hasTable() before creating tables
-            //   5. If table exists, migration adds missing columns (preserves data)
-            //   6. If table doesn't exist, migration creates table with all columns
-            // 
-            // Data safety:
-            //   - Migrations never drop tables (unless explicitly in down() method)
-            //   - Migrations never delete data (only add columns)
-            //   - Migrations are idempotent (safe to run multiple times)
-            
-            // Print command before execution
+        try {
+            $this->line("  <fg=cyan>Running database migrations (idempotent mode - preserves data)</>");
             $this->line("  <fg=yellow>Command: php artisan migrate --force</>");
-            $exitCode = $this->call('migrate', [
-                '--force' => true, // Line 799: Bypass confirmation only, safe to use (does NOT delete data)
-            ]);
-            
-            // Line 802-806: Check migration exit code and display result
-            // Exit code 0 means success, non-zero means some migrations had issues
-            // Note: Even if some migrations fail, data is still safe (no deletions occurred)
-            if ($exitCode === 0) {
+            $exitCode = $this->call('migrate', ['--force' => true]);
+            $successful = $exitCode === 0;
+
+            if ($successful) {
                 $this->line("  ✅ Default connection migrations completed");
             } else {
-                $this->warn("  ⚠️  Some default connection migrations encountered issues");
+                $this->error("  ❌ Default connection migrations failed");
             }
-
-            // NOTE (idempotency): a SINGLE `migrate --force` on the default
-            // connection above already applies EVERY migration file exactly once.
-            // Each per-app migration routes its own tables via
-            // Schema::connection($this->connection) (app_qy_v1_database,
-            // bank_v1_database, ...), while the migration repository is tracked
-            // centrally on the default connection. The former per-connection
-            // `migrate --database=appqyv1/bankv1` calls were REDUNDANT and, under
-            // the one-database-per-app topology, re-ran every framework/global
-            // migration against each per-app database (creating duplicate
-            // users/jobs/global_tasks tables there and re-executing every file on
-            // first init). Removing them keeps sys:init migrations idempotent and
-            // free of cross-database pollution. (Verified: the only connection-less
-            // migrations create framework/global tables that belong on the default
-            // connection, so none depended on --database routing.)
-
-        } catch (\Exception $e) {
-            // Line 824: Catch and display any exceptions during migration
-            // This ensures errors are reported but don't crash the entire initialization
+        } catch (\Throwable $e) {
             $this->error("  ❌ Migration error: " . $e->getMessage());
         }
+
+        return $successful;
     }
 
     /**
@@ -1074,197 +767,4 @@ class InitializeApps extends Command
         }
     }
 
-    /**
-     * Fix Octane/Swoole compatibility
-     *
-     * PHP Version: 8.5 (Upgraded from 8.4)
-     * Swoole Version: 6.x (Compiled from master for PHP 8.5 compatibility)
-     *
-     * Swoole 6.x compatibility patch for Laravel Octane v2.13.x
-     * Issue: Swoole 6.x changed task event signature (breaking change)
-     * - Swoole 5.x: task(Server $server, int $taskId, int $fromWorkerId, $data)
-     * - Swoole 6.x: task(Server $server, Server\Task $task)
-     *
-     * This method calls App\Support\OctaneSwooleCompatFixer to apply the patch
-     * The patch is idempotent (safe to run multiple times)
-     */
-    private function fixOctaneSwooleCompatibility()
-    {
-        if (!is_dir(base_path('vendor/laravel/octane'))) {
-            $this->line("  <fg=yellow>⏭️  Laravel Octane not installed, skipping</>");
-            return;
-        }
-
-        try {
-            $fixer = new \App\Support\OctaneSwooleCompatFixer(base_path());
-            $result = $fixer->run();
-
-            switch ($result['status']) {
-                case 'fixed':
-                    $this->line("  ✅ Compatibility patch applied (Swoole {$result['swoole_version']})");
-                    break;
-                case 'already_fixed':
-                    $this->line("  ✓ Compatibility patch already applied (Swoole {$result['swoole_version']})");
-                    break;
-                case 'compatible':
-                    $this->line("  ✓ Swoole {$result['swoole_version']} - compatible with Octane v2.13.x");
-                    break;
-                case 'skipped':
-                    if (($result['reason'] ?? '') === 'swoole_not_installed' && PHP_OS_FAMILY !== 'Windows') {
-                        $result = $this->ensureSwooleThenRefix($fixer);
-                        if (($result['status'] ?? '') === 'fixed') {
-                            $this->line("  ✅ Compatibility patch applied (Swoole {$result['swoole_version']})");
-                        } elseif (($result['status'] ?? '') === 'already_fixed') {
-                            $this->line("  ✓ Compatibility patch already applied (Swoole {$result['swoole_version']})");
-                        } elseif (($result['status'] ?? '') === 'compatible') {
-                            $this->line("  ✓ Swoole {$result['swoole_version']} - compatible with Octane v2.13.x");
-                        } else {
-                            $this->line("  ⏭️  Compatibility check skipped: {$result['reason']}");
-                        }
-                    } else {
-                        $this->line("  ⏭️  Compatibility check skipped: {$result['reason']}");
-                    }
-                    break;
-                case 'unknown':
-                    $this->line("  <fg=yellow>⚠️  Unknown Swoole version: {$result['swoole_version']}</>");
-                    break;
-                default:
-                    $this->line("  <fg=yellow>⚠️  Unexpected status: {$result['status']}</>");
-            }
-        } catch (\Exception $e) {
-            $this->warn("  ⚠️  Compatibility check error: " . $e->getMessage());
-        }
-    }
-
-    /**
-     * Swoole missing on a non-Windows host: invoke the canonical installer
-     * (scripts/shells/linux/debian/install_shells/32_install_swoole.sh), then
-     * re-run the Octane/Swoole compatibility fixer once. Octane is the single
-     * task-system driver, so Swoole is required on Linux/WSL.
-     */
-    private function ensureSwooleThenRefix(\App\Support\OctaneSwooleCompatFixer $fixer): array
-    {
-        $repoRoot = dirname(base_path(), 2);
-        $installScript = $repoRoot . '/scripts/shells/linux/debian/install_shells/32_install_swoole.sh';
-        $exitCode = 0;
-
-        if (!is_file($installScript)) {
-            $this->warn("  ⚠️  Swoole installer missing: {$installScript}");
-            return ['status' => 'skipped', 'reason' => 'swoole_not_installed'];
-        }
-
-        $this->line("  <fg=cyan>Swoole not installed -> running installer (may build from source, can take several minutes)...</>");
-        $this->line("  <fg=yellow>Command: bash {$installScript}</>");
-        passthru('bash ' . escapeshellarg($installScript), $exitCode);
-
-        if ($exitCode !== 0) {
-            $this->warn("  ⚠️  Swoole installer exited with code {$exitCode}; Octane will be unavailable (degraded fallback).");
-            return ['status' => 'skipped', 'reason' => 'swoole_not_installed'];
-        }
-
-        // Re-run the fixer; the installer also applies the Octane 6.x patch itself,
-        // so this is mostly a verification / idempotent second pass.
-        return $fixer->run();
-    }
-
-    private function installChokidar()
-    {
-        $laravelPath = base_path();
-        $isWindows = PHP_OS_FAMILY === 'Windows';
-        $separator = $isWindows ? '\\' : '/';
-        $chokidarPath = $laravelPath . $separator . 'node_modules' . $separator . 'chokidar';
-
-        $this->line("  <fg=cyan>Checking Node.js and pnpm...</>");
-
-        // Platform-specific command to check if command exists
-        if ($isWindows) {
-            $this->line("  <fg=yellow>Command: where node</>");
-            exec('where node 2>NUL', $nodeOutput, $nodeCode);
-            $this->line("  <fg=yellow>Command: where pnpm</>");
-            exec('where pnpm 2>NUL', $pnpmOutput, $pnpmCode);
-        } else {
-            $this->line("  <fg=yellow>Command: command -v node</>");
-            exec('command -v node 2>&1', $nodeOutput, $nodeCode);
-            $this->line("  <fg=yellow>Command: command -v pnpm</>");
-            exec('command -v pnpm 2>&1', $pnpmOutput, $pnpmCode);
-        }
-
-        if ($nodeCode !== 0) {
-            $this->warn("  ⚠️  Node.js not found - hot-reload will not be available");
-            $this->line("     Install Node.js to enable Octane --watch mode");
-            return;
-        }
-
-        if ($pnpmCode !== 0) {
-            $this->warn("  ⚠️  pnpm not found - hot-reload will not be available");
-            $this->line("     Install pnpm to enable Octane --watch mode (npm install -g pnpm)");
-            return;
-        }
-
-        $this->line("  <fg=yellow>Command: node --version</>");
-        exec('node --version 2>&1', $nodeVersion);
-        $this->line("  <fg=yellow>Command: pnpm --version</>");
-        exec('pnpm --version 2>&1', $pnpmVersion);
-        $this->line("  ✓ Node.js: " . trim($nodeVersion[0] ?? 'unknown'));
-        $this->line("  ✓ pnpm: " . trim($pnpmVersion[0] ?? 'unknown'));
-
-        $this->line("  <fg=cyan>Installing/Verifying chokidar (always runs)...</>");
-
-        $originalDir = getcwd();
-        chdir($laravelPath);
-
-        if (is_dir($chokidarPath)) {
-            $this->line("  ⟳ chokidar exists, verifying installation...");
-            $this->line("  <fg=yellow>Command: pnpm install --save-dev chokidar</>");
-            exec('pnpm install --save-dev chokidar 2>&1', $output, $code);
-        } else {
-            $this->line("  ⬇ Installing chokidar...");
-            $this->line("  <fg=yellow>Command: pnpm install --save-dev chokidar</>");
-            exec('pnpm install --save-dev chokidar 2>&1', $output, $code);
-        }
-
-        chdir($originalDir);
-
-        if ($code !== 0) {
-            $this->warn("  ⚠️  chokidar installation had issues:");
-            foreach (array_slice($output, -3) as $line) {
-                $this->line("     " . $line);
-            }
-            return;
-        }
-
-        if (is_dir($chokidarPath)) {
-            // Platform-specific version check
-            if ($isWindows) {
-                $this->line("  <fg=yellow>Command: pnpm list chokidar</>");
-                exec('pnpm list chokidar 2>&1', $versionOutput);
-                // Extract version from output (Windows doesn't have grep/head)
-                $version = 'unknown';
-                foreach ($versionOutput as $line) {
-                    if (stripos($line, 'chokidar') !== false && stripos($line, '@') !== false) {
-                        // Extract version like "chokidar@3.5.3"
-                        if (preg_match('/chokidar@([\d.]+)/i', $line, $matches)) {
-                            $version = 'chokidar@' . $matches[1];
-                            break;
-                        }
-                    }
-                }
-            } else {
-                $this->line("  <fg=yellow>Command: pnpm list chokidar | grep chokidar | head -1</>");
-                exec('pnpm list chokidar 2>&1 | grep chokidar | head -1', $versionOutput);
-                $version = trim($versionOutput[0] ?? 'unknown');
-            }
-            $this->line("  ✅ chokidar installed: {$version}");
-
-            $this->line("  <fg=yellow>Command: node -e \"require('chokidar'); console.log('OK')\"</>");
-            exec('node -e "require(\'chokidar\'); console.log(\'OK\')" 2>&1', $testOutput, $testCode);
-            if ($testCode === 0 && isset($testOutput[0]) && trim($testOutput[0]) === 'OK') {
-                $this->line("  ✅ chokidar test passed - hot-reload ready");
-            } else {
-                $this->warn("  ⚠️  chokidar test failed but module exists");
-            }
-        } else {
-            $this->error("  ❌ chokidar not found after installation");
-        }
-    }
 }

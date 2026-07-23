@@ -342,10 +342,10 @@ class WindowLauncher:
 
     def launch_editors(self, app_name, delay=0.2, file_paths=None):
         """
-        Launch editor windows (chrome/vscode/cursor) in grid layout
+        Launch editor windows (chrome/vscode/antigravity) in grid layout
 
         Args:
-            app_name: Application name ('chrome', 'vscode', 'cursor')
+            app_name: Application name ('chrome', 'vscode', 'antigravity')
             delay: Delay between window launches in seconds
             file_paths: Optional list of file paths to open (one per window)
 
@@ -384,7 +384,7 @@ class WindowLauncher:
             return self.editor_launcher.launch_chrome(windows_config, delay)
         elif app_name.lower() == 'vscode':
             return self.editor_launcher.launch_vscode(windows_config, delay)
-        elif app_name.lower() == 'cursor':
-            return self.editor_launcher.launch_cursor(windows_config, delay)
+        elif app_name.lower() == 'antigravity':
+            return self.editor_launcher.launch_antigravity(windows_config, delay)
         else:
             raise ValueError(f"Unknown app name: {app_name}")

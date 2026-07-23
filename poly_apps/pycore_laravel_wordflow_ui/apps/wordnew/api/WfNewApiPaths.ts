@@ -32,6 +32,10 @@ export const WFNEW_API_BASE = '/api/app_qy_v1';
 
 /** Prefix a route suffix with the AppQyV1 base. */
 const p = (suffix: string): string => `${WFNEW_API_BASE}${suffix}`;
+const SENTENCE_AUDIO_BUMP_PATH = p('/ai_tools/tts/sentence/bump');
+const sentenceAudioPath = (text: string, language: string, variantKey?: string): string =>
+  p(`/ai_tools/tts/sentence/audio?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}${
+    variantKey ? `&variant_key=${encodeURIComponent(variantKey)}` : ''}`);
 
 /**
  * Every backend path the /wordnew app uses. Static strings for fixed routes;
@@ -78,15 +82,14 @@ export const WfNewApiPaths = {
   // ---- AI Tools: TTS (AppQyV1AITools.php — prefix app_qy_v1/ai_tools/tts, PUBLIC) ----
   /** Available TTS voices = the Laravel audio library. GET → data.voices = { lang: voice_id }. */
   ttsVoices: p('/ai_tools/tts/voices'),
+  recentAgentArticles: (limit = 20): string => p(`/ai_tools/article/worker/recent?limit=${limit}`),
 
   // ---- Sentence audio (book reader on-demand TTS) ----
-  sentenceAudioBump: p('/ai_tools/tts/sentence/bump'),
+  sentenceAudioBump: SENTENCE_AUDIO_BUMP_PATH,
   /** Batch high-priority hint for the now-visible reader page (chapter switch):
    *  raises tts_priority for many sentences in ONE round-trip + one pycore nudge. */
   sentenceAudioBumpBatch: p('/ai_tools/tts/sentence/bump-batch'),
-  sentenceAudio: (text: string, language: string, variantKey?: string): string =>
-    p(`/ai_tools/tts/sentence/audio?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}${
-      variantKey ? `&variant_key=${encodeURIComponent(variantKey)}` : ''}`),
+  sentenceAudio: sentenceAudioPath,
 
   // ---- Learning languages (AppQyV1Learning.php — prefix app_qy_v1/learning, sanctum) ----
   /** GET native + learning_languages / POST to update them. */
@@ -186,7 +189,7 @@ export const WfNewApiPaths = {
   // ---- System (AppQyV1System.php — prefix app_qy_v1/system) ----
   supportedLanguages: p('/system/supported-languages'),
 
-  // ---- Social (AppQyV1Social.php — prefix app_qy_v1/social, custom.authenticate) ----
+  // ---- Social (AppQyV1Social.php — prefix app_qy_v1/social, auth:sanctum) ----
   socialFriends: p('/social/friends'),
   socialSearch: (query: string, opts: { native?: string; target?: string } = {}): string => {
     const params = new URLSearchParams();
@@ -219,6 +222,9 @@ export const WfNewApiPaths = {
   socialFriendRequests: (direction: 'incoming' | 'outgoing' = 'incoming'): string =>
     p(`/social/friends/requests?direction=${direction}`),
   socialBlock: p('/social/friends/block'),
+  socialLocation: p('/social/location'),
+  socialNearby: (radiusKm = 50, limit = 50): string =>
+    p(`/social/nearby?radius_km=${radiusKm}&limit=${limit}`),
 
   // Chat
   socialConversations: p('/social/conversations'),
@@ -246,12 +252,12 @@ export const WfNewApiPaths = {
   socialNotificationsUnreadCount: p('/social/notifications/unread-count'),
   socialNotificationRead: p('/social/notifications/read'),
 
-  /** Per-user SSE stream (GET, custom.authenticate); ?cursor= resumes from last _id. */
+  /** Per-user SSE stream; query-token authenticated because EventSource cannot send headers. */
   socialStream: (cursor?: number | null): string =>
     p(`/social/stream${cursor != null ? `?cursor=${cursor}` : ''}`),
 
   // ---- Social Center: posts / comments (AppQyV1Social.php — prefix app_qy_v1/social) ----
-  /** Plaza posts list (GET, PUBLIC): ?cursor=&limit=&filter=all|images|videos|following.
+  /** Plaza posts list (GET, auth required): ?cursor=&limit=&filter=all|images|videos|following.
    *  `author` is an OPTIONAL user-id scope for the profile page — the backend may
    *  not honor it yet (see WfNewApiHttp.getPosts); sent only when provided. */
   socialPosts: (opts: { cursor?: number | null; limit?: number; filter?: string; author?: number } = {}): string => {
@@ -259,7 +265,7 @@ export const WfNewApiPaths = {
     if (opts.cursor != null) params.set('cursor', String(opts.cursor));
     params.set('limit', String(opts.limit ?? 20));
     if (opts.filter && opts.filter !== 'all') params.set('filter', opts.filter);
-    if (opts.author != null) params.set('author', String(opts.author));
+    if (opts.author != null) params.set('author_id', String(opts.author));
     return p(`/social/posts?${params.toString()}`);
   },
   /** Create post (POST). */
@@ -269,7 +275,7 @@ export const WfNewApiPaths = {
   /** Like / unlike a post (POST). */
   socialPostLike: (postId: number): string => p(`/social/posts/${postId}/like`),
   socialPostUnlike: (postId: number): string => p(`/social/posts/${postId}/unlike`),
-  /** Post comments list (GET, PUBLIC) / add (POST). */
+  /** Post comments list (GET) / add (POST), both auth required. */
   socialPostComments: (postId: number, cursor?: number | null): string => {
     const params = new URLSearchParams();
     if (cursor != null) params.set('cursor', String(cursor));
@@ -284,7 +290,7 @@ export const WfNewApiPaths = {
   socialPostVideo: (postId: number): string => p(`/social/posts/${postId}/video`),
 
   // ---- Social Center: live (AppQyV1Social.php — prefix app_qy_v1/social) ----
-  /** Live sessions list (GET, PUBLIC): ?status=live|all. */
+  /** Live sessions list (GET, auth required): ?status=live|all. */
   socialLive: (status: 'live' | 'all' = 'live'): string => p(`/social/live?status=${status}`),
   /** Start a live session (POST). */
   socialLiveCreate: p('/social/live'),
@@ -292,7 +298,7 @@ export const WfNewApiPaths = {
   socialLiveEnd: (liveId: number): string => p(`/social/live/${liveId}/end`),
   /** Viewer heartbeat (POST) → { viewer_count }. */
   socialLiveHeartbeat: (liveId: number): string => p(`/social/live/${liveId}/heartbeat`),
-  /** Live room chat list (GET, PUBLIC) / send (POST). */
+  /** Live room chat list (GET) / send (POST), both auth required. */
   socialLiveChat: (liveId: number, cursor?: number | null): string => {
     const params = new URLSearchParams();
     if (cursor != null) params.set('cursor', String(cursor));
@@ -385,11 +391,9 @@ export const WfNewAdminPaths = {
   // ---- queues (PUBLIC) ----
   /** Unified TTS queue statistics snapshot. */
   /** POST /ai_tools/tts/sentence/bump */
-  sentenceAudioBump: p('/ai_tools/tts/sentence/bump'),
+  sentenceAudioBump: SENTENCE_AUDIO_BUMP_PATH,
   /** GET /ai_tools/tts/sentence/audio — file-first sentence audio resolve. */
-  sentenceAudio: (text: string, language: string, variantKey?: string): string =>
-    p(`/ai_tools/tts/sentence/audio?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}${
-      variantKey ? `&variant_key=${encodeURIComponent(variantKey)}` : ''}`),
+  sentenceAudio: sentenceAudioPath,
 
   ttsQueueStats: p('/ai_tools/tts/queue/stats'),
   /** Assist/worker queue overview (pycore + chrome lanes). */
@@ -424,4 +428,3 @@ export const WfNewAdminPaths = {
   translationTranslate: p('/ai_tools/translation/translate'),
   ttsGenerate: p('/ai_tools/tts/generate'),
 } as const;
-

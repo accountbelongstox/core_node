@@ -6,5 +6,6 @@
  */
 import { chatgptWebTool } from './tools/browser/chatgpt-web';
 import { createWebChatJobListener } from './web-chat-job-listener-factory';
+import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 
-export const initChatGptTextListener = createWebChatJobListener('chatgpt_text_service', chatgptWebTool, 'ChatGPT Web');
+export const initChatGptTextListener = createWebChatJobListener(FEATURE_MESSAGE_TYPES.CHATGPT_TEXT, chatgptWebTool, 'ChatGPT Web');

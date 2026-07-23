@@ -22,15 +22,19 @@ THREAD_BUS Integration:
     - Backwards compatible: keeps existing callback mechanism
 """
 
-import time
 import threading
-import concurrent.futures
+import time
 from typing import Dict, Callable, Optional, Any
 
 # Core imports
 from pycore import THREAD_BUS, ColorPrint
 from pycore.pyfoundations import get_global_task_queue, TaskState
 from pycore.pythreadpool import GlobalThreadPool, get_global_thread_pool, ThreadStatus
+
+
+_CALLBACKS_SIGNAL = 'heartbeat.callbacks'
+_CALLBACK_RESULT_QUEUE = 'heartbeat.callback.results'
+_CALLBACK_WORK_QUEUE_PREFIX = 'heartbeat.callback.work'
 
 
 # ============================================================
@@ -96,6 +100,53 @@ class CallbackInfo:
         self.last_run_tick = current_tick
         self.run_count += 1
 
+    def copy(self) -> 'CallbackInfo':
+        """Return a detached callback state snapshot."""
+        snapshot = CallbackInfo(
+            name=self.name,
+            callback=self.callback,
+            interval=self.interval,
+            enabled=self.enabled,
+        )
+        snapshot.last_run_tick = self.last_run_tick
+        snapshot.run_count = self.run_count
+        snapshot.in_flight = self.in_flight
+        snapshot.skip_count = self.skip_count
+        snapshot.last_error = self.last_error
+        return snapshot
+
+
+class HeartbeatCallbackThread(threading.Thread):
+    """Run one callback using work and result queues on THREAD_BUS."""
+
+    def __init__(self, queue_name: str, callback_name: str) -> None:
+        super().__init__(name=f"HeartbeatCallback-{callback_name}", daemon=True)
+        self._queue_name = queue_name
+
+    def run(self) -> None:
+        payload = THREAD_BUS.receive_message(self._queue_name)
+        if not isinstance(payload, dict):
+            return
+
+        callback = payload.get('callback')
+        callback_name = payload.get('name', '')
+        due_tick = payload.get('due_tick', 0)
+        error = None
+        try:
+            callback()
+        except Exception as exc:
+            error = repr(exc)
+            ColorPrint.red(
+                f"[Heartbeat] Callback '{callback_name}' error: {exc}"
+            )
+
+        THREAD_BUS.send_message(_CALLBACK_RESULT_QUEUE, {
+            'name': callback_name,
+            'due_tick': due_tick,
+            'error': error,
+        })
+        THREAD_BUS.clear_queue(self._queue_name)
+
 
 # ============================================================
 # Heartbeat Pusher (Main Thread)
@@ -126,24 +177,18 @@ class HeartbeatPusher(threading.Thread):
         super().__init__(name='HeartbeatPusher', daemon=True)
 
         self.tick_interval = tick_interval
-        self._stop_event = threading.Event()
-        self._running = False
+        self._stop_signal = f"heartbeat.stop.{id(self)}"
+        self._running_signal = f"heartbeat.running.{id(self)}"
+        self._stats_signal = f"heartbeat.stats.{id(self)}"
+        THREAD_BUS.clear_signal(self._stop_signal)
+        THREAD_BUS.signal(self._running_signal, False)
+        THREAD_BUS.signal(self._stats_signal, {})
 
         self._task_queue = get_global_task_queue()
         self._thread_pool = thread_pool or get_global_thread_pool()
 
-        # Callback registry (保留向后兼容性)
-        self._callbacks: Dict[str, CallbackInfo] = {}
-        self._callbacks_lock = threading.Lock()
-
-        # Bounded pool that RUNS callback bodies off the tick thread. This is the
-        # idempotent-skip mechanism: the single HeartbeatPusher thread only
-        # schedules due callbacks here; if a callback is still in_flight from a
-        # prior tick, the next due tick skips it (no extra thread, no pile-up).
-        # A small shared pool keeps thread count bounded regardless of how many
-        # callbacks are registered.
-        self._callback_executor = concurrent.futures.ThreadPoolExecutor(
-            max_workers=4, thread_name_prefix='HeartbeatCb')
+        if THREAD_BUS.get_signal(_CALLBACKS_SIGNAL) is None:
+            THREAD_BUS.signal(_CALLBACKS_SIGNAL, {})
 
         # Statistics
         self._total_ticks = 0
@@ -178,44 +223,53 @@ class HeartbeatPusher(threading.Thread):
             interval: Interval in seconds (default: 1)
             enabled: Whether callback is enabled
         """
-        with self._callbacks_lock:
-            callback_info = CallbackInfo(
-                name=name,
-                callback=callback,
-                interval=interval,
-                enabled=enabled
-            )
-            self._callbacks[name] = callback_info
-            ColorPrint.green(f"[Heartbeat] Registered callback: {name} (interval={interval}s)")
+        callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
+        callbacks[name] = CallbackInfo(
+            name=name,
+            callback=callback,
+            interval=interval,
+            enabled=enabled,
+        )
+        THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+        ColorPrint.green(
+            f"[Heartbeat] Registered callback: {name} (interval={interval}s)"
+        )
 
     def unregister_callback(self, name: str):
         """Unregister a callback"""
-        with self._callbacks_lock:
-            if name in self._callbacks:
-                del self._callbacks[name]
-                ColorPrint.blue(f"[Heartbeat] Unregistered callback: {name}")
+        callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
+        if name not in callbacks:
+            return
+        callbacks.pop(name, None)
+        THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+        ColorPrint.blue(f"[Heartbeat] Unregistered callback: {name}")
 
     def enable_callback(self, name: str) -> bool:
         """Enable a callback. Returns False when the name is not registered."""
-        with self._callbacks_lock:
-            if name in self._callbacks:
-                self._callbacks[name].enabled = True
-                return True
-            return False
+        return self._set_callback_enabled(name, True)
 
     def disable_callback(self, name: str) -> bool:
         """Disable a callback. Returns False when the name is not registered."""
-        with self._callbacks_lock:
-            if name in self._callbacks:
-                self._callbacks[name].enabled = False
-                return True
-            return False
+        return self._set_callback_enabled(name, False)
 
     def is_callback_enabled(self, name: str) -> bool:
         """Return live enabled flag for a registered callback."""
-        with self._callbacks_lock:
-            info = self._callbacks.get(name)
-            return bool(info.enabled) if info is not None else False
+        callbacks = THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {}
+        info = callbacks.get(name)
+        return bool(info.enabled) if info is not None else False
+
+    @staticmethod
+    def _set_callback_enabled(name: str, enabled: bool) -> bool:
+        """Publish an updated callback snapshot to THREAD_BUS."""
+        callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
+        info = callbacks.get(name)
+        if info is None:
+            return False
+        updated_info = info.copy()
+        updated_info.enabled = enabled
+        callbacks[name] = updated_info
+        THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+        return True
 
     def run(self):
         """
@@ -225,12 +279,12 @@ class HeartbeatPusher(threading.Thread):
         - Checks THREAD_BUS.is_shutdown_requested() to stop gracefully
         - Triggers 'heartbeat.tick' event every tick for other modules to subscribe
         """
-        self._running = True
+        THREAD_BUS.signal(self._running_signal, True)
         self._start_time = time.time()
 
         ColorPrint.green(f"[Heartbeat] Started (tick={self.tick_interval}s)")
 
-        while not self._stop_event.is_set():
+        while not THREAD_BUS.get_signal(self._stop_signal, False):
             # THREAD_BUS Integration: Check if global shutdown was requested
             # This allows clean shutdown even if stop() wasn't called directly
             if THREAD_BUS.is_shutdown_requested():
@@ -264,55 +318,76 @@ class HeartbeatPusher(threading.Thread):
                 current_time_str = time.strftime("%Y-%m-%d %H:%M:%S")
                 ColorPrint.blue(f"[Heartbeat] Tick #{self._total_ticks}, Time: {current_time_str}")
 
+            self._publish_stats()
+
             # Sleep for remaining time
             elapsed = time.time() - tick_start
             sleep_time = max(0, self.tick_interval - elapsed)
 
             if sleep_time > 0:
-                self._stop_event.wait(timeout=sleep_time)
+                THREAD_BUS.wait_signal(self._stop_signal, timeout=sleep_time)
 
-        self._running = False
+        THREAD_BUS.signal(self._running_signal, False)
+        self._publish_stats()
         ColorPrint.blue("[Heartbeat] Stopped")
 
     def _execute_callbacks(self):
         """
         Execute registered callbacks based on tick counter.
 
-        Idempotent-skip design: the tick thread only SNAPSHOTs the due callbacks
-        (under the lock) and schedules each on the bounded executor. If a
-        callback's previous invocation is still running (in_flight), the new due
-        tick SKIPS it - so one slow callback cannot block another, and no extra
-        thread is started for an overlapping invocation. mark_run is always
-        applied (in the worker's finally), so a raising callback still honors its
-        interval instead of re-firing every 1s tick.
+        Callback state and work move only through THREAD_BUS. Each due callback
+        runs in a named Thread subclass and reports completion to the result
+        queue; in-flight callbacks are skipped.
         """
-        with self._callbacks_lock:
-            due = [ci for ci in self._callbacks.values()
-                   if ci.should_run(self._total_ticks)]
-        for ci in due:
+        self._apply_callback_results()
+        callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
+        changed = False
+        for callback_name, callback_info in tuple(callbacks.items()):
+            if not callback_info.should_run(self._total_ticks):
+                continue
+            ci = callback_info.copy()
             if ci.in_flight:
-                # Previous invocation still running -> idempotent skip.
                 ci.skip_count += 1
+                callbacks[callback_name] = ci
+                changed = True
                 continue
             ci.in_flight = True
-            self._callback_executor.submit(self._run_callback, ci, self._total_ticks)
+            callbacks[callback_name] = ci
+            changed = True
+            queue_name = (
+                f"{_CALLBACK_WORK_QUEUE_PREFIX}."
+                f"{callback_name}.{self._total_ticks}"
+            )
+            THREAD_BUS.send_message(queue_name, {
+                'callback': ci.callback,
+                'name': callback_name,
+                'due_tick': self._total_ticks,
+            })
+            HeartbeatCallbackThread(queue_name, callback_name).start()
 
-    def _run_callback(self, ci: 'CallbackInfo', due_tick: int):
-        """Worker that runs one callback body, then always marks it run.
+        if changed:
+            THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
 
-        Runs on the bounded executor (NOT the tick thread). mark_run is in the
-        finally so an exception cannot collapse the callback's interval to 1s
-        (the old retry-storm bug). in_flight is cleared here so the next due tick
-        may schedule it again.
-        """
-        try:
-            ci.callback()
-        except Exception as e:
-            ci.last_error = repr(e)
-            ColorPrint.red(f"[Heartbeat] Callback '{ci.name}' error: {e}")
-        finally:
-            ci.mark_run(due_tick)
-            ci.in_flight = False
+    @staticmethod
+    def _apply_callback_results() -> None:
+        """Apply callback completion messages to the bus-owned snapshot."""
+        callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
+        changed = False
+        result = THREAD_BUS.receive_message(_CALLBACK_RESULT_QUEUE)
+        while isinstance(result, dict):
+            callback_name = result.get('name', '')
+            info = callbacks.get(callback_name)
+            if info is not None:
+                updated_info = info.copy()
+                updated_info.mark_run(result.get('due_tick', 0))
+                updated_info.in_flight = False
+                updated_info.last_error = result.get('error')
+                callbacks[callback_name] = updated_info
+                changed = True
+            result = THREAD_BUS.receive_message(_CALLBACK_RESULT_QUEUE)
+
+        if changed:
+            THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
 
     def _process_tasks(self):
         """Process tasks from task queue"""
@@ -365,38 +440,40 @@ class HeartbeatPusher(threading.Thread):
         allowing them to use task queue processing during their cleanup.
         """
         ColorPrint.yellow("[Heartbeat] Stopping...")
-        self._stop_event.set()
-        # Stop accepting new callback work; in-flight workers finish on their own
-        # (best-effort, non-blocking: shutdown must not hang the tick thread).
-        try:
-            self._callback_executor.shutdown(wait=False)
-        except Exception:
-            pass
+        THREAD_BUS.signal(self._stop_signal, True)
 
     def is_running(self) -> bool:
         """Check if pusher is running"""
-        return self._running and self.is_alive()
+        return bool(THREAD_BUS.get_signal(self._running_signal, False)) and self.is_alive()
 
     def get_stats(self) -> Dict:
         """Get heartbeat statistics"""
+        return dict(THREAD_BUS.get_signal(self._stats_signal, {}) or {})
+
+    def _publish_stats(self) -> None:
+        """Publish a consistent heartbeat snapshot for other threads."""
         uptime = time.time() - self._start_time if self._start_time else 0
 
         callback_stats = {}
-        with self._callbacks_lock:
-            for name, callback_info in self._callbacks.items():
-                callback_stats[name] = {
-                    'enabled': callback_info.enabled,
-                    'interval': callback_info.interval,
-                    'last_run_tick': callback_info.last_run_tick,
-                    'run_count': callback_info.run_count,
-                    'in_flight': callback_info.in_flight,
-                    'skip_count': callback_info.skip_count,
-                    'last_error': callback_info.last_error,
-                    'ticks_until_next': max(0, callback_info.interval - (self._total_ticks - callback_info.last_run_tick))
-                }
+        callbacks = THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {}
+        for name, callback_info in callbacks.items():
+            callback_stats[name] = {
+                'enabled': callback_info.enabled,
+                'interval': callback_info.interval,
+                'last_run_tick': callback_info.last_run_tick,
+                'run_count': callback_info.run_count,
+                'in_flight': callback_info.in_flight,
+                'skip_count': callback_info.skip_count,
+                'last_error': callback_info.last_error,
+                'ticks_until_next': max(
+                    0,
+                    callback_info.interval
+                    - (self._total_ticks - callback_info.last_run_tick),
+                ),
+            }
 
-        return {
-            'running': self._running,
+        THREAD_BUS.signal(self._stats_signal, {
+            'running': bool(THREAD_BUS.get_signal(self._running_signal, False)),
             'alive': self.is_alive(),
             'uptime': uptime,
             'total_ticks': self._total_ticks,
@@ -406,7 +483,7 @@ class HeartbeatPusher(threading.Thread):
             'tick_interval': self.tick_interval,
             'queue_size': self._task_queue.size(),
             'callbacks': callback_stats
-        }
+        })
 
 
 # ============================================================
@@ -421,14 +498,10 @@ class HeartbeatSystem:
     """
 
     _instance: Optional['HeartbeatSystem'] = None
-    _lock = threading.Lock()
-
     def __new__(cls):
         """Singleton pattern"""
         if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self):
@@ -437,7 +510,8 @@ class HeartbeatSystem:
             return
 
         self._initialized = True
-        self._running = False
+        self._running_signal = f"heartbeat.system.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
         self._task_queue = get_global_task_queue()
         self._thread_pool = get_global_thread_pool()
@@ -455,7 +529,7 @@ class HeartbeatSystem:
         Args:
             tick_interval: Heartbeat tick interval (default: 1.0s)
         """
-        if self._running:
+        if THREAD_BUS.get_signal(self._running_signal, False):
             ColorPrint.yellow("[HeartbeatSystem] Already running")
             return
 
@@ -470,13 +544,13 @@ class HeartbeatSystem:
         )
         self._heartbeat_pusher.start()
 
-        self._running = True
+        THREAD_BUS.signal(self._running_signal, True)
 
         ColorPrint.green("[HeartbeatSystem] Started successfully")
 
     def stop(self):
         """Stop heartbeat system"""
-        if not self._running:
+        if not THREAD_BUS.get_signal(self._running_signal, False):
             return
 
         ColorPrint.yellow("[HeartbeatSystem] Stopping...")
@@ -485,13 +559,13 @@ class HeartbeatSystem:
             self._heartbeat_pusher.stop()
             self._heartbeat_pusher.join(timeout=5.0)
 
-        self._running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         ColorPrint.blue("[HeartbeatSystem] Stopped")
 
     def is_running(self) -> bool:
         """Check if system is running"""
-        return self._running and (
+        return bool(THREAD_BUS.get_signal(self._running_signal, False)) and (
             self._heartbeat_pusher is not None and
             self._heartbeat_pusher.is_running()
         )
@@ -543,7 +617,7 @@ class HeartbeatSystem:
     def get_stats(self) -> dict:
         """Get comprehensive system statistics"""
         stats = {
-            'running': self._running,
+            'running': bool(THREAD_BUS.get_signal(self._running_signal, False)),
             'config': self._config.copy(),
             'thread_pool': self._thread_pool.get_stats(),
             'task_queue': self._task_queue.get_stats()
@@ -557,7 +631,7 @@ class HeartbeatSystem:
     def get_total_ticks(self) -> int:
         """Get total tick count from heartbeat"""
         if self._heartbeat_pusher:
-            return self._heartbeat_pusher._total_ticks
+            return int(self._heartbeat_pusher.get_stats().get('total_ticks', 0))
         return 0
 
     def get_current_time(self) -> float:
@@ -566,9 +640,9 @@ class HeartbeatSystem:
 
     def get_uptime(self) -> float:
         """Get heartbeat system uptime in seconds"""
-        if self._heartbeat_pusher and self._heartbeat_pusher._start_time:
-            return time.time() - self._heartbeat_pusher._start_time
-        return 0.0
+        if not self._heartbeat_pusher:
+            return 0.0
+        return float(self._heartbeat_pusher.get_stats().get('uptime', 0.0))
 
 
 # ============================================================
@@ -576,9 +650,6 @@ class HeartbeatSystem:
 # ============================================================
 
 _heartbeat_system: Optional[HeartbeatSystem] = None
-_system_lock = threading.Lock()
-
-
 def get_heartbeat_system() -> HeartbeatSystem:
     """
     Get heartbeat system singleton
@@ -589,9 +660,7 @@ def get_heartbeat_system() -> HeartbeatSystem:
     global _heartbeat_system
 
     if _heartbeat_system is None:
-        with _system_lock:
-            if _heartbeat_system is None:
-                _heartbeat_system = HeartbeatSystem()
+        _heartbeat_system = HeartbeatSystem()
 
     return _heartbeat_system
 

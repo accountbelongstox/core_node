@@ -13,6 +13,7 @@ stays focused on lifecycle/dispatch.
 """
 
 import threading
+from pycore.pyfoundations.serialized_worker import start_bus_task
 import subprocess
 from typing import List, Optional
 
@@ -124,10 +125,11 @@ def start_output_consumer(
 
     Returns the started thread so callers may join/track it if desired.
     """
-    thread = threading.Thread(
-        target=consume_dev_output,
-        args=(process, show_output, prefix),
-        daemon=True
+    thread = start_bus_task(
+        consume_dev_output,
+        process,
+        show_output,
+        prefix,
+        thread_name="FrontendDevOutputThread",
     )
-    thread.start()
     return thread

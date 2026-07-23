@@ -89,7 +89,7 @@ if (-not $Force) {
     if ($null -ne $freeGB -and $freeGB -lt $MinFreeDiskGB) { $reasons += ("free disk {0} GB < {1} GB" -f $freeGB, $MinFreeDiskGB) }
     if ($reasons.Count -gt 0) {
         Write-Host ("[skip] System too small for whisper ({0}); skipping install. Use -Force to override." -f ($reasons -join '; ')) -ForegroundColor DarkYellow
-        Complete-PrereqStep -PythonExe $Python -Prefix $SCRIPT_INDEX -ImportModules @('whisper')
+        Complete-PrereqStep -PythonExe $Python -Prefix $SCRIPT_INDEX -ImportModules @('whisper') -AbsentOk -AbsentNote 'resource policy'
     }
 }
 

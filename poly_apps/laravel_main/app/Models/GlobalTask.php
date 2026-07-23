@@ -158,6 +158,7 @@ class GlobalTask extends Model
     // BOTH pycore + chrome advertise ai_translate -> intelligent first-idle-wins
     // race on the shared fast lane (task_type stays word_translation).
     const CAPABILITY_AI_TRANSLATE = 'ai_translate';
+    const CAPABILITY_PUTER_TRANSLATE = 'puter_translate'; // chrome Puter REST translator
     const CAPABILITY_SUBTITLE = 'subtitle';      // pycore-only subtitle retrieval
     const CAPABILITY_POSTER = 'poster';          // pycore-only movie poster (DISTINCT from 'image' = word art)
     const CAPABILITY_STT = 'stt';                // pycore-only speech-to-text transcription
@@ -168,6 +169,7 @@ class GlobalTask extends Model
         self::CAPABILITY_TRANSLATE,
         self::CAPABILITY_SENTENCE_AUDIO,
         self::CAPABILITY_AI_TRANSLATE,
+        self::CAPABILITY_PUTER_TRANSLATE,
         self::CAPABILITY_SUBTITLE,
         self::CAPABILITY_POSTER,
         self::CAPABILITY_STT,
@@ -188,7 +190,8 @@ class GlobalTask extends Model
     const CAPABILITY_CLAIMANTS = [
         self::CAPABILITY_TRANSLATE => ['pycore', 'chrome'],
         self::CAPABILITY_AI_TRANSLATE => ['pycore', 'chrome'],
-        self::CAPABILITY_AUDIO => ['pycore'],
+        self::CAPABILITY_PUTER_TRANSLATE => ['chrome'],
+        self::CAPABILITY_AUDIO => ['pycore', 'chrome'],
         self::CAPABILITY_IMAGE => ['pycore', 'chrome'],
         self::CAPABILITY_SENTENCE_AUDIO => ['pycore', 'chrome'],
         self::CAPABILITY_SUBTITLE => ['pycore'],
@@ -205,6 +208,7 @@ class GlobalTask extends Model
     const CAPABILITY_PRIMARY_HANDLER = [
         self::CAPABILITY_TRANSLATE => 'pycore',
         self::CAPABILITY_AI_TRANSLATE => 'pycore',
+        self::CAPABILITY_PUTER_TRANSLATE => 'chrome',
         self::CAPABILITY_AUDIO => 'pycore',
         self::CAPABILITY_IMAGE => 'pycore',
         self::CAPABILITY_SENTENCE_AUDIO => 'pycore',

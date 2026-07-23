@@ -6,5 +6,6 @@
  */
 import { grokWebTool } from './tools/browser/grok-web';
 import { createWebChatJobListener } from './web-chat-job-listener-factory';
+import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 
-export const initGrokTextListener = createWebChatJobListener('grok_text_service', grokWebTool, 'Grok Web');
+export const initGrokTextListener = createWebChatJobListener(FEATURE_MESSAGE_TYPES.GROK_TEXT, grokWebTool, 'Grok Web');

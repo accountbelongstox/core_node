@@ -51,118 +51,15 @@
         </button>
       </div>
 
-      <!-- API Server Configuration -->
-      <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-2.5">
-        <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tight mb-1.5">{{ getMessage('apiServerConfigLabel') }}</h4>
-        <div class="space-y-1.5">
-          <div v-for="(server, index) in apiServers" :key="server.id" class="bg-slate-900/50 rounded p-1.5">
-            <div class="flex items-center gap-1.5 mb-1">
-              <input type="checkbox" :checked="server.enabled" @change="toggleServer(index)" class="w-3 h-3 rounded border-slate-600 bg-slate-800" />
-              <input v-model="server.name" @blur="saveConfig" :placeholder="getMessage('serverNamePlaceholder')"
-                class="flex-1 px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-200" />
-              <button @click="removeServer(index)" class="text-rose-400 hover:text-rose-300 text-[10px] px-1">x</button>
-            </div>
-            <div v-if="server.enabled" class="space-y-1 pl-4">
-              <div class="flex items-center gap-1.5">
-                <label class="text-[8px] text-slate-500 w-8 shrink-0">{{ getMessage('urlLabel') }}</label>
-                <input v-model="server.url" @blur="saveConfig" :placeholder="getMessage('urlPlaceholder')"
-                  class="flex-1 px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[9px] text-slate-200" />
-              </div>
-              <div class="flex items-center gap-1.5">
-                <label class="text-[8px] text-slate-500 w-8 shrink-0">{{ getMessage('authTokenLabel') }}</label>
-                <input v-model="server.authToken" @blur="saveConfig" type="password" :placeholder="getMessage('optionalPlaceholder')"
-                  class="flex-1 px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[9px] text-slate-200" />
-              </div>
-              <div class="flex items-center gap-1.5">
-                <label class="text-[8px] text-slate-500 w-8 shrink-0">Mode</label>
-                <select v-model="server.streamingMode" @change="saveConfig"
-                  class="flex-1 px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[9px] text-slate-200">
-                  <option value="realtime">{{ getMessage('realtimeWebsocketOption') }}</option>
-                  <option value="chunks">{{ getMessage('chunkedUploadOption') }}</option>
-                  <option value="file">{{ getMessage('completeFileUploadOption') }}</option>
-                </select>
-              </div>
-              <div v-if="server.streamingMode === 'chunks'" class="flex items-center gap-1.5">
-                <label class="text-[8px] text-slate-500 w-8 shrink-0">Int.</label>
-                <input v-model.number="server.chunkInterval" @blur="saveConfig" type="number" min="100" max="10000"
-                  class="w-16 px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[9px] text-slate-200" />
-                <span class="text-[8px] text-slate-500">ms</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <button @click="addServer" class="w-full mt-1.5 py-1 bg-slate-700 hover:bg-slate-600 text-[9px] text-slate-300 rounded transition-colors">
-          + {{ getMessage('addApiServerButton') }}
-        </button>
-      </div>
-
-      <!-- Recording Settings -->
-      <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-2.5">
-        <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tight mb-1.5">{{ getMessage('recordingSettingsLabel') }}</h4>
-        <div class="space-y-1">
-          <label class="flex items-center gap-1.5 text-[10px] text-slate-300 cursor-pointer">
-            <input type="checkbox" v-model="recordingSettings.includeMicrophone" @change="saveConfig" class="w-3 h-3 rounded border-slate-600 bg-slate-800" />
-            {{ getMessage('includeMicrophoneLabel') }}
-          </label>
-          <label class="flex items-center gap-1.5 text-[10px] text-slate-300 cursor-pointer">
-            <input type="checkbox" v-model="recordingSettings.saveLocal" @change="saveConfig" class="w-3 h-3 rounded border-slate-600 bg-slate-800" />
-            {{ getMessage('saveLocallyLabel') }}
-          </label>
-          <label class="flex items-center gap-1.5 text-[10px] text-slate-300 cursor-pointer">
-            <input type="checkbox" v-model="recordingSettings.enableAutoStop" @change="saveConfig" class="w-3 h-3 rounded border-slate-600 bg-slate-800" />
-            {{ getMessage('autoStopSilenceLabel') }}
-          </label>
-          <div v-if="recordingSettings.enableAutoStop" class="flex items-center gap-1.5 pl-4">
-            <label class="text-[9px] text-slate-500">{{ getMessage('silenceDurationLabel') }}</label>
-            <input v-model.number="recordingSettings.silenceDuration" @blur="saveConfig" type="number" min="5" max="300"
-              class="w-14 px-1.5 py-0.5 bg-slate-900 border border-slate-700 rounded text-[9px] text-slate-200" />
-            <span class="text-[8px] text-slate-500">sec</span>
-          </div>
-          <div class="flex items-center gap-1.5">
-            <label class="text-[9px] text-slate-400">{{ getMessage('maxDurationLabel') }}</label>
-            <select v-model.number="recordingSettings.maxDuration" @change="saveConfig"
-              class="flex-1 px-1.5 py-0.5 bg-slate-900 border border-slate-700 rounded text-[9px] text-slate-200">
-              <option :value="60">{{ getMessage('oneMinuteOption') }}</option>
-              <option :value="300">{{ getMessage('fiveMinutesOption') }}</option>
-              <option :value="600">{{ getMessage('tenMinutesOption') }}</option>
-              <option :value="1800">{{ getMessage('thirtyMinutesOption') }}</option>
-              <option :value="3600">{{ getMessage('oneHourOption') }}</option>
-              <option :value="0">{{ getMessage('noLimitOption') }}</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <!-- Session Metadata -->
-      <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-2.5">
-        <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tight mb-1.5">{{ getMessage('sessionMetadataLabel') }}</h4>
-        <textarea v-model="sessionMetadataText" @blur="saveConfig"
-          class="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-[9px] text-slate-200 font-mono resize-none"
-          placeholder='{"word":"example","type":"word","source":"chrome_extension"}'
-          rows="3"></textarea>
-        <p class="text-[8px] text-slate-500 mt-0.5">{{ getMessage('sessionMetadataHelper') }}</p>
-        <p v-if="sessionMetadataError" class="text-[8px] text-rose-400 mt-0.5">{{ sessionMetadataError }}</p>
-      </div>
-
-      <!-- Background Streaming -->
-      <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-2.5">
-        <div class="flex items-center justify-between">
-          <label class="flex items-center gap-1.5 text-[10px] text-slate-300 cursor-pointer">
-            <input type="checkbox" v-model="backgroundStreaming.enabled" :disabled="isFirefox" @change="toggleBackgroundStreaming" class="w-3 h-3 rounded border-slate-600 bg-slate-800" />
-            {{ getMessage('enableBackgroundStreamingLabel') }}
-          </label>
-          <span v-if="backgroundStreaming.enabled" class="text-[8px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/30">
-            {{ getMessage('activeStatus') }}
-          </span>
-        </div>
-        <p class="text-[8px] text-slate-500 mt-1">{{ getMessage('backgroundStreamingDescription') }}</p>
-      </div>
+      <p class="text-[9px] text-slate-500">Recording servers, metadata, and streaming options are managed in Settings Center.</p>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { ref, onMounted } from 'vue';
 import { getMessage } from '../../../utils/i18n';
+import { localStorage } from '@/services/ExtensionStorage';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 interface ApiServer {
   id: string;
@@ -330,7 +227,7 @@ const saveConfig = async () => {
       sessionMetadata: sessionMetadata.value,
       sessionMetadataText: sessionMetadataText.value,
     };
-    await chrome.storage.local.set({ audioRecordingConfig: config });
+    await localStorage.set(STORAGE_KEYS.AUDIO_RECORDING_CONFIG, config);
     console.log('Audio recording config saved');
   } catch (error) {
     console.error('Failed to save audio recording config:', error);
@@ -339,9 +236,14 @@ const saveConfig = async () => {
 
 const loadConfig = async () => {
   try {
-    const result = await chrome.storage.local.get(['audioRecordingConfig']);
-    if (result.audioRecordingConfig) {
-      const config = result.audioRecordingConfig;
+    const config = await localStorage.getOptional<{
+      apiServers?: typeof apiServers.value;
+      recordingSettings?: typeof recordingSettings.value;
+      backgroundStreaming?: boolean;
+      sessionMetadata?: Record<string, string | number | boolean>;
+      sessionMetadataText?: string;
+    }>(STORAGE_KEYS.AUDIO_RECORDING_CONFIG);
+    if (config) {
       apiServers.value = config.apiServers || [];
       recordingSettings.value = config.recordingSettings || recordingSettings.value;
       backgroundStreaming.value = config.backgroundStreaming || backgroundStreaming.value;

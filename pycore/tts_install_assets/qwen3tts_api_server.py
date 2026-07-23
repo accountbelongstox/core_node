@@ -47,6 +47,25 @@ _model_lock = threading.Lock()
 _device: Optional[str] = None
 _load_error: Optional[str] = None
 
+
+def _log(msg: str) -> None:
+    """print() that can never raise. When this subprocess outlives its parent
+    reader (orphaned server still holding the port), stdout is a broken pipe
+    and a plain print() would raise BrokenPipeError BEFORE the endpoint's try
+    block — surfacing to clients as an unexplained plaintext 500."""
+    try:
+        print(msg, flush=True)
+    except Exception:  # noqa: BLE001 — BrokenPipeError / OSError / closed pipe
+        pass
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request, exc):  # noqa: ANN001
+    """Always return the real error as JSON so the pycore client logs the
+    actual cause instead of uvicorn's plaintext 'Internal Server Error'."""
+    _log(f"[api] unhandled error on {request.url.path}: {exc}")
+    return JSONResponse({"error": f"unhandled: {exc}"}, status_code=500)
+
 _LANG_MAP = {
     "en": "English", "zh": "Chinese", "ja": "Japanese", "ko": "Korean",
     "de": "German", "fr": "French", "ru": "Russian", "pt": "Portuguese",
@@ -98,20 +117,20 @@ def _load_model():
     _device = _resolve_device()
     model_id = _model_id()
     dtype = torch.float32 if _device == "cpu" else torch.bfloat16
-    print(f"[api] loading Qwen3-TTS model: {model_id}", flush=True)
-    print(f"[api] device={_device} dtype={dtype} "
-          f"(cuda_available={torch.cuda.is_available()})", flush=True)
+    _log(f"[api] loading Qwen3-TTS model: {model_id}")
+    _log(f"[api] device={_device} dtype={dtype} "
+         f"(cuda_available={torch.cuda.is_available()})")
     t0 = time.time()
     try:
         try:
             model = Qwen3TTSModel.from_pretrained(model_id, device_map=_device, dtype=dtype)
         except TypeError:
             model = Qwen3TTSModel.from_pretrained(model_id, device_map=_device)
-        print(f"[api] model loaded in {time.time() - t0:.1f}s", flush=True)
+        _log(f"[api] model loaded in {time.time() - t0:.1f}s")
         return model
     except Exception as exc:  # noqa: BLE001
         _load_error = str(exc)
-        print(f"[api] model load FAILED after {time.time() - t0:.1f}s: {exc}", flush=True)
+        _log(f"[api] model load FAILED after {time.time() - t0:.1f}s: {exc}")
         raise
 
 
@@ -354,8 +373,8 @@ def synthesize(req: SynthRequest):
     if not text:
         return JSONResponse({"error": "empty text"}, status_code=400)
     fmt = (req.format or "mp3").strip().lower()
-    print(f"[api] /synthesize lang={req.language} speaker={req.speaker or 'auto'} "
-          f"fmt={fmt} chars={len(text)}", flush=True)
+    _log(f"[api] /synthesize lang={req.language} speaker={req.speaker or 'auto'} "
+         f"fmt={fmt} chars={len(text)}")
     try:
         model = _get_model()
         qwen_lang = _qwen_language(req.language)
@@ -368,11 +387,11 @@ def synthesize(req: SynthRequest):
         with _model_lock:
             wavs, sr = model.generate_custom_voice(**gen_kwargs)
         audio, media = _encode_audio(wavs[0], sr, fmt)
-        print(f"[api] synthesized {len(audio)} bytes ({fmt}) @ {int(sr)}Hz "
-              f"in {time.time() - t0:.2f}s", flush=True)
+        _log(f"[api] synthesized {len(audio)} bytes ({fmt}) @ {int(sr)}Hz "
+             f"in {time.time() - t0:.2f}s")
         return StreamingResponse(io.BytesIO(audio), media_type=media)
     except Exception as exc:  # noqa: BLE001
-        print(f"[api] /synthesize FAILED: {exc}", flush=True)
+        _log(f"[api] /synthesize FAILED: {exc}")
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
@@ -383,8 +402,8 @@ def synthesize_batch(req: BatchSynthRequest):
     if not text or not variants:
         return JSONResponse({"error": "empty text or no variants"}, status_code=400)
     fmt = (req.format or "mp3").strip().lower()
-    print(f"[api] /synthesize_batch lang={req.language} variants={len(variants)} "
-          f"fmt={fmt} chars={len(text)}", flush=True)
+    _log(f"[api] /synthesize_batch lang={req.language} variants={len(variants)} "
+         f"fmt={fmt} chars={len(text)}")
     try:
         model = _get_model()
         qwen_lang = _qwen_language(req.language)
@@ -430,8 +449,8 @@ def synthesize_batch(req: BatchSynthRequest):
 def main():
     host = (os.environ.get("QWEN3TTS_HOST") or "127.0.0.1").strip()
     port = int(os.environ.get("QWEN3TTS_PORT") or "57210")
-    print(f"[api] Qwen3-TTS API server starting on {host}:{port} "
-          f"(model={_model_id()}, device={_resolve_device()})", flush=True)
+    _log(f"[api] Qwen3-TTS API server starting on {host}:{port} "
+         f"(model={_model_id()}, device={_resolve_device()})")
     uvicorn.run(app, host=host, port=port)
 
 

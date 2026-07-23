@@ -16,19 +16,31 @@ import shutil
 import subprocess
 import threading
 import zipfile
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from pycore import ColorPrint
 from pycore.pyutils.common.robust_downloader import RobustDownloader
 from pycore.pyutils.device.scrcpy_init import get_initializer
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    await_bus_task,
+    call_serialized,
+)
 
 import traceback
 
 
 
 # ✅ Global download lock to prevent concurrent downloads
-_download_lock = threading.Lock()
+_DOWNLOAD_QUEUE = 'pyutils.device.scrcpy_server.download'
+_DOWNLOAD_WORKER = SerializedWorkerThread(
+    _DOWNLOAD_QUEUE,
+    'ScrcpyServerDownloadThread',
+)
+_DOWNLOAD_WORKER.start()
+_download_scope = nullcontext()
 _downloading = False
 _jar_initialized = False  # ✅ Module-level flag: jar已初始化完成
 
@@ -304,7 +316,7 @@ class ScrcpyServerManager:
             traceback.print_exc()
             return False
 
-    def ensure_local_jar(self, auto_download: bool = True) -> bool:
+    def _ensure_local_jar(self, auto_download: bool = True) -> bool:
         """
         Ensure scrcpy-server.jar is available locally (thread-safe with global lock)
 
@@ -353,7 +365,7 @@ class ScrcpyServerManager:
                 self._validated_jar_path = None
 
         # ========== SLOW PATH: Need to check/download (use global lock) ==========
-        with _download_lock:
+        with _download_scope:
             # Double-check after acquiring lock (another thread may have downloaded)
             if self._validated_jar_path and self._validated_jar_path.exists():
                 if self._is_jar_valid(self._validated_jar_path):
@@ -419,6 +431,15 @@ class ScrcpyServerManager:
             finally:
                 # Always release downloading flag
                 _downloading = False
+
+    def ensure_local_jar(self, auto_download: bool = True) -> bool:
+        """Ensure the jar through the process-wide download owner thread."""
+        return call_serialized(
+            _DOWNLOAD_QUEUE,
+            self._ensure_local_jar,
+            auto_download,
+            timeout=600.0,
+        )
 
     def get_local_hash(self) -> Optional[str]:
         """
@@ -524,14 +545,11 @@ class ScrcpyServerManager:
             True if jar exists and hash matches, False otherwise
         """
         try:
-            loop = asyncio.get_event_loop()
-
             # Check if jar exists on device
             # NOTE: Shell commands don't need // prefix because the path is inside a shell string
             # Git Bash only translates paths that are separate command arguments
             # CRITICAL: Filename must be 'scrcpy-server' (no .jar extension) to match official scrcpy
-            check_result = await loop.run_in_executor(
-                None,
+            check_result = await await_bus_task(
                 lambda: subprocess.run(
                     [self.adb_path, "-s", serial, "shell", "test -f /data/local/tmp/scrcpy-server && echo exists"],
                     capture_output=True,
@@ -551,8 +569,7 @@ class ScrcpyServerManager:
                 return False
 
             # Get device jar hash
-            hash_result = await loop.run_in_executor(
-                None,
+            hash_result = await await_bus_task(
                 lambda: subprocess.run(
                     [self.adb_path, "-s", serial, "shell", "md5sum /data/local/tmp/scrcpy-server"],
                     capture_output=True,
@@ -615,9 +632,7 @@ class ScrcpyServerManager:
         # Do NOT skip this step even if hash check passes - file may be corrupted
         ColorPrint.blue(f"[ScrcpyServerManager] [STEP 2/4] Removing old jar on {serial}...")
         try:
-            loop = asyncio.get_event_loop()
-            remove_result = await loop.run_in_executor(
-                None,
+            remove_result = await await_bus_task(
                 lambda: subprocess.run(
                     [self.adb_path, "-s", serial, "shell", "rm -f /data/local/tmp/scrcpy-server"],
                     capture_output=True,
@@ -635,13 +650,11 @@ class ScrcpyServerManager:
         # ========== STEP 3: ALWAYS push new jar to device ==========
         ColorPrint.blue(f"[ScrcpyServerManager] [STEP 3/4] Pushing jar to {serial}...")
         try:
-            loop = asyncio.get_event_loop()
             # CRITICAL FIX: Use //data/local/tmp/ to prevent Git Bash path translation on Windows
             # Git Bash automatically translates /data/local/tmp/ to Windows path (e.g., D:/Git/data/local/tmp/)
             # Double slash prevents this translation and ensures ADB pushes to Android device path
             # CRITICAL: Filename must be 'scrcpy-server' (no .jar extension) to match official scrcpy
-            push_result = await loop.run_in_executor(
-                None,
+            push_result = await await_bus_task(
                 lambda: subprocess.run(
                     [self.adb_path, "-s", serial, "push", str(jar_to_push), "//data/local/tmp/scrcpy-server"],
                     capture_output=True,
@@ -664,9 +677,7 @@ class ScrcpyServerManager:
         ColorPrint.blue(f"[ScrcpyServerManager] [STEP 4/4] Verifying push...")
         try:
             # Verify file exists on device
-            loop = asyncio.get_event_loop()
-            verify_result = await loop.run_in_executor(
-                None,
+            verify_result = await await_bus_task(
                 lambda: subprocess.run(
                     [self.adb_path, "-s", serial, "shell", "test -f /data/local/tmp/scrcpy-server && echo exists"],
                     capture_output=True,

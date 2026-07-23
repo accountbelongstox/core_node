@@ -20,18 +20,24 @@ export interface FlavorConfig {
   version?: string;
   /** The in-app route the standalone build lands on (e.g. '/wordnew'). */
   rootRoute: string;
+  /** Project-root-relative React entry. Presence is validated by native scripts. */
+  entry?: string;
+  platforms?: Array<'web' | 'android' | 'ios'>;
+  standalone?: {
+    homeAtRoot?: boolean;
+    switcher?: {
+      enabled?: boolean;
+      visible?: boolean;
+    };
+  };
   themeColor?: string;
   backgroundColor?: string;
   description?: string;
-  icon?: string;
-  splash?: string;
+  assets?: {
+    icon?: string;
+    splash?: string;
+  };
 }
-
-// Static imports of every flavor.json (the source of truth, shared with the
-// Python native build). Add a line here when you add a flavors/<id>/ folder.
-import shellFlavor from '../flavors/shell/flavor.json';
-import wordnewFlavor from '../flavors/wordnew/flavor.json';
-import vortexFlavor from '../flavors/vortex/flavor.json';
 
 const DEFAULT_SHELL: FlavorConfig = {
   id: 'shell',
@@ -39,9 +45,48 @@ const DEFAULT_SHELL: FlavorConfig = {
   rootRoute: '/home',
 };
 
+const flavorModules = import.meta.glob('../flavors/*/flavor.json', {
+  eager: true,
+  import: 'default',
+}) as Record<string, FlavorConfig>;
+const flavorAssetModules = import.meta.glob('../flavors/**/*.{svg,png,jpg,jpeg,webp}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+
 export const FLAVOR_REGISTRY: Record<string, FlavorConfig> = {};
-for (const cfg of [shellFlavor, wordnewFlavor, vortexFlavor] as FlavorConfig[]) {
+for (const cfg of Object.values(flavorModules)) {
   if (cfg && cfg.id) FLAVOR_REGISTRY[cfg.id] = cfg;
+}
+
+export function flavorAssetUrl(flavor: FlavorConfig, kind: 'icon' | 'splash'): string | undefined {
+  const relativePath = flavor.assets?.[kind];
+  return relativePath ? flavorAssetModules[`../flavors/${flavor.id}/${relativePath}`] : undefined;
+}
+
+export function applyFlavorDocument(flavor: FlavorConfig): void {
+  if (typeof document === 'undefined') return;
+  const iconUrl = flavorAssetUrl(flavor, 'icon');
+  document.title = flavor.name;
+  if (flavor.themeColor) {
+    let theme = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+    if (!theme) {
+      theme = document.createElement('meta');
+      theme.name = 'theme-color';
+      document.head.appendChild(theme);
+    }
+    theme.content = flavor.themeColor;
+  }
+  if (iconUrl) {
+    let icon = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
+    if (!icon) {
+      icon = document.createElement('link');
+      icon.rel = 'icon';
+      document.head.appendChild(icon);
+    }
+    icon.href = iconUrl;
+  }
 }
 
 /**

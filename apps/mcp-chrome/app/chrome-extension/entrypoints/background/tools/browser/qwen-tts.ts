@@ -179,14 +179,15 @@ class QwenTtsTool extends BaseBrowserToolExecutor {
     mime: string,
     filename: string,
   ): Promise<{ downloadId?: number; filename: string }> {
-    const blob = new Blob([new Uint8Array(bytes)], { type: mime });
-    const url = URL.createObjectURL(blob);
-    try {
-      const downloadId = await chrome.downloads.download({ url, filename, saveAs: false });
-      return { downloadId, filename };
-    } finally {
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    const byteArray = new Uint8Array(bytes);
+    const chunks: string[] = [];
+    const chunkSize = 0x8000;
+    for (let offset = 0; offset < byteArray.length; offset += chunkSize) {
+      chunks.push(String.fromCharCode(...byteArray.subarray(offset, offset + chunkSize)));
     }
+    const url = `data:${mime};base64,${btoa(chunks.join(''))}`;
+    const downloadId = await chrome.downloads.download({ url, filename, saveAs: false });
+    return { downloadId, filename };
   }
 
   private async resolveTab(

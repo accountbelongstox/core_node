@@ -7,13 +7,13 @@ Platform-specific code (tray, service) only handles UI differences.
 """
 
 import logging
-import threading
 from pathlib import Path
 from typing import Optional
 
 from fastapi.staticfiles import StaticFiles
 
 from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.third_party import get_third_package_uvicorn
 from pycore.pyutils.rpc_v2.server.fastapi_server import FastAPIRPCServer
 from pycore.pyutils.rpc_v2.modules import register_module_routes, register_homepage_routes
@@ -195,13 +195,13 @@ def start_rpc_server_background(host='0.0.0.0', port=59000, debug=False):
         debug: Enable debug mode
 
     Returns:
-        threading.Event: Event that is set when server is ready
+        str: THREAD_BUS signal containing the server instance when ready
     """
     server = create_rpc_server(host, port, debug)
     uvicorn = get_third_package_uvicorn()
 
-    server_running = threading.Event()
-    uvicorn_server_holder = {'server': None}
+    server_signal = f"bak.rpc_server.instance.{id(server)}"
+    THREAD_BUS.signal(server_signal, None)
 
     def run_uvicorn():
         """Run uvicorn server"""
@@ -217,9 +217,8 @@ def start_rpc_server_background(host='0.0.0.0', port=59000, debug=False):
             log_level="debug" if debug else "info"
         )
         uvicorn_server = uvicorn.Server(config)
-        uvicorn_server_holder['server'] = uvicorn_server
 
-        server_running.set()
+        THREAD_BUS.signal(server_signal, uvicorn_server)
         ColorPrint.green(f"[Server] RPC v2 started: http://{host}:{port}")
         ColorPrint.blue(f"[Server] Homepage: http://{host}:{port}/")
         ColorPrint.blue(f"[Server] RPC: POST http://{host}:{port}/rpc/{{route}}")
@@ -231,18 +230,16 @@ def start_rpc_server_background(host='0.0.0.0', port=59000, debug=False):
             # Suppress expected errors during shutdown (CancelledError, etc.)
             pass
 
-    server_thread = threading.Thread(
-        target=run_uvicorn,
-        daemon=True,
-        name="RPC-v2-Server"
+    start_bus_task(
+        run_uvicorn,
+        thread_name="RPC-v2-Server",
     )
-    server_thread.start()
-    server_running.wait(timeout=5)
+    THREAD_BUS.wait_signal(server_signal, timeout=5)
 
     # Register shutdown handler AFTER server is created
     def shutdown_handler(event_data=None):
         """Shutdown RPC v2 server (registered with THREAD_BUS)"""
-        uvicorn_server = uvicorn_server_holder.get('server')
+        uvicorn_server = THREAD_BUS.get_signal(server_signal)
         if uvicorn_server:
             ColorPrint.yellow("[Server] Shutting down RPC v2 server...")
             uvicorn_server.should_exit = True
@@ -254,4 +251,4 @@ def start_rpc_server_background(host='0.0.0.0', port=59000, debug=False):
     THREAD_BUS.register_shutdown_handler(shutdown_handler, priority=90, name='rpc_v2_server')
     ColorPrint.blue("[Server] RPC v2 server shutdown handler registered")
 
-    return server_running
+    return server_signal

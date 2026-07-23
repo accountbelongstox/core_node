@@ -12,10 +12,9 @@ Features:
 - WebSocket event broadcasting
 """
 
-import asyncio
-import threading
 from typing import Optional, Callable, List, Dict
 from pathlib import Path
+from pycore.pyfoundations.serialized_worker import submit_coroutine_via_bus
 
 from .device_discovery_scanner import DeviceDiscoveryScanner
 from .unified_server import UnifiedServer, DEFAULT_PORT
@@ -318,9 +317,10 @@ class DeviceManager:
         }
 
         # Broadcast in server loop
-        asyncio.run_coroutine_threadsafe(
+        submit_coroutine_via_bus(
+            self.unified_server.loop,
             self.unified_server.broadcast(message),
-            self.unified_server.loop
+            thread_name="LegacyDeviceUpdateBroadcastThread",
         )
 
     def _broadcast_device_list(self):
@@ -336,9 +336,10 @@ class DeviceManager:
         }
 
         # Broadcast in server loop
-        asyncio.run_coroutine_threadsafe(
+        submit_coroutine_via_bus(
+            self.unified_server.loop,
             self.unified_server.broadcast(message),
-            self.unified_server.loop
+            thread_name="LegacyDeviceListBroadcastThread",
         )
 
     def _setup_callbacks(self):

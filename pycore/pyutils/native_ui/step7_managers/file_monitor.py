@@ -43,6 +43,12 @@ Author: Extracted from d3-check, adapted for pycore
 
 import os
 import threading
+from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+)
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 import time
 from pathlib import Path
 from typing import Optional, Callable, List
@@ -86,13 +92,18 @@ class FileMonitor:
         self._initialized = False
 
         # Thread control
-        self._running = False
-        self._thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
-        self._lock = threading.Lock()
+        init_serialized_owner(
+            self,
+            'pyutils.native_ui.file_monitor',
+            'NativeUIFileMonitorStateThread',
+        )
+        self._running_signal = f'{self._serialized_queue_name}.running'
+        self._stopped_signal = f'{self._serialized_queue_name}.stopped'
+        THREAD_BUS.signal(self._running_signal, False)
 
         ColorPrint.print_info("[FileMonitor] Initialized")
 
+    @serialized_method
     def set_file(self, file_path: str) -> bool:
         """
         Set file to monitor
@@ -103,31 +114,24 @@ class FileMonitor:
         Returns:
             True if file exists and monitoring started, False otherwise
         """
-        with self._lock:
-            self._file_path = Path(file_path)
+        self._file_path = Path(file_path)
+        if not self._file_path.exists():
+            ColorPrint.print_warn(f"[FileMonitor] File not found: {file_path}")
+            self._initialized = False
+            return False
+        self._last_position = self._file_path.stat().st_size
+        self._last_modified = self._file_path.stat().st_mtime
+        self._initialized = True
+        ColorPrint.print_success(f"[FileMonitor] Monitoring file: {file_path}")
+        return True
 
-            if not self._file_path.exists():
-                ColorPrint.print_warn(
-                    f"[FileMonitor] File not found: {file_path}"
-                )
-                self._initialized = False
-                return False
-
-            # Initialize file state
-            self._last_position = self._file_path.stat().st_size
-            self._last_modified = self._file_path.stat().st_mtime
-            self._initialized = True
-
-            ColorPrint.print_success(
-                f"[FileMonitor] Monitoring file: {file_path}"
-            )
-            return True
-
+    @serialized_method
     def set_callback(self, callback: Callable[[str], None]):
         """Set callback function for new content notifications"""
         self._callback = callback
         ColorPrint.print_info("[FileMonitor] Callback registered")
 
+    @serialized_method
     def check_changes(self) -> bool:
         """
         Check for file changes and process new content
@@ -185,7 +189,7 @@ class FileMonitor:
         """Main monitoring loop (runs in separate thread)"""
         ColorPrint.print_info("[FileMonitor] Monitor loop started")
 
-        while not self._stop_event.is_set():
+        while THREAD_BUS.get_signal(self._running_signal, False):
             try:
                 self.check_changes()
                 time.sleep(self._check_interval)
@@ -197,6 +201,7 @@ class FileMonitor:
                 time.sleep(self._check_interval)
 
         ColorPrint.print_info("[FileMonitor] Monitor loop stopped")
+        THREAD_BUS.signal(self._stopped_signal, True)
 
     def start(self) -> bool:
         """
@@ -205,7 +210,7 @@ class FileMonitor:
         Returns:
             True if started successfully, False if already running
         """
-        if self._running:
+        if THREAD_BUS.get_signal(self._running_signal, False):
             ColorPrint.print_warn("[FileMonitor] Already running")
             return False
 
@@ -215,15 +220,13 @@ class FileMonitor:
             )
             return False
 
-        self._running = True
-        self._stop_event.clear()
+        THREAD_BUS.clear_signal(self._stopped_signal)
+        THREAD_BUS.signal(self._running_signal, True)
 
-        self._thread = threading.Thread(
-            target=self._monitor_loop,
-            daemon=True,
-            name="FileMonitorThread"
+        self._thread = start_bus_task(
+            self._monitor_loop,
+            thread_name="FileMonitorThread",
         )
-        self._thread.start()
 
         ColorPrint.print_success("[FileMonitor] Started")
         return True
@@ -238,39 +241,37 @@ class FileMonitor:
         Returns:
             True if stopped successfully, False if not running
         """
-        if not self._running:
+        if not THREAD_BUS.get_signal(self._running_signal, False):
             ColorPrint.print_warn("[FileMonitor] Not running")
             return False
 
         ColorPrint.print_info("[FileMonitor] Stopping...")
-        self._stop_event.set()
-
-        # Wait for thread to finish
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=timeout)
-
-        self._running = False
+        THREAD_BUS.signal(self._running_signal, False)
+        THREAD_BUS.wait_signal(self._stopped_signal, timeout=timeout)
+        THREAD_BUS.clear_signal(self._stopped_signal)
         ColorPrint.print_success("[FileMonitor] Stopped")
         return True
 
     def is_running(self) -> bool:
         """Check if monitoring is active"""
-        return self._running
+        return bool(THREAD_BUS.get_signal(self._running_signal, False))
 
+    @serialized_method
     def is_initialized(self) -> bool:
         """Check if file is initialized"""
         return self._initialized
 
+    @serialized_method
     def get_file_path(self) -> Optional[str]:
         """Get current monitored file path"""
         return str(self._file_path) if self._file_path else None
 
+    @serialized_method
     def reset_position(self):
         """Reset file position to start of file"""
-        with self._lock:
-            if self._initialized and self._file_path:
-                self._last_position = 0
-                ColorPrint.print_info("[FileMonitor] Position reset to start")
+        if self._initialized and self._file_path:
+            self._last_position = 0
+            ColorPrint.print_info("[FileMonitor] Position reset to start")
 
 
 class LogFileMonitor(FileMonitor):

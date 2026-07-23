@@ -15,11 +15,16 @@ Features:
 
 import socket
 import json
-import threading
 import time
 import uuid
-from typing import Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional, Callable
 from pathlib import Path
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 from .logging_config import setup_logging
 
@@ -60,19 +65,21 @@ class DeviceDiscoveryUDP:
 
         # Online devices: {device_id: device_info}
         self.online_devices: Dict[str, Dict] = {}
-        self.devices_lock = threading.Lock()
+        init_serialized_owner(self, "device_sync.udp_discovery", "UDPDiscoveryState")
 
         # Sockets
         self.broadcast_socket: Optional[socket.socket] = None
         self.listen_socket: Optional[socket.socket] = None
 
         # Threads
-        self.broadcast_thread: Optional[threading.Thread] = None
-        self.listen_thread: Optional[threading.Thread] = None
-        self.cleanup_thread: Optional[threading.Thread] = None
+        self.broadcast_thread: Optional[Any] = None
+        self.listen_thread: Optional[Any] = None
+        self.cleanup_thread: Optional[Any] = None
 
         # Running state
         self.running = False
+        self._running_signal = f"device_sync.udp_discovery.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
         # Callbacks
         self.on_device_online: Optional[Callable] = None
@@ -90,30 +97,25 @@ class DeviceDiscoveryUDP:
         logger.info(f"IP: {self.local_ip}")
 
         self.running = True
+        THREAD_BUS.signal(self._running_signal, True)
 
         # Start broadcast thread
-        self.broadcast_thread = threading.Thread(
-            target=self._broadcast_loop,
-            daemon=True,
-            name="DeviceDiscovery-Broadcast"
+        self.broadcast_thread = start_bus_task(
+            self._broadcast_loop,
+            thread_name="DeviceDiscovery-Broadcast",
         )
-        self.broadcast_thread.start()
 
         # Start listen thread
-        self.listen_thread = threading.Thread(
-            target=self._listen_loop,
-            daemon=True,
-            name="DeviceDiscovery-Listen"
+        self.listen_thread = start_bus_task(
+            self._listen_loop,
+            thread_name="DeviceDiscovery-Listen",
         )
-        self.listen_thread.start()
 
         # Start cleanup thread
-        self.cleanup_thread = threading.Thread(
-            target=self._cleanup_loop,
-            daemon=True,
-            name="DeviceDiscovery-Cleanup"
+        self.cleanup_thread = start_bus_task(
+            self._cleanup_loop,
+            thread_name="DeviceDiscovery-Cleanup",
         )
-        self.cleanup_thread.start()
 
         logger.info("Device discovery started")
 
@@ -121,6 +123,7 @@ class DeviceDiscoveryUDP:
         """Stop discovery service."""
         logger.info("Stopping device discovery...")
         self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         # Close sockets
         if self.broadcast_socket:
@@ -137,6 +140,7 @@ class DeviceDiscoveryUDP:
 
         logger.info("Device discovery stopped")
 
+    @serialized_method
     def update_status(self, mode: str, sync_enabled: bool):
         """
         Update device status (called externally).
@@ -148,6 +152,7 @@ class DeviceDiscoveryUDP:
         self.mode = mode
         self.sync_enabled = sync_enabled
 
+    @serialized_method
     def get_online_devices(self) -> List[Dict]:
         """
         Get list of all online devices.
@@ -155,9 +160,9 @@ class DeviceDiscoveryUDP:
         Returns:
             List of device info dicts
         """
-        with self.devices_lock:
-            return list(self.online_devices.values())
+        return list(self.online_devices.values())
 
+    @serialized_method
     def get_primary_devices(self) -> List[Dict]:
         """
         Get list of primary devices.
@@ -165,11 +170,10 @@ class DeviceDiscoveryUDP:
         Returns:
             List of primary device info
         """
-        with self.devices_lock:
-            return [
-                d for d in self.online_devices.values()
-                if d.get('mode') == 'primary'
-            ]
+        return [
+            d for d in self.online_devices.values()
+            if d.get('mode') == 'primary'
+        ]
 
     def _broadcast_loop(self):
         """Broadcast device info loop."""
@@ -181,7 +185,7 @@ class DeviceDiscoveryUDP:
         broadcast_addr = self._get_broadcast_address()
         logger.info(f"Broadcast loop started, using broadcast address: {broadcast_addr}")
 
-        while self.running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             try:
                 # Build device info
                 device_info = {
@@ -207,7 +211,7 @@ class DeviceDiscoveryUDP:
                 logger.debug(f"Broadcasted device info to {broadcast_addr}: {device_info}")
 
             except Exception as e:
-                if self.running:
+                if THREAD_BUS.get_signal(self._running_signal, False):
                     logger.error(f"Broadcast error: {e}", exc_info=True)
 
             # Sleep until next broadcast
@@ -223,7 +227,7 @@ class DeviceDiscoveryUDP:
 
         logger.info("Listen loop started")
 
-        while self.running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             try:
                 data, addr = self.listen_socket.recvfrom(4096)
                 device_info = json.loads(data.decode('utf-8'))
@@ -241,9 +245,7 @@ class DeviceDiscoveryUDP:
                 device_info['last_seen'] = time.time()
 
                 # Update device list
-                with self.devices_lock:
-                    is_new = device_id not in self.online_devices
-                    self.online_devices[device_id] = device_info
+                is_new = self._record_device(device_id, device_info)
 
                 # Trigger callbacks
                 if is_new:
@@ -263,24 +265,17 @@ class DeviceDiscoveryUDP:
             except socket.timeout:
                 continue
             except Exception as e:
-                if self.running:
+                if THREAD_BUS.get_signal(self._running_signal, False):
                     logger.error(f"Listen error: {e}", exc_info=True)
 
     def _cleanup_loop(self):
         """Remove offline devices (timeout check)."""
         logger.info("Cleanup loop started")
 
-        while self.running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             try:
                 current_time = time.time()
-                offline_devices = []
-
-                with self.devices_lock:
-                    for device_id, device_info in list(self.online_devices.items()):
-                        last_seen = device_info.get('last_seen', 0)
-                        if current_time - last_seen > DEVICE_TIMEOUT:
-                            offline_devices.append(device_id)
-                            del self.online_devices[device_id]
+                offline_devices = self._remove_offline_devices(current_time)
 
                 # Trigger offline callbacks
                 for device_id in offline_devices:
@@ -296,6 +291,22 @@ class DeviceDiscoveryUDP:
 
             # Sleep 5 seconds
             time.sleep(5)
+
+    @serialized_method
+    def _record_device(self, device_id: str, device_info: Dict) -> bool:
+        is_new = device_id not in self.online_devices
+        self.online_devices[device_id] = device_info
+        return is_new
+
+    @serialized_method
+    def _remove_offline_devices(self, current_time: float) -> List[str]:
+        offline_devices = []
+        for device_id, device_info in list(self.online_devices.items()):
+            last_seen = device_info.get('last_seen', 0)
+            if current_time - last_seen > DEVICE_TIMEOUT:
+                offline_devices.append(device_id)
+                del self.online_devices[device_id]
+        return offline_devices
 
     def _get_local_ip(self) -> str:
         """Get local IP address."""

@@ -17,6 +17,7 @@ import threading
 from typing import Optional, Callable
 from pycore import THREAD_BUS, ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_pynput
+from pycore.pyfoundations.serialized_worker import start_bus_task
 
 pynput = get_third_package_pynput()
 
@@ -141,11 +142,10 @@ class HotkeyListener:
             # Call legacy callback (backward compatibility)
             if self.on_ctrl_double_click:
                 # Run callback in separate thread to avoid blocking
-                threading.Thread(
-                    target=self.on_ctrl_double_click,
-                    daemon=True,
-                    name="HotkeyCallbackThread"
-                ).start()
+                start_bus_task(
+                    self.on_ctrl_double_click,
+                    thread_name="HotkeyCallbackThread",
+                )
             # Reset to prevent triple-click
             self.last_click_time = 0
         else:
@@ -162,11 +162,10 @@ class HotkeyListener:
             # Call legacy callback (backward compatibility)
             if self.on_ctrl_click:
                 # Run callback in separate thread to avoid blocking
-                threading.Thread(
-                    target=self.on_ctrl_click,
-                    daemon=True,
-                    name="HotkeyCallbackThread"
-                ).start()
+                start_bus_task(
+                    self.on_ctrl_click,
+                    thread_name="HotkeyCallbackThread",
+                )
             self.last_click_time = current_time
 
     def set_ctrl_click_callback(self, callback: Callable[[], None]):

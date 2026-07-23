@@ -73,11 +73,18 @@ def run_once():
 @router.get("/queue")
 def queue_snapshot():
     """Live sentence queue: Laravel missing rows, worker log, priority bumps.
-    Never raises - returns a graceful JSON on any error (no 500/loading-stuck)."""
+    Rows matching an in-flight worker task are flagged ``processing`` so the FE
+    can show a per-row spinner. Never raises - returns a graceful JSON on any
+    error (no 500/loading-stuck)."""
     try:
         worker = get_tts_sentence_worker_service().get_status()
         monitor = get_sentence_queue_monitor_service().get_snapshot()
         bumps = get_queue_bump_hub().snapshot()
+        processing_keys = set(worker.get("current_keys") or [])
+        if processing_keys:
+            for row in monitor.get("items") or []:
+                key = f"{row.get('language')}:{row.get('content_id')}"
+                row["processing"] = key in processing_keys
         return {
             "success": True,
             "worker": worker,

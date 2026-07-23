@@ -83,7 +83,7 @@ export type TaskEventListener = (task: DeepSeekTask, eventType: TaskEventType) =
 /**
  * Storage keys
  */
-const STORAGE_KEYS = {
+const DEEPSEEK_STORAGE_KEYS = {
   TASKS: SK.DEEPSEEK_TASKS,
   CONFIG: SK.DEEPSEEK_CONFIG,
 } as const;
@@ -116,8 +116,8 @@ export class TaskQueueManager {
     if (this.initialized) return;
 
     // Load tasks from storage
-    const result = await chrome.storage.local.get(STORAGE_KEYS.TASKS);
-    const storedTasks = result[STORAGE_KEYS.TASKS] as Record<string, DeepSeekTask> | undefined;
+    const result = await chrome.storage.local.get(DEEPSEEK_STORAGE_KEYS.TASKS);
+    const storedTasks = result[DEEPSEEK_STORAGE_KEYS.TASKS] as Record<string, DeepSeekTask> | undefined;
     if (storedTasks) {
       Object.entries(storedTasks).forEach(([id, task]) => {
         this.tasks.set(id, task);
@@ -125,8 +125,8 @@ export class TaskQueueManager {
     }
 
     // Load configuration
-    const configResult = await chrome.storage.local.get(STORAGE_KEYS.CONFIG);
-    const storedConfig = configResult[STORAGE_KEYS.CONFIG] as typeof DEFAULT_CONFIG | undefined;
+    const configResult = await chrome.storage.local.get(DEEPSEEK_STORAGE_KEYS.CONFIG);
+    const storedConfig = configResult[DEEPSEEK_STORAGE_KEYS.CONFIG] as typeof DEFAULT_CONFIG | undefined;
     if (storedConfig) {
       this.config = { ...DEFAULT_CONFIG, ...storedConfig };
     }
@@ -166,7 +166,7 @@ export class TaskQueueManager {
     this.tasks.forEach((task, id) => {
       tasksObject[id] = task;
     });
-    await chrome.storage.local.set({ [STORAGE_KEYS.TASKS]: tasksObject });
+    await chrome.storage.local.set({ [DEEPSEEK_STORAGE_KEYS.TASKS]: tasksObject });
   }
 
   /**
@@ -378,7 +378,7 @@ export class TaskQueueManager {
    */
   async updateConfig(config: Partial<typeof DEFAULT_CONFIG>): Promise<void> {
     this.config = { ...this.config, ...config };
-    await chrome.storage.local.set({ [STORAGE_KEYS.CONFIG]: this.config });
+    await chrome.storage.local.set({ [DEEPSEEK_STORAGE_KEYS.CONFIG]: this.config });
     console.log('Updated configuration:', this.config);
   }
 

@@ -8,10 +8,11 @@ Uses global_config for shared state.
 
 import os
 import json
-import threading
 import socket
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Any, Optional, Dict, List
+from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.parse
 
@@ -419,8 +420,10 @@ class SimplePrimaryServer:
         """Initialize primary server"""
         self.config = get_global_config()
         self.server: Optional[HTTPServer] = None
-        self.server_thread: Optional[threading.Thread] = None
+        self.server_thread: Optional[Any] = None
         self.running = False
+        self._running_signal = f"device_sync.primary.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
     def start(self):
         """Start PRIMARY server"""
@@ -440,8 +443,11 @@ class SimplePrimaryServer:
 
             # Start server thread
             self.running = True
-            self.server_thread = threading.Thread(target=self._server_loop, daemon=True)
-            self.server_thread.start()
+            THREAD_BUS.signal(self._running_signal, True)
+            self.server_thread = start_bus_task(
+                self._server_loop,
+                thread_name="PrimaryServerThread",
+            )
 
             self.config.server_running = True
 
@@ -450,6 +456,7 @@ class SimplePrimaryServer:
         except Exception as e:
             logger.error(f"Failed to start server: {e}", exc_info=True)
             self.running = False
+            THREAD_BUS.signal(self._running_signal, False)
             raise
 
     def stop(self):
@@ -460,6 +467,7 @@ class SimplePrimaryServer:
         logger.info("Stopping PRIMARY server...")
 
         self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         if self.server:
             self.server.shutdown()
@@ -477,9 +485,9 @@ class SimplePrimaryServer:
         try:
             self.server.serve_forever()
         except Exception as e:
-            if self.running:
+            if THREAD_BUS.get_signal(self._running_signal, False):
                 logger.error(f"Server error: {e}", exc_info=True)
 
     def is_running(self) -> bool:
         """Check if server is running"""
-        return self.running
+        return bool(THREAD_BUS.get_signal(self._running_signal, False))

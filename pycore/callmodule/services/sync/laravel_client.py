@@ -26,9 +26,9 @@ Layering: imports ``laravel_endpoint_manager`` (one-way, top-level). The recorde
 lives in its own zero-dep module so the endpoint manager can import it too without
 cycling back here. No function-level internal imports.
 """
-import threading
 import time
 from typing import Any, Dict, Optional
+from urllib.parse import urlsplit
 
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_requests
@@ -133,13 +133,12 @@ class LaravelClient:
 
     def __init__(self):
         self._session = None
-        self._session_lock = threading.Lock()
 
     def _session_get(self):
+        # Rule §4: no lock — session creation is idempotent; worst case one
+        # duplicate Session is built and discarded. Assignment is GIL-atomic.
         if self._session is None:
-            with self._session_lock:
-                if self._session is None:
-                    self._session = get_third_package_requests().Session()
+            self._session = get_third_package_requests().Session()
         return self._session
 
     def _resolve_base(self, base_url: Optional[str]) -> str:
@@ -169,7 +168,6 @@ class LaravelClient:
     def _display_path(path: str) -> str:
         if LaravelClient._is_full_url(path):
             try:
-                from urllib.parse import urlsplit
                 sp = urlsplit(path)
                 return (sp.path or "/") + (("?" + sp.query) if sp.query else "")
             except Exception:
@@ -251,14 +249,13 @@ class LaravelClient:
 
 
 _client: Optional[LaravelClient] = None
-_client_lock = threading.Lock()
 
 
 def get_laravel_client() -> LaravelClient:
     """Singleton accessor (created on first use)."""
     global _client
+    # Rule §4: no lock — creation is idempotent; worst case one duplicate
+    # client is built and discarded. Module-attr assignment is GIL-atomic.
     if _client is None:
-        with _client_lock:
-            if _client is None:
-                _client = LaravelClient()
+        _client = LaravelClient()
     return _client

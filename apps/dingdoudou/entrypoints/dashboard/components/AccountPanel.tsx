@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { AccountStats, PinduoduoAccount } from '@/lib/types';
 import { i18n, Language } from '../i18n';
+import { localeFor } from '@/lib/uiI18n';
 import {
   Key, LogOut, ShieldCheck, CreditCard, Gift, Users,
   ChevronDown, RefreshCw, UserCheck, Settings, Award,
@@ -90,7 +91,7 @@ export const AccountPanel: React.FC<AccountPanelProps> = ({
           <div>
             <p className="text-xs text-slate-505 dark:text-slate-400 font-medium">{t.balance}</p>
             <h3 className="text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-400 font-sans mt-0.5">
-              ¥{stats.balance.toLocaleString(lang === 'zh' ? 'zh-CN' : 'en-US', { minimumFractionDigits: 2 })}
+              ¥{stats.balance.toLocaleString(localeFor(lang), { minimumFractionDigits: 2 })}
             </h3>
           </div>
           <button

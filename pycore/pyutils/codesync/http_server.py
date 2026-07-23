@@ -17,6 +17,7 @@ No third-party deps; no pycore import.
 import json
 import sys
 import threading
+from pycore.pyfoundations.serialized_worker import start_bus_task
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -352,9 +353,10 @@ class CodeSyncHTTPServer:
         self._httpd = _QuietThreadingHTTPServer((self.host, self.port), _Handler)
         self._httpd.serve_panel = self.serve_panel
         self._httpd.daemon_threads = True
-        self._thread = threading.Thread(target=self._httpd.serve_forever,
-                                        daemon=True, name="CodeSync-HTTP")
-        self._thread.start()
+        self._thread = start_bus_task(
+            self._httpd.serve_forever,
+            thread_name="CodeSyncHTTPThread",
+        )
         ColorPrint.green(f"[CodeSync HTTP] Listening on http://{self.host}:{self.port}/code-sync/")
 
     def stop(self) -> None:

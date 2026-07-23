@@ -25,11 +25,14 @@ from __future__ import annotations
 
 import os
 import sqlite3
-import threading
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import map_web_path
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+)
 
 from pathlib import Path
 
@@ -57,13 +60,10 @@ class DictionaryService:
     """Singleton offline dictionary (ECDICT + WordNet). Lazy, thread-safe."""
 
     _instance: Optional["DictionaryService"] = None
-    _instance_lock = threading.Lock()
 
     def __new__(cls):
         if cls._instance is None:
-            with cls._instance_lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self):
@@ -72,46 +72,50 @@ class DictionaryService:
         self._db_path = _ecdict_db_path()
         self._conn: Optional[sqlite3.Connection] = None
         self._columns: List[str] = []
-        self._conn_lock = threading.Lock()
         self._connect_attempted = False
         # WordNet is optional; resolved on first use.
         self._wn = None
         self._wn_attempted = False
+        init_serialized_owner(
+            self,
+            'pyutils.translator.dictionary',
+            'DictionaryServiceThread',
+            timeout=120.0,
+        )
         self._initialized = True
 
     # -------------------- ECDICT --------------------
 
+    @serialized_method
     def _ensure_conn(self) -> Optional[sqlite3.Connection]:
         """Open the read-only ECDICT connection once (None when the DB is absent)."""
         if self._conn is not None:
             return self._conn
-        with self._conn_lock:
-            if self._conn is not None:
-                return self._conn
-            if self._connect_attempted:
-                return self._conn
-            self._connect_attempted = True
-            if not self._db_path.is_file():
-                ColorPrint.yellow(
-                    f"[dictionary] ECDICT db not found at {self._db_path} "
-                    f"(run install_dictionaries.sh to enable offline word translation)")
+        if self._connect_attempted:
+            return self._conn
+        self._connect_attempted = True
+        if not self._db_path.is_file():
+            ColorPrint.yellow(
+                f"[dictionary] ECDICT db not found at {self._db_path} "
+                f"(run install_dictionaries.sh to enable offline word translation)")
+            return None
+        try:
+            uri = f"file:{self._db_path}?mode=ro"
+            conn = sqlite3.connect(uri, uri=True)
+            cur = conn.execute("PRAGMA table_info(stardict)")
+            self._columns = [row[1] for row in cur.fetchall()]
+            if "word" not in self._columns:
+                ColorPrint.yellow("[dictionary] ECDICT db has no 'stardict.word' column")
+                conn.close()
                 return None
-            try:
-                uri = f"file:{self._db_path}?mode=ro"
-                conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
-                cur = conn.execute("PRAGMA table_info(stardict)")
-                self._columns = [row[1] for row in cur.fetchall()]
-                if "word" not in self._columns:
-                    ColorPrint.yellow("[dictionary] ECDICT db has no 'stardict.word' column")
-                    conn.close()
-                    return None
-                self._conn = conn
-                ColorPrint.green(f"[dictionary] ECDICT loaded ({self._db_path.name})")
-            except sqlite3.Error as e:
-                ColorPrint.yellow(f"[dictionary] ECDICT open failed: {e}")
-                return None
+            self._conn = conn
+            ColorPrint.green(f"[dictionary] ECDICT loaded ({self._db_path.name})")
+        except sqlite3.Error as e:
+            ColorPrint.yellow(f"[dictionary] ECDICT open failed: {e}")
+            return None
         return self._conn
 
+    @serialized_method
     def _ecdict_row(self, word: str) -> Optional[Dict[str, Any]]:
         """Raw ECDICT row for ``word`` (case-insensitive), or None."""
         conn = self._ensure_conn()
@@ -122,9 +126,8 @@ class DictionaryService:
             return None
         sql = f"SELECT {', '.join(cols)} FROM stardict WHERE word = ? COLLATE NOCASE LIMIT 1"
         try:
-            with self._conn_lock:
-                cur = conn.execute(sql, (word.strip(),))
-                row = cur.fetchone()
+            cur = conn.execute(sql, (word.strip(),))
+            row = cur.fetchone()
         except sqlite3.Error as e:
             ColorPrint.yellow(f"[dictionary] ECDICT query failed: {e}")
             return None
@@ -134,6 +137,7 @@ class DictionaryService:
 
     # -------------------- WordNet (optional) --------------------
 
+    @serialized_method
     def _ensure_wordnet(self):
         """Lazily resolve the NLTK WordNet corpus (None when unavailable)."""
         if self._wn is not None or self._wn_attempted:
@@ -149,6 +153,7 @@ class DictionaryService:
             self._wn = None
         return self._wn
 
+    @serialized_method
     def wordnet_definition(self, word: str) -> str:
         """First WordNet gloss for ``word`` ('' when unavailable)."""
         wn = self._ensure_wordnet()
@@ -160,6 +165,7 @@ class DictionaryService:
         except Exception:  # noqa: BLE001
             return ""
 
+    @serialized_method
     def wordnet_synonyms(self, word: str, limit: int = 12) -> List[str]:
         """Distinct WordNet lemma synonyms for ``word`` ([] when unavailable)."""
         wn = self._ensure_wordnet()
@@ -180,10 +186,12 @@ class DictionaryService:
 
     # -------------------- public API --------------------
 
+    @serialized_method
     def available(self) -> bool:
         """True when at least the ECDICT database is loadable."""
         return self._ensure_conn() is not None
 
+    @serialized_method
     def lookup(self, word: str) -> Dict[str, Any]:
         """Rich entry for ``word``: translation (zh), definition (en), phonetic,
         pos, exam tags, frequency, word forms, + WordNet gloss/synonyms. Empty
@@ -218,6 +226,7 @@ class DictionaryService:
             "source": "ecdict",
         }
 
+    @serialized_method
     def translate(self, word: str, dest: str) -> Optional[str]:
         """Offline translation of a single ``word`` for ``dest`` (Chinese from the
         ECDICT translation column; English from its definition). None on miss /
@@ -239,14 +248,14 @@ class DictionaryService:
         # The column holds newline-separated senses; collapse to a single line.
         return "; ".join(part.strip() for part in text.splitlines() if part.strip())
 
+    @serialized_method
     def status(self) -> Dict[str, Any]:
         """Install/availability snapshot for the UI + the /dictionary/status route."""
         conn = self._ensure_conn()
         entries = 0
         if conn is not None:
             try:
-                with self._conn_lock:
-                    entries = int(conn.execute("SELECT COUNT(*) FROM stardict").fetchone()[0])
+                entries = int(conn.execute("SELECT COUNT(*) FROM stardict").fetchone()[0])
             except sqlite3.Error:
                 entries = 0
         return {

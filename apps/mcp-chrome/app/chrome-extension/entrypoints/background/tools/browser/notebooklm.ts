@@ -14,6 +14,7 @@ export interface NotebookLMResult {
 }
 
 interface NotebookLMParams {
+  prompt?: string;
   question?: string;
   notebookUrl?: string;
   timeoutMs?: number;
@@ -29,7 +30,8 @@ class NotebookLMTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.NOTEBOOKLM;
 
   async execute(args: NotebookLMParams): Promise<ToolResult> {
-    const { question, notebookUrl, timeoutMs = 60000 } = args || {};
+    const { notebookUrl, timeoutMs = 60000 } = args || {};
+    const question = args?.question || args?.prompt;
 
     try {
       const tab = await this.resolveTab(notebookUrl);

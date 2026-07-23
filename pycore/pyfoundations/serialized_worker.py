@@ -1,0 +1,322 @@
+"""THREAD_BUS-backed serialized function execution."""
+
+import asyncio
+import threading
+import uuid
+from collections import deque
+from functools import wraps
+from typing import Any, Callable
+
+from pycore.pyfoundations.thread_bus import THREAD_BUS
+
+
+DEFAULT_SERIALIZED_TIMEOUT = 30.0
+
+
+class SerializedWorkerThread(threading.Thread):
+    """Execute callbacks sequentially after receiving them from THREAD_BUS."""
+
+    def __init__(self, queue_name: str, thread_name: str) -> None:
+        super().__init__(name=thread_name, daemon=True)
+        self._queue_name = queue_name
+
+    def run(self) -> None:
+        while True:
+            request = THREAD_BUS.receive_message(
+                self._queue_name,
+                block=True,
+                timeout=0.1,
+            )
+            if not isinstance(request, dict):
+                continue
+
+            response_signal = request.get("response_signal", "")
+            callback = request.get("callback")
+            args = request.get("args", ())
+            kwargs = request.get("kwargs", {})
+            try:
+                result = callback(*args, **kwargs)
+                response = {"success": True, "result": result}
+            except Exception as exc:
+                response = {"success": False, "error": str(exc)}
+            if response_signal:
+                THREAD_BUS.signal(response_signal, response)
+
+
+class BusTaskThread(threading.Thread):
+    """Execute one bus-delivered callback on a named Thread subclass."""
+
+    def __init__(self, queue_name: str, thread_name: str, daemon: bool) -> None:
+        super().__init__(name=thread_name, daemon=daemon)
+        self._queue_name = queue_name
+
+    def run(self) -> None:
+        request = THREAD_BUS.receive_message(self._queue_name)
+        if not isinstance(request, dict):
+            return
+        response_signal = request.get("response_signal", "")
+        callback = request.get("callback")
+        args = request.get("args", ())
+        kwargs = request.get("kwargs", {})
+        try:
+            result = callback(*args, **kwargs)
+            response = {"success": True, "result": result}
+        except Exception as exc:
+            response = {"success": False, "error": str(exc)}
+        if response_signal:
+            THREAD_BUS.signal(response_signal, response)
+        THREAD_BUS.clear_queue(self._queue_name)
+
+
+def start_bus_task(
+    callback: Callable[..., Any],
+    *args: Any,
+    thread_name: str = "BusTaskThread",
+    daemon: bool = True,
+    response_signal: str = "",
+    **kwargs: Any,
+) -> BusTaskThread:
+    """Start one named Thread subclass with all task data routed by THREAD_BUS."""
+    queue_name = f"pyfoundations.bus_task.{uuid.uuid4().hex}"
+    THREAD_BUS.send_message(queue_name, {
+        "callback": callback,
+        "args": args,
+        "kwargs": kwargs,
+        "response_signal": response_signal,
+    })
+    thread = BusTaskThread(queue_name, thread_name, daemon)
+    thread.start()
+    return thread
+
+
+def _run_coroutine_on_loop(
+    loop: Any,
+    coroutine: Any,
+    timeout: float | None,
+) -> Any:
+    future = asyncio.run_coroutine_threadsafe(coroutine, loop)
+    return future.result(timeout=timeout)
+
+
+def submit_coroutine_via_bus(
+    loop: Any,
+    coroutine: Any,
+    *,
+    wait: bool = False,
+    timeout: float | None = None,
+    thread_name: str = "AsyncioBusBridgeThread",
+) -> Any:
+    """Submit a coroutine from another thread with all payloads routed by THREAD_BUS."""
+    response_signal = (
+        f"pyfoundations.asyncio_bridge.{uuid.uuid4().hex}" if wait else ""
+    )
+    thread = start_bus_task(
+        _run_coroutine_on_loop,
+        loop,
+        coroutine,
+        timeout,
+        thread_name=thread_name,
+        response_signal=response_signal,
+    )
+    if not wait:
+        return thread
+    response_timeout = None if timeout is None else timeout + 1.0
+    response = THREAD_BUS.wait_signal(response_signal, timeout=response_timeout)
+    THREAD_BUS.clear_signal(response_signal)
+    if not isinstance(response, dict):
+        raise TimeoutError(f"Asyncio bus bridge timed out: {thread_name}")
+    if not response.get("success"):
+        raise RuntimeError(response.get("error", "Asyncio bus bridge failed"))
+    return response.get("result")
+
+
+async def await_bus_task(
+    callback: Callable[..., Any],
+    *args: Any,
+    thread_name: str = "AsyncBusTaskThread",
+    timeout: float | None = None,
+    **kwargs: Any,
+) -> Any:
+    """Await one named Thread-subclass task whose result travels on THREAD_BUS."""
+    response_signal = f"pyfoundations.async_bus_task.{uuid.uuid4().hex}"
+    start_bus_task(
+        callback,
+        *args,
+        thread_name=thread_name,
+        response_signal=response_signal,
+        **kwargs,
+    )
+    loop = asyncio.get_running_loop()
+    deadline = None if timeout is None else loop.time() + timeout
+    while True:
+        response = THREAD_BUS.get_signal(response_signal)
+        if isinstance(response, dict):
+            THREAD_BUS.clear_signal(response_signal)
+            if not response.get("success"):
+                raise RuntimeError(response.get("error", "Asynchronous bus task failed"))
+            return response.get("result")
+        if deadline is not None and loop.time() >= deadline:
+            THREAD_BUS.clear_signal(response_signal)
+            raise TimeoutError(f"Asynchronous bus task timed out: {thread_name}")
+        await asyncio.sleep(0.005)
+
+
+def map_bus_tasks(
+    callback: Callable[[Any], Any],
+    items: list[Any],
+    max_workers: int,
+    thread_prefix: str = "BusMap",
+    timeout: float | None = None,
+) -> list[Any]:
+    """Map items through a bounded set of bus-delivered Thread subclasses."""
+    item_iterator = iter(enumerate(items))
+    pending: list[tuple[int, str]] = []
+    results: dict[int, Any] = {}
+
+    def submit(index: int, item: Any) -> None:
+        response_signal = f"pyfoundations.bus_map.{uuid.uuid4().hex}"
+        start_bus_task(
+            callback,
+            item,
+            thread_name=f"{thread_prefix}-{index + 1}",
+            response_signal=response_signal,
+        )
+        pending.append((index, response_signal))
+
+    for _ in range(max(1, min(max_workers, len(items)))):
+        try:
+            submit(*next(item_iterator))
+        except StopIteration:
+            break
+
+    while pending:
+        index, response_signal = pending.pop(0)
+        response = THREAD_BUS.wait_signal(response_signal, timeout=timeout)
+        THREAD_BUS.clear_signal(response_signal)
+        if not isinstance(response, dict):
+            raise TimeoutError(f"Bus map task timed out: {thread_prefix}-{index + 1}")
+        if not response.get("success"):
+            raise RuntimeError(response.get("error", "Bus map task failed"))
+        results[index] = response.get("result")
+        try:
+            submit(*next(item_iterator))
+        except StopIteration:
+            pass
+
+    return [results[index] for index in range(len(items))]
+
+
+def init_serialized_owner(
+    owner: Any,
+    queue_prefix: str,
+    thread_prefix: str,
+    timeout: float = DEFAULT_SERIALIZED_TIMEOUT,
+) -> None:
+    """Give one object a dedicated THREAD_BUS-backed state-owner thread."""
+    owner_id = uuid.uuid4().hex
+    owner._serialized_queue_name = f"{queue_prefix}.{owner_id}"
+    owner._serialized_thread_name = f"{thread_prefix}-{owner_id[:8]}"
+    owner._serialized_timeout = timeout
+    worker = SerializedWorkerThread(
+        owner._serialized_queue_name,
+        owner._serialized_thread_name,
+    )
+    worker.start()
+
+
+def _invoke_serialized_method(
+    method: Callable[..., Any],
+    owner: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Any:
+    """Invoke a bound state method on its owner thread."""
+    return method(owner, *args, **kwargs)
+
+
+def serialized_method(method: Callable[..., Any]) -> Callable[..., Any]:
+    """Route a synchronous instance method through its state-owner queue."""
+    @wraps(method)
+    def wrapper(owner: Any, *args: Any, **kwargs: Any) -> Any:
+        thread_name = getattr(owner, "_serialized_thread_name", "")
+        if threading.current_thread().name == thread_name:
+            return method(owner, *args, **kwargs)
+        return call_serialized(
+            owner._serialized_queue_name,
+            _invoke_serialized_method,
+            method,
+            owner,
+            args,
+            kwargs,
+            timeout=float(getattr(owner, "_serialized_timeout", DEFAULT_SERIALIZED_TIMEOUT)),
+        )
+    return wrapper
+
+
+class SerializedDeque:
+    """A small deque whose operations execute on one THREAD_BUS state owner."""
+
+    def __init__(self, items: Any = (), name: str = "SerializedDeque") -> None:
+        self._items = deque(items)
+        init_serialized_owner(self, "pyfoundations.serialized_deque", name)
+
+    @serialized_method
+    def append(self, item: Any) -> None:
+        self._items.append(item)
+
+    @serialized_method
+    def extend(self, items: Any) -> None:
+        self._items.extend(items)
+
+    @serialized_method
+    def popleft(self, default: Any = None) -> Any:
+        if not self._items:
+            return default
+        return self._items.popleft()
+
+    @serialized_method
+    def snapshot(self) -> list[Any]:
+        return list(self._items)
+
+    @serialized_method
+    def __len__(self) -> int:
+        return len(self._items)
+
+
+def call_serialized(
+    queue_name: str,
+    callback: Callable[..., Any],
+    *args: Any,
+    timeout: float = DEFAULT_SERIALIZED_TIMEOUT,
+    **kwargs: Any,
+) -> Any:
+    """Execute one callback on its queue owner and return the bus response."""
+    response_signal = f"{queue_name}.response.{uuid.uuid4().hex}"
+    THREAD_BUS.send_message(queue_name, {
+        "callback": callback,
+        "args": args,
+        "kwargs": kwargs,
+        "response_signal": response_signal,
+    })
+    response = THREAD_BUS.wait_signal(response_signal, timeout=timeout)
+    THREAD_BUS.clear_signal(response_signal)
+    if not isinstance(response, dict):
+        raise TimeoutError(f"Serialized operation timed out: {queue_name}")
+    if not response.get("success"):
+        raise RuntimeError(response.get("error", "Serialized operation failed"))
+    return response.get("result")
+
+
+__all__ = [
+    "DEFAULT_SERIALIZED_TIMEOUT",
+    "await_bus_task",
+    "BusTaskThread",
+    "SerializedWorkerThread",
+    "SerializedDeque",
+    "call_serialized",
+    "init_serialized_owner",
+    "map_bus_tasks",
+    "serialized_method",
+    "start_bus_task",
+    "submit_coroutine_via_bus",
+]

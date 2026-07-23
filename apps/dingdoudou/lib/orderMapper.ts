@@ -5,17 +5,35 @@
 import type { Order, OrderStatus } from './types';
 import type { PddRawOrder } from './pddClient';
 
-function pick<T = any>(obj: any, ...keys: string[]): T | undefined {
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function getPath(value: unknown, path: string): unknown {
+  let current: unknown = value;
+  for (const part of path.split('.')) {
+    const record = asRecord(current);
+    if (!record) return undefined;
+    current = record[part];
+  }
+  return current;
+}
+
+function pick<T>(obj: unknown, ...keys: string[]): T | undefined {
   for (const k of keys) {
-    const v = k.split('.').reduce((o, p) => (o == null ? o : o[p]), obj);
+    const v = getPath(obj, k);
     if (v !== undefined && v !== null && v !== '') return v as T;
   }
   return undefined;
 }
 
 // PDD numeric order_status -> our label (best-effort; falls back to 待发货).
-function mapStatus(raw: any): OrderStatus {
-  const s = String(pick(raw, 'order_status_prompt', 'status_prompt', 'orderStatusPrompt') ?? '');
+function mapStatus(raw: unknown): OrderStatus {
+  const s = String(
+    pick<unknown>(raw, 'order_status_prompt', 'status_prompt', 'orderStatusPrompt') ?? '',
+  );
   if (s) {
     if (s.includes('待付') || s.includes('待支付')) return '待支付';
     if (s.includes('待发') || s.includes('待成团')) return '待发货';
@@ -24,7 +42,7 @@ function mapStatus(raw: any): OrderStatus {
     if (s.includes('退款') || s.includes('退货')) return '已退款';
     if (s.includes('取消') || s.includes('关闭')) return '已取消';
   }
-  const code = Number(pick(raw, 'order_status', 'orderStatus', 'status'));
+  const code = Number(pick<unknown>(raw, 'order_status', 'orderStatus', 'status'));
   switch (code) {
     case 0:
       return '待支付';
@@ -43,7 +61,7 @@ function mapStatus(raw: any): OrderStatus {
   }
 }
 
-function tsToString(v: any): string {
+function tsToString(v: unknown): string {
   const n = Number(v);
   if (!n) return '';
   const ms = n < 1e12 ? n * 1000 : n;
@@ -56,11 +74,19 @@ function tsToString(v: any): string {
 }
 
 export function mapRawOrder(raw: PddRawOrder, accountName: string, pddUserId: string): Order {
-  const goods = pick<any>(raw, 'order_goods', 'goods', 'orderGoods', 'item') ?? raw;
-  const addr = pick<any>(raw, 'address_snapshot', 'address', 'receive_address', 'addressInfo') ?? {};
-  const quantity = Number(pick(goods, 'goods_number', 'goodsNumber', 'quantity', 'num') ?? 1);
-  const orderAmount = Number(pick(raw, 'order_amount', 'orderAmount', 'pay_amount', 'total_amount') ?? 0) / 100 || Number(pick(raw, 'order_amount_yuan') ?? 0);
-  const unitPrice = Number(pick(goods, 'goods_price', 'goodsPrice', 'sku_price', 'price') ?? 0) / 100 || 0;
+  const goods = asRecord(pick<unknown>(raw, 'order_goods', 'goods', 'orderGoods', 'item')) ?? raw;
+  const addr = asRecord(
+    pick<unknown>(raw, 'address_snapshot', 'address', 'receive_address', 'addressInfo'),
+  ) ?? {};
+  const quantity = Number(
+    pick<unknown>(goods, 'goods_number', 'goodsNumber', 'quantity', 'num') ?? 1,
+  );
+  const orderAmount =
+    Number(pick<unknown>(raw, 'order_amount', 'orderAmount', 'pay_amount', 'total_amount') ?? 0) /
+      100 || Number(pick<unknown>(raw, 'order_amount_yuan') ?? 0);
+  const unitPrice =
+    Number(pick<unknown>(goods, 'goods_price', 'goodsPrice', 'sku_price', 'price') ?? 0) /
+      100 || 0;
 
   return {
     id: String(pick(raw, 'order_sn', 'orderSn', 'order_id', 'id') ?? ''),
@@ -76,7 +102,7 @@ export function mapRawOrder(raw: PddRawOrder, accountName: string, pddUserId: st
     specId: String(pick(goods, 'sku_id', 'skuId', 'spec_id') ?? ''),
     orderTime:
       String(pick(raw, 'order_time_text', 'orderTimeText') ?? '') ||
-      tsToString(pick(raw, 'order_time', 'orderTime', 'created_at', 'create_time')),
+      tsToString(pick<unknown>(raw, 'order_time', 'orderTime', 'created_at', 'create_time')),
     status: mapStatus(raw),
     storeName: String(pick(raw, 'mall_name', 'mallName', 'store_name', 'shop_name') ?? ''),
     recipientName: String(pick(addr, 'name', 'receive_name', 'receiver') ?? ''),
@@ -87,7 +113,7 @@ export function mapRawOrder(raw: PddRawOrder, accountName: string, pddUserId: st
         .join('') || String(pick(addr, 'full_address', 'address') ?? ''),
     expressCompany: pick(raw, 'shipping_name', 'express_company', 'logistics_company') as string | undefined,
     expressNumber: pick(raw, 'tracking_number', 'express_no', 'waybill') as string | undefined,
-    shippingTime: tsToString(pick(raw, 'ship_time', 'shipping_time')) || undefined,
+    shippingTime: tsToString(pick<unknown>(raw, 'ship_time', 'shipping_time')) || undefined,
     latestTrack: pick(raw, 'last_track', 'logistics_text') as string | undefined,
     invoiceStatus: '未申请',
     groupBuyUrl: pick(raw, 'group_url', 'share_url') as string | undefined,

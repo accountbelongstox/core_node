@@ -8,6 +8,7 @@ This module only registers event handlers, does not start any threads.
 
 import os
 import threading
+import time
 import webbrowser
 
 from pycore import ColorPrint, THREAD_BUS, get_user_data_store
@@ -30,6 +31,9 @@ from pycore.callmodule.services.heartbeat_tts_workers import (
     register_tts_queue_poller,
     register_tts_sentence_worker,
 )
+from pycore.callmodule.services.heartbeat_agent_history import (
+    register_agent_history_extraction,
+)
 from pycore.callmodule.services.heartbeat_worker_prefs import restore_persisted_heartbeat_prefs
 from pycore.callmodule.services.system_settings_boot import apply_persisted_system_settings
 from pycore.callmodule.tray_menu import (
@@ -38,6 +42,61 @@ from pycore.callmodule.tray_menu import (
     TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL,
 )
 from pycore.callmodule.config import build_tray_service_config, update_tray_menu_with_singleton
+
+
+class TrayServiceToggleThread(threading.Thread):
+    """Apply one system-service toggle from a THREAD_BUS payload."""
+
+    def __init__(self, queue_name: str) -> None:
+        super().__init__(name='TrayServiceToggle', daemon=True)
+        self._queue_name = queue_name
+
+    def run(self) -> None:
+        payload = THREAD_BUS.receive_message(self._queue_name)
+        if not isinstance(payload, dict):
+            return
+        launcher = payload.get('launcher')
+        port = payload.get('port')
+        singleton_port = payload.get('singleton_port')
+        try:
+            if not ssm.is_supported():
+                ColorPrint.yellow(
+                    "[Tray] systemd not available; service toggle is a no-op."
+                )
+                return
+            if ssm.pycore_service_enabled():
+                result = ssm.disable_pycore_only()
+                ColorPrint.green(
+                    f"[Tray] Service disabled: pycore enabled="
+                    f"{result.get('enabled')}. UI left running="
+                    f"{result.get('ui_left_running')}"
+                )
+                command = result.get('ui_remove_command') or ''
+                if command:
+                    ColorPrint.yellow(
+                        f"[Tray] To remove the UI unit too, run:\n    {command}"
+                    )
+            else:
+                result = ssm.enable_both()
+                ColorPrint.green(
+                    f"[Tray] Service enabled: pycore="
+                    f"{result['pycore'].get('enabled')} "
+                    f"ui={result['ui'].get('enabled')}"
+                )
+        except Exception as exc:
+            ColorPrint.red(f"[Tray] Service toggle failed: {exc}")
+        finally:
+            try:
+                update_tray_menu_with_singleton(
+                    launcher,
+                    port=port,
+                    singleton_port=singleton_port,
+                )
+            except Exception as exc:
+                ColorPrint.yellow(
+                    f"[Tray] Menu re-push after service toggle failed: {exc}"
+                )
+            THREAD_BUS.clear_queue(self._queue_name)
 
 
 def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port: int = None):
@@ -136,37 +195,14 @@ def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port
         thread is never blocked. The menu is re-pushed afterwards so the
         [X]/[ ] state refreshes live.
         """
-        def _apply():
-            try:
-                if not ssm.is_supported():
-                    ColorPrint.yellow("[Tray] systemd not available; service toggle is a no-op.")
-                    return
-                if ssm.pycore_service_enabled():
-                    result = ssm.disable_pycore_only()
-                    ColorPrint.green(
-                        f"[Tray] Service disabled: pycore enabled={result.get('enabled')}. "
-                        f"UI left running={result.get('ui_left_running')}"
-                    )
-                    cmd = result.get('ui_remove_command') or ''
-                    if cmd:
-                        # Print the exact removal command for the UI unit, per spec.
-                        ColorPrint.yellow(f"[Tray] To remove the UI unit too, run:\n    {cmd}")
-                else:
-                    result = ssm.enable_both()
-                    ColorPrint.green(
-                        f"[Tray] Service enabled: pycore={result['pycore'].get('enabled')} "
-                        f"ui={result['ui'].get('enabled')}"
-                    )
-            except Exception as e:
-                ColorPrint.red(f"[Tray] Service toggle failed: {e}")
-            finally:
-                # Re-push the menu so the toggle's [X]/[ ] state refreshes.
-                try:
-                    update_tray_menu_with_singleton(launcher, port=port, singleton_port=singleton_port)
-                except Exception as e:
-                    ColorPrint.yellow(f"[Tray] Menu re-push after service toggle failed: {e}")
-
-        threading.Thread(target=_apply, name='TrayServiceToggle', daemon=True).start()
+        request_id = f"{threading.get_ident()}.{time.time_ns()}"
+        queue_name = f"callmodule.tray.service_toggle.{request_id}"
+        THREAD_BUS.send_message(queue_name, {
+            'launcher': launcher,
+            'port': port,
+            'singleton_port': singleton_port,
+        })
+        TrayServiceToggleThread(queue_name).start()
 
     def handle_tray_toggle_code_sync_distribute(event_data):
         """Toggle dev-end code distribution (same CodeSyncManager as the UI API)."""
@@ -319,6 +355,14 @@ def _register_heartbeat_workers():
     # starts at sys-init whenever the persisted assist_laravel.enabled toggle
     # is on (default off). register_assist_worker_start() is exception-safe.
     register_assist_worker_start()
+
+    # Agent-history extraction worker (backfill -> live article pipeline):
+    # previously registered ONLY on the native_ui path (callmodule_main), so
+    # "auto process history" never ticked under pycore_module_caller.
+    try:
+        register_agent_history_extraction()
+    except Exception as e:
+        ColorPrint.red(f"[EventHandlers] Failed to register agent_history_extraction: {e}")
 
     try:
         heartbeat = get_heartbeat_system()

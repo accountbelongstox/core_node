@@ -75,7 +75,8 @@ class BingDictionaryProcessor implements ITaskProcessor {
     return (
       taskType === 'bing_dictionary' ||
       taskType === 'dictionary_translation' ||
-      taskType === 'word_translation'
+      taskType === 'word_translation' ||
+      taskType === 'word_audio'
     );
   }
 }

@@ -16,12 +16,19 @@ import importlib
 import logging
 import subprocess
 import sys
-import threading
 
 from constants import FileProcessorConstants
 from pycore.pyfoundations.third_party import build_pip_install_command
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+    start_bus_task,
+)
 
 logger = logging.getLogger(__name__)
+_INSTALL_QUEUE = 'pyutils.mcp_bridge.package_install'
+_INSTALL_WORKER = SerializedWorkerThread(_INSTALL_QUEUE, 'PackageInstallThread')
+_INSTALL_WORKER.start()
 
 
 class PackageManager:
@@ -31,54 +38,57 @@ class PackageManager:
     PACKAGE_MAPPING = FileProcessorConstants.PACKAGE_MAPPING
 
     _installation_status = {}
-    _installation_lock = threading.Lock()
 
     @staticmethod
     def install_package(package_name: str, timeout: int = 60) -> bool:
+        """Install one package through the installation-owner thread."""
+        return call_serialized(
+            _INSTALL_QUEUE,
+            PackageManager._install_package,
+            package_name,
+            timeout,
+            timeout=float(timeout + 10),
+        )
+
+    @staticmethod
+    def _install_package(package_name: str, timeout: int = 60) -> bool:
         """Install a Python package with timeout.
 
         Uses the shared platform-aware command builder (build_pip_install_command)
         so Linux gets --break-system-packages. Output is streamed realtime to
         stderr (not PIPE-captured) while stdout stays clean for MCP JSON-RPC.
         """
-        with PackageManager._installation_lock:
-            # Check cache first
-            if package_name in PackageManager._installation_status:
-                return PackageManager._installation_status[package_name]
+        if package_name in PackageManager._installation_status:
+            return PackageManager._installation_status[package_name]
 
+        try:
+            importlib.import_module(package_name.replace('-', '_').replace('python_', ''))
+            logger.info(f"[OK] {package_name} is already installed")
+            PackageManager._installation_status[package_name] = True
+            return True
+        except ImportError:
+            logger.info(f"[INFO] Installing {package_name}...")
             try:
-                importlib.import_module(package_name.replace('-', '_').replace('python_', ''))
-                logger.info(f"[OK] {package_name} is already installed")
-                PackageManager._installation_status[package_name] = True
-                return True
-            except ImportError:
-                logger.info(f"[INFO] Installing {package_name}...")
+                pip_cmd = build_pip_install_command(package_name)
+                process = subprocess.Popen(pip_cmd, stdout=sys.stderr, stderr=sys.stderr)
                 try:
-                    # Shared platform-aware command (adds --break-system-packages on Linux).
-                    pip_cmd = build_pip_install_command(package_name)
-
-                    # Realtime output on stderr only; stdout reserved for MCP JSON-RPC.
-                    process = subprocess.Popen(pip_cmd, stdout=sys.stderr, stderr=sys.stderr)
-                    try:
-                        process.wait(timeout=timeout)
-                        if process.returncode == 0:
-                            logger.info(f"[OK] {package_name} installed successfully")
-                            PackageManager._installation_status[package_name] = True
-                            return True
-                        else:
-                            logger.error(f"[ERROR] Failed to install {package_name} (exit code {process.returncode})")
-                            PackageManager._installation_status[package_name] = False
-                            return False
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        logger.error(f"[ERROR] {package_name} installation timed out")
-                        PackageManager._installation_status[package_name] = False
-                        return False
-
-                except Exception as e:
-                    logger.error(f"[ERROR] Failed to install {package_name}: {e}")
+                    process.wait(timeout=timeout)
+                    if process.returncode == 0:
+                        logger.info(f"[OK] {package_name} installed successfully")
+                        PackageManager._installation_status[package_name] = True
+                        return True
+                    logger.error(f"[ERROR] Failed to install {package_name} (exit code {process.returncode})")
                     PackageManager._installation_status[package_name] = False
                     return False
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    logger.error(f"[ERROR] {package_name} installation timed out")
+                    PackageManager._installation_status[package_name] = False
+                    return False
+            except Exception as e:
+                logger.error(f"[ERROR] Failed to install {package_name}: {e}")
+                PackageManager._installation_status[package_name] = False
+                return False
 
     @staticmethod
     def ensure_packages(format_type: str, async_install: bool = False) -> bool:
@@ -91,8 +101,7 @@ class PackageManager:
                 for package in packages:
                     PackageManager.install_package(package)
 
-            thread = threading.Thread(target=install_async, daemon=True)
-            thread.start()
+            start_bus_task(install_async, thread_name="PackageAsyncInstallThread")
             return True
         else:
             success_count = 0
@@ -114,6 +123,5 @@ class PackageManager:
                 PackageManager.ensure_packages(format_type, async_install=False)
             logger.info("[INFO] Package initialization completed")
 
-        thread = threading.Thread(target=init_packages, daemon=True)
-        thread.start()
+        start_bus_task(init_packages, thread_name="PackageInitializationThread")
         logger.info("[INFO] Package initialization started in background")

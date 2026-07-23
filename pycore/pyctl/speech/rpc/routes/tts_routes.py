@@ -11,10 +11,11 @@ Endpoints:
 - tts.synthesize: Alias for tts
 """
 
-import threading
+import uuid
 from typing import Dict, Any
 
 from pycore.pyfoundations import ColorPrint, Task, TaskPriority, get_global_task_queue
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyutils.common import TTSTaskData, create_tts_task
 
 
@@ -105,16 +106,20 @@ def register_tts_routes(rpc_server, service_instances: Dict[str, Any]):
 
         # Setup callbacks for sync mode
         if not async_mode:
-            completed_event = threading.Event()
-            task_result = {'result': None, 'error': None}
+            response_signal = f"speech.tts.response.{uuid.uuid4().hex}"
+            THREAD_BUS.clear_signal(response_signal)
 
             def on_complete(t: Task):
-                task_result['result'] = t.metadata.get('result', {})
-                completed_event.set()
+                THREAD_BUS.signal(response_signal, {
+                    'result': t.metadata.get('result', {}),
+                    'error': None,
+                })
 
             def on_error(t: Task):
-                task_result['error'] = t.error or "Task failed"
-                completed_event.set()
+                THREAD_BUS.signal(response_signal, {
+                    'result': None,
+                    'error': t.error or "Task failed",
+                })
 
             task.callback = on_complete
             task.error_callback = on_error
@@ -137,7 +142,11 @@ def register_tts_routes(rpc_server, service_instances: Dict[str, Any]):
 
         # Sync mode - wait for completion
         ColorPrint.blue(f"[TTS] Waiting for task {task.task_id[:8]}... (max 30s)")
-        completed_event.wait(timeout=30.0)
+        task_result = THREAD_BUS.wait_signal(response_signal, timeout=30.0) or {
+            'result': None,
+            'error': None,
+        }
+        THREAD_BUS.clear_signal(response_signal)
 
         if task_result['error']:
             return {'success': False, 'error': task_result['error']}

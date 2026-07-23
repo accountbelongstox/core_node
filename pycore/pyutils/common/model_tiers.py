@@ -14,6 +14,11 @@ from typing import Optional
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.system_paths import get_user_data_store
 
+try:
+    import ctranslate2
+except ImportError:
+    ctranslate2 = None
+
 
 _TIERS_PATH = Path(__file__).resolve().parents[2] / "tts_install_assets" / "tts_model_tiers.py"
 _spec = importlib.util.spec_from_file_location("pycore_tts_model_tiers", _TIERS_PATH)
@@ -94,7 +99,7 @@ def runtime_faster_whisper_model() -> str:
 
 def runtime_faster_whisper_device() -> str:
     try:
-        if ctranslate2.get_cuda_device_count() > 0:
+        if ctranslate2 is not None and ctranslate2.get_cuda_device_count() > 0:
             return "cuda"
     except Exception:
         pass

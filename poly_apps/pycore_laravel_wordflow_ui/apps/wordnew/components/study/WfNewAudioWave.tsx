@@ -20,6 +20,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { translate } from '../../WfNewLocales';
+import { resolveAudioSync } from '../../cache/WfNewAudioCache';
 
 export interface WfNewAudioFile {
   url?: string;
@@ -108,7 +109,7 @@ export const WfNewAudioWave: React.FC<WfNewAudioWaveProps> = ({
     if (onPlay) {
       onPlay(currentUrl);
     } else if (isAbsoluteUrl(currentUrl) && audioRef.current) {
-      audioRef.current.src = currentUrl;
+      audioRef.current.src = resolveAudioSync(currentUrl) ?? currentUrl;
       void audioRef.current.play().catch(() => undefined);
     }
     triggerPulse();

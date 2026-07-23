@@ -15,6 +15,28 @@ from pycore.pyfoundations.third_party import get_third_package_pygame
 from pycore.pyctl.desktop.queue_manager import get_voice_subtitle_queue
 
 
+_PLAYER_START_QUEUE = 'pyctl.desktop.player.start'
+_PLAYER_RUNNING_SIGNAL = 'pyctl.desktop.player.running'
+_PLAYER_STOPPED_SIGNAL = 'pyctl.desktop.player.stopped'
+
+
+class VoiceSubtitlePlayerThread(threading.Thread):
+    """Run player work received through THREAD_BUS."""
+
+    def __init__(self) -> None:
+        super().__init__(daemon=True, name='VoiceSubtitlePlayerThread')
+
+    def run(self) -> None:
+        payload = THREAD_BUS.receive_message(_PLAYER_START_QUEUE)
+        if not isinstance(payload, dict):
+            return
+        try:
+            payload['player']._play_loop()
+        finally:
+            THREAD_BUS.signal(_PLAYER_RUNNING_SIGNAL, False)
+            THREAD_BUS.signal(_PLAYER_STOPPED_SIGNAL, True)
+
+
 class VoiceSubtitlePlayer:
     """
     Voice subtitle player service
@@ -28,9 +50,7 @@ class VoiceSubtitlePlayer:
 
     def __init__(self):
         """Initialize player"""
-        self._running = False
-        self._thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
+        THREAD_BUS.signal(_PLAYER_RUNNING_SIGNAL, False)
 
         # Initialize pygame mixer once
         pygame = get_third_package_pygame()
@@ -39,31 +59,24 @@ class VoiceSubtitlePlayer:
 
     def start(self):
         """Start player thread"""
-        if self._running:
+        if THREAD_BUS.get_signal(_PLAYER_RUNNING_SIGNAL, False):
             ColorPrint.yellow("[Player] Already running")
             return
 
-        self._running = True
-        self._stop_event.clear()
-
-        self._thread = threading.Thread(
-            target=self._play_loop,
-            daemon=True,
-            name="VoiceSubtitlePlayer"
-        )
-        self._thread.start()
+        THREAD_BUS.clear_signal(_PLAYER_STOPPED_SIGNAL)
+        THREAD_BUS.signal(_PLAYER_RUNNING_SIGNAL, True)
+        THREAD_BUS.send_message(_PLAYER_START_QUEUE, {'player': self})
+        VoiceSubtitlePlayerThread().start()
         ColorPrint.green("[Player] Started")
 
     def stop(self):
         """Stop player thread"""
-        if not self._running:
+        if not THREAD_BUS.get_signal(_PLAYER_RUNNING_SIGNAL, False):
             return
 
-        self._running = False
-        self._stop_event.set()
-
-        if self._thread:
-            self._thread.join(timeout=2)
+        THREAD_BUS.signal(_PLAYER_RUNNING_SIGNAL, False)
+        THREAD_BUS.wait_signal(_PLAYER_STOPPED_SIGNAL, timeout=2.0)
+        THREAD_BUS.clear_signal(_PLAYER_STOPPED_SIGNAL)
 
         # Quit pygame mixer
         pygame = get_third_package_pygame()
@@ -75,7 +88,7 @@ class VoiceSubtitlePlayer:
         """Main playback loop"""
         ColorPrint.blue("[Player] Playback loop started")
 
-        while self._running:
+        while THREAD_BUS.get_signal(_PLAYER_RUNNING_SIGNAL, False):
             try:
                 queue = get_voice_subtitle_queue()
 
@@ -140,7 +153,10 @@ class VoiceSubtitlePlayer:
         pygame.mixer.music.play()
 
         # Wait for playback to finish
-        while pygame.mixer.music.get_busy() and self._running:
+        while (
+            pygame.mixer.music.get_busy()
+            and THREAD_BUS.get_signal(_PLAYER_RUNNING_SIGNAL, False)
+        ):
             time.sleep(0.1)
 
         pygame.mixer.music.stop()
@@ -150,7 +166,6 @@ class VoiceSubtitlePlayer:
 
 # Global player instance
 _voice_subtitle_player: Optional[VoiceSubtitlePlayer] = None
-_player_lock = threading.Lock()
 
 
 def get_voice_subtitle_player() -> VoiceSubtitlePlayer:

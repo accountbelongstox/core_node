@@ -12,6 +12,7 @@ import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
 import { formatTimestamp } from '@/utils/time-helpers';
 import { TASK_CENTER_MSG } from '@/utils/task-center-types';
+import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 
 const LOG = 'AI Translate Hub';
 
@@ -110,7 +111,7 @@ export function useAiTranslateHub() {
     const action = workerState.value.isRunning ? 'stop' : 'start';
     try {
       const resp = await chrome.runtime.sendMessage({
-        type: 'puter_translate_worker_service',
+        type: FEATURE_MESSAGE_TYPES.PUTER_TRANSLATE_WORKER,
         action,
         config: {
           apiUrl: currentEndpoint.value,
@@ -140,7 +141,7 @@ export function useAiTranslateHub() {
   const loadStats = async () => {
     try {
       const resp = await chrome.runtime.sendMessage({
-        type: 'puter_translate_worker_service',
+        type: FEATURE_MESSAGE_TYPES.PUTER_TRANSLATE_WORKER,
         action: 'get_status',
       });
       if (resp?.success && resp.status) {

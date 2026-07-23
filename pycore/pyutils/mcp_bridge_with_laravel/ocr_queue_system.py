@@ -6,13 +6,18 @@ Intelligent queue management, batch processing, and resource optimization
 """
 
 import asyncio
+import heapq
 import logging
 import time
-import threading
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from typing import List, Dict, Any, Optional, Tuple, Union
 from dataclasses import dataclass, field
 from enum import Enum
-from queue import PriorityQueue, Queue
 import uuid
 from pathlib import Path
 
@@ -139,7 +144,7 @@ class OCRQueueProcessor:
     """Intelligent OCR queue processing system"""
 
     def __init__(self):
-        self.task_queue = PriorityQueue()
+        self.task_queue = []
         self.batch_groups = {}
         self.active_tasks = {}
         self.completed_tasks = {}
@@ -159,7 +164,11 @@ class OCRQueueProcessor:
             "failed": 0,
             "total_processing_time": 0.0
         }
+        self._running_signal = f"ocr_queue.running.{uuid.uuid4().hex}"
+        init_serialized_owner(self, "ocr_queue.state", "OCRQueueState")
+        THREAD_BUS.signal(self._running_signal, False)
 
+    @serialized_method
     def add_task(self, file_path: str, task_type: str = "auto",
                 priority: TaskPriority = TaskPriority.NORMAL,
                 target_engine: Optional[str] = None,
@@ -194,11 +203,12 @@ class OCRQueueProcessor:
         )
 
         # Add to queue
-        self.task_queue.put(task)
+        heapq.heappush(self.task_queue, task)
         logger.info(f"Added OCR task {task_id}: {file_path} ({task_type})")
 
         return task_id
 
+    @serialized_method
     def add_batch(self, file_paths: List[str], group_metadata: Optional[Dict[str, Any]] = None,
                  priority: TaskPriority = TaskPriority.NORMAL,
                  target_engine: Optional[str] = None) -> str:
@@ -241,6 +251,7 @@ class OCRQueueProcessor:
 
         return group_id
 
+    @serialized_method
     def add_2d_queue(self, queue_data: List[List[str]],
                     priority: TaskPriority = TaskPriority.NORMAL) -> Dict[str, Any]:
         """
@@ -302,68 +313,87 @@ class OCRQueueProcessor:
         else:
             return "image"  # Default to image
 
+    @serialized_method
     def _find_task_by_id(self, task_id: str) -> Optional[OCRTask]:
         """Find task by ID in queue (for batch management)"""
-        # This is a simplified implementation
-        # In practice, you might need a more efficient lookup
-        return None
+        return next((task for task in self.task_queue if task.task_id == task_id), None)
 
     def start_processing(self):
         """Start the queue processing system"""
-        if self.is_running:
+        if not self._begin_start():
             logger.warning("Queue processor is already running")
             return
 
-        self.is_running = True
         logger.info("Starting OCR queue processor")
 
         # Start worker threads
         for i in range(self.max_concurrent_workers):
-            worker_thread = threading.Thread(
-                target=self._worker_loop,
-                name=f"OCRWorker-{i}",
-                daemon=True
+            worker_thread = start_bus_task(
+                self._worker_loop,
+                thread_name=f"OCRWorkerThread-{i}",
             )
-            worker_thread.start()
             self.worker_threads.append(worker_thread)
 
         logger.info(f"Started {len(self.worker_threads)} OCR worker threads")
 
+    @serialized_method
+    def _begin_start(self) -> bool:
+        if self.is_running:
+            return False
+        self.is_running = True
+        THREAD_BUS.signal(self._running_signal, True)
+        return True
+
     def stop_processing(self):
         """Stop the queue processing system"""
-        if not self.is_running:
+        workers = self._begin_stop()
+        if workers is None:
             return
 
         logger.info("Stopping OCR queue processor")
-        self.is_running = False
 
         # Wait for workers to finish
-        for worker in self.worker_threads:
+        for worker in workers:
             worker.join(timeout=10)
 
-        self.worker_threads.clear()
         logger.info("OCR queue processor stopped")
+
+    @serialized_method
+    def _begin_stop(self):
+        if not self.is_running:
+            return None
+        self.is_running = False
+        THREAD_BUS.signal(self._running_signal, False)
+        workers = list(self.worker_threads)
+        self.worker_threads.clear()
+        return workers
 
     def _worker_loop(self):
         """Worker thread main loop"""
-        while self.is_running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             try:
-                # Get next task (with timeout)
-                task = self.task_queue.get(timeout=1.0)
+                task = self._pop_task()
 
                 if task:
                     self._process_task(task)
-                    self.task_queue.task_done()
+                else:
+                    time.sleep(0.1)
 
             except Exception as e:
-                if self.is_running:  # Only log if not shutting down
+                if THREAD_BUS.get_signal(self._running_signal, False):
                     logger.error(f"Worker error: {e}")
+
+    @serialized_method
+    def _pop_task(self) -> Optional[OCRTask]:
+        return heapq.heappop(self.task_queue) if self.task_queue else None
 
     def _process_task(self, task: OCRTask):
         """Process a single OCR task"""
         start_time = time.time()
         task.status = TaskStatus.PROCESSING
-        self.active_tasks[task.task_id] = task
+        self._mark_task_active(task)
+        succeeded = False
+        should_retry = False
 
         try:
             logger.info(f"Processing task {task.task_id}: {task.file_path}")
@@ -394,8 +424,7 @@ class OCRQueueProcessor:
             # Record success
             task.result = result
             task.status = TaskStatus.COMPLETED
-            self.resource_monitor.record_usage(task.target_engine)
-            self.stats["successful"] += 1
+            succeeded = True
 
             logger.info(f"Task {task.task_id} completed successfully")
 
@@ -403,13 +432,12 @@ class OCRQueueProcessor:
             # Record failure
             task.error = str(e)
             task.status = TaskStatus.FAILED
-            self.stats["failed"] += 1
 
             # Retry logic
             if task.retry_count < ProcessingConfig.QUEUE_CONFIG["max_retries"]:
                 task.retry_count += 1
                 task.status = TaskStatus.PENDING
-                self.task_queue.put(task)  # Re-queue for retry
+                should_retry = True
                 logger.warning(f"Task {task.task_id} failed, retrying ({task.retry_count}/3): {e}")
             else:
                 logger.error(f"Task {task.task_id} failed permanently: {e}")
@@ -417,13 +445,25 @@ class OCRQueueProcessor:
         finally:
             # Update statistics
             task.processing_time = time.time() - start_time
-            self.stats["total_processing_time"] += task.processing_time
-            self.stats["total_processed"] += 1
+            self._finish_task(task, succeeded, should_retry)
 
-            # Move to completed tasks
-            if task.task_id in self.active_tasks:
-                del self.active_tasks[task.task_id]
-            self.completed_tasks[task.task_id] = task
+    @serialized_method
+    def _mark_task_active(self, task: OCRTask) -> None:
+        self.active_tasks[task.task_id] = task
+
+    @serialized_method
+    def _finish_task(self, task: OCRTask, succeeded: bool, should_retry: bool) -> None:
+        if succeeded:
+            self.resource_monitor.record_usage(task.target_engine)
+            self.stats["successful"] += 1
+        else:
+            self.stats["failed"] += 1
+        self.stats["total_processing_time"] += task.processing_time
+        self.stats["total_processed"] += 1
+        self.active_tasks.pop(task.task_id, None)
+        self.completed_tasks[task.task_id] = task
+        if should_retry:
+            heapq.heappush(self.task_queue, task)
 
     def _process_image_task(self, task: OCRTask) -> Dict[str, Any]:
         """Process an image OCR task"""
@@ -495,6 +535,7 @@ class OCRQueueProcessor:
             logger.error(f"PDF task processing failed: {e}")
             raise
 
+    @serialized_method
     def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Get status of a specific task"""
         # Check active tasks
@@ -523,6 +564,7 @@ class OCRQueueProcessor:
 
         return None
 
+    @serialized_method
     def get_batch_status(self, group_id: str) -> Optional[Dict[str, Any]]:
         """Get status of a batch group"""
         if group_id not in self.batch_groups:
@@ -554,10 +596,11 @@ class OCRQueueProcessor:
             "tasks": task_statuses
         }
 
+    @serialized_method
     def get_system_stats(self) -> Dict[str, Any]:
         """Get system statistics"""
         return {
-            "queue_size": self.task_queue.qsize(),
+            "queue_size": len(self.task_queue),
             "active_tasks": len(self.active_tasks),
             "completed_tasks": len(self.completed_tasks),
             "batch_groups": len(self.batch_groups),

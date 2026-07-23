@@ -156,7 +156,7 @@ while (-not $complete -and $attempt -lt 6) {
 
 if (-not $complete) {
     Write-Host ("$SCRIPT_INDEX [!] still incomplete after {0} attempts; partial .zip KEPT to RESUME next run." -f $attempt) -ForegroundColor DarkYellow
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('vosk')
+    throw "$SCRIPT_INDEX Vosk model download is incomplete; retrying next run."
 }
 
 Write-Host "$SCRIPT_INDEX [..] extracting model ..." -ForegroundColor Yellow
@@ -172,12 +172,13 @@ try {
 } catch {
     Write-Host ("$SCRIPT_INDEX [!] extract failed ({0}); .zip KEPT to RESUME next run." -f $_.Exception.Message) -ForegroundColor DarkYellow
     if (Test-Path $tmpExtract) { Backup-InstallAssetPath -Path $tmpExtract -Prefix $SCRIPT_INDEX | Out-Null }
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('vosk')
+    throw ("$SCRIPT_INDEX Vosk model extraction failed: {0}" -f $_.Exception.Message)
 }
 
 if (Test-Path (Join-Path $modelDir 'conf')) {
     Write-Host ("$SCRIPT_INDEX [OK] Vosk model installed: {0} (free, offline)." -f $modelDir) -ForegroundColor Green
 } else {
     Write-Host "$SCRIPT_INDEX [!] Extract produced no conf/ (archive may be partial); .zip KEPT to RESUME." -ForegroundColor DarkYellow
+    throw "$SCRIPT_INDEX Vosk model verification failed; retrying next run."
 }
 Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('vosk')

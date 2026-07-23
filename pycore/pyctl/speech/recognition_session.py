@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 from typing import Optional, Any, Dict, List
 
+from pycore import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.clipboard import add_recognition_to_clipboard
 from pycore.pyctl.speech.cache_info import print_recognition_cache_info
@@ -129,9 +130,11 @@ class TranscriptionSession:
 
         # Error handling state
         self.has_error = False
-        self.should_stop = False
+        self._stop_signal = f"speech.transcription_session.stop.{id(self)}"
+        self._quota_signal = f"speech.transcription_session.quota.{id(self)}"
+        THREAD_BUS.signal(self._stop_signal, False)
+        THREAD_BUS.signal(self._quota_signal, False)
         self.error_message = ""
-        self.quota_exceeded = False
 
     def on_recognizing(self, text: str):
         """
@@ -270,8 +273,8 @@ class TranscriptionSession:
 
         # Check for critical errors that require session termination
         if "Quota exceeded" in error_msg or "Error code: 1007" in error_msg:
-            self.quota_exceeded = True
-            self.should_stop = True
+            THREAD_BUS.signal(self._quota_signal, True)
+            THREAD_BUS.signal(self._stop_signal, True)
 
             # Report Azure STT as unavailable due to quota
             if provider_status:
@@ -297,7 +300,7 @@ class TranscriptionSession:
             # Network connection lost
             ColorPrint.yellow("\n[WARNING] Connection to Azure servers lost")
             ColorPrint.yellow("Check your internet connection and Azure service status")
-            self.should_stop = True
+            THREAD_BUS.signal(self._stop_signal, True)
 
             # Report Azure STT as unavailable due to connection
             if provider_status:
@@ -307,7 +310,7 @@ class TranscriptionSession:
             # Authentication error
             ColorPrint.red("\n[CRITICAL] Azure authentication failed")
             ColorPrint.yellow("Check your API key and subscription status")
-            self.should_stop = True
+            THREAD_BUS.signal(self._stop_signal, True)
 
             # Report Azure STT as unavailable due to auth
             if provider_status:
@@ -330,6 +333,16 @@ class TranscriptionSession:
             'average_confidence': avg_confidence,
             'recognized_texts': self.recognized_texts
         }
+
+    @property
+    def should_stop(self) -> bool:
+        """Return the callback-to-controller stop request from THREAD_BUS."""
+        return bool(THREAD_BUS.get_signal(self._stop_signal, False))
+
+    @property
+    def quota_exceeded(self) -> bool:
+        """Return the callback-to-controller quota state from THREAD_BUS."""
+        return bool(THREAD_BUS.get_signal(self._quota_signal, False))
 
     def save_session(self, output_file: Path):
         """Save complete session to file"""

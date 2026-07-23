@@ -15,12 +15,22 @@ from pycore.pyfoundations.third_party import (
     get_third_package_numpy,
     get_third_package_windows_ocr,
 )
-
-import concurrent.futures
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
 
 Image = get_third_package_PIL_Image()
 np = get_third_package_numpy()
+_CORO_QUEUE = 'pyutils.ocr.windows.coro'
+_CORO_WORKER = SerializedWorkerThread(_CORO_QUEUE, 'WindowsOCRCoroutineThread')
+_CORO_WORKER.start()
+
+
+def _execute_coro(coro: Any) -> Any:
+    """Run one OCR coroutine on its owner thread."""
+    return asyncio.run(coro)
 
 
 def _run_coro_blocking(coro: Any) -> Any:
@@ -36,8 +46,7 @@ def _run_coro_blocking(coro: Any) -> Any:
         asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(coro)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-        return ex.submit(lambda: asyncio.run(coro)).result()
+    return call_serialized(_CORO_QUEUE, _execute_coro, coro, timeout=300.0)
 
 
 def _pil_to_software_bitmap(img: "Image.Image", winrt_ns: Any) -> Any:

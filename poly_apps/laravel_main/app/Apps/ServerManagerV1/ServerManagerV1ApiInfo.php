@@ -10,9 +10,6 @@
 
 namespace App\Apps\ServerManagerV1;
 
-use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
-use App\Http\Common\CommonGvar;
-
 /**
  * ServerManagerV1ApiInfo Class
  * 
@@ -224,6 +221,14 @@ class ServerManagerV1ApiInfo
                 'path' => $apiPrefix . '/nginx/sites/batch',
                 'feature' => 'auth_required/POST|Batch enable/disable/test nginx sites|ServerManagerV1NginxManagerCtl@batchSites|params:action(string,required,enable),sites(array,required,["example.com"])|response:action(string,Executed action),results(array,Per-site results),succeeded(int,Success count),failed(int,Failure count)|tags:server,nginx'
             ],
+            [
+                'path' => $apiPrefix . '/nginx/sites/{site_name}/delete-files',
+                'feature' => 'auth_required/POST|Delete a site web root after elevated confirmation|ServerManagerV1NginxManagerCtl@deleteSiteFiles|params:site_name(string,required,example.com),password(string,required),confirm(string,required,delete)|response:site_name(string,Site name),deleted(boolean,Delete status)|tags:server,nginx,security'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/repair',
+                'feature' => 'auth_required/POST|Repair nginx directories and quarantine invalid site configs before reload|ServerManagerV1NginxManagerCtl@repairConfig|response:repaired(boolean,Repair status),actions(array,Applied repairs)|tags:server,nginx'
+            ],
 
             // Unified Manager APIs
             [
@@ -287,6 +292,14 @@ class ServerManagerV1ApiInfo
             [
                 'path' => $apiPrefix . '/certificates/detect-certbot',
                 'feature' => 'auth_required/GET|Detect certbot installation and version|ServerManagerV1CertificateManagerCtl@detectCertbot|response:installed(boolean,Installation status),path(string,Certbot path),version(string,Version),nginx_plugin(boolean,Plugin status)|tags:server,ssl,certificate'
+            ],
+            [
+                'path' => $apiPrefix . '/certificates/ensure',
+                'feature' => 'auth_required/POST|Generate a missing certificate or renew an existing one asynchronously|ServerManagerV1CertificateManagerCtl@ensureCertificate|params:domain(string,required,example.com),provider(string,optional,dnspod),staging(boolean,optional,false)|response:request_id(string,Progress request ID),status(string,Running status)|tags:server,ssl,certificate'
+            ],
+            [
+                'path' => $apiPrefix . '/certificates/progress/{request_id}',
+                'feature' => 'auth_required/GET|Read asynchronous certificate operation progress|ServerManagerV1CertificateManagerCtl@certificateProgress|params:request_id(string,required)|response:status(string,Operation status),output(string,Certbot output)|tags:server,ssl,certificate'
             ]
         ];
     }

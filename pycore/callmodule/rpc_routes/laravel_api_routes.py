@@ -5,7 +5,7 @@ Laravel API RPC Routes
 WebSocket RPC handlers for the multi-endpoint Laravel API manager (laravel_main
 base URL). Stored-first resolution + parallel 3s probes; persisted in
 user_data.json under the 'laravel_api' section ({endpoints:[...], current}). All
-probing runs on a worker thread (asyncio.to_thread) so the event loop stays free.
+probing runs on THREAD_BUS workers so the event loop stays free.
 
 Routes:
 - laravel_api.list: list endpoints with health (parallel probe, 3s cap)
@@ -15,9 +15,8 @@ Routes:
 - laravel_api.probe: probe one or all endpoints (3s timeout)
 """
 
-import asyncio
-
 from pycore import ColorPrint
+from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
 )
@@ -37,7 +36,7 @@ def register_laravel_api_routes(server):
         params = params or {}
         probe = params.get('probe', True)
         try:
-            return await asyncio.to_thread(
+            return await await_bus_task(
                 get_laravel_endpoint_manager().list_endpoints, bool(probe))
         except Exception as e:
             ColorPrint.red(f"[ConfigBuilder] laravel_api.list failed: {e}")
@@ -47,7 +46,7 @@ def register_laravel_api_routes(server):
         """Add a candidate endpoint. params: { url }. Invalidates the cache."""
         params = params or {}
         try:
-            return await asyncio.to_thread(
+            return await await_bus_task(
                 get_laravel_endpoint_manager().add, params.get('url'))
         except Exception as e:
             ColorPrint.red(f"[ConfigBuilder] laravel_api.add failed: {e}")
@@ -57,7 +56,7 @@ def register_laravel_api_routes(server):
         """Remove a candidate endpoint. params: { url }. Invalidates the cache."""
         params = params or {}
         try:
-            return await asyncio.to_thread(
+            return await await_bus_task(
                 get_laravel_endpoint_manager().remove, params.get('url'))
         except Exception as e:
             ColorPrint.red(f"[ConfigBuilder] laravel_api.remove failed: {e}")
@@ -71,7 +70,7 @@ def register_laravel_api_routes(server):
         """
         params = params or {}
         try:
-            return await asyncio.to_thread(
+            return await await_bus_task(
                 get_laravel_endpoint_manager().select, params.get('url'))
         except Exception as e:
             ColorPrint.red(f"[ConfigBuilder] laravel_api.select failed: {e}")
@@ -81,7 +80,7 @@ def register_laravel_api_routes(server):
         """Probe ONE endpoint ({url}) or ALL candidates (no url; parallel, 3s cap)."""
         params = params or {}
         try:
-            return await asyncio.to_thread(
+            return await await_bus_task(
                 get_laravel_endpoint_manager().probe_route, params.get('url'))
         except Exception as e:
             ColorPrint.red(f"[ConfigBuilder] laravel_api.probe failed: {e}")

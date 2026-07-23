@@ -18,12 +18,14 @@ export const LANES = {
   // ── Execution-type lanes (GlobalTask::EXECUTION_TYPES) ──
   REMOTE_CLIENT: 'remote_client',
   REMOTE_TRANSLATION: 'remote_translation',
+  REMOTE_AUDIO: 'remote_audio',
   REMOTE_FAST: 'remote_fast',
   REMOTE_POSTER: 'remote_poster',
   REMOTE_VALIDITY: 'remote_validity',
   REMOTE_NOTEBOOKLM: 'remote_notebooklm',
   REMOTE_GEMINI: 'remote_gemini',
   REMOTE_GEMINI_TEXT: 'remote_gemini_text',
+  REMOTE_STT: 'remote_stt',
   // ── Processor / worker identifier keys (a processor's own processorType) ──
   MEDIA_IMAGE: 'media_image',
   BING_DICTIONARY: 'bing_dictionary',

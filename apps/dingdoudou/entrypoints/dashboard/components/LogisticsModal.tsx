@@ -6,6 +6,7 @@
 import React from 'react';
 import { Order } from '@/lib/types';
 import { i18n, Language } from '../i18n';
+import { orderCardText } from '@/lib/uiI18n';
 import {
   X, Truck, CheckCircle2, Circle, AlertCircle, ShoppingCart,
   MapPin, ShieldAlert, Award, Copy, Download, CreditCard
@@ -27,6 +28,7 @@ export const LogisticsModal: React.FC<LogisticsModalProps> = ({
   if (!order) return null;
 
   const t = i18n[lang];
+  const ui = orderCardText(lang);
 
   return (
     <div id="logistics-modal" className="fixed inset-0 bg-slate-950/70 dark:bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
@@ -97,13 +99,13 @@ export const LogisticsModal: React.FC<LogisticsModalProps> = ({
                 <span className="text-slate-500">{t.shopName}:</span> <strong className="text-slate-800 dark:text-slate-200">{order.storeName}</strong>
               </p>
               <p className="text-slate-700 dark:text-slate-300">
-                <span className="text-slate-500">{lang === 'zh' ? '拼单商品' : 'Product'}:</span> <span className="text-slate-800 dark:text-slate-200">{order.productName}</span>
+                <span className="text-slate-500">{ui.product}:</span> <span className="text-slate-800 dark:text-slate-200">{order.productName}</span>
               </p>
               <p className="text-slate-700 dark:text-slate-300">
                 <span className="text-slate-500">{t.specType}:</span> <span className="font-semibold text-blue-650 dark:text-blue-400 bg-blue-500/10 dark:bg-blue-500/15 border border-blue-500/20 px-1.5 py-0.5 rounded text-[10px]">{order.specName}</span>
               </p>
               <p className="text-slate-700 dark:text-slate-300">
-                <span className="text-slate-500">{lang === 'zh' ? '绑定账号' : 'ERP ID'}:</span> <strong className="text-slate-800 dark:text-slate-200">{order.accountName} (PDD-Cloud)</strong>
+                <span className="text-slate-500">{ui.account}:</span> <strong className="text-slate-800 dark:text-slate-200">{order.accountName} (PDD-Cloud)</strong>
               </p>
               <div className="flex justify-between items-center bg-white/90 dark:bg-black/30 border border-black/10 dark:border-white/5 p-2 rounded-lg mt-2 text-[11px]">
                 <div>

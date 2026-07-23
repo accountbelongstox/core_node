@@ -1,67 +1,116 @@
 #!/usr/bin/env bash
-# cuda_index.sh - SINGLE source of truth for driver-matched CUDA wheel index URLs.
-#
-# Replaces the former torch_cuda_index.sh + paddle_cuda_index.sh. The two consumers
-# need DIFFERENT tag tables (torch ships cu121/cu124/cu128; paddle ships cu129 but no
-# cu124/cu120 for cp313), so each keeps its own tag map + base URL - but they SHARE one
-# nvidia-smi driver-version probe (cuda_driver_cv). A wheel built for a CUDA NEWER than
-# the driver supports fails is_available()/init ("driver too old") and triggers an endless
-# reinstall loop, so each table picks the HIGHEST published tag whose CUDA version <= the
-# driver's CUDA version (nvidia-smi "CUDA Version: X.Y").
-#
-#   cuda_driver_cv()        -> numeric driver CUDA, e.g. 1204 ("" if no nvidia-smi)
-#   torch_cuda_index_url()  -> https://download.pytorch.org/whl/<tag>      (env PYTORCH_CUDA_INDEX_URL)
-#   paddle_cuda_index_url() -> https://www.paddlepaddle.org.cn/packages/stable/<tag>/ (env PADDLE_CUDA_INDEX_URL)
-#
-# Defaults: torch=cu124 (driver>=550 / CUDA 12.4, verified py3.13 wheels); paddle=cu126.
-# Mirrors the Python resolver pycore/pyfoundations/third_party.py::_resolve_pytorch_cuda_index_url().
-#
-# Usage:  . cuda_index.sh ; url="$(torch_cuda_index_url)"; padd="$(paddle_cuda_index_url)"
+# Unified CUDA policy for PyTorch, Paddle, and the CUDA toolkit.
 
-# Numeric driver CUDA version (major*100+minor), e.g. 1204 for 12.4. Empty when nvidia-smi
-# is absent (CPU-only host) - callers fall back to their default tag.
+_CUDA_INDEX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AI_RUNTIME_POLICY_FILE="$(cd "$_CUDA_INDEX_DIR/../../.." && pwd)/ai_runtime_policy.env"
+[[ -f "$AI_RUNTIME_POLICY_FILE" ]] && source "$AI_RUNTIME_POLICY_FILE"
+
+AI_CUDA_TIERS="${AI_CUDA_TIERS:-}"
+AI_TORCH_INDEX_BASE="${AI_TORCH_INDEX_BASE:-https://download.pytorch.org/whl}"
+AI_TORCH_CPU_INDEX="${AI_TORCH_CPU_INDEX:-https://download.pytorch.org/whl/cpu}"
+AI_PADDLE_INDEX_BASE="${AI_PADDLE_INDEX_BASE:-https://www.paddlepaddle.org.cn/packages/stable}"
+AI_PADDLE_CPU_INDEX="${AI_PADDLE_CPU_INDEX:-https://www.paddlepaddle.org.cn/packages/stable/cpu/}"
+
+cuda_driver_version() {
+    local output ver
+    if ! command -v nvidia-smi >/dev/null 2>&1; then printf '%s' ""; return 0; fi
+    output="$(nvidia-smi 2>/dev/null || true)"
+    ver="$(printf '%s\n' "$output" | grep -oE 'CUDA (UMD )?Version: [0-9.]+' | head -1)"
+    ver="${ver#CUDA UMD Version: }"
+    ver="${ver#CUDA Version: }"
+    printf '%s' "$ver"
+}
+
 cuda_driver_cv() {
     local ver major minor
-    if ! command -v nvidia-smi >/dev/null 2>&1; then printf '%s' ""; return 0; fi
-    ver="$(nvidia-smi 2>/dev/null | grep -o 'CUDA Version: [0-9.]*' | head -1)"
-    ver="${ver#CUDA Version: }"
+    ver="$(cuda_driver_version)"
     major="${ver%%.*}"
-    minor="${ver#*.}"; minor="${minor%%.*}"
-    if [ -n "$major" ] && [ "$major" -eq "$major" ] 2>/dev/null; then
-        printf '%s' "$(( major * 100 + ${minor:-0} ))"
+    minor="${ver#*.}"
+    minor="${minor%%.*}"
+    if [[ -n "$major" && "$major" -eq "$major" ]] 2>/dev/null; then
+        printf '%s' "$((major * 100 + ${minor:-0}))"
     fi
 }
 
-# PyTorch driver-matched wheel index URL. Tags: cu118/cu121/cu124/cu126/cu128/cu130.
+cuda_tag_from_url() {
+    local url="${1:-}" tag
+    tag="$(printf '%s' "$url" | grep -oE 'cu[0-9]{3}' | tail -1)"
+    printf '%s' "$tag"
+}
+
+cuda_policy_row_by_tag() {
+    local wanted="${1:-}" row
+    local -a cuda_rows
+    IFS=',' read -ra cuda_rows <<< "$AI_CUDA_TIERS"
+    for row in "${cuda_rows[@]}"; do
+        [[ "${row%%:*}" == "$wanted" ]] && { printf '%s' "$row"; return 0; }
+    done
+    return 1
+}
+
+cuda_policy_tag() {
+    local cv requested torch_tag paddle_tag row tag minimum
+    local -a cuda_rows
+    cv="$(cuda_driver_cv)"
+    [[ -n "$cv" ]] || { printf '%s' ""; return 0; }
+    requested="${CORE_CUDA_TAG:-}"
+    torch_tag="$(cuda_tag_from_url "${PYTORCH_CUDA_INDEX_URL:-}")"
+    paddle_tag="$(cuda_tag_from_url "${PADDLE_CUDA_INDEX_URL:-}")"
+    if [[ -z "$requested" ]]; then
+        if [[ -n "$torch_tag" && -n "$paddle_tag" && "$torch_tag" != "$paddle_tag" ]]; then
+            requested=""
+        elif [[ -n "$torch_tag" ]]; then
+            requested="$torch_tag"
+        else
+            requested="$paddle_tag"
+        fi
+    fi
+    if [[ -n "$requested" ]] && row="$(cuda_policy_row_by_tag "$requested")"; then
+        IFS=':' read -r tag minimum _ <<< "$row"
+        if [[ "$cv" -ge "$minimum" ]]; then printf '%s' "$tag"; return 0; fi
+    fi
+    IFS=',' read -ra cuda_rows <<< "$AI_CUDA_TIERS"
+    for row in "${cuda_rows[@]}"; do
+        IFS=':' read -r tag minimum _ <<< "$row"
+        if [[ "$cv" -ge "$minimum" ]]; then printf '%s' "$tag"; return 0; fi
+    done
+    printf '%s' ""
+}
+
+cuda_policy_field() {
+    local field="$1" tag="${2:-}" row parsed_tag parsed_minimum parsed_major parsed_toolkit parsed_driver parsed_paddle
+    [[ -n "$tag" ]] || tag="$(cuda_policy_tag)"
+    row="$(cuda_policy_row_by_tag "$tag")" || return 1
+    IFS=':' read -r parsed_tag parsed_minimum parsed_major parsed_toolkit parsed_driver parsed_paddle <<< "$row"
+    case "$field" in
+        major) printf '%s' "$parsed_major" ;;
+        toolkit) printf '%s' "$parsed_toolkit" ;;
+        toolkit_driver) printf '%s' "$parsed_driver" ;;
+        paddle_version) printf '%s' "$parsed_paddle" ;;
+        *) return 1 ;;
+    esac
+}
+
 torch_cuda_index_url() {
-    if [ -n "${PYTORCH_CUDA_INDEX_URL:-}" ]; then printf '%s' "$PYTORCH_CUDA_INDEX_URL"; return 0; fi
-    local tag="cu124" cv
-    cv="$(cuda_driver_cv)"
-    if [ -n "$cv" ] && [ "$cv" -eq "$cv" ] 2>/dev/null; then
-        if   [ "$cv" -ge 1300 ]; then tag="cu130"
-        elif [ "$cv" -ge 1208 ]; then tag="cu128"
-        elif [ "$cv" -ge 1206 ]; then tag="cu126"
-        elif [ "$cv" -ge 1204 ]; then tag="cu124"
-        elif [ "$cv" -ge 1201 ]; then tag="cu121"
-        elif [ "$cv" -ge 1108 ]; then tag="cu118"
-        fi
+    local tag override_tag
+    tag="$(cuda_policy_tag)"
+    [[ -n "$tag" ]] || { printf '%s' "$AI_TORCH_CPU_INDEX"; return 0; }
+    override_tag="$(cuda_tag_from_url "${PYTORCH_CUDA_INDEX_URL:-}")"
+    if [[ -n "${PYTORCH_CUDA_INDEX_URL:-}" && "$override_tag" == "$tag" ]]; then
+        printf '%s' "$PYTORCH_CUDA_INDEX_URL"
+    else
+        printf '%s' "$AI_TORCH_INDEX_BASE/$tag"
     fi
-    printf '%s' "https://download.pytorch.org/whl/$tag"
 }
 
-# PaddlePaddle driver-matched GPU wheel index URL. Tags: cu118/cu126/cu129/cu130 only
-# (paddle 3.x publishes NO cu121/cu124/cu120 cp313 wheel), so a 12.4 driver correctly
-# lands on cu118 - cu126+ need a newer driver. See memory paddle-cu118-forced-py313.
 paddle_cuda_index_url() {
-    if [ -n "${PADDLE_CUDA_INDEX_URL:-}" ]; then printf '%s' "$PADDLE_CUDA_INDEX_URL"; return 0; fi
-    local tag="cu126" cv
-    cv="$(cuda_driver_cv)"
-    if [ -n "$cv" ] && [ "$cv" -eq "$cv" ] 2>/dev/null; then
-        if   [ "$cv" -ge 1300 ]; then tag="cu130"
-        elif [ "$cv" -ge 1209 ]; then tag="cu129"
-        elif [ "$cv" -ge 1206 ]; then tag="cu126"
-        elif [ "$cv" -ge 1108 ]; then tag="cu118"
-        fi
+    local tag override_tag
+    tag="$(cuda_policy_tag)"
+    [[ -n "$tag" ]] || { printf '%s' "$AI_PADDLE_CPU_INDEX"; return 0; }
+    override_tag="$(cuda_tag_from_url "${PADDLE_CUDA_INDEX_URL:-}")"
+    if [[ -n "${PADDLE_CUDA_INDEX_URL:-}" && "$override_tag" == "$tag" ]]; then
+        printf '%s' "$PADDLE_CUDA_INDEX_URL"
+    else
+        printf '%s' "$AI_PADDLE_INDEX_BASE/$tag/"
     fi
-    printf '%s' "https://www.paddlepaddle.org.cn/packages/stable/${tag}/"
 }

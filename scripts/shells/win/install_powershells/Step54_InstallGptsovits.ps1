@@ -109,11 +109,11 @@ if (Test-ServerUp -Url $serverUrl) {
 
 $resolvedPython = $Global:PYTHON_EXE_PATH
 if ($resolvedPython) {
-    $gptsovitsVenvReady = Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'gptsovits'
+    $gptsovitsVenvReady = Test-IsolatedTtsVenvHealthy -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'gptsovits'
 }
 
 # Fully installed already (repo + models + isolated venv) -> instant idempotent exit.
-if ((Test-Path (Join-Path $targetDir 'api_v2.py')) -and (Test-Path $sentinel) -and (Test-Path $depsSentinel) -and $gptsovitsVenvReady -and -not $Force) {
+if ((Test-Path (Join-Path $targetDir 'api_v2.py')) -and (Test-Path $sentinel) -and (Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'gptsovits' -Path $depsSentinel) -and $gptsovitsVenvReady -and -not $Force) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'GPT-SoVITS repo + models + isolated venv already present' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     Write-Host "$SCRIPT_INDEX  Runtime: pycore launches api_v2.py (class C) under the isolated venv on demand; set GPTSOVITS_REF_AUDIO to a reference clip." -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
@@ -121,13 +121,16 @@ if ((Test-Path (Join-Path $targetDir 'api_v2.py')) -and (Test-Path $sentinel) -a
 # EXPLICIT opt-in only: cloning the multi-GB repo + building the isolated venv takes
 # minutes, so run ONLY when the user asks (NOT via the default NEURAL_TTS batch). The
 # build is now SAFE -- the old-transformers pin lands in the venv, never the main interp.
-if (-not $doFull -and -not $Force) {
+if (-not $doFull -and -not $Force -and -not (Test-Path -LiteralPath $depsSentinel)) {
     Write-Host "$SCRIPT_INDEX [i] opt-in only -> NOT installing. Pass -Full or GPTSOVITS_INSTALL=1." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
 }
 
 if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [!] Python 3 not found; cannot install. Run Step8_InstallPython first." -ForegroundColor DarkYellow
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+}
+if (-not (Test-TtsEngineCompatible -PythonExe $resolvedPython -Engine 'gptsovits' -Prefix "$SCRIPT_INDEX ")) {
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
 }
 
@@ -162,7 +165,7 @@ if (Test-Path (Join-Path $targetDir 'api_v2.py')) {
 #    CUDA torch), NEVER the main interpreter. Self-repairing: ensure_venv re-runs an
 #    import-health probe and rebuilds a broken venv. pycore launches api_v2.py under this
 #    venv. See lifecycle doc §5/§7.
-if ((Test-Path $depsSentinel) -and $gptsovitsVenvReady -and -not $Force) {
+if ((Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'gptsovits' -Path $depsSentinel) -and $gptsovitsVenvReady -and -not $Force) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'isolated venv already provisioned (.deps_done)' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 } else {
     # System CUDA torch the venv will REUSE (idempotent), plus the huggingface_hub the
@@ -180,8 +183,8 @@ if ((Test-Path $depsSentinel) -and $gptsovitsVenvReady -and -not $Force) {
         Write-Host "$SCRIPT_INDEX [!] requirements.txt not found in the cloned repo; cannot build the isolated venv." -ForegroundColor DarkYellow
     }
     if ($gptsovitsVenvReady) {
-        Set-Content -Path $depsSentinel -Value (Get-Date -Format o) -Encoding utf8
-        Write-Host "$SCRIPT_INDEX [OK] isolated gptsovits venv ready; main interpreter transformers pin left untouched (.deps_done written)." -ForegroundColor Green
+        Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'gptsovits' -Path $depsSentinel | Out-Null
+        Write-Host "$SCRIPT_INDEX [OK] isolated gptsovits venv ready; main interpreter transformers pin left untouched (policy stamp written)." -ForegroundColor Green
     } else {
         Write-Host "$SCRIPT_INDEX [!] venv build incomplete; will retry next run (main interpreter untouched)." -ForegroundColor DarkYellow
     }
@@ -210,6 +213,10 @@ if ((Test-Path $sentinel) -and -not $Force) {
     } else {
         Write-Host "$SCRIPT_INDEX [!] model download not finished; will RESUME next run (finished files are NOT re-downloaded)." -ForegroundColor DarkYellow
     }
+}
+
+if (-not (Test-Path (Join-Path $targetDir 'api_v2.py')) -or -not $gptsovitsVenvReady -or -not (Test-Path -LiteralPath $sentinel)) {
+    throw "$SCRIPT_INDEX GPT-SoVITS is not ready; incomplete components will retry next run."
 }
 
 Write-Host "$SCRIPT_INDEX [OK] GPT-SoVITS ready ($targetDir)." -ForegroundColor Green

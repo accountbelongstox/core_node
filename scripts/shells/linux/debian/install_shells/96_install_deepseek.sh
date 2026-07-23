@@ -26,7 +26,7 @@ command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
 # default "latest" wheel (e.g. cu130) that this driver can't run.
 TORCH_CUDA_IDX_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/cuda_index.sh"
 [ -f "$TORCH_CUDA_IDX_LIB" ] && . "$TORCH_CUDA_IDX_LIB"
-command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "https://download.pytorch.org/whl/cu124"; }
+command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "${AI_TORCH_CPU_INDEX:-https://download.pytorch.org/whl/cpu}"; }
 # Idempotent HF weight download (sentinel + curl resume + size verify).
 source "$PARENT_DIR_LEVEL_2/common/tts_install_assets_common.sh"
 
@@ -273,12 +273,16 @@ dependencies_present() {
     # transformers, ...) on every run, which is slow. Only reinstall when at least
     # one required module is missing.
     echo "$SCRIPT_NAME [run] $python_cmd - <<'PYTHON_EOF' (importlib find_spec probe: torch transformers PIL numpy einops timm accelerate)" >&2
-    $python_cmd - << 'PYTHON_EOF' > /dev/null 2>&1
+    if ! "$python_cmd" - << 'PYTHON_EOF' > /dev/null 2>&1
 import importlib.util
 mods = ["torch", "transformers", "PIL", "numpy", "einops", "timm", "accelerate"]
 missing = [m for m in mods if importlib.util.find_spec(m) is None]
 raise SystemExit(1 if missing else 0)
 PYTHON_EOF
+    then
+        return 1
+    fi
+    shared_transformers_matches_from_common_functions "$python_cmd"
 }
 
 install_dependencies() {
@@ -436,11 +440,14 @@ download_vl_model_weights() {
         print_info "downloading/repairing model '$VL_MODEL_PATH' (curl, resumable) ..."
         if install_hf_repo_flat "$VL_MODEL_PATH" "$VL_WEIGHTS_DIR" "$VL_MODEL_SENTINEL" "$SCRIPT_NAME " "$VL_WEIGHT_ALLOW" "" "$VL_MODEL_PATH" "$python_cmd" \
            && neural_tts_local_weights_ready "$VL_WEIGHTS_DIR" "$VL_MODEL_PATH" "$python_cmd"; then
+            _model_ready=1
             print_success "model '$VL_MODEL_PATH' ready at $VL_WEIGHTS_DIR"
         else
             print_warning "model download not finished; partial files kept at $VL_WEIGHTS_DIR; will RESUME next run."
+            return 1
         fi
     fi
+    [[ "$_model_ready" -eq 1 ]]
 }
 
 main() {

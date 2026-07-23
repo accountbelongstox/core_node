@@ -11,14 +11,14 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 #
-# install_cuda_toolkit.sh - Install the CUDA Toolkit (pinned 12.2.2), idempotent.
+# install_cuda_toolkit.sh - Install the toolkit selected by the unified CUDA policy.
 #
 # Kali-rolling reality (see the manual install log this encodes):
 #   - apt `nvidia-cuda-toolkit` / `nvidia-cuda-dev` are obsoleted (replaced by
 #     libcu++-dev) and `cuda-toolkit` is NOT in the Kali repos -> apt cannot install it.
 #   - the official .run local installer's `cuda-installer` binary needs libxml2.so.2,
 #     but Kali ships libxml2.so.16 -> "cannot open shared object file: libxml2.so.2".
-#   - Kali's gcc is newer than CUDA 12.2 expects -> the installer's gcc version check
+#   - Kali's gcc can be newer than the selected CUDA toolkit expects -> use --override.
 #     fails unless `--override` is passed.
 #   - /tmp can be too small for the ~6G extraction -> a large --tmpdir is required.
 #
@@ -33,13 +33,17 @@
 set -u
 
 # --- Variable declarations (top of file) ---
-# CONTRACT: only the CUDA *major* needs to match the torch wheel tag (the flash-attn build
-# gate in 98_install_deepseek_ocr.sh compares nvcc-major == torch-cuda-major, NOT minor). So
-# a 12.2 toolkit alongside cu124 torch wheels is intentional and safe — minor drift is fine.
-# Override the whole version via CUDA_TOOLKIT_VERSION if a specific minor is ever required.
-CTI_CUDA_VERSION="${CUDA_TOOLKIT_VERSION:-12.2.2}"
+CTI_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CTI_CUDA_POLICY_LIB="$CTI_SCRIPT_DIR/base_libs/cuda_index.sh"
+[[ -f "$CTI_CUDA_POLICY_LIB" ]] && source "$CTI_CUDA_POLICY_LIB"
+CTI_POLICY_TAG="$(cuda_policy_tag 2>/dev/null || true)"
+CTI_POLICY_VERSION="$(cuda_policy_field toolkit "$CTI_POLICY_TAG" 2>/dev/null || true)"
+CTI_POLICY_DRIVER="$(cuda_policy_field toolkit_driver "$CTI_POLICY_TAG" 2>/dev/null || true)"
+CTI_DEFAULT_ROW="${AI_CUDA_TIERS%%,*}"
+IFS=':' read -r CTI_DEFAULT_TAG CTI_DEFAULT_MINIMUM CTI_DEFAULT_MAJOR CTI_DEFAULT_VERSION CTI_DEFAULT_DRIVER CTI_DEFAULT_PADDLE <<< "$CTI_DEFAULT_ROW"
+CTI_CUDA_VERSION="${CUDA_TOOLKIT_VERSION:-${CTI_POLICY_VERSION:-$CTI_DEFAULT_VERSION}}"
 CTI_CUDA_SHORT="$(echo "$CTI_CUDA_VERSION" | cut -d. -f1,2)"
-CTI_CUDA_DRIVER="${CUDA_RUN_DRIVER:-535.104.05}"
+CTI_CUDA_DRIVER="${CUDA_RUN_DRIVER:-${CTI_POLICY_DRIVER:-$CTI_DEFAULT_DRIVER}}"
 CTI_RUN_FILE="cuda_${CTI_CUDA_VERSION}_${CTI_CUDA_DRIVER}_linux.run"
 CTI_RUN_URL="https://developer.download.nvidia.com/compute/cuda/${CTI_CUDA_VERSION}/local_installers/${CTI_RUN_FILE}"
 CTI_CUDA_HOME="/usr/local/cuda-${CTI_CUDA_SHORT}"
@@ -104,27 +108,31 @@ cti_setup_env() {
 }
 
 cti_ensure_cuda_toolkit() {
-    local os scratch run_path shim_dir free ver
+    local os scratch run_path shim_dir free ver toolkit_package
     echo "============================================================"
     echo " CUDA Toolkit prerequisite installer (pinned ${CTI_CUDA_VERSION})"
     echo "============================================================"
 
-    # Idempotent skip: nvcc already present.
+    # Idempotent skip only when the active nvcc matches the canonical minor.
     if [ -x "$CTI_NVCC" ] || cti_have nvcc; then
         ver="$( { "$CTI_NVCC" --version 2>/dev/null || nvcc --version 2>/dev/null; } | grep -i release | head -1)"
-        echo "[SKIP] CUDA toolkit already installed: $(command -v nvcc 2>/dev/null || echo "$CTI_NVCC")"
-        [ -n "$ver" ] && echo "       $ver"
-        cti_setup_env
-        return 0
+        if [[ "$ver" == *"release $CTI_CUDA_SHORT"* ]]; then
+            echo "[SKIP] Canonical CUDA toolkit already installed: $(command -v nvcc 2>/dev/null || echo "$CTI_NVCC")"
+            [ -n "$ver" ] && echo "       $ver"
+            cti_setup_env
+            return 0
+        fi
+        echo "[INFO] Active nvcc differs from policy $CTI_CUDA_SHORT; installing the canonical toolkit alongside it."
     fi
 
     os="$(cti_os_id)"
 
-    # Path A: apt cuda-toolkit-12-2 when an NVIDIA CUDA apt repo is configured
+    # Path A: versioned cuda-toolkit package when an NVIDIA CUDA apt repo is configured
     # (typical on Ubuntu/Debian with the network repo). Kali has none -> skip.
-    if [ "$os" != "kali" ] && cti_have apt-get && apt-cache show cuda-toolkit-12-2 >/dev/null 2>&1; then
-        echo "[APT] NVIDIA CUDA repo detected -> installing cuda-toolkit-12-2..."
-        if cti_sudo apt-get install -y cuda-toolkit-12-2 && { cti_have nvcc || [ -x "$CTI_NVCC" ]; }; then
+    toolkit_package="cuda-toolkit-${CTI_CUDA_SHORT//./-}"
+    if [ "$os" != "kali" ] && cti_have apt-get && apt-cache show "$toolkit_package" >/dev/null 2>&1; then
+        echo "[APT] NVIDIA CUDA repo detected -> installing $toolkit_package..."
+        if cti_sudo apt-get install -y "$toolkit_package" && { cti_have nvcc || [ -x "$CTI_NVCC" ]; }; then
             echo "[OK] CUDA toolkit installed via apt."
             cti_setup_env
             return 0

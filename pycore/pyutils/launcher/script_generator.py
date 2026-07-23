@@ -71,11 +71,11 @@ class ScriptGenerator:
     
     def create_editor_bat(self, index, app_name, x, y, width, height, file_path=None):
         """
-        Create batch file for editor applications (chrome/vscode/cursor)
-        
+        Create batch file for editor applications (chrome/vscode/antigravity)
+
         Args:
             index: Window index
-            app_name: Application name (chrome, vscode, cursor)
+            app_name: Application name (chrome, vscode, antigravity)
             x: Window X position
             y: Window Y position
             width: Window width
@@ -91,7 +91,7 @@ class ScriptGenerator:
         exe_map = {
             'chrome': 'chrome.exe',
             'vscode': 'code.exe',
-            'cursor': 'cursor.exe'
+            'antigravity': 'Antigravity.exe'
         }
         
         exe_name = exe_map.get(app_name.lower(), f'{app_name}.exe')

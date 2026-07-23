@@ -7,10 +7,8 @@ Priority-ordered event handler registry with synchronous and asynchronous
 dispatch. Handlers are stored as (priority, handler) tuples per event name and
 executed in priority order (lower number = higher priority).
 
-This class is a stateless strategy operating on the owning ThreadBus's shared
-RLock and the event-handler dict. The ThreadBus instance owns the ONE RLock
-plus all internal dicts; EventHandlerRegistry only references them via the bus
-so thread-safety is never split across separate locks.
+This class is a stateless strategy operating on the owning ThreadBus's
+copy-on-write event-handler snapshots.
 
 TODO (reuse batch): consolidate with the overlapping
 pycore/pyfoundations/event_bus.py (EventBus) once the two event systems are
@@ -18,22 +16,47 @@ reconciled.
 """
 
 import threading
+import time
 from typing import Any, Callable, Dict, List, Optional
+
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+
+class EventDispatchThread(threading.Thread):
+    """Dispatch one event after receiving its payload from THREAD_BUS."""
+
+    def __init__(self, bus, queue_name: str, event_name: str) -> None:
+        super().__init__(name=f"EventHandler-{event_name}", daemon=True)
+        self._bus = bus
+        self._queue_name = queue_name
+        self._event_name = event_name
+
+    def run(self) -> None:
+        payload = self._bus.receive_message(self._queue_name)
+        if not isinstance(payload, dict):
+            return
+
+        handlers = payload.get('handlers', ())
+        event_data = payload.get('event_data')
+        EventHandlerRegistry.execute_handlers(
+            self._event_name,
+            event_data,
+            handlers,
+        )
+        self._bus.clear_queue(self._queue_name)
 
 
 class EventHandlerRegistry:
     """
     Priority-ordered event handler registry with sync/async dispatch.
 
-    Owns no state: the event-handler dict (bus._event_handlers) lives on the
-    composing ThreadBus instance and is guarded by the bus's single shared RLock.
+    Owns no state: the event-handler snapshots live on the composing ThreadBus.
     """
 
     def __init__(self, bus):
         """
         Args:
-            bus: the owning ThreadBus instance. Provides the shared RLock
-                 (bus._lock) and the event-handler store (bus._event_handlers).
+            bus: the owning ThreadBus instance.
         """
         self._bus = bus
 
@@ -58,15 +81,13 @@ class EventHandlerRegistry:
 
             THREAD_BUS.register_event_handler('app.close', on_close, priority=10)
         """
-        with self._bus._lock:
-            if event_name not in self._bus._event_handlers:
-                self._bus._event_handlers[event_name] = []
-
-            # Add handler with priority
-            self._bus._event_handlers[event_name].append((priority, handler))
-
-            # Sort by priority (lower number = higher priority)
-            self._bus._event_handlers[event_name].sort(key=lambda x: x[0])
+        handlers = list(self._bus._event_handlers.get(event_name, ()))
+        handlers.append((priority, handler))
+        handlers.sort(key=lambda item: item[0])
+        self._bus._event_handlers = {
+            **self._bus._event_handlers,
+            event_name: handlers,
+        }
 
     def unregister_event_handler(
         self,
@@ -83,19 +104,20 @@ class EventHandlerRegistry:
         Returns:
             True if handler was removed
         """
-        with self._bus._lock:
-            if event_name not in self._bus._event_handlers:
-                return False
+        handlers = self._bus._event_handlers.get(event_name)
+        if handlers is None:
+            return False
 
-            handlers = self._bus._event_handlers[event_name]
-            original_len = len(handlers)
-
-            # Remove handler
-            self._bus._event_handlers[event_name] = [
-                (p, h) for p, h in handlers if h != handler
-            ]
-
-            return len(self._bus._event_handlers[event_name]) < original_len
+        updated_handlers = [
+            (priority, registered_handler)
+            for priority, registered_handler in handlers
+            if registered_handler != handler
+        ]
+        self._bus._event_handlers = {
+            **self._bus._event_handlers,
+            event_name: updated_handlers,
+        }
+        return len(updated_handlers) < len(handlers)
 
     def trigger_event(
         self,
@@ -121,36 +143,39 @@ class EventHandlerRegistry:
             # Trigger window maximize event
             THREAD_BUS.trigger_event('window.maximize')
         """
-        with self._bus._lock:
-            handlers = self._bus._event_handlers.get(event_name, [])
-            if not handlers:
-                return True  # No handlers, event succeeds
-
-            # Copy handlers list
-            handlers_copy = list(handlers)
-
-        # Execute handlers
-        def _execute_handlers():
-            for priority, handler in handlers_copy:
-                try:
-                    handler(event_data)
-                except Exception as e:
-                    # Log error but continue with other handlers
-                    print(f"Error in event handler for '{event_name}': {e}")
+        handlers = tuple(self._bus._event_handlers.get(event_name, ()))
+        if not handlers:
+            return True
 
         if async_mode:
-            # Execute in separate thread
-            thread = threading.Thread(
-                target=_execute_handlers,
-                name=f"EventHandler-{event_name}",
-                daemon=True
+            queue_name = (
+                f"thread_bus.event.{event_name}."
+                f"{threading.get_ident()}.{time.time_ns()}"
             )
-            thread.start()
+            self._bus.send_message(queue_name, {
+                'event_data': event_data,
+                'handlers': handlers,
+            })
+            EventDispatchThread(self._bus, queue_name, event_name).start()
         else:
-            # Execute synchronously
-            _execute_handlers()
+            self.execute_handlers(event_name, event_data, handlers)
 
         return True
+
+    @staticmethod
+    def execute_handlers(
+        event_name: str,
+        event_data: Any,
+        handlers: tuple,
+    ) -> None:
+        """Execute a stable handler snapshot in priority order."""
+        for _priority, handler in handlers:
+            try:
+                handler(event_data)
+            except Exception as exc:
+                ColorPrint.red(
+                    f"[ThreadBus] Event handler '{event_name}' failed: {exc}"
+                )
 
     def list_event_handlers(self, event_name: Optional[str] = None) -> Dict:
         """
@@ -162,29 +187,31 @@ class EventHandlerRegistry:
         Returns:
             Dictionary of event handlers
         """
-        with self._bus._lock:
-            if event_name:
-                handlers = self._bus._event_handlers.get(event_name, [])
-                return {
-                    event_name: [
-                        {
-                            'priority': p,
-                            'handler': h.__name__ if hasattr(h, '__name__') else str(h)
-                        }
-                        for p, h in handlers
-                    ]
-                }
-
+        handler_snapshots = self._bus._event_handlers
+        if event_name:
+            handlers = handler_snapshots.get(event_name, [])
             return {
-                name: [
+                event_name: [
                     {
-                        'priority': p,
-                        'handler': h.__name__ if hasattr(h, '__name__') else str(h)
+                        'priority': priority,
+                        'handler': handler.__name__
+                        if hasattr(handler, '__name__') else str(handler)
                     }
-                    for p, h in handlers
+                    for priority, handler in handlers
                 ]
-                for name, handlers in self._bus._event_handlers.items()
             }
+
+        return {
+            name: [
+                {
+                    'priority': priority,
+                    'handler': handler.__name__
+                    if hasattr(handler, '__name__') else str(handler)
+                }
+                for priority, handler in handlers
+            ]
+            for name, handlers in handler_snapshots.items()
+        }
 
     def clear_event_handlers(self, event_name: Optional[str] = None) -> None:
         """
@@ -193,8 +220,11 @@ class EventHandlerRegistry:
         Args:
             event_name: Optional event name to clear (if None, clear all)
         """
-        with self._bus._lock:
-            if event_name:
-                self._bus._event_handlers.pop(event_name, None)
-            else:
-                self._bus._event_handlers.clear()
+        if event_name:
+            self._bus._event_handlers = {
+                name: handlers
+                for name, handlers in self._bus._event_handlers.items()
+                if name != event_name
+            }
+            return
+        self._bus._event_handlers = {}

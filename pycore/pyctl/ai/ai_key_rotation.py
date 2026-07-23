@@ -24,13 +24,16 @@ from __future__ import annotations
 
 import json
 import os
-import threading
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_local_data_dir
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
 # Default cooldown applied to a key on a rate-limit / quota failure (seconds).
 DEFAULT_KEY_COOLDOWN_S = 120.0
@@ -41,7 +44,7 @@ DEFAULT_KEY_COOLDOWN_S = 120.0
 _USAGE_FILE = get_local_data_dir() / ".ai_state" / "ai_key_usage.json"
 _SAVE_THROTTLE_S = 5.0
 
-_lock = threading.Lock()
+_WORK_QUEUE = 'pyctl.ai.key_rotation.operations'
 # provider -> { slot_index -> state dict }
 _state: Dict[str, Dict[int, Dict[str, Any]]] = {}
 _loaded = False
@@ -125,7 +128,7 @@ def _slot(provider: str, idx: int) -> Dict[str, Any]:
     return _slot_raw(_state.setdefault(provider, {}), idx)
 
 
-def select_active(provider: str, keys: List[str]) -> Tuple[int, str]:
+def _select_active(provider: str, keys: List[str]) -> Tuple[int, str]:
     """
     Pick the active key: the first slot NOT in cooldown; if every key is cooling
     down, the slot whose cooldown expires soonest (so we still try the best one).
@@ -137,112 +140,121 @@ def select_active(provider: str, keys: List[str]) -> Tuple[int, str]:
         return -1, ""
     now = time.monotonic()
     best_cooled: Optional[Tuple[float, int]] = None
-    with _lock:
-        for idx, key in enumerate(keys):
-            st = _slot(provider, idx)
-            st["masked"] = _mask(key)
-            cd = st["cooldown_until"]
-            if cd <= now:
-                return idx, key
-            if best_cooled is None or cd < best_cooled[0]:
-                best_cooled = (cd, idx)
+    for idx, key in enumerate(keys):
+        state = _slot(provider, idx)
+        state["masked"] = _mask(key)
+        cooldown_until = state["cooldown_until"]
+        if cooldown_until <= now:
+            return idx, key
+        if best_cooled is None or cooldown_until < best_cooled[0]:
+            best_cooled = (cooldown_until, idx)
     idx = best_cooled[1] if best_cooled else 0
     return idx, keys[idx]
 
 
-def mark_cooldown(provider: str, idx: int, secs: float = DEFAULT_KEY_COOLDOWN_S,
-                  error: Optional[str] = None) -> None:
+def _mark_cooldown(
+    provider: str,
+    idx: int,
+    secs: float = DEFAULT_KEY_COOLDOWN_S,
+    error: Optional[str] = None,
+) -> None:
     """Put one key slot on cooldown (after a rate-limit / quota failure)."""
     if idx < 0:
         return
-    with _lock:
-        st = _slot(provider, idx)
-        st["cooldown_until"] = time.monotonic() + max(1.0, secs)
-        if error:
-            st["last_error"] = str(error)[:160]
+    state = _slot(provider, idx)
+    state["cooldown_until"] = time.monotonic() + max(1.0, secs)
+    if error:
+        state["last_error"] = str(error)[:160]
     ColorPrint.yellow(
         f"[ai_key_rotation] {provider} KEY{idx + 1} cooled {int(secs)}s "
         f"(rotating to next key)")
 
 
-def has_ready_key(provider: str, keys: List[str]) -> bool:
+def _has_ready_key(provider: str, keys: List[str]) -> bool:
     """True if at least one key slot is NOT currently on cooldown — i.e. the
     provider is usable right now (used to SKIP dead/rate-limited providers)."""
     if not keys:
         return False
     now = time.monotonic()
-    with _lock:
-        for idx in range(len(keys)):
-            if _slot(provider, idx)["cooldown_until"] <= now:
-                return True
+    for idx in range(len(keys)):
+        if _slot(provider, idx)["cooldown_until"] <= now:
+            return True
     return False
 
 
-def reset_cooldown(provider: str, idx: Optional[int] = None) -> int:
+def _reset_cooldown(provider: str, idx: Optional[int] = None) -> int:
     """Clear cooldown for one key slot (``idx``) or ALL slots of ``provider``.
     Returns how many slots were reset. Manual override for the UI."""
-    n = 0
-    with _lock:
-        prov = _state.get(provider) or {}
-        targets = [idx] if idx is not None else list(prov.keys())
-        for i in targets:
-            st = prov.get(i)
-            if st and st.get("cooldown_until", 0.0) > 0.0:
-                st["cooldown_until"] = 0.0
-                n += 1
-    if n:
+    reset_count = 0
+    provider_state = _state.get(provider) or {}
+    targets = [idx] if idx is not None else list(provider_state.keys())
+    for slot_index in targets:
+        state = provider_state.get(slot_index)
+        if state and state.get("cooldown_until", 0.0) > 0.0:
+            state["cooldown_until"] = 0.0
+            reset_count += 1
+    if reset_count:
         ColorPrint.green(f"[ai_key_rotation] reset cooldown for {provider} "
                          f"({'KEY' + str(idx + 1) if idx is not None else 'all slots'})")
-    return n
+    return reset_count
 
 
-def record(provider: str, idx: int, ok: bool, error: Optional[str] = None) -> None:
+def _record(provider: str, idx: int, ok: bool, error: Optional[str] = None) -> None:
     """Count one attempt against a key slot: lifetime counters (UI stats) AND the
     per-key rate windows (minute sliding + per-day), then persist (throttled)."""
     if idx < 0:
         return
-    with _lock:
-        st = _slot(provider, idx)
-        now = time.time()
-        st["used"] += 1
-        st["last_used"] = now
-        if ok:
-            st["ok"] += 1
-        else:
-            st["failed"] += 1
-            if error:
-                st["last_error"] = str(error)[:160]
-        # Per-key rate windows (each key = its own budget / account).
-        st["minute"] = [t for t in st["minute"] if now - t < 60.0]
-        st["minute"].append(now)
-        day = st["day"]
-        today = _today()
-        day[today] = day.get(today, 0) + 1
-        if len(day) > 5:  # keep the dict tiny (last few days)
-            for k in sorted(day)[:-3]:
-                day.pop(k, None)
-        _save_persisted()
+    state = _slot(provider, idx)
+    now = time.time()
+    state["used"] += 1
+    state["last_used"] = now
+    if ok:
+        state["ok"] += 1
+    else:
+        state["failed"] += 1
+        if error:
+            state["last_error"] = str(error)[:160]
+    state["minute"] = [
+        timestamp
+        for timestamp in state["minute"]
+        if now - timestamp < 60.0
+    ]
+    state["minute"].append(now)
+    day = state["day"]
+    today = _today()
+    day[today] = day.get(today, 0) + 1
+    if len(day) > 5:
+        for day_key in sorted(day)[:-3]:
+            day.pop(day_key, None)
+    _save_persisted()
 
 
-def rate_ok(provider: str, idx: int,
-            rpm: Optional[int] = None, rpd: Optional[int] = None) -> bool:
+def _rate_ok(
+    provider: str,
+    idx: int,
+    rpm: Optional[int] = None,
+    rpd: Optional[int] = None,
+) -> bool:
     """True when the key slot is WITHIN its per-key budget (minute & day). ``rpm``
     / ``rpd`` None = no enforcement. Each key gets the FULL provider budget since
     distinct keys are distinct accounts/quotas."""
     if idx < 0:
         return True
-    with _lock:
-        st = _slot(provider, idx)
-        now = time.time()
-        st["minute"] = [t for t in st["minute"] if now - t < 60.0]
-        if rpm and len(st["minute"]) >= rpm:
-            return False
-        if rpd and st["day"].get(_today(), 0) >= rpd:
-            return False
+    state = _slot(provider, idx)
+    now = time.time()
+    state["minute"] = [
+        timestamp
+        for timestamp in state["minute"]
+        if now - timestamp < 60.0
+    ]
+    if rpm and len(state["minute"]) >= rpm:
+        return False
+    if rpd and state["day"].get(_today(), 0) >= rpd:
+        return False
     return True
 
 
-def status(provider: str, keys: List[str]) -> List[Dict[str, Any]]:
+def _status(provider: str, keys: List[str]) -> List[Dict[str, Any]]:
     """Per-key status for ``provider`` (UI): index, masked, cooldown_s, counters.
 
     ``keys`` is the provider's current key list (so masked/labels stay aligned).
@@ -251,25 +263,84 @@ def status(provider: str, keys: List[str]) -> List[Dict[str, Any]]:
     wall = time.time()
     today = _today()
     out: List[Dict[str, Any]] = []
-    with _lock:
-        for idx, key in enumerate(keys):
-            st = _slot(provider, idx)
-            st["masked"] = _mask(key)
-            minute_used = len([t for t in st["minute"] if wall - t < 60.0])
-            out.append({
-                "index": idx,
-                "label": f"KEY{idx + 1}",
-                "masked": st["masked"],
-                "cooldown_s": max(0, int(st["cooldown_until"] - now)),
-                "used": st["used"],
-                "ok": st["ok"],
-                "failed": st["failed"],
-                "minute_used": minute_used,           # requests in the last 60s
-                "day_used": st["day"].get(today, 0),  # requests today (UTC)
-                "last_used": st["last_used"],
-                "last_error": st["last_error"],
-            })
+    for idx, key in enumerate(keys):
+        state = _slot(provider, idx)
+        state["masked"] = _mask(key)
+        minute_used = len([
+            timestamp
+            for timestamp in state["minute"]
+            if wall - timestamp < 60.0
+        ])
+        out.append({
+            "index": idx,
+            "label": f"KEY{idx + 1}",
+            "masked": state["masked"],
+            "cooldown_s": max(0, int(state["cooldown_until"] - now)),
+            "used": state["used"],
+            "ok": state["ok"],
+            "failed": state["failed"],
+            "minute_used": minute_used,
+            "day_used": state["day"].get(today, 0),
+            "last_used": state["last_used"],
+            "last_error": state["last_error"],
+        })
     return out
+
+
+_WORKER = SerializedWorkerThread(_WORK_QUEUE, 'AIKeyRotationThread')
+_WORKER.start()
+
+
+def select_active(provider: str, keys: List[str]) -> Tuple[int, str]:
+    return call_serialized(_WORK_QUEUE, _select_active, provider, keys)
+
+
+def mark_cooldown(
+    provider: str,
+    idx: int,
+    secs: float = DEFAULT_KEY_COOLDOWN_S,
+    error: Optional[str] = None,
+) -> None:
+    call_serialized(
+        _WORK_QUEUE,
+        _mark_cooldown,
+        provider,
+        idx,
+        secs,
+        error,
+    )
+
+
+def has_ready_key(provider: str, keys: List[str]) -> bool:
+    return bool(call_serialized(_WORK_QUEUE, _has_ready_key, provider, keys))
+
+
+def reset_cooldown(provider: str, idx: Optional[int] = None) -> int:
+    return int(call_serialized(_WORK_QUEUE, _reset_cooldown, provider, idx))
+
+
+def record(
+    provider: str,
+    idx: int,
+    ok: bool,
+    error: Optional[str] = None,
+) -> None:
+    call_serialized(_WORK_QUEUE, _record, provider, idx, ok, error)
+
+
+def rate_ok(
+    provider: str,
+    idx: int,
+    rpm: Optional[int] = None,
+    rpd: Optional[int] = None,
+) -> bool:
+    return bool(
+        call_serialized(_WORK_QUEUE, _rate_ok, provider, idx, rpm, rpd)
+    )
+
+
+def status(provider: str, keys: List[str]) -> List[Dict[str, Any]]:
+    return call_serialized(_WORK_QUEUE, _status, provider, keys)
 
 
 __all__ = [

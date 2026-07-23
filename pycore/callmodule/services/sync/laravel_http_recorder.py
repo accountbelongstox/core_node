@@ -4,72 +4,76 @@ LaravelHttpRecorder - structured observer + bounded ring for every pycore->Larav
 HTTP request emitted by the unified ``LaravelClient`` (and the
 ``LaravelEndpointManager`` health probe).
 
-DELIBERATELY has ZERO project-internal imports (stdlib only) so it can be imported
-by BOTH ``laravel_client`` AND ``laravel_endpoint_manager`` without forming an import
-cycle: ``laravel_client`` imports ``laravel_endpoint_manager`` (for base-URL
-resolution); if this recorder lived inside ``laravel_client``, the endpoint manager
-could not import it without cycling back into the client.
+Depends only on ``pyfoundations`` so both the client and endpoint manager can
+import it without a callmodule cycle.
 
 Mirrors the ColorPrint observer pattern: ``rpc_v2`` registers a callback here that
 broadcasts each record as a ``laravel_http`` WS event to the dashboard HTTP debugger
 panel (PcHttpDebugger). The ring buffer is a fallback snapshot store for any future
 poll-style consumer.
 """
-import threading
 import time
+from collections import deque
 from typing import Any, Callable, Dict, List, Optional
+
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 
 _RECORD_CAP = 500
 
 
 class LaravelHttpRecorder:
-    """Singleton observer registry + bounded ring for Laravel HTTP request records."""
+    """Singleton observer registry + bounded ring for Laravel HTTP request records.
+
+    All registry and ring mutations run on one THREAD_BUS-backed state owner.
+    """
 
     def __init__(self):
-        self._lock = threading.Lock()
-        self._records: List[Dict[str, Any]] = []
+        self._records: deque = deque(maxlen=_RECORD_CAP)
         self._callbacks: List[Callable[[Dict[str, Any]], None]] = []
+        init_serialized_owner(self, "laravel_http_recorder.state", "LaravelHttpRecorderState")
 
+    @serialized_method
     def register_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
-        with self._lock:
-            if callback not in self._callbacks:
-                self._callbacks.append(callback)
+        if callback not in self._callbacks:
+            self._callbacks.append(callback)
 
+    @serialized_method
     def unregister_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
-        with self._lock:
-            if callback in self._callbacks:
-                self._callbacks.remove(callback)
+        try:
+            self._callbacks.remove(callback)
+        except ValueError:
+            pass
 
+    @serialized_method
     def clear_all_callbacks(self) -> None:
-        with self._lock:
-            self._callbacks.clear()
+        self._callbacks = []
 
+    @serialized_method
     def notify(self, record: Dict[str, Any]) -> None:
         """Append ``record`` to the ring and fan out to callbacks. Never raises."""
         if not isinstance(record, dict):
             return
-        record.setdefault("ts", time.time())
-        with self._lock:
-            self._records.append(record)
-            if len(self._records) > _RECORD_CAP:
-                del self._records[: len(self._records) - _RECORD_CAP]
-            callbacks = list(self._callbacks)
+        stored = dict(record)
+        stored.setdefault("ts", time.time())
+        self._records.append(stored)
+        callbacks = list(self._callbacks)
         for cb in callbacks:
             try:
-                cb(record)
+                cb(dict(stored))
             except Exception:
                 # A listener must never break the request path.
                 pass
 
+    @serialized_method
     def get_recent(self, limit: int = _RECORD_CAP) -> List[Dict[str, Any]]:
-        with self._lock:
-            if limit >= len(self._records):
-                return list(self._records)
-            return list(self._records[-limit:])
+        records = [dict(record) for record in self._records]
+        if limit >= len(records):
+            return records
+        return records[-limit:]
 
+    @serialized_method
     def clear(self) -> None:
-        with self._lock:
-            self._records.clear()
+        self._records = deque(maxlen=_RECORD_CAP)
 
 
 _recorder = LaravelHttpRecorder()

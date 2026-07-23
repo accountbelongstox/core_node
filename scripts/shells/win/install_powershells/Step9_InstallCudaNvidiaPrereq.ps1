@@ -30,13 +30,8 @@ $driverActive = $false
 $driverCudaLine = ""
 $torchIndex = ""
 $paddleIndex = ""
-
-function Test-NvidiaSmiActive {
-    param([string]$SmiExe)
-    if (-not $SmiExe) { return $false }
-    $output = & $SmiExe 2>&1
-    return ("$output" -match 'Driver Version:')
-}
+$gpuLine = ""
+$cudaPolicy = $null
 
 Write-Host "$SCRIPT_INDEX ============================================================" -ForegroundColor Cyan
 Write-Host "$SCRIPT_INDEX NVIDIA driver + CUDA runtime prerequisite (Windows)" -ForegroundColor Cyan
@@ -50,11 +45,11 @@ if (-not $gpuPresent) {
 
 Write-Host "$SCRIPT_INDEX NVIDIA GPU detected." -ForegroundColor White
 $nvidiaSmiExe = Resolve-NvidiaSmiExe
-$driverActive = Test-NvidiaSmiActive -SmiExe $nvidiaSmiExe
+$driverCudaLine = Get-NvidiaDriverCudaVersionLine -SmiPath $nvidiaSmiExe
+$gpuLine = Get-NvidiaSmiFirstGpuLine -SmiPath $nvidiaSmiExe
+$driverActive = [bool]($nvidiaSmiExe -and $driverCudaLine -and $gpuLine)
 
 if ($driverActive) {
-    $driverCudaLine = Get-NvidiaDriverCudaVersionLine -SmiPath $nvidiaSmiExe
-    $gpuLine = Get-NvidiaSmiFirstGpuLine -SmiPath $nvidiaSmiExe
     if ($gpuLine) {
         Write-Host "$SCRIPT_INDEX Driver active: $gpuLine" -ForegroundColor Green
     } else {
@@ -64,14 +59,23 @@ if ($driverActive) {
         Write-Host "$SCRIPT_INDEX $driverCudaLine" -ForegroundColor Green
     }
 } else {
-    Write-Host "$SCRIPT_INDEX [WARN] NVIDIA GPU present but nvidia-smi is not working." -ForegroundColor Yellow
+    Write-Host "$SCRIPT_INDEX [WARN] NVIDIA GPU present but nvidia-smi did not return both a GPU and CUDA runtime version." -ForegroundColor Yellow
     Write-Host "$SCRIPT_INDEX        Install/update the NVIDIA driver, reboot if needed, then re-run the installer." -ForegroundColor Yellow
-    Write-Host "$SCRIPT_INDEX        Until the driver loads, Step10 will install CPU torch/paddle wheels." -ForegroundColor Yellow
+    Write-Host "$SCRIPT_INDEX        Step10 will use the same centralized CUDA probe and fall back to CPU only when no usable tier is available." -ForegroundColor Yellow
 }
 
-$torchIndex = Get-TorchCudaIndexUrl
-$paddleIndex = Get-PaddleCudaIndexUrl
-Write-Host "$SCRIPT_INDEX Driver-matched wheel indexes for Step10:" -ForegroundColor Cyan
+$cudaPolicy = Get-CudaRuntimePolicy
+$torchIndex = $cudaPolicy.TorchIndexUrl
+$paddleIndex = $cudaPolicy.PaddleIndexUrl
+if ($cudaPolicy.OverrideConflict) {
+    Write-Host "$SCRIPT_INDEX [WARN] PYTORCH_CUDA_INDEX_URL and PADDLE_CUDA_INDEX_URL request different CUDA tags; both were ignored." -ForegroundColor Yellow
+}
+if ($cudaPolicy.Enabled) {
+    Write-Host "$SCRIPT_INDEX Canonical CUDA policy: $($cudaPolicy.Tag) (toolkit $($cudaPolicy.ToolkitVersion), Paddle $($cudaPolicy.PaddleVersion))." -ForegroundColor Cyan
+} else {
+    Write-Host "$SCRIPT_INDEX CUDA wheel policy disabled: $($cudaPolicy.Reason)" -ForegroundColor Yellow
+}
+Write-Host "$SCRIPT_INDEX Unified wheel indexes for Step10:" -ForegroundColor Cyan
 Write-Host "$SCRIPT_INDEX   torch  -> $torchIndex" -ForegroundColor White
 Write-Host "$SCRIPT_INDEX   paddle -> $paddleIndex" -ForegroundColor White
 Write-Host "$SCRIPT_INDEX   (see https://pytorch.org/get-started/locally/ and PaddlePaddle 3.3 install docs)" -ForegroundColor DarkGray

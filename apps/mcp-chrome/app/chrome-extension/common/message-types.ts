@@ -10,6 +10,18 @@
  */
 export const BING_DICT_MSG = 'bing_dictionary_worker_service' as const;
 
+export const FEATURE_MESSAGE_TYPES = {
+  AI_WEB_WORKER: 'ai_web_worker_service',
+  BING_DICTIONARY_CLIENT: 'bing_dictionary_client_service',
+  PUTER_TRANSLATE_WORKER: 'puter_translate_worker_service',
+  GEMINI_IMAGE: 'gemini_image_service',
+  NOTEBOOK_LM: 'notebooklm_service',
+  GEMINI_TEXT: 'gemini_text_service',
+  CHATGPT_TEXT: 'chatgpt_text_service',
+  GROK_TEXT: 'grok_text_service',
+  COPILOT_TEXT: 'copilot_text_service',
+} as const;
+
 // Message targets for routing
 export enum MessageTarget {
   Offscreen = 'offscreen',

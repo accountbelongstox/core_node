@@ -1,9 +1,9 @@
 /** types/api.ts - the WfNewApi interface (method contract shared by WfNewApiHttp + WfNewApiMock). (extracted from WfNewApiTypes to keep each
  * source file under the 800-line modular limit; re-exported by the barrel). */
 import type { Word, WordGroup, BentoGroup, UserStats, WfNewStatistics, UserProfile, WfNewContentKind, WfNewContentGroup, WfNewHomeContent, WfNewLanguage, WfNewLanguageSelection } from './core';
-import type { WfNewBookChapter, WfNewBookChapters, WfNewBookVerseLang, WfNewBookVerse, WfNewBookVersesPage, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewSubtitleDetail, WfNewDictWord, WfNewWordPage, WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordAccent, WfNewWordAudioVariant, WfNewWordMedia, WfAudioFileVariant, SubtitleWord, SubtitleLine, SubtitleCourse, BilingualWord, BilingualSentence } from './media';
+import type { WfNewBookChapter, WfNewBookChapters, WfNewAgentArticle, WfNewBookVerseLang, WfNewBookVerse, WfNewBookVersesPage, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewSubtitleDetail, WfNewDictWord, WfNewWordPage, WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordAccent, WfNewWordAudioVariant, WfNewWordMedia, WfAudioFileVariant, SubtitleWord, SubtitleLine, SubtitleCourse, BilingualWord, BilingualSentence } from './media';
 import type { WfNewAuthUser, WfNewAuthResult, WfNewPreferences, WfNewRegisterPayload, WfNewSocialCredential, WfNewProfileUpdate, WfNewAvatarResult, WfNewSocialStats } from './user';
-import type { WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity, WfNewPresenceStatus, WfNewDiscoverUser, WfNewFriendRequest, WfNewConversation, WfNewMessage, WfNewMessagePage, WfNewNotification, WfNewNotificationPage, WfNewPresenceInfo, WfNewPublicUserProfile, WfNewSocialActor, WfNewPostImage, WfNewPostType, WfNewPostVisibility, WfNewPostFilter, WfNewPost, WfNewPostPage, WfNewPostComment, WfNewPostCommentPage, WfNewPostLikeResult, WfNewCreatePostPayload, WfNewLiveStatus, WfNewLive, WfNewCreateLivePayload, WfNewLiveMsg, WfNewLiveMsgPage } from './social';
+import type { WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity, WfNewPresenceStatus, WfNewDiscoverUser, WfNewNearbyUser, WfNewFriendRequest, WfNewConversation, WfNewMessage, WfNewMessagePage, WfNewNotification, WfNewNotificationPage, WfNewPresenceInfo, WfNewPublicUserProfile, WfNewSocialActor, WfNewPostImage, WfNewPostType, WfNewPostVisibility, WfNewPostFilter, WfNewPost, WfNewPostPage, WfNewPostComment, WfNewPostCommentPage, WfNewPostLikeResult, WfNewCreatePostPayload, WfNewLiveStatus, WfNewLive, WfNewCreateLivePayload, WfNewLiveMsg, WfNewLiveMsgPage } from './social';
 import type { WeeklyActivity, CategoryScore, StudiedTimelineItem, AnalyticsStats } from './analytics';
 import type { WfNewEndpointKind, WfNewEndpoint, WfNewEndpointHealth, WfNewEndpointSnapshot } from './endpoints';
 import type { WfNewBookReadingProgress } from './bookProgress';
@@ -75,6 +75,9 @@ export interface WfNewApi {
   /** Find language partners (GET /social/discover). Matches by native/target; the
    *  page derives native/target from the current user's languages. */
   discoverByLanguage(opts?: { native?: string; target?: string; q?: string; limit?: number }): Promise<WfNewDiscoverUser[]>;
+  updateSocialLocation(location: { latitude: number; longitude: number; accuracy?: number; visible?: boolean }): Promise<void>;
+  disableSocialLocation(): Promise<void>;
+  getNearbyUsers(radiusKm?: number, limit?: number): Promise<WfNewNearbyUser[]>;
   /** Send a friend request to a user (POST /social/friends/request). */
   sendFriendRequest(userId: number): Promise<void>;
   /** Accept or reject an incoming friend request (POST /social/friends/respond). */
@@ -206,6 +209,7 @@ export interface WfNewApi {
   getDocumentGroups(): Promise<WfNewContentGroup[]>;
   /** All five home categories at once (parallel; partial-tolerant — a failed category resolves to []). */
   getHomeContent(): Promise<WfNewHomeContent>;
+  getRecentAgentArticles(limit?: number): Promise<WfNewAgentArticle[]>;
 
   // ---- Book reading (book -> chapter -> verses) ----
   /** Ordered chapter list for a book (GET /media/books/{key}/chapters). */

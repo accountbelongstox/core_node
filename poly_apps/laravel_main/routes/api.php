@@ -93,10 +93,10 @@ use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1Certifica
 // ServerManagerV1 API Routes
 Route::prefix('servermanager/v1')->group(function () {
 
-    // API Information Route (Public)
+    // API Information Route
     Route::get('info', [ServerManagerV1ApiInfoCtl::class, 'getApiInfo']);
 
-    // System Information Routes (Public for basic info, protected for sensitive ops)
+    // System Information Routes (authenticated by the controller in production)
     Route::prefix('system')->group(function () {
         Route::get('info', [ServerManagerV1SystemInfoCtl::class, 'getSystemInfo']);
         Route::get('processes', [ServerManagerV1SystemInfoCtl::class, 'getProcesses']);
@@ -113,6 +113,9 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::get('download', [ServerManagerV1FileManagerCtl::class, 'download']);
         Route::get('info', [ServerManagerV1FileManagerCtl::class, 'getFileInfo']);
         Route::get('preview', [ServerManagerV1FileManagerCtl::class, 'preview']);
+        Route::post('write', [ServerManagerV1FileManagerCtl::class, 'write']);
+        Route::post('elevated-auth', [ServerManagerV1FileManagerCtl::class, 'elevatedAuth']);
+        Route::delete('elevated-auth', [ServerManagerV1FileManagerCtl::class, 'revokeElevatedAuth']);
     });
 
     // Code Execution Routes
@@ -255,6 +258,7 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
     // Unified Task Center — one aggregate over BOTH task layers (scheduler +
     // queue + workers + their relations) for the dashboard's Task Center page.
     Route::get('task-center/overview', [\App\Http\Controllers\TaskCenterController::class, 'overview']);
+    Route::get('task-center/completed', [\App\Http\Controllers\TaskCenterController::class, 'completed']);
     Route::get('task-center/settings', [\App\Http\Controllers\TaskCenterController::class, 'getSettings']);
     Route::post('task-center/settings', [\App\Http\Controllers\TaskCenterController::class, 'updateSettings']);
 
@@ -341,11 +345,6 @@ Route::prefix('app_qy_v1/daily-sentences')->group(function () {
     Route::get('recommend', [AppQyV1DailySentenceController::class, 'recommend']);
     Route::get('audio/{id}', [AppQyV1DailySentenceController::class, 'audio']);
 });
-
-// Server Manager Routes (localhost only)
-use App\Http\Controllers\ServerManagerController;
-
-Route::post('server-manager/restart', [ServerManagerController::class, 'restartCurrent']);
 
 // Debug route - test if api routes are loaded
 Route::get('debug/test', function () {

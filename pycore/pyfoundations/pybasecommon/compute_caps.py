@@ -30,6 +30,7 @@ import os
 import sys
 import importlib
 import platform
+import re
 import shutil
 from typing import Dict, Optional, Tuple, Callable
 
@@ -313,23 +314,17 @@ _ORT_CUDA_USABLE: Optional[bool] = None
 
 
 def _get_torch_cuda_major() -> Optional[int]:
-    """Return PyTorch CUDA major version (11 or 12) or None if not available / no CUDA.
-    Checks torch.version.cuda first; fallback to torch.__version__ for wheel tags like +cu118, +cu121.
-    """
+    """Return the PyTorch CUDA major, including future policy-supported majors."""
     try:
         torch = _get_torch()
         cuda = getattr(torch.version, "cuda", None)
         if cuda and isinstance(cuda, str):
-            if cuda.startswith("11."):
-                return 11
-            if cuda.startswith("12."):
-                return 12
-        # Fallback: e.g. __version__ "2.7.1+cu118" or "2.0.0+cu118"
+            major = cuda.split(".", 1)[0]
+            return int(major) if major.isdigit() else None
         ver = getattr(torch, "__version__", "") or ""
-        if "cu118" in ver or "cu117" in ver or "cu116" in ver or "+cu11" in ver:
-            return 11
-        if "cu124" in ver or "cu121" in ver or "cu122" in ver or "+cu12" in ver:
-            return 12
+        match = re.search(r"\+?cu(\d{2,3})", ver)
+        if match:
+            return int(match.group(1)[:-1])
         return None
     except Exception:
         return None

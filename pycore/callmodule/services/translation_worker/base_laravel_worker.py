@@ -9,15 +9,15 @@ Extracted verbatim (behavior-preserving) from the former translation_worker_serv
 monolith. Holds the parts that are IDENTICAL across the Laravel-pulled workers:
 
   - Singleton __new__ using ``cls`` so the CONCRETE subclass singleton works
-    (the _instance / _instance_lock MUST live on the concrete subclass, never
-    here - otherwise two subclasses would share one singleton).
+    (the _instance MUST live on the concrete subclass, never here - otherwise
+    two subclasses would share one singleton).
   - Stable hostname-based worker_id + candidate Laravel base-URL discovery.
   - Lazy third-party ``requests`` accessor + noisy-exception condenser.
   - One-shot "no reachable Laravel" connection-failure hint.
   - register / heartbeat / pull / _post_result HTTP with retry + circuit breaker.
 
 The concrete subclass (TranslationWorkerService) supplies:
-  - _instance / _instance_lock (class attributes)
+  - _instance (class attribute)
   - worker_name, _log_prefix (set in __init__ before any base HTTP method runs)
   - _effective_processor_types() / _effective_capabilities() (lane gating)
   - the lane-specific task processing
@@ -35,12 +35,12 @@ them once their endpoint paths are parameterized.
 import os
 import platform
 import socket
-import threading
 import time
 from typing import Any, Dict, List, Optional
 
 # ColorPrint is the only allowed logger in pycore processors/services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 # requests is a third-party dep - always obtained through the lazy accessor.
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
@@ -53,10 +53,11 @@ class BaseLaravelWorkerService:
     """
     Base class for Laravel-pulled pycore workers (register/heartbeat/pull/result).
 
-    Subclasses MUST define ``_instance`` (Optional[<subclass>]) and
-    ``_instance_lock`` (threading.Lock) as CLASS attributes for the singleton
-    __new__ below to key on the CONCRETE type (a base-level _instance would be
-    shared across all subclasses - a latent multi-worker bug).
+    Subclasses MUST define ``_instance`` (Optional[<subclass>]) as a CLASS
+    attribute for the singleton __new__ below to key on the CONCRETE type
+    (a base-level _instance would be shared across all subclasses - a latent
+    multi-worker bug). Threading rule §4: no _instance_lock - the __new__
+    below is a plain GIL-atomic check-then-assign.
     """
 
     # Default inflight TTL when a task carries no timeout_seconds: a re-offered
@@ -89,13 +90,13 @@ class BaseLaravelWorkerService:
     def __new__(cls, *args, **kwargs):
         """Singleton - one worker per process, keyed on the CONCRETE subclass.
 
-        Uses ``cls._instance`` / ``cls._instance_lock`` (defined on the subclass)
-        so distinct concrete workers each get their own singleton.
+        Uses ``cls._instance`` (defined on the subclass) so distinct concrete
+        workers each get their own singleton. Threading rule §4: GIL-atomic
+        check-then-assign, no lock - the worst race outcome is one duplicate
+        instance built and discarded (subclass __init__ is idempotent-guarded).
         """
         if cls._instance is None:
-            with cls._instance_lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     # -------------------- base init (called by subclass __init__) --------------------
@@ -137,12 +138,19 @@ class BaseLaravelWorkerService:
         # INFLIGHT_DEFAULT_TTL) and expired entries are purged before the skip
         # check, so a re-offered task can be claimed again.
         self._inflight: Dict[str, float] = {}
-        self._inflight_lock = threading.Lock()
+        # Threading rule §4: no _inflight_lock - each mutation of this store is
+        # a single GIL-atomic dict set/pop (see worker.py / task_heap.py).
         self._http_timeout = 8  # seconds for register/heartbeat/pull/result calls
 
         # Log prefix - subclass overrides (e.g. "[TranslationWorker]"). Default
         # keeps base-only usage legible.
         self._log_prefix = "[LaravelWorker]"
+        init_serialized_owner(
+            self,
+            "translation.worker.state",
+            "TranslationWorkerState",
+            timeout=60.0,
+        )
 
     # -------------------- identity --------------------
 
@@ -395,6 +403,7 @@ class BaseLaravelWorkerService:
                 f"{self._log_prefix} Heartbeat failed ({self._short_err(e)}); will re-discover"
             )
 
+    @serialized_method
     def _pull_tasks(self, base: Optional[str] = None, wait: int = 0) -> List[Dict[str, Any]]:
         """GET pending tasks for this worker. Returns [] on any error.
 
@@ -451,6 +460,7 @@ class BaseLaravelWorkerService:
                 )
         return []
 
+    @serialized_method
     def _post_result(
         self,
         task_id: Any,
@@ -568,6 +578,7 @@ class BaseLaravelWorkerService:
                 )
                 self._circuit_warned = True
 
+    @serialized_method
     def _circuit_is_open(self) -> bool:
         """True while the cooldown is active (skip pulling new work)."""
         return time.monotonic() < self._circuit_open_until

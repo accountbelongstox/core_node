@@ -75,7 +75,7 @@ if (-not $Force) {
     if ($null -ne $freeGB -and $freeGB -lt $MinFreeDiskGB) { $reasons += ("free disk {0} GB < {1} GB" -f $freeGB, $MinFreeDiskGB) }
     if ($reasons.Count -gt 0) {
         Write-Host ("$SCRIPT_INDEX [skip] System too small for faster-whisper ({0}); skipping. Use -Force to override." -f ($reasons -join '; ')) -ForegroundColor DarkYellow
-        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('faster_whisper')
+        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('faster_whisper') -AbsentOk -AbsentNote 'resource policy'
     }
 }
 

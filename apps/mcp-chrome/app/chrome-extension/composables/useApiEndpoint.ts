@@ -5,9 +5,10 @@
 
 import { ref } from 'vue';
 import { apiManager } from '@/services/ApiManager';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
 
-const API_SETTINGS_KEY = 'api_settings';
-const APP_SETTINGS_KEY = 'appSettings';
+const API_SETTINGS_KEY = STORAGE_KEYS.API_SETTINGS;
+const APP_SETTINGS_KEY = STORAGE_KEYS.APP_SETTINGS;
 
 /** Module-level ref — every useApiEndpoint() consumer shares the same value. */
 const apiBaseUrl = ref('');

@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import json
 import os
-import threading
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -38,6 +37,10 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root, get_local_data_dir
 from pycore.pyctl.ai.ai_text_log import log_ai_call
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
 RUNTIME = "pycore"
 
@@ -55,7 +58,7 @@ _MAX_ENTRIES = 400
 # history + per-provider rollup reflect EVERY AI call, not just chat/vision.
 _KINDS = ("text", "vision", "probe", "image", "tts", "stt")
 
-_lock = threading.Lock()
+_WORK_QUEUE = 'pyctl.ai.usage_log.operations'
 
 
 def _migrate_old_state():
@@ -119,7 +122,7 @@ def _save(doc: Dict[str, Any]) -> None:
             pass
 
 
-def record_usage(
+def _record_usage(
     kind: str,
     provider: str,
     model: str = "",
@@ -152,22 +155,24 @@ def record_usage(
         "latency_ms": latency_ms,
         "error": error,
     }
-    with _lock:
-        doc = _load()
-        entries = doc.get("entries") or []
-        entries.append(entry)
-        if len(entries) > _MAX_ENTRIES:
-            entries = entries[len(entries) - _MAX_ENTRIES:]
-        doc["entries"] = entries
-        stats = doc.get("stats") or {}
-        prov = stats.setdefault(provider, {})
-        bucket = prov.setdefault(kind, {"calls": 0, "ok": 0, "failed": 0})
-        bucket["calls"] += 1
-        bucket["ok" if success else "failed"] += 1
-        prov["last_ts"] = ts
-        prov["last_model"] = entry["model"]
-        doc["stats"] = stats
-        _save(doc)
+    doc = _load()
+    entries = doc.get("entries") or []
+    entries.append(entry)
+    if len(entries) > _MAX_ENTRIES:
+        entries = entries[len(entries) - _MAX_ENTRIES:]
+    doc["entries"] = entries
+    stats = doc.get("stats") or {}
+    provider_stats = stats.setdefault(provider, {})
+    bucket = provider_stats.setdefault(
+        kind,
+        {"calls": 0, "ok": 0, "failed": 0},
+    )
+    bucket["calls"] += 1
+    bucket["ok" if success else "failed"] += 1
+    provider_stats["last_ts"] = ts
+    provider_stats["last_model"] = entry["model"]
+    doc["stats"] = stats
+    _save(doc)
     # Mirror to the shared flat operator log AND print one CLI line (the
     # per-call visibility that was missing). Outside the lock — the file write
     # and console print must never hold the usage-log lock.
@@ -178,7 +183,7 @@ def record_usage(
     )
 
 
-def usage_log(limit: int = 100, kind: Optional[str] = None) -> Dict[str, Any]:
+def _usage_log(limit: int = 100, kind: Optional[str] = None) -> Dict[str, Any]:
     """Newest-first records (+ per-provider/kind rollup) for the UI.
 
     ``kind`` optionally filters the returned records (stats are always the full
@@ -189,10 +194,9 @@ def usage_log(limit: int = 100, kind: Optional[str] = None) -> Dict[str, Any]:
     except (TypeError, ValueError):
         limit = 100
     kind = (kind or "").strip().lower() or None
-    with _lock:
-        doc = _load()
-        entries = list(doc.get("entries") or [])
-        stats = dict(doc.get("stats") or {})
+    doc = _load()
+    entries = list(doc.get("entries") or [])
+    stats = dict(doc.get("stats") or {})
     records = list(reversed(entries))
     if kind:
         records = [r for r in records if r.get("kind") == kind]
@@ -204,15 +208,50 @@ def usage_log(limit: int = 100, kind: Optional[str] = None) -> Dict[str, Any]:
     }
 
 
-def clear_usage() -> int:
+def _clear_usage() -> int:
     """Delete ALL usage records + stats. Returns the count removed."""
-    with _lock:
-        doc = _load()
-        n = len(doc.get("entries") or [])
-        doc["entries"] = []
-        doc["stats"] = {}
-        _save(doc)
-    return n
+    doc = _load()
+    removed_count = len(doc.get("entries") or [])
+    doc["entries"] = []
+    doc["stats"] = {}
+    _save(doc)
+    return removed_count
+
+
+_WORKER = SerializedWorkerThread(_WORK_QUEUE, 'AIUsageLogThread')
+_WORKER.start()
+
+
+def record_usage(
+    kind: str,
+    provider: str,
+    model: str = "",
+    success: bool = False,
+    latency_ms: Optional[float] = None,
+    source: str = "",
+    error: Optional[str] = None,
+    runtime: str = RUNTIME,
+) -> None:
+    call_serialized(
+        _WORK_QUEUE,
+        _record_usage,
+        kind,
+        provider,
+        model,
+        success,
+        latency_ms,
+        source,
+        error,
+        runtime,
+    )
+
+
+def usage_log(limit: int = 100, kind: Optional[str] = None) -> Dict[str, Any]:
+    return call_serialized(_WORK_QUEUE, _usage_log, limit, kind)
+
+
+def clear_usage() -> int:
+    return int(call_serialized(_WORK_QUEUE, _clear_usage))
 
 
 __all__ = ["record_usage", "usage_log", "clear_usage", "RUNTIME"]

@@ -39,8 +39,7 @@ pyapps/{appname}/
 - BusKeys (THREAD_BUS apps): `{appname}_bus_keys/` exports `{AppName}BusKeys` + `register_bus_keys()`; keys `{appname}.`-prefixed; call it at start of `start()`.
 
 ## 4. Threading
-- Threaded components inherit `threading.Thread` directly, names end in `Thread`; communicate via THREAD_BUS.
-- FORBIDDEN: ThreadPoolExecutor, threading.Timer, Queue, manual locks, thread-local, lambda in Thread()/root.after(). Touch Tkinter objects only from the Tkinter thread.
+- Threading: components subclass `threading.Thread` (names end in `Thread`) and exchange data ONLY via THREAD_BUS — manual locks, ThreadPoolExecutor, Timer, Queue, thread-local and `threading.Thread(target=...)` spawns are FORBIDDEN (shared state must be GIL-atomic simple assignments; exempt: standalone `tts_install_assets/*` subprocess scripts, which may not import pycore). Touch Tkinter objects only from the Tkinter thread.
 
 ## 5. Third-party deps
 - Register every package in `pyfoundations/third_party.py` (DEPENDENCY_MAP / OPTIONAL_PACKAGES / WINDOWS_ONLY_PACKAGES / SYSTEM_PACKAGES); it auto-installs missing required ones once per process.

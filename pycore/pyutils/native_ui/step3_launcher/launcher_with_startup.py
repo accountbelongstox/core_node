@@ -43,6 +43,7 @@ from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals, get_bus_manager
 
 import threading
+from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyutils.native_ui.step1_config.tray_config import TrayConfig, TrayBackend, create_default_tray_menu
 from pycore.pyutils.native_ui.step7_managers.shutdown_manager import get_shutdown_manager
 import traceback
@@ -149,8 +150,10 @@ def launch_app_with_startup(
                 # Close debug window via THREAD_BUS
                 THREAD_BUS.trigger_event(BusSignals.STARTUP_REQUEST_CLOSE, {'source': 'frontend.ready'}, async_mode=False)
 
-            close_thread = threading.Thread(target=delayed_close, daemon=True)
-            close_thread.start()
+            start_bus_task(
+                delayed_close,
+                thread_name="StartupDelayedCloseThread",
+            )
 
     # ========== Step 2: Register ColorPrint callback IMMEDIATELY ==========
     # Register callback RIGHT AFTER thread starts so ALL messages are captured

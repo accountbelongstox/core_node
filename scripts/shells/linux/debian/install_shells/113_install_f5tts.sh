@@ -18,8 +18,9 @@ DO_FULL=0
 REPO_URL="https://github.com/SWivid/F5-TTS.git"
 SERVER_URL="${F5TTS_URL:-http://127.0.0.1:7860}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../../.." && pwd)"
-TARGET_DIR="${F5TTS_DIR:-$CORE_NODE_CACHE_DIR/pycore/f5tts}"
+CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
+CACHE_ROOT="${CORE_NODE_CACHE_DIR:-$CORE_NODE_ROOT/.cache}"
+TARGET_DIR="${F5TTS_DIR:-$CACHE_ROOT/pycore/f5tts}"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 REPO_MARKER="$TARGET_DIR/src/f5_tts/api.py"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
@@ -74,25 +75,26 @@ echo "============================================================"
 echo " [install_f5tts] F5-TTS (flow-matching clone api)"
 echo "============================================================"
 
-[[ "${F5TTS_SKIP:-0}" == "1" ]] && { echo "[install_f5tts] [i] F5TTS_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_f5tts] " f5_tts; }
+[[ "${F5TTS_SKIP:-0}" == "1" ]] && { echo "[install_f5tts] [i] F5TTS_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_f5tts] " --absent-ok "F5TTS_SKIP=1" f5_tts; }
 if server_up; then
     echo "[install_f5tts] [OK] server at $SERVER_URL."
     echo "[install_f5tts]      Set F5TTS_REF_AUDIO + F5TTS_REF_TEXT."
-    complete_prereq_step "$PYTHON" "[install_f5tts] " f5_tts
+    complete_prereq_step "$PYTHON" "[install_f5tts] " --absent-ok "external server reachable" f5_tts
 fi
-if [[ -f "$REPO_MARKER" && -f "$DEPS_SENTINEL" && "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]]; then
+if [[ -f "$REPO_MARKER" && "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]] \
+    && tts_dependencies_ready "$PYTHON" "f5tts" "$DEPS_SENTINEL"; then
     echo "[install_f5tts] [OK] already installed."
     echo "[install_f5tts]  START: cd \"$TARGET_DIR\" && python f5tts_api_server.py"
     complete_prereq_step "$PYTHON" "[install_f5tts] " f5_tts
 fi
 if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 ]]; then
     echo "[install_f5tts] [i] opt-in only. Pass --full, F5TTS_INSTALL=1, or NEURAL_TTS_INSTALL=1."
-    complete_prereq_step "$PYTHON" "[install_f5tts] " f5_tts
+    complete_prereq_step "$PYTHON" "[install_f5tts] " --absent-ok "opt-in" f5_tts
 fi
 
 if ! PYTHON="$(resolve_python)"; then
     echo "[install_f5tts] [!] Python 3 not found."
-    complete_prereq_step "$PYTHON" "[install_f5tts] " f5_tts
+    fail_prereq_step "$PYTHON" "[install_f5tts] " f5_tts
 fi
 ensure_linux_audio_deps
 
@@ -102,20 +104,24 @@ echo "[install_f5tts]  compute : $(gpu_present && echo 'CUDA GPU' || echo 'CPU o
 if [[ -f "$REPO_MARKER" ]]; then
     echo "[install_f5tts] [OK] repo already present."
 else
-    command -v git >/dev/null 2>&1 || { echo "[install_f5tts] [!] git not found."; complete_prereq_step "$PYTHON" "[install_f5tts] " f5_tts; }
+    command -v git >/dev/null 2>&1 || { echo "[install_f5tts] [!] git not found."; fail_prereq_step "$PYTHON" "[install_f5tts] " f5_tts; }
     mkdir -p "$(dirname "$TARGET_DIR")"
-    git clone --depth 1 --progress "$REPO_URL" "$TARGET_DIR" || { echo "[install_f5tts] [!] clone failed."; complete_prereq_step "$PYTHON" "[install_f5tts] " f5_tts; }
+    git clone --depth 1 --progress "$REPO_URL" "$TARGET_DIR" || { echo "[install_f5tts] [!] clone failed."; fail_prereq_step "$PYTHON" "[install_f5tts] " f5_tts; }
 fi
 [[ -f "$API_SRC" ]] && cp -f "$API_SRC" "$API_DST"
 
-if [[ -f "$DEPS_SENTINEL" && "$FORCE" -eq 0 ]]; then
+if tts_dependencies_ready "$PYTHON" "f5tts" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
     echo "[install_f5tts] [OK] .deps_done present."
 else
     install_pycore_torch_stack "$PYTHON" "[install_f5tts] "
     (cd "$TARGET_DIR" && pip_i -e .) || true
     pip_i fastapi uvicorn python-multipart || true
-    date -u +%Y-%m-%dT%H:%M:%SZ >"$DEPS_SENTINEL"
-    echo "[install_f5tts] [OK] dependencies installed."
+    if tts_engine_health_ok "$PYTHON" "f5tts" && tts_write_dependency_stamp "$PYTHON" "f5tts" "$DEPS_SENTINEL"; then
+        echo "[install_f5tts] [OK] dependencies installed."
+    else
+        echo "[install_f5tts] [!] dependencies are incomplete; retrying next run." >&2
+        fail_prereq_step "$PYTHON" "[install_f5tts] " f5_tts
+    fi
 fi
 
 echo "[install_f5tts] [OK] ready. Set F5TTS_REF_AUDIO + F5TTS_REF_TEXT."

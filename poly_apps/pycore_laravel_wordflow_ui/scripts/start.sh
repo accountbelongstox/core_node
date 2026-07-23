@@ -24,6 +24,7 @@
 #   Dev foreground:   ./start.sh --no-service --dev
 #   Dist as service:  ./start.sh --service --dist
 #   Force reinstall:  -f | --force-install        Skip ends: --no-backend | --no-frontend
+#   Build detected APK: --build-apk[=wordnew] [--debug-apk|--release-apk]
 #
 # Internal actions (not usually called by hand):
 #   --serve [--dev|--dist]   run ONLY the frontend server (used by the systemd ExecStart)
@@ -66,6 +67,15 @@ DIST_INDEX="${APP_ROOT}/dist/index.html"
 DEV_PORT="${PORT:-13054}"
 DEV_URL="http://localhost:${DEV_PORT}"
 ACTION="orchestrate"
+APK_APP=""
+APK_BUILD_TYPE="ask"
+APK_ASSETS="ask"
+APK_CLEAN="ask"
+APK_OPEN="ask"
+APK_NON_INTERACTIVE=""
+PYTHON_BIN=""
+BUILD_APK_SCRIPT="${SCRIPT_DIR}/flavor/build_apk.py"
+BUILD_APK_ARGS=()
 RUN_MODE=""
 RUN_DIST="${RUN_DIST:-}"
 AS_SERVICE="${AS_SERVICE:-}"
@@ -295,6 +305,26 @@ serve_dashboard() {
     fi
 }
 
+build_apk() {
+    if command -v python3 >/dev/null 2>&1; then
+        PYTHON_BIN="$(command -v python3)"
+    elif command -v python >/dev/null 2>&1; then
+        PYTHON_BIN="$(command -v python)"
+    else
+        err "Python is required for APK flavor preparation."
+        exit 1
+    fi
+    if [ ! -f "$BUILD_APK_SCRIPT" ]; then
+        err "APK build script not found: $BUILD_APK_SCRIPT"
+        exit 1
+    fi
+    BUILD_APK_ARGS=("$BUILD_APK_SCRIPT" --root "$APP_ROOT" --build-type "$APK_BUILD_TYPE" --assets "$APK_ASSETS" --clean "$APK_CLEAN" --open "$APK_OPEN")
+    [ -n "$APK_APP" ] && BUILD_APK_ARGS+=(--app "$APK_APP")
+    [ -n "$APK_NON_INTERACTIVE" ] && BUILD_APK_ARGS+=(--non-interactive)
+    log "Starting APK build workflow."
+    "$PYTHON_BIN" "${BUILD_APK_ARGS[@]}"
+}
+
 # True (0) when this distro is running under WSL (any of the standard markers).
 is_wsl() {
     grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null \
@@ -344,10 +374,25 @@ register_dashboard_service() {
 }
 
 # --- Parse arguments ---
-for ARG in "$@"; do
+while [ "$#" -gt 0 ]; do
+    ARG="$1"
     case "$ARG" in
         --serve) ACTION="serve" ;;
         --prepare) ACTION="prepare" ;;
+        --build-apk) ACTION="build-apk" ;;
+        --build-apk=*) ACTION="build-apk"; APK_APP="${ARG#*=}" ;;
+        --app)
+            shift
+            [ "$#" -gt 0 ] || { err "--app requires a value."; exit 2; }
+            APK_APP="$1"
+            ;;
+        --app=*) APK_APP="${ARG#*=}" ;;
+        --debug-apk) APK_BUILD_TYPE="debug" ;;
+        --release-apk) APK_BUILD_TYPE="release" ;;
+        --skip-apk-assets) APK_ASSETS="no" ;;
+        --clean-apk) APK_CLEAN="yes" ;;
+        --no-open-output) APK_OPEN="no" ;;
+        --non-interactive) APK_NON_INTERACTIVE=1 ;;
         -f|--force-install) FORCE_INSTALL=1 ;;
         --dist) RUN_DIST="yes" ;;
         --dev) RUN_DIST="no" ;;
@@ -356,6 +401,7 @@ for ARG in "$@"; do
         --no-backend) RUN_BACKEND="" ;;
         --no-frontend) RUN_FRONTEND="" ;;
     esac
+    shift
 done
 
 log "Original directory: $ORIGINAL_DIR"
@@ -376,6 +422,13 @@ if [ "$ACTION" = "serve" ] || [ "$ACTION" = "prepare" ]; then
         exit 0
     fi
     serve_dashboard
+    exit $?
+fi
+
+if [ "$ACTION" = "build-apk" ]; then
+    ensure_node_pnpm
+    ensure_deps
+    build_apk
     exit $?
 fi
 

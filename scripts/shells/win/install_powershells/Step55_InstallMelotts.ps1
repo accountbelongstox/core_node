@@ -49,6 +49,7 @@ $depsSentinel     = $null
 $resolvedPython   = $null
 $doFull           = ($Full -or $env:MELOTTS_INSTALL -eq '1')
 $venvProvisioned  = $false
+$venvHealthy      = $false
 $venvReady        = $false
 $needWarm         = $false
 $hasCuda          = $false
@@ -56,8 +57,10 @@ $device           = 'cpu'
 $langs            = 'EN,ZH'
 $venvPython       = ''
 $optInNote        = 'opt-in; use -Full or MELOTTS_INSTALL=1'
-$meloPins         = @('transformers==4.27.4')
-$meloPackages     = @('melotts', 'unidic-lite')
+$meloPins         = @()
+$meloPackages     = @()
+$meloHealth       = ''
+$meloPolicy       = $null
 $winCommonDir     = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
@@ -129,6 +132,13 @@ if (-not ($resolvedPython -and (Test-Path -LiteralPath $resolvedPython))) {
 }
 
 $venvProvisioned = Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts'
+$venvHealthy = Test-IsolatedTtsVenvHealthy -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts'
+$meloPolicy = Get-TtsEngineInstallPolicy -PythonExe $resolvedPython -Engine 'melotts'
+if ($meloPolicy) {
+    $meloPins = @($meloPolicy.pins)
+    $meloPackages = @($meloPolicy.packages)
+    $meloHealth = [string]$meloPolicy.health_imports
+}
 $hasCuda = Test-CudaPresent
 if ($hasCuda) {
     $device = 'cuda:0'
@@ -142,7 +152,7 @@ Write-Host ("$SCRIPT_INDEX  compute : {0}" -f $(if ($hasCuda) { 'CUDA GPU -> ful
 Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine melotts -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 
 # Idempotent fast-path: venv already built + sentinel present -> nothing to do.
-if ($venvProvisioned -and (Test-Path $depsSentinel) -and -not $Force) {
+if ($venvHealthy -and (Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'melotts' -Path $depsSentinel) -and -not $Force) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'MeloTTS isolated venv already provisioned' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     Write-Host "$SCRIPT_INDEX  Runtime: pycore launches the melotts HTTP server (class C) under the isolated venv on demand." -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
@@ -164,9 +174,9 @@ New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 & $resolvedPython -m pip install --upgrade pip 2>&1 | Out-Host
 Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
 Write-Host "$SCRIPT_INDEX [..] building/verifying isolated melotts venv (ensure_venv; first build takes minutes) ..." -ForegroundColor Yellow
-$venvReady = Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts' -PipPackages $meloPackages -Pins $meloPins -Force:$Force
+$venvReady = Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts' -PipPackages $meloPackages -Pins $meloPins -HealthImports $meloHealth -Force:$Force
 if ($venvReady) {
-    Set-Content -Path $depsSentinel -Value (Get-Date -Format o) -Encoding utf8
+    Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'melotts' -Path $depsSentinel | Out-Null
     Write-Host "$SCRIPT_INDEX [OK] isolated melotts venv ready; main interpreter transformers pin left untouched." -ForegroundColor Green
 } else {
     Write-Host "$SCRIPT_INDEX [!] venv build incomplete; will retry next run (main interpreter untouched)." -ForegroundColor DarkYellow
@@ -184,6 +194,10 @@ if ($venvReady) {
     }
     Write-Host "$SCRIPT_INDEX [OK] MeloTTS ready (free, offline; isolated venv)." -ForegroundColor Green
     Write-Host "$SCRIPT_INDEX  Runtime: pycore launches the melotts HTTP server (class C) under the isolated venv on demand." -ForegroundColor Cyan
+}
+
+if (-not $venvReady) {
+    throw "$SCRIPT_INDEX MeloTTS isolated venv is not ready; retrying next run."
 }
 
 Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()

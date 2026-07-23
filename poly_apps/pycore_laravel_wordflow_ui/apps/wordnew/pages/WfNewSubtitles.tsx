@@ -14,6 +14,7 @@ import {
   type WfNewDictWord,
 } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
+import { resolveAudioSync } from '../cache/WfNewAudioCache';
 
 interface WfNewSubtitlesProps {
   activeTheme: ElementTheme;
@@ -212,7 +213,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
       setActiveSegIndex(seg.segIndex);
       const el = audioRef.current;
       if (el && seg.mp3Url) {
-        el.src = seg.mp3Url;
+        el.src = resolveAudioSync(seg.mp3Url) ?? seg.mp3Url;
         el.playbackRate = speed;
         el.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
       }
@@ -373,7 +374,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
   const playWordAudio = (w: WfNewDictWord) => {
     if (w.audioUrl) {
       const el = wordAudioRef.current;
-      if (el) { el.src = w.audioUrl; el.play().catch(() => speakWord(w.content)); return; }
+      if (el) { el.src = resolveAudioSync(w.audioUrl) ?? w.audioUrl; el.play().catch(() => speakWord(w.content)); return; }
     }
     speakWord(w.content);
   };

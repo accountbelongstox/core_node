@@ -117,11 +117,11 @@ if [[ "$FORCE" -eq 0 ]]; then
     [[ -n "$DISK_GB" && "$DISK_GB" -lt "$MIN_DISK_GB" ]] && reasons+=("free disk ${DISK_GB} GB < ${MIN_DISK_GB} GB")
     if [[ ${#reasons[@]} -gt 0 ]]; then
         echo "[skip] System too small for whisper (${reasons[*]}); skipping install. Use --force to override."
-        complete_prereq_step "$PYTHON" "[install_whisper] " whisper
+        complete_prereq_step "$PYTHON" "[install_whisper] " --absent-ok "resource policy" whisper
     fi
     if is_server && ! has_cuda; then
         echo "[skip] Headless server (non-desktop) with no CUDA GPU; skipping whisper install. Use --force to override."
-        complete_prereq_step "$PYTHON" "[install_whisper] " whisper
+        complete_prereq_step "$PYTHON" "[install_whisper] " --absent-ok "headless CPU host" whisper
     fi
 fi
 

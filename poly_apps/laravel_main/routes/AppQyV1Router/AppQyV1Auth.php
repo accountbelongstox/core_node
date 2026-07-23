@@ -28,7 +28,7 @@ Route::prefix($apiVersionPrefix)->group(function () {
     Route::any('/email/verification-notification', [EmailVerificationNotificationController::class, 'store'])->middleware(['auth', 'throttle:6,1'])->name('dict.verification.send');
     Route::any('/login', [DictloginController::class, 'login']);
 
-    Route::middleware(['custom.authenticate'])->group(function () {
+    Route::middleware(['auth:sanctum'])->group(function () {
         Route::any('/logout', [DictloginController::class, 'logout']);
         Route::any('/user', function (Request $request) {
             return $request->user();
@@ -42,11 +42,10 @@ Route::prefix('v1/auth')->group(function () {
     Route::any('/forgot-password', [PasswordResetLinkController::class, 'store'])->name('v1.auth.password.email');
     Route::any('/reset-password', [NewPasswordController::class, 'store'])->name('v1.auth.password.store');
 
-    Route::middleware(['custom.authenticate'])->group(function () {
+    Route::middleware(['auth:sanctum'])->group(function () {
         Route::any('/logout', [DictloginController::class, 'logout'])->name('v1.auth.logout');
         Route::any('/user', function (Request $request) {
             return $request->user();
         })->name('v1.auth.user');
     });
 });
-

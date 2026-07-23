@@ -70,6 +70,15 @@ export interface WfNewDiscoverUser {
   stats?: WfNewSocialStats;
 }
 
+export interface WfNewNearbyUser {
+  id: number;
+  nickname: string;
+  avatar: string;
+  native_language: string;
+  learning_languages: string[];
+  distance_km: number;
+}
+
 /** A pending friend request (GET /social/friends/requests → data.requests). */
 export interface WfNewFriendRequest {
   id: number;

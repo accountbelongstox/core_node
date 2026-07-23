@@ -20,7 +20,7 @@ class AppFinder:
     # Linux PATH binaries per app key (Debian/Ubuntu/Kali). The APP_DEFINITIONS
     # below are all Windows paths/exe names, so on Linux we resolve via PATH.
     _LINUX_BINARIES = {
-        'cursor': ['cursor'],
+        'antigravity': ['antigravity'],
         'devin': ['windsurf', 'devin'],
         'edge': ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'],
         'vscode': ['code', 'code-insiders'],
@@ -70,11 +70,16 @@ class AppFinder:
             },
             'version': 'beta'  # Always beta for chrome_beta
         },
-        'cursor': {
-            'names': ['cursor.exe', 'Cursor.exe'],
+        # Antigravity (Google agentic IDE) replaces the former cursor slot.
+        # Primary: D:\applications\Antigravity; fallback: recursive search of the
+        # C-drive default install directories (per-user Programs then Program Files).
+        'antigravity': {
+            'names': ['Antigravity.exe', 'antigravity.exe'],
             'search_paths': [
-                'D:\\applications',
-                'C:\\Users\\{username}\\AppData\\Local\\Programs\\cursor'
+                'D:\\applications\\Antigravity',
+                'C:\\Users\\{username}\\AppData\\Local\\Programs\\Antigravity',
+                'C:\\Program Files\\Antigravity',
+                'C:\\Program Files (x86)\\Antigravity'
             ]
         },
         # Devin Desktop is Windsurf rebranded (Cognition); app binary stays Windsurf.exe.

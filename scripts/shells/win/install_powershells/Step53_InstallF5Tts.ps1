@@ -57,21 +57,21 @@ Write-Host '============================================================' -Foreg
 
 if ($env:F5TTS_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] F5TTS_SKIP=1 -> skipping." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts') -AbsentOk -AbsentNote 'F5TTS_SKIP=1'
 }
 if (Test-ServerUp -Url $serverUrl) {
     Write-Host "$SCRIPT_INDEX [OK] server reachable at $serverUrl -> nothing to do." -ForegroundColor Green
     Write-Host "$SCRIPT_INDEX      Set F5TTS_REF_AUDIO + F5TTS_REF_TEXT to enable the engine." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts') -AbsentOk -AbsentNote 'external server reachable'
 }
-if ((Test-Path (Join-Path $targetDir 'src\f5_tts\api.py')) -and (Test-Path $depsSentinel) -and -not $Force -and -not $doFull) {
+if ((Test-Path (Join-Path $targetDir 'src\f5_tts\api.py')) -and (Test-TtsDependenciesReady -PythonExe $Global:PYTHON_EXE_PATH -Engine 'f5tts' -Path $depsSentinel) -and -not $Force -and -not $doFull) {
     Write-Host "$SCRIPT_INDEX [OK] F5-TTS already installed -> skipping." -ForegroundColor Green
     Write-Host ("$SCRIPT_INDEX  START:  cd `"{0}`"; python f5tts_api_server.py" -f $targetDir) -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts')
 }
 if (-not $doFull -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [i] status-only (not installed). Pass -Full, F5TTS_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts') -AbsentOk -AbsentNote 'opt-in'
 }
 
 $hasCuda = Test-CudaPresent
@@ -89,13 +89,13 @@ if (Test-Path (Join-Path $targetDir 'src\f5_tts\api.py')) {
     $git = Get-Command git -ErrorAction SilentlyContinue
     if (-not $git) {
         Write-Host "$SCRIPT_INDEX [!] git not found; cannot clone F5-TTS." -ForegroundColor DarkYellow
-        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts')
+        throw "$SCRIPT_INDEX git not found; cannot clone F5-TTS."
     }
     Write-Host ("$SCRIPT_INDEX [..] cloning {0} -> {1}" -f $REPO_URL, $targetDir) -ForegroundColor Yellow
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $targetDir) | Out-Null
     try { & git.exe clone --depth 1 --progress $REPO_URL $targetDir } catch {
         Write-Host ("$SCRIPT_INDEX [!] clone failed: {0}" -f $_.Exception.Message) -ForegroundColor DarkYellow
-        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts')
+        throw ("$SCRIPT_INDEX clone failed: {0}" -f $_.Exception.Message)
     }
 }
 
@@ -104,7 +104,7 @@ if (Test-Path $apiServerSrc) {
     Write-Host ("$SCRIPT_INDEX [OK] api wrapper copied -> {0}" -f $apiServerDst) -ForegroundColor Green
 }
 
-if ((Test-Path $depsSentinel) -and -not $Force) {
+if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'f5tts' -Path $depsSentinel) -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [OK] dependencies already installed (.deps_done) -> skipping pip." -ForegroundColor Green
 } else {
     Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
@@ -112,8 +112,14 @@ if ((Test-Path $depsSentinel) -and -not $Force) {
     try { Push-Location $targetDir; & $Global:PIP_EXE_PATH install -e . } catch { Write-Host "$SCRIPT_INDEX [!] pip install -e failed." -ForegroundColor DarkYellow }
     finally { Pop-Location }
     try { & $Global:PIP_EXE_PATH install fastapi uvicorn python-multipart } catch { }
-    Set-Content -Path $depsSentinel -Value (Get-Date -Format o) -Encoding utf8
-    Write-Host "$SCRIPT_INDEX [OK] dependencies installed (.deps_done written)." -ForegroundColor Green
+    if (Test-TtsEngineHealth -PythonExe $resolvedPython -Engine 'f5tts') {
+        Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'f5tts' -Path $depsSentinel | Out-Null
+        Write-Host "$SCRIPT_INDEX [OK] dependencies installed (policy stamp written)." -ForegroundColor Green
+    }
+}
+
+if (-not (Test-Path (Join-Path $targetDir 'src\f5_tts\api.py')) -or -not (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'f5tts' -Path $depsSentinel)) {
+    throw "$SCRIPT_INDEX F5-TTS is not ready; incomplete components will retry next run."
 }
 
 Write-Host "$SCRIPT_INDEX [OK] F5-TTS ready ($targetDir)." -ForegroundColor Green

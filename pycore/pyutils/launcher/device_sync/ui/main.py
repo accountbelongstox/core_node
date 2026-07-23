@@ -13,8 +13,8 @@ Mode switching is handled via global_config flags.
 """
 
 import sys
-import threading
 from pathlib import Path
+from pycore.pyfoundations.serialized_worker import start_bus_task
 
 from ..core.config import (
     init_global_config,
@@ -70,12 +70,10 @@ def main():
     logger.info("Starting unified HTTP server...")
     server.start()
 
-    server_thread = threading.Thread(
-        target=server.serve_forever,
-        name="UnifiedHTTPServer",
-        daemon=True
+    server_thread = start_bus_task(
+        server.serve_forever,
+        thread_name="UnifiedHTTPServerThread",
     )
-    server_thread.start()
 
     # Get network scanner
     scanner = get_network_scanner()

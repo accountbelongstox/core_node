@@ -12,6 +12,7 @@ import {
   type ModelPreset,
 } from './semantic-similarity-engine';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 export interface IndexingOptions {
   autoIndex?: boolean;
@@ -51,10 +52,15 @@ export class ContentIndexer {
    */
   private async getCurrentModelConfig() {
     try {
-      const result = await chrome.storage.local.get(['selectedModel', 'selectedVersion']);
-      const selectedModel = (result.selectedModel as ModelPreset) || 'multilingual-e5-small';
+      const result = await chrome.storage.local.get([
+        STORAGE_KEYS.SEMANTIC_MODEL,
+        STORAGE_KEYS.SEMANTIC_MODEL_VERSION,
+      ]);
+      const selectedModel =
+        (result[STORAGE_KEYS.SEMANTIC_MODEL] as ModelPreset) || 'multilingual-e5-small';
       const selectedVersion =
-        (result.selectedVersion as 'full' | 'quantized' | 'compressed') || 'quantized';
+        (result[STORAGE_KEYS.SEMANTIC_MODEL_VERSION] as 'full' | 'quantized' | 'compressed') ||
+        'quantized';
 
       const modelInfo = PREDEFINED_MODELS[selectedModel];
 

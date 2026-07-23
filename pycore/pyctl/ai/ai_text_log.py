@@ -28,12 +28,15 @@ ai_usage_log (which calls this module).
 from __future__ import annotations
 
 import os
-import threading
 from datetime import datetime, timezone
 from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_local_data_dir
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
 RUNTIME = "pycore"
 
@@ -46,7 +49,7 @@ _LOG_NAME = "ai_calls.log"
 # 5 MB, then keep the most recent ~half (matches AiTextLog.php MAX_BYTES).
 _MAX_BYTES = 5 * 1024 * 1024
 
-_lock = threading.Lock()
+_WORK_QUEUE = 'pyctl.ai.text_log.operations'
 
 
 def _state_dir():
@@ -132,6 +135,10 @@ def _append(line: str) -> None:
         ColorPrint.yellow(f"[ai_text_log] write failed: {e}")
 
 
+_WORKER = SerializedWorkerThread(_WORK_QUEUE, 'AITextLogThread')
+_WORKER.start()
+
+
 def log_ai_call(
     kind: str,
     provider: str,
@@ -152,10 +159,18 @@ def log_ai_call(
     kind = (kind or "").strip().lower()
     provider = (provider or "").strip()
     _print_console(kind, provider, model or "", source or "", success, latency_ms, error)
-    with _lock:
-        _append(_format_line(
-            runtime or RUNTIME, kind, provider, model or "", source or "",
-            success, latency_ms, error, extra or ""))
+    line = _format_line(
+        runtime or RUNTIME,
+        kind,
+        provider,
+        model or "",
+        source or "",
+        success,
+        latency_ms,
+        error,
+        extra or "",
+    )
+    call_serialized(_WORK_QUEUE, _append, line)
 
 
 __all__ = ["log_ai_call", "log_path", "RUNTIME"]

@@ -31,16 +31,15 @@ def _toggle_callback(name: str, want: bool) -> None:
         ColorPrint.yellow(f"[AssistSync] {name} toggle failed ({exc})")
 
 
-def _mirror_voice_auto_start(enabled: bool) -> None:
-    """Keep word_tts_auto + sentence_audio_auto sections aligned with voice cap."""
+def _mirror_auto_start(section: str, enabled: bool) -> None:
+    """Keep one worker's persisted auto-start flag aligned with Assist."""
     store = get_user_data_store()
-    for section in ("word_tts_auto", "sentence_audio_auto"):
-        try:
-            cur = store.get_section(section) or {}
-            cur["auto_start"] = bool(enabled)
-            store.set_section(section, cur)
-        except Exception:  # noqa: BLE001
-            pass
+    try:
+        current = store.get_section(section) or {}
+        current["auto_start"] = bool(enabled)
+        store.set_section(section, current)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def apply_assist_runtime(config: Dict[str, Any]) -> None:
@@ -50,22 +49,23 @@ def apply_assist_runtime(config: Dict[str, Any]) -> None:
 
     want_translation = enabled and bool(caps.get("translation", True))
     want_ai_translate = enabled and bool(caps.get("ai_translate", True))
-    want_voice = enabled and (
-        bool(caps.get("tts", True)) or bool(caps.get("sentence_audio", True))
-    )
+    want_word_audio = enabled and bool(caps.get("tts", True))
+    want_sentence_audio = enabled and bool(caps.get("sentence_audio", True))
     want_subtitle = enabled and bool(caps.get("subtitle", False))
 
     _toggle_callback("translation_worker", want_translation or want_ai_translate)
     _toggle_callback("translation_queue_monitor", want_translation or want_ai_translate)
     _toggle_callback("translation_ws_client", want_translation or want_ai_translate)
 
-    _toggle_callback("tts_queue_poller", want_voice)
-    _toggle_callback("tts_sentence_worker", want_voice)
-    _mirror_voice_auto_start(want_voice)
+    _toggle_callback("tts_queue_poller", want_word_audio)
+    _toggle_callback("tts_sentence_worker", want_sentence_audio)
+    _mirror_auto_start("word_tts_auto", want_word_audio)
+    _mirror_auto_start("sentence_audio_auto", want_sentence_audio)
 
     _toggle_callback("subtitle_search_worker", want_subtitle)
 
     ColorPrint.blue(
         f"[AssistSync] runtime applied master={enabled} "
-        f"translation={want_translation} voice={want_voice}"
+        f"translation={want_translation} word_audio={want_word_audio} "
+        f"sentence_audio={want_sentence_audio}"
     )

@@ -4,7 +4,6 @@
 System Routes Handler - System operations endpoints
 """
 
-import threading
 from http import HTTPStatus
 
 # Import from pycore following standards
@@ -17,6 +16,8 @@ from pycore.pygvar import (
 )
 
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
+from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 import time
 
@@ -25,16 +26,16 @@ import time
 class SystemRoutesHandler(BaseHandler):
     """Handler for system-related routes"""
 
-    def __init__(self, request_handler, shutdown_event: threading.Event):
+    def __init__(self, request_handler, shutdown_signal: str):
         """
         Initialize system routes handler
 
         Args:
             request_handler: HTTP request handler
-            shutdown_event: Threading event for shutdown signal
+            shutdown_signal: THREAD_BUS shutdown signal name
         """
         super().__init__(request_handler)
-        self.shutdown_event = shutdown_event
+        self.shutdown_signal = shutdown_signal
 
     def shutdown_server(self) -> None:
         """Shutdown server"""
@@ -46,9 +47,9 @@ class SystemRoutesHandler(BaseHandler):
             # Set shutdown event in separate thread
             def delayed_shutdown():
                 time.sleep(0.5)
-                self.shutdown_event.set()
+                THREAD_BUS.signal(self.shutdown_signal, True)
 
-            threading.Thread(target=delayed_shutdown, daemon=True).start()
+            start_bus_task(delayed_shutdown, thread_name="FlutterDelayedShutdownThread")
 
         except Exception as e:
             self.log_error(f"Shutdown failed: {e}")

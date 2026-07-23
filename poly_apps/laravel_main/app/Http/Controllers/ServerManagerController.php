@@ -17,13 +17,12 @@ class ServerManagerController extends Controller
 {
     use ApiResponse;
 
-    private const UNIFIED_PREFIXES = ['app-', 'webapp-', 'nuxt-', 'laravel-', 'flutter-', 'react-', 'vue-'];
-    private const SCRIPT_PATH = '/www/programing/core_node/scripts/shells/linux/menu_itemshells/unified_app_service_manager.sh';
+    private const UNIFIED_PREFIXES = ['app-', 'pyapp-', 'webapp-', 'nuxt-', 'laravel-', 'flutter-', 'react-', 'vue-'];
 
     /**
      * List all services created by unified_manager
      */
-    public function listServices(Request $request): JsonResponse
+    public function listServices(): JsonResponse
     {
         $services = [];
 
@@ -49,11 +48,9 @@ class ServerManagerController extends Controller
     /**
      * Get service status
      */
-    public function getStatus(Request $request, string $serviceName): JsonResponse
+    public function getStatus(string $serviceName): JsonResponse
     {
-        $validated = $request->validate([
-            'service_name' => 'nullable|string',
-        ]);
+        $serviceName = $this->validatedServiceName($serviceName);
 
         $status = $this->getServiceStatus($serviceName);
         $enabled = $this->isServiceEnabled($serviceName);
@@ -68,74 +65,25 @@ class ServerManagerController extends Controller
     /**
      * Start service
      */
-    public function startService(Request $request, string $serviceName): JsonResponse
+    public function startService(string $serviceName): JsonResponse
     {
-        $output = [];
-        $returnCode = 0;
-
-        exec("sudo systemctl start {$serviceName} 2>&1", $output, $returnCode);
-
-        if ($returnCode === 0) {
-            exec("sudo systemctl enable {$serviceName} 2>&1");
-            return $this->success([
-                'service_name' => $serviceName,
-                'status' => $this->getServiceStatus($serviceName),
-                'output' => implode("\n", $output),
-            ], 'Service started successfully');
-        }
-
-        return $this->error('Failed to start service', 500, [
-            'service_name' => $serviceName,
-            'output' => implode("\n", $output),
-        ]);
+        return $this->controlService($serviceName, 'start', true);
     }
 
     /**
      * Stop service
      */
-    public function stopService(Request $request, string $serviceName): JsonResponse
+    public function stopService(string $serviceName): JsonResponse
     {
-        $output = [];
-        $returnCode = 0;
-
-        exec("sudo systemctl stop {$serviceName} 2>&1", $output, $returnCode);
-
-        if ($returnCode === 0) {
-            return $this->success([
-                'service_name' => $serviceName,
-                'status' => $this->getServiceStatus($serviceName),
-                'output' => implode("\n", $output),
-            ], 'Service stopped successfully');
-        }
-
-        return $this->error('Failed to stop service', 500, [
-            'service_name' => $serviceName,
-            'output' => implode("\n", $output),
-        ]);
+        return $this->controlService($serviceName, 'stop');
     }
 
     /**
      * Restart service by name
      */
-    public function restartService(Request $request, string $serviceName): JsonResponse
+    public function restartService(string $serviceName): JsonResponse
     {
-        $output = [];
-        $returnCode = 0;
-
-        exec("sudo systemctl restart {$serviceName} 2>&1", $output, $returnCode);
-
-        if ($returnCode === 0) {
-            return $this->success([
-                'service_name' => $serviceName,
-                'status' => $this->getServiceStatus($serviceName),
-                'output' => implode("\n", $output),
-            ], 'Service restarted successfully');
-        }
-
-        return $this->error('Failed to restart service', 500, [
-            'service_name' => $serviceName,
-            'output' => implode("\n", $output),
-        ]);
+        return $this->controlService($serviceName, 'restart');
     }
 
     /**
@@ -146,8 +94,8 @@ class ServerManagerController extends Controller
     public function restartCurrent(Request $request): JsonResponse
     {
         // Check if request is from localhost
-        $allowedIps = ['127.0.0.1', '::1', 'localhost'];
-        if (!in_array($request->ip(), $allowedIps) && $request->ip() !== '127.0.0.1') {
+        $allowedIps = ['127.0.0.1', '::1'];
+        if (!in_array($request->ip(), $allowedIps, true)) {
             return $this->error('Access denied. This endpoint is only accessible from localhost.', 403);
         }
 
@@ -157,16 +105,20 @@ class ServerManagerController extends Controller
             return $this->error('No Octane service found for current Laravel installation', 404);
         }
 
+        $serviceName = $this->validatedServiceName($serviceName);
+
         $laravelPath = base_path();
+        $escapedLaravelPath = escapeshellarg($laravelPath);
+        $escapedServiceName = escapeshellarg($serviceName);
         $cacheOutput = [];
-        exec("cd {$laravelPath} && php artisan config:clear 2>&1", $cacheOutput);
-        exec("cd {$laravelPath} && php artisan route:clear 2>&1", $cacheOutput);
-        exec("cd {$laravelPath} && php artisan cache:clear 2>&1", $cacheOutput);
+        exec("cd {$escapedLaravelPath} && php artisan config:clear 2>&1", $cacheOutput);
+        exec("cd {$escapedLaravelPath} && php artisan route:clear 2>&1", $cacheOutput);
+        exec("cd {$escapedLaravelPath} && php artisan cache:clear 2>&1", $cacheOutput);
 
         $output = [];
         $returnCode = 0;
 
-        exec("sudo systemctl restart {$serviceName} 2>&1", $output, $returnCode);
+        exec("sudo systemctl restart {$escapedServiceName} 2>&1", $output, $returnCode);
 
         if ($returnCode === 0) {
             return $this->success([
@@ -188,6 +140,7 @@ class ServerManagerController extends Controller
      */
     public function getLogs(Request $request, string $serviceName): JsonResponse
     {
+        $serviceName = $this->validatedServiceName($serviceName);
         $validated = $request->validate([
             'lines' => 'nullable|integer|min:1|max:500',
         ]);
@@ -197,8 +150,9 @@ class ServerManagerController extends Controller
             $lines = $validated['lines'];
         }
 
+        $escapedServiceName = escapeshellarg($serviceName);
         $output = [];
-        exec("journalctl -u {$serviceName} -n {$lines} --no-pager 2>&1", $output);
+        exec("journalctl -u {$escapedServiceName} -n {$lines} --no-pager 2>&1", $output);
 
         return $this->success([
             'service_name' => $serviceName,
@@ -212,15 +166,17 @@ class ServerManagerController extends Controller
      */
     public function toggleAutoStart(Request $request, string $serviceName): JsonResponse
     {
+        $serviceName = $this->validatedServiceName($serviceName);
+        $escapedServiceName = escapeshellarg($serviceName);
         $enabled = $this->isServiceEnabled($serviceName);
         $output = [];
         $returnCode = 0;
 
         if ($enabled) {
-            exec("sudo systemctl disable {$serviceName} 2>&1", $output, $returnCode);
+            exec("sudo systemctl disable {$escapedServiceName} 2>&1", $output, $returnCode);
             $action = 'disabled';
         } else {
-            exec("sudo systemctl enable {$serviceName} 2>&1", $output, $returnCode);
+            exec("sudo systemctl enable {$escapedServiceName} 2>&1", $output, $returnCode);
             $action = 'enabled';
         }
 
@@ -243,8 +199,9 @@ class ServerManagerController extends Controller
      */
     private function getServiceStatus(string $serviceName): string
     {
+        $escapedServiceName = escapeshellarg($serviceName);
         $output = [];
-        exec("systemctl is-active {$serviceName} 2>&1", $output, $returnCode);
+        exec("systemctl is-active {$escapedServiceName} 2>&1", $output, $returnCode);
 
         if ($returnCode === 0) {
             return 'RUNNING';
@@ -263,9 +220,52 @@ class ServerManagerController extends Controller
      */
     private function isServiceEnabled(string $serviceName): bool
     {
+        $escapedServiceName = escapeshellarg($serviceName);
         $output = [];
-        exec("systemctl is-enabled {$serviceName} 2>&1", $output, $returnCode);
+        exec("systemctl is-enabled {$escapedServiceName} 2>&1", $output, $returnCode);
 
         return $returnCode === 0;
+    }
+
+    private function controlService(string $serviceName, string $action, bool $enableAfterSuccess = false): JsonResponse
+    {
+        $serviceName = $this->validatedServiceName($serviceName);
+        $escapedServiceName = escapeshellarg($serviceName);
+        $output = [];
+        $returnCode = 0;
+        $pastTense = match ($action) {
+            'start' => 'started',
+            'stop' => 'stopped',
+            'restart' => 'restarted',
+        };
+
+        exec("sudo systemctl {$action} {$escapedServiceName} 2>&1", $output, $returnCode);
+
+        if ($returnCode !== 0) {
+            return $this->error("Failed to {$action} service", 500, [
+                'service_name' => $serviceName,
+                'output' => implode("\n", $output),
+            ]);
+        }
+
+        if ($enableAfterSuccess) {
+            exec("sudo systemctl enable {$escapedServiceName} 2>&1");
+        }
+
+        return $this->success([
+            'service_name' => $serviceName,
+            'status' => $this->getServiceStatus($serviceName),
+            'output' => implode("\n", $output),
+        ], "Service {$pastTense} successfully");
+    }
+
+    private function validatedServiceName(string $serviceName): string
+    {
+        $validated = validator(
+            ['service_name' => $serviceName],
+            ['service_name' => ['required', 'string', 'max:255', 'regex:/\A[a-zA-Z0-9][a-zA-Z0-9_.@:-]*\z/']]
+        )->validate();
+
+        return $validated['service_name'];
     }
 }

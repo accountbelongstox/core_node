@@ -58,6 +58,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote, urljoin
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.text_parsing import normalize_language_codes
 from pycore.pyfoundations.third_party import (
@@ -234,8 +235,7 @@ def _free_dictionary_api(
 # / movie_poster_client._omdb_disabled_reason) and short-circuit every later
 # Wikimedia lookup. The tighter per-source timeout bounds the one wait paid
 # before the latch fires.
-_wikimedia_disabled_reason: Optional[str] = None
-_wikimedia_lock = threading.Lock()
+_WIKIMEDIA_DISABLED_SIGNAL = 'pyutils.word_audio.wikimedia.disabled'
 _WIKIMEDIA_TIMEOUT: Tuple[int, int] = (5, 8)
 
 
@@ -246,8 +246,7 @@ def _wikimedia_file_url(title: str) -> str:
     A missing title yields a page with no ``imageinfo`` (pageid -1 + "missing")
     — treated as a clean miss, no error logged.
     """
-    global _wikimedia_disabled_reason
-    if _wikimedia_disabled_reason is not None:
+    if THREAD_BUS.get_signal(_WIKIMEDIA_DISABLED_SIGNAL) is not None:
         return ""
     requests = get_third_package_requests()
     try:
@@ -267,9 +266,8 @@ def _wikimedia_file_url(title: str) -> str:
             return ""
         pages = ((resp.json() or {}).get("query") or {}).get("pages") or {}
     except requests.exceptions.Timeout as exc:
-        with _wikimedia_lock:
-            if _wikimedia_disabled_reason is None:
-                _wikimedia_disabled_reason = f"timeout: {exc}"
+        if THREAD_BUS.get_signal(_WIKIMEDIA_DISABLED_SIGNAL) is None:
+            THREAD_BUS.signal(_WIKIMEDIA_DISABLED_SIGNAL, f"timeout: {exc}")
         ColorPrint.yellow(
             f"[WordAudio] Wikimedia Commons timed out ({exc}); disabling Wikimedia "
             "for this run - falling back to Cambridge/Forvo/TTS")
@@ -294,7 +292,7 @@ def _wikimedia_commons(
     is exact by construction. The preferred accent is tried first; ``strict``
     (preferred-accent-only pass) limits the lookup to it.
     """
-    if _wikimedia_disabled_reason is not None:
+    if THREAD_BUS.get_signal(_WIKIMEDIA_DISABLED_SIGNAL) is not None:
         return None
     if not _is_english(lang):
         return None
@@ -432,8 +430,7 @@ def _cambridge_dictionary(
 # process-wide disable on the first auth failure (mirrors
 # movie_poster_client._omdb_disabled_reason) and short-circuit every later
 # Forvo lookup.
-_forvo_disabled_reason: Optional[str] = None
-_forvo_lock = threading.Lock()
+_FORVO_DISABLED_SIGNAL = 'pyutils.word_audio.forvo.disabled'
 
 
 def _forvo_vote_score(item: Dict[str, Any]) -> int:
@@ -466,10 +463,9 @@ def _forvo(
     ``strict`` (preferred-accent-only pass) skips Forvo entirely and the
     result accent is always "unknown".
     """
-    global _forvo_disabled_reason
     if strict:
         return None
-    if _forvo_disabled_reason is not None:
+    if THREAD_BUS.get_signal(_FORVO_DISABLED_SIGNAL) is not None:
         return None
 
     api_key = get_secret_key_indexed("FORVO_API_KEY")
@@ -489,9 +485,8 @@ def _forvo(
         url += f"/order/rate-desc/limit/{FORVO_RESULT_LIMIT}"
         resp = requests.get(url, timeout=_HTTP_TIMEOUT)
         if resp.status_code in (401, 403):
-            with _forvo_lock:
-                if _forvo_disabled_reason is None:
-                    _forvo_disabled_reason = f"HTTP {resp.status_code}"
+            if THREAD_BUS.get_signal(_FORVO_DISABLED_SIGNAL) is None:
+                THREAD_BUS.signal(_FORVO_DISABLED_SIGNAL, f"HTTP {resp.status_code}")
             ColorPrint.yellow(
                 f"[WordAudio] Forvo HTTP {resp.status_code}; disabling Forvo for this "
                 "run — verify FORVO_API_KEY is valid and has remaining quota")

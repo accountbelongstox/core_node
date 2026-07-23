@@ -16,8 +16,9 @@ DO_FULL=0
 REPO_URL="https://github.com/fishaudio/fish-speech.git"
 SERVER_URL="${FISHSPEECH_URL:-http://127.0.0.1:8080}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../../.." && pwd)"
-TARGET_DIR="${FISHSPEECH_DIR:-$CORE_NODE_CACHE_DIR/pycore/fishspeech}"
+CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
+CACHE_ROOT="${CORE_NODE_CACHE_DIR:-$CORE_NODE_ROOT/.cache}"
+TARGET_DIR="${FISHSPEECH_DIR:-$CACHE_ROOT/pycore/fishspeech}"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 REPO_MARKER="$TARGET_DIR/tools/api_server.py"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
@@ -64,12 +65,14 @@ echo "============================================================"
 echo " [install_fishspeech] Fish Speech / Fish Audio"
 echo "============================================================"
 
-[[ "${FISHSPEECH_SKIP:-0}" == "1" ]] && { echo "[install_fishspeech] [i] FISHSPEECH_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_fishspeech] " fishaudio; }
+[[ "${FISHSPEECH_SKIP:-0}" == "1" ]] && { echo "[install_fishspeech] [i] FISHSPEECH_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "FISHSPEECH_SKIP=1" fishaudio; }
 if server_up; then
     echo "[install_fishspeech] [OK] server at $SERVER_URL."
-    complete_prereq_step "$PYTHON" "[install_fishspeech] " fishaudio
+    complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "external server reachable" fishaudio
 fi
-if [[ -f "$DEPS_SENTINEL" && -f "$API_DST" && "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]]; then
+if tts_engine_compatible "$PYTHON" "fishspeech" "[install_fishspeech] " \
+    && [[ -f "$API_DST" && "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]] \
+    && tts_dependencies_ready "$PYTHON" "fishspeech" "$DEPS_SENTINEL"; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "Fish Speech already installed"
     echo "[install_fishspeech]  START: cd \"$TARGET_DIR\" && python fishspeech_api_server.py"
     echo "[install_fishspeech]  Or fish-speech: python tools/api_server.py --listen 0.0.0.0:8080"
@@ -77,12 +80,15 @@ if [[ -f "$DEPS_SENTINEL" && -f "$API_DST" && "$FORCE" -eq 0 && "$DO_FULL" -eq 0
 fi
 if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 ]]; then
     echo "[install_fishspeech] [i] opt-in only. Pass --full, FISHSPEECH_INSTALL=1, or NEURAL_TTS_INSTALL=1."
-    complete_prereq_step "$PYTHON" "[install_fishspeech] " fishaudio
+    complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "opt-in" fishaudio
 fi
 
 if ! PYTHON="$(resolve_python)"; then
     echo "[install_fishspeech] [!] Python 3 not found."
-    complete_prereq_step "$PYTHON" "[install_fishspeech] " fishaudio
+    fail_prereq_step "$PYTHON" "[install_fishspeech] " fishaudio
+fi
+if ! tts_engine_compatible "$PYTHON" "fishspeech" "[install_fishspeech] "; then
+    complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "incompatible Python" fishaudio
 fi
 
 mkdir -p "$TARGET_DIR"
@@ -97,14 +103,15 @@ if gpu_present; then _ckpt_flag="--gpu"; fi
 _fish_ckpt="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" fishspeech_checkpoint "$_ckpt_flag")"
 echo "[install_fishspeech]  checkpoint tier ($(echo "$_ckpt_flag" | tr -d '-')): $_fish_ckpt (download per https://speech.fish.audio/install/)"
 
-if [[ ! -f "$REPO_MARKER" ]]; then
-    command -v git >/dev/null 2>&1 || { echo "[install_fishspeech] [!] git not found."; complete_prereq_step "$PYTHON" "[install_fishspeech] " fishaudio; }
+if [[ ! -f "$REPO_MARKER" ]] && command -v git >/dev/null 2>&1; then
     echo "[install_fishspeech] [..] cloning $REPO_URL (shallow) ..."
     git clone --depth 1 --progress "$REPO_URL" "$TARGET_DIR" 2>/dev/null || true
+elif [[ ! -f "$REPO_MARKER" ]]; then
+    echo "[install_fishspeech] [i] git not found; installing the Fish Audio SDK without the optional local server repo."
 fi
 [[ -f "$API_SRC" ]] && cp -f "$API_SRC" "$API_DST"
 
-if [[ -f "$DEPS_SENTINEL" && "$FORCE" -eq 0 ]]; then
+if tts_dependencies_ready "$PYTHON" "fishspeech" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "dependencies already installed (.deps_done)"
 else
     install_pycore_torch_stack "$PYTHON" "[install_fishspeech] "
@@ -114,8 +121,12 @@ else
         echo "[install_fishspeech] [..] pip install -e fish-speech (best-effort) ..."
         (cd "$TARGET_DIR" && pip_i -e .) 2>/dev/null || true
     fi
-    date -u +%Y-%m-%dT%H:%M:%SZ > "$DEPS_SENTINEL"
-    echo "[install_fishspeech] [OK] dependencies installed."
+    if tts_engine_health_ok "$PYTHON" "fishspeech" && tts_write_dependency_stamp "$PYTHON" "fishspeech" "$DEPS_SENTINEL"; then
+        echo "[install_fishspeech] [OK] dependencies installed."
+    else
+        echo "[install_fishspeech] [!] dependencies are incomplete; retrying next run." >&2
+        fail_prereq_step "$PYTHON" "[install_fishspeech] " fishaudio
+    fi
 fi
 
 echo "[install_fishspeech] [OK] ready ($TARGET_DIR)."

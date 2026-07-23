@@ -11,22 +11,24 @@
  */
 
 .theme-dark {
-  --bg: #0f172a; /* app background (slate-950-ish) */
-  --bg-2: #0b1222; /* deeper background (footer, code) */
-  --surface: rgba(30, 41, 59, 0.4); /* card surface (slate-800/40) */
-  --surface-2: rgba(15, 23, 42, 0.5); /* inset surface (slate-900/50) */
-  --surface-solid: #1e293b; /* opaque card (slate-800) */
-  --border: rgba(51, 65, 85, 0.5); /* slate-700/50 */
-  --border-strong: #334155; /* slate-700 */
-  --text: #e2e8f0; /* slate-200 */
-  --text-muted: #94a3b8; /* slate-400 */
-  --text-faint: #64748b; /* slate-500 */
-  --accent: #6366f1; /* indigo-500 */
-  --accent-fg: #818cf8; /* indigo-400 */
+  --bg: #080d19;
+  --bg-2: #060a13;
+  --surface: rgba(20, 29, 48, 0.72);
+  --surface-2: rgba(12, 19, 33, 0.82);
+  --surface-solid: #121b2d;
+  --border: rgba(101, 117, 147, 0.2);
+  --border-strong: #394762;
+  --text: #eef2ff;
+  --text-muted: #a4aec2;
+  --text-faint: #69758d;
+  --accent: #6366f1;
+  --accent-fg: #9da7ff;
   --accent-soft: rgba(99, 102, 241, 0.15);
   --danger: #f43f5e;
   --success: #10b981;
   --warning: #f59e0b;
+  --code-bg: #060a12;
+  --shadow-card: 0 12px 32px rgba(0, 0, 0, 0.16);
 }
 
 .theme-light {
@@ -46,6 +48,8 @@
   --danger: #e11d48;
   --success: #059669;
   --warning: #d97706;
+  --code-bg: #f8fafc;
+  --shadow-card: 0 10px 28px rgba(15, 23, 42, 0.08);
 }
 
 /* Helper utility classes (optional sugar over the variables). */

@@ -415,7 +415,6 @@ class OpenRouterClient:
 
 # Global singleton instance
 _global_client: Optional[OpenRouterClient] = None
-_client_lock = threading.Lock()
 
 
 def get_openrouter_client(
@@ -435,11 +434,10 @@ def get_openrouter_client(
         OpenRouterClient: Global client instance
     """
     global _global_client
-    with _client_lock:
-        if _global_client is None:
-            _global_client = OpenRouterClient(
-                api_key=api_key,
-                site_url=site_url,
-                site_name=site_name
-            )
-        return _global_client
+    if _global_client is None:
+        _global_client = OpenRouterClient(
+            api_key=api_key,
+            site_url=site_url,
+            site_name=site_name
+        )
+    return _global_client

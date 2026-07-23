@@ -5,6 +5,10 @@ Sentence-audio queue monitor — Laravel missing-sentence list + priority-bump d
 Mirrors queue_monitor_service (translation) for the sentence-library lane so the
 Queue Center can show live rows, bump highlights, and generation activity while
 book-reader bumps tts_priority.
+
+Threading (PYTHON_PYCORE.md §4): no locks — poll runs on a named Thread
+subclass, shared state is swapped via single GIL-atomic assignments, and every
+fresh snapshot is published to THREAD_BUS for the FastAPI readers.
 """
 
 import threading
@@ -12,32 +16,45 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services.sync.laravel_endpoint_manager import resolve_laravel_base_url
 from pycore.callmodule.services.queue_bump_hub import get_queue_bump_hub
 
 _MISSING_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/missing"
 _HTTP_TIMEOUT = 60
-_POLL_LIMIT = 50
+_POLL_LIMIT = 100
+
+# THREAD_BUS signal carrying the latest snapshot for the queue router (rule §4:
+# inter-thread data flows over the bus, not shared attributes).
+_BUS_SNAPSHOT = "sentence_queue_monitor.snapshot"
+
+
+class SentenceQueuePollThread(threading.Thread):
+    """One missing-rows poll on its own daemon thread (rule §4: Thread subclass)."""
+
+    def __init__(self, monitor: "SentenceQueueMonitorService") -> None:
+        super().__init__(daemon=True, name="sentence-queue-monitor-poll")
+        self._monitor = monitor
+
+    def run(self) -> None:
+        self._monitor._poll_worker()
 
 
 class SentenceQueueMonitorService:
     """Monitor missing sentence audio rows and detect tts_priority bumps."""
 
     _instance: Optional["SentenceQueueMonitorService"] = None
-    _instance_lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
+        """Singleton — rule §4: class-attr assignment is GIL-atomic, no lock."""
         if cls._instance is None:
-            with cls._instance_lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self, bump_ttl_seconds: int = 30) -> None:
         if getattr(self, "_initialized", False):
             return
-        self._lock = threading.Lock()
         self._bump_ttl = float(bump_ttl_seconds)
         self._prev_priority: Dict[str, int] = {}
         self._bumped_until: Dict[str, float] = {}
@@ -46,9 +63,8 @@ class SentenceQueueMonitorService:
         self._laravel_reachable = False
         self._unreachable_warned = False
         self._last_logged_shape: Optional[Tuple[int, int]] = None
-        # Non-reentrant guard: the fetch runs on its own daemon thread so the
-        # heartbeat thread never blocks on network I/O (up to _HTTP_TIMEOUT).
-        self._poll_running = False
+        self._poll_running_signal = f"sentence_queue_monitor.poll_running.{id(self)}"
+        THREAD_BUS.signal(self._poll_running_signal, False)
         self._initialized = True
 
     @staticmethod
@@ -141,32 +157,27 @@ class SentenceQueueMonitorService:
         return out
 
     def poll_once(self) -> None:
-        """Heartbeat callback — LIGHT: spawn the fetch on a daemon thread and
-        return immediately; skip when the previous poll is still running. The
+        """Heartbeat callback — LIGHT: hand the fetch to a SentenceQueuePollThread
+        and return immediately; skip when the previous poll is still running. The
         heartbeat thread never blocks on network I/O (mirrors the worker's
-        supervise pattern)."""
-        with self._lock:
-            if self._poll_running:
-                return
-            self._poll_running = True
+        supervise pattern). Rule §4: lifecycle state travels through THREAD_BUS."""
+        if THREAD_BUS.get_signal(self._poll_running_signal, False):
+            return
+        THREAD_BUS.signal(self._poll_running_signal, True)
         try:
-            threading.Thread(
-                target=self._poll_worker,
-                daemon=True,
-                name="sentence-queue-monitor-poll",
-            ).start()
+            SentenceQueuePollThread(self).start()
         except Exception as exc:  # noqa: BLE001 — never raise into heartbeat
-            with self._lock:
-                self._poll_running = False
+            THREAD_BUS.signal(self._poll_running_signal, False)
             ColorPrint.red(f"[SentenceQueueMonitor] poll_once error: {exc}")
 
     def _poll_worker(self) -> None:
-        """Background poll: fetch missing rows, detect bumps, cache snapshot."""
+        """Background poll: fetch missing rows, detect bumps, cache + publish
+        the snapshot (state swap is one GIL-atomic assignment; the same snapshot
+        is signalled over THREAD_BUS for FastAPI readers)."""
         try:
             body = self._fetch_missing()
             if body is None:
-                with self._lock:
-                    self._laravel_reachable = False
+                self._laravel_reachable = False
                 return
             items = list(body.get("items") or [])
             total = int(body.get("total") or len(items))
@@ -182,33 +193,31 @@ class SentenceQueueMonitorService:
                     f"items={len(items)} (page 1, per_page {_POLL_LIMIT}){detail}"
                 )
                 self._last_logged_shape = shape
-            with self._lock:
-                self._apply_bump_detection(items)
-                self._snapshot = {
-                    "items": self._decorate_items(items),
-                    "total": total,
-                    "summary": summary,
-                    "reachable": True,
-                }
-                self._snapshot_ts = time.monotonic()
-                if not self._laravel_reachable and self._unreachable_warned:
-                    ColorPrint.green(
-                        f"[SentenceQueueMonitor] Reconnected to Laravel at {self._base_url()}"
-                    )
-                self._laravel_reachable = True
-                self._unreachable_warned = False
+            self._apply_bump_detection(items)
+            self._snapshot = {
+                "items": self._decorate_items(items),
+                "total": total,
+                "summary": summary,
+                "reachable": True,
+            }
+            self._snapshot_ts = time.monotonic()
+            if not self._laravel_reachable and self._unreachable_warned:
+                ColorPrint.green(
+                    f"[SentenceQueueMonitor] Reconnected to Laravel at {self._base_url()}"
+                )
+            self._laravel_reachable = True
+            self._unreachable_warned = False
+            THREAD_BUS.signal(_BUS_SNAPSHOT, dict(self._snapshot))
         except Exception as exc:  # noqa: BLE001
             ColorPrint.red(f"[SentenceQueueMonitor] poll_once error: {exc}")
         finally:
-            with self._lock:
-                self._poll_running = False
+            THREAD_BUS.signal(self._poll_running_signal, False)
 
     def get_snapshot(self) -> Dict[str, Any]:
-        with self._lock:
-            snap = dict(self._snapshot)
-            snap["snapshot_age_s"] = round(max(0.0, time.monotonic() - self._snapshot_ts), 1)
-            snap["laravel_reachable"] = self._laravel_reachable
-            return snap
+        snap = dict(self._snapshot)
+        snap["snapshot_age_s"] = round(max(0.0, time.monotonic() - self._snapshot_ts), 1)
+        snap["laravel_reachable"] = self._laravel_reachable
+        return snap
 
 
 def get_sentence_queue_monitor_service(

@@ -17,7 +17,7 @@ import time
 import urllib.request
 import urllib.error
 from typing import List, Dict, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from pycore.pyfoundations.serialized_worker import map_bus_tasks
 
 from .logging_config import setup_logging
 from .network_cache import NetworkCache
@@ -93,21 +93,16 @@ class SimpleDeviceScanner:
         start_time = time.time()
 
         devices = []
-        futures = []
-
-        with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-            # Scan all IPs (1-255)
-            for host_num in range(1, 256):
-                ip = f"{self.network_prefix}.{host_num}"
-                future = executor.submit(self._scan_device, ip)
-                futures.append(future)
-
-            # Collect results
-            for future in as_completed(futures):
-                device_info = future.result()
-                if device_info:
-                    devices.append(device_info)
-                    logger.info(f"Found device: {device_info['hostname']} ({device_info['ip']})")
+        addresses = [f"{self.network_prefix}.{host_num}" for host_num in range(1, 256)]
+        for device_info in map_bus_tasks(
+            self._scan_device,
+            addresses,
+            MAX_THREADS,
+            thread_prefix="SimpleDeviceScan",
+        ):
+            if device_info:
+                devices.append(device_info)
+                logger.info(f"Found device: {device_info['hostname']} ({device_info['ip']})")
 
         elapsed = time.time() - start_time
         logger.info(f"Scan complete: Found {len(devices)} device(s) in {elapsed:.2f}s")

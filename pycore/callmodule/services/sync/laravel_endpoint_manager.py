@@ -47,10 +47,11 @@ import os
 import re
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
 from pycore import ColorPrint, get_user_data_store
+# Rule §4: all inter-thread data exchange goes through the global bus.
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.callmodule.callmodule_config.config import Config as CallmoduleConfig
 from pycore.callmodule.services.sync.laravel_http_recorder import notify_laravel_http
@@ -118,11 +119,39 @@ def _normalize(url: Optional[str]) -> str:
     return u
 
 
+# THREAD_BUS queue carrying per-probe results back to the sweeping thread
+# (rule §4: threads never exchange data directly — only via the bus).
+_BUS_PROBE_RESULT = "laravel_endpoint_manager.probe_result"
+
+
+class EndpointProbeThread(threading.Thread):
+    """One parallel endpoint probe lane (rule §4: Thread subclass, no
+    ThreadPoolExecutor).
+
+    Runs manager.probe() for a single URL, then reports the result dict back
+    through THREAD_BUS — never through shared attributes."""
+
+    def __init__(self, manager: "LaravelEndpointManager", url: str,
+                 index: int) -> None:
+        super().__init__(daemon=True, name=f"laravel-endpoint-probe-{index}")
+        self._manager = manager
+        self._url = url
+
+    def run(self) -> None:
+        result = self._manager.probe(self._url)
+        THREAD_BUS.send_message(_BUS_PROBE_RESULT, {
+            "url": self._url,
+            "result": result,
+        })
+
+
 class LaravelEndpointManager:
     """Stored-first multi-endpoint manager for the laravel_main base URL."""
 
     def __init__(self):
-        self._lock = threading.RLock()
+        # Rule §4: NO locks — every shared-state mutation in this class is a
+        # single GIL-atomic op (plain attribute assignment, dict set/get); the
+        # worst-case race is a stale/duplicated probe, never corruption.
         self._resolved: Optional[str] = None       # in-process resolve() cache
         self._failed_sweep_at: float = 0.0          # monotonic ts of last all-down sweep
         self._ui_failed_at: float = 0.0             # monotonic ts of last UI-path probe miss
@@ -262,8 +291,8 @@ class LaravelEndpointManager:
             "params_summary": "", "status": status, "ms": float(latency),
             "error": err, "base_url": u,
         })
-        with self._lock:
-            self._probe_results[u] = dict(result)
+        # Rule §4: single GIL-atomic dict set — no lock needed.
+        self._probe_results[u] = dict(result)
         return result
 
     def _probe_many(self, urls: List[str]) -> Dict[str, Dict[str, Any]]:
@@ -274,9 +303,25 @@ class LaravelEndpointManager:
         urls = [u for u in dict.fromkeys(_normalize(u) for u in urls) if u]
         if not urls:
             return {}
+        # Rule §4: parallel probes are named Thread subclasses (no
+        # ThreadPoolExecutor); each reports its result via THREAD_BUS.
+        THREAD_BUS.clear_queue(_BUS_PROBE_RESULT)
+        lanes = [
+            EndpointProbeThread(self, url, index)
+            for index, url in enumerate(urls)
+        ]
+        for lane in lanes:
+            lane.start()
+        for lane in lanes:
+            lane.join()
         results: Dict[str, Dict[str, Any]] = {}
-        with ThreadPoolExecutor(max_workers=min(8, len(urls))) as pool:
-            for url, res in zip(urls, pool.map(self.probe, urls)):
+        for _lane in lanes:
+            message = THREAD_BUS.receive_message(_BUS_PROBE_RESULT)
+            if not isinstance(message, dict):
+                continue
+            url = message.get("url")
+            res = message.get("result")
+            if url and isinstance(res, dict):
                 results[url] = res
         return results
 
@@ -294,18 +339,18 @@ class LaravelEndpointManager:
            caching, so the next call retries (a short negative TTL prevents
            re-sweeping in a tight loop).
         """
-        with self._lock:
-            if self._resolved:
-                return self._resolved
+        # Rule §4: single GIL-atomic attribute read — no lock needed.
+        if self._resolved:
+            return self._resolved
         state = self._load()
         endpoints: List[str] = state["endpoints"]
         current: Optional[str] = state["current"]
         fallback = current or (endpoints[0] if endpoints else "http://127.0.0.1:9000")
 
         # Negative cache: a recent sweep found nothing — don't re-probe yet.
-        with self._lock:
-            if time.monotonic() - self._failed_sweep_at < FAILED_SWEEP_TTL:
-                return fallback
+        # Rule §4: single GIL-atomic attribute read.
+        if time.monotonic() - self._failed_sweep_at < FAILED_SWEEP_TTL:
+            return fallback
 
         # 1) stored-first: try ONLY the persisted choice, with a forgiving budget
         #    and one retry so a cold-start first hit (worker warm-up ~4-5s) does
@@ -315,8 +360,8 @@ class LaravelEndpointManager:
             for attempt in range(STORED_PROBE_RETRIES + 1):
                 res = self.probe(current, timeout=STORED_PROBE_TIMEOUT)
                 if res.get("healthy"):
-                    with self._lock:
-                        self._resolved = current
+                    # Rule §4: single GIL-atomic attribute assignment.
+                    self._resolved = current
                     return current
                 if attempt < STORED_PROBE_RETRIES:
                     ColorPrint.yellow(
@@ -330,16 +375,16 @@ class LaravelEndpointManager:
         sweep = self._probe_many(endpoints)
         winner = next((u for u in endpoints if sweep.get(u, {}).get("healthy")), None)
         if winner:
-            with self._lock:
-                self._resolved = winner
+            # Rule §4: single GIL-atomic attribute assignment.
+            self._resolved = winner
             if winner != current:
                 self._save(endpoints, winner)
                 ColorPrint.green(f"[LaravelEndpoints] Switched to {winner} (persisted)")
             return winner
 
         # 3) nothing healthy — degrade to the stored/first candidate, uncached.
-        with self._lock:
-            self._failed_sweep_at = time.monotonic()
+        # Rule §4: single GIL-atomic attribute assignment.
+        self._failed_sweep_at = time.monotonic()
         ColorPrint.yellow(
             f"[LaravelEndpoints] No healthy Laravel endpoint among "
             f"{len(endpoints)} candidate(s); falling back to {fallback}")
@@ -358,9 +403,9 @@ class LaravelEndpointManager:
         Prefer the in-process resolve() winner (set by heartbeat / worker polls);
         fall back to the stored UI selection when nothing is cached yet.
         """
-        with self._lock:
-            if self._resolved:
-                return self._resolved
+        # Rule §4: single GIL-atomic attribute read — no lock needed.
+        if self._resolved:
+            return self._resolved
         return self.peek_stored_base_url()
 
     def resolve_for_ui(self, *, skip_probe: bool = False) -> str:
@@ -370,44 +415,44 @@ class LaravelEndpointManager:
         returns the stored URL immediately. Otherwise probes ONLY the stored
         endpoint once with a short timeout.
         """
-        with self._lock:
-            if self._resolved:
-                return self._resolved
+        # Rule §4: single GIL-atomic attribute read — no lock needed.
+        if self._resolved:
+            return self._resolved
         fallback = self.peek_stored_base_url()
         if skip_probe:
             return fallback
         state = self._load()
         current: Optional[str] = state["current"]
-        with self._lock:
-            if time.monotonic() - self._failed_sweep_at < FAILED_SWEEP_TTL:
-                return fallback
-            if time.monotonic() - self._ui_failed_at < UI_NEGATIVE_TTL:
-                return fallback
+        # Rule §4: two single GIL-atomic attribute reads (negative caches).
+        if time.monotonic() - self._failed_sweep_at < FAILED_SWEEP_TTL:
+            return fallback
+        if time.monotonic() - self._ui_failed_at < UI_NEGATIVE_TTL:
+            return fallback
         if current:
             res = self.probe(current, timeout=UI_PROBE_TIMEOUT)
             if res.get("healthy"):
-                with self._lock:
-                    self._resolved = current
+                # Rule §4: single GIL-atomic attribute assignment.
+                self._resolved = current
                 return current
         # Heartbeat may have resolved another candidate while we probed the stored one.
-        with self._lock:
-            if self._resolved:
-                return self._resolved
-            for url in state.get("endpoints") or []:
-                last = self._probe_results.get(url) or {}
-                if last.get("healthy"):
-                    self._resolved = url
-                    return url
-        with self._lock:
-            self._ui_failed_at = time.monotonic()
+        # Rule §4: attribute read + dict.get are each single GIL-atomic ops.
+        if self._resolved:
+            return self._resolved
+        for url in state.get("endpoints") or []:
+            last = self._probe_results.get(url) or {}
+            if last.get("healthy"):
+                self._resolved = url
+                return url
+        # Rule §4: single GIL-atomic attribute assignment.
+        self._ui_failed_at = time.monotonic()
         return fallback
 
     def invalidate(self) -> None:
         """Drop the in-process resolve cache (after select/add/remove)."""
-        with self._lock:
-            self._resolved = None
-            self._failed_sweep_at = 0.0
-            self._ui_failed_at = 0.0
+        # Rule §4: three single GIL-atomic attribute assignments — no lock.
+        self._resolved = None
+        self._failed_sweep_at = 0.0
+        self._ui_failed_at = 0.0
 
     # ----------------------------------------------------------------- #
     # List management (RPC-facing)                                       #
@@ -421,18 +466,18 @@ class LaravelEndpointManager:
         """
         defaults = set(self._default_candidates())
         rows: List[Dict[str, Any]] = []
-        with self._lock:
-            for u in endpoints:
-                last = self._probe_results.get(u) or {}
-                rows.append({
-                    "url": u,
-                    "healthy": last.get("healthy") if last else None,
-                    "latency_ms": last.get("latency_ms"),
-                    "last_checked": last.get("last_checked"),
-                    "status": last.get("status"),
-                    "error": last.get("error"),
-                    "custom": u not in defaults,
-                })
+        # Rule §4: each dict.get is a single GIL-atomic op — no lock needed.
+        for u in endpoints:
+            last = self._probe_results.get(u) or {}
+            rows.append({
+                "url": u,
+                "healthy": last.get("healthy") if last else None,
+                "latency_ms": last.get("latency_ms"),
+                "last_checked": last.get("last_checked"),
+                "status": last.get("status"),
+                "error": last.get("error"),
+                "custom": u not in defaults,
+            })
         return rows
 
     def list_endpoints(self, probe: bool = True) -> Dict[str, Any]:
@@ -445,8 +490,8 @@ class LaravelEndpointManager:
         state = self._load()
         if probe:
             self._probe_many(state["endpoints"])
-        with self._lock:
-            resolved = self._resolved
+        # Rule §4: single GIL-atomic attribute read — no lock needed.
+        resolved = self._resolved
         return {
             "success": True,
             "endpoints": self._endpoint_rows(state["endpoints"]),
@@ -512,8 +557,8 @@ class LaravelEndpointManager:
         probe_res = self.probe(u)
         if probe_res.get("healthy"):
             # Selection is live — pre-warm the resolve cache with it.
-            with self._lock:
-                self._resolved = u
+            # Rule §4: single GIL-atomic attribute assignment.
+            self._resolved = u
         ColorPrint.green(
             f"[LaravelEndpoints] Selected {u} "
             f"({'healthy' if probe_res.get('healthy') else 'UNHEALTHY'})")
@@ -534,17 +579,16 @@ class LaravelEndpointManager:
 
 
 # --- module-level singleton ------------------------------------------------- #
-_manager_lock = threading.Lock()
 _manager_singleton: Optional[LaravelEndpointManager] = None
 
 
 def get_laravel_endpoint_manager() -> LaravelEndpointManager:
     """Return the process-wide LaravelEndpointManager singleton."""
     global _manager_singleton
+    # Rule §4: no locks — plain GIL-atomic form; the worst-case race builds a
+    # duplicate instance once (then atomically overwritten), which is harmless.
     if _manager_singleton is None:
-        with _manager_lock:
-            if _manager_singleton is None:
-                _manager_singleton = LaravelEndpointManager()
+        _manager_singleton = LaravelEndpointManager()
     return _manager_singleton
 
 

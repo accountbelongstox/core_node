@@ -11,29 +11,21 @@ if ! command -v gpu_present >/dev/null 2>&1; then
     # shellcheck source=base_libs/lib_gpu.sh
     . "$_torch_cuda_install_dir/base_libs/lib_gpu.sh"
 fi
+if ! command -v tcg_ensure_torch_build >/dev/null 2>&1; then
+    . "$_torch_cuda_install_dir/torch_cpu_guard.sh"
+fi
 
 install_pycore_torch_stack() {
     local py="$1"
     local prefix="${2:-}"
-    local idx
-    if gpu_present; then
-        idx="$(torch_cuda_index_url)"
-        echo "${prefix}[..] ensuring torch (CUDA index: ${idx}) ..."
-        if command -v vpip >/dev/null 2>&1; then
-            vpip "$py" -m pip install torch torchaudio --index-url "$idx" 2>/dev/null \
-                || vpip "$py" -m pip install torch torchaudio --index-url "$idx" || true
-        else
-            "$py" -m pip install torch torchaudio --index-url "$idx" 2>/dev/null \
-                || "$py" -m pip install torch torchaudio --index-url "$idx" || true
-        fi
-    else
-        echo "${prefix}[..] ensuring torch (CPU build) ..."
-        if command -v vpip >/dev/null 2>&1; then
-            vpip "$py" -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu 2>/dev/null \
-                || vpip "$py" -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu || true
-        else
-            "$py" -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu 2>/dev/null \
-                || "$py" -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu || true
-        fi
+    local idx=""
+    idx="$(torch_cuda_index_url)"
+    echo "${prefix}[..] ensuring canonical torch build (index: ${idx}) ..."
+    TCG_PYTHON="$py" tcg_ensure_torch_build
+    "$py" -c "import torch, torchaudio" >/dev/null 2>&1 || return 1
+    if gpu_present && ! tcg_torch_cuda_usable "$py"; then
+        echo "${prefix}[!] NVIDIA GPU detected but torch.cuda.is_available() is false." >&2
+        return 1
     fi
+    return 0
 }

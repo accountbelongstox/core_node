@@ -13,7 +13,6 @@ Provides unified high-level interface for all speech operations.
 import asyncio
 import hashlib
 import shutil
-import threading
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable, Union
 
@@ -21,11 +20,14 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_edge_tts
 from pycore.pyfoundations.system_paths import map_web_path
 
-import concurrent.futures
 from pycore.pyctl.speech.transcription_app import run_app
 from pycore.pyctl.speech.transcription_app import run_app_dual_source
 
 from pycore.pyutils.azure_speech import get_azure_speech_client
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
 
 
@@ -33,6 +35,19 @@ edge_tts_module = get_third_package_edge_tts()
 from pycore.pyutils.azure_speech import speech_recognizer, SPEECH_RECOGNITION_AVAILABLE
 from pycore.database import database_manager, DATABASE_AVAILABLE
 from pycore.database.models import SpeechTTSCacheModel, TableKeys
+
+
+_ASYNC_WORK_QUEUE = 'pyctl.speech.manager.async'
+_ASYNC_WORKER = SerializedWorkerThread(
+    _ASYNC_WORK_QUEUE,
+    'SpeechManagerAsyncThread',
+)
+_ASYNC_WORKER.start()
+
+
+def _run_async_callable(callback: Callable) -> None:
+    """Run one coroutine factory on the speech async owner thread."""
+    asyncio.run(callback())
 
 
 class SpeechManager:
@@ -448,9 +463,12 @@ class SpeechManager:
             try:
                 loop = asyncio.get_running_loop()
                 # If we're here, there's a running loop - we need to run in a new thread
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, _do_synthesis())
-                    future.result()
+                call_serialized(
+                    _ASYNC_WORK_QUEUE,
+                    _run_async_callable,
+                    _do_synthesis,
+                    timeout=300.0,
+                )
             except RuntimeError:
                 # No running event loop - safe to use asyncio.run()
                 asyncio.run(_do_synthesis())
@@ -515,13 +533,11 @@ class SpeechManager:
 
 # Global singleton instance
 _global_speech_manager: Optional[SpeechManager] = None
-_manager_lock = threading.Lock()
 
 
 def get_speech_manager() -> SpeechManager:
     """Get global speech manager singleton instance"""
     global _global_speech_manager
-    with _manager_lock:
-        if _global_speech_manager is None:
-            _global_speech_manager = SpeechManager()
-        return _global_speech_manager
+    if _global_speech_manager is None:
+        _global_speech_manager = SpeechManager()
+    return _global_speech_manager

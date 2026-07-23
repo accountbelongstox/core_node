@@ -6,10 +6,10 @@ WebSocket RPC handler for the Books page one-click pipeline:
 - corebook.autoflow: convert → AI-translate → TTS → submit to Laravel
 """
 
-import asyncio
 import os
 
 from pycore import ColorPrint
+from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.text_parsing import normalize_language_codes
 from pycore.callmodule.controllers.local_processing.corebook_controller import CoreBookController
 
@@ -36,7 +36,7 @@ def register_corebook_routes(server):
         if not os.path.isfile(os.path.abspath(path)):
             return {"success": False, "errors": [f"file not found: {path}"]}
         try:
-            return await asyncio.to_thread(
+            return await await_bus_task(
                 _controller.autoflow, path, languages, source_type)
         except Exception as exc:
             ColorPrint.red(f"[ConfigBuilder] corebook.autoflow failed: {exc}")

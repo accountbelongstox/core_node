@@ -262,15 +262,16 @@ function Invoke-PrereqInstallProbe {
         [switch]$AbsentOk,
         [string]$AbsentNote = ''
     )
+    $failed = $false
     Write-Host ("{0} [idempotent-probe] running post-install verification ..." -f $Prefix) -ForegroundColor Cyan
     foreach ($mod in $ImportModules) {
         $ok = $false
         try {
             $prevEap = $ErrorActionPreference
             $ErrorActionPreference = 'Continue'
-            $out = (& $PythonExe -c "import importlib.util; print('__FOUND__' if importlib.util.find_spec('$mod') else '__MISSING__')" 2>$null) -join ''
+            $out = (& $PythonExe -c "import importlib; importlib.import_module('$mod'); print('__IMPORT_OK__')" 2>$null) -join ''
             $ErrorActionPreference = $prevEap
-            $ok = ($out -match '__FOUND__')
+            $ok = ($out -match '__IMPORT_OK__')
         } catch { $ok = $false }
         if ($ok) {
             Write-Host ("{0} [idempotent-probe] OK  import {1}" -f $Prefix, $mod) -ForegroundColor Green
@@ -279,6 +280,7 @@ function Invoke-PrereqInstallProbe {
             Write-Host ("{0} [idempotent-probe] SKIP import {1}{2}" -f $Prefix, $mod, $note) -ForegroundColor DarkGray
         } else {
             Write-Host ("{0} [idempotent-probe] FAIL import {1}" -f $Prefix, $mod) -ForegroundColor DarkYellow
+            $failed = $true
         }
     }
     if ($PipPackages.Count -gt 0) {
@@ -289,10 +291,14 @@ function Invoke-PrereqInstallProbe {
                     Write-Host ("{0} [idempotent-probe] OK  pip {1}" -f $Prefix, $pkg) -ForegroundColor Green
                 } else {
                     Write-Host ("{0} [idempotent-probe] FAIL pip {1}" -f $Prefix, $pkg) -ForegroundColor DarkYellow
+                    $failed = $true
                 }
             }
+        } else {
+            $failed = $true
         }
     }
+    return (-not $failed)
 }
 
 function Complete-PrereqStep {
@@ -305,11 +311,18 @@ function Complete-PrereqStep {
         [string]$AbsentNote = ''
     )
     $py = $PythonExe
+    $probeOk = $true
     if (-not $py) { $py = $script:resolvedPython }
     if ($py) {
-        Invoke-PrereqInstallProbe -PythonExe $py -Prefix $Prefix -ImportModules $ImportModules -PipPackages $PipPackages -AbsentOk:$AbsentOk -AbsentNote $AbsentNote
+        $probeOk = Invoke-PrereqInstallProbe -PythonExe $py -Prefix $Prefix -ImportModules $ImportModules -PipPackages $PipPackages -AbsentOk:$AbsentOk -AbsentNote $AbsentNote
+    } elseif ($AbsentOk) {
+        Write-Host ("{0} [idempotent-probe] SKIP interpreter ({1})" -f $Prefix, $AbsentNote) -ForegroundColor DarkGray
     } else {
-        Write-Host ("{0} [idempotent-probe] skipped (no Python resolved)" -f $Prefix) -ForegroundColor DarkGray
+        Write-Host ("{0} [idempotent-probe] FAIL Python interpreter is unavailable" -f $Prefix) -ForegroundColor DarkYellow
+        $probeOk = $false
+    }
+    if (-not $probeOk) {
+        throw ("{0} prerequisite health verification failed." -f $Prefix)
     }
     exit 0
 }
@@ -668,13 +681,13 @@ function Install-WhisperModelWeights {
 # See development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md. #
 # --------------------------------------------------------------------------- #
 function ConvertTo-PyStringLiteral {
-    # Emit a Python double-quoted string literal. Backslashes are folded to forward
+    # Emit a Python single-quoted string literal. Backslashes are folded to forward
     # slashes (safe for Windows filesystem paths passed to Python and for package
     # specs / import code, none of which contain backslashes), quotes are escaped.
     param([string]$Value)
     $s = ($Value -replace '\\', '/')
-    $s = ($s -replace '"', '\"')
-    return ('"' + $s + '"')
+    $s = ($s -replace "'", "\'")
+    return ("'" + $s + "'")
 }
 
 function ConvertTo-PyListLiteral {
@@ -686,21 +699,22 @@ function ConvertTo-PyListLiteral {
 }
 
 function Test-IsolatedTtsVenvProvisioned {
-    # Quick, no-build readiness gate: the engine's isolated venv interpreter is
-    # present on disk (isolated_venv.venv_ready(engine)). Never builds. Mirrors
-    # Step61's Test-Qwen3TtsVenvProvisioned but for any engine.
+    # Quick no-build gate. -Healthy also checks the central fingerprint and imports.
     param(
         [Parameter(Mandatory = $true)][string]$PythonExe,
         [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
-        [Parameter(Mandatory = $true)][string]$Engine
+        [Parameter(Mandatory = $true)][string]$Engine,
+        [switch]$Healthy
     )
     $rootLiteral = ($CoreNodeRoot -replace "'", "''")
     $engineLit = ConvertTo-PyStringLiteral -Value $Engine
+    $methodLit = if ($Healthy) { "'venv_healthy'" } else { "'venv_ready'" }
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
-from pycore.pyutils.tts import isolated_venv
-sys.stdout.write('__VENV_READY__' if isolated_venv.venv_ready($engineLit) else '__VENV_NOTREADY__')
+from pycore.pyfoundations import isolated_venv
+probe = getattr(isolated_venv, $methodLit)
+sys.stdout.write('__VENV_READY__' if probe($engineLit) else '__VENV_NOTREADY__')
 "@
     # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
     # check_and_install_dependencies() (it does pip ops and throws under Stop).
@@ -712,6 +726,15 @@ sys.stdout.write('__VENV_READY__' if isolated_venv.venv_ready($engineLit) else '
     $ErrorActionPreference = $prevEap
     $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
     return ($out -match '__VENV_READY__')
+}
+
+function Test-IsolatedTtsVenvHealthy {
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
+        [Parameter(Mandatory = $true)][string]$Engine
+    )
+    return Test-IsolatedTtsVenvProvisioned -PythonExe $PythonExe -CoreNodeRoot $CoreNodeRoot -Engine $Engine -Healthy
 }
 
 function Resolve-IsolatedTtsVenvPython {
@@ -728,7 +751,7 @@ function Resolve-IsolatedTtsVenvPython {
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
-from pycore.pyutils.tts import isolated_venv
+from pycore.pyfoundations import isolated_venv
 sys.stdout.write(isolated_venv.resolve_python($engineLit) or '')
 "@
     $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
@@ -753,21 +776,21 @@ function Invoke-IsolatedTtsVenvEnsure {
         [Parameter(Mandatory = $true)][string]$PythonExe,
         [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
         [Parameter(Mandatory = $true)][string]$Engine,
-        [string[]]$PipPackages = @(),
-        [string[]]$Pins = @(),
+        [AllowNull()][string[]]$PipPackages = $null,
+        [AllowNull()][string[]]$Pins = $null,
         [string]$HealthImports = '',
         [switch]$Force
     )
     $rootLiteral = ($CoreNodeRoot -replace "'", "''")
     $engineLit = ConvertTo-PyStringLiteral -Value $Engine
-    $pkgLit = ConvertTo-PyListLiteral -Items $PipPackages
-    $pinLit = ConvertTo-PyListLiteral -Items $Pins
+    $pkgLit = if ($null -eq $PipPackages) { 'None' } else { ConvertTo-PyListLiteral -Items $PipPackages }
+    $pinLit = if ($null -eq $Pins) { 'None' } else { ConvertTo-PyListLiteral -Items $Pins }
     $forceLiteral = if ($Force) { 'True' } else { 'False' }
     $healthArg = if ($HealthImports) { 'health_imports=' + (ConvertTo-PyStringLiteral -Value $HealthImports) + ', ' } else { '' }
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
-from pycore.pyutils.tts import isolated_venv
+from pycore.pyfoundations import isolated_venv
 py = isolated_venv.ensure_venv($engineLit, pip_packages=$pkgLit, pins=$pinLit, ${healthArg}force=$forceLiteral)
 sys.exit(0 if py else 1)
 "@
@@ -784,3 +807,5 @@ sys.exit(0 if py else 1)
     $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
     return $venvOk
 }
+
+. (Join-Path $PSScriptRoot 'TtsCompatibilityCommon.ps1')

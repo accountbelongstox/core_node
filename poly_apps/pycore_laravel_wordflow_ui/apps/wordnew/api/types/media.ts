@@ -18,6 +18,23 @@ export interface WfNewBookChapters {
   chapters: WfNewBookChapter[];
 }
 
+export interface WfNewAgentArticle {
+  id: string;
+  title: string;
+  title_en?: string | null;
+  title_cn?: string | null;
+  reference_cn?: string | null;
+  article_en?: string | null;
+  source_key?: string | null;
+  article_id?: string | null;
+  audio_url?: string | null;
+  word_count?: number | null;
+  published_at?: string | null;
+  reading_date?: string | null;
+  created_at?: string | null;
+  document_id?: string | null;
+}
+
 /** One audio variant on a sentence or word row. */
 export interface WfAudioFileVariant {
   variantKey?: string;

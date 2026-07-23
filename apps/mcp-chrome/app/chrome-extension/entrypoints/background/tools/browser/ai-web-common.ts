@@ -15,6 +15,16 @@
 
 import { tabController } from '../../services/tab-controller';
 import { MEDIA_PATHS } from '@/utils/api-paths';
+import {
+  getPreferredProvider,
+  getValidityProvider,
+  setPreferredProvider,
+  type AiWebProvider,
+} from '@/services/AiProviderSettings';
+import { apiManager } from '@/services/ApiManager';
+
+export { getPreferredProvider, getValidityProvider, setPreferredProvider };
+export type { AiWebProvider };
 
 const DEFAULT_BACKEND_BASE = 'http://127.0.0.1:9000';
 
@@ -26,69 +36,19 @@ const DEFAULT_BACKEND_BASE = 'http://127.0.0.1:9000';
  * (validity lane) but has NO page-driver tool yet — callers must guard it and
  * fall back (see the validity worker), so a stored 'zai' never throws.
  */
-export type AiWebProvider = 'chatgpt' | 'gemini' | 'deepseek' | 'zai';
-const PROVIDER_STORAGE_KEY = 'aiWebProvider';
-const DEFAULT_PROVIDER: AiWebProvider = 'chatgpt';
-
-// Separate per-lane key for the invalid-word detection worker: it defaults to
-// Gemini (per the feature spec) and accepts the full provider vocabulary,
-// without disturbing the prompt-translate / web-AI lanes that read the key above.
-const VALIDITY_PROVIDER_STORAGE_KEY = 'aiValidityProvider';
-const DEFAULT_VALIDITY_PROVIDER: AiWebProvider = 'gemini';
-
-/**
- * Read the preferred web-driving provider for the translate/prompt lanes
- * (default: chatgpt). Intentionally only honors chatgpt/gemini — those lanes
- * have no deepseek/zai page-driver, so an out-of-range value falls back.
- */
-export async function getPreferredProvider(): Promise<AiWebProvider> {
-  try {
-    const stored = await chrome.storage.local.get([PROVIDER_STORAGE_KEY]);
-    const v = stored[PROVIDER_STORAGE_KEY];
-    if (v === 'chatgpt' || v === 'gemini') {
-      return v;
-    }
-  } catch {
-    // storage unavailable; use default.
-  }
-  return DEFAULT_PROVIDER;
-}
-
-/** Persist the preferred web-driving provider (used by the settings UI). */
-export async function setPreferredProvider(provider: AiWebProvider): Promise<void> {
-  await chrome.storage.local.set({ [PROVIDER_STORAGE_KEY]: provider });
-}
-
-/**
- * Read the provider for the invalid-word detection (word_validity) lane.
- * Default Gemini; accepts the full vocabulary (chatgpt/gemini/deepseek/zai).
- */
-export async function getValidityProvider(): Promise<AiWebProvider> {
-  try {
-    const stored = await chrome.storage.local.get([VALIDITY_PROVIDER_STORAGE_KEY]);
-    const v = stored[VALIDITY_PROVIDER_STORAGE_KEY];
-    if (v === 'chatgpt' || v === 'gemini' || v === 'deepseek' || v === 'zai') {
-      return v;
-    }
-  } catch {
-    // storage unavailable; use default.
-  }
-  return DEFAULT_VALIDITY_PROVIDER;
-}
-
-/** Resolve the Laravel backend base URL: explicit override -> stored value -> localhost. */
+/** Resolve the Laravel backend base URL from the shared endpoint manager. */
 export async function resolveBackendBase(override?: string): Promise<string> {
   if (override && override.trim().length > 0) {
     return override.trim().replace(/\/+$/, '');
   }
   try {
-    const stored = await chrome.storage.local.get(['laravelApiBase', 'apiBaseUrl', 'mcpServerUrl']);
-    const candidate = stored.laravelApiBase || stored.apiBaseUrl || stored.mcpServerUrl;
-    if (typeof candidate === 'string' && candidate.trim().length > 0) {
-      return candidate.trim().replace(/\/+$/, '');
+    await apiManager.initialize({ autoDetect: false });
+    const endpoint = apiManager.getCurrentBaseUrl();
+    if (endpoint.trim().length > 0) {
+      return endpoint.trim().replace(/\/+$/, '');
     }
   } catch {
-    // storage may be unavailable in some contexts; fall through to default.
+    // Endpoint storage may be unavailable in some contexts; use the local default.
   }
   return DEFAULT_BACKEND_BASE;
 }

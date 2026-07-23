@@ -1,3 +1,6 @@
+import { localStorage } from '@/services/ExtensionStorage';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
+
 /**
  * Chrome Extension i18n utility
  * Provides safe access to chrome.i18n.getMessage with fallbacks
@@ -292,8 +295,7 @@ function applySubstitutions(text: string, substitutions?: string[]): string {
  */
 export async function loadUserLocale(): Promise<void> {
   try {
-    const result = await chrome.storage.local.get(['userLanguage']);
-    const lang = result.userLanguage || 'en';
+    const lang = await localStorage.get<string>(STORAGE_KEYS.USER_LANGUAGE, 'en');
     userLocale = lang;
     const url = chrome.runtime.getURL(`_locales/${lang}/messages.json`);
     const resp = await fetch(url);

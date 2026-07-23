@@ -16,13 +16,14 @@ import { promptTranslateWebWorkerService } from './services/prompt-translate-web
 import { chatgptWebTool } from './tools/browser/chatgpt-web';
 import { geminiWebTool } from './tools/browser/gemini-web';
 import { getPreferredProvider, setPreferredProvider } from './tools/browser/ai-web-common';
+import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 import { logger } from '@/utils/logger';
 
 const LOG = 'AI-Web Listener';
 
 export function initAiWebClientListener(): void {
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message && message.type === 'ai_web_worker_service') {
+    if (message && message.type === FEATURE_MESSAGE_TYPES.AI_WEB_WORKER) {
       handleMessage(message, sendResponse);
       return true; // async response
     }

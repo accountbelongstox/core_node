@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional, List, Dict
 
 from pycore import ColorPrint
+from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.system_paths import APP_CACHE_DIR
 from pycore.pyctl.desktop import get_voice_subtitle_queue
 from pycore.pyctl.desktop.ai_hooks import ai_describe_image
@@ -143,7 +144,7 @@ async def generate_tts_for_paragraph(text: str, lang: str) -> Optional[Path]:
     # -> melotts -> gptsovits). edge-tts is serialized + rate-aware internally;
     # rate=None uses EDGE_TTS_RATE / the -20% default. Run the blocking call in a
     # thread so the event loop stays free.
-    result = await asyncio.to_thread(
+    result = await await_bus_task(
         tts_synthesize,
         cleaned_text,   # text
         lang,
@@ -338,7 +339,7 @@ async def process_image_input(
     # asyncio.run(), and the Windows OCR engine drives its own loop — calling it
     # in a worker thread keeps both safe.
     ColorPrint.blue(f"[VoiceSubtitle] Running OCR on screenshot (lang={ocr_lang})...")
-    ocr = await asyncio.to_thread(ocr_extract_text, image_path, ocr_lang)
+    ocr = await await_bus_task(ocr_extract_text, image_path, ocr_lang)
     extracted_text = (ocr.get('text') or '').strip() if ocr.get('success') else ''
     source_label = f"ocr:{ocr.get('engine')}" if extracted_text else ''
     ai_provider = ''

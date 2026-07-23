@@ -11,6 +11,7 @@ import asyncio
 import threading
 
 from pycore.pyutils.device import AndroidDevice, ScrcpyDevice, DeviceInfo, ServerParams, VideoCodec, ADBManager, ADBDevice
+from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pygvar import GlobalVarManager
 
 
@@ -186,7 +187,7 @@ class DeviceManager:
             # Start scrcpy-server (CRITICAL: must succeed for video streaming)
             print(f"[DeviceManager] Starting scrcpy-server for {serial}...")
             await asyncio.wait_for(
-                asyncio.to_thread(device.start_server),
+                await_bus_task(device.start_server),
                 timeout=60.0  # 60 seconds timeout (socket accept is 30s)
             )
             print(f"[DeviceManager] ✓ scrcpy-server started successfully for {serial}")
@@ -252,7 +253,7 @@ class DeviceManager:
 
             # Stop scrcpy-server
             if device:
-                await asyncio.to_thread(device.stop_server)
+                await await_bus_task(device.stop_server)
 
             # Remove from pool
             del self.devices[serial]

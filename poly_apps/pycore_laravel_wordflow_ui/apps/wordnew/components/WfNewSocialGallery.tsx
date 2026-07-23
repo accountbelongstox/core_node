@@ -18,22 +18,25 @@ interface GalleryTile {
 interface WfNewSocialGalleryProps {
   activeTheme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
+  isLoggedIn: boolean;
+  requireAuth: () => void;
 }
 
-export const WfNewSocialGallery: React.FC<WfNewSocialGalleryProps> = ({ trans }) => {
+export const WfNewSocialGallery: React.FC<WfNewSocialGalleryProps> = ({ trans, isLoggedIn, requireAuth }) => {
   const [posts, setPosts] = useState<WfNewPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
 
   useEffect(() => {
     let alive = true;
+    if (!isLoggedIn) { setPosts([]); setLoading(false); return () => { alive = false; }; }
     setLoading(true);
     wfNewApi.getPosts({ filter: 'images', limit: 40 })
       .then(page => { if (alive) setPosts(page.items); })
       .catch(() => { if (alive) setPosts([]); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, []);
+  }, [isLoggedIn]);
 
   const tiles = useMemo<GalleryTile[]>(() => {
     const out: GalleryTile[] = [];
@@ -79,7 +82,7 @@ export const WfNewSocialGallery: React.FC<WfNewSocialGalleryProps> = ({ trans })
             <motion.button
               layout
               key={`${tile.postId}-${tile.imageId}`}
-              onClick={() => setLightboxIdx(idx)}
+              onClick={() => { if (!isLoggedIn) { requireAuth(); return; } setLightboxIdx(idx); }}
               className="relative aspect-square rounded-xl overflow-hidden bg-zinc-900 border border-white/5 group cursor-pointer"
             >
               <img src={tile.url} alt={tile.caption || ''} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />

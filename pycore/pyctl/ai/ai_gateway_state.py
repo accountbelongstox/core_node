@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ai_gateway_state - the SINGLETON mutable-state leaf for the AI gateway.
+ai_gateway_state - THREAD_BUS-owned runtime state for the AI gateway.
 
 ALL module-level mutable gateway state lives HERE and nowhere else:
-  - _lock            : the non-reentrant gateway lock (stats/records/caches)
-  - _stats           : per-provider runtime counters + cooldown windows
-  - _records         : recent task ring buffer (newest first when exported)
-  - _probe_cache     : TTL-cached /models probe snapshot
-  - _quota_cache     : TTL-cached per-provider quota snapshot
-  - _vision_model_cache : TTL-cached OpenRouter vision-model pick
+  - per-provider runtime counters + cooldown windows
+  - recent task ring buffer
 
 Every other ai_gateway_* sub-module imports these names from here; NONE ever
 re-declares them, or cooldowns / records / caches silently split into two
@@ -24,13 +20,12 @@ state-mutation primitives (_on_result / _in_cooldown / clear_expired_cooldowns
 """
 
 import json
-import threading
 import time
-from collections import deque
 from typing import Any, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyctl.ai.ai_keys import PROVIDER_ORDER
 from pycore.pyctl.ai.ai_rate_limits import resolve_limit
 from pycore.pyctl.ai.ai_usage_log import record_usage
@@ -91,10 +86,7 @@ _HARD_DISABLE_MARKS = (
     "invalid api key", "invalid_api_key", "permission_denied",
 )
 
-_lock = threading.Lock()
-_probe_cache: Dict[str, Any] = {"ts": 0.0, "providers": [], "by_name": {}}
-_quota_cache: Dict[str, Dict[str, Any]] = {}  # provider -> {ts, quota}
-_vision_model_cache: Dict[str, Any] = {"ts": 0.0, "model": None}
+_GATEWAY_STATE_SIGNAL = 'pyctl.ai.gateway.state'
 
 # Per-provider runtime stats: which AI worked, how often, and its cooldown.
 _stats: Dict[str, Dict[str, Any]] = {
@@ -103,7 +95,7 @@ _stats: Dict[str, Dict[str, Any]] = {
     for name in PROVIDER_ORDER
 }
 # Recent task records (newest first when exported).
-_records: deque = deque(maxlen=_RECORDS_MAX)
+_records = []
 
 
 def _load_stats() -> None:
@@ -131,11 +123,12 @@ def _save_stats() -> None:
     """Persist usage counters + recent records to local config."""
     try:
         APP_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        with _lock:
-            payload = {
-                "stats": {n: dict(_stats[n]) for n in PROVIDER_ORDER},
-                "records": list(_records),
-            }
+        state = _gateway_state()
+        stats = state['stats']
+        payload = {
+            "stats": {name: dict(stats[name]) for name in PROVIDER_ORDER},
+            "records": list(state['records']),
+        }
         _USAGE_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     except Exception as e:
         ColorPrint.yellow(f"[ai_gateway] could not save usage file: {e}")
@@ -145,6 +138,37 @@ def _save_stats() -> None:
 # other ai_gateway_* module imports from here, so this runs before any gateway
 # call mutates state).
 _load_stats()
+THREAD_BUS.signal(_GATEWAY_STATE_SIGNAL, {
+    'stats': _stats,
+    'records': tuple(_records[-_RECORDS_MAX:]),
+})
+
+
+def _gateway_state() -> Dict[str, Any]:
+    """Return the current THREAD_BUS gateway snapshot."""
+    return THREAD_BUS.get_signal(_GATEWAY_STATE_SIGNAL, {}) or {}
+
+
+def _publish_gateway_state(
+    stats: Dict[str, Dict[str, Any]],
+    records,
+) -> None:
+    """Publish a complete gateway state snapshot."""
+    THREAD_BUS.signal(_GATEWAY_STATE_SIGNAL, {
+        'stats': stats,
+        'records': tuple(records)[-_RECORDS_MAX:],
+    })
+
+
+def get_provider_stats(provider: str) -> Dict[str, Any]:
+    """Return a detached provider statistics snapshot."""
+    stats = _gateway_state().get('stats', {})
+    return dict(stats.get(provider, {}))
+
+
+def get_recent_records() -> list:
+    """Return recent gateway records in storage order."""
+    return list(_gateway_state().get('records', ()))
 
 
 def _is_quota_error(error: Optional[str]) -> bool:
@@ -177,9 +201,13 @@ def _rate_caps(provider: str, model: Optional[str] = None) -> Tuple[Optional[int
     return getattr(spec, "rpm", None), getattr(spec, "rpd", None)
 
 
-def _apply_failure_cooldown(provider: str, error: Optional[str]) -> None:
-    """Pause a provider after quota/auth/unreachable failures (mutates under _lock)."""
-    st = _stats[provider]
+def _apply_failure_cooldown(
+    stats: Dict[str, Dict[str, Any]],
+    provider: str,
+    error: Optional[str],
+) -> None:
+    """Pause a provider after quota/auth/unreachable failures."""
+    st = stats[provider]
     st["failed"] += 1
     st["last_error"] = error
     if _is_quota_error(error):
@@ -202,18 +230,21 @@ def _apply_failure_cooldown(provider: str, error: Optional[str]) -> None:
 
 
 def _on_result(provider: str, ok: bool, error: Optional[str]) -> None:
-    with _lock:
-        st = _stats[provider]
-        st["calls"] += 1
-        st["last_used"] = time.time()
-        if ok:
-            st["ok"] += 1
-            st["strikes"] = 0
-            st["last_error"] = None
-        else:
-            _apply_failure_cooldown(provider, error)
-    # _save_stats() re-acquires _lock, so it MUST run OUTSIDE the block above -
-    # threading.Lock is non-reentrant; calling it inside would self-deadlock.
+    state = _gateway_state()
+    stats = {
+        name: dict(values)
+        for name, values in state.get('stats', {}).items()
+    }
+    st = stats[provider]
+    st["calls"] += 1
+    st["last_used"] = time.time()
+    if ok:
+        st["ok"] += 1
+        st["strikes"] = 0
+        st["last_error"] = None
+    else:
+        _apply_failure_cooldown(stats, provider, error)
+    _publish_gateway_state(stats, state.get('records', ()))
     _save_stats()
 
 
@@ -221,14 +252,19 @@ def _on_probe_result(provider: str, ok: bool, error: Optional[str]) -> None:
     """Record a live probe outcome and pause providers that cannot be used."""
     if ok:
         return
-    with _lock:
-        _apply_failure_cooldown(provider, error)
+    state = _gateway_state()
+    stats = {
+        name: dict(values)
+        for name, values in state.get('stats', {}).items()
+    }
+    _apply_failure_cooldown(stats, provider, error)
+    _publish_gateway_state(stats, state.get('records', ()))
     _save_stats()
 
 
 def _in_cooldown(provider: str) -> bool:
-    with _lock:
-        return time.time() < _stats[provider]["cooldown_until"]
+    stats = _gateway_state().get('stats', {})
+    return time.time() < stats[provider]["cooldown_until"]
 
 
 def clear_expired_cooldowns() -> Dict[str, Any]:
@@ -237,43 +273,46 @@ def clear_expired_cooldowns() -> Dict[str, Any]:
     so dispatch and the UI reflect the recovered provider WITHOUT waiting for the
     next call. Tick-driven (injected into pyheartbeat); complements
     ai_rate_limits.prune_expired() - together they auto-reset the AI budget by the
-    AI's own rate windows. Mutates under _lock, persists OUTSIDE it (_save_stats
-    re-acquires _lock). Returns { cleared: [provider, ...] }.
+    AI's own rate windows. Returns { cleared: [provider, ...] }.
     """
     now = time.time()
     cleared = []
-    with _lock:
-        for name, st in _stats.items():
-            if st.get("cooldown_until", 0.0) and now >= st["cooldown_until"]:
-                st["cooldown_until"] = 0.0
-                st["strikes"] = 0
-                cleared.append(name)
+    state = _gateway_state()
+    stats = {
+        name: dict(values)
+        for name, values in state.get('stats', {}).items()
+    }
+    for name, st in stats.items():
+        if st.get("cooldown_until", 0.0) and now >= st["cooldown_until"]:
+            st["cooldown_until"] = 0.0
+            st["strikes"] = 0
+            cleared.append(name)
     if cleared:
+        _publish_gateway_state(stats, state.get('records', ()))
         _save_stats()
         ColorPrint.blue(f"[ai_gateway] cooldown cleared (recovered): {', '.join(cleared)}")
     return {"cleared": cleared}
 
 
 def _record(kind: str, source: str, result: Dict[str, Any]) -> None:
-    with _lock:
-        _records.append({
-            "ts": time.time(),
-            "kind": kind,
-            "source": source or "",
-            "provider": result.get("provider", ""),
-            "model": result.get("model", ""),
-            "success": bool(result.get("success")),
-            "latency_ms": result.get("latency_ms"),
-            "error": result.get("error"),
-        })
-    # OUTSIDE the lock: _save_stats() re-acquires _lock (non-reentrant) - calling
-    # it inside the block above self-deadlocks (hung every generate_* call).
+    state = _gateway_state()
+    records = list(state.get('records', ()))
+    records.append({
+        "ts": time.time(),
+        "kind": kind,
+        "source": source or "",
+        "provider": result.get("provider", ""),
+        "model": result.get("model", ""),
+        "success": bool(result.get("success")),
+        "latency_ms": result.get("latency_ms"),
+        "error": result.get("error"),
+    })
+    _publish_gateway_state(state.get('stats', {}), records)
     _save_stats()
     # Mirror vision + image calls into the shared cross-runtime usage log so the
     # global usage history / per-provider rollup counts them and the CLI prints a
     # line (text is already logged per-attempt in chat_once; image ALSO keeps its
-    # bytes in ai_image_history). Outside _lock so the file write/print never
-    # holds the gateway lock.
+    # bytes in ai_image_history).
     if kind in ("vision", "image"):
         record_usage(kind, result.get("provider", ""), result.get("model", ""),
                      bool(result.get("success")), result.get("latency_ms"), source,

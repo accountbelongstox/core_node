@@ -15,9 +15,11 @@ Features:
 
 import asyncio
 import json
-import threading
 from pathlib import Path
-from typing import Optional, Dict, Set
+from typing import Any, Optional, Dict, Set
+
+from pycore.pyfoundations.serialized_worker import start_bus_task, submit_coroutine_via_bus
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 from pycore.pyfoundations.third_party import get_third_package_aiohttp
 
@@ -61,7 +63,9 @@ class UnifiedServer:
 
         # Event loop and thread
         self.loop: Optional[asyncio.AbstractEventLoop] = None
-        self.thread: Optional[threading.Thread] = None
+        self.thread: Optional[Any] = None
+        self._loop_signal = f"device_sync.unified_server.loop.{id(self)}"
+        THREAD_BUS.clear_signal(self._loop_signal)
 
         # Device manager reference (will be set externally)
         self.device_manager = None
@@ -78,24 +82,28 @@ class UnifiedServer:
             """Run server in asyncio loop."""
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
+            THREAD_BUS.signal(self._loop_signal, self.loop)
 
             # Create and run server
             self.loop.run_until_complete(self._start_server())
             self.loop.run_forever()
 
-        self.thread = threading.Thread(
-            target=run_server,
-            daemon=True,
-            name="UnifiedServer"
+        self.thread = start_bus_task(
+            run_server,
+            thread_name="UnifiedServerThread",
         )
-        self.thread.start()
 
         logger.info("Unified server started")
 
     def stop(self):
         """Stop unified server."""
-        if self.loop:
-            asyncio.run_coroutine_threadsafe(self._stop_server(), self.loop)
+        event_loop = THREAD_BUS.get_signal(self._loop_signal)
+        if event_loop:
+            submit_coroutine_via_bus(
+                event_loop,
+                self._stop_server(),
+                thread_name="LegacyUnifiedServerStopBridgeThread",
+            )
         logger.info("Unified server stopped")
 
     async def _start_server(self):

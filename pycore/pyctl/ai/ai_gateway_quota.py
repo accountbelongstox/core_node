@@ -19,6 +19,7 @@ from typing import Any, Dict, List
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyctl.ai.ai_keys import PROVIDERS, PROVIDER_ORDER, first_secret, limits_note, is_configured
 from pycore.pyctl.ai.ai_probe import (
     _PROBE_BY_NAME,
@@ -30,9 +31,13 @@ from pycore.pyctl.ai.ai_probe import (
 )
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit
 from pycore.pyctl.ai.ai_gateway_state import (
-    _lock, _probe_cache, _quota_cache, _vision_model_cache,
     _PROBE_TTL_S, _QUOTA_TTL_S, _in_cooldown,
 )
+
+
+_PROBE_CACHE_SIGNAL = 'pyctl.ai.gateway.probe_cache'
+_QUOTA_CACHE_SIGNAL = 'pyctl.ai.gateway.quota_cache'
+_VISION_CACHE_SIGNAL = 'pyctl.ai.gateway.vision_cache'
 
 
 def available_providers(refresh: bool = False) -> List[Dict[str, Any]]:
@@ -78,7 +83,8 @@ def _dispatch_snapshot(name: str, *, live: bool = False) -> Dict[str, Any]:
         rec["paused"] = True
         return rec
 
-    by_name = _probe_cache.setdefault("by_name", {})
+    probe_cache = THREAD_BUS.get_signal(_PROBE_CACHE_SIGNAL, {}) or {}
+    by_name = dict(probe_cache.get("by_name", {}) or {})
     cached = by_name.get(name) if isinstance(by_name.get(name), dict) else None
     if not live and cached and cached.get("live"):
         live_rec = dict(cached.get("rec") or {})
@@ -96,6 +102,10 @@ def _dispatch_snapshot(name: str, *, live: bool = False) -> Dict[str, Any]:
             live_rec["error"] = str(e)
             live_rec["tested"] = True
         by_name[name] = {"ts": time.time(), "rec": live_rec, "live": True}
+        THREAD_BUS.signal(_PROBE_CACHE_SIGNAL, {
+            **probe_cache,
+            'by_name': by_name,
+        })
         return live_rec
 
     rec["available"] = True
@@ -106,10 +116,10 @@ def _dispatch_snapshot(name: str, *, live: bool = False) -> Dict[str, Any]:
 
 def _all_probed_providers(refresh: bool = False) -> List[Dict[str, Any]]:
     """Full provider snapshot for dispatch/status (sorted available-first)."""
-    with _lock:
-        fresh = (time.time() - _probe_cache["ts"]) < _PROBE_TTL_S
-        if not refresh and fresh and _probe_cache.get("providers"):
-            return list(_probe_cache["providers"])
+    probe_cache = THREAD_BUS.get_signal(_PROBE_CACHE_SIGNAL, {}) or {}
+    fresh = (time.time() - float(probe_cache.get("ts") or 0.0)) < _PROBE_TTL_S
+    if not refresh and fresh and probe_cache.get("providers"):
+        return list(probe_cache["providers"])
 
     providers: List[Dict[str, Any]] = []
     for name in PROVIDER_ORDER:
@@ -118,20 +128,24 @@ def _all_probed_providers(refresh: bool = False) -> List[Dict[str, Any]]:
         providers.append(_dispatch_snapshot(name, live=refresh))
     providers.sort(key=_sort_key)
 
-    with _lock:
-        _probe_cache["providers"] = providers
-        _probe_cache["ts"] = time.time()
+    latest_cache = THREAD_BUS.get_signal(_PROBE_CACHE_SIGNAL, {}) or {}
+    THREAD_BUS.signal(_PROBE_CACHE_SIGNAL, {
+        **latest_cache,
+        "providers": providers,
+        "ts": time.time(),
+    })
     return providers
 
 
 def invalidate_probe_cache() -> None:
     """Force the next gateway read to rebuild (e.g. after keys change)."""
-    with _lock:
-        _probe_cache["ts"] = 0.0
-        _probe_cache["providers"] = []
-        _probe_cache["by_name"] = {}
-        _quota_cache.clear()
-        _vision_model_cache["ts"] = 0.0
+    THREAD_BUS.signal(_PROBE_CACHE_SIGNAL, {
+        "ts": 0.0,
+        "providers": [],
+        "by_name": {},
+    })
+    THREAD_BUS.clear_signal(_QUOTA_CACHE_SIGNAL)
+    THREAD_BUS.clear_signal(_VISION_CACHE_SIGNAL)
 
 
 def _quota_openrouter(key: str) -> Dict[str, Any]:
@@ -183,10 +197,10 @@ def get_quota(provider: str, refresh: bool = False) -> Dict[str, Any]:
     Providers without a quota API get a static descriptor; their live state is
     expressed through the cooldown (set on 429/quota errors).
     """
-    with _lock:
-        cached = _quota_cache.get(provider)
-        if cached and not refresh and (time.time() - cached["ts"]) < _QUOTA_TTL_S:
-            return cached["quota"]
+    quota_cache = THREAD_BUS.get_signal(_QUOTA_CACHE_SIGNAL, {}) or {}
+    cached = quota_cache.get(provider)
+    if cached and not refresh and (time.time() - cached["ts"]) < _QUOTA_TTL_S:
+        return cached["quota"]
 
     key = first_secret(provider)
     if not key:
@@ -208,6 +222,9 @@ def get_quota(provider: str, refresh: bool = False) -> Dict[str, Any]:
     else:
         quota = {"kind": "static", "is_free_tier": False, "note": limits_note(provider)}
 
-    with _lock:
-        _quota_cache[provider] = {"ts": time.time(), "quota": quota}
+    quota_cache = dict(
+        THREAD_BUS.get_signal(_QUOTA_CACHE_SIGNAL, {}) or {}
+    )
+    quota_cache[provider] = {"ts": time.time(), "quota": quota}
+    THREAD_BUS.signal(_QUOTA_CACHE_SIGNAL, quota_cache)
     return quota

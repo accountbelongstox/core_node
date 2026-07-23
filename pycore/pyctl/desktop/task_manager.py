@@ -16,7 +16,20 @@ from typing import Dict, List, Optional, Callable, Union, Coroutine
 from dataclasses import dataclass
 from enum import Enum
 
-from pycore import ColorPrint
+from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
+
+
+_TASK_STATE_QUEUE = 'pyctl.desktop.task_manager.state'
+_TASK_EXECUTION_QUEUE = 'pyctl.desktop.task_manager.execute'
+_TASK_STATE_WORKER = SerializedWorkerThread(
+    _TASK_STATE_QUEUE,
+    'DesktopTaskStateThread',
+)
+_TASK_STATE_WORKER.start()
 
 
 class TaskStatus(Enum):
@@ -122,6 +135,47 @@ class Task:
         self.error = error
         self.updated_at = datetime.now().isoformat()
 
+    def clone(self) -> "Task":
+        """Return a detached task snapshot for THREAD_BUS consumers."""
+        return Task(
+            task_id=self.task_id,
+            task_type=self.task_type,
+            status=self.status,
+            progress=self.progress,
+            input_data=dict(self.input_data),
+            result=dict(self.result) if self.result else None,
+            error=self.error,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+            estimated_time=self.estimated_time,
+        )
+
+
+class TaskExecutionThread(threading.Thread):
+    """Consume task executions from THREAD_BUS with fixed concurrency."""
+
+    def __init__(self, worker_index: int) -> None:
+        super().__init__(
+            daemon=True,
+            name=f'DesktopTaskExecutionThread-{worker_index}',
+        )
+
+    def run(self) -> None:
+        while not THREAD_BUS.is_shutdown_requested():
+            payload = THREAD_BUS.receive_message(
+                _TASK_EXECUTION_QUEUE,
+                block=True,
+                timeout=0.1,
+            )
+            if not isinstance(payload, dict):
+                continue
+            manager = payload.get('manager')
+            task = payload.get('task')
+            executor = payload.get('executor')
+            if manager is None or task is None or executor is None:
+                continue
+            manager._execute_task_payload(task, executor)
+
 
 class TaskManager:
     """
@@ -131,7 +185,7 @@ class TaskManager:
     - Create and track async tasks
     - Progress updates
     - Task history (keep last 100 tasks)
-    - Thread-safe operations
+    - THREAD_BUS-serialized state and execution
     """
 
     def __init__(self, max_history: int = 100):
@@ -144,7 +198,6 @@ class TaskManager:
         self.tasks: Dict[str, Task] = {}
         self.task_history: List[str] = []  # Task IDs in order
         self.max_history = max_history
-        self.lock = threading.Lock()
 
         # Bound concurrent task execution: a burst of remote_image tasks must not
         # spawn dozens of simultaneous threads that all hammer a rate-limited AI
@@ -156,11 +209,8 @@ class TaskManager:
         except ValueError:
             _max_workers = 4
         self.max_workers = max(1, _max_workers)
-        # Concurrency gate: each task runs in a DAEMON thread (so process shutdown
-        # stays clean, unlike a non-daemon ThreadPoolExecutor) that must acquire a
-        # slot before executing — a burst of remote_image tasks therefore never
-        # runs more than max_workers AI calls at once (the 429 flood).
-        self._task_slots = threading.BoundedSemaphore(self.max_workers)
+        for worker_index in range(self.max_workers):
+            TaskExecutionThread(worker_index).start()
 
         ColorPrint.green(
             f"[TaskManager] Initialized (max concurrency {self.max_workers})")
@@ -182,6 +232,21 @@ class TaskManager:
         Returns:
             task_id: Unique task identifier
         """
+        return call_serialized(
+            _TASK_STATE_QUEUE,
+            self._create_task,
+            task_type,
+            input_data,
+            estimated_time,
+        )
+
+    def _create_task(
+        self,
+        task_type: str,
+        input_data: Dict,
+        estimated_time: Optional[int],
+    ) -> str:
+        """Create a task on the state-owner thread."""
         task_id = self._generate_task_id(task_type)
 
         task = Task(
@@ -193,46 +258,55 @@ class TaskManager:
             estimated_time=estimated_time
         )
 
-        with self.lock:
-            self.tasks[task_id] = task
-            self.task_history.append(task_id)
+        self.tasks[task_id] = task
+        self.task_history.append(task_id)
 
-            # Keep only max_history tasks, but NEVER evict a non-terminal task
-            # (PENDING/PROCESSING): its worker thread re-resolves by task_id
-            # later, so evicting it here would drop the dispatch ("Task not
-            # found"). Rotate non-terminal candidates to the back and evict the
-            # first terminal one; if all are non-terminal, skip eviction this
-            # round (the dict grows to the real queue depth, bounded by the
-            # concurrency limit).
-            if len(self.task_history) > self.max_history:
-                _terminal = (TaskStatus.COMPLETED.value, TaskStatus.FAILED.value)
-                for _ in range(len(self.task_history)):
-                    oldest_id = self.task_history[0]
-                    oldest_task = self.tasks.get(oldest_id)
-                    if oldest_task and oldest_task.status not in _terminal:
-                        self.task_history.pop(0)
-                        self.task_history.append(oldest_id)
-                        continue
+        if len(self.task_history) > self.max_history:
+            terminal = (TaskStatus.COMPLETED.value, TaskStatus.FAILED.value)
+            for _ in range(len(self.task_history)):
+                oldest_id = self.task_history[0]
+                oldest_task = self.tasks.get(oldest_id)
+                if oldest_task and oldest_task.status not in terminal:
                     self.task_history.pop(0)
-                    if oldest_id in self.tasks:
-                        del self.tasks[oldest_id]
-                    break
+                    self.task_history.append(oldest_id)
+                    continue
+                self.task_history.pop(0)
+                self.tasks.pop(oldest_id, None)
+                break
 
         ColorPrint.blue(f"[TaskManager] Created task: {task_id} ({task_type})")
         return task_id
 
     def get_task(self, task_id: str) -> Optional[Task]:
         """Get task by ID"""
-        with self.lock:
-            return self.tasks.get(task_id)
+        return call_serialized(_TASK_STATE_QUEUE, self._get_task, task_id)
+
+    def _get_task(self, task_id: str) -> Optional[Task]:
+        """Return a detached task snapshot on the state-owner thread."""
+        task = self.tasks.get(task_id)
+        return task.clone() if task else None
 
     def update_task_progress(self, task_id: str, progress: int, status: Optional[str] = None):
         """Update task progress"""
-        with self.lock:
-            task = self.tasks.get(task_id)
-            if task:
-                task.update_progress(progress, status)
-                ColorPrint.blue(f"[TaskManager] Task {task_id}: {progress}%")
+        call_serialized(
+            _TASK_STATE_QUEUE,
+            self._update_task_progress,
+            task_id,
+            progress,
+            status,
+        )
+
+    def _update_task_progress(
+        self,
+        task_id: str,
+        progress: int,
+        status: Optional[str],
+    ) -> None:
+        """Update progress on the state-owner thread."""
+        task = self.tasks.get(task_id)
+        if task:
+            task.update_progress(progress, status)
+            ColorPrint.blue(f"[TaskManager] Task {task_id}: {progress}%")
 
     def patch_task(
         self,
@@ -243,56 +317,86 @@ class TaskManager:
         error: Optional[str] = None,
     ) -> None:
         """Merge live fields into an in-flight task (progress/result/error)."""
-        with self.lock:
-            task = self.tasks.get(task_id)
-            if not task:
-                return
-            if progress is not None:
-                task.progress = progress
-            if status:
-                task.status = status
-            if error is not None:
-                task.error = error
-            if result_patch:
-                if task.result is None:
-                    task.result = {}
-                task.result.update(result_patch)
-            task.updated_at = datetime.now().isoformat()
+        call_serialized(
+            _TASK_STATE_QUEUE,
+            self._patch_task,
+            task_id,
+            progress,
+            status,
+            result_patch,
+            error,
+        )
+
+    def _patch_task(
+        self,
+        task_id: str,
+        progress: Optional[int],
+        status: Optional[str],
+        result_patch: Optional[Dict],
+        error: Optional[str],
+    ) -> None:
+        """Patch a task on the state-owner thread."""
+        task = self.tasks.get(task_id)
+        if not task:
+            return
+        if progress is not None:
+            task.progress = progress
+        if status:
+            task.status = status
+        if error is not None:
+            task.error = error
+        if result_patch:
+            if task.result is None:
+                task.result = {}
+            task.result.update(result_patch)
+        task.updated_at = datetime.now().isoformat()
 
     def complete_task(self, task_id: str, result: Dict):
         """Mark task as completed"""
-        with self.lock:
-            task = self.tasks.get(task_id)
-            if task:
-                task.set_completed(result)
-                ColorPrint.green(f"[TaskManager] Task completed: {task_id}")
+        call_serialized(_TASK_STATE_QUEUE, self._complete_task, task_id, result)
+
+    def _complete_task(self, task_id: str, result: Dict) -> None:
+        """Complete a task on the state-owner thread."""
+        task = self.tasks.get(task_id)
+        if task:
+            task.set_completed(result)
+            ColorPrint.green(f"[TaskManager] Task completed: {task_id}")
 
     def fail_task(self, task_id: str, error: str):
         """Mark task as failed"""
-        with self.lock:
-            task = self.tasks.get(task_id)
-            if task:
-                task.set_failed(error)
-                ColorPrint.red(f"[TaskManager] Task failed: {task_id} - {error}")
+        call_serialized(_TASK_STATE_QUEUE, self._fail_task, task_id, error)
+
+    def _fail_task(self, task_id: str, error: str) -> None:
+        """Fail a task on the state-owner thread."""
+        task = self.tasks.get(task_id)
+        if task:
+            task.set_failed(error)
+            ColorPrint.red(f"[TaskManager] Task failed: {task_id} - {error}")
 
     def get_all_tasks(self) -> List[Dict]:
         """Get all tasks in history order"""
-        with self.lock:
-            return [
-                self.tasks[task_id].to_dict()
-                for task_id in reversed(self.task_history)
-                if task_id in self.tasks
-            ]
+        return call_serialized(_TASK_STATE_QUEUE, self._get_all_tasks)
+
+    def _get_all_tasks(self) -> List[Dict]:
+        """Build the task history snapshot on the state-owner thread."""
+        return [
+            self.tasks[task_id].to_dict()
+            for task_id in reversed(self.task_history)
+            if task_id in self.tasks
+        ]
 
     def get_recent_tasks(self, limit: int = 50) -> List[Dict]:
         """Get recent N tasks"""
-        with self.lock:
-            recent_ids = list(reversed(self.task_history))[:limit]
-            return [
-                self.tasks[task_id].to_dict()
-                for task_id in recent_ids
-                if task_id in self.tasks
-            ]
+        return call_serialized(_TASK_STATE_QUEUE, self._get_recent_tasks, limit)
+
+    def _get_recent_tasks(self, limit: int) -> List[Dict]:
+        """Build a recent task snapshot on the state-owner thread."""
+        recent_ids = list(reversed(self.task_history))[:limit]
+        return [
+            self.tasks[task_id].to_dict()
+            for task_id in recent_ids
+            if task_id in self.tasks
+        ]
 
     def execute_task(
         self,
@@ -306,63 +410,40 @@ class TaskManager:
             task_id: Task ID
             executor: Function (sync or async) that executes the task and returns result
         """
-        # Capture the Task reference BEFORE starting the worker thread. A burst
-        # can evict this task_id from self.tasks (bounded LRU, max_history=100)
-        # while the thread is queued on the concurrency semaphore; re-looking-up
-        # by ID after the blocking acquire would return None and silently drop
-        # the dispatch ("Task not found"). Hold the live reference instead.
-        task_obj = self.get_task(task_id)
-        _ttype = task_obj.task_type if task_obj else "?"
-
-        def _run():
-            # Block HERE (in the worker thread, not the caller) until a concurrency
-            # slot frees, so a burst of tasks can't run dozens of AI calls at once.
-            self._task_slots.acquire()
-            try:
-                task = task_obj or self.get_task(task_id)
-                if not task:
-                    ColorPrint.red(f"[TaskManager] Task not found: {task_id}")
-                    return
-
-                # Set to processing
-                self.update_task_progress(task_id, 0, TaskStatus.PROCESSING.value)
-
-                # Execute task (handle both sync and async executors)
-                ColorPrint.blue(f"[TaskManager] Executing task {task_id}...")
-
-                try:
-                    if inspect.iscoroutinefunction(executor):
-                        # Async executor - run in new event loop
-                        ColorPrint.blue(f"[TaskManager] Running async executor in new event loop")
-                        result = asyncio.run(executor(task))
-                    else:
-                        # Sync executor - run directly
-                        ColorPrint.blue(f"[TaskManager] Running sync executor")
-                        result = executor(task)
-                except Exception as e:
-                    # An executor crash must FAIL the task, not strand it: letting
-                    # the exception kill this thread left the task in PROCESSING
-                    # forever, so every poller (UI task lists, status endpoints)
-                    # showed a zombie that never finished.
-                    ColorPrint.red(f"[TaskManager] Task {task_id} executor crashed: {e}")
-                    self.fail_task(task_id, str(e))
-                    return
-
-                ColorPrint.green(f"[TaskManager] Task {task_id} executor completed")
-                ColorPrint.blue(f"[TaskManager] Result: {result}")
-
-                self.complete_task(task_id, result)
-            finally:
-                self._task_slots.release()
-
-        # Daemon thread (killed cleanly on process exit) gated by the concurrency
-        # semaphore: excess tasks block inside _run until a slot frees, so no more
-        # than max_workers AI calls run at once and a 429ing provider isn't hammered.
-        thread = threading.Thread(target=_run, daemon=True, name=f"Task-{task_id}")
-        thread.start()
+        task = self.get_task(task_id)
+        task_type = task.task_type if task else "?"
+        if task is None:
+            ColorPrint.red(f"[TaskManager] Task not found: {task_id}")
+            return
+        THREAD_BUS.send_message(_TASK_EXECUTION_QUEUE, {
+            'manager': self,
+            'task': task,
+            'executor': executor,
+        })
         ColorPrint.cyan(
-            f"[TaskManager] Started task {task_id} (type={_ttype}; "
+            f"[TaskManager] Queued task {task_id} (type={task_type}; "
             f"<= {self.max_workers} concurrent)")
+
+    def _execute_task_payload(
+        self,
+        task: Task,
+        executor: Union[Callable[[Task], Dict], Callable[[Task], Coroutine]],
+    ) -> None:
+        """Execute one bus-delivered task on a fixed worker thread."""
+        task_id = task.task_id
+        self.update_task_progress(task_id, 0, TaskStatus.PROCESSING.value)
+        ColorPrint.blue(f"[TaskManager] Executing task {task_id}...")
+        try:
+            if inspect.iscoroutinefunction(executor):
+                result = asyncio.run(executor(task))
+            else:
+                result = executor(task)
+        except Exception as exc:
+            ColorPrint.red(f"[TaskManager] Task {task_id} executor crashed: {exc}")
+            self.fail_task(task_id, str(exc))
+            return
+        ColorPrint.green(f"[TaskManager] Task {task_id} executor completed")
+        self.complete_task(task_id, result)
 
     def _generate_task_id(self, task_type: str) -> str:
         """Generate unique task ID"""
@@ -373,7 +454,6 @@ class TaskManager:
 
 # Global singleton
 _task_manager: Optional[TaskManager] = None
-_task_manager_lock = threading.Lock()
 
 
 def get_task_manager() -> TaskManager:
@@ -381,8 +461,6 @@ def get_task_manager() -> TaskManager:
     global _task_manager
 
     if _task_manager is None:
-        with _task_manager_lock:
-            if _task_manager is None:
-                _task_manager = TaskManager()
+        _task_manager = TaskManager()
 
     return _task_manager

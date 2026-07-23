@@ -6,7 +6,7 @@
     Bucket B (isolated). qwen-tts pins transformers==4.57.3, which CANNOT coexist with the
     main system Python 3.13's shared Bucket-A pin (transformers==4.46.x). Therefore qwen-tts
     is NEVER installed into the main interpreter. Instead this step builds the DEDICATED venv
-    via pycore/pyutils/tts/qwen3tts_venv.ensure_venv() (created --system-site-packages so it
+    via pycore/pyfoundations/isolated_venv.ensure_venv() (created --system-site-packages so it
     reuses the system CUDA torch; only the pinned transformers/accelerate are layered inside).
     Production runs qwen3tts as a class-C HTTP server under that venv; the main interpreter only
     talks to it over HTTP. Contract:
@@ -42,6 +42,10 @@ $qwenModel      = $null
 $modelReady     = $false
 $dlOk           = $false
 $sentinelModel  = $null
+$apiServerSrc   = $null
+$apiServerDst   = $null
+$venvReady      = $false
+$cudaPolicy     = $null
 
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
@@ -55,67 +59,6 @@ $depsSentinel = Join-Path $targetDir '.deps_done'
 $modelSentinel = Join-Path $targetDir '.model_installed'
 
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
-
-function Test-Qwen3TtsVenvProvisioned {
-    # Quick, no-build readiness gate: the isolated venv interpreter is present on disk
-    # (qwen3tts_venv.venv_ready()). Captures a stdout marker; never rebuilds.
-    param(
-        [Parameter(Mandatory = $true)][string]$PythonExe,
-        [Parameter(Mandatory = $true)][string]$CoreNodeRoot
-    )
-    $rootLiteral = ($CoreNodeRoot -replace "'", "''")
-    $pyCode = @"
-import sys
-sys.path.insert(0, r'$rootLiteral')
-from pycore.pyutils.tts import qwen3tts_venv
-sys.stdout.write('__VENV_READY__' if qwen3tts_venv.venv_ready() else '__VENV_NOTREADY__')
-"@
-    # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
-    # check_and_install_dependencies() (it does pip ops and throws under Stop). Same guard
-    # as Invoke-Qwen3TtsWeightsReadyCheck.
-    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
-    $env:PYCORE_SKIP_DEP_CHECK = '1'
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    $out = (& $PythonExe -c $pyCode 2>$null) -join ''
-    $ErrorActionPreference = $prevEap
-    $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
-    return ($out -match '__VENV_READY__')
-}
-
-function Invoke-Qwen3TtsEnsureVenv {
-    # Build/verify the isolated venv via qwen3tts_venv.ensure_venv(). Runs the system
-    # Python LIVE (pip output streams to console; first build takes minutes) and reads
-    # readiness from the process exit code (0 = qwen_tts imports cleanly in the venv).
-    # ensure_venv() is self-repairing: it re-imports qwen_tts and rebuilds a broken venv.
-    param(
-        [Parameter(Mandatory = $true)][string]$PythonExe,
-        [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
-        [switch]$Force,
-        [string]$Prefix = ''
-    )
-    $rootLiteral = ($CoreNodeRoot -replace "'", "''")
-    $forceLiteral = if ($Force) { 'True' } else { 'False' }
-    $pyCode = @"
-import sys
-sys.path.insert(0, r'$rootLiteral')
-from pycore.pyutils.tts import qwen3tts_venv
-py = qwen3tts_venv.ensure_venv(force=$forceLiteral)
-sys.exit(0 if py else 1)
-"@
-    # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
-    # check_and_install_dependencies(). ensure_venv() does its own venv provisioning.
-    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
-    $env:PYCORE_SKIP_DEP_CHECK = '1'
-    # Run LIVE (attached): ensure_venv streams pip output; first build takes minutes.
-    # Out-Host (no 2>&1) shows it live WITHOUT letting the child's stdout leak into this
-    # function's return value (PowerShell returns all pipeline output), and avoids native
-    # stderr wrapping into ErrorRecords under ErrorActionPreference Stop. $LASTEXITCODE stays the exe's.
-    & $PythonExe -c $pyCode | Out-Host
-    $venvOk = ($LASTEXITCODE -eq 0)
-    $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
-    return $venvOk
-}
 
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host " $SCRIPT_INDEX Qwen3-TTS (Alibaba qwen-tts)" -ForegroundColor Cyan
@@ -132,6 +75,16 @@ if (-not $resolvedPython) {
     Complete-PrereqStep -Prefix $SCRIPT_INDEX -ImportModules @()
 }
 
+if (-not (Test-TtsEngineCompatible -PythonExe $resolvedPython -Engine 'qwen3tts' -Prefix "$SCRIPT_INDEX ")) {
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+}
+
+$cudaPolicy = Get-CudaRuntimePolicy
+Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
+if ($cudaPolicy.Enabled -and -not (Test-TorchCudaUsable -PythonCmd $resolvedPython)) {
+    throw "$SCRIPT_INDEX NVIDIA GPU is present but canonical $($cudaPolicy.Tag) torch is not usable; refusing a silent CPU fallback."
+}
+
 $hasCuda = Test-CudaPresent
 $qwenModel = Resolve-TtsModelTier -PythonExe $resolvedPython -Key qwen3tts_model -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)
 Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine qwen3tts -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
@@ -143,10 +96,10 @@ Write-Host ("$SCRIPT_INDEX  sentinel: {0} ({1})" -f $modelSentinel, $(if (Test-P
 Ensure-SoxOnPath -Prefix "$SCRIPT_INDEX " -Force:$Force | Out-Null
 
 if (
-    (Test-Path $depsSentinel) -and
+    (Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'qwen3tts' -Path $depsSentinel) -and
     (Test-Path $modelSentinel) -and
     -not $Force -and
-    (Test-Qwen3TtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot)
+    (Test-IsolatedTtsVenvHealthy -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'qwen3tts')
 ) {
     $sentinelModel = (Get-Content -LiteralPath $modelSentinel -Raw -ErrorAction SilentlyContinue)
     if ($sentinelModel) { $sentinelModel = $sentinelModel.Trim().Trim([char]0xFEFF) }
@@ -174,16 +127,10 @@ if (Test-Path $apiServerSrc) {
 #     installed here. Build the DEDICATED venv (ensure_venv, --system-site-packages
 #     reuses the system CUDA torch) instead. Self-repairing: ensure_venv re-imports
 #     qwen_tts and rebuilds a broken venv. See lifecycle doc §5. --- #
-$venvReady = $false
-if (-not ((Test-Path $depsSentinel) -and -not $Force)) {
-    # Fresh or forced: ensure pip + the system torch the venv will reuse, once.
-    & $resolvedPython -m pip install --upgrade pip 2>&1 | Out-Host
-    Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
-}
 Write-Host "$SCRIPT_INDEX [..] building/verifying isolated qwen-tts venv (ensure_venv; first build takes minutes) ..." -ForegroundColor Yellow
-$venvReady = Invoke-Qwen3TtsEnsureVenv -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Force:$Force -Prefix "$SCRIPT_INDEX "
+$venvReady = Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'qwen3tts' -Force:$Force
 if ($venvReady) {
-    Set-Content -Path $depsSentinel -Value (Get-Date -Format o) -Encoding utf8
+    Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'qwen3tts' -Path $depsSentinel | Out-Null
     Write-Host "$SCRIPT_INDEX [OK] isolated qwen-tts venv ready; main interpreter transformers pin left untouched." -ForegroundColor Green
 } else {
     Write-Host "$SCRIPT_INDEX [!] venv build incomplete; will retry next run (main interpreter untouched)." -ForegroundColor DarkYellow
@@ -203,10 +150,15 @@ if (-not $modelReady) {
     Write-Host ("$SCRIPT_INDEX [..] downloading/repairing model '{0}' (curl, resumable) ..." -f $qwenModel) -ForegroundColor Yellow
     $dlOk = Install-HfRepoFlat -RepoId $qwenModel -DestDir $weightsDir -SentinelPath $modelSentinel -Prefix "$SCRIPT_INDEX " -SentinelValue $qwenModel
     if ($dlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $qwenModel)) {
+        $modelReady = $true
         Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready at {1}." -f $qwenModel, $weightsDir) -ForegroundColor Green
     } else {
         Write-Host ("$SCRIPT_INDEX [!] model download not finished; partial files kept at {0}; will RESUME next run." -f $weightsDir) -ForegroundColor DarkYellow
     }
+}
+
+if (-not $venvReady -or -not $modelReady) {
+    throw "$SCRIPT_INDEX Qwen3-TTS is not ready; the incomplete component will be retried next run."
 }
 
 Write-Host "$SCRIPT_INDEX [OK] Qwen3-TTS ready. Set QWEN3TTS_MODEL / QWEN3TTS_SPEAKER." -ForegroundColor Green

@@ -3,6 +3,9 @@
 
 // Firefox provides neither chrome.tabCapture nor offscreen documents, so the
 // whole audio capture feature is unavailable there
+import { localStorage } from '@/services/ExtensionStorage';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
+
 export const FIREFOX_AUDIO_UNSUPPORTED_ERROR =
   'Audio recording is not supported on Firefox: chrome.tabCapture and offscreen documents are unavailable.';
 
@@ -29,6 +32,18 @@ interface AudioStatus {
   isRecording: boolean;
   duration: number;
   chunkCount: number;
+}
+
+interface StoredAudioConfig {
+  apiServers?: AudioConfig['apiServers'];
+  recordingSettings?: {
+    includeMicrophone?: boolean;
+    saveLocal?: boolean;
+    enableAutoStop?: boolean;
+    silenceDuration?: number;
+    maxDuration?: number;
+  };
+  sessionMetadata?: AudioConfig['sessionMetadata'];
 }
 
 // Track current recording state
@@ -140,8 +155,10 @@ export async function handleAudioStart(params: AudioConfig): Promise<{
     });
 
     // Load audio config from storage or use defaults
-    const storedConfig = await chrome.storage.local.get(['audioRecordingConfig']);
-    const audioConfig = storedConfig.audioRecordingConfig || {};
+    const audioConfig = await localStorage.get<StoredAudioConfig>(
+      STORAGE_KEYS.AUDIO_RECORDING_CONFIG,
+      {},
+    );
 
     // Merge with MCP params
     const selectedServers = (params.apiServers?.length ? params.apiServers : audioConfig.apiServers) || [];

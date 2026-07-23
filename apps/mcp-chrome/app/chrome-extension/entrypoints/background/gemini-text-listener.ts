@@ -6,5 +6,6 @@
  */
 import { geminiWebTool } from './tools/browser/gemini-web';
 import { createWebChatJobListener } from './web-chat-job-listener-factory';
+import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 
-export const initGeminiTextListener = createWebChatJobListener('gemini_text_service', geminiWebTool, 'Gemini Web');
+export const initGeminiTextListener = createWebChatJobListener(FEATURE_MESSAGE_TYPES.GEMINI_TEXT, geminiWebTool, 'Gemini Web');

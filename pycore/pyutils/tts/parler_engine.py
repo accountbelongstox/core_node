@@ -16,7 +16,6 @@ Config:
 """
 
 import os
-import threading
 from pathlib import Path
 from typing import Any, Optional
 
@@ -27,13 +26,19 @@ from pycore.pyfoundations.third_party import get_third_package_torch
 
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
 import importlib.util
 
 
 
 
-_lock = threading.Lock()
+_MODEL_QUEUE = 'pyutils.tts.parler.model'
+_MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, 'ParlerModelThread')
+_MODEL_WORKER.start()
 _tokenizer: Any = None
 _model: Any = None
 
@@ -76,18 +81,27 @@ def available() -> bool:
         return False
 
 
-def _get_model() -> tuple[Any, Any]:
+def _load_model() -> tuple[Any, Any]:
     global _tokenizer, _model
-    with _lock:
-        if _model is not None and _tokenizer is not None:
-            return _tokenizer, _model
-        torch = get_third_package_torch()
-        model_id = _model_id()
-        dev = _device()
-        _tokenizer = AutoTokenizer.from_pretrained(model_id)
-        _model = ParlerTTSForConditionalGeneration.from_pretrained(model_id).to(dev)
-        ColorPrint.green(f"[parler] loaded {model_id} (device={dev})")
+    if _model is not None and _tokenizer is not None:
         return _tokenizer, _model
+    get_third_package_torch()
+    model_id = _model_id()
+    dev = _device()
+    _tokenizer = AutoTokenizer.from_pretrained(model_id)
+    _model = ParlerTTSForConditionalGeneration.from_pretrained(model_id).to(dev)
+    ColorPrint.green(f"[parler] loaded {model_id} (device={dev})")
+    return _tokenizer, _model
+
+
+def _get_model() -> tuple[Any, Any]:
+    """Load or read the model through its owner thread."""
+    return call_serialized(_MODEL_QUEUE, _load_model, timeout=900.0)
+
+
+def _generate_audio(model: Any, input_ids: Any, prompt_input_ids: Any) -> Any:
+    """Generate audio on the model-owner thread."""
+    return model.generate(input_ids=input_ids, prompt_input_ids=prompt_input_ids)
 
 
 def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
@@ -103,8 +117,14 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
         description = _description()
         input_ids = tokenizer(description, return_tensors="pt").input_ids.to(dev)
         prompt_input_ids = tokenizer(cleaned, return_tensors="pt").input_ids.to(dev)
-        with _lock:
-            generation = model.generate(input_ids=input_ids, prompt_input_ids=prompt_input_ids)
+        generation = call_serialized(
+            _MODEL_QUEUE,
+            _generate_audio,
+            model,
+            input_ids,
+            prompt_input_ids,
+            timeout=900.0,
+        )
         arr = generation.cpu().numpy().squeeze()
         rate = int(getattr(model.config, "sampling_rate", 44100))
         tmp_wav.parent.mkdir(parents=True, exist_ok=True)
@@ -125,11 +145,15 @@ def is_model_loaded() -> bool:
     return _model is not None
 
 
-def unload_model() -> None:
+def _unload_model() -> None:
     global _tokenizer, _model
-    with _lock:
-        _tokenizer = None
-        _model = None
+    _tokenizer = None
+    _model = None
+
+
+def unload_model() -> None:
+    """Unload model state through its owner thread."""
+    call_serialized(_MODEL_QUEUE, _unload_model)
 
 
 __all__ = ["available", "synthesize", "is_model_loaded", "unload_model"]

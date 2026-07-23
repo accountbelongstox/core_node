@@ -13,7 +13,7 @@ import fastapi
 from pydantic import BaseModel
 
 from pycore.pyheartbeat import get_heartbeat_system
-from pycore.callmodule.routers.local.task_center_router import _CALLBACK_QUEUE_ROLES
+from pycore.callmodule.services.queue_center_contract import CALLBACK_QUEUE_ROLES
 from pycore.callmodule.services.heartbeat_worker_prefs import (
     apply_callback_enabled,
     get_auxiliary_status,
@@ -45,7 +45,7 @@ def _callback_rows() -> List[Dict[str, Any]]:
             "enabled": bool(info.get("enabled")),
             "interval": int(info.get("interval") or 0),
             "run_count": int(info.get("run_count") or 0),
-            "queue_role": _CALLBACK_QUEUE_ROLES.get(name),
+            "queue_role": CALLBACK_QUEUE_ROLES.get(name),
         })
     return rows
 

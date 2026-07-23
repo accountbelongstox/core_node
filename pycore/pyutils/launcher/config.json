@@ -39,7 +39,7 @@
       "enabled": true
     },
     "aiassistant": {
-      "enabled": true
+      "enabled": false
     }
   }
 }

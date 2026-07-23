@@ -5,12 +5,11 @@ Discover FastAPI RPC servers on the local network.
 """
 
 import sys
-import threading
 import time
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from pycore import ColorPrint
+from pycore import ColorPrint, THREAD_BUS
 
 from pycore.pyutils.rpc_v2.config import get_rpc_config
 from pycore.pyutils.rpc_v2.discovery.local_ip_detector import get_local_lan_ip
@@ -38,14 +37,16 @@ class RPCDiscovery:
         self.config = get_rpc_config()
         self.port = self.config.get_port()
         self.scanner = NetworkScanner(debug=debug)
-        self._discovered_services: List[DiscoveredRPCService] = []
-        self._cache_lock = threading.Lock()
-        self._local_lan_ip: Optional[str] = None
+        self._cache_signal = f'pyutils.rpc_v2.discovery.{id(self)}'
+        self._local_ip_signal = f'{self._cache_signal}.local_ip'
+        THREAD_BUS.signal(self._cache_signal, ())
 
     def get_local_lan_ip(self) -> Optional[str]:
-        if self._local_lan_ip is None:
-            self._local_lan_ip = get_local_lan_ip(debug=self.debug)
-        return self._local_lan_ip
+        local_ip = THREAD_BUS.get_signal(self._local_ip_signal)
+        if local_ip is None:
+            local_ip = get_local_lan_ip(debug=self.debug)
+            THREAD_BUS.signal(self._local_ip_signal, local_ip)
+        return local_ip
 
     def discover_services(self, use_localhost: bool = True) -> List[DiscoveredRPCService]:
         if sys.is_finalizing():
@@ -79,8 +80,7 @@ class RPCDiscovery:
                 )
             )
 
-        with self._cache_lock:
-            self._discovered_services = services
+        THREAD_BUS.signal(self._cache_signal, tuple(services))
 
         if self.debug:
             ColorPrint.green(f"[RPCDiscovery] Found {len(services)} service(s)")

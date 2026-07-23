@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "订多多"
+  },
+  "extensionShortName": {
+    "message": "订多多"
+  },
+  "extensionDescription": {
+    "message": "拼多多多账号订单管理与一键导出 ERP，支持订单同步、搜索、核算和 CSV 导出。第三方工具，与拼多多官方无关。"
+  },
+  "actionTitle": {
+    "message": "订多多 | 拼多多订单管理与一键导出 ERP"
+  }
+}

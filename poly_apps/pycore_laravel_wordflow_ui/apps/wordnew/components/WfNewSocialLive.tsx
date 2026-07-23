@@ -20,7 +20,7 @@ interface WfNewSocialLiveProps {
   isLoggedIn: boolean;
   requireAuth: () => void;
   /** Open the dedicated live-room page for a session (router navigation). */
-  onOpenRoom: (live: WfNewLive) => void;
+  onOpenRoom?: (live: WfNewLive) => void;
 }
 
 /** Live session LIST (the page body for #/social/live). Tapping a card → room. */
@@ -30,22 +30,42 @@ export const WfNewSocialLive: React.FC<WfNewSocialLiveProps> = ({
   const [sessions, setSessions] = useState<WfNewLive[]>([]);
   const [loading, setLoading] = useState(true);
   const [goLiveOpen, setGoLiveOpen] = useState(false);
+  const [selectedLive, setSelectedLive] = useState<WfNewLive | null>(null);
+
+  const openRoom = useCallback((live: WfNewLive) => {
+    if (!isLoggedIn) { requireAuth(); return; }
+    if (onOpenRoom) onOpenRoom(live);
+    else setSelectedLive(live);
+  }, [isLoggedIn, requireAuth, onOpenRoom]);
 
   const load = useCallback(() => {
+    if (!isLoggedIn) { setSessions([]); setLoading(false); return; }
     setLoading(true);
     wfNewApi.getLiveSessions('live')
       .then(rows => setSessions(rows))
       .catch(() => setSessions([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [isLoggedIn]);
 
   useEffect(() => { load(); }, [load]);
 
   // SSE: a new live session appears at the top of the list.
   useEffect(() => {
+    if (!isLoggedIn) return;
     const unsub = subscribeSocial('live.started', () => { load(); });
     return () => { unsub(); };
-  }, [load]);
+  }, [load, isLoggedIn]);
+
+  if (selectedLive) {
+    return (
+      <div className="space-y-4">
+        <button onClick={() => setSelectedLive(null)} className="text-xs font-mono text-zinc-400 hover:text-white cursor-pointer">
+          ← Back
+        </button>
+        <WfNewSocialLiveRoom live={selectedLive} trans={trans} addToast={addToast} isLoggedIn={isLoggedIn} requireAuth={requireAuth} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -74,7 +94,7 @@ export const WfNewSocialLive: React.FC<WfNewSocialLiveProps> = ({
             <motion.button
               layout
               key={live.id}
-              onClick={() => onOpenRoom(live)}
+              onClick={() => openRoom(live)}
               className="text-left rounded-2xl bg-white/3 border border-white/5 hover:border-rose-500/30 overflow-hidden transition-all cursor-pointer group"
             >
               <div className="relative aspect-video bg-zinc-900 overflow-hidden">
@@ -103,7 +123,7 @@ export const WfNewSocialLive: React.FC<WfNewSocialLiveProps> = ({
       {goLiveOpen && (
         <WfNewGoLiveModal
           onClose={() => setGoLiveOpen(false)}
-          onStarted={(live) => { setGoLiveOpen(false); onOpenRoom(live); }}
+          onStarted={(live) => { setGoLiveOpen(false); openRoom(live); }}
           trans={trans}
           addToast={addToast}
         />
@@ -137,6 +157,7 @@ export const WfNewSocialLiveRoom: React.FC<WfNewSocialLiveRoomProps> = ({
 
   // Deep-link path: resolve the session from the list by id when no object given.
   useEffect(() => {
+    if (!isLoggedIn) { setResolving(false); return; }
     if (liveProp) { setLive(liveProp); setViewerCount(liveProp.viewer_count); setResolving(false); return; }
     const id = liveId ?? 0;
     if (!id) { setResolving(false); return; }
@@ -152,23 +173,23 @@ export const WfNewSocialLiveRoom: React.FC<WfNewSocialLiveRoomProps> = ({
       .catch(() => { if (alive) setLive(null); })
       .finally(() => { if (alive) setResolving(false); });
     return () => { alive = false; };
-  }, [liveProp, liveId]);
+  }, [liveProp, liveId, isLoggedIn]);
 
   const roomId = live?.id ?? 0;
 
   // Load initial chat.
   useEffect(() => {
-    if (!roomId) return;
+    if (!isLoggedIn || !roomId) return;
     let alive = true;
     wfNewApi.getLiveChat(roomId)
       .then(page => { if (alive) setMessages(page.items); })
       .catch(() => { if (alive) setMessages([]); });
     return () => { alive = false; };
-  }, [roomId]);
+  }, [roomId, isLoggedIn]);
 
   // Viewer heartbeat every 20s → keep viewer_count fresh.
   useEffect(() => {
-    if (!roomId) return;
+    if (!isLoggedIn || !roomId) return;
     let alive = true;
     const beat = () => {
       wfNewApi.liveHeartbeat(roomId)
@@ -178,11 +199,11 @@ export const WfNewSocialLiveRoom: React.FC<WfNewSocialLiveRoomProps> = ({
     beat();
     const interval = setInterval(beat, 20000);
     return () => { alive = false; clearInterval(interval); };
-  }, [roomId]);
+  }, [roomId, isLoggedIn]);
 
   // SSE: inbound live-chat messages for THIS room.
   useEffect(() => {
-    if (!roomId) return;
+    if (!isLoggedIn || !roomId) return;
     const unsub = subscribeSocial('live.chat.new', (payload: any) => {
       const room = Number(payload?.live_id ?? payload?.message?.live_id);
       if (room !== roomId) return;
@@ -197,7 +218,7 @@ export const WfNewSocialLiveRoom: React.FC<WfNewSocialLiveRoomProps> = ({
       setMessages(prev => (prev.some(m => m.id === msg.id) ? prev : [...prev, msg]));
     });
     return () => { unsub(); };
-  }, [roomId]);
+  }, [roomId, isLoggedIn]);
 
   // Auto-scroll chat to the bottom on new messages.
   useEffect(() => {
@@ -216,6 +237,9 @@ export const WfNewSocialLiveRoom: React.FC<WfNewSocialLiveRoomProps> = ({
       .catch(() => addToast(trans('social.actionFailed'), 'warning'));
   }, [draft, isLoggedIn, requireAuth, roomId, addToast, trans]);
 
+  if (!isLoggedIn) {
+    return <button onClick={requireAuth} className="w-full py-16 text-center text-indigo-300 font-mono text-xs cursor-pointer">Sign in to join this live room.</button>;
+  }
   if (resolving) {
     return <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.loading')}</div>;
   }

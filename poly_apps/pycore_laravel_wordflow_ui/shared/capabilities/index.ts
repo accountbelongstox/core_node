@@ -414,6 +414,19 @@ export type {
   CapBlobPutOptions,
 } from './CapFilesystem';
 
+// --- Read-through resource packages ---------------------------------------
+export { CapResourcePackage, CapResourceAssetCache } from './CapResourcePackage';
+export type {
+  CapResourceRefreshMode,
+  CapResourceRecord,
+  CapResourcePackageOptions,
+  CapResourceQuery,
+  CapResourcePutOptions,
+  CapResourceStats,
+  CapResourceAssetCacheOptions,
+  CapResourceAssetStats,
+} from './CapResourcePackage';
+
 // --- App lifecycle ---------------------------------------------------------
 export {
   CapAppStateService,

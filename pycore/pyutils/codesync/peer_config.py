@@ -23,8 +23,8 @@ Stdlib only: identity / lan-ip / paths come from `.runtime` (no pycore import).
 import json
 import os
 import socket
-import threading
 import time
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -34,6 +34,8 @@ from .runtime import (
     get_local_lan_ip,
     get_peers_config_file,
     get_peers_override_file,
+    init_serialized_owner,
+    serialized_method,
 )
 
 # Two-tier storage:
@@ -64,9 +66,10 @@ class PeerConfig:
         self._baseline_path = Path(baseline_path)   # committed default (read-only)
         self._override_path = Path(override_path)   # per-machine state (writable)
         self._port = port
-        self._lock = threading.RLock()
+        self._state_scope = nullcontext()
         self._data: Optional[Dict[str, Any]] = None
         self.machine_id = _machine_id()
+        init_serialized_owner(self, "codesync.peer_config", "CodeSyncPeerConfig")
 
     # ----- load / save ----------------------------------------------------- #
     @staticmethod
@@ -81,10 +84,11 @@ class PeerConfig:
             ColorPrint.yellow(f"[PeerConfig] Failed to read {path}: {exc}")
         return None
 
+    @serialized_method
     def _ensure_loaded(self) -> Dict[str, Any]:
         if self._data is not None:
             return self._data
-        with self._lock:
+        with self._state_scope:
             if self._data is not None:
                 return self._data
             # Priority: per-machine override (.data) wins; fall back to the committed
@@ -146,8 +150,9 @@ class PeerConfig:
         self._save_locked()
         return entry
 
+    @serialized_method
     def get_self(self) -> Dict[str, Any]:
-        with self._lock:
+        with self._state_scope:
             self._ensure_loaded()
             return dict(self._ensure_self_locked())
 
@@ -174,11 +179,13 @@ class PeerConfig:
                 pass
         return False
 
+    @serialized_method
     def is_self_peer(self, peer: Dict[str, Any]) -> bool:
-        with self._lock:
+        with self._state_scope:
             self._ensure_loaded()
             return self._is_self_peer_unlocked(peer)
 
+    @serialized_method
     def prune_self_duplicates(self) -> bool:
         """Drop extra peer rows that point at this machine; keep the machine_id row.
 
@@ -190,7 +197,7 @@ class PeerConfig:
         the current self entry when it is still the default 'client' seed, so a
         saved 'dev' survives a machine-id change. 'client' is never migrated
         (it is the default seed, indistinguishable from a user-set client)."""
-        with self._lock:
+        with self._state_scope:
             self._ensure_loaded()
             peers = self._data.get("peers", [])
             self_entry = next((p for p in peers if p.get("id") == self.machine_id), None)
@@ -222,9 +229,10 @@ class PeerConfig:
     def get_role(self) -> str:
         return self.get_self().get("role", "client")
 
+    @serialized_method
     def set_role(self, role: str) -> str:
         role = role if role in VALID_ROLES else "client"
-        with self._lock:
+        with self._state_scope:
             self._ensure_loaded()
             me = self._ensure_self_locked()
             if me.get("role") != role:
@@ -234,8 +242,9 @@ class PeerConfig:
             return role
 
     # ----- peer list ------------------------------------------------------- #
+    @serialized_method
     def list_peers(self) -> List[Dict[str, Any]]:
-        with self._lock:
+        with self._state_scope:
             return [dict(p) for p in self._ensure_loaded().get("peers", [])]
 
     def dev_peers(self) -> List[Dict[str, Any]]:
@@ -249,11 +258,12 @@ class PeerConfig:
                 return p
         return None
 
+    @serialized_method
     def add_peer(self, name: str, host: str, port: int = DEFAULT_PORT,
                  role: str = "client", peer_id: Optional[str] = None) -> Dict[str, Any]:
         role = role if role in VALID_ROLES else "client"
         pid = peer_id or f"{host}:{port}"
-        with self._lock:
+        with self._state_scope:
             self._ensure_loaded()
             if self._is_self_peer_unlocked({"id": pid, "host": host, "port": int(port)}):
                 return dict(self._ensure_self_locked())
@@ -275,8 +285,9 @@ class PeerConfig:
             self._save_locked()
             return dict(peer)
 
+    @serialized_method
     def remove_peer(self, peer_id: str) -> bool:
-        with self._lock:
+        with self._state_scope:
             self._ensure_loaded()
             if peer_id == self.machine_id:
                 return False  # never remove self
@@ -288,8 +299,9 @@ class PeerConfig:
                 self._save_locked()
             return changed
 
+    @serialized_method
     def update_peer(self, peer_id: str, fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        with self._lock:
+        with self._state_scope:
             self._ensure_loaded()
             peer = self._find_locked(peer_id)
             if not peer:
@@ -304,21 +316,24 @@ class PeerConfig:
             return dict(peer)
 
     # ----- replication (last-writer-wins) ---------------------------------- #
+    @serialized_method
     def to_payload(self) -> Dict[str, Any]:
-        with self._lock:
+        with self._state_scope:
             d = self._ensure_loaded()
             return {"version": int(d.get("version", 0)),
                     "updated_at": float(d.get("updated_at", 0.0)),
                     "peers": [dict(p) for p in d.get("peers", [])]}
 
+    @serialized_method
     def version(self) -> int:
-        with self._lock:
+        with self._state_scope:
             return int(self._ensure_loaded().get("version", 0))
 
+    @serialized_method
     def apply_remote(self, peers: List[Dict[str, Any]], version: int,
                      updated_at: float) -> bool:
         """Adopt a remote config if it is newer (LWW on (version, updated_at))."""
-        with self._lock:
+        with self._state_scope:
             d = self._ensure_loaded()
             local = (int(d.get("version", 0)), float(d.get("updated_at", 0.0)))
             incoming = (int(version), float(updated_at))
@@ -364,15 +379,20 @@ class PeerConfig:
             return True
 
 
-# Global singleton
-_peer_config: Optional[PeerConfig] = None
-_pc_lock = threading.Lock()
+class _PeerConfigProvider:
+    def __init__(self) -> None:
+        self._instance: Optional[PeerConfig] = None
+        init_serialized_owner(self, "codesync.peer_config_provider", "CodeSyncPeerConfigProvider")
+
+    @serialized_method
+    def get(self, port: int) -> PeerConfig:
+        if self._instance is None:
+            self._instance = PeerConfig(port=port)
+        return self._instance
+
+
+_peer_config_provider = _PeerConfigProvider()
 
 
 def get_peer_config(port: int = DEFAULT_PORT) -> PeerConfig:
-    global _peer_config
-    if _peer_config is None:
-        with _pc_lock:
-            if _peer_config is None:
-                _peer_config = PeerConfig(port=port)
-    return _peer_config
+    return _peer_config_provider.get(port)

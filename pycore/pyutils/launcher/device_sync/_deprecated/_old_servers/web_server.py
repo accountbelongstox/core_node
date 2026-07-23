@@ -14,10 +14,11 @@ Features:
 Port: 8080 (default)
 """
 
-import threading
 import json
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Optional, Dict, Any
+from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pathlib import Path
 import urllib.parse
 
@@ -442,7 +443,9 @@ class DeviceSyncWebServer:
         self.sync_server = sync_server
         self.running = False
         self.server: Optional[HTTPServer] = None
-        self.server_thread: Optional[threading.Thread] = None
+        self.server_thread: Optional[Any] = None
+        self._running_signal = f"device_sync.legacy_web.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
     def start(self) -> bool:
         """
@@ -461,8 +464,11 @@ class DeviceSyncWebServer:
 
             # Start server thread
             self.running = True
-            self.server_thread = threading.Thread(target=self._server_loop, daemon=True)
-            self.server_thread.start()
+            THREAD_BUS.signal(self._running_signal, True)
+            self.server_thread = start_bus_task(
+                self._server_loop,
+                thread_name="LegacyWebServerThread",
+            )
 
             print(f"[WebServer] Started on port {self.port}")
             print(f"[WebServer] Access at: http://localhost:{self.port}")
@@ -475,16 +481,17 @@ class DeviceSyncWebServer:
 
     def _server_loop(self):
         """Server loop (runs in thread)."""
-        while self.running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             try:
                 self.server.handle_request()
             except Exception as e:
-                if self.running:
+                if THREAD_BUS.get_signal(self._running_signal, False):
                     print(f"[WebServer] Error: {e}")
 
     def stop(self):
         """Stop web server."""
         self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         if self.server:
             self.server.shutdown()

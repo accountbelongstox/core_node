@@ -286,13 +286,20 @@ export class WfBookReaderPlayback {
     token: number,
   ): Promise<void> {
     if (!this.playing || this.playToken !== token) return;
-    if (this.deps.useBrowserTts()) {
-      const ok = await this.playSpeechStep(verse, lang, text, repeats, token);
-      if (ok && this.playing && this.playToken === token) {
-        this.emptyCross = 0;
-        await this.runStep(verse, stepIdx + 1);
-        return;
-      }
+    // Backend audio missing: ALWAYS try the browser's speech engine first so
+    // playback never stalls on a sentence laravel is still generating. The
+    // reader bumps laravel's priority for the sentence in parallel (see
+    // bumpMissingAudio), and WfBookReaderSpeech.pickVoice prefers Microsoft
+    // Natural / Edge neural voices - i.e. the Edge Read Aloud voice. If the
+    // browser has no speechSynthesis (headless / unsupported) speakBookText
+    // rejects and we fall through to the skip path. The readerBrowserTts
+    // setting no longer gates this missing-audio fallback: a sentence without
+    // audio is always read aloud while laravel generates the real clip.
+    const ok = await this.playSpeechStep(verse, lang, text, repeats, token);
+    if (ok && this.playing && this.playToken === token) {
+      this.emptyCross = 0;
+      await this.runStep(verse, stepIdx + 1);
+      return;
     }
     this.emptyCross += 1;
     if (this.emptyCross >= this.maxEmptyCross) {

@@ -304,6 +304,29 @@ export const wfNewApiHttp: WfNewApi = {
     return { words, books, subtitles, libraries, documents };
   },
 
+  async getRecentAgentArticles(limit = 20): Promise<import('./WfNewApiTypes').WfNewAgentArticle[]> {
+    const res = await getJSON<any>(WfNewApiPaths.recentAgentArticles(limit));
+    const rows = Array.isArray(res?.articles)
+      ? res.articles
+      : Array.isArray(res?.rows) ? res.rows : Array.isArray(res?.items) ? res.items : [];
+    return rows.map((item: any, index: number) => ({
+      id: String(item?.id ?? item?.article_id ?? item?.source_key ?? item?.title_en ?? item?.title ?? `article-${index}`),
+      title: String(item?.title ?? item?.title_en ?? 'Article'),
+      title_en: item?.title_en ?? item?.title ?? null,
+      title_cn: item?.title_cn ?? null,
+      reference_cn: item?.reference_cn ?? null,
+      article_en: item?.article_en ?? null,
+      source_key: item?.source_key ?? item?.article_id ?? null,
+      article_id: item?.article_id ?? null,
+      audio_url: item?.audio_url ? (absUrl(item.audio_url) ?? null) : null,
+      word_count: item?.word_count ?? null,
+      published_at: item?.created_at ?? item?.published_at ?? null,
+      reading_date: item?.reading_date ?? item?.created_at ?? null,
+      created_at: item?.created_at ?? null,
+      document_id: item?.document_id ?? null,
+    }));
+  },
+
   // ---- Book reading (book -> chapter -> verses) ----
 
   async getBookChapters(sourceKey: string): Promise<WfNewBookChapters> {

@@ -29,7 +29,7 @@ import {
 } from '../cache/WfNewContentCache';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { WfNewHomeContent as WfNewHomeContentWidget } from './WfNewHomeContent';
-import { WfNewAgentArticlesSection } from './WfNewAgentArticlesSection';
+import { WfDailyReadingSection } from './daily-reading/WfDailyReadingSection';
 
 // Modular Imports
 import { UserStats, ElementTheme } from '../WfNewTypes';
@@ -434,8 +434,9 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                 </div>
               </div>
 
-              {/* Agent History generated articles — live poll */}
-              <WfNewAgentArticlesSection
+              {/* Daily Reading — latest reading articles, inline expand +
+                  sequential audio playback with a floating player console. */}
+              <WfDailyReadingSection
                 theme={activeTheme}
                 trans={trans}
                 onOpenBook={(sourceKey, title) => {

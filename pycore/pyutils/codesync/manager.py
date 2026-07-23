@@ -20,8 +20,8 @@ Stdlib only: logging / events / shutdown / root path via `.runtime`.
 
 import os
 import socket
-import threading
 import time
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -32,6 +32,9 @@ from .runtime import (
     is_shutdown_requested,
     is_light,
     get_core_node_root,
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
 )
 
 from .server import CodeSyncServer, get_code_sync_server
@@ -41,10 +44,10 @@ from .peer_mesh import PeerMeshManager
 from .runtime_prefs import get_runtime_prefs
 from .sync_ws import PushSender, PushReceiver
 
-from pycore.pyutils.codesync.sync_settings import build_excluder
-from pycore.pyutils.codesync.sync_settings import get_sync_settings
+from .sync_settings import build_excluder
+from .sync_settings import get_sync_settings
 import os as _os
-from pycore.pyutils.codesync.watcher import get_watch_manager
+from .watcher import get_watch_manager
 
 
 VALID_ROLES = ("dev", "client")
@@ -58,7 +61,9 @@ class CodeSyncManager:
     """Role-based coordinator: dev distributes (manual), client receives (default)."""
 
     def __init__(self):
-        self._lock = threading.RLock()
+        self._state_scope = nullcontext()
+        self._sync_scope = nullcontext()
+        init_serialized_owner(self, "codesync.manager.state", "CodeSyncManagerState")
         self.config = get_peer_config()
         self.role: str = self.config.get_role()           # dev | client (default client)
         self.distributing: bool = False                   # dev only; restored from runtime_prefs
@@ -103,7 +108,6 @@ class CodeSyncManager:
         # caller that passes no channel lands in the "_local" channel.
         self._peer_phases: Dict[str, Dict[str, Any]] = {}
         self._sync_logs = []  # ring of recent push/receive events (newest last)
-        self._sync_lock = threading.Lock()
         # Construct BOTH the receiver and the sender (so the WS endpoint and the
         # back-compat surface keep working), but a light client never STARTS the
         # sender supervisor — it neither pushes nor receives code.
@@ -119,12 +123,14 @@ class CodeSyncManager:
                          f"(distributing={self.distributing}, light={self.light})")
 
     # ----- role ------------------------------------------------------------ #
+    @serialized_method
     def get_role(self) -> str:
         return self.role
 
+    @serialized_method
     def set_role(self, role: str) -> dict:
         role = role if role in VALID_ROLES else "client"
-        with self._lock:
+        with self._state_scope:
             self.role = self.config.set_role(role)
             # Switching to client clears any distribution state.
             if self.role != "dev":
@@ -137,7 +143,7 @@ class CodeSyncManager:
                 pass
             self.config.prune_self_duplicates()
             self._apply_role(self.role)
-            with self._sync_lock:
+            with self._sync_scope:
                 self._peer_phases.clear()
         try:
             self._stats = self._compute_code_stats()
@@ -186,11 +192,13 @@ class CodeSyncManager:
             self.set_distributing(True)
 
     # ----- distribution (dev only) ---------------------------------------- #
+    @serialized_method
     def is_distributing(self) -> bool:
         return self.role == "dev" and self.distributing
 
+    @serialized_method
     def set_distributing(self, enabled: bool) -> dict:
-        with self._lock:
+        with self._state_scope:
             if self.role != "dev":
                 return {"success": False, "distributing": False,
                         "message": "Only a dev-end can distribute code."}
@@ -209,11 +217,13 @@ class CodeSyncManager:
         return {"success": True, "distributing": self.distributing, "message": msg}
 
     # ----- skip update (client temporarily rejects code) ------------------ #
+    @serialized_method
     def is_skip_update(self) -> bool:
         return self._skip_update
 
+    @serialized_method
     def set_skip_update(self, enabled: bool) -> dict:
-        with self._lock:
+        with self._state_scope:
             self._skip_update = bool(enabled)
             # Enforced at the WS receiver (PushReceiver checks is_skip_update and
             # drops pushed manifests/files) — there is no outbound puller to stop.
@@ -227,13 +237,12 @@ class CodeSyncManager:
 
     # ----- local code stats (background; non-blocking probes) ------------- #
     def _start_stats_refresher(self) -> None:
-        t = threading.Thread(target=self._stats_loop, daemon=True, name="CodeSync-Stats")
-        t.start()
+        start_bus_task(self._stats_loop, thread_name="CodeSync-Stats")
 
     def _stats_loop(self) -> None:
         while True:
             try:
-                self._stats = self._compute_code_stats()
+                self._store_stats(self._compute_code_stats())
             except Exception:
                 pass
             for _ in range(STATS_REFRESH_SECONDS * 2):
@@ -280,6 +289,11 @@ class CodeSyncManager:
                 continue
         return {"files": files, "bytes": total, "last_modified": latest}
 
+    @serialized_method
+    def _store_stats(self, stats: Dict[str, Any]) -> None:
+        self._stats = dict(stats)
+
+    @serialized_method
     def local_code_stats(self) -> Dict[str, Any]:
         return dict(self._stats)
 
@@ -400,6 +414,7 @@ class CodeSyncManager:
     _PHASE_PRIORITY = {"pushing": 3, "receiving": 3, "retrying": 2, "idle": 0}
     _PHASE_IDLE_TTL = 60.0  # seconds an idle channel row lingers before pruning
 
+    @serialized_method
     def set_sync_phase(self, phase: str, count: int = 0, channel: Optional[str] = None,
                        name: str = "", direction: str = "") -> None:
         """Record the phase of ONE channel (the other end's id this phase is about).
@@ -410,7 +425,7 @@ class CodeSyncManager:
         TTL), so a finished transfer no longer wipes a sibling channel's phase."""
         ch = channel or "_local"
         now = time.time()
-        with self._sync_lock:
+        with self._sync_scope:
             self._peer_phases[ch] = {
                 "phase": phase, "count": int(count), "name": name or "",
                 "direction": direction or "", "ts": now,
@@ -425,6 +440,7 @@ class CodeSyncManager:
         except Exception:
             pass
 
+    @serialized_method
     def get_sync_phase(self) -> Dict[str, Any]:
         """Aggregate per-channel phases into the single-badge shape the UI expects
         plus the full per-channel breakdown.
@@ -433,7 +449,7 @@ class CodeSyncManager:
         (pushing/receiving > retrying); "idle" if every channel is idle. Aggregate
         count = sum of counts over the non-idle channels (0 if none)."""
         now = time.time()
-        with self._sync_lock:
+        with self._sync_scope:
             # Prune here too (not only on write): a channel that goes idle and never
             # sees another phase event would otherwise linger forever and the UI
             # would show a phantom idle pill for a long-gone peer.
@@ -453,6 +469,7 @@ class CodeSyncManager:
             agg_count = 0
         return {"phase": agg_phase, "count": agg_count, "channels": channels}
 
+    @serialized_method
     def log_sync(self, action: str, file_path: str, reason: str = "",
                  details: str = "", size: int = 0, diff: int = 0,
                  peer: str = "", direction: str = "") -> None:
@@ -467,7 +484,7 @@ class CodeSyncManager:
                  "details": details, "size": int(size), "diff": int(diff),
                  "peer": peer or "", "direction": direction or "",
                  "timestamp": time.time()}
-        with self._sync_lock:
+        with self._sync_scope:
             self._sync_logs.append(entry)
             if len(self._sync_logs) > self._sync_log_max:
                 self._sync_logs = self._sync_logs[-self._sync_log_max:]
@@ -476,10 +493,11 @@ class CodeSyncManager:
         except Exception:
             pass
 
+    @serialized_method
     def get_sync_logs(self, limit: int = 100) -> dict:
         """Recent push/receive activity for the UI's log panel — the WS-push ring
         (dev 'sent' + client 'received'/'skipped'/'error'), newest last."""
-        with self._sync_lock:
+        with self._sync_scope:
             logs = list(self._sync_logs)
         return {"success": True, "role": self.role, "phase": self.get_sync_phase(),
                 "logs": logs[-int(limit or 100):]}
@@ -779,18 +797,23 @@ class CodeSyncManager:
         self.set_distributing(False)
 
 
-# Global singleton
-_code_sync_manager: Optional[CodeSyncManager] = None
-_manager_lock = threading.Lock()
+class _CodeSyncManagerProvider:
+    def __init__(self) -> None:
+        self._instance: Optional[CodeSyncManager] = None
+        init_serialized_owner(self, "codesync.manager_provider", "CodeSyncManagerProvider")
+
+    @serialized_method
+    def get(self) -> CodeSyncManager:
+        if self._instance is None:
+            self._instance = CodeSyncManager()
+        return self._instance
+
+
+_code_sync_manager_provider = _CodeSyncManagerProvider()
 
 
 def get_code_sync_manager() -> CodeSyncManager:
-    global _code_sync_manager
-    if _code_sync_manager is None:
-        with _manager_lock:
-            if _code_sync_manager is None:
-                _code_sync_manager = CodeSyncManager()
-    return _code_sync_manager
+    return _code_sync_manager_provider.get()
 
 
 # Preferred public alias.

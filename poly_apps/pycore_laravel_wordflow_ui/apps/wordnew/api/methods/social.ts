@@ -4,13 +4,12 @@
 import { wfNewEndpoints } from '../WfNewEndpoints';
 import { WfNewApiPaths } from '../WfNewApiPaths';
 import {
-  getJSON, authedGetJSON, postJSON, postMultipart, deleteJSON, authToken,
+  getJSON, authedGetJSON, postJSON, queryPostJSON, postMultipart, deleteJSON, authToken, unwrapEnvelope,
 } from '../WfNewApiTransport';
 import {
-  absUrl, toPost, toComment, toLive, toLiveMsg, toActor, toMessage, toNotification,
+  toPost, toComment, toLive, toLiveMsg, toMessage, toNotification,
   asArray, decorate, toWord, fetchGroups, logContentFallback, normPresence,
 } from '../WfNewApiMappers';
-import { unwrapEnvelope } from '../WfNewApiTransport';
 import type {
   WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity,
   WfNewDiscoverUser, WfNewFriendRequest, WfNewPublicUserProfile, WfNewConversation, WfNewMessage,
@@ -174,6 +173,32 @@ export const socialMethods = {
     };
   },
 
+  async updateSocialLocation(location: { latitude: number; longitude: number; accuracy?: number; visible?: boolean }): Promise<void> {
+    await postJSON<any>(WfNewApiPaths.socialLocation, {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      accuracy: location.accuracy,
+      visible: location.visible ?? true,
+    });
+  },
+
+  async disableSocialLocation(): Promise<void> {
+    await postJSON<any>(WfNewApiPaths.socialLocation, { visible: false });
+  },
+
+  async getNearbyUsers(radiusKm = 50, limit = 50): Promise<import('../types/social').WfNewNearbyUser[]> {
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialNearby(radiusKm, limit), null);
+    const rows = Array.isArray(res?.users) ? res.users : [];
+    return rows.map((user: any) => ({
+      id: Number(user?.id ?? 0),
+      nickname: user?.nickname ?? '',
+      avatar: user?.avatar ?? '',
+      native_language: user?.native_language ?? '',
+      learning_languages: Array.isArray(user?.learning_languages) ? user.learning_languages : [],
+      distance_km: Number(user?.distance_km ?? 0),
+    }));
+  },
+
   async getMessages(conversationId: number, cursor?: number | null): Promise<WfNewMessagePage> {
     const res = await authedGetJSON<any>(WfNewApiPaths.socialConversationMessages(conversationId, cursor), null);
     const rows = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
@@ -230,10 +255,7 @@ export const socialMethods = {
 
   // ---- Social Center: posts / comments / live ----
   async getPosts(opts: { cursor?: number | null; limit?: number; filter?: WfNewPostFilter; author?: number } = {}): Promise<WfNewPostPage> {
-    // PUBLIC read — getJSON (not authedGetJSON) so the plaza loads logged-out.
-    // `author` is passed through for the user-profile feed; if the backend ignores
-    // it the page client-side filters the returned items by author id as a fallback.
-    const res = await getJSON<any>(WfNewApiPaths.socialPosts(opts));
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialPosts(opts), null);
     const rows = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
     let items: WfNewPost[] = rows.map(toPost);
     if (opts.author != null) items = items.filter(p => p.author.id === opts.author);
@@ -241,7 +263,7 @@ export const socialMethods = {
   },
 
   async getPost(postId: number): Promise<WfNewPost> {
-    const res = await getJSON<any>(WfNewApiPaths.socialPost(postId));
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialPost(postId), null);
     return toPost(unwrapEnvelope(res) ?? res ?? {});
   },
 
@@ -272,7 +294,7 @@ export const socialMethods = {
   },
 
   async getComments(postId: number, cursor?: number | null): Promise<WfNewPostCommentPage> {
-    const res = await getJSON<any>(WfNewApiPaths.socialPostComments(postId, cursor));
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialPostComments(postId, cursor), null);
     const rows = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
     return { items: rows.map(toComment), next_cursor: res?.next_cursor != null ? Number(res.next_cursor) : null };
   },
@@ -301,7 +323,7 @@ export const socialMethods = {
   },
 
   async getLiveSessions(status: 'live' | 'all' = 'live'): Promise<WfNewLive[]> {
-    const res = await getJSON<any>(WfNewApiPaths.socialLive(status));
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialLive(status), null);
     const rows = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
     return rows.map(toLive);
   },
@@ -326,7 +348,7 @@ export const socialMethods = {
   },
 
   async getLiveChat(liveId: number, cursor?: number | null): Promise<WfNewLiveMsgPage> {
-    const res = await getJSON<any>(WfNewApiPaths.socialLiveChat(liveId, cursor));
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialLiveChat(liveId, cursor), null);
     const rows = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
     return { items: rows.map(toLiveMsg), next_cursor: res?.next_cursor != null ? Number(res.next_cursor) : null };
   },
@@ -420,7 +442,7 @@ export const socialMethods = {
     };
     if (opts?.unread_only) body.unread_only = true;
     if (opts?.limit != null && opts.limit > 0) body.limit = opts.limit;
-    const res = await postJSON<any>(WfNewApiPaths.groupGetWords, body);
+    const res = await queryPostJSON<any>(WfNewApiPaths.groupGetWords, body);
     const data = unwrapEnvelope(res) ?? {};
     return {
       words: asArray(data, 'words').map(toWord),
@@ -524,7 +546,7 @@ export const socialMethods = {
       // GET /ai_tools/tts/voices → data.voices = { lang: voice_id } (the Laravel
       // audio library). Flatten to the picker shape; never throw → [] on failure so
       // the Voice selector falls back to the browser's Web-Speech voice list.
-      const res = await authedGetJSON<any>(WfNewApiPaths.ttsVoices, null);
+      const res = await getJSON<any>(WfNewApiPaths.ttsVoices);
       const map = (res && typeof res === 'object') ? (res.voices ?? res) : null;
       if (!map || typeof map !== 'object') return [];
       return Object.entries<any>(map)

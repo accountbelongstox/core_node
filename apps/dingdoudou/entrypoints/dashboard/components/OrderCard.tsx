@@ -6,6 +6,7 @@
 import React from 'react';
 import { Order } from '@/lib/types';
 import { i18n, Language } from '../i18n';
+import { orderCardText } from '@/lib/uiI18n';
 import {
   Copy, ExternalLink, RefreshCw, MessageSquare, FileText,
   ShoppingBag, Truck, MapPin, User, Phone, Tag, Calendar,
@@ -37,6 +38,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 }) => {
 
   const t = i18n[lang];
+  const ui = orderCardText(lang);
 
   // Map status strings to translated values
   const translatedStatus = t[order.status] || order.status;
@@ -144,10 +146,10 @@ Logistics: ${order.expressCompany || 'None'} Tracking: ${order.expressNumber || 
 
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
               <span className="bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded border border-black/5 dark:border-white/5">
-                {lang === 'zh' ? '规格' : 'Spec'}: {order.specName}
+                {ui.spec}: {order.specName}
               </span>
-              <span>{lang === 'zh' ? '数量' : 'Qty'}: <strong className="text-slate-700 dark:text-slate-200">{order.quantity}</strong></span>
-              <span>{lang === 'zh' ? '单价' : 'Price'}: <strong className="text-slate-700 dark:text-slate-200">¥{order.unitPrice}</strong></span>
+              <span>{ui.quantity}: <strong className="text-slate-700 dark:text-slate-200">{order.quantity}</strong></span>
+              <span>{ui.price}: <strong className="text-slate-700 dark:text-slate-200">¥{order.unitPrice}</strong></span>
             </div>
 
             <div className="text-[10px] text-slate-500 font-mono space-y-0.5">
@@ -214,17 +216,17 @@ Logistics: ${order.expressCompany || 'None'} Tracking: ${order.expressNumber || 
                       {order.expressNumber}
                     </span>
                   </span>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-500 font-mono">{lang === 'zh' ? '发货' : 'Shipped'}: {order.shippingTime}</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-500 font-mono">{ui.shipped}: {order.shippingTime}</span>
                 </div>
                 <p className="text-[11px] text-blue-600 dark:text-blue-400 leading-relaxed font-semibold font-sans line-clamp-1">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 mr-1 animate-ping" />
-                  {t.lastTrackPrefix}: {order.latestTrack || (lang === 'zh' ? '快递正在派件' : 'In Transit')}
+                  {t.lastTrackPrefix}: {order.latestTrack || ui.inTransit}
                 </p>
               </div>
             ) : (
               <div className="text-center py-2 border border-dashed border-black/10 dark:border-white/10 rounded-lg bg-black/[0.02] dark:bg-white/5">
                 <p className="text-xs text-slate-500 dark:text-slate-450 font-medium font-sans">
-                  {lang === 'zh' ? '暂无物流单号 / 等待商家打单发货' : 'Awaiting Tracking Number / Pending Merchant Dispatch'}
+                  {ui.noTracking}
                 </p>
               </div>
             )}

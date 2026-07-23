@@ -20,16 +20,15 @@ PYTHON="python3"
 FORCE=0
 DO_FULL=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../../.." && pwd)"
-TARGET_DIR="${BARK_DIR:-$CORE_NODE_CACHE_DIR/pycore/bark}"
+CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
+CACHE_ROOT="${CORE_NODE_CACHE_DIR:-$CORE_NODE_ROOT/.cache}"
+TARGET_DIR="${BARK_DIR:-$CACHE_ROOT/pycore/bark}"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 WEIGHTS_DIR="$TARGET_DIR/weights"
 MODEL_SENTINEL="$TARGET_DIR/.model_installed"
 WEIGHT_ALLOW="pytorch_model.bin,config.json,generation_config.json,tokenizer.json,tokenizer_config.json,special_tokens_map.json,vocab.txt,speaker_embeddings_path.json,speaker_embeddings/*.npy,speaker_embeddings/v2/*.npy"
-# Shared Bucket-A transformers pin (single source of truth: common/common_functions.sh).
-# Repeated here as an env-overridable default so a standalone bark run still honors the
-# pin that deepseek/qwen25/nllb share; the runner may also export it.
-LLM_TRANSFORMERS_SPEC="${LLM_TRANSFORMERS_SPEC:-transformers==4.46.3}"
+# Shared Bucket-A transformers pin is loaded by common_functions.sh.
+LLM_TRANSFORMERS_SPEC="${LLM_TRANSFORMERS_SPEC:-${AI_SHARED_TRANSFORMERS_SPEC:-transformers}}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -64,19 +63,19 @@ echo "============================================================"
 echo " [install_bark] Bark (Suno / transformers)"
 echo "============================================================"
 
-[[ "${BARK_SKIP:-0}" == "1" ]] && { echo "[install_bark] [i] BARK_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_bark] " transformers; }
-if [[ -f "$DEPS_SENTINEL" && "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]]; then
+[[ "${BARK_SKIP:-0}" == "1" ]] && { echo "[install_bark] [i] BARK_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_bark] " --absent-ok "BARK_SKIP=1" transformers; }
+if tts_dependencies_ready "$PYTHON" "bark" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "Bark already installed"
     complete_prereq_step "$PYTHON" "[install_bark] " transformers
 fi
 if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 ]]; then
     echo "[install_bark] [i] opt-in only. Pass --full, BARK_INSTALL=1, or NEURAL_TTS_INSTALL=1."
-    complete_prereq_step "$PYTHON" "[install_bark] " transformers
+    complete_prereq_step "$PYTHON" "[install_bark] " --absent-ok "opt-in" transformers
 fi
 
 if ! PYTHON="$(resolve_python)"; then
     echo "[install_bark] [!] Python 3 not found."
-    complete_prereq_step "$PYTHON" "[install_bark] " transformers
+    fail_prereq_step "$PYTHON" "[install_bark] " transformers
 fi
 
 mkdir -p "$TARGET_DIR"
@@ -92,7 +91,7 @@ echo "[install_bark]  compute : $(gpu_present && echo 'CUDA GPU' || echo 'CPU on
 echo "[install_bark]  model   : $_bark_model"
 echo "[install_bark]  sentinel: $MODEL_SENTINEL ($([ -f "$MODEL_SENTINEL" ] && echo present || echo absent))"
 
-if [[ -f "$DEPS_SENTINEL" && "$FORCE" -eq 0 ]]; then
+if tts_dependencies_ready "$PYTHON" "bark" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "dependencies already installed (.deps_done)"
 else
     install_pycore_torch_stack "$PYTHON" "[install_bark] "
@@ -100,14 +99,18 @@ else
     # --upgrade (that clobbers the pin the deepseek/qwen25/nllb stack shares in this
     # interpreter). Install only when missing; matches 98_install_qwen25.sh. scipy +
     # accelerate ride along.
-    if "$PYTHON" -c "import transformers, scipy, accelerate" >/dev/null 2>&1; then
+    if shared_transformers_matches_from_common_functions "$PYTHON" && "$PYTHON" -c "import scipy, accelerate" >/dev/null 2>&1; then
         echo "[install_bark] [OK] transformers/scipy/accelerate already present; keeping the shared pin."
     else
         echo "[install_bark] [..] pip install $LLM_TRANSFORMERS_SPEC scipy accelerate ..."
         pip_i "$LLM_TRANSFORMERS_SPEC" scipy accelerate || true
     fi
-    date -u +%Y-%m-%dT%H:%M:%SZ > "$DEPS_SENTINEL"
-    echo "[install_bark] [OK] dependencies installed."
+    if tts_engine_health_ok "$PYTHON" "bark" && tts_write_dependency_stamp "$PYTHON" "bark" "$DEPS_SENTINEL"; then
+        echo "[install_bark] [OK] dependencies installed."
+    else
+        echo "[install_bark] [!] dependencies are incomplete; retrying next run." >&2
+        fail_prereq_step "$PYTHON" "[install_bark] " transformers
+    fi
 fi
 
 # --- HF weights (IDEMPOTENT: sentinel + curl resume + HF size verification) --- #
@@ -129,10 +132,16 @@ if [[ "$_model_ready" -eq 0 ]]; then
     echo "[install_bark] [..] downloading/repairing model '$_bark_model' (curl, resumable) ..."
     if install_hf_repo_flat "$_bark_model" "$WEIGHTS_DIR" "$MODEL_SENTINEL" "[install_bark] " "$WEIGHT_ALLOW" "" "$_bark_model" \
        && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_bark_model" "$PYTHON"; then
+        _model_ready=1
         echo "[install_bark] [OK] model '$_bark_model' ready at $WEIGHTS_DIR."
     else
         echo "[install_bark] [!] model download not finished; partial files kept at $WEIGHTS_DIR; will RESUME next run."
+        fail_prereq_step "$PYTHON" "[install_bark] " transformers
     fi
+fi
+
+if [[ "$_model_ready" -ne 1 ]]; then
+    fail_prereq_step "$PYTHON" "[install_bark] " transformers
 fi
 
 echo "[install_bark] [OK] Bark ready. Weights pre-downloaded (idempotent); engine auto-detects local."

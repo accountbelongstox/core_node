@@ -16,6 +16,7 @@ from typing import Optional, Callable, AsyncGenerator
 from dataclasses import dataclass
 
 from pycore.pyutils.device import ScrcpyDevice
+from pycore.pyfoundations.serialized_worker import await_bus_task
 
 # Import FMP4Encoder at module level
 FMP4EncoderComplete = None
@@ -156,7 +157,7 @@ class VideoStreamHandler:
 
         while self._running:
             # Read H.264 frame from device (returns dict with metadata)
-            frame = await asyncio.to_thread(self.device.read_video_frame)
+            frame = await await_bus_task(self.device.read_video_frame)
 
             if not frame:
                 # Connection closed
@@ -200,7 +201,7 @@ class VideoStreamHandler:
 
         while self._running:
             # Read H.264 frame from device (returns dict with metadata)
-            frame = await asyncio.to_thread(self.device.read_video_frame)
+            frame = await await_bus_task(self.device.read_video_frame)
 
             if not frame:
                 # Connection closed
@@ -254,7 +255,7 @@ class VideoStreamHandler:
         attempts = 0
 
         while (not sps or not pps) and attempts < max_attempts:
-            frame_data = await asyncio.to_thread(self.device.read_video_frame)
+            frame_data = await await_bus_task(self.device.read_video_frame)
             if not frame_data:
                 raise RuntimeError("Failed to read configuration from stream")
 

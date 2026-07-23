@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Agent History -> raw batches -> OpenRouter article -> local TTS -> Laravel."""
+"""Agent History -> raw batches -> OpenRouter CN article -> local-LLM EN translation -> TTS -> cache + Laravel."""
 
 from __future__ import annotations
 
@@ -7,17 +7,18 @@ import base64
 import json
 import re
 import tempfile
-import threading
 import time
 import uuid
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.system_paths import get_user_data_store
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
+from pycore.callmodule.services import agent_history_article_records as records
 from pycore.pyctl.agent_history.agent_history_fragments import (
     build_raw_batches,
     collect_fragments,
@@ -26,6 +27,7 @@ from pycore.pyctl.agent_history.agent_history_fragments import (
 )
 from pycore.pyctl.ai import generate_text
 from pycore.pyctl.ai.ai_rate_limits import rate_status
+from pycore.pyutils.llm.llm_orchestrator import chat as llm_orchestrator_chat
 from pycore.pyutils.tts import synthesize
 from pycore.callmodule.services.sync.laravel_endpoint_manager import get_laravel_endpoint_manager
 
@@ -33,6 +35,9 @@ _SECTION = "agent_history_article"
 _DEFAULT_MODEL = "openrouter/free"
 _JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 _LOG_RING_MAX = 120
+# Consecutive failures of the SAME batch before it is skipped (deterministic
+# failures must not retry forever, silently).
+_MAX_BATCH_ATTEMPTS = 5
 # Target-language code -> TTS orchestrator language code (edge-tts voices).
 _TTS_LANG_MAP = {
     "EN": "en", "CN": "zh", "JA": "ja", "KO": "ko", "FR": "fr", "DE": "de",
@@ -40,13 +45,55 @@ _TTS_LANG_MAP = {
     "VI": "vi", "HI": "hi", "NL": "nl", "PL": "pl", "TR": "tr", "ID": "id",
 }
 
-_service: Optional["AgentHistoryArticleService"] = None
-_lock = threading.Lock()
-_run_lock = threading.Lock()
+class _RunGate:
+    """Own the pipeline run token on one THREAD_BUS-backed state thread."""
+
+    def __init__(self) -> None:
+        self._token: Optional[object] = None
+        init_serialized_owner(self, "agent_history.run_gate", "AgentHistoryRunGate")
+
+    @serialized_method
+    def acquire(self) -> Optional[object]:
+        if self._token is not None:
+            return None
+        self._token = object()
+        return self._token
+
+    @serialized_method
+    def release(self, token: object) -> None:
+        if self._token is token:
+            self._token = None
+
+
+class _ArticleServiceProvider:
+    """Create and return the process singleton through THREAD_BUS."""
+
+    def __init__(self) -> None:
+        self._service: Optional["AgentHistoryArticleService"] = None
+        init_serialized_owner(self, "agent_history.provider", "AgentHistoryProvider")
+
+    @serialized_method
+    def get(self) -> "AgentHistoryArticleService":
+        if self._service is None:
+            self._service = AgentHistoryArticleService()
+        return self._service
+
+
+_run_gate = _RunGate()
+_service_provider = _ArticleServiceProvider()
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _try_acquire_run() -> Optional[object]:
+    """Acquire the pipeline run token through THREAD_BUS."""
+    return _run_gate.acquire()
+
+
+def _release_run(token: object) -> None:
+    _run_gate.release(token)
 
 
 def _default_config() -> Dict[str, Any]:
@@ -64,6 +111,7 @@ def _default_config() -> Dict[str, Any]:
             "after_ts": 0,
             "after_fragment_id": "",
             "raw_index": 0,
+            "attempts": 0,
         },
         "last_error": None,
         "last_run_at": None,
@@ -116,15 +164,22 @@ class AgentHistoryArticleService:
         cfg = self.get_config()
         for key in (
             "enabled", "extract_as_article", "reference_lang", "target_lang",
-            "min_raw_words", "openrouter_model", "live_listen", "phase",
+            "min_raw_words", "openrouter_model",
+            "live_listen", "phase",
         ):
             if key in patch:
                 cfg[key] = patch[key]
         if patch.get("enabled") is True:
+            # ON toggle = master switch: the next heartbeat tick runs the full
+            # pipeline automatically (backfill -> live), no manual start call.
             cfg["extract_as_article"] = True
-        if cfg.get("extract_as_article") and cfg.get("phase") == "idle":
-            cfg["phase"] = "backfill"
-            cfg["live_listen"] = True
+            if cfg.get("phase") == "idle":
+                cfg["phase"] = "backfill"
+                cfg["live_listen"] = True
+            elif cfg.get("phase") == "done":
+                cfg["phase"] = "live"
+                cfg["live_listen"] = True
+            self._log("info", "pipeline enabled (auto backfill -> live)")
         get_user_data_store().set_section(_SECTION, cfg)
         return cfg
 
@@ -186,29 +241,40 @@ class AgentHistoryArticleService:
         }
 
     def start_backfill(self) -> Dict[str, Any]:
-        """Queue historical backfill; heartbeat tick processes one batch per pass."""
-        if not _run_lock.acquire(blocking=False):
+        """Explicit backfill RESTART: resets the cursor and reprocesses all
+        history from the beginning; heartbeat tick processes one batch per pass."""
+        token = _try_acquire_run()  # rule §4: busy-token, no lock
+        if token is None:
             return {"busy": True, **self.get_status()}
         try:
-            cfg = self.save_config({
+            self.save_config({
                 "enabled": True,
                 "extract_as_article": True,
                 "phase": "backfill",
                 "live_listen": True,
             })
+            cfg = self.get_config()
+            cfg["cursor"] = {
+                "fragment_index": 0,
+                "after_ts": 0,
+                "after_fragment_id": "",
+                "raw_index": 0,
+                "attempts": 0,
+            }
+            get_user_data_store().set_section(_SECTION, cfg)
             # Don't force a full re-extract inline (it blocks this request on a
             # user-dir walk); the heartbeat tick extracts continuously. Read the
             # already-extracted fragments to report the pending count + seed cache.
             pending = len(collect_fragments())
             self._set_pending_cache(pending)
-            self._log("info", f"pipeline started: backfill ({pending} fragments pending)")
+            self._log("info", f"pipeline restarted: backfill ({pending} fragments pending)")
             return {
                 "started": True,
                 "phase": cfg.get("phase"),
                 "pending_fragments": pending,
             }
         finally:
-            _run_lock.release()
+            _release_run(token)
 
     def tick_pipeline(self) -> Optional[Dict[str, Any]]:
         """Process at most one raw batch per heartbeat (backfill then live)."""
@@ -216,46 +282,59 @@ class AgentHistoryArticleService:
         if not cfg.get("enabled") or not cfg.get("extract_as_article"):
             return None
         phase = str(cfg.get("phase") or "idle")
+        if phase == "idle":
+            # Master switch on but never kicked (e.g. enabled in a stored config
+            # from before the ON-toggle auto-start): begin backfill right away.
+            cfg["phase"] = "backfill"
+            get_user_data_store().set_section(_SECTION, cfg)
+            phase = "backfill"
         if phase not in ("backfill", "live", "done"):
             return None
-        if not _run_lock.acquire(blocking=False):
+        token = _try_acquire_run()  # rule §4: busy-token, no lock
+        if token is None:
             return None
         try:
             cfg = self.get_config()
+            self._retry_pending_uploads(cfg)
             phase = str(cfg.get("phase") or "idle")
             if phase == "backfill":
                 return self._tick_backfill_batch(cfg)
-            if phase in ("live", "done"):
+            if phase == "live" or (phase == "done" and cfg.get("live_listen")):
                 return self._tick_live_batch(cfg)
             return None
         finally:
-            _run_lock.release()
+            _release_run(token)
 
     def tick_live(self) -> Optional[Dict[str, Any]]:
         return self.tick_pipeline()
 
     def _tick_backfill_batch(self, cfg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        frags = collect_fragments()
+        cursor = cfg.get("cursor") or {}
+        frags = collect_fragments(
+            after_ts=int(cursor.get("after_ts") or 0),
+            after_fragment_id=str(cursor.get("after_fragment_id") or ""),
+        )
         self._set_pending_cache(len(frags))
         min_words = int(cfg.get("min_raw_words") or 200)
-        start_idx = int((cfg.get("cursor") or {}).get("fragment_index") or 0)
-        batches, next_idx = build_raw_batches(frags, min_words=min_words, start_index=start_idx)
-        raw_start = int((cfg.get("cursor") or {}).get("raw_index") or 0)
-        for i, batch in enumerate(batches):
-            if i < raw_start:
-                continue
+        batches, _ = build_raw_batches(frags, min_words=min_words, start_index=0)
+        if batches:
+            batch = batches[0]
+            batch_number = int(cursor.get("raw_index") or 0) + 1
+            next_idx = int(cursor.get("fragment_index") or 0) + int(batch.get("fragment_count") or 0)
+            consumed_all = int(batch.get("next_fragment_index") or 0) >= len(frags)
             self._log(
                 "info",
-                f"backfill batch #{i + 1}: raw={batch.get('word_count')} words, "
+                f"backfill batch #{batch_number}: raw={batch.get('word_count')} words, "
                 f"{batch.get('fragment_count')} fragments",
             )
             try:
                 published = self._publish_batch(cfg, batch, live=False)
                 cfg = self.get_config()
-                cfg["cursor"]["raw_index"] = i + 1
+                cfg["cursor"]["raw_index"] = batch_number
                 cfg["cursor"]["fragment_index"] = next_idx
+                cfg["cursor"]["attempts"] = 0
                 cfg["last_run_at"] = _now_iso()
-                if i + 1 >= len(batches):
+                if consumed_all:
                     cfg["phase"] = "live" if cfg.get("live_listen", True) else "done"
                     self._log("success", "backfill complete -> live listen")
                 get_user_data_store().set_section(_SECTION, cfg)
@@ -264,8 +343,30 @@ class AgentHistoryArticleService:
                 err = str(e)
                 cfg = self.get_config()
                 cfg["last_error"] = err
+                attempts = int(cfg["cursor"].get("attempts") or 0) + 1
+                cfg["cursor"]["attempts"] = attempts
+                if attempts >= _MAX_BATCH_ATTEMPTS:
+                    # Deterministic failure: skip the batch (advance like
+                    # success) instead of retrying it forever, silently.
+                    cfg["cursor"]["raw_index"] = batch_number
+                    cfg["cursor"]["fragment_index"] = next_idx
+                    cfg["cursor"]["after_ts"] = int(batch.get("last_ts") or 0)
+                    cfg["cursor"]["after_fragment_id"] = str(batch.get("last_fragment_id") or "")
+                    cfg["cursor"]["attempts"] = 0
+                    if consumed_all:
+                        cfg["phase"] = "live" if cfg.get("live_listen", True) else "done"
+                    self._log(
+                        "error",
+                        f"backfill batch #{batch_number} skipped after {attempts} "
+                        f"failed attempts: {err}",
+                        event="batch_skipped", error=err,
+                    )
+                else:
+                    self._log(
+                        "error",
+                        f"backfill batch failed (attempt {attempts}/{_MAX_BATCH_ATTEMPTS}): {err}",
+                    )
                 get_user_data_store().set_section(_SECTION, cfg)
-                self._log("error", f"backfill batch failed: {err}")
                 ColorPrint.red(f"[AgentHistoryArticle] backfill batch failed: {e}")
                 return None
         cfg = self.get_config()
@@ -293,14 +394,33 @@ class AgentHistoryArticleService:
             published = self._publish_batch(cfg, batches[0], live=True)
             cfg = self.get_config()
             cfg["phase"] = "live"
+            cfg["cursor"]["attempts"] = 0
             cfg["last_run_at"] = _now_iso()
             get_user_data_store().set_section(_SECTION, cfg)
             return published
         except Exception as e:  # noqa: BLE001
             cfg = self.get_config()
-            cfg["last_error"] = str(e)
+            err = str(e)
+            cfg["last_error"] = err
+            attempts = int(cfg["cursor"].get("attempts") or 0) + 1
+            cfg["cursor"]["attempts"] = attempts
+            if attempts >= _MAX_BATCH_ATTEMPTS:
+                batch = batches[0]
+                cfg["cursor"]["after_ts"] = int(batch.get("last_ts") or 0)
+                cfg["cursor"]["after_fragment_id"] = str(batch.get("last_fragment_id") or "")
+                cfg["cursor"]["attempts"] = 0
+                self._log(
+                    "error",
+                    f"live batch skipped after {attempts} failed attempts: {err}",
+                    event="batch_skipped",
+                    error=err,
+                )
+            else:
+                self._log(
+                    "error",
+                    f"live batch failed (attempt {attempts}/{_MAX_BATCH_ATTEMPTS}): {err}",
+                )
             get_user_data_store().set_section(_SECTION, cfg)
-            self._log("error", f"live batch failed: {e}")
             ColorPrint.yellow(f"[AgentHistoryArticle] live batch failed: {e}")
             return None
 
@@ -313,15 +433,38 @@ class AgentHistoryArticleService:
         self._log("info", f"raw built: {raw_words} words (min {min_words})", live=live)
         article = self._generate_article(cfg, raw_text)
         audio = self._synthesize_article(cfg, str(article.get("article_en") or ""))
-        laravel = self._upload_laravel(cfg, article, audio, raw_text)
-        row = {
+        record = records.save_record({
             "id": str(uuid.uuid4()),
+            "created_at": _now_iso(),
+            "title_cn": article.get("title_cn"),
+            "title_en": article.get("title_en"),
+            "reference_cn": article.get("reference_cn"),
+            "article_en": article.get("article_en"),
+            "word_count": article.get("word_count"),
+            "openrouter_model": article.get("model"),
+            "translation_engine": article.get("translation_engine"),
+        }, base64.b64decode(audio["audio_base64"]))
+        # Upload is best-effort: a Laravel outage must never stall the pipeline.
+        # Failed records stay uploaded=false and are retried on later ticks.
+        laravel: Dict[str, Any] = {}
+        try:
+            laravel = self._upload_laravel(cfg, article, audio, raw_text)
+            records.mark_uploaded(record["id"])
+            record["uploaded"] = True
+        except Exception as e:  # noqa: BLE001
+            self._log("warn", f"laravel upload deferred (will retry): {e}")
+            ColorPrint.yellow(f"[AgentHistoryArticle] upload deferred for {record['id']}: {e}")
+        row = {
+            "id": record["id"],
+            "record_id": record["id"],
             "title_en": article.get("title_en"),
             "title_cn": article.get("title_cn"),
             "reference_cn": article.get("reference_cn"),
             "article_en": article.get("article_en"),
             "word_count": article.get("word_count"),
             "raw_word_count": batch.get("word_count"),
+            "translation_engine": article.get("translation_engine"),
+            "uploaded": bool(record.get("uploaded")),
             "live": live,
             "article_id": laravel.get("article_id"),
             "source_key": laravel.get("source_key"),
@@ -348,51 +491,116 @@ class AgentHistoryArticleService:
         return row
 
     @staticmethod
-    def _article_prompt(cfg: Dict[str, Any], raw_text: str) -> str:
+    def _article_prompt_cn(cfg: Dict[str, Any], raw_text: str) -> str:
         ref = str(cfg.get("reference_lang") or "CN").upper()
-        tgt = str(cfg.get("target_lang") or "EN").upper()
         return (
-            f"You are a language-learning editor. Reference language: {ref}. Target language: {tgt}.\n"
-            "Using ONLY the RAW material below, write one coherent short article in fluent English.\n"
+            f"You are a language-learning editor. Reference language: {ref}.\n"
+            "Using ONLY the RAW material below, write one coherent short article in fluent Chinese.\n"
             "Rules:\n"
             "1. Preserve factual meaning from the raw fragments; do not invent unrelated topics.\n"
-            "2. The English article must be at least 180 words.\n"
-            "3. Include a concise Chinese reference summary in reference_cn.\n"
+            "2. The Chinese article body goes in reference_cn (at least 150 characters).\n"
             "Return ONLY JSON (no markdown) shaped exactly:\n"
-            '{"title_cn": string, "title_en": string, "reference_cn": string, '
-            '"article_en": string, "word_count": number}\n\n'
+            '{"title_cn": string, "reference_cn": string}\n\n'
             f"RAW:\n{raw_text}"
         )
 
-    def _generate_article(self, cfg: Dict[str, Any], raw_text: str) -> Dict[str, Any]:
-        model = str(cfg.get("openrouter_model") or _DEFAULT_MODEL)
-        self._log("info", f"AI generate start (openrouter: {model})")
+    @staticmethod
+    def _translate_prompt(article_cn: Dict[str, Any]) -> str:
+        return (
+            "Translate the following Chinese article into fluent English.\n"
+            "Rules:\n"
+            "1. The English article in article_en must be at least 180 words.\n"
+            "2. Preserve the factual meaning; do not add unrelated content.\n"
+            "Return ONLY JSON (no markdown) shaped exactly:\n"
+            '{"title_en": string, "article_en": string}\n\n'
+            f"TITLE_CN: {article_cn.get('title_cn') or ''}\n"
+            f"ARTICLE_CN:\n{article_cn.get('reference_cn') or ''}"
+        )
+
+    @staticmethod
+    def _parse_json_obj(text: str) -> Dict[str, Any]:
+        match = _JSON_OBJ_RE.search(text or "")
+        data = json.loads(match.group(0) if match else text)
+        if not isinstance(data, dict):
+            raise ValueError("model returned non-object JSON")
+        return data
+
+    def _generate_chinese(self, cfg: Dict[str, Any], raw_text: str, model: str) -> Dict[str, Any]:
+        self._log("info", f"AI generate CN start (openrouter: {model})")
         res = generate_text(
-            prompt=self._article_prompt(cfg, raw_text),
+            prompt=self._article_prompt_cn(cfg, raw_text),
             provider="openrouter",
             model=model,
             source="agent_history_article",
         ) or {}
         if not res.get("success"):
             err = str(res.get("error") or "article generation failed")
-            self._log("error", f"AI generate failed: {err}")
+            self._log("error", f"AI generate CN failed: {err}")
             raise RuntimeError(err)
-        text = str(res.get("text") or "")
-        match = _JSON_OBJ_RE.search(text)
-        blob = match.group(0) if match else text
-        data = json.loads(blob)
-        if not isinstance(data, dict):
-            raise ValueError("article model returned non-object JSON")
-        article_en = sanitize_fragment_text(str(data.get("article_en") or ""))
+        data = self._parse_json_obj(str(res.get("text") or ""))
+        reference_cn = sanitize_fragment_text(str(data.get("reference_cn") or ""))
+        if len(reference_cn) < 80:
+            raise ValueError("generated Chinese article too short")
+        data["reference_cn"] = reference_cn
+        data["title_cn"] = str(data.get("title_cn") or "").strip()
+        self._log("success", f"AI CN ok: {len(reference_cn)} chars ({res.get('provider')}/{res.get('model') or model})")
+        return data
+
+    def _translate_article(
+        self,
+        cfg: Dict[str, Any],
+        article_cn: Dict[str, Any],
+        model: str,
+    ) -> Tuple[Dict[str, Any], str]:
+        """Local LLM translates CN -> EN; falls back to OpenRouter on failure."""
+        prompt = self._translate_prompt(article_cn)
+        messages = [{"role": "user", "content": prompt}]
+        self._log("info", "translate start (built-in local engine priority)")
+        res = llm_orchestrator_chat(messages)
+        if res.get("success"):
+            try:
+                used_engine = str(res.get("engine") or "direct")
+                self._log("success", f"translate ok (local: {used_engine})")
+                return self._parse_json_obj(str(res.get("text") or "")), f"local:{used_engine}"
+            except (ValueError, json.JSONDecodeError) as e:
+                self._log("warn", f"local translation unparseable, fallback to openrouter: {e}")
+        else:
+            self._log("warn", f"local translation failed ({res.get('error')}), fallback to openrouter")
+            ColorPrint.yellow(f"[AgentHistoryArticle] local LLM translate failed: {res.get('error')}")
+        res = generate_text(
+            prompt=prompt,
+            provider="openrouter",
+            model=model,
+            source="agent_history_translate",
+        ) or {}
+        if not res.get("success"):
+            err = str(res.get("error") or "translation failed")
+            self._log("error", f"translate failed (openrouter fallback): {err}")
+            raise RuntimeError(err)
+        data = self._parse_json_obj(str(res.get("text") or ""))
+        self._log("success", "translate ok (openrouter fallback)")
+        return data, "openrouter-fallback"
+
+    def _generate_article(self, cfg: Dict[str, Any], raw_text: str) -> Dict[str, Any]:
+        model = str(cfg.get("openrouter_model") or _DEFAULT_MODEL)
+        article_cn = self._generate_chinese(cfg, raw_text, model)
+        translated, engine = self._translate_article(cfg, article_cn, model)
+        article_en = sanitize_fragment_text(str(translated.get("article_en") or ""))
         if count_words(article_en) < 120:
-            raise ValueError("generated article too short")
-        data["article_en"] = article_en
-        data["word_count"] = count_words(article_en)
-        data["provider"] = res.get("provider")
-        data["model"] = res.get("model") or model
+            raise ValueError("translated article too short")
+        data = {
+            "title_cn": article_cn.get("title_cn"),
+            "reference_cn": article_cn.get("reference_cn"),
+            "title_en": str(translated.get("title_en") or "").strip() or article_cn.get("title_cn"),
+            "article_en": article_en,
+            "word_count": count_words(article_en),
+            "provider": "openrouter",
+            "model": model,
+            "translation_engine": engine,
+        }
         self._log(
             "success",
-            f"AI ok: article={data['word_count']} words ({data.get('provider')}/{data.get('model')})",
+            f"AI ok: article={data['word_count']} words (translate: {engine})",
         )
         return data
 
@@ -406,7 +614,13 @@ class AgentHistoryArticleService:
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
             out = Path(tmp.name)
         try:
-            result = synthesize(clean, tts_lang, out, accent=accent)
+            result = synthesize(
+                clean,
+                tts_lang,
+                out,
+                accent=accent,
+                priority_profile="default",
+            )
             if not result.get("success") or not out.is_file():
                 err = str(result.get("error") or "TTS failed")
                 self._log("error", f"TTS failed: {err}")
@@ -428,6 +642,32 @@ class AgentHistoryArticleService:
             except OSError:
                 pass
 
+    def _retry_pending_uploads(self, cfg: Dict[str, Any]) -> None:
+        """Re-upload cached records whose Laravel upload previously failed."""
+        pending = records.pending_uploads()
+        if not pending:
+            return
+        for rec in pending[:3]:
+            audio_bytes = records.read_audio(str(rec.get("id") or ""))
+            if audio_bytes is None:
+                continue
+            article = {
+                "title_en": rec.get("title_en"),
+                "title_cn": rec.get("title_cn"),
+                "reference_cn": rec.get("reference_cn"),
+                "article_en": rec.get("article_en"),
+                "model": rec.get("openrouter_model"),
+            }
+            audio = {"audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
+                     "engine": None, "accent": None}
+            try:
+                self._upload_laravel(cfg, article, audio, "")
+                records.mark_uploaded(str(rec["id"]))
+                self._log("success", f"pending upload ok: {rec.get('title_en') or rec['id']}")
+            except Exception as e:  # noqa: BLE001
+                self._log("warn", f"pending upload retry failed: {e}")
+                break
+
     def _upload_laravel(
         self,
         cfg: Dict[str, Any],
@@ -435,8 +675,6 @@ class AgentHistoryArticleService:
         audio: Dict[str, Any],
         raw_text: str,
     ) -> Dict[str, Any]:
-        if requests is None:
-            raise RuntimeError("requests unavailable")
         base = get_laravel_endpoint_manager().resolve()
         if not base:
             raise RuntimeError("Laravel endpoint unreachable")
@@ -483,9 +721,4 @@ class AgentHistoryArticleService:
 
 
 def get_agent_history_article_service() -> AgentHistoryArticleService:
-    global _service
-    if _service is None:
-        with _lock:
-            if _service is None:
-                _service = AgentHistoryArticleService()
-    return _service
+    return _service_provider.get()

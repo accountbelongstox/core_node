@@ -17,6 +17,7 @@ import type {
   AiImageResponse, ImageHistoryResponse, ImageHistoryClearResponse, ImageHistoryDeleteResponse,
   AiKeysResponse, AiKeySetRequest, AiKeySetResponse, AiKeyDeleteResponse, AiKeyResetCooldownResponse,
   OcrStatus, OcrTestResponse, TtsStatus, TtsSettings, TtsServerActionResponse, TtsTestResponse, SttStatus, SttTestResponse, EnginesLoadStatusResponse, SpeechHistoryResponse, RevealResponse, CapabilityStatus, SystemInfo, OpenDirResponse,
+  LlmStatus, LlmTestResponse, LlmServerActionResponse,
   TranslationQueueResponse, TranslationQueueActionResponse,
   LocalTaskDetailResponse, PycoreGlobalTaskDetailResponse,
   AssistStatus, AssistConfigPatch, AssistConfigResponse, AssistCycleResponse,
@@ -32,10 +33,12 @@ import type {
   WordAudioStatus, WordAudioTestResponse,
   TranslateHistoryResponse, TranslateHistoryDeleteResponse, TranslateHistoryClearResponse,
   AgentHistoryIndexResponse, AgentHistoryPromptsResponse, AgentHistorySessionResponse,
+  AgentHistoryArticleRecordsResponse,
   PcQueueOverview, PcCapabilitySettings, PcCapabilityKey,
-  PcTaskCenterResponse,
+  PcTaskCenterResponse, QueueCenterSnapshot, QueueCenterControlName,
   PcCapabilitySaveResponse, PcCapabilityOptions,
-  PcTaskRecentResponse, PcTaskClearResponse,
+  PcTaskRecentResponse, PcTaskClearResponse, PcCompletedTaskArchiveResponse,
+  PcCompletedTaskSyncResponse,
   DictionaryStatus, DictionaryEntry, SentenceAudioAutoStatus, SentenceAudioQueueSnapshot,
   SentenceVoiceVariant,
   QueueBumpsSnapshot, WordTtsAutoStatus,
@@ -975,6 +978,15 @@ export const pycoreApi = {
   postTtsServer: (req: { engine: string; enabled?: boolean; start?: boolean }) =>
     postJSON<TtsServerActionResponse>('/api/local/tts/server', req, 0),
 
+  // --- Local LLM engines (article pipeline): status / test / server control -- #
+  getLlmStatus: () => getJSON<LlmStatus>('/api/local/llm/status'),
+
+  testLlmEngine: (req: { engine?: string }) =>
+    postJSON<LlmTestResponse>('/api/local/llm/test', req, 0, true),
+
+  controlLlmServer: (req: { engine: string; enabled?: boolean; start?: boolean }) =>
+    postJSON<LlmServerActionResponse>('/api/local/llm/server', req, 0),
+
   // --- TTS live per-engine synth test (actually runs the engine) ----------- #
   // Always over WS (no HTTP fallback). Accepts per-engine extra params
   // (speaker, instruct, gender, voice, description, cfg_value, timesteps,
@@ -1095,6 +1107,19 @@ export const pycoreApi = {
   },
   clearRecentTasks: () =>
     postJSON<PcTaskClearResponse>('/api/local/tasks/clear', {}),
+  getCompletedTasks: (params: { limit?: number; offset?: number; task_type?: string } = {}) => {
+    const q = new URLSearchParams();
+    q.set('limit', String(params.limit ?? 200));
+    q.set('offset', String(params.offset ?? 0));
+    if (params.task_type) q.set('task_type', params.task_type);
+    return getJSON<PcCompletedTaskArchiveResponse>(`/api/local/tasks/completed?${q.toString()}`);
+  },
+  syncCompletedTasks: () =>
+    postJSON<PcCompletedTaskSyncResponse>(
+      '/api/local/tasks/completed/sync', {}, LIVE_TEST_RPC_TIMEOUT_MS,
+    ),
+  completedTaskResourceUrl: (cacheKey: string) =>
+    rewritePycoreEndpoint(`/api/local/tasks/completed/resources/${encodeURIComponent(cacheKey)}`),
 
   // --- Movie / TV poster (TMDB + OMDB key status + fetch toggle + lookup) -- #
   // status: masked provider keys + the ingest fetch flag (media_sync.fetch_poster).
@@ -1223,6 +1248,10 @@ export const pycoreApi = {
     postJSON<{ success: boolean; laravel_updated?: boolean; error?: string }>(
       '/api/local/word-audio/boost-priority', { md5, lang },
     ),
+  boostWordAudioPriorities: (items: Array<{ md5: string; lang: string }>) =>
+    postJSON<{ success: boolean; count: number; results?: Array<Record<string, unknown>>; error?: string }>(
+      '/api/local/word-audio/boost-priority/batch', { items },
+    ),
 
   // --- translate history (Google / AI translate usage records) ------------ #
   getTranslateHistory: (limit = 50) =>
@@ -1281,6 +1310,13 @@ export const pycoreApi = {
     getJSON<{ success: boolean; data?: Record<string, unknown>; error?: string | null }>(
       '/api/local/agent-history/article/logs',
     ),
+  getAgentHistoryArticleRecords: (limit = 100) =>
+    getJSON<AgentHistoryArticleRecordsResponse>(
+      `/api/local/agent-history/article/records?limit=${encodeURIComponent(String(limit))}`,
+    ),
+  // Absolute audio/mpeg URL on the active pycore target (for <audio src>).
+  getAgentHistoryArticleAudioUrl: (recordId: string | number): string =>
+    rewritePycoreEndpoint(`/api/local/agent-history/article/audio/${encodeURIComponent(String(recordId))}`),
 
   // --- Queue Center: unified overview (contract A) ------------------------ #
   // pycore is the hub: it fans out to the selected Laravel endpoint for the
@@ -1369,6 +1405,15 @@ export const pycoreApi = {
     ),
   getTaskCenter: () =>
     getJSON<PcTaskCenterResponse>('/api/local/task-center'),
+  getQueueCenterSnapshot: () =>
+    getJSON<QueueCenterSnapshot>('/api/local/task-center/snapshot'),
+  setQueueCenterControl: (control: QueueCenterControlName, enabled: boolean) =>
+    postJSON<{ success: boolean; control: QueueCenterControlName; enabled: boolean; error?: string }>(
+      `/api/local/task-center/controls/${encodeURIComponent(control)}`,
+      { enabled },
+    ),
+  wordAudioMediaUrl: (word: string, language = 'en') =>
+    rewritePycoreEndpoint(`/api/local/word-audio/media?word=${encodeURIComponent(word)}&language=${encodeURIComponent(language)}`),
 
   // --- Queue Center: capability settings (contract B) --------------------- #
   // Read all four capability blocks (priority + availability + options).

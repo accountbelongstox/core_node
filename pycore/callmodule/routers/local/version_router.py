@@ -22,13 +22,13 @@ English-only strings, laravel base peeked with ZERO network I/O.
 
 import os
 import time
-import threading
 from typing import Any, Dict
 
 import fastapi
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_core_node_root
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
 )
@@ -51,11 +51,8 @@ _SKIP_DIRS = frozenset({
 # TTL caches so the FE poll never storms a filesystem walk / laravel call.
 _PYCORE_TTL_S = 15.0
 _BACKEND_TTL_S = 15.0
-_pycore_cache: Dict[str, Any] = {}
-_pycore_ts: float = 0.0
-_backend_cache: Dict[str, Any] = {}
-_backend_ts: float = 0.0
-_lock = threading.Lock()
+_PYCORE_CACHE_SIGNAL = 'callmodule.version.pycore_cache'
+_BACKEND_CACHE_SIGNAL = 'callmodule.version.backend_cache'
 
 
 def _scan_pycore_version() -> Dict[str, Any]:
@@ -90,15 +87,17 @@ def _scan_pycore_version() -> Dict[str, Any]:
 
 
 def _pycore_version() -> Dict[str, Any]:
-    global _pycore_cache, _pycore_ts
     now = time.time()
-    with _lock:
-        if _pycore_cache and (now - _pycore_ts) < _PYCORE_TTL_S:
-            return dict(_pycore_cache)
+    cache = THREAD_BUS.get_signal(_PYCORE_CACHE_SIGNAL, {}) or {}
+    cached_data = cache.get('data')
+    cached_at = float(cache.get('timestamp') or 0.0)
+    if cached_data and (now - cached_at) < _PYCORE_TTL_S:
+        return dict(cached_data)
     data = _scan_pycore_version()
-    with _lock:
-        _pycore_cache = dict(data)
-        _pycore_ts = now
+    THREAD_BUS.signal(_PYCORE_CACHE_SIGNAL, {
+        'data': dict(data),
+        'timestamp': now,
+    })
     return data
 
 
@@ -112,11 +111,12 @@ def _backend_base() -> str:
 
 
 def _backend_version() -> Dict[str, Any]:
-    global _backend_cache, _backend_ts
     now = time.time()
-    with _lock:
-        if _backend_cache and (now - _backend_ts) < _BACKEND_TTL_S:
-            return dict(_backend_cache)
+    cache = THREAD_BUS.get_signal(_BACKEND_CACHE_SIGNAL, {}) or {}
+    cached_data = cache.get('data')
+    cached_at = float(cache.get('timestamp') or 0.0)
+    if cached_data and (now - cached_at) < _BACKEND_TTL_S:
+        return dict(cached_data)
     base = _backend_base()
     result: Dict[str, Any] = {
         "base_url": base,
@@ -140,9 +140,10 @@ def _backend_version() -> Dict[str, Any]:
                     result["latest_file"] = str(data.get("latest_file") or "")
         except Exception as exc:  # noqa: BLE001 - never 500 on a down backend
             ColorPrint.yellow(f"[Version] laravel code-version fetch failed: {exc}")
-    with _lock:
-        _backend_cache = dict(result)
-        _backend_ts = now
+    THREAD_BUS.signal(_BACKEND_CACHE_SIGNAL, {
+        'data': dict(result),
+        'timestamp': now,
+    })
     return result
 
 

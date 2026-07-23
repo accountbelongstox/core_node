@@ -19,11 +19,15 @@ translation_ws_client_service):
 
 import os
 import socket
-import threading
 import time
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
 # Internal imports at file top (PYTHON_PYCORE.md §1.4). task_manager is stdlib-only.
 from pycore.pyctl.desktop.task_manager import get_task_manager
 
@@ -43,7 +47,6 @@ from .handlers import (
 from pycore.callmodule.callmodule_config import Config as _Cfg
 
 
-
 class TranslationWorkerService(BaseLaravelWorkerService):
     """
     Translation worker (singleton) that drives the Laravel worker-task pipeline.
@@ -59,8 +62,9 @@ class TranslationWorkerService(BaseLaravelWorkerService):
 
     # Singleton state MUST live on the CONCRETE subclass (base __new__ uses cls)
     # so a base-level _instance is not shared across sibling workers.
+    # Rule §4: no _instance_lock - the base __new__ is a plain GIL-atomic
+    # check-then-assign (same idiom as pyheartbeat).
     _instance: Optional["TranslationWorkerService"] = None
-    _instance_lock = threading.Lock()
 
     # ---- Execution-type lanes (must equal GlobalTask::EXECUTION_TYPES) ----
     # The shared interactive fast lane both pycore and chrome register for.
@@ -311,8 +315,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
             ColorPrint.red(f"[TranslationWorker] Task {task_id} failed: {e}")
             self._post_result(task_id, "failed", error=str(e))
         finally:
-            with self._inflight_lock:
-                self._inflight.pop(task_id, None)
+            self._release_inflight(task_id)
 
     # -------------------- local task accounting --------------------
 
@@ -377,16 +380,36 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         }.get(task.get("task_type"), "remote_translation")
 
     def _purge_inflight_locked(self, now: float) -> None:
-        """Drop inflight entries whose deadline has passed. Caller holds _inflight_lock.
+        """Drop inflight entries whose deadline has passed.
 
         A hung executor (semaphore block or stalled engine) would otherwise keep a
         task_id blacklisted forever, so a re-offered task (after Laravel's lease
         timeout) could never be re-claimed by this worker until restart.
+
+        Rule §4: no lock - iterate a snapshot list, then one GIL-atomic pop per
+        entry (entries added concurrently are simply not in the snapshot).
+        Name kept for the existing task_heap.py call site.
         """
-        expired = [tid for tid, dl in self._inflight.items() if dl <= now]
+        expired = [tid for tid, dl in list(self._inflight.items()) if dl <= now]
         for tid in expired:
             self._inflight.pop(tid, None)
 
+    @serialized_method
+    def _release_inflight(self, task_id: Any) -> None:
+        self._inflight.pop(task_id, None)
+
+    @serialized_method
+    def _fast_drain_snapshot(self) -> Dict[str, Any]:
+        return {
+            "registered": self._registered,
+            "api_url": self.api_url,
+            "pending_fast": self._pending_fast,
+            "poll_interval": self.TRANSLATION_FAST_POLL_INTERVAL,
+            "drain_window": self.TRANSLATION_FAST_DRAIN_WINDOW,
+            "poll_jitter": self.TRANSLATION_FAST_POLL_JITTER,
+        }
+
+    @serialized_method
     def _dispatch(self, task: Dict[str, Any]) -> None:
         """
         Hand a task to a background thread via the pyctl desktop TaskManager so the
@@ -395,13 +418,18 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         """
         task_id = task.get("task_id")
         now = time.monotonic()
-        with self._inflight_lock:
-            self._purge_inflight_locked(now)
-            deadline = self._inflight.get(task_id)
-            if deadline is not None and deadline > now:
+        self._purge_inflight_locked(now)
+        ttl = int(task.get("timeout_seconds") or self.INFLIGHT_DEFAULT_TTL)
+        deadline = now + max(ttl, self.INFLIGHT_DEFAULT_TTL)
+        # Rule §4: setdefault is one GIL-atomic claim - the first dispatcher
+        # wins; a concurrent dispatch of the same task_id sees the stored
+        # deadline and backs off. An expired leftover entry is taken over with
+        # a single atomic set (same outcome as the old locked check-then-set).
+        existing = self._inflight.setdefault(task_id, deadline)
+        if existing is not deadline:
+            if existing > now:
                 return  # already being processed
-            ttl = int(task.get("timeout_seconds") or self.INFLIGHT_DEFAULT_TTL)
-            self._inflight[task_id] = now + max(ttl, self.INFLIGHT_DEFAULT_TTL)
+            self._inflight[task_id] = deadline
 
         try:
             tm = get_task_manager()
@@ -456,16 +484,19 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         except Exception as e:
             # If the TaskManager is unavailable, fall back to a plain daemon thread so
             # the worker still functions (heartbeat thread stays unblocked either way).
+            # Rule §4: named Thread subclass, no threading.Thread(target=...) spawn.
             ColorPrint.yellow(
                 f"[TranslationWorker] TaskManager dispatch failed ({e}); using thread fallback"
             )
-            threading.Thread(
-                target=self._process_task, args=(task,),
-                daemon=True, name=f"translate-{task_id}",
-            ).start()
+            start_bus_task(
+                self._process_task,
+                task,
+                thread_name=f"TranslateTask-{task_id}-Thread",
+            )
 
     # -------------------- heartbeat callback --------------------
 
+    @serialized_method
     def poll_once(self) -> None:
         """
         PyHeartbeat callback (invoked every ~interval seconds WHEN ENABLED).
@@ -510,20 +541,22 @@ class TranslationWorkerService(BaseLaravelWorkerService):
                 # atomic assign - enqueue everything; _process_task answers
                 # unsupported types with 'failed' so they re-route, never leak.
                 self._task_heap.enqueue_tasks(base, tasks)
-                self._task_heap.drain_heap(base)
+                for task in self._task_heap.drain_heap(base):
+                    self._dispatch(task)
 
             # A pending_fast signal (from this pull or the heartbeat) arms a jittered
             # fast-drain burst so interactive requests are claimed near-instantly.
-            self._task_heap.maybe_start_fast_drain()
+            self._task_heap.maybe_start_fast_drain(self._pending_fast)
         except Exception as e:
             ColorPrint.red(f"[TranslationWorker] poll_once error: {e}")
 
     # -------------------- introspection --------------------
 
+    @serialized_method
     def get_status(self) -> Dict[str, Any]:
         """Service status snapshot (read-only)."""
-        with self._inflight_lock:
-            inflight = len(self._inflight)
+        # Rule §4: len() on the dict is a single GIL-atomic read - no lock.
+        inflight = len(self._inflight)
         return {
             "service": "Translation Worker",
             "api_url": self.api_url,
@@ -544,6 +577,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
             "heap_depth": self._task_heap.depth(),
         }
 
+    @serialized_method
     def get_queue_status(self) -> Dict[str, Any]:
         """Fast-lane / queue snapshot for routers + local UI.
 
@@ -553,8 +587,8 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         not blind to the interactive fast lane.
         """
         per_backend = self._task_heap.per_backend_depth()
-        with self._inflight_lock:
-            inflight = len(self._inflight)
+        # Rule §4: len() on the dict is a single GIL-atomic read - no lock.
+        inflight = len(self._inflight)
         return {
             "api_url": self.api_url,
             "registered": self._registered,
@@ -569,9 +603,26 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         }
 
 
-# ============================================================
-# Global singleton accessor
-# ============================================================
+class _TranslationWorkerProvider:
+    """Create the translation worker singleton on a THREAD_BUS state owner."""
+
+    def __init__(self) -> None:
+        self._worker: Optional[TranslationWorkerService] = None
+        init_serialized_owner(
+            self,
+            "translation.worker.provider",
+            "TranslationWorkerProvider",
+            timeout=60.0,
+        )
+
+    @serialized_method
+    def get(self, laravel_api_url: str) -> TranslationWorkerService:
+        if self._worker is None:
+            self._worker = TranslationWorkerService(laravel_api_url)
+        return self._worker
+
+
+_translation_worker_provider = _TranslationWorkerProvider()
 
 def get_translation_worker_service(
     laravel_api_url: str = "http://127.0.0.1:9000",
@@ -585,4 +636,4 @@ def get_translation_worker_service(
     Returns:
         The shared TranslationWorkerService instance.
     """
-    return TranslationWorkerService(laravel_api_url)
+    return _translation_worker_provider.get(laravel_api_url)

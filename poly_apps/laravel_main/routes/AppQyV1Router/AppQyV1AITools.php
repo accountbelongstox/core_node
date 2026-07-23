@@ -127,10 +127,10 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
     });
 });
 
-// Async word-translation pipeline (FE-facing). Uses custom.authenticate per the
+// Async word-translation pipeline (FE-facing). Uses Sanctum bearer authentication.
 // shared contract. queue/batch/add enqueues visible words at HIGH priority into
 // global_tasks(word_translation); queue/batch/status reads dictionary state.
-Route::prefix('app_qy_v1/ai_tools')->middleware('custom.authenticate')->group(function () {
+Route::prefix('app_qy_v1/ai_tools')->middleware('auth:sanctum')->group(function () {
     Route::prefix('translation/queue')->group(function () {
         Route::post('/batch/add', [AppQyV1TranslationQueueController::class, 'batchAdd']);
         Route::post('/batch/status', [AppQyV1TranslationQueueController::class, 'batchStatus']);
@@ -193,9 +193,6 @@ Route::prefix('app_qy_v1/ai_tools')->middleware('auth:sanctum')->group(function 
     });
     
     Route::prefix('tts')->group(function () {
-        Route::post('/generate', [AppQyV1TTSController::class, 'generate']);
-        Route::post('/batch-generate', [AppQyV1TTSController::class, 'batchGenerate']);
-
         // Unified queue endpoints (new API)
         Route::post('/queue/add', [AppQyV1TTSQueueController::class, 'addTask']);
         Route::post('/queue/batch/query', [AppQyV1TTSQueueController::class, 'intelligentBatchQuery']);

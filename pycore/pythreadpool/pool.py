@@ -9,10 +9,12 @@ Thread pool mappings are stored in Encyclopedia for global access.
 
 import threading
 import time
+from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Dict, List, Optional, Any, Callable
-from dataclasses import dataclass, field, asdict
+from typing import Any, Callable, Dict, List, Optional
+
 from pycore.pyfoundations import ColorPrint, Task, ENCYCLOPEDIA
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 from pycore.pythreadpool.registry import THREAD_REGISTRY
 
@@ -95,14 +97,10 @@ class GlobalThreadPool:
     """
 
     _instance: Optional['GlobalThreadPool'] = None
-    _lock = threading.Lock()
-
     def __new__(cls):
         """Singleton pattern"""
         if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self):
@@ -111,11 +109,30 @@ class GlobalThreadPool:
             return
 
         self._initialized = True
-        self._threads: Dict[str, ThreadInfo] = {}
-        self._task_type_handlers: Dict[str, List[str]] = {}
-        self._threads_lock = threading.Lock()
+        if THREAD_BUS.get_signal(THREAD_POOL_THREADS_KEY) is None:
+            THREAD_BUS.signal(THREAD_POOL_THREADS_KEY, {})
+        if THREAD_BUS.get_signal(THREAD_POOL_TASK_HANDLERS_KEY) is None:
+            THREAD_BUS.signal(THREAD_POOL_TASK_HANDLERS_KEY, {})
 
         self._sync_to_encyclopedia()
+
+    @property
+    def _threads(self) -> Dict[str, ThreadInfo]:
+        """Return the current bus-owned thread registry snapshot."""
+        return THREAD_BUS.get_signal(THREAD_POOL_THREADS_KEY, {}) or {}
+
+    @_threads.setter
+    def _threads(self, value: Dict[str, ThreadInfo]) -> None:
+        THREAD_BUS.signal(THREAD_POOL_THREADS_KEY, value)
+
+    @property
+    def _task_type_handlers(self) -> Dict[str, List[str]]:
+        """Return the current bus-owned task handler snapshot."""
+        return THREAD_BUS.get_signal(THREAD_POOL_TASK_HANDLERS_KEY, {}) or {}
+
+    @_task_type_handlers.setter
+    def _task_type_handlers(self, value: Dict[str, List[str]]) -> None:
+        THREAD_BUS.signal(THREAD_POOL_TASK_HANDLERS_KEY, value)
 
     def _sync_to_encyclopedia(self):
         """Sync thread pool mappings to Encyclopedia"""
@@ -167,44 +184,46 @@ class GlobalThreadPool:
                 shutdown_priority=60
             )
         """
-        with self._threads_lock:
-            if name in self._threads:
-                ColorPrint.yellow(f"[ThreadPool] Thread '{name}' already registered")
-                return False
+        threads = dict(self._threads)
+        handler_names = {
+            task_type: list(names)
+            for task_type, names in self._task_type_handlers.items()
+        }
+        if name in threads:
+            ColorPrint.yellow(f"[ThreadPool] Thread '{name}' already registered")
+            return False
 
-            if not task_handlers:
-                ColorPrint.red(f"[ThreadPool] Thread '{name}' has no task handlers")
-                return False
+        if not task_handlers:
+            ColorPrint.red(f"[ThreadPool] Thread '{name}' has no task handlers")
+            return False
 
-            # Get shutdown priority from registry or parameter
-            if shutdown_priority is None:
-                registry_entry = THREAD_REGISTRY.get(name, {})
-                shutdown_priority = registry_entry.get('shutdown_priority', 50)
+        if shutdown_priority is None:
+            registry_entry = THREAD_REGISTRY.get(name, {})
+            shutdown_priority = registry_entry.get('shutdown_priority', 50)
 
-            thread_info = ThreadInfo(
-                name=name,
-                instance=instance,
-                task_handlers=task_handlers,
-                thread_id=instance.ident,
-                metadata=metadata or {},
-                shutdown_priority=shutdown_priority
-            )
+        threads[name] = ThreadInfo(
+            name=name,
+            instance=instance,
+            task_handlers=task_handlers,
+            thread_id=instance.ident,
+            metadata=metadata or {},
+            shutdown_priority=shutdown_priority,
+        )
+        for task_type in task_handlers:
+            names = handler_names.setdefault(task_type, [])
+            if name not in names:
+                names.append(name)
 
-            self._threads[name] = thread_info
+        self._threads = threads
+        self._task_type_handlers = handler_names
+        self._sync_to_encyclopedia()
 
-            for task_type in task_handlers.keys():
-                if task_type not in self._task_type_handlers:
-                    self._task_type_handlers[task_type] = []
-                self._task_type_handlers[task_type].append(name)
-
-            self._sync_to_encyclopedia()
-
-            task_types_str = ', '.join(task_handlers.keys())
-            ColorPrint.green(
-                f"[ThreadPool] Registered thread: {name} "
-                f"(task_types: {task_types_str})"
-            )
-            return True
+        task_types_str = ', '.join(task_handlers.keys())
+        ColorPrint.green(
+            f"[ThreadPool] Registered thread: {name} "
+            f"(task_types: {task_types_str})"
+        )
+        return True
 
     def unregister_thread(self, name: str) -> bool:
         """
@@ -216,25 +235,22 @@ class GlobalThreadPool:
         Returns:
             True if unregistered successfully
         """
-        with self._threads_lock:
-            if name not in self._threads:
-                return False
+        threads = dict(self._threads)
+        thread_info = threads.pop(name, None)
+        if thread_info is None:
+            return False
 
-            thread_info = self._threads[name]
+        handler_names = {}
+        for task_type, names in self._task_type_handlers.items():
+            updated_names = [registered for registered in names if registered != name]
+            if updated_names:
+                handler_names[task_type] = updated_names
 
-            for task_type in thread_info.task_handlers.keys():
-                if task_type in self._task_type_handlers:
-                    if name in self._task_type_handlers[task_type]:
-                        self._task_type_handlers[task_type].remove(name)
-                    if not self._task_type_handlers[task_type]:
-                        del self._task_type_handlers[task_type]
-
-            del self._threads[name]
-
-            self._sync_to_encyclopedia()
-
-            ColorPrint.blue(f"[ThreadPool] Unregistered thread: {name}")
-            return True
+        self._threads = threads
+        self._task_type_handlers = handler_names
+        self._sync_to_encyclopedia()
+        ColorPrint.blue(f"[ThreadPool] Unregistered thread: {name}")
+        return True
 
     def get_thread(self, name: str) -> Optional[ThreadInfo]:
         """
@@ -246,8 +262,7 @@ class GlobalThreadPool:
         Returns:
             ThreadInfo or None
         """
-        with self._threads_lock:
-            return self._threads.get(name)
+        return self._threads.get(name)
 
     def get_all_threads(self) -> List[ThreadInfo]:
         """
@@ -256,8 +271,7 @@ class GlobalThreadPool:
         Returns:
             List of ThreadInfo objects
         """
-        with self._threads_lock:
-            return list(self._threads.values())
+        return list(self._threads.values())
 
     def get_handlers_for_task_type(self, task_type: str) -> List[tuple]:
         """
@@ -269,18 +283,17 @@ class GlobalThreadPool:
         Returns:
             List of (ThreadInfo, handler_function) tuples
         """
-        with self._threads_lock:
-            thread_names = self._task_type_handlers.get(task_type, [])
-            handlers = []
-
-            for name in thread_names:
-                if name in self._threads:
-                    thread_info = self._threads[name]
-                    handler_fn = thread_info.get_handler(task_type)
-                    if handler_fn:
-                        handlers.append((thread_info, handler_fn))
-
-            return handlers
+        threads = self._threads
+        thread_names = self._task_type_handlers.get(task_type, [])
+        handlers = []
+        for name in thread_names:
+            thread_info = threads.get(name)
+            if thread_info is None:
+                continue
+            handler_fn = thread_info.get_handler(task_type)
+            if handler_fn:
+                handlers.append((thread_info, handler_fn))
+        return handlers
 
     def is_thread_alive(self, name: str) -> bool:
         """
@@ -302,10 +315,20 @@ class GlobalThreadPool:
         Args:
             name: Thread identifier
         """
-        with self._threads_lock:
-            if name in self._threads:
-                self._threads[name].update_heartbeat()
-                self._sync_to_encyclopedia()
+        threads = dict(self._threads)
+        thread_info = threads.get(name)
+        if thread_info is None:
+            return
+        status = thread_info.status
+        if status == ThreadStatus.STARTING:
+            status = ThreadStatus.RUNNING
+        threads[name] = replace(
+            thread_info,
+            last_heartbeat=time.time(),
+            status=status,
+        )
+        self._threads = threads
+        self._sync_to_encyclopedia()
 
     def update_status(self, name: str, status: ThreadStatus):
         """
@@ -315,11 +338,14 @@ class GlobalThreadPool:
             name: Thread identifier
             status: New status
         """
-        with self._threads_lock:
-            if name in self._threads:
-                self._threads[name].status = status
-                self._sync_to_encyclopedia()
-                ColorPrint.blue(f"[ThreadPool] Thread '{name}' status: {status.value}")
+        threads = dict(self._threads)
+        thread_info = threads.get(name)
+        if thread_info is None:
+            return
+        threads[name] = replace(thread_info, status=status)
+        self._threads = threads
+        self._sync_to_encyclopedia()
+        ColorPrint.blue(f"[ThreadPool] Thread '{name}' status: {status.value}")
 
     def check_health(self, heartbeat_timeout: float = 30.0) -> Dict[str, List[str]]:
         """
@@ -334,14 +360,13 @@ class GlobalThreadPool:
         healthy = []
         unhealthy = []
 
-        with self._threads_lock:
-            for name, thread_info in self._threads.items():
-                if not thread_info.is_alive():
-                    unhealthy.append(name)
-                elif thread_info.get_heartbeat_age() > heartbeat_timeout:
-                    unhealthy.append(name)
-                else:
-                    healthy.append(name)
+        for name, thread_info in self._threads.items():
+            if not thread_info.is_alive():
+                unhealthy.append(name)
+            elif thread_info.get_heartbeat_age() > heartbeat_timeout:
+                unhealthy.append(name)
+            else:
+                healthy.append(name)
 
         return {
             'healthy': healthy,
@@ -355,26 +380,25 @@ class GlobalThreadPool:
         Returns:
             Dictionary with statistics
         """
-        with self._threads_lock:
-            total = len(self._threads)
-            status_counts = {}
+        threads = self._threads
+        handler_names = self._task_type_handlers
+        status_counts = {}
+        for thread_info in threads.values():
+            status = thread_info.status.value
+            status_counts[status] = status_counts.get(status, 0) + 1
 
-            for thread_info in self._threads.values():
-                status = thread_info.status.value
-                status_counts[status] = status_counts.get(status, 0) + 1
-
-            return {
-                'total_threads': total,
-                'status_counts': status_counts,
-                'task_type_handlers': {
-                    task_type: handlers.copy()
-                    for task_type, handlers in self._task_type_handlers.items()
-                },
-                'threads': {
-                    name: info.to_dict()
-                    for name, info in self._threads.items()
-                }
-            }
+        return {
+            'total_threads': len(threads),
+            'status_counts': status_counts,
+            'task_type_handlers': {
+                task_type: handlers.copy()
+                for task_type, handlers in handler_names.items()
+            },
+            'threads': {
+                name: info.to_dict()
+                for name, info in threads.items()
+            },
+        }
 
     def get_shutdown_order(self) -> List[tuple]:
         """
@@ -383,14 +407,12 @@ class GlobalThreadPool:
         Returns:
             List of (thread_name, thread_info, priority) tuples sorted by priority
         """
-        with self._threads_lock:
-            threads_with_priority = [
-                (name, info, info.shutdown_priority)
-                for name, info in self._threads.items()
-            ]
-            # Sort by priority (lower priority shuts down first)
-            threads_with_priority.sort(key=lambda x: x[2])
-            return threads_with_priority
+        threads_with_priority = [
+            (name, info, info.shutdown_priority)
+            for name, info in self._threads.items()
+        ]
+        threads_with_priority.sort(key=lambda item: item[2])
+        return threads_with_priority
 
     def shutdown_by_priority(
         self,
@@ -453,9 +475,6 @@ class GlobalThreadPool:
 
 
 _global_thread_pool: Optional[GlobalThreadPool] = None
-_pool_lock = threading.Lock()
-
-
 def get_global_thread_pool() -> GlobalThreadPool:
     """
     Get global thread pool singleton
@@ -466,9 +485,7 @@ def get_global_thread_pool() -> GlobalThreadPool:
     global _global_thread_pool
 
     if _global_thread_pool is None:
-        with _pool_lock:
-            if _global_thread_pool is None:
-                _global_thread_pool = GlobalThreadPool()
+        _global_thread_pool = GlobalThreadPool()
 
     return _global_thread_pool
 

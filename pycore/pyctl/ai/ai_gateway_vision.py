@@ -22,14 +22,16 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient
 from pycore.pyctl.ai.ai_keys import PROVIDERS, first_secret
-from pycore.pyctl.ai.ai_gateway_state import _lock, _vision_model_cache, _PROBE_TTL_S
+from pycore.pyctl.ai.ai_gateway_state import _PROBE_TTL_S
 
 from pycore.pyutils.ai_cluster.openrouter.openrouter_client import OpenRouterClient
 
 
 _GEMINI_VISION_MODEL = "gemini-2.5-flash"
+_VISION_CACHE_SIGNAL = 'pyctl.ai.gateway.vision_cache'
 
 _DEFAULT_IMAGE_PROMPT = (
     "Provide a comprehensive summary of this image, describing the main "
@@ -62,10 +64,10 @@ def _describe_with_gemini(image_path: str, prompt: Optional[str], out: Dict[str,
 
 def _openrouter_vision_model(key: str) -> Optional[str]:
     """Pick a live OpenRouter model that accepts image input (prefer free)."""
-    with _lock:
-        fresh = (time.time() - _vision_model_cache["ts"]) < _PROBE_TTL_S
-        if fresh and _vision_model_cache["model"]:
-            return _vision_model_cache["model"]
+    cache = THREAD_BUS.get_signal(_VISION_CACHE_SIGNAL, {}) or {}
+    fresh = (time.time() - float(cache.get("ts") or 0.0)) < _PROBE_TTL_S
+    if fresh and cache.get("model"):
+        return cache["model"]
     try:
         requests = get_third_package_requests()
         resp = requests.get(
@@ -80,8 +82,10 @@ def _openrouter_vision_model(key: str) -> Optional[str]:
             if "image" in ((m.get("architecture") or {}).get("input_modalities") or [])
         ]
         model = next((m for m in vision if m.endswith(":free")), vision[0] if vision else None)
-        with _lock:
-            _vision_model_cache.update({"ts": time.time(), "model": model})
+        THREAD_BUS.signal(_VISION_CACHE_SIGNAL, {
+            "ts": time.time(),
+            "model": model,
+        })
         return model
     except Exception as e:
         ColorPrint.yellow(f"[ai_gateway] OpenRouter vision-model scan failed: {e}")

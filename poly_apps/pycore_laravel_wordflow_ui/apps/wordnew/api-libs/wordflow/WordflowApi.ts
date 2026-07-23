@@ -579,7 +579,8 @@ class WordflowApiService extends WordflowApiMethods {
    * Enqueue text(s) for word-audio (TTS) generation.
    *
    * `opts.interactive` (default false) flags a USER-INITIATED single request so
-   * the backend bumps the word to the FRONT of the audio queue (tts_priority=100)
+   * the backend bumps the word to the FRONT of the audio queue (move-to-front
+   * ticket MAX(tts_priority)+1)
    * via the assist protocol (position='beginning') — NOT a remote_fast GlobalTask.
    * Batch callers MUST leave it false so background generation keeps normal
    * priority. Body matches AppQyV1BatchAddTTSTasksRequest: { tasks: [{ content,

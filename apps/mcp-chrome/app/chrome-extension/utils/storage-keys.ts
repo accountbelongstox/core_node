@@ -4,15 +4,35 @@
  * import `STORAGE_KEYS.X` instead of repeating a literal, so a key can never be
  * mistyped or renamed at one site and silently orphan its persisted data.
  *
- * VALUES here are frozen: they are the on-disk keys, so changing one would
- * abandon existing data. Keys already owned by a dedicated module (e.g.
- * `backend-timeout.ts`) are REFERENCED, not re-defined, so there is still one
- * source of truth per value.
+ * Values are frozen because changing one would abandon existing persisted data.
+ * Compatibility modules may re-export these values, but must not redefine them.
  */
 
-import { BACKEND_TIMEOUT_STORAGE_KEY } from './backend-timeout';
-
 export const STORAGE_KEYS = {
+  APP_SETTINGS: 'appSettings',
+  API_SETTINGS: 'api_settings',
+  EXTENSION_CONFIGS: 'extensionConfigs',
+  SERVER_STATUS: 'serverStatus',
+  NATIVE_SERVER_PORT: 'nativeServerPort',
+  USER_LANGUAGE: 'userLanguage',
+  POPUP_THEME: 'popup_theme',
+  GLOBAL_LOGS: 'mcp_global_logs',
+
+  SEMANTIC_MODEL: 'selectedModel',
+  SEMANTIC_MODEL_VERSION: 'selectedVersion',
+  SEMANTIC_MODEL_STATE: 'modelState',
+  SEMANTIC_ENGINE_STATE: 'semanticEngineState',
+  AUDIO_RECORDING_CONFIG: 'audioRecordingConfig',
+
+  AI_WEB_PROVIDER: 'aiWebProvider',
+  AI_VALIDITY_PROVIDER: 'aiValidityProvider',
+  LARAVEL_API_BASE: 'laravelApiBase',
+  API_BASE_URL: 'apiBaseUrl',
+  MCP_SERVER_URL: 'mcpServerUrl',
+
+  USER_PREFERENCES: 'userPreferences',
+  VECTOR_INDEX: 'vectorIndex',
+
   // Task Center popup composable (useTaskCenter.ts).
   TASK_CENTER_CONFIG: 'task_center_config',
   TASK_CENTER_ACTIVE: 'task_center_active',
@@ -23,8 +43,7 @@ export const STORAGE_KEYS = {
   // Durable write-retry queue (outbox/submit-outbox.ts).
   SUBMIT_OUTBOX: 'submit_outbox_v1',
 
-  // Backend request timeout — canonical const lives in backend-timeout.ts.
-  BACKEND_TIMEOUT: BACKEND_TIMEOUT_STORAGE_KEY,
+  BACKEND_TIMEOUT: 'backendTimeoutMs',
 
   // DeepSeek task queue (utils/deepseek-task-queue.ts).
   DEEPSEEK_TASKS: 'deepseek_tasks',
@@ -40,6 +59,19 @@ export const STORAGE_KEYS = {
   BING_DICTIONARY_HISTORY: 'bing_dictionary_history',
   BING_DICTIONARY_CLIENT_MODE: 'bing_dictionary_client_mode',
   BING_DICTIONARY_CLIENT_CONFIG: 'bing_dictionary_client_config',
+
+  BING_ACTIVATE_PER_WORD: 'bingActivatePerWord',
+  HOW_TO_PRONOUNCE_ENABLED: 'howtopronounceEnabled',
+
+  DUOREADER_IMPORT_PROGRESS: 'duoreader_importer_progress',
+  DUOREADER_IMPORT_STATE: 'duoreader_importer_state',
+  DUOREADER_IMPORT_SESSION: 'duoreader_importer_session',
+
+  WEB_SEARCH_PROGRESS: 'web_search_progress',
+  WEB_SEARCH_COVER_MANIFESTS: 'web_search_cover_manifests',
+  QWEN_TTS_PROGRESS: 'qwenTtsProgress',
 } as const;
+
+export const UI_STORAGE_PREFIX = 'ui:' as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

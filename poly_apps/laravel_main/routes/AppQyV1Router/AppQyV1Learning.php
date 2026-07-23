@@ -42,7 +42,7 @@ Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function (
     });
 });
 
-Route::prefix($apiVersionPrefix)->middleware(['custom.authenticate'])->group(function () {
+Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function () {
     Route::any('/quiz/generate', [AppQyV1QuizController::class, 'generate']);
     Route::any('/user/stats/retention', [AppQyV1UserStatsController::class, 'retention']);
 });

@@ -20,6 +20,11 @@ Frontend Singleton Support:
 import os
 import time
 import threading
+from contextlib import nullcontext
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+)
 import subprocess
 from typing import Optional
 
@@ -83,19 +88,33 @@ class FrontendLauncherThread(threading.Thread):
 
         self.config = config
         self.process: Optional[subprocess.Popen] = None
-        self._process_lock = threading.Lock()  # Protect process access
-        self.ready_event = threading.Event()
-        self.error_event = threading.Event()
+        init_serialized_owner(
+            self,
+            'pyutils.native_ui.frontend_process',
+            'FrontendProcessStateThread',
+            timeout=30.0,
+        )
+        self._process_scope = nullcontext()
+        self._status_signal = f"frontend.status.{id(self)}"
+        THREAD_BUS.clear_signal(self._status_signal)
         self.running = False
         self.ready = False
         self.error_message: Optional[str] = None
 
         # Frontend singleton detector
         self.singleton_detector: Optional[FrontendSingletonDetector] = None
-        self._shutdown_requested = threading.Event()
+        self._shutdown_signal = f"frontend.shutdown.{id(self)}"
+        THREAD_BUS.clear_signal(self._shutdown_signal)
 
         ColorPrint.blue(f"[FrontendThread] Initialized: {config.framework} ({config.mode} mode)")
         ColorPrint.blue(f"[FrontendThread] App directory: {config.app_dir}")
+
+    def _signal_error(self) -> None:
+        """Publish frontend startup failure through THREAD_BUS."""
+        THREAD_BUS.signal(self._status_signal, {
+            "ready": False,
+            "error": self.error_message or "Frontend startup failed",
+        })
 
     def _on_singleton_shutdown_request(self):
         """
@@ -110,7 +129,7 @@ class FrontendLauncherThread(threading.Thread):
         ColorPrint.yellow("[FrontendThread] Singleton shutdown requested by new frontend instance")
 
         # Set flags to help run() exit early if it's still starting up
-        self._shutdown_requested.set()
+        THREAD_BUS.signal(self._shutdown_signal, True)
         self.running = False
 
         # Don't call stop() here - THREAD_BUS shutdown handler will do it
@@ -124,7 +143,7 @@ class FrontendLauncherThread(threading.Thread):
         """
         ColorPrint.yellow("[FrontendThread] Shutdown handler called by THREAD_BUS")
 
-        self._shutdown_requested.set()
+        THREAD_BUS.signal(self._shutdown_signal, True)
         self.running = False
 
         # Call stop() to handle process cleanup (it has all the polling logic)
@@ -164,14 +183,14 @@ class FrontendLauncherThread(threading.Thread):
                 # Failed to become primary (shouldn't happen with shutdown_existing=True)
                 ColorPrint.red(f"[FrontendThread] Failed to become primary frontend: {detection_result.message}")
                 self.error_message = f"Frontend singleton detection failed: {detection_result.message}"
-                self.error_event.set()
+                self._signal_error()
                 return
 
             ColorPrint.green(f"[FrontendThread] Became PRIMARY frontend on singleton port {detection_result.port}")
 
             # Check if shutdown was requested during singleton detection
             # This can happen if new instance starts while we're in the middle of detection
-            if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+            if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(self._shutdown_signal, False):
                 ColorPrint.yellow("[FrontendThread] Shutdown requested before starting frontend, exiting...")
                 return
 
@@ -181,7 +200,7 @@ class FrontendLauncherThread(threading.Thread):
                 self._ensure_dependencies()
 
             # Check shutdown flag again before starting frontend
-            if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+            if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(self._shutdown_signal, False):
                 ColorPrint.yellow("[FrontendThread] Shutdown requested after dependency check, exiting...")
                 return
 
@@ -195,7 +214,7 @@ class FrontendLauncherThread(threading.Thread):
 
             # Check if we were interrupted during frontend start
             # _handle_dev_mode() may return early if shutdown was requested
-            if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+            if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(self._shutdown_signal, False):
                 ColorPrint.yellow("[FrontendThread] Shutdown detected after frontend start attempt, exiting...")
                 return
 
@@ -203,12 +222,12 @@ class FrontendLauncherThread(threading.Thread):
             if self.config.mode == "dev" and not self.process:
                 ColorPrint.red("[FrontendThread] Dev mode but no process created, exiting...")
                 self.error_message = "Failed to start frontend process"
-                self.error_event.set()
+                self._signal_error()
                 return
 
             # Step 3: Signal ready
             self.ready = True
-            self.ready_event.set()
+            THREAD_BUS.signal(self._status_signal, {"ready": True, "error": None})
             ColorPrint.green(f"[FrontendThread] Frontend ready")
 
             # Trigger THREAD_BUS event for external listeners (e.g., Debug Log auto-close)
@@ -228,7 +247,7 @@ class FrontendLauncherThread(threading.Thread):
                     # Check for shutdown request
                     # Note: stop() will be called by THREAD_BUS shutdown handler
                     # We just need to break from the loop to let the thread exit
-                    if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+                    if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(self._shutdown_signal, False):
                         ColorPrint.yellow("[FrontendThread] Shutdown requested, exiting monitoring loop...")
                         # Break immediately - no mechanical wait!
                         # The shutdown handler will call stop() to terminate the process
@@ -240,7 +259,7 @@ class FrontendLauncherThread(threading.Thread):
         except Exception as e:
             ColorPrint.red(f"[FrontendThread] Unexpected error: {e}")
             self.error_message = str(e)
-            self.error_event.set()
+            self._signal_error()
             traceback.print_exc()
 
         finally:
@@ -416,7 +435,7 @@ class FrontendLauncherThread(threading.Thread):
         Handle dev mode - start dev server (waits indefinitely for ready)
         """
         # Check shutdown BEFORE starting anything
-        if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+        if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(self._shutdown_signal, False):
             ColorPrint.yellow("[FrontendThread] Shutdown requested before _handle_dev_mode, exiting...")
             return
 
@@ -438,7 +457,7 @@ class FrontendLauncherThread(threading.Thread):
 
             while waited < max_wait:
                 # Check shutdown while waiting
-                if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+                if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(self._shutdown_signal, False):
                     ColorPrint.yellow("[FrontendThread] Shutdown requested while waiting for port, exiting...")
                     return
 
@@ -456,13 +475,13 @@ class FrontendLauncherThread(threading.Thread):
                 ColorPrint.red(f"[FrontendThread] Old instance did not release port - singleton takeover failed")
                 ColorPrint.red(f"[FrontendThread] This instance will exit to avoid conflicts")
                 self.error_message = f"Port {self.config.port} still in use - old instance not shutdown"
-                self.error_event.set()
+                self._signal_error()
                 return  # Exit gracefully instead of raising exception
         else:
             ColorPrint.green(f"[FrontendThread] Port {self.config.port} is available")
 
         # Final check before starting vite
-        if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+        if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(self._shutdown_signal, False):
             ColorPrint.yellow("[FrontendThread] Shutdown requested before starting vite, exiting...")
             return
 
@@ -528,7 +547,7 @@ class FrontendLauncherThread(threading.Thread):
         check_count = 0
         while True:
             # Check for shutdown before attempting HTTP check
-            if THREAD_BUS.is_shutdown_requested() or self._shutdown_requested.is_set():
+            if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(self._shutdown_signal, False):
                 ColorPrint.yellow("[FrontendThread] Shutdown requested during HTTP wait, aborting...")
                 return False
 
@@ -563,18 +582,17 @@ class FrontendLauncherThread(threading.Thread):
         Returns:
             True if ready, False if error
         """
-        # Wait indefinitely for either ready or error
-        self.ready_event.wait()
-
-        if self.error_event.is_set():
+        status = THREAD_BUS.wait_signal(self._status_signal, timeout=timeout)
+        if not isinstance(status, dict) or not status.get("ready"):
             ColorPrint.red(f"[FrontendThread] Error: {self.error_message}")
             return False
 
         return True
 
+    @serialized_method
     def stop(self):
         """Stop frontend process gracefully (thread-safe)"""
-        with self._process_lock:
+        with self._process_scope:
             if not self.process:
                 ColorPrint.gray("[FrontendThread] No process to stop (already stopped or not started)")
                 self.running = False
@@ -656,7 +674,8 @@ class FrontendLauncherThread(threading.Thread):
 
     def has_error(self) -> bool:
         """Check if frontend has error"""
-        return self.error_event.is_set()
+        status = THREAD_BUS.get_signal(self._status_signal, {}) or {}
+        return bool(status.get("error"))
 
     def get_static_mount(self) -> Optional[dict]:
         """

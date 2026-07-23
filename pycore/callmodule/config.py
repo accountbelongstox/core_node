@@ -22,6 +22,7 @@ except ImportError:
     TKINTER_AVAILABLE = False
 
 from pycore import ColorPrint, THREAD_BUS, get_user_data_store
+from pycore.pyfoundations.serialized_worker import await_bus_task, submit_coroutine_via_bus
 from pycore.pyfoundations.third_party import get_third_package_fastapi
 from pycore.pylauncher import LauncherConfig
 from pycore.pyutils.codesync import get_code_sync_manager, configure as configure_codesync
@@ -88,6 +89,7 @@ from pycore.callmodule.routers.local import (
     ai_keys_router,
     ocr_status_router,
     tts_status_router,
+    llm_status_router,
     stt_status_router,
     engines_load_status_router,
     speech_history_router,
@@ -257,12 +259,16 @@ def _register_code_sync_ws(app) -> None:
         def send(text: str) -> None:
             # Called from the worker thread inside handle_text(); hand the reply
             # back to the server loop (cross-thread safe, fire-and-forget).
-            asyncio.run_coroutine_threadsafe(websocket.send_text(text), loop)
+            submit_coroutine_via_bus(
+                loop,
+                websocket.send_text(text),
+                thread_name="CodeSyncWebSocketReplyThread",
+            )
 
         try:
             while True:
                 text = await websocket.receive_text()
-                keep = await asyncio.to_thread(receiver.handle_text, text, send)
+                keep = await await_bus_task(receiver.handle_text, text, send)
                 if not keep:
                     break
         except WebSocketDisconnect:
@@ -311,6 +317,7 @@ def _init_rpc_routes(server):
             configure_codesync(
                 logger=ColorPrint,
                 emit_event=THREAD_BUS.trigger_event,
+                thread_bus=THREAD_BUS,
                 is_shutdown_requested=THREAD_BUS.is_shutdown_requested,
                 register_shutdown_handler=THREAD_BUS.register_shutdown_handler,
                 # Node-local light-mode toggle (mesh-only client). Passed BEFORE the
@@ -441,6 +448,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 ai_keys_router,          # AI provider key pool (/api/local/ai/keys): set/delete/masked status
                 ocr_status_router,       # OCR engine availability (/api/local/ocr/status): windows/easyocr/cnocr priority
                 tts_status_router,       # TTS live availability + version (/api/local/tts/status) + live /test per engine
+                llm_status_router,       # Local LLM engines (/api/local/llm/status) + live /test + managed ollama server control
                 stt_status_router,       # STT engine availability (/api/local/stt/status) + live /test: faster-whisper/whisper/vosk/azure
                 engines_load_status_router, # Unified model-load progress for ALL engines (/api/local/engines/load-status): class-B models + class-C servers, TTS+STT
                 speech_history_router,   # Speech (TTS/STT) clip history (/api/local/speech/history): list/file/reveal/delete/clear for the Records timeline

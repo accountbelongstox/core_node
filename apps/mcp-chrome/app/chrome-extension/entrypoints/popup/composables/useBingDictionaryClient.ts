@@ -11,6 +11,7 @@ import { formatTimestamp } from '@/utils/time-helpers';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { BING_DICT_MSG } from '@/common/message-types';
 import { readJson, writeJson } from './useCacheStore';
+import { localStorage } from '@/services/ExtensionStorage';
 
 const LOG = 'Bing Client';
 
@@ -228,6 +229,7 @@ export function useBingDictionaryClient() {
 
   // Debounced live-apply of the current config to a running worker.
   let liveApplyTimer: ReturnType<typeof setTimeout> | null = null;
+  let unsubscribeClientConfig: (() => void) | null = null;
   // Centralized clear so both the re-debounce path and unmount teardown release
   // the pending timer (mirrors stopStatsPolling for the stats interval).
   const cancelLiveApply = () => {
@@ -251,6 +253,26 @@ export function useBingDictionaryClient() {
         logger.warn(LOG, 'Live config apply failed', err);
       }
     }, 400);
+  };
+
+  const applyStoredConfig = (stored?: Partial<ClientConfig>) => {
+    if (!stored) return;
+    const next = {
+      ...clientConfig.value,
+      ...stored,
+      apiUrl: currentEndpoint.value.replace(/\/+$/, ''),
+    };
+    if (JSON.stringify(next) === JSON.stringify(clientConfig.value)) return;
+    clientConfig.value = next;
+    pushLiveConfig();
+  };
+
+  const ensureClientConfigSync = () => {
+    if (unsubscribeClientConfig) return;
+    unsubscribeClientConfig = localStorage.subscribe<ClientConfig>(
+      STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG,
+      applyStoredConfig,
+    );
   };
 
   // Ping the endpoint configured in Settings so the user gets reachability feedback.
@@ -317,6 +339,7 @@ export function useBingDictionaryClient() {
   // Always-on activation for an embedded panel: load saved config, pull the
   // endpoint from Settings, load current service state, and begin polling.
   const initPanel = async () => {
+    ensureClientConfigSync();
     await logger.init();
     await loadClientConfig();
     await apiManager.initialize({ autoDetect: false });
@@ -342,7 +365,7 @@ export function useBingDictionaryClient() {
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG);
       if (result[STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG]) {
-        clientConfig.value = { ...clientConfig.value, ...result[STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG] };
+        applyStoredConfig(result[STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG]);
       }
     } catch (err) {
       logger.error(LOG, 'Failed to load client config', err);
@@ -437,6 +460,7 @@ export function useBingDictionaryClient() {
   };
 
   const initialize = async () => {
+    ensureClientConfigSync();
     const result = await chrome.storage.local.get(STORAGE_KEYS.BING_DICTIONARY_CLIENT_MODE);
     if (result[STORAGE_KEYS.BING_DICTIONARY_CLIENT_MODE]) {
       clientMode.value = result[STORAGE_KEYS.BING_DICTIONARY_CLIENT_MODE];
@@ -453,6 +477,8 @@ export function useBingDictionaryClient() {
     // Cancel any pending debounced live-config push so it can't fire after the
     // panel is gone and message a background service from a dead component.
     cancelLiveApply();
+    unsubscribeClientConfig?.();
+    unsubscribeClientConfig = null;
   });
 
   return {

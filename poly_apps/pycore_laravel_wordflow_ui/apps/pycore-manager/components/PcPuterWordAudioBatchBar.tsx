@@ -1,24 +1,23 @@
 /**
  * PcPuterWordAudioBatchBar — unified Word Audio panel (the only body of the
- * Queue Center wordAudio section; the section header shows state only).
+ * Queue Center wordAudio section; the section header owns the worker switch).
  *
- * ONE idempotent On/Off auto toggle; semantics depend on the selected engine:
+ * The Queue Center section switch owns the pycore worker. Browser sources use
+ * an explicitly named local loop control because they execute in the UI.
  *
  *   Browser sources (puter.js / longman) — the toggle IS the browser-side loop
  *   (fetch missing batch → synthesize → upload → next batch; internal fetch
  *   limit 500). The loop's running state is the toggle state: a natural stop
  *   (nothing left / no progress) flips the toggle Off.
  *
- *   pycore engines (edge default, listed from hub.tts) — the toggle drives the
- *   pycore word worker via setWordTtsAutoConfig; turning On (or switching
- *   engine while On) first writes the selected engine to the front of the
- *   word_tts priority profile (saveCapabilitySettings) so pycore rebinds live.
+ *   pycore engines (edge default, listed from hub.tts) — switching the selected
+ *   engine updates the word_tts priority profile while the worker is enabled.
  *
  * Kept: longman accent US/UK + random delay min/max (browser sources), the
  * language select, the Laravel pending/leased counts (hub.voiceWord.laravel),
  * the local history log, and the pycore word worker's processing records
  * (hub.voiceWord.worker.events) with its heartbeat state. Playback uses the
- * hub's active Laravel endpoint, falling back to getDefaultBaseURL().
+ * pycore, which retrieves Laravel-owned media.
  *
  * Word fix: garbled words are cleaned and persisted back via /fix-word.
  * Dynamic priority queue: WS 'word_audio_priority_boost' moves boosted words to
@@ -31,8 +30,8 @@ import { subscribe, connectPycoreWs } from '../../../core/api-libs/pycore/Pycore
 import { pycoreApi, ttsEngineUiState, ttsConcurrencyAnnotation } from '../../../core/api-libs/pycore';
 import type { TtsStatus, TtsEngine } from '../../../core/api-libs/pycore/pycoreTypes';
 import { puterSynthesizeWord, blobToBase64, cleanWordText } from '../../../core/utils/puterAudio';
-import { getDefaultBaseURL } from '../../../config/constants';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
+import { PcWordAudioLog, type PcWordAudioLogRow } from './PcWordAudioLog';
 
 const LOG_KEY = 'pc_puter_word_batch_log';
 const EXPAND_KEY = 'pc_puter_batch_expanded';
@@ -77,17 +76,6 @@ interface LiveItem extends LogEntry {
  * One row of the unified log: browser-source entries (ok/fail/pending), live
  * session items, and pycore worker events share this shape (times in ms).
  */
-interface UnifiedLogRow {
-  at: number;
-  kind: string;
-  text: string;
-  detail?: string;
-  blobUrl?: string;
-  lang?: string;
-  md5?: string;
-  live?: boolean;
-}
-
 const isBrowserSource = (engine: string): boolean => engine === 'puter' || engine === 'longman';
 
 function readInt(key: string, fallback: number): number {
@@ -182,7 +170,6 @@ export function PcPuterWordAudioBatchBar(): JSX.Element {
   const [items, setItems] = useState<LiveItem[]>([]);
   const [log, setLog] = useState<LogEntry[]>(() => loadLog());
   const [line, setLine] = useState('Idle — expand to configure.');
-  const [toggleBusy, setToggleBusy] = useState(false);
   const [actionErr, setActionErr] = useState<string | null>(null);
   const stopRef = useRef(false);
   const runningRef = useRef(false);
@@ -259,6 +246,7 @@ export function PcPuterWordAudioBatchBar(): JSX.Element {
   const workerConcurrency = hub.voiceWord?.concurrency;
   const concurrencyRecommended = hub.voiceWord?.concurrency_recommended;
   const workerAutoOn = hub.voiceWord?.auto_start === true;
+  const workerRunning = hub.controls.word_audio?.running === true;
   const autoOn = isBrowserSource(engine) ? browserOn : workerAutoOn;
   const wordWorker = hub.voiceWord?.worker ?? null;
   const workerEvents = wordWorker?.events ?? [];
@@ -285,32 +273,17 @@ export function PcPuterWordAudioBatchBar(): JSX.Element {
       .catch((e: any) => setActionErr(e?.message || 'concurrency save failed'));
   }, [workerAutoOn, hub]);
 
-  // THE single On/Off auto toggle (idempotent). Browser sources flip the local
-  // loop state; pycore engines drive the backend word worker.
-  const onToggleAuto = useCallback(async () => {
-    if (toggleBusy) return;
+  // Browser sources are client-side tools and have their own explicit loop.
+  // The Queue Center section switch is the only pycore worker control.
+  const onToggleBrowserLoop = useCallback(() => {
     setActionErr(null);
-    if (isBrowserSource(engine)) {
-      const next = !browserOn;
-      setBrowserOnPersist(next);
-      if (!next && runningRef.current) {
-        stopRef.current = true;
-        setLine('Stopping after current word…');
-      }
-      return; // the driver effect below starts the loop when next === true
+    const next = !browserOn;
+    setBrowserOnPersist(next);
+    if (!next && runningRef.current) {
+      stopRef.current = true;
+      setLine('Stopping after current word…');
     }
-    setToggleBusy(true);
-    try {
-      const next = !workerAutoOn;
-      if (next) await saveWordPriority(engine);
-      await pycoreApi.setWordTtsAutoConfig(next);
-      hub.refreshHub();
-    } catch (e: any) {
-      setActionErr(e?.message || 'toggle failed');
-    } finally {
-      setToggleBusy(false);
-    }
-  }, [toggleBusy, engine, browserOn, workerAutoOn, saveWordPriority, hub, setBrowserOnPersist]);
+  }, [browserOn, setBrowserOnPersist]);
 
   // Engine change: browser sources take effect on the next loop round; switching
   // to a pycore engine while the worker is On re-points the live chain first.
@@ -334,16 +307,9 @@ export function PcPuterWordAudioBatchBar(): JSX.Element {
       return;
     }
     try {
-      const base = hub.laravelActiveEndpoint ?? getDefaultBaseURL();
-      const r = await fetch(`${base}/api/app_qy_v1/word/${encodeURIComponent(e.lang)}/${encodeURIComponent(e.word)}/media`);
-      const j = await r.json();
-      const url: string | null = j?.data?.audio_url || j?.url || null;
-      if (url) {
-        const full = url.startsWith('http') ? url : base + url;
-        new Audio(full).play();
-      }
+      await new Audio(pycoreApi.wordAudioMediaUrl(e.word, e.lang)).play();
     } catch { /* ignore */ }
-  }, [hub.laravelActiveEndpoint]);
+  }, []);
 
   /** Fix a garbled word on the backend when the cleaned text differs. */
   const maybeFixWord = useCallback(async (md5: string, langCode: string, originalWord: string, cleaned: string) => {
@@ -578,8 +544,8 @@ export function PcPuterWordAudioBatchBar(): JSX.Element {
 
   // Merge worker events (sec → ms) with local history + live items into one
   // time-sorted (desc) unified log; live items win on md5+at collisions.
-  const unifiedRows = useMemo<UnifiedLogRow[]>(() => {
-    const rows: UnifiedLogRow[] = [];
+  const unifiedRows = useMemo<PcWordAudioLogRow[]>(() => {
+    const rows: PcWordAudioLogRow[] = [];
     const seen = new Set<string>();
     for (const it of items) {
       rows.push({
@@ -610,30 +576,10 @@ export function PcPuterWordAudioBatchBar(): JSX.Element {
   const failCount = items.filter((i) => i.status === 'fail').length;
   const total = items.length;
 
-  const renderRow = (r: UnifiedLogRow, idx: number) => (
-    <div key={`${r.md5 || r.kind}-${r.at}-${idx}`} className="flex items-center gap-2 px-2 py-1 text-xs border-b border-slate-800/60">
-      <span className={`px-1 rounded text-[9px] font-bold uppercase shrink-0 ${
-        r.kind === 'ok'
-          ? 'bg-emerald-500/15 text-emerald-400'
-          : r.kind === 'fail'
-            ? 'bg-rose-500/15 text-rose-400'
-            : r.kind === 'pending'
-              ? 'bg-amber-500/15 text-amber-400'
-              : 'bg-sky-500/15 text-sky-400'}`}>{r.kind}</span>
-      <span className="text-[10px] text-slate-500 shrink-0">{r.at ? new Date(r.at).toLocaleTimeString() : '—'}</span>
-      <span className="font-mono text-slate-300 truncate flex-1" title={r.text || r.detail}>{r.text || r.detail || '—'}</span>
-      {r.lang && <span className="text-[10px] text-slate-500 shrink-0">{r.lang}</span>}
-      {r.detail && r.text && (
-        <span className="text-[10px] text-slate-500 truncate shrink-0 max-w-[40%]" title={r.detail}>{r.detail}</span>
-      )}
-      {r.md5 && r.lang && (
-        <button onClick={() => playEntry({ word: r.text, md5: r.md5!, lang: r.lang!, status: 'ok', at: r.at })}
-          className="shrink-0 rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-200 hover:bg-slate-600"
-          title="Play audio">▶</button>
-      )}
-      {r.live && <span className="text-[9px] text-sky-400 shrink-0">live</span>}
-    </div>
-  );
+  const playLogRow = useCallback((row: PcWordAudioLogRow) => {
+    if (!row.md5 || !row.lang) return;
+    void playEntry({ word: row.text, md5: row.md5, lang: row.lang, status: 'ok', at: row.at });
+  }, [playEntry]);
 
   const engineLabel = engine === 'longman' ? 'Longman' : engine === 'puter' ? 'Puter.js' : engine;
   const selectedUiState = selectedTts ? ttsEngineUiState(selectedTts.installed, selectedTts.available) : null;
@@ -653,7 +599,9 @@ export function PcPuterWordAudioBatchBar(): JSX.Element {
           {engineLabel}
         </span>
         <span className={`text-[10px] font-bold ${autoOn ? 'text-emerald-400' : 'text-slate-500'}`}>
-          {autoOn ? (running ? '● auto on · running' : '● auto on') : 'auto off'}
+          {isBrowserSource(engine)
+            ? (autoOn ? (running ? '● browser loop · running' : '● browser loop · on') : 'browser loop · off')
+            : (autoOn ? (workerRunning ? '● worker · running' : '● worker · configured') : 'worker · off')}
         </span>
         <span className="text-[10px] text-slate-500 truncate flex-1 min-w-0">{line}</span>
         <button
@@ -731,23 +679,21 @@ export function PcPuterWordAudioBatchBar(): JSX.Element {
             )}
           </div>
 
-          {/* THE single On/Off auto toggle */}
+          {/* Browser loop control; the section switch owns the pycore worker. */}
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={onToggleAuto}
-              disabled={toggleBusy}
-              title={isBrowserSource(engine)
-                ? 'On: browser loop fetches missing words → synthesizes → uploads → next batch. Off: stop after the current word.'
-                : `On: pycore word worker synthesizes via ${engine} (saved to the word_tts priority front). Off: stop the worker.`}
-              className={`px-3 py-1 rounded text-xs font-semibold transition disabled:opacity-50 ${
-                autoOn ? 'bg-emerald-700 text-white hover:bg-emerald-600' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
-            >
-              {toggleBusy ? '…' : autoOn ? '⏻ Auto On' : '⏻ Auto Off'}
-            </button>
+            {isBrowserSource(engine) && (
+              <button
+                onClick={onToggleBrowserLoop}
+                title="On: browser loop fetches missing words, synthesizes, uploads, then fetches the next batch."
+                className={`px-3 py-1 rounded text-xs font-semibold transition ${
+                  autoOn ? 'bg-emerald-700 text-white hover:bg-emerald-600' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>
+                Browser Loop {autoOn ? 'On' : 'Off'}
+              </button>
+            )}
             <span className="text-[10px] text-slate-500">
               {isBrowserSource(engine)
                 ? 'Browser loop: fetch missing words → synthesize → upload → next batch.'
-                : `pycore word worker synthesizes via ${engine}.`}
+                : `The Word Audio section switch controls the pycore worker using ${engine}.`}
             </span>
             {actionErr && <span className="text-[10px] text-rose-400">{actionErr}</span>}
           </div>
@@ -840,18 +786,7 @@ export function PcPuterWordAudioBatchBar(): JSX.Element {
           </p>
 
           {/* Unified log: live session items + persisted history + pycore worker events */}
-          {unifiedRows.length > 0 && (
-            <div className="mt-1 max-h-56 overflow-y-auto rounded border border-slate-800 bg-slate-950/60">
-              <div className="sticky top-0 bg-slate-900/90 px-2 py-1 text-[10px] font-semibold text-slate-500 flex items-center gap-2">
-                <span>Unified log ({unifiedRows.length})</span>
-                <button onClick={clearLog}
-                  className="ml-auto rounded bg-slate-700 px-2 py-0.5 text-[10px] text-slate-300 hover:bg-slate-600">
-                  Clear
-                </button>
-              </div>
-              {unifiedRows.map((r, i) => renderRow(r, i))}
-            </div>
-          )}
+          <PcWordAudioLog rows={unifiedRows} onClear={clearLog} onPlay={playLogRow} />
         </div>
       )}
     </div>

@@ -27,34 +27,35 @@
 
 <script lang="ts" setup>
 import { ref, onMounted } from 'vue';
+import {
+  getPreferredProvider,
+  setPreferredProvider,
+  type AiWebProvider,
+} from '@/services/AiProviderSettings';
 
-type AiWebProvider = 'chatgpt' | 'gemini';
-const PROVIDER_STORAGE_KEY = 'aiWebProvider';
+type SelectableProvider = Extract<AiWebProvider, 'chatgpt' | 'gemini'>;
 
-const options: { id: AiWebProvider; label: string }[] = [
+const options: { id: SelectableProvider; label: string }[] = [
   { id: 'chatgpt', label: 'ChatGPT' },
   { id: 'gemini', label: 'Gemini' },
 ];
 
-const provider = ref<AiWebProvider>('chatgpt');
+const provider = ref<SelectableProvider>('chatgpt');
 const saved = ref(false);
 
 onMounted(async () => {
   try {
-    const stored = await chrome.storage.local.get([PROVIDER_STORAGE_KEY]);
-    const v = stored[PROVIDER_STORAGE_KEY];
-    if (v === 'chatgpt' || v === 'gemini') {
-      provider.value = v;
-    }
+    const stored = await getPreferredProvider();
+    if (stored === 'chatgpt' || stored === 'gemini') provider.value = stored;
   } catch {
     // keep default
   }
 });
 
-const select = async (id: AiWebProvider) => {
+const select = async (id: SelectableProvider) => {
   provider.value = id;
   try {
-    await chrome.storage.local.set({ [PROVIDER_STORAGE_KEY]: id });
+    await setPreferredProvider(id);
     saved.value = true;
     setTimeout(() => {
       saved.value = false;

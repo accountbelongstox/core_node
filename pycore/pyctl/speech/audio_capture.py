@@ -16,6 +16,7 @@ batch) and consolidate with pyutils/whisper_stt/audio_capture.py.
 import threading
 from typing import Any
 
+from pycore import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 # Backend globals: single-sourced in audio_devices.py (import, do not re-declare).
 from pycore.pyctl.speech.audio_devices import pyaudio, np
@@ -38,7 +39,8 @@ class AudioCaptureThread(threading.Thread):
         self.device_index = device_index
         self.device_info = device_info
         self.push_stream = push_stream
-        self.is_running = False
+        self._running_signal = f"speech.audio_capture.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
     def run(self):
         """Thread main function"""
@@ -65,7 +67,7 @@ class AudioCaptureThread(threading.Thread):
         audio = pyaudio.PyAudio()
         stream = None
 
-        self.is_running = True
+        THREAD_BUS.signal(self._running_signal, True)
 
         # Open audio stream in shared mode (non-exclusive)
         # This prevents blocking other applications from using the audio device
@@ -91,7 +93,7 @@ class AudioCaptureThread(threading.Thread):
 
         resample_ratio = TARGET_RATE / device_rate
 
-        while self.is_running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             data = stream.read(CHUNK, exception_on_overflow=False)
 
             # Convert to numpy
@@ -115,9 +117,10 @@ class AudioCaptureThread(threading.Thread):
             stream.stop_stream()
             stream.close()
         audio.terminate()
+        THREAD_BUS.signal(self._running_signal, False)
 
         ColorPrint.yellow("[Thread] Audio capture stopped")
 
     def stop(self):
         """Stop audio capture"""
-        self.is_running = False
+        THREAD_BUS.signal(self._running_signal, False)

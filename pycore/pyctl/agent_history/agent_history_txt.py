@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import os
 import re
-import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -33,9 +32,6 @@ BLOCK_MARKERS = ("@session", "@prompt", "@turn", "@meta")
 
 _SHARED_STATE_DIR = get_local_data_dir() / ".ai_state" / "agent_history"
 _LEGACY_DIR = APP_DATA_DIR / "ai_state" / "agent_history"
-
-_lock = threading.Lock()
-
 
 def store_dir() -> Path:
     try:
@@ -417,8 +413,3 @@ def write_edits(edits: Dict[str, Dict[str, str]]) -> None:
     _atomic_write(store_dir() / "prompt_edits.txt", "".join(lines))
 
 
-def with_lock(fn):
-    def wrapper(*args, **kwargs):
-        with _lock:
-            return fn(*args, **kwargs)
-    return wrapper

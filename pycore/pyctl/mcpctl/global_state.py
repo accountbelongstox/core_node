@@ -12,11 +12,15 @@ Used by SingletonDetector to decide whether to allow replacement:
 - BUSY state → Reject replacement, new instance connects as SECONDARY
 """
 
-import threading
-from enum import Enum
-from typing import Dict, Any
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Dict
+
+from pycore.pyfoundations.thread_bus import THREAD_BUS
+
+
+_STATE_SIGNAL = 'pyctl.mcp.global_state'
 
 
 class ProcessingState(Enum):
@@ -51,11 +55,13 @@ class MCPGlobalState:
 
     def __init__(self):
         """Initialize state manager"""
-        self._lock = threading.Lock()
-        self._state = ProcessingState.IDLE
-        self._active_tasks = 0
         self._start_time = time.time()
-        self._last_task_time = 0.0
+        if THREAD_BUS.get_signal(_STATE_SIGNAL) is None:
+            THREAD_BUS.signal(_STATE_SIGNAL, {
+                'state': ProcessingState.IDLE,
+                'active_tasks': 0,
+                'last_task_time': 0.0,
+            })
 
     def begin_task(self, task_id: str = None) -> None:
         """
@@ -64,11 +70,13 @@ class MCPGlobalState:
         Args:
             task_id: Optional task identifier for logging
         """
-        with self._lock:
-            self._active_tasks += 1
-            self._last_task_time = time.time()
-            if self._active_tasks > 0:
-                self._state = ProcessingState.BUSY
+        state = dict(THREAD_BUS.get_signal(_STATE_SIGNAL, {}) or {})
+        active_tasks = int(state.get('active_tasks') or 0) + 1
+        THREAD_BUS.signal(_STATE_SIGNAL, {
+            'state': ProcessingState.BUSY,
+            'active_tasks': active_tasks,
+            'last_task_time': time.time(),
+        })
 
     def end_task(self, task_id: str = None) -> None:
         """
@@ -77,10 +85,16 @@ class MCPGlobalState:
         Args:
             task_id: Optional task identifier for logging
         """
-        with self._lock:
-            self._active_tasks = max(0, self._active_tasks - 1)
-            if self._active_tasks == 0:
-                self._state = ProcessingState.IDLE
+        state = dict(THREAD_BUS.get_signal(_STATE_SIGNAL, {}) or {})
+        active_tasks = max(0, int(state.get('active_tasks') or 0) - 1)
+        THREAD_BUS.signal(_STATE_SIGNAL, {
+            **state,
+            'state': (
+                ProcessingState.IDLE
+                if active_tasks == 0 else ProcessingState.BUSY
+            ),
+            'active_tasks': active_tasks,
+        })
 
     def is_idle(self) -> bool:
         """
@@ -89,8 +103,8 @@ class MCPGlobalState:
         Returns:
             True if no active tasks
         """
-        with self._lock:
-            return self._state == ProcessingState.IDLE
+        state = THREAD_BUS.get_signal(_STATE_SIGNAL, {}) or {}
+        return state.get('state') == ProcessingState.IDLE
 
     def is_busy(self) -> bool:
         """
@@ -99,8 +113,8 @@ class MCPGlobalState:
         Returns:
             True if has active tasks
         """
-        with self._lock:
-            return self._state == ProcessingState.BUSY
+        state = THREAD_BUS.get_signal(_STATE_SIGNAL, {}) or {}
+        return state.get('state') == ProcessingState.BUSY
 
     def can_shutdown(self) -> bool:
         """
@@ -113,8 +127,11 @@ class MCPGlobalState:
         Returns:
             True if shutdown allowed
         """
-        with self._lock:
-            return self._state == ProcessingState.IDLE and self._active_tasks == 0
+        state = THREAD_BUS.get_signal(_STATE_SIGNAL, {}) or {}
+        return (
+            state.get('state') == ProcessingState.IDLE
+            and int(state.get('active_tasks') or 0) == 0
+        )
 
     def get_snapshot(self) -> StateSnapshot:
         """
@@ -123,23 +140,28 @@ class MCPGlobalState:
         Returns:
             StateSnapshot with current state
         """
-        with self._lock:
-            uptime = time.time() - self._start_time
-
-            # Determine message
-            if self._state == ProcessingState.IDLE:
-                message = "Backend is idle, replacement allowed"
-            else:
-                message = f"Backend is busy with {self._active_tasks} active tasks, replacement denied"
-
-            return StateSnapshot(
-                state=self._state,
-                active_tasks=self._active_tasks,
-                can_shutdown=self.can_shutdown(),
-                uptime_seconds=uptime,
-                last_task_timestamp=self._last_task_time,
-                message=message
+        state = THREAD_BUS.get_signal(_STATE_SIGNAL, {}) or {}
+        processing_state = state.get('state', ProcessingState.IDLE)
+        active_tasks = int(state.get('active_tasks') or 0)
+        if processing_state == ProcessingState.IDLE:
+            message = "Backend is idle, replacement allowed"
+        else:
+            message = (
+                f"Backend is busy with {active_tasks} active tasks, "
+                "replacement denied"
             )
+
+        return StateSnapshot(
+            state=processing_state,
+            active_tasks=active_tasks,
+            can_shutdown=(
+                processing_state == ProcessingState.IDLE
+                and active_tasks == 0
+            ),
+            uptime_seconds=time.time() - self._start_time,
+            last_task_timestamp=float(state.get('last_task_time') or 0.0),
+            message=message,
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -164,7 +186,6 @@ class MCPGlobalState:
 # ============================================================
 
 _global_state_instance: MCPGlobalState = None
-_instance_lock = threading.Lock()
 
 
 def get_global_state() -> MCPGlobalState:
@@ -176,9 +197,7 @@ def get_global_state() -> MCPGlobalState:
     """
     global _global_state_instance
     if _global_state_instance is None:
-        with _instance_lock:
-            if _global_state_instance is None:
-                _global_state_instance = MCPGlobalState()
+        _global_state_instance = MCPGlobalState()
     return _global_state_instance
 
 

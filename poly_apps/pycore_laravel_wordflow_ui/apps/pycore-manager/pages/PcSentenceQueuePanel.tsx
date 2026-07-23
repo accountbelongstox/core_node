@@ -38,7 +38,7 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({ onMe
   const [variantsOpen, setVariantsOpen] = useState(false);
   const [actionErr, setActionErr] = useState<string | null>(null);
   const [concurrencyInput, setConcurrencyInput] = useState(() => localStorage.getItem('pc_sentence_worker_concurrency') ?? '');
-  const err = actionErr || (hub.pycoreReachable ? null : hub.error);
+  const err = actionErr || hub.sliceErrors.sentence_queue || (hub.pycoreReachable ? null : hub.error);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
@@ -52,8 +52,9 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({ onMe
     setBusy(true);
     setActionErr(null);
     try {
-      await pycoreApi.runSentenceAudioOnce();
-      hub.refreshHub();
+      const result = await pycoreApi.runSentenceAudioOnce();
+      if (!result?.ok) throw new Error(result?.error || 'run-once rejected');
+      await hub.refreshHub();
     } catch (e: any) {
       if (mounted.current) setActionErr(e?.message || 'run-once failed');
     } finally {
@@ -63,6 +64,11 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({ onMe
 
   const items = snap?.queue?.items ?? [];
   const events = snap?.worker?.events ?? [];
+  // Per-language pending counts (non-zero only) for the variants header chips.
+  const langPendingChips = Object.entries(snap?.queue?.summary?.languages ?? {})
+    .filter(([, count]) => (count ?? 0) > 0)
+    .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
+    .slice(0, 8) as Array<[string, number]>;
   // Concurrent worker exposes a LIST of in-flight tasks; older builds a single dict.
   const currentRaw = snap?.worker?.current_task;
   const inFlight: SentenceWorkerTask[] = Array.isArray(currentRaw)
@@ -71,7 +77,7 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({ onMe
       ? [currentRaw]
       : [];
   // Reachability verdict comes ONLY from the shared hub (task-center remote_queue).
-  const reachable = hub.laravelReachable !== false;
+  const reachable = hub.laravelReachable === true;
 
   // Status-row figures: live heartbeat + Laravel counts from the shared voice
   // status, worker totals from the queue snapshot (falling back to the status).
@@ -231,7 +237,7 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({ onMe
       <div className="pc-glass overflow-hidden">
         <div className="px-3 py-2 border-b border-slate-500/10 text-[10px] uppercase tracking-wide text-slate-400 flex justify-between">
           <span>{t('queueCenter.sentenceQueue.missingRows')} ({snap?.queue?.total ?? items.length})</span>
-          <span>Laravel · book-reader bumps</span>
+          <span>{t('queueCenter.sentenceQueue.queueHeadHint')}</span>
         </div>
         {loading && !items.length ? (
           <p className="p-4 text-xs text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> loading…</p>
@@ -239,19 +245,24 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({ onMe
           <p className="p-4 text-xs text-slate-400">{t('queueCenter.sentenceQueue.empty')}</p>
         ) : (
           <ul className="divide-y divide-slate-500/10 max-h-[320px] overflow-y-auto">
-            {items.map((row) => {
+            {items.slice(0, 100).map((row) => {
               const key = `${row.language}:${row.content_id}`;
               const bumped = !!row.recently_bumped;
+              const processing = !!row.processing;
               return (
                 <li key={key}
-                  className={`px-3 py-2 text-xs ${bumped ? 'ring-2 ring-inset ring-amber-400/50 bg-amber-500/5' : ''}`}>
+                  className={`px-3 py-2 text-xs ${bumped ? 'ring-2 ring-inset ring-amber-400/50 bg-amber-500/5' : ''} ${processing ? 'bg-teal-500/5' : ''}`}>
                   <div className="flex items-start gap-2">
-                    {bumped && <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />}
+                    {processing
+                      ? <Loader2 className="w-3.5 h-3.5 text-teal-500 shrink-0 mt-0.5 animate-spin" />
+                      : bumped
+                        ? <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                        : null}
                     <div className="flex-1 min-w-0">
                       <p className="text-slate-700 dark:text-slate-200 truncate" title={row.text}>{preview(row.text, 120)}</p>
                       <p className="text-[10px] font-mono text-slate-400 mt-0.5">
                         {row.language} · prio <b className="text-amber-500">{row.tts_priority ?? 0}</b>
-                        {' · '}{row.tts_status || 'pending'}
+                        {' · '}{processing ? 'synthesizing' : row.tts_status || 'pending'}
                         {row.tts_locked_by ? ` · ${row.tts_locked_by}` : ''}
                       </p>
                     </div>
@@ -263,6 +274,8 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({ onMe
         )}
       </div>
 
+      {/* Merged log: worker events (completed/failed sentences land here once
+          they leave the queue head) + the live qwen3tts/worker pycore_log stream. */}
       <div className="pc-glass overflow-hidden">
         <button type="button" onClick={() => setLogOpen((v) => !v)}
           className="w-full px-3 py-2 flex items-center justify-between text-[10px] uppercase tracking-wide text-slate-400 hover:bg-slate-500/5">
@@ -270,33 +283,49 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({ onMe
           {logOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
         {logOpen && (
-          <ul className="divide-y divide-slate-500/10 max-h-[220px] overflow-y-auto text-[10px] font-mono">
-            {!events.length ? (
-              <li className="px-3 py-2 text-slate-400">{t('queueCenter.sentenceQueue.noLog')}</li>
-            ) : events.map((ev, i) => (
-              <li key={`${ev.at}-${i}`} className="px-3 py-1.5 text-slate-500">
-                <span className="text-slate-400">{new Date((ev.at || 0) * 1000).toLocaleTimeString()}</span>
-                {' '}[{ev.kind}] {ev.detail}
-                {ev.text_preview ? ` · "${ev.text_preview}"` : ''}
-              </li>
-            ))}
-          </ul>
+          <div>
+            <ul className="divide-y divide-slate-500/10 max-h-[220px] overflow-y-auto text-[10px] font-mono">
+              {!events.length ? (
+                <li className="px-3 py-2 text-slate-400">{t('queueCenter.sentenceQueue.noLog')}</li>
+              ) : events.map((ev, i) => (
+                <li key={`${ev.at}-${i}`} className="px-3 py-1.5 text-slate-500">
+                  <span className="text-slate-400">{new Date((ev.at || 0) * 1000).toLocaleTimeString()}</span>
+                  {' '}[{ev.kind}] {ev.detail}
+                  {ev.text_preview ? ` · "${ev.text_preview}"` : ''}
+                </li>
+              ))}
+            </ul>
+            <div className="border-t border-slate-500/10">
+              <PcTagFilteredLog
+                bare
+                tags={['[TTSSentenceWorker]', '[qwen3tts]', '[managed]']}
+                title={t('queueCenter.sentenceQueue.liveLog')}
+                emptyHint="No qwen3tts / sentence-worker log lines yet."
+              />
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Live pycore_log stream filtered to the sentence TTS worker + qwen3tts subprocess. */}
-      <PcTagFilteredLog
-        tags={['[TTSSentenceWorker]', '[qwen3tts]', '[managed]']}
-        title="Live log (qwen3tts + worker)"
-        emptyHint="No qwen3tts / sentence-worker log lines yet."
-      />
-
-      {/* Voice variants editor — merged into this panel as a collapsible sub-section. */}
+      {/* Voice variants editor — the per-language accent/gender specs stored in
+          Laravel's variant-specs table; they decide which sentences are claimable
+          (a language with no specs generates nothing). */}
       <div className="pc-glass overflow-hidden">
         <button type="button" onClick={() => setVariantsOpen((v) => !v)}
-          className="w-full px-3 py-2 flex items-center justify-between text-[10px] uppercase tracking-wide text-slate-400 hover:bg-slate-500/5">
-          <span>Voice variants (per-language accent / gender)</span>
-          {variantsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          className="w-full px-3 py-2 flex items-center justify-between gap-2 text-[10px] uppercase tracking-wide text-slate-400 hover:bg-slate-500/5">
+          <span className="flex items-center gap-2 flex-wrap">
+            {t('queueCenter.sentenceQueue.variantsTitle')}
+            {langPendingChips.length > 0 && (
+              <span className="flex items-center gap-1 flex-wrap normal-case tracking-normal">
+                {langPendingChips.map(([lang, count]) => (
+                  <span key={lang} className="px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-500 font-mono text-[9px]">
+                    {lang}:{count}
+                  </span>
+                ))}
+              </span>
+            )}
+          </span>
+          {variantsOpen ? <ChevronUp className="w-3.5 h-3.5 shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 shrink-0" />}
         </button>
         {variantsOpen && (
           <div className="p-2 border-t border-slate-500/10">

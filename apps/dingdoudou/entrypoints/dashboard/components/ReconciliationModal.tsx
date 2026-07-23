@@ -16,6 +16,7 @@ import {
   CheckCircle2, AlertTriangle, PackageSearch, Loader2,
 } from 'lucide-react';
 import type { Order } from '@/lib/types';
+import { localeFor, reconciliationText } from '@/lib/uiI18n';
 import {
   reconcile, parseTrackingInput, buildReportHtml,
   type ReconcileBatch,
@@ -50,7 +51,7 @@ function saveLocalBatches(list: ReconcileBatch[]): void {
 }
 
 export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fallbackOrders }) => {
-  const zh = lang === 'zh';
+  const ui = reconciliationText(lang);
   const [batches, setBatches] = useState<ReconcileBatch[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -112,7 +113,7 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
     if (parsed.length === 0) return;
     const batch: ReconcileBatch = {
       id: `b_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      name: name.trim() || `${zh ? '批次' : 'Batch'} ${new Date().toLocaleString(zh ? 'zh-CN' : 'en-US')}`,
+      name: name.trim() || `${ui.batch} ${new Date().toLocaleString(localeFor(lang))}`,
       trackingNumbers: parsed,
       createdAt: Date.now(),
     };
@@ -197,7 +198,7 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-black/5 dark:border-white/10">
           <h3 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2">
             <ClipboardCheck className="w-5 h-5 text-blue-500" />
-            {zh ? '订单核算 · 快递单号双向核对' : 'Order Reconciliation · Tracking Audit'}
+            {ui.title}
           </h3>
           <div className="flex items-center gap-2">
             <button
@@ -205,7 +206,7 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
               className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
-              {zh ? '一键打印报表' : 'Print Report'}
+              {ui.print}
             </button>
             <button
               onClick={onClose}
@@ -221,24 +222,24 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
           <div className="lg:col-span-5 space-y-4">
             <div className="bg-white/60 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl p-4 space-y-2.5">
               <div className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                {zh ? '批量添加快递单号' : 'Batch add tracking numbers'}
+                {ui.add}
               </div>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder={zh ? '批次名称（可选）' : 'Batch name (optional)'}
+                placeholder={ui.batchName}
                 className="w-full text-xs bg-white dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 rows={6}
-                placeholder={zh ? '粘贴快递单号，支持换行 / 空格 / 逗号 / 分号分隔' : 'Paste tracking numbers (newline / space / comma / ; separated)'}
+                placeholder={ui.trackingPlaceholder}
                 className="w-full text-xs font-mono bg-white dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
               />
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                  {zh ? `已解析 ${parsed.length} 个去重单号` : `${parsed.length} unique numbers`}
+                  {ui.parsed(parsed.length)}
                 </span>
                 <button
                   onClick={handleAdd}
@@ -246,7 +247,7 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
                   className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  {zh ? '保存批次' : 'Save batch'}
+                  {ui.save}
                 </button>
               </div>
             </div>
@@ -254,13 +255,13 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
             <div className="bg-white/60 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                  {zh ? '已缓存批次' : 'Cached batches'} ({batches.length})
+                  {ui.cached} ({batches.length})
                 </span>
                 {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />}
               </div>
               {batches.length === 0 ? (
                 <div className="text-[11px] text-slate-400 italic py-3 text-center">
-                  {zh ? '暂无批次，请在上方添加。' : 'No batches yet.'}
+                  {ui.emptyBatches}
                 </div>
               ) : (
                 <div className="space-y-1.5 max-h-56 overflow-auto">
@@ -278,7 +279,7 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
                       <div className="flex-1 min-w-0">
                         <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{b.name}</div>
                         <div className="text-[10px] text-slate-400 font-mono">
-                          {b.trackingNumbers.length} {zh ? '个单号' : 'nums'}
+                          {b.trackingNumbers.length} {ui.numberUnit}
                         </div>
                       </div>
                       <button
@@ -300,17 +301,17 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
           {/* Right: result */}
           <div className="lg:col-span-7 space-y-4">
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-              {card(result.totals.batchNumbers, zh ? '批次单号' : 'Batch', 'slate')}
-              {card(result.totals.orderNumbers, zh ? '订单单号' : 'Orders', 'blue')}
-              {card(result.totals.matched, zh ? '命中' : 'Matched', 'emerald')}
-              {card(result.totals.missing, zh ? '缺失' : 'Missing', 'rose')}
-              {card(result.totals.extra, zh ? '多余' : 'Extra', 'slate')}
+              {card(result.totals.batchNumbers, ui.batchNumbers, 'slate')}
+              {card(result.totals.orderNumbers, ui.orderNumbers, 'blue')}
+              {card(result.totals.matched, ui.matched, 'emerald')}
+              {card(result.totals.missing, ui.missing, 'rose')}
+              {card(result.totals.extra, ui.extra, 'slate')}
             </div>
 
             {result.batchSummaries.length > 0 && (
               <div className="bg-white/60 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl p-3">
                 <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1.5">
-                  {zh ? '各批次命中情况' : 'Per-batch'}
+                  {ui.perBatch}
                 </div>
                 <div className="space-y-1">
                   {result.batchSummaries.map((s) => (
@@ -330,9 +331,9 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
             {/* Tabs */}
             <div className="flex items-center gap-1.5">
               {([
-                { k: 'matched', label: zh ? '命中' : 'Matched', n: result.totals.matched, icon: CheckCircle2, tone: 'emerald' },
-                { k: 'missing', label: zh ? '批次缺失' : 'Missing', n: result.totals.missing, icon: AlertTriangle, tone: 'rose' },
-                { k: 'extra', label: zh ? '订单多余' : 'Unaccounted', n: result.totals.extra, icon: PackageSearch, tone: 'slate' },
+                { k: 'matched', label: ui.matched, n: result.totals.matched, icon: CheckCircle2, tone: 'emerald' },
+                { k: 'missing', label: ui.batchMissing, n: result.totals.missing, icon: AlertTriangle, tone: 'rose' },
+                { k: 'extra', label: ui.orderExtra, n: result.totals.extra, icon: PackageSearch, tone: 'slate' },
               ] as const).map((tab) => {
                 const Icon = tab.icon;
                 const active = activeTab === tab.k;
@@ -358,14 +359,14 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
                 <table className="w-full text-[11px]">
                   <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                     <tr>
-                      <th className="text-left px-2.5 py-1.5 font-bold">{zh ? '快递单号' : 'Tracking'}</th>
+                      <th className="text-left px-2.5 py-1.5 font-bold">{ui.tracking}</th>
                       {activeTab === 'missing' ? (
-                        <th className="text-left px-2.5 py-1.5 font-bold">{zh ? '所属批次' : 'Batches'}</th>
+                        <th className="text-left px-2.5 py-1.5 font-bold">{ui.batches}</th>
                       ) : (
                         <>
-                          <th className="text-left px-2.5 py-1.5 font-bold">{zh ? '订单号' : 'Order'}</th>
-                          <th className="text-left px-2.5 py-1.5 font-bold">{zh ? '账号' : 'Account'}</th>
-                          <th className="text-left px-2.5 py-1.5 font-bold">{zh ? '状态' : 'Status'}</th>
+                          <th className="text-left px-2.5 py-1.5 font-bold">{ui.order}</th>
+                          <th className="text-left px-2.5 py-1.5 font-bold">{ui.account}</th>
+                          <th className="text-left px-2.5 py-1.5 font-bold">{ui.status}</th>
                         </>
                       )}
                     </tr>
@@ -374,7 +375,7 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
                     {rows.length === 0 ? (
                       <tr>
                         <td colSpan={4} className="text-center text-slate-400 italic py-6">
-                          {zh ? '无数据' : 'No data'}
+                          {ui.noData}
                         </td>
                       </tr>
                     ) : (
@@ -404,9 +405,7 @@ export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fall
 
             <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
               <RefreshCw className="w-3 h-3" />
-              {zh
-                ? '核对对象为系统中已同步的全部订单快递单号。'
-                : 'Compared against tracking numbers of all synced orders.'}
+              {ui.compareHint}
             </div>
           </div>
         </div>

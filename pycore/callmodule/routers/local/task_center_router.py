@@ -31,9 +31,10 @@ is the composition layer, not a replacement.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import fastapi
+from pydantic import BaseModel
 
 from pycore.pyheartbeat import get_heartbeat_system
 from pycore.pyctl.desktop.task_manager import get_task_manager
@@ -45,6 +46,29 @@ from pycore.callmodule.services import (
     get_translation_worker_service,
 )
 from pycore.callmodule.callmodule_config import Config
+from pycore.callmodule.routers.local.assist_router import (
+    ConfigRequest,
+    assist_config,
+    assist_status,
+)
+from pycore.callmodule.routers.local.heartbeat_workers_router import status as workers_status
+from pycore.callmodule.routers.local.queue_overview_router import get_queue_overview
+from pycore.callmodule.routers.local.sentence_audio_router import queue_snapshot
+from pycore.callmodule.routers.local.task_history_router import get_recent_tasks
+from pycore.callmodule.routers.local.tts_status_router import status as tts_status
+from pycore.callmodule.services.queue_center_contract import (
+    CALLBACK_QUEUE_ROLES,
+    QUEUE_CATEGORY_CATALOG,
+    build_fast_lane,
+)
+from pycore.callmodule.services.sentence_audio_auto import (
+    apply_auto_start as apply_sentence_auto_start,
+    get_status as sentence_audio_status,
+)
+from pycore.callmodule.services.word_tts_auto import (
+    apply_auto_start as apply_word_auto_start,
+    get_status as word_tts_status,
+)
 
 router = fastapi.APIRouter(
     prefix="/api/local/task-center",
@@ -55,21 +79,16 @@ router = fastapi.APIRouter(
 # Callbacks absent from this map are pure scheduled jobs with no queue role
 # (queue_role = None). Mirrors laravel_main TaskCenterController's
 # TIMER_QUEUE_ROLES (its scheduler→queue relationship metadata).
-_CALLBACK_QUEUE_ROLES: Dict[str, str] = {
-    "translation_worker": "consumer",
-    "translation_queue_monitor": "monitor",
-    "translation_ws_client": "signal",
-    "tts_queue_poller": "consumer",
-    "tts_sentence_worker": "consumer",
-    "ai_rate_reset": "maintainer",
-    "agent_history_extraction": "maintainer",
-}
-
 # Local TaskManager status vocabulary (Task statuses in pyctl task_manager).
 _LOCAL_TASK_STATUSES = ("pending", "processing", "completed", "failed")
 
 # How many recent local task records the aggregate includes.
 _RECENT_TASK_LIMIT = 20
+_SNAPSHOT_HISTORY_LIMIT = 200
+
+
+class QueueCenterControlRequest(BaseModel):
+    enabled: bool
 
 # ----------------------------------------------------------------------------
 # Unified-queue category catalog — the canonical list of task types the queue
@@ -84,24 +103,6 @@ _RECENT_TASK_LIMIT = 20
 # in pycoreTypes.ts). Count keys are per-category numeric and INDEPENDENT of the
 # catalog keys (a category may report zeros). Keep `_COUNT_KEYS` in sync with
 # the FE PcQueueCategory numeric fields (pending/processing/leased/total).
-_CATEGORY_CATALOG: List[Dict[str, str]] = [
-    {"key": "word_translation", "label": "Word Translation", "handler": "any"},
-    {"key": "ai_translate", "label": "AI Translate", "handler": "any"},
-    {"key": "word_media", "label": "Word Media", "handler": "chrome"},
-    {"key": "word_audio", "label": "Word Audio", "handler": "pycore"},
-    {"key": "sentence_audio", "label": "Sentence Audio", "handler": "pycore"},
-    {"key": "subtitle_search", "label": "Subtitle Search", "handler": "pycore"},
-    {"key": "poster", "label": "Poster", "handler": "chrome"},
-    {"key": "gemini_image", "label": "Gemini Image", "handler": "chrome"},
-    {"key": "notebooklm", "label": "NotebookLM", "handler": "chrome"},
-    {"key": "gemini_chat", "label": "Gemini Chat", "handler": "chrome"},
-]
-
-# Per-category numeric fields the overview emits for every catalog row (zeros
-# when nothing is queued). MUST stay in lockstep with the FE PcQueueCategory
-# numeric members — adding a count here means adding it on the FE too.
-_COUNT_KEYS = ("pending", "processing", "leased", "total")
-
 
 def _monitor():
     """Resolve the QueueMonitorService singleton (shares the worker's base URL)."""
@@ -137,7 +138,7 @@ def _scheduler_section() -> Dict[str, Any]:
             "enabled": info.get("enabled", False),
             "interval": info.get("interval", 0),
             "run_count": info.get("run_count", 0),
-            "queue_role": _CALLBACK_QUEUE_ROLES.get(name),
+            "queue_role": CALLBACK_QUEUE_ROLES.get(name),
         })
 
     # Heartbeat counters (total_ticks, uptime, running, ...) without the raw
@@ -164,47 +165,6 @@ def _local_tasks_section() -> Dict[str, Any]:
     return {
         "recent": manager.get_recent_tasks(limit=_RECENT_TASK_LIMIT),
         "counts": counts,
-    }
-
-
-def _fast_lane_block() -> Dict[str, Any]:
-    """
-    Surface the worker's fast-lane signals for the Task Center's "fast lane"
-    card: the worker's advertised capabilities/processor_types plus the live
-    fast/urgent backlog and priority-heap depth it last observed from Laravel's
-    pull/heartbeat responses.
-
-    Sourced from the worker's ``get_queue_status()`` (added by the pycore-worker
-    leg). That method may not exist on the recovered baseline yet — reference it
-    DEFENSIVELY: degrade to ``{}`` on absence/error so the Task Center never 500s
-    just because the worker upgrade has not landed. Field names mirror the worker
-    contract (capabilities / processor_types / queue_depth / pending_fast /
-    pending_urgent) consumed by the FE pycore-manager Task Center.
-    """
-    worker = _worker()
-    raw: Dict[str, Any] = {}
-    getter = getattr(worker, "get_queue_status", None)
-    if callable(getter):
-        try:
-            result = getter()
-            if isinstance(result, dict):
-                raw = result
-        except Exception:
-            raw = {}
-
-    # Best-effort fall-backs from the always-present get_status() so the block
-    # is still meaningful before the worker's get_queue_status() lands.
-    status = worker.get_status()
-
-    return {
-        "capabilities": raw.get("capabilities", status.get("capabilities", [])),
-        "processor_types": raw.get(
-            "processor_types", status.get("processor_types", [])
-        ),
-        "queue_depth": raw.get("queue_depth", status.get("inflight_tasks", 0)),
-        "pending_fast": raw.get("pending_fast", 0),
-        "pending_urgent": raw.get("pending_urgent", 0),
-        "registered": raw.get("registered", status.get("registered", False)),
     }
 
 
@@ -239,9 +199,62 @@ def _remote_queue_section() -> Dict[str, Any]:
         },
         # Catalog of every task type the queue overview is aware of (so the UI
         # is not blind to ai_translate / subtitle_search / poster / …).
-        "categories": list(_CATEGORY_CATALOG),
+        "categories": list(QUEUE_CATEGORY_CATALOG),
         # Fast-lane signals (capabilities / processor_types / pending_fast / …).
-        "fast_lane": _fast_lane_block(),
+        "fast_lane": build_fast_lane(),
+    }
+
+
+def _capture_slice(
+    name: str,
+    factory: Callable[[], Any],
+    errors: Dict[str, str],
+) -> Any:
+    """Capture one snapshot slice without losing the remaining control plane."""
+    try:
+        return factory()
+    except Exception as exc:  # noqa: BLE001
+        errors[name] = str(exc)
+        return None
+
+
+def _control_state(
+    assist: Optional[Dict[str, Any]],
+    workers: Optional[Dict[str, Any]],
+    word_audio: Optional[Dict[str, Any]],
+    sentence_audio: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Expose configured intent separately from effective callback state."""
+    assist = assist or {}
+    workers = workers or {}
+    callbacks = {
+        row.get("name"): bool(row.get("enabled"))
+        for row in workers.get("callbacks", [])
+        if isinstance(row, dict) and row.get("name")
+    }
+    capabilities = assist.get("capabilities") or {}
+    master = bool(assist.get("enabled"))
+    return {
+        "assist": {
+            "configured": master,
+            "running": bool(assist.get("running")),
+            "owner": "assist",
+        },
+        "translation": {
+            "configured": master and bool(capabilities.get("translation", True)),
+            "running": bool(callbacks.get("translation_worker")),
+            "owner": "pycore.google_translation_worker",
+        },
+        "word_audio": {
+            "configured": bool((word_audio or {}).get("auto_start")),
+            "running": bool((word_audio or {}).get("heartbeat_enabled")),
+            "owner": "pycore.word_tts_auto",
+        },
+        "sentence_audio": {
+            "configured": bool((sentence_audio or {}).get("auto_start")),
+            "running": bool((sentence_audio or {}).get("heartbeat_enabled")),
+            "owner": "pycore.sentence_audio_auto",
+        },
     }
 
 
@@ -262,6 +275,103 @@ async def get_task_center():
         "remote_queue": _remote_queue_section(),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@router.get("/snapshot")
+def get_queue_center_snapshot():
+    """Return one versioned Queue Center snapshot for every page section.
+
+    All panels receive the same generation timestamp, endpoint selection and
+    per-slice error map. Laravel-backed services use their shared cached
+    monitors; only the overview performs its existing TTL-bounded refresh.
+    """
+    errors: Dict[str, str] = {}
+    task_center = {
+        "scheduler": _scheduler_section(),
+        "local_tasks": _local_tasks_section(),
+        "remote_queue": _remote_queue_section(),
+    }
+    translation = _capture_slice(
+        "translation", lambda: _monitor().get_snapshot(refresh=False), errors
+    )
+    word_audio = _capture_slice("word_audio", word_tts_status, errors)
+    sentence_audio = _capture_slice("sentence_audio", sentence_audio_status, errors)
+    workers = _capture_slice("workers", workers_status, errors)
+    assist = _capture_slice(
+        "assist", lambda: assist_status(include_laravel=False), errors
+    )
+    overview = _capture_slice("overview", get_queue_overview, errors)
+    sentence_queue = _capture_slice("sentence_queue", queue_snapshot, errors)
+    tts = _capture_slice("tts", lambda: tts_status(refresh=0), errors)
+    recent = _capture_slice(
+        "recent",
+        lambda: get_recent_tasks(limit=_SNAPSHOT_HISTORY_LIMIT),
+        errors,
+    )
+    generated_at = datetime.now(timezone.utc).isoformat()
+    task_center["timestamp"] = generated_at
+    remote = task_center["remote_queue"]
+
+    return {
+        "success": not errors,
+        "schema_version": 1,
+        "generated_at": generated_at,
+        "source": {
+            "pycore_reachable": True,
+            "laravel_reachable": bool(remote.get("laravel_reachable")),
+            "laravel_stored_endpoint": remote.get("laravel_endpoint"),
+            "laravel_active_endpoint": remote.get("laravel_active_endpoint"),
+            "laravel_snapshot_age_s": remote.get("laravel_snapshot_age_s"),
+        },
+        "controls": _control_state(assist, workers, word_audio, sentence_audio),
+        "data": {
+            "task_center": task_center,
+            "translation": translation,
+            "word_audio": word_audio,
+            "sentence_audio": sentence_audio,
+            "workers": workers,
+            "assist": assist,
+            "tts": tts,
+            "overview": overview,
+            "sentence_queue": sentence_queue,
+            "recent": recent,
+        },
+        "errors": errors,
+    }
+
+
+@router.post("/controls/{control_name}")
+def set_queue_center_control(control_name: str, req: QueueCenterControlRequest):
+    """Apply one named, persistent Queue Center control and return fresh state."""
+    enabled = bool(req.enabled)
+    if control_name == "assist":
+        result = assist_config(ConfigRequest(enabled=enabled))
+    elif control_name == "translation":
+        result = assist_config(ConfigRequest(
+            enabled=True if enabled else None,
+            # Both translation lanes share one heartbeat worker. Keep their
+            # persisted intent aligned so OFF actually stops that worker and
+            # ON enables the Google-first lane plus its configured fallback.
+            capabilities={"translation": enabled, "ai_translate": enabled},
+        ))
+    elif control_name == "word_audio":
+        assist_config(ConfigRequest(
+            enabled=True if enabled else None,
+            capabilities={"tts": enabled},
+        ))
+        result = {"ok": True, "status": apply_word_auto_start(enabled)}
+    elif control_name == "sentence_audio":
+        assist_config(ConfigRequest(
+            enabled=True if enabled else None,
+            capabilities={"sentence_audio": enabled},
+        ))
+        result = {"ok": True, "status": apply_sentence_auto_start(enabled)}
+    else:
+        raise fastapi.HTTPException(
+            status_code=404, detail=f"Unknown Queue Center control: {control_name}"
+        )
+
+    return {"success": True, "control": control_name, "enabled": enabled, "result": result}
 
 
 @router.get("/tasks/{task_id}")

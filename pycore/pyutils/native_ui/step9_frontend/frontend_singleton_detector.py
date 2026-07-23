@@ -50,8 +50,8 @@ import os
 import time
 import socket
 import json
-import threading
-from typing import Optional, Dict, Callable
+from pycore.pyfoundations.serialized_worker import start_bus_task
+from typing import Any, Optional, Dict, Callable
 from dataclasses import dataclass
 from enum import Enum
 
@@ -149,8 +149,9 @@ class FrontendSingletonDetector:
         self._is_primary = False
         self._bound_port: Optional[int] = None
         self._server_socket: Optional[socket.socket] = None
-        self._running = False
-        self._listener_thread: Optional[threading.Thread] = None
+        self._running_signal = f"native_ui.frontend_singleton.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
+        self._listener_thread: Optional[Any] = None
 
         if self.debug:
             ColorPrint.blue(f"[FrontendSingleton] Initialized for '{app_id}', port range {port_start}-{port_start + port_range - 1}")
@@ -252,17 +253,15 @@ class FrontendSingletonDetector:
 
             self._bound_port = port
             self._is_primary = True
-            self._running = True
+            THREAD_BUS.signal(self._running_signal, True)
 
             ColorPrint.green(f"[FrontendSingleton] Bound to port {port} (PRIMARY frontend)")
 
             # Start listener thread
-            self._listener_thread = threading.Thread(
-                target=self._listener_loop,
-                name=f"FrontendSingleton-{self.app_id}",
-                daemon=True
+            self._listener_thread = start_bus_task(
+                self._listener_loop,
+                thread_name=f"FrontendSingletonThread-{self.app_id}",
             )
-            self._listener_thread.start()
 
             return True
 
@@ -401,19 +400,20 @@ class FrontendSingletonDetector:
         """Socket listener loop (PRIMARY instance only)"""
         self._log("Listener thread started")
 
-        while self._running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             try:
                 client_socket, address = self._server_socket.accept()
                 # Handle in new thread
-                threading.Thread(
-                    target=self._handle_client,
-                    args=(client_socket, address),
-                    daemon=True
-                ).start()
+                start_bus_task(
+                    self._handle_client,
+                    client_socket,
+                    address,
+                    thread_name="FrontendSingletonClientThread",
+                )
             except socket.timeout:
                 continue
             except Exception as e:
-                if self._running:
+                if THREAD_BUS.get_signal(self._running_signal, False):
                     self._log(f"Listener error: {e}", "ERROR")
                 break
 
@@ -482,7 +482,10 @@ class FrontendSingletonDetector:
                         execute_handlers=True
                     )
 
-                threading.Thread(target=trigger_shutdown, daemon=True).start()
+                start_bus_task(
+                    trigger_shutdown,
+                    thread_name="FrontendSingletonShutdownThread",
+                )
 
             elif msg_type == MessageType.PING.value:
                 # Send PONG
@@ -545,7 +548,7 @@ class FrontendSingletonDetector:
 
     def stop(self):
         """Stop detector and close socket"""
-        self._running = False
+        THREAD_BUS.signal(self._running_signal, False)
         if self._server_socket:
             self._server_socket.close()
         if self._listener_thread:

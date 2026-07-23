@@ -23,8 +23,6 @@ import time
 import json
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
-from threading import Thread
-from queue import Queue
 import subprocess
 
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image

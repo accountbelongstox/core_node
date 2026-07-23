@@ -2,16 +2,46 @@
 
 namespace App\Services;
 
+use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
+use App\Apps\DingDuoDuoV1\Utils\DingDuoDuoV1Initializer;
+use App\Apps\McpV1\McpV1Utils\McpV1Initializer;
+use App\Apps\PddToolV1\Utils\PddToolV1Initializer;
 use App\Contracts\AppInitializerInterface;
 use Illuminate\Support\Facades\Log;
+use LogicException;
+use Throwable;
 
 class AppInitializationManager
 {
-    private $initializers = [];
-    
+    private array $initializers = [];
+
+    public static function withDefaultInitializers(): self
+    {
+        $manager = new self();
+
+        $manager->register(new AppQyV1Initializer());
+        $manager->register(new McpV1Initializer());
+        $manager->register(new PddToolV1Initializer());
+        $manager->register(new DingDuoDuoV1Initializer());
+
+        return $manager;
+    }
+
     public function register(AppInitializerInterface $initializer): void
     {
         $appName = $initializer->getAppName();
+
+        if (isset($this->initializers[$appName])) {
+            $registeredClass = get_class($this->initializers[$appName]);
+            $incomingClass = get_class($initializer);
+
+            if ($registeredClass === $incomingClass) {
+                return;
+            }
+
+            throw new LogicException("Conflicting initializers registered for {$appName}: {$registeredClass} and {$incomingClass}");
+        }
+
         $this->initializers[$appName] = $initializer;
         Log::info("[AppInit] Registered initializer for: {$appName}");
     }
@@ -31,7 +61,7 @@ class AppInitializationManager
                 $result = $initializer->initialize($force);
                 $results[$appName] = $result;
                 
-                if ($result['success']) {
+                if (!empty($result['success'])) {
                     Log::info("[AppInit] Successfully initialized: {$appName}");
                     if (PHP_SAPI === 'cli') {
                         echo "     {$appName}: OK\n";
@@ -42,7 +72,7 @@ class AppInitializationManager
                         echo "     {$appName}: FAILED\n";
                     }
                 }
-            } catch (\Exception $e) {
+            } catch (Throwable $e) {
                 $errorMsg = $e->getMessage();
                 Log::error("[AppInit] Exception during {$appName} initialization: {$errorMsg}");
                 $results[$appName] = [
@@ -57,7 +87,8 @@ class AppInitializationManager
         }
         
         return [
-            'success' => !in_array(false, array_column($results, 'success')),
+            'success' => !empty($results)
+                && count(array_filter($results, static fn (array $result): bool => !empty($result['success']))) === count($results),
             'results' => $results,
             'timestamp' => now()->toDateTimeString(),
         ];
@@ -77,7 +108,7 @@ class AppInitializationManager
             $result = $this->initializers[$appName]->initialize($force);
             $result['registered_class'] = get_class($this->initializers[$appName]);
             return $result;
-        } catch (\Exception $e) {
+        } catch (Throwable $e) {
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
@@ -94,7 +125,7 @@ class AppInitializationManager
         foreach ($this->initializers as $appName => $initializer) {
             try {
                 $statuses[$appName] = $initializer->checkInitializationStatus();
-            } catch (\Exception $e) {
+            } catch (Throwable $e) {
                 $statuses[$appName] = [
                     'initialized' => false,
                     'error' => $e->getMessage(),
@@ -126,7 +157,7 @@ class AppInitializationManager
             if (method_exists($initializer, 'getDatabaseInfo')) {
                 try {
                     $details[$appName]['database'] = $initializer->getDatabaseInfo();
-                } catch (\Exception $e) {
+                } catch (Throwable $e) {
                     $details[$appName]['database_error'] = $e->getMessage();
                 }
             }
@@ -146,7 +177,7 @@ class AppInitializationManager
         
         try {
             return $this->initializers[$appName]->reset();
-        } catch (\Exception $e) {
+        } catch (Throwable $e) {
             return [
                 'success' => false,
                 'error' => $e->getMessage(),

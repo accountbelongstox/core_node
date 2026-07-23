@@ -2,8 +2,8 @@
 """
 Local AI agent history extractor — pycore twin of Laravel DeveloperHistoryService.
 
-Incrementally scans Claude/Codex/Cursor/Gemini source files from user home dirs,
-parses prompts + AI returns, and persists to txt files under
+Incrementally scans Claude/Codex/Cursor/Gemini/Kimi/Antigravity source files
+from user home dirs, parses prompts + AI returns, and persists to txt files under
 ``<cache>/pycore/.ai_state/agent_history/`` (no database).
 """
 
@@ -13,23 +13,34 @@ import hashlib
 import os
 import platform
 import re
-import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyctl.agent_history import agent_history_txt as txt
+from pycore.pyctl.agent_history.antigravity_extractor import AntigravityExtractor
 from pycore.pyctl.agent_history.claude_extractor import ClaudeCodeExtractor
 from pycore.pyctl.agent_history.codex_extractor import CodexExtractor
 from pycore.pyctl.agent_history.cursor_extractor import CursorExtractor
 from pycore.pyctl.agent_history.gemini_extractor import GeminiExtractor
+from pycore.pyctl.agent_history.kimi_extractor import KimiExtractor
+from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
 PROMPTS_CAP = 8000
-TOOL_MARKERS = (".claude", ".codex", ".gemini", ".cursor")
+TOOL_MARKERS = (".claude", ".codex", ".gemini", ".cursor", ".kimi-code", ".kimi")
 
 _service: Optional["AgentHistoryService"] = None
-_lock = threading.Lock()
-_extract_lock = threading.Lock()
+_EXTRACT_QUEUE = 'pyctl.agent_history.extract'
+_SUMMARY_SIGNAL = 'pyctl.agent_history.summary'
+_EXTRACT_WORKER = SerializedWorkerThread(
+    _EXTRACT_QUEUE,
+    'AgentHistoryExtractThread',
+)
+_EXTRACT_WORKER.start()
 
 
 def _detect_lang(text: str) -> str:
@@ -69,8 +80,9 @@ class AgentHistoryService:
             CodexExtractor(),
             GeminiExtractor(),
             CursorExtractor(),
+            KimiExtractor(),
+            AntigravityExtractor(),
         ]
-        self._last_summary: Dict[str, Any] = {}
 
     def is_dev_machine(self) -> bool:
         for home in user_homes():
@@ -112,13 +124,12 @@ class AgentHistoryService:
         return f"{base}-{suffix}"
 
     def extract(self, force: bool = False) -> Dict[str, Any]:
-        acquired = _extract_lock.acquire(blocking=force)
-        if not acquired:
-            return self._cached_summary()
-        try:
-            return self._extract_inner(force)
-        finally:
-            _extract_lock.release()
+        return call_serialized(
+            _EXTRACT_QUEUE,
+            self._extract_inner,
+            force,
+            timeout=3600.0,
+        )
 
     def _extract_inner(self, force: bool = False) -> Dict[str, Any]:
         generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -134,7 +145,7 @@ class AgentHistoryService:
             if not force and state.get("signature") == signature and state.get("generated_at"):
                 summary = {"unchanged": True, "is_dev_machine": is_dev}
                 summary.update(state.get("counts") or {})
-                self._last_summary = summary
+                THREAD_BUS.signal(_SUMMARY_SIGNAL, summary)
                 return summary
 
             edits = txt.read_edits()
@@ -261,11 +272,11 @@ class AgentHistoryService:
 
             summary = {"is_dev_machine": is_dev, "changed": len(changed_paths), "removed": len(removed_paths)}
             summary.update(counts)
-            self._last_summary = summary
+            THREAD_BUS.signal(_SUMMARY_SIGNAL, summary)
             return summary
         except Exception as e:
             summary = {"error": str(e)}
-            self._last_summary = summary
+            THREAD_BUS.signal(_SUMMARY_SIGNAL, summary)
             return summary
 
     def _cached_summary(self) -> Dict[str, Any]:
@@ -356,7 +367,7 @@ class AgentHistoryService:
         return {"id": prompt_id, "text": text, "edited": True}
 
     def get_status(self) -> Dict[str, Any]:
-        return {"last": self._last_summary}
+        return {"last": THREAD_BUS.get_signal(_SUMMARY_SIGNAL, {}) or {}}
 
     @staticmethod
     def _assign_prompt_ids(detail: Dict[str, Any], session_id: str) -> None:
@@ -375,7 +386,5 @@ class AgentHistoryService:
 def get_agent_history_service() -> AgentHistoryService:
     global _service
     if _service is None:
-        with _lock:
-            if _service is None:
-                _service = AgentHistoryService()
+        _service = AgentHistoryService()
     return _service

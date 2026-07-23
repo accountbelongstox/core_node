@@ -11,14 +11,19 @@ Stdlib only: logging via `.runtime` (no pycore import).
 import os
 import time
 import hashlib
-import threading
+from contextlib import nullcontext
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Set, Optional, Tuple
 
-from .runtime import log as ColorPrint, get_core_node_root
+from .runtime import (
+    get_core_node_root,
+    init_serialized_owner,
+    log as ColorPrint,
+    serialized_method,
+)
 
-from pycore.pyutils.codesync.sync_settings import build_excluder
+from .sync_settings import build_excluder
 
 
 
@@ -109,18 +114,20 @@ class CodeSyncServer:
 
         # Client management
         self.clients: Dict[str, CodeSyncClient] = {}
-        self.clients_lock = threading.Lock()
+        self.clients_scope = nullcontext()
 
         # File cache (for performance, avoid rescanning too frequently)
         self.file_cache: Dict[str, Tuple[float, str]] = {}  # path -> (mtime, hash)
-        self.file_cache_lock = threading.Lock()
+        self.file_cache_scope = nullcontext()
         self.last_scan_time: float = 0  # Last time we scanned the filesystem
 
         # Server state
         self.running = False
+        init_serialized_owner(self, "codesync.server.state", "CodeSyncServerState")
 
         ColorPrint.green(f"[CodeSync Server] Initialized with root: {self.root_dir}")
 
+    @serialized_method
     def start(self):
         """Start code sync server"""
         if self.running:
@@ -130,6 +137,7 @@ class CodeSyncServer:
         self.running = True
         ColorPrint.green("[CodeSync Server] Started (on-demand scan mode)")
 
+    @serialized_method
     def stop(self):
         """Stop code sync server"""
         if not self.running:
@@ -138,6 +146,7 @@ class CodeSyncServer:
         self.running = False
         ColorPrint.yellow("[CodeSync Server] Stopped")
 
+    @serialized_method
     def register_client(self, client_id: str, ip: str) -> bool:
         """
         Register a client connection
@@ -149,7 +158,7 @@ class CodeSyncServer:
         Returns:
             True if this is a new client (needs initial sync)
         """
-        with self.clients_lock:
+        with self.clients_scope:
             # Check if client exists and not expired
             if client_id in self.clients:
                 client = self.clients[client_id]
@@ -170,6 +179,7 @@ class CodeSyncServer:
             ColorPrint.green(f"[CodeSync Server] New client registered: {client_id} ({ip})")
             return True  # Needs initial sync
 
+    @serialized_method
     def get_initial_sync_files(self, client_id: str) -> List[Dict]:
         """
         Get all files for initial sync
@@ -188,7 +198,7 @@ class CodeSyncServer:
         files = []
         file_states = {}
 
-        with self.file_cache_lock:
+        with self.file_cache_scope:
             current_cache = self.file_cache.copy()
 
         # Use middle layer to build file info from cache (avoid re-hashing)
@@ -200,7 +210,7 @@ class CodeSyncServer:
                 file_states[rel_path] = (mtime, file_hash)
 
         # Mark client as synced with current file states
-        with self.clients_lock:
+        with self.clients_scope:
             if client_id in self.clients:
                 client = self.clients[client_id]
                 client.mark_files_synced(file_states)
@@ -210,6 +220,7 @@ class CodeSyncServer:
         ColorPrint.green(f"[CodeSync Server] Initial sync prepared: {len(files)} files for {client_id}")
         return files
 
+    @serialized_method
     def get_changed_files(self, client_id: str) -> List[Dict]:
         """
         Get changed files for incremental sync
@@ -222,7 +233,7 @@ class CodeSyncServer:
         Returns:
             List of changed file info dicts
         """
-        with self.clients_lock:
+        with self.clients_scope:
             if client_id not in self.clients:
                 ColorPrint.yellow(f"[CodeSync Server] Unknown client: {client_id}")
                 return []
@@ -244,7 +255,7 @@ class CodeSyncServer:
         changed = []
         new_states = {}
 
-        with self.file_cache_lock:
+        with self.file_cache_scope:
             current_cache = self.file_cache.copy()
 
         # Check for new or modified files (use middle layer to avoid re-hashing)
@@ -269,7 +280,7 @@ class CodeSyncServer:
 
         # Update client's synced states
         if new_states:
-            with self.clients_lock:
+            with self.clients_scope:
                 if client_id in self.clients:
                     client = self.clients[client_id]
                     client.mark_files_synced(new_states)
@@ -280,6 +291,7 @@ class CodeSyncServer:
 
         return changed
 
+    @serialized_method
     def set_client_baseline(self, client_id: str) -> int:
         """Mark a client as ALREADY in sync with the CURRENT tree without sending
         anything — only files created/modified afterwards count as changes. This is
@@ -287,15 +299,16 @@ class CodeSyncServer:
         (and the receiver skips any file whose hash already matches). Returns the
         baseline file count."""
         self._scan_if_needed()
-        with self.file_cache_lock:
+        with self.file_cache_scope:
             cache = dict(self.file_cache)
-        with self.clients_lock:
+        with self.clients_scope:
             c = self.clients.get(client_id)
             if c is not None:
                 c.mark_files_synced(cache)
                 c.is_initial_sync_done = True
         return len(cache)
 
+    @serialized_method
     def _scan_if_needed(self):
         """
         Scan files only if needed (on-demand)
@@ -313,7 +326,7 @@ class CodeSyncServer:
         ColorPrint.blue(f"[CodeSync Server] Scanning filesystem...")
         start_time = time.time()
 
-        with self.file_cache_lock:
+        with self.file_cache_scope:
             for file_path in self._scan_all_files():
                 rel_path = str(file_path.relative_to(self.root_dir))
 
@@ -447,6 +460,7 @@ class CodeSyncServer:
             ColorPrint.red(f"[CodeSync Server] Error hashing file: {e}")
             return ""
 
+    @serialized_method
     def update_client_stats(self, client_id: str, received_count: int = 0, skipped_count: int = 0):
         """
         Update client statistics
@@ -456,7 +470,7 @@ class CodeSyncServer:
             received_count: Number of files received by client
             skipped_count: Number of files skipped by client
         """
-        with self.clients_lock:
+        with self.clients_scope:
             if client_id in self.clients:
                 client = self.clients[client_id]
                 client.received_count += received_count
@@ -469,9 +483,10 @@ class CodeSyncServer:
                         f"received={client.received_count}, skipped={client.skipped_count}"
                     )
 
+    @serialized_method
     def _cleanup_expired_clients(self):
         """Remove expired clients"""
-        with self.clients_lock:
+        with self.clients_scope:
             expired = [
                 client_id for client_id, client in self.clients.items()
                 if client.is_expired()
@@ -481,6 +496,7 @@ class CodeSyncServer:
                 del self.clients[client_id]
                 ColorPrint.yellow(f"[CodeSync Server] Client expired: {client_id}")
 
+    @serialized_method
     def get_status(self) -> Dict:
         """Get server status"""
         # Get timezone information
@@ -488,8 +504,8 @@ class CodeSyncServer:
         tz_offset = datetime.now(timezone.utc).astimezone().strftime('%z')
         tz_name = time.tzname[time.daylight]
 
-        with self.clients_lock:
-            with self.file_cache_lock:
+        with self.clients_scope:
+            with self.file_cache_scope:
                 return {
                     'running': self.running,
                     'root_dir': str(self.root_dir),
@@ -517,18 +533,21 @@ class CodeSyncServer:
                 }
 
 
-# Global singleton
-_code_sync_server: Optional[CodeSyncServer] = None
-_server_lock = threading.Lock()
+class _CodeSyncServerProvider:
+    def __init__(self) -> None:
+        self._instance: Optional[CodeSyncServer] = None
+        init_serialized_owner(self, "codesync.server_provider", "CodeSyncServerProvider")
+
+    @serialized_method
+    def get(self) -> CodeSyncServer:
+        if self._instance is None:
+            self._instance = CodeSyncServer()
+        return self._instance
+
+
+_code_sync_server_provider = _CodeSyncServerProvider()
 
 
 def get_code_sync_server() -> CodeSyncServer:
     """Get global code sync server instance"""
-    global _code_sync_server
-
-    if _code_sync_server is None:
-        with _server_lock:
-            if _code_sync_server is None:
-                _code_sync_server = CodeSyncServer()
-
-    return _code_sync_server
+    return _code_sync_server_provider.get()

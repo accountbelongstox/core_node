@@ -5,7 +5,6 @@ Router - Route matching and dispatching
 """
 
 import re
-import threading
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Callable
@@ -35,17 +34,17 @@ class Router:
     Supports path parameters (e.g., /api/apps/:app/tree)
     """
 
-    def __init__(self, static_dir: Path, shutdown_event: threading.Event):
+    def __init__(self, static_dir: Path, shutdown_signal: str):
         """
         Initialize router
 
         Args:
             static_dir: Static files directory
-            shutdown_event: Event for server shutdown
+            shutdown_signal: THREAD_BUS signal for server shutdown
         """
         self.color_print = ColorPrint()
         self.static_dir = static_dir
-        self.shutdown_event = shutdown_event
+        self.shutdown_signal = shutdown_signal
 
         # Route patterns (path_pattern, handler_method, method)
         self.routes: List[Tuple[str, str, str]] = []
@@ -212,7 +211,7 @@ class Router:
             'pageview': PageViewRoutesHandler(request_handler),
             'comparison': ComparisonRoutesHandler(request_handler),
             'config': ConfigRoutesHandler(request_handler),
-            'system': SystemRoutesHandler(request_handler, self.shutdown_event),
+            'system': SystemRoutesHandler(request_handler, self.shutdown_signal),
             'static': StaticRoutesHandler(request_handler, self.static_dir),
         }
 

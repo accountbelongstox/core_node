@@ -18,6 +18,7 @@ from .runtime import (
     log as ColorPrint,
     http as requests,
 )
+from pycore.pyfoundations.serialized_worker import start_bus_task
 
 
 class ServerConnection:
@@ -71,12 +72,10 @@ class ServerConnection:
         # Register with server
         if self._register():
             # Start sync thread
-            self.sync_thread = threading.Thread(
-                target=self._sync_loop,
-                daemon=True,
-                name=f"CodeSync-{self.host}"
+            self.sync_thread = start_bus_task(
+                self._sync_loop,
+                thread_name=f"CodeSync-{self.host}",
             )
-            self.sync_thread.start()
             ColorPrint.green(f"[ServerConnection] Started sync with {self.host}:{self.port}")
 
     def stop(self):

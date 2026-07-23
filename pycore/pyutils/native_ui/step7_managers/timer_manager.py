@@ -41,10 +41,16 @@ Author: Extracted from d3-check, adapted for pycore
 
 import threading
 import time
-from typing import Dict, Callable, Optional, Any
-from dataclasses import dataclass, field
+from typing import Dict, Callable, Optional, Any, List
+from dataclasses import dataclass, field, replace
 
 from pycore import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
 
 
 @dataclass
@@ -78,15 +84,12 @@ class TimerManager:
     """
 
     _instance: Optional['TimerManager'] = None
-    _lock = threading.Lock()
 
     def __new__(cls):
         """Singleton pattern implementation"""
         if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
-                    cls._instance._initialized = False
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
         return cls._instance
 
     def __init__(self):
@@ -95,14 +98,19 @@ class TimerManager:
             return
 
         self._tasks: Dict[str, TimerTask] = {}
-        self._task_lock = threading.Lock()
-        self._running = False
-        self._thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
+        init_serialized_owner(
+            self,
+            'pyutils.native_ui.timer_manager',
+            'NativeUITimerStateThread',
+        )
+        self._running_signal = f'{self._serialized_queue_name}.running'
+        self._stopped_signal = f'{self._serialized_queue_name}.stopped'
+        THREAD_BUS.signal(self._running_signal, False)
 
         ColorPrint.print_info("[TimerManager] Initialized (singleton)")
         self._initialized = True
 
+    @serialized_method
     def register_task(
         self,
         name: str,
@@ -124,26 +132,24 @@ class TimerManager:
         Returns:
             True if registered successfully, False if name already exists
         """
-        with self._task_lock:
-            if name in self._tasks:
-                ColorPrint.print_warn(f"[TimerManager] Task '{name}' already exists")
-                return False
+        if name in self._tasks:
+            ColorPrint.print_warn(f"[TimerManager] Task '{name}' already exists")
+            return False
+        task = TimerTask(
+            name=name,
+            interval=interval,
+            callback=callback,
+            enabled=enabled,
+            interceptor=interceptor
+        )
+        self._tasks[name] = task
+        ColorPrint.print_success(
+            f"[TimerManager] Registered task '{name}' "
+            f"with interval {interval}s (enabled={enabled})"
+        )
+        return True
 
-            task = TimerTask(
-                name=name,
-                interval=interval,
-                callback=callback,
-                enabled=enabled,
-                interceptor=interceptor
-            )
-            self._tasks[name] = task
-
-            ColorPrint.print_success(
-                f"[TimerManager] Registered task '{name}' "
-                f"with interval {interval}s (enabled={enabled})"
-            )
-            return True
-
+    @serialized_method
     def unregister_task(self, name: str) -> bool:
         """
         Unregister a timer task
@@ -154,63 +160,57 @@ class TimerManager:
         Returns:
             True if unregistered successfully, False if not found
         """
-        with self._task_lock:
-            if name not in self._tasks:
-                ColorPrint.print_warn(f"[TimerManager] Task '{name}' not found")
-                return False
+        if name not in self._tasks:
+            ColorPrint.print_warn(f"[TimerManager] Task '{name}' not found")
+            return False
+        del self._tasks[name]
+        ColorPrint.print_info(f"[TimerManager] Unregistered task '{name}'")
+        return True
 
-            del self._tasks[name]
-            ColorPrint.print_info(f"[TimerManager] Unregistered task '{name}'")
-            return True
-
+    @serialized_method
     def enable_task(self, name: str) -> bool:
         """Enable a timer task"""
-        with self._task_lock:
-            if name not in self._tasks:
-                ColorPrint.print_warn(f"[TimerManager] Task '{name}' not found")
-                return False
+        if name not in self._tasks:
+            ColorPrint.print_warn(f"[TimerManager] Task '{name}' not found")
+            return False
+        self._tasks[name].enabled = True
+        self._tasks[name].error_count = 0
+        ColorPrint.print_info(f"[TimerManager] Enabled task '{name}'")
+        return True
 
-            self._tasks[name].enabled = True
-            self._tasks[name].error_count = 0  # Reset error count
-            ColorPrint.print_info(f"[TimerManager] Enabled task '{name}'")
-            return True
-
+    @serialized_method
     def disable_task(self, name: str) -> bool:
         """Disable a timer task"""
-        with self._task_lock:
-            if name not in self._tasks:
-                ColorPrint.print_warn(f"[TimerManager] Task '{name}' not found")
-                return False
+        if name not in self._tasks:
+            ColorPrint.print_warn(f"[TimerManager] Task '{name}' not found")
+            return False
+        self._tasks[name].enabled = False
+        ColorPrint.print_info(f"[TimerManager] Disabled task '{name}'")
+        return True
 
-            self._tasks[name].enabled = False
-            ColorPrint.print_info(f"[TimerManager] Disabled task '{name}'")
-            return True
-
+    @serialized_method
     def set_task_interval(self, name: str, interval: float) -> bool:
         """Set task interval"""
-        with self._task_lock:
-            if name not in self._tasks:
-                ColorPrint.print_warn(f"[TimerManager] Task '{name}' not found")
-                return False
+        if name not in self._tasks:
+            ColorPrint.print_warn(f"[TimerManager] Task '{name}' not found")
+            return False
+        self._tasks[name].interval = interval
+        ColorPrint.print_info(f"[TimerManager] Updated task '{name}' interval to {interval}s")
+        return True
 
-            self._tasks[name].interval = interval
-            ColorPrint.print_info(f"[TimerManager] Updated task '{name}' interval to {interval}s")
-            return True
-
+    @serialized_method
     def set_task_interceptor(
         self,
         name: str,
         interceptor: Optional[Callable[[], bool]]
     ) -> bool:
         """Set task interceptor function"""
-        with self._task_lock:
-            if name not in self._tasks:
-                ColorPrint.print_warn(f"[TimerManager] Task '{name}' not found")
-                return False
-
-            self._tasks[name].interceptor = interceptor
-            ColorPrint.print_info(f"[TimerManager] Updated task '{name}' interceptor")
-            return True
+        if name not in self._tasks:
+            ColorPrint.print_warn(f"[TimerManager] Task '{name}' not found")
+            return False
+        self._tasks[name].interceptor = interceptor
+        ColorPrint.print_info(f"[TimerManager] Updated task '{name}' interceptor")
+        return True
 
     def _execute_task(self, task: TimerTask):
         """
@@ -243,26 +243,35 @@ class TimerManager:
                 )
                 task.enabled = False
 
+        self._store_execution_state(task)
+
+    @serialized_method
+    def _store_execution_state(self, task: TimerTask) -> None:
+        """Store execution results on the task-owner thread."""
+        current = self._tasks.get(task.name)
+        if current is not None:
+            current.error_count = task.error_count
+            current.enabled = task.enabled
+
+    @serialized_method
+    def _collect_due_tasks(self, current_time: float) -> List[TimerTask]:
+        """Claim due tasks on the task-owner thread."""
+        tasks = []
+        for task in self._tasks.values():
+            if task.enabled and current_time - task.last_run >= task.interval:
+                task.last_run = current_time
+                tasks.append(replace(task))
+        return tasks
+
     def _timer_loop(self):
         """Main timer loop (runs in separate thread)"""
         ColorPrint.print_info("[TimerManager] Timer loop started")
 
-        while not self._stop_event.is_set():
+        while THREAD_BUS.get_signal(self._running_signal, False):
             try:
                 current_time = time.time()
 
-                # Collect tasks to execute OUTSIDE the lock
-                tasks_to_execute = []
-
-                with self._task_lock:
-                    for task in self._tasks.values():
-                        if not task.enabled:
-                            continue
-
-                        # Check if it's time to execute
-                        if current_time - task.last_run >= task.interval:
-                            task.last_run = current_time
-                            tasks_to_execute.append(task)
+                tasks_to_execute = self._collect_due_tasks(current_time)
 
                 # Execute tasks OUTSIDE the lock to prevent deadlock
                 for task in tasks_to_execute:
@@ -276,6 +285,7 @@ class TimerManager:
                 time.sleep(1.0)  # Sleep longer on error
 
         ColorPrint.print_info("[TimerManager] Timer loop stopped")
+        THREAD_BUS.signal(self._stopped_signal, True)
 
     def start(self) -> bool:
         """
@@ -284,20 +294,18 @@ class TimerManager:
         Returns:
             True if started successfully, False if already running
         """
-        if self._running:
+        if THREAD_BUS.get_signal(self._running_signal, False):
             ColorPrint.print_warn("[TimerManager] Already running")
             return False
 
-        self._running = True
-        self._stop_event.clear()
+        THREAD_BUS.clear_signal(self._stopped_signal)
+        THREAD_BUS.signal(self._running_signal, True)
 
         # Start timer thread
-        self._thread = threading.Thread(
-            target=self._timer_loop,
-            daemon=True,
-            name="TimerManagerThread"
+        start_bus_task(
+            self._timer_loop,
+            thread_name="TimerManagerThread",
         )
-        self._thread.start()
 
         ColorPrint.print_success("[TimerManager] Started")
         return True
@@ -312,25 +320,22 @@ class TimerManager:
         Returns:
             True if stopped successfully, False if not running
         """
-        if not self._running:
+        if not THREAD_BUS.get_signal(self._running_signal, False):
             ColorPrint.print_warn("[TimerManager] Not running")
             return False
 
         ColorPrint.print_info("[TimerManager] Stopping...")
-        self._stop_event.set()
-
-        # Wait for thread to finish
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=timeout)
-
-        self._running = False
+        THREAD_BUS.signal(self._running_signal, False)
+        THREAD_BUS.wait_signal(self._stopped_signal, timeout=timeout)
+        THREAD_BUS.clear_signal(self._stopped_signal)
         ColorPrint.print_success("[TimerManager] Stopped")
         return True
 
     def is_running(self) -> bool:
         """Check if timer manager is running"""
-        return self._running
+        return bool(THREAD_BUS.get_signal(self._running_signal, False))
 
+    @serialized_method
     def get_task_status(self, name: str) -> Optional[Dict[str, Any]]:
         """
         Get status of a timer task
@@ -341,38 +346,36 @@ class TimerManager:
         Returns:
             Task status dictionary or None if not found
         """
-        with self._task_lock:
-            if name not in self._tasks:
-                return None
+        if name not in self._tasks:
+            return None
+        task = self._tasks[name]
+        return {
+            "name": task.name,
+            "interval": task.interval,
+            "enabled": task.enabled,
+            "last_run": task.last_run,
+            "error_count": task.error_count,
+            "has_interceptor": task.interceptor is not None
+        }
 
-            task = self._tasks[name]
-            return {
-                "name": task.name,
+    @serialized_method
+    def get_all_tasks_status(self) -> Dict[str, Dict[str, Any]]:
+        """Get status of all registered tasks"""
+        return {
+            name: {
                 "interval": task.interval,
                 "enabled": task.enabled,
                 "last_run": task.last_run,
                 "error_count": task.error_count,
                 "has_interceptor": task.interceptor is not None
             }
+            for name, task in self._tasks.items()
+        }
 
-    def get_all_tasks_status(self) -> Dict[str, Dict[str, Any]]:
-        """Get status of all registered tasks"""
-        with self._task_lock:
-            return {
-                name: {
-                    "interval": task.interval,
-                    "enabled": task.enabled,
-                    "last_run": task.last_run,
-                    "error_count": task.error_count,
-                    "has_interceptor": task.interceptor is not None
-                }
-                for name, task in self._tasks.items()
-            }
-
+    @serialized_method
     def get_task_count(self) -> int:
         """Get total number of registered tasks"""
-        with self._task_lock:
-            return len(self._tasks)
+        return len(self._tasks)
 
 
 # Factory function for convenience

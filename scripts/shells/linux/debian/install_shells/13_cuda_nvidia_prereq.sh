@@ -17,7 +17,7 @@
 #   2. Ensure kernel build prerequisites (gcc/make/headers/dkms).
 #   3. Best-effort ensure the NVIDIA driver (Debian/Kali: nvidia-detect+nvidia-driver)
 #      when nvidia-smi is not yet working. A reboot may be needed for it to load.
-#   4. Ensure the CUDA toolkit (pinned 12.2.2) via the shared, Kali-aware installer
+#   4. Ensure the CUDA toolkit selected by the unified runtime policy.
 #      scripts/shells/linux/common/install_cuda_toolkit.sh.
 
 # Variable declarations (top of file)
@@ -26,10 +26,13 @@ SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 CUDA_TOOLKIT_LIB="$PARENT_DIR_LEVEL_2/common/install_cuda_toolkit.sh"
+CUDA_POLICY_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/cuda_index.sh"
+CUDA_POLICY_TAG=""
 OS_ID=""
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+[[ -f "$CUDA_POLICY_LIB" ]] && source "$CUDA_POLICY_LIB"
 
 cnp_have() { command -v "$1" >/dev/null 2>&1; }
 
@@ -76,7 +79,6 @@ else
         ubuntu)
             echo "[$SCRIPT_INDEX] Installing NVIDIA driver via ubuntu-drivers (autoinstall)..."
             $USE_SUDO ubuntu-drivers autoinstall >/dev/null 2>&1 \
-                || $USE_SUDO apt-get install -y nvidia-driver-535 >/dev/null 2>&1 \
                 || echo "[$SCRIPT_INDEX] WARN: driver autoinstall failed (continuing to toolkit)."
             ;;
         *)
@@ -85,8 +87,12 @@ else
     esac
 fi
 
-# Step 4: CUDA toolkit (pinned), via the shared Kali-aware installer.
-if [ -s "$CUDA_TOOLKIT_LIB" ]; then
+# Step 4: canonical CUDA toolkit, only after the driver exposes a supported tier.
+CUDA_POLICY_TAG="$(cuda_policy_tag 2>/dev/null || true)"
+if [[ -z "$CUDA_POLICY_TAG" ]]; then
+    echo "[$SCRIPT_INDEX] CUDA toolkit deferred: driver is inactive or has no common Torch/Paddle CUDA tier."
+elif [ -s "$CUDA_TOOLKIT_LIB" ]; then
+    echo "[$SCRIPT_INDEX] Unified CUDA policy: $CUDA_POLICY_TAG (toolkit $(cuda_policy_field toolkit "$CUDA_POLICY_TAG"))."
     echo "[$SCRIPT_INDEX] Ensuring CUDA toolkit via: $CUDA_TOOLKIT_LIB"
     # shellcheck source=/dev/null
     source "$CUDA_TOOLKIT_LIB"

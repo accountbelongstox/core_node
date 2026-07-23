@@ -12,11 +12,17 @@ Features:
 """
 
 import socket
-import threading
 import time
 import uuid
-from typing import Dict, List, Optional, Callable
+from contextlib import nullcontext
+from typing import Any, Dict, List, Optional, Callable
 from pathlib import Path
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 from .simple_device_scanner import SimpleDeviceScanner
 from .logging_config import setup_logging
@@ -61,17 +67,20 @@ class DeviceDiscoveryScanner:
 
         # 在线设备列表
         self.online_devices: Dict[str, Dict] = {}
-        self.devices_lock = threading.Lock()
+        self.devices_scope = nullcontext()
+        init_serialized_owner(self, "device_sync.discovery_scanner", "DiscoveryScannerState")
 
         # 扫描器
         self.scanner = SimpleDeviceScanner(port=http_port)
 
         # 扫描线程
-        self.scan_thread: Optional[threading.Thread] = None
-        self.cleanup_thread: Optional[threading.Thread] = None
+        self.scan_thread: Optional[Any] = None
+        self.cleanup_thread: Optional[Any] = None
 
         # 运行状态
         self.running = False
+        self._running_signal = f"device_sync.discovery_scanner.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
         # 回调函数
         self.on_device_online: Optional[Callable] = None
@@ -90,22 +99,19 @@ class DeviceDiscoveryScanner:
         logger.info(f"Scan interval: {SCAN_INTERVAL}s")
 
         self.running = True
+        THREAD_BUS.signal(self._running_signal, True)
 
         # 启动扫描线程
-        self.scan_thread = threading.Thread(
-            target=self._scan_loop,
-            daemon=True,
-            name="DeviceDiscovery-Scanner"
+        self.scan_thread = start_bus_task(
+            self._scan_loop,
+            thread_name="DeviceDiscovery-Scanner",
         )
-        self.scan_thread.start()
 
         # 启动清理线程
-        self.cleanup_thread = threading.Thread(
-            target=self._cleanup_loop,
-            daemon=True,
-            name="DeviceDiscovery-Cleanup"
+        self.cleanup_thread = start_bus_task(
+            self._cleanup_loop,
+            thread_name="DeviceDiscovery-Cleanup",
         )
-        self.cleanup_thread.start()
 
         logger.info("Device discovery started")
 
@@ -113,8 +119,10 @@ class DeviceDiscoveryScanner:
         """停止设备发现服务"""
         logger.info("Stopping device discovery...")
         self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
         logger.info("Device discovery stopped")
 
+    @serialized_method
     def update_status(self, mode: str, sync_enabled: bool):
         """
         更新设备状态（外部调用）
@@ -126,6 +134,7 @@ class DeviceDiscoveryScanner:
         self.mode = mode
         self.sync_enabled = sync_enabled
 
+    @serialized_method
     def get_online_devices(self) -> List[Dict]:
         """
         获取在线设备列表
@@ -133,9 +142,10 @@ class DeviceDiscoveryScanner:
         Returns:
             设备信息字典列表
         """
-        with self.devices_lock:
+        with self.devices_scope:
             return list(self.online_devices.values())
 
+    @serialized_method
     def get_primary_devices(self) -> List[Dict]:
         """
         获取PRIMARY设备列表
@@ -143,7 +153,7 @@ class DeviceDiscoveryScanner:
         Returns:
             PRIMARY设备列表
         """
-        with self.devices_lock:
+        with self.devices_scope:
             return [
                 d for d in self.online_devices.values()
                 if d.get('mode') == 'primary'
@@ -156,16 +166,17 @@ class DeviceDiscoveryScanner:
         # 首次启动立即扫描
         self._perform_scan()
 
-        while self.running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             # 等待扫描间隔
             time.sleep(SCAN_INTERVAL)
 
-            if not self.running:
+            if not THREAD_BUS.get_signal(self._running_signal, False):
                 break
 
             # 执行扫描
             self._perform_scan()
 
+    @serialized_method
     def _perform_scan(self):
         """执行一次网络扫描"""
         try:
@@ -181,7 +192,7 @@ class DeviceDiscoveryScanner:
             # 更新设备列表
             current_time = time.time()
 
-            with self.devices_lock:
+            with self.devices_scope:
                 # 记录当前扫描到的设备ID
                 scanned_device_ids = set()
 
@@ -226,19 +237,10 @@ class DeviceDiscoveryScanner:
         """清理超时设备"""
         logger.info("Cleanup loop started")
 
-        while self.running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             try:
                 current_time = time.time()
-                offline_devices = []
-
-                with self.devices_lock:
-                    for device_id, device_info in list(self.online_devices.items()):
-                        last_seen = device_info.get('last_seen', 0)
-
-                        # 检查是否超时
-                        if current_time - last_seen > DEVICE_TIMEOUT:
-                            offline_devices.append((device_id, device_info))
-                            del self.online_devices[device_id]
+                offline_devices = self._remove_offline_devices(current_time)
 
                 # 触发离线回调
                 for device_id, device_info in offline_devices:
@@ -254,6 +256,16 @@ class DeviceDiscoveryScanner:
 
             # 每30秒检查一次
             time.sleep(30)
+
+    @serialized_method
+    def _remove_offline_devices(self, current_time: float) -> List[tuple]:
+        offline_devices = []
+        for device_id, device_info in list(self.online_devices.items()):
+            last_seen = device_info.get('last_seen', 0)
+            if current_time - last_seen > DEVICE_TIMEOUT:
+                offline_devices.append((device_id, device_info))
+                del self.online_devices[device_id]
+        return offline_devices
 
     def _get_local_ip(self) -> str:
         """获取本地IP地址"""

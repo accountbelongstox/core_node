@@ -96,8 +96,8 @@ get_installation_scripts() {
             fi
         done < <(find "$install_shells_dir" -maxdepth 1 -name "*.sh" -print0)
 
-        # Sort scripts by numeric prefix
-        IFS=$'\n' sorted=($(sort -n -t: -k1 <<<"${scripts[*]}"))
+        # Sort by numeric step, then filename for deterministic same-step ordering.
+        IFS=$'\n' sorted=($(sort -t: -k1,1n -k2,2 <<<"${scripts[*]}"))
         unset IFS
 
         # Extract just the file paths

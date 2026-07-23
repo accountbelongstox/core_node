@@ -17,7 +17,6 @@ Config:
 """
 
 import os
-import threading
 from pathlib import Path
 from typing import Any, Optional
 
@@ -28,12 +27,18 @@ from pycore.pyfoundations.third_party import get_third_package_torch
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
 from pycore.pyfoundations.third_party import get_third_package_numpy
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
 import importlib.util
 
 
 
-_lock = threading.Lock()
+_MODEL_QUEUE = 'pyutils.tts.bark.model'
+_MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, 'BarkModelThread')
+_MODEL_WORKER.start()
 _processor: Any = None
 _model: Any = None
 
@@ -71,20 +76,29 @@ def available() -> bool:
         return False
 
 
-def _get_model() -> tuple[Any, Any]:
+def _load_model() -> tuple[Any, Any]:
     global _processor, _model
-    with _lock:
-        if _model is not None and _processor is not None:
-            return _processor, _model
-        from transformers import AutoProcessor, BarkModel
-        model_id = _model_id()
-        dev = _device()
-        _processor = AutoProcessor.from_pretrained(model_id)
-        _model = BarkModel.from_pretrained(model_id)
-        if dev != "cpu":
-            _model = _model.to(dev)
-        ColorPrint.green(f"[bark] loaded {model_id} (device={dev})")
+    if _model is not None and _processor is not None:
         return _processor, _model
+    from transformers import AutoProcessor, BarkModel
+    model_id = _model_id()
+    dev = _device()
+    _processor = AutoProcessor.from_pretrained(model_id)
+    _model = BarkModel.from_pretrained(model_id)
+    if dev != "cpu":
+        _model = _model.to(dev)
+    ColorPrint.green(f"[bark] loaded {model_id} (device={dev})")
+    return _processor, _model
+
+
+def _get_model() -> tuple[Any, Any]:
+    """Load or read the model through its owner thread."""
+    return call_serialized(_MODEL_QUEUE, _load_model, timeout=900.0)
+
+
+def _generate_audio(model: Any, inputs: dict[str, Any]) -> Any:
+    """Generate audio on the model-owner thread."""
+    return model.generate(**inputs)
 
 
 def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
@@ -100,8 +114,13 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
         inputs = processor(cleaned, voice_preset=preset, return_tensors="pt")
         if dev != "cpu":
             inputs = {k: v.to(dev) for k, v in inputs.items()}
-        with _lock:
-            audio = model.generate(**inputs)
+        audio = call_serialized(
+            _MODEL_QUEUE,
+            _generate_audio,
+            model,
+            inputs,
+            timeout=900.0,
+        )
         np = get_third_package_numpy()
         arr = audio.cpu().numpy().squeeze()
         if arr.ndim > 1:
@@ -125,11 +144,15 @@ def is_model_loaded() -> bool:
     return _model is not None
 
 
-def unload_model() -> None:
+def _unload_model() -> None:
     global _processor, _model
-    with _lock:
-        _processor = None
-        _model = None
+    _processor = None
+    _model = None
+
+
+def unload_model() -> None:
+    """Unload model state through its owner thread."""
+    call_serialized(_MODEL_QUEUE, _unload_model)
 
 
 __all__ = ["available", "synthesize", "is_model_loaded", "unload_model"]

@@ -14,6 +14,7 @@ import time
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_user_data_store
 from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyctl.assist import load_assist_settings, save_assist_settings
 
 from pycore.callmodule.services import get_tts_queue_poller_service
 
@@ -91,7 +92,7 @@ def restore_persisted_auto_start() -> None:
 
     ColorPrint.blue(f"[WordTtsAuto] Restored auto_start={enabled} from user_data")
     try:
-        get_tts_queue_poller_service().concurrency = get_config()["concurrency"]
+        get_tts_queue_poller_service().set_concurrency(get_config()["concurrency"])
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[WordTtsAuto] restore concurrency failed ({exc})")
     if not enabled:
@@ -115,9 +116,14 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
     store = get_user_data_store()
     store.update_section(_SECTION, updates)
 
+    assist = load_assist_settings()
+    caps = dict(assist.get("capabilities") or {})
+    caps["tts"] = bool(enabled)
+    save_assist_settings({**assist, "capabilities": caps})
+
     if concurrency is not None:
         try:
-            get_tts_queue_poller_service().concurrency = max(0, int(concurrency))
+            get_tts_queue_poller_service().set_concurrency(max(0, int(concurrency)))
         except Exception as exc:  # noqa: BLE001
             ColorPrint.yellow(f"[WordTtsAuto] live concurrency apply failed ({exc})")
 

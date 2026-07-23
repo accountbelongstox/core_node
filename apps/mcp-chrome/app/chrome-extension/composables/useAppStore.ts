@@ -2,8 +2,11 @@
  * Centralized application state management
  */
 
-import { ref, computed, watch } from 'vue';
+import { ref, watch } from 'vue';
 import type { Ref } from 'vue';
+import { DEFAULT_SERVER_PORT } from 'chrome-mcp-shared';
+import { localStorage } from '@/services/ExtensionStorage';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 // ============================================================
 // Type definitions
@@ -15,30 +18,9 @@ export interface ServerStatus {
   lastUpdated: number;
 }
 
-export interface ApiEndpoint {
-  id: string;
-  url: string;
-  protocol: 'http' | 'https';
-  port?: number;
-  priority: number;
-  isLocal: boolean;
-  description: string;
-}
-
-export interface TaskQueueConfig {
-  enabled: boolean;
-  paused: boolean;
-  maxConcurrent: number;
-  retryAttempts: number;
-}
-
 export interface AppSettings {
-  currentEndpoint: string;
-  customEndpoint?: string;
-  taskQueue: TaskQueueConfig;
   autoConnectServer: boolean;
   serverPort: number;
-  language: string;
   debugMode: boolean;
 }
 
@@ -47,20 +29,10 @@ export interface AppSettings {
 // ============================================================
 
 const DEFAULT_SETTINGS: AppSettings = {
-  currentEndpoint: 'localhost',
-  taskQueue: {
-    enabled: false,
-    paused: false,
-    maxConcurrent: 3,
-    retryAttempts: 2,
-  },
   autoConnectServer: true,
-  serverPort: 12306,
-  language: 'zh-CN',
+  serverPort: DEFAULT_SERVER_PORT,
   debugMode: false,
 };
-
-const STORAGE_KEY = 'appSettings';
 
 // ============================================================
 // Global state
@@ -72,82 +44,66 @@ const serverStatus: Ref<ServerStatus> = ref({
   lastUpdated: Date.now(),
 });
 
-let isInitialized = false;
+let initialization: Promise<void> | null = null;
+let watcherActive = false;
+let persistedSnapshot = '';
+
+function mergeSettings(stored?: Partial<AppSettings>): AppSettings {
+  return {
+    autoConnectServer: stored?.autoConnectServer ?? DEFAULT_SETTINGS.autoConnectServer,
+    serverPort: stored?.serverPort ?? DEFAULT_SETTINGS.serverPort,
+    debugMode: stored?.debugMode ?? DEFAULT_SETTINGS.debugMode,
+  };
+}
+
+async function saveSettings(): Promise<void> {
+  const snapshot = JSON.stringify(settings.value);
+  if (snapshot === persistedSnapshot) return;
+  persistedSnapshot = snapshot;
+  await localStorage.set(STORAGE_KEYS.APP_SETTINGS, settings.value);
+}
+
+function setupStateSync(): void {
+  if (watcherActive) return;
+  watcherActive = true;
+  watch(settings, () => void saveSettings(), { deep: true });
+  localStorage.subscribe<AppSettings>(STORAGE_KEYS.APP_SETTINGS, (value) => {
+    if (!value) return;
+    const next = mergeSettings(value);
+    const snapshot = JSON.stringify(next);
+    if (snapshot === persistedSnapshot) return;
+    persistedSnapshot = snapshot;
+    settings.value = next;
+  });
+}
+
+async function initializeState(): Promise<void> {
+  const stored = await localStorage.getMany<{
+    appSettings: AppSettings;
+    nativeServerPort: number;
+  }>([STORAGE_KEYS.APP_SETTINGS, STORAGE_KEYS.NATIVE_SERVER_PORT]);
+  const appSettings = stored[STORAGE_KEYS.APP_SETTINGS];
+  const legacyPort = stored[STORAGE_KEYS.NATIVE_SERVER_PORT];
+  settings.value = mergeSettings({
+    ...(appSettings ?? {}),
+    serverPort: appSettings?.serverPort ?? legacyPort ?? DEFAULT_SERVER_PORT,
+  });
+  persistedSnapshot = JSON.stringify(settings.value);
+  if (legacyPort !== undefined) {
+    await localStorage.set(STORAGE_KEYS.APP_SETTINGS, settings.value);
+    await localStorage.remove(STORAGE_KEYS.NATIVE_SERVER_PORT);
+  }
+  setupStateSync();
+}
 
 // ============================================================
 // State management hook
 // ============================================================
 
 export function useAppStore() {
-  const saveSettings = async () => {
-    await chrome.storage.local.set({ [STORAGE_KEY]: settings.value });
-  };
-
-  // Setup the auto-save watcher. Called once from initialize() AFTER stored
-  // settings have been loaded, so the first watcher emission never overwrites
-  // persisted data with stale defaults.
-  let watcherActive = false;
-  const setupWatcher = () => {
-    if (watcherActive) return;
-    watcherActive = true;
-    watch(settings, () => {
-      saveSettings();
-    }, { deep: true });
-  };
-
   const initialize = async () => {
-    if (isInitialized) return;
-
-    const stored = await chrome.storage.local.get([STORAGE_KEY]);
-    if (stored[STORAGE_KEY]) {
-      settings.value = { ...DEFAULT_SETTINGS, ...stored[STORAGE_KEY] };
-    }
-
-    isInitialized = true;
-    // Start watching only after the stored value is loaded — avoids a race
-    // where the watcher fires on the initial default value and overwrites
-    // the persisted settings before they're restored.
-    setupWatcher();
-  };
-
-  // ============================================================
-  // API settings
-  // ============================================================
-
-  const setCurrentEndpoint = (endpointId: string) => {
-    settings.value.currentEndpoint = endpointId;
-  };
-
-  const setCustomEndpoint = (url: string) => {
-    settings.value.customEndpoint = url;
-  };
-
-  // ============================================================
-  // Task queue settings
-  // ============================================================
-
-  const enableTaskQueue = () => {
-    settings.value.taskQueue.enabled = true;
-  };
-
-  const disableTaskQueue = () => {
-    settings.value.taskQueue.enabled = false;
-  };
-
-  const pauseTaskQueue = () => {
-    settings.value.taskQueue.paused = true;
-  };
-
-  const resumeTaskQueue = () => {
-    settings.value.taskQueue.paused = false;
-  };
-
-  const setMaxConcurrent = (count: number) => {
-    settings.value.taskQueue.maxConcurrent = Math.max(1, Math.min(10, count));
-  };
-
-  const setRetryAttempts = (count: number) => {
-    settings.value.taskQueue.retryAttempts = Math.max(0, Math.min(5, count));
+    initialization ??= initializeState();
+    await initialization;
   };
 
   // ============================================================
@@ -174,10 +130,6 @@ export function useAppStore() {
   // Other settings
   // ============================================================
 
-  const setLanguage = (lang: string) => {
-    settings.value.language = lang;
-  };
-
   const setDebugMode = (enabled: boolean) => {
     settings.value.debugMode = enabled;
   };
@@ -187,21 +139,9 @@ export function useAppStore() {
   // ============================================================
 
   const resetSettings = async () => {
-    settings.value = { ...DEFAULT_SETTINGS };
+    settings.value = mergeSettings();
     await saveSettings();
   };
-
-  // ============================================================
-  // Computed
-  // ============================================================
-
-  const isTaskQueueActive = computed(() => {
-    return settings.value.taskQueue.enabled && !settings.value.taskQueue.paused;
-  });
-
-  const canExecuteTasks = computed(() => {
-    return isTaskQueueActive.value && serverStatus.value.isRunning;
-  });
 
   // ============================================================
   // Return
@@ -212,21 +152,10 @@ export function useAppStore() {
     serverStatus,
     initialize,
     saveSettings,
-    setCurrentEndpoint,
-    setCustomEndpoint,
-    enableTaskQueue,
-    disableTaskQueue,
-    pauseTaskQueue,
-    resumeTaskQueue,
-    setMaxConcurrent,
-    setRetryAttempts,
     setAutoConnectServer,
     setServerPort,
     updateServerStatus,
-    setLanguage,
     setDebugMode,
     resetSettings,
-    isTaskQueueActive,
-    canExecuteTasks,
   };
 }

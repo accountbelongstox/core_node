@@ -106,7 +106,7 @@ Write-Host '============================================================' -Foreg
 
 if ($env:KOKORO_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] KOKORO_SKIP=1 -> skipping." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('sherpa_onnx')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('sherpa_onnx') -AbsentOk -AbsentNote 'KOKORO_SKIP=1'
 }
 
 $modelSentinel = Join-Path $modelDir '.model_done'
@@ -164,11 +164,11 @@ while (-not $complete -and $attempt -lt 6) {
 }
 if (-not $complete) {
     Write-Host "$SCRIPT_INDEX [!] download incomplete; archive kept to resume next run." -ForegroundColor DarkYellow
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('sherpa_onnx')
+    throw "$SCRIPT_INDEX Kokoro model download is incomplete; retrying next run."
 }
 if (Install-KokoroModel -Py $resolvedPython -Archive $modelArchive -Tmp $tmpExtract -Dir $modelDir -Sentinel $modelSentinel -Url $modelUrl) {
     Write-Host "$SCRIPT_INDEX [OK] Kokoro model installed." -ForegroundColor Green
 } else {
-    Write-Host "$SCRIPT_INDEX [!] model extract failed; archive kept. Back it up manually only if retry keeps failing." -ForegroundColor DarkYellow
+    throw "$SCRIPT_INDEX Kokoro model extraction failed; the archive was kept for retry."
 }
 Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('sherpa_onnx')

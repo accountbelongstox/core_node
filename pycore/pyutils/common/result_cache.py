@@ -24,13 +24,16 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_CACHE_DIR
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
 # Root of every namespaced result cache.
 _ROOT = Path(APP_CACHE_DIR) / "result_cache"
@@ -38,7 +41,9 @@ _ROOT = Path(APP_CACHE_DIR) / "result_cache"
 # (cover/tts) hold large blobs, so keep this modest; callers may override.
 _DEFAULT_MAX_ENTRIES = 2000
 
-_lock = threading.Lock()
+_CACHE_QUEUE = 'pyutils.common.result_cache'
+_CACHE_WORKER = SerializedWorkerThread(_CACHE_QUEUE, 'ResultCacheThread')
+_CACHE_WORKER.start()
 
 
 def _ns_dir(namespace: str) -> Path:
@@ -99,7 +104,7 @@ def _prune(ns_dir: Path, max_entries: int) -> None:
 # --------------------------------------------------------------------------- #
 # JSON value cache (small results: ai_translate text, generic values)         #
 # --------------------------------------------------------------------------- #
-def get_json(namespace: str, *parts: Any, version: str = "1") -> Optional[Any]:
+def _get_json(namespace: str, *parts: Any, version: str = "1") -> Optional[Any]:
     """Return the cached JSON value for these key parts, or None (miss/expired)."""
     try:
         path = _ns_dir(namespace) / f"{_key_hash(parts, version)}.json"
@@ -114,18 +119,17 @@ def get_json(namespace: str, *parts: Any, version: str = "1") -> Optional[Any]:
         return None
 
 
-def set_json(namespace: str, value: Any, *parts: Any,
-             ttl: Optional[float] = None, version: str = "1",
-             max_entries: int = _DEFAULT_MAX_ENTRIES) -> None:
+def _set_json(namespace: str, value: Any, *parts: Any,
+              ttl: Optional[float] = None, version: str = "1",
+              max_entries: int = _DEFAULT_MAX_ENTRIES) -> None:
     """Store a JSON-serializable value under these key parts (best-effort)."""
     try:
-        with _lock:
-            ns_dir = _ns_dir(namespace)
-            path = ns_dir / f"{_key_hash(parts, version)}.json"
-            doc = {"value": value, "ts": time.time(), "ttl": ttl, "version": version,
-                   "key": "\x1f".join("" if p is None else str(p) for p in parts)[:512]}
-            _atomic_write_bytes(path, json.dumps(doc, ensure_ascii=False).encode("utf-8"))
-            _prune(ns_dir, max_entries)
+        ns_dir = _ns_dir(namespace)
+        path = ns_dir / f"{_key_hash(parts, version)}.json"
+        doc = {"value": value, "ts": time.time(), "ttl": ttl, "version": version,
+               "key": "\x1f".join("" if p is None else str(p) for p in parts)[:512]}
+        _atomic_write_bytes(path, json.dumps(doc, ensure_ascii=False).encode("utf-8"))
+        _prune(ns_dir, max_entries)
     except Exception as e:  # noqa: BLE001
         ColorPrint.yellow(f"[result_cache] set_json {namespace} failed: {e}")
 
@@ -133,7 +137,7 @@ def set_json(namespace: str, value: Any, *parts: Any,
 # --------------------------------------------------------------------------- #
 # Binary cache (large results: cover/poster images, TTS audio)                 #
 # --------------------------------------------------------------------------- #
-def get_bytes_path(namespace: str, *parts: Any, version: str = "1") -> Optional[str]:
+def _get_bytes_path(namespace: str, *parts: Any, version: str = "1") -> Optional[str]:
     """Return the on-disk path for a cached binary entry, or None (miss/expired)."""
     try:
         h = _key_hash(parts, version)
@@ -151,11 +155,11 @@ def get_bytes_path(namespace: str, *parts: Any, version: str = "1") -> Optional[
         return None
 
 
-def get_bytes(namespace: str, *parts: Any, version: str = "1") -> Optional[Tuple[bytes, Dict[str, Any]]]:
+def _get_bytes(namespace: str, *parts: Any, version: str = "1") -> Optional[Tuple[bytes, Dict[str, Any]]]:
     """Return (data, meta) for these key parts, or None (miss/expired). ``meta``
     carries whatever was stored at set time (mime, provider, ...)."""
     try:
-        bin_path = get_bytes_path(namespace, *parts, version=version)
+        bin_path = _get_bytes_path(namespace, *parts, version=version)
         if not bin_path:
             return None
         h = _key_hash(parts, version)
@@ -167,24 +171,23 @@ def get_bytes(namespace: str, *parts: Any, version: str = "1") -> Optional[Tuple
         return None
 
 
-def set_bytes(namespace: str, data: bytes, *parts: Any,
-              ttl: Optional[float] = None, version: str = "1",
-              meta: Optional[Dict[str, Any]] = None,
-              max_entries: int = _DEFAULT_MAX_ENTRIES) -> None:
+def _set_bytes(namespace: str, data: bytes, *parts: Any,
+               ttl: Optional[float] = None, version: str = "1",
+               meta: Optional[Dict[str, Any]] = None,
+               max_entries: int = _DEFAULT_MAX_ENTRIES) -> None:
     """Store raw bytes + a small metadata sidecar under these key parts."""
     if not data:
         return
     try:
-        with _lock:
-            ns_dir = _ns_dir(namespace)
-            h = _key_hash(parts, version)
-            _atomic_write_bytes(ns_dir / f"{h}.bin", data)
-            doc = dict(meta or {})
-            doc.update({"ts": time.time(), "ttl": ttl, "version": version,
-                        "bytes": len(data)})
-            _atomic_write_bytes(ns_dir / f"{h}.meta.json",
-                                json.dumps(doc, ensure_ascii=False).encode("utf-8"))
-            _prune(ns_dir, max_entries)
+        ns_dir = _ns_dir(namespace)
+        h = _key_hash(parts, version)
+        _atomic_write_bytes(ns_dir / f"{h}.bin", data)
+        doc = dict(meta or {})
+        doc.update({"ts": time.time(), "ttl": ttl, "version": version,
+                    "bytes": len(data)})
+        _atomic_write_bytes(ns_dir / f"{h}.meta.json",
+                            json.dumps(doc, ensure_ascii=False).encode("utf-8"))
+        _prune(ns_dir, max_entries)
     except Exception as e:  # noqa: BLE001
         ColorPrint.yellow(f"[result_cache] set_bytes {namespace} failed: {e}")
 
@@ -192,7 +195,7 @@ def set_bytes(namespace: str, data: bytes, *parts: Any,
 # --------------------------------------------------------------------------- #
 # Introspection / maintenance                                                 #
 # --------------------------------------------------------------------------- #
-def stats() -> Dict[str, Any]:
+def _stats() -> Dict[str, Any]:
     """Per-namespace {entries, bytes} rollup for a UI / diagnostics."""
     out: Dict[str, Any] = {"root": str(_ROOT), "namespaces": {}}
     try:
@@ -216,29 +219,100 @@ def stats() -> Dict[str, Any]:
     return out
 
 
-def clear(namespace: Optional[str] = None) -> int:
+def _clear(namespace: Optional[str] = None) -> int:
     """Delete every entry in one namespace (or all). Returns files removed."""
     removed = 0
     try:
-        with _lock:
-            targets: List[Path] = []
-            if namespace:
-                d = _ROOT / namespace
-                if d.is_dir():
-                    targets = list(d.iterdir())
-            elif _ROOT.exists():
-                for ns in _ROOT.iterdir():
-                    if ns.is_dir():
-                        targets.extend(ns.iterdir())
-            for p in targets:
-                try:
-                    p.unlink()
-                    removed += 1
-                except OSError:
-                    pass
+        targets: List[Path] = []
+        if namespace:
+            namespace_dir = _ROOT / namespace
+            if namespace_dir.is_dir():
+                targets = list(namespace_dir.iterdir())
+        elif _ROOT.exists():
+            for namespace_dir in _ROOT.iterdir():
+                if namespace_dir.is_dir():
+                    targets.extend(namespace_dir.iterdir())
+        for path in targets:
+            try:
+                path.unlink()
+                removed += 1
+            except OSError:
+                pass
     except Exception as e:  # noqa: BLE001
         ColorPrint.yellow(f"[result_cache] clear failed: {e}")
     return removed
+
+
+def get_json(namespace: str, *parts: Any, version: str = "1") -> Optional[Any]:
+    """Read a JSON entry through the cache-owner thread."""
+    return call_serialized(_CACHE_QUEUE, _get_json, namespace, *parts, version=version)
+
+
+def set_json(namespace: str, value: Any, *parts: Any,
+             ttl: Optional[float] = None, version: str = "1",
+             max_entries: int = _DEFAULT_MAX_ENTRIES) -> None:
+    """Write a JSON entry through the cache-owner thread."""
+    call_serialized(
+        _CACHE_QUEUE,
+        _set_json,
+        namespace,
+        value,
+        *parts,
+        ttl=ttl,
+        version=version,
+        max_entries=max_entries,
+    )
+
+
+def get_bytes_path(namespace: str, *parts: Any, version: str = "1") -> Optional[str]:
+    """Read a binary entry path through the cache-owner thread."""
+    return call_serialized(
+        _CACHE_QUEUE,
+        _get_bytes_path,
+        namespace,
+        *parts,
+        version=version,
+    )
+
+
+def get_bytes(namespace: str, *parts: Any,
+              version: str = "1") -> Optional[Tuple[bytes, Dict[str, Any]]]:
+    """Read a binary entry through the cache-owner thread."""
+    return call_serialized(
+        _CACHE_QUEUE,
+        _get_bytes,
+        namespace,
+        *parts,
+        version=version,
+    )
+
+
+def set_bytes(namespace: str, data: bytes, *parts: Any,
+              ttl: Optional[float] = None, version: str = "1",
+              meta: Optional[Dict[str, Any]] = None,
+              max_entries: int = _DEFAULT_MAX_ENTRIES) -> None:
+    """Write a binary entry through the cache-owner thread."""
+    call_serialized(
+        _CACHE_QUEUE,
+        _set_bytes,
+        namespace,
+        data,
+        *parts,
+        ttl=ttl,
+        version=version,
+        meta=meta,
+        max_entries=max_entries,
+    )
+
+
+def stats() -> Dict[str, Any]:
+    """Read cache statistics through the cache-owner thread."""
+    return call_serialized(_CACHE_QUEUE, _stats)
+
+
+def clear(namespace: Optional[str] = None) -> int:
+    """Clear cache entries through the cache-owner thread."""
+    return call_serialized(_CACHE_QUEUE, _clear, namespace)
 
 
 __all__ = [

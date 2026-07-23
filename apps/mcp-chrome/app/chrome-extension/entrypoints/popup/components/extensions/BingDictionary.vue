@@ -15,7 +15,6 @@
       :queueOverview="queueOverview"
       :prepared="prepared"
       @toggle-service="toggleClientService"
-      @update-config="updateConfig"
       @test-connection="testConnection"
       @run-scrape-test="runScrapeTest"
       @update-test-words="(v) => (testWords = v)"
@@ -96,7 +95,6 @@ const {
   setQueuePage,
   prepared,
   toggleClientService,
-  updateConfig,
   testConnection,
   runScrapeTest,
   formatTimestamp,
@@ -130,4 +128,3 @@ onMounted(async () => {
   await initPanel();
 });
 </script>
-

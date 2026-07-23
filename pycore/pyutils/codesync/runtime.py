@@ -26,13 +26,202 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 import uuid
+from collections import deque
+from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import winreg
+
+
+class _FallbackThreadBus:
+    """Lock-free in-process bus used only by standalone codesync."""
+
+    def __init__(self) -> None:
+        self._queues: Dict[str, deque] = {}
+        self._signals: Dict[str, Any] = {}
+
+    def send_message(self, name: str, message: Any) -> None:
+        self._queues.setdefault(name, deque()).append(message)
+
+    def receive_message(
+        self,
+        name: str,
+        block: bool = False,
+        timeout: Optional[float] = None,
+    ) -> Any:
+        started_at = time.monotonic()
+        message_queue = self._queues.setdefault(name, deque())
+        while True:
+            try:
+                return message_queue.popleft()
+            except IndexError:
+                if not block:
+                    return None
+                if timeout is not None and time.monotonic() - started_at >= timeout:
+                    return None
+                time.sleep(0.01)
+
+    def queue_size(self, name: str) -> int:
+        return len(self._queues.setdefault(name, deque()))
+
+    def clear_queue(self, name: str) -> None:
+        self._queues.pop(name, None)
+
+    def signal(self, name: str, data: Any = None) -> None:
+        self._signals[name] = data
+
+    def get_signal(self, name: str, default: Any = None) -> Any:
+        return self._signals.get(name, default)
+
+    def clear_signal(self, name: str) -> None:
+        self._signals.pop(name, None)
+
+    def wait_signal(self, name: str, timeout: Optional[float] = None) -> Any:
+        started_at = time.monotonic()
+        while name not in self._signals:
+            if timeout is not None and time.monotonic() - started_at >= timeout:
+                return None
+            time.sleep(0.01)
+        return self._signals.get(name)
+
+
+class _ThreadBusProxy:
+    """Forward to pycore THREAD_BUS when injected, otherwise use fallback."""
+
+    def __init__(self) -> None:
+        self._delegate = _FallbackThreadBus()
+
+    def attach(self, delegate: Any) -> None:
+        if delegate is not None:
+            self._delegate = delegate
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._delegate, name)
+
+
+THREAD_BUS = _ThreadBusProxy()
+_LOCAL_SHUTDOWN_SIGNAL = "codesync.runtime.shutdown"
+THREAD_BUS.signal(_LOCAL_SHUTDOWN_SIGNAL, False)
+
+
+class BusTaskThread(threading.Thread):
+    """Execute one callback delivered through the codesync THREAD_BUS proxy."""
+
+    def __init__(self, queue_name: str, thread_name: str, daemon: bool = True) -> None:
+        super().__init__(name=thread_name, daemon=daemon)
+        self._queue_name = queue_name
+
+    def run(self) -> None:
+        request = THREAD_BUS.receive_message(self._queue_name)
+        if not isinstance(request, dict):
+            return
+        response_signal = request.get("response_signal", "")
+        try:
+            result = request["callback"](*request.get("args", ()), **request.get("kwargs", {}))
+            response = {"success": True, "result": result}
+        except Exception as exc:
+            response = {"success": False, "error": str(exc)}
+        if response_signal:
+            THREAD_BUS.signal(response_signal, response)
+        THREAD_BUS.clear_queue(self._queue_name)
+
+
+def start_bus_task(
+    callback: Callable,
+    *args: Any,
+    thread_name: str = "CodeSyncBusTask",
+    daemon: bool = True,
+    response_signal: str = "",
+    **kwargs: Any,
+) -> BusTaskThread:
+    """Start a named Thread subclass whose task payload crosses THREAD_BUS."""
+    queue_name = f"codesync.bus_task.{uuid.uuid4().hex}"
+    THREAD_BUS.send_message(queue_name, {
+        "callback": callback,
+        "args": args,
+        "kwargs": kwargs,
+        "response_signal": response_signal,
+    })
+    worker = BusTaskThread(queue_name, thread_name, daemon)
+    worker.start()
+    return worker
+
+
+class SerializedWorkerThread(threading.Thread):
+    """Own mutable state and execute requests received from THREAD_BUS."""
+
+    def __init__(self, queue_name: str, thread_name: str) -> None:
+        super().__init__(name=thread_name, daemon=True)
+        self._queue_name = queue_name
+
+    def run(self) -> None:
+        while True:
+            request = THREAD_BUS.receive_message(self._queue_name, block=True, timeout=0.1)
+            if not isinstance(request, dict):
+                continue
+            response_signal = request.get("response_signal", "")
+            try:
+                result = request["callback"](*request.get("args", ()), **request.get("kwargs", {}))
+                response = {"success": True, "result": result}
+            except Exception as exc:
+                response = {"success": False, "error": str(exc)}
+            if response_signal:
+                THREAD_BUS.signal(response_signal, response)
+
+
+def call_serialized(queue_name: str, callback: Callable, *args: Any, **kwargs: Any) -> Any:
+    response_signal = f"{queue_name}.response.{uuid.uuid4().hex}"
+    THREAD_BUS.send_message(queue_name, {
+        "callback": callback,
+        "args": args,
+        "kwargs": kwargs,
+        "response_signal": response_signal,
+    })
+    response = THREAD_BUS.wait_signal(response_signal, timeout=30.0)
+    THREAD_BUS.clear_signal(response_signal)
+    if not isinstance(response, dict):
+        raise TimeoutError(f"CodeSync serialized operation timed out: {queue_name}")
+    if not response.get("success"):
+        raise RuntimeError(response.get("error", "CodeSync serialized operation failed"))
+    return response.get("result")
+
+
+def init_serialized_owner(owner: Any, queue_prefix: str, thread_prefix: str) -> None:
+    owner_id = uuid.uuid4().hex
+    owner._serialized_queue_name = f"{queue_prefix}.{owner_id}"
+    owner._serialized_thread_name = f"{thread_prefix}-{owner_id[:8]}"
+    worker = SerializedWorkerThread(owner._serialized_queue_name, owner._serialized_thread_name)
+    worker.start()
+
+
+def _invoke_serialized_method(
+    method: Callable,
+    owner: Any,
+    args: tuple,
+    kwargs: Dict[str, Any],
+) -> Any:
+    return method(owner, *args, **kwargs)
+
+
+def serialized_method(method: Callable) -> Callable:
+    @wraps(method)
+    def wrapper(owner: Any, *args: Any, **kwargs: Any) -> Any:
+        if threading.current_thread().name == getattr(owner, "_serialized_thread_name", ""):
+            return method(owner, *args, **kwargs)
+        return call_serialized(
+            owner._serialized_queue_name,
+            _invoke_serialized_method,
+            method,
+            owner,
+            args,
+            kwargs,
+        )
+    return wrapper
 
 
 # --------------------------------------------------------------------------- #
@@ -49,7 +238,6 @@ _hooks: Dict[str, Optional[Callable]] = {
     "app_data_dir": None,
 }
 _external_logger = None  # e.g. pycore.ColorPrint
-_local_shutdown = threading.Event()           # standalone stop signal
 _local_shutdown_handlers: List[Dict[str, Any]] = []
 
 # Light mode: a CLIENT node that only tracks the mesh (peer status / heartbeats)
@@ -74,7 +262,7 @@ def is_light() -> bool:
     return os.environ.get("CODESYNC_LIGHT", "") in _LIGHT_TRUTHY
 
 
-def configure(*, logger=None, emit_event=None, is_shutdown_requested=None,
+def configure(*, logger=None, emit_event=None, thread_bus=None, is_shutdown_requested=None,
               register_shutdown_handler=None, machine_id=None,
               hardware_machine_id=None, lan_ip=None,
               core_node_root=None, app_data_dir=None, light=None):
@@ -85,6 +273,7 @@ def configure(*, logger=None, emit_event=None, is_shutdown_requested=None,
         _external_logger = logger
     if light is not None:
         set_light(light)
+    THREAD_BUS.attach(thread_bus)
     for key, val in (("emit_event", emit_event),
                      ("is_shutdown_requested", is_shutdown_requested),
                      ("register_shutdown_handler", register_shutdown_handler),
@@ -201,7 +390,7 @@ def is_shutdown_requested() -> bool:
             return bool(fn())
         except Exception:
             return False
-    return _local_shutdown.is_set()
+    return bool(THREAD_BUS.get_signal(_LOCAL_SHUTDOWN_SIGNAL, False))
 
 
 def register_shutdown_handler(handler: Callable, priority: int = 50, name: str = "") -> None:
@@ -218,7 +407,7 @@ def register_shutdown_handler(handler: Callable, priority: int = 50, name: str =
 def request_local_shutdown() -> None:
     """Standalone daemon stop: set the flag and run registered handlers (high
     priority first). No effect on the injected (pycore) path."""
-    _local_shutdown.set()
+    THREAD_BUS.signal(_LOCAL_SHUTDOWN_SIGNAL, True)
     for entry in sorted(_local_shutdown_handlers, key=lambda e: -e.get("priority", 50)):
         try:
             entry["handler"]()

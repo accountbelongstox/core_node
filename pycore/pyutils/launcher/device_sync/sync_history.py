@@ -15,12 +15,13 @@ Storage: ~/.core_node/.cache/device_sync/sync_history.db
 
 import sqlite3
 import json
-import threading
+from contextlib import nullcontext
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Optional
 from .logging_config import setup_logging
 from pycore.pyfoundations.system_paths import get_system_cache_dir
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 
 logger = setup_logging(__name__)
 
@@ -67,11 +68,11 @@ class SyncHistoryTracker:
         # Database path
         self.db_path = self.cache_dir / 'sync_history.db'
 
-        # Thread lock for database access
-        self._lock = threading.Lock()
+        self._database_scope = nullcontext()
 
         # Initialize database
         self._init_database()
+        init_serialized_owner(self, "device_sync.history", "DeviceSyncHistory")
 
         logger.info(f"Sync history tracker initialized: {self.db_path}")
         logger.info(f"Retention period: {retention_days} days")
@@ -115,6 +116,7 @@ class SyncHistoryTracker:
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}", exc_info=True)
 
+    @serialized_method
     def record_event(
         self,
         event_type: str,
@@ -135,7 +137,7 @@ class SyncHistoryTracker:
             device_name: Device hostname (optional)
             details: Additional details as dict (optional)
         """
-        with self._lock:
+        with self._database_scope:
             try:
                 timestamp = datetime.now()
                 details_json = json.dumps(details) if details else None
@@ -162,6 +164,7 @@ class SyncHistoryTracker:
             except Exception as e:
                 logger.error(f"Failed to record event: {e}", exc_info=True)
 
+    @serialized_method
     def get_recent_history(
         self,
         limit: int = 100,
@@ -179,7 +182,7 @@ class SyncHistoryTracker:
         Returns:
             List of history entries as dicts
         """
-        with self._lock:
+        with self._database_scope:
             try:
                 with sqlite3.connect(self.db_path) as conn:
                     conn.row_factory = sqlite3.Row
@@ -221,6 +224,7 @@ class SyncHistoryTracker:
                 logger.error(f"Failed to get history: {e}", exc_info=True)
                 return []
 
+    @serialized_method
     def get_statistics(self) -> Dict:
         """
         Get history statistics.
@@ -228,7 +232,7 @@ class SyncHistoryTracker:
         Returns:
             Dict with statistics
         """
-        with self._lock:
+        with self._database_scope:
             try:
                 with sqlite3.connect(self.db_path) as conn:
                     cursor = conn.cursor()
@@ -291,9 +295,10 @@ class SyncHistoryTracker:
                 logger.error(f"Failed to get statistics: {e}", exc_info=True)
                 return {}
 
+    @serialized_method
     def cleanup_old_records(self):
         """Clean up records older than retention period."""
-        with self._lock:
+        with self._database_scope:
             try:
                 cutoff_date = datetime.now() - timedelta(days=self.retention_days)
 

@@ -20,11 +20,12 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social\AppQyV1SocialStreamControl
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social\AppQyV1PostController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social\AppQyV1PostMediaController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social\AppQyV1LiveController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social\AppQyV1NearbyController;
 
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'app_qy_v1';
 
-Route::prefix($apiVersionPrefix)->middleware(['custom.authenticate'])->group(function () {
+Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function () {
 
     Route::prefix('social')->group(function () {
         // ---- Discover / friends ----
@@ -39,6 +40,8 @@ Route::prefix($apiVersionPrefix)->middleware(['custom.authenticate'])->group(fun
         Route::post('/friends/block', [AppQyV1SocialController::class, 'blockUser']);
         Route::get('/leaderboard', [AppQyV1SocialController::class, 'getLeaderboard']);
         Route::get('/activities', [AppQyV1SocialController::class, 'getActivities']);
+        Route::post('/location', [AppQyV1NearbyController::class, 'updateLocation']);
+        Route::get('/nearby', [AppQyV1NearbyController::class, 'nearby']);
 
         // ---- Public user profile (powers #/social/user/<id>) ----
         Route::get('/users/{id}', [AppQyV1SocialController::class, 'getUserProfile'])->whereNumber('id');
@@ -80,11 +83,11 @@ Route::prefix($apiVersionPrefix)->middleware(['custom.authenticate'])->group(fun
         Route::get('/live/{id}/chat', [AppQyV1LiveController::class, 'chat'])->whereNumber('id');
         Route::post('/live/{id}/chat', [AppQyV1LiveController::class, 'sendChat'])->whereNumber('id');
 
-        // ---- Per-user real-time SSE (scoped to the authenticated user) ----
-        // EventSource cannot send an Authorization header, so this route reads the
-        // Sanctum token from the ?token= query param inside the controller
-        // (resolveUserFromQueryToken). It must bypass the bearer-only
-        // custom.authenticate middleware, otherwise every logged-in client 401s.
-        Route::get('/stream', [AppQyV1SocialStreamController::class, 'stream'])->withoutMiddleware('custom.authenticate');
     });
+});
+
+// EventSource cannot attach an Authorization header. This endpoint validates
+// its short-lived Sanctum token from the query string inside the controller.
+Route::prefix($apiVersionPrefix)->group(function () {
+    Route::get('/social/stream', [AppQyV1SocialStreamController::class, 'stream']);
 });

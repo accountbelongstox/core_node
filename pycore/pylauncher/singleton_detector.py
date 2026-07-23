@@ -56,7 +56,6 @@ import os
 import socket
 import json
 import time
-import threading
 from typing import Optional, Callable, Dict, Any
 
 # THREAD_BUS Integration
@@ -175,8 +174,7 @@ class SingletonDetector(_SingletonServerMixin):
         self._is_primary = False
         self._bound_port: Optional[int] = None
         self._server_socket: Optional[socket.socket] = None
-        self._running = False
-        self._listener_thread: Optional[threading.Thread] = None
+        self._listener_thread: Optional[Any] = None
 
         if self.debug:
             self._log(f"[DEBUG] Initialized for app_id='{app_id}', port range {port_start}-{port_start + port_range - 1}")

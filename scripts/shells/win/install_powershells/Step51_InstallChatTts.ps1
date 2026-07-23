@@ -28,6 +28,8 @@ $apiServerDst   = $null
 $resolvedPython = $null
 $hasCuda        = $false
 $doFull         = ($Full -or $env:CHATTTS_INSTALL -eq '1' -or $env:NEURAL_TTS_INSTALL -eq '1')
+$chatPolicy     = $null
+$chatPackages   = @()
 
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
@@ -54,20 +56,20 @@ Write-Host '============================================================' -Foreg
 
 if ($env:CHATTTS_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] CHATTTS_SKIP=1 -> skipping." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('ChatTTS')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('ChatTTS') -AbsentOk -AbsentNote 'CHATTTS_SKIP=1'
 }
 if (Test-ServerUp -Url $serverUrl) {
     Write-Host "$SCRIPT_INDEX [OK] server reachable at $serverUrl -> nothing to do." -ForegroundColor Green
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('ChatTTS')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('ChatTTS') -AbsentOk -AbsentNote 'external server reachable'
 }
-if ((Test-PyModule -Py ($Global:PYTHON_EXE_PATH) -ModuleName 'ChatTTS') -and (Test-Path $depsSentinel) -and (Test-Path $apiServerDst) -and -not $Force -and -not $doFull) {
+if ((Test-TtsDependenciesReady -PythonExe $Global:PYTHON_EXE_PATH -Engine 'chattts' -Path $depsSentinel) -and (Test-Path $apiServerDst) -and -not $Force -and -not $doFull) {
     Write-Host "$SCRIPT_INDEX [OK] ChatTTS already installed -> skipping." -ForegroundColor Green
     Write-Host ("$SCRIPT_INDEX  START:  cd `"{0}`"; python chattts_api_server.py   (serves {1})" -f $targetDir, $serverUrl) -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('ChatTTS')
 }
 if (-not $doFull -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [i] status-only (not installed). Pass -Full, CHATTTS_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('ChatTTS')
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('ChatTTS') -AbsentOk -AbsentNote 'opt-in'
 }
 
 $hasCuda = Test-CudaPresent
@@ -79,27 +81,30 @@ if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [!] Python 3 not found. Run Step8_InstallPython first." -ForegroundColor DarkYellow
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('ChatTTS')
 }
+$chatPolicy = Get-TtsEngineInstallPolicy -PythonExe $resolvedPython -Engine 'chattts'
+if ($chatPolicy) { $chatPackages = @($chatPolicy.packages) }
 
 New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 if (Test-Path $apiServerSrc) {
     Copy-Item -Path $apiServerSrc -Destination $apiServerDst -Force
 }
 
-if ((Test-Path $depsSentinel) -and -not $Force) {
+if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'chattts' -Path $depsSentinel) -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [OK] dependencies already installed (.deps_done) -> skipping pip." -ForegroundColor Green
 } else {
     Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
-    Write-Host "$SCRIPT_INDEX [..] pip install ChatTTS (official PyPI) ..." -ForegroundColor Yellow
-    try { & $Global:PIP_EXE_PATH install --upgrade ChatTTS } catch { Write-Host "$SCRIPT_INDEX [!] ChatTTS pip failed." -ForegroundColor DarkYellow }
-    try { & $Global:PIP_EXE_PATH install fastapi uvicorn pydub } catch { }
-    Set-Content -Path $depsSentinel -Value (Get-Date -Format o) -Encoding utf8
-    Write-Host "$SCRIPT_INDEX [OK] dependencies installed (.deps_done written)." -ForegroundColor Green
+    Write-Host "$SCRIPT_INDEX [..] installing the central ChatTTS dependency plan ..." -ForegroundColor Yellow
+    try { & $Global:PIP_EXE_PATH install @chatPackages } catch { Write-Host "$SCRIPT_INDEX [!] ChatTTS pip failed." -ForegroundColor DarkYellow }
+    if (Test-TtsEngineHealth -PythonExe $resolvedPython -Engine 'chattts') {
+        Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'chattts' -Path $depsSentinel | Out-Null
+        Write-Host "$SCRIPT_INDEX [OK] dependencies installed (policy stamp written)." -ForegroundColor Green
+    }
 }
 
-if (Test-PyModule -Py $resolvedPython -ModuleName 'ChatTTS') {
+if (Test-TtsEngineHealth -PythonExe $resolvedPython -Engine 'chattts') {
     Write-Host "$SCRIPT_INDEX [OK] ChatTTS ready ($targetDir)." -ForegroundColor Green
     Write-Host ("$SCRIPT_INDEX  START:  cd `"{0}`"; python chattts_api_server.py   (serves {1})" -f $targetDir, $serverUrl) -ForegroundColor Cyan
 } else {
-    Write-Host "$SCRIPT_INDEX [!] ChatTTS not importable after install." -ForegroundColor DarkYellow
+    throw "$SCRIPT_INDEX ChatTTS dependencies are incomplete; retrying next run."
 }
 Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('ChatTTS')

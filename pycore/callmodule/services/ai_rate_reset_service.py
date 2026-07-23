@@ -22,7 +22,6 @@ trigger; any task can be injected the same way.
 
 from __future__ import annotations
 
-import threading
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -42,6 +41,8 @@ class AiRateResetService:
         Prunes expired rate counters and clears elapsed cooldowns; only logs
         when something actually reset, to keep the tick quiet.
         """
+        # Rule §4: single-writer field — tick() only ever runs on the ONE
+        # heartbeat thread, so the increment needs no lock.
         self._tick_count += 1
         try:
             pruned = prune_expired()
@@ -67,14 +68,14 @@ class AiRateResetService:
 
 
 _service: Optional[AiRateResetService] = None
-_lock = threading.Lock()
 
 
 def get_ai_rate_reset_service() -> AiRateResetService:
     """Return the process-wide AiRateResetService singleton."""
     global _service
+    # Rule §4: NO locks — module-global assignment is GIL-atomic (same idiom as
+    # pyheartbeat); the worst-case race is one duplicate instance built and
+    # discarded, harmless for this stateless-per-tick service.
     if _service is None:
-        with _lock:
-            if _service is None:
-                _service = AiRateResetService()
+        _service = AiRateResetService()
     return _service

@@ -242,6 +242,19 @@ class AppQyV1SentenceAudioController extends Controller
             return response()->json(['success' => false, 'error' => 'Internal error during resolve'], 500);
         }
 
+        // Best-effort: the resolve path bumps tts_priority when the file is
+        // missing (queued:true) — wake co-located pycore immediately, same as
+        // the bump/bump-batch endpoints. Failure is ignored; heartbeat drains.
+        if (($result['queued'] ?? false) === true) {
+            try {
+                PycoreHttpClient::callDirect('/api/local/sentence-audio/run-once', [], 3);
+            } catch (\Throwable $e) {
+                Log::debug('[SentenceAudio] pycore run-once nudge skipped (resolve)', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         $status = ($result['success'] ?? false) ? 200 : 422;
 
         return response()->json($result, $status);

@@ -9,9 +9,9 @@ export default defineConfig({
   // Keep WXT default outDir = ".output". start.ps1 builds into dingdoudou/.output/.
   srcDir: '.',
   manifest: {
-    name: '订多多',
-    short_name: '订多多',
-    description: '订多多 - 拼多多多账号订单管理与一键导出ERP。支持订单同步、关键词搜索、批量操作、CSV导出。第三方工具，与拼多多官方无关。',
+    name: '__MSG_extensionName__',
+    short_name: '__MSG_extensionShortName__',
+    description: '__MSG_extensionDescription__',
     version: '5.2.0',
     default_locale: 'zh_CN',
     icons: {
@@ -20,7 +20,7 @@ export default defineConfig({
       128: 'icon/128.png',
     },
     action: {
-      default_title: '订多多 | 拼多多订单管理与一键导出ERP',
+      default_title: '__MSG_actionTitle__',
     },
     permissions: [
       'cookies',

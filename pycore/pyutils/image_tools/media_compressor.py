@@ -25,16 +25,16 @@ The dataclasses are re-exported here so existing callers that import them from
 media_compressor (and via pycore.pyutils) keep working unchanged.
 """
 
-import threading
-import queue
 import time
 import subprocess
+import uuid
 from pathlib import Path
 from typing import Optional, Dict, Tuple, Union, List, Callable
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from pycore.pyfoundations.third_party import get_third_package_cv2
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.serialized_worker import start_bus_task
 
 # Re-exported data contracts (kept importable from this module for backwards
 # compatibility with callers that import them from media_compressor).
@@ -104,9 +104,6 @@ class MediaCompressor:
 
         # Thread pool configuration
         self.max_workers = max_workers or self._capability_detector.calculate_optimal_workers()
-        self.thread_pool = None
-        self.task_queue = queue.Queue()
-        self.stats_lock = threading.Lock()
         self.queue_stats = QueueStats()
 
         self._print(f"Initialized with {self.max_workers} worker threads")
@@ -454,15 +451,6 @@ class MediaCompressor:
                     success = False
                     stats.compressed_size = 0
 
-            # Update queue stats (thread-safe)
-            with self.stats_lock:
-                if success:
-                    self.queue_stats.completed_tasks += 1
-                    self.queue_stats.total_original_size += stats.original_size
-                    self.queue_stats.total_compressed_size += stats.compressed_size
-                else:
-                    self.queue_stats.failed_tasks += 1
-
             # Call task-level callback if provided
             if task.callback:
                 try:
@@ -475,8 +463,6 @@ class MediaCompressor:
         except KeyboardInterrupt:
             # Allow graceful shutdown on Ctrl+C
             ColorPrint.yellow(f"Task {task.task_id} interrupted by user")
-            with self.stats_lock:
-                self.queue_stats.failed_tasks += 1
             raise  # Re-raise to stop the thread pool
 
         except Exception as e:
@@ -484,9 +470,6 @@ class MediaCompressor:
             ColorPrint.red(f"Task processing error for {task.task_id}: {e}")
             if self.verbose:
                 traceback.print_exc()
-
-            with self.stats_lock:
-                self.queue_stats.failed_tasks += 1
 
             # Call callback with failure status
             if task.callback:
@@ -507,6 +490,17 @@ class MediaCompressor:
                             ColorPrint.yellow(f"Removed empty output file: {task.output_path}")
                 except Exception as cleanup_error:
                     ColorPrint.yellow(f"Cleanup error: {cleanup_error}")
+
+    def _process_task_lane(
+        self,
+        tasks: List[CompressionTask],
+    ) -> List[Tuple[CompressionTask, bool, Optional[CompressionStats]]]:
+        """Process one bus-delivered task lane without sharing mutable state."""
+        results = []
+        for task in tasks:
+            success, stats = self._process_task(task)
+            results.append((task, success, stats))
+        return results
 
     def process_batch(self,
                      tasks: List[CompressionTask],
@@ -542,12 +536,11 @@ class MediaCompressor:
 
             stats = compressor.process_batch(tasks, queue_done, progress)
         """
-        # Initialize queue stats
-        with self.stats_lock:
-            self.queue_stats = QueueStats(
-                total_tasks=len(tasks),
-                start_time=time.time()
-            )
+        # Keep batch statistics local to the caller. Worker results cross THREAD_BUS.
+        final_stats = QueueStats(
+            total_tasks=len(tasks),
+            start_time=time.time()
+        )
 
         ColorPrint.cyan(f"\n{'='*80}")
         ColorPrint.cyan(f"Starting batch processing: {len(tasks)} tasks with {self.max_workers} workers")
@@ -556,21 +549,41 @@ class MediaCompressor:
         completed_count = 0
         interrupted = False
 
-        # Process tasks using thread pool with robust error handling
+        # Process fixed bus-delivered lanes with named Thread subclasses.
         try:
-            with ThreadPoolExecutor(max_workers=self.max_workers, thread_name_prefix='MediaCompressor') as executor:
-                # Submit all tasks
-                future_to_task = {
-                    executor.submit(self._process_task, task): task
-                    for task in tasks
-                }
+            lane_count = min(max(1, self.max_workers), max(1, len(tasks)))
+            lanes = [tasks[index::lane_count] for index in range(lane_count)]
+            lane_signals = []
+            for lane_index, lane_tasks in enumerate(lanes):
+                response_signal = f"media_compressor.lane.{uuid.uuid4().hex}"
+                lane_signals.append((response_signal, lane_tasks))
+                start_bus_task(
+                    self._process_task_lane,
+                    lane_tasks,
+                    thread_name=f"MediaCompressor-{lane_index + 1}",
+                    response_signal=response_signal,
+                )
 
-                # Process results as they complete
-                for future in as_completed(future_to_task):
-                    task = future_to_task[future]
+            for response_signal, lane_tasks in lane_signals:
+                lane_timeout = 3600 * max(1, len(lane_tasks))
+                response = THREAD_BUS.wait_signal(response_signal, timeout=lane_timeout)
+                THREAD_BUS.clear_signal(response_signal)
+                if not isinstance(response, dict) or not response.get("success"):
+                    error = response.get("error", "worker timed out") if isinstance(response, dict) else "worker timed out"
+                    ColorPrint.red(f"Compression lane error: {error}")
+                    final_stats.failed_tasks += len(lane_tasks)
+                    completed_count += len(lane_tasks)
+                    continue
+
+                for task, success, stats in response.get("result", []):
                     try:
-                        success, stats = future.result(timeout=3600)  # 1 hour per task max
                         completed_count += 1
+                        if success and stats is not None:
+                            final_stats.completed_tasks += 1
+                            final_stats.total_original_size += stats.original_size
+                            final_stats.total_compressed_size += stats.compressed_size
+                        else:
+                            final_stats.failed_tasks += 1
 
                         # Progress callback
                         if progress_callback:
@@ -587,25 +600,23 @@ class MediaCompressor:
                     except KeyboardInterrupt:
                         ColorPrint.yellow("\n⚠️  Batch processing interrupted by user")
                         interrupted = True
-                        # Cancel remaining tasks
-                        for f in future_to_task:
-                            f.cancel()
-                        executor.shutdown(wait=False, cancel_futures=True)
                         break
 
                     except Exception as e:
-                        ColorPrint.red(f"Future error for {task.task_id}: {e}")
+                        ColorPrint.red(f"Worker result error for {task.task_id}: {e}")
                         completed_count += 1
                         # Continue processing other tasks
+
+                if interrupted:
+                    break
 
         except KeyboardInterrupt:
             ColorPrint.yellow("\n⚠️  Batch processing interrupted during setup")
             interrupted = True
 
-        # Finalize queue stats
-        with self.stats_lock:
-            self.queue_stats.end_time = time.time()
-            final_stats = self.queue_stats
+        # Publish the final immutable batch snapshot for compatibility.
+        final_stats.end_time = time.time()
+        self.queue_stats = final_stats
 
         # Calculate summary
         total_time = final_stats.end_time - final_stats.start_time

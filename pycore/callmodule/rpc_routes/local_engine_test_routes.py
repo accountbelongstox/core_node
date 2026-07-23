@@ -5,7 +5,7 @@ Local engine live-test RPC — direct WS handlers for TTS/STT/OCR/AI tests.
 These mirror POST /api/local/{tts,stt,ocr}/test and POST /api/local/ai/chat
 but run in-process on a worker thread (no loopback HTTP). Long cold-start model
 engines (Qwen3-TTS, Bark, etc.) can take several minutes, so these routes use
-asyncio.to_thread() to avoid blocking the WS event loop.
+THREAD_BUS workers to avoid blocking the WS event loop.
 
 Routes:
   local.tts.test   { engine?, text?, language?, rate?, accent?,
@@ -24,10 +24,10 @@ Routes:
   local.ai.status   {}          -> AI gateway status
 """
 
-import asyncio
 from typing import Any, Dict, List
 
 from pycore import ColorPrint
+from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyctl.ai import speech_history
 from pycore.pyctl.ai.ai_gateway import generate_image, generate_text, gateway_status
 from pycore.pyutils.common.api_secrets import streamelements_key_present
@@ -246,19 +246,19 @@ def register_local_engine_test_routes(server):
 
     # -- live tests (long-running, cold-start safe) --
     async def local_tts_test(params, request_id, context):
-        return await asyncio.to_thread(_tts_test, params or {})
+        return await await_bus_task(_tts_test, params or {}, timeout=None)
 
     async def local_stt_test(params, request_id, context):
-        return await asyncio.to_thread(_stt_test, params or {})
+        return await await_bus_task(_stt_test, params or {}, timeout=None)
 
     async def local_ocr_test(params, request_id, context):
-        return await asyncio.to_thread(_ocr_test, params or {})
+        return await await_bus_task(_ocr_test, params or {}, timeout=None)
 
     async def local_ai_chat(params, request_id, context):
-        return await asyncio.to_thread(_ai_chat, params or {})
+        return await await_bus_task(_ai_chat, params or {}, timeout=None)
 
     async def local_ai_image_test(params, request_id, context):
-        return await asyncio.to_thread(_ai_image_test, params or {})
+        return await await_bus_task(_ai_image_test, params or {}, timeout=None)
 
     server.route(
         name="local.tts.test",
@@ -293,16 +293,16 @@ def register_local_engine_test_routes(server):
 
     # -- status (fast reads, no network) --
     async def local_tts_status(params, request_id, context):
-        return await asyncio.to_thread(_tts_status, params or {})
+        return await await_bus_task(_tts_status, params or {})
 
     async def local_stt_status(params, request_id, context):
-        return await asyncio.to_thread(_stt_status, params or {})
+        return await await_bus_task(_stt_status, params or {})
 
     async def local_ocr_status(params, request_id, context):
-        return await asyncio.to_thread(_ocr_status, params or {})
+        return await await_bus_task(_ocr_status, params or {})
 
     async def local_ai_status(params, request_id, context):
-        return await asyncio.to_thread(_ai_status, params or {})
+        return await await_bus_task(_ai_status, params or {})
 
     server.route(
         name="local.tts.status",

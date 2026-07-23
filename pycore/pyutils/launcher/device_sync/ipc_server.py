@@ -14,10 +14,11 @@ Port: 45678 (configurable)
 """
 
 import socket
-import threading
 import json
 import time
-from typing import Optional, Callable, Dict
+from typing import Any, Optional, Callable, Dict
+from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 DEFAULT_IPC_PORT = 45678
 
@@ -45,8 +46,10 @@ class IPCServer:
         self.port = port
         self.running = False
         self.server_socket: Optional[socket.socket] = None
-        self.server_thread: Optional[threading.Thread] = None
+        self.server_thread: Optional[Any] = None
         self.handlers: Dict[str, Callable] = {}
+        self._running_signal = f"device_sync.ipc.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
     def is_already_running(self) -> bool:
         """
@@ -135,8 +138,11 @@ class IPCServer:
             return False
 
         self.running = True
-        self.server_thread = threading.Thread(target=self._server_loop, daemon=True)
-        self.server_thread.start()
+        THREAD_BUS.signal(self._running_signal, True)
+        self.server_thread = start_bus_task(
+            self._server_loop,
+            thread_name="IPCServerThread",
+        )
 
         print(f"[IPCServer] Started on port {self.port}")
         return True
@@ -144,6 +150,7 @@ class IPCServer:
     def stop(self):
         """Stop IPC server."""
         self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         if self.server_socket:
             self.server_socket.close()
@@ -155,18 +162,18 @@ class IPCServer:
 
     def _server_loop(self):
         """Server main loop (runs in background thread)."""
-        while self.running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             try:
                 client_socket, addr = self.server_socket.accept()
-                threading.Thread(
-                    target=self._handle_client,
-                    args=(client_socket,),
-                    daemon=True
-                ).start()
+                start_bus_task(
+                    self._handle_client,
+                    client_socket,
+                    thread_name="IPCClientThread",
+                )
             except socket.timeout:
                 continue
             except Exception as e:
-                if self.running:
+                if THREAD_BUS.get_signal(self._running_signal, False):
                     print(f"[IPCServer] Error accepting connection: {e}")
 
     def _handle_client(self, client_socket: socket.socket):
@@ -187,11 +194,11 @@ class IPCServer:
             # Execute handler
             if command in self.handlers:
                 handler = self.handlers[command]
-                threading.Thread(
-                    target=handler,
-                    args=(command_data,),
-                    daemon=True
-                ).start()
+                start_bus_task(
+                    handler,
+                    command_data,
+                    thread_name=f"IPCHandler-{command}",
+                )
 
                 response = {'status': 'ok', 'message': f'Command {command} executed'}
             else:

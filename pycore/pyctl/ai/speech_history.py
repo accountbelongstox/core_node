@@ -25,13 +25,16 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_local_data_dir
 
 # Same shared root as ai_image_history (cross-runtime DrvFs-visible).
@@ -48,7 +51,7 @@ _MIME_EXT = {
 }
 _EXT_MIME = {"mp3": "audio/mpeg", "wav": "audio/wav", "ogg": "audio/ogg", "webm": "audio/webm"}
 
-_lock = threading.Lock()
+_WORK_QUEUE = 'pyctl.ai.speech_history.operations'
 
 
 def _state_dir():
@@ -126,7 +129,7 @@ def _trim(doc: Dict[str, Any]) -> None:
                 pass
 
 
-def record_speech(
+def _record_speech(
     *,
     kind: str,
     engine: str,
@@ -165,23 +168,26 @@ def record_speech(
         "origin": "pycore",
         "ok": bool(ok),
     }
-    with _lock:
-        try:
-            _audio_dir()  # ensure <state>/speech_audio/ exists before writing
-            (_state_dir() / rel).write_bytes(audio_bytes)
-        except Exception as e:  # noqa: BLE001
-            ColorPrint.yellow(f"[speech_history] audio write failed: {e}")
-            return None
-        doc = _load_index()
-        doc["entries"].append(entry)
-        _trim(doc)
-        _save_index(doc)
+    try:
+        _audio_dir()
+        (_state_dir() / rel).write_bytes(audio_bytes)
+    except Exception as e:  # noqa: BLE001
+        ColorPrint.yellow(f"[speech_history] audio write failed: {e}")
+        return None
+    doc = _load_index()
+    doc["entries"].append(entry)
+    _trim(doc)
+    _save_index(doc)
     ColorPrint.green(
         f"[speech_history] recorded {entry['kind']}/{engine} ({len(audio_bytes)//1024}KB) id={digest}")
     return entry
 
 
-def record_test_result(kind: str, result: Dict[str, Any], source: str = "test") -> Optional[Dict[str, Any]]:
+def _record_test_result(
+    kind: str,
+    result: Dict[str, Any],
+    source: str = "test",
+) -> Optional[Dict[str, Any]]:
     """Persist a ``tts_test()`` / ``stt_test()`` result dict by reading its produced
     ``path``. Returns the stored entry (so the caller can echo its id) or None.
     Best-effort: never raises — logging a test must not fail the test response."""
@@ -198,7 +204,7 @@ def record_test_result(kind: str, result: Dict[str, Any], source: str = "test") 
         return None
     ext = (os.path.splitext(str(path))[1] or "").lstrip(".").lower()
     mime = _EXT_MIME.get(ext, "audio/mpeg")
-    return record_speech(
+    return _record_speech(
         kind=kind,
         engine=str(result.get("engine") or ""),
         text=str(result.get("text") or ""),
@@ -218,12 +224,11 @@ def _abs_path(rel: str) -> str:
         return str(_state_dir() / rel)
 
 
-def list_history(limit: int = 50) -> List[Dict[str, Any]]:
+def _list_history(limit: int = 50) -> List[Dict[str, Any]]:
     """Newest-first entries (metadata only) with an absolute ``path`` added for the
     UI's 'show actual location'. Capped at ``limit`` (1.._MAX_ENTRIES)."""
     limit = max(1, min(_MAX_ENTRIES, int(limit) if str(limit).isdigit() else 50))
-    with _lock:
-        entries = list((_load_index().get("entries") or []))
+    entries = list((_load_index().get("entries") or []))
     out = []
     for e in reversed(entries):
         item = dict(e)
@@ -233,18 +238,17 @@ def list_history(limit: int = 50) -> List[Dict[str, Any]]:
     return out[:limit]
 
 
-def read_audio(audio_id: str) -> Tuple[bytes, str]:
+def _read_audio(audio_id: str) -> Tuple[bytes, str]:
     """(bytes, mime) for a stored audio id, or (b'', '') when missing."""
     audio_id = (audio_id or "").strip()
     if not audio_id:
         return b"", ""
     rel = mime = None
-    with _lock:
-        for e in (_load_index().get("entries") or []):
-            if e.get("id") == audio_id:
-                rel = e.get("file")
-                mime = e.get("mime") or "audio/mpeg"
-                break
+    for entry in (_load_index().get("entries") or []):
+        if entry.get("id") == audio_id:
+            rel = entry.get("file")
+            mime = entry.get("mime") or "audio/mpeg"
+            break
     if not rel:
         return b"", ""
     try:
@@ -253,36 +257,34 @@ def read_audio(audio_id: str) -> Tuple[bytes, str]:
         return b"", ""
 
 
-def entry_path(audio_id: str) -> Optional[str]:
+def _entry_path(audio_id: str) -> Optional[str]:
     """Absolute path of a stored audio file (for reveal / show-location), or None."""
     audio_id = (audio_id or "").strip()
     if not audio_id:
         return None
-    with _lock:
-        for e in (_load_index().get("entries") or []):
-            if e.get("id") == audio_id and e.get("file"):
-                return _abs_path(e["file"])
+    for entry in (_load_index().get("entries") or []):
+        if entry.get("id") == audio_id and entry.get("file"):
+            return _abs_path(entry["file"])
     return None
 
 
-def delete_entry(audio_id: str) -> bool:
+def _delete_entry(audio_id: str) -> bool:
     """Remove one entry and its audio file. True when an entry was removed."""
     audio_id = (audio_id or "").strip()
     if not audio_id:
         return False
-    with _lock:
-        doc = _load_index()
-        entries = doc.get("entries") or []
-        keep, removed = [], None
-        for e in entries:
-            if e.get("id") == audio_id and removed is None:
-                removed = e
-            else:
-                keep.append(e)
-        if removed is None:
-            return False
-        doc["entries"] = keep
-        _save_index(doc)
+    doc = _load_index()
+    entries = doc.get("entries") or []
+    keep, removed = [], None
+    for entry in entries:
+        if entry.get("id") == audio_id and removed is None:
+            removed = entry
+        else:
+            keep.append(entry)
+    if removed is None:
+        return False
+    doc["entries"] = keep
+    _save_index(doc)
     rel = removed.get("file")
     if rel:
         try:
@@ -292,23 +294,64 @@ def delete_entry(audio_id: str) -> bool:
     return True
 
 
-def clear_history() -> int:
+def _clear_history() -> int:
     """Delete ALL entries + audio files. Returns the count removed."""
-    with _lock:
-        doc = _load_index()
-        entries = doc.get("entries") or []
-        base = _state_dir()
-        for e in entries:
-            rel = e.get("file")
-            if rel:
-                try:
-                    (base / rel).unlink()
-                except OSError:
-                    pass
-        n = len(entries)
-        doc["entries"] = []
-        _save_index(doc)
-    return n
+    doc = _load_index()
+    entries = doc.get("entries") or []
+    base = _state_dir()
+    for entry in entries:
+        rel = entry.get("file")
+        if rel:
+            try:
+                (base / rel).unlink()
+            except OSError:
+                pass
+    removed_count = len(entries)
+    doc["entries"] = []
+    _save_index(doc)
+    return removed_count
+
+
+_WORKER = SerializedWorkerThread(_WORK_QUEUE, 'SpeechHistoryThread')
+_WORKER.start()
+
+
+def record_speech(**kwargs: Any) -> Optional[Dict[str, Any]]:
+    return call_serialized(_WORK_QUEUE, _record_speech, **kwargs)
+
+
+def record_test_result(
+    kind: str,
+    result: Dict[str, Any],
+    source: str = "test",
+) -> Optional[Dict[str, Any]]:
+    return call_serialized(
+        _WORK_QUEUE,
+        _record_test_result,
+        kind,
+        result,
+        source,
+    )
+
+
+def list_history(limit: int = 50) -> List[Dict[str, Any]]:
+    return call_serialized(_WORK_QUEUE, _list_history, limit)
+
+
+def read_audio(audio_id: str) -> Tuple[bytes, str]:
+    return call_serialized(_WORK_QUEUE, _read_audio, audio_id)
+
+
+def entry_path(audio_id: str) -> Optional[str]:
+    return call_serialized(_WORK_QUEUE, _entry_path, audio_id)
+
+
+def delete_entry(audio_id: str) -> bool:
+    return bool(call_serialized(_WORK_QUEUE, _delete_entry, audio_id))
+
+
+def clear_history() -> int:
+    return int(call_serialized(_WORK_QUEUE, _clear_history))
 
 
 __all__ = [

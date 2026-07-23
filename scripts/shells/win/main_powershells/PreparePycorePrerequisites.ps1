@@ -12,7 +12,7 @@
 
 # Pycore prerequisite orchestrator (caller: pyservice.ps1).
 # Runs install_powershells/Step*.ps1 in dependency order with no parameters; each Step
-# resolves the single system Python 3.13 and skips when already satisfied.
+# resolves the centrally configured system Python and skips when already satisfied.
 
 $ErrorActionPreference = 'Stop'
 
@@ -20,6 +20,11 @@ $failed             = @()
 $neuralBatchInstall = ($env:NEURAL_TTS_INSTALL -eq '1')
 $manifestPath       = Join-Path $PSScriptRoot 'PycorePrerequisitesList.ps1'
 $winCommonDir       = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
+$name               = ''
+$scriptPath         = ''
+$invokeArgs         = @{}
+$previousStepEap    = 'Stop'
+$failurePosition    = ''
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
 . $manifestPath
 
@@ -54,6 +59,8 @@ foreach ($entry in $PycorePrerequisiteScripts) {
     }
 
     try {
+        $previousStepEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
         if ($invokeArgs.Count -gt 0) {
             & $scriptPath @invokeArgs
         } else {
@@ -61,13 +68,19 @@ foreach ($entry in $PycorePrerequisiteScripts) {
         }
     } catch {
         Write-Host ("[!] {0} threw: {1}" -f $name, $_.Exception.Message) -ForegroundColor DarkYellow
+        $failurePosition = ([string]$_.InvocationInfo.PositionMessage).Trim()
+        if ($failurePosition) {
+            Write-Host ("[!] {0} location: {1}" -f $name, $failurePosition) -ForegroundColor DarkYellow
+        }
         $failed += $name
+    } finally {
+        $ErrorActionPreference = $previousStepEap
     }
 }
 
 if ($failed.Count -gt 0) {
     Write-Host ("[!] Some prerequisites did not complete cleanly: {0}" -f ($failed -join ', ')) -ForegroundColor DarkYellow
-    exit 0
+    exit 1
 }
 
 Write-Host '[OK] All prerequisites complete.' -ForegroundColor Green

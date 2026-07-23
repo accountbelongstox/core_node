@@ -7,8 +7,7 @@
  * runner). Keeping this catalog in one neutral module guarantees the popup UI
  * and the background can never disagree on which lanes a checkbox turns on.
  *
- * Stub capabilities (processors: [], stub: true) render as a checkbox but have
- * no in-extension worker yet, so checking them is a no-op until a lane exists.
+ * Every capability maps to a real in-extension runner or processor lane.
  */
 
 import { LANES } from './task-center-lanes';
@@ -31,7 +30,7 @@ export interface CapabilityDef {
   processors: string[];
   /** True when this capability also drives the client-side validity runner. */
   usesValidityRunner: boolean;
-  /** True when there is no in-extension worker yet (render-only checkbox). */
+  /** Reserved for capability discovery during rolling upgrades. */
   stub: boolean;
 }
 
@@ -46,15 +45,13 @@ export const CAPABILITIES: CapabilityDef[] = [
     stub: false,
   },
   {
-    // TODO: audio generation has no in-extension worker yet; wire when a chrome
-    // audio lane exists (audio is currently generated server-side / edge-tts).
     key: 'audio',
     storageKey: 'tkCapAudio',
     zhLabel: '执行语音生成任务',
-    hint: 'Audio is generated server-side; no chrome worker yet',
-    processors: [],
+    hint: 'Bing pronunciation audio tasks',
+    processors: [LANES.BING_DICTIONARY],
     usesValidityRunner: false,
-    stub: true,
+    stub: false,
   },
   {
     // Validity runs the CLIENT-DRIVEN runner only (pending -> DeepSeek -> report),
@@ -70,14 +67,13 @@ export const CAPABILITIES: CapabilityDef[] = [
     stub: false,
   },
   {
-    // TODO: short-article generation has no in-extension worker yet; no-op now.
     key: 'article',
     storageKey: 'tkCapArticle',
     zhLabel: '执行短文生成任务',
-    hint: 'Short-article generation is server-side; no chrome worker yet',
-    processors: [],
+    hint: 'Gemini short-article and text generation',
+    processors: [LANES.REMOTE_GEMINI_TEXT],
     usesValidityRunner: false,
-    stub: true,
+    stub: false,
   },
   {
     key: 'notebooklm',

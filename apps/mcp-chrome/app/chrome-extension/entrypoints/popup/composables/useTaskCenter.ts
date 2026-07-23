@@ -12,6 +12,7 @@ import { formatTimestamp } from '@/utils/time-helpers';
 import type { CapabilityKey } from '@/utils/task-capabilities';
 import { taskPath } from '@/utils/api-paths';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { LANES } from '@/utils/task-center-lanes';
 // Canonical control-protocol types + message constants (shared with background).
 import {
   TASK_CENTER_MSG,
@@ -211,6 +212,14 @@ export interface ValidityRunnerConfig {
   limit?: number;
 }
 
+interface StoredBingWorkerConfig {
+  fetchInterval?: number;
+  batchSize?: number;
+  tabCount?: number;
+  sourceLanguage?: string;
+  targetLanguage?: string;
+}
+
 // TaskCenterConfig / TaskCenterStats / ProcessorStatus / BackendHealth /
 // ValidityStatus are imported from the shared canonical module — no local copies.
 export type { TaskCenterConfig, TaskCenterStats, ProcessorStatus, ValidityStatus };
@@ -295,16 +304,46 @@ export function useTaskCenter() {
     }
   };
 
+  const loadRuntimeProcessorSettings = async () => {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG);
+    const stored = (result[STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG] || {}) as StoredBingWorkerConfig;
+    const apiUrl = config.value.apiUrl.replace(/\/+$/, '');
+    const current = config.value.processors?.[LANES.BING_DICTIONARY] || { apiUrl };
+    config.value.processors = {
+      ...(config.value.processors || {}),
+      [LANES.BING_DICTIONARY]: {
+        ...current,
+        apiUrl,
+        pollInterval: Math.max(
+          1,
+          Math.min(3600, Math.round(Number(stored.fetchInterval) || TASK_CENTER_DEFAULTS.pollInterval)),
+        ),
+        batchSize: Math.max(
+          1,
+          Math.min(50, Math.round(Number(stored.batchSize) || TASK_CENTER_DEFAULTS.batchSize)),
+        ),
+        tabCount: Math.max(1, Math.min(8, Math.round(Number(stored.tabCount) || 3))),
+        sourceLanguage: String(stored.sourceLanguage || 'en').trim().toLowerCase(),
+        targetLanguage: String(stored.targetLanguage || 'zh').trim().toLowerCase(),
+      },
+    };
+  };
+
   // Start the center with the checked, NON-stub capability keys. The background
   // derives the concrete processorTypes and boots the validity runner itself
   // (whenever 'validity' is present) — the popup only names capabilities.
   const startTaskCenter = async (activeCapabilities: CapabilityKey[]) => {
     try {
       await apiManager.initialize({ autoDetect: false });
+      await loadRuntimeProcessorSettings();
       const response = await chrome.runtime.sendMessage({
         type: TASK_CENTER_MSG,
         action: 'start',
-        config: { apiUrl: config.value.apiUrl, activeCapabilities },
+        config: {
+          ...config.value,
+          processors: { ...(config.value.processors || {}) },
+          activeCapabilities,
+        },
       });
 
       if (response && response.success) {
@@ -327,12 +366,16 @@ export function useTaskCenter() {
   // background enables/disables the lane (and the validity runner) in place.
   const setCapability = async (capability: CapabilityKey, enabled: boolean) => {
     try {
+      await loadRuntimeProcessorSettings();
       const response = await chrome.runtime.sendMessage({
         type: TASK_CENTER_MSG,
         action: 'set_capability',
         capability,
         enabled,
-        config: { apiUrl: config.value.apiUrl },
+        config: {
+          ...config.value,
+          processors: { ...(config.value.processors || {}) },
+        },
       });
 
       if (response && response.success) {

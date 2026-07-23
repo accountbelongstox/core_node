@@ -19,11 +19,10 @@
  *   const activeTab = usePersistedRef('activeTab', 'server');
  */
 import { ref, watch, onScopeDispose, type Ref } from 'vue';
-
-const PREFIX = 'ui:';
+import { UI_STORAGE_PREFIX } from '@/utils/storage-keys';
 
 export function usePersistedRef<T>(key: string, defaultValue: T): Ref<T> {
-  const storageKey = PREFIX + key;
+  const storageKey = UI_STORAGE_PREFIX + key;
   const state = ref(defaultValue) as Ref<T>;
   // Guards: don't persist the default before the stored value has loaded (that
   // would clobber it); don't echo a value we just received from storage back out.

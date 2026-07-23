@@ -206,6 +206,7 @@ const SUMMARY_ORDER: Array<{ type: string; iconOverride?: string }> = [
   { type: 'poster' },
   { type: 'subtitle_search' },
   { type: 'notebooklm' },
+  { type: 'word_validity' },
   { type: 'sentence_audio' },
 ];
 
@@ -353,6 +354,7 @@ const refresh = async (): Promise<void> => {
 const CHROME_EXECUTION_TYPES = new Set<string>([
   LANES.REMOTE_CLIENT, LANES.REMOTE_TRANSLATION, LANES.REMOTE_GEMINI,
   LANES.REMOTE_NOTEBOOKLM, LANES.REMOTE_GEMINI_TEXT, LANES.REMOTE_FAST,
+  LANES.REMOTE_POSTER,
 ]);
 
 const loadAll = async (): Promise<void> => {

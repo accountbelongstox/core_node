@@ -8,7 +8,7 @@
 
 import { bingDictionaryWorkerService, type WorkerConfig } from './services/bing-dictionary-worker-service';
 import { logger } from '@/utils/logger';
-import { BING_DICT_MSG } from '@/common/message-types';
+import { BING_DICT_MSG, FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 
 const LOG = 'Bing Listener';
 
@@ -17,7 +17,7 @@ const LOG = 'Bing Listener';
  */
 export function initBingDictionaryClientListener() {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'bing_dictionary_client_service' || message.type === BING_DICT_MSG) {
+    if (message.type === FEATURE_MESSAGE_TYPES.BING_DICTIONARY_CLIENT || message.type === BING_DICT_MSG) {
       handleBingDictionaryMessage(message, sendResponse);
       return true; // Keep message channel open for async response
     }

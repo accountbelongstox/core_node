@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Order } from '@/lib/types';
 import { i18n, Language } from '../i18n';
+import { orderFormText } from '@/lib/uiI18n';
 import { X, Plus, AlertCircle, ShoppingBag, User, MapPin, Layers } from 'lucide-react';
 
 interface OrderFormModalProps {
@@ -22,18 +23,15 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   lang
 }) => {
   const t = i18n[lang];
+  const ui = orderFormText(lang);
 
   const [accountName, setAccountName] = useState(accounts[0] || '玛卡巴卡');
-  const [productName, setProductName] = useState(
-    lang === 'zh'
-      ? '史丹利中心冲样冲定位冲子冲销圆锥冲尖头冲子钉冲金属敲击定位'
-      : 'STANLEY Heavy Duty Center Punch Scribe Brass Automatic Alignment Pin'
-  );
-  const [specName, setSpecName] = useState(lang === 'zh' ? '圆锥冲2*138mm' : 'Tapered 2*138mm');
+  const [productName, setProductName] = useState(ui.defaultProduct);
+  const [specName, setSpecName] = useState(ui.defaultSpec);
   const [quantity, setQuantity] = useState(1);
   const [unitPrice, setUnitPrice] = useState(13.83);
   const [orderAmount, setOrderAmount] = useState(13.83);
-  const [storeName, setStoreName] = useState(lang === 'zh' ? 'STANLEY史丹利因珀特专卖店' : 'STANLEY Official Store');
+  const [storeName, setStoreName] = useState(ui.defaultStore);
   const [status, setStatus] = useState<Order['status']>('待发货');
 
   // Recipient presets
@@ -227,7 +225,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                 <option value="1">Liang Feifei (Zhongtan Hub)</option>
                 <option value="2">Zhang Xiaolong (Boyun Road Hub)</option>
                 <option value="3">Wang Lin (EFC Hub)</option>
-                <option value="custom">✍️ {lang === 'zh' ? '手动输入收件信息' : 'Custom Add Address'}</option>
+                <option value="custom">✍️ {ui.customRecipient}</option>
               </select>
             </div>
 

@@ -4,23 +4,27 @@
 Global Task models + queue.
 
 Merged from the former task_models / global_task_queue modules so the task
-data model and its thread-safe priority queue live in ONE leaf module that
-depends only on the Python standard library (no pyfoundations siblings).
+data model and its THREAD_BUS-backed priority facade live in one module.
 
 Contents:
 - TaskState / TaskPriority / Task   - task data model
-- GlobalTaskQueue / get_global_task_queue - thread-safe priority queue singleton
+- GlobalTaskQueue / get_global_task_queue - THREAD_BUS priority facade
 
-Only uses Python standard library (no third-party dependencies).
+Only uses Python standard library and the foundational THREAD_BUS.
 """
 
-import uuid
 import time
-import queue
-import threading
-from enum import Enum
-from typing import Any, Dict, Optional, Callable, List
+import uuid
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
+
+from pycore.pyfoundations.thread_bus import THREAD_BUS
+
+
+_TASK_MAP_SIGNAL = 'heartbeat.tasks.map'
+_TASK_STATS_SIGNAL = 'heartbeat.tasks.stats'
+_TASK_QUEUE_PREFIX = 'heartbeat.tasks.priority'
 
 
 class TaskState(Enum):
@@ -128,10 +132,10 @@ class Task:
 
 class GlobalTaskQueue:
     """
-    Global thread-safe priority task queue
+    Global THREAD_BUS-backed priority task queue
 
-    Uses queue.PriorityQueue for zero-lock thread safety.
-    Shared by all application threads for task submission.
+    Each priority owns one THREAD_BUS queue. Consumers scan priorities from
+    urgent to low, preserving the public queue API without shared locks.
     """
 
     def __init__(self, max_size: int = 10000):
@@ -141,12 +145,14 @@ class GlobalTaskQueue:
         Args:
             max_size: Maximum queue size (default: 10000)
         """
-        self._queue = queue.PriorityQueue(maxsize=max_size)
-        self._task_map: Dict[str, Task] = {}
-        self._map_lock = threading.Lock()
         self._max_size = max_size
-        self._total_added = 0
-        self._total_removed = 0
+        if THREAD_BUS.get_signal(_TASK_MAP_SIGNAL) is None:
+            THREAD_BUS.signal(_TASK_MAP_SIGNAL, {})
+        if THREAD_BUS.get_signal(_TASK_STATS_SIGNAL) is None:
+            THREAD_BUS.signal(_TASK_STATS_SIGNAL, {
+                'total_added': 0,
+                'total_removed': 0,
+            })
 
     def put(self, task: Task, block: bool = True, timeout: Optional[float] = None) -> bool:
         """
@@ -160,26 +166,22 @@ class GlobalTaskQueue:
         Returns:
             True if task was added, False otherwise
 
-        Raises:
-            queue.Full: If queue is full and block=False
         """
-        try:
-            self._queue.put(
-                (task.priority.value, task.created_at, task),
-                block=block,
-                timeout=timeout
-            )
-
-            with self._map_lock:
-                self._task_map[task.task_id] = task
-                self._total_added += 1
-
-            return True
-
-        except queue.Full:
+        wait_started = time.time()
+        while self.is_full():
             if not block:
-                raise
-            return False
+                return False
+            if timeout is not None and time.time() - wait_started >= timeout:
+                return False
+            time.sleep(0.01)
+
+        queue_name = self._queue_name(task.priority)
+        THREAD_BUS.send_message(queue_name, task)
+        task_map = dict(THREAD_BUS.get_signal(_TASK_MAP_SIGNAL, {}) or {})
+        task_map[task.task_id] = task
+        THREAD_BUS.signal(_TASK_MAP_SIGNAL, task_map)
+        self._increment_stat('total_added')
+        return True
 
     def get(self, block: bool = True, timeout: Optional[float] = None) -> Optional[Task]:
         """
@@ -192,13 +194,19 @@ class GlobalTaskQueue:
         Returns:
             Task if available, None otherwise
         """
-        try:
-            _, _, task = self._queue.get(block=block, timeout=timeout)
-            self._total_removed += 1
-            return task
+        wait_started = time.time()
+        while True:
+            for priority in TaskPriority:
+                task = THREAD_BUS.receive_message(self._queue_name(priority))
+                if task is not None:
+                    self._increment_stat('total_removed')
+                    return task
 
-        except queue.Empty:
-            return None
+            if not block:
+                return None
+            if timeout is not None and time.time() - wait_started >= timeout:
+                return None
+            time.sleep(0.01)
 
     def remove(self, task_id: str) -> bool:
         """
@@ -213,12 +221,13 @@ class GlobalTaskQueue:
         Returns:
             True if task was found and marked cancelled
         """
-        with self._map_lock:
-            task = self._task_map.get(task_id)
-            if task and task.state == TaskState.PENDING:
-                task.mark_cancelled()
-                return True
-            return False
+        task_map = THREAD_BUS.get_signal(_TASK_MAP_SIGNAL, {}) or {}
+        task = task_map.get(task_id)
+        if task and task.state == TaskState.PENDING:
+            task.mark_cancelled()
+            THREAD_BUS.signal(_TASK_MAP_SIGNAL, dict(task_map))
+            return True
+        return False
 
     def get_task(self, task_id: str) -> Optional[Task]:
         """
@@ -230,8 +239,8 @@ class GlobalTaskQueue:
         Returns:
             Task if found, None otherwise
         """
-        with self._map_lock:
-            return self._task_map.get(task_id)
+        task_map = THREAD_BUS.get_signal(_TASK_MAP_SIGNAL, {}) or {}
+        return task_map.get(task_id)
 
     def cleanup_completed(self, max_keep: int = 1000):
         """
@@ -240,30 +249,42 @@ class GlobalTaskQueue:
         Args:
             max_keep: Maximum number of completed tasks to keep
         """
-        with self._map_lock:
-            completed_tasks = [
-                (task_id, task) for task_id, task in self._task_map.items()
-                if task.state in (TaskState.COMPLETED, TaskState.FAILED, TaskState.CANCELLED)
-            ]
+        task_map = THREAD_BUS.get_signal(_TASK_MAP_SIGNAL, {}) or {}
+        completed_tasks = [
+            (task_id, task) for task_id, task in task_map.items()
+            if task.state in (
+                TaskState.COMPLETED,
+                TaskState.FAILED,
+                TaskState.CANCELLED,
+            )
+        ]
+        if len(completed_tasks) <= max_keep:
+            return
 
-            if len(completed_tasks) > max_keep:
-                completed_tasks.sort(key=lambda x: x[1].completed_at or 0)
-                to_remove = completed_tasks[:-max_keep]
-
-                for task_id, _ in to_remove:
-                    del self._task_map[task_id]
+        completed_tasks.sort(key=lambda item: item[1].completed_at or 0)
+        remove_ids = {
+            task_id for task_id, _task in completed_tasks[:-max_keep]
+        }
+        THREAD_BUS.signal(_TASK_MAP_SIGNAL, {
+            task_id: task
+            for task_id, task in task_map.items()
+            if task_id not in remove_ids
+        })
 
     def size(self) -> int:
         """Get current queue size"""
-        return self._queue.qsize()
+        return sum(
+            THREAD_BUS.queue_size(self._queue_name(priority))
+            for priority in TaskPriority
+        )
 
     def is_empty(self) -> bool:
         """Check if queue is empty"""
-        return self._queue.empty()
+        return self.size() == 0
 
     def is_full(self) -> bool:
         """Check if queue is full"""
-        return self._queue.full()
+        return self.size() >= self._max_size
 
     def get_stats(self) -> Dict[str, int]:
         """
@@ -272,21 +293,22 @@ class GlobalTaskQueue:
         Returns:
             Dictionary with queue statistics
         """
-        with self._map_lock:
-            state_counts = {}
-            for task in self._task_map.values():
-                state = task.state.value
-                state_counts[state] = state_counts.get(state, 0) + 1
+        task_map = THREAD_BUS.get_signal(_TASK_MAP_SIGNAL, {}) or {}
+        stats = THREAD_BUS.get_signal(_TASK_STATS_SIGNAL, {}) or {}
+        state_counts = {}
+        for task in task_map.values():
+            state = task.state.value
+            state_counts[state] = state_counts.get(state, 0) + 1
 
-            return {
-                'queue_size': self.size(),
-                'total_tasks': len(self._task_map),
-                'total_added': self._total_added,
-                'total_removed': self._total_removed,
-                'max_size': self._max_size,
-                'is_full': self.is_full(),
-                'state_counts': state_counts
-            }
+        return {
+            'queue_size': self.size(),
+            'total_tasks': len(task_map),
+            'total_added': stats.get('total_added', 0),
+            'total_removed': stats.get('total_removed', 0),
+            'max_size': self._max_size,
+            'is_full': self.is_full(),
+            'state_counts': state_counts,
+        }
 
     def get_pending_tasks(self) -> List[Task]:
         """
@@ -295,11 +317,11 @@ class GlobalTaskQueue:
         Returns:
             List of pending tasks
         """
-        with self._map_lock:
-            return [
-                task for task in self._task_map.values()
-                if task.state == TaskState.PENDING
-            ]
+        task_map = THREAD_BUS.get_signal(_TASK_MAP_SIGNAL, {}) or {}
+        return [
+            task for task in task_map.values()
+            if task.state == TaskState.PENDING
+        ]
 
     def get_running_tasks(self) -> List[Task]:
         """
@@ -308,28 +330,32 @@ class GlobalTaskQueue:
         Returns:
             List of running tasks
         """
-        with self._map_lock:
-            return [
-                task for task in self._task_map.values()
-                if task.state == TaskState.RUNNING
-            ]
+        task_map = THREAD_BUS.get_signal(_TASK_MAP_SIGNAL, {}) or {}
+        return [
+            task for task in task_map.values()
+            if task.state == TaskState.RUNNING
+        ]
 
     def clear(self):
         """Clear all tasks from queue and map"""
-        while not self._queue.empty():
-            try:
-                self._queue.get_nowait()
-            except queue.Empty:
-                break
+        for priority in TaskPriority:
+            THREAD_BUS.clear_queue(self._queue_name(priority))
+        THREAD_BUS.signal(_TASK_MAP_SIGNAL, {})
 
-        with self._map_lock:
-            self._task_map.clear()
+    @staticmethod
+    def _queue_name(priority: TaskPriority) -> str:
+        """Return the THREAD_BUS queue key for one priority."""
+        return f"{_TASK_QUEUE_PREFIX}.{priority.value}"
+
+    @staticmethod
+    def _increment_stat(name: str) -> None:
+        """Publish one updated queue counter."""
+        stats = dict(THREAD_BUS.get_signal(_TASK_STATS_SIGNAL, {}) or {})
+        stats[name] = stats.get(name, 0) + 1
+        THREAD_BUS.signal(_TASK_STATS_SIGNAL, stats)
 
 
 _global_task_queue: Optional[GlobalTaskQueue] = None
-_queue_lock = threading.Lock()
-
-
 def get_global_task_queue() -> GlobalTaskQueue:
     """
     Get global task queue singleton
@@ -340,9 +366,7 @@ def get_global_task_queue() -> GlobalTaskQueue:
     global _global_task_queue
 
     if _global_task_queue is None:
-        with _queue_lock:
-            if _global_task_queue is None:
-                _global_task_queue = GlobalTaskQueue()
+        _global_task_queue = GlobalTaskQueue()
 
     return _global_task_queue
 

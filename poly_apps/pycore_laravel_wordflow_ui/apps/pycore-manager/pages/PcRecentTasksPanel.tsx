@@ -1,13 +1,11 @@
 /**
- * PcRecentTasksPanel — Queue Center Recent tab.
- * GET /api/local/tasks/recent
+ * Persistent completed-task history grouped by canonical Laravel task_type.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  History, Loader2, AlertTriangle, RefreshCw, Trash2, ChevronDown, ChevronRight,
-  CheckCircle2, XCircle, MinusCircle, Chrome, Cpu,
+  History, Loader2, AlertTriangle, RefreshCw, ChevronDown, ChevronRight,
+  CheckCircle2, XCircle, MinusCircle, Database, Download,
 } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { PcTaskRecord } from '../../../core/api-libs/pycore';
@@ -26,61 +24,99 @@ const RecentStatusIcon: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
   return <XCircle className="w-4 h-4 text-rose-500 shrink-0" />;
 };
 
-const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
+const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick, onMeta }) => {
   const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
-  // Records/stats from the SHARED hub (unfiltered base list); the end+worker
-  // filters are applied client-side below (`filtered`).
-  const records = hub.recent?.records ?? [];
-  const stats = hub.recent?.stats ?? null;
-  const loading = hub.loading;
-  const err = hub.pycoreReachable ? null : hub.error;
-  const [endFilter, setEndFilter] = useState<string>('all');
-  const [workerFilter, setWorkerFilter] = useState<string>('all');
+  const [records, setRecords] = useState<PcTaskRecord[]>([]);
+  const [types, setTypes] = useState<Record<string, number>>({});
+  const [selectedType, setSelectedType] = useState('all');
+  const [showAll, setShowAll] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [resourceCount, setResourceCount] = useState(0);
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [clearing, setClearing] = useState(false);
-  const [clearMsg, setClearMsg] = useState<string | null>(null);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
-  useEffect(() => {
-    onMeta?.({
-      count: hub.recent ? (stats?.total ?? hub.recent.count ?? records.length) : null,
-      loading: hub.loading,
-    });
-  }, [hub.recent, stats, records.length, hub.loading, onMeta]);
-
-  const clearHistory = useCallback(async () => {
-    if (clearing) return;
-    setClearing(true);
-    setClearMsg(null);
+  const loadArchive = useCallback(async () => {
+    setLoading(true);
+    setErr(null);
     try {
-      const r = await pycoreApi.clearRecentTasks();
+      const data = await pycoreApi.getCompletedTasks({
+        limit: 200,
+        task_type: showAll ? undefined : selectedType,
+      });
       if (!mounted.current) return;
-      if (r?.ok) setClearMsg(t('queueCenter.recent.cleared'));
-      else setClearMsg(t('queueCenter.recent.clearFailed', { error: (r as any)?.error || 'unavailable' }));
-      hub.refreshHub();
+      setRecords(data.records ?? []);
+      setTypes(data.types ?? {});
+      setTotal(data.total ?? data.count ?? 0);
+      setResourceCount(data.resource_count ?? 0);
+      setLastSyncAt(data.last_sync_at ?? null);
+      setNextOffset(data.next_offset ?? null);
     } catch (e: any) {
-      if (mounted.current) setClearMsg(t('queueCenter.recent.clearFailed', { error: e?.message || 'pycore unreachable' }));
+      if (mounted.current) setErr(e?.message || 'Completed-task archive unavailable');
     } finally {
-      if (mounted.current) setClearing(false);
+      if (mounted.current) setLoading(false);
     }
-  }, [clearing, hub, t]);
+  }, [selectedType, showAll]);
 
-  // Distinct workers seen (for the worker filter chips).
-  const workers = Array.from(new Set(records.map((r) => r.worker).filter(Boolean)));
-  const filtered = records.filter((r) =>
-    (endFilter === 'all' || r.end === endFilter) &&
-    (workerFilter === 'all' || r.worker === workerFilter));
+  useEffect(() => { void loadArchive(); }, [loadArchive]);
+  useEffect(() => {
+    if (refreshTick) void loadArchive();
+  }, [refreshTick, loadArchive]);
 
-  if (!stats && records.length === 0) {
+  useEffect(() => {
+    onMeta?.({ count: total, loading });
+  }, [total, loading, onMeta]);
+
+  const syncArchive = useCallback(async () => {
+    if (syncing) return;
+    setSyncing(true);
+    setErr(null);
+    try {
+      const result = await pycoreApi.syncCompletedTasks();
+      if (!result.success) throw new Error(result.error || 'Completed-task synchronization failed');
+      await loadArchive();
+      await hub.refreshHub();
+    } catch (e: any) {
+      if (mounted.current) setErr(e?.message || 'Completed-task synchronization failed');
+    } finally {
+      if (mounted.current) setSyncing(false);
+    }
+  }, [syncing, loadArchive, hub]);
+
+  const loadMore = useCallback(async () => {
+    if (loading || nextOffset == null) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const data = await pycoreApi.getCompletedTasks({
+        limit: 200,
+        offset: nextOffset,
+        task_type: showAll ? undefined : selectedType,
+      });
+      if (!mounted.current) return;
+      setRecords((current) => {
+        const byId = new Map(current.map((record) => [record.archive_id || record.task_id, record]));
+        for (const record of data.records ?? []) byId.set(record.archive_id || record.task_id, record);
+        return Array.from(byId.values());
+      });
+      setNextOffset(data.next_offset ?? null);
+    } catch (e: any) {
+      if (mounted.current) setErr(e?.message || 'Completed-task archive unavailable');
+    } finally {
+      if (mounted.current) setLoading(false);
+    }
+  }, [loading, nextOffset, selectedType, showAll]);
+
+  if (loading && records.length === 0) {
     return (
       <section className="pc-glass p-6 text-xs text-slate-500 flex items-center gap-2">
-        {loading
-          ? (<><Loader2 className="w-4 h-4 animate-spin text-indigo-400" /> {t('queueCenter.recent.loading')}</>)
-          : err
-            ? (<><AlertTriangle className="w-4 h-4 text-amber-400" /> {err}</>)
-            : (<><History className="w-4 h-4 text-slate-400" /> {t('queueCenter.recent.empty')}</>)}
+        <Loader2 className="w-4 h-4 animate-spin text-indigo-400" /> {t('queueCenter.recent.loading')}
       </section>
     );
   }
@@ -91,23 +127,23 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
         ? 'bg-indigo-500/15 text-indigo-500 ring-1 ring-inset ring-indigo-500/30'
         : 'pc-glass text-slate-500 hover:bg-slate-200/40 dark:hover:bg-white/5'}`;
 
-  const ends = ['all', 'pycore', 'chrome'];
+  const typeEntries = Object.entries(types).sort(([a], [b]) => a.localeCompare(b));
 
   return (
     <div className="space-y-4">
-      {/* header + summary + clear */}
+      {/* Header and persistent cache state. */}
       <section className="pc-glass p-4 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
           <History className="w-4 h-4 text-indigo-500 shrink-0" />
           <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200">{t('queueCenter.recent.title')}</h2>
           <div className="ml-auto flex items-center gap-1.5 shrink-0">
-            <button onClick={clearHistory} disabled={clearing}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold pc-glass hover:bg-rose-500/10 text-rose-500 transition disabled:opacity-50"
-              title={t('queueCenter.recent.clear')}>
-              {clearing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-              {clearing ? t('queueCenter.recent.clearing') : t('queueCenter.recent.clear')}
+            <button onClick={syncArchive} disabled={syncing}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold pc-glass hover:bg-indigo-500/10 text-indigo-500 transition disabled:opacity-50"
+              title="Fetch terminal Laravel tasks through pycore and cache their resources locally">
+              {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+              {syncing ? 'Syncing…' : 'Sync & cache'}
             </button>
-            <button onClick={() => hub.refreshHub()} disabled={loading}
+            <button onClick={loadArchive} disabled={loading}
               className="p-1.5 rounded-lg pc-glass hover:bg-indigo-500/10 text-indigo-500 transition disabled:opacity-50"
               title={t('queueCenter.recent.refresh')}>
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -115,48 +151,41 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
           </div>
         </div>
         <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('queueCenter.recent.hint')}</p>
-        <p className="text-[11px]">
-          <Link to="/pycore-manager/task-log" className="text-indigo-500 hover:underline font-bold">
-            {t('taskLog.openFromRecent')}
-          </Link>
-        </p>
-        {stats && (
-          <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-[11px] font-mono text-slate-500">
-            <span>{t('queueCenter.recent.total')} <b className="text-slate-700 dark:text-slate-300">{stats.total}</b></span>
-            <span>{t('queueCenter.recent.success')} <b className="text-emerald-500">{stats.success}</b></span>
-            <span>{t('queueCenter.recent.failed')} <b className={stats.failed ? 'text-rose-500' : 'text-slate-700 dark:text-slate-300'}>{stats.failed}</b></span>
-            <span>{t('queueCenter.recent.postedBack')} <b className="text-sky-500">{stats.posted_back}</b></span>
-          </div>
-        )}
-        {clearMsg && <p className="text-[11px] text-slate-500 dark:text-slate-400">{clearMsg}</p>}
+        <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-[11px] font-mono text-slate-500">
+          <span>{t('queueCenter.recent.total')} <b className="text-slate-700 dark:text-slate-300">{total}</b></span>
+          <span>cached resources <b className="text-sky-500">{resourceCount}</b></span>
+          <span>last sync <b className="text-slate-700 dark:text-slate-300">{lastSyncAt ? relativeTime(lastSyncAt) : 'never'}</b></span>
+        </div>
         {err && <p className="text-[11px] text-amber-500 flex items-center gap-1"><AlertTriangle className="w-3 h-3 shrink-0" />{err}</p>}
       </section>
 
-      {/* filter chips */}
+      {/* task_type is the canonical completed-history dimension. */}
       <section className="pc-glass p-3 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] uppercase tracking-wide text-slate-400 shrink-0">{t('queueCenter.recent.filterEnd')}</span>
-          {ends.map((e) => (
-            <button key={e} onClick={() => setEndFilter(e)} className={chip(endFilter === e)}>
-              {e === 'all' ? t('queueCenter.recent.all') : e}
+          <label className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500 cursor-pointer">
+            <input type="checkbox" checked={showAll} disabled={typeEntries.length === 0} onChange={(event) => {
+              const next = event.target.checked;
+              setShowAll(next);
+              if (!next && selectedType === 'all' && typeEntries.length > 0) setSelectedType(typeEntries[0][0]);
+            }} />
+            Show all types
+          </label>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => { setShowAll(true); setSelectedType('all'); }} className={chip(showAll)}>
+            All ({Object.values(types).reduce((sum, count) => sum + count, 0)})
+          </button>
+          {typeEntries.map(([taskType, count]) => (
+            <button key={taskType} onClick={() => { setShowAll(false); setSelectedType(taskType); }}
+              className={chip(!showAll && selectedType === taskType)}>
+              {taskType} ({count})
             </button>
           ))}
         </div>
-        {workers.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] uppercase tracking-wide text-slate-400 shrink-0">{t('queueCenter.recent.filterWorker')}</span>
-            <button onClick={() => setWorkerFilter('all')} className={chip(workerFilter === 'all')}>
-              {t('queueCenter.recent.all')}
-            </button>
-            {workers.map((w) => (
-              <button key={w} onClick={() => setWorkerFilter(w)} className={chip(workerFilter === w)}>{w}</button>
-            ))}
-          </div>
-        )}
       </section>
 
       {/* table */}
-      {filtered.length === 0 ? (
+      {records.length === 0 ? (
         <section className="pc-glass p-6 text-xs text-slate-500">{t('queueCenter.recent.empty')}</section>
       ) : (
         <section className="pc-glass p-2 overflow-x-auto">
@@ -174,7 +203,7 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((rec) => {
+              {records.map((rec) => {
                 const rowKey = `${rec.end}:${rec.seq}:${rec.task_id}`;
                 const isOpen = !!expanded[rowKey];
                 return (
@@ -189,9 +218,7 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
                       </td>
                       <td className="px-2 py-1.5 align-middle">
                         <div className="flex items-center gap-1 min-w-0">
-                          {rec.end === 'chrome'
-                            ? <Chrome className="w-3 h-3 text-amber-500 shrink-0" />
-                            : <Cpu className="w-3 h-3 text-indigo-500 shrink-0" />}
+                          <Database className="w-3 h-3 text-indigo-500 shrink-0" />
                           <span className="text-[11px] font-mono text-slate-600 dark:text-slate-300 truncate" title={`${rec.end}/${rec.worker}:${rec.task_type}`}>
                             {rec.worker}<span className="text-slate-400">:{rec.task_type}</span>
                           </span>
@@ -236,6 +263,14 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
           </table>
         </section>
       )}
+      {nextOffset != null && (
+        <div className="flex justify-center">
+          <button type="button" onClick={loadMore} disabled={loading}
+            className="px-3 py-1.5 rounded-xl pc-glass text-xs font-bold text-indigo-500 hover:bg-indigo-500/10 disabled:opacity-50">
+            {loading ? 'Loading…' : `Load more (${records.length}/${total})`}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -245,7 +280,8 @@ const PcRecentTaskDetail: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
   const { t } = useTranslation('pc');
   const d = rec.detail ?? {};
   const merged = mergeTaskResultSources(undefined, d);
-  const audioPath = extractAudioPath(merged);
+  const cachedAudio = rec.resources?.find((resource) => resource.cached && resource.cache_key && resource.mime?.startsWith('audio/'));
+  const audioPath = cachedAudio ? null : extractAudioPath(merged);
   const field = (label: string, value: React.ReactNode) => (
     <div key={label} className="min-w-0">
       <div className="text-[9px] uppercase tracking-wide text-slate-400">{label}</div>
@@ -282,7 +318,7 @@ const PcRecentTaskDetail: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
     'text', 'translation', 'provider', 'model', 'engine', 'voice',
     'audio_path', 'audio_bytes', 'image_bytes', 'word_count',
     'audio_ok', 'audio_failed', 'media_type', 'year',
-    'filename', 'words', 'translations', 'failed_words', 'synth_command',
+    'filename', 'words', 'translations', 'failed_words', 'synth_command', 'resources',
   ]);
   const otherDetail: [string, string][] = [];
   for (const [k, v] of Object.entries(d)) {
@@ -296,6 +332,10 @@ const PcRecentTaskDetail: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
 
   return (
     <div className="space-y-3">
+      {cachedAudio?.cache_key && (
+        <audio controls preload="none" className="w-full max-w-md"
+          src={pycoreApi.completedTaskResourceUrl(cachedAudio.cache_key)} />
+      )}
       {audioPath && (
         <PcTaskAudioPreview
           audioPath={audioPath}
@@ -309,6 +349,28 @@ const PcRecentTaskDetail: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
           synthCommand={typeof merged.synth_command === 'string' ? merged.synth_command : null}
           processing={rec.status === 'processing'}
         />
+      )}
+
+      {Array.isArray(rec.resources) && rec.resources.length > 0 && (
+        <div>
+          <div className="text-[9px] uppercase tracking-wide text-slate-400 mb-1">Locally cached resources</div>
+          <div className="flex flex-wrap gap-1.5">
+            {rec.resources.map((resource, index) => resource.cached && resource.cache_key ? (
+              <a key={`${resource.cache_key}:${index}`}
+                href={pycoreApi.completedTaskResourceUrl(resource.cache_key)}
+                target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-sky-500/10 text-[10px] font-mono text-sky-600 hover:bg-sky-500/20"
+                title={resource.source}>
+                <Download className="w-3 h-3" />
+                {resource.mime || 'resource'}{typeof resource.size === 'number' ? ` · ${humanBytes(resource.size)}` : ''}
+              </a>
+            ) : (
+              <span key={`${resource.source}:${index}`}
+                className="px-2 py-1 rounded-lg bg-rose-500/10 text-[10px] font-mono text-rose-500"
+                title={resource.error || resource.source}>cache failed</span>
+            ))}
+          </div>
+        </div>
       )}
 
       {fields.length > 0 && (

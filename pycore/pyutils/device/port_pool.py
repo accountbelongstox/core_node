@@ -8,8 +8,14 @@ Reference: QtScrcpy's DeviceManage::getFreePort() implementation
 """
 
 import asyncio
-import threading
 from typing import Dict, Optional
+
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+    submit_coroutine_via_bus,
+)
 
 
 class PortPool:
@@ -20,7 +26,7 @@ class PortPool:
     - Sequential port allocation (27183, 27184, 27185...)
     - Port conflict detection
     - Port reuse when devices disconnect
-    - Thread-safe with threading.Lock (for cross-event-loop access)
+    - Cross-event-loop access through THREAD_BUS
 
     Based on QtScrcpy's port management strategy
     """
@@ -43,8 +49,12 @@ class PortPool:
         # Next port to try (increments sequentially)
         self.next_port = start
 
-        # Thread safety lock (use threading.Lock for cross-event-loop access)
-        self.lock = threading.Lock()
+        self._state_queue = f'pyutils.device.port_pool.{id(self)}'
+        self._state_worker = SerializedWorkerThread(
+            self._state_queue,
+            f'PortPoolThread-{id(self)}',
+        )
+        self._state_worker.start()
 
     async def allocate(self, serial: str) -> int:
         """
@@ -62,37 +72,29 @@ class PortPool:
         Raises:
             RuntimeError: If port pool is exhausted
         """
-        with self.lock:
-            # Reuse existing port for reconnecting devices
-            if serial in self.allocated:
-                port = self.allocated[serial]
-                print(f"[PortPool] Reusing port {port} for device {serial}")
+        return call_serialized(self._state_queue, self._allocate, serial)
+
+    def _allocate(self, serial: str) -> int:
+        """Allocate on the port-pool owner thread."""
+        if serial in self.allocated:
+            port = self.allocated[serial]
+            ColorPrint.blue(f"[PortPool] Reusing port {port} for device {serial}")
+            return port
+        attempts = 0
+        while attempts < self.pool_size:
+            port = self.next_port
+            self.next_port += 1
+            if self.next_port > self.end:
+                self.next_port = self.start
+            if port not in self.allocated.values():
+                self.allocated[serial] = port
+                ColorPrint.blue(f"[PortPool] Allocated port {port} for device {serial}")
                 return port
-
-            # Find next available port
-            attempts = 0
-            while attempts < self.pool_size:
-                port = self.next_port
-                self.next_port += 1
-
-                # Wrap around to start if we reach the end
-                if self.next_port > self.end:
-                    self.next_port = self.start
-
-                # Check if port is already in use
-                if port not in self.allocated.values():
-                    # Port is free, allocate it
-                    self.allocated[serial] = port
-                    print(f"[PortPool] Allocated port {port} for device {serial}")
-                    return port
-
-                attempts += 1
-
-            # Port pool exhausted
-            raise RuntimeError(
-                f"Port pool exhausted (start={self.start}, size={self.pool_size}). "
-                f"Currently allocated: {len(self.allocated)} ports"
-            )
+            attempts += 1
+        raise RuntimeError(
+            f"Port pool exhausted (start={self.start}, size={self.pool_size}). "
+            f"Currently allocated: {len(self.allocated)} ports"
+        )
 
     async def release(self, serial: str) -> Optional[int]:
         """
@@ -104,12 +106,15 @@ class PortPool:
         Returns:
             The released port number, or None if device had no allocated port
         """
-        with self.lock:
-            if serial in self.allocated:
-                port = self.allocated.pop(serial)
-                print(f"[PortPool] Released port {port} for device {serial}")
-                return port
-            return None
+        return call_serialized(self._state_queue, self._release, serial)
+
+    def _release(self, serial: str) -> Optional[int]:
+        """Release on the port-pool owner thread."""
+        if serial in self.allocated:
+            port = self.allocated.pop(serial)
+            ColorPrint.blue(f"[PortPool] Released port {port} for device {serial}")
+            return port
+        return None
 
     async def get_port(self, serial: str) -> Optional[int]:
         """
@@ -121,8 +126,7 @@ class PortPool:
         Returns:
             Allocated port number, or None if no port allocated
         """
-        with self.lock:
-            return self.allocated.get(serial)
+        return call_serialized(self._state_queue, self.allocated.get, serial)
 
     async def is_allocated(self, serial: str) -> bool:
         """
@@ -134,8 +138,11 @@ class PortPool:
         Returns:
             True if device has an allocated port
         """
-        with self.lock:
-            return serial in self.allocated
+        return call_serialized(self._state_queue, self._is_allocated, serial)
+
+    def _is_allocated(self, serial: str) -> bool:
+        """Check allocation on the port-pool owner thread."""
+        return serial in self.allocated
 
     async def get_allocated_count(self) -> int:
         """
@@ -144,8 +151,11 @@ class PortPool:
         Returns:
             Number of allocated ports
         """
-        with self.lock:
-            return len(self.allocated)
+        return call_serialized(self._state_queue, self._allocated_count)
+
+    def _allocated_count(self) -> int:
+        """Count allocations on the port-pool owner thread."""
+        return len(self.allocated)
 
     async def get_available_count(self) -> int:
         """
@@ -154,8 +164,11 @@ class PortPool:
         Returns:
             Number of available ports
         """
-        with self.lock:
-            return self.pool_size - len(self.allocated)
+        return call_serialized(self._state_queue, self._available_count)
+
+    def _available_count(self) -> int:
+        """Count free ports on the port-pool owner thread."""
+        return self.pool_size - len(self.allocated)
 
     async def reset(self):
         """
@@ -163,11 +176,14 @@ class PortPool:
 
         WARNING: Only call this when all devices are disconnected
         """
-        with self.lock:
-            count = len(self.allocated)
-            self.allocated.clear()
-            self.next_port = self.start
-            print(f"[PortPool] Reset complete, released {count} ports")
+        call_serialized(self._state_queue, self._reset)
+
+    def _reset(self) -> None:
+        """Reset on the port-pool owner thread."""
+        count = len(self.allocated)
+        self.allocated.clear()
+        self.next_port = self.start
+        ColorPrint.blue(f"[PortPool] Reset complete, released {count} ports")
 
 
 class SyncPortPool:
@@ -191,33 +207,39 @@ class SyncPortPool:
         if not self._loop:
             raise RuntimeError("Event loop not set. Call _set_loop() first.")
 
-        future = asyncio.run_coroutine_threadsafe(
+        return submit_coroutine_via_bus(
+            self._loop,
             self._pool.allocate(serial),
-            self._loop
+            wait=True,
+            timeout=5.0,
+            thread_name="PortPoolAllocateBridgeThread",
         )
-        return future.result(timeout=5.0)
 
     def release(self, serial: str) -> Optional[int]:
         """Synchronous port release"""
         if not self._loop:
             raise RuntimeError("Event loop not set. Call _set_loop() first.")
 
-        future = asyncio.run_coroutine_threadsafe(
+        return submit_coroutine_via_bus(
+            self._loop,
             self._pool.release(serial),
-            self._loop
+            wait=True,
+            timeout=5.0,
+            thread_name="PortPoolReleaseBridgeThread",
         )
-        return future.result(timeout=5.0)
 
     def get_port(self, serial: str) -> Optional[int]:
         """Synchronous port query"""
         if not self._loop:
             raise RuntimeError("Event loop not set. Call _set_loop() first.")
 
-        future = asyncio.run_coroutine_threadsafe(
+        return submit_coroutine_via_bus(
+            self._loop,
             self._pool.get_port(serial),
-            self._loop
+            wait=True,
+            timeout=5.0,
+            thread_name="PortPoolQueryBridgeThread",
         )
-        return future.result(timeout=5.0)
 
 
 # ✅ 创建全局唯一实例（模块级别单例）

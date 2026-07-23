@@ -9,7 +9,6 @@ use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
@@ -26,6 +25,7 @@ class AppQyV1Initializer implements AppInitializerInterface
         'seed_initial_data' => 'Seed initial data if needed',
         'seed_books' => 'Seed initial book list (shipped corpus)',
         'seed_ai_prompts' => 'Seed AI prompt library defaults',
+        'seed_daily_reading_library' => 'Seed daily reading document library',
     ];
     
     public function __construct()
@@ -85,6 +85,8 @@ class AppQyV1Initializer implements AppInitializerInterface
         }
 
         $status = $this->loadStatus();
+        $status['fully_initialized'] = false;
+        $this->saveStatus($status);
         $results = [];
         $allSuccess = true;
         
@@ -157,7 +159,7 @@ class AppQyV1Initializer implements AppInitializerInterface
                         break;
                     }
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $results[$step] = [
                     'status' => 'error',
                     'message' => $e->getMessage(),
@@ -198,6 +200,8 @@ class AppQyV1Initializer implements AppInitializerInterface
             } catch (\Throwable $e) {
                 Log::error('[AppQyV1Init] promoteAllStaging error: ' . $e->getMessage());
             }
+        } else {
+            (new AppQyV1InitializationMarkerManager())->clearAllMarkers();
         }
 
         // SELF-HEAL: rebuild STRANDED v2 books (full_content present but no
@@ -258,6 +262,11 @@ class AppQyV1Initializer implements AppInitializerInterface
      */
     private function stepStillSatisfiedInDb(string $step): bool
     {
+        if (in_array($step, ['database_connection', 'create_database_file', 'run_migrations', 'verify_tables'], true)) {
+            $result = $this->executeStep($step);
+            return ($result['status'] ?? 'error') === 'success';
+        }
+
         if ($step === 'seed_initial_data') {
             try {
                 // Seeding is "still satisfied" only if vocabulary actually exists in
@@ -268,8 +277,7 @@ class AppQyV1Initializer implements AppInitializerInterface
                     ->whereNotNull('word_ids')
                     ->exists();
             } catch (\Throwable $e) {
-                // Cannot determine -> don't force a surprise re-seed.
-                return true;
+                return false;
             }
         }
 
@@ -279,7 +287,7 @@ class AppQyV1Initializer implements AppInitializerInterface
             try {
                 return \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1BookSeedImporter::isSeeded();
             } catch (\Throwable $e) {
-                return true;
+                return false;
             }
         }
 
@@ -289,7 +297,17 @@ class AppQyV1Initializer implements AppInitializerInterface
             try {
                 return \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1AiPromptDefaults::isSeeded();
             } catch (\Throwable $e) {
-                return true;
+                return false;
+            }
+        }
+
+        if ($step === 'seed_daily_reading_library') {
+            // Re-verify the code-owned 'Daily Reading' library actually exists
+            // (not just that the step ran once) so a reset/empty DB forces a re-seed.
+            try {
+                return \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1DailyReadingLibraryDefaults::isSeeded();
+            } catch (\Throwable $e) {
+                return false;
             }
         }
 
@@ -323,6 +341,9 @@ class AppQyV1Initializer implements AppInitializerInterface
             case 'seed_ai_prompts':
                 return $this->seedAiPrompts();
 
+            case 'seed_daily_reading_library':
+                return \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1DailyReadingLibraryDefaults::seed();
+
             default:
                 return [
                     'status' => 'error',
@@ -334,7 +355,6 @@ class AppQyV1Initializer implements AppInitializerInterface
     private function checkDatabaseConnection(): array
     {
         try {
-            $connectionName = (new AppQyV1MultiLangDictionaryModel)->getConnectionName();
             (new AppQyV1MultiLangDictionaryModel)->getConnection()->getPdo();
             return [
                 'status' => 'success',
@@ -421,9 +441,9 @@ class AppQyV1Initializer implements AppInitializerInterface
             }
             
             return [
-                'status' => 'info',
+                'status' => 'error',
                 'message' => 'No dictionary tables found',
-                'note' => 'Run php artisan sys:init to create tables via migrations',
+                'note' => 'The sys:init migration phase did not create the required tables',
             ];
         } catch (\Exception $e) {
             return [
@@ -457,7 +477,6 @@ class AppQyV1Initializer implements AppInitializerInterface
     {
         try {
             $connectionName = (new AppQyV1MultiLangDictionaryModel)->getConnectionName();
-            $connection = (new AppQyV1MultiLangDictionaryModel)->getConnection();
             $languages = AppQyV1TableMaps::getSupportedLanguages();
             
             $missingTables = [];
@@ -493,7 +512,7 @@ class AppQyV1Initializer implements AppInitializerInterface
 
             if (!empty($missingTables)) {
                 return [
-                    'status' => 'warning',
+                    'status' => 'error',
                     'message' => 'Some tables are missing',
                     'existing_count' => count($existingTables),
                     'missing_count' => count($missingTables),
@@ -516,37 +535,32 @@ class AppQyV1Initializer implements AppInitializerInterface
     
     private function createIndexes(): array
     {
-        try {
-            return [
-                'status' => 'success',
-                'message' => 'Indexes created via migration',
-            ];
-        } catch (\Exception $e) {
-            return [
-                'status' => 'error',
-                'message' => 'Index creation failed: ' . $e->getMessage(),
-            ];
-        }
+        return [
+            'status' => 'success',
+            'message' => 'Indexes created via migration',
+        ];
     }
     
     private function seedInitialData(): array
     {
         try {
-            $vocabularyImporter = new \App\Apps\AppQyV1\Utils\AppQyV1VocabularyImporter();
-            $result = $vocabularyImporter->importAllVocabularies('en');
+            $result = \App\Apps\AppQyV1\Services\AppQyV1VocabularyService::importVocabularyFromFiles();
 
-            if ($result['success']) {
+            if (isset($result['error']) || ($result['errors'] ?? 0) > 0) {
                 return [
-                    'status' => 'success',
-                    'message' => sprintf('Imported %d vocabulary collections', $result['imported']),
-                    'details' => $result['details'],
-                ];
-            } else {
-                return [
-                    'status' => 'warning',
-                    'message' => 'Failed to import vocabularies: ' . ($result['error'] ?? 'Unknown error'),
+                    'status' => 'error',
+                    'message' => $result['error'] ?? sprintf('%d vocabulary file(s) failed to import', $result['errors']),
                 ];
             }
+
+            return [
+                'status' => 'success',
+                'message' => sprintf(
+                    'Vocabulary libraries aligned: %d imported, %d already present',
+                    $result['imported'],
+                    $result['skipped']
+                ),
+            ];
         } catch (\Exception $e) {
             return [
                 'status' => 'error',
@@ -612,8 +626,14 @@ class AppQyV1Initializer implements AppInitializerInterface
     public function reset(): array
     {
         try {
+            $markerManager = new AppQyV1InitializationMarkerManager();
+
             if (file_exists($this->statusFile)) {
                 unlink($this->statusFile);
+            }
+
+            if (!$markerManager->clearAllMarkers()) {
+                throw new \RuntimeException('Failed to clear initialization markers');
             }
             
             return [
@@ -621,7 +641,7 @@ class AppQyV1Initializer implements AppInitializerInterface
                 'message' => 'Initialization status reset successfully',
                 'app' => $this->getAppName(),
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'success' => false,
                 'error' => 'Failed to reset status: ' . $e->getMessage(),

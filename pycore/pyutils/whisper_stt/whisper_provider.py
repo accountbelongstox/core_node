@@ -37,6 +37,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations import ColorPrint, is_cuda_available
 from pycore.pyutils.common.stt_base_provider import BaseSpeechRecognitionProvider
+from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyutils.whisper_stt.audio_utils import (
     convert_to_whisper_format,
     download_audio_from_url,
@@ -391,12 +392,15 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
         self._is_recognizing = True
 
         # Start recognition in background thread
-        thread = threading.Thread(
-            target=self._continuous_recognition_loop,
-            args=(audio_source, language, on_recognizing, on_recognized, on_error),
-            daemon=True,
+        start_bus_task(
+            self._continuous_recognition_loop,
+            audio_source,
+            language,
+            on_recognizing,
+            on_recognized,
+            on_error,
+            thread_name="WhisperContinuousRecognitionThread",
         )
-        thread.start()
 
         return True
 
@@ -524,7 +528,6 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
 
 # Global singleton
 _whisper_provider: Optional[WhisperSTTProvider] = None
-_provider_lock = threading.Lock()
 
 
 def get_whisper_stt_provider(model_name: Optional[str] = None) -> WhisperSTTProvider:
@@ -540,9 +543,7 @@ def get_whisper_stt_provider(model_name: Optional[str] = None) -> WhisperSTTProv
     global _whisper_provider
 
     if _whisper_provider is None:
-        with _provider_lock:
-            if _whisper_provider is None:
-                _whisper_provider = WhisperSTTProvider(model_name)
+        _whisper_provider = WhisperSTTProvider(model_name)
 
     return _whisper_provider
 

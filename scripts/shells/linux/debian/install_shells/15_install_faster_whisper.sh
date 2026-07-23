@@ -144,11 +144,11 @@ if [[ "$FORCE" -eq 0 ]]; then
     [[ -n "$DISK_GB" && "$DISK_GB" -lt "$MIN_DISK_GB" ]] && reasons+=("free disk ${DISK_GB} GB < ${MIN_DISK_GB} GB")
     if [[ ${#reasons[@]} -gt 0 ]]; then
         echo "[skip] System too small for faster-whisper (${reasons[*]}); skipping. Use --force to override."
-        complete_prereq_step "$PYTHON" "[faster_whisper] " faster_whisper
+        complete_prereq_step "$PYTHON" "[faster_whisper] " --absent-ok "resource policy" faster_whisper
     fi
     if is_server && ! has_cuda; then
         echo "[skip] Headless server (non-desktop) with no CUDA GPU; skipping. Use --force to override."
-        complete_prereq_step "$PYTHON" "[faster_whisper] " faster_whisper
+        complete_prereq_step "$PYTHON" "[faster_whisper] " --absent-ok "headless CPU host" faster_whisper
     fi
 fi
 
@@ -162,11 +162,11 @@ else
     echo "[run] $PYTHON -m pip install ${PIP_ARGS[*]}"
     if ! vpip "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
         echo "[X] faster-whisper install failed." >&2
-        complete_prereq_step "$PYTHON" "[faster_whisper] " faster_whisper
+        fail_prereq_step "$PYTHON" "[faster_whisper] " faster_whisper
     fi
     if ! py_has_module faster_whisper; then
         echo "[X] faster-whisper still not importable after install." >&2
-        complete_prereq_step "$PYTHON" "[faster_whisper] " faster_whisper
+        fail_prereq_step "$PYTHON" "[faster_whisper] " faster_whisper
     fi
     echo "[OK] faster-whisper installed."
 fi

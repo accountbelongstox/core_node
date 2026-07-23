@@ -12,9 +12,10 @@ PYTHON="python3"
 FORCE=0
 DO_FULL=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../../.." && pwd)"
+CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
+CACHE_ROOT="${CORE_NODE_CACHE_DIR:-$CORE_NODE_ROOT/.cache}"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
-TARGET_DIR="${VOXCPM2_DIR:-$CORE_NODE_CACHE_DIR/pycore/voxcpm2}"
+TARGET_DIR="${VOXCPM2_DIR:-$CACHE_ROOT/pycore/voxcpm2}"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 WEIGHTS_DIR="$TARGET_DIR/weights"
 MODEL_SENTINEL="$TARGET_DIR/.model_installed"
@@ -56,18 +57,23 @@ echo "============================================================"
 # NEURAL_TTS_INSTALL batch would otherwise force a full install. --absent-ok keeps the skip
 # a clean idempotent no-op (voxcpm legitimately absent), mirroring pyservice.sh --skip-voxcpm2.
 [[ "${VOXCPM2_SKIP:-0}" == "1" ]] && { echo "[install_voxcpm2] [i] VOXCPM2_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "VOXCPM2_SKIP=1" voxcpm; }
-if [[ -f "$DEPS_SENTINEL" && "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]]; then
+if tts_engine_compatible "$PYTHON" "voxcpm2" "[install_voxcpm2] " \
+    && [[ "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]] \
+    && tts_dependencies_ready "$PYTHON" "voxcpm2" "$DEPS_SENTINEL"; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "VoxCPM2 already installed"
     complete_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm
 fi
 if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 ]]; then
     echo "[install_voxcpm2] [i] opt-in only. Pass --full, VOXCPM2_INSTALL=1, or NEURAL_TTS_INSTALL=1."
-    complete_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm
+    complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "opt-in" voxcpm
 fi
 
 if ! PYTHON="$(resolve_python)"; then
     echo "[install_voxcpm2] [!] Python 3 not found."
-    complete_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm
+    fail_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm
+fi
+if ! tts_engine_compatible "$PYTHON" "voxcpm2" "[install_voxcpm2] "; then
+    complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "incompatible Python" voxcpm
 fi
 
 mkdir -p "$TARGET_DIR"
@@ -81,14 +87,18 @@ _vox_model="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" voxcpm2_model --gpu)"
 echo "[install_voxcpm2]  model   : ${_vox_model}"
 echo "[install_voxcpm2]  sentinel: $MODEL_SENTINEL ($([ -f "$MODEL_SENTINEL" ] && echo present || echo absent))"
 
-if [[ -f "$DEPS_SENTINEL" && "$FORCE" -eq 0 ]]; then
+if tts_dependencies_ready "$PYTHON" "voxcpm2" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "dependencies already installed (.deps_done)"
 else
     install_pycore_torch_stack "$PYTHON" "[install_voxcpm2] "
     echo "[install_voxcpm2] [..] pip install voxcpm soundfile ..."
     pip_i voxcpm soundfile || true
-    date -u +%Y-%m-%dT%H:%M:%SZ > "$DEPS_SENTINEL"
-    echo "[install_voxcpm2] [OK] dependencies installed."
+    if tts_engine_health_ok "$PYTHON" "voxcpm2" && tts_write_dependency_stamp "$PYTHON" "voxcpm2" "$DEPS_SENTINEL"; then
+        echo "[install_voxcpm2] [OK] dependencies installed."
+    else
+        echo "[install_voxcpm2] [!] dependencies are incomplete; retrying next run." >&2
+        fail_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm
+    fi
 fi
 
 # --- HF weights (IDEMPOTENT: sentinel + curl resume + HF size verification) --- #
@@ -109,10 +119,16 @@ if [[ "$_model_ready" -eq 0 ]]; then
     echo "[install_voxcpm2] [..] downloading/repairing model '$_vox_model' (curl, resumable) ..."
     if install_hf_repo_flat "$_vox_model" "$WEIGHTS_DIR" "$MODEL_SENTINEL" "[install_voxcpm2] " "$WEIGHT_ALLOW" "" "$_vox_model" \
        && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_vox_model" "$PYTHON"; then
+        _model_ready=1
         echo "[install_voxcpm2] [OK] model '$_vox_model' ready at $WEIGHTS_DIR."
     else
         echo "[install_voxcpm2] [!] model download not finished; partial files kept at $WEIGHTS_DIR; will RESUME next run."
+        fail_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm
     fi
+fi
+
+if [[ "$_model_ready" -ne 1 ]]; then
+    fail_prereq_step "$PYTHON" "[install_voxcpm2] " voxcpm
 fi
 
 echo "[install_voxcpm2] [OK] VoxCPM2 ready. Weights pre-downloaded (idempotent); engine auto-detects local."

@@ -11,9 +11,8 @@ Routes:
 - video_extract.sync_all: one-click idempotent sync of every known source
 """
 
-import asyncio
-
 from pycore import ColorPrint
+from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.callmodule.services.sync.laravel_media_sync import (
     backend_status,
     sync_all,
@@ -28,7 +27,7 @@ def register_video_extract_routes(server):
         """Idempotently sync a scanned source's media to laravel_main (:9000).
 
         params: { source_path | paths:[...], language? }. Runs the (blocking,
-        network-heavy) sync on a worker thread via asyncio.to_thread so the event
+        network-heavy) sync on a THREAD_BUS worker so the event
         loop stays responsive. Progress streams over ColorPrint (UI log WS) AND a
         'video_extract_sync' THREAD_BUS event per stage. Returns the summary (one
         source) or a {results:[...]} aggregate (multiple paths).
@@ -48,11 +47,11 @@ def register_video_extract_routes(server):
 
         try:
             if len(targets) == 1:
-                return await asyncio.to_thread(
+                return await await_bus_task(
                     sync_source, targets[0], language, None, None, languages)
             results = []
             for p in targets:
-                results.append(await asyncio.to_thread(
+                results.append(await await_bus_task(
                     sync_source, p, language, None, None, languages))
             return {
                 'success': all(r.get('success') for r in results),
@@ -69,12 +68,12 @@ def register_video_extract_routes(server):
         params: { paths?:[...], base_url? }. Defaults to ALL history entry paths
         and uses the SAME base-url resolution as the sync engine, so the status
         panel and the sync always target the same host. Runs the (network-bound)
-        probe on a worker thread via asyncio.to_thread. An unreachable backend
+        probe on a THREAD_BUS worker. An unreachable backend
         degrades to reachable:false (never raises from the probe itself).
         """
         params = params or {}
         try:
-            return await asyncio.to_thread(
+            return await await_bus_task(
                 backend_status, params.get('paths'), params.get('base_url'))
         except Exception as e:
             ColorPrint.red(f"[ConfigBuilder] video_extract.backend_status failed: {e}")
@@ -86,7 +85,7 @@ def register_video_extract_routes(server):
         params: { paths?:[...], language? }. Defaults to ALL history entry paths,
         dedupes overlapping output dirs, then runs sync_source per remaining path
         sequentially. Runs the (blocking, network-heavy) sync on a worker thread
-        via asyncio.to_thread so the event loop stays responsive. Progress streams
+        via a THREAD_BUS worker so the event loop stays responsive. Progress streams
         over ColorPrint (UI log WS) AND a 'video_extract_sync' THREAD_BUS event
         per stage (plus an outer stage="source" event per path). Returns the
         aggregate summary.
@@ -95,7 +94,7 @@ def register_video_extract_routes(server):
         language = params.get('language') or 'en'
         languages = params.get('languages')  # checked Lsel (v3 subtitles), optional
         try:
-            return await asyncio.to_thread(
+            return await await_bus_task(
                 sync_all, params.get('paths'), language, None, None, languages)
         except Exception as e:
             ColorPrint.red(f"[ConfigBuilder] video_extract.sync_all failed: {e}")

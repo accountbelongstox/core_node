@@ -26,7 +26,12 @@
 # Idempotent: each bundle skips when imports already succeed.
 # Mirrors linux/debian/install_shells/14_install_python_prereq_packages.sh.
 
+$stepErrorActionPreference = 'Continue'
 $scriptRoot = $PSScriptRoot
+$shellsWinRoot = $null
+$winCommonDir = $null
+$preferredPython = $null
+$SCRIPT_INDEX = '[Step 10]'
 if (-not $scriptRoot) { $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
 $shellsWinRoot = Split-Path $scriptRoot -Parent
 $winCommonDir = Join-Path $shellsWinRoot "win_common"
@@ -35,7 +40,7 @@ $winCommonDir = Join-Path $shellsWinRoot "win_common"
 . (Join-Path $winCommonDir "CommonFunc.ps1")
 . (Join-Path $winCommonDir "PythonPrereqInstallCommon.ps1")
 
-$SCRIPT_INDEX = "[Step 10]"
+$ErrorActionPreference = $stepErrorActionPreference
 
 Write-Host "$SCRIPT_INDEX ============================================================" -ForegroundColor Cyan
 Write-Host "$SCRIPT_INDEX Install python prerequisite packages (captcha/AI backends)" -ForegroundColor Cyan

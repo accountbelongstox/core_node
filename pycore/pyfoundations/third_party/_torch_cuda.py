@@ -20,6 +20,7 @@ from typing import Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
+from pycore.pyfoundations.ai_runtime_policy import cuda_tier_by_tag
 
 from ._deps import (
     PYTORCH_CUDA_INDEX_URL,
@@ -210,6 +211,13 @@ def _resolve_pytorch_cuda_index_url() -> str:
     """
     if PYTORCH_CUDA_INDEX_URL:
         return PYTORCH_CUDA_INDEX_URL
+    requested_tag = (os.environ.get("CORE_CUDA_TAG") or "").strip().lower()
+    requested_tier = cuda_tier_by_tag(requested_tag) if requested_tag else None
+    requested_driver = _detect_driver_cuda_version()
+    if requested_tier is not None and requested_driver is not None:
+        driver_cv = requested_driver[0] * 100 + requested_driver[1]
+        if driver_cv >= requested_tier["minimum_driver_cv"]:
+            return "https://download.pytorch.org/whl/" + requested_tier["tag"]
     # (2) Defer to the shell single-source-of-truth so Python + the *.sh installers can't
     # diverge (the default lives there, not here).
     # NOTE: this file lives in pycore/pyfoundations/third_party/_torch_cuda.py, so the repo
@@ -233,6 +241,8 @@ def _resolve_pytorch_cuda_index_url() -> str:
             if drv >= (cmaj, cmin):
                 tag = wheel
                 break
+    if not tag:
+        return PYTORCH_CPU_INDEX_URL
     return "https://download.pytorch.org/whl/" + tag
 
 

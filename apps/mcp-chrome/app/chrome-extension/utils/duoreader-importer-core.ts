@@ -4,6 +4,7 @@
 
 import { normalizeCoverUrls } from '@/utils/cover-playback';
 import { MEDIA_PATHS } from '@/utils/api-paths';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 export const DUOREADER_SHELF_URL = 'https://duoreader.cn/assets/shelf.json';
 export const DUOREADER_WEB_BASE = 'https://web.duoreader.cn';
@@ -12,9 +13,9 @@ export const DUOREADER_WEB_BASE = 'https://web.duoreader.cn';
 export const INGEST_PATH = MEDIA_PATHS.INGEST;
 export const AUDIO_PATH = MEDIA_PATHS.AUDIO;
 export const BOOK_INGEST_STATUS_PATH = MEDIA_PATHS.BOOKS;
-export const PROGRESS_STORAGE_KEY = 'duoreader_importer_progress';
-export const STATE_STORAGE_KEY = 'duoreader_importer_state';
-export const SESSION_STORAGE_KEY = 'duoreader_importer_session';
+export const PROGRESS_STORAGE_KEY = STORAGE_KEYS.DUOREADER_IMPORT_PROGRESS;
+export const STATE_STORAGE_KEY = STORAGE_KEYS.DUOREADER_IMPORT_STATE;
+export const SESSION_STORAGE_KEY = STORAGE_KEYS.DUOREADER_IMPORT_SESSION;
 
 export interface DuoreaderBookMeta {
   id: string;

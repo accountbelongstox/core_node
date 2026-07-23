@@ -6,6 +6,7 @@
 import { ref } from 'vue';
 import { logger } from '@/utils/logger';
 import { sendWithWake } from '@/utils/sendWithWake';
+import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 
 const LOG = 'Gemini Client';
 
@@ -39,7 +40,7 @@ export function useGeminiImage() {
   const openInNewTab = ref(false);
 
   const send = (msg: Record<string, any>) =>
-    chrome.runtime.sendMessage({ type: 'gemini_image_service', ...msg });
+    chrome.runtime.sendMessage({ type: FEATURE_MESSAGE_TYPES.GEMINI_IMAGE, ...msg });
 
   // Two-phase async flow: start (returns a jobId fast) then poll status until
   // the image is ready — so neither the popup nor the bridge blocks for minutes.

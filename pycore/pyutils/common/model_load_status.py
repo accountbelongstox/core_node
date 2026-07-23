@@ -28,13 +28,16 @@ Thread-safety mirrors managed_service: one module-level lock guards a simple dic
 No heavy machinery. See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md 'Model-load progress'.
 """
 
-import threading
 import time
 from collections import deque
 from contextlib import contextmanager
 from typing import Any, Callable, Deque, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
 # Broadcast is best-effort: on a standalone/headless run THREAD_BUS may have no
 # listener, and that is fine (the polled endpoint still works).
@@ -51,14 +54,16 @@ BROADCAST_EVENT = "engine_load_status_update"
 _LOG_TAIL_MAX = 40
 _VALID_STATES = ("idle", "loading", "loaded", "error")
 
-_lock = threading.RLock()
 # name -> mutable status dict (state/message/device/started_at/updated_at/log_tail deque)
 _registry: Dict[str, Dict[str, Any]] = {}
+_STATUS_QUEUE = 'pyutils.common.model_load_status'
+_STATUS_WORKER = SerializedWorkerThread(_STATUS_QUEUE, 'ModelLoadStatusThread')
+_STATUS_WORKER.start()
 
 
 def _entry(name: str) -> Dict[str, Any]:
     """Return the mutable registry entry for `name`, creating an idle one lazily.
-    Caller must hold `_lock`."""
+    Called only by the status-owner thread."""
     entry = _registry.get(name)
     if entry is None:
         entry = {
@@ -75,7 +80,7 @@ def _entry(name: str) -> Dict[str, Any]:
 
 def _public(name: str, entry: Dict[str, Any]) -> Dict[str, Any]:
     """Serialize one entry for the API/broadcast (deque -> list, add elapsed_ms).
-    Caller must hold `_lock`."""
+    Called only by the status-owner thread."""
     started = entry.get("started_at")
     updated = entry.get("updated_at") or time.time()
     if started is not None:
@@ -102,93 +107,124 @@ def _broadcast(name: str) -> None:
     if not _THREAD_BUS_AVAILABLE:
         return
     try:
-        with _lock:
-            payload = _public(name, _entry(name))
-        THREAD_BUS.trigger_event(BROADCAST_EVENT, payload)
+        payload = _public(name, _entry(name))
+        THREAD_BUS.trigger_event(BROADCAST_EVENT, payload, async_mode=True)
     except Exception:  # noqa: BLE001 — status must never break the caller
         pass
 
 
-def set_loading(name: str, message: str = "", device: str = "") -> None:
+def _set_loading(name: str, message: str = "", device: str = "") -> None:
     """Mark `name` as loading (resets the started_at / elapsed clock)."""
-    with _lock:
-        entry = _entry(name)
-        entry["state"] = "loading"
-        entry["message"] = message or "loading"
-        if device:
-            entry["device"] = device
-        entry["started_at"] = time.time()
-        entry["updated_at"] = time.time()
+    entry = _entry(name)
+    entry["state"] = "loading"
+    entry["message"] = message or "loading"
+    if device:
+        entry["device"] = device
+    entry["started_at"] = time.time()
+    entry["updated_at"] = time.time()
     _broadcast(name)
 
 
-def set_loaded(name: str, message: str = "", device: str = "") -> None:
+def _set_loaded(name: str, message: str = "", device: str = "") -> None:
     """Mark `name` as loaded/ready (freezes elapsed at this moment)."""
-    with _lock:
-        entry = _entry(name)
-        entry["state"] = "loaded"
-        entry["message"] = message or "ready"
-        if device:
-            entry["device"] = device
-        entry["updated_at"] = time.time()
+    entry = _entry(name)
+    entry["state"] = "loaded"
+    entry["message"] = message or "ready"
+    if device:
+        entry["device"] = device
+    entry["updated_at"] = time.time()
     _broadcast(name)
 
 
-def set_error(name: str, message: str) -> None:
+def _set_error(name: str, message: str) -> None:
     """Mark `name` as failed to load (keeps any accumulated log_tail)."""
-    with _lock:
-        entry = _entry(name)
-        entry["state"] = "error"
-        entry["message"] = message or "error"
-        entry["updated_at"] = time.time()
+    entry = _entry(name)
+    entry["state"] = "error"
+    entry["message"] = message or "error"
+    entry["updated_at"] = time.time()
     _broadcast(name)
 
 
-def append_log(name: str, line: str) -> None:
+def _append_log(name: str, line: str) -> None:
     """Append one diagnostic line to `name`'s bounded log tail (no broadcast — the
     next state change carries the updated tail)."""
     text = (line or "").rstrip("\n")
     if not text:
         return
-    with _lock:
-        _entry(name)["log_tail"].append(text)
+    _entry(name)["log_tail"].append(text)
 
 
-def set_log_tail(name: str, lines: Any) -> None:
+def _set_log_tail(name: str, lines: Any) -> None:
     """Replace `name`'s log tail with `lines` (last _LOG_TAIL_MAX kept)."""
-    with _lock:
-        tail: Deque[str] = _entry(name)["log_tail"]
-        tail.clear()
-        for line in lines or ():
-            text = str(line).rstrip("\n")
-            if text:
-                tail.append(text)
+    tail: Deque[str] = _entry(name)["log_tail"]
+    tail.clear()
+    for line in lines or ():
+        text = str(line).rstrip("\n")
+        if text:
+            tail.append(text)
 
 
-def reset(name: str) -> None:
+def _reset(name: str) -> None:
     """Return `name` to idle (e.g. after an unload)."""
-    with _lock:
-        entry = _entry(name)
-        entry["state"] = "idle"
-        entry["message"] = ""
-        entry["started_at"] = None
-        entry["updated_at"] = time.time()
+    entry = _entry(name)
+    entry["state"] = "idle"
+    entry["message"] = ""
+    entry["started_at"] = None
+    entry["updated_at"] = time.time()
     _broadcast(name)
 
 
-def get(name: str) -> Optional[Dict[str, Any]]:
+def _get(name: str) -> Optional[Dict[str, Any]]:
     """Snapshot of ONE engine's status, or None when never reported."""
-    with _lock:
-        entry = _registry.get(name)
-        if entry is None:
-            return None
-        return _public(name, entry)
+    entry = _registry.get(name)
+    if entry is None:
+        return None
+    return _public(name, entry)
+
+
+def _snapshot() -> Dict[str, Dict[str, Any]]:
+    """Snapshot of ALL reported engines: name -> status dict."""
+    return {name: _public(name, entry) for name, entry in _registry.items()}
+
+
+def set_loading(name: str, message: str = "", device: str = "") -> None:
+    """Mark an engine loading through the status-owner thread."""
+    call_serialized(_STATUS_QUEUE, _set_loading, name, message, device)
+
+
+def set_loaded(name: str, message: str = "", device: str = "") -> None:
+    """Mark an engine loaded through the status-owner thread."""
+    call_serialized(_STATUS_QUEUE, _set_loaded, name, message, device)
+
+
+def set_error(name: str, message: str) -> None:
+    """Mark an engine failed through the status-owner thread."""
+    call_serialized(_STATUS_QUEUE, _set_error, name, message)
+
+
+def append_log(name: str, line: str) -> None:
+    """Append a log line through the status-owner thread."""
+    call_serialized(_STATUS_QUEUE, _append_log, name, line)
+
+
+def set_log_tail(name: str, lines: Any) -> None:
+    """Replace a log tail through the status-owner thread."""
+    call_serialized(_STATUS_QUEUE, _set_log_tail, name, lines)
+
+
+def reset(name: str) -> None:
+    """Reset an engine through the status-owner thread."""
+    call_serialized(_STATUS_QUEUE, _reset, name)
+
+
+def get(name: str) -> Optional[Dict[str, Any]]:
+    """Read one engine snapshot through the status-owner thread."""
+    return call_serialized(_STATUS_QUEUE, _get, name)
 
 
 def snapshot() -> Dict[str, Dict[str, Any]]:
-    """Snapshot of ALL reported engines: name -> status dict."""
-    with _lock:
-        return {name: _public(name, entry) for name, entry in _registry.items()}
+    """Read all engine snapshots through the status-owner thread."""
+    return call_serialized(_STATUS_QUEUE, _snapshot)
 
 
 @contextmanager

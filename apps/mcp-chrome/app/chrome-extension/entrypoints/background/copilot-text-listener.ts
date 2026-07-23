@@ -6,5 +6,6 @@
  */
 import { copilotWebTool } from './tools/browser/copilot-web';
 import { createWebChatJobListener } from './web-chat-job-listener-factory';
+import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 
-export const initCopilotTextListener = createWebChatJobListener('copilot_text_service', copilotWebTool, 'Copilot Web');
+export const initCopilotTextListener = createWebChatJobListener(FEATURE_MESSAGE_TYPES.COPILOT_TEXT, copilotWebTool, 'Copilot Web');

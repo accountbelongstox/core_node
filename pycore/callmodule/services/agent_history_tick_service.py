@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import os
-import threading
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -49,13 +48,11 @@ class AgentHistoryTickService:
 
 
 _service: Optional[AgentHistoryTickService] = None
-_lock = threading.Lock()
 
 
 def get_agent_history_tick_service() -> AgentHistoryTickService:
+    # Rule §4: no locks — plain GIL-atomic singleton (same idiom as pyheartbeat).
     global _service
     if _service is None:
-        with _lock:
-            if _service is None:
-                _service = AgentHistoryTickService()
+        _service = AgentHistoryTickService()
     return _service

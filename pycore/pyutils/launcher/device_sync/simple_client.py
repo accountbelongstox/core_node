@@ -8,12 +8,14 @@ Uses global_config for shared state.
 
 import os
 import time
-import threading
 import json
 import urllib.request
 import urllib.error
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Any, Optional, Dict, List
+
+from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 from .global_config import get_global_config, DEFAULT_SYNC_INTERVAL
 from .simple_device_scanner import SimpleDeviceScanner
@@ -34,7 +36,9 @@ class SimpleClient:
         """Initialize simple client"""
         self.config = get_global_config()
         self.running = False
-        self.sync_thread: Optional[threading.Thread] = None
+        self.sync_thread: Optional[Any] = None
+        self._running_signal = f"device_sync.simple_client.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
         # Sync statistics
         self.last_sync_time: Optional[float] = None
@@ -65,8 +69,11 @@ class SimpleClient:
 
         # Start sync thread
         self.running = True
-        self.sync_thread = threading.Thread(target=self._sync_loop, daemon=True)
-        self.sync_thread.start()
+        THREAD_BUS.signal(self._running_signal, True)
+        self.sync_thread = start_bus_task(
+            self._sync_loop,
+            thread_name="SimpleSyncClientThread",
+        )
 
         self.config.client_running = True
 
@@ -80,6 +87,7 @@ class SimpleClient:
         logger.info("Stopping sync client...")
 
         self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         if self.sync_thread and self.sync_thread.is_alive():
             self.sync_thread.join(timeout=DEFAULT_SYNC_INTERVAL + 1)
@@ -127,13 +135,13 @@ class SimpleClient:
 
     def _sync_loop(self):
         """Auto sync loop (runs in background thread)"""
-        while self.running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             if self.config.sync_enabled:
                 self.sync_now()
 
             # Sleep interval
             for _ in range(DEFAULT_SYNC_INTERVAL * 10):
-                if not self.running:
+                if not THREAD_BUS.get_signal(self._running_signal, False):
                     break
                 time.sleep(0.1)
 
@@ -285,7 +293,7 @@ class SimpleClient:
 
     def is_running(self) -> bool:
         """Check if client is running"""
-        return self.running
+        return bool(THREAD_BUS.get_signal(self._running_signal, False))
 
     def get_stats(self) -> Dict:
         """
@@ -295,7 +303,7 @@ class SimpleClient:
             Stats dict
         """
         return {
-            'running': self.running,
+            'running': bool(THREAD_BUS.get_signal(self._running_signal, False)),
             'sync_enabled': self.config.sync_enabled,
             'primary_server_ip': self.config.primary_server_ip,
             'last_sync': self.last_sync_time,

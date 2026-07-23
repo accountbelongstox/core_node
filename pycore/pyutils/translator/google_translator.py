@@ -1,23 +1,18 @@
 #!/usr/bin/env python3
 
-import os
-import sys
-import json
-import hashlib
 import asyncio
-from pathlib import Path
-from typing import List, Dict, Optional, Union, Any
+import hashlib
+import json
+import os
+import threading
 from dataclasses import dataclass, asdict
-
-project_root = Path(__file__).resolve().parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.system_paths import map_web_path
+from pycore.pyfoundations.third_party import get_third_package_googletrans_Translator
 
 try:
-    from pycore.pyfoundations.third_party import (
-        get_third_package_googletrans_Translator,
-    )
     Translator = get_third_package_googletrans_Translator()
     GOOGLETRANS_AVAILABLE = True
 except ImportError:
@@ -74,11 +69,15 @@ class GoogleTranslatorCache:
     
     def set(self, cache_key: str, data: dict) -> None:
         cache_file = self.cache_dir / f"{cache_key}.json"
+        temp_file = cache_file.with_suffix(
+            f".{os.getpid()}.{threading.get_ident()}.tmp"
+        )
         try:
-            with open(cache_file, 'w', encoding='utf-8') as f:
+            with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"[WARNING] Failed to cache translation: {e}")
+            os.replace(temp_file, cache_file)
+        except Exception:
+            temp_file.unlink(missing_ok=True)
     
     def clear(self) -> int:
         count = 0
@@ -97,7 +96,7 @@ class GoogleTranslator:
         if not GOOGLETRANS_AVAILABLE:
             raise ImportError("googletrans is not installed. Install it with: pip install googletrans")
 
-        # 使用 translate.googleapis.com 标准 API (无需 token)
+        # Standard keyless Google Translate endpoint.
         self.service_urls = service_urls or [
             'translate.googleapis.com'
         ]

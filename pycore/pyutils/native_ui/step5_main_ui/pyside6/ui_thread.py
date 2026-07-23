@@ -51,7 +51,6 @@ class PySide6UIThread(threading.Thread):
         self.ui_config = ui_config
         self.startup_config = startup_config
         self.framework: Optional["PySide6Framework"] = None
-        self._started_event = threading.Event()
 
         ColorPrint.blue(f"[PySide6UIThread] Initialized - App: {ui_config.app_name}")
 

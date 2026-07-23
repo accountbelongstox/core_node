@@ -51,7 +51,8 @@ class SpeechTranscriptionThread(threading.Thread):
         self.mic_language = mic_language
         self.system_language = system_language
 
-        self._stop_event = threading.Event()
+        self._stop_signal = f"speech.transcription.stop.{id(self)}"
+        THREAD_BUS.clear_signal(self._stop_signal)
         self._speech_initialized = False
 
         ColorPrint.blue(f"[SpeechThread] Initialized - Mode: {mode}")
@@ -116,14 +117,14 @@ class SpeechTranscriptionThread(threading.Thread):
     def stop(self):
         """Request thread to stop"""
         ColorPrint.yellow("[SpeechThread] Stop requested...")
-        self._stop_event.set()
+        THREAD_BUS.signal(self._stop_signal, True)
 
         # Send stop request via THREAD_BUS
         THREAD_BUS.signal("speech.thread.stop_requested", {})
 
     def is_running(self) -> bool:
         """Check if thread is running"""
-        return self.is_alive() and not self._stop_event.is_set()
+        return self.is_alive() and not THREAD_BUS.get_signal(self._stop_signal, False)
 
 
 class SpeechServiceThread(threading.Thread):
@@ -149,7 +150,8 @@ class SpeechServiceThread(threading.Thread):
         super().__init__(name="SpeechServiceThread", daemon=daemon)
 
         self.auto_start = auto_start
-        self._stop_event = threading.Event()
+        self._stop_signal = f"speech.service.stop.{id(self)}"
+        THREAD_BUS.clear_signal(self._stop_signal)
         self._service_initialized = False
         self._speech_manager = None
 
@@ -188,7 +190,7 @@ class SpeechServiceThread(threading.Thread):
             THREAD_BUS.signal("speech.service.auto_start", {})
 
         # Keep thread alive and process commands from message queue
-        while not self._stop_event.is_set():
+        while not THREAD_BUS.get_signal(self._stop_signal, False):
             # Check for commands from message queue
             command = THREAD_BUS.receive_message("speech.service.commands", block=False)
             if command:
@@ -230,10 +232,10 @@ class SpeechServiceThread(threading.Thread):
     def stop(self):
         """Request thread to stop"""
         ColorPrint.yellow("[SpeechService] Stop requested...")
-        self._stop_event.set()
+        THREAD_BUS.signal(self._stop_signal, True)
 
         THREAD_BUS.signal("speech.service.stop_requested", {})
 
     def is_running(self) -> bool:
         """Check if thread is running"""
-        return self.is_alive() and not self._stop_event.is_set()
+        return self.is_alive() and not THREAD_BUS.get_signal(self._stop_signal, False)

@@ -18,7 +18,6 @@ Usage:
     start_rpc_service(instances.rpc_server, instances.tts_switch)
 """
 
-import threading
 from typing import Optional, Dict, Any
 
 from pycore.pyfoundations import ColorPrint
@@ -121,18 +120,16 @@ class RPCService:
 
 # Global singleton
 _global_rpc_service: Optional[RPCService] = None
-_service_lock = threading.Lock()
 
 
 def get_rpc_service(rpc_server=None, tts_switch=None, stt_switch=None) -> RPCService:
     """Get global RPC service singleton"""
     global _global_rpc_service
-    with _service_lock:
-        if _global_rpc_service is None:
-            if rpc_server is None:
-                raise ValueError("rpc_server required for first initialization")
-            _global_rpc_service = RPCService(rpc_server, tts_switch, stt_switch)
-        return _global_rpc_service
+    if _global_rpc_service is None:
+        if rpc_server is None:
+            raise ValueError("rpc_server required for first initialization")
+        _global_rpc_service = RPCService(rpc_server, tts_switch, stt_switch)
+    return _global_rpc_service
 
 
 def start_rpc_service(rpc_server, tts_switch=None, stt_switch=None) -> RPCService:

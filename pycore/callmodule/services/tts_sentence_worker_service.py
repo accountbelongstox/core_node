@@ -71,6 +71,9 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 # ColorPrint is the only allowed logger in pycore services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_cache_dir
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+# Rule §4: all inter-thread data exchange goes through the global bus.
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 # Live enable flag for bump-wake (UI toggle lives on the heartbeat callback).
 from pycore.pyheartbeat import get_heartbeat_system
 # requests is a third-party dep — always obtained through the lazy accessor.
@@ -113,6 +116,64 @@ _MAX_BATCH = 50
 # engines, which is far too expensive to run per task.
 _ENGINE_PROBE_TTL_S = 60.0
 
+# THREAD_BUS queue carrying per-lane synth counts back to the cycle thread
+# (rule §4: threads never exchange data directly — only via the bus).
+_BUS_SYNTH_RESULT = "tts_sentence_worker.synth_result"
+# THREAD_BUS signal with the latest cycle summary (FE/diagnostics).
+_BUS_CYCLE_SUMMARY = "tts_sentence_worker.cycle_summary"
+
+
+class SentenceWorkerCycleThread(threading.Thread):
+    """One claim+drain cycle on its own daemon thread (rule §4: Thread subclass)."""
+
+    def __init__(self, worker: "TTSSentenceWorkerService") -> None:
+        super().__init__(daemon=True, name="tts-sentence-worker-cycle")
+        self._worker = worker
+
+    def run(self) -> None:
+        self._worker._run_cycle()
+
+
+class SentenceWorkerBumpThread(threading.Thread):
+    """Bump-wake cycle spawner (rule §4: Thread subclass)."""
+
+    def __init__(self, worker: "TTSSentenceWorkerService") -> None:
+        super().__init__(daemon=True, name="tts-sentence-worker-bump")
+        self._worker = worker
+
+    def run(self) -> None:
+        self._worker.poll_and_process()
+
+
+class SentenceSynthThread(threading.Thread):
+    """One concurrent synth lane (rule §4: Thread subclass, no ThreadPoolExecutor).
+
+    Pops tasks from the shared priority queue until empty, then reports its
+    (processed, succeeded, failed) counts back through THREAD_BUS — never
+    through shared attributes."""
+
+    def __init__(self, worker: "TTSSentenceWorkerService", base: str, index: int) -> None:
+        super().__init__(daemon=True, name=f"tts-sentence-synth-{index}")
+        self._worker = worker
+        self._base = base
+
+    def run(self) -> None:
+        processed = succeeded = failed = 0
+        while True:
+            task = self._worker._queue.pop()
+            if task is None:
+                break
+            processed += 1
+            if self._worker._process_one(self._base, task):
+                succeeded += 1
+            else:
+                failed += 1
+        THREAD_BUS.send_message(_BUS_SYNTH_RESULT, {
+            "processed": processed,
+            "succeeded": succeeded,
+            "failed": failed,
+        })
+
 
 class _PriorityQueue:
     """In-process max-heap on ``priority`` with FIFO tie-break by claim order.
@@ -120,30 +181,33 @@ class _PriorityQueue:
     heapq is a MIN-heap, so the key is ``(-priority, seq)``: higher priority is
     popped first, and within an equal priority the earliest-claimed item (lowest
     monotonic ``seq``) wins — preserving FIFO across all claim batches.
+
+    Rule §4: queue operations execute on one THREAD_BUS-backed state owner.
     """
 
     def __init__(self) -> None:
         self._heap: List[Tuple[int, int, Dict[str, Any]]] = []
         self._seq = 0
-        self._lock = threading.Lock()
+        init_serialized_owner(self, "tts.priority_queue", "TTSPriorityQueueState")
 
+    @serialized_method
     def push(self, task: Dict[str, Any]) -> None:
         """Add one task; ``priority`` defaults to 0 when absent/non-numeric."""
         try:
             priority = int(task.get("priority") or 0)
         except (TypeError, ValueError):
             priority = 0
-        with self._lock:
-            heapq.heappush(self._heap, (-priority, self._seq, task))
-            self._seq += 1
+        heapq.heappush(self._heap, (-priority, self._seq, task))
+        self._seq += 1
 
+    @serialized_method
     def pop(self) -> Optional[Dict[str, Any]]:
         """Pop the highest-priority task (FIFO within equal priority), or None."""
-        with self._lock:
-            if not self._heap:
-                return None
-            return heapq.heappop(self._heap)[2]
+        if not self._heap:
+            return None
+        return heapq.heappop(self._heap)[2]
 
+    @serialized_method
     def bump(self, content_id: str, language: str, priority: int) -> bool:
         """Re-key the queued task matching content_id+language to ``priority``.
 
@@ -155,20 +219,19 @@ class _PriorityQueue:
             new_priority = int(priority)
         except (TypeError, ValueError):
             return False
-        with self._lock:
-            for index, (_neg, seq, task) in enumerate(self._heap):
-                cid = task.get("content_id") or task.get("sentence_id") or ""
-                lang = task.get("language") or ""
-                if str(cid) == str(content_id) and str(lang) == str(language):
-                    task["priority"] = new_priority
-                    self._heap[index] = (-new_priority, seq, task)
-                    heapq.heapify(self._heap)
-                    return True
-            return False
+        for index, (_neg, seq, task) in enumerate(self._heap):
+            cid = task.get("content_id") or task.get("sentence_id") or ""
+            lang = task.get("language") or ""
+            if str(cid) == str(content_id) and str(lang) == str(language):
+                task["priority"] = new_priority
+                self._heap[index] = (-new_priority, seq, task)
+                heapq.heapify(self._heap)
+                return True
+        return False
 
+    @serialized_method
     def __len__(self) -> int:
-        with self._lock:
-            return len(self._heap)
+        return len(self._heap)
 
 
 class TTSSentenceWorkerService:
@@ -187,14 +250,12 @@ class TTSSentenceWorkerService:
     """
 
     _instance: Optional["TTSSentenceWorkerService"] = None
-    _instance_lock = threading.Lock()
 
     def __new__(cls, *args, **kwargs):
-        """Singleton — one sentence-audio worker per process."""
+        """Singleton — one sentence-audio worker per process. Rule §4: no
+        locks; class-attr assignment is GIL-atomic (same idiom as pyheartbeat)."""
         if cls._instance is None:
-            with cls._instance_lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self, laravel_api_url: str = ""):
@@ -220,17 +281,16 @@ class TTSSentenceWorkerService:
         self.batch_size = max(
             1, min(_MAX_BATCH, int(getattr(Config, "TTS_SENTENCE_WORKER_BATCH", 10)))
         )
-        self.concurrency = max(
+        self._concurrency = max(
             0, int(getattr(Config, "TTS_SENTENCE_WORKER_CONCURRENCY", 0))
         )
 
         # §5.3 ONE shared priority queue across ALL claim batches.
         self._queue = _PriorityQueue()
 
-        # ONE cycle at a time: also guarantees SEQUENTIAL synthesis (edge-tts
-        # must never run concurrently).
-        self._cycle_running = False
-        self._cycle_lock = threading.Lock()
+        # ONE cycle at a time; lifecycle state is exchanged through THREAD_BUS.
+        self._cycle_running_signal = f"tts_sentence_worker.cycle_running.{id(self)}"
+        THREAD_BUS.signal(self._cycle_running_signal, False)
 
         # Connection-failure bookkeeping — ONE concise warning per state change
         # instead of a traceback every tick.
@@ -245,11 +305,18 @@ class TTSSentenceWorkerService:
         self._processing = 0
         # `leased` = claimed-but-not-yet-synthesized (still in the queue).
         self._last_cycle_summary: Dict[str, Any] = {}
+        # In-flight tasks keyed by task_id. Rule §4: no lock — dict set/pop are
+        # single GIL-atomic ops; readers see a consistent snapshot via list().
         self._current_tasks: Dict[Any, Dict[str, Any]] = {}
-        self._current_tasks_lock = threading.Lock()
         self._events: Deque[Dict[str, Any]] = deque(maxlen=80)
         # Throttle marker for the idle event (epoch seconds of the last one).
         self._last_idle_event_ts = 0.0
+        init_serialized_owner(
+            self,
+            "tts.sentence_worker.state",
+            "TTSSentenceState",
+            timeout=180.0,
+        )
 
         # Persistent local cache for synthesized sentence MP3s (keyed by
         # lang/content_id/variant_key). A claimed sentence whose cache file is
@@ -268,6 +335,7 @@ class TTSSentenceWorkerService:
             f"batch={self.batch_size}, enabled_on_start={self.enabled})"
         )
 
+    @serialized_method
     def _log_event(self, kind: str, detail: str, task: Optional[Dict[str, Any]] = None) -> None:
         entry: Dict[str, Any] = {
             "at": int(time.time()),
@@ -294,6 +362,67 @@ class TTSSentenceWorkerService:
             ColorPrint.gray(line)
         else:
             ColorPrint.blue(line)
+
+    @serialized_method
+    def _mark_task_started(self, task: Dict[str, Any]) -> None:
+        """Publish one in-flight task through the worker state owner."""
+        self._current_tasks[task.get("task_id")] = dict(task)
+        self._processing += 1
+
+    @serialized_method
+    def _update_task_variant(
+        self,
+        task_id: Any,
+        index: int,
+        count: int,
+        key: str,
+        provider: str,
+    ) -> None:
+        current = self._current_tasks.get(task_id)
+        if current is None:
+            return
+        current["current_variant_index"] = index
+        current["variant_count"] = count
+        current["current_variant_key"] = key
+        current["current_provider"] = provider
+
+    @serialized_method
+    def _mark_task_finished(self, task_id: Any) -> None:
+        self._current_tasks.pop(task_id, None)
+        self._processing = max(0, self._processing - 1)
+
+    @serialized_method
+    def _record_cycle(self, processed: int, succeeded: int, failed: int) -> Dict[str, Any]:
+        self._total_claimed += processed
+        self._total_succeeded += succeeded
+        self._total_failed += failed
+        self._last_cycle_summary = {
+            "processed": processed,
+            "succeeded": succeeded,
+            "failed": failed,
+            "at": int(time.time()),
+        }
+        return dict(self._last_cycle_summary)
+
+    @serialized_method
+    def _state_snapshot(self) -> Dict[str, Any]:
+        return {
+            "processing": self._processing,
+            "current_tasks": [dict(task) for task in self._current_tasks.values()],
+            "events": [dict(event) for event in list(self._events)[:40]],
+            "total_claimed": self._total_claimed,
+            "total_succeeded": self._total_succeeded,
+            "total_failed": self._total_failed,
+            "last_cycle": dict(self._last_cycle_summary),
+        }
+
+    @serialized_method
+    def set_concurrency(self, concurrency: int) -> None:
+        self._concurrency = max(0, int(concurrency))
+
+    @serialized_method
+    def get_concurrency(self) -> int:
+        return self._concurrency
 
     # -------------------- identity / plumbing --------------------
 
@@ -505,6 +634,7 @@ class TTSSentenceWorkerService:
         except Exception:  # noqa: BLE001
             pass
 
+    @serialized_method
     def _planned_engine(self) -> Optional[str]:
         """Active/best TTS engine with a 60s TTL cache.
 
@@ -534,13 +664,13 @@ class TTSSentenceWorkerService:
     def _effective_concurrency(self) -> Tuple[int, str]:
         engine = self._planned_engine() or ""
         kind = self._engine_concurrency_class(engine)
-        return effective_concurrency(kind, self.concurrency), engine
+        return effective_concurrency(kind, self.get_concurrency()), engine
 
     def concurrency_status(self) -> Dict[str, Any]:
         engine = self._planned_engine() or ""
         kind = self._engine_concurrency_class(engine)
         return {
-            "concurrency": effective_concurrency(kind, self.concurrency),
+            "concurrency": effective_concurrency(kind, self.get_concurrency()),
             "concurrency_recommended": recommended_concurrency(kind),
             "concurrency_engine": engine or None,
             "concurrency_class": kind,
@@ -635,6 +765,7 @@ class TTSSentenceWorkerService:
         self,
         task: Dict[str, Any],
         variant: Dict[str, Any],
+        local_id: Optional[str] = None,
     ) -> Tuple[bool, str, str, str, str]:
         """Generate one variant MP3. Returns (ok, path, provider, error, synth_command)."""
         content = (task.get("content") or "").strip()
@@ -661,7 +792,6 @@ class TTSSentenceWorkerService:
         )
         provider = result.get("engine") or ((result.get("tried") or ["none"])[-1])
         synth_command = str(result.get("synth_command") or "")
-        local_id = getattr(self, "_current_local_tm_id", None)
         if local_id:
             planned = (
                 self._planned_engine()
@@ -705,20 +835,23 @@ class TTSSentenceWorkerService:
             )
         return True, out_path, provider, "", synth_command
 
-    def _synthesize_task(self, task: Dict[str, Any]) -> Tuple[bool, str, str, str, str]:
+    def _synthesize_task(
+        self,
+        task: Dict[str, Any],
+        local_id: Optional[str] = None,
+    ) -> Tuple[bool, str, str, str, str]:
         """Generate the primary sentence MP3 (first variant only)."""
         variants = task.get("variants") or [{"key": "", "accent": None, "gender": "female"}]
         primary = variants[0] if variants else {"key": "", "accent": None, "gender": "female"}
-        return self._synthesize_variant(task, primary)
+        return self._synthesize_variant(task, primary, local_id=local_id)
 
     def _process_one(self, base: str, task: Dict[str, Any]) -> bool:
         """Synthesize + report ONE task (all language variants). Returns True on primary success."""
         task_id = task.get("task_id")
-        with self._current_tasks_lock:
-            self._current_tasks[task_id] = dict(task)
+        start_time = time.time()
+        self._mark_task_started(task)
         self._log_event("synth_start", f"priority={task.get('priority')}", task)
         local_tm_id = self._begin_local_task(task)
-        self._current_local_tm_id = local_tm_id
         variants = task.get("variants") or [{"key": "", "accent": None, "gender": "female"}]
         primary_ok = False
         last_provider = ""
@@ -728,8 +861,6 @@ class TTSSentenceWorkerService:
         audio_paths: List[str] = []
         content_preview = ((task.get("content") or "").strip())[:120]
         task_language = (task.get("language") or "en").strip() or "en"
-        with self._cycle_lock:
-            self._processing += 1
         try:
             content = (task.get("content") or "").strip()
             # Phase 1 - resolve every variant (cache hit OR synthesize_variants batch).
@@ -781,15 +912,13 @@ class TTSSentenceWorkerService:
                 # Live detail for the FE: which variant + provider is in flight
                 # (the Sentence tab "synthesizing" line shows this so the user sees
                 # qwen3tts parallel batch progress per variant).
-                try:
-                    with self._current_tasks_lock:
-                        if task_id in self._current_tasks:
-                            self._current_tasks[task_id]["current_variant_index"] = _i + 1
-                            self._current_tasks[task_id]["variant_count"] = len(variants)
-                            self._current_tasks[task_id]["current_variant_key"] = vkey or "primary"
-                            self._current_tasks[task_id]["current_provider"] = provider or "pending"
-                except Exception:  # noqa: BLE001
-                    pass
+                self._update_task_variant(
+                    task_id,
+                    _i + 1,
+                    len(variants),
+                    vkey or "primary",
+                    provider or "pending",
+                )
                 if ok:
                     vmeta = {
                         "accent": variant.get("accent"),
@@ -827,9 +956,10 @@ class TTSSentenceWorkerService:
                             })
                         except Exception:  # noqa: BLE001
                             pass
+                        elapsed = time.time() - start_time
                         ColorPrint.green(
-                            f"[TTSSentenceWorker] Task {task_id} "
-                            f"'{(task.get('content') or '')[:30]}' "
+                            f"[TTSSentenceWorker +{elapsed:.2f}s] Task {task_id} "
+                            f"'{content_preview}' "
                             f"(p={task.get('priority')}) done via {provider}"
                         )
                     elif not accepted:
@@ -866,11 +996,7 @@ class TTSSentenceWorkerService:
                 text=content_preview,
                 language=task_language,
             )
-            self._current_local_tm_id = None
-            with self._current_tasks_lock:
-                self._current_tasks.pop(task_id, None)
-            with self._cycle_lock:
-                self._processing = max(0, self._processing - 1)
+            self._mark_task_finished(task_id)
             # NOTE: synthesized MP3s live in the persistent cache dir and are NEVER
             # deleted here - they are the local retained copy (re-reported if laravel
             # ever loses the file). The cache_path_for layout mirrors laravel's disk.
@@ -928,29 +1054,32 @@ class TTSSentenceWorkerService:
                 return p, s, f
 
             if concurrency > 1:
-                from concurrent.futures import ThreadPoolExecutor
-                with ThreadPoolExecutor(max_workers=concurrency, thread_name_prefix="tts-sentence-worker") as pool:
-                    futures = [pool.submit(_pop_and_process) for _ in range(concurrency)]
-                    for future in futures:
-                        p, s, f = future.result()
-                        processed += p
-                        succeeded += s
-                        failed += f
+                # Concurrent lanes: named Thread subclasses (rule §4 — no
+                # ThreadPoolExecutor). Per-lane counts come back via THREAD_BUS.
+                THREAD_BUS.clear_queue(_BUS_SYNTH_RESULT)
+                lanes = [
+                    SentenceSynthThread(self, base, index)
+                    for index in range(concurrency)
+                ]
+                for lane in lanes:
+                    lane.start()
+                for lane in lanes:
+                    lane.join()
+                for _lane in lanes:
+                    result = THREAD_BUS.receive_message(_BUS_SYNTH_RESULT)
+                    if not isinstance(result, dict):
+                        continue
+                    processed += int(result.get("processed") or 0)
+                    succeeded += int(result.get("succeeded") or 0)
+                    failed += int(result.get("failed") or 0)
             else:
                 processed, succeeded, failed = _pop_and_process()
 
             if processed == 0:
                 return
 
-            self._total_claimed += processed
-            self._total_succeeded += succeeded
-            self._total_failed += failed
-            self._last_cycle_summary = {
-                "processed": processed,
-                "succeeded": succeeded,
-                "failed": failed,
-                "at": int(time.time()),
-            }
+            cycle_summary = self._record_cycle(processed, succeeded, failed)
+            THREAD_BUS.signal(_BUS_CYCLE_SUMMARY, cycle_summary)
             line = (
                 f"[TTSSentenceWorker] Cycle summary: processed={processed} "
                 f"succeeded={succeeded} failed={failed}"
@@ -963,8 +1092,7 @@ class TTSSentenceWorkerService:
         except Exception as e:  # noqa: BLE001 — never raise out of the cycle thread
             ColorPrint.red(f"[TTSSentenceWorker] Cycle error: {e}")
         finally:
-            with self._cycle_lock:
-                self._cycle_running = False
+            THREAD_BUS.signal(self._cycle_running_signal, False)
 
     # -------------------- heartbeat callback --------------------
 
@@ -982,19 +1110,13 @@ class TTSSentenceWorkerService:
         must never raise into the heartbeat loop.
         """
         try:
-            with self._cycle_lock:
-                if self._cycle_running:
-                    return  # previous cycle still in flight — stay sequential
-                self._cycle_running = True
+            if THREAD_BUS.get_signal(self._cycle_running_signal, False):
+                return  # previous cycle still in flight — stay sequential
+            THREAD_BUS.signal(self._cycle_running_signal, True)
 
-            threading.Thread(
-                target=self._run_cycle,
-                daemon=True,
-                name="tts-sentence-worker-cycle",
-            ).start()
+            SentenceWorkerCycleThread(self).start()
         except Exception as e:  # noqa: BLE001 — heartbeat must never see a raise
-            with self._cycle_lock:
-                self._cycle_running = False
+            THREAD_BUS.signal(self._cycle_running_signal, False)
             ColorPrint.red(f"[TTSSentenceWorker] poll_and_process error: {e}")
 
     # -------------------- priority-bump wake (SSE sentence.priority) --------------------
@@ -1028,14 +1150,9 @@ class TTSSentenceWorkerService:
         so this is equivalent to the laravel run-once nudge)."""
         if not self._is_enabled():
             return
-        with self._cycle_lock:
-            if self._cycle_running:
-                return  # in-flight cycle already pops by (re-keyed) priority
-        threading.Thread(
-            target=self.poll_and_process,
-            daemon=True,
-            name="tts-sentence-worker-bump",
-        ).start()
+        if THREAD_BUS.get_signal(self._cycle_running_signal, False):
+            return  # in-flight cycle already pops by (re-keyed) priority
+        SentenceWorkerBumpThread(self).start()
 
     def _is_enabled(self) -> bool:
         """Live enable state: the PyHeartbeat callback flag (UI toggle) with the
@@ -1056,12 +1173,21 @@ class TTSSentenceWorkerService:
         heap), ``leased`` (claimed-but-unsynthesized — same as queued depth in
         this in-process model), and ``processing`` (the one task mid-synthesis).
         """
-        with self._cycle_lock:
-            running = self._cycle_running
-            processing = self._processing
-        with self._current_tasks_lock:
-            current_tasks = list(self._current_tasks.values())
-            current = current_tasks[0] if current_tasks else None
+        running = bool(THREAD_BUS.get_signal(self._cycle_running_signal, False))
+        state = self._state_snapshot()
+        processing = int(state["processing"])
+        current_tasks = state["current_tasks"]
+        current = current_tasks[0] if current_tasks else None
+        # Stable "lang:content_id" keys for the in-flight tasks so the queue
+        # snapshot endpoint can mark awaiting rows as processing.
+        current_keys = []
+        for ct in current_tasks:
+            if not isinstance(ct, dict):
+                continue
+            lang = str(ct.get("language") or "").strip()
+            cid = str(ct.get("content_id") or ct.get("sentence_id") or "").strip()
+            if lang and cid:
+                current_keys.append(f"{lang}:{cid}")
         queued = len(self._queue)
         return {
             "service": "TTS Sentence-Audio Worker",
@@ -1078,11 +1204,12 @@ class TTSSentenceWorkerService:
             "leased": queued,
             "processing": processing,
             "current_task": current,
-            "events": list(self._events)[:40],
-            "total_claimed": self._total_claimed,
-            "total_succeeded": self._total_succeeded,
-            "total_failed": self._total_failed,
-            "last_cycle": dict(self._last_cycle_summary),
+            "current_keys": current_keys,
+            "events": state["events"],
+            "total_claimed": state["total_claimed"],
+            "total_succeeded": state["total_succeeded"],
+            "total_failed": state["total_failed"],
+            "last_cycle": state["last_cycle"],
             "initialized": self._initialized,
         }
 

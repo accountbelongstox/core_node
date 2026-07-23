@@ -19,6 +19,7 @@
   /** Find the question input (textarea or contenteditable). */
   function findInput() {
     const candidates = [
+      'textarea[aria-label="Query box" i]',
       'textarea[aria-label*="query" i]',
       'textarea[placeholder*="ask" i]',
       'textarea[placeholder*="type" i]',
@@ -27,14 +28,27 @@
       'textarea',
     ];
     for (const sel of candidates) {
-      const el = document.querySelector(sel);
-      if (el && el.offsetParent !== null) return el;
+      const elements = document.querySelectorAll(sel);
+      for (const el of elements) {
+        const label = `${el.getAttribute('aria-label') || ''} ${el.getAttribute('placeholder') || ''}`;
+        if (el.offsetParent !== null && !/discover sources|search|pasted text/i.test(label)) return el;
+      }
     }
     return null;
   }
 
   /** Find the send/submit button near the input. */
-  function findSendButton() {
+  function findSendButton(input) {
+    const form = input && input.closest('form');
+    if (form) {
+      const localButtons = form.querySelectorAll('button');
+      for (const button of localButtons) {
+        const label = `${button.getAttribute('aria-label') || ''} ${button.textContent || ''}`;
+        if (!button.disabled && button.offsetParent !== null && /submit|send|arrow_forward/i.test(label)) {
+          return button;
+        }
+      }
+    }
     const candidates = [
       'button[aria-label*="send" i]',
       'button[aria-label*="submit" i]',
@@ -79,6 +93,7 @@
 
   /** Collect candidate answer/message blocks, newest last. */
   function collectMessages() {
+    const responseButtons = document.querySelectorAll('button[aria-label*="model response" i]');
     const sels = [
       '[class*="response" i]',
       '[class*="message" i]',
@@ -88,10 +103,30 @@
     ];
     const seen = new Set();
     const blocks = [];
+    for (const button of responseButtons) {
+      let container = button.parentElement;
+      for (let level = 0; container && level < 8; level += 1, container = container.parentElement) {
+        const text = norm(container.innerText || container.textContent);
+        if (text.length >= 40 && text.length <= 12000 && !/Generate an AI slide deck|Supported file types/i.test(text)) {
+          if (!seen.has(text)) {
+            seen.add(text);
+            blocks.push(text);
+          }
+          break;
+        }
+      }
+    }
+    if (blocks.length) return blocks;
     for (const sel of sels) {
       document.querySelectorAll(sel).forEach((el) => {
         const text = norm(el.innerText || el.textContent);
-        if (text && text.length > 1 && !seen.has(text)) {
+        if (
+          text &&
+          text.length > 1 &&
+          text.length <= 12000 &&
+          !/Generate an AI slide deck|Supported file types/i.test(text) &&
+          !seen.has(text)
+        ) {
           seen.add(text);
           blocks.push(text);
         }
@@ -126,7 +161,7 @@
     setInputValue(input, question);
     await new Promise((r) => setTimeout(r, 200));
 
-    const btn = findSendButton();
+    const btn = findSendButton(input);
     if (btn) {
       btn.click();
     } else {

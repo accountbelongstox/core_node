@@ -34,7 +34,15 @@ from pycore.pyutils.edge_tts.edge_tts_client import EdgeTTSClient
 from pycore.pyutils.whisper_stt import WhisperSTTProvider
 from pycore.pyutils.azure_speech import AzureSpeechRecognitionProvider
 from pycore.pyheartbeat import get_global_thread_pool
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
+
+_WORK_QUEUE = 'pyctl.speech.switch.operations'
+_WORKER = SerializedWorkerThread(_WORK_QUEUE, 'SpeechSwitchThread')
+_WORKER.start()
 
 
 class SpeechSwitch:
@@ -60,7 +68,6 @@ class SpeechSwitch:
 
     def __init__(self):
         """Initialize speech switch"""
-        self._lock = threading.RLock()
         self._provider_status = get_provider_status()
         self._initialized = False
 
@@ -80,7 +87,7 @@ class SpeechSwitch:
 
         ColorPrint.blue("[SpeechSwitch] Created")
 
-    def initialize(self):
+    def _initialize(self):
         """
         Initialize speech switch
 
@@ -92,23 +99,13 @@ class SpeechSwitch:
             ColorPrint.yellow("[SpeechSwitch] Already initialized")
             return
 
-        with self._lock:
-            ColorPrint.blue("[SpeechSwitch] Initializing...")
-
-            # Check all providers
-            self._provider_status.check_all_providers()
-
-            # Initialize TTS providers
-            self._initialize_tts_providers()
-
-            # Initialize STT providers
-            self._initialize_stt_providers()
-
-            self._initialized = True
-            ColorPrint.green("[SpeechSwitch] Initialization complete")
-
-            # Print status
-            self._provider_status.print_status()
+        ColorPrint.blue("[SpeechSwitch] Initializing...")
+        self._provider_status.check_all_providers()
+        self._initialize_tts_providers()
+        self._initialize_stt_providers()
+        self._initialized = True
+        ColorPrint.green("[SpeechSwitch] Initialization complete")
+        self._provider_status.print_status()
 
     def _initialize_tts_providers(self):
         """Initialize TTS provider implementations"""
@@ -170,7 +167,7 @@ class SpeechSwitch:
                 ColorPrint.red(f"[SpeechSwitch] ✗ Local STT init failed: {e}")
                 self._provider_status.mark_unavailable('stt', 'local', str(e))
 
-    def process_task(self, task: Task) -> bool:
+    def _process_task(self, task: Task) -> bool:
         """
         Process task synchronously (called by HeartbeatPusher)
 
@@ -182,7 +179,7 @@ class SpeechSwitch:
         """
         if not self._initialized:
             ColorPrint.yellow("[SpeechSwitch] Not initialized, initializing now...")
-            self.initialize()
+            self._initialize()
 
         # Route based on task type
         task_type = task.task_type.lower()
@@ -209,8 +206,7 @@ class SpeechSwitch:
         Returns:
             True if processed successfully, False otherwise
         """
-        with self._lock:
-            self._stats['tts_processed'] += 1
+        self._stats['tts_processed'] += 1
 
         try:
             # Get task data
@@ -230,16 +226,14 @@ class SpeechSwitch:
             # Validate
             if not text:
                 ColorPrint.red("[SpeechSwitch] TTS task missing text")
-                with self._lock:
-                    self._stats['tts_failed'] += 1
+                self._stats['tts_failed'] += 1
                 return False
 
             # Get best available provider
             provider_name = self._provider_status.get_best_tts_provider()
             if not provider_name:
                 ColorPrint.red("[SpeechSwitch] No TTS providers available")
-                with self._lock:
-                    self._stats['tts_failed'] += 1
+                self._stats['tts_failed'] += 1
                 return False
 
             ColorPrint.blue(f"[SpeechSwitch] Processing TTS task with {provider_name} provider")
@@ -249,8 +243,7 @@ class SpeechSwitch:
             provider = self._tts_providers.get(provider_name)
             if not provider:
                 ColorPrint.red(f"[SpeechSwitch] Provider {provider_name} not initialized")
-                with self._lock:
-                    self._stats['tts_failed'] += 1
+                self._stats['tts_failed'] += 1
                 return False
 
             # Call provider
@@ -272,8 +265,7 @@ class SpeechSwitch:
 
                 else:
                     ColorPrint.yellow(f"[SpeechSwitch] Provider {provider_name} not yet implemented")
-                    with self._lock:
-                        self._stats['tts_failed'] += 1
+                    self._stats['tts_failed'] += 1
                     return False
 
             except Exception as e:
@@ -293,14 +285,12 @@ class SpeechSwitch:
                         error=error_msg
                     ))
 
-                with self._lock:
-                    self._stats['tts_failed'] += 1
+                self._stats['tts_failed'] += 1
                 return False
 
         except Exception as e:
             ColorPrint.red(f"[SpeechSwitch] TTS task processing error: {e}")
-            with self._lock:
-                self._stats['tts_failed'] += 1
+            self._stats['tts_failed'] += 1
             return False
 
     def _process_edge_tts(self, provider, text: str, language: str, output_path: Optional[str]) -> Optional[str]:
@@ -336,8 +326,7 @@ class SpeechSwitch:
         Returns:
             True if processed successfully, False otherwise
         """
-        with self._lock:
-            self._stats['stt_processed'] += 1
+        self._stats['stt_processed'] += 1
 
         try:
             # Get task data
@@ -355,16 +344,14 @@ class SpeechSwitch:
             # Validate
             if not audio_path:
                 ColorPrint.red("[SpeechSwitch] STT task missing audio_path")
-                with self._lock:
-                    self._stats['stt_failed'] += 1
+                self._stats['stt_failed'] += 1
                 return False
 
             # Get best available provider
             provider_name = self._provider_status.get_best_stt_provider()
             if not provider_name:
                 ColorPrint.red("[SpeechSwitch] No STT providers available")
-                with self._lock:
-                    self._stats['stt_failed'] += 1
+                self._stats['stt_failed'] += 1
                 return False
 
             ColorPrint.blue(f"[SpeechSwitch] Processing STT task with {provider_name} provider")
@@ -374,8 +361,7 @@ class SpeechSwitch:
             provider = self._stt_providers.get(provider_name)
             if not provider:
                 ColorPrint.red(f"[SpeechSwitch] Provider {provider_name} not initialized")
-                with self._lock:
-                    self._stats['stt_failed'] += 1
+                self._stats['stt_failed'] += 1
                 return False
 
             # Call provider
@@ -412,8 +398,7 @@ class SpeechSwitch:
 
                 else:
                     ColorPrint.yellow(f"[SpeechSwitch] Provider {provider_name} not yet implemented")
-                    with self._lock:
-                        self._stats['stt_failed'] += 1
+                    self._stats['stt_failed'] += 1
                     return False
 
             except Exception as e:
@@ -433,14 +418,12 @@ class SpeechSwitch:
                         error=error_msg
                     ))
 
-                with self._lock:
-                    self._stats['stt_failed'] += 1
+                self._stats['stt_failed'] += 1
                 return False
 
         except Exception as e:
             ColorPrint.red(f"[SpeechSwitch] STT task processing error: {e}")
-            with self._lock:
-                self._stats['stt_failed'] += 1
+            self._stats['stt_failed'] += 1
             return False
 
     def _process_whisper_stt(self, provider, audio_path: str, language: str) -> Dict[str, Any]:
@@ -516,9 +499,10 @@ class SpeechSwitch:
             True if registered successfully
         """
         try:
-
-            if not self._initialized:
+            status = self.get_status()
+            if not status['initialized']:
                 self.initialize()
+                status = self.get_status()
 
             thread_pool = get_global_thread_pool()
 
@@ -540,8 +524,8 @@ class SpeechSwitch:
                 },
                 metadata={
                     'description': 'Unified Speech Switch - Routes TTS and STT tasks',
-                    'provider_status': self._provider_status.get_all_status(),
-                    'stats': self._stats.copy()
+                    'provider_status': status['provider_status'],
+                    'stats': status['stats'],
                 }
             )
 
@@ -552,27 +536,48 @@ class SpeechSwitch:
             ColorPrint.red(f"[SpeechSwitch] Failed to register: {e}")
             return False
 
-    def stop(self) -> None:
+    def _stop(self) -> None:
         """Release initialized providers (compatibility helper)."""
-        with self._lock:
-            self._tts_providers.clear()
-            self._stt_providers.clear()
-            self._initialized = False
+        self._tts_providers.clear()
+        self._stt_providers.clear()
+        self._initialized = False
         ColorPrint.blue("[SpeechSwitch] Stopped")
 
-    def get_status(self) -> Dict:
+    def _get_status(self) -> Dict:
         """
         Get switch status
 
         Returns:
             Dict with status information
         """
-        with self._lock:
-            return {
-                'initialized': self._initialized,
-                'provider_status': self._provider_status.get_all_status(),
-                'stats': self._stats.copy()
-            }
+        return {
+            'initialized': self._initialized,
+            'provider_status': self._provider_status.get_all_status(),
+            'stats': self._stats.copy(),
+        }
+
+    def initialize(self) -> None:
+        """Initialize providers on the speech switch owner thread."""
+        call_serialized(_WORK_QUEUE, self._initialize, timeout=120.0)
+
+    def process_task(self, task: Task) -> bool:
+        """Process one task on the speech switch owner thread."""
+        return bool(
+            call_serialized(
+                _WORK_QUEUE,
+                self._process_task,
+                task,
+                timeout=300.0,
+            )
+        )
+
+    def stop(self) -> None:
+        """Stop providers on the speech switch owner thread."""
+        call_serialized(_WORK_QUEUE, self._stop)
+
+    def get_status(self) -> Dict:
+        """Return a status snapshot from the owner thread."""
+        return call_serialized(_WORK_QUEUE, self._get_status)
 
     def print_status(self):
         """Print status (for debugging)"""
@@ -597,7 +602,6 @@ class SpeechSwitch:
 
 # Global singleton instance
 _speech_switch: Optional[SpeechSwitch] = None
-_speech_switch_lock = threading.Lock()
 
 
 def get_speech_switch() -> SpeechSwitch:
@@ -610,9 +614,7 @@ def get_speech_switch() -> SpeechSwitch:
     global _speech_switch
 
     if _speech_switch is None:
-        with _speech_switch_lock:
-            if _speech_switch is None:
-                _speech_switch = SpeechSwitch()
+        _speech_switch = SpeechSwitch()
 
     return _speech_switch
 

@@ -33,7 +33,9 @@ from pycore.callmodule.services import get_translation_worker_service
 from pycore.pyctl.assist import translation_worker_enabled_on_start
 from pycore.callmodule.services.assist_wiring import register_assist_worker_start
 from pycore.callmodule.services import get_ai_rate_reset_service
-from pycore.callmodule.services import get_agent_history_tick_service
+from pycore.callmodule.services.heartbeat_agent_history import (
+    register_agent_history_extraction,
+)
 from pycore.callmodule.services import get_queue_monitor_service
 from pycore.pyheartbeat import get_heartbeat_system
 from pycore.callmodule.services import get_translation_ws_client
@@ -312,31 +314,10 @@ def _register_agent_history_extraction():
     """
     Register the local AI agent history extractor to PyHeartbeat (idempotent).
 
-    Architecture:
-    - Callback name: 'agent_history_extraction'
-    - Interval: PYCORE_AGENT_HISTORY_INTERVAL env (default 10s)
-    - Initial state: ENABLED by default
-    - Store: <cache>/pycore/.ai_state/agent_history/*.txt
-    - Control: POST /api/heartbeat/enable|disable/agent_history_extraction
+    Delegates to services.heartbeat_agent_history.register_agent_history_extraction,
+    the shared helper also used by event_handlers on the pycore_module_caller path.
     """
-
-    heartbeat = get_heartbeat_system()
-    service = get_agent_history_tick_service()
-    interval = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
-    enabled = os.environ.get("PYCORE_AGENT_HISTORY_ENABLED", "1").strip().lower() not in ("0", "false", "no")
-
-    heartbeat.register_callback(
-        name='agent_history_extraction',
-        callback=service.tick,
-        interval=interval,
-        enabled=enabled,
-    )
-
-    ColorPrint.green("[Callmodule] Registered agent history extraction callback")
-    ColorPrint.blue("  - Callback name: agent_history_extraction")
-    ColorPrint.blue(f"  - Interval: {interval} seconds")
-    ColorPrint.blue(f"  - Initial state: {'enabled' if enabled else 'disabled'}")
-    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/agent_history_extraction")
+    register_agent_history_extraction()
 
 
 def _register_queue_monitor():

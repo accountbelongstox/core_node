@@ -83,6 +83,7 @@
 <script lang="ts" setup>
 import { ref, onMounted, watch } from 'vue';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
+import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 
 type Provider = 'chatgpt' | 'gemini';
 const providers: Provider[] = ['chatgpt', 'gemini'];
@@ -103,7 +104,7 @@ const testError = ref('');
 const stats = ref<any>(null);
 
 const send = (action: string, extra: Record<string, any> = {}): Promise<any> =>
-  chrome.runtime.sendMessage({ type: 'ai_web_worker_service', action, ...extra });
+  chrome.runtime.sendMessage({ type: FEATURE_MESSAGE_TYPES.AI_WEB_WORKER, action, ...extra });
 
 const refreshStatus = async () => {
   const r = await send('get_status');

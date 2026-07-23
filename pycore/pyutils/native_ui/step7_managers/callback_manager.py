@@ -234,7 +234,6 @@ class CallbackManager:
 
 # Singleton instance for global callback manager
 _callback_manager_instance: Optional[CallbackManager] = None
-_callback_manager_lock = threading.Lock()
 
 
 def get_callback_manager(debug: bool = False) -> CallbackManager:
@@ -249,7 +248,5 @@ def get_callback_manager(debug: bool = False) -> CallbackManager:
     """
     global _callback_manager_instance
     if _callback_manager_instance is None:
-        with _callback_manager_lock:
-            if _callback_manager_instance is None:
-                _callback_manager_instance = CallbackManager(debug=debug)
+        _callback_manager_instance = CallbackManager(debug=debug)
     return _callback_manager_instance

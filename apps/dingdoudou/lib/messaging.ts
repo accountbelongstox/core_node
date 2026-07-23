@@ -95,8 +95,10 @@ export async function sendToBackground<R extends BgRequest>(
   req: R,
 ): Promise<BgResponse<R['type'] extends keyof ResponseMap ? ResponseMap[R['type']] : unknown>> {
   try {
-    const res = await chrome.runtime.sendMessage(req);
-    return (res ?? { ok: false, error: 'no response' }) as BgResponse<any>;
+    const res: unknown = await chrome.runtime.sendMessage(req);
+    return (res ?? { ok: false, error: 'no response' }) as BgResponse<
+      R['type'] extends keyof ResponseMap ? ResponseMap[R['type']] : unknown
+    >;
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }

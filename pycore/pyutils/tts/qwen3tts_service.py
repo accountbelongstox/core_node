@@ -21,15 +21,21 @@ import json
 import os
 import socket
 import subprocess
-import threading
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.isolated_venv import resolve_python as resolve_isolated_python
+from pycore.pyfoundations.isolated_venv import venv_ready as isolated_venv_ready
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.tts import qwen3tts_venv, qwen3tts_weights
+from pycore.pyutils.tts import qwen3tts_weights
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+    start_bus_task,
+)
 
 _API_SERVER_ASSET = "qwen3tts_api_server.py"
 _HEALTH_TIMEOUT_S = 3.0
@@ -72,9 +78,13 @@ class Qwen3TtsService:
         self._on_output = on_output or (lambda line: ColorPrint.blue(f"[qwen3tts-server] {line}"))
         self._log_cb = log or (lambda msg: ColorPrint.blue(msg))
         self._proc: Optional[subprocess.Popen] = None
-        self._pump_thread: Optional[threading.Thread] = None
-        self._lock = threading.Lock()
         self._external = False  # connected to an already-running server, do not manage it
+        self._state_queue = f'pyutils.tts.qwen3tts.service.{id(self)}'
+        self._state_worker = SerializedWorkerThread(
+            self._state_queue,
+            f'Qwen3TtsServiceThread-{id(self)}',
+        )
+        self._state_worker.start()
 
     # ---- paths / urls ---------------------------------------------------- #
     def api_server_path(self) -> Path:
@@ -88,6 +98,11 @@ class Qwen3TtsService:
 
     # ---- lifecycle ------------------------------------------------------- #
     def is_running(self) -> bool:
+        """Read lifecycle state through the service-owner thread."""
+        return call_serialized(self._state_queue, self._is_running)
+
+    def _is_running(self) -> bool:
+        """Read lifecycle state on the service-owner thread."""
         if self._external:
             return self.health() is not None
         return self._proc is not None and self._proc.poll() is None
@@ -95,73 +110,82 @@ class Qwen3TtsService:
     def start(self, wait_healthy: bool = True, timeout: float = 180.0) -> bool:
         """Launch the api server in the isolated venv (idempotent). If host:port is
         already answering /health, attach to it instead of spawning a duplicate."""
-        with self._lock:
-            if self.is_running():
-                return True
+        return call_serialized(
+            self._state_queue,
+            self._start,
+            wait_healthy,
+            timeout,
+            timeout=max(300.0, timeout + 120.0),
+        )
 
-            if self.port is not None and self.health() is not None:
-                self._external = True
-                self._log(f"[service] attaching to existing api server at {self.base_url()}")
-                return True
+    def _start(self, wait_healthy: bool, health_timeout: float) -> bool:
+        """Start the subprocess on the service-owner thread."""
+        if self._is_running():
+            return True
 
-            self._log("[service] ensuring isolated venv + required packages (idempotent)...")
-            venv_python = qwen3tts_venv.ensure_venv()
+        if self.port is not None and self.health() is not None:
+            self._external = True
+            self._log(f"[service] attaching to existing api server at {self.base_url()}")
+            return True
+
+            self._log("[service] resolving the pre-built isolated venv...")
+            venv_python = resolve_isolated_python("qwen3tts")
             if not venv_python:
                 self._log(
-                    "[service] isolated venv / package provisioning failed. Check the pip "
-                    "output above, or run Step61_InstallQwen3Tts.ps1 / 140_install_qwen3tts.sh."
+                    "[service] isolated venv is not provisioned. Run "
+                    "Step61_InstallQwen3Tts.ps1 / 140_install_qwen3tts.sh first."
                 )
-                return False
+            return False
 
-            script = self.api_server_path()
-            if not script.is_file():
-                self._log(f"[service] api server asset missing: {script}")
-                return False
+        script = self.api_server_path()
+        if not script.is_file():
+            self._log(f"[service] api server asset missing: {script}")
+            return False
 
-            if self.port is None:
-                self.port = _pick_free_port(self.host)
+        if self.port is None:
+            self.port = _pick_free_port(self.host)
 
-            env = dict(os.environ)
+        env = dict(os.environ)
             # The api server is standalone (no pycore imports). Drop any inherited
             # PYTHONPATH/PYTHONHOME so a leaked main-interpreter site-packages entry
             # cannot shadow the venv's transformers==4.57.3 with the system's 4.46.x.
-            env.pop("PYTHONPATH", None)
-            env.pop("PYTHONHOME", None)
-            env["QWEN3TTS_HOST"] = self.host
-            env["QWEN3TTS_PORT"] = str(self.port)
-            if self.model_id:
-                env["QWEN3TTS_MODEL"] = self.model_id
-            if self.device:
-                env["QWEN3TTS_DEVICE"] = self.device
-            env["PYTHONUNBUFFERED"] = "1"
+        env.pop("PYTHONPATH", None)
+        env.pop("PYTHONHOME", None)
+        env["QWEN3TTS_HOST"] = self.host
+        env["QWEN3TTS_PORT"] = str(self.port)
+        if self.model_id:
+            env["QWEN3TTS_MODEL"] = self.model_id
+        if self.device:
+            env["QWEN3TTS_DEVICE"] = self.device
+        env["PYTHONUNBUFFERED"] = "1"
 
-            self._log(f"[service] launching isolated api server: {venv_python} {script}")
-            self._log(
-                f"[service] bind={self.host}:{self.port} "
-                f"model={self.model_id or 'default'} device={self.device or 'auto'}"
-            )
-            self._proc = subprocess.Popen(
-                [venv_python, str(script)],
-                cwd=str(script.parent),
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                bufsize=1,
-            )
-            self._pump_thread = threading.Thread(
-                target=self._pump_output, name="Qwen3TtsSvcOut", daemon=True
-            )
-            self._pump_thread.start()
+        self._log(f"[service] launching isolated api server: {venv_python} {script}")
+        self._log(
+            f"[service] bind={self.host}:{self.port} "
+            f"model={self.model_id or 'default'} device={self.device or 'auto'}"
+        )
+        self._proc = subprocess.Popen(
+            [venv_python, str(script)],
+            cwd=str(script.parent),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+        )
+        start_bus_task(
+            self._pump_output,
+            self._proc,
+            thread_name="Qwen3TtsOutputThread",
+        )
 
         if wait_healthy:
-            return self.wait_healthy(timeout)
+            return self._wait_healthy(health_timeout)
         return True
 
-    def _pump_output(self) -> None:
-        proc = self._proc
+    def _pump_output(self, proc: subprocess.Popen) -> None:
         if proc is None or proc.stdout is None:
             return
         for line in proc.stdout:
@@ -169,6 +193,16 @@ class Qwen3TtsService:
         self._log(f"[service] api server output stream closed (exit={proc.poll()})")
 
     def wait_healthy(self, timeout: float = 180.0) -> bool:
+        """Wait for health through the service-owner thread."""
+        return call_serialized(
+            self._state_queue,
+            self._wait_healthy,
+            timeout,
+            timeout=max(30.0, timeout + 10.0),
+        )
+
+    def _wait_healthy(self, timeout: float = 180.0) -> bool:
+        """Wait for health on the service-owner thread."""
         deadline = time.time() + timeout
         while time.time() < deadline:
             if not self._external and self._proc is not None and self._proc.poll() is not None:
@@ -183,9 +217,13 @@ class Qwen3TtsService:
         return False
 
     def stop(self) -> None:
-        with self._lock:
-            proc = self._proc
-            self._proc = None
+        """Stop the subprocess through the service-owner thread."""
+        call_serialized(self._state_queue, self._stop, timeout=30.0)
+
+    def _stop(self) -> None:
+        """Stop the subprocess on the service-owner thread."""
+        proc = self._proc
+        self._proc = None
         if self._external or proc is None:
             return
         try:
@@ -325,7 +363,7 @@ def resolved_model_id() -> str:
 
 
 def venv_ready() -> bool:
-    return qwen3tts_venv.venv_ready()
+    return isolated_venv_ready("qwen3tts")
 
 
 __all__ = ["Qwen3TtsService", "resolved_model_id", "venv_ready"]

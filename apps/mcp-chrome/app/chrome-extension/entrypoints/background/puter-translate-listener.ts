@@ -7,12 +7,13 @@
 
 import { puterTranslateWorkerService } from './services/puter-translate-worker-service';
 import { logger } from '@/utils/logger';
+import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 
 const LOG = 'Puter Listener';
 
 export function initPuterTranslateListener() {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'puter_translate_worker_service') {
+    if (message.type === FEATURE_MESSAGE_TYPES.PUTER_TRANSLATE_WORKER) {
       handleMessage(message, sendResponse);
       return true; // async
     }

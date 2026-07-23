@@ -20,14 +20,15 @@ optimization — the index/diff API here would not change.
 
 import hashlib
 import os
-import threading
 import time
+import uuid
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 from .runtime import (
     log as ColorPrint, is_shutdown_requested, register_shutdown_handler,
-    get_core_node_root,
+    get_core_node_root, THREAD_BUS, init_serialized_owner, serialized_method,
+    start_bus_task,
 )
 from .sync_settings import build_excluder, get_sync_settings
 from .textnorm import is_binary, normalize_eol
@@ -37,22 +38,28 @@ WATCH_TICK = 1.0  # seconds between index refreshes
 
 class WatchManager:
     def __init__(self):
+        owner_id = uuid.uuid4().hex
         self._index: Dict[str, Tuple[float, str, str]] = {}  # dest_rel -> (mtime, hash, abspath)
-        self._lock = threading.Lock()
         self._running = False
         self._thread = None
         # Set once the FIRST scan has completed with a non-empty index. The push
         # sender gates on this so it never connects + sends an (empty) manifest
         # before the initial scan of a large tree finishes (which would just abort
         # and churn the clients).
-        self._first_scan_done = threading.Event()
+        self._ready_signal = f"codesync.watch.ready.{owner_id}"
+        self._running_signal = f"codesync.watch.running.{owner_id}"
+        init_serialized_owner(self, "codesync.watch.state", "CodeSyncWatchState")
+        THREAD_BUS.clear_signal(self._ready_signal)
+        THREAD_BUS.signal(self._running_signal, False)
 
     def ready(self) -> bool:
         """True once the initial index scan has populated the snapshot."""
-        return self._first_scan_done.is_set()
+        return bool(THREAD_BUS.get_signal(self._ready_signal, False))
 
     def wait_ready(self, timeout: float = None) -> bool:
-        return self._first_scan_done.wait(timeout)
+        if self.ready():
+            return True
+        return bool(THREAD_BUS.wait_signal(self._ready_signal, timeout))
 
     # ----- config ---------------------------------------------------------- #
     def watch_dirs(self) -> List[Path]:
@@ -85,35 +92,37 @@ class WatchManager:
             return f"{watch_dir.name}/{sub}"
 
     # ----- lifecycle ------------------------------------------------------- #
+    @serialized_method
     def start(self) -> None:
         if self._running:
             return
         self._running = True
-        self._thread = threading.Thread(target=self._loop, daemon=True, name="CodeSync-Watch")
-        self._thread.start()
+        THREAD_BUS.signal(self._running_signal, True)
+        self._thread = start_bus_task(self._loop, thread_name="CodeSync-Watch")
         register_shutdown_handler(self.stop, priority=69, name="code_sync_watch")
         ColorPrint.green(f"[Watch] Started ({', '.join(self.watch_dirs_str())})")
 
+    @serialized_method
     def stop(self) -> None:
         self._running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
     def _loop(self) -> None:
-        while self._running and not is_shutdown_requested():
+        while THREAD_BUS.get_signal(self._running_signal, False) and not is_shutdown_requested():
             try:
                 self._scan_once()
             except Exception as exc:
                 ColorPrint.yellow(f"[Watch] scan error: {exc}")
             steps = max(1, int(WATCH_TICK * 2))
             for _ in range(steps):
-                if not self._running or is_shutdown_requested():
+                if not THREAD_BUS.get_signal(self._running_signal, False) or is_shutdown_requested():
                     return
                 time.sleep(0.5)
 
     def _scan_once(self) -> None:
         root = get_core_node_root()
         excluder = build_excluder(root)
-        with self._lock:
-            old = self._index
+        old = self.snapshot()
         new_index: Dict[str, Tuple[float, str, str]] = {}
         for wd in self.watch_dirs():
             if not wd.exists():
@@ -143,12 +152,11 @@ class WatchManager:
                                 continue
                 except OSError:
                     continue
-        with self._lock:
-            self._index = new_index
+        self._replace_index(new_index)
         # Mark ready once we have a real, non-empty index: the push sender waits for
         # this before connecting, so a (re)start never sends an empty manifest.
         if new_index:
-            self._first_scan_done.set()
+            THREAD_BUS.signal(self._ready_signal, True)
 
     @staticmethod
     def _hash(path: Path) -> str:
@@ -170,19 +178,29 @@ class WatchManager:
         except Exception:
             return ""
 
+    @serialized_method
+    def _replace_index(self, new_index: Dict[str, Tuple[float, str, str]]) -> None:
+        self._index = new_index
+
+    @serialized_method
     def snapshot(self) -> Dict[str, Tuple[float, str, str]]:
-        with self._lock:
-            return dict(self._index)
+        return dict(self._index)
 
 
-_watch_manager = None
-_wm_lock = threading.Lock()
+class _WatchManagerProvider:
+    def __init__(self) -> None:
+        self._instance = None
+        init_serialized_owner(self, "codesync.watch_provider", "CodeSyncWatchProvider")
+
+    @serialized_method
+    def get(self) -> WatchManager:
+        if self._instance is None:
+            self._instance = WatchManager()
+        return self._instance
+
+
+_watch_manager_provider = _WatchManagerProvider()
 
 
 def get_watch_manager() -> WatchManager:
-    global _watch_manager
-    if _watch_manager is None:
-        with _wm_lock:
-            if _watch_manager is None:
-                _watch_manager = WatchManager()
-    return _watch_manager
+    return _watch_manager_provider.get()

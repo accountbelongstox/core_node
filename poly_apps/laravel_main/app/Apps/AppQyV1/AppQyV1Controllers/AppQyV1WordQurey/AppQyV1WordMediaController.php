@@ -10,6 +10,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey;
 
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
@@ -171,9 +172,10 @@ class AppQyV1WordMediaController extends BaseController
      *
      * Bump a word's tts_priority so it rises to the front of the audio
      * generation queue on the next missing-batch call. Move-to-front ticket:
-     * the row gets MAX(tts_priority)+1 atomically (FOR UPDATE inside a
-     * transaction), so the newest boost always sorts strictly ahead of every
-     * other row. Safe to call multiple times. Skips is_valid=false rows.
+     * the row gets MAX(tts_priority)+1 under a transaction-scoped advisory
+     * lock on the table, so the newest boost always sorts strictly ahead of
+     * every other row and two concurrent boosts cannot share a ticket. Safe
+     * to call multiple times. Skips is_valid=false rows.
      *
      * Body: { md5, lang }
      *
@@ -192,13 +194,26 @@ class AppQyV1WordMediaController extends BaseController
         }
 
         $langCode = AppQyV1DictionaryService::getLanguageCode($langInput);
+        $dictModel = AppQyV1LangDictionaryModel::forLanguage($langCode);
+        $table = $dictModel->getModel()->getTable();
+        // Guard the raw SQL exactly like the sentence path's tableExists(): a
+        // crafted lang yields a non-existent table name and is rejected here, so
+        // the interpolated identifier can never carry user input into the UPDATE.
+        if (!$dictModel->getConnection()->getSchemaBuilder()->hasTable($table)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unsupported language',
+            ], 400);
+        }
         try {
-            $dictModel = AppQyV1LangDictionaryModel::forLanguage($langCode);
-            $table = $dictModel->getModel()->getTable();
-            $updated = $dictModel->getConnection()->update(
-                "UPDATE {$table} SET tts_priority = (SELECT m FROM (SELECT COALESCE(MAX(tts_priority), 0) + 1 AS m FROM {$table}) x) WHERE md5 = ? AND (is_valid IS NULL OR is_valid = 1)",
-                [$md5]
-            );
+            $conn = $dictModel->getConnection();
+            $updated = $conn->transaction(function () use ($conn, $table, $md5) {
+                AppQyV1TableMaps::lockTableForFrontTicket($conn, $table);
+                return $conn->update(
+                    "UPDATE {$table} SET tts_priority = (SELECT m FROM (SELECT COALESCE(MAX(tts_priority), 0) + 1 AS m FROM {$table}) x) WHERE md5 = ? AND (is_valid IS NULL OR is_valid IS TRUE)",
+                    [$md5]
+                );
+            });
             return response()->json(['success' => true, 'updated' => $updated]);
         } catch (\Throwable $e) {
             Log::warning('[WordMedia] boostPriority failed: ' . $e->getMessage());

@@ -234,6 +234,7 @@ export const enLocaleA: Record<string, string> = {
     'cache.clearItem': 'Clear this item',
     'cache.clearSelected': 'Clear selected',
     'cache.clearAll': 'Clear all',
+    'cache.serverResources': 'Offline API resources',
     'cache.wordflowTtl': 'Other data caches',
     'detail.vocab': 'Syllabus Vocabulary',
     'detail.syllabus': 'Symmetrical Course Decoded',

@@ -1,3 +1,5 @@
+import { STORAGE_KEYS } from '@/utils/storage-keys';
+
 /**
  * Web search core — shared types, URL builders, CAPTCHA hints.
  * Last verified against live Google/Bing result pages: 2026-07-11
@@ -76,7 +78,7 @@ export interface BookCoverSearchResult {
   cacheKey?: string;
 }
 
-export const WEB_SEARCH_PROGRESS_KEY = 'web_search_progress';
+export const WEB_SEARCH_PROGRESS_KEY = STORAGE_KEYS.WEB_SEARCH_PROGRESS;
 
 export interface WebSearchProgress {
   running: boolean;

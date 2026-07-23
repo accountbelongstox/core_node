@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { List, type RowComponentProps } from 'react-window';
 import {
   Users, MessageSquare, Send, UserPlus, UserCheck, Search,
   Activity, Trophy, Check, X, Clock, ChevronRight,
@@ -24,6 +22,7 @@ import { WfNewSocialComposer } from '../components/WfNewSocialComposer';
 import { WfNewSocialGallery } from '../components/WfNewSocialGallery';
 import { WfNewSocialVideo } from '../components/WfNewSocialVideo';
 import { WfNewSocialLive } from '../components/WfNewSocialLive';
+import { WfNewSocialNearby } from '../components/social/WfNewSocialNearby';
 
 interface WfNewSocialProps {
   activeTheme: ElementTheme;
@@ -40,7 +39,7 @@ interface WfNewSocialProps {
   onRequireAuth?: () => void;
 }
 
-type SubTab = 'plaza' | 'post' | 'gallery' | 'video' | 'live' | 'partners' | 'chat' | 'leaderboard';
+type SubTab = 'plaza' | 'post' | 'gallery' | 'video' | 'live' | 'partners' | 'nearby' | 'chat' | 'leaderboard';
 
 import { relativeTime, presenceClass } from '../components/social/socialPresence';
 import { WfNewSocialChat } from '../components/social/WfNewSocialChat';
@@ -51,8 +50,6 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('plaza');
 
   const isLoggedIn = !!currentUser.isLoggedIn;
-  // Gated actions (post / like / comment / chat / go-live) route logged-out users
-  // to the auth screen — mirrors the rest of the app's self-gating.
   const requireAuth = useCallback(() => {
     addToast(trans('social.loginRequired'), 'info');
     onRequireAuth?.();
@@ -61,40 +58,43 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
   // Presence map (id → status), seeded + updated live across the whole page.
   const [presence, setPresence] = useState<Record<number, WfNewPresenceStatus>>({});
 
-  // ---------------------------------------------------------------- PLAZA ----
-  // The post timeline (NEW). Held here so SSE post.* events update it live and the
-  // composer can prepend a freshly-created post.
   const [posts, setPosts] = useState<WfNewPost[]>([]);
   const [plazaLoading, setPlazaLoading] = useState(true);
   const [plazaFilter, setPlazaFilter] = useState<WfNewPostFilter>('all');
 
   useEffect(() => {
     let alive = true;
+    if (!isLoggedIn) {
+      setPosts([]);
+      setPlazaLoading(false);
+      return () => { alive = false; };
+    }
     setPlazaLoading(true);
     wfNewApi.getPosts({ filter: plazaFilter, limit: 20 })
       .then(page => { if (alive) setPosts(page.items); })
       .catch(() => { if (alive) setPosts([]); })
       .finally(() => { if (alive) setPlazaLoading(false); });
     return () => { alive = false; };
-  }, [plazaFilter]);
+  }, [plazaFilter, isLoggedIn]);
 
-  // ---------------------------------------------------------------- FEED -----
-  // (legacy activity feed — still loaded but folded under the leaderboard tab's
-  // "recent activity" use; kept to avoid losing the followed-users digest.)
   const [activities, setActivities] = useState<WfNewActivity[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
+    if (!isLoggedIn) {
+      setActivities([]);
+      setFeedLoading(false);
+      return () => { alive = false; };
+    }
     setFeedLoading(true);
     wfNewApi.getActivities()
       .then(rows => { if (alive) setActivities(Array.isArray(rows) ? rows : []); })
       .catch(() => { if (alive) setActivities([]); })
       .finally(() => { if (alive) setFeedLoading(false); });
     return () => { alive = false; };
-  }, []);
+  }, [isLoggedIn]);
 
-  // ------------------------------------------------------------ PARTNERS -----
   const [discover, setDiscover] = useState<WfNewDiscoverUser[]>([]);
   const [discoverLoading, setDiscoverLoading] = useState(true);
   const [partnerSearch, setPartnerSearch] = useState('');
@@ -103,17 +103,21 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
   const [incoming, setIncoming] = useState<WfNewFriendRequest[]>([]);
 
   const refreshRequests = useCallback(() => {
+    if (!isLoggedIn) { setIncoming([]); return; }
     wfNewApi.getFriendRequests('incoming')
       .then(rows => setIncoming(Array.isArray(rows) ? rows : []))
       .catch(() => setIncoming([]));
-  }, []);
+  }, [isLoggedIn]);
 
-  // Discover on mount + whenever the ribbon / search changes (debounced).
   useEffect(() => {
     let alive = true;
+    if (!isLoggedIn) {
+      setDiscover([]);
+      setDiscoverLoading(false);
+      return () => { alive = false; };
+    }
     setDiscoverLoading(true);
     const native = currentUser.nativeLang || undefined;
-    // The ribbon overrides the target; 'all' clears it (falls back to user's target).
     const target = ribbonLang === 'all' ? (currentUser.targetLang || undefined) : ribbonLang;
     const handle = setTimeout(() => {
       wfNewApi.discoverByLanguage({ native, target, q: partnerSearch.trim() || undefined, limit: 50 })
@@ -121,7 +125,6 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
           if (!alive) return;
           const list = Array.isArray(rows) ? rows : [];
           setDiscover(list);
-          // Seed partner-card dots from the backend's per-row presence (M2).
           setPresence(prev => {
             const next = { ...prev };
             for (const u of list) if (u.presence) next[u.id] = u.presence;
@@ -132,11 +135,12 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
         .finally(() => { if (alive) setDiscoverLoading(false); });
     }, 350);
     return () => { alive = false; clearTimeout(handle); };
-  }, [ribbonLang, partnerSearch, currentUser.nativeLang, currentUser.targetLang]);
+  }, [ribbonLang, partnerSearch, currentUser.nativeLang, currentUser.targetLang, isLoggedIn]);
 
   useEffect(() => { refreshRequests(); }, [refreshRequests]);
 
   const handleAddFriend = useCallback((user: WfNewDiscoverUser) => {
+    if (!isLoggedIn) { requireAuth(); return; }
     setPendingIds(prev => ({ ...prev, [user.id]: true }));
     wfNewApi.sendFriendRequest(user.id)
       .then(() => addToast(trans('social.requestSent', { name: user.nickname }), 'success'))
@@ -144,18 +148,18 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
         setPendingIds(prev => { const next = { ...prev }; delete next[user.id]; return next; });
         addToast(trans('social.requestFailed'), 'warning');
       });
-  }, [addToast, trans]);
+  }, [isLoggedIn, requireAuth, addToast, trans]);
 
   const handleRespond = useCallback((req: WfNewFriendRequest, action: 'accept' | 'reject') => {
+    if (!isLoggedIn) { requireAuth(); return; }
     wfNewApi.respondFriendRequest(req.id, action)
       .then(() => {
         addToast(action === 'accept' ? trans('social.requestAccepted') : trans('social.requestRejected'), action === 'accept' ? 'success' : 'info');
         refreshRequests();
       })
       .catch(() => addToast(trans('social.requestFailed'), 'warning'));
-  }, [addToast, trans, refreshRequests]);
+  }, [isLoggedIn, requireAuth, addToast, trans, refreshRequests]);
 
-  // --------------------------------------------------------------- CHAT ------
   const [conversations, setConversations] = useState<WfNewConversation[]>([]);
   const [convLoading, setConvLoading] = useState(true);
   const [selectedConvId, setSelectedConvId] = useState<number | null>(null);
@@ -166,19 +170,11 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
   const selectedConvIdRef = useRef<number | null>(null);
   useEffect(() => { selectedConvIdRef.current = selectedConvId; }, [selectedConvId]);
 
-  // Refs mirror the id sources so the periodic presence poll (M1) reads the latest
-  // visible ids without re-arming the interval on every list change.
   const conversationsRef = useRef<WfNewConversation[]>([]);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
   const discoverRef = useRef<WfNewDiscoverUser[]>([]);
   useEffect(() => { discoverRef.current = discover; }, [discover]);
 
-  // M1: periodic presence re-poll. The backend never pushes friend.offline /
-  // presence.update (offline is read-derived via the 60s-stale rule), so without
-  // this dots would stay "online" forever. Every 45s, batch getPresence over the
-  // union of visible ids (conversation peers + discover partners) and merge the
-  // result — this is how the server's 60s-stale→offline surfaces in the UI. The
-  // friend.online SSE push still updates instantly between polls.
   useEffect(() => {
     let alive = true;
     const poll = () => {
@@ -207,16 +203,16 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
   );
 
   const loadConversations = useCallback(() => {
+    if (!isLoggedIn) { setConversations([]); setConvLoading(false); return; }
     setConvLoading(true);
     return wfNewApi.getConversations()
       .then(rows => { const list = Array.isArray(rows) ? rows : []; setConversations(list); return list; })
       .catch(() => { setConversations([]); return [] as WfNewConversation[]; })
       .finally(() => setConvLoading(false));
-  }, []);
+  }, [isLoggedIn]);
 
   useEffect(() => { void loadConversations(); }, [loadConversations]);
 
-  // Open a conversation: load messages, mark read, zero its unread badge.
   const openConversation = useCallback((conv: WfNewConversation) => {
     setSelectedConvId(conv.id);
     setMessagesLoading(true);
@@ -246,9 +242,8 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
       .catch(() => addToast(trans('social.sendFailed'), 'warning'));
   }, [draft, selectedConvId, addToast, trans]);
 
-  // Open/create the conversation with a user (by id) and jump to Chat. Shared by
-  // the partner-card "Message" button, the peer header and the profile modal.
   const openConversationWithUser = useCallback((userId: number) => {
+    if (!isLoggedIn) { requireAuth(); return; }
     wfNewApi.openConversation(userId)
       .then(conv => {
         setConversations(prev => (prev.some(c => c.id === conv.id) ? prev.map(c => (c.id === conv.id ? conv : c)) : [conv, ...prev]));
@@ -256,32 +251,32 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
         openConversation(conv);
       })
       .catch(() => addToast(trans('social.sendFailed'), 'warning'));
-  }, [openConversation, addToast, trans]);
+  }, [isLoggedIn, requireAuth, openConversation, addToast, trans]);
 
-  // Partners → "Message": open/create the conversation and jump to Chat.
   const handleMessageUser = useCallback((user: WfNewDiscoverUser) => openConversationWithUser(user.id), [openConversationWithUser]);
 
-  // ---- Public user-profile modal (opened by user id from cards / chat peers) --
   const [profileUserId, setProfileUserId] = useState<number | null>(null);
   const openProfile = useCallback((id: number) => { if (Number.isFinite(id)) setProfileUserId(id); }, []);
 
-  // ------------------------------------------------------- LEADERBOARD -------
   const [leaderboard, setLeaderboard] = useState<WfNewLeaderboardEntry[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [period, setPeriod] = useState<'week' | 'all'>('all');
 
   useEffect(() => {
     let alive = true;
+    if (!isLoggedIn) {
+      setLeaderboard([]);
+      setLeaderboardLoading(false);
+      return () => { alive = false; };
+    }
     setLeaderboardLoading(true);
     wfNewApi.getLeaderboard(period)
       .then(rows => { if (alive) setLeaderboard(Array.isArray(rows) ? rows : []); })
       .catch(() => { if (alive) setLeaderboard([]); })
       .finally(() => { if (alive) setLeaderboardLoading(false); });
     return () => { alive = false; };
-  }, [period]);
+  }, [period, isLoggedIn]);
 
-  // ----------------------------------------------------------- PRESENCE ------
-  // Seed presence for every conversation peer once they are loaded.
   useEffect(() => {
     const ids = conversations.map(c => c.peer?.id).filter((n): n is number => typeof n === 'number');
     if (!ids.length) return;
@@ -299,8 +294,8 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
     return () => { alive = false; };
   }, [conversations]);
 
-  // ------------------------------------------------------- SSE WIRING --------
   useEffect(() => {
+    if (!isLoggedIn) return;
     const setPresenceFor = (payload: any, status: WfNewPresenceStatus) => {
       const id = Number(payload?.user_id ?? payload?.id);
       if (Number.isFinite(id)) setPresence(prev => ({ ...prev, [id]: payload?.status || status }));
@@ -369,13 +364,10 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
         if (!Number.isFinite(id)) return;
         setPosts(prev => prev.map(p => (p.id === id ? { ...p, comment_count: p.comment_count + 1 } : p)));
       }),
-      // 'live.started' / 'live.chat.new' are handled inside WfNewSocialLive (room-scoped).
     ];
     return () => { for (const u of unsubs) u(); };
-  }, [addToast, trans, refreshRequests]);
+  }, [isLoggedIn, addToast, trans, refreshRequests]);
 
-  // Presence heartbeat: while logged in + on the social page, beat every 30s so the
-  // backend keeps me 'online' (mirrors SOCIAL_FEATURE_SPECIFICATION presence rule).
   useEffect(() => {
     if (!isLoggedIn) return;
     let alive = true;
@@ -403,6 +395,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
     { id: 'video', label: trans('social.tabVideo') },
     { id: 'live', label: trans('social.tabLive') },
     { id: 'partners', label: trans('social.tabPartners') },
+    { id: 'nearby', label: trans('social.tabNearby') },
     { id: 'chat', label: trans('social.tabChat') },
     { id: 'leaderboard', label: trans('social.tabLeaderboard') },
   ];
@@ -477,7 +470,12 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
 
         {/* ====== GALLERY (image-only feed + lightbox) ====== */}
         {activeSubTab === 'gallery' && (
-          <WfNewSocialGallery activeTheme={activeTheme} trans={trans} />
+          <WfNewSocialGallery
+            activeTheme={activeTheme}
+            trans={trans}
+            isLoggedIn={isLoggedIn}
+            requireAuth={requireAuth}
+          />
         )}
 
         {/* ====== VIDEO (uploaded clips + external embeds) ====== */}
@@ -499,6 +497,16 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
             addToast={addToast}
             isLoggedIn={isLoggedIn}
             requireAuth={requireAuth}
+          />
+        )}
+
+        {activeSubTab === 'nearby' && (
+          <WfNewSocialNearby
+            isLoggedIn={isLoggedIn}
+            requireAuth={requireAuth}
+            addToast={addToast}
+            onMessage={openConversationWithUser}
+            trans={trans}
           />
         )}
 

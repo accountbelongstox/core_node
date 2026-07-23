@@ -6,7 +6,7 @@
 # transformers==4.57.3, which CANNOT coexist with the main interpreter's shared 4.46.x
 # pin (Bucket A: deepseek/qwen25/nllb/bark). So qwen-tts is NEVER installed into the main
 # interpreter. It lives in a DEDICATED per-engine venv built + verified by
-# pycore.pyutils.tts.qwen3tts_venv.ensure_venv() (created --system-site-packages so it
+# pycore.pyfoundations.isolated_venv.ensure_venv() (created --system-site-packages so it
 # REUSES the system CUDA torch; only the pinned transformers/accelerate are layered in,
 # shadowing the main copies). The qwen3tts_api_server.py runs under that venv and pycore
 # (tts_service_manager / qwen3tts_engine) talks to it over HTTP as a managed class-C server.
@@ -22,18 +22,23 @@ set -uo pipefail
 PYTHON="python3"
 FORCE=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Repo root = 5 levels up from install_shells (scripts/shells/linux/debian/install_shells);
-# needed on sys.path so `import pycore...` resolves when building the isolated venv.
-CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
-TARGET_DIR="${QWEN3TTS_DIR:-$CORE_NODE_CACHE_DIR/pycore/qwen3tts}"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
+CACHE_ROOT="${CORE_NODE_CACHE_DIR:-$REPO_ROOT/.cache}"
+TARGET_DIR="${QWEN3TTS_DIR:-$CACHE_ROOT/pycore/qwen3tts}"
 WEIGHTS_DIR="$TARGET_DIR/weights"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 MODEL_SENTINEL="$TARGET_DIR/.model_installed"
 # qwen_tts is intentionally absent from the main interpreter (it lives in the isolated
 # venv), so the post-install probe reports it as an accepted SKIP, never a FAIL.
 QWEN3TTS_ABSENT_NOTE="qwen-tts lives in the isolated venv (Bucket B), not the main interpreter"
-# Python bool literal handed to ensure_venv(force=...); set True on --force after parsing.
-_QWEN3TTS_FORCE_PY=False
+_QWEN3TTS_FORCE_PY=0
+_venv_ready=0
+_model_ready=0
+_gpu_flag="--cpu"
+_qwen_model=""
+_sentinel_model=""
+_assets_dir=""
+_line=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -43,16 +48,11 @@ while [[ $# -gt 0 ]]; do
         *) shift ;;
     esac
 done
-[[ "$FORCE" -eq 1 ]] && _QWEN3TTS_FORCE_PY=True
+[[ "$FORCE" -eq 1 ]] && _QWEN3TTS_FORCE_PY=1
 
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
 . "$SCRIPT_DIR/../../common/base_libs/lib_gpu.sh"
 . "$SCRIPT_DIR/../../common/base_libs/cuda_index.sh"
-
-PIPLOCK_LIB="$SCRIPT_DIR/../../common/base_libs/pip_lock.sh"
-[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
-pip_i() { vpip "$PYTHON" -m pip install --break-system-packages "$@" 2>/dev/null || vpip "$PYTHON" -m pip install "$@"; }
 
 resolve_python() {
     local p
@@ -71,7 +71,7 @@ resolve_python() {
 # Python bool literal (True on --force). Returns 0 only when qwen_tts imports in the venv.
 provision_qwen3tts_venv() {
     local force_py="$1"
-    "$PYTHON" -c "import sys; sys.path.insert(0, r'''$CORE_NODE_ROOT'''); from pycore.pyutils.tts import qwen3tts_venv; sys.exit(0 if qwen3tts_venv.ensure_venv(force=$force_py) else 1)"
+    tts_provision_isolated_venv "$PYTHON" "qwen3tts" "$force_py"
 }
 
 echo "============================================================"
@@ -82,11 +82,14 @@ echo "============================================================"
 
 if ! PYTHON="$(resolve_python)"; then
     echo "[install_qwen3tts] [!] Python 3 not found."
+    fail_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
+fi
+
+if ! tts_engine_compatible "$PYTHON" "qwen3tts" "[install_qwen3tts] "; then
     complete_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
 fi
 
 mkdir -p "$TARGET_DIR"
-_gpu_flag="--cpu"
 if gpu_present; then _gpu_flag="--gpu"; fi
 _qwen_model="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" qwen3tts_model "$_gpu_flag")"
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" qwen3tts | while read -r _line; do
@@ -99,7 +102,12 @@ echo "[install_qwen3tts]  sentinel: $MODEL_SENTINEL ($([ -f "$MODEL_SENTINEL" ] 
 
 ensure_sox_on_path "[install_qwen3tts] " || true
 
-if [[ -f "$DEPS_SENTINEL" && -f "$MODEL_SENTINEL" && "$FORCE" -eq 0 ]]; then
+if ! install_pycore_torch_stack "$PYTHON" "[install_qwen3tts] "; then
+    echo "[install_qwen3tts] [!] canonical torch is not usable; Qwen3-TTS will retry next run." >&2
+    fail_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
+fi
+
+if tts_dependency_stamp_matches "$PYTHON" "qwen3tts" "$DEPS_SENTINEL" && [[ -f "$MODEL_SENTINEL" && "$FORCE" -eq 0 ]]; then
     _sentinel_model="$(tr -d '\r\n\ufeff' < "$MODEL_SENTINEL" 2>/dev/null || true)"
     if [[ "$_sentinel_model" == "$_qwen_model" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_qwen_model"; then
         # Weights verified; also verify (and self-repair) the isolated venv before the
@@ -117,9 +125,9 @@ if [[ -f "$DEPS_SENTINEL" && -f "$MODEL_SENTINEL" && "$FORCE" -eq 0 ]]; then
     fi
 fi
 
-_ASSETS_DIR="$(pycore_tts_install_assets_dir "$SCRIPT_DIR")"
-if [[ -f "$_ASSETS_DIR/qwen3tts_api_server.py" ]]; then
-    cp -f "$_ASSETS_DIR/qwen3tts_api_server.py" "$TARGET_DIR/qwen3tts_api_server.py"
+_assets_dir="$(pycore_tts_install_assets_dir "$SCRIPT_DIR")"
+if [[ -f "$_assets_dir/qwen3tts_api_server.py" ]]; then
+    cp -f "$_assets_dir/qwen3tts_api_server.py" "$TARGET_DIR/qwen3tts_api_server.py"
 fi
 
 # --- Isolated qwen-tts venv (Bucket B) ----------------------------------- #
@@ -128,26 +136,26 @@ fi
 # stack (installed below), which the venv REUSES via --system-site-packages. ensure_venv()
 # is idempotent + self-repairing, so it runs on every sweep — even with the sentinel
 # present — to heal a drifted / half-built venv.
-if [[ -f "$DEPS_SENTINEL" && "$FORCE" -eq 0 ]]; then
+if tts_dependency_stamp_matches "$PYTHON" "qwen3tts" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "isolated qwen-tts venv provisioned (.deps_done)"
     if provision_qwen3tts_venv "$_QWEN3TTS_FORCE_PY"; then
+        _venv_ready=1
         echo "[install_qwen3tts] [OK] isolated qwen-tts venv verified (self-repair)."
     else
         echo "[install_qwen3tts] [!] venv verify/repair incomplete; will RESUME next run."
     fi
 else
     "$PYTHON" -m pip install --upgrade pip || true
-    install_pycore_torch_stack "$PYTHON" "[install_qwen3tts] "
     echo "[install_qwen3tts] [..] provisioning isolated qwen-tts venv (transformers==4.57.3 shadows main; system torch reused) ..."
     if provision_qwen3tts_venv "$_QWEN3TTS_FORCE_PY"; then
-        date -u +%Y-%m-%dT%H:%M:%SZ > "$DEPS_SENTINEL"
+        tts_write_dependency_stamp "$PYTHON" "qwen3tts" "$DEPS_SENTINEL"
+        _venv_ready=1
         echo "[install_qwen3tts] [OK] isolated qwen-tts venv ready; main interpreter untouched."
     else
         echo "[install_qwen3tts] [!] venv provisioning incomplete; will RESUME next run."
     fi
 fi
 
-_model_ready=0
 if [[ -f "$MODEL_SENTINEL" && "$FORCE" -eq 0 ]]; then
     _sentinel_model="$(tr -d '\r\n\ufeff' < "$MODEL_SENTINEL" 2>/dev/null || true)"
     if [[ "$_sentinel_model" == "$_qwen_model" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_qwen_model"; then
@@ -159,10 +167,16 @@ if [[ "$_model_ready" -eq 0 ]]; then
     echo "[install_qwen3tts] [..] downloading/repairing model '$_qwen_model' (curl, resumable) ..."
     if install_hf_repo_flat "$_qwen_model" "$WEIGHTS_DIR" "$MODEL_SENTINEL" "[install_qwen3tts] " "*" "$(_hf_mirror_base)" "$_qwen_model" \
         && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_qwen_model"; then
+        _model_ready=1
         echo "[install_qwen3tts] [OK] model '$_qwen_model' ready at $WEIGHTS_DIR."
     else
         echo "[install_qwen3tts] [!] model download not finished; partial files kept at $WEIGHTS_DIR; will RESUME next run."
     fi
+fi
+
+if [[ "$_venv_ready" -ne 1 || "$_model_ready" -ne 1 ]]; then
+    echo "[install_qwen3tts] [!] Qwen3-TTS is not ready; incomplete components will retry next run." >&2
+    fail_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
 fi
 
 echo "[install_qwen3tts] [OK] Qwen3-TTS ready. export QWEN3TTS_MODEL=$_qwen_model"

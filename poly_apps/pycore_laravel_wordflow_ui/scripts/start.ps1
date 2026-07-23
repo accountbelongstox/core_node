@@ -14,6 +14,7 @@
 # in the foreground -- unless a background NSSM service is requested (see below).
 # Run from repo: .\poly_apps\pycore_laravel_wordflow_ui\scripts\start.ps1
 #   Force reinstall: -ForceInstall     Skip backend: -NoBackend
+#   Build detected APK: -BuildApk [-App wordnew] [-ApkType debug|release]
 #   Background service (idempotent, via NSSM): needs NO parameter -- env var
 #   AS_SERVICE=yes|no pre-answers the prompt (same name/values as start.sh) for
 #   non-interactive callers. Env var NEXUS_DASH_SERVICE_RUN=1 (set via NSSM
@@ -25,7 +26,22 @@ param(
     [Parameter(Mandatory = $false)]
     [switch]$ForceInstall,
     [Parameter(Mandatory = $false)]
-    [switch]$NoBackend
+    [switch]$NoBackend,
+    [Parameter(Mandatory = $false)]
+    [switch]$BuildApk,
+    [Parameter(Mandatory = $false)]
+    [string]$App,
+    [Parameter(Mandatory = $false)]
+    [ValidateSet('ask', 'debug', 'release')]
+    [string]$ApkType = 'ask',
+    [Parameter(Mandatory = $false)]
+    [switch]$SkipApkAssets,
+    [Parameter(Mandatory = $false)]
+    [switch]$CleanApk,
+    [Parameter(Mandatory = $false)]
+    [switch]$NoOpenOutput,
+    [Parameter(Mandatory = $false)]
+    [switch]$NonInteractive
 )
 
 $OriginalDir = (Get-Location).Path
@@ -37,6 +53,7 @@ $LaravelScriptsDir = Join-Path (Join-Path $PolyAppsDir "laravel_main") "scripts"
 $LaravelStart = Join-Path $LaravelScriptsDir "start.ps1"
 $NodeModulesPath = Join-Path $AppRoot "node_modules"
 $PackageJsonPath = Join-Path $AppRoot "package.json"
+$BuildApkScript = Join-Path $ScriptDir "flavor\build_apk.py"
 $PwshExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue)
 $NeedInstall = $false
 $hasAnyPackage = $null
@@ -63,6 +80,8 @@ $NssmPath = $null
 $PwshServiceExe = $null
 $ServiceArgs = $null
 $ServiceRegistered = $false
+$PythonCommand = $null
+$BuildArguments = @()
 
 # Shared NSSM service registration helper (idempotent install-or-update + restart).
 . $NssmServiceManagerScript
@@ -202,6 +221,33 @@ try {
     Write-Success "Dependencies ready."
 } finally {
     Pop-Location
+}
+
+# --- APK action: detect a native-enabled flavor, build it, and stop. ---
+if ($BuildApk) {
+    $PythonCommand = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $PythonCommand) { $PythonCommand = Get-Command python3 -ErrorAction SilentlyContinue }
+    if (-not $PythonCommand) {
+        Write-Err "Python is required for APK flavor preparation."
+        Set-Location -LiteralPath $OriginalDir
+        exit 1
+    }
+    if (-not (Test-Path -LiteralPath $BuildApkScript)) {
+        Write-Err "APK build script not found: $BuildApkScript"
+        Set-Location -LiteralPath $OriginalDir
+        exit 1
+    }
+    $BuildArguments = @($BuildApkScript, '--root', $AppRoot, '--build-type', $ApkType)
+    if ($App) { $BuildArguments = @($BuildArguments; '--app'; $App) }
+    if ($SkipApkAssets) { $BuildArguments = @($BuildArguments; '--assets'; 'no') }
+    if ($CleanApk) { $BuildArguments = @($BuildArguments; '--clean'; 'yes') }
+    if ($NoOpenOutput) { $BuildArguments = @($BuildArguments; '--open'; 'no') }
+    if ($NonInteractive) { $BuildArguments = @($BuildArguments; '--non-interactive') }
+    Write-Info "Starting APK build workflow."
+    & $PythonCommand.Source @BuildArguments
+    $ExitCode = $LASTEXITCODE
+    Set-Location -LiteralPath $OriginalDir
+    exit $ExitCode
 }
 
 # --- 2b) Optional background service registration (parity with start.sh's AS_SERVICE

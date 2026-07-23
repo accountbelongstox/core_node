@@ -24,15 +24,19 @@ import importlib.metadata
 import importlib.util
 import os
 import tempfile
-import threading
 import time
 import wave
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyutils.common.managed_service import CategorySettings, ServiceSpec, managed_services
 from pycore.pyutils.common import model_load_status
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 from pycore.pyfoundations.third_party import (
     get_third_package_vosk,
     get_third_package_whisper,
@@ -97,7 +101,10 @@ def _priority() -> tuple[str, ...]:
 
 # Cache loaded local models so repeat tests don't reload weights every click.
 _model_cache: Dict[str, Any] = {}
-_cache_lock = threading.Lock()
+_MODEL_QUEUE = 'pyutils.stt.orchestrator.model'
+_MODEL_LOADED_PREFIX = 'pyutils.stt.orchestrator.loaded'
+_MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, 'STTModelThread')
+_MODEL_WORKER.start()
 
 
 STT_ENGINE_PRIORITY = _priority()
@@ -246,6 +253,7 @@ def _transcribe_faster_whisper(audio_path: Path, language: Optional[str],
     if model is None:
         model = WhisperModel(model_name, device=device, compute_type=compute)
         _model_cache[cache_key] = model
+        THREAD_BUS.signal(f'{_MODEL_LOADED_PREFIX}.faster-whisper', True)
     segments, _info = model.transcribe(str(audio_path), language=language)
     return " ".join(seg.text.strip() for seg in segments).strip()
 
@@ -259,6 +267,7 @@ def _transcribe_whisper(audio_path: Path, language: Optional[str],
     if model is None:
         model = whisper.load_model(model_name)
         _model_cache[cache_key] = model
+        THREAD_BUS.signal(f'{_MODEL_LOADED_PREFIX}.whisper', True)
     result = model.transcribe(str(audio_path), language=language, fp16=False)
     return str(result.get("text", "")).strip()
 
@@ -272,6 +281,7 @@ def _transcribe_vosk(audio_path: Path, language: Optional[str]) -> str:
     if model is None:
         model = vosk.Model(str(model_dir))
         _model_cache["vosk"] = model
+        THREAD_BUS.signal(f'{_MODEL_LOADED_PREFIX}.vosk', True)
     with wave.open(str(audio_path), "rb") as wf:
         rec = vosk.KaldiRecognizer(model, wf.getframerate())
         rec.SetWords(False)
@@ -320,8 +330,8 @@ def _model_load_ctx(engine: str):
     )
 
 
-def transcribe(engine: str, audio_path: Path, language: Optional[str] = None,
-               model: Optional[str] = None) -> str:
+def _transcribe(engine: str, audio_path: Path, language: Optional[str] = None,
+                model: Optional[str] = None) -> str:
     # Busy-protected managed lifecycle: STT models load in parallel (no eviction);
     # each idle-unloads after 60s. azure is an API engine (unregistered) ->
     # `using` is a no-op for it.
@@ -335,6 +345,20 @@ def transcribe(engine: str, audio_path: Path, language: Optional[str] = None,
         if engine == "azure":
             return _transcribe_azure(audio_path, language)
         raise ValueError(f"unknown STT engine: {engine}")
+
+
+def transcribe(engine: str, audio_path: Path, language: Optional[str] = None,
+               model: Optional[str] = None) -> str:
+    """Transcribe through the single model-owner thread."""
+    return call_serialized(
+        _MODEL_QUEUE,
+        _transcribe,
+        engine,
+        audio_path,
+        language,
+        model,
+        timeout=900.0,
+    )
 
 
 def _make_sample_clip(language: str, want_wav: bool, phrase: str = _SAMPLE_PHRASE) -> Optional[Path]:
@@ -424,27 +448,36 @@ def stt_test(engine: Optional[str] = None, language: str = "en",
     return result
 
 
-def is_model_loaded(engine: str) -> bool:
+def _is_model_loaded(engine: str) -> bool:
     """True when a local STT model for `engine` is resident in memory."""
-    with _cache_lock:
-        if engine in ("faster-whisper", "whisper"):
-            return any(isinstance(k, tuple) and k and k[0] == engine for k in _model_cache)
-        if engine == "vosk":
-            return "vosk" in _model_cache
+    if engine in ("faster-whisper", "whisper"):
+        return any(isinstance(k, tuple) and k and k[0] == engine for k in _model_cache)
+    if engine == "vosk":
+        return "vosk" in _model_cache
     return False
 
 
-def unload_model(engine: str) -> None:
+def _unload_model(engine: str) -> None:
     """Drop cached STT model(s) for `engine` so their memory can be freed. The
     managed-service layer releases the GPU cache afterwards and only calls this
     when no transcription is in flight (busy protection)."""
-    with _cache_lock:
-        if engine in ("faster-whisper", "whisper"):
-            for k in list(_model_cache):
-                if isinstance(k, tuple) and k and k[0] == engine:
-                    _model_cache.pop(k, None)
-        elif engine == "vosk":
-            _model_cache.pop("vosk", None)
+    if engine in ("faster-whisper", "whisper"):
+        for key in list(_model_cache):
+            if isinstance(key, tuple) and key and key[0] == engine:
+                _model_cache.pop(key, None)
+    elif engine == "vosk":
+        _model_cache.pop("vosk", None)
+
+
+def is_model_loaded(engine: str) -> bool:
+    """Read model residency from the model-owner signal."""
+    return bool(THREAD_BUS.get_signal(f'{_MODEL_LOADED_PREFIX}.{engine}', False))
+
+
+def unload_model(engine: str) -> None:
+    """Unload a model through the model-owner thread."""
+    call_serialized(_MODEL_QUEUE, _unload_model, engine)
+    THREAD_BUS.signal(f'{_MODEL_LOADED_PREFIX}.{engine}', False)
 
 
 def _register_stt_services() -> None:

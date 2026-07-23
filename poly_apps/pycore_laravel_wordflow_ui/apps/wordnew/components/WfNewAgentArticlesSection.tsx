@@ -4,21 +4,11 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BookOpen, Headphones, Loader2, Radio } from 'lucide-react';
-import { wfNewEndpoints } from '../api/WfNewEndpoints';
-import { absUrl } from '../api/WfNewApiMappers';
+import { wfNewApi, type WfNewAgentArticle } from '../api';
+import { resolveAudioSync } from '../cache/WfNewAudioCache';
+import type { ElementTheme } from '../WfNewTypes';
 
-export interface AgentArticleRow {
-  id: string;
-  title: string;
-  title_cn?: string | null;
-  reference_cn?: string | null;
-  article_en?: string | null;
-  source_key?: string | null;
-  article_id?: string | null;
-  audio_url?: string | null;
-  word_count?: number | null;
-  published_at?: string | null;
-}
+export type AgentArticleRow = WfNewAgentArticle;
 
 interface Props {
   theme: ElementTheme;
@@ -27,28 +17,6 @@ interface Props {
 }
 
 const POLL_MS = 12_000;
-
-async function fetchLaravelRecent(): Promise<AgentArticleRow[]> {
-  const base = wfNewEndpoints.getCurrentBaseUrl();
-  if (!base) return [];
-  const url = `${base.replace(/\/$/, '')}/api/app_qy_v1/ai_tools/article/worker/recent?limit=20`;
-  const res = await fetch(url);
-  if (!res.ok) return [];
-  const body = await res.json();
-  const items = body?.data?.items ?? body?.items ?? [];
-  if (!Array.isArray(items)) return [];
-  return items.map((it: any) => ({
-    id: String(it.article_id || it.source_key || it.title || Math.random()),
-    title: String(it.title || 'Article'),
-    title_cn: it.title_cn ?? null,
-    reference_cn: it.reference_cn ?? null,
-    source_key: it.source_key || it.article_id || null,
-    article_id: it.article_id || null,
-    audio_url: it.audio_url ? (absUrl(it.audio_url) ?? null) : null,
-    word_count: it.word_count ?? null,
-    published_at: it.created_at ?? null,
-  }));
-}
 
 export const WfNewAgentArticlesSection: React.FC<Props> = ({ theme, trans, onOpenBook }) => {
   const [rows, setRows] = useState<AgentArticleRow[]>([]);
@@ -60,7 +28,7 @@ export const WfNewAgentArticlesSection: React.FC<Props> = ({ theme, trans, onOpe
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const laravel = await fetchLaravelRecent().catch(() => []);
+      const laravel = await wfNewApi.getRecentAgentArticles(20).catch(() => []);
       if (mounted.current) setRows(laravel);
     } finally {
       if (mounted.current) setLoading(false);
@@ -87,7 +55,7 @@ export const WfNewAgentArticlesSection: React.FC<Props> = ({ theme, trans, onOpe
       audioRef.current.pause();
       audioRef.current = null;
     }
-    const audio = new Audio(row.audio_url);
+    const audio = new Audio(resolveAudioSync(row.audio_url) ?? row.audio_url);
     audioRef.current = audio;
     setPlayingId(row.id);
     audio.onended = () => setPlayingId(null);

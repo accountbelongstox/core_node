@@ -5,12 +5,13 @@
 
 import { notebookLmTool } from './tools/browser/notebooklm';
 import { logger } from '@/utils/logger';
+import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 
 const LOG = 'NotebookLM Listener';
 
 export function initNotebookLMListener() {
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type !== 'notebooklm_service') return;
+    if (message?.type !== FEATURE_MESSAGE_TYPES.NOTEBOOK_LM) return;
 
     (async () => {
       try {

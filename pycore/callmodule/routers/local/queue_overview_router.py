@@ -46,10 +46,10 @@ from pycore.callmodule.services.sync.laravel_endpoint_manager import (
 )
 # Unified pycore->Laravel HTTP gateway (times + logs + records every call).
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
-from .task_center_router import (
-    _CATEGORY_CATALOG,
-    _COUNT_KEYS,
-    _fast_lane_block,
+from pycore.callmodule.services.queue_center_contract import (
+    build_fast_lane,
+    QUEUE_CATEGORY_CATALOG,
+    QUEUE_COUNT_KEYS,
 )
 
 router = fastapi.APIRouter(
@@ -144,7 +144,7 @@ def _worker():
 
 def _zero_counts() -> Dict[str, int]:
     """An all-zero per-category count block (every _COUNT_KEYS field)."""
-    return {key: 0 for key in _COUNT_KEYS}
+    return {key: 0 for key in QUEUE_COUNT_KEYS}
 
 
 def _category_counts(summary: Dict[str, Any]) -> Dict[str, Dict[str, int]]:
@@ -172,7 +172,7 @@ def _category_counts(summary: Dict[str, Any]) -> Dict[str, Dict[str, int]]:
     }
 
     counts: Dict[str, Dict[str, int]] = {}
-    for row in _CATEGORY_CATALOG:
+    for row in QUEUE_CATEGORY_CATALOG:
         key = row["key"]
         if key == "word_translation":
             counts[key] = dict(translation)
@@ -185,7 +185,7 @@ def _categories(summary: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Build one card per catalog row (zeros when the lane has no live count)."""
     counts = _category_counts(summary)
     cards: List[Dict[str, Any]] = []
-    for row in _CATEGORY_CATALOG:
+    for row in QUEUE_CATEGORY_CATALOG:
         card: Dict[str, Any] = {
             "key": row["key"],
             "label": row["label"],
@@ -254,7 +254,7 @@ def get_queue_overview():
         # secondary lanes — use them directly and merge in the worker registry.
         categories = laravel_categories
         workers = _merge_workers((assist or {}).get("workers") or [], _workers())
-        laravel_reachable = True
+        laravel_reachable = bool(snapshot.get("laravel_reachable"))
     else:
         # No live Laravel snapshot: degrade to the catalog (zeros) + the cached
         # translation summary so the grid still renders every canonical lane.
@@ -266,8 +266,12 @@ def get_queue_overview():
         "success": True,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "laravel_reachable": laravel_reachable,
+        "laravel_snapshot_age_s": (
+            round(snapshot.get("age_ms") / 1000.0, 1)
+            if isinstance(snapshot.get("age_ms"), (int, float)) else None
+        ),
         "categories": categories,
         "workers": workers,
         "engines": _engines(),
-        "fast_lane": _fast_lane_block(),
+        "fast_lane": build_fast_lane(),
     }

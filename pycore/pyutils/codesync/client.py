@@ -19,11 +19,10 @@ paths via `.runtime` (no pycore import, no third_party).
 
 import os
 import time
-import threading
 import shutil
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional, Dict
+from typing import Any, Optional, Dict
 
 from .runtime import (
     log as ColorPrint,
@@ -34,6 +33,10 @@ from .runtime import (
     get_app_data_dir,
     get_core_node_root,
     get_local_lan_ip,
+    THREAD_BUS,
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
 )
 
 from .server_connection import ServerConnection
@@ -82,7 +85,10 @@ class CodeSyncClient:
 
         # Client state
         self.running = False
-        self.scan_thread: Optional[threading.Thread] = None
+        self.scan_thread: Optional[Any] = None
+        self._running_signal = f"codesync.client.running.{uuid.uuid4().hex}"
+        init_serialized_owner(self, "codesync.client.state", "CodeSyncClientState")
+        THREAD_BUS.signal(self._running_signal, False)
 
         # Rotating sync logger (recent activity ring + on-disk log files).
         self.logs_dir = get_app_data_dir() / 'code_sync_logs'
@@ -101,19 +107,15 @@ class CodeSyncClient:
 
     def start(self):
         """Start code sync client"""
-        if self.running:
+        if not self._begin_start():
             ColorPrint.yellow("[CodeSync Client] Already running")
             return
 
-        self.running = True
-
         # Start server scanner thread
-        self.scan_thread = threading.Thread(
-            target=self._scan_loop,
-            daemon=True,
-            name="CodeSync-ClientScanner"
+        self.scan_thread = start_bus_task(
+            self._scan_loop,
+            thread_name="CodeSync-ClientScanner",
         )
-        self.scan_thread.start()
 
         # Register shutdown handler (priority=70 for service threads).
         register_shutdown_handler(self.stop, priority=70, name="code_sync_client")
@@ -128,19 +130,27 @@ class CodeSyncClient:
 
         ColorPrint.green("[CodeSync Client] Started")
 
+    @serialized_method
+    def _begin_start(self) -> bool:
+        if self.running:
+            return False
+        self.running = True
+        THREAD_BUS.signal(self._running_signal, True)
+        return True
+
     def stop(self):
         """Stop code sync client (also called by the shutdown handler)."""
-        if not self.running:
+        stop_state = self._begin_stop()
+        if stop_state is None:
             return
-
-        self.running = False
+        servers, scan_thread = stop_state
 
         # Stop all server connections
-        for host, server in list(self.servers.items()):
+        for server in servers:
             server.stop()
 
-        if self.scan_thread:
-            self.scan_thread.join(timeout=2.0)
+        if scan_thread:
+            scan_thread.join(timeout=2.0)
 
         # Trigger client stopped event (UI / bus; no-op standalone).
         emit_event('code_sync.client.stopped', {
@@ -148,6 +158,14 @@ class CodeSyncClient:
         }, async_mode=True)
 
         ColorPrint.yellow("[CodeSync Client] Stopped")
+
+    @serialized_method
+    def _begin_stop(self):
+        if not self.running:
+            return None
+        self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
+        return list(self.servers.values()), self.scan_thread
 
     def _generate_client_id(self) -> str:
         """Generate unique client ID"""
@@ -165,7 +183,7 @@ class CodeSyncClient:
         self._scan_for_servers()
 
         # Periodic re-scan for new servers
-        while self.running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             # Check if global shutdown was requested
             if is_shutdown_requested():
                 ColorPrint.yellow("[CodeSync Client] Shutdown detected, stopping scanner...")
@@ -174,7 +192,7 @@ class CodeSyncClient:
             try:
                 time.sleep(30)  # Re-scan every 30 seconds for new servers
 
-                if not self.running or is_shutdown_requested():
+                if not THREAD_BUS.get_signal(self._running_signal, False) or is_shutdown_requested():
                     break
 
                 self._scan_for_servers()
@@ -211,14 +229,15 @@ class CodeSyncClient:
                 response = requests.get(url, timeout=1)
 
                 if response.status_code == 200:
-                    found_servers.append(ip)
                     ColorPrint.green(f"[CodeSync Client] Found server: {ip}")
+                    return ip
 
             except Exception:
                 pass
+            return None
 
         # Scan 1-254
-        threads = []
+        probe_signals = []
         for i in range(1, 255):
             ip = f"{network_prefix}.{i}"
 
@@ -226,39 +245,35 @@ class CodeSyncClient:
             if ip == local_ip:
                 continue
 
-            thread = threading.Thread(target=check_host, args=(ip,), daemon=True)
-            threads.append(thread)
-            thread.start()
+            response_signal = f"codesync.client.probe.{uuid.uuid4().hex}"
+            probe_signals.append(response_signal)
+            start_bus_task(
+                check_host,
+                ip,
+                thread_name=f"CodeSync-Probe-{i}",
+                response_signal=response_signal,
+            )
 
         # Wait for all threads (max 5 seconds)
         start_time = time.time()
-        for thread in threads:
+        for response_signal in probe_signals:
             remaining_time = max(0, 5 - (time.time() - start_time))
-            thread.join(timeout=remaining_time)
+            response = THREAD_BUS.wait_signal(response_signal, timeout=remaining_time)
+            THREAD_BUS.clear_signal(response_signal)
+            if isinstance(response, dict) and response.get("success") and response.get("result"):
+                found_servers.append(response["result"])
 
         # Connect to ALL found servers
         if found_servers:
             ColorPrint.green(f"[CodeSync Client] Found {len(found_servers)} server(s)")
 
             for server_host in found_servers:
-                # Skip if already connected to this server
-                if server_host in self.servers:
-                    ColorPrint.blue(f"[CodeSync Client] Already connected to {server_host}")
-                    continue
-
-                # Create and start new server connection
-                server_conn = ServerConnection(
-                    host=server_host,
-                    port=self.server_port,
-                    client_id=self.client_id,
-                    client=self
-                )
-                self.servers[server_host] = server_conn
-                server_conn.start()
+                self.add_server(server_host, self.server_port)
 
         else:
             ColorPrint.yellow("[CodeSync Client] No code sync servers found")
 
+    @serialized_method
     def add_server(self, host: str, port: int = None):
         """
         Explicitly connect to a code-sync server (a configured dev-end peer).
@@ -274,7 +289,7 @@ class CodeSyncClient:
         server_conn = ServerConnection(
             host=host, port=port, client_id=self.client_id, client=self)
         self.servers[host] = server_conn
-        if self.running:
+        if THREAD_BUS.get_signal(self._running_signal, False):
             server_conn.start()
         ColorPrint.green(f"[CodeSync Client] Added configured dev-end server: {host}:{port}")
 
@@ -468,6 +483,7 @@ class CodeSyncClient:
 
         ColorPrint.red(f"[ServerConnection] {server_conn.host} - Added to failed queue: {file_info['relative_path']}")
 
+    @serialized_method
     def get_status(self) -> Dict:
         """Get client status with multi-server support"""
         # Get timezone information
@@ -491,7 +507,7 @@ class CodeSyncClient:
             total_failed_files += server_info['failed_files_count']
 
         return {
-            'running': self.running,
+            'running': bool(THREAD_BUS.get_signal(self._running_signal, False)),
             'client_id': self.client_id,
             'root_dir': str(self.target_dir),
             'target_dir': str(self.target_dir),
@@ -512,18 +528,21 @@ class CodeSyncClient:
         }
 
 
-# Global singleton
-_code_sync_client: Optional[CodeSyncClient] = None
-_client_lock = threading.Lock()
+class _CodeSyncClientProvider:
+    def __init__(self) -> None:
+        self._instance: Optional[CodeSyncClient] = None
+        init_serialized_owner(self, "codesync.client_provider", "CodeSyncClientProvider")
+
+    @serialized_method
+    def get(self) -> CodeSyncClient:
+        if self._instance is None:
+            self._instance = CodeSyncClient()
+        return self._instance
+
+
+_code_sync_client_provider = _CodeSyncClientProvider()
 
 
 def get_code_sync_client() -> CodeSyncClient:
     """Get global code sync client instance"""
-    global _code_sync_client
-
-    if _code_sync_client is None:
-        with _client_lock:
-            if _code_sync_client is None:
-                _code_sync_client = CodeSyncClient()
-
-    return _code_sync_client
+    return _code_sync_client_provider.get()

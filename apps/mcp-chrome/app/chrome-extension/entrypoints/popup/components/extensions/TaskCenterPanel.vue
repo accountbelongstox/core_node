@@ -1,20 +1,9 @@
 <template>
   <div class="rounded-xl p-3 shadow-sm space-y-3" style="background: var(--surface); border: 1px solid var(--border)">
-    <!-- Capability checkboxes (rendered from the shared catalog): pick which
-         lanes run on Start; while running each is a LIVE on/off switch. -->
-    <div class="tk-caps">
-      <label
-        v-for="cap in CAPABILITIES"
-        :key="cap.key"
-        class="tk-cap"
-        :class="{ 'tk-cap--stub': cap.stub, 'tk-cap--active': isCapActive(cap.key) }"
-        :title="cap.hint"
-      >
-        <input type="checkbox" v-model="capState[cap.key].value" :disabled="cap.stub" />
-        <span class="tk-cap-label">{{ cap.zhLabel }}</span>
-        <span v-if="isCapActive(cap.key)" class="tk-cap-live" title="Active">●</span>
-        <span v-if="cap.stub" class="tk-cap-badge">暂未支持</span>
-      </label>
+    <div class="tk-cap-summary">
+      <span>Execution settings are managed in Settings Center.</span>
+      <strong>{{ checkedNonStubKeys.length }} selected</strong>
+      <span v-if="isRunning">{{ state.activeCapabilities.length }} active</span>
     </div>
 
     <div class="flex items-center justify-between">
@@ -214,9 +203,6 @@ const showValidity = computed(() => {
   return !!v && (v.running || v.rounds > 0 || v.done);
 });
 
-const isCapActive = (key: CapabilityKey): boolean =>
-  state.value.activeCapabilities.includes(key);
-
 const onStart = async () => {
   // 1. Immediately populate every lane's pending count, THEN 2. start lanes.
   await unifiedRef.value?.loadAll?.();
@@ -249,39 +235,20 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.tk-caps {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-.tk-cap {
+.tk-cap-summary {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   padding: 6px 8px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--surface-2);
-  cursor: pointer;
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.tk-cap-summary strong {
   color: var(--text);
-  transition: border-color 0.12s, background 0.12s;
-}
-.tk-cap:hover { border-color: var(--accent); background: var(--surface); }
-.tk-cap input { accent-color: var(--accent); cursor: pointer; }
-.tk-cap input:disabled { cursor: not-allowed; }
-.tk-cap-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tk-cap--stub { opacity: 0.7; }
-.tk-cap--stub input { cursor: not-allowed; }
-.tk-cap--active {
-  border-color: var(--success, #10b981);
-  background: rgba(16,185,129,.08);
-}
-.tk-cap-live { font-size: 8px; color: var(--success, #10b981); flex-shrink: 0; }
-.tk-cap-badge {
-  font-size: 9px; font-weight: 700;
-  padding: 1px 5px; border-radius: 999px;
-  background: rgba(148,163,184,.18); color: var(--text-muted);
   white-space: nowrap;
 }
 

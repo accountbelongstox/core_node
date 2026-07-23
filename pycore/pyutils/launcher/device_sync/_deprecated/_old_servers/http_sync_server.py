@@ -16,11 +16,17 @@ API Endpoints:
 - GET  /api/stats             -> Statistics
 """
 
-import threading
 import json
 import os
+from contextlib import nullcontext
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from typing import Optional, Dict, List
+from typing import Any, Optional, Dict, List
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pathlib import Path
 import urllib.parse
 import socket
@@ -488,11 +494,14 @@ class HTTPFileSyncServer:
         self.port = port
         self.running = False
         self.server: Optional[HTTPServer] = None
-        self.server_thread: Optional[threading.Thread] = None
+        self.server_thread: Optional[Any] = None
+        self._running_signal = f"device_sync.legacy_http_server.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
         # File metadata cache
         self.file_cache: Dict[str, Dict] = {}
-        self.cache_lock = threading.Lock()
+        self.cache_scope = nullcontext()
+        init_serialized_owner(self, "device_sync.legacy_http_server", "LegacyHttpServerState")
 
         # Build initial cache
         self._rebuild_cache()
@@ -514,8 +523,11 @@ class HTTPFileSyncServer:
 
             # Start server thread
             self.running = True
-            self.server_thread = threading.Thread(target=self._server_loop, daemon=True)
-            self.server_thread.start()
+            THREAD_BUS.signal(self._running_signal, True)
+            self.server_thread = start_bus_task(
+                self._server_loop,
+                thread_name="LegacyHttpServerThread",
+            )
 
             logger.info(f"Started on port {self.port}")
             logger.info(f"Root directory: {self.root_dir}")
@@ -532,12 +544,13 @@ class HTTPFileSyncServer:
         try:
             self.server.serve_forever()
         except Exception as e:
-            if self.running:
+            if THREAD_BUS.get_signal(self._running_signal, False):
                 logger.error(f"Server error: {e}", exc_info=True)
 
     def stop(self):
         """Stop HTTP server."""
         self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         if self.server:
             try:
@@ -548,6 +561,7 @@ class HTTPFileSyncServer:
 
         logger.info("Stopped")
 
+    @serialized_method
     def _rebuild_cache(self):
         """Rebuild file metadata cache."""
         logger.info(f"Building file cache from {self.root_dir}")
@@ -575,7 +589,7 @@ class HTTPFileSyncServer:
                     'mtime': stat.st_mtime
                 }
 
-            with self.cache_lock:
+            with self.cache_scope:
                 self.file_cache = new_cache
 
             logger.info(f"Cached {len(new_cache)} files")
@@ -583,6 +597,7 @@ class HTTPFileSyncServer:
         except Exception as e:
             logger.error(f"Error building cache: {e}", exc_info=True)
 
+    @serialized_method
     def get_cache_stats(self) -> Dict:
         """
         Get cache statistics.
@@ -590,7 +605,7 @@ class HTTPFileSyncServer:
         Returns:
             Stats dict
         """
-        with self.cache_lock:
+        with self.cache_scope:
             total_size = sum(f['size'] for f in self.file_cache.values())
 
             return {

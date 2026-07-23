@@ -14,12 +14,13 @@
 import { COVER_SEARCH_MAX, normalizeCoverUrls } from '@/utils/cover-playback';
 import { sha1Hex } from '@/utils/duoreader-importer-core';
 import { bookCoverQuery, type WebSearchEngine } from '@/utils/web-search-core';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 export const WEB_SEARCH_COVER_CACHE_ROOT = 'cache/web_search/covers';
 export const COVER_CACHE_MANIFEST_FILE = 'manifest.json';
 export const COVER_CACHE_SCHEMA_VERSION = 1;
 /** chrome.storage.local mirror — survives extension reload; OPFS bytes may be rebuilt from this. */
-export const COVER_CACHE_STORAGE_KEY = 'web_search_cover_manifests';
+export const COVER_CACHE_STORAGE_KEY = STORAGE_KEYS.WEB_SEARCH_COVER_MANIFESTS;
 
 export interface CoverCacheImageRecord {
   slot: number;

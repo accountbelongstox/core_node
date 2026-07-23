@@ -22,8 +22,8 @@ Module split (this file is the slim orchestrator + facade)
   assist_settings.py  settings contract + per-capability toggle gates.
   assist_payload.py   pure payload transforms + worker-id/time helpers.
   assist_handlers.py  _handle_cover / _handle_tts / _handle_poster (module
-                      funcs taking a narrow ctx - never reach into locks).
-  assist_worker.py    THIS FILE: AssistWorker singleton (loop, locks, wiring)
+                      funcs taking a narrow ctx).
+  assist_worker.py    THIS FILE: AssistWorker singleton (loop, bus wiring)
                       + re-exports of the public API.
   pyutils/worker_base.py  shared _short_err + CircuitBreaker mixin (assist_worker
                       inherits it; sibling retrofit deferred - see TODO there).
@@ -62,10 +62,8 @@ Architecture (mirrors TranslationWorkerService's structure)
     callmodule. Without injection a stdlib fallback reads the stored
     ``laravel_api.current`` straight from user_data.json.
 
-RISK - singleton + dual-lock state: AssistWorker holds _instance_lock (singleton),
-_thread_lock (loop), _cycle_lock (serialize daemon loop vs POST /api/local/assist/cycle),
-+ a parallel TTS track thread mutating private state. ALL these locks/state stay
-on this class; handlers receive a ctx and never reach into locks.
+Threading follows PYTHON_PYCORE.md: named Thread subclasses own long-running
+work, cycle/state serialization and all cross-thread data use THREAD_BUS.
 
 Logging: ColorPrint only (pycore rule). Networking: the lazily-loaded
 third-party ``requests`` via pycore.pyfoundations.third_party - never a bare
@@ -74,12 +72,18 @@ import. All imports at file top (PYTHON_PYCORE.md §1.4).
 
 import random
 import threading
+import time
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.pyfoundations.system_paths import get_user_data_store
 from pycore.pyutils.worker_base import CircuitBreaker, _short_err
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
 
 # Public API re-export (the package __init__ imports these from THIS module so
 # the split is transparent to every caller). See assist_settings for the
@@ -102,6 +106,75 @@ from .assist_payload import _blank_cycle_result, _build_claimer, _now_iso
 from . import assist_handlers
 
 
+_CONFIG_SIGNAL = 'pyctl.assist.config'
+_STATE_SIGNAL = 'pyctl.assist.state'
+_RUNNING_SIGNAL = 'pyctl.assist.running'
+_STOP_SIGNAL = 'pyctl.assist.stop'
+_LOOP_QUEUE = 'pyctl.assist.loop.start'
+_CYCLE_QUEUE = 'pyctl.assist.cycle'
+_STATE_QUEUE = 'pyctl.assist.state.update'
+_CYCLE_WORKER = SerializedWorkerThread(_CYCLE_QUEUE, 'AssistCycleThread')
+_STATE_WORKER = SerializedWorkerThread(_STATE_QUEUE, 'AssistStateThread')
+_CYCLE_WORKER.start()
+_STATE_WORKER.start()
+
+
+class AssistLoopThread(threading.Thread):
+    """Run the assist poll loop after receiving its worker through THREAD_BUS."""
+
+    def __init__(self) -> None:
+        super().__init__(name='AssistLaravelThread', daemon=True)
+
+    def run(self) -> None:
+        payload = THREAD_BUS.receive_message(_LOOP_QUEUE)
+        if not isinstance(payload, dict):
+            return
+        worker = payload.get('worker')
+        try:
+            worker._run_loop()
+        finally:
+            THREAD_BUS.signal(_RUNNING_SIGNAL, False)
+
+
+class AssistTrackThread(threading.Thread):
+    """Process one assist item track using THREAD_BUS work and result data."""
+
+    def __init__(self, queue_name: str, response_signal: str) -> None:
+        super().__init__(name='AssistTTSTrackThread', daemon=True)
+        self._queue_name = queue_name
+        self._response_signal = response_signal
+
+    def run(self) -> None:
+        payload = THREAD_BUS.receive_message(self._queue_name)
+        if not isinstance(payload, dict):
+            return
+        result = _blank_cycle_result()
+        payload['worker']._run_track(
+            payload.get('base', ''),
+            payload.get('items', []),
+            result,
+        )
+        if time.time() <= float(payload.get('deadline') or 0.0):
+            THREAD_BUS.signal(self._response_signal, result)
+        THREAD_BUS.clear_queue(self._queue_name)
+
+
+def _increment_state_counter(name: str, amount: int = 1) -> None:
+    """Increment one assist counter on the state-owner thread."""
+    state = dict(THREAD_BUS.get_signal(_STATE_SIGNAL, {}) or {})
+    counters = dict(state.get('counters', {}) or {})
+    counters[name] = int(counters.get(name, 0)) + amount
+    state['counters'] = counters
+    THREAD_BUS.signal(_STATE_SIGNAL, state)
+
+
+def _set_state_value(name: str, value: Any) -> None:
+    """Set one assist status value on the state-owner thread."""
+    state = dict(THREAD_BUS.get_signal(_STATE_SIGNAL, {}) or {})
+    state[name] = value
+    THREAD_BUS.signal(_STATE_SIGNAL, state)
+
+
 # ============================================================
 # Assist worker (singleton)
 # ============================================================
@@ -120,7 +193,6 @@ class AssistWorker(CircuitBreaker):
     """
 
     _instance: Optional["AssistWorker"] = None
-    _instance_lock = threading.Lock()
 
     # Claim types this worker can serve. Cover/poster image work is delegated to
     # apps/mcp-chrome — only TTS is claimed here.
@@ -141,41 +213,31 @@ class AssistWorker(CircuitBreaker):
     def __new__(cls, *args, **kwargs):
         """Singleton - one assist worker per process."""
         if cls._instance is None:
-            with cls._instance_lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self):
         if getattr(self, "_initialized", False):
             return
 
-        # App-layer injections (see configure()).
-        self._endpoint_resolver: Optional[Callable[[], Optional[Dict[str, Any]]]] = None
-        self._image_generator: Optional[Callable[..., Dict[str, Any]]] = None
-        # Optional history recorder (app layer wires the pyctl TaskManager in;
-        # pyctl.assist must not import pyctl.desktop). Records one finished unit
-        # per assist item so the Queue Center shows per-capability history.
-        self._task_recorder: Optional[Callable[..., None]] = None
-
         self.claimer = _build_claimer()
-
-        # Thread loop state.
-        self._thread: Optional[threading.Thread] = None
-        self._thread_lock = threading.Lock()
-        self._stop_event = threading.Event()
-        # Serializes cycles (the loop vs. POST /cycle) - never two at once.
-        self._cycle_lock = threading.Lock()
+        if THREAD_BUS.get_signal(_CONFIG_SIGNAL) is None:
+            THREAD_BUS.signal(_CONFIG_SIGNAL, {})
+        if THREAD_BUS.get_signal(_STATE_SIGNAL) is None:
+            THREAD_BUS.signal(_STATE_SIGNAL, {
+                'counters': {
+                    "claimed": 0,
+                    "submitted": 0,
+                    "released": 0,
+                    "failures": 0,
+                },
+                'last_error': None,
+                'last_cycle_at': None,
+            })
 
         # Circuit breaker state (state + methods from the CircuitBreaker mixin).
         self._circuit_log_prefix = "[AssistWorker]"
         self._init_circuit_breaker()
-
-        # Counters / introspection (guarded by _state_lock).
-        self._state_lock = threading.Lock()
-        self._counters = {"claimed": 0, "submitted": 0, "released": 0, "failures": 0}
-        self._last_error: Optional[str] = None
-        self._last_cycle_at: Optional[str] = None
 
         self._initialized = True
         ColorPrint.green(f"[AssistWorker] Initialized (claimer={self.claimer})")
@@ -199,18 +261,21 @@ class AssistWorker(CircuitBreaker):
             one finished assist unit to the pyctl TaskManager (app layer wires it;
             pyctl.assist must not import pyctl.desktop).
         """
+        config = dict(THREAD_BUS.get_signal(_CONFIG_SIGNAL, {}) or {})
         if endpoint_resolver is not None:
-            self._endpoint_resolver = endpoint_resolver
+            config['endpoint_resolver'] = endpoint_resolver
         if image_generator is not None:
-            self._image_generator = image_generator
+            config['image_generator'] = image_generator
         if task_recorder is not None:
-            self._task_recorder = task_recorder
+            config['task_recorder'] = task_recorder
+        THREAD_BUS.signal(_CONFIG_SIGNAL, config)
 
     def _record_history(self, capability: str, title: str, ok: bool,
                         detail: Optional[Dict[str, Any]] = None,
                         error: Optional[str] = None) -> None:
         """Record one finished assist unit (best-effort; never breaks a cycle)."""
-        recorder = self._task_recorder
+        config = THREAD_BUS.get_signal(_CONFIG_SIGNAL, {}) or {}
+        recorder = config.get('task_recorder')
         if recorder is None:
             return
         try:
@@ -228,9 +293,11 @@ class AssistWorker(CircuitBreaker):
         ``laravel_api.current`` / first candidate straight from the unified
         user-data store - same source of truth, no probing.
         """
-        if self._endpoint_resolver is not None:
+        config = THREAD_BUS.get_signal(_CONFIG_SIGNAL, {}) or {}
+        endpoint_resolver = config.get('endpoint_resolver')
+        if endpoint_resolver is not None:
             try:
-                return self._endpoint_resolver()
+                return endpoint_resolver()
             except Exception as e:  # noqa: BLE001 - resolver must never kill a cycle
                 ColorPrint.yellow(f"[AssistWorker] Endpoint resolver failed: {_short_err(e)}")
                 return None
@@ -247,44 +314,32 @@ class AssistWorker(CircuitBreaker):
 
     def is_running(self) -> bool:
         """True while the polling thread is alive."""
-        thread = self._thread
-        return bool(thread and thread.is_alive())
+        return bool(THREAD_BUS.get_signal(_RUNNING_SIGNAL, False))
 
     def start(self) -> bool:
-        """
-        Start the daemon polling loop (idempotent). Returns True if running.
-
-        Restart-after-stop is race-free: each loop thread owns the Event it was
-        created with. If a stop is pending on the live thread, that thread is
-        left to die at its next wakeup and a FRESH thread with a FRESH event is
-        spawned - any momentary overlap is harmless because run_cycle() is
-        serialized by _cycle_lock.
-        """
-        with self._thread_lock:
-            if self.is_running() and not self._stop_event.is_set():
-                return True
-            self._stop_event = threading.Event()
-            self._thread = threading.Thread(
-                target=self._run_loop, args=(self._stop_event,),
-                daemon=True, name="assist-laravel-worker")
-            self._thread.start()
-            ColorPrint.green("[AssistWorker] Polling loop started")
+        """Start the daemon polling loop idempotently."""
+        if self.is_running():
             return True
+        THREAD_BUS.clear_signal(_STOP_SIGNAL)
+        THREAD_BUS.signal(_RUNNING_SIGNAL, True)
+        THREAD_BUS.send_message(_LOOP_QUEUE, {'worker': self})
+        AssistLoopThread().start()
+        ColorPrint.green("[AssistWorker] Polling loop started")
+        return True
 
     def stop(self) -> None:
         """Signal the polling loop to stop (idempotent; does not join - the
         thread exits at its next wakeup, daemon=True covers process exit)."""
-        with self._thread_lock:
-            if not self.is_running():
-                return
-            self._stop_event.set()
-            ColorPrint.blue("[AssistWorker] Polling loop stop requested")
+        if not self.is_running():
+            return
+        THREAD_BUS.signal(_STOP_SIGNAL, True)
+        ColorPrint.blue("[AssistWorker] Polling loop stop requested")
 
-    def _run_loop(self, stop_event: threading.Event) -> None:
+    def _run_loop(self) -> None:
         """Daemon loop: cycle (when enabled) then jittered sleep. Settings are
         re-read every iteration so changes apply live without a restart.
-        ``stop_event`` is THIS thread's own event (see start())."""
-        while not stop_event.is_set():
+        Stop control is received through THREAD_BUS."""
+        while not THREAD_BUS.has_signal(_STOP_SIGNAL):
             settings = load_assist_settings()
             try:
                 if settings["enabled"]:
@@ -294,7 +349,7 @@ class AssistWorker(CircuitBreaker):
                 self._record_error(f"cycle crashed: {e}")
             # Jittered sleep (0.8x..1.2x) so multiple pycores don't sync up.
             interval = settings["poll_interval_s"] * random.uniform(0.8, 1.2)
-            if stop_event.wait(interval):
+            if THREAD_BUS.wait_signal(_STOP_SIGNAL, timeout=interval):
                 break
         ColorPrint.blue("[AssistWorker] Polling loop exited")
 
@@ -309,98 +364,101 @@ class AssistWorker(CircuitBreaker):
         per-item failures; those are released back to Laravel and reported in
         ``errors``.
         """
+        timeout = self.TTS_TRACK_TIMEOUT_S + self.SUBMIT_TIMEOUT + self.RELEASE_TIMEOUT + 30
+        return call_serialized(
+            _CYCLE_QUEUE,
+            self._run_cycle,
+            settings,
+            timeout=timeout,
+        )
+
+    def _run_cycle(self, settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Execute one cycle on the THREAD_BUS-owned cycle worker."""
         result: Dict[str, Any] = _blank_cycle_result()
-        with self._cycle_lock:
-            settings = settings or load_assist_settings()
-            with self._state_lock:
-                self._last_cycle_at = _now_iso()
+        settings = settings or load_assist_settings()
+        self._set_state('last_cycle_at', _now_iso())
 
-            caps = settings["capabilities"]
-            types = [t for t in self.CLAIMABLE_TYPES if caps.get(t)]
-            if not types:
-                return result  # nothing claimable (translation rides its own worker)
+        caps = settings["capabilities"]
+        types = [t for t in self.CLAIMABLE_TYPES if caps.get(t)]
+        if not types:
+            return result
 
-            if self._circuit_is_open():
-                result["ok"] = False
-                result["errors"].append(
-                    f"circuit open - backend returned HTTP 5xx "
-                    f"{self._server_5xx_streak}x; retrying in "
-                    f"{self._circuit_cooldown_remaining()}s")
-                return result
+        if self._circuit_is_open():
+            result["ok"] = False
+            result["errors"].append(
+                f"circuit open - backend returned HTTP 5xx "
+                f"{self._server_5xx_streak}x; retrying in "
+                f"{self._circuit_cooldown_remaining()}s")
+            return result
 
-            endpoint = self.resolve_endpoint()
-            if not endpoint or not endpoint.get("base_url"):
-                msg = "no Laravel endpoint selected/resolvable (laravel_api.current)"
-                self._record_error(msg)
-                result["ok"] = False
-                result["errors"].append(msg)
-                return result
-            base = endpoint["base_url"]
+        endpoint = self.resolve_endpoint()
+        if not endpoint or not endpoint.get("base_url"):
+            msg = "no Laravel endpoint selected/resolvable (laravel_api.current)"
+            self._record_error(msg)
+            result["ok"] = False
+            result["errors"].append(msg)
+            return result
+        base = endpoint["base_url"]
+        items = self._claim(base, types, settings["batch_limit"], result)
+        cover_items = [i for i in items if i.get("type") == "cover"]
+        tts_items = [i for i in items if i.get("type") == "tts"]
+        other_items = [i for i in items if i.get("type") not in ("cover", "tts")]
+        cover_result = _blank_cycle_result()
+        tts_result: Optional[Dict[str, Any]] = None
 
-            items = self._claim(base, types, settings["batch_limit"], result)
+        if tts_items:
+            track_id = str(time.time_ns())
+            track_queue = f'pyctl.assist.track.{track_id}'
+            track_response = f'{track_queue}.response'
+            deadline = time.time() + self.TTS_TRACK_TIMEOUT_S
+            THREAD_BUS.send_message(track_queue, {
+                'worker': self,
+                'base': base,
+                'items': tts_items,
+                'deadline': deadline,
+            })
+            AssistTrackThread(track_queue, track_response).start()
 
-            # Run the cover track and the TTS track CONCURRENTLY. TTS synthesis
-            # is serialized process-wide by the edge-tts lock and can be slow, so
-            # a claimed TTS batch must never stall claimed cover work (and vice
-            # versa) - these are two independent parallel request streams. Each
-            # track accumulates into its OWN sub-result; the worker's counters are
-            # already guarded by _state_lock, so submit/release stay race-free and
-            # only the plain sub-result dicts (never shared) are merged after join.
-            cover_items = [i for i in items if i.get("type") == "cover"]
-            tts_items = [i for i in items if i.get("type") == "tts"]
-            other_items = [i for i in items if i.get("type") not in ("cover", "tts")]
+        self._run_track(base, cover_items + other_items, cover_result)
+        if tts_items:
+            tts_result = THREAD_BUS.wait_signal(
+                track_response,
+                timeout=self.TTS_TRACK_TIMEOUT_S,
+            )
+            THREAD_BUS.clear_signal(track_response)
 
-            cover_result = _blank_cycle_result()
-            tts_result = _blank_cycle_result()
-            tts_thread = threading.Thread(
-                target=self._run_track, args=(base, tts_items, tts_result),
-                daemon=True, name="assist-tts-track")
-            tts_thread.start()
-            # Cover (+ any unsupported) items run on THIS thread, in parallel.
-            self._run_track(base, cover_items + other_items, cover_result)
-            # Bounded join: a hung TTS engine (unbounded sherpa/melotts local
-            # compute) used to hold _cycle_lock forever, freezing the assist loop
-            # and every POST /api/local/assist/cycle. 15min is well under the 60-min
-            # claim lease; on timeout the daemon track keeps running in the
-            # background (its submits still land; unfinished items lease-expire) and
-            # the cycle lock is released. tts_result is NOT merged when the thread
-            # is still alive (it may still be mutating that dict).
-            tts_thread.join(timeout=self.TTS_TRACK_TIMEOUT_S)
-            tts_timed_out = tts_thread.is_alive()
-
-            for sub in (cover_result,):
-                result["processed"] += sub["processed"]
-                result["submitted"] += sub["submitted"]
-                result["released"] += sub["released"]
-                result["errors"].extend(sub["errors"])
-                if not sub["ok"]:
-                    result["ok"] = False
-            if tts_timed_out:
-                ColorPrint.red(
-                    f"[AssistWorker] TTS track did not finish within "
-                    f"{self.TTS_TRACK_TIMEOUT_S}s; leaving it on the background "
-                    f"thread (unfinished items will lease-expire). Cycle lock released.")
-                result["ok"] = False
-                result["errors"].append(
-                    f"tts track timed out after {self.TTS_TRACK_TIMEOUT_S}s")
-            else:
-                result["processed"] += tts_result["processed"]
-                result["submitted"] += tts_result["submitted"]
-                result["released"] += tts_result["released"]
-                result["errors"].extend(tts_result["errors"])
-                if not tts_result["ok"]:
-                    result["ok"] = False
+        for sub in (cover_result,):
+            self._merge_cycle_result(result, sub)
+        if tts_items and not isinstance(tts_result, dict):
+            ColorPrint.red(
+                f"[AssistWorker] TTS track did not finish within "
+                f"{self.TTS_TRACK_TIMEOUT_S}s; unfinished items will lease-expire.")
+            result["ok"] = False
+            result["errors"].append(
+                f"tts track timed out after {self.TTS_TRACK_TIMEOUT_S}s")
+        elif isinstance(tts_result, dict):
+            self._merge_cycle_result(result, tts_result)
         return result
+
+    @staticmethod
+    def _merge_cycle_result(result: Dict[str, Any], sub: Dict[str, Any]) -> None:
+        """Merge a completed track snapshot into the cycle result."""
+        result["processed"] += sub["processed"]
+        result["submitted"] += sub["submitted"]
+        result["released"] += sub["released"]
+        result["errors"].extend(sub["errors"])
+        if not sub["ok"]:
+            result["ok"] = False
 
     def _run_track(self, base: str, items: List[Dict[str, Any]],
                    result: Dict[str, Any]) -> None:
         """Process one track's claimed items sequentially into ``result``.
 
-        Cover and TTS tracks call this on SEPARATE threads (see run_cycle) so the
-        slow, lock-serialized TTS engine never blocks fast cover generation. The
+        Cover and TTS tracks run independently so slow TTS work never blocks
+        cover generation. The
         per-type handlers live in assist_handlers and receive ``self`` as a
         narrow ctx (they call only submit/release/record_history/claimer -
-        never the worker's locks).
+        never the worker's state storage).
         """
         for item in items:
             item_type = item.get("type")
@@ -422,6 +480,14 @@ class AssistWorker(CircuitBreaker):
                               f"pycore handler crashed: {e}", result)
 
     # -------------------- Laravel assist API --------------------
+
+    def _increment_counter(self, name: str, amount: int = 1) -> None:
+        """Increment a status counter through the state-owner queue."""
+        call_serialized(_STATE_QUEUE, _increment_state_counter, name, amount)
+
+    def _set_state(self, name: str, value: Any) -> None:
+        """Publish one status field through the state-owner queue."""
+        call_serialized(_STATE_QUEUE, _set_state_value, name, value)
 
     def _claim(self, base: str, types: List[str], limit: int,
                result: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -461,8 +527,7 @@ class AssistWorker(CircuitBreaker):
             return []
         items = data.get("items") or []
         if items:
-            with self._state_lock:
-                self._counters["claimed"] += len(items)
+            self._increment_counter("claimed", len(items))
             ColorPrint.green(
                 f"[AssistWorker] Claimed {len(items)} item(s) "
                 f"({', '.join(sorted({str(i.get('type')) for i in items}))}) from {base}")
@@ -480,8 +545,7 @@ class AssistWorker(CircuitBreaker):
             self._record_error(msg)
             result["ok"] = False
             result["errors"].append(msg)
-            with self._state_lock:
-                self._counters["failures"] += 1
+            self._increment_counter("failures")
             # Release so the item re-queues promptly instead of waiting out the
             # 60-min lease (best-effort: if the network is down release fails too,
             # and the lease still expires on its own).
@@ -492,8 +556,7 @@ class AssistWorker(CircuitBreaker):
             data = resp.json() or {}
             if data.get("ok"):
                 self._note_server_ok()
-                with self._state_lock:
-                    self._counters["submitted"] += 1
+                self._increment_counter("submitted")
                 result["submitted"] += 1
                 note = " (already done)" if data.get("already_done") else ""
                 ColorPrint.green(f"[AssistWorker] Submitted {item_type}#{item_id}{note}")
@@ -506,8 +569,7 @@ class AssistWorker(CircuitBreaker):
             self._note_server_error(f"submit {item_type}#{item_id} -> HTTP {resp.status_code}")
             result["ok"] = False
             result["errors"].append(f"submit {item_type}#{item_id} -> HTTP {resp.status_code}")
-            with self._state_lock:
-                self._counters["failures"] += 1
+            self._increment_counter("failures")
             return False
 
         # 4xx - a contract-level rejection; release so the item is not stranded.
@@ -525,9 +587,8 @@ class AssistWorker(CircuitBreaker):
         release body (e.g. poster's ``media_type``) without changing the shape
         for cover/tts releases.
         """
-        with self._state_lock:
-            self._counters["failures"] += 1
-            self._last_error = f"{item_type}#{item_id}: {error}"
+        self._increment_counter("failures")
+        self._set_state("last_error", f"{item_type}#{item_id}: {error}")
         result["errors"].append(f"{item_type}#{item_id}: {error}")
         ColorPrint.yellow(f"[AssistWorker] Releasing {item_type}#{item_id}: {error}")
         body: Dict[str, Any] = {
@@ -545,8 +606,7 @@ class AssistWorker(CircuitBreaker):
             )
             if resp.status_code == 200:
                 self._note_server_ok()
-                with self._state_lock:
-                    self._counters["released"] += 1
+                self._increment_counter("released")
                 result["released"] += 1
             elif 500 <= resp.status_code < 600:
                 self._note_server_error(f"release -> HTTP {resp.status_code}")
@@ -562,15 +622,14 @@ class AssistWorker(CircuitBreaker):
 
     def _record_error(self, message: str) -> None:
         """Remember the most recent error for the status endpoint."""
-        with self._state_lock:
-            self._last_error = message
+        self._set_state("last_error", message)
 
     def get_status(self) -> Dict[str, Any]:
         """Worker status snapshot (running, circuit, counters, last_*)."""
-        with self._state_lock:
-            counters = dict(self._counters)
-            last_error = self._last_error
-            last_cycle_at = self._last_cycle_at
+        state = dict(THREAD_BUS.get_signal(_STATE_SIGNAL, {}) or {})
+        counters = dict(state.get('counters', {}) or {})
+        last_error = state.get('last_error')
+        last_cycle_at = state.get('last_cycle_at')
         return {
             "running": self.is_running(),
             "circuit": {

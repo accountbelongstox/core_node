@@ -13,6 +13,12 @@ class ServerManagerV1ApiInfoCtl extends ServerManagerV1BaseCtl
      */
     public function getApiInfo(Request $request): JsonResponse
     {
+        $validation = $this->validateRequest($request, 'api_info');
+
+        if ($validation) {
+            return $validation;
+        }
+
         $fullApiInfo = \App\Apps\ServerManagerV1\ServerManagerV1ApiInfo::getApiInfo();
 
         $apiInfo = [

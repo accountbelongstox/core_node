@@ -273,38 +273,7 @@
         </div>
       </div>
 
-      <!-- Settings (collapsible). Editable live — changes apply while running. -->
-      <div class="settings-block">
-        <button class="settings-toggle" @click="showSettings = !showSettings">
-          <span class="settings-title">Settings</span>
-          <span class="settings-caret" :class="{ open: showSettings }">▸</span>
-        </button>
-        <div v-show="showSettings">
-        <div class="config-grid">
-          <div class="config-field">
-            <label class="form-label">{{ t('bingAssistPollInterval') }}</label>
-            <input :value="clientConfig.fetchInterval" @input="onConfigChange('fetchInterval', $event)" type="number" min="1" max="60" class="form-input-small" />
-          </div>
-          <div class="config-field">
-            <label class="form-label">{{ t('bingAssistBatchSize') }}</label>
-            <input :value="clientConfig.batchSize" @input="onConfigChange('batchSize', $event)" type="number" min="1" max="50" class="form-input-small" />
-          </div>
-          <div v-if="clientConfig.mode === 'worker'" class="config-field">
-            <label class="form-label">{{ t('bingAssistParallelTabs') }}</label>
-            <input :value="clientConfig.tabCount" @input="onConfigChange('tabCount', $event)" type="number" min="1" max="8" class="form-input-small" />
-          </div>
-          <div v-if="clientConfig.mode === 'worker'" class="config-field">
-            <label class="form-label">Source Language</label>
-            <input :value="clientConfig.sourceLanguage" @input="onConfigChange('sourceLanguage', $event)" type="text" placeholder="en" class="form-input-small" />
-          </div>
-          <div v-if="clientConfig.mode === 'worker'" class="config-field">
-            <label class="form-label">{{ t('bingAssistTargetLang') }}</label>
-            <input :value="clientConfig.targetLanguage" @input="onConfigChange('targetLanguage', $event)" type="text" placeholder="zh" class="form-input-small" />
-          </div>
-        </div>
-        <div v-if="clientService.isRunning" class="config-hint">{{ t('bingAssistSettingsLive') }}</div>
-        </div>
-      </div>
+      <p class="config-hint">Worker options are managed in Settings Center.</p>
     </div>
   </div>
 </template>
@@ -357,7 +326,6 @@ interface Props {
 
 interface Emits {
   (e: 'toggle-service'): void;
-  (e: 'update-config', field: string, value: any): void;
   (e: 'run-scrape-test'): void;
   (e: 'update-test-words', value: string): void;
   (e: 'refresh-queue'): void;
@@ -387,9 +355,6 @@ const stepIndex = computed(() => {
   if (props.clientService.isRunning) return 2;
   return props.prepared ? 1 : 0;
 });
-
-// Advanced settings are collapsed by default to keep the panel compact.
-const showSettings = ref(false);
 
 // Server-side pagination: `items` is already the current page; the page count
 // comes from the server `total`. The pager emits set-queue-page → server fetch.
@@ -422,14 +387,6 @@ const jsonView = (r: any): string => {
 
 const onTestWordsInput = (event: Event) => {
   emit('update-test-words', (event.target as HTMLInputElement).value);
-};
-
-const STRING_FIELDS = ['apiUrl', 'sourceLanguage', 'targetLanguage'];
-
-const onConfigChange = (field: string, event: Event) => {
-  const target = event.target as HTMLInputElement;
-  const value = STRING_FIELDS.includes(field) ? target.value : Number(target.value);
-  emit('update-config', field, value);
 };
 
 // Play a pronunciation audio URL inline (the test surfaces real Bing audio).

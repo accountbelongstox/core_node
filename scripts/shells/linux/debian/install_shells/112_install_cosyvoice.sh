@@ -18,9 +18,10 @@ DO_FULL=0
 REPO_URL="https://github.com/FunAudioLLM/CosyVoice.git"
 SERVER_URL="${COSYVOICE_URL:-http://127.0.0.1:50000}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../../.." && pwd)"
+CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
+CACHE_ROOT="${CORE_NODE_CACHE_DIR:-$CORE_NODE_ROOT/.cache}"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
-TARGET_DIR="${COSYVOICE_DIR:-$CORE_NODE_CACHE_DIR/pycore/cosyvoice}"
+TARGET_DIR="${COSYVOICE_DIR:-$CACHE_ROOT/pycore/cosyvoice}"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 REPO_MARKER="$TARGET_DIR/cosyvoice/cli/cosyvoice.py"
 SUDO=""
@@ -72,33 +73,41 @@ ensure_linux_system_deps() {
 init_cosyvoice_submodules() {
     [[ -d "$TARGET_DIR/.git" ]] || return 0
     echo "[install_cosyvoice] [..] git submodule update --init --recursive (Matcha-TTS) ..."
-    (cd "$TARGET_DIR" && git submodule update --init --recursive) || \
+    if ! (cd "$TARGET_DIR" && git submodule update --init --recursive); then
         echo "[install_cosyvoice] [!] submodule init incomplete; server start may fail."
+        return 1
+    fi
+    return 0
 }
 
 echo "============================================================"
 echo " [install_cosyvoice] CosyVoice (multilingual clone TTS)"
 echo "============================================================"
 
-[[ "${COSYVOICE_SKIP:-0}" == "1" ]] && { echo "[install_cosyvoice] [i] COSYVOICE_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_cosyvoice] " torch; }
+[[ "${COSYVOICE_SKIP:-0}" == "1" ]] && { echo "[install_cosyvoice] [i] COSYVOICE_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_cosyvoice] " --absent-ok "COSYVOICE_SKIP=1" torch; }
 if server_up; then
     echo "[install_cosyvoice] [OK] server at $SERVER_URL."
     echo "[install_cosyvoice]      Set COSYVOICE_SPK_ID or COSYVOICE_REF_AUDIO."
-    complete_prereq_step "$PYTHON" "[install_cosyvoice] " torch
+    complete_prereq_step "$PYTHON" "[install_cosyvoice] " --absent-ok "external server reachable" torch
 fi
-if [[ -f "$REPO_MARKER" && -f "$DEPS_SENTINEL" && "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]]; then
+if tts_engine_compatible "$PYTHON" "cosyvoice" "[install_cosyvoice] " \
+    && [[ -f "$REPO_MARKER" && "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]] \
+    && tts_dependencies_ready "$PYTHON" "cosyvoice" "$DEPS_SENTINEL"; then
     echo "[install_cosyvoice] [OK] already installed."
     echo "[install_cosyvoice]  START: cd \"$TARGET_DIR\" && python runtime/python/fastapi/server.py --port 50000"
     complete_prereq_step "$PYTHON" "[install_cosyvoice] " torch
 fi
 if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 ]]; then
     echo "[install_cosyvoice] [i] opt-in only. Pass --full, COSYVOICE_INSTALL=1, or NEURAL_TTS_INSTALL=1."
-    complete_prereq_step "$PYTHON" "[install_cosyvoice] " torch
+    complete_prereq_step "$PYTHON" "[install_cosyvoice] " --absent-ok "opt-in" torch
 fi
 
 if ! PYTHON="$(resolve_python)"; then
     echo "[install_cosyvoice] [!] Python 3 not found."
-    complete_prereq_step "$PYTHON" "[install_cosyvoice] " torch
+    fail_prereq_step "$PYTHON" "[install_cosyvoice] " torch
+fi
+if ! tts_engine_compatible "$PYTHON" "cosyvoice" "[install_cosyvoice] "; then
+    complete_prereq_step "$PYTHON" "[install_cosyvoice] " --absent-ok "incompatible Python" torch
 fi
 ensure_linux_system_deps
 
@@ -113,20 +122,26 @@ echo "[install_cosyvoice]  model_dir: $_cosy_model"
 if [[ -f "$REPO_MARKER" ]]; then
     echo "[install_cosyvoice] [OK] repo already present."
 else
-    command -v git >/dev/null 2>&1 || { echo "[install_cosyvoice] [!] git not found."; complete_prereq_step "$PYTHON" "[install_cosyvoice] " torch; }
+    command -v git >/dev/null 2>&1 || { echo "[install_cosyvoice] [!] git not found."; fail_prereq_step "$PYTHON" "[install_cosyvoice] " torch; }
     mkdir -p "$(dirname "$TARGET_DIR")"
-    git clone --depth 1 --progress "$REPO_URL" "$TARGET_DIR" || { echo "[install_cosyvoice] [!] clone failed."; complete_prereq_step "$PYTHON" "[install_cosyvoice] " torch; }
+    git clone --depth 1 --progress "$REPO_URL" "$TARGET_DIR" || { echo "[install_cosyvoice] [!] clone failed."; fail_prereq_step "$PYTHON" "[install_cosyvoice] " torch; }
 fi
-init_cosyvoice_submodules
+if ! init_cosyvoice_submodules; then
+    fail_prereq_step "$PYTHON" "[install_cosyvoice] " torch
+fi
 
-if [[ -f "$DEPS_SENTINEL" && "$FORCE" -eq 0 ]]; then
+if tts_dependencies_ready "$PYTHON" "cosyvoice" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "dependencies already installed (.deps_done)"
 else
     install_pycore_torch_stack "$PYTHON" "[install_cosyvoice] "
     [[ -f "$TARGET_DIR/requirements.txt" ]] && pip_i -r "$TARGET_DIR/requirements.txt" || true
     pip_i fastapi uvicorn modelscope huggingface_hub onnxruntime || true
-    date -u +%Y-%m-%dT%H:%M:%SZ >"$DEPS_SENTINEL"
-    echo "[install_cosyvoice] [OK] dependencies installed."
+    if tts_engine_health_ok "$PYTHON" "cosyvoice" && tts_write_dependency_stamp "$PYTHON" "cosyvoice" "$DEPS_SENTINEL"; then
+        echo "[install_cosyvoice] [OK] dependencies installed."
+    else
+        echo "[install_cosyvoice] [!] dependencies are incomplete; retrying next run." >&2
+        fail_prereq_step "$PYTHON" "[install_cosyvoice] " torch
+    fi
 fi
 
 echo "[install_cosyvoice] [OK] ready. Set COSYVOICE_SPK_ID or COSYVOICE_REF_AUDIO (+ COSYVOICE_PROMPT_TEXT)."

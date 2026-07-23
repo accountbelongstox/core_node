@@ -24,15 +24,14 @@ the cached nvidia-smi detector. Complements the per-feature endpoints
 (/api/local/ai/*, /ocr/status, /tts/status, /system/resources).
 """
 
-from typing import Any, Dict, List, Optional
-
-import concurrent.futures
+import threading
 import time
+from typing import Any, Dict, List, Optional
 
 import fastapi
 from pydantic import BaseModel
 
-from pycore import ColorPrint, get_user_data_store
+from pycore import ColorPrint, THREAD_BUS, get_user_data_store
 from pycore.pyutils.common.capabilities import (
     capabilities_status,
     resolve_static_dir,
@@ -53,6 +52,7 @@ from pycore.pyutils.tts.tts_orchestrator import (
 from pycore.pyutils.stt.stt_orchestrator import default_stt_engine_priority
 from pycore.pyctl.ai.ai_keys import PROVIDERS, is_configured
 from pycore.pyutils.translator.dictionary import get_dictionary_service
+from pycore.callmodule.services import get_tts_queue_poller_service
 
 from pycore.pyutils.tts.tts_service_manager import apply_server_settings
 
@@ -72,9 +72,27 @@ _CAP_SECTION = "capability_priorities"
 _CAP_KEYS = ("stt", "tts", "sentence_tts", "word_tts", "image", "translation")
 # TTS tuning shares the same user_data section the tts router persists to.
 _TTS_SECTION = "tts"
-_CAP_BLOCKS_CACHE: Dict[str, Any] = {"ts": 0.0, "data": None}
+_CAP_BLOCKS_CACHE_SIGNAL = 'callmodule.capabilities.blocks_cache'
 _CAP_BLOCKS_TTL_S = 3.0
 _ENGINE_PROBE_TIMEOUT_S = 8.0
+
+
+class EngineProbeThread(threading.Thread):
+    """Run one orchestrator probe using THREAD_BUS request/response data."""
+
+    def __init__(self, queue_name: str, response_signal: str) -> None:
+        super().__init__(name="CapabilityEngineProbe", daemon=True)
+        self._queue_name = queue_name
+        self._response_signal = response_signal
+
+    def run(self) -> None:
+        payload = THREAD_BUS.receive_message(self._queue_name)
+        if not isinstance(payload, dict):
+            return
+        result = _probe_engine_status(payload.get('status_fn'))
+        if time.time() <= float(payload.get('deadline') or 0.0):
+            THREAD_BUS.signal(self._response_signal, result)
+        THREAD_BUS.clear_queue(self._queue_name)
 
 
 class OpenDirRequest(BaseModel):
@@ -135,49 +153,61 @@ def _fallback_engine_maps(
     }
 
 
+def _probe_engine_status(status_fn) -> Dict[str, Dict[str, Any]]:
+    """Build one normalized orchestrator engine snapshot."""
+    try:
+        snapshot = status_fn() or {}
+    except Exception:
+        return {}
+    result: Dict[str, Dict[str, Any]] = {}
+    for engine in snapshot.get("engines") or []:
+        name = engine.get("name")
+        if not name:
+            continue
+        result[name] = {
+            "available": bool(engine.get("available")),
+            "installed": bool(engine.get("installed")),
+            "disabled_reason": engine.get("disabled_reason"),
+        }
+    return result
+
+
 def _engines_from_orchestrator(
     status_fn,
     known_order: Optional[List[str]] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Per-engine snapshot from a tts/stt orchestrator status() call."""
-    def _probe() -> Dict[str, Dict[str, Any]]:
-        try:
-            snap = status_fn() or {}
-        except Exception:  # noqa: BLE001 — orchestrator probe is best-effort
-            return {}
-        out: Dict[str, Dict[str, Any]] = {}
-        for eng in snap.get("engines") or []:
-            name = eng.get("name")
-            if not name:
-                continue
-            out[name] = {
-                "available": bool(eng.get("available")),
-                "installed": bool(eng.get("installed")),
-                "disabled_reason": eng.get("disabled_reason"),
-            }
-        return out
-
     known = [e for e in (known_order or []) if e]
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        fut = pool.submit(_probe)
-        try:
-            result = fut.result(timeout=_ENGINE_PROBE_TIMEOUT_S)
-            if result:
-                return result
-            if known:
-                ColorPrint.yellow(
-                    "[capabilities] engine probe returned empty — using known engine list"
-                )
-                return _fallback_engine_maps(known, "probe returned empty")
-            return {}
-        except concurrent.futures.TimeoutError:
-            ColorPrint.yellow(
-                f"[capabilities] engine probe timed out after {_ENGINE_PROBE_TIMEOUT_S}s "
-                "— using known engine list"
-            )
-            if known:
-                return _fallback_engine_maps(known, "probe timed out")
-            return {}
+    request_id = f"{threading.get_ident()}.{time.time_ns()}"
+    queue_name = f"callmodule.capabilities.probe.{request_id}"
+    response_signal = f"{queue_name}.result"
+    deadline = time.time() + _ENGINE_PROBE_TIMEOUT_S
+    THREAD_BUS.send_message(queue_name, {
+        'status_fn': status_fn,
+        'deadline': deadline,
+    })
+    EngineProbeThread(queue_name, response_signal).start()
+    result = THREAD_BUS.wait_signal(
+        response_signal,
+        timeout=_ENGINE_PROBE_TIMEOUT_S,
+    )
+    THREAD_BUS.clear_signal(response_signal)
+    if result is None:
+        ColorPrint.yellow(
+            f"[capabilities] engine probe timed out after "
+            f"{_ENGINE_PROBE_TIMEOUT_S}s — using known engine list"
+        )
+        if known:
+            return _fallback_engine_maps(known, "probe timed out")
+        return {}
+    if result:
+        return result
+    if known:
+        ColorPrint.yellow(
+            "[capabilities] engine probe returned empty — using known engine list"
+        )
+        return _fallback_engine_maps(known, "probe returned empty")
+    return {}
 
 
 def _maps_from_engines(engines: Dict[str, Dict[str, Any]]) -> tuple[Dict[str, bool], Dict[str, bool], Dict[str, str]]:
@@ -325,18 +355,24 @@ def _capability_blocks() -> Dict[str, Dict[str, Any]]:
 
 def _cached_capability_blocks() -> Dict[str, Dict[str, Any]]:
     now = time.time()
-    cached = _CAP_BLOCKS_CACHE.get("data")
-    if isinstance(cached, dict) and now - float(_CAP_BLOCKS_CACHE.get("ts") or 0) < _CAP_BLOCKS_TTL_S:
+    cache = THREAD_BUS.get_signal(_CAP_BLOCKS_CACHE_SIGNAL, {}) or {}
+    cached = cache.get("data")
+    cached_at = float(cache.get("ts") or 0)
+    if (
+        isinstance(cached, dict)
+        and now - cached_at < _CAP_BLOCKS_TTL_S
+    ):
         return cached
     blocks = _capability_blocks()
-    _CAP_BLOCKS_CACHE["ts"] = now
-    _CAP_BLOCKS_CACHE["data"] = blocks
+    THREAD_BUS.signal(_CAP_BLOCKS_CACHE_SIGNAL, {
+        "ts": now,
+        "data": blocks,
+    })
     return blocks
 
 
 def _invalidate_capability_cache() -> None:
-    _CAP_BLOCKS_CACHE["ts"] = 0.0
-    _CAP_BLOCKS_CACHE["data"] = None
+    THREAD_BUS.clear_signal(_CAP_BLOCKS_CACHE_SIGNAL)
 
 
 def _save_priority(cap: str, priority: List[str]) -> None:
@@ -423,6 +459,8 @@ def post_capability_settings(req: CapabilitySettingsPatch):
                 # reload_tts_priority() rebinds ALL THREE profiles, so a save to
                 # any one applies realtime to synthesize(priority_profile=...).
                 reload_tts_priority()
+                if cap in ("tts", "word_tts"):
+                    get_tts_queue_poller_service().invalidate_engine_plan()
             if cap == "tts":
                 store = get_user_data_store()
                 chains = dict(store.get_section("task_capability_chains") or {})

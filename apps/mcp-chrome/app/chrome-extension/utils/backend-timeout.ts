@@ -9,7 +9,9 @@
  * accessor for the request hot path (a fetch cannot await a storage read).
  */
 
-export const BACKEND_TIMEOUT_STORAGE_KEY = 'backendTimeoutMs';
+import { STORAGE_KEYS } from './storage-keys';
+
+export const BACKEND_TIMEOUT_STORAGE_KEY = STORAGE_KEYS.BACKEND_TIMEOUT;
 export const DEFAULT_BACKEND_TIMEOUT_MS = 600000; // 10 minutes
 export const MIN_BACKEND_TIMEOUT_MS = 1000; // 1 second
 export const MAX_BACKEND_TIMEOUT_MS = 3600000; // 1 hour

@@ -7,12 +7,12 @@ priority increases here so the Queue Center UI can show bubble toasts for ANY
 lane — not only translation tasks.
 """
 
-import threading
 import time
 from collections import deque
 from typing import Any, Callable, Deque, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 
 _MAX_EVENTS = 60
 _BUMP_TTL_S = 30.0
@@ -21,39 +21,27 @@ _BUMP_TTL_S = 30.0
 class QueueBumpHub:
     """Ring buffer of recent priority bumps across lanes (singleton)."""
 
-    _instance: Optional["QueueBumpHub"] = None
-    _instance_lock = threading.Lock()
-
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            with cls._instance_lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
-        return cls._instance
-
     def __init__(self) -> None:
-        if getattr(self, "_initialized", False):
-            return
-        self._lock = threading.Lock()
         self._events: Deque[Dict[str, Any]] = deque(maxlen=_MAX_EVENTS)
         self._active_until: Dict[str, float] = {}
         # Zero-internal-import observer registry (mirrors LaravelHttpRecorder):
         # listeners (e.g. the rpc_v2 WS bridge) register plain callables here so
         # this hub stays import-safe for every lane producer.
         self._callbacks: List[Callable[[Dict[str, Any]], None]] = []
-        self._initialized = True
+        init_serialized_owner(self, "queue_bump_hub.state", "QueueBumpHubState")
 
+    @serialized_method
     def register_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
         """Register a listener called with each bump record. Never raises."""
-        with self._lock:
-            if callback not in self._callbacks:
-                self._callbacks.append(callback)
+        if callback not in self._callbacks:
+            self._callbacks.append(callback)
 
+    @serialized_method
     def unregister_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
-        with self._lock:
-            if callback in self._callbacks:
-                self._callbacks.remove(callback)
+        if callback in self._callbacks:
+            self._callbacks = [cb for cb in self._callbacks if cb is not callback]
 
+    @serialized_method
     def record(
         self,
         lane: str,
@@ -78,38 +66,36 @@ class QueueBumpHub:
             "at": int(time.time()),
             "recently_bumped": True,
         }
-        with self._lock:
-            self._active_until[bump_key] = now + _BUMP_TTL_S
-            self._events.appendleft(entry)
-            callbacks = list(self._callbacks)
+        self._active_until[bump_key] = now + _BUMP_TTL_S
+        self._events.appendleft(entry)
+        callbacks = list(self._callbacks)
         ColorPrint.blue(
             f"[QueueBump] {lane_key}: '{entry['label']}' priority "
             f"{old_priority}->{new_priority}"
         )
-        # Fan out to observers (WS bridge) after releasing the lock; a listener
-        # must never break the recording path.
+        # Fan out to observers; a listener must never break the recording path.
         for cb in callbacks:
             try:
                 cb(dict(entry))
             except Exception:
                 pass
 
+    @serialized_method
     def is_bumped(self, lane: str, item_id: str) -> bool:
         bump_key = f"{(lane or '').strip()}:{str(item_id or '').strip()}"
         now = time.monotonic()
-        with self._lock:
-            exp = self._active_until.get(bump_key)
-            return bool(exp and exp > now)
+        exp = self._active_until.get(bump_key)
+        return bool(exp and exp > now)
 
+    @serialized_method
     def snapshot(self, limit: int = 30) -> Dict[str, Any]:
         """Recent bump events + keys still within the active TTL."""
         now = time.monotonic()
-        with self._lock:
-            self._active_until = {
-                k: v for k, v in self._active_until.items() if v > now
-            }
-            events = list(self._events)[: max(1, min(limit, _MAX_EVENTS))]
-            active = list(self._active_until.keys())
+        self._active_until = {
+            k: v for k, v in self._active_until.items() if v > now
+        }
+        events = list(self._events)[: max(1, min(limit, _MAX_EVENTS))]
+        active = list(self._active_until.keys())
         return {
             "events": events,
             "active_bumps": active,
@@ -117,11 +103,14 @@ class QueueBumpHub:
         }
 
 
+_queue_bump_hub = QueueBumpHub()
+
+
 def get_queue_bump_hub() -> QueueBumpHub:
-    return QueueBumpHub()
+    return _queue_bump_hub
 
 
 def register_queue_bump_callback(callback: Callable[[Dict[str, Any]], None]) -> None:
     """Module-level registrar (mirrors register_laravel_http_callback) so the
     rpc_v2 layer can observe bumps without the hub importing upward."""
-    QueueBumpHub().register_callback(callback)
+    _queue_bump_hub.register_callback(callback)

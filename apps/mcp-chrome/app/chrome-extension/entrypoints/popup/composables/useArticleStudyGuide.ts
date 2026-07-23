@@ -19,6 +19,7 @@ import { ref, watch } from 'vue';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { logger } from '@/utils/logger';
 import { sendWithWake } from '@/utils/sendWithWake';
+import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 import {
   DEFAULT_GEMINI_TRANSLATE_LANGUAGES,
   buildGeminiArticleTranslatePrompt,
@@ -30,10 +31,10 @@ const LOG = 'Article Study Guide Client';
 export type ArticleStudyGuideProvider = 'gemini' | 'chatgpt' | 'grok' | 'copilot';
 
 export const PROVIDER_MESSAGE_TYPE: Record<ArticleStudyGuideProvider, string> = {
-  gemini: 'gemini_text_service',
-  chatgpt: 'chatgpt_text_service',
-  grok: 'grok_text_service',
-  copilot: 'copilot_text_service',
+  gemini: FEATURE_MESSAGE_TYPES.GEMINI_TEXT,
+  chatgpt: FEATURE_MESSAGE_TYPES.CHATGPT_TEXT,
+  grok: FEATURE_MESSAGE_TYPES.GROK_TEXT,
+  copilot: FEATURE_MESSAGE_TYPES.COPILOT_TEXT,
 };
 
 export const PROVIDER_LABELS: Record<ArticleStudyGuideProvider, string> = {

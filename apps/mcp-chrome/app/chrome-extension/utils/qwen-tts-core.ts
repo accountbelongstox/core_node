@@ -1,3 +1,5 @@
+import { STORAGE_KEYS } from '@/utils/storage-keys';
+
 /**
  * Qwen3-TTS (HuggingFace Gradio) automation — shared types & constants.
  * Official docs: use the embedded Gradio app URL (hf.space), not the Space page URL,
@@ -16,7 +18,7 @@ export const QWEN_TTS_GRADIO_HOST = 'qwen-qwen3-tts.hf.space';
 export const QWEN_TTS_SPACE_PATH = '/spaces/Qwen/Qwen3-TTS';
 export const QWEN_TTS_GRADIO_API_BASE = 'https://qwen-qwen3-tts.hf.space';
 
-export const QWEN_TTS_PROGRESS_KEY = 'qwenTtsProgress';
+export const QWEN_TTS_PROGRESS_KEY = STORAGE_KEYS.QWEN_TTS_PROGRESS;
 
 export type QwenTtsMode = 'voice_design' | 'voice_clone' | 'custom_voice';
 

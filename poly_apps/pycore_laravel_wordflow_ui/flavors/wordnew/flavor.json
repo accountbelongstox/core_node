@@ -5,9 +5,20 @@
   "appId": "com.corenode.wordnew",
   "version": "1.0.0",
   "rootRoute": "/wordnew",
+  "entry": "apps/wordnew/WfNewApp.tsx",
+  "platforms": ["web", "android"],
+  "standalone": {
+    "homeAtRoot": true,
+    "switcher": {
+      "enabled": true,
+      "visible": false
+    }
+  },
   "themeColor": "#4f46e5",
   "backgroundColor": "#0f172a",
   "description": "WordNew — AI vocabulary learning client (study, libraries, walkman, social).",
-  "icon": "icon.svg",
-  "splash": "splash.png"
+  "assets": {
+    "icon": "icon.svg",
+    "splash": "icon.svg"
+  }
 }

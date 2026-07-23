@@ -652,6 +652,26 @@ class AppQyV1TableMaps
     }
 
     /**
+     * Serialize concurrent move-to-front ticket (MAX(tts_priority)+1) writes on
+     * the same table so two transactions bumping DIFFERENT rows cannot read the
+     * same MAX snapshot and share a ticket. Uses a transaction-scoped PostgreSQL
+     * advisory lock keyed by the table name (auto-released at commit/rollback);
+     * the derived-table MAX+1 UPDATE alone is NOT atomic across rows because an
+     * aggregate read acquires no row lock. MUST be called inside a transaction.
+     * No-op on non-PG drivers (the single-row UPDATE stays atomic; only the
+     * cross-row strict-ahead guarantee is relaxed there).
+     *
+     * @param  mixed  $conn  Illuminate connection (DB::connection(...) / model->getConnection())
+     * @param  string $table Fully-qualified table name (whitelisted, never user input)
+     */
+    public static function lockTableForFrontTicket($conn, string $table): void
+    {
+        if ($conn->getDriverName() === 'pgsql') {
+            $conn->statement('SELECT pg_advisory_xact_lock(?)', [crc32($table)]);
+        }
+    }
+
+    /**
      * Get global table name by key
      * Delegates to GlobalTablesMap for global table access
      */

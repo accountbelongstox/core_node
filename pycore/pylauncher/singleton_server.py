@@ -10,7 +10,7 @@ CHECK/STATUS/SHUTDOWN/PING messages, and tearing the server down.
 It is a *mixin*: it relies on the host class (SingletonDetector) to provide the
 shared state and helpers set up by ``SingletonDetector.__init__``:
     self.app_id, self.started_at, self.on_message, self.state_checker,
-    self._is_primary, self._bound_port, self._server_socket, self._running,
+    self._is_primary, self._bound_port, self._server_socket,
     self._listener_thread, self.timeout
     self._log(), self._create_message(), self._validate_message()
 Mixing in (rather than composing) keeps the bind/listen lifecycle coherent with
@@ -26,10 +26,10 @@ THREAD_BUS Integration:
 import socket
 import json
 import time
-import threading
 from typing import Optional
 
 from pycore import THREAD_BUS
+from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pylauncher.singleton_protocol import MessageType
 
 
@@ -58,17 +58,16 @@ class _SingletonServerMixin:
 
             self._bound_port = port
             self._is_primary = True
-            self._running = True
+            self._running_signal = f"singleton.running.{self.app_id}.{port}"
+            THREAD_BUS.signal(self._running_signal, True)
 
             self._log(f"[SUCCESS] Bound to port {port} (PRIMARY instance)")
 
             # Start listener thread
-            self._listener_thread = threading.Thread(
-                target=self._listener_loop,
-                name=f"SingletonDetector-{self.app_id}",
-                daemon=True
+            self._listener_thread = start_bus_task(
+                self._listener_loop,
+                thread_name=f"SingletonDetector-{self.app_id}",
             )
-            self._listener_thread.start()
 
             # THREAD_BUS Integration: Register shutdown handler
             # Priority=95 ensures singleton detector stops after most services but before heartbeat
@@ -94,7 +93,7 @@ class _SingletonServerMixin:
         """
         self._log("Listener thread started")
 
-        while self._running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             # THREAD_BUS Integration: Check if global shutdown was requested
             if THREAD_BUS.is_shutdown_requested():
                 self._log("[THREAD_BUS] Shutdown detected, stopping listener...", "WARNING")
@@ -103,15 +102,16 @@ class _SingletonServerMixin:
             try:
                 client_socket, address = self._server_socket.accept()
                 # Handle in new thread
-                threading.Thread(
-                    target=self._handle_client,
-                    args=(client_socket, address),
-                    daemon=True
-                ).start()
+                start_bus_task(
+                    self._handle_client,
+                    client_socket,
+                    address,
+                    thread_name=f"SingletonClient-{self.app_id}",
+                )
             except socket.timeout:
                 continue
             except Exception as e:
-                if self._running:
+                if THREAD_BUS.get_signal(self._running_signal, False):
                     self._log(f"Listener error: {e}", "ERROR")
                 break
 
@@ -250,7 +250,10 @@ class _SingletonServerMixin:
                         execute_handlers=True
                     )
 
-                threading.Thread(target=trigger_shutdown, daemon=True).start()
+                start_bus_task(
+                    trigger_shutdown,
+                    thread_name=f"SingletonShutdown-{self.app_id}",
+                )
 
             elif msg_type == MessageType.PING.value:
                 # Send PONG
@@ -265,7 +268,8 @@ class _SingletonServerMixin:
 
     def stop(self):
         """Stop detector and close socket"""
-        self._running = False
+        if hasattr(self, "_running_signal"):
+            THREAD_BUS.signal(self._running_signal, False)
         if self._server_socket:
             self._server_socket.close()
         if self._listener_thread:

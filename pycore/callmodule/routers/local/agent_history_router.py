@@ -12,6 +12,8 @@ Endpoints (prefix /api/local/agent-history):
   POST /refresh
   POST /prompts/update
   GET  /status
+  GET  /article/records
+  GET  /article/audio/{record_id}
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from typing import Optional
 import fastapi
 
 from pycore.pyctl.agent_history import get_agent_history_service
+from pycore.callmodule.services import agent_history_article_records as records
 from pycore.callmodule.services.agent_history_tick_service import get_agent_history_tick_service
 from pycore.callmodule.services.agent_history_article_service import get_agent_history_article_service
 
@@ -128,4 +131,21 @@ def article_list(limit: int = 50):
 @router.get("/article/logs")
 def article_logs():
     svc = get_agent_history_article_service()
-    return {"success": True, "data": svc.get_logs()}
+    data = svc.get_logs()
+    data["tick"] = get_agent_history_tick_service().get_status()
+    return {"success": True, "data": data}
+
+
+@router.get("/article/records")
+def article_records(limit: int = 100):
+    """Cached article records (newest first) with audio/upload flags."""
+    return {"success": True, "data": {"records": records.list_records(limit=limit)}}
+
+
+@router.get("/article/audio/{record_id}")
+def article_audio(record_id: str):
+    """Stream the cached TTS mp3 for one record (id validated against the index)."""
+    path = records.audio_path(record_id)
+    if path is None:
+        return fastapi.responses.JSONResponse({"success": False, "error": "not found"}, status_code=404)
+    return fastapi.responses.FileResponse(str(path), media_type="audio/mpeg")

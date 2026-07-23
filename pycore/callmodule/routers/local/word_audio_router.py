@@ -30,19 +30,21 @@ via get_secret_key_indexed, logging only via ColorPrint, English-only strings.
 
 import base64
 import tempfile
-import threading
 import traceback
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 import fastapi
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyheartbeat import get_heartbeat_system
 from pycore.pyutils.common.api_secrets import streamelements_key_present
 from pycore.pyutils.external_apis.word_audio_client import find_pronunciation
 from pycore.pyutils.tts.tts_orchestrator import TTS_ENGINE_PRIORITY, _priority
@@ -54,6 +56,7 @@ from pycore.callmodule.services.sync.laravel_endpoint_manager import (
 )
 # Unified pycore->Laravel HTTP gateway (times + logs + records every call).
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
+from pycore.callmodule.services import get_tts_queue_poller_service
 
 router = fastapi.APIRouter(prefix="/api/local/word-audio", tags=["Local Processing - Word Audio"])
 
@@ -63,6 +66,7 @@ _LARAVEL_MISSING_BATCH = "/api/app_qy_v1/word/audio/missing-batch"
 _LARAVEL_UPLOAD = "/api/app_qy_v1/word/audio/upload"
 _LARAVEL_FIX_WORD = "/api/app_qy_v1/word/fix-text"
 _LARAVEL_BOOST = "/api/app_qy_v1/word/boost-priority"
+_LARAVEL_WORD_MEDIA = "/api/app_qy_v1/word/{lang}/{word}/media"
 # Youdao (朗文) public CDN: type=1 UK, type=2 US. No key needed.
 _YOUDAO_URL = "http://dict.youdao.com/dictvoice"
 _YOUDAO_TIMEOUT = 10
@@ -71,9 +75,8 @@ _YOUDAO_TIMEOUT = 10
 # "word:type". Avoids re-fetching the same word when the batch re-runs or
 # auto-continues. Value: { audio_base64, mime, bytes } — a hit moves the entry
 # to the end; the oldest entry is evicted beyond the cap.
-_YOUDAO_CACHE: OrderedDict = OrderedDict()
 _YOUDAO_CACHE_MAX = 500
-_YOUDAO_CACHE_LOCK = threading.Lock()
+_YOUDAO_CACHE_SIGNAL = 'callmodule.word_audio.youdao_cache'
 # 10 min - laravel batch endpoints can be slow / briefly unreachable; let the
 # proxy wait instead of surfacing a read-timeout traceback on every tick.
 _BATCH_TIMEOUT = 600
@@ -260,6 +263,33 @@ def missing_batch(limit: int = 1000, language: str = "en"):
         return {"success": False, "error": f"proxy error: {exc}", "words": []}
 
 
+@router.get("/media")
+def word_audio_media(word: str, language: str = "en"):
+    """Stream a Laravel-owned word audio file through pycore."""
+    base = _laravel_base()
+    clean_word = (word or "").strip()
+    clean_language = (language or "en").strip() or "en"
+    if not base or not clean_word:
+        raise fastapi.HTTPException(status_code=404, detail="Word audio unavailable")
+    media_path = _LARAVEL_WORD_MEDIA.format(
+        lang=quote(clean_language, safe=""),
+        word=quote(clean_word, safe=""),
+    )
+    metadata_response = get_laravel_client().get(media_path, base_url=base, timeout=30)
+    if metadata_response.status_code != 200:
+        raise fastapi.HTTPException(status_code=metadata_response.status_code, detail="Word media lookup failed")
+    metadata = metadata_response.json()
+    data = metadata.get("data") if isinstance(metadata, dict) else None
+    audio_url = data.get("audio_url") if isinstance(data, dict) else metadata.get("url") if isinstance(metadata, dict) else None
+    if not isinstance(audio_url, str) or not audio_url:
+        raise fastapi.HTTPException(status_code=404, detail="Word audio unavailable")
+    audio_response = get_laravel_client().get(audio_url, base_url=base, timeout=60)
+    if audio_response.status_code != 200:
+        raise fastapi.HTTPException(status_code=audio_response.status_code, detail="Word audio fetch failed")
+    media_type = (audio_response.headers.get("Content-Type") or "audio/mpeg").split(";", 1)[0]
+    return Response(content=audio_response.content, media_type=media_type)
+
+
 @router.post("/upload")
 def upload_word_audio(payload: Dict[str, Any]):
     """POST /upload { md5, lang, audio_base64, provider?, accent?, cleaned_word? }
@@ -296,10 +326,13 @@ def fetch_youdao(word: str, type: int = 2):
         return {"success": False, "error": "word is required"}
     accent_type = 1 if int(type) == 1 else 2
     cache_key = f"{clean_word}:{accent_type}"
-    with _YOUDAO_CACHE_LOCK:
-        cached = _YOUDAO_CACHE.get(cache_key)
-        if cached:
-            _YOUDAO_CACHE.move_to_end(cache_key)
+    cache = OrderedDict(
+        THREAD_BUS.get_signal(_YOUDAO_CACHE_SIGNAL, ()) or ()
+    )
+    cached = cache.get(cache_key)
+    if cached:
+        cache.move_to_end(cache_key)
+        THREAD_BUS.signal(_YOUDAO_CACHE_SIGNAL, tuple(cache.items()))
     if cached:
         return {**cached, "success": True, "cached": True}
     try:
@@ -318,11 +351,14 @@ def fetch_youdao(word: str, type: int = 2):
         audio_b64 = base64.b64encode(raw).decode()
         ct = resp.headers.get("Content-Type", "audio/mpeg")
         entry: Dict[str, Any] = {"audio_base64": audio_b64, "mime": ct, "bytes": len(raw)}
-        with _YOUDAO_CACHE_LOCK:
-            _YOUDAO_CACHE[cache_key] = entry
-            _YOUDAO_CACHE.move_to_end(cache_key)
-            while len(_YOUDAO_CACHE) > _YOUDAO_CACHE_MAX:
-                _YOUDAO_CACHE.popitem(last=False)
+        cache = OrderedDict(
+            THREAD_BUS.get_signal(_YOUDAO_CACHE_SIGNAL, ()) or ()
+        )
+        cache[cache_key] = entry
+        cache.move_to_end(cache_key)
+        while len(cache) > _YOUDAO_CACHE_MAX:
+            cache.popitem(last=False)
+        THREAD_BUS.signal(_YOUDAO_CACHE_SIGNAL, tuple(cache.items()))
         return {**entry, "success": True, "cached": False}
     except Exception as exc:  # noqa: BLE001 - never 500
         ColorPrint.yellow(f"[WordAudio] /youdao fetch failed for '{clean_word}': {exc}")
@@ -351,6 +387,15 @@ class EdgeSynthRequest(BaseModel):
     word: str
     lang: str = "en"
     accent: Optional[str] = None
+
+
+class WordAudioPriorityItem(BaseModel):
+    md5: str
+    lang: str
+
+
+class WordAudioPriorityBatchRequest(BaseModel):
+    items: List[WordAudioPriorityItem]
 
 
 @router.post("/edge-synth")
@@ -409,15 +454,8 @@ def fix_word_text(payload: Dict[str, Any]):
         return {"success": False, "error": f"proxy error: {exc}"}
 
 
-@router.post("/boost-priority")
-def boost_priority(payload: Dict[str, Any]):
-    """POST /boost-priority { md5, lang }
-    Bump a word to the front of the audio generation queue. Proxies to Laravel
-    to increment tts_priority, then broadcasts 'word_audio_priority_boost' on
-    the THREAD_BUS WS bus so the pycore-manager batch bar can reorder its
-    in-memory pending list without a full re-fetch. Never raises (no 500)."""
-    md5 = (payload.get("md5") or "").strip()
-    lang = (payload.get("lang") or "").strip()
+def _apply_priority_boost(md5: str, lang: str, wake_worker: bool) -> Dict[str, Any]:
+    """Synchronize one priority ticket across Laravel and the active worker."""
     if not md5 or not lang:
         return {"success": False, "error": "md5 and lang are required"}
     try:
@@ -441,8 +479,44 @@ def boost_priority(payload: Dict[str, Any]):
             THREAD_BUS.trigger_event("word_audio_priority_boost", {"md5": md5, "lang": lang})
         except Exception as be:  # noqa: BLE001
             ColorPrint.yellow(f"[WordAudio] boost THREAD_BUS broadcast failed: {be}")
+        worker = get_tts_queue_poller_service()
+        worker.prioritize_word(md5, lang)
+        if wake_worker and get_heartbeat_system().is_callback_enabled("tts_queue_poller"):
+            worker.poll_and_process()
         ColorPrint.blue(f"[WordAudio] priority boost: md5={md5} lang={lang} laravel_ok={laravel_ok}")
-        return {"success": True, "laravel_updated": laravel_ok, "md5": md5, "lang": lang}
+        return {
+            "success": True,
+            "laravel_updated": laravel_ok,
+            "md5": md5,
+            "lang": lang,
+        }
     except Exception as exc:  # noqa: BLE001 - never 500
         ColorPrint.red(f"[WordAudio] /boost-priority failed: {exc}\n{traceback.format_exc()}")
         return {"success": False, "error": f"proxy error: {exc}"}
+
+
+@router.post("/boost-priority")
+def boost_priority(payload: Dict[str, Any]):
+    """Move one word to the Laravel and active pycore audio queue front."""
+    md5 = (payload.get("md5") or "").strip()
+    lang = (payload.get("lang") or "").strip()
+    return _apply_priority_boost(md5, lang, wake_worker=True)
+
+
+@router.post("/boost-priority/batch")
+def boost_priority_batch(request: WordAudioPriorityBatchRequest):
+    """Move visible words to the Laravel audio queue front in display order."""
+    items = request.items[:200]
+    results: List[Dict[str, Any]] = []
+    for item in reversed(items):
+        result = _apply_priority_boost(
+            item.md5.strip(), item.lang.strip(), wake_worker=False
+        )
+        results.append({"md5": item.md5, "lang": item.lang, **result})
+    if results and get_heartbeat_system().is_callback_enabled("tts_queue_poller"):
+        get_tts_queue_poller_service().poll_and_process()
+    return {
+        "success": all(bool(result.get("success")) for result in results),
+        "count": len(results),
+        "results": list(reversed(results)),
+    }

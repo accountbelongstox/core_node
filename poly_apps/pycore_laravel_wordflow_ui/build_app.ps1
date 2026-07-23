@@ -5,11 +5,11 @@
 
 .DESCRIPTION
   Each buildable variant is a folder under flavors/<id>/ with a flavor.json
-  (id/name/appId/rootRoute/colors) + icon.svg/png (+ optional splash.png). This
+  (identity, source entry, platforms, colors, assets) and its app artwork. This
   script:
     1. validates the flavor,
     2. runs scripts/flavor/flavor_build.py to write capacitor.config.json and
-       prepare resources/icon.png + resources/splash.png,
+       prepare the declared icon under resources/,
     3. runs `vite build` with VITE_APP_FLAVOR set, so the chosen app is mounted
        standalone as the homepage (see shell/flavor.ts + StandaloneApp.tsx),
     4. (optional) syncs the web build into a Capacitor native project.
@@ -33,7 +33,12 @@
 .PARAMETER Platform
   Native platform for -Sync: android (default) or ios.
 
+.PARAMETER Apk
+  Run the complete Android APK workflow (auto-detect, native build, Gradle,
+  artifact collection, and output-folder open).
+
 .EXAMPLE
+  ./build_app.ps1 -Apk -App wordnew
   ./build_app.ps1 -App wordnew
   ./build_app.ps1 -App vortex -Native -Sync -Platform android
   ./build_app.ps1 -List
@@ -44,6 +49,13 @@ param(
   [switch]$List,
   [switch]$Native,
   [switch]$Sync,
+  [switch]$Apk,
+  [ValidateSet('ask', 'debug', 'release')]
+  [string]$BuildType = 'ask',
+  [switch]$NoAssets,
+  [switch]$Clean,
+  [switch]$NoOpenOutput,
+  [switch]$NonInteractive,
   [ValidateSet('android', 'ios')]
   [string]$Platform = 'android'
 )
@@ -51,6 +63,24 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $flavorsDir = Join-Path $root 'flavors'
+$apkScript = Join-Path $root 'scripts\flavor\build_apk.py'
+$apkArguments = @()
+$pythonCommand = $null
+$nativeAndroidPath = $null
+
+if ($Apk) {
+  $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+  if (-not $pythonCommand) { $pythonCommand = Get-Command python3 -ErrorAction SilentlyContinue }
+  if (-not $pythonCommand) { Write-Error 'Python is required for the APK build workflow.' }
+  $apkArguments = @($apkScript, '--root', $root, '--build-type', $BuildType)
+  if ($App) { $apkArguments = @($apkArguments; '--app'; $App) }
+  if ($NoAssets) { $apkArguments = @($apkArguments; '--assets'; 'no') }
+  if ($Clean) { $apkArguments = @($apkArguments; '--clean'; 'yes') }
+  if ($NoOpenOutput) { $apkArguments = @($apkArguments; '--open'; 'no') }
+  if ($NonInteractive) { $apkArguments = @($apkArguments; '--non-interactive') }
+  & $pythonCommand.Source @apkArguments
+  exit $LASTEXITCODE
+}
 
 function Get-Flavors {
   if (-not (Test-Path $flavorsDir)) { return @() }
@@ -97,7 +127,12 @@ if ($Sync) {
   }
   # Generate platform icons/splashes from resources/ when @capacitor/assets is present.
   Write-Host "==> @capacitor/assets generate (icons + splash)" -ForegroundColor Green
-  & npx @capacitor/assets generate --$Platform 2>$null
+  $nativeAndroidPath = Join-Path (Join-Path (Join-Path $root 'native') $App) 'android'
+  if ($Platform -eq 'android') {
+    & npx @capacitor/assets generate --android --androidProject $nativeAndroidPath 2>$null
+  } else {
+    & npx @capacitor/assets generate --ios 2>$null
+  }
   Write-Host "==> npx cap sync $Platform" -ForegroundColor Green
   & npx cap sync $Platform
   if ($LASTEXITCODE -ne 0) { Write-Warning "cap sync returned $LASTEXITCODE (is the $Platform project added? `npx cap add $Platform`)." }

@@ -18,11 +18,13 @@ All data comes from the in-process TaskManager singleton — no network I/O.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import fastapi
+from fastapi.responses import FileResponse
 
 from pycore.pyctl.desktop.task_manager import get_task_manager
+from pycore.callmodule.services.completed_task_archive import get_completed_task_archive
 from pycore.callmodule.services.task_history_store import (
     append_record,
     clear_records,
@@ -41,6 +43,32 @@ _RING_MAX = 100
 # Statuses that count as a successful finish for the roll-up + the per-record
 # `success` flag.
 _SUCCESS_STATUSES = ("completed", "submitted", "already_done")
+
+
+@router.get("/completed")
+def get_completed_archive(
+    task_type: Optional[str] = None,
+    limit: int = 200,
+    offset: int = 0,
+):
+    return get_completed_task_archive().query(
+        task_type=task_type,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.post("/completed/sync")
+def sync_completed_archive():
+    return get_completed_task_archive().sync_all()
+
+
+@router.get("/completed/resources/{cache_key}")
+def completed_archive_resource(cache_key: str):
+    path = get_completed_task_archive().resource_path(cache_key)
+    if path is None:
+        raise fastapi.HTTPException(status_code=404, detail="Cached resource not found")
+    return FileResponse(path)
 
 
 def _iso(value: Optional[str]) -> str:
@@ -145,17 +173,17 @@ def get_recent_tasks(
     (the local TaskManager is single-end/single-worker, so they only ever match
     'pycore' / 'pycore-local', but the params keep the endpoint contract stable).
     """
+    row_limit = max(1, min(int(limit or 200), 1000))
     manager = get_task_manager()
-    raw = manager.get_recent_tasks(limit=max(1, min(int(limit or 200), 1000)))
-
-    records: List[Dict[str, Any]] = [
-        _to_record(seq, task) for seq, task in enumerate(raw)
+    raw = manager.get_recent_tasks(limit=1000)
+    finished = [
+        task for task in raw
+        if task.get("status") not in ("pending", "processing")
     ]
 
-    if end:
-        records = [r for r in records if r["end"] == end]
-    if worker:
-        records = [r for r in records if r["worker"] == worker]
+    records: List[Dict[str, Any]] = [
+        _to_record(seq, task) for seq, task in enumerate(finished)
+    ]
 
     persisted = query_records(
         limit=limit,
@@ -186,6 +214,37 @@ def get_recent_tasks(
                 "detail": pe.get("detail") if isinstance(pe.get("detail"), dict) else pe,
             })
 
+    archived = get_completed_task_archive().query(
+        task_type=task_type,
+        limit=1000,
+        offset=0,
+    )
+    records.extend(archived.get("records") or [])
+
+    if end:
+        records = [r for r in records if r["end"] == end]
+    if worker:
+        records = [r for r in records if r["worker"] == worker]
+    if task_type:
+        records = [r for r in records if r["task_type"] == task_type]
+
+    unique: Dict[Tuple[str, str, str, str], Dict[str, Any]] = {}
+    for record in records:
+        fallback = f"{record.get('ts')}:{record.get('title')}"
+        identity = str(record.get("task_id") or fallback)
+        key = (
+            str(record.get("end") or ""),
+            str(record.get("worker") or ""),
+            str(record.get("task_type") or ""),
+            identity,
+        )
+        unique[key] = record
+    records = sorted(
+        unique.values(), key=lambda record: str(record.get("ts") or ""), reverse=True
+    )[:row_limit]
+    for seq, record in enumerate(records):
+        record["seq"] = seq
+
     total = len(records)
     success = sum(1 for r in records if r["success"])
     failed = sum(1 for r in records if r["status"] == "failed")
@@ -204,6 +263,9 @@ def get_recent_tasks(
             "log_path": "user_data:task_history",
             "persisted_total": persisted.get("stored", 0),
         },
+        "types": archived.get("types") or {},
+        "resource_count": archived.get("resource_count", 0),
+        "last_sync_at": archived.get("last_sync_at"),
     }
 
 

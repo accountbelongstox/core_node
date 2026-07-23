@@ -1,4 +1,5 @@
 import { API_ENDPOINTS, buildApiUrl, getEndpointById, type ApiEndpoint } from '../config/api-endpoints';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 // Re-export so consumers can import the endpoint type from ApiManager directly.
 export type { ApiEndpoint };
@@ -29,7 +30,7 @@ export class ApiManager {
   // Auto mode: always ride the highest-weight (lowest `priority`) endpoint that
   // is reachable, upgrading back automatically as better endpoints recover.
   private autoMode = false;
-  private storageKey = 'api_settings';
+  private readonly storageKey = STORAGE_KEYS.API_SETTINGS;
   private endpointChangeListeners = new Set<() => void>();
 
   /** Subscribe to endpoint URL changes (same popup + after storage writes). */

@@ -14,20 +14,18 @@ matches the exact contract in pycore.pyctl.ai.ai_probe (UI depends on it).
 """
 
 import time
-import threading
 from typing import Optional
 
 import fastapi
 
 from pycore.pyctl.ai import probe_all, probe_one, catalog, balance_all, balance_one
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 router = fastapi.APIRouter(prefix="/api/local/ai", tags=["Local Processing - AI"])
 
 # Last-probe cache so repeated UI loads are cheap. ~30s TTL; refresh=1 bypasses.
 _CACHE_TTL_SECONDS = 30.0
-_cache_lock = threading.Lock()
-_cache_result = None
-_cache_ts = 0.0
+_CACHE_SIGNAL = 'callmodule.ai_probe.cache'
 
 
 @router.get("/catalog")
@@ -54,32 +52,30 @@ async def probe(refresh: int = 0, provider: Optional[str] = None):
     - No ``provider`` tests them all (the "Test all" button); cached ~30s,
       ``?refresh=1`` forces a fresh run. Carries 'cached' + 'age_ms' flags.
     """
-    global _cache_result, _cache_ts
-
     if provider:
         # Single-provider test: always live, never cached.
         return probe_one(provider)
 
     now = time.time()
-    with _cache_lock:
-        fresh_enough = (
-            _cache_result is not None
-            and not refresh
-            and (now - _cache_ts) < _CACHE_TTL_SECONDS
-        )
-        if fresh_enough:
-            out = dict(_cache_result)
-            out["cached"] = True
-            out["age_ms"] = round((now - _cache_ts) * 1000, 1)
-            return out
+    cache = THREAD_BUS.get_signal(_CACHE_SIGNAL, {}) or {}
+    cache_result = cache.get('result')
+    cache_ts = float(cache.get('timestamp') or 0.0)
+    fresh_enough = (
+        cache_result is not None
+        and not refresh
+        and (now - cache_ts) < _CACHE_TTL_SECONDS
+    )
+    if fresh_enough:
+        out = dict(cache_result)
+        out["cached"] = True
+        out["age_ms"] = round((now - cache_ts) * 1000, 1)
+        return out
 
-    # Run the (potentially slow) probe outside the lock so concurrent callers
-    # are not blocked behind it; last writer wins for the cache.
     result = probe_all()
-
-    with _cache_lock:
-        _cache_result = result
-        _cache_ts = time.time()
+    THREAD_BUS.signal(_CACHE_SIGNAL, {
+        'result': result,
+        'timestamp': time.time(),
+    })
 
     out = dict(result)
     out["cached"] = False
