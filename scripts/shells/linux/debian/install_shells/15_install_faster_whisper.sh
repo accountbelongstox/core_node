@@ -36,7 +36,11 @@ RAM_GB=""
 DISK_GB=""
 reasons=()
 PIP_ARGS=()
-GPU_ARGS=()
+CUDA_INDEX_LIB=""
+CUDA_POLICY_TAG=""
+CUDA_POLICY_MAJOR=""
+CTRANSLATE_CUDA_MAJOR="12"
+USE_CTRANSLATE_CUDA=0
 
 # Resolve the common dir the same way sibling install scripts do.
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -53,6 +57,9 @@ source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
 [ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
 command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+CUDA_INDEX_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/cuda_index.sh"
+[ -f "$CUDA_INDEX_LIB" ] && . "$CUDA_INDEX_LIB"
+CTRANSLATE_CUDA_MAJOR="${AI_CTRANSLATE2_CUDA_MAJOR:-12}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -119,6 +126,10 @@ has_cuda() {
     command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
 }
 
+ctranslate_cuda_usable() {
+    "$PYTHON" -c 'import ctranslate2,sys; sys.exit(0 if ctranslate2.get_cuda_device_count() > 0 else 1)' >/dev/null 2>&1
+}
+
 echo "============================================================"
 echo " Installing faster-whisper (default STT for Video Extraction)"
 echo "============================================================"
@@ -171,29 +182,22 @@ else
     echo "[OK] faster-whisper installed."
 fi
 
-# --- 3) GPU runtime libs (only if a CUDA GPU is present; idempotent) ------ #
-if has_cuda && py_has_module nvidia.cublas && py_has_module nvidia.cudnn && [[ "$FORCE" -eq 0 ]]; then
-    tts_idempotent_msg "$PYTHON" "$SCRIPT_CURRENT_DIR" "GPU runtime libs (cublas/cudnn) already present"
+# --- 3) Runtime mode: preserve the one canonical CUDA major -------------- #
+CUDA_POLICY_TAG="$(cuda_policy_tag)"
+CUDA_POLICY_MAJOR="$(cuda_policy_field major "$CUDA_POLICY_TAG" 2>/dev/null || true)"
+if has_cuda && [[ "$CUDA_POLICY_MAJOR" == "$CTRANSLATE_CUDA_MAJOR" ]] && ctranslate_cuda_usable; then
+    USE_CTRANSLATE_CUDA=1
+    echo "[OK] CTranslate2 CUDA $CTRANSLATE_CUDA_MAJOR is usable."
 elif has_cuda; then
-    echo "[..] NVIDIA GPU detected -> pip install nvidia-cublas-cu12 nvidia-cudnn-cu12==9.* ..."
-    # Install the CUDA/nvidia wheels INTO the shared venv (no PEP668 escape flags). CTranslate2
-    # (faster-whisper's backend) needs cuDNN 9.x. This branch only runs when cudnn is ABSENT
-    # (the gate above), so a cuDNN already pulled in by torch is REUSED, not replaced — the
-    # ==9.* major pin just avoids grabbing an incompatible cuDNN on a clean GPU host.
-    GPU_ARGS=('nvidia-cublas-cu12' 'nvidia-cudnn-cu12==9.*')
-    echo "[run] $PYTHON -m pip install ${GPU_ARGS[*]}"
-    if ! vpip "$PYTHON" -m pip install "${GPU_ARGS[@]}"; then
-        echo "[!] GPU lib install failed; whisper will fall back to CPU (int8)."
-    else
-        echo "[OK] GPU runtime libs present."
-    fi
+    echo "[i] GPU host uses canonical ${CUDA_POLICY_TAG:-CPU policy}; CTranslate2 requires CUDA $CTRANSLATE_CUDA_MAJOR."
+    echo "[i] faster-whisper uses CPU int8; no second CUDA runtime is installed."
 else
-    echo "[i] No NVIDIA GPU detected -> CPU (int8) inference."
+    echo "[i] No NVIDIA GPU detected -> CPU int8 inference."
 fi
 
 # --- 4) model pre-download (GPU large-v3 / CPU medium when --model omitted) #
 _gpu_flag="--cpu"
-if has_cuda; then _gpu_flag="--gpu"; fi
+if [[ "$USE_CTRANSLATE_CUDA" -eq 1 ]]; then _gpu_flag="--gpu"; fi
 tts_official_env_line "$PYTHON" "$SCRIPT_CURRENT_DIR" faster_whisper | while read -r _line; do
     echo "  official env (faster_whisper): $_line"
 done
