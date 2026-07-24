@@ -32,8 +32,8 @@ use Illuminate\Support\Facades\Log;
  * When media is missing the word becomes a 'word_media' global task (pulled via
  * the existing worker channel GET /api/worker/tasks/pull -> POST
  * /api/worker/tasks/result -> AppQyV1WordTranslationWriteback::apply) AND is
- * enqueued onto the per-language image queue (image_* columns) + the TTS queue
- * (tts_* columns). A query bumps every layer to the FRONT.
+ * enqueued onto the per-language image and canonical TTS queues. A query bumps
+ * every layer to the front.
  *
  * PRIORITY model:
  *   - global_tasks.priority (higher = sooner): PRIORITY_FRONT on bump.
@@ -102,12 +102,21 @@ class AppQyV1WordMediaService
      * @param string $language       Source/library language (name or code).
      * @param string|null $targetLang Optional target language for translation.
      * @param bool $bumpFront         True for an active query (move-to-front).
+     * @param bool $enqueueMissing    False for read-only aggregate queries.
      * @return array The contract data block:
      *   { word, md5, language, image_url|null, audio_url|null,
      *     image_status, audio_status, translations:[], explanation,
      *     phonetic, us_phonetic, uk_phonetic }
      */
-    public function resolve(string $word, string $language, ?string $targetLang = null, bool $bumpFront = true, ?string $accent = null): array
+    public function resolve(
+        string $word,
+        string $language,
+        ?string $targetLang = null,
+        bool $bumpFront = true,
+        ?string $accent = null,
+        bool $tryRealPronunciation = true,
+        bool $enqueueMissing = true
+    ): array
     {
         $langCode = AppQyV1DictionaryService::getLanguageCode($language);
         $md5 = md5($word);
@@ -122,23 +131,20 @@ class AppQyV1WordMediaService
 
         $hasImage = $imageUrl !== null;
         $hasAudio = $audioUrl !== null;
+        $mcpImageSubmitted = $row
+            && $row->getAttribute('image_mcp_submitted_at') !== null;
 
         // Translation presence for the requested target (when one is supplied).
         $translations = $this->extractTranslations($row);
         $hasTranslation = $this->hasTranslationFor($row, $targetLang);
 
-        // image_status='none' = Bing was checked and has NO sample images for this
-        // word (terminal verdict) — never re-queue it; 'completed' = it already has
-        // them. missing-image applies ONLY to already-translated words (the
-        // "缺图片是在有翻译的前提下" premise). Audio stays purely has_audio-derived
-        // (pycore TTS can synthesize even when Bing has none), so we DON'T gate
-        // audio on any "none" marker.
-        $imageSettled = $this->imageSettled($row);
-        $needsImage = $hasTranslation && !$hasImage && !$imageSettled;
+        // mcp-chrome submission is authoritative. A legacy image/status does not
+        // suppress the search task until Chrome has submitted this word itself.
+        $needsImage = $hasTranslation && !$mcpImageSubmitted;
 
         $needsMedia = $needsImage || !$hasAudio || !$hasTranslation;
 
-        if ($needsMedia) {
+        if ($needsMedia && $enqueueMissing) {
             // Enqueue the per-resource queues (idempotent; bump to front on query).
             $position = $bumpFront ? 'beginning' : 'end';
 
@@ -146,7 +152,7 @@ class AppQyV1WordMediaService
                 $this->imageQueue->add($word, $langCode, $position);
             }
 
-            if (!$hasAudio) {
+            if (!$hasAudio && $tryRealPronunciation) {
                 // Synchronously try REAL pronunciation sources (Free Dictionary
                 // API, then Forvo) before falling back to TTS synthesis, so a
                 // successful hit is already reflected in THIS response. Only
@@ -162,18 +168,16 @@ class AppQyV1WordMediaService
                 $this->enqueueTts($word, $langCode, $position);
             }
 
-            // Two-lane assist tasks: chrome (word_media) covers image/translation
-            // gaps; pycore (word_audio) covers the audio gap.
-            $needsChrome = !$hasTranslation || $needsImage;
+            // Independent lanes: mcp-chrome owns images, pycore owns Google
+            // translation, and the word-audio worker owns pronunciation.
             $this->ensureWordMediaTask(
                 $word,
                 $md5,
                 $langCode,
                 $targetLang,
                 $bumpFront,
-                $needsChrome,
-                !$hasAudio,
-                $accent
+                $needsImage,
+                !$hasTranslation
             );
 
             // Re-read the row (a queue add may have just created it) so the
@@ -231,14 +235,12 @@ class AppQyV1WordMediaService
             $langCode = AppQyV1DictionaryService::getLanguageCode($language);
             $md5 = md5($word);
 
-            $hasImage = $row ? ($this->resolveImageUrl($row) !== null) : false;
             $hasAudio = $row ? ($this->resolveAudioUrl($row) !== null) : false;
             $hasTranslation = $this->hasTranslationFor($row, $targetLanguage);
+            $mcpImageSubmitted = $row
+                && $row->getAttribute('image_mcp_submitted_at') !== null;
 
-            // Honor the terminal image verdict + translated-only premise (see
-            // resolve()); audio stays has_audio-derived (no "none" gate).
-            $imageSettled = $this->imageSettled($row);
-            $needsImage = $hasTranslation && !$hasImage && !$imageSettled;
+            $needsImage = $hasTranslation && !$mcpImageSubmitted;
 
             if (!$needsImage && $hasAudio && $hasTranslation) {
                 return; // Nothing left to prioritize (image settled or present).
@@ -251,17 +253,14 @@ class AppQyV1WordMediaService
                 $this->enqueueTts($word, $langCode, 'beginning');
             }
 
-            // Two-lane assist tasks: chrome (word_media) for image/translation,
-            // pycore (word_audio) for audio. Bump BOTH to front on a new query.
-            $needsChrome = !$hasTranslation || $needsImage;
             $this->ensureWordMediaTask(
                 $word,
                 $md5,
                 $langCode,
                 $targetLanguage,
                 true,
-                $needsChrome,
-                !$hasAudio
+                $needsImage,
+                !$hasTranslation
             );
         } catch (\Throwable $e) {
             // Non-blocking: never let a media bump break a lookup.
@@ -300,7 +299,10 @@ class AppQyV1WordMediaService
             $md5 = md5($word);
 
             $row = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
-            if ($row && $this->resolveImageUrl($row) !== null) {
+            $hasImage = $row && $this->resolveImageUrl($row) !== null;
+            $mcpImageSubmitted = $row
+                && $row->getAttribute('image_mcp_submitted_at') !== null;
+            if ($hasImage && $mcpImageSubmitted) {
                 return; // Image already present — idempotent no-op.
             }
 
@@ -311,8 +313,8 @@ class AppQyV1WordMediaService
                 $langCode,
                 null,   // targetLang: image gap only.
                 true,   // bumpFront: triggers the interactive remote_fast/image rewrite.
-                true,   // needsChrome: image lane.
-                false   // needsAudio: untouched.
+                true,   // needsImage: image lane.
+                false   // needsTranslation: untouched.
             );
         } catch (\Throwable $e) {
             // Non-blocking: a queue bump must never break the caller.
@@ -325,25 +327,24 @@ class AppQyV1WordMediaService
 
     /**
      * Ensure the right assist task(s) cover a word that is missing media, then
-     * (when $bumpFront) raise their priority to the front. TWO LANES — created
-     * independently so each worker owns its own queue:
+     * (when $bumpFront) raise their priority to the front. Two task lanes are
+     * independent so each worker owns its own queue:
      *
-     *   - word_media  / remote_client  (CHROME Bing-assist lane): created when the
-     *     word is missing IMAGE or TRANSLATION. Bing fills all three (translation
-     *     + phonetics + sample images + pronunciation), so this lane covers
-     *     image/translation gaps.
-     *   - word_audio  / remote_audio   (PYCORE local-TTS lane): created when the
-     *     word is missing AUDIO. pycore generates pronunciation audio.
+     *   - word_media / remote_fast (mcp-chrome): created for missing images.
+     *   - word_translation / remote_translation (pycore): created for missing
+     *     target translations and processed by the Google-first worker chain.
+     * Word audio is not duplicated as a GlobalTask. Its canonical dictionary
+     * row and tts_priority are owned by AppQyV1UnifiedTTSQueueService and claimed
+     * only through the dedicated Pycore TTS worker endpoint.
      *
-     * A word missing all three legitimately gets BOTH tasks (intended
-     * redundancy): chrome fills everything, pycore fills audio — the write-back
-     * is fill-missing / idempotent so concurrent completion is safe.
+     * A word missing multiple resources gets independent tasks whose write-back
+     * remains fill-missing and idempotent.
      *
      * Idempotent: a word already covered by a pending task of the same type is
      * only bumped, never duplicated.
      *
-     * @param bool $needsChrome True when the word is missing image OR translation.
-     * @param bool $needsAudio  True when the word is missing audio.
+     * @param bool $needsImage True when the word needs mcp-chrome image search.
+     * @param bool $needsTranslation True when the word needs pycore Google translation.
      */
     public function ensureWordMediaTask(
         string $word,
@@ -351,51 +352,32 @@ class AppQyV1WordMediaService
         string $langCode,
         ?string $targetLanguage,
         bool $bumpFront,
-        bool $needsChrome = true,
-        bool $needsAudio = true,
-        ?string $accent = null
+        bool $needsImage = true,
+        bool $needsTranslation = true
     ): void {
-        if ($needsChrome) {
+        if ($needsImage) {
             $this->ensureWordTask(
                 'word_media',
-                GlobalTask::EXECUTION_REMOTE_CLIENT,
+                GlobalTask::EXECUTION_REMOTE_FAST,
                 $word,
                 $md5,
                 $langCode,
                 $targetLanguage,
-                $bumpFront,
-                $accent
+                $bumpFront
             );
         }
 
-        // Word-AUDIO task creation is GATED off by default: Puter.js (browser,
-        // pycore-manager Queue Center batch bar + wordnew library auto-batch) is
-        // the primary word-audio generator and uploads directly to /word/audio/upload
-        // (no Task Queue). The pycore edge-tts Task-Queue lane runs ONLY when
-        // WORD_AUDIO_TASK_QUEUE_ENABLED=1 (manual load) - paired with pycore's
-        // PYCORE_WORD_AUDIO_EDGE_FALLBACK=1. Backend function retained either way.
-        if ($needsAudio && self::wordAudioTaskQueueEnabled()) {
+        if ($needsTranslation) {
             $this->ensureWordTask(
-                'word_audio',
-                GlobalTask::EXECUTION_REMOTE_AUDIO,
+                'word_translation',
+                GlobalTask::EXECUTION_REMOTE_TRANSLATION,
                 $word,
                 $md5,
                 $langCode,
                 $targetLanguage,
-                $bumpFront,
-                $accent
+                $bumpFront
             );
         }
-    }
-
-    /**
-     * Whether the word-audio Task-Queue lane is enabled (manual load). Default OFF
-     * - Puter.js is primary. Enable with env WORD_AUDIO_TASK_QUEUE_ENABLED=1.
-     */
-    public static function wordAudioTaskQueueEnabled(): bool
-    {
-        $v = strtolower((string) getenv('WORD_AUDIO_TASK_QUEUE_ENABLED'));
-        return in_array($v, ['1', 'true', 'yes', 'on'], true);
     }
 
     /**
@@ -412,23 +394,12 @@ class AppQyV1WordMediaService
         string $md5,
         string $langCode,
         ?string $targetLanguage,
-        bool $bumpFront,
-        ?string $accent = null
+        bool $bumpFront
     ): void {
         $targetCode = null;
         if (is_string($targetLanguage) && trim($targetLanguage) !== '') {
             $targetCode = AppQyV1DictionaryService::getLanguageCode($targetLanguage);
         }
-        // Normalize the preferred English accent to the wire values "us"|"uk";
-        // anything else (or unset) = no accent preference (pycore picks default).
-        $accentCode = null;
-        if (is_string($accent)) {
-            $a = strtolower(trim($accent));
-            if ($a === 'us' || $a === 'uk') {
-                $accentCode = $a;
-            }
-        }
-
         // Find an existing pending task of THIS type that already owns this word.
         $existing = GlobalTask::query()
             ->where('app_name', 'AppQyV1')
@@ -440,7 +411,9 @@ class AppQyV1WordMediaService
         $ownerTaskId = null;
         foreach ($existing as $task) {
             $payload = $task->payload;
-            $words = is_array($payload) ? ($payload['words'] ?? []) : [];
+            $words = is_array($payload) && is_array($payload['words'] ?? null)
+                ? $payload['words']
+                : [(is_array($payload) ? ($payload['content'] ?? null) : null)];
             if (!is_array($words)) {
                 continue;
             }
@@ -480,7 +453,7 @@ class AppQyV1WordMediaService
         // Create a fresh single-word task. The worker channel pulls it via
         // /api/worker/tasks/pull (WHERE execution_type = the worker's processor
         // type) and the result flows back through WordTranslationTaskProcessor ->
-        // AppQyV1WordTranslationWriteback::apply (handles word_media + word_audio).
+        // AppQyV1WordTranslationWriteback::apply.
         $priority = $bumpFront ? self::TASK_PRIORITY_FRONT : self::TASK_PRIORITY_DEFAULT;
 
         $payload = [
@@ -491,29 +464,8 @@ class AppQyV1WordMediaService
         if ($targetCode !== null) {
             $payload['target_language'] = $targetCode;
         }
-        // Preferred English accent ("us"|"uk") for the word_audio lane: pycore
-        // threads it into find_pronunciation()/synthesize() so the generated
-        // audio matches the user's voiceAccent setting (target #4). Stamped
-        // additively; the word_media/chrome lane ignores the field.
-        if ($accentCode !== null) {
-            $payload['accent'] = $accentCode;
-        }
-        // Multi-variant word audio: per-language variant specs (3 voices by
-        // default - us_f/uk_f/us_m for en) drive N translations[] items from
-        // pycore, each written to its own variant-suffixed path. Count is
-        // dynamic via variantsForLanguage(). Additive; accent stays for back-compat.
-        $variantList = AppQyV1WordAudioFiles::variantsForLanguage($langCode);
-        if (is_array($variantList) && !empty($variantList)) {
-            $payload['variants'] = $variantList;
-        }
-
-        // IMAGE lane: NO worker drains the raw remote_client execution_type, so a
-        // word_media task left on remote_client strands forever (backfill never
-        // completes). ALWAYS route word_media onto the shared fast lane the Bing
-        // chrome worker actually drains (capability=image narrows the claim to
-        // chrome; pycore correctly skips it). The fast-lane claim selects purely on
-        // execution_type=remote_fast + capability ordered by priority desc, so a
-        // default-priority backfill is still drained — just behind front bumps.
+        // IMAGE lane: word_media always uses remote_fast + capability=image, so
+        // only the enabled mcp-chrome media worker can claim it. Pycore skips it.
         //
         // Keep the priority/is_fast_tier difference:
         //   - bumpFront  -> interactive=true: createTask rewrites execution_type ->
@@ -522,8 +474,6 @@ class AppQyV1WordMediaService
         //   - backfill   -> interactive=false but execution_type set to remote_fast
         //     here, so it keeps its normal TASK_PRIORITY_DEFAULT priority (createTask
         //     only raises priority when interactive) on the same drained lane.
-        // word_audio is intentionally UNCHANGED — audio rides the assist
-        // tts_priority path and a remote_fast audio task has no write-back.
         $interactive = false;
         $capability = null;
         if ($taskType === 'word_media') {
@@ -531,10 +481,12 @@ class AppQyV1WordMediaService
             if ($bumpFront) {
                 $interactive = true;
             } else {
-                // Non-interactive backfill: route onto the drained fast lane while
-                // preserving the normal default priority (no PRIORITY_FAST bump).
+                // Non-interactive backfill keeps its normal default priority.
                 $executionType = GlobalTask::EXECUTION_REMOTE_FAST;
             }
+        } elseif ($taskType === 'word_translation') {
+            $capability = GlobalTask::CAPABILITY_TRANSLATE;
+            $executionType = GlobalTask::EXECUTION_REMOTE_TRANSLATION;
         }
 
         $this->taskManager->createTask(
@@ -603,22 +555,6 @@ class AppQyV1WordMediaService
                 'error' => $e->getMessage(),
             ]);
         }
-    }
-
-    /**
-     * Whether a row's IMAGE state is terminal — it already has images
-     * (image_status='completed') or Bing was checked and has none for this word
-     * (image_status='none'). Such words must never be re-queued for images. Reads
-     * the column defensively so a host whose image_status migration has not run
-     * yet (null) is simply "not settled" (falls back to the file-first check).
-     */
-    private function imageSettled(?AppQyV1LangDictionaryModel $row): bool
-    {
-        if (!$row) {
-            return false;
-        }
-        $status = $row->image_status ?? null;
-        return $status === 'completed' || $status === 'none';
     }
 
     /**

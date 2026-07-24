@@ -9,9 +9,9 @@ import { LANES } from '@/utils/task-center-lanes';
 
 class MediaImageProcessor implements ITaskProcessor {
   readonly processorType = LANES.MEDIA_IMAGE;
-  readonly processorName = 'Poster & Cover (Google Images)';
-  readonly processorTypes: string[] = [LANES.REMOTE_POSTER];
-  readonly capabilities: WorkerCapability[] = ['poster'];
+  readonly processorName = 'Book, Library & Word Images (Google/Bing)';
+  readonly processorTypes: string[] = [LANES.REMOTE_POSTER, LANES.REMOTE_FAST];
+  readonly capabilities: WorkerCapability[] = ['poster', 'image'];
   readonly concurrency = 1;
 
   async start(config: ProcessorConfig): Promise<void> {
@@ -53,7 +53,7 @@ class MediaImageProcessor implements ITaskProcessor {
   }
 
   canHandle(taskType: string): boolean {
-    return taskType === 'poster';
+    return taskType === 'poster' || taskType === 'word_media';
   }
 }
 

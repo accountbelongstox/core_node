@@ -511,36 +511,6 @@ class WordflowApiService extends WordflowApiMethods {
   // ---- AI tools: translation queue ----
   // Verified backend routes: AppQyV1AITools.php (queue/batch/add + queue/batch/status).
 
-  /**
-   * Enqueue words for translation.
-   *
-   * `opts.interactive` (default false) flags a USER-INITIATED single lookup so
-   * the backend lands the GlobalTask on the shared `remote_fast` interactive
-   * lane at priority 100 with capability "translate". Batch/scan callers MUST
-   * leave it false (the default) so background work stays on the normal lane.
-   */
-  async translationQueueBatchAdd(
-    words: string[],
-    targetLanguage?: string,
-    opts: { interactive?: boolean; language?: string } = {}
-  ) {
-    const body: Record<string, any> = {
-      words,
-      // Source language is REQUIRED by AppQyV1TranslationQueueController::batchAdd
-      // (alongside target_language); omitting it 422s and the task is never created.
-      language: opts.language || this.currentLanguage,
-      target_language: targetLanguage || this.currentLanguage,
-    };
-    if (opts.interactive) {
-      body.interactive = true;
-      body.capability = 'translate';
-    }
-    return this.request<any>('/ai_tools/translation/queue/batch/add', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-  }
-
   /** Poll translation state for a batch of words. */
   async translationQueueBatchStatus(words: string[], targetLanguage?: string) {
     return this.request<any>('/ai_tools/translation/queue/batch/status', {
@@ -575,71 +545,10 @@ class WordflowApiService extends WordflowApiMethods {
     });
   }
 
-  /**
-   * Enqueue text(s) for word-audio (TTS) generation.
-   *
-   * `opts.interactive` (default false) flags a USER-INITIATED single request so
-   * the backend bumps the word to the FRONT of the audio queue (move-to-front
-   * ticket MAX(tts_priority)+1)
-   * via the assist protocol (position='beginning') — NOT a remote_fast GlobalTask.
-   * Batch callers MUST leave it false so background generation keeps normal
-   * priority. Body matches AppQyV1BatchAddTTSTasksRequest: { tasks: [{ content,
-   * language, type }], interactive? }. `language` is a short code (max:10).
-   */
-  async ttsQueueBatchAdd(
-    texts: string[],
-    language?: string,
-    opts: { interactive?: boolean } = {}
-  ) {
-    const lang = language || this.currentLanguage;
-    const body: Record<string, any> = {
-      tasks: texts.map((t) => ({ content: t, language: lang, type: 'word' })),
-    };
-    if (opts.interactive) {
-      body.interactive = true;
-    }
-    return this.request<any>('/ai_tools/tts/queue/batch/add', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-  }
-
   async ttsQueueBatchGet(texts: string[], language?: string) {
     return this.request<any>('/ai_tools/tts/queue/batch/get', {
       method: 'POST',
       body: JSON.stringify({ texts, language: language || this.currentLanguage }),
-    });
-  }
-
-  // ---- AI tools: word image queue ----
-  // Verified backend route: AppQyV1AITools.php word_image group
-  // (word_image/queue/add). Marks the dict row image_status=pending; priority
-  // 'front' => image_priority=PRIORITY_FRONT(100).
-
-  /**
-   * Enqueue word(s) for image generation.
-   *
-   * `opts.interactive` (default false) flags a USER-INITIATED single lookup so
-   * the backend ALSO promotes the canonical word_media image GlobalTask onto the
-   * shared `remote_fast` lane (capability "image", priority>=100, is_fast_tier=1)
-   * via AppQyV1WordMediaService — the SINGLE canonical word_media task creator.
-   * Because pycore advertises caps [audio,translate] and has no image generator,
-   * a capability="image" task is claimable ONLY by chrome (caps [image,translate]),
-   * which fast-drains it sub-second. Background/batch callers MUST leave it false
-   * (the default) so generation stays on the normal lane.
-   */
-  async imageQueueBatchAdd(
-    words: string[],
-    language: string,
-    opts: { interactive?: boolean } = {}
-  ) {
-    return this.request<any>('/ai_tools/word_image/queue/add', {
-      method: 'POST',
-      body: JSON.stringify({
-        words: words.map((w) => ({ word: w, language })),
-        priority: opts.interactive ? 'front' : 'normal',
-        ...(opts.interactive ? { interactive: true } : {}),
-      }),
     });
   }
 

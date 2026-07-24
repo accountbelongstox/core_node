@@ -38,15 +38,56 @@ from typing import Any, Callable, Dict, List, Optional
 import winreg
 
 
+class CodeSyncBusStateThread(threading.Thread):
+    """Own standalone CodeSync bus containers without threading locks."""
+
+    def __init__(self) -> None:
+        super().__init__(name="CodeSyncBusStateThread", daemon=True)
+        self._requests: deque = deque()
+
+    def call(self, callback: Callable, *args: Any, **kwargs: Any) -> Any:
+        if threading.current_thread() is self:
+            return callback(*args, **kwargs)
+
+        response: deque = deque(maxlen=1)
+        self._requests.append((callback, args, kwargs, response))
+        while not response:
+            time.sleep(0.001)
+        succeeded, result = response.popleft()
+        if succeeded:
+            return result
+        raise result
+
+    def run(self) -> None:
+        while True:
+            try:
+                callback, args, kwargs, response = self._requests.popleft()
+            except IndexError:
+                time.sleep(0.001)
+                continue
+            try:
+                result = callback(*args, **kwargs)
+                response.append((True, result))
+            except Exception as exc:
+                response.append((False, exc))
+
+
 class _FallbackThreadBus:
-    """Lock-free in-process bus used only by standalone codesync."""
+    """State-owner in-process bus used only by standalone CodeSync."""
 
     def __init__(self) -> None:
         self._queues: Dict[str, deque] = {}
         self._signals: Dict[str, Any] = {}
+        self._state_owner = CodeSyncBusStateThread()
+        self._state_owner.start()
+
+    def _call_state(self, callback: Callable, *args: Any, **kwargs: Any) -> Any:
+        return self._state_owner.call(callback, *args, **kwargs)
 
     def send_message(self, name: str, message: Any) -> None:
-        self._queues.setdefault(name, deque()).append(message)
+        self._call_state(
+            lambda: self._queues.setdefault(name, deque()).append(message)
+        )
 
     def receive_message(
         self,
@@ -55,39 +96,68 @@ class _FallbackThreadBus:
         timeout: Optional[float] = None,
     ) -> Any:
         started_at = time.monotonic()
-        message_queue = self._queues.setdefault(name, deque())
+        missing = object()
+
+        def receive() -> Any:
+            message_queue = self._queues.get(name)
+            if not message_queue:
+                return missing
+            return message_queue.popleft()
+
         while True:
-            try:
-                return message_queue.popleft()
-            except IndexError:
-                if not block:
-                    return None
-                if timeout is not None and time.monotonic() - started_at >= timeout:
-                    return None
-                time.sleep(0.01)
-
-    def queue_size(self, name: str) -> int:
-        return len(self._queues.setdefault(name, deque()))
-
-    def clear_queue(self, name: str) -> None:
-        self._queues.pop(name, None)
-
-    def signal(self, name: str, data: Any = None) -> None:
-        self._signals[name] = data
-
-    def get_signal(self, name: str, default: Any = None) -> Any:
-        return self._signals.get(name, default)
-
-    def clear_signal(self, name: str) -> None:
-        self._signals.pop(name, None)
-
-    def wait_signal(self, name: str, timeout: Optional[float] = None) -> Any:
-        started_at = time.monotonic()
-        while name not in self._signals:
+            message = self._call_state(receive)
+            if message is not missing:
+                return message
+            if not block:
+                return None
             if timeout is not None and time.monotonic() - started_at >= timeout:
                 return None
             time.sleep(0.01)
-        return self._signals.get(name)
+
+    def queue_size(self, name: str) -> int:
+        return int(self._call_state(
+            lambda: len(self._queues.get(name, ()))
+        ))
+
+    def clear_queue(self, name: str) -> None:
+        self._call_state(self._queues.pop, name, None)
+
+    def signal(self, name: str, data: Any = None) -> None:
+        self._call_state(self._signals.__setitem__, name, data)
+
+    def signal_if_present(
+        self,
+        guard_name: str,
+        name: str,
+        data: Any = None,
+    ) -> bool:
+        def publish() -> bool:
+            if guard_name not in self._signals:
+                return False
+            self._signals.pop(guard_name, None)
+            self._signals[name] = data
+            return True
+
+        return bool(self._call_state(publish))
+
+    def get_signal(self, name: str, default: Any = None) -> Any:
+        return self._call_state(self._signals.get, name, default)
+
+    def clear_signal(self, name: str) -> None:
+        def clear() -> None:
+            self._signals.pop(name, None)
+            self._signals.pop(f"{name}.waiting", None)
+
+        self._call_state(clear)
+
+    def wait_signal(self, name: str, timeout: Optional[float] = None) -> Any:
+        started_at = time.monotonic()
+        missing = object()
+        while self.get_signal(name, missing) is missing:
+            if timeout is not None and time.monotonic() - started_at >= timeout:
+                return None
+            time.sleep(0.01)
+        return self.get_signal(name)
 
 
 class _ThreadBusProxy:
@@ -106,7 +176,38 @@ class _ThreadBusProxy:
 
 THREAD_BUS = _ThreadBusProxy()
 _LOCAL_SHUTDOWN_SIGNAL = "codesync.runtime.shutdown"
+_RUNTIME_CONFIG_SIGNAL = "codesync.runtime.config"
+_DEFAULT_RUNTIME_CONFIG: Dict[str, Any] = {
+    "logger": None,
+    "light": None,
+    "emit_event": None,
+    "is_shutdown_requested": None,
+    "register_shutdown_handler": None,
+    "machine_id": None,
+    "hardware_machine_id": None,
+    "lan_ip": None,
+    "core_node_root": None,
+    "app_data_dir": None,
+}
 THREAD_BUS.signal(_LOCAL_SHUTDOWN_SIGNAL, False)
+THREAD_BUS.signal(_RUNTIME_CONFIG_SIGNAL, dict(_DEFAULT_RUNTIME_CONFIG))
+
+
+def _response_guard_name(response_signal: str) -> str:
+    return f"{response_signal}.waiting"
+
+
+def _publish_response(
+    response_signal: str,
+    response_guard: str,
+    response: Dict[str, Any],
+) -> None:
+    if not response_signal:
+        return
+    if response_guard:
+        THREAD_BUS.signal_if_present(response_guard, response_signal, response)
+        return
+    THREAD_BUS.signal(response_signal, response)
 
 
 class BusTaskThread(threading.Thread):
@@ -121,13 +222,13 @@ class BusTaskThread(threading.Thread):
         if not isinstance(request, dict):
             return
         response_signal = request.get("response_signal", "")
+        response_guard = request.get("response_guard", "")
         try:
             result = request["callback"](*request.get("args", ()), **request.get("kwargs", {}))
             response = {"success": True, "result": result}
         except Exception as exc:
             response = {"success": False, "error": str(exc)}
-        if response_signal:
-            THREAD_BUS.signal(response_signal, response)
+        _publish_response(response_signal, response_guard, response)
         THREAD_BUS.clear_queue(self._queue_name)
 
 
@@ -141,14 +242,24 @@ def start_bus_task(
 ) -> BusTaskThread:
     """Start a named Thread subclass whose task payload crosses THREAD_BUS."""
     queue_name = f"codesync.bus_task.{uuid.uuid4().hex}"
+    response_guard = _response_guard_name(response_signal) if response_signal else ""
+    if response_guard:
+        THREAD_BUS.signal(response_guard, True)
     THREAD_BUS.send_message(queue_name, {
         "callback": callback,
         "args": args,
         "kwargs": kwargs,
         "response_signal": response_signal,
+        "response_guard": response_guard,
     })
     worker = BusTaskThread(queue_name, thread_name, daemon)
-    worker.start()
+    try:
+        worker.start()
+    except Exception:
+        THREAD_BUS.clear_queue(queue_name)
+        if response_guard:
+            THREAD_BUS.clear_signal(response_guard)
+        raise
     return worker
 
 
@@ -165,24 +276,28 @@ class SerializedWorkerThread(threading.Thread):
             if not isinstance(request, dict):
                 continue
             response_signal = request.get("response_signal", "")
+            response_guard = request.get("response_guard", "")
             try:
                 result = request["callback"](*request.get("args", ()), **request.get("kwargs", {}))
                 response = {"success": True, "result": result}
             except Exception as exc:
                 response = {"success": False, "error": str(exc)}
-            if response_signal:
-                THREAD_BUS.signal(response_signal, response)
+            _publish_response(response_signal, response_guard, response)
 
 
 def call_serialized(queue_name: str, callback: Callable, *args: Any, **kwargs: Any) -> Any:
     response_signal = f"{queue_name}.response.{uuid.uuid4().hex}"
+    response_guard = _response_guard_name(response_signal)
+    THREAD_BUS.signal(response_guard, True)
     THREAD_BUS.send_message(queue_name, {
         "callback": callback,
         "args": args,
         "kwargs": kwargs,
         "response_signal": response_signal,
+        "response_guard": response_guard,
     })
     response = THREAD_BUS.wait_signal(response_signal, timeout=30.0)
+    THREAD_BUS.clear_signal(response_guard)
     THREAD_BUS.clear_signal(response_signal)
     if not isinstance(response, dict):
         raise TimeoutError(f"CodeSync serialized operation timed out: {queue_name}")
@@ -224,41 +339,65 @@ def serialized_method(method: Callable) -> Callable:
     return wrapper
 
 
+class LocalShutdownRegistry:
+    """Own standalone shutdown handlers on a serialized codesync worker."""
+
+    def __init__(self) -> None:
+        self._handlers: List[Dict[str, Any]] = []
+        init_serialized_owner(
+            self,
+            "codesync.runtime.shutdown_handlers",
+            "CodeSyncShutdownHandlerStateThread",
+        )
+
+    @serialized_method
+    def add(self, handler: Callable, priority: int, name: str) -> None:
+        self._handlers.append({
+            "handler": handler,
+            "priority": priority,
+            "name": name,
+        })
+
+    @serialized_method
+    def snapshot(self) -> List[Dict[str, Any]]:
+        return [dict(entry) for entry in self._handlers]
+
+
+_LOCAL_SHUTDOWN_REGISTRY = LocalShutdownRegistry()
+
+
 # --------------------------------------------------------------------------- #
 # injectable hooks (set by configure(); stdlib fallbacks otherwise)            #
 # --------------------------------------------------------------------------- #
-_hooks: Dict[str, Optional[Callable]] = {
-    "emit_event": None,
-    "is_shutdown_requested": None,
-    "register_shutdown_handler": None,
-    "machine_id": None,
-    "hardware_machine_id": None,
-    "lan_ip": None,
-    "core_node_root": None,
-    "app_data_dir": None,
-}
-_external_logger = None  # e.g. pycore.ColorPrint
-_local_shutdown_handlers: List[Dict[str, Any]] = []
-
 # Light mode: a CLIENT node that only tracks the mesh (peer status / heartbeats)
 # and never receives/serves files or scans the tree. Precedence:
 #   explicit set_light()/configure(light=) > env CODESYNC_LIGHT > default OFF.
 # None means "not explicitly set" -> fall back to the env var.
 _LIGHT_TRUTHY = ("1", "true", "True", "yes", "on")
-_light: Optional[bool] = None
+
+
+def _runtime_config() -> Dict[str, Any]:
+    """Return the current injected-service snapshot from THREAD_BUS."""
+    return dict(THREAD_BUS.get_signal(_RUNTIME_CONFIG_SIGNAL, _DEFAULT_RUNTIME_CONFIG))
+
+
+def _runtime_hook(name: str) -> Optional[Callable]:
+    return _runtime_config().get(name)
 
 
 def set_light(value) -> None:
     """Explicitly set light mode (overrides the CODESYNC_LIGHT env var)."""
-    global _light
-    _light = bool(value)
+    config = _runtime_config()
+    config["light"] = bool(value)
+    THREAD_BUS.signal(_RUNTIME_CONFIG_SIGNAL, config)
 
 
 def is_light() -> bool:
     """Return the effective light-mode flag: the explicitly-set value if any,
     else the CODESYNC_LIGHT env var (truthy set), else False."""
-    if _light is not None:
-        return _light
+    light = _runtime_config().get("light")
+    if light is not None:
+        return bool(light)
     return os.environ.get("CODESYNC_LIGHT", "") in _LIGHT_TRUTHY
 
 
@@ -268,11 +407,11 @@ def configure(*, logger=None, emit_event=None, thread_bus=None, is_shutdown_requ
               core_node_root=None, app_data_dir=None, light=None):
     """Inject the host runtime's services. Called once by full pycore at startup;
     never called in standalone mode (stdlib defaults stay in effect)."""
-    global _external_logger
+    config = _runtime_config()
     if logger is not None:
-        _external_logger = logger
+        config["logger"] = logger
     if light is not None:
-        set_light(light)
+        config["light"] = bool(light)
     THREAD_BUS.attach(thread_bus)
     for key, val in (("emit_event", emit_event),
                      ("is_shutdown_requested", is_shutdown_requested),
@@ -283,7 +422,8 @@ def configure(*, logger=None, emit_event=None, thread_bus=None, is_shutdown_requ
                      ("core_node_root", core_node_root),
                      ("app_data_dir", app_data_dir)):
         if val is not None:
-            _hooks[key] = val
+            config[key] = val
+    THREAD_BUS.signal(_RUNTIME_CONFIG_SIGNAL, config)
 
 
 # --------------------------------------------------------------------------- #
@@ -292,8 +432,9 @@ def configure(*, logger=None, emit_event=None, thread_bus=None, is_shutdown_requ
 # --------------------------------------------------------------------------- #
 class _Log:
     def _emit(self, level, msg):
-        if _external_logger is not None:
-            getattr(_external_logger, level, None) and getattr(_external_logger, level)(msg)
+        external_logger = _runtime_config().get("logger")
+        if external_logger is not None:
+            getattr(external_logger, level, None) and getattr(external_logger, level)(msg)
             return
         sys.stderr.write(f"{msg}\n")
         sys.stderr.flush()
@@ -369,7 +510,7 @@ http = _Http()
 # --------------------------------------------------------------------------- #
 def emit_event(name: str, payload: Any = None, async_mode: bool = False, **_kw) -> None:
     """Fire a UI/event-bus event (e.g. 'code_sync_update'). No-op standalone."""
-    fn = _hooks["emit_event"]
+    fn = _runtime_hook("emit_event")
     if fn is None:
         return
     try:
@@ -384,7 +525,7 @@ def emit_event(name: str, payload: Any = None, async_mode: bool = False, **_kw) 
 
 
 def is_shutdown_requested() -> bool:
-    fn = _hooks["is_shutdown_requested"]
+    fn = _runtime_hook("is_shutdown_requested")
     if fn is not None:
         try:
             return bool(fn())
@@ -394,21 +535,22 @@ def is_shutdown_requested() -> bool:
 
 
 def register_shutdown_handler(handler: Callable, priority: int = 50, name: str = "") -> None:
-    fn = _hooks["register_shutdown_handler"]
+    fn = _runtime_hook("register_shutdown_handler")
     if fn is not None:
         try:
             fn(handler, priority=priority, name=name)
             return
         except Exception:
             pass
-    _local_shutdown_handlers.append({"handler": handler, "priority": priority, "name": name})
+    _LOCAL_SHUTDOWN_REGISTRY.add(handler, priority, name)
 
 
 def request_local_shutdown() -> None:
     """Standalone daemon stop: set the flag and run registered handlers (high
     priority first). No effect on the injected (pycore) path."""
     THREAD_BUS.signal(_LOCAL_SHUTDOWN_SIGNAL, True)
-    for entry in sorted(_local_shutdown_handlers, key=lambda e: -e.get("priority", 50)):
+    handlers = _LOCAL_SHUTDOWN_REGISTRY.snapshot()
+    for entry in sorted(handlers, key=lambda e: -e.get("priority", 50)):
         try:
             entry["handler"]()
         except Exception:
@@ -535,7 +677,7 @@ def _stdlib_hardware_machine_id() -> str:
 
 
 def get_machine_id() -> str:
-    fn = _hooks["machine_id"]
+    fn = _runtime_hook("machine_id")
     if fn is not None:
         try:
             return fn()
@@ -545,7 +687,7 @@ def get_machine_id() -> str:
 
 
 def get_hardware_machine_id() -> str:
-    fn = _hooks["hardware_machine_id"]
+    fn = _runtime_hook("hardware_machine_id")
     if fn is not None:
         try:
             return fn()
@@ -555,7 +697,7 @@ def get_hardware_machine_id() -> str:
 
 
 def get_local_lan_ip() -> str:
-    fn = _hooks["lan_ip"]
+    fn = _runtime_hook("lan_ip")
     if fn is not None:
         try:
             ip = fn()
@@ -573,7 +715,7 @@ def get_local_lan_ip() -> str:
 
 def get_core_node_root() -> Path:
     """Repo root. This file: <root>/pycore/pyutils/codesync/runtime.py → 4 up."""
-    fn = _hooks["core_node_root"]
+    fn = _runtime_hook("core_node_root")
     if fn is not None:
         try:
             return Path(fn())
@@ -594,7 +736,7 @@ def get_app_data_dir() -> Path:
     """Per-user persistent data dir — identical to pycore.system_paths.get_app_data_dir():
     <system_cache_dir>/data, where system_cache_dir is ~/.core_node on Windows and
     /var/_core_node (if writable) else ~/.core_node on Linux."""
-    fn = _hooks["app_data_dir"]
+    fn = _runtime_hook("app_data_dir")
     if fn is not None:
         try:
             return Path(fn())

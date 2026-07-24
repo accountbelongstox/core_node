@@ -97,8 +97,6 @@ In-tree adopters:
 | key | feature |
 | --- | --- |
 | `pycore.video-extract`        | `PcVideoExtractContext` (run + snapshot/mapping/sync) |
-| `pycore.task-queue`           | `PcTaskQueuePage` (voice-subtitle task list)          |
-| `pycore.translation-queue`    | `PcTranslationQueuePage` (Laravel queue snapshot)     |
 | `pycore.code-sync`            | `PcCodeSyncPage` (peer-mesh self + peers)             |
 | `laravel.task-center`         | `TaskCenter` shell (scheduler+queue aggregate poll)   |
 | `laravel.octane-tasks`        | `TaskCenter` → SchedulerPanel (Octane timer status)   |

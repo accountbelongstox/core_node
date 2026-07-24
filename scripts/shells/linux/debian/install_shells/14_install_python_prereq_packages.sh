@@ -37,8 +37,7 @@ source "$PARENT_DIR_LEVEL_2/common/paddle_cpu_guard.sh"
 source "$PARENT_DIR_LEVEL_2/common/pycore_package_policy_install.sh"
 
 PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
-[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+. "$PIPLOCK_LIB"
 
 TARGET_PY=""
 REQUESTED_PYTHON=""
@@ -46,12 +45,18 @@ PY_VERSION=""
 PIP_SYSFLAGS=()
 OCR_BUNDLE=()
 BACKEND_BUNDLE=()
-TORCH_PROBE="import torch, torchvision, torchaudio, ultralytics"
-OCR_PROBE="import paddleocr, paddlex"
-DEPS_PROBE="import paddle, paddleocr, paddlex, fastapi, uvicorn, psutil, cv2, PIL, numpy, scipy, pyclipper, shapely, websocket"
-ALL_PROBE="import torch, torchvision, torchaudio, ultralytics, paddle, paddleocr, paddlex, fastapi, uvicorn, psutil, cv2, PIL, numpy, scipy, pyclipper, shapely, websocket"
-IFS=',' read -ra OCR_BUNDLE <<< "${AI_OCR_PACKAGES:-paddleocr>=3.7.0,paddlex>=3.7.0}"
-IFS=',' read -ra BACKEND_BUNDLE <<< "${AI_BACKEND_COMMON_PACKAGES:-fastapi,uvicorn[standard],psutil,opencv-contrib-python,pillow,numpy,scipy,pyclipper,shapely,websocket-client}"
+TORCH_BUNDLE=()
+YOLO_BUNDLE=()
+OPENCV_PACKAGE="${AI_OPENCV_PACKAGE:-opencv-python}"
+OPENCV_COMPATIBLE_PACKAGES=()
+TORCH_IMPORTS="${AI_TORCH_IMPORTS:-torch,torchvision,torchaudio,ultralytics}"
+PADDLE_IMPORTS="${AI_PADDLE_IMPORTS:-paddle,paddleocr,paddlex}"
+BACKEND_IMPORTS="${AI_BACKEND_COMMON_IMPORTS:-fastapi,uvicorn,psutil,cv2,PIL,numpy,scipy,pyclipper,shapely,websocket}"
+IFS=',' read -ra OCR_BUNDLE <<< "${AI_OCR_PACKAGES:-paddleocr,paddlex}"
+IFS=',' read -ra BACKEND_BUNDLE <<< "${AI_BACKEND_COMMON_PACKAGES:-fastapi,uvicorn[standard],psutil,opencv-python,pillow,numpy,scipy,pyclipper,shapely,websocket-client}"
+IFS=',' read -ra TORCH_BUNDLE <<< "${AI_TORCH_HEALTH_PACKAGES:-torch,torchvision,torchaudio},${AI_YOLO_PACKAGES:-ultralytics}"
+IFS=',' read -ra YOLO_BUNDLE <<< "${AI_YOLO_PACKAGES:-ultralytics}"
+IFS=',' read -ra OPENCV_COMPATIBLE_PACKAGES <<< "${AI_OPENCV_COMPATIBLE_PACKAGES:-opencv-python,opencv-python-headless,opencv-contrib-python,opencv-contrib-python-headless}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -69,6 +74,8 @@ ipp_resolve_pip_flags() {
 }
 
 ipp_resolve_target_python() {
+    local candidate=""
+    local version_marker=""
     if [[ -n "$REQUESTED_PYTHON" && -x "$REQUESTED_PYTHON" ]]; then
         TARGET_PY="$REQUESTED_PYTHON"
         return 0
@@ -77,10 +84,11 @@ ipp_resolve_target_python() {
     if [ -n "$TARGET_PY" ] && [ -x "$TARGET_PY" ]; then
         return 0
     fi
-    local candidate=""
     for candidate in python3.13 python3.12 python3 python; do
-        if command -v "$candidate" >/dev/null 2>&1 \
-            && "$candidate" -c 'import sys; sys.exit(0 if sys.version_info[:2] in ((3, 12), (3, 13)) else 1)' 2>/dev/null; then
+        if command -v "$candidate" >/dev/null 2>&1; then
+            version_marker="$("$candidate" -c 'import sys; print("__PYTHON_SUPPORTED__" if sys.version_info[:2] in ((3, 12), (3, 13)) else "__PYTHON_UNSUPPORTED__")' 2>/dev/null)"
+        fi
+        if [[ "$version_marker" == *"__PYTHON_SUPPORTED__"* ]]; then
             TARGET_PY="$candidate"
             return 0
         fi
@@ -109,7 +117,7 @@ ipp_report_cuda_state() {
         if [[ -n "$policy_tag" ]]; then
             echo "[$SCRIPT_INDEX] NVIDIA GPU detected ${cuda_ver:+($cuda_ver)} — unified $policy_tag policy."
             echo "[$SCRIPT_INDEX]   torch  -> $(torch_cuda_index_url)"
-            echo "[$SCRIPT_INDEX]   paddle -> $(paddle_cuda_index_url) ($(pcg_expected_version))"
+            echo "[$SCRIPT_INDEX]   paddle -> $(paddle_cuda_index_url)"
         else
             echo "[$SCRIPT_INDEX] NVIDIA GPU detected but no common CUDA tier supports this driver; incompatible GPU packages are skipped."
         fi
@@ -118,43 +126,139 @@ ipp_report_cuda_state() {
     fi
 }
 
+ipp_imports_healthy() {
+    local modules="$1"
+    PYCORE_IMPORT_MODULES="$modules" "$TARGET_PY" - <<'PY' >/dev/null 2>&1
+import importlib
+import os
+
+for name in os.environ["PYCORE_IMPORT_MODULES"].split(","):
+    if name.strip():
+        importlib.import_module(name.strip())
+PY
+}
+
+ipp_modules_present() {
+    local modules="$1" probe_output
+    probe_output="$(PYCORE_IMPORT_MODULES="$modules" "$TARGET_PY" - <<'PY' 2>/dev/null
+import importlib.util
+import os
+
+missing = [
+    name.strip()
+    for name in os.environ["PYCORE_IMPORT_MODULES"].split(",")
+    if name.strip() and importlib.util.find_spec(name.strip()) is None
+]
+print("__MODULES_PRESENT__" if not missing else "__MODULES_MISSING__")
+PY
+    )"
+    [[ "$probe_output" == *"__MODULES_PRESENT__"* ]]
+}
+
+ipp_requirements_ready() {
+    local requirement=""
+    for requirement in "$@"; do
+        pcpi_requirement_satisfied "$TARGET_PY" "$requirement" || return 1
+    done
+    return 0
+}
+
+ipp_torch_bundle_ready() {
+    ipp_requirements_ready "${TORCH_BUNDLE[@]}"
+}
+
+ipp_deps_bundle_ready() {
+    ipp_requirements_ready "${OCR_BUNDLE[@]}" "${BACKEND_BUNDLE[@]}" \
+        && pcg_paddle_dist_present "$TARGET_PY"
+}
+
+ipp_report_import_failures() {
+    local modules="$1" label="$2" module=""
+    local -a candidates=() failed=()
+    IFS=',' read -ra candidates <<< "$modules"
+    for module in "${candidates[@]}"; do
+        if ! ipp_imports_healthy "$module"; then
+            failed+=("$module")
+        fi
+    done
+    if [[ ${#failed[@]} -gt 0 ]]; then
+        echo "[$SCRIPT_INDEX]        $label: ${failed[*]}"
+    fi
+}
+
+ipp_report_missing_modules() {
+    local modules="$1" label="$2" module=""
+    local -a candidates=() missing=()
+    IFS=',' read -ra candidates <<< "$modules"
+    for module in "${candidates[@]}"; do
+        if ! ipp_modules_present "$module"; then
+            missing+=("$module")
+        fi
+    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo "[$SCRIPT_INDEX]        $label: ${missing[*]}"
+    fi
+}
+
+ipp_sync_opencv_distribution() {
+    local package="" installed_package=""
+    for package in "${OPENCV_COMPATIBLE_PACKAGES[@]}"; do
+        if "$TARGET_PY" -m pip show "$package" >/dev/null 2>&1; then
+            installed_package="$package"
+            break
+        fi
+    done
+    if [[ -n "$installed_package" ]] && pcpi_import_present "$TARGET_PY" cv2; then
+        echo "[$SCRIPT_INDEX] [SKIP] OpenCV is provided by $installed_package"
+        return 0
+    fi
+    if [[ -n "$installed_package" ]]; then
+        echo "[$SCRIPT_INDEX] OpenCV metadata exists but cv2 is unavailable; asking pip to repair $installed_package ..."
+        vpip "$TARGET_PY" -m pip install "${PIP_SYSFLAGS[@]}" "$installed_package" \
+            && pcpi_import_present "$TARGET_PY" cv2
+        return
+    fi
+    echo "[$SCRIPT_INDEX] OpenCV is missing; installing $OPENCV_PACKAGE ..."
+    vpip "$TARGET_PY" -m pip install "${PIP_SYSFLAGS[@]}" "$OPENCV_PACKAGE" \
+        && pcpi_import_present "$TARGET_PY" cv2
+}
+
 ipp_install_torch_yolo_bundle() {
     echo "[$SCRIPT_INDEX] Ensuring canonical torch build (CPU/GPU guard)..."
     TCG_PYTHON="$TARGET_PY" tcg_ensure_torch_build
-    if "$TARGET_PY" -c "$TORCH_PROBE" >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] [SKIP] torch/torchvision/torchaudio/ultralytics already importable"
+    if ipp_torch_bundle_ready; then
+        echo "[$SCRIPT_INDEX] [SKIP] torch/torchvision/torchaudio/ultralytics already present"
         return 0
     fi
     echo "[$SCRIPT_INDEX] Installing ultralytics (YOLO) with torch bundle..."
-    echo "[$SCRIPT_INDEX] $TARGET_PY -m pip install --upgrade ${PIP_SYSFLAGS[*]} ultralytics"
-    if ! vpip "$TARGET_PY" -m pip install --upgrade "${PIP_SYSFLAGS[@]}" ultralytics; then
-        echo "[$SCRIPT_INDEX] [ERROR] ultralytics install failed."
-        return 1
+    echo "[$SCRIPT_INDEX] $TARGET_PY -m pip install ${PIP_SYSFLAGS[*]} ${YOLO_BUNDLE[*]}"
+    vpip "$TARGET_PY" -m pip install "${PIP_SYSFLAGS[@]}" "${YOLO_BUNDLE[@]}"
+    if ! ipp_torch_bundle_ready; then
+        echo "[$SCRIPT_INDEX] Rechecking the torch package group after dependency installation..."
+        TCG_PYTHON="$TARGET_PY" tcg_ensure_torch_build
     fi
-    if ! "$TARGET_PY" -c "$TORCH_PROBE" >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] Upgrading torch/torchvision/torchaudio together (version sync)..."
-        if ! vpip "$TARGET_PY" -m pip install --upgrade "${PIP_SYSFLAGS[@]}" torch torchvision torchaudio ultralytics; then
-            echo "[$SCRIPT_INDEX] [ERROR] torch bundle install failed."
-            return 1
-        fi
+    if ! ipp_torch_bundle_ready; then
+        echo "[$SCRIPT_INDEX] [ERROR] torch bundle remains incomplete after repair."
+        ipp_report_import_failures "$TORCH_IMPORTS" "failed imports"
+        return 1
     fi
     return 0
 }
 
 ipp_install_paddle_ocr_bundle() {
     echo "[$SCRIPT_INDEX] Ensuring canonical paddle build (CPU/GPU guard)..."
-    if ! PCG_PYTHON="$TARGET_PY" pcg_ensure_paddle_build; then
-        echo "[$SCRIPT_INDEX] [ERROR] canonical Paddle installation or repair failed."
-        return 1
-    fi
-    if "$TARGET_PY" -c "$DEPS_PROBE" >/dev/null 2>&1; then
+    PCG_PYTHON="$TARGET_PY" pcg_ensure_paddle_build
+    if ipp_deps_bundle_ready; then
         echo "[$SCRIPT_INDEX] [SKIP] paddle ecosystem + backend deps already importable"
         return 0
     fi
     echo "[$SCRIPT_INDEX] Installing paddleocr + paddlex + backend deps (single resolver pass)..."
     echo "[$SCRIPT_INDEX] $TARGET_PY -m pip install ${PIP_SYSFLAGS[*]} ${OCR_BUNDLE[*]} ${BACKEND_BUNDLE[*]}"
-    if ! vpip "$TARGET_PY" -m pip install "${PIP_SYSFLAGS[@]}" "${OCR_BUNDLE[@]}" "${BACKEND_BUNDLE[@]}"; then
-        echo "[$SCRIPT_INDEX] [ERROR] paddleocr/backend bundle install failed."
+    vpip "$TARGET_PY" -m pip install "${PIP_SYSFLAGS[@]}" "${OCR_BUNDLE[@]}" "${BACKEND_BUNDLE[@]}"
+    if ! ipp_deps_bundle_ready; then
+        echo "[$SCRIPT_INDEX] [ERROR] paddle/backend bundle remains unhealthy after repair."
+        ipp_report_import_failures "$PADDLE_IMPORTS" "failed core imports"
+        ipp_report_missing_modules "$BACKEND_IMPORTS" "missing backend modules"
         return 1
     fi
     return 0
@@ -164,47 +268,40 @@ echo "[$SCRIPT_INDEX] ==========================================================
 echo "[$SCRIPT_INDEX] Install python prerequisite packages (captcha/AI backends)"
 echo "[$SCRIPT_INDEX] ============================================================"
 
-if ! ipp_resolve_target_python; then
+if ipp_resolve_target_python; then
+    PY_VERSION="$("$TARGET_PY" --version 2>&1)"
+    echo "[$SCRIPT_INDEX] Target interpreter: $TARGET_PY ($PY_VERSION)"
+    ipp_resolve_pip_flags
+    echo ""
+else
     echo "[$SCRIPT_INDEX] [ERROR] no Python 3.12/3.13 found (VENV_PYTHON3=$VENV_PYTHON3)."
     echo "[$SCRIPT_INDEX]        Run 13_ensure_python.sh first."
-    exit 1
 fi
 
-PY_VERSION="$("$TARGET_PY" --version 2>&1)"
-echo "[$SCRIPT_INDEX] Target interpreter: $TARGET_PY ($PY_VERSION)"
-ipp_resolve_pip_flags
-echo ""
+if [[ -n "$TARGET_PY" ]] && ipp_verify_pip_ready; then
+    ipp_report_cuda_state
+    echo ""
+    ipp_install_torch_yolo_bundle
+    echo ""
+    ipp_install_paddle_ocr_bundle
+    echo ""
+    install_pycore_package_policy "$TARGET_PY" "[$SCRIPT_INDEX]"
+    echo ""
+    ensure_shared_transformers_from_common_functions "$TARGET_PY"
+    echo ""
+    ipp_sync_opencv_distribution
+    echo ""
 
-if ! ipp_verify_pip_ready; then
-    exit 1
-fi
-ipp_report_cuda_state
-echo ""
-
-if ! ipp_install_torch_yolo_bundle; then
-    exit 1
-fi
-echo ""
-
-if ! ipp_install_paddle_ocr_bundle; then
-    exit 1
-fi
-echo ""
-
-if ! install_pycore_package_policy "$TARGET_PY" "[$SCRIPT_INDEX]"; then
-    echo "[$SCRIPT_INDEX] [ERROR] some central pycore packages remain unavailable."
-    exit 1
-fi
-echo ""
-
-echo "[$SCRIPT_INDEX] Verifying all imports..."
-if "$TARGET_PY" -c "$ALL_PROBE" >/dev/null 2>&1; then
-    echo "[$SCRIPT_INDEX] [OK] all prerequisite packages importable in $TARGET_PY"
-else
-    echo "[$SCRIPT_INDEX] [ERROR] some required imports failed:"
-    "$TARGET_PY" -c "$ALL_PROBE" 2>&1 | tail -8
-    echo "[$SCRIPT_INDEX]        Re-run this script to resume the idempotent repair."
-    exit 1
+    echo "[$SCRIPT_INDEX] Verifying core imports and backend module availability..."
+    if ipp_torch_bundle_ready && ipp_deps_bundle_ready; then
+        echo "[$SCRIPT_INDEX] [OK] all prerequisite packages are ready in $TARGET_PY"
+    else
+        echo "[$SCRIPT_INDEX] [WARN] some required packages remain unavailable:"
+        ipp_report_import_failures "$TORCH_IMPORTS" "failed torch imports"
+        ipp_report_import_failures "$PADDLE_IMPORTS" "failed paddle imports"
+        ipp_report_missing_modules "$BACKEND_IMPORTS" "missing backend modules"
+        echo "[$SCRIPT_INDEX]        Re-run this script to resume the idempotent repair."
+    fi
 fi
 
 echo ""

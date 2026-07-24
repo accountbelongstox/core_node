@@ -5,11 +5,17 @@ Application Configuration - Centralized app settings
 """
 
 import json
+import copy
 from pathlib import Path
 from typing import Dict, Any, Optional
 
 # Import from pycore following PYTHON_PYCORE.md standards
 from pycore.pyfoundations import ColorPrint, ENCYCLOPEDIA
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 from pycore.pygvar import (
     IS_WINDOWS,
     PROJECT_ROOT,
@@ -53,6 +59,11 @@ class AppConfig:
 
         # Load config
         self._load_config()
+        init_serialized_owner(
+            self,
+            'flutter_dev_tools.app_config.state',
+            'FlutterDevToolsAppConfigStateThread',
+        )
 
     def _get_default_config(self) -> Dict[str, Any]:
         """Get default configuration"""
@@ -166,6 +177,7 @@ class AppConfig:
         except Exception as e:
             self.color_print.print_red(f"[Config] Failed to save config: {e}")
 
+    @serialized_method
     def get(self, key_path: str, default: Any = None) -> Any:
         """
         Get configuration value by dot-separated path
@@ -186,8 +198,9 @@ class AppConfig:
             else:
                 return default
 
-        return value
+        return copy.deepcopy(value)
 
+    @serialized_method
     def set(self, key_path: str, value: Any, save: bool = True) -> None:
         """
         Set configuration value by dot-separated path
@@ -217,6 +230,7 @@ class AppConfig:
         if save:
             self._save_config()
 
+    @serialized_method
     def reload(self) -> None:
         """Reload configuration from file"""
         # Clear cache
@@ -226,13 +240,17 @@ class AppConfig:
         # Reload
         self._load_config()
 
+    @serialized_method
     def get_all(self) -> Dict[str, Any]:
         """Get entire configuration dictionary"""
-        return self._config.copy()
+        return copy.deepcopy(self._config)
 
 
-# Singleton instance
-_app_config_instance: Optional[AppConfig] = None
+_APP_CONFIG_PROVIDER = SerializedSingletonProvider(
+    AppConfig,
+    'flutter_dev_tools.app_config.provider',
+    'FlutterDevToolsAppConfigProviderThread',
+)
 
 
 def get_app_config() -> AppConfig:
@@ -242,9 +260,4 @@ def get_app_config() -> AppConfig:
     Returns:
         AppConfig instance
     """
-    global _app_config_instance
-
-    if _app_config_instance is None:
-        _app_config_instance = AppConfig()
-
-    return _app_config_instance
+    return _APP_CONFIG_PROVIDER.get()

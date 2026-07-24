@@ -50,7 +50,9 @@ $depsSentinel = Join-Path $targetDir '.deps_done'
 $weightsDir = Join-Path $targetDir 'weights'
 $modelSentinel = Join-Path $targetDir '.model_installed'
 
+. (Join-Path $winCommonDir 'CudaIndex.ps1')
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
+$resolvedPython = $Global:PYTHON_EXE_PATH
 
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host " $SCRIPT_INDEX Bark (Suno / transformers)" -ForegroundColor Cyan
@@ -60,19 +62,21 @@ if ($env:BARK_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] BARK_SKIP=1 -> skipping." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('transformers') -AbsentOk -AbsentNote 'BARK_SKIP=1'
     return
+    return
 }
 
-$resolvedPython = $Global:PYTHON_EXE_PATH
 if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'bark' -Path $depsSentinel) -and -not $Force -and -not $doFull) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'Bark (transformers) already installed' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('transformers')
+    return
 }
 if (-not $doFull -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [i] status-only. Pass -Full, BARK_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('transformers') -AbsentOk -AbsentNote 'opt-in'
+    return
 }
 
-$hasCuda = Test-CudaPresent
+$hasCuda = (Get-CudaRuntimePolicy).Enabled
 $barkModel = Resolve-TtsModelTier -PythonExe $resolvedPython -Key bark_model -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)
 Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine bark -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 Write-Host ("$SCRIPT_INDEX  staging : {0}" -f $targetDir) -ForegroundColor DarkGray
@@ -84,6 +88,7 @@ Write-Host ("$SCRIPT_INDEX  sentinel: {0} ({1})" -f $modelSentinel, $(if (Test-P
 if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [!] Python 3 not found." -ForegroundColor DarkYellow
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('transformers')
+    return
 }
 
 New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
@@ -131,7 +136,8 @@ if (-not $modelReady) {
 }
 
 if (-not (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'bark' -Path $depsSentinel) -or -not $modelReady) {
-    throw "$SCRIPT_INDEX Bark is not ready; incomplete components will retry next run."
+    Write-Host "$SCRIPT_INDEX [!] Bark is not ready; incomplete components will retry next run." -ForegroundColor DarkYellow
+    return
 }
 
 Write-Host "$SCRIPT_INDEX [OK] Bark ready. Weights pre-downloaded (idempotent); engine auto-detects local." -ForegroundColor Green

@@ -18,10 +18,9 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
-# Serialize pip into the shared venv (safe under the LLM parallel group). Defensive.
+# Serialize pip into the shared venv.
 PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
-[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+. "$PIPLOCK_LIB"
 # torch build guard (CPU vs CUDA wheels) - reused so we never force the ~4.3G
 # nvidia-* CUDA stack onto a GPU-less desktop. Provides tcg_gpu_present etc.
 source "$PARENT_DIR_LEVEL_2/common/torch_cpu_guard.sh"
@@ -286,8 +285,6 @@ get_venv_python() {
     echo "[run] $base_python -m venv --system-site-packages $VENV_DIR" >&2
     if "$base_python" -m venv --system-site-packages "$VENV_DIR" >&2; then
         if [ -x "$VENV_PYTHON3" ]; then
-            echo "[run] $VENV_PYTHON3 -m pip install --upgrade pip" >&2
-            vpip "$VENV_PYTHON3" -m pip install --upgrade pip >/dev/null 2>&1 || true
             echo "$VENV_PYTHON3"
             return 0
         fi
@@ -335,6 +332,7 @@ flash_attn_cuda_compatible() {
 install_dependencies() {
     local install_dir=$1
     local python_cmd=$2
+    local torch_metadata=""
 
     print_info "Installing Python dependencies..."
 
@@ -369,23 +367,10 @@ install_dependencies() {
     # REUSE the torch provided by the prerequisite install (13_ensure_python.sh /
     # 13_cuda_nvidia_prereq.sh) when it is importable; never reinstall it (avoids
     # version churn and conflicts in the shared venv). Only install torch if absent.
-    if "$run_python" -c "import torch" >/dev/null 2>&1; then
-        if [ "$has_gpu" = true ] && ! "$run_python" -c "import torch; assert torch.cuda.is_available()" >/dev/null 2>&1; then
-            # torch imports but its CUDA build cannot init on THIS driver (e.g. a too-new wheel
-            # such as cu130 on a 12.4 driver). Reusing it makes DeepSeek-OCR silently fall back to
-            # CPU AND leaves the worker re-triggering reinstalls, so uninstall the stale build (so
-            # it stops shadowing) and reinstall the driver-matched wheel.
-            _ocr_torch_idx="$(torch_cuda_index_url)"
-            print_warning "Step 1: existing torch ($("$run_python" -c 'import torch; print(torch.__version__)' 2>/dev/null)) cannot use CUDA on this driver - reinstalling driver-matched build ($_ocr_torch_idx)..."
-            echo ""
-            vpip "$venv_python" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
-            echo "[run] ${pip_install[*]} torch torchvision torchaudio --index-url $_ocr_torch_idx --force-reinstall"
-            "${pip_install[@]}" torch torchvision torchaudio --index-url "$_ocr_torch_idx" --force-reinstall
-            echo ""
-        else
-            print_success "Step 1: Reusing existing torch ($("$run_python" -c 'import torch; print(torch.__version__)' 2>/dev/null)); skipping torch install"
-            echo ""
-        fi
+    torch_metadata="$("$run_python" -m pip show torch 2>/dev/null || true)"
+    if [[ "$torch_metadata" == *"Name:"* ]]; then
+        print_success "Step 1: torch metadata is present; preserving the canonical prerequisite build"
+        echo ""
     elif [ "$has_gpu" = true ]; then
         # Driver-matched CUDA wheel from the unified CUDA policy.
         _ocr_torch_idx="$(torch_cuda_index_url)"
@@ -417,7 +402,7 @@ install_dependencies() {
         "${pip_install[@]}" -r "$req_file"
     fi
     local core_deps=(
-        "$LLM_TRANSFORMERS_SPEC" tokenizers==0.20.3
+        "$LLM_TRANSFORMERS_SPEC" tokenizers
         addict easydict einops PyMuPDF img2pdf Pillow numpy
         accelerate timm sentencepiece protobuf
     )
@@ -426,14 +411,14 @@ install_dependencies() {
     echo ""
 
     if [ "$has_gpu" = true ] && flash_attn_cuda_compatible "$run_python"; then
-        print_info "Step 3: Installing flash-attn==2.7.3 (CUDA source build)..."
+        print_info "Step 3: Installing flash-attn (CUDA source build)..."
         echo ""
         # ninja makes the CUDA build use the fast parallel backend; without it the
         # build falls back to the very slow distutils path (official flash-attn guidance).
         echo "[run] ${pip_install[*]} ninja"
         "${pip_install[@]}" ninja || print_warning "ninja install failed; flash-attn build will be slow"
-        echo "[run] ${pip_install[*]} flash-attn==2.7.3 --no-build-isolation"
-        if "${pip_install[@]}" flash-attn==2.7.3 --no-build-isolation; then
+        echo "[run] ${pip_install[*]} flash-attn --no-build-isolation"
+        if "${pip_install[@]}" flash-attn --no-build-isolation; then
             print_success "flash-attn installed"
         else
             print_warning "flash-attn build failed -> continuing without it (model uses eager attention)"
@@ -442,7 +427,7 @@ install_dependencies() {
     else
         print_warning "Step 3: Skipping flash-attn (optional CUDA speedup; needs a usable GPU + nvcc CUDA major == torch CUDA major)"
         print_info "The model still runs via eager attention. To add it later on a matching CUDA host:"
-        print_info "  $run_python -m pip install flash-attn==2.7.3 --no-build-isolation"
+        print_info "  $run_python -m pip install flash-attn --no-build-isolation"
         echo ""
     fi
 

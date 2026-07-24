@@ -32,7 +32,6 @@ export const WFNEW_API_BASE = '/api/app_qy_v1';
 
 /** Prefix a route suffix with the AppQyV1 base. */
 const p = (suffix: string): string => `${WFNEW_API_BASE}${suffix}`;
-const SENTENCE_AUDIO_BUMP_PATH = p('/ai_tools/tts/sentence/bump');
 const sentenceAudioPath = (text: string, language: string, variantKey?: string): string =>
   p(`/ai_tools/tts/sentence/audio?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}${
     variantKey ? `&variant_key=${encodeURIComponent(variantKey)}` : ''}`);
@@ -83,17 +82,16 @@ export const WfNewApiPaths = {
   /** Available TTS voices = the Laravel audio library. GET → data.voices = { lang: voice_id }. */
   ttsVoices: p('/ai_tools/tts/voices'),
   recentAgentArticles: (limit = 20): string => p(`/ai_tools/article/worker/recent?limit=${limit}`),
+  translationQueueStream: p('/ai_tools/translation/queue/stream'),
 
   // ---- Sentence audio (book reader on-demand TTS) ----
-  sentenceAudioBump: SENTENCE_AUDIO_BUMP_PATH,
-  /** Batch high-priority hint for the now-visible reader page (chapter switch):
-   *  raises tts_priority for many sentences in ONE round-trip + one pycore nudge. */
-  sentenceAudioBumpBatch: p('/ai_tools/tts/sentence/bump-batch'),
   sentenceAudio: sentenceAudioPath,
 
   // ---- Learning languages (AppQyV1Learning.php — prefix app_qy_v1/learning, sanctum) ----
   /** GET native + learning_languages / POST to update them. */
   learningLanguages: p('/learning/languages'),
+  sentenceWords: p('/learning/sentence-words'),
+  sentenceWordsPlayed: p('/learning/sentence-words/played'),
 
   // ---- Groups & dictionary (AppQyV1Dict.php — prefix app_qy_v1) ----
   queryAllGroups: p('/query_all_groups'),
@@ -164,11 +162,6 @@ export const WfNewApiPaths = {
   wordMedia: (lang: string, word: string, accent?: string): string =>
     p(`/word/${encodeURIComponent(lang)}/${encodeURIComponent(word)}/media${
       accent ? `?accent=${encodeURIComponent(accent)}` : ''}`),
-
-  /** Upload FE-generated word audio (Puter.js) for persistence (POST).
-   *  Body: { md5, lang, audio_base64, provider?, accent? }.
-   *  Laravel stores via AppQyV1DictionaryTTSCoordinator::storeWordAudioBytes. */
-  wordAudioUpload: p('/word/audio/upload'),
 
   // ---- Dictionary words (AppQyV1Vocabulary.php — paginated, PUBLIC) ----
   /** Paginated dictionary words with audio + translation for the word-stats sidebar.
@@ -390,8 +383,6 @@ export const WfNewAdminPaths = {
 
   // ---- queues (PUBLIC) ----
   /** Unified TTS queue statistics snapshot. */
-  /** POST /ai_tools/tts/sentence/bump */
-  sentenceAudioBump: SENTENCE_AUDIO_BUMP_PATH,
   /** GET /ai_tools/tts/sentence/audio — file-first sentence audio resolve. */
   sentenceAudio: sentenceAudioPath,
 

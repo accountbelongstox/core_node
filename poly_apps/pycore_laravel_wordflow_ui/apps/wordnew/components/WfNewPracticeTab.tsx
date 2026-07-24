@@ -41,7 +41,6 @@ import { wfNewNotify, useWfNewToasts } from '../WfNewNotify';
 import { WfNewBottomDock } from './WfNewBottomDock';
 import { CourseBlockCard, WordRowItem } from './WfNewCards';
 import { WfNewSettings } from '../pages/WfNewSettings';
-import DailyReading from '../../../components/views/DailyReading';
 
 // New Custom Study Suites Pages
 import { WfNewWalkman } from '../pages/WfNewWalkman';
@@ -511,6 +510,7 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
                           <WfNewStudyWordList
                             words={pager.words}
                             lang={lang}
+                            sourceLanguage={selectedPracticeGroup?.language || 'en'}
                             theme={activeTheme}
                             brief={brief}
                             favorites={favorites}
@@ -591,6 +591,7 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
             <WfNewStudyWordList
               words={pager.words}
               lang={lang}
+              sourceLanguage={selectedPracticeGroup?.language || 'en'}
               theme={activeTheme}
               brief={brief}
               favorites={favorites}

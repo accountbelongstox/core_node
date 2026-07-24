@@ -39,7 +39,7 @@ pyapps/{appname}/
 - BusKeys (THREAD_BUS apps): `{appname}_bus_keys/` exports `{AppName}BusKeys` + `register_bus_keys()`; keys `{appname}.`-prefixed; call it at start of `start()`.
 
 ## 4. Threading
-- Threading: components subclass `threading.Thread` (names end in `Thread`) and exchange data ONLY via THREAD_BUS — manual locks, ThreadPoolExecutor, Timer, Queue, thread-local and `threading.Thread(target=...)` spawns are FORBIDDEN (shared state must be GIL-atomic simple assignments; exempt: standalone `tts_install_assets/*` subprocess scripts, which may not import pycore). Touch Tkinter objects only from the Tkinter thread.
+- Threading: thread implementations directly subclass `threading.Thread` (names end in `Thread`); data and mutable state use THREAD_BUS-backed owners only; `threading` locks/events/semaphores/locals, ThreadPoolExecutor, Timer, Queue, and `Thread(target=...)` are forbidden; standalone `tts_install_assets/*` subprocess scripts are exempt and may not import pycore; Tkinter objects stay on their UI thread.
 
 ## 5. Third-party deps
 - Register every package in `pyfoundations/third_party.py` (DEPENDENCY_MAP / OPTIONAL_PACKAGES / WINDOWS_ONLY_PACKAGES / SYSTEM_PACKAGES); it auto-installs missing required ones once per process.
@@ -47,6 +47,6 @@ pyapps/{appname}/
 
 ## 6. Subsystem constraints
 - MCP (`pyutils/mcp/`): no ColorPrint (breaks JSON-RPC) — stdlib `logging`, STDOUT=JSON-RPC only, tools `async def`→`Dict{success}`; STDIO mode via `PYCORE_MCP_MODE=1`.
-- Heartbeat (`pyfoundations/heartbeat/`): Thread-based, no locks (GIL-atomic state machine); registrations HARD-CODED in `registry.py`, each lib provides TaskModel + TaskHandler.
+- Heartbeat (`pyfoundations/heartbeat/`): Thread subclasses with THREAD_BUS-backed state; registrations HARD-CODED in `registry.py`, each lib provides TaskModel + TaskHandler.
 - Database (`pycore/database/`): table names only via `TableKeys` (`{namespace}.{table}`), never hardcoded.
 - Services: rpc_v2 / callmodule on `:59000`; pyutils re-exported from `pycore.pyutils` with `*_AVAILABLE` flags (GUI needs `PYUTILS_LOAD_GUI=1`); UI shell `poly_apps/pycore_laravel_wordflow_ui`.

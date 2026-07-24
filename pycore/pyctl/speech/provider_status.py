@@ -12,12 +12,16 @@ Architecture:
 - Status listeners for notifications
 """
 
-import time
 from typing import Dict, Optional, Callable, List
-from dataclasses import dataclass, field
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
 from pycore.pyfoundations.third_party import (
     get_third_package_edge_tts,
     get_third_package_speechsdk,
@@ -51,6 +55,19 @@ class ProviderInfo:
         self.last_success = datetime.now()
         self.failure_count = 0
         self.busy = False
+
+
+def _invoke_provider_listener(payload: Dict) -> None:
+    """Deliver one provider-status event received through THREAD_BUS."""
+    callback = payload.get("callback")
+    if not callable(callback):
+        return
+    callback(
+        payload.get("category"),
+        payload.get("provider_name"),
+        bool(payload.get("available")),
+        payload.get("error"),
+    )
 
     def mark_unavailable(self, error: str):
         """Mark provider as unavailable"""
@@ -107,9 +124,15 @@ class ProviderStatus:
 
         # Initialization flag
         self._initialized = False
+        init_serialized_owner(
+            self,
+            "speech.provider_status.state",
+            "SpeechProviderStatusState",
+        )
 
         ColorPrint.blue("[ProviderStatus] Initialized")
 
+    @serialized_method
     def add_listener(self, callback: Callable):
         """
         Add status change listener
@@ -121,19 +144,31 @@ class ProviderStatus:
         if callback not in self._listeners:
             self._listeners.append(callback)
 
+    @serialized_method
     def remove_listener(self, callback: Callable):
         """Remove status change listener"""
         if callback in self._listeners:
             self._listeners.remove(callback)
 
     def _notify_listeners(self, category: str, provider_name: str, available: bool, error: Optional[str]):
-        """Notify all listeners of status change"""
+        """Queue listener notifications through THREAD_BUS."""
         for listener in list(self._listeners):
             try:
-                listener(category, provider_name, available, error)
+                start_bus_task(
+                    _invoke_provider_listener,
+                    {
+                        "callback": listener,
+                        "category": category,
+                        "provider_name": provider_name,
+                        "available": available,
+                        "error": error,
+                    },
+                    thread_name="SpeechProviderListenerThread",
+                )
             except Exception as e:
                 ColorPrint.red(f"[ProviderStatus] Listener error: {e}")
 
+    @serialized_method
     def check_tts_providers(self):
         """
         Check availability of all TTS providers
@@ -169,6 +204,7 @@ class ProviderStatus:
             azure_info.mark_unavailable(error_msg)
             ColorPrint.yellow(f"[ProviderStatus] ✗ Azure TTS unavailable: {error_msg}")
 
+    @serialized_method
     def check_stt_providers(self):
         """
         Check availability of all STT providers
@@ -209,6 +245,7 @@ class ProviderStatus:
             self._status['stt']['local'].mark_unavailable(error_msg)
             ColorPrint.yellow(f"[ProviderStatus] ✗ Local STT unavailable: {error_msg}")
 
+    @serialized_method
     def check_all_providers(self):
         """Check all providers (TTS + STT)"""
         self.check_tts_providers()
@@ -229,6 +266,7 @@ class ProviderStatus:
         except Exception:
             return False
 
+    @serialized_method
     def mark_available(self, category: str, provider_name: str):
         """
         Mark provider as available
@@ -247,6 +285,7 @@ class ProviderStatus:
                 ColorPrint.green(f"[ProviderStatus] {category.upper()}/{provider_name} now available")
                 self._notify_listeners(category, provider_name, True, None)
 
+    @serialized_method
     def mark_unavailable(self, category: str, provider_name: str, error: str):
         """
         Mark provider as unavailable (called when provider fails)
@@ -266,6 +305,7 @@ class ProviderStatus:
                 ColorPrint.red(f"[ProviderStatus] {category.upper()}/{provider_name} now unavailable: {error}")
                 self._notify_listeners(category, provider_name, False, error)
 
+    @serialized_method
     def is_available(self, category: str, provider_name: str) -> bool:
         """
         Check if provider is available
@@ -281,6 +321,7 @@ class ProviderStatus:
             return self._status[category][provider_name].available
         return False
 
+    @serialized_method
     def get_provider_info(self, category: str, provider_name: str) -> Optional[ProviderInfo]:
         """
         Get detailed provider information
@@ -293,9 +334,10 @@ class ProviderStatus:
             ProviderInfo object or None if not found
         """
         if category in self._status and provider_name in self._status[category]:
-            return self._status[category][provider_name]
+            return replace(self._status[category][provider_name])
         return None
 
+    @serialized_method
     def get_best_tts_provider(self) -> Optional[str]:
         """
         Get best available TTS provider
@@ -310,6 +352,7 @@ class ProviderStatus:
                 return provider
         return None
 
+    @serialized_method
     def get_best_stt_provider(self) -> Optional[str]:
         """
         Get best available STT provider
@@ -324,6 +367,7 @@ class ProviderStatus:
                 return provider
         return None
 
+    @serialized_method
     def get_all_status(self) -> Dict:
         """
         Get status of all providers
@@ -346,6 +390,7 @@ class ProviderStatus:
                 }
         return result
 
+    @serialized_method
     def print_status(self):
         """Print status of all providers (for debugging)"""
         ColorPrint.blue("\n" + "="*70)
@@ -370,14 +415,11 @@ class ProviderStatus:
 
 
 # Global singleton instance
-_provider_status: Optional[ProviderStatus] = None
+_provider_status = ProviderStatus()
 
 
 def get_provider_status() -> ProviderStatus:
     """Get global ProviderStatus singleton."""
-    global _provider_status
-    if _provider_status is None:
-        _provider_status = ProviderStatus()
     return _provider_status
 
 

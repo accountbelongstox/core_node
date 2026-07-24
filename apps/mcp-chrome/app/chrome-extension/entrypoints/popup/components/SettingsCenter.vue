@@ -46,7 +46,7 @@
           <span class="block text-[8px] mt-1" style="color: var(--text-faint)">Pending retries: {{ outboxPending }}</span>
         </div>
         <button class="w-full px-2 py-1.5 bg-rose-900/20 border border-rose-900/40 text-rose-400 rounded text-[9px] font-bold transition-all hover:bg-rose-900/30" @click="handleReset">
-          Reset All Settings
+          Reset General Settings
         </button>
       </div>
     </div>
@@ -160,7 +160,7 @@ const toggleDebugMode = () => {
 };
 
 const handleReset = () => {
-  if (confirm('Are you sure you want to reset all settings? This action cannot be undone.')) {
+  if (confirm('Reset the general server and debug settings to their defaults?')) {
     appStore.resetSettings();
   }
 };

@@ -20,22 +20,27 @@
 
 function Ensure-PkgResources {
     param([string]$Py)
-    if (-not $Py) { return $false }
+    $out = ''
     $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    $out = (& $Py -c "import pkg_resources; print('__FOUND__')" 2>$null) -join ''
-    $ErrorActionPreference = $prevEap
-    if ($out -match '__FOUND__') { return $true }
-    Write-Host "[setuptools-guard] pkg_resources missing (setuptools>=81 removed it) -> pinning setuptools<81 ..." -ForegroundColor Yellow
-    try { & $Py -m pip install --upgrade 'setuptools<81' } catch { }
-    $prevEap = $ErrorActionPreference
+    if (-not $Py) {
+        Write-Host '[setuptools-guard] Python is unavailable; skipping.' -ForegroundColor DarkYellow
+        return
+    }
     $ErrorActionPreference = 'Continue'
     $out = (& $Py -c "import pkg_resources; print('__FOUND__')" 2>$null) -join ''
     $ErrorActionPreference = $prevEap
     if ($out -match '__FOUND__') {
-        Write-Host "[setuptools-guard] [OK] pkg_resources restored (setuptools<81)." -ForegroundColor Green
-        return $true
+        Write-Host '[setuptools-guard] pkg_resources is available; preserving setuptools.' -ForegroundColor Green
+    } else {
+        Write-Host '[setuptools-guard] pkg_resources missing -> applying the setuptools<81 compatibility boundary ...' -ForegroundColor Yellow
+        $ErrorActionPreference = 'Continue'
+        & $Py -m pip install 'setuptools<81'
+        $out = (& $Py -c "import pkg_resources; print('__FOUND__')" 2>$null) -join ''
+        $ErrorActionPreference = $prevEap
+        if ($out -match '__FOUND__') {
+            Write-Host '[setuptools-guard] [OK] pkg_resources restored.' -ForegroundColor Green
+        } else {
+            Write-Host '[setuptools-guard] [!] pkg_resources remains unavailable; retrying next run.' -ForegroundColor DarkYellow
+        }
     }
-    Write-Host "[setuptools-guard] [!] pkg_resources still unavailable after pinning setuptools<81." -ForegroundColor DarkYellow
-    return $false
 }

@@ -17,7 +17,7 @@ from typing import Optional, List, Dict, Any
 import time
 import asyncio
 
-from pycore import ColorPrint
+from pycore import ColorPrint, THREAD_BUS
 from pycore.pyfoundations.third_party import get_third_package_edge_tts
 
 import tempfile
@@ -26,8 +26,11 @@ import tempfile
 edge_tts = get_third_package_edge_tts()
 from pycore.pyutils.edge_tts.config import TTSConfig
 from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
     SerializedWorkerThread,
     call_serialized,
+    init_serialized_owner,
+    serialized_method,
     start_bus_task,
 )
 
@@ -43,15 +46,19 @@ _SYNTH_BACKOFF_BASE_S = 1.5
 # (~180s) before failing — which stalled the whole TTS track per word. Bounding each
 # attempt makes a stall fail FAST so the orchestrator falls back to the offline
 # engine quickly. Override with EDGE_TTS_SYNTH_TIMEOUT_S.
-_SYNTH_TIMEOUT_S = float(os.environ.get("EDGE_TTS_SYNTH_TIMEOUT_S", "25") or "25")
+_SYNTH_TIMEOUT_SIGNAL = "edge_tts.synth_timeout"
+THREAD_BUS.signal(
+    _SYNTH_TIMEOUT_SIGNAL,
+    float(os.environ.get("EDGE_TTS_SYNTH_TIMEOUT_S", "25") or "25"),
+)
 _SUBTITLE_TIMEOUT_S = 10.0
 # Live-availability test result is cached so a status poll never hammers the
 # endpoint (each test is a real synth round-trip).
 _AVAIL_TTL_S = 60.0
 
 # NO CONCURRENCY: edge-tts opens one WebSocket to Microsoft per synth; running
-# several at once is a fast path to HTTP 403 (rate-limit). This PROCESS-WIDE lock
-# serializes every edge-tts synthesis so there is never more than one in flight,
+# several at once is a fast path to HTTP 403 (rate-limit). This process-wide bus
+# owner serializes every edge-tts synthesis so there is never more than one in flight,
 # no matter how many callers/threads/pipelines request TTS at the same time.
 _EDGE_SYNTH_QUEUE = 'pyutils.edge_tts.synthesize'
 _EDGE_SYNTH_WORKER = SerializedWorkerThread(
@@ -108,18 +115,19 @@ def _is_retryable_tts_error(err: Exception) -> bool:
 
 def get_synth_timeout() -> float:
     """Current per-attempt synth timeout (seconds)."""
-    return _SYNTH_TIMEOUT_S
+    return float(THREAD_BUS.get_signal(_SYNTH_TIMEOUT_SIGNAL, 25.0))
 
 
 def set_synth_timeout(seconds: Any) -> float:
     """Override the per-attempt synth timeout at runtime (Settings-adjustable).
     Clamped to [5, 120]s; ignored if not numeric. Returns the value in effect."""
-    global _SYNTH_TIMEOUT_S
+    current = get_synth_timeout()
     try:
-        _SYNTH_TIMEOUT_S = max(5.0, min(120.0, float(seconds)))
+        current = max(5.0, min(120.0, float(seconds)))
     except (TypeError, ValueError):
         pass
-    return _SYNTH_TIMEOUT_S
+    THREAD_BUS.signal(_SYNTH_TIMEOUT_SIGNAL, current)
+    return current
 
 
 class EdgeTTSClient:
@@ -139,6 +147,14 @@ class EdgeTTSClient:
         self._voices_cache: Optional[List[Dict[str, Any]]] = None
         self._initialized = False
         self._active_tasks = 0
+        self._avail_cache: Optional[Dict[str, Any]] = None
+        self._avail_probing = False
+        init_serialized_owner(
+            self,
+            "edge_tts.client.state",
+            "EdgeTTSClientState",
+            timeout=300.0,
+        )
     
     def _find_edge_tts_binary(self) -> Optional[str]:
         """
@@ -176,6 +192,7 @@ class EdgeTTSClient:
         ColorPrint.yellow("[EdgeTTS] Edge TTS not found. Please install: pip install edge-tts")
         return None
     
+    @serialized_method
     def initialize(self) -> bool:
         """
         Initialize Edge TTS client
@@ -194,6 +211,7 @@ class EdgeTTSClient:
         ColorPrint.blue(f"[EdgeTTS] Initialized with binary: {binary}")
         return True
     
+    @serialized_method
     def get_voices(self) -> List[Dict[str, Any]]:
         """
         Get available voices (synchronous wrapper)
@@ -202,7 +220,7 @@ class EdgeTTSClient:
             List[Dict]: List of voice information
         """
         if self._voices_cache:
-            return self._voices_cache
+            return [dict(voice) for voice in self._voices_cache]
         
         if not self.initialize():
             return []
@@ -240,7 +258,7 @@ class EdgeTTSClient:
             # Parse output
             self._voices_cache = self._parse_voices_output(result.stdout)
         
-        return self._voices_cache
+        return [dict(voice) for voice in self._voices_cache]
     
     def _parse_voices_output(self, output: str) -> List[Dict[str, Any]]:
         """Parse edge-tts --list-voices output"""
@@ -274,7 +292,7 @@ class EdgeTTSClient:
 
         Serialized PROCESS-WIDE: edge-tts is never run concurrently (concurrent
         WebSockets to Microsoft trigger HTTP 403). All callers queue on the
-        global lock and synthesize one at a time.
+        synthesis owner and synthesize one at a time.
 
         Args:
             text: Text to synthesize
@@ -315,7 +333,10 @@ class EdgeTTSClient:
                         # Bound each attempt: edge-tts's save() has no timeout, so a
                         # stalled WebSocket otherwise hangs ~180s (Python socket
                         # default). wait_for cancels the coroutine + raises on stall.
-                        await asyncio.wait_for(communicate.save(str(output_path)), timeout=_SYNTH_TIMEOUT_S)
+                        await asyncio.wait_for(
+                            communicate.save(str(output_path)),
+                            timeout=get_synth_timeout(),
+                        )
                         if subtitle_path:
                             await asyncio.wait_for(
                                 communicate.save_subtitles(str(subtitle_path), subtitle_format="srt"),
@@ -379,6 +400,7 @@ class EdgeTTSClient:
             timeout=300.0,
         )
     
+    @serialized_method
     def find_voice_by_locale(self, locale: str, gender: str = 'female') -> Optional[str]:
         """
         Find voice by locale and gender
@@ -404,12 +426,14 @@ class EdgeTTSClient:
         
         return None
 
+    @serialized_method
     def get_version(self) -> Optional[str]:
         """Installed edge-tts package version, or None when unavailable."""
         if not edge_tts:
             return None
         return getattr(edge_tts, '__version__', None)
 
+    @serialized_method
     def peek_availability(self) -> Optional[Dict[str, Any]]:
         """Last availability result WITHOUT a network probe (None if never run).
 
@@ -420,6 +444,7 @@ class EdgeTTSClient:
         cached = getattr(self, '_avail_cache', None)
         return {**cached, 'cached': True} if cached else None
 
+    @serialized_method
     def ensure_background_probe(self) -> None:
         """Populate the availability cache via a ONE-SHOT background probe.
 
@@ -441,10 +466,15 @@ class EdgeTTSClient:
             except Exception:
                 pass
             finally:
-                self._avail_probing = False
+                self._finish_background_probe()
 
         start_bus_task(_run, thread_name="EdgeTTSProbeThread")
 
+    @serialized_method
+    def _finish_background_probe(self) -> None:
+        self._avail_probing = False
+
+    @serialized_method
     def test_availability(self, force: bool = False) -> Dict[str, Any]:
         """
         Live availability check: synthesize a tiny clip and report the outcome.
@@ -504,24 +534,27 @@ class EdgeTTSClient:
         self._avail_cache = result
         return result
 
+    @serialized_method
     def is_busy(self) -> bool:
         return self._active_tasks > 0
 
+    @serialized_method
     def _mark_task_start(self) -> None:
         self._active_tasks += 1
 
+    @serialized_method
     def _mark_task_end(self) -> None:
         self._active_tasks = max(0, self._active_tasks - 1)
 
 
-# Global Edge TTS client instance
-_global_edge_tts_client: Optional[EdgeTTSClient] = None
+_EDGE_TTS_CLIENT_PROVIDER = SerializedSingletonProvider(
+    EdgeTTSClient,
+    "edge_tts.client.provider",
+    "EdgeTTSClientProvider",
+)
 
 
 def get_edge_tts_client() -> EdgeTTSClient:
     """Get global Edge TTS client instance"""
-    global _global_edge_tts_client
-    if _global_edge_tts_client is None:
-        _global_edge_tts_client = EdgeTTSClient()
-    return _global_edge_tts_client
+    return _EDGE_TTS_CLIENT_PROVIDER.get()
 

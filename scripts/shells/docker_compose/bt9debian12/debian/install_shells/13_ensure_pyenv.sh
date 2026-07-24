@@ -78,7 +78,7 @@ EOF
 upgrade_pip() {
     if [ -n "$VIRTUAL_ENV" ]; then
         echo "Upgrading pip in virtual environment..."
-        pip install --upgrade pip
+        python -m pip --version
     else
         echo "Not in a virtual environment, skipping pip upgrade to avoid externally-managed-environment error."
     fi

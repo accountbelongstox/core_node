@@ -48,7 +48,7 @@ function Remove-OldNodeVersions {
 
     # Find all node directories (both versioned and non-versioned)
     $oldNodeDirs = @(Get-ChildItem -Path $langCompilerDir -Directory -ErrorAction SilentlyContinue | Where-Object {
-        $_.Name -match '^node(-v[\d\.]+)?$' -and $_.FullName -ne $NodeJSInstallDir
+        ($_.Name -eq 'node' -or $_.Name.StartsWith('node-v', [System.StringComparison]::OrdinalIgnoreCase)) -and $_.FullName -ne $NodeJSInstallDir
     })
 
     if (-not $oldNodeDirs -or $oldNodeDirs.Count -eq 0) {

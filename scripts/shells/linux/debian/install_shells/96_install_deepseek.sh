@@ -20,8 +20,7 @@ source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 # Serialize pip into the shared venv (safe under the LLM parallel group). Defensive.
 PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
-[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+. "$PIPLOCK_LIB"
 # Driver-matched CUDA wheel index (single source of truth) so torch isn't pulled as the
 # default "latest" wheel (e.g. cu130) that this driver can't run.
 TORCH_CUDA_IDX_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/cuda_index.sh"

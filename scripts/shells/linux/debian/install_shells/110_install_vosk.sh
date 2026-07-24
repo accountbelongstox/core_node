@@ -25,6 +25,7 @@ MODEL_URL=""
 MODEL_DIR=""
 ARCHIVE=""
 TMP_EXTRACT=""
+VOSK_METADATA=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -35,43 +36,31 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-resolve_python() {
-    local p
-    for p in "$PYTHON" python3 python; do
-        if command -v "$p" >/dev/null 2>&1 && "$p" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
-            command -v "$p"; return 0
-        fi
-    done
-    return 1
-}
-
-py_has_module() { "$PYTHON" -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$1') else 1)" >/dev/null 2>&1; }
-
 # GPU detection from the ONE shared helper (canonical: CUDADetector).
-. "$(dirname "${BASH_SOURCE[0]}")/../base_libs/lib_gpu.sh"   # provides gpu_present()
-# Serialize pip into the shared venv (safe under the parallel install driver). Defensive.
-PIPLOCK_LIB="$(dirname "${BASH_SOURCE[0]}")/../base_libs/pip_lock.sh"
-[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+. "$SCRIPT_DIR/../../common/base_libs/lib_gpu.sh"
+# Serialize pip into the shared venv.
+PIPLOCK_LIB="$SCRIPT_DIR/../../common/base_libs/pip_lock.sh"
+. "$PIPLOCK_LIB"
 
 echo "============================================================"
 echo " [install_vosk] Installing offline Vosk STT (pip + model)"
 echo "============================================================"
 
-if ! PYTHON="$(resolve_python)"; then
-    echo "[install_vosk] [X] Python 3 not found. Run 13_ensure_python.sh first, or pass --python <path>." >&2
-    fail_prereq_step "$PYTHON" "[install_vosk] " vosk
-fi
 echo "[install_vosk] python : $PYTHON"
 
 # --- 1) vosk pip package ------------------------------------------------- #
-if py_has_module vosk && [[ "$FORCE" -eq 0 ]]; then
-    echo "[install_vosk] [OK] vosk already installed; skipping pip."
+VOSK_METADATA="$("$PYTHON" -m pip show vosk 2>/dev/null || true)"
+if [[ "$VOSK_METADATA" == *"Name:"* ]]; then
+    echo "[install_vosk] [OK] vosk metadata is present; preserving the installed package."
 else
-    echo "[install_vosk] [..] pip install --upgrade vosk ..."
-    vpip "$PYTHON" -m pip install --break-system-packages --upgrade vosk 2>/dev/null \
-        || vpip "$PYTHON" -m pip install --upgrade vosk || true
-    if py_has_module vosk; then echo "[install_vosk] [OK] vosk installed."; else echo "[install_vosk] [!] vosk install failed; STT falls back to whisper/azure."; fi
+    echo "[install_vosk] [..] pip install vosk ..."
+    vpip "$PYTHON" -m pip install --break-system-packages vosk 2>/dev/null || true
+    VOSK_METADATA="$("$PYTHON" -m pip show vosk 2>/dev/null || true)"
+    if [[ "$VOSK_METADATA" == *"Name:"* ]]; then
+        echo "[install_vosk] [OK] vosk installed."
+    else
+        echo "[install_vosk] [!] vosk metadata is still missing; STT falls back to whisper/azure."
+    fi
 fi
 
 # --- 2) choose model by CPU/GPU principle -------------------------------- #
@@ -158,4 +147,3 @@ else
     fail_prereq_step "$PYTHON" "[install_vosk] " vosk
 fi
 _backup_install_asset_path "$TMP_EXTRACT" "[install_vosk] " >/dev/null
-complete_prereq_step "$PYTHON" "[install_vosk] " vosk

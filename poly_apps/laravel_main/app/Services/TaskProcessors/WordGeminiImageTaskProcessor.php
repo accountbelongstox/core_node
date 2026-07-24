@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
  * 'remote_gemini' — its own dedicated lane, pulled by the chrome Task Center
  * Gemini-image worker which drives the chrome_gemini_image MCP tool). It is an
  * ALTERNATIVE image generator for words whose Bing sample images are missing —
- * a sibling of the `word_media` lane (which stays on remote_client).
+ * a sibling of the `word_media` lane (which runs on remote_fast + image).
  *
  * Task contract (SHARED CONTRACT v3):
  *   payload : { prompt, size?, md5?, word?, language? }

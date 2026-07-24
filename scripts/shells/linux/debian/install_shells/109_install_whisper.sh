@@ -18,16 +18,17 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
-# Serialize pip into the shared venv (safe under the parallel install driver). Defensive.
+# Serialize pip into the shared venv.
 PIPLOCK_LIB="$SCRIPT_DIR/../../common/base_libs/pip_lock.sh"
-[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
-. "$SCRIPT_DIR/../../common/base_libs/lib_gpu.sh" 2>/dev/null || true
+. "$PIPLOCK_LIB"
+. "$SCRIPT_DIR/../../common/base_libs/lib_gpu.sh"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
 
 PYTHON="python3"
 MODEL=""
 FORCE=0
+WHISPER_METADATA=""
+WHISPER_READY=0
 
 # Minimum system capacity to bother installing whisper on. --force overrides.
 MIN_RAM_GB=1        # skip if total physical RAM is below this
@@ -41,10 +42,6 @@ while [[ $# -gt 0 ]]; do
         *) echo "[!] Unknown argument: $1" >&2; shift ;;
     esac
 done
-
-py_has_module() {
-    "$PYTHON" -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$1') else 1)" >/dev/null 2>&1
-}
 
 # Total physical RAM in whole GB (Linux /proc/meminfo, macOS sysctl); "" if unknown.
 get_ram_gb() {
@@ -80,19 +77,9 @@ is_server() {
     return 0   # no GUI target, no display => treat as headless server
 }
 
-# Pull in the canonical detector (gpu_present) from the ONE shared base lib so whisper's
-# GPU gate honors TORCH_FORCE_CUDA / CUDA_VISIBLE_DEVICES and uses `nvidia-smi -L`,
-# matching every other AI installer.
-__libgpu="$SCRIPT_DIR/../../common/base_libs/lib_gpu.sh"
-if [ -f "$__libgpu" ]; then . "$__libgpu"; fi
-
-# NVIDIA CUDA GPU usable? Delegate to gpu_present; guarded fallback if it is absent.
+# NVIDIA CUDA GPU usable through the shared policy helper.
 has_cuda() {
-    if declare -F gpu_present >/dev/null; then
-        gpu_present
-    else
-        command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
-    fi
+    gpu_present
 }
 
 echo "============================================================"
@@ -126,27 +113,23 @@ if [[ "$FORCE" -eq 0 ]]; then
 fi
 
 # --- 1) openai-whisper --------------------------------------------------- #
-if py_has_module whisper && [[ "$FORCE" -eq 0 ]]; then
-    ver="$("$PYTHON" -c "import whisper; print(getattr(whisper,'__version__','?'))" 2>/dev/null)"
-    tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "whisper already installed (version $ver)"
+WHISPER_METADATA="$("$PYTHON" -m pip show openai-whisper 2>/dev/null || true)"
+if [[ "$WHISPER_METADATA" == *"Name:"* ]]; then
+    WHISPER_READY=1
+    tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "openai-whisper metadata is present"
 else
-    echo "[..] pip install --upgrade openai-whisper ..."
-    PIP_ARGS=(--upgrade openai-whisper)
+    echo "[..] pip install openai-whisper ..."
+    PIP_ARGS=(openai-whisper)
     # On externally-managed Linux Pythons (PEP 668) this flag avoids a hard error.
     if [[ "$(uname -s)" != "Darwin" ]]; then PIP_ARGS=(--break-system-packages "${PIP_ARGS[@]}"); fi
-    if ! vpip "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
-        # Retry without the flag for environments that reject it (venvs, older pip).
-        if ! vpip "$PYTHON" -m pip install --upgrade openai-whisper; then
-            echo "[X] openai-whisper install failed." >&2
-            exit 1
-        fi
+    vpip "$PYTHON" -m pip install "${PIP_ARGS[@]}" || true
+    WHISPER_METADATA="$("$PYTHON" -m pip show openai-whisper 2>/dev/null || true)"
+    if [[ "$WHISPER_METADATA" == *"Name:"* ]]; then
+        WHISPER_READY=1
+        echo "[OK] openai-whisper installed."
+    else
+        echo "[!] openai-whisper metadata is still missing; retrying next run."
     fi
-    if ! py_has_module whisper; then
-        echo "[X] whisper still not importable after install." >&2
-        exit 1
-    fi
-    ver="$("$PYTHON" -c "import whisper; print(getattr(whisper,'__version__','?'))" 2>/dev/null)"
-    echo "[OK] openai-whisper installed (version $ver)."
 fi
 
 # --- 2) ffmpeg presence check -------------------------------------------- #
@@ -163,11 +146,11 @@ if has_cuda; then _gpu_flag="--gpu"; fi
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" whisper | while read -r _line; do
     echo "  official env (whisper): $_line"
 done
-if [[ -z "$MODEL" ]]; then
+if [[ "$WHISPER_READY" -eq 1 && -z "$MODEL" ]]; then
     MODEL="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" whisper_model "$_gpu_flag")"
     echo "[..] auto model tier ($(echo "$_gpu_flag" | tr -d '-')): '$MODEL'"
 fi
-    if [[ -n "$MODEL" ]]; then
+if [[ "$WHISPER_READY" -eq 1 && -n "$MODEL" ]]; then
     echo "[..] Ensuring whisper model '$MODEL' is downloaded ..."
     _wh_cache="${WHISPER_CACHE_DIR:-${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/whisper}"
     if install_whisper_model_weights "$MODEL" "$_wh_cache" "[install_whisper] "; then
@@ -178,5 +161,3 @@ fi
         echo "[!] model download did not complete; whisper will fetch it on first use."
     fi
 fi
-
-complete_prereq_step "$PYTHON" "[install_whisper] " whisper

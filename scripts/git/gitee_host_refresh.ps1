@@ -33,9 +33,7 @@ if ($env:OS -match "Windows") {
 }
 
 $hostsCommonPath = Join-Path $scriptPath "hosts_common.ps1"
-if (Test-Path $hostsCommonPath) {
-    . $hostsCommonPath
-}
+. $hostsCommonPath
 
 function Get-GiteeCacheIp {
     if (-not (Test-Path $GiteeCacheFile)) { return $null }

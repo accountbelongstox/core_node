@@ -637,17 +637,6 @@ export const wfNewApiMock: WfNewApi = {
     });
   },
 
-  async saveWordAudio(payload: {
-    md5: string;
-    lang: string;
-    audio_base64: string;
-    provider?: string;
-    accent?: WfNewWordAccent;
-  }): Promise<{ ok: boolean; stored?: boolean }> {
-    await delay(20);
-    return { ok: true, stored: true };
-  },
-
   async getWordMedia(
     language: string,
     word: string,
@@ -712,15 +701,6 @@ export const wfNewApiMock: WfNewApi = {
           ]
         : [],
     });
-  },
-
-  async bumpSentenceAudio(contentId: string, _language: string) {
-    return delay({ success: true, task_id: `mock-${contentId}` });
-  },
-
-  async prioritizeSentenceAudio(items: { text: string; language: string }[]) {
-    const clean = (items || []).filter((it) => it && it.text?.trim() && it.language);
-    return delay({ success: true, queued: clean.length });
   },
 
   async getBookReadingProgress(sourceKey: string) {

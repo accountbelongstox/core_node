@@ -8,12 +8,11 @@
 import React, {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
-import { mapQueueSnapshot, pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '../../../core/api-libs/pycore';
 import type {
   AssistStatus, HeartbeatWorkersStatus, PcQueueOverview, PcTaskCenterResponse,
   PcTaskRecentResponse, QueueCenterControlName, QueueCenterControlState,
-  QueueCenterLocalTaskRow, QueueResponse, SentenceAudioAutoStatus,
-  SentenceAudioQueueSnapshot, TranslationQueueResponse, TtsStatus,
+  SentenceAudioAutoStatus, SentenceAudioQueueSnapshot, TranslationQueueResponse, TtsStatus,
   WordTtsAutoStatus,
 } from '../../../core/api-libs/pycore';
 
@@ -25,8 +24,6 @@ export interface QueueCenterHubState {
   laravelStoredEndpoint: string | null;
   laravelActiveEndpoint: string | null;
   laravelSnapshotAgeS: number | null;
-  localTaskTotal: number | null;
-  localProcessing: number | null;
   translationPending: number | null;
   voiceWord: WordTtsAutoStatus | null;
   voiceSentence: SentenceAudioAutoStatus | null;
@@ -37,8 +34,6 @@ export interface QueueCenterHubState {
   sentenceQueue: SentenceAudioQueueSnapshot | null;
   recent: PcTaskRecentResponse | null;
   taskCenter: PcTaskCenterResponse | null;
-  managerQueue: QueueResponse | null;
-  localTasks: QueueCenterLocalTaskRow[] | null;
   translationQueue: TranslationQueueResponse | null;
   controls: Partial<Record<QueueCenterControlName, QueueCenterControlState>>;
   sliceErrors: Record<string, string>;
@@ -55,8 +50,6 @@ const defaultHub: QueueCenterHubState = {
   laravelStoredEndpoint: null,
   laravelActiveEndpoint: null,
   laravelSnapshotAgeS: null,
-  localTaskTotal: null,
-  localProcessing: null,
   translationPending: null,
   voiceWord: null,
   voiceSentence: null,
@@ -67,8 +60,6 @@ const defaultHub: QueueCenterHubState = {
   sentenceQueue: null,
   recent: null,
   taskCenter: null,
-  managerQueue: null,
-  localTasks: null,
   translationQueue: null,
   controls: {},
   sliceErrors: {},
@@ -103,14 +94,6 @@ export const QueueCenterHubProvider: React.FC<{
     try {
       const snapshot = await pycoreApi.getQueueCenterSnapshot();
       if (!mounted.current || currentRequest !== requestId.current) return;
-      const counts = snapshot.data.task_center?.local_tasks?.counts;
-      const total = counts
-        ? (['pending', 'processing', 'completed', 'failed'] as const)
-          .reduce((sum, key) => sum + (Number(counts[key]) || 0), 0)
-        : null;
-      const managerQueue = snapshot.data.manager_queue
-        ? mapQueueSnapshot(snapshot.data.manager_queue)
-        : null;
       const sliceMessage = Object.entries(snapshot.errors)
         .map(([name, message]) => `${name}: ${message}`)
         .join('; ');
@@ -120,8 +103,6 @@ export const QueueCenterHubProvider: React.FC<{
         laravelStoredEndpoint: snapshot.source.laravel_stored_endpoint,
         laravelActiveEndpoint: snapshot.source.laravel_active_endpoint,
         laravelSnapshotAgeS: snapshot.source.laravel_snapshot_age_s,
-        localTaskTotal: total,
-        localProcessing: counts ? Number(counts.processing) || 0 : null,
         translationPending: snapshot.data.translation?.summary?.pending ?? null,
         voiceWord: snapshot.data.word_audio,
         voiceSentence: snapshot.data.sentence_audio,
@@ -132,8 +113,6 @@ export const QueueCenterHubProvider: React.FC<{
         sentenceQueue: snapshot.data.sentence_queue,
         recent: snapshot.data.recent,
         taskCenter: snapshot.data.task_center,
-        managerQueue,
-        localTasks: snapshot.data.local_tasks?.tasks ?? null,
         translationQueue: snapshot.data.translation,
         controls: snapshot.controls,
         sliceErrors: snapshot.errors,

@@ -3,18 +3,18 @@
 #
 # Lifecycle rule (see development-guides/cross-docs/
 # TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5 & §7, Bucket B): qwen-tts pins
-# transformers==4.57.3, which CANNOT coexist with the main interpreter's shared 4.46.x
+# qwen-tts owns transformer dependencies that may conflict with the main interpreter
 # pin (Bucket A: deepseek/qwen25/nllb/bark). So qwen-tts is NEVER installed into the main
 # interpreter. It lives in a DEDICATED per-engine venv built + verified by
 # pycore.pyfoundations.isolated_venv.ensure_venv() (created --system-site-packages so it
-# REUSES the system CUDA torch; only the pinned transformers/accelerate are layered in,
-# shadowing the main copies). The qwen3tts_api_server.py runs under that venv and pycore
+# REUSES the system CUDA torch while qwen-tts and its pinned dependencies stay isolated,
+# shadowing only incompatible main copies). The qwen3tts_api_server.py runs under that venv and pycore
 # (tts_service_manager / qwen3tts_engine) talks to it over HTTP as a managed class-C server.
 #
 # Official: https://github.com/QwenLM/Qwen3-TTS  (qwen-tts is installed INTO the venv, not here)
 #
 # Idempotent + self-repairing: ensure_venv() is a cheap import probe when healthy and
-# REBUILDS the venv when qwen_tts fails to import; HF weights download/repair via curl
+# repairs the venv in place when qwen_tts fails to import; HF weights download/repair via curl
 # resume + size verification (.deps_done = venv provisioned, .model_installed = repo id).
 # Skip with QWEN3TTS_SKIP=1. --force rebuilds the venv and re-validates every weight file.
 set -uo pipefail
@@ -57,7 +57,7 @@ done
 resolve_python() {
     local p
     for p in "$PYTHON" python3 python; do
-        if command -v "$p" >/dev/null 2>&1 && "$p" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
+        if command -v "$p" >/dev/null 2>&1; then
             command -v "$p"; return 0
         fi
     done
@@ -67,7 +67,7 @@ resolve_python() {
 # Provision / verify the ISOLATED qwen-tts venv (Bucket B). Delegates to the single
 # source of truth pycore.pyutils.tts.qwen3tts_venv.ensure_venv(), run UNDER $PYTHON so
 # the venv is built next to that interpreter and reuses its system CUDA torch via
-# --system-site-packages. Cheap when already healthy; rebuilds a broken venv. $1 is a
+# --system-site-packages. Cheap when already healthy; repairs a broken venv. $1 is a
 # Python bool literal (True on --force). Returns 0 only when qwen_tts imports in the venv.
 provision_qwen3tts_venv() {
     local force_py="$1"
@@ -100,7 +100,10 @@ echo "[install_qwen3tts]  weights : $WEIGHTS_DIR"
 echo "[install_qwen3tts]  model   : $_qwen_model"
 echo "[install_qwen3tts]  sentinel: $MODEL_SENTINEL ($([ -f "$MODEL_SENTINEL" ] && echo present || echo absent))"
 
-ensure_sox_on_path "[install_qwen3tts] " || true
+if ! ensure_sox_on_path "[install_qwen3tts] "; then
+    echo "[install_qwen3tts] [!] SoX is required by qwen-tts; installation cannot continue." >&2
+    fail_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
+fi
 
 if ! install_pycore_torch_stack "$PYTHON" "[install_qwen3tts] "; then
     echo "[install_qwen3tts] [!] canonical torch is not usable; Qwen3-TTS will retry next run." >&2
@@ -112,7 +115,8 @@ if tts_dependency_stamp_matches "$PYTHON" "qwen3tts" "$DEPS_SENTINEL" && [[ -f "
     if [[ "$_sentinel_model" == "$_qwen_model" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_qwen_model"; then
         # Weights verified; also verify (and self-repair) the isolated venv before the
         # fast idempotent exit \u2014 a broken venv must never be masked by a present sentinel.
-        if provision_qwen3tts_venv "$_QWEN3TTS_FORCE_PY"; then
+        provision_qwen3tts_venv "$_QWEN3TTS_FORCE_PY"
+        if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
             tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "Qwen3-TTS already installed (isolated venv + verified model)"
             complete_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
         fi
@@ -131,27 +135,29 @@ if [[ -f "$_assets_dir/qwen3tts_api_server.py" ]]; then
 fi
 
 # --- Isolated qwen-tts venv (Bucket B) ----------------------------------- #
-# NEVER `pip install qwen-tts` into the main interpreter: its transformers==4.57.3 pin
+# Never install qwen-tts into the main interpreter: its transformer dependency set
 # would break the shared 4.46.x stack. The main interpreter only needs the shared torch
 # stack (installed below), which the venv REUSES via --system-site-packages. ensure_venv()
 # is idempotent + self-repairing, so it runs on every sweep — even with the sentinel
 # present — to heal a drifted / half-built venv.
 if tts_dependency_stamp_matches "$PYTHON" "qwen3tts" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "isolated qwen-tts venv provisioned (.deps_done)"
-    if provision_qwen3tts_venv "$_QWEN3TTS_FORCE_PY"; then
+    provision_qwen3tts_venv "$_QWEN3TTS_FORCE_PY"
+    if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
         _venv_ready=1
         echo "[install_qwen3tts] [OK] isolated qwen-tts venv verified (self-repair)."
     else
         echo "[install_qwen3tts] [!] venv verify/repair incomplete; will RESUME next run."
     fi
 else
-    "$PYTHON" -m pip install --upgrade pip || true
-    echo "[install_qwen3tts] [..] provisioning isolated qwen-tts venv (transformers==4.57.3 shadows main; system torch reused) ..."
-    if provision_qwen3tts_venv "$_QWEN3TTS_FORCE_PY"; then
+    echo "[install_qwen3tts] [..] provisioning isolated qwen-tts venv (package dependencies shadow main; system torch reused) ..."
+    provision_qwen3tts_venv "$_QWEN3TTS_FORCE_PY"
+    if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
         tts_write_dependency_stamp "$PYTHON" "qwen3tts" "$DEPS_SENTINEL"
         _venv_ready=1
         echo "[install_qwen3tts] [OK] isolated qwen-tts venv ready; main interpreter untouched."
     else
+        rm -f -- "$DEPS_SENTINEL"
         echo "[install_qwen3tts] [!] venv provisioning incomplete; will RESUME next run."
     fi
 fi

@@ -64,7 +64,12 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 
 # ColorPrint is the only allowed logger in pycore services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    map_bus_tasks,
+    serialized_method,
+    start_bus_task,
+)
 # Rule §4: all inter-thread data exchange goes through the global bus.
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 # Live enable flag (the UI toggle lives on the heartbeat callback).
@@ -89,8 +94,7 @@ from pycore.callmodule.services.tts_concurrency import (
     recommended_concurrency,
 )
 from pycore.callmodule.services.tts_queue_worker_threads import (
-    TTSWorkerBatchThread,
-    TTSWorkerLaneThread,
+    run_tts_worker_lane,
     task_deque,
 )
 from pycore.pyutils.tts.word_audio_cache import get_cache_path, save_to_cache
@@ -117,11 +121,6 @@ _MAX_BATCH = 50
 # TTL for the cached tts_status()/best_engine() probe: tts_status() probes ALL
 # engines, which is far too expensive to run per task.
 _ENGINE_PROBE_TTL_S = 60.0
-
-# THREAD_BUS queue carrying per-lane result counts back to the batch thread
-# (rule §4: threads never exchange data directly — only via the bus).
-_BUS_TASK_RESULT = "tts_queue_poller.task_result"
-
 
 def _validate_mp3(path: str) -> Tuple[bool, str]:
     """Local mirror of the server's MP3 validation. Returns ``(ok, error)``.
@@ -162,15 +161,6 @@ class TTSQueuePollerService:
     Idempotent: __init__ and registration are safe to run repeatedly; an
     unfinished claim re-pends server-side after lock_stale_minutes (10).
     """
-
-    _instance: Optional["TTSQueuePollerService"] = None
-
-    def __new__(cls, *args, **kwargs):
-        """Singleton — one TTS worker per process. Rule §4: no locks;
-        class-attr assignment is GIL-atomic (same idiom as pyheartbeat)."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
 
     def __init__(self, laravel_api_url: str = ""):
         """
@@ -605,7 +595,7 @@ class TTSQueuePollerService:
         a process-wide lock) keep the SEQUENTIAL loop; parallel-safe engines
         fan out to named lane Thread subclasses sized by the effective
         concurrency (services/tts_concurrency.py) — rule §4, no
-        ThreadPoolExecutor. Runs on a background daemon thread; fully
+        shared worker pool. Runs on a background daemon thread; fully
         exception-safe."""
         try:
             base = self._base_url()
@@ -635,23 +625,17 @@ class TTSQueuePollerService:
                 self._log_event(
                     "parallel", f"fan-out x{concurrency} (engine={engine or '?'})"
                 )
-                # Concurrent lanes use named threads and the serialized shared
-                # priority queue; per-lane counts come back through THREAD_BUS.
-                THREAD_BUS.clear_queue(_BUS_TASK_RESULT)
-                lanes = [
-                    TTSWorkerLaneThread(
-                        self, base, active_tasks, index, _BUS_TASK_RESULT
-                    )
-                    for index in range(concurrency)
+                payloads = [
+                    {"worker": self, "base": base, "tasks": active_tasks}
+                    for _index in range(concurrency)
                 ]
-                for lane in lanes:
-                    lane.start()
-                for lane in lanes:
-                    lane.join()
-                for _lane in lanes:
-                    result = THREAD_BUS.receive_message(_BUS_TASK_RESULT)
-                    if not isinstance(result, dict):
-                        continue
+                results = map_bus_tasks(
+                    run_tts_worker_lane,
+                    payloads,
+                    max_workers=concurrency,
+                    thread_prefix="TTSWorkerLane",
+                )
+                for result in results:
                     succeeded += int(result.get("succeeded") or 0)
                     failed += int(result.get("failed") or 0)
             else:
@@ -744,7 +728,7 @@ class TTSQueuePollerService:
                 return  # previous batch still in flight
             THREAD_BUS.signal(self._batch_running_signal, True)
 
-            TTSWorkerBatchThread(self).start()
+            start_bus_task(self._process_batch, thread_name="tts-worker-batch")
         except Exception as e:  # noqa: BLE001 — heartbeat must never see a raise
             THREAD_BUS.signal(self._batch_running_signal, False)
             ColorPrint.red(f"[TTSWorker] poll_and_process error: {e}")
@@ -775,6 +759,27 @@ class TTSQueuePollerService:
 
 
 # Global singleton accessor function
+class _TTSQueuePollerProvider:
+    """Create and retain the worker on one THREAD_BUS state owner."""
+
+    def __init__(self) -> None:
+        self._worker: Optional[TTSQueuePollerService] = None
+        init_serialized_owner(
+            self,
+            "tts.queue_poller.provider",
+            "TTSQueuePollerProvider",
+        )
+
+    @serialized_method
+    def get(self, laravel_api_url: str) -> TTSQueuePollerService:
+        if self._worker is None:
+            self._worker = TTSQueuePollerService(laravel_api_url)
+        return self._worker
+
+
+_tts_queue_poller_provider = _TTSQueuePollerProvider()
+
+
 def get_tts_queue_poller_service(laravel_api_url: str = "") -> TTSQueuePollerService:
     """
     Get the TTS Queue Worker singleton (idempotent).
@@ -787,4 +792,4 @@ def get_tts_queue_poller_service(laravel_api_url: str = "") -> TTSQueuePollerSer
     Returns:
         The shared TTSQueuePollerService instance.
     """
-    return TTSQueuePollerService(laravel_api_url)
+    return _tts_queue_poller_provider.get(laravel_api_url)

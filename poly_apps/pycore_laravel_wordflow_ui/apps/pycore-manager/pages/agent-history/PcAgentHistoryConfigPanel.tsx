@@ -5,22 +5,8 @@ import PcLlmEnginesStrip from '../../components/PcLlmEnginesStrip';
 
 const CONFIG_POLL_MS = 10_000;
 
-// Language dropdown options (UI code -> label). Persisted via article config.
-const LANG_OPTIONS: { code: string; label: string }[] = [
-  { code: 'CN', label: 'Chinese · CN' },
-  { code: 'EN', label: 'English · EN' },
-  { code: 'JA', label: 'Japanese · JA' },
-  { code: 'KO', label: 'Korean · KO' },
-  { code: 'FR', label: 'French · FR' },
-  { code: 'DE', label: 'German · DE' },
-  { code: 'ES', label: 'Spanish · ES' },
-  { code: 'RU', label: 'Russian · RU' },
-  { code: 'AR', label: 'Arabic · AR' },
-  { code: 'PT', label: 'Portuguese · PT' },
-  { code: 'IT', label: 'Italian · IT' },
-  { code: 'TH', label: 'Thai · TH' },
-  { code: 'VI', label: 'Vietnamese · VI' },
-];
+const REFERENCE_LANGUAGE = 'CN';
+const TARGET_LANGUAGE = 'EN';
 
 /**
  * Article config panel — master ON/OFF toggle bound to config.enabled (backend
@@ -31,8 +17,6 @@ const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(false);
-  const [refLang, setRefLang] = useState('CN');
-  const [tgtLang, setTgtLang] = useState('EN');
   const [minRawWords, setMinRawWords] = useState(200);
 
   const loadConfig = useCallback(async () => {
@@ -40,8 +24,6 @@ const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk
     if (res.success && res.data) {
       setArticleCfg(res.data);
       setEnabled(!!res.data.enabled);
-      setRefLang(String(res.data.reference_lang || 'CN'));
-      setTgtLang(String(res.data.target_lang || 'EN'));
       setMinRawWords(Number(res.data.min_raw_words || 200));
     }
   }, []);
@@ -62,8 +44,8 @@ const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk
     const res = await pycoreApi.saveAgentHistoryArticleConfig({
       extract_as_article: on,
       enabled: on,
-      reference_lang: refLang,
-      target_lang: tgtLang,
+      reference_lang: REFERENCE_LANGUAGE,
+      target_lang: TARGET_LANGUAGE,
       min_raw_words: minRawWords,
       live_listen: true,
     });
@@ -117,22 +99,14 @@ const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk
           )}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <label className="text-xs text-slate-500">
+          <div className="text-xs text-slate-500">
             {tk('referenceLang')}
-            <select value={refLang} onChange={(e) => setRefLang(e.target.value)} className={inputCls}>
-              {LANG_OPTIONS.map((o) => (
-                <option key={o.code} value={o.code}>{o.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs text-slate-500">
+            <div className={inputCls}>Chinese · CN</div>
+          </div>
+          <div className="text-xs text-slate-500">
             {tk('targetLang')}
-            <select value={tgtLang} onChange={(e) => setTgtLang(e.target.value)} className={inputCls}>
-              {LANG_OPTIONS.map((o) => (
-                <option key={o.code} value={o.code}>{o.label}</option>
-              ))}
-            </select>
-          </label>
+            <div className={inputCls}>English · EN</div>
+          </div>
           <label className="text-xs text-slate-500">
             {tk('minRawWords')}
             <input type="number" min={120} max={2000} value={minRawWords}

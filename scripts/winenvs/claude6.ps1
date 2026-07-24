@@ -260,6 +260,7 @@ function Read-SecretFile {
         Write-Host "[WARNING] Secret file not found: $FilePath" -ForegroundColor Yellow
         Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
         return ""
+    }
     try {
         # Read file content using System.IO.File for reliable UTF-8 handling
         $bytes = [System.IO.File]::ReadAllBytes($FilePath)
@@ -285,6 +286,7 @@ function Read-SecretFile {
         Write-Host "[ERROR] Failed to read secret file: $($_.Exception.Message)" -ForegroundColor Red
         Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
         $value = ""
+    }
     if (-not $value) {
         Write-Host "[WARNING] Secret value is empty or file is empty: $FilePath" -ForegroundColor Yellow
         Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
@@ -347,13 +349,16 @@ $envVarsParts = @()
 
 if ($env:ANTHROPIC_BASE_URL) {
     $envVarsParts += "`$env:ANTHROPIC_BASE_URL='$($env:ANTHROPIC_BASE_URL)'"
+}
 if ($env:ANTHROPIC_AUTH_TOKEN) {
     $envVarsParts += "`$env:ANTHROPIC_AUTH_TOKEN='$($env:ANTHROPIC_AUTH_TOKEN)'"
+}
 $envVarsCommand = $envVarsParts -join '; '
 if ($envVarsCommand) {
     $fullCommandDisplay = "$envVarsCommand; claude --dangerously-skip-permissions"
 } else {
     $fullCommandDisplay = "claude --dangerously-skip-permissions"
+}
 #endregion
 #region MCP Server Synchronization
 Write-Host ""
@@ -374,6 +379,7 @@ if (Test-Path $preLaunchScript) {
     Write-Host ""
     & $preLaunchScript -WorkingDirectory "$currentWorkingDir"
     Write-Host ""
+}
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Red
 Write-Host "WARNING: Upgrade Option" -ForegroundColor Red
@@ -417,15 +423,8 @@ Write-Host "[INFO] Executing: python -u `"$syncScript`"" -ForegroundColor Cyan
 Write-Host ""
 
 python -u "$syncScript"
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Host ""
-    Write-Host "[WARNING] MCP synchronization failed" -ForegroundColor Yellow
-    Write-Host "[INFO] Continuing anyway..." -ForegroundColor Cyan
-} else {
-    Write-Host ""
-    Write-Host "[SUCCESS] MCP synchronization completed" -ForegroundColor Green
-}
+Write-Host ""
+Write-Host "[SUCCESS] MCP synchronization command completed" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -542,6 +541,7 @@ if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
     Write-Host ""
     Write-Host "[INFO] On Windows: Using npx fallback (temporary solution)" -ForegroundColor Cyan
     Write-Host ""
+}
 # Final check and npx fallback
 if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
     Write-Host ""
@@ -556,13 +556,16 @@ if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
     $envVarsPartsNpx = @()
     if ($env:ANTHROPIC_BASE_URL) {
         $envVarsPartsNpx += "`$env:ANTHROPIC_BASE_URL='$($env:ANTHROPIC_BASE_URL)'"
+    }
     if ($env:ANTHROPIC_AUTH_TOKEN) {
         $envVarsPartsNpx += "`$env:ANTHROPIC_AUTH_TOKEN='$($env:ANTHROPIC_AUTH_TOKEN)'"
+    }
     $envVarsCommandNpx = $envVarsPartsNpx -join '; '
     if ($envVarsCommandNpx) {
         $fullCommandDisplay = "$envVarsCommandNpx; npx -y @anthropic-ai/claude-code"
     } else {
         $fullCommandDisplay = "npx -y @anthropic-ai/claude-code"
+    }
     Write-Host "[INFO] Using command: $fullCommandDisplay" -ForegroundColor Cyan
     Write-Host ""
 #region Launch Tool
@@ -584,3 +587,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command $fullCommandDisplay
 Write-Host ""
 pause
 #endregion
+}

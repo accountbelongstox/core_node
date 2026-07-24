@@ -8,7 +8,8 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.pyctl.agent_history import get_agent_history_service
+from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyctl.agent_history.agent_history_service import get_agent_history_service
 from pycore.callmodule.services.agent_history_article_service import get_agent_history_article_service
 
 DEFAULT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
@@ -42,6 +43,7 @@ class AgentHistoryTickService:
                 published = get_agent_history_article_service().tick_pipeline()
                 if published:
                     mode = "live" if published.get("live") else "backfill"
+                    THREAD_BUS.trigger_event("article.published", published)
                     ColorPrint.gray(
                         f"[AgentHistoryArticle] {mode} article published: "
                         f"{published.get('title_en') or published.get('article_id')}"

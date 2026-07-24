@@ -28,7 +28,7 @@ source "$SCRIPT_DIR/gvar_common.sh"
 source "$SCRIPT_DIR/venv_python_common.sh"
 set -uo pipefail
 
-[ -f "$PT_COMMON_DIR/base_libs/pip_lock.sh" ] && . "$PT_COMMON_DIR/base_libs/pip_lock.sh"
+. "$PT_COMMON_DIR/base_libs/pip_lock.sh"
 export PIP_LOCK_FILE
 . "$PT_COMMON_DIR/base_libs/parallel_terminals.sh"
 
@@ -40,10 +40,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if command -v venv_python_from_common >/dev/null 2>&1; then
-    PT_PYTHON="$(venv_python_from_common)"
-fi
-command -v "$PT_PYTHON" >/dev/null 2>&1 || PT_PYTHON="python3"
+PT_PYTHON="$(venv_python_from_common)"
 
 if [[ -n "${CORE_NODE_PROJECT_ROOT:-}" && -d "$CORE_NODE_PROJECT_ROOT/scripts/shells/linux/debian/install_shells" ]]; then
     REPO_ROOT="$CORE_NODE_PROJECT_ROOT"

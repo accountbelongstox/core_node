@@ -7,19 +7,26 @@ This eliminates the need for separate MCP backend process.
 """
 
 import logging
+import copy
 from typing import Dict, Any
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from pycore.pyfoundations.third_party import get_third_package_fastapi
 
 import uuid
 import time
+from pyapps.mcp.controller import (
+    get_codebase_controller_singleton,
+    get_database_controller_singleton,
+    get_file_info_controller_singleton,
+)
 from pycore.pyctl.mcpctl.backend.config import BACKEND_INFO_TEMPLATE
-from pycore.pygvar import MCP_BACKEND_RPC_PORT
 
 
 fastapi = get_third_package_fastapi()
 APIRouter = fastapi.APIRouter
 
 from pycore.pyctl.mcpctl.backend import handlers
+from pycore.pyctl.mcpctl.backend.handlers.context import set_handler_context
 from pycore.pyctl.mcpctl.global_state import get_backend_state_dict, get_global_state
 
 # Use standard logging instead of ColorPrint (MCP standards requirement)
@@ -28,60 +35,48 @@ logger = logging.getLogger(__name__)
 # Create router with /mcp prefix
 mcp_router = APIRouter(prefix="/mcp", tags=["MCP Backend"])
 
-# Initialize global state on module load
-_global_state = None
-_backend_info = None
-_controllers_initialized = False
-
-
-def ensure_mcp_backend_initialized():
-    """
-    Ensure MCP backend components are initialized
-
-    This initializes controllers and backend_info only once
-    """
-    global _global_state, _backend_info, _controllers_initialized
-
-    if _controllers_initialized:
-        return _backend_info
-
-    # Initialize global state
-    _global_state = get_global_state()
+def _initialize_mcp_backend() -> Dict[str, Any]:
+    """Initialize MCP controllers on the serialized provider owner."""
+    get_global_state()
 
     # Initialize backend info
 
     backend_id = str(uuid.uuid4())[:8]
-    _backend_info = BACKEND_INFO_TEMPLATE.copy()
-    _backend_info["backend_id"] = backend_id
-    _backend_info["singleton_port"] = 59000  # Integrated into pycore_module_caller
-    _backend_info["rpc_port"] = 59000  # Same port as main service
-    _backend_info["status"] = "running"
-    _backend_info["start_time"] = int(time.time())
+    backend_metadata = BACKEND_INFO_TEMPLATE.copy()
+    backend_metadata["backend_id"] = backend_id
+    backend_metadata["singleton_port"] = 59000
+    backend_metadata["rpc_port"] = 59000
+    backend_metadata["status"] = "running"
+    backend_metadata["start_time"] = int(time.time())
 
     # Initialize controllers
-    from pyapps.mcp.controller import (
-        get_file_info_controller_singleton,
-        get_database_controller_singleton,
-        get_codebase_controller_singleton
-    )
-
     file_controller = get_file_info_controller_singleton()
     db_controller = get_database_controller_singleton()
     codebase_controller = get_codebase_controller_singleton()
 
-    # Set global controllers for handlers
-    handlers.file_processing.backend_info = _backend_info
-    handlers.file_processing.file_controller = file_controller
-    handlers.database.backend_info = _backend_info
-    handlers.database.db_controller = db_controller
-    handlers.codebase.backend_info = _backend_info
-    handlers.codebase.codebase_controller = codebase_controller
-
-    _controllers_initialized = True
+    set_handler_context(
+        backend_metadata,
+        file_controller,
+        db_controller,
+        codebase_controller,
+    )
 
     logger.info(f"[MCP Backend] Initialized (ID: {backend_id}, integrated into port 59000)")
 
-    return _backend_info
+    return backend_metadata
+
+
+_MCP_BACKEND_PROVIDER = SerializedSingletonProvider(
+    _initialize_mcp_backend,
+    "callmodule.mcp_backend.provider",
+    "MCPBackendProviderThread",
+    timeout=300.0,
+)
+
+
+def ensure_mcp_backend_initialized() -> Dict[str, Any]:
+    """Return detached metadata for the initialized MCP backend."""
+    return copy.deepcopy(_MCP_BACKEND_PROVIDER.get())
 
 
 # ============================================================

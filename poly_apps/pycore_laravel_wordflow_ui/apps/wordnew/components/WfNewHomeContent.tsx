@@ -23,6 +23,7 @@ import { WfNewContentGroupCard, WFNEW_KIND_STYLES } from './WfNewContentGroupCar
 import { WfNewContentGrid, WFNEW_GRID_COLS_CLASS } from './WfNewContentGrid';
 import { WfNewLoadingDots } from './WfNewLoadingDots';
 import { useWfNewGridCols, WFNEW_HOME_ROWS } from '../api';
+import { pycoreApi } from '../../../core/api-libs/pycore';
 
 interface WfNewHomeContentProps {
   content: WfNewHomeContentData;
@@ -196,6 +197,32 @@ export const WfNewHomeContent: React.FC<WfNewHomeContentProps> = ({
   onAddToStudy,
   defaultWordGroup,
 }) => {
+  const imagePriorityRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    const coverIds: number[] = [];
+    const posterItems: Array<{ media_type: 'book' | 'subtitle'; id: number }> = [];
+    for (const group of content.libraries) {
+      const id = Number(group.id);
+      const key = `library:${id}`;
+      if (!group.imageUrl && id > 0 && !imagePriorityRef.current.has(key)) {
+        imagePriorityRef.current.add(key);
+        coverIds.push(id);
+      }
+    }
+    for (const group of [...content.books, ...content.subtitles]) {
+      const id = Number(group.id);
+      const mediaType = group.kind === 'subtitle' ? 'subtitle' : 'book';
+      const key = `${mediaType}:${id}`;
+      if (!group.imageUrl && id > 0 && !imagePriorityRef.current.has(key)) {
+        imagePriorityRef.current.add(key);
+        posterItems.push({ media_type: mediaType, id });
+      }
+    }
+    if (coverIds.length > 0) void pycoreApi.prioritizeCovers(coverIds).catch(() => undefined);
+    if (posterItems.length > 0) void pycoreApi.prioritizePosters(posterItems).catch(() => undefined);
+  }, [content.books, content.libraries, content.subtitles]);
+
   const scrollToSection = (kind: WfNewContentKind) => {
     if (typeof document === 'undefined') return;
     document.getElementById(sectionId(kind))?.scrollIntoView({ behavior: 'smooth', block: 'start' });

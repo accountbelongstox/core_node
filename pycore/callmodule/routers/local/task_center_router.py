@@ -41,8 +41,8 @@ from pycore.pyctl.desktop.task_manager import get_task_manager
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
 )
-from pycore.callmodule.services import (
-    get_queue_monitor_service,
+from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
+from pycore.callmodule.services.translation_worker.worker import (
     get_translation_worker_service,
 )
 from pycore.callmodule.callmodule_config import Config
@@ -234,6 +234,20 @@ def _control_state(
     }
     capabilities = assist.get("capabilities") or {}
     master = bool(assist.get("enabled"))
+    word_audio_requested = bool((word_audio or {}).get("auto_start"))
+    sentence_audio_requested = bool((sentence_audio or {}).get("auto_start"))
+    word_audio_configured = (
+        master and bool(capabilities.get("tts", True)) and word_audio_requested
+    )
+    sentence_audio_configured = (
+        master
+        and bool(capabilities.get("sentence_audio", True))
+        and sentence_audio_requested
+    )
+    translation_configured = master and (
+        bool(capabilities.get("translation", True))
+        or bool(capabilities.get("ai_translate", True))
+    )
     return {
         "assist": {
             "configured": master,
@@ -241,18 +255,23 @@ def _control_state(
             "owner": "assist",
         },
         "translation": {
-            "configured": master and bool(capabilities.get("translation", True)),
-            "running": bool(callbacks.get("translation_worker")),
+            "configured": translation_configured,
+            "running": translation_configured
+            and bool(callbacks.get("translation_worker")),
             "owner": "pycore.google_translation_worker",
         },
         "word_audio": {
-            "configured": bool((word_audio or {}).get("auto_start")),
-            "running": bool((word_audio or {}).get("heartbeat_enabled")),
+            "configured": word_audio_configured,
+            "requested": word_audio_requested,
+            "running": word_audio_configured
+            and bool((word_audio or {}).get("heartbeat_enabled")),
             "owner": "pycore.word_tts_auto",
         },
         "sentence_audio": {
-            "configured": bool((sentence_audio or {}).get("auto_start")),
-            "running": bool((sentence_audio or {}).get("heartbeat_enabled")),
+            "configured": sentence_audio_configured,
+            "requested": sentence_audio_requested,
+            "running": sentence_audio_configured
+            and bool((sentence_audio or {}).get("heartbeat_enabled")),
             "owner": "pycore.sentence_audio_auto",
         },
     }

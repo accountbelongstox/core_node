@@ -37,76 +37,10 @@ $PythonFlagFile = $Global:PYTHON_FLAG_FILE
 $CommonPythonPackages = @(
     "requests",
     "urllib3",
-    # setuptools<81: v81 removed the bundled `pkg_resources`, which legacy packages still
-    # import at load time (librosa 0.9.1 via MeloTTS: `from pkg_resources import
-    # resource_filename`). <81 (resolves to 80.10.2) also satisfies torch (needs <82) and
-    # faradaysec (needs <81). Do NOT drop the bound: an unbounded --upgrade walks it to 82.
+    # Keep the legacy pkg_resources-compatible setuptools major.
     "setuptools<81",
     "wheel",
     "pip-tools"
-)
-
-# Required packages from pycore/pyfoundations/third_party.py DEPENDENCY_MAP (not installed in Step 9)
-# Version constraints for dependency compatibility:
-#   - Pillow<11: required by tkhtmlview 0.3.1 (needs Pillow<11,>=10)
-#   - numpy<2.3.0: required by opencv-python (needs numpy<2.3.0,>=2)
-$RequiredPythonPackages = @(
-    "Pillow<11,>=10",
-    "opencv-python",
-    "pyautogui",
-    "psutil",
-    "mss",
-    # torch / ultralytics / paddle: installed by Step10_InstallPythonPrereqPackages.ps1
-    # (after pip + Step9 CUDA prereq) to avoid version/index conflicts.
-    "numpy<2.3.0,>=2",
-    "adb-shell",
-    "av",
-    "uvicorn[standard]",
-    "websockets",
-    "requests",
-    "aiohttp",
-    "fastapi",
-    "netifaces",
-    "pywebview",
-    "tkinterweb",
-    "tkhtmlview",
-    "pystray",
-    "loguru",
-    "pyyaml",
-    "cnocr[ort-cpu]",
-    "pypdf",
-    "pdfplumber",
-    "python-docx",
-    "openpyxl",
-    "python-pptx",
-    "beautifulsoup4",
-    "scikit-learn",
-    "selenium",
-    "webdriver-manager",
-    "sqlalchemy",
-    "fastmcp",
-    "azure-cognitiveservices-speech",
-    "vosk",
-    "pynput",
-    "pyperclip",
-    "googletrans",
-    "httpx"
-)
-
-# Windows-only packages (from third_party.py WINDOWS_ONLY_PACKAGES)
-$WindowsOnlyPackages = @(
-    "pywin32",
-    "pywinauto",
-    "pygetwindow",
-    "uiautomation",
-    "pyaudiowpatch",
-    "pyaudio"
-)
-
-# Optional packages (from third_party.py OPTIONAL_PACKAGES)
-$OptionalPythonPackages = @(
-    "edge-tts",
-    "openai-whisper"
 )
 
 # Region-specific mirror configuration
@@ -129,7 +63,7 @@ function Prepare-PythonEnvironment {
     $langCompilerDir = $Global:LANG_COMPILER_DIR
     if (Test-Path -LiteralPath $langCompilerDir) {
         $existingDirs = @(Get-ChildItem -Path $langCompilerDir -Directory -ErrorAction SilentlyContinue | Where-Object {
-            $_.Name -match '^python\d+$' -and $_.FullName -ne $PythonInstallDir
+            $_.Name.StartsWith('python', [System.StringComparison]::OrdinalIgnoreCase) -and $_.FullName -ne $PythonInstallDir
         })
         foreach ($oldDir in $existingDirs) {
             Write-ColorMessage -Message "$SCRIPT_INDEX Found older Python install (kept on disk): $($oldDir.FullName)" -Type "Info"
@@ -229,48 +163,18 @@ function Configure-PipMirror {
 }
 
 function Install-PipTools {
-    Write-ColorMessage -Message "$SCRIPT_INDEX Ensuring pip is up to date..." -Type "Info"
-
-    $mirrorConfig = Get-PipMirrorConfig
-    $pipArgs = @("install", "--upgrade", "pip")
-
-    if ($mirrorConfig) {
-        $pipArgs += @("-i", $mirrorConfig.IndexUrl, "--trusted-host", $mirrorConfig.TrustedHost)
-    }
-
-    $command = "$PipExePath $($pipArgs -join ' ')"
-    Write-ColorMessage -Message "$SCRIPT_INDEX Command: $command" -Type "Info"
-    & $PipExePath @pipArgs
+    Write-ColorMessage -Message "$SCRIPT_INDEX pip binary is present; preserving the installed version." -Type "Info"
 }
 
 function Install-UV {
     Write-ColorMessage -Message "$SCRIPT_INDEX Installing/verifying uv..." -Type "Info"
-
-    $mirrorConfig = Get-PipMirrorConfig
-    $pipArgs = @("install", "--upgrade", "uv")
-
-    if ($mirrorConfig) {
-        $pipArgs += @("-i", $mirrorConfig.IndexUrl, "--trusted-host", $mirrorConfig.TrustedHost)
-    }
-
-    $command = "$PipExePath $($pipArgs -join ' ')"
-    Write-ColorMessage -Message "$SCRIPT_INDEX Command: $command" -Type "Info"
-    & $PipExePath @pipArgs
+    Install-PythonPackageIfMissing -PackageSpec 'uv'
 }
 
 function Install-Pipx {
     Write-ColorMessage -Message "$SCRIPT_INDEX Installing/verifying pipx..." -Type "Info"
 
-    $mirrorConfig = Get-PipMirrorConfig
-    $pipArgs = @("install", "--upgrade", "pipx")
-
-    if ($mirrorConfig) {
-        $pipArgs += @("-i", $mirrorConfig.IndexUrl, "--trusted-host", $mirrorConfig.TrustedHost)
-    }
-
-    $command = "$PipExePath $($pipArgs -join ' ')"
-    Write-ColorMessage -Message "$SCRIPT_INDEX Command: $command" -Type "Info"
-    & $PipExePath @pipArgs
+    Install-PythonPackageIfMissing -PackageSpec 'pipx'
 
     if (Test-Path $PipxExePath) {
         & $PipxExePath ensurepath
@@ -280,82 +184,34 @@ function Install-Pipx {
 function Install-Poetry {
     Write-ColorMessage -Message "$SCRIPT_INDEX Installing/verifying poetry..." -Type "Info"
 
+    Install-PythonPackageIfMissing -PackageSpec 'poetry'
+}
+
+function Install-PythonPackageIfMissing {
+    param([Parameter(Mandatory = $true)][string]$PackageSpec)
+    $command = ''
     $mirrorConfig = Get-PipMirrorConfig
-    $pipArgs = @("install", "--upgrade", "poetry")
-
-    if ($mirrorConfig) {
-        $pipArgs += @("-i", $mirrorConfig.IndexUrl, "--trusted-host", $mirrorConfig.TrustedHost)
+    $packageName = Get-PipPackageNameFromSpec -PipSpec $PackageSpec
+    $pipArgs = @('install', $PackageSpec)
+    if (Test-PipPackageInstalled -PipExe $PipExePath -PackageName $packageName) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX   [SKIP] $packageName is installed" -Type "Info"
+        return
     }
-
+    if ($mirrorConfig) {
+        $pipArgs = @($pipArgs + @('-i', $mirrorConfig.IndexUrl, '--trusted-host', $mirrorConfig.TrustedHost))
+    }
     $command = "$PipExePath $($pipArgs -join ' ')"
-    Write-ColorMessage -Message "$SCRIPT_INDEX Command: $command" -Type "Info"
+    Write-ColorMessage -Message "$SCRIPT_INDEX   Command: $command" -Type "Info"
     & $PipExePath @pipArgs
 }
 
 function Install-CommonPackages {
     Write-ColorMessage -Message "$SCRIPT_INDEX Installing common Python packages..." -Type "Info"
 
-    $mirrorConfig = Get-PipMirrorConfig
-
     foreach ($package in $CommonPythonPackages) {
         Write-ColorMessage -Message "$SCRIPT_INDEX   Installing: $package" -Type "Info"
 
-        $pipArgs = @("install", "--upgrade", $package)
-
-        if ($mirrorConfig) {
-            $pipArgs += @("-i", $mirrorConfig.IndexUrl, "--trusted-host", $mirrorConfig.TrustedHost)
-        }
-
-        $command = "$PipExePath $($pipArgs -join ' ')"
-        Write-ColorMessage -Message "$SCRIPT_INDEX   Command: $command" -Type "Info"
-        & $PipExePath @pipArgs
-    }
-}
-
-function Install-RequiredPythonPackages {
-    Write-ColorMessage -Message "$SCRIPT_INDEX Installing required Python packages from third_party.py..." -Type "Info"
-
-    $mirrorConfig = Get-PipMirrorConfig
-    $allPackages = @($RequiredPythonPackages)
-
-    # Add Windows-only packages on Windows
-    if ($env:OS -match "Windows") {
-        $allPackages += $WindowsOnlyPackages
-        Write-ColorMessage -Message "$SCRIPT_INDEX Including Windows-only packages" -Type "Info"
-    }
-
-    foreach ($package in $allPackages) {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   Installing: $package" -Type "Info"
-
-        $pipArgs = @("install", "--upgrade", $package)
-
-        if ($mirrorConfig) {
-            $pipArgs += @("-i", $mirrorConfig.IndexUrl, "--trusted-host", $mirrorConfig.TrustedHost)
-        }
-
-        $command = "$PipExePath $($pipArgs -join ' ')"
-        Write-ColorMessage -Message "$SCRIPT_INDEX   Command: $command" -Type "Info"
-        & $PipExePath @pipArgs
-    }
-}
-
-function Install-OptionalPythonPackages {
-    Write-ColorMessage -Message "$SCRIPT_INDEX Installing optional Python packages..." -Type "Info"
-
-    $mirrorConfig = Get-PipMirrorConfig
-
-    foreach ($package in $OptionalPythonPackages) {
-        Write-ColorMessage -Message "$SCRIPT_INDEX   Installing: $package" -Type "Info"
-
-        $pipArgs = @("install", "--upgrade", $package)
-
-        if ($mirrorConfig) {
-            $pipArgs += @("-i", $mirrorConfig.IndexUrl, "--trusted-host", $mirrorConfig.TrustedHost)
-        }
-
-        $command = "$PipExePath $($pipArgs -join ' ')"
-        Write-ColorMessage -Message "$SCRIPT_INDEX   Command: $command" -Type "Info"
-        & $PipExePath @pipArgs
+        Install-PythonPackageIfMissing -PackageSpec $package
     }
 }
 

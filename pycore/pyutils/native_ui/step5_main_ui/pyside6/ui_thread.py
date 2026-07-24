@@ -47,28 +47,35 @@ class PySide6UIThread(threading.Thread):
             daemon: Run as daemon thread (default: True)
         """
         super().__init__(name="PySide6UIThread", daemon=daemon)
-
-        self.ui_config = ui_config
-        self.startup_config = startup_config
-        self.framework: Optional["PySide6Framework"] = None
+        self._config_queue = f"native_ui.pyside6.config.{id(self)}"
+        self._app_id_signal = f"native_ui.pyside6.app_id.{id(self)}"
+        THREAD_BUS.send_message(self._config_queue, {
+            "ui_config": ui_config,
+            "startup_config": startup_config,
+        })
+        app_id = ui_config.app_id or ui_config.app_name.lower().replace(' ', '_')
+        THREAD_BUS.signal(self._app_id_signal, app_id)
 
         ColorPrint.blue(f"[PySide6UIThread] Initialized - App: {ui_config.app_name}")
 
     def run(self):
         """Bootstrap: tk first (no PySide6), wait ready, then load PySide6, then create main window."""
         ColorPrint.green("[PySide6UIThread] Starting (tk bootstrap first, then PySide6)...")
+        config = THREAD_BUS.receive_message(self._config_queue) or {}
+        ui_config = config.get("ui_config")
+        startup_config = config.get("startup_config")
 
         existing_startup_thread = None
-        startup_config_for_framework = self.startup_config
+        startup_config_for_framework = startup_config
 
         # 1. Show tk bootstrap window first (no PySide6 needed)
-        if self.startup_config and self.startup_config.show_startup:
+        if startup_config and startup_config.show_startup:
             ColorPrint.blue("[PySide6UIThread] Step 0: Showing tk bootstrap window (no PySide6 yet)...")
             existing_startup_thread = TkinterStartupThread(
-                app_name=self.startup_config.app_name,
-                width=getattr(self.startup_config, "width", 500),
-                height=getattr(self.startup_config, "height", 400),
-                icon_path=self.startup_config.icon_path,
+                app_name=startup_config.app_name,
+                width=getattr(startup_config, "width", 500),
+                height=getattr(startup_config, "height", 400),
+                icon_path=startup_config.icon_path,
                 logo_path=None,
                 enable_language_selector=True,
                 enable_tray=False
@@ -79,13 +86,13 @@ class PySide6UIThread(threading.Thread):
             ColorPrint.register_callback(existing_startup_thread._colorprint_callback)
             # Framework will use this thread; do not show again
             startup_config_for_framework = StartupWindowConfig(
-                app_name=self.startup_config.app_name,
-                width=getattr(self.startup_config, "width", 500),
-                height=getattr(self.startup_config, "height", 400),
-                icon_path=self.startup_config.icon_path,
+                app_name=startup_config.app_name,
+                width=getattr(startup_config, "width", 500),
+                height=getattr(startup_config, "height", 400),
+                icon_path=startup_config.icon_path,
                 show_startup=False,
-                auto_close=self.startup_config.auto_close,
-                daemon=self.startup_config.daemon
+                auto_close=startup_config.auto_close,
+                daemon=startup_config.daemon
             )
 
         # 2. Load PySide6 (may install; logs go to tk window)
@@ -94,20 +101,20 @@ class PySide6UIThread(threading.Thread):
         ColorPrint.green("[PySide6UIThread] PySide6 available")
 
         # 3. Create framework and main window (after tk is visible)
-        self.framework = PySide6Framework(
-            config=self.ui_config,
+        framework = PySide6Framework(
+            config=ui_config,
             startup_config=startup_config_for_framework,
             existing_startup_thread=existing_startup_thread
         )
 
-        app_id = self.ui_config.app_id or self.ui_config.app_name.lower().replace(' ', '_')
+        app_id = ui_config.app_id or ui_config.app_name.lower().replace(' ', '_')
         THREAD_BUS.trigger_event(f'{app_id}.thread.started', {
-            'app_name': self.ui_config.app_name,
+            'app_name': ui_config.app_name,
             'app_id': app_id
         })
 
         ColorPrint.green("[PySide6UIThread] Framework starting (main window)...")
-        self.framework.start()
+        framework.start()
 
         # Signal that framework has stopped
         THREAD_BUS.trigger_event(f'{app_id}.thread.stopped', {})
@@ -123,11 +130,9 @@ class PySide6UIThread(threading.Thread):
         This method actually uses THREAD_BUS internally, but direct usage is still discouraged.
         """
         ColorPrint.yellow(f"[PySide6UIThread] WARNING: request_stop() is deprecated, use THREAD_BUS event directly")
-        if self.framework:
-            # Get app_id for THREAD_BUS namespace
-            app_id = self.ui_config.app_id or self.ui_config.app_name.lower().replace(' ', '_')
+        app_id = THREAD_BUS.get_signal(self._app_id_signal, "")
+        if app_id:
             ColorPrint.blue(f"[PySide6UIThread] Requesting stop via THREAD_BUS...")
-            # Trigger close event (thread-safe via Qt signals)
             THREAD_BUS.trigger_event(f'{app_id}.close', {})
 
     def get_framework(self) -> Optional["PySide6Framework"]:
@@ -137,5 +142,5 @@ class PySide6UIThread(threading.Thread):
         Get framework instance (for controlled access).
         This method is deprecated as it exposes internal state to other threads.
         """
-        ColorPrint.yellow("[PySide6UIThread] WARNING: get_framework() is deprecated")
-        return self.framework
+        ColorPrint.yellow("[PySide6UIThread] Direct framework access is unavailable")
+        return None

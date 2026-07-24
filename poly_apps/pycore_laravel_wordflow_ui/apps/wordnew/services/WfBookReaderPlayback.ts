@@ -16,10 +16,9 @@ export interface WfBookReaderPlaybackSettings {
 }
 
 /**
- * Word cards (显示单词卡片, ENGLISH ONLY): before/after a sentence's audio the
- * engine reads the sentence's not-yet-recited Default Vocabulary Group words
- * aloud (see services/WfBookReaderWordCards). `readForVerse` must be
- * best-effort and honor `shouldContinue` so a stuck clip never freezes playback.
+ * Word cards (English only): `before` reads words then the sentence sequence;
+ * `after` reads the sentence sequence once, then words, then the sequence again.
+ * `readForVerse` must be best-effort and honor `shouldContinue`.
  */
 export interface WfBookReaderWordCards {
   isEnabled: () => boolean;
@@ -176,11 +175,8 @@ export class WfBookReaderPlayback {
   }
 
   /**
-   * Word cards around the sentence audio (English only): fires once per
-   * sentence at the configured position — 'before' at the start of step 0,
-   * 'after' when the play sequence has run through. Guarded by the current
-   * play token so a stop/jump mid-reading cancels it; any failure falls
-   * through so the sentence itself is never blocked.
+   * Word cards around the sentence audio (English only). Guarded by the current
+   * play token so a stop/jump mid-reading cancels it.
    */
   private async runWordCards(verse: WfNewBookVerse, pos: 'before' | 'after', token: number): Promise<void> {
     const wc = this.deps.wordCards;
@@ -196,16 +192,26 @@ export class WfBookReaderPlayback {
     }
   }
 
-  private async runStep(verse: WfNewBookVerse, stepIdx: number): Promise<void> {
+  private async runStep(
+    verse: WfNewBookVerse,
+    stepIdx: number,
+    sentenceReplay = false,
+  ): Promise<void> {
     if (!this.playing || this.paused) return;
     const token = (this.playToken += 1);
     const settings = this.deps.getSettings();
     const seq = settings.sequence.length ? settings.sequence : [{ lang: 'en', repeat: 1 }];
     if (stepIdx >= seq.length) {
-      // Sequence finished — word cards configured 'after' read here, once per
-      // sentence pass, before repeat/advance.
-      await this.runWordCards(verse, 'after', token);
-      if (!this.playing || this.playToken !== token) return;
+      if (
+        !sentenceReplay
+        && this.deps.wordCards?.isEnabled()
+        && this.deps.wordCards.getPosition() === 'after'
+      ) {
+        await this.runWordCards(verse, 'after', token);
+        if (!this.playing || this.playToken !== token) return;
+        await this.runStep(verse, 0, true);
+        return;
+      }
       if (settings.repeatOne) {
         await this.runStep(verse, 0);
         return;
@@ -223,13 +229,13 @@ export class WfBookReaderPlayback {
 
     // Word cards configured 'before' read ahead of the sentence's first step
     // (a mid-sequence startLang jump skips them deliberately).
-    if (stepIdx === 0) {
+    if (stepIdx === 0 && !sentenceReplay) {
       await this.runWordCards(verse, 'before', token);
       if (!this.playing || this.playToken !== token) return;
     }
 
     if (!text) {
-      await this.runStep(verse, stepIdx + 1);
+      await this.runStep(verse, stepIdx + 1, sentenceReplay);
       return;
     }
 
@@ -262,19 +268,25 @@ export class WfBookReaderPlayback {
           void audio.play().catch(() => this.stop());
           return;
         }
-        void this.runStep(verse, stepIdx + 1);
+        void this.runStep(verse, stepIdx + 1, sentenceReplay);
       };
       audio.onerror = () => {
         if (this.playToken !== token) return;
-        void this.fallbackSpeechOrSkip(verse, lang, text, step.repeat, stepIdx, token);
+        void this.fallbackSpeechOrSkip(
+          verse, lang, text, step.repeat, stepIdx, token, sentenceReplay,
+        );
       };
       void audio.play().catch(() => {
-        void this.fallbackSpeechOrSkip(verse, lang, text, step.repeat, stepIdx, token);
+        void this.fallbackSpeechOrSkip(
+          verse, lang, text, step.repeat, stepIdx, token, sentenceReplay,
+        );
       });
       return;
     }
 
-    await this.fallbackSpeechOrSkip(verse, lang, text, step.repeat, stepIdx, token);
+    await this.fallbackSpeechOrSkip(
+      verse, lang, text, step.repeat, stepIdx, token, sentenceReplay,
+    );
   }
 
   private async fallbackSpeechOrSkip(
@@ -284,6 +296,7 @@ export class WfBookReaderPlayback {
     repeats: number,
     stepIdx: number,
     token: number,
+    sentenceReplay: boolean,
   ): Promise<void> {
     if (!this.playing || this.playToken !== token) return;
     // Backend audio missing: ALWAYS try the browser's speech engine first so
@@ -298,7 +311,7 @@ export class WfBookReaderPlayback {
     const ok = await this.playSpeechStep(verse, lang, text, repeats, token);
     if (ok && this.playing && this.playToken === token) {
       this.emptyCross = 0;
-      await this.runStep(verse, stepIdx + 1);
+      await this.runStep(verse, stepIdx + 1, sentenceReplay);
       return;
     }
     this.emptyCross += 1;
@@ -306,7 +319,7 @@ export class WfBookReaderPlayback {
       this.stop();
       return;
     }
-    await this.runStep(verse, stepIdx + 1);
+    await this.runStep(verse, stepIdx + 1, sentenceReplay);
   }
 
   /**

@@ -20,12 +20,16 @@ Usage:
 """
 
 import time
-import threading
 from typing import Dict, Any, Optional, List
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party import get_third_package_openai
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 
 
 class DeepSeekClient:
@@ -63,6 +67,12 @@ class DeepSeekClient:
         self.base_url = base_url or self.BASE_URL
         self.default_model = default_model
         self._client = None
+        init_serialized_owner(
+            self,
+            "deepseek.client.state",
+            "DeepSeekClientState",
+            timeout=300.0,
+        )
 
     def _get_client(self):
         """Lazy-init the underlying OpenAI SDK client pointed at DeepSeek."""
@@ -71,6 +81,7 @@ class DeepSeekClient:
             self._client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url)
         return self._client
 
+    @serialized_method
     def chat_completion(
         self,
         messages: List[Dict[str, str]],
@@ -112,6 +123,7 @@ class DeepSeekClient:
         result["processing_time"] = time.time() - start_time
         return result
 
+    @serialized_method
     def chat(self, prompt: str, model: Optional[str] = None,
              system_prompt: Optional[str] = None, **kwargs) -> str:
         """Simple one-shot chat. Returns the assistant text (or 'Error: ...')."""
@@ -125,6 +137,7 @@ class DeepSeekClient:
             return f"Error: {result['error']}"
         return result.get("text", "")
 
+    @serialized_method
     def list_models(self) -> Dict[str, Any]:
         """
         List available DeepSeek model ids via the OpenAI-compatible /models endpoint.
@@ -148,17 +161,17 @@ class DeepSeekClient:
         return result
 
 
-# Global singleton instance
-_global_client: Optional[DeepSeekClient] = None
+_DEEPSEEK_CLIENT_PROVIDER = SerializedSingletonProvider(
+    DeepSeekClient,
+    "deepseek.client.provider",
+    "DeepSeekClientProvider",
+)
 
 
 def get_deepseek_client(api_key: Optional[str] = None,
                         base_url: Optional[str] = None) -> DeepSeekClient:
     """Get the global DeepSeek client singleton (loads key from secret manager)."""
-    global _global_client
-    if _global_client is None:
-        _global_client = DeepSeekClient(api_key=api_key, base_url=base_url)
-    return _global_client
+    return _DEEPSEEK_CLIENT_PROVIDER.get(api_key=api_key, base_url=base_url)
 
 
 __all__ = ['DeepSeekClient', 'get_deepseek_client']

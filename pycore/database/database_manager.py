@@ -17,6 +17,7 @@ from contextlib import contextmanager
 
 from pycore.pyfoundations.system_paths import map_web_path
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint as _OriginalColorPrint
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
 
 # Suppress ColorPrint output in MCP mode
@@ -53,9 +54,16 @@ class DatabaseManager:
         self.metadatas: Dict[str, sqlalchemy.MetaData] = {}  # database_name -> metadata
         self.table_registry = TableRegistry()
         self.connection_strings: Dict[str, str] = {}  # database_name -> connection_string
+        init_serialized_owner(
+            self,
+            "database_manager.state",
+            "DatabaseManagerState",
+            timeout=300.0,
+        )
 
         ColorPrint.blue("[DatabaseManager] Initialized")
 
+    @serialized_method
     def register_database(
         self,
         database_name: str = "default",
@@ -88,6 +96,7 @@ class DatabaseManager:
         ColorPrint.green(f"[DatabaseManager] Registered database: {database_name}")
         ColorPrint.blue(f"  Connection: {connection_string}")
 
+    @serialized_method
     def _ensure_engine_created(self, database_name: str):
         """
         Ensure engine is created for database (lazy initialization)
@@ -129,6 +138,7 @@ class DatabaseManager:
             ColorPrint.red(f"[DatabaseManager] Failed to create engine for {database_name}: {e}")
             raise
 
+    @serialized_method
     def load_tables(
         self,
         table_keys: List[str],
@@ -186,6 +196,7 @@ class DatabaseManager:
             f"Total loaded: {self.table_registry.get_loaded_table_count()}"
         )
 
+    @serialized_method
     def get_table(self, table_key: str) -> Type[BaseModel]:
         """
         Get table model class
@@ -205,10 +216,17 @@ class DatabaseManager:
         """
         return self.table_registry.get_table(table_key)
 
+    @serialized_method
     def is_table_loaded(self, table_key: str) -> bool:
         """Check if table is loaded"""
         return self.table_registry.is_table_loaded(table_key)
 
+    @serialized_method
+    def is_database_registered(self, database_name: str) -> bool:
+        """Check database registration on the manager state owner."""
+        return database_name in self.connection_strings
+
+    @serialized_method
     def get_loaded_tables(self) -> List[str]:
         """Get list of loaded table keys"""
         return self.table_registry.get_loaded_tables()
@@ -229,19 +247,22 @@ class DatabaseManager:
                 users = database_manager.get_table(TableKeys.MYAPP_USERS)
                 users.insert(conn, {"username": "alice"})
         """
-        if database_name not in self.engines:
-            raise RuntimeError(
-                f"Database '{database_name}' not initialized. "
-                f"Call load_tables() first to initialize database."
-            )
-
-        engine = self.engines[database_name]
+        engine = self._get_loaded_engine(database_name)
         conn = engine.connect()
 
         try:
             yield conn
         finally:
             conn.close()
+
+    @serialized_method
+    def _get_loaded_engine(self, database_name: str) -> Any:
+        if database_name not in self.engines:
+            raise RuntimeError(
+                f"Database '{database_name}' not initialized. "
+                f"Call load_tables() first to initialize database."
+            )
+        return self.engines[database_name]
 
     def execute_with_connection(
         self,
@@ -287,13 +308,7 @@ class DatabaseManager:
                 config.update(conn, {"value": "new"}, where={"key": "test"})
                 # Auto-commit on success, auto-rollback on error
         """
-        if database_name not in self.engines:
-            raise RuntimeError(
-                f"Database '{database_name}' not initialized. "
-                f"Call load_tables() first to initialize database."
-            )
-
-        engine = self.engines[database_name]
+        engine = self._get_loaded_engine(database_name)
         conn = engine.connect()
         trans = conn.begin()
 
@@ -308,6 +323,7 @@ class DatabaseManager:
         finally:
             conn.close()
 
+    @serialized_method
     def get_database_info(self, database_name: str = "default") -> Dict[str, Any]:
         """
         Get database information
@@ -335,6 +351,7 @@ class DatabaseManager:
 
         return info
 
+    @serialized_method
     def close_all(self):
         """Close all database connections"""
         for database_name, engine in self.engines.items():
@@ -349,14 +366,11 @@ class DatabaseManager:
 
 
 # Singleton instance
-_database_manager_singleton: Optional[DatabaseManager] = None
+_database_manager_singleton = DatabaseManager()
 
 
 def get_database_manager() -> DatabaseManager:
     """Get singleton instance of DatabaseManager"""
-    global _database_manager_singleton
-    if _database_manager_singleton is None:
-        _database_manager_singleton = DatabaseManager()
     return _database_manager_singleton
 
 

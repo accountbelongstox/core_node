@@ -31,10 +31,8 @@ $winCommonDirPath = $null
 $windowsPathFunctionScript = $null
 $upgradeChoice = $null
 $pnpmCommand = $null
-$pnpmExitCode = 0
 $codexCommand = $null
 $featureListOutput = @()
-$featureListExitCode = 0
 $featureLine = $null
 $featureMatch = $null
 $featureName = $null
@@ -44,10 +42,13 @@ $excludedFeatures = @("code_mode_only", "shell_zsh_fork", "unified_exec_zsh_fork
 $enabledFeatures = @()
 $model = "gpt-5.6-sol"
 $reasoningEffort = "high"
-$rolloutBudgetLimitTokens = if (($env:CODEX_ROLLOUT_BUDGET_TOKENS -match '^\d+$') -and ([int64]$env:CODEX_ROLLOUT_BUDGET_TOKENS -gt 0)) { [int64]$env:CODEX_ROLLOUT_BUDGET_TOKENS } else { 100000 }
+$parsedRolloutBudget = 0L
+$rolloutBudgetLimitTokens = 100000L
 $codexArgs = @()
 $displayArgs = $null
-$exitCode = 0
+if ([int64]::TryParse($env:CODEX_ROLLOUT_BUDGET_TOKENS, [ref]$parsedRolloutBudget) -and $parsedRolloutBudget -gt 0) {
+    $rolloutBudgetLimitTokens = $parsedRolloutBudget
+}
 
 $scriptPath = $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($scriptPath)) {
@@ -70,35 +71,25 @@ $upgradeChoice = Read-Host "Upgrade Codex CLI via 'pnpm add --global @openai/cod
 if (($upgradeChoice -eq "y") -or ($upgradeChoice -eq "Y")) {
     $pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
     if ($null -eq $pnpmCommand) {
-        Write-Host "[ERROR] pnpm is required to upgrade Codex CLI." -ForegroundColor Red
-        exit 127
+        Write-Host "[WARN] pnpm is unavailable; keeping the installed Codex CLI." -ForegroundColor Yellow
+    } else {
+        Write-Host "[INFO] Upgrading Codex CLI with pnpm..." -ForegroundColor Cyan
+        & $pnpmCommand.Source add --global "@openai/codex@latest"
+        Write-Host "[INFO] Codex CLI upgrade command completed." -ForegroundColor Green
     }
-
-    Write-Host "[INFO] Upgrading Codex CLI with pnpm..." -ForegroundColor Cyan
-    & pnpm add --global "@openai/codex@latest"
-    $pnpmExitCode = $LASTEXITCODE
-    if (($null -ne $pnpmExitCode) -and ($pnpmExitCode -ne 0)) {
-        Write-Host "[ERROR] Codex CLI upgrade failed with exit code $pnpmExitCode." -ForegroundColor Red
-        exit $pnpmExitCode
-    }
-    Write-Host "[INFO] Codex CLI upgrade complete." -ForegroundColor Green
 } else {
     Write-Host "[INFO] Codex CLI upgrade skipped (default N)." -ForegroundColor DarkGray
 }
 
 $codexCommand = Get-Command codex -ErrorAction SilentlyContinue
 if ($null -eq $codexCommand) {
-    Write-Host "[ERROR] codex is not available on PATH." -ForegroundColor Red
-    exit 127
+    throw "codex is not available on PATH."
 }
 
-$featureListOutput = @(& codex features list 2>$null)
-$featureListExitCode = $LASTEXITCODE
-if ($null -eq $featureListExitCode) {
-    $featureListExitCode = 0
+if ($codexCommand) {
+    $featureListOutput = @(& $codexCommand.Source features list 2>$null)
 }
-
-if ($featureListExitCode -eq 0) {
+if ($featureListOutput.Count -gt 0) {
     foreach ($featureLine in $featureListOutput) {
         $featureMatch = [regex]::Match([string]$featureLine, $featureLinePattern)
         if (-not $featureMatch.Success) {
@@ -146,10 +137,4 @@ Write-Host "[INFO] Active features enabled: $($enabledFeatures.Count)$displayArg
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-& codex @codexArgs @args
-$exitCode = $LASTEXITCODE
-if ($null -eq $exitCode) {
-    $exitCode = 0
-}
-
-exit $exitCode
+& $codexCommand.Source @codexArgs @args

@@ -35,7 +35,7 @@ def get_comparison_base_dir(app_name: str) -> Path:
     """
     Get base directory for comparison images
 
-    Uses: D:\programing\_build_dir\flutter_main\{appname}\comparison_images
+    Uses: D:\\programing\\_build_dir\\flutter_main\\{appname}\\comparison_images
 
     Args:
         app_name: Application name

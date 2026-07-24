@@ -1,5 +1,5 @@
 /**
- * Persistent completed-task history grouped by canonical Laravel task_type.
+ * Persistent completed-task history grouped by canonical cross-end task_type.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -40,12 +40,28 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick, onMe
   const [err, setErr] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const mounted = useRef(true);
+  const initialSyncStarted = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const loadArchive = useCallback(async () => {
     setLoading(true);
     setErr(null);
     try {
+      if (!initialSyncStarted.current) {
+        initialSyncStarted.current = true;
+        try {
+          const syncResult = await pycoreApi.syncCompletedTasks();
+          if (!syncResult.success && mounted.current) {
+            setErr(syncResult.error || 'Resource synchronization failed; showing the local archive');
+          } else if (syncResult.partial && mounted.current) {
+            setErr(`Local archive synchronized; Laravel source unavailable: ${syncResult.laravel_error || 'unknown error'}`);
+          }
+        } catch (syncError: any) {
+          if (mounted.current) {
+            setErr(syncError?.message || 'Resource synchronization failed; showing the local archive');
+          }
+        }
+      }
       const data = await pycoreApi.getCompletedTasks({
         limit: 200,
         task_type: showAll ? undefined : selectedType,
@@ -81,6 +97,9 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick, onMe
       const result = await pycoreApi.syncCompletedTasks();
       if (!result.success) throw new Error(result.error || 'Completed-task synchronization failed');
       await loadArchive();
+      if (result.partial && mounted.current) {
+        setErr(`Local archive synchronized; Laravel source unavailable: ${result.laravel_error || 'unknown error'}`);
+      }
       await hub.refreshHub();
     } catch (e: any) {
       if (mounted.current) setErr(e?.message || 'Completed-task synchronization failed');
@@ -139,7 +158,7 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick, onMe
           <div className="ml-auto flex items-center gap-1.5 shrink-0">
             <button onClick={syncArchive} disabled={syncing}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold pc-glass hover:bg-indigo-500/10 text-indigo-500 transition disabled:opacity-50"
-              title="Fetch terminal Laravel tasks through pycore and cache their resources locally">
+              title="Archive terminal Laravel and local pycore tasks, then cache their resources locally">
               {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
               {syncing ? 'Syncing…' : 'Sync & cache'}
             </button>
@@ -204,7 +223,7 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick, onMe
             </thead>
             <tbody>
               {records.map((rec) => {
-                const rowKey = `${rec.end}:${rec.seq}:${rec.task_id}`;
+                const rowKey = String(rec.archive_id || `${rec.end}:${rec.seq}:${rec.task_id}`);
                 const isOpen = !!expanded[rowKey];
                 return (
                   <React.Fragment key={rowKey}>

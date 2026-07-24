@@ -34,6 +34,7 @@ from pycore.pyfoundations.serialized_worker import (
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party import get_third_package_easyocr
 
 from pycore.pyutils.ocr_cluster.ocr_windows_engine import create_windows_ocr
 from pycore.pyutils.ocr_cluster.ocr.ocr_manager import ocr_manager
@@ -58,7 +59,7 @@ _OCR_WORKER = SerializedWorkerThread(_OCR_QUEUE, 'OCROrchestratorThread')
 _OCR_WORKER.start()
 _windows_engine: Any = None       # WindowsOCREngine or False (init failed)
 _easyocr_reader: Any = None       # easyocr.Reader or False
-_easyocr_langs = ["ch_sim", "en"]
+_EASYOCR_LANGS = ("ch_sim", "en")
 
 
 def _spec_available(module: str) -> bool:
@@ -141,7 +142,11 @@ def _extract_windows(image_path: str) -> str:
 def _extract_easyocr(image_path: str) -> str:
     global _easyocr_reader
     if _easyocr_reader is None:
-        _easyocr_reader = easyocr.Reader(_easyocr_langs)
+        easyocr = get_third_package_easyocr()
+        if easyocr is None:
+            _easyocr_reader = False
+            return ""
+        _easyocr_reader = easyocr.Reader(list(_EASYOCR_LANGS))
     reader = _easyocr_reader
     if not reader:
         return ""
@@ -298,9 +303,8 @@ def _extract_with_extra(engine: str, image_path: str, lang: Optional[str],
 
 def _extract_easyocr_with_langs(image_path: str, languages: Optional[List[str]]) -> str:
     """EasyOCR extraction with a custom language list (defaults to ['ch_sim', 'en'])."""
-    try:
-        pass
-    except ImportError:
+    easyocr = get_third_package_easyocr()
+    if easyocr is None:
         return ""
     langs = languages if languages and len(languages) > 0 else _easyocr_langs
     reader = easyocr.Reader(langs)  # type: ignore[no-untyped-call]

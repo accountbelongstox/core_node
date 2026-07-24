@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Any
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
 from pycore.pyutils.mcp.file_processing import (
     get_file_comprehensive_info_with_ocr_text_positions_color_palette_document_metadata_pixel_analysis_and_processing_stats
@@ -235,8 +236,11 @@ class CodebaseContentAnalyzer:
             return {'error': str(e)}
 
 
-# Singleton instance
-_content_analyzer_singleton: Optional[CodebaseContentAnalyzer] = None
+_CONTENT_ANALYZER_PROVIDER = SerializedSingletonProvider(
+    CodebaseContentAnalyzer,
+    "mcp.codebase_content_analyzer.provider",
+    "MCPCodebaseContentAnalyzerProviderThread",
+)
 
 
 def get_codebase_content_analyzer_singleton(
@@ -244,7 +248,4 @@ def get_codebase_content_analyzer_singleton(
     enable_global_access: bool = True
 ) -> CodebaseContentAnalyzer:
     """Get singleton instance of CodebaseContentAnalyzer"""
-    global _content_analyzer_singleton
-    if _content_analyzer_singleton is None:
-        _content_analyzer_singleton = CodebaseContentAnalyzer(project_root, enable_global_access)
-    return _content_analyzer_singleton
+    return _CONTENT_ANALYZER_PROVIDER.get(project_root, enable_global_access)

@@ -31,6 +31,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
@@ -39,7 +40,7 @@ import importlib.util
 
 _AVAIL_SIGNAL = 'pyutils.tts.fishspeech.available'
 _AVAIL_TTL_S = 30.0
-_last_synth_error: Optional[str] = None
+_LAST_SYNTH_ERROR = SerializedValue(None, "FishSpeechErrorState")
 
 
 def base_url() -> str:
@@ -142,15 +143,14 @@ def available() -> bool:
 
 
 def last_synth_error() -> Optional[str]:
-    return _last_synth_error
+    return _LAST_SYNTH_ERROR.get()
 
 
 def _synth_via_sdk(text: str, output_mp3: Path) -> bool:
-    global _last_synth_error
     try:
         pass
     except ImportError:
-        _last_synth_error = "fish-audio-sdk not installed"
+        _LAST_SYNTH_ERROR.set("fish-audio-sdk not installed")
         return False
     try:
         client = FishAudio(api_key=_fish_api_key())
@@ -161,7 +161,7 @@ def _synth_via_sdk(text: str, output_mp3: Path) -> bool:
             output_mp3.write_bytes(audio.read())
             ok = output_mp3.stat().st_size > 0
             if not ok:
-                _last_synth_error = "Fish Audio SDK returned empty audio"
+                _LAST_SYNTH_ERROR.set("Fish Audio SDK returned empty audio")
             return ok
         tmp = output_mp3.with_suffix(".fish.tmp")
         try:
@@ -172,11 +172,11 @@ def _synth_via_sdk(text: str, output_mp3: Path) -> bool:
             else:
                 ok = wav_to_mp3(out, output_mp3)
                 if not ok:
-                    _last_synth_error = "Fish Audio SDK wav->mp3 conversion failed"
+                    _LAST_SYNTH_ERROR.set("Fish Audio SDK wav->mp3 conversion failed")
                 return ok
             ok = output_mp3.exists() and output_mp3.stat().st_size > 0
             if not ok:
-                _last_synth_error = "Fish Audio SDK produced empty mp3"
+                _LAST_SYNTH_ERROR.set("Fish Audio SDK produced empty mp3")
             return ok
         finally:
             for p in tmp.parent.glob("fish.tmp*"):
@@ -185,7 +185,7 @@ def _synth_via_sdk(text: str, output_mp3: Path) -> bool:
                 except OSError:
                     pass
     except Exception as e:
-        _last_synth_error = str(e)
+        _LAST_SYNTH_ERROR.set(str(e))
         ColorPrint.red(f"[fishspeech] SDK synth failed: {e}")
         return False
 
@@ -204,10 +204,9 @@ def _parse_http_error(resp) -> str:
 
 
 def _synth_via_http(text: str, output_mp3: Path) -> bool:
-    global _last_synth_error
     requests = get_third_package_requests()
     if requests is None:
-        _last_synth_error = "requests package unavailable"
+        _LAST_SYNTH_ERROR.set("requests package unavailable")
         return False
     body = {"text": text}
     ref = _reference_id()
@@ -217,13 +216,13 @@ def _synth_via_http(text: str, output_mp3: Path) -> bool:
         resp = requests.post(f"{base_url()}/v1/tts", json=body, timeout=180)
         if resp.status_code != 200 or not resp.content:
             err = _parse_http_error(resp)
-            _last_synth_error = err
+            _LAST_SYNTH_ERROR.set(err)
             ColorPrint.red(f"[fishspeech] /v1/tts HTTP {resp.status_code}: {err}")
             return False
         ctype = (resp.headers.get("content-type") or "").lower()
         if "json" in ctype:
             err = _parse_http_error(resp)
-            _last_synth_error = err or "server returned JSON instead of audio"
+            _LAST_SYNTH_ERROR.set(err or "server returned JSON instead of audio")
             ColorPrint.red(f"[fishspeech] /v1/tts returned JSON: {err}")
             return False
         output_mp3.parent.mkdir(parents=True, exist_ok=True)
@@ -231,14 +230,14 @@ def _synth_via_http(text: str, output_mp3: Path) -> bool:
             output_mp3.write_bytes(resp.content)
             ok = output_mp3.stat().st_size > 0
             if not ok:
-                _last_synth_error = "HTTP response was empty mp3"
+                _LAST_SYNTH_ERROR.set("HTTP response was empty mp3")
             return ok
         tmp_wav = output_mp3.with_suffix(".fish.wav")
         tmp_wav.write_bytes(resp.content)
         try:
             ok = wav_to_mp3(tmp_wav, output_mp3)
             if not ok:
-                _last_synth_error = "HTTP wav->mp3 conversion failed"
+                _LAST_SYNTH_ERROR.set("HTTP wav->mp3 conversion failed")
             return ok
         finally:
             try:
@@ -246,32 +245,31 @@ def _synth_via_http(text: str, output_mp3: Path) -> bool:
             except OSError:
                 pass
     except Exception as e:
-        _last_synth_error = str(e)
+        _LAST_SYNTH_ERROR.set(str(e))
         ColorPrint.red(f"[fishspeech] HTTP synth failed: {e}")
         return False
 
 
 def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
     del lang, speed
-    global _last_synth_error
-    _last_synth_error = None
+    _LAST_SYNTH_ERROR.set(None)
     cleaned = (text or "").strip()
     if not cleaned:
-        _last_synth_error = "empty text"
+        _LAST_SYNTH_ERROR.set("empty text")
         return False
     if not synth_ready():
-        _last_synth_error = disabled_reason() or "fishspeech not ready"
+        _LAST_SYNTH_ERROR.set(disabled_reason() or "fishspeech not ready")
         return False
     if _local_server_can_synth():
         if _synth_via_http(cleaned, output_mp3):
             return True
         if _sdk_available():
             return _synth_via_sdk(cleaned, output_mp3)
-        if _last_synth_error:
+        if last_synth_error():
             return False
     if _sdk_available():
         return _synth_via_sdk(cleaned, output_mp3)
-    _last_synth_error = disabled_reason() or "fishspeech produced no audio"
+    _LAST_SYNTH_ERROR.set(disabled_reason() or "fishspeech produced no audio")
     return False
 
 

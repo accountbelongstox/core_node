@@ -7,60 +7,61 @@ GPU detection reuses pyfoundations' single CUDA detector
 (pybasecommon.compute_caps.CUDADetector) instead of a 3rd local nvidia-smi
 subprocess copy. ctranslate2 (faster-whisper's backend) is kept as the PRIMARY
 probe in has_nvidia_gpu: its device count is the authoritative "can STT
-actually use CUDA right now" answer (a working nvidia-smi alone does NOT
-guarantee ctranslate2 has a CUDA build), with CUDADetector as the fallback.
-
-faster-whisper runs IN-PROCESS in the system Python (cu13). No cu12 nvidia libs
-are installed, so ctranslate2 falls back to CPU (int8) - it cannot use cu13
-(its CUDA build links cublas64_12.dll). This keeps paddle/torch cu13 free of the
-cu12/cu13 nvidia<lib> DLL clobber.
+actually use CUDA right now" answer. A physical GPU alone does not override the
+centralized CUDA-major compatibility policy.
 
 Pure business logic: no HTTP/FastAPI. Imports only ffmpeg_ops (for
 resolve_ffmpeg in whisper_capabilities) - no import back into the processors
 package otherwise.
 """
 
+import importlib.util as u
+import os
 import re
 from typing import Any, Dict, List, Optional
 
 from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
+from pycore.pyutils.common.model_tiers import (
+    runtime_faster_whisper_compute_type,
+    runtime_faster_whisper_device,
+    whisper_model,
+)
 from .ffmpeg_ops import resolve_ffmpeg
 
-import os
-
-from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
-from pycore.pyutils.common.model_tiers import whisper_model
-
-import importlib.util as u
-
-
-
-
+try:
+    from faster_whisper.tokenizer import _LANGUAGE_CODES
+    from faster_whisper.utils import _MODELS
+except ImportError:
+    _LANGUAGE_CODES = {"en"}
+    _MODELS = {}
+try:
+    from huggingface_hub import scan_cache_dir
+except ImportError:
+    scan_cache_dir = None
+try:
+    from whisper.tokenizer import LANGUAGES
+except ImportError:
+    LANGUAGES = {}
 
 # --------------------------------------------------------------------------- #
 # whisper runtime helpers (GPU detection / model auto-pick) - shared           #
 # --------------------------------------------------------------------------- #
 def has_nvidia_gpu() -> bool:
-    # ctranslate2 is faster-whisper's backend: its CUDA device count is the
-    # authoritative "can STT actually use CUDA right now" probe.
+    """Return whether faster-whisper can use the policy-matched CUDA backend."""
+    _add_nvidia_dll_dirs()
     try:
-        if ctranslate2.get_cuda_device_count() > 0:
-            return True
-    except Exception:
-        pass
-    # Fallback: reuse pyfoundations' single CUDA detector (nvidia-smi + env
-    # vars) instead of a 3rd local nvidia-smi subprocess copy.
-    try:
-        return bool(CUDADetector.is_cuda_available())
+        return runtime_faster_whisper_device() == "cuda"
     except Exception:
         return False
 
 
 def resolve_whisper_runtime(device: str, compute_type: str):
-    if device == "auto":
-        device = "cuda" if has_nvidia_gpu() else "cpu"
+    policy_device = runtime_faster_whisper_device()
+    if device == "auto" or (device == "cuda" and policy_device != "cuda"):
+        device = policy_device
     if compute_type == "auto":
-        compute_type = "float16" if device == "cuda" else "int8"
+        compute_type = runtime_faster_whisper_compute_type(device)
     return device, compute_type
 
 
@@ -123,7 +124,7 @@ def list_installed_whisper_models() -> List[str]:
     if not repos:
         return []
     try:
-        cached = {r.repo_id for r in scan_cache_dir().repos}
+            cached = {r.repo_id for r in scan_cache_dir().repos} if scan_cache_dir else set()
     except Exception:
         return []
     return [name for name in WHISPER_MODEL_CANDIDATES

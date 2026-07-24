@@ -30,6 +30,7 @@ from pycore.pyfoundations.pybasecommon.compute_caps import (
     get_cnocr_pip_package,
     get_paddle_install_package,
     is_onnx_cuda_usable,
+    is_onnx_cuda_policy_compatible,
     ensure_onnx_cuda_usable,
     clear_onnx_cuda_usable_cache,
     last_ort_install_ran,
@@ -62,10 +63,10 @@ __all__ = [
     'get_cnocr_pip_package',
     'get_paddle_install_package',
     'is_onnx_cuda_usable',
+    'is_onnx_cuda_policy_compatible',
     'ensure_onnx_cuda_usable',
     'clear_onnx_cuda_usable_cache',
     'last_ort_install_ran',
     'CudaInitializer',
     'ORT_CUDA_REQUIREMENTS_URL',
 ]
-

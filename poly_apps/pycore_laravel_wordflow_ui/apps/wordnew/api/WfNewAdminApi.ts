@@ -372,7 +372,7 @@ export const wfNewAdminApi = {
     return deleteJSON(WfNewAdminPaths.learningLibrary(libraryId));
   },
 
-  /** Reset failed/pending AI covers so the pycore pull worker regenerates them. */
+  /** Reset failed/pending covers so the mcp-chrome image worker replaces them. */
   retryCovers(ids: Array<number | string> | 'all'): Promise<{ reset: number }> {
     return postJSON(WfNewAdminPaths.coverRetry, ids === 'all' ? { all: true } : { ids });
   },

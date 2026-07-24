@@ -1,7 +1,10 @@
 # Unified CUDA runtime policy (Windows). Mirrors linux/common/base_libs/cuda_index.sh.
 
-if (-not (Get-Command Resolve-NvidiaSmiExe -ErrorAction SilentlyContinue)) {
-    . (Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1')
+$pythonRuntimePath = Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1'
+$pythonRuntimeLoaded = Get-Variable -Name 'PycorePythonRuntimeCommonLoaded' -Scope Script -ErrorAction SilentlyContinue
+if ($null -eq $pythonRuntimeLoaded -or -not [bool]$pythonRuntimeLoaded.Value) {
+    . $pythonRuntimePath
+    Set-Variable -Name 'PycorePythonRuntimeCommonLoaded' -Scope Script -Value $true
 }
 . (Join-Path $PSScriptRoot 'AiRuntimePolicy.ps1')
 
@@ -18,32 +21,34 @@ function Resolve-CudaIndexNvidiaSmiExe {
         return $cmd.Source
     }
 
-    if (Get-Command Resolve-NvidiaSmiExe -ErrorAction SilentlyContinue) {
-        return Resolve-NvidiaSmiExe
-    }
-
-    return $null
+    return Resolve-NvidiaSmiExe
 }
 
 function Get-NvidiaSmiOutputText {
     param([string]$SmiPath = 'nvidia-smi')
     $exe = Resolve-CudaIndexNvidiaSmiExe -SmiPath $SmiPath
     $output = $null
-    $exitCode = 1
     if (-not $exe) { return '' }
     $output = & $exe 2>&1
-    $exitCode = $LASTEXITCODE
-    if ($exitCode -ne 0) { return '' }
-    return ("$output").Trim()
+    $text = ("$output").Trim()
+    if (-not $text.Contains('NVIDIA-SMI') -and
+        -not $text.Contains('CUDA Version:') -and
+        -not $text.Contains('CUDA UMD Version:')) { return '' }
+    return $text
 }
 
 function Get-NvidiaSmiCudaVersionString {
     param([string]$Text)
-    if ($Text -match 'CUDA Version:\s*([0-9.]+)') {
-        return [string]$Matches[1]
-    }
-    if ($Text -match 'CUDA UMD Version:\s*([0-9.]+)') {
-        return [string]$Matches[1]
+    $markers = @('CUDA UMD Version:', 'CUDA Version:')
+    $markerIndex = -1
+    $tail = ''
+    $value = ''
+    foreach ($marker in $markers) {
+        $markerIndex = ([string]$Text).IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase)
+        if ($markerIndex -lt 0) { continue }
+        $tail = ([string]$Text).Substring($markerIndex + $marker.Length).TrimStart()
+        $value = ($tail.Split([char[]]" `t`r`n|", [System.StringSplitOptions]::RemoveEmptyEntries) | Select-Object -First 1)
+        if ($value) { return ([string]$value).Trim() }
     }
     return ''
 }
@@ -62,39 +67,42 @@ function Get-NvidiaSmiFirstGpuLine {
     param([string]$SmiPath = 'nvidia-smi')
     $exe = Resolve-CudaIndexNvidiaSmiExe -SmiPath $SmiPath
     $output = $null
-    $exitCode = 1
     $line = $null
     if (-not $exe) { return '' }
     $output = & $exe -L 2>&1
-    $exitCode = $LASTEXITCODE
-    if ($exitCode -ne 0) { return '' }
     $line = ("$output" -split "`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
     if ($null -eq $line) { return '' }
     $line = ([string]$line).Trim()
-    if ($line -notmatch '^GPU\s+\d+:') { return '' }
+    if (-not $line.StartsWith('GPU ', [System.StringComparison]::OrdinalIgnoreCase) -or -not $line.Contains(':')) { return '' }
     return $line
 }
 
 function Get-CudaDriverCv {
     $text = Get-NvidiaSmiOutputText
+    $major = 0
+    $minor = 0
+    $parts = @()
+    $ver = ''
     if (-not $text) { return $null }
-    try {
-        $ver = Get-NvidiaSmiCudaVersionString -Text $text
-        if (-not $ver) { return $null }
-        $parts = $ver.Split('.')
-        $major = [int]$parts[0]
-        $minor = 0
-        if ($parts.Length -gt 1) { $minor = [int]$parts[1] }
-        return ($major * 100 + $minor)
-    } catch {
-        return $null
-    }
+    $ver = Get-NvidiaSmiCudaVersionString -Text $text
+    if (-not $ver) { return $null }
+    $parts = $ver.Split('.')
+    if (-not [int]::TryParse($parts[0], [ref]$major)) { return $null }
+    if ($parts.Length -gt 1 -and -not [int]::TryParse($parts[1], [ref]$minor)) { return $null }
+    return ($major * 100 + $minor)
 }
 
 function Get-CudaTagFromIndexUrl {
     param([string]$Url)
-    if (([string]$Url).ToLowerInvariant() -match '/(cu\d{3})/?(?:$|[?#])') {
-        return $Matches[1]
+    $normalizedUrl = ([string]$Url).ToLowerInvariant()
+    $markerIndex = $normalizedUrl.IndexOf('/cu', [System.StringComparison]::Ordinal)
+    $numericTag = 0
+    $tag = ''
+    if ($markerIndex -ge 0 -and $normalizedUrl.Length -ge ($markerIndex + 6)) {
+        $tag = $normalizedUrl.Substring($markerIndex + 1, 5)
+        if ([int]::TryParse($tag.Substring(2), [ref]$numericTag)) {
+            return $tag
+        }
     }
     return ''
 }
@@ -108,6 +116,8 @@ function Get-CudaRuntimePolicy {
     $overrideConflict = $false
     $tier = $null
     $reason = ''
+    $torchPackageKey = 'AI_TORCH_PACKAGES'
+    $torchPackages = @()
 
     if (-not $requestedTag) {
         if ($torchOverrideTag -and $paddleOverrideTag -and $torchOverrideTag -ne $paddleOverrideTag) {
@@ -147,6 +157,11 @@ function Get-CudaRuntimePolicy {
     $paddleUrl = if ($enabled) { "$paddleBase/$($tier.Tag)/" } else { $paddleCpu }
     if ($enabled -and $torchOverrideTag -eq $tier.Tag) { $torchUrl = $env:PYTORCH_CUDA_INDEX_URL }
     if ($enabled -and $paddleOverrideTag -eq $tier.Tag) { $paddleUrl = $env:PADDLE_CUDA_INDEX_URL }
+    if ($enabled) { $torchPackageKey = "AI_TORCH_PACKAGES_$($tier.Tag.ToUpperInvariant())" }
+    $torchPackages = @(Get-AiRuntimePolicyList -Name $torchPackageKey)
+    if ($torchPackages.Count -eq 0) {
+        $torchPackages = @(Get-AiRuntimePolicyList -Name 'AI_TORCH_PACKAGES')
+    }
 
     return [PSCustomObject]@{
         Enabled          = $enabled
@@ -156,12 +171,16 @@ function Get-CudaRuntimePolicy {
         Major            = if ($tier) { $tier.Major } else { 0 }
         ToolkitVersion   = if ($tier) { $tier.ToolkitVersion } else { '' }
         ToolkitDriver    = if ($tier) { $tier.ToolkitDriver } else { '' }
-        PaddleVersion    = if ($tier) { $tier.PaddleVersion } else { '' }
+        TorchPackages    = $torchPackages
         TorchIndexUrl    = $torchUrl
         PaddleIndexUrl   = $paddleUrl
         OverrideConflict = $overrideConflict
         Reason           = $reason
     }
+}
+
+function Get-CanonicalTorchPackageSpecs {
+    return @((Get-CudaRuntimePolicy).TorchPackages)
 }
 
 function Get-TorchCudaIndexUrl {

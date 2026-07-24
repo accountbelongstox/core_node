@@ -19,9 +19,12 @@ $scriptRoot = $PSScriptRoot
 $winCommonDir = Join-Path (Split-Path $scriptRoot -Parent) "win_common"
 
 . (Join-Path $winCommonDir "GlobalVars.ps1")
+Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
 . (Join-Path $winCommonDir "CommonFunc.ps1")
 . (Join-Path $winCommonDir "PythonRuntimeCommon.ps1")
+Set-Variable -Name 'PycorePythonRuntimeCommonLoaded' -Scope Script -Value $true
 . (Join-Path $winCommonDir "CudaIndex.ps1")
+Set-Variable -Name 'PycoreCudaIndexLoaded' -Scope Script -Value $true
 
 $SCRIPT_INDEX = "[Step 9]"
 $nvidiaSmiExe = $null
@@ -71,7 +74,7 @@ if ($cudaPolicy.OverrideConflict) {
     Write-Host "$SCRIPT_INDEX [WARN] PYTORCH_CUDA_INDEX_URL and PADDLE_CUDA_INDEX_URL request different CUDA tags; both were ignored." -ForegroundColor Yellow
 }
 if ($cudaPolicy.Enabled) {
-    Write-Host "$SCRIPT_INDEX Canonical CUDA policy: $($cudaPolicy.Tag) (toolkit $($cudaPolicy.ToolkitVersion), Paddle $($cudaPolicy.PaddleVersion))." -ForegroundColor Cyan
+    Write-Host "$SCRIPT_INDEX Canonical CUDA policy: $($cudaPolicy.Tag) (toolkit $($cudaPolicy.ToolkitVersion))." -ForegroundColor Cyan
 } else {
     Write-Host "$SCRIPT_INDEX CUDA wheel policy disabled: $($cudaPolicy.Reason)" -ForegroundColor Yellow
 }

@@ -40,7 +40,6 @@ import { wfNewNotify, useWfNewToasts } from '../WfNewNotify';
 import { WfNewBottomDock } from './WfNewBottomDock';
 import { CourseBlockCard, WordRowItem } from './WfNewCards';
 import { WfNewSettings } from '../pages/WfNewSettings';
-import DailyReading from '../../../components/views/DailyReading';
 
 // New Custom Study Suites Pages
 import { WfNewWalkman } from '../pages/WfNewWalkman';

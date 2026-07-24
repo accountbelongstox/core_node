@@ -25,6 +25,7 @@ use App\Services\MediaIngestService;
 use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleWord;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -663,6 +664,15 @@ class AppQyV1ArticleController
             $this->mapArticleToLibrary($articleId, $articleText, $language);
             $bumpedSentences = $this->bumpWorkerArticleSentences($parsedResult, $language);
 
+            AppQyV1TranslationEventModel::emit('article.published', [
+                'article_id' => $articleId,
+                'source_key' => $articleId,
+                'title' => $article->title,
+                'language' => $language,
+                'audio_url' => $audioUrl,
+                'document_id' => $documentId,
+            ]);
+
             return $this->success([
                 'article_id' => $articleId,
                 'source_key' => $articleId,
@@ -695,7 +705,7 @@ class AppQyV1ArticleController
             ->where('source', 'agent_history')
             ->orderByDesc('id')
             ->limit($limit)
-            ->get(['article_id', 'title', 'language', 'word_count', 'content', 'metadata', 'created_at']);
+            ->get(['article_id', 'title', 'language', 'word_count', 'content', 'metadata', 'reading_date', 'created_at']);
 
         $items = [];
         foreach ($rows as $row) {
@@ -712,6 +722,7 @@ class AppQyV1ArticleController
                 'word_count' => (int) $row->word_count,
                 'audio_url' => $meta['audio_url'] ?? null,
                 'document_id' => $meta['document_id'] ?? null,
+                'reading_date' => $row->reading_date,
                 'created_at' => $row->created_at ? $row->created_at->toIso8601String() : null,
             ];
         }

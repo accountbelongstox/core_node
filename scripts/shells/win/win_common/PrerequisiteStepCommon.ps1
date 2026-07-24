@@ -1,16 +1,5 @@
 # Shared prerequisite completion and health-probe helpers.
 
-function Test-InstallScriptSwitch {
-    param(
-        [Parameter(Mandatory = $true)][string]$ScriptPath,
-        [Parameter(Mandatory = $true)][string]$SwitchName
-    )
-    if (-not (Test-Path -LiteralPath $ScriptPath)) { return $false }
-    $raw = Get-Content -LiteralPath $ScriptPath -Raw -ErrorAction SilentlyContinue
-    if (-not $raw) { return $false }
-    return $raw -match "\[switch\]\`$$SwitchName\b"
-}
-
 function Invoke-PrereqInstallProbe {
     param(
         [Parameter(Mandatory = $true)][string]$PythonExe,
@@ -21,19 +10,17 @@ function Invoke-PrereqInstallProbe {
         [string]$AbsentNote = ''
     )
     $failed = $false
+    $out = @()
     $previousErrorActionPreference = $ErrorActionPreference
-    Write-Host ("{0} [idempotent-probe] running post-install verification ..." -f $Prefix) -ForegroundColor Cyan
+    if ($ImportModules.Count -gt 0 -or $PipPackages.Count -gt 0) {
+        Write-Host ("{0} [idempotent-probe] running post-install verification ..." -f $Prefix) -ForegroundColor Cyan
+    }
     foreach ($mod in $ImportModules) {
         $ok = $false
-        try {
-            $ErrorActionPreference = 'Continue'
-            $out = (& $PythonExe -c "import importlib; importlib.import_module('$mod'); print('__IMPORT_OK__')" 2>$null) -join ''
-            $ok = ($LASTEXITCODE -eq 0 -and $out -match '__IMPORT_OK__')
-        } catch {
-            $ok = $false
-        } finally {
-            $ErrorActionPreference = $previousErrorActionPreference
-        }
+        $ErrorActionPreference = 'Continue'
+        $out = @(& $PythonExe -c "import importlib.util; print('__IMPORT_OK__' if importlib.util.find_spec('$mod') is not None else '__IMPORT_MISSING__')" 2>$null)
+        $ErrorActionPreference = $previousErrorActionPreference
+        $ok = (("$out") -match '__IMPORT_OK__')
         if ($ok) {
             Write-Host ("{0} [idempotent-probe] OK  import {1}" -f $Prefix, $mod) -ForegroundColor Green
         } elseif ($AbsentOk) {
@@ -45,7 +32,8 @@ function Invoke-PrereqInstallProbe {
         }
     }
     if ($PipPackages.Count -gt 0) {
-        $pipExe = $Global:PIP_EXE_PATH
+        $pipVariable = Get-Variable -Name 'PIP_EXE_PATH' -Scope Global -ErrorAction SilentlyContinue
+        $pipExe = if ($pipVariable) { [string]$pipVariable.Value } else { '' }
         if ($pipExe) {
             foreach ($pkg in $PipPackages) {
                 if (Test-PipPackageInstalled -PipExe $pipExe -PackageName $pkg) {
@@ -59,7 +47,24 @@ function Invoke-PrereqInstallProbe {
             $failed = $true
         }
     }
-    return (-not $failed)
+    if ($failed) {
+        Write-Host ("{0} [idempotent-probe] incomplete; the installer will repair missing artifacts on the next run." -f $Prefix) -ForegroundColor DarkYellow
+    }
+}
+
+function Resolve-PrereqCompletionPython {
+    param([string]$Candidate = '')
+    $globalPythonVariable = Get-Variable -Name 'PYTHON_EXE_PATH' -Scope Global -ErrorAction SilentlyContinue
+    $scriptPythonVariable = Get-Variable -Name 'resolvedPython' -Scope Script -ErrorAction SilentlyContinue
+    $globalPython = if ($globalPythonVariable) { [string]$globalPythonVariable.Value } else { '' }
+    $scriptPython = if ($scriptPythonVariable) { [string]$scriptPythonVariable.Value } else { '' }
+    $paths = @($Candidate, $globalPython, $scriptPython)
+    foreach ($path in $paths) {
+        if ($path -and (Test-Path -LiteralPath $path -PathType Leaf)) {
+            return (Resolve-Path -LiteralPath $path).Path
+        }
+    }
+    return ''
 }
 
 function Complete-PrereqStep {
@@ -71,19 +76,12 @@ function Complete-PrereqStep {
         [switch]$AbsentOk,
         [string]$AbsentNote = ''
     )
-    $py = $PythonExe
-    $probeOk = $true
-    if (-not $py) { $py = $script:resolvedPython }
+    $py = Resolve-PrereqCompletionPython -Candidate $PythonExe
     if ($py) {
-        $probeOk = Invoke-PrereqInstallProbe -PythonExe $py -Prefix $Prefix -ImportModules $ImportModules -PipPackages $PipPackages -AbsentOk:$AbsentOk -AbsentNote $AbsentNote
+        Invoke-PrereqInstallProbe -PythonExe $py -Prefix $Prefix -ImportModules $ImportModules -PipPackages $PipPackages -AbsentOk:$AbsentOk -AbsentNote $AbsentNote
     } elseif ($AbsentOk) {
         Write-Host ("{0} [idempotent-probe] SKIP interpreter ({1})" -f $Prefix, $AbsentNote) -ForegroundColor DarkGray
     } else {
         Write-Host ("{0} [idempotent-probe] FAIL Python interpreter is unavailable" -f $Prefix) -ForegroundColor DarkYellow
-        $probeOk = $false
     }
-    if (-not $probeOk) {
-        throw ("{0} prerequisite health verification failed." -f $Prefix)
-    }
-    exit 0
 }

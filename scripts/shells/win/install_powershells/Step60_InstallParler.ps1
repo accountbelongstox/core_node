@@ -43,7 +43,9 @@ $depsSentinel = Join-Path $targetDir '.deps_done'
 $weightsDir = Join-Path $targetDir 'weights'
 $modelSentinel = Join-Path $targetDir '.model_installed'
 
+. (Join-Path $winCommonDir 'CudaIndex.ps1')
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
+$resolvedPython = $Global:PYTHON_EXE_PATH
 
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host " $SCRIPT_INDEX Parler-TTS (Hugging Face)" -ForegroundColor Cyan
@@ -53,27 +55,31 @@ if ($env:PARLER_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] PARLER_SKIP=1 -> skipping." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('parler_tts') -AbsentOk -AbsentNote 'PARLER_SKIP=1'
     return
+    return
 }
 
-$resolvedPython = $Global:PYTHON_EXE_PATH
 if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [!] Python 3 not found." -ForegroundColor DarkYellow
     Complete-PrereqStep -Prefix $SCRIPT_INDEX -ImportModules @('parler_tts')
+    return
 }
 if (-not (Test-TtsEngineCompatible -PythonExe $resolvedPython -Engine 'parler' -Prefix "$SCRIPT_INDEX ")) {
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('parler_tts') -AbsentOk -AbsentNote 'incompatible Python'
+    return
 }
 
 if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'parler' -Path $depsSentinel) -and -not $Force -and -not $doFull) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'Parler-TTS already installed' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('parler_tts')
+    return
 }
 if (-not $doFull -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [i] status-only. Pass -Full, PARLER_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('parler_tts') -AbsentOk -AbsentNote 'opt-in'
+    return
 }
 
-$hasCuda = Test-CudaPresent
+$hasCuda = (Get-CudaRuntimePolicy).Enabled
 $parlerModel = Resolve-TtsModelTier -PythonExe $resolvedPython -Key parler_model -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)
 Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine parler -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 Write-Host ("$SCRIPT_INDEX  staging : {0}" -f $targetDir) -ForegroundColor DarkGray
@@ -127,7 +133,8 @@ if (-not $modelReady) {
 }
 
 if (-not $depsReady -or -not $modelReady) {
-    throw "$SCRIPT_INDEX Parler is not ready; incomplete components will retry next run."
+    Write-Host "$SCRIPT_INDEX [!] Parler is not ready; incomplete components will retry next run." -ForegroundColor DarkYellow
+    return
 }
 
 Write-Host "$SCRIPT_INDEX [OK] Parler ready. Weights pre-downloaded (idempotent); engine auto-detects local." -ForegroundColor Green

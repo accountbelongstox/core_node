@@ -29,12 +29,13 @@ from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
 _AVAIL_SIGNAL = 'pyutils.tts.chattts.available'
 _AVAIL_TTL_S = 30.0
-_last_synth_error: Optional[str] = None
+_LAST_SYNTH_ERROR = SerializedValue(None, "ChatTTSErrorState")
 
 
 def base_url() -> str:
@@ -85,16 +86,15 @@ def available() -> bool:
 
 
 def last_synth_error() -> Optional[str]:
-    return _last_synth_error
+    return _LAST_SYNTH_ERROR.get()
 
 
 def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
     """Synthesize via POST /v1/audio/speech. Returns False on failure."""
-    global _last_synth_error
-    _last_synth_error = None
+    _LAST_SYNTH_ERROR.set(None)
     cleaned = (text or "").strip()
     if not cleaned:
-        _last_synth_error = "empty text"
+        _LAST_SYNTH_ERROR.set("empty text")
         return False
     prompt = _prompt_prefix()
     payload_text = f"{prompt}{cleaned}" if prompt else cleaned
@@ -107,7 +107,7 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
     }
     requests = get_third_package_requests()
     if requests is None:
-        _last_synth_error = "requests package unavailable"
+        _LAST_SYNTH_ERROR.set("requests package unavailable")
         return False
     try:
         resp = requests.post(
@@ -117,7 +117,7 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
         )
         if resp.status_code != 200 or not resp.content:
             err = (resp.text or "").strip()[:160] or f"HTTP {resp.status_code}"
-            _last_synth_error = err
+            _LAST_SYNTH_ERROR.set(err)
             ColorPrint.red(
                 f"[chattts] /v1/audio/speech HTTP {resp.status_code}: {err}"
             )
@@ -128,14 +128,14 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
             output_mp3.write_bytes(resp.content)
             ok = output_mp3.exists() and output_mp3.stat().st_size > 0
             if not ok:
-                _last_synth_error = "HTTP response was empty mp3"
+                _LAST_SYNTH_ERROR.set("HTTP response was empty mp3")
             return ok
         tmp_wav = output_mp3.with_suffix(".chattts.wav")
         tmp_wav.write_bytes(resp.content)
         try:
             ok = wav_to_mp3(tmp_wav, output_mp3)
             if not ok:
-                _last_synth_error = "HTTP wav->mp3 conversion failed"
+                _LAST_SYNTH_ERROR.set("HTTP wav->mp3 conversion failed")
             return ok
         finally:
             try:
@@ -143,7 +143,7 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
             except OSError:
                 pass
     except Exception as e:
-        _last_synth_error = str(e)
+        _LAST_SYNTH_ERROR.set(str(e))
         ColorPrint.red(f"[chattts] synth failed: {e}")
         return False
 

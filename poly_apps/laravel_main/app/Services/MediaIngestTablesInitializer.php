@@ -230,6 +230,7 @@ class MediaIngestTablesInitializer
                 'poster_status' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'default' => 'pending', 'comment' => 'Poster lifecycle: pending|ready|failed|none'],
                 'poster_meta' => ['type' => 'json', 'nullable' => true, 'comment' => 'Provider meta: year, original_title, overview, poster_url'],
                 'poster_fetched_at' => ['type' => 'timestamp', 'nullable' => true, 'comment' => 'When the poster was last fetched/stored'],
+                'poster_mcp_submitted_at' => ['type' => 'timestamp', 'nullable' => true, 'comment' => 'Last successful poster submission from mcp-chrome'],
                 // Poster assist lease — mirrors AppQyV1_2026_06_15_000002_add_assist_lease_columns_to_media_tables.php.
                 'assist_claimed_at' => ['type' => 'timestamp', 'nullable' => true, 'comment' => 'Poster assist lease start (60-minute lease)'],
                 'assist_claimed_by' => ['type' => 'string', 'length' => 64, 'nullable' => true, 'comment' => 'Assist claimer identity (e.g. pycore worker id)'],
@@ -275,6 +276,7 @@ class MediaIngestTablesInitializer
                 'poster_status' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'default' => 'pending', 'comment' => 'Poster lifecycle: pending|ready|failed|none'],
                 'poster_meta' => ['type' => 'json', 'nullable' => true, 'comment' => 'Provider meta: year, original_title, overview, poster_url'],
                 'poster_fetched_at' => ['type' => 'timestamp', 'nullable' => true, 'comment' => 'When the poster was last fetched/stored'],
+                'poster_mcp_submitted_at' => ['type' => 'timestamp', 'nullable' => true, 'comment' => 'Last successful poster submission from mcp-chrome'],
                 // Poster assist lease — mirrors AppQyV1_2026_06_15_000002_add_assist_lease_columns_to_media_tables.php.
                 'assist_claimed_at' => ['type' => 'timestamp', 'nullable' => true, 'comment' => 'Poster assist lease start (60-minute lease)'],
                 'assist_claimed_by' => ['type' => 'string', 'length' => 64, 'nullable' => true, 'comment' => 'Assist claimer identity (e.g. pycore worker id)'],

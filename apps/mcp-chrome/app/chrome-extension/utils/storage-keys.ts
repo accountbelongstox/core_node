@@ -39,6 +39,8 @@ export const STORAGE_KEYS = {
 
   // Background run-intent — authoritative assist allowlist (run-intent.ts).
   TC_RUN_INTENT: 'tc_run_intent',
+  TASK_CENTER_RUNTIME: 'task_center_runtime',
+  TASK_CENTER_WATCHDOG_ALARM: 'task-center-watchdog',
 
   // Durable write-retry queue (outbox/submit-outbox.ts).
   SUBMIT_OUTBOX: 'submit_outbox_v1',

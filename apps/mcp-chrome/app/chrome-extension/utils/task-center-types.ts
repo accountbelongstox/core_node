@@ -45,7 +45,7 @@ export type TaskCenterAction =
   | 'start_processor'
   | 'stop_processor';
 
-export type ValidityRunnerAction = 'start' | 'stop' | 'status';
+export type ValidityRunnerAction = 'start' | 'stop' | 'status' | 'test';
 
 // ─────────────────────────── Processor-level shapes ───────────────────────
 // Canonical (moved here from ITaskProcessor.ts, which now re-exports them).
@@ -151,6 +151,7 @@ export interface ValidityStatus {
 /** The full status object every task_center response returns. */
 export interface FullTaskCenterStatus {
   isRunning: boolean;
+  activeApiUrl: string | null;
   stats: TaskCenterStats;
   backend: BackendHealth;
   validity: ValidityStatus;

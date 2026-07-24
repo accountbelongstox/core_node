@@ -27,7 +27,7 @@
     LIFECYCLE — Bucket B (isolated per-engine venv), see
     development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5/§7:
     GPT-SoVITS's requirements.txt pins an OLD transformers that is incompatible with the
-    shared Bucket-A pin (transformers==4.46.x) in the single system Python 3.13. It is
+    shared transformer stack in the single system Python 3.13. It is
     therefore installed INTO a DEDICATED isolated venv (py_venv_gptsovits_<ver>) and NEVER
     into the main interpreter, so it can no longer clobber DeepSeek/Qwen2.5/NLLB. pycore
     launches api_v2.py under that venv (isolated_venv.resolve_python('gptsovits')). The
@@ -64,6 +64,8 @@ $modelsDir      = $null
 $sentinel       = $null
 $depsSentinel   = $null
 $resolvedPython = $null
+$enginePython   = $null
+$pythonOverride = [string]$env:GPTSOVITS_PYTHON
 $hasCuda        = $false
 $reqFile        = $null
 $dlOk           = $false
@@ -85,7 +87,16 @@ $sentinel  = Join-Path $modelsDir '.snapshot_done'
 $depsSentinel = Join-Path $targetDir '.deps_done'
 
 # GPU detection comes from the ONE shared helper (canonical: CUDADetector).
+. (Join-Path $winCommonDir 'CudaIndex.ps1')
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
+$resolvedPython = $Global:PYTHON_EXE_PATH
+$enginePython = $resolvedPython
+if ($pythonOverride -and (Test-Path -LiteralPath $pythonOverride -PathType Leaf)) {
+    $enginePython = (Resolve-Path -LiteralPath $pythonOverride).Path
+    $env:GPTSOVITS_PYTHON = $enginePython
+} elseif ($pythonOverride) {
+    Write-Host "$SCRIPT_INDEX [i] GPTSOVITS_PYTHON is not a valid interpreter path; using the shared interpreter policy." -ForegroundColor DarkYellow
+}
 
 function Test-ServerUp {
     param([string]$Url)
@@ -99,15 +110,16 @@ Write-Host '============================================================' -Foreg
 
 if ($env:GPTSOVITS_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] GPTSOVITS_SKIP=1 -> skipping." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @() -AbsentOk -AbsentNote 'GPTSOVITS_SKIP=1'
+    return
 }
 if (Test-ServerUp -Url $serverUrl) {
     Write-Host "$SCRIPT_INDEX [OK] server reachable at $serverUrl -> nothing to do." -ForegroundColor Green
     Write-Host "$SCRIPT_INDEX      Set GPTSOVITS_REF_AUDIO to a reference clip to enable the engine." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @() -AbsentOk -AbsentNote 'external server reachable'
+    return
 }
 
-$resolvedPython = $Global:PYTHON_EXE_PATH
 if ($resolvedPython) {
     $gptsovitsVenvReady = Test-IsolatedTtsVenvHealthy -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'gptsovits'
 }
@@ -117,6 +129,7 @@ if ((Test-Path (Join-Path $targetDir 'api_v2.py')) -and (Test-Path $sentinel) -a
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'GPT-SoVITS repo + models + isolated venv already present' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     Write-Host "$SCRIPT_INDEX  Runtime: pycore launches api_v2.py (class C) under the isolated venv on demand; set GPTSOVITS_REF_AUDIO to a reference clip." -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+    return
 }
 # EXPLICIT opt-in only: cloning the multi-GB repo + building the isolated venv takes
 # minutes, so run ONLY when the user asks (NOT via the default NEURAL_TTS batch). The
@@ -124,20 +137,24 @@ if ((Test-Path (Join-Path $targetDir 'api_v2.py')) -and (Test-Path $sentinel) -a
 if (-not $doFull -and -not $Force -and -not (Test-Path -LiteralPath $depsSentinel)) {
     Write-Host "$SCRIPT_INDEX [i] opt-in only -> NOT installing. Pass -Full or GPTSOVITS_INSTALL=1." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+    return
 }
 
 if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [!] Python 3 not found; cannot install. Run Step8_InstallPython first." -ForegroundColor DarkYellow
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+    return
 }
-if (-not (Test-TtsEngineCompatible -PythonExe $resolvedPython -Engine 'gptsovits' -Prefix "$SCRIPT_INDEX ")) {
+if (-not (Test-TtsEngineCompatible -PythonExe $enginePython -Engine 'gptsovits' -Prefix "$SCRIPT_INDEX ")) {
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+    return
 }
 
-$hasCuda = Test-CudaPresent
+$hasCuda = (Get-CudaRuntimePolicy).Enabled
 Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine gptsovits -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 Write-Host ("$SCRIPT_INDEX  staging : {0}" -f $targetDir) -ForegroundColor DarkGray
 Write-Host ("$SCRIPT_INDEX  models  : {0}" -f $modelsDir) -ForegroundColor DarkGray
+Write-Host ("$SCRIPT_INDEX  engine  : {0}" -f $enginePython) -ForegroundColor DarkGray
 Write-Host ("$SCRIPT_INDEX  venv    : {0}" -f $(if ($gptsovitsVenvReady) { 'provisioned' } else { 'absent' })) -ForegroundColor DarkGray
 Write-Host ("$SCRIPT_INDEX  compute : {0}" -f $(if ($hasCuda) { 'CUDA GPU -> GPU build + models' } else { 'CPU only -> CPU build' })) -ForegroundColor DarkGray
 
@@ -149,12 +166,14 @@ if (Test-Path (Join-Path $targetDir 'api_v2.py')) {
     if (-not $git) {
         Write-Host "$SCRIPT_INDEX [!] git not found; cannot clone GPT-SoVITS. Install git, then re-run." -ForegroundColor DarkYellow
         Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+        return
     }
     Write-Host ("$SCRIPT_INDEX [..] cloning {0} -> {1} (progress shown)" -f $REPO_URL, $targetDir) -ForegroundColor Yellow
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $targetDir) | Out-Null
     try { & git.exe clone --depth 1 --progress $REPO_URL $targetDir } catch {
         Write-Host ("$SCRIPT_INDEX [!] clone failed: {0}" -f $_.Exception.Message) -ForegroundColor DarkYellow
         Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+        return
     }
 }
 
@@ -163,7 +182,7 @@ if (Test-Path (Join-Path $targetDir 'api_v2.py')) {
 #    transformers that would clobber the shared Bucket-A pin, so it is installed INTO a
 #    DEDICATED venv (isolated_venv.ensure_venv, --system-site-packages reuses the system
 #    CUDA torch), NEVER the main interpreter. Self-repairing: ensure_venv re-runs an
-#    import-health probe and rebuilds a broken venv. pycore launches api_v2.py under this
+#    import-health probe and repairs a broken venv. pycore launches api_v2.py under this
 #    venv. See lifecycle doc §5/§7.
 if ((Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'gptsovits' -Path $depsSentinel) -and $gptsovitsVenvReady -and -not $Force) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'isolated venv already provisioned (.deps_done)' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
@@ -171,9 +190,9 @@ if ((Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'gptsovits' -Pat
     # System CUDA torch the venv will REUSE (idempotent), plus the huggingface_hub the
     # weight downloader falls back to (install only when MISSING -- NEVER --upgrade).
     # Neither touches the shared transformers pin.
-    Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
-    if (-not (Test-PycorePythonModulePresent -PythonExe $resolvedPython -ModuleName 'huggingface_hub')) {
-        try { & $Global:PIP_EXE_PATH install huggingface_hub } catch { }
+    Install-PycoreTorchStack -PythonExe $enginePython -Prefix "$SCRIPT_INDEX "
+    if (-not (Test-PycorePythonModulePresent -PythonExe $enginePython -ModuleName 'huggingface_hub')) {
+        try { & $enginePython -m pip install huggingface_hub } catch { }
     }
     $reqFile = Join-Path $targetDir 'requirements.txt'
     if (Test-Path $reqFile) {
@@ -216,7 +235,8 @@ if ((Test-Path $sentinel) -and -not $Force) {
 }
 
 if (-not (Test-Path (Join-Path $targetDir 'api_v2.py')) -or -not $gptsovitsVenvReady -or -not (Test-Path -LiteralPath $sentinel)) {
-    throw "$SCRIPT_INDEX GPT-SoVITS is not ready; incomplete components will retry next run."
+    Write-Host "$SCRIPT_INDEX [!] GPT-SoVITS is not ready; incomplete components will retry next run." -ForegroundColor DarkYellow
+    return
 }
 
 Write-Host "$SCRIPT_INDEX [OK] GPT-SoVITS ready ($targetDir)." -ForegroundColor Green

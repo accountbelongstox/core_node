@@ -31,7 +31,7 @@ from pycore.callmodule.services.system_settings_boot import apply_persisted_syst
 from pycore.pyutils.tts.tts_orchestrator import report_tts_engine_startup
 from pycore.callmodule.services import get_translation_worker_service
 from pycore.pyctl.assist import translation_worker_enabled_on_start
-from pycore.callmodule.services.assist_wiring import register_assist_worker_start
+from pycore.callmodule.services.assist_wiring import register_assist_runtime
 from pycore.callmodule.services import get_ai_rate_reset_service
 from pycore.callmodule.services.heartbeat_agent_history import (
     register_agent_history_extraction,
@@ -96,9 +96,9 @@ from pycore.callmodule.routers.local import (
     queue_overview_router,
     task_history_router,
     assist_router,
-    poster_router,
     image_search_router,
     sentence_audio_router,
+    queue_priority_router,
     queue_bumps_router,
     dictionary_router,
     word_audio_router,
@@ -157,8 +157,8 @@ def callmodule_main_entry():
     # Register translation Reverb WS client callback (idempotent) — Phase C
     _register_translation_ws_client()
 
-    # Wire + (when enabled) start the Assist-Laravel worker (idempotent)
-    _register_assist_worker()
+    # Apply persisted queue capability controls (idempotent).
+    _register_assist_runtime()
 
     # Register AI rate-budget auto-reset callback (idempotent)
     _register_ai_rate_reset()
@@ -235,17 +235,13 @@ def _register_translation_worker():
     ColorPrint.blue(f"  - Initial state: {'enabled' if enabled_on_start else 'disabled'} "
                     f"(assist_laravel gate)")
     ColorPrint.blue(f"  - Laravel API: {Config.LARAVEL_WORKER_API_URL}")
-    # Unified-task client: advertise the shared fast lane + the knob-gated dedicated
-    # lanes (live toggle re-registers on change) and the ai_translate capability.
+    # Translation owns only translation, optional subtitle and STT lanes.
     ColorPrint.blue(
         f"  - Lanes: remote_fast, remote_translation"
-        f"{', remote_audio' if Config.TRANSLATION_WORKER_ENABLED_ON_START else ''}"
         f"{', remote_subtitle' if Config.SUBTITLE_SEARCH_WORKER_ENABLED else ''}"
-        f"{', remote_poster' if Config.POSTER_WORKER_ENABLED else ''}"
-        f"{', remote_sentence_audio' if Config.SENTENCE_AUDIO_WORKER_ENABLED else ''}"
         f" (knob-gated; advertised live per tick)")
     ColorPrint.blue(
-        f"  - Capabilities: audio, translate"
+        f"  - Capabilities: translate"
         f"{', ai_translate' if Config.AI_TRANSLATE_ENABLED else ''}")
     ColorPrint.blue(
         f"  - Fast lane: poll {Config.TRANSLATION_FAST_POLL_INTERVAL}s on pending_fast "
@@ -253,20 +249,9 @@ def _register_translation_worker():
     ColorPrint.blue("  - Control: POST /api/heartbeat/disable/translation_worker")
 
 
-def _register_assist_worker():
-    """
-    Wire + (when enabled) start the Assist-Laravel worker (Idempotent).
-
-    Registered alongside the translation worker so the assist pipeline starts
-    at sys-init. The app-layer wiring injects the LaravelEndpointManager
-    resolver (SELECTED endpoint) and pyctl.ai.generate_image into the pyctl
-    AssistWorker; the worker's own daemon loop only runs while the persisted
-    ``assist_laravel.enabled`` toggle is on (default off).
-
-    Control: GET/POST /api/local/assist/{status,config,cycle}.
-    """
-
-    register_assist_worker_start()
+def _register_assist_runtime():
+    """Apply persisted capability settings after callback registration."""
+    register_assist_runtime()
 
 
 def _register_ai_rate_reset():
@@ -555,9 +540,9 @@ def start(host='0.0.0.0', port=59000, debug=False):
             queue_overview_router,
             task_history_router,
             assist_router,
-            poster_router,
             image_search_router,
             sentence_audio_router,
+            queue_priority_router,
             queue_bumps_router,
             dictionary_router,
             word_audio_router,

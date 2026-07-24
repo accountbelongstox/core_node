@@ -407,13 +407,13 @@ class AppQyV1DictionaryTTSCoordinator
     }
 
     /**
-     * Persist raw MP3 bytes as the cached pronunciation for an already-resolved
+     * Persist raw audio bytes as the cached pronunciation for an already-resolved
      * dictionary row (matched by md5), without requiring a TTS claim/lock.
      *
      * Used by the Bing word-translation assist write-back: the Chrome worker
      * downloads Bing's pronunciation mp3 alongside the translation and ships the
      * bytes here. Fill-missing — a row that already has audio is left untouched
-     * and reported as a no-op. The bytes are validated (size + MP3 magic) and
+     * and reported as a no-op. The bytes are validated by size and format magic and
      * re-verified on disk before the row is flipped, reusing the exact path/disk
      * logic of reportWordResult() and the markWordCompleted() state transition.
      *
@@ -425,10 +425,11 @@ class AppQyV1DictionaryTTSCoordinator
         string $bytes,
         string $providerLabel = 'bing',
         ?string $variantKey = null,
-        ?array $variantMeta = null
+        ?array $variantMeta = null,
+        ?string $mime = null
     ): bool {
         return $this->storeWordAudioBytesDetailed(
-            $langCode, $md5, $bytes, $providerLabel, $variantKey, $variantMeta
+            $langCode, $md5, $bytes, $providerLabel, $variantKey, $variantMeta, $mime
         )['stored'];
     }
 
@@ -448,7 +449,8 @@ class AppQyV1DictionaryTTSCoordinator
         string $bytes,
         string $providerLabel = 'bing',
         ?string $variantKey = null,
-        ?array $variantMeta = null
+        ?array $variantMeta = null,
+        ?string $mime = null
     ): array {
         $entry = AppQyV1LangDictionaryModel::forLanguage($langCode)
             ->where('md5', $md5)
@@ -484,13 +486,18 @@ class AppQyV1DictionaryTTSCoordinator
             }
         }
 
-        if (strlen($bytes) < 100 || !self::looksLikeMp3($bytes)) {
+        $extension = AppQyV1AudioFormat::extension($bytes, $mime);
+        if (strlen($bytes) < 100 || $extension === null) {
             return ['stored' => false, 'reason' => 'invalid'];
         }
 
         $relativePath = $this->ttsService->buildRelativePath(
             $entry->content, $langCode, 'word', '+0%', $variantKey
         );
+        if ($extension !== 'mp3') {
+            $relativePath = preg_replace('/\.mp3$/i', '.' . $extension, $relativePath)
+                ?: ($relativePath . '.' . $extension);
+        }
         $fullPath = $this->ttsService->getAudioBaseDir() . '/' . $relativePath;
         FileSystemManager::ensureDirectoryExists(dirname($fullPath));
 

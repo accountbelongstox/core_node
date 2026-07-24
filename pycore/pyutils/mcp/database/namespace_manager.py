@@ -5,6 +5,7 @@ Simplified and streamlined from McpAlchemy
 """
 
 import hashlib
+import copy
 import json
 import logging
 import uuid
@@ -13,6 +14,11 @@ from pathlib import Path
 from typing import Dict, Optional, Any
 
 from pycore.pygvar import PYTOOLS_TMP_DIR
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 
 import shutil
 
@@ -26,24 +32,18 @@ class DatabaseNamespaceManager:
     Singleton pattern with session persistence
     """
 
-    _instance: Optional['DatabaseNamespaceManager'] = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-
     def __init__(self):
-        if self._initialized:
-            return
-
         self.sessions_dir = Path(PYTOOLS_TMP_DIR) / "mcp_database_sessions"
         self.sessions_file = self.sessions_dir / "active_sessions.json"
         self.sessions_dir.mkdir(exist_ok=True, parents=True)
 
         self.sessions: Dict[str, Dict[str, Any]] = self._load_sessions()
-        self._initialized = True
+        init_serialized_owner(
+            self,
+            "mcp.database_namespace.state",
+            "DatabaseNamespaceState",
+            timeout=300.0,
+        )
 
         logger.debug("[DatabaseNamespaceManager] Initialized")
 
@@ -66,6 +66,7 @@ class DatabaseNamespaceManager:
         except Exception as e:
             logger.error("[DatabaseNamespaceManager] Failed to save sessions: %s", e)
 
+    @serialized_method
     def create_namespace_for_client(
         self,
         client_identifier: str = "default_client",
@@ -112,21 +113,27 @@ class DatabaseNamespaceManager:
         self._save_sessions()
 
         logger.info("[DatabaseNamespaceManager] Created namespace: %s", namespace)
-        return session_info
+        return copy.deepcopy(session_info)
 
-    def get_session_by_namespace(self, namespace: str) -> Optional[Dict[str, Any]]:
-        """Get session information by namespace"""
+    def _find_session_by_namespace(self, namespace: str) -> Optional[Dict[str, Any]]:
         for session_info in self.sessions.values():
             if session_info.get('namespace') == namespace:
                 self._update_session_activity(session_info['session_key'])
                 return session_info
         return None
 
+    @serialized_method
+    def get_session_by_namespace(self, namespace: str) -> Optional[Dict[str, Any]]:
+        """Get session information by namespace"""
+        session_info = self._find_session_by_namespace(namespace)
+        return copy.deepcopy(session_info) if session_info is not None else None
+
+    @serialized_method
     def get_session_by_key(self, session_key: str) -> Optional[Dict[str, Any]]:
         """Get session information by session key"""
         if session_key in self.sessions:
             self._update_session_activity(session_key)
-            return self.sessions[session_key]
+            return copy.deepcopy(self.sessions[session_key])
         return None
 
     def _update_session_activity(self, session_key: str) -> None:
@@ -135,6 +142,7 @@ class DatabaseNamespaceManager:
             self.sessions[session_key]['last_active'] = datetime.now().isoformat()
             self._save_sessions()
 
+    @serialized_method
     def register_database_to_namespace(
         self,
         namespace: str,
@@ -152,7 +160,7 @@ class DatabaseNamespaceManager:
         Returns:
             Registration result with database identifier
         """
-        session_info = self.get_session_by_namespace(namespace)
+        session_info = self._find_session_by_namespace(namespace)
         if not session_info:
             raise ValueError(f"Namespace '{namespace}' not found")
 
@@ -179,13 +187,14 @@ class DatabaseNamespaceManager:
             'status': 'registered'
         }
 
+    @serialized_method
     def get_database_connection_string(
         self,
         namespace: str,
         database_name: str
     ) -> Optional[str]:
         """Get database connection string from namespace"""
-        session_info = self.get_session_by_namespace(namespace)
+        session_info = self._find_session_by_namespace(namespace)
         if not session_info:
             return None
 
@@ -199,9 +208,10 @@ class DatabaseNamespaceManager:
 
         return db_info['connection_string']
 
+    @serialized_method
     def list_namespace_databases(self, namespace: str) -> Dict[str, Any]:
         """List all databases registered to a namespace"""
-        session_info = self.get_session_by_namespace(namespace)
+        session_info = self._find_session_by_namespace(namespace)
         if not session_info:
             return {'error': f"Namespace '{namespace}' not found"}
 
@@ -209,9 +219,10 @@ class DatabaseNamespaceManager:
             'namespace': namespace,
             'session_key': session_info['session_key'],
             'databases': list(session_info['databases'].keys()),
-            'database_details': session_info['databases']
+            'database_details': copy.deepcopy(session_info['databases'])
         }
 
+    @serialized_method
     def cleanup_old_sessions(self, max_age_hours: int = 24) -> Dict[str, Any]:
         """Clean up old inactive sessions"""
         current_time = datetime.now()
@@ -251,6 +262,7 @@ class DatabaseNamespaceManager:
             'active_sessions': len(self.sessions)
         }
 
+    @serialized_method
     def get_all_namespaces(self) -> Dict[str, Any]:
         """Get all active namespaces"""
         return {
@@ -268,13 +280,13 @@ class DatabaseNamespaceManager:
         }
 
 
-# Singleton instance getter
-_namespace_manager_singleton: Optional[DatabaseNamespaceManager] = None
+_NAMESPACE_MANAGER_PROVIDER = SerializedSingletonProvider(
+    DatabaseNamespaceManager,
+    "mcp.database_namespace.provider",
+    "DatabaseNamespaceProvider",
+)
 
 
 def get_database_namespace_manager_singleton() -> DatabaseNamespaceManager:
     """Get singleton instance of DatabaseNamespaceManager"""
-    global _namespace_manager_singleton
-    if _namespace_manager_singleton is None:
-        _namespace_manager_singleton = DatabaseNamespaceManager()
-    return _namespace_manager_singleton
+    return _NAMESPACE_MANAGER_PROVIDER.get()

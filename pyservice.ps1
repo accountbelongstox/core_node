@@ -138,13 +138,17 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $sharedCacheEnv = Join-Path $PSScriptRoot 'scripts\shells\win\win_common\SharedCacheEnv.ps1'
-if (Test-Path -LiteralPath $sharedCacheEnv) {
-    . $sharedCacheEnv
-}
+. $sharedCacheEnv
+Set-Variable -Name 'PycoreSharedCacheEnvLoaded' -Scope Script -Value $true
 
 $winCommonDir = Join-Path $PSScriptRoot 'scripts\shells\win\win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
+Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
 . (Join-Path $winCommonDir 'PythonRuntimeCommon.ps1')
+Set-Variable -Name 'PycorePythonRuntimeCommonLoaded' -Scope Script -Value $true
+
+$rpcListener = $null
+$uiResponse = $null
 
 # --------------------------------------------------------------------------- #
 # Single system Python 3.13 (D:\.dev_win10\python313); no venv, no py launcher #
@@ -222,24 +226,22 @@ function Show-Usage {
 switch ($Command.ToLowerInvariant()) {
     { $_ -in @('help', '-h', '--help') } {
         Show-Usage
-        exit 0
+        return
     }
     'config' {
         $py = Resolve-Python
         if (-not $py) {
-            Write-Host '[X] Python 3 was NOT found; cannot run ''config''.' -ForegroundColor Red
-            exit 1
+            throw "Python 3 was not found; cannot run 'config'."
         }
         $fwd = @()
         if ($Rest) { $fwd = $Rest } elseif ($args) { $fwd = $args }
         Push-Location -LiteralPath $PSScriptRoot
         try {
             & $py.Path -m pycore.pyutils.pyservice_cli config @fwd
-            $cfgCode = $LASTEXITCODE
         } finally {
             Pop-Location
         }
-        exit $cfgCode
+        return
     }
     'codesync' {
         # Standalone, stdlib-only Code Sync. Dispatched here, before any prereq
@@ -248,8 +250,7 @@ switch ($Command.ToLowerInvariant()) {
         # never executed, no third_party). See device_sync/CODESYNC_LITE_DESIGN.md.
         $py = Resolve-Python
         if (-not $py) {
-            Write-Host '[X] Python 3 was NOT found; cannot run ''codesync''.' -ForegroundColor Red
-            exit 1
+            throw "Python 3 was not found; cannot run 'codesync'."
         }
         $fwd = @()
         if ($Rest) { $fwd = $Rest } elseif ($args) { $fwd = $args }
@@ -264,23 +265,22 @@ switch ($Command.ToLowerInvariant()) {
             Write-Host '        .\pyservice.ps1 codesync run' -ForegroundColor DarkYellow
             Write-Host '    To auto-start at login, wrap that with Task Scheduler or nssm.' -ForegroundColor DarkYellow
             Write-Host "    View file-sync logs at: D:\programing\Users\$env:USERNAME\.core_node\data\code_sync_logs\" -ForegroundColor DarkYellow
-            exit 0
+            return
         }
         Push-Location -LiteralPath $PSScriptRoot
         try {
             & $py.Path (Join-Path $PSScriptRoot 'pycore/pyutils/codesync_boot.py') @fwd
-            $csCode = $LASTEXITCODE
         } finally {
             Pop-Location
         }
-        exit $csCode
+        return
     }
     { $_ -in @('start', 'stop', 'restart', 'status', 'uninstall', 'service-install') } {
         Write-Host ("[i] '{0}': systemd service install/management is Linux-only." -f $Command) -ForegroundColor Yellow
         Write-Host '    On Windows, use the Settings -> Auto-start toggle to run pycore at login,' -ForegroundColor DarkYellow
         Write-Host '    and `.\pyservice.ps1 config` to manage headless configuration.' -ForegroundColor DarkYellow
         Write-Host '    To provision Python prerequisites on Windows: `.\pyservice.ps1 install`' -ForegroundColor DarkYellow
-        exit 0
+        return
     }
     default {
         # 'run' (or any unrecognized leading token) falls through to the launch path.
@@ -296,10 +296,7 @@ Write-Host ("[i] pyservice run - run `".\pyservice.ps1 help`" for all commands (
 
 $py = Resolve-Python
 if (-not $py) {
-    Write-Host '[X] System Python 3.13 was NOT found.' -ForegroundColor Red
-    Write-Host ("    Expected: {0}" -f $Global:PYTHON_EXE_PATH) -ForegroundColor DarkYellow
-    Write-Host '    Run Step8_InstallPython.ps1 (DevInstaller) or install Python 3.13 there.' -ForegroundColor Yellow
-    exit 1
+    throw ("System Python 3.13 was not found at {0}; run Step8_InstallPython.ps1." -f $Global:PYTHON_EXE_PATH)
 }
 Ensure-CoreNodePythonPath -LogPrefix '[pyservice]'
 Write-Host ("[OK] Python : {0}" -f $py.Version) -ForegroundColor Green
@@ -316,8 +313,8 @@ try {
     # --- 1) idempotent prerequisites (always run; each Step*.ps1 is a no-op when satisfied) --- #
     $provisionOnly = ($Command.ToLowerInvariant() -eq 'install') -or $Only
 
-    Write-Host '[i] Installation is idempotent and SELF-REPAIRING: re-running repairs environment drift' -ForegroundColor Cyan
-    Write-Host '    (e.g. a clobbered transformers pin is restored to the shared version; incomplete model' -ForegroundColor Cyan
+    Write-Host '[i] Installation is idempotent and SELF-REPAIRING: re-running repairs missing artifacts' -ForegroundColor Cyan
+    Write-Host '    (installed pip distributions are preserved; incomplete model' -ForegroundColor Cyan
     Write-Host '    weights resume). Safe to re-run any time. See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.' -ForegroundColor Cyan
     Write-Host '[..] Running idempotent prerequisite installers (PreparePycorePrerequisites -> Step*.ps1) ...' -ForegroundColor Yellow
     if (-not $env:NEURAL_TTS_INSTALL) { $env:NEURAL_TTS_INSTALL = '1' }
@@ -327,13 +324,10 @@ try {
         $env:PARLER_SKIP = '1'
     }
     & $preparePath
-    if ($LASTEXITCODE -ne 0) {
-        throw "Prerequisite step exited with $LASTEXITCODE; worker launch cancelled."
-    }
 
     if ($provisionOnly) {
         Write-Host '[OK] Prerequisite provisioning complete.' -ForegroundColor Green
-        exit 0
+        return
     }
 
     # --- 2) launch the unified dashboard UI (unless -NoUi) ---------------- #
@@ -424,7 +418,8 @@ try {
             $uiReady = $false
             for ($i = 0; $i -lt 30; $i++) {
                 Start-Sleep -Milliseconds 500
-                try { if ((Invoke-WebRequest "http://localhost:$UiPort/pycore-manager" -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200) { $uiReady = $true; break } } catch { }
+                $uiResponse = Invoke-WebRequest "http://localhost:$UiPort/pycore-manager" -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
+                if ($uiResponse -and $uiResponse.StatusCode -eq 200) { $uiReady = $true; break }
             }
             if ($uiReady) { Write-Host ("[OK] UI ready at {0} (pid {1})" -f $env:PYCORE_UI_URL, $uiProc.Id) -ForegroundColor Green }
             else          { Write-Host ("[!] UI not responding yet at {0}; webview may show a connecting page." -f $env:PYCORE_UI_URL) -ForegroundColor DarkYellow }
@@ -444,14 +439,12 @@ try {
     Write-Host ("[>] Launching worker: {0}" -f $workerPath) -ForegroundColor Cyan
     Write-Host ''
     & $py.Path @pyArgs
-    $code = $LASTEXITCODE
 }
 finally {
     # Tear down the UI server (npm spawns a node child; /T kills the whole tree).
-    # Exit code 3 = the worker YIELDED to a newer running instance: that instance
-    # is (or may be) serving its webview from this UI server — leave it running.
     if ($uiProc -and -not $uiProc.HasExited) {
-        if ($code -eq 3) {
+        $rpcListener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+        if ($rpcListener) {
             Write-Host ("[i] Worker yielded to a newer instance; leaving UI server running (pid {0})." -f $uiProc.Id) -ForegroundColor DarkYellow
         } else {
             Write-Host ("[..] Stopping UI server (pid {0}) ..." -f $uiProc.Id) -ForegroundColor DarkGray
@@ -460,5 +453,3 @@ finally {
     }
     Pop-Location
 }
-
-exit $code

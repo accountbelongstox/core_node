@@ -28,12 +28,6 @@ function Test-PipPackagePresentOnDisk {
         [array]$ExecutableExtensions
     )
 
-    if ($PythonExe -and (Test-Path -LiteralPath $PythonExe)) {
-        if (Test-PythonDistInfoPresent -PythonExe $PythonExe -DistPrefixes @($PackageName)) {
-            return $true
-        }
-    }
-
     if (Test-PipPackageInstalled -PipExe $PipExe -PackageName $PackageName) {
         return $true
     }
@@ -1242,11 +1236,9 @@ function Invoke-PipCommand {
     Write-DebugLog -Message "Search paths count: $($searchPaths.Count)" -Category "PIP" -Color "Cyan"
     
     try {
-        # Try different installation methods with detailed logging
+        # Pip owns dependency compatibility; never upgrade or force-reinstall an installed package.
         $installMethods = @(
-            @{ Args = @("install", $PackageName); Name = "global installation" },
-            @{ Args = @("install", "--upgrade", $PackageName); Name = "upgrade installation" },
-            @{ Args = @("install", "--force-reinstall", $PackageName); Name = "force reinstall" }
+            @{ Args = @("install", $PackageName); Name = "missing-package installation" }
         )
         
         $installationSuccessful = $false
@@ -1812,9 +1804,6 @@ function Invoke-UvCommand {
         
         Write-DebugLog -Message "UV tool install did not produce executable, trying pip install..." -Category "UV" -Color "Yellow"
         $pipInstallArgs = @("pip", "install", $PackageName)
-        if ($ForceInstall) {
-            $pipInstallArgs += "--force-reinstall"
-        }
         & $uvExe $pipInstallArgs
         
         # Refresh search paths after pip install
@@ -2973,6 +2962,10 @@ function Invoke-GoCommand {
     
     $Recurse = $false
     $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
+    $goVersionParts = @()
+    $goVersionToken = ''
+    $majorVersion = 0
+    $minorVersion = 0
     
     Write-DebugLog -Message "Processing go package: $PackageName" -Category "GO" -Color "Cyan"
     
@@ -3066,9 +3059,13 @@ function Invoke-GoCommand {
         $goVersion = & go version 2>$null
         $useGoInstall = $true
         
-        if ($goVersion -match "go(\d+)\.(\d+)") {
-            $majorVersion = [int]$matches[1]
-            $minorVersion = [int]$matches[2]
+        $goVersionToken = (("$goVersion").Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries) | Where-Object { $_.Length -gt 2 -and $_.StartsWith('go') } | Select-Object -First 1)
+        if ($goVersionToken) {
+            $goVersionParts = $goVersionToken.Substring(2).Split('.')
+        }
+        if ($goVersionParts.Count -ge 2 -and
+            [int]::TryParse($goVersionParts[0], [ref]$majorVersion) -and
+            [int]::TryParse($goVersionParts[1], [ref]$minorVersion)) {
             if ($majorVersion -eq 1 -and $minorVersion -lt 16) {
                 $useGoInstall = $false
             }

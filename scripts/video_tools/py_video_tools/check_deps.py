@@ -12,10 +12,10 @@ is used for installation).
 
 Usage:
     # print missing pip package names, one per line (for the launcher to install):
-    python check_deps.py --feature naming --feature subtitle [--gpu]
+    python check_deps.py --feature naming --feature subtitle [--gpu-package <spec>]
 
     # human-readable status of every required package:
-    python check_deps.py --feature naming --feature subtitle [--gpu] --report
+    python check_deps.py --feature naming --feature subtitle [--gpu-package <spec>] --report
 
 Detection is by installed DISTRIBUTION name (importlib.metadata), which is
 reliable even for packages whose import name differs from the pip name and for
@@ -29,6 +29,10 @@ try:
     from importlib.metadata import version, PackageNotFoundError
 except ImportError:                       # pragma: no cover (Python < 3.8)
     from importlib_metadata import version, PackageNotFoundError  # type: ignore
+try:
+    from packaging.requirements import Requirement
+except ImportError:                       # pip always vendors packaging
+    from pip._vendor.packaging.requirements import Requirement
 
 
 # Feature -> required pip package names. The canonical install list lives here.
@@ -38,28 +42,26 @@ FEATURES = {
     "subtitle":  ["faster-whisper"],       # speech-to-text -> .srt
 }
 
-# NVIDIA runtime libs needed for GPU (CUDA 12 / cuDNN 9) whisper inference.
-GPU_LIBS = ["nvidia-cublas-cu12", "nvidia-cudnn-cu12"]
-
-
-def is_installed(pkg):
-    """True if a distribution named `pkg` is installed (name-normalized)."""
+def is_installed(spec):
+    """Return whether an installed distribution satisfies a requirement spec."""
+    requirement = Requirement(spec)
     try:
-        version(pkg)
-        return True
+        installed = version(requirement.name)
+        return not requirement.specifier or requirement.specifier.contains(
+            installed, prereleases=True
+        )
     except PackageNotFoundError:
         return False
     except Exception:
         return False
 
 
-def required_packages(features, gpu, extras):
+def required_packages(features, gpu_packages, extras):
     """Build the de-duplicated, order-preserving list of required pip names."""
     names = []
     for feat in features:
         names.extend(FEATURES.get(feat, []))
-    if gpu:
-        names.extend(GPU_LIBS)
+    names.extend(gpu_packages)
     names.extend(extras)
 
     seen, ordered = set(), []
@@ -77,15 +79,15 @@ def main():
     parser.add_argument("--feature", action="append", default=[],
                         choices=sorted(FEATURES.keys()),
                         help="Feature group(s) whose packages are required.")
-    parser.add_argument("--gpu", action="store_true",
-                        help="Also require NVIDIA GPU runtime libs.")
+    parser.add_argument("--gpu-package", action="append", default=[],
+                        help="Canonical GPU requirement supplied by the launcher.")
     parser.add_argument("--extra", action="append", default=[],
                         help="Extra pip package name(s) to check.")
     parser.add_argument("--report", action="store_true",
                         help="Print human-readable status of every required package.")
     args = parser.parse_args()
 
-    req = required_packages(args.feature, args.gpu, args.extra)
+    req = required_packages(args.feature, args.gpu_package, args.extra)
 
     if args.report:
         for pkg in req:

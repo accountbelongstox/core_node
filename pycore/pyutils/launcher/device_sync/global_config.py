@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import Optional
 
 from pycore.pyfoundations.system_paths import get_system_cache_dir
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    SerializedStateObject,
+    serialized_method,
+)
 
 
 # Default constants
@@ -37,7 +42,7 @@ def get_cache_dir() -> Path:
     return cache_dir
 
 
-class GlobalConfig:
+class GlobalConfig(SerializedStateObject):
     """
     Global configuration object shared across all device sync components.
 
@@ -81,19 +86,27 @@ class GlobalConfig:
         # Primary server info (for clients to connect to)
         self.primary_server_ip: Optional[str] = None
         self.primary_server_port: int = 58923
+        self.enable_serialized_state(
+            'device_sync.simple_config.state',
+            'DeviceSyncSimpleConfigStateThread',
+            timeout=300.0,
+        )
 
+    @serialized_method
     def set_as_primary(self):
         """Set this device as PRIMARY server"""
         self.isPrimaryServer = True
         self.sync_enabled = False  # Primary doesn't sync, it serves
         print(f"[Config] Set as PRIMARY server")
 
+    @serialized_method
     def set_as_secondary(self):
         """Set this device as SECONDARY (client)"""
         self.isPrimaryServer = False
         # sync_enabled is controlled separately
         print(f"[Config] Set as SECONDARY")
 
+    @serialized_method
     def enable_sync(self):
         """Enable sync (only for SECONDARY)"""
         if self.isPrimaryServer:
@@ -104,21 +117,25 @@ class GlobalConfig:
         print("[Config] Sync enabled")
         return True
 
+    @serialized_method
     def disable_sync(self):
         """Disable sync"""
         self.sync_enabled = False
         print("[Config] Sync disabled")
 
+    @serialized_method
     def enable_api(self):
         """Enable API access"""
         self.api_enabled = True
         print("[Config] API access enabled")
 
+    @serialized_method
     def disable_api(self):
         """Disable API access"""
         self.api_enabled = False
         print("[Config] API access disabled")
 
+    @serialized_method
     def update_network_info(self):
         """Update local network information"""
         # Get local IP
@@ -161,6 +178,7 @@ class GlobalConfig:
             except:
                 pass
 
+    @serialized_method
     def update_online_devices(self, devices: list):
         """Update list of online devices"""
         self.online_devices = devices
@@ -171,12 +189,14 @@ class GlobalConfig:
             if d.get('mode') == 'primary'
         ]
 
+    @serialized_method
     def get_primary_server(self):
         """Get PRIMARY server (first one if multiple)"""
         if self.primary_servers:
             return self.primary_servers[0]
         return None
 
+    @serialized_method
     def has_multiple_primary_servers(self) -> bool:
         """Check if there are multiple PRIMARY servers (conflict)"""
         return len(self.primary_servers) > 1
@@ -225,6 +245,7 @@ class GlobalConfig:
 
         return False
 
+    @serialized_method
     def build_file_cache(self):
         """Build file cache for root directory"""
         if not self.root_dir or not self.root_dir.exists():
@@ -255,6 +276,7 @@ class GlobalConfig:
 
         print(f"[Config] File cache built: {len(self.file_cache)} files (excluded: {excluded_count})")
 
+    @serialized_method
     def get_status(self) -> dict:
         """Get current configuration status"""
         return {
@@ -277,6 +299,7 @@ class GlobalConfig:
             'file_cache_count': len(self.file_cache)
         }
 
+    @serialized_method
     def __repr__(self):
         mode = "PRIMARY" if self.isPrimaryServer else "SECONDARY"
         sync = "ON" if self.sync_enabled else "OFF"
@@ -284,15 +307,16 @@ class GlobalConfig:
 
 
 # Global singleton instance
-_global_config: Optional[GlobalConfig] = None
+_GLOBAL_CONFIG_PROVIDER = SerializedSingletonProvider(
+    GlobalConfig,
+    'device_sync.simple_config.provider',
+    'DeviceSyncSimpleConfigProviderThread',
+)
 
 
 def get_global_config() -> GlobalConfig:
     """Get or create global configuration singleton"""
-    global _global_config
-    if _global_config is None:
-        _global_config = GlobalConfig()
-    return _global_config
+    return _GLOBAL_CONFIG_PROVIDER.get()
 
 
 def init_global_config(root_dir: str, http_port: int = 58923) -> GlobalConfig:
@@ -306,30 +330,26 @@ def init_global_config(root_dir: str, http_port: int = 58923) -> GlobalConfig:
     Returns:
         GlobalConfig instance
     """
-    global _global_config
-
-    if _global_config is None:
-        _global_config = GlobalConfig()
-
-    _global_config.root_dir = Path(root_dir)
-    _global_config.http_port = http_port
+    config = get_global_config()
+    config.root_dir = Path(root_dir)
+    config.http_port = http_port
 
     # Get hostname
-    _global_config.hostname = socket.gethostname()
+    config.hostname = socket.gethostname()
 
     # Get device ID from unified cache directory
     cache_dir = get_cache_dir()
     device_id_file = cache_dir / 'device_id.txt'
     if device_id_file.exists():
-        _global_config.device_id = device_id_file.read_text().strip()
+        config.device_id = device_id_file.read_text().strip()
     else:
-        _global_config.device_id = str(uuid.uuid4())
-        device_id_file.write_text(_global_config.device_id)
+        config.device_id = str(uuid.uuid4())
+        device_id_file.write_text(config.device_id)
 
     # Update network information
-    _global_config.update_network_info()
+    config.update_network_info()
 
-    print(f"[Config] Initialized: {_global_config}")
-    print(f"[Config] Network: {_global_config.network_prefix}.x (Gateway: {_global_config.gateway_ip})")
+    print(f"[Config] Initialized: {config}")
+    print(f"[Config] Network: {config.network_prefix}.x (Gateway: {config.gateway_ip})")
 
-    return _global_config
+    return config

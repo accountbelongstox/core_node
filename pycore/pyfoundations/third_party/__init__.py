@@ -12,7 +12,8 @@ The package automatically checks and installs missing packages on first import.
 Rule: This module must NOT import or reference pycore.pyutils (all imports at top are pyfoundations only).
 
 Structure (private sub-modules, imported LEAF-FIRST to avoid circular imports):
-  _cache            - _PACKAGE_CACHE singleton + _lazy_import (the shared mutable root)
+  _package_cache    - _PACKAGE_CACHE singleton (the shared mutable root)
+  _cache            - _lazy_import service
   _deps             - dependency tables + constants
   _pip_runner       - pip/subprocess layer over Commander
   _torch_cuda       - Torch CUDA wheel resolution + CPU/GPU guards (reuses compute_caps)
@@ -23,8 +24,8 @@ Structure (private sub-modules, imported LEAF-FIRST to avoid circular imports):
   _ocr_initializer  - OcrInitializer class + CUDA/OCR singletons (reuses compute_caps.CudaInitializer)
   _dep_check        - check_and_install_dependencies (LAST; import-time auto-run is below)
 
-_PACKAGE_CACHE lives in EXACTLY ONE sub-module (_cache) and is imported everywhere
-else ("from ._cache import _PACKAGE_CACHE") - never re-declared.
+_PACKAGE_CACHE lives in EXACTLY ONE leaf sub-module (_package_cache) and is
+never re-declared.
 """
 
 import os
@@ -32,7 +33,7 @@ import os
 # ---------------------------------------------------------------------------
 # Import sub-modules LEAF-FIRST so no sub-module triggers a circular import.
 # ---------------------------------------------------------------------------
-from ._cache import _PACKAGE_CACHE, _lazy_import
+from ._package_cache import _PACKAGE_CACHE
 
 from ._deps import (
     DEPENDENCY_MAP,
@@ -63,11 +64,11 @@ from ._pip_runner import (
     _clear_cnocr_cache,
 )
 
+from ._cache import _lazy_import
+
 from ._torch_cuda import (
     _print_cuda_support_prompt,
-    _uninstall_orphan_nvidia_wheels,
     _ensure_torch_cpu_build_when_no_gpu,
-    _sherpa_onnx_build_checked,
     _ensure_sherpa_onnx_cpu_build_when_no_gpu,
     _detect_driver_cuda_version,
     _resolve_pytorch_cuda_index_url,
@@ -75,21 +76,10 @@ from ._torch_cuda import (
 )
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.compute_caps import register_compute_torch_getter
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 
 from ._dep_check import check_and_install_dependencies
-
-# BEFORE optional getters are imported/re-exported: modules such as window_finder.py
-# import get_third_package_win32gui during this __init__ and call it at module level.
-# The footer dep-check ran too late (after all getters loaded). Run once here; the
-# footer call is guarded by ENCYCLOPEDIA and becomes a no-op.
-if os.environ.get('PYCORE_SKIP_DEP_CHECK') != '1':
-    try:
-        check_and_install_dependencies()
-    except Exception as e:
-        ColorPrint.red(f"[ERROR] Failed to check dependencies during import: {e}")
-        ColorPrint.yellow("[WARNING] Attempting to continue, but some packages may be missing")
-        ENCYCLOPEDIA.add("pycore_dependencies_checking", False)
 
 from ._getters_core import (
     get_third_package_aiohttp,
@@ -179,12 +169,12 @@ from ._getters_core import (
 
 from ._getters_optional import (
     install_and_reimport_azure,
-    _edge_tts_version_ge,
     install_and_reimport_edge_tts,
     get_third_package_speechsdk,
     get_third_package_edge_tts,
     get_third_package_vosk,
     get_third_package_whisper,
+    get_third_package_easyocr,
     _ensure_watchdog_submodules,
     get_third_package_watchdog,
     get_third_package_pyaudio,
@@ -206,7 +196,6 @@ from ._getters_optional import (
 
 from ._hf_helpers import (
     get_third_package_huggingface_hub,
-    CNOCR_OFFICIAL_LATEST_VERSION,
     _print_cnocr_init_info,
     get_third_package_cnocr,
     get_huggingface_cli_command,
@@ -258,15 +247,13 @@ from ._ocr_models import (
 
 from ._ocr_initializer import (
     OcrInitializer,
-    _run_ort_version_switch_for_cuda,
     _cuda_initializer,
     _ocr_initializer,
     get_cnocr_prewarmed,
     init_third_party_cnocr,
 )
 
-# _dep_check re-exported for callers; import-time run is above (before getters).
-from ._dep_check import check_and_install_dependencies
+register_compute_torch_getter(get_third_package_torch)
 
 
 # ---------------------------------------------------------------------------
@@ -382,6 +369,7 @@ __all__ = [
     'get_third_package_edge_tts',
     'get_third_package_vosk',
     'get_third_package_whisper',
+    'get_third_package_easyocr',
     'get_third_package_watchdog',
     'install_and_reimport_azure',
     'install_and_reimport_edge_tts',
@@ -447,11 +435,7 @@ __all__ = [
 
 
 # ---------------------------------------------------------------------------
-# IMPORT-TIME SIDE EFFECT: auto-check dependencies when the package is imported.
-# This ensures dependencies are available for all modules using third-party
-# packages. Uses ENCYCLOPEDIA for global caching - only runs once per Python
-# process. Runs AFTER all sub-modules are imported. Can be disabled by setting
-# PYCORE_SKIP_DEP_CHECK environment variable.
+# Read pip metadata once without changing the interpreter environment.
 # ---------------------------------------------------------------------------
 if os.environ.get('PYCORE_SKIP_DEP_CHECK') != '1':
     try:

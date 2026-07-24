@@ -45,13 +45,15 @@ Architecture / layering (pycore rules):
 
 import os
 import re
-import threading
 import time
 from typing import Any, Dict, List, Optional
 
 from pycore import ColorPrint, get_user_data_store
-# Rule §4: all inter-thread data exchange goes through the global bus.
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    map_bus_tasks,
+    serialized_method,
+)
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.callmodule.callmodule_config.config import Config as CallmoduleConfig
 from pycore.callmodule.services.sync.laravel_http_recorder import notify_laravel_http
@@ -119,44 +121,70 @@ def _normalize(url: Optional[str]) -> str:
     return u
 
 
-# THREAD_BUS queue carrying per-probe results back to the sweeping thread
-# (rule §4: threads never exchange data directly — only via the bus).
-_BUS_PROBE_RESULT = "laravel_endpoint_manager.probe_result"
-
-
-class EndpointProbeThread(threading.Thread):
-    """One parallel endpoint probe lane (rule §4: Thread subclass, no
-    ThreadPoolExecutor).
-
-    Runs manager.probe() for a single URL, then reports the result dict back
-    through THREAD_BUS — never through shared attributes."""
-
-    def __init__(self, manager: "LaravelEndpointManager", url: str,
-                 index: int) -> None:
-        super().__init__(daemon=True, name=f"laravel-endpoint-probe-{index}")
-        self._manager = manager
-        self._url = url
-
-    def run(self) -> None:
-        result = self._manager.probe(self._url)
-        THREAD_BUS.send_message(_BUS_PROBE_RESULT, {
-            "url": self._url,
-            "result": result,
-        })
+def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Probe one endpoint; payload and result cross the thread via THREAD_BUS."""
+    url = _normalize(payload.get("url"))
+    timeout = payload.get("timeout") or PROBE_TIMEOUT
+    result: Dict[str, Any] = {
+        "url": url,
+        "healthy": False,
+        "latency_ms": None,
+        "last_checked": int(time.time() * 1000),
+        "status": None,
+        "error": None,
+    }
+    if not url:
+        result["error"] = "empty url"
+        return result
+    requests = get_third_package_requests()
+    started = time.monotonic()
+    try:
+        resp = requests.get(url + HEALTH_PATH, timeout=timeout)
+        result["latency_ms"] = int((time.monotonic() - started) * 1000)
+        result["status"] = resp.status_code
+        result["healthy"] = resp.status_code < 500
+        if not result["healthy"]:
+            result["error"] = f"HTTP {resp.status_code}"
+    except Exception as exc:  # noqa: BLE001
+        result["latency_ms"] = int((time.monotonic() - started) * 1000)
+        result["error"] = str(exc).splitlines()[0][:200]
+    latency = result.get("latency_ms") or 0
+    status = result.get("status") or 0
+    error = result.get("error")
+    if error:
+        ColorPrint.red(f"[laravel] GET {HEALTH_PATH} -> ERR ({latency}ms) {error}")
+    else:
+        line = f"[laravel] GET {HEALTH_PATH} -> {status} ({latency}ms)"
+        ColorPrint.yellow(line) if status >= 400 else ColorPrint.cyan(line)
+    notify_laravel_http({
+        "ts": time.time(),
+        "method": "GET",
+        "url": url + HEALTH_PATH,
+        "path": HEALTH_PATH,
+        "params_summary": "",
+        "status": status,
+        "ms": float(latency),
+        "error": error,
+        "base_url": url,
+    })
+    return result
 
 
 class LaravelEndpointManager:
     """Stored-first multi-endpoint manager for the laravel_main base URL."""
 
     def __init__(self):
-        # Rule §4: NO locks — every shared-state mutation in this class is a
-        # single GIL-atomic op (plain attribute assignment, dict set/get); the
-        # worst-case race is a stale/duplicated probe, never corruption.
         self._resolved: Optional[str] = None       # in-process resolve() cache
         self._failed_sweep_at: float = 0.0          # monotonic ts of last all-down sweep
         self._ui_failed_at: float = 0.0             # monotonic ts of last UI-path probe miss
         # Last probe result per url: {url, healthy, latency_ms, last_checked, ...}
         self._probe_results: Dict[str, Dict[str, Any]] = {}
+        init_serialized_owner(
+            self,
+            "laravel_endpoint_manager.state",
+            "LaravelEndpointManagerState",
+            timeout=90.0,
+        )
 
     # ----------------------------------------------------------------- #
     # Defaults / persistence                                             #
@@ -243,6 +271,7 @@ class LaravelEndpointManager:
     # ----------------------------------------------------------------- #
     # Probing                                                            #
     # ----------------------------------------------------------------- #
+    @serialized_method
     def probe(self, url: str, timeout: Optional[float] = None) -> Dict[str, Any]:
         """Probe ONE endpoint via GET {url}/api/health.
 
@@ -253,48 +282,13 @@ class LaravelEndpointManager:
         any HTTP status < 500 (the dashboard's "reachable counts as healthy").
         Never raises.
         """
-        u = _normalize(url)
-        result: Dict[str, Any] = {
-            "url": u, "healthy": False, "latency_ms": None,
-            "last_checked": int(time.time() * 1000), "status": None, "error": None,
-        }
-        if not u:
-            result["error"] = "empty url"
-            return result
-        requests = get_third_package_requests()
-        started = time.monotonic()
-        try:
-            resp = requests.get(u + HEALTH_PATH, timeout=timeout or PROBE_TIMEOUT)
-            result["latency_ms"] = int((time.monotonic() - started) * 1000)
-            result["status"] = resp.status_code
-            result["healthy"] = resp.status_code < 500
-            if not result["healthy"]:
-                result["error"] = f"HTTP {resp.status_code}"
-        except Exception as e:
-            result["latency_ms"] = int((time.monotonic() - started) * 1000)
-            result["error"] = str(e).splitlines()[0][:200]
-        # Surface the probe as a structured pycore->Laravel request (same pipeline
-        # as LaravelClient) so it appears in the pyservice terminal + the dashboard
-        # HTTP debugger. The probe stays on raw requests.get (routing it through
-        # LaravelClient would cycle: client -> resolve_laravel_base_url -> probe).
-        latency = result.get("latency_ms") or 0
-        status = result.get("status") or 0
-        probe_url = u + HEALTH_PATH
-        err = result.get("error")
-        if err:
-            ColorPrint.red(f"[laravel] GET {HEALTH_PATH} -> ERR ({latency}ms) {err}")
-        else:
-            line = f"[laravel] GET {HEALTH_PATH} -> {status} ({latency}ms)"
-            ColorPrint.yellow(line) if status >= 400 else ColorPrint.cyan(line)
-        notify_laravel_http({
-            "ts": time.time(), "method": "GET", "url": probe_url, "path": HEALTH_PATH,
-            "params_summary": "", "status": status, "ms": float(latency),
-            "error": err, "base_url": u,
-        })
-        # Rule §4: single GIL-atomic dict set — no lock needed.
-        self._probe_results[u] = dict(result)
+        result = _probe_endpoint({"url": url, "timeout": timeout or PROBE_TIMEOUT})
+        normalized_url = result.get("url") or ""
+        if normalized_url:
+            self._probe_results[normalized_url] = dict(result)
         return result
 
+    @serialized_method
     def _probe_many(self, urls: List[str]) -> Dict[str, Dict[str, Any]]:
         """Probe several endpoints in PARALLEL (each capped at PROBE_TIMEOUT).
 
@@ -303,31 +297,26 @@ class LaravelEndpointManager:
         urls = [u for u in dict.fromkeys(_normalize(u) for u in urls) if u]
         if not urls:
             return {}
-        # Rule §4: parallel probes are named Thread subclasses (no
-        # ThreadPoolExecutor); each reports its result via THREAD_BUS.
-        THREAD_BUS.clear_queue(_BUS_PROBE_RESULT)
-        lanes = [
-            EndpointProbeThread(self, url, index)
-            for index, url in enumerate(urls)
-        ]
-        for lane in lanes:
-            lane.start()
-        for lane in lanes:
-            lane.join()
-        results: Dict[str, Dict[str, Any]] = {}
-        for _lane in lanes:
-            message = THREAD_BUS.receive_message(_BUS_PROBE_RESULT)
-            if not isinstance(message, dict):
-                continue
-            url = message.get("url")
-            res = message.get("result")
-            if url and isinstance(res, dict):
-                results[url] = res
+        payloads = [{"url": url, "timeout": PROBE_TIMEOUT} for url in urls]
+        probed = map_bus_tasks(
+            _probe_endpoint,
+            payloads,
+            max_workers=len(payloads),
+            thread_prefix="LaravelEndpointProbe",
+            timeout=PROBE_TIMEOUT + 2.0,
+        )
+        results = {
+            result["url"]: result
+            for result in probed
+            if isinstance(result, dict) and result.get("url")
+        }
+        self._probe_results.update({url: dict(result) for url, result in results.items()})
         return results
 
     # ----------------------------------------------------------------- #
     # Resolution (stored-first -> sweep -> cache)                        #
     # ----------------------------------------------------------------- #
+    @serialized_method
     def resolve(self) -> str:
         """Resolve the Laravel base URL. STORED-FIRST, then sweep, then cache.
 
@@ -339,7 +328,6 @@ class LaravelEndpointManager:
            caching, so the next call retries (a short negative TTL prevents
            re-sweeping in a tight loop).
         """
-        # Rule §4: single GIL-atomic attribute read — no lock needed.
         if self._resolved:
             return self._resolved
         state = self._load()
@@ -348,7 +336,6 @@ class LaravelEndpointManager:
         fallback = current or (endpoints[0] if endpoints else "http://127.0.0.1:9000")
 
         # Negative cache: a recent sweep found nothing — don't re-probe yet.
-        # Rule §4: single GIL-atomic attribute read.
         if time.monotonic() - self._failed_sweep_at < FAILED_SWEEP_TTL:
             return fallback
 
@@ -360,7 +347,6 @@ class LaravelEndpointManager:
             for attempt in range(STORED_PROBE_RETRIES + 1):
                 res = self.probe(current, timeout=STORED_PROBE_TIMEOUT)
                 if res.get("healthy"):
-                    # Rule §4: single GIL-atomic attribute assignment.
                     self._resolved = current
                     return current
                 if attempt < STORED_PROBE_RETRIES:
@@ -375,7 +361,6 @@ class LaravelEndpointManager:
         sweep = self._probe_many(endpoints)
         winner = next((u for u in endpoints if sweep.get(u, {}).get("healthy")), None)
         if winner:
-            # Rule §4: single GIL-atomic attribute assignment.
             self._resolved = winner
             if winner != current:
                 self._save(endpoints, winner)
@@ -383,13 +368,13 @@ class LaravelEndpointManager:
             return winner
 
         # 3) nothing healthy — degrade to the stored/first candidate, uncached.
-        # Rule §4: single GIL-atomic attribute assignment.
         self._failed_sweep_at = time.monotonic()
         ColorPrint.yellow(
             f"[LaravelEndpoints] No healthy Laravel endpoint among "
             f"{len(endpoints)} candidate(s); falling back to {fallback}")
         return fallback
 
+    @serialized_method
     def peek_stored_base_url(self) -> str:
         """Return the stored/current Laravel base URL — zero network I/O."""
         state = self._load()
@@ -397,17 +382,18 @@ class LaravelEndpointManager:
         endpoints: List[str] = state["endpoints"]
         return current or (endpoints[0] if endpoints else "http://127.0.0.1:9000")
 
+    @serialized_method
     def get_active_base_url(self) -> str:
         """Last-known healthy Laravel base URL — zero network I/O.
 
         Prefer the in-process resolve() winner (set by heartbeat / worker polls);
         fall back to the stored UI selection when nothing is cached yet.
         """
-        # Rule §4: single GIL-atomic attribute read — no lock needed.
         if self._resolved:
             return self._resolved
         return self.peek_stored_base_url()
 
+    @serialized_method
     def resolve_for_ui(self, *, skip_probe: bool = False) -> str:
         """Fast resolve for hot HTTP paths — no parallel sweep, no warm-up retry.
 
@@ -415,7 +401,6 @@ class LaravelEndpointManager:
         returns the stored URL immediately. Otherwise probes ONLY the stored
         endpoint once with a short timeout.
         """
-        # Rule §4: single GIL-atomic attribute read — no lock needed.
         if self._resolved:
             return self._resolved
         fallback = self.peek_stored_base_url()
@@ -423,7 +408,6 @@ class LaravelEndpointManager:
             return fallback
         state = self._load()
         current: Optional[str] = state["current"]
-        # Rule §4: two single GIL-atomic attribute reads (negative caches).
         if time.monotonic() - self._failed_sweep_at < FAILED_SWEEP_TTL:
             return fallback
         if time.monotonic() - self._ui_failed_at < UI_NEGATIVE_TTL:
@@ -431,11 +415,8 @@ class LaravelEndpointManager:
         if current:
             res = self.probe(current, timeout=UI_PROBE_TIMEOUT)
             if res.get("healthy"):
-                # Rule §4: single GIL-atomic attribute assignment.
                 self._resolved = current
                 return current
-        # Heartbeat may have resolved another candidate while we probed the stored one.
-        # Rule §4: attribute read + dict.get are each single GIL-atomic ops.
         if self._resolved:
             return self._resolved
         for url in state.get("endpoints") or []:
@@ -443,13 +424,12 @@ class LaravelEndpointManager:
             if last.get("healthy"):
                 self._resolved = url
                 return url
-        # Rule §4: single GIL-atomic attribute assignment.
         self._ui_failed_at = time.monotonic()
         return fallback
 
+    @serialized_method
     def invalidate(self) -> None:
         """Drop the in-process resolve cache (after select/add/remove)."""
-        # Rule §4: three single GIL-atomic attribute assignments — no lock.
         self._resolved = None
         self._failed_sweep_at = 0.0
         self._ui_failed_at = 0.0
@@ -466,7 +446,6 @@ class LaravelEndpointManager:
         """
         defaults = set(self._default_candidates())
         rows: List[Dict[str, Any]] = []
-        # Rule §4: each dict.get is a single GIL-atomic op — no lock needed.
         for u in endpoints:
             last = self._probe_results.get(u) or {}
             rows.append({
@@ -480,6 +459,7 @@ class LaravelEndpointManager:
             })
         return rows
 
+    @serialized_method
     def list_endpoints(self, probe: bool = True) -> Dict[str, Any]:
         """Full endpoint listing for the UI; probes all in parallel by default.
 
@@ -490,7 +470,6 @@ class LaravelEndpointManager:
         state = self._load()
         if probe:
             self._probe_many(state["endpoints"])
-        # Rule §4: single GIL-atomic attribute read — no lock needed.
         resolved = self._resolved
         return {
             "success": True,
@@ -499,6 +478,7 @@ class LaravelEndpointManager:
             "resolved": resolved,
         }
 
+    @serialized_method
     def add(self, url: str) -> Dict[str, Any]:
         """Add a candidate endpoint (idempotent); invalidates the cache."""
         u = _normalize(url)
@@ -515,6 +495,7 @@ class LaravelEndpointManager:
                 "endpoints": self._endpoint_rows(endpoints),
                 "current": state["current"]}
 
+    @serialized_method
     def remove(self, url: str) -> Dict[str, Any]:
         """Remove a candidate; clears ``current`` if it pointed at it.
 
@@ -538,6 +519,7 @@ class LaravelEndpointManager:
                 "endpoints": self._endpoint_rows(endpoints),
                 "current": current}
 
+    @serialized_method
     def select(self, url: str) -> Dict[str, Any]:
         """Persist ``url`` as the user's stored choice (adds it when missing).
 
@@ -557,7 +539,6 @@ class LaravelEndpointManager:
         probe_res = self.probe(u)
         if probe_res.get("healthy"):
             # Selection is live — pre-warm the resolve cache with it.
-            # Rule §4: single GIL-atomic attribute assignment.
             self._resolved = u
         ColorPrint.green(
             f"[LaravelEndpoints] Selected {u} "
@@ -567,6 +548,7 @@ class LaravelEndpointManager:
                 "current": u,
                 "selected": probe_res}
 
+    @serialized_method
     def probe_route(self, url: Optional[str] = None) -> Dict[str, Any]:
         """RPC-facing probe: ONE url when given, else ALL candidates (parallel)."""
         if url and str(url).strip():
@@ -579,17 +561,30 @@ class LaravelEndpointManager:
 
 
 # --- module-level singleton ------------------------------------------------- #
-_manager_singleton: Optional[LaravelEndpointManager] = None
+class _LaravelEndpointManagerProvider:
+    """Create and retain the manager on one THREAD_BUS state owner."""
+
+    def __init__(self) -> None:
+        self._manager: Optional[LaravelEndpointManager] = None
+        init_serialized_owner(
+            self,
+            "laravel_endpoint_manager.provider",
+            "LaravelEndpointManagerProvider",
+        )
+
+    @serialized_method
+    def get(self) -> LaravelEndpointManager:
+        if self._manager is None:
+            self._manager = LaravelEndpointManager()
+        return self._manager
+
+
+_manager_provider = _LaravelEndpointManagerProvider()
 
 
 def get_laravel_endpoint_manager() -> LaravelEndpointManager:
     """Return the process-wide LaravelEndpointManager singleton."""
-    global _manager_singleton
-    # Rule §4: no locks — plain GIL-atomic form; the worst-case race builds a
-    # duplicate instance once (then atomically overwritten), which is harmless.
-    if _manager_singleton is None:
-        _manager_singleton = LaravelEndpointManager()
-    return _manager_singleton
+    return _manager_provider.get()
 
 
 def resolve_laravel_base_url() -> str:

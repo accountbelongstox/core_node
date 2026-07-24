@@ -101,19 +101,28 @@ def register_stt_routes(rpc_server, service_instances: Dict[str, Any]):
         # Setup callbacks for sync mode
         if not async_mode:
             response_signal = f"speech.stt.response.{uuid.uuid4().hex}"
-            THREAD_BUS.clear_signal(response_signal)
+            response_guard = f"{response_signal}.waiting"
+            THREAD_BUS.signal(response_guard, True)
 
             def on_complete(t: Task):
-                THREAD_BUS.signal(response_signal, {
-                    'result': t.metadata.get('result', {}),
-                    'error': None,
-                })
+                THREAD_BUS.signal_if_present(
+                    response_guard,
+                    response_signal,
+                    {
+                        'result': t.metadata.get('result', {}),
+                        'error': None,
+                    },
+                )
 
             def on_error(t: Task):
-                THREAD_BUS.signal(response_signal, {
-                    'result': None,
-                    'error': t.error or "Task failed",
-                })
+                THREAD_BUS.signal_if_present(
+                    response_guard,
+                    response_signal,
+                    {
+                        'result': None,
+                        'error': t.error or "Task failed",
+                    },
+                )
 
             task.callback = on_complete
             task.error_callback = on_error

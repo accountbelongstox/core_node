@@ -44,8 +44,6 @@ from pycore.callmodule.services.sync.laravel_media_sync import (
     sync_book_source,
     SYNC_EVENT,
 )
-from pycore.callmodule.services.sync.book_poster_retry import schedule_book_poster_retry
-from pycore.pyutils.external_apis.movie_poster_client import parse_title_year
 # On-disk drill-down list cache plumbing (extracted from this controller).
 # Re-exported here via thin delegating methods so the public BooksController API
 # and all internal call sites stay unchanged.
@@ -345,13 +343,6 @@ class BooksController:
         aggregate = TextStats(**merge_stats(stat_dicts)) if stat_dicts else None
         ok_files = sum(1 for a in analyses if a.path)
         ColorPrint.blue(f"[BooksController] staged + analyzed {ok_files}/{len(uploads)} upload(s)")
-        for a in analyses:
-            if not a.path:
-                continue
-            stem = os.path.splitext(a.name or os.path.basename(a.path))[0]
-            poster_title, poster_year = parse_title_year(stem)
-            schedule_book_poster_retry(
-                a.path, title=poster_title, year=poster_year, source_type=source_type)
         if persist:
             # Each staged file is its own tracked 'file' source (single-file summary).
             section = self._section()
@@ -565,12 +556,6 @@ class BooksController:
                 path=abs_path, files=len(files), sentences=src_sent,
                 words=src_word, chapters=src_chap, slots=src_slot,
                 selected_languages=src_selected, success=src_ok, errors=errs or None))
-            if src_ok:
-                stem = os.path.splitext(os.path.basename(abs_path))[0]
-                poster_title, poster_year = parse_title_year(stem)
-                schedule_book_poster_retry(
-                    abs_path, title=poster_title, year=poster_year, source_type=src_type)
-
         self._save_section(section)
         ColorPrint.blue(
             f"[BooksController] submitted {len(targets)} source(s): "

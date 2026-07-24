@@ -26,7 +26,10 @@ from pycore.pyctl.speech.transcription_app import run_app_dual_source
 from pycore.pyutils.azure_speech import get_azure_speech_client
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
+    SerializedSingletonProvider,
     call_serialized,
+    init_serialized_owner,
+    serialized_method,
 )
 
 
@@ -73,8 +76,15 @@ class SpeechManager:
         self._azure_tts_available = False
         self._db_initialized = False
         self._cache_root = map_web_path("pycore_db") / "tts_static"
+        init_serialized_owner(
+            self,
+            "speech.manager.state",
+            "SpeechManagerState",
+            timeout=300.0,
+        )
         self._initialize_cache_database()
 
+    @serialized_method
     def initialize(self) -> bool:
         """
         Initialize speech manager
@@ -152,6 +162,7 @@ class SpeechManager:
 
     # ========== TTS Cache Database Methods ==========
 
+    @serialized_method
     def _initialize_cache_database(self):
         """Initialize TTS cache database"""
         if not DATABASE_AVAILABLE:
@@ -228,6 +239,7 @@ class SpeechManager:
 
     # ========== Speech Recognition (STT) Methods ==========
 
+    @serialized_method
     def recognize_from_file(
         self,
         audio_file: Union[str, Path],
@@ -261,6 +273,7 @@ class SpeechManager:
             provider=provider
         )
 
+    @serialized_method
     def start_continuous_recognition(
         self,
         audio_source: Any = None,
@@ -298,6 +311,7 @@ class SpeechManager:
             provider=provider
         )
 
+    @serialized_method
     def stop_recognition(self, provider: Optional[str] = None) -> bool:
         """
         Stop continuous recognition
@@ -313,12 +327,14 @@ class SpeechManager:
 
         return speech_recognizer.stop_recognition(provider=provider)
 
+    @serialized_method
     def get_stt_providers(self) -> list[str]:
         """Get list of available STT providers"""
         if not self._stt_available:
             return []
         return speech_recognizer.get_available_providers()
 
+    @serialized_method
     def get_current_stt_provider(self):
         """
         Get current active STT provider instance
@@ -330,6 +346,7 @@ class SpeechManager:
             return None
         return speech_recognizer.get_current_provider()
 
+    @serialized_method
     def get_supported_languages(self, provider: Optional[str] = None) -> list[str]:
         """
         Get list of supported languages for STT
@@ -346,6 +363,7 @@ class SpeechManager:
 
     # ========== Text-to-Speech (TTS) Methods ==========
 
+    @serialized_method
     def synthesize_to_file(
         self,
         text: str,
@@ -481,14 +499,17 @@ class SpeechManager:
 
     # ========== Utility Methods ==========
 
+    @serialized_method
     def is_stt_available(self) -> bool:
         """Check if STT is available"""
         return self._stt_available
 
+    @serialized_method
     def is_tts_available(self) -> bool:
         """Check if TTS is available"""
         return self._tts_available
 
+    @serialized_method
     def get_status(self) -> Dict[str, Any]:
         """
         Get status of all speech services
@@ -531,13 +552,14 @@ class SpeechManager:
         run_app_dual_source(self)
 
 
-# Global singleton instance
-_global_speech_manager: Optional[SpeechManager] = None
+_SPEECH_MANAGER_PROVIDER = SerializedSingletonProvider(
+    SpeechManager,
+    "speech.manager.provider",
+    "SpeechManagerProvider",
+    timeout=300.0,
+)
 
 
 def get_speech_manager() -> SpeechManager:
     """Get global speech manager singleton instance"""
-    global _global_speech_manager
-    if _global_speech_manager is None:
-        _global_speech_manager = SpeechManager()
-    return _global_speech_manager
+    return _SPEECH_MANAGER_PROVIDER.get()

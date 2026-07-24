@@ -14,6 +14,11 @@ import asyncio
 from typing import Dict, Any, Optional
 
 from pycore import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 from .module_registry import SUPPORTED_MODULES, get_module_info
 
 
@@ -25,10 +30,17 @@ class ModuleLoader:
         self._loaded_modules: Dict[str, Any] = {}      # 缓存已加载的模块
         self._instances: Dict[str, Any] = {}            # 缓存模块实例
         self._context_managers: Dict[str, Any] = {}     # 缓存上下文管理器
+        init_serialized_owner(
+            self,
+            "rpc_v2.module_loader.state",
+            "RPCModuleLoaderState",
+            timeout=300.0,
+        )
         
         if self.debug:
             ColorPrint.blue("[ModuleLoader] Initialized")
     
+    @serialized_method
     def preload_modules(self):
         """预加载所有标记为preload的模块"""
         preload_count = 0
@@ -45,6 +57,7 @@ class ModuleLoader:
         
         ColorPrint.blue(f"[ModuleLoader] Preloaded {preload_count} modules")
     
+    @serialized_method
     def load_module(self, module_name: str) -> Any:
         """
         加载模块(带缓存)
@@ -91,6 +104,7 @@ class ModuleLoader:
             ColorPrint.red(f"[ModuleLoader] Failed to import {module_path}: {e}")
             raise
     
+    @serialized_method
     def get_instance(self, module_name: str) -> Any:
         """
         获取模块实例(单例模式)
@@ -169,6 +183,7 @@ class ModuleLoader:
         # 如果不支持,直接返回实例
         return instance
     
+    @serialized_method
     def unload_module(self, module_name: str):
         """
         卸载模块(清除缓存)
@@ -186,6 +201,7 @@ class ModuleLoader:
             if self.debug:
                 ColorPrint.blue(f"[ModuleLoader] Unloaded module: {module_name}")
     
+    @serialized_method
     def clear_cache(self):
         """清除所有缓存"""
         self._instances.clear()
@@ -195,17 +211,22 @@ class ModuleLoader:
         if self.debug:
             ColorPrint.blue("[ModuleLoader] Cleared all caches")
     
+    @serialized_method
     def get_loaded_modules(self) -> list[str]:
         """获取已加载的模块列表"""
         return list(self._loaded_modules.keys())
     
+    @serialized_method
     def get_cached_instances(self) -> list[str]:
         """获取已缓存的实例列表"""
         return list(self._instances.keys())
 
 
-# 全局单例
-_module_loader: Optional[ModuleLoader] = None
+_MODULE_LOADER_PROVIDER = SerializedSingletonProvider(
+    ModuleLoader,
+    "rpc_v2.module_loader.provider",
+    "RPCModuleLoaderProvider",
+)
 
 
 def get_module_loader(debug: bool = False) -> ModuleLoader:
@@ -218,12 +239,7 @@ def get_module_loader(debug: bool = False) -> ModuleLoader:
     Returns:
         ModuleLoader实例
     """
-    global _module_loader
-    
-    if _module_loader is None:
-        _module_loader = ModuleLoader(debug=debug)
-    
-    return _module_loader
+    return _MODULE_LOADER_PROVIDER.get(debug=debug)
 
 
 __all__ = ['ModuleLoader', 'get_module_loader']

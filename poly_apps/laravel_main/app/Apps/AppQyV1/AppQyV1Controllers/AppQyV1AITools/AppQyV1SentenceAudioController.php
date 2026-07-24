@@ -3,7 +3,6 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
-use App\CallPycoreUtils\PycoreHttpClient;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -242,19 +241,6 @@ class AppQyV1SentenceAudioController extends Controller
             return response()->json(['success' => false, 'error' => 'Internal error during resolve'], 500);
         }
 
-        // Best-effort: the resolve path bumps tts_priority when the file is
-        // missing (queued:true) — wake co-located pycore immediately, same as
-        // the bump/bump-batch endpoints. Failure is ignored; heartbeat drains.
-        if (($result['queued'] ?? false) === true) {
-            try {
-                PycoreHttpClient::callDirect('/api/local/sentence-audio/run-once', [], 3);
-            } catch (\Throwable $e) {
-                Log::debug('[SentenceAudio] pycore run-once nudge skipped (resolve)', [
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-
         $status = ($result['success'] ?? false) ? 200 : 422;
 
         return response()->json($result, $status);
@@ -296,17 +282,6 @@ class AppQyV1SentenceAudioController extends Controller
             Log::error('[SentenceAudio] bump failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Internal error during bump'], 500);
         }
-        // Best-effort: ask co-located pycore to claim ASAP. Wordnew never hits
-        // :59000; Laravel is the only relay. Failure is ignored — heartbeat still drains.
-        if (($result['ok'] ?? false) === true) {
-            try {
-                PycoreHttpClient::callDirect('/api/local/sentence-audio/run-once', [], 3);
-            } catch (\Throwable $e) {
-                Log::debug('[SentenceAudio] pycore run-once nudge skipped', [
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
         $ok = (bool) ($result['ok'] ?? false);
         return response()->json(array_merge(['success' => $ok], $result), $ok ? 200 : 422);
     }
@@ -341,17 +316,6 @@ class AppQyV1SentenceAudioController extends Controller
         } catch (\Throwable $e) {
             Log::error('[SentenceAudio] bump-batch failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Internal error during bump-batch'], 500);
-        }
-        // One nudge for the whole batch (not per item). Wordnew never hits :59000;
-        // Laravel is the only relay. Failure is ignored — heartbeat still drains.
-        if ((int) ($result['queued'] ?? 0) > 0) {
-            try {
-                PycoreHttpClient::callDirect('/api/local/sentence-audio/run-once', [], 3);
-            } catch (\Throwable $e) {
-                Log::debug('[SentenceAudio] pycore run-once nudge skipped (batch)', [
-                    'error' => $e->getMessage(),
-                ]);
-            }
         }
         return response()->json(array_merge(['success' => true], $result), 200);
     }

@@ -16,6 +16,8 @@ const READER_KEYS = [
   'readerVariantByLang',
   'readerWordCards',
   'readerWordCardPosition',
+  'readerWordRepeats',
+  'readerWordMode',
 ] as const satisfies ReadonlyArray<keyof WfNewSettings>;
 
 const PUSH_DEBOUNCE_MS = 900;

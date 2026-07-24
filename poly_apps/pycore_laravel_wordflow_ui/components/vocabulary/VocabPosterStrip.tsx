@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshCw, AlertTriangle, Clapperboard, KeyRound, Image as ImageIcon } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Clapperboard, Image as ImageIcon } from 'lucide-react';
 import { api } from '../../core/api';
 import type { PosterStatusData, PosterStatusCounts } from '../../core/api/modules/AppQyV1';
 import { commonClasses } from '../../styles/theme';
@@ -19,7 +19,7 @@ const VocabPosterStrip: React.FC = () => {
   const [fetching, setFetching] = useState(false);
 
   // Shape-check folded into the fetcher: a real snapshot carries a `counts` object
-  // plus a `providers` array. A stale-backend 404 resolves (via BaseAPI) to
+  // plus an execution-owner array. A stale-backend 404 resolves (via BaseAPI) to
   // {success:false} OR a 200 body without counts. Either is "endpoint missing" —
   // throw so the hook leaves data null and surfaces the restart notice instead of
   // rendering empty/zero counts silently.
@@ -102,16 +102,15 @@ const VocabPosterStrip: React.FC = () => {
           Movie / TV Posters
         </h3>
         <div className="flex items-center gap-3">
-          {/* provider key badges (TMDB / OMDB) */}
-          <div className="flex items-center gap-1.5" title="Poster provider keys">
-            <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+          {/* execution-owner badges */}
+          <div className="flex items-center gap-1.5" title="Poster execution owner">
             {providers.length === 0 && (
               <span className="text-[11px] text-amber-600 dark:text-amber-400">no providers</span>
             )}
             {providers.map((p) => (
               <span
                 key={p.name}
-                title={p.configured ? `${String(p.name).toUpperCase()} key configured` : `${String(p.name).toUpperCase()} key missing`}
+                title={p.configured ? `${p.name} owns poster execution` : `${p.name} is unavailable`}
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold uppercase ${
                   p.configured
                     ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
@@ -119,9 +118,6 @@ const VocabPosterStrip: React.FC = () => {
                 }`}
               >
                 {p.name}
-                {p.name === 'tmdb' && p.has_v4_token && (
-                  <span className="not-italic text-[10px] text-green-500">v4</span>
-                )}
               </span>
             ))}
           </div>
@@ -140,7 +136,7 @@ const VocabPosterStrip: React.FC = () => {
       {providers.every((p) => !p.configured) && (
         <p className="mb-3 text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
           <AlertTriangle className="w-3 h-3 shrink-0" />
-          No poster provider key configured — set TMDB_API_KEY / OMDB_API_KEY to enable poster fetch.
+          Poster execution owner unavailable — enable the Image capability in the mcp-chrome Task tab.
         </p>
       )}
 

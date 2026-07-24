@@ -9,8 +9,15 @@ import os
 import sys
 import socket
 import time
+import copy
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
+
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 
 
 DEFAULT_HTTP_PORT = 59000
@@ -25,50 +32,108 @@ class GlobalConfig:
     """
 
     def __init__(self):
-        # Core settings
-        self.pycore_root: Path = DEFAULT_PYCORE_ROOT
-        self.http_port: int = DEFAULT_HTTP_PORT
+        self._state = {
+            'pycore_root': DEFAULT_PYCORE_ROOT,
+            'http_port': DEFAULT_HTTP_PORT,
+            'host': '0.0.0.0',
+            'local_ip': None,
+            'server_running': False,
+            'api_enabled': True,
+            'allow_file_import': True,
+            'debug_mode': False,
+            'call_history': [],
+            'max_history_size': 100,
+            'allowed_modules': [],
+            'blocked_modules': [],
+        }
+        init_serialized_owner(
+            self,
+            'callmodule.global_config.state',
+            'CallmoduleGlobalConfigStateThread',
+        )
 
-        # Network settings
-        self.host: str = '0.0.0.0'  # Listen on all interfaces for network access
-        self.local_ip: Optional[str] = None
+    @serialized_method
+    def _get_value(self, name: str) -> Any:
+        return copy.deepcopy(self._state[name])
 
-        # Runtime state
-        self.server_running: bool = False
+    @serialized_method
+    def _set_value(self, name: str, value: Any) -> None:
+        self._state[name] = copy.deepcopy(value)
 
-        # API access control
-        self.api_enabled: bool = True
-        self.allow_file_import: bool = True
-        self.debug_mode: bool = False
+    pycore_root = property(
+        lambda self: self._get_value('pycore_root'),
+        lambda self, value: self._set_value('pycore_root', Path(value)),
+    )
+    http_port = property(
+        lambda self: self._get_value('http_port'),
+        lambda self, value: self._set_value('http_port', int(value)),
+    )
+    host = property(
+        lambda self: self._get_value('host'),
+        lambda self, value: self._set_value('host', str(value)),
+    )
+    local_ip = property(
+        lambda self: self._get_value('local_ip'),
+        lambda self, value: self._set_value('local_ip', value),
+    )
+    server_running = property(
+        lambda self: self._get_value('server_running'),
+        lambda self, value: self._set_value('server_running', bool(value)),
+    )
+    api_enabled = property(
+        lambda self: self._get_value('api_enabled'),
+        lambda self, value: self._set_value('api_enabled', bool(value)),
+    )
+    allow_file_import = property(
+        lambda self: self._get_value('allow_file_import'),
+        lambda self, value: self._set_value('allow_file_import', bool(value)),
+    )
+    debug_mode = property(
+        lambda self: self._get_value('debug_mode'),
+        lambda self, value: self._set_value('debug_mode', bool(value)),
+    )
+    call_history = property(
+        lambda self: self._get_value('call_history'),
+        lambda self, value: self._set_value('call_history', list(value)),
+    )
+    max_history_size = property(
+        lambda self: self._get_value('max_history_size'),
+        lambda self, value: self._set_value('max_history_size', int(value)),
+    )
+    allowed_modules = property(
+        lambda self: self._get_value('allowed_modules'),
+        lambda self, value: self._set_value('allowed_modules', list(value)),
+    )
+    blocked_modules = property(
+        lambda self: self._get_value('blocked_modules'),
+        lambda self, value: self._set_value('blocked_modules', list(value)),
+    )
 
-        # Module call history
-        self.call_history: list = []
-        self.max_history_size: int = 100
-
-        # Security
-        self.allowed_modules: list = []  # Empty = allow all
-        self.blocked_modules: list = []  # Modules to explicitly block
-
+    @serialized_method
     def enable_api(self):
         """Enable API access"""
         self.api_enabled = True
         print("[Config] API access enabled")
 
+    @serialized_method
     def disable_api(self):
         """Disable API access"""
         self.api_enabled = False
         print("[Config] API access disabled")
 
+    @serialized_method
     def enable_debug(self):
         """Enable debug mode"""
         self.debug_mode = True
         print("[Config] Debug mode enabled")
 
+    @serialized_method
     def disable_debug(self):
         """Disable debug mode"""
         self.debug_mode = False
         print("[Config] Debug mode disabled")
 
+    @serialized_method
     def update_network_info(self):
         """Update local network information"""
         try:
@@ -79,6 +144,7 @@ class GlobalConfig:
         except:
             self.local_ip = "127.0.0.1"
 
+    @serialized_method
     def add_call_history(self, module: str, function: str, success: bool, error: Optional[str] = None):
         """Add entry to call history"""
         entry = {
@@ -89,12 +155,12 @@ class GlobalConfig:
             'error': error
         }
 
-        self.call_history.append(entry)
+        self._state['call_history'].append(entry)
+        max_history_size = self._state['max_history_size']
+        if len(self._state['call_history']) > max_history_size:
+            self._state['call_history'] = self._state['call_history'][-max_history_size:]
 
-        # Limit history size
-        if len(self.call_history) > self.max_history_size:
-            self.call_history = self.call_history[-self.max_history_size:]
-
+    @serialized_method
     def is_module_allowed(self, module_path: str) -> tuple[bool, str]:
         """
         Check if module is allowed to be called
@@ -118,6 +184,7 @@ class GlobalConfig:
 
         return False, f"Module '{module_path}' not in allowed list"
 
+    @serialized_method
     def get_status(self) -> dict:
         """Get current configuration status"""
         return {
@@ -131,24 +198,40 @@ class GlobalConfig:
             'debug_mode': self.debug_mode,
             'call_history_count': len(self.call_history),
             'allowed_modules': self.allowed_modules,
-            'blocked_modules': self.blocked_modules
+            'blocked_modules': self.blocked_modules,
         }
 
+    @serialized_method
+    def configure(
+        self,
+        pycore_root: Optional[str],
+        http_port: int,
+        host: str,
+        debug: bool,
+    ) -> None:
+        if pycore_root:
+            self._state['pycore_root'] = Path(pycore_root)
+        self._state['http_port'] = int(http_port)
+        self._state['host'] = host
+        self._state['debug_mode'] = bool(debug)
+        self.update_network_info()
+
+    @serialized_method
     def __repr__(self):
         api_status = "ENABLED" if self.api_enabled else "DISABLED"
         return f"<GlobalConfig port={self.http_port} api={api_status} debug={self.debug_mode}>"
 
 
-# Global singleton instance
-_global_config: Optional[GlobalConfig] = None
+_GLOBAL_CONFIG_PROVIDER = SerializedSingletonProvider(
+    GlobalConfig,
+    'callmodule.global_config.provider',
+    'CallmoduleGlobalConfigProviderThread',
+)
 
 
 def get_global_config() -> GlobalConfig:
     """Get or create global configuration singleton"""
-    global _global_config
-    if _global_config is None:
-        _global_config = GlobalConfig()
-    return _global_config
+    return _GLOBAL_CONFIG_PROVIDER.get()
 
 
 def init_global_config(
@@ -169,23 +252,11 @@ def init_global_config(
     Returns:
         GlobalConfig instance
     """
-    global _global_config
+    config = get_global_config()
+    config.configure(pycore_root, http_port, host, debug)
 
-    if _global_config is None:
-        _global_config = GlobalConfig()
+    print(f"[Config] Initialized: {config}")
+    print(f"[Config] Pycore Root: {config.pycore_root}")
+    print(f"[Config] Server will listen on {config.host}:{config.http_port}")
 
-    if pycore_root:
-        _global_config.pycore_root = Path(pycore_root)
-
-    _global_config.http_port = http_port
-    _global_config.host = host
-    _global_config.debug_mode = debug
-
-    # Update network information
-    _global_config.update_network_info()
-
-    print(f"[Config] Initialized: {_global_config}")
-    print(f"[Config] Pycore Root: {_global_config.pycore_root}")
-    print(f"[Config] Server will listen on {_global_config.host}:{_global_config.http_port}")
-
-    return _global_config
+    return config

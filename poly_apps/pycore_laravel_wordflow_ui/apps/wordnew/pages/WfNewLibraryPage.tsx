@@ -37,7 +37,6 @@ import { ttsStatusToCellState, type WfAudioCellState } from '../utils/WfAudioCel
 import { pickSentenceAudioUrl, readerPreferredAccent } from '../utils/WfSentenceAudioPick';
 import { buildWordCell } from '../utils/WfLibraryWordCell';
 import { WfLibraryWordRow, wordRowKey } from '../components/library/WfLibraryWordRow';
-import { useLibraryPuterAudio } from '../hooks/useLibraryPuterAudio';
 import { useVisibleWordPriority } from '../hooks/useVisibleWordPriority';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 
@@ -77,8 +76,6 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const [usePuterAudio, setUsePuterAudio] = useState<boolean>(() => wfNewSettings.get('usePuterAudio'));
-  useEffect(() => { wfNewSettings.setField('usePuterAudio', usePuterAudio); }, [usePuterAudio]);
   // Per-word priority-boost tracking: md5 → 'idle'|'boosting'|'done'
   const [boostStatus, setBoostStatus] = useState<Record<string, 'idle' | 'boosting' | 'done'>>({});
 
@@ -167,29 +164,6 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
   const setCellStatus = useCallback((key: string, state: WfAudioCellState) => {
     setCellStatuses((prev) => (prev[key] === state ? prev : { ...prev, [key]: state }));
   }, []);
-
-  /** A Puter-synthesized clip landed: flip the word to hasAudio + a playable
-   *  blob URL and mark its cell ready so the row icon updates immediately. */
-  const onPuterAudioReady = useCallback((md5: string, audioUrl: string) => {
-    const lang = langRef.current;
-    setData((prev) => {
-      if (!prev) return prev;
-      let bumped = false;
-      const nextWords = prev.words.map((w) => {
-        if (w.md5 === md5) {
-          if (!w.hasAudio) bumped = true;
-          return { ...w, hasAudio: true, audioUrl };
-        }
-        return w;
-      });
-      return {
-        ...prev,
-        words: nextWords,
-        stats: bumped ? { ...prev.stats, withAudio: prev.stats.withAudio + 1 } : prev.stats,
-      };
-    });
-    setCellStatus(`${md5}:${lang}`, 'ready');
-  }, [setCellStatus]);
 
   /** Queued (non-urgent) resolve/bump for a word missing audio - drives the
    *  three-state icon from the sentence-audio scheduler. */
@@ -387,18 +361,6 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [lastPage, currentPage, onChangePage]);
 
-  // Auto-generate missing word audio via Puter.js (current page + next 3 pages).
-  useLibraryPuterAudio({
-    libraryId,
-    page,
-    perPage,
-    lastPage,
-    lang: libLang,
-    words: wordRows,
-    enabled: usePuterAudio,
-    onAudioReady: onPuterAudioReady,
-  });
-
   // ---- dashboard (collapsible) -------------------------------------------- //
   const dashOpen = view === 'dash';
   const statCards = useMemo(() => ([
@@ -420,17 +382,6 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
       {/* Toolbar: view toggle + fullscreen (page title lives in the global nav). */}
       <div className="flex items-center gap-3 px-1">
         <div className="min-w-0 flex-1" />
-        <button
-          type="button"
-          onClick={() => setUsePuterAudio((v) => !v)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 transition"
-          title="Auto-generate missing word audio via Puter.js (current page + next 3 pages), saved to backend"
-        >
-          <span className={`relative inline-block w-7 h-3.5 rounded-full transition ${usePuterAudio ? 'bg-emerald-500/70' : 'bg-white/15'}`}>
-            <span className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all ${usePuterAudio ? 'left-4' : 'left-0.5'}`} />
-          </span>
-          <span className={usePuterAudio ? 'text-emerald-200' : 'text-zinc-400'}>Puter Audio</span>
-        </button>
         <div className="flex items-center rounded-lg border border-white/10 overflow-hidden">
           <button
             type="button"
@@ -584,6 +535,7 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
                         word: w.word,
                         hasTranslation: w.hasTranslation,
                         hasAudio: w.hasAudio,
+                        hasImage: w.hasImage,
                       })}
                     />
                     {/* Priority boost button — visible on hover, moves word to front of audio queue */}

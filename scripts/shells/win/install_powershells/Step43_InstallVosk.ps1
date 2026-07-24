@@ -37,32 +37,25 @@ $modelDir       = $null
 $archivePath    = $null
 $tmpExtract     = $null
 $existingConf   = $null
+$pipExePath     = $null
 
 function Resolve-PythonInterpreter {
     param([string]$Preferred = '')
     if ($Preferred -and (Test-Path $Preferred)) {
-        try { $v = & $Preferred --version 2>&1; if ("$v" -match 'Python\s+3') { return $Preferred } } catch { }
+        try { $v = & $Preferred --version 2>&1; if (("$v").StartsWith('Python 3', [System.StringComparison]::OrdinalIgnoreCase)) { return $Preferred } } catch { }
     }
     foreach ($name in 'python', 'python3', 'py') {
         $cmd = Get-Command $name -ErrorAction SilentlyContinue
         if ($cmd -and $cmd.Source -and $cmd.Source -notmatch 'WindowsApps') {
-            try { $v = & $cmd.Source --version 2>&1; if ("$v" -match 'Python\s+3') { return $cmd.Source } } catch { }
+            try { $v = & $cmd.Source --version 2>&1; if (("$v").StartsWith('Python 3', [System.StringComparison]::OrdinalIgnoreCase)) { return $cmd.Source } } catch { }
         }
     }
     return $null
 }
 
-function Test-PyModule {
-    param([string]$Py, [string]$ModuleName)
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    $out = (& $Py -c "import importlib.util; print('__FOUND__' if importlib.util.find_spec('$ModuleName') else '__MISSING__')" 2>$null) -join ''
-    $ErrorActionPreference = $prevEap
-    return ($out -match '__FOUND__')
-}
-
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
+. (Join-Path $winCommonDir 'CudaIndex.ps1')
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
 
 $modelRoot = Join-Path $Global:CORE_NODE_CACHE_DIR 'stt\vosk'
@@ -72,19 +65,21 @@ Write-Host " $SCRIPT_INDEX Installing offline Vosk STT (pip + model)" -Foregroun
 Write-Host '============================================================' -ForegroundColor Cyan
 
 $resolvedPython = $Global:PYTHON_EXE_PATH
+$pipExePath = $Global:PIP_EXE_PATH
 if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [X] Python 3 not found. Run Step8_InstallPython first, or pass -Python <path>." -ForegroundColor Red
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('vosk')
+    return
 }
 Write-Host ("$SCRIPT_INDEX python : {0}" -f $resolvedPython) -ForegroundColor DarkGray
 
 # --- 1) vosk pip package --------------------------------------------------- #
-if ((Test-PyModule -Py $resolvedPython -ModuleName 'vosk') -and -not $Force) {
+if (Test-PipPackageInstalled -PipExe $pipExePath -PackageName 'vosk') {
     Write-Host "$SCRIPT_INDEX [OK] vosk already installed; skipping pip." -ForegroundColor Green
 } else {
-    Write-Host "$SCRIPT_INDEX [..] pip install --upgrade vosk ..." -ForegroundColor Yellow
-    try { & $Global:PIP_EXE_PATH install --upgrade vosk } catch { }
-    if (Test-PyModule -Py $resolvedPython -ModuleName 'vosk') {
+    Write-Host "$SCRIPT_INDEX [..] pip install vosk ..." -ForegroundColor Yellow
+    & $pipExePath install vosk
+    if (Test-PipPackageInstalled -PipExe $pipExePath -PackageName 'vosk') {
         Write-Host "$SCRIPT_INDEX [OK] vosk installed." -ForegroundColor Green
     } else {
         Write-Host "$SCRIPT_INDEX [!] vosk install failed; STT will fall back to whisper/azure." -ForegroundColor DarkYellow
@@ -95,7 +90,7 @@ if ((Test-PyModule -Py $resolvedPython -ModuleName 'vosk') -and -not $Force) {
 if ($Model -eq 'small') { $chosenName = $SMALL_NAME }
 elseif ($Model -eq 'large') { $chosenName = $LARGE_NAME }
 else {
-    if (Test-CudaPresent) {
+    if ((Get-CudaRuntimePolicy).Enabled) {
         $chosenName = $LARGE_NAME
         Write-Host "$SCRIPT_INDEX CUDA detected -> selecting the LARGE model ($LARGE_NAME, ~2.3GB)." -ForegroundColor Cyan
     } else {
@@ -118,6 +113,7 @@ Write-Host ("$SCRIPT_INDEX  existing  : {0}" -f $(if ($existingConf) { $existing
 if ($existingConf -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [OK] A Vosk model is already installed (conf/ present) -> skipping download." -ForegroundColor Green
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('vosk')
+    return
 }
 
 $curl = Get-Command curl.exe -ErrorAction SilentlyContinue

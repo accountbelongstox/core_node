@@ -41,15 +41,6 @@ import time
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore import ColorPrint
-# Movie/TV poster fetch (TMDB -> OMDB). Best-effort per video: parse title+year
-# from the original filename, fetch a poster, save it into the output dir.
-# Canonical: poly_apps/laravel_main/docs/MOVIE_POSTER_PIPELINE.md. This module only imports
-# pyfoundations + the translator (no cycle back into this processor).
-from pycore.pyutils.external_apis.movie_poster_client import (
-    find_poster,
-    parse_title_year,
-    save_poster_file,
-)
 
 # --- sub-module imports (one-directional; sub-modules never import back) ---- #
 # Facade re-exports: the names below stay importable from THIS path so the
@@ -175,17 +166,6 @@ class VideoExtractProcessor:
             if c in CODECS and c not in codecs:
                 codecs.append(c)
         return codecs or ["mp3"]
-
-    @staticmethod
-    def _fetch_video_poster(original_filename: str, out_dir: str, log):
-        """DISABLED — poster fetch delegated to apps/mcp-chrome."""
-        log("    poster: skipped (delegated to apps/mcp-chrome)")
-        return None, None
-
-        # --- Legacy TMDB/OMDB extract poster (disabled) ---
-        # try:
-        #     title, year = parse_title_year(original_filename)
-        #     ...
 
     @staticmethod
     def _log_file_footer(log, idx: int, total: int, file_elapsed: float, elapsed_total: float):
@@ -317,8 +297,6 @@ class VideoExtractProcessor:
         # the .srt is idempotent and resumable, so this is safe to force on.
         want_subtitle = True
         dry_run = bool(config.get("dry_run"))
-        # Movie/TV poster fetch (best-effort, per the request option; default ON).
-        fetch_poster = bool(config.get("fetch_poster", True))
         sample_rate = int(config.get("sample_rate", 22050))
         mono = not bool(config.get("stereo"))
         bitrate_override = config.get("bitrate") or None
@@ -536,17 +514,7 @@ class VideoExtractProcessor:
             elif whisper_model is None:
                 log("    srt: SKIPPED - whisper engine failed to load")
 
-            # movie/TV poster - best-effort: parse a clean title+year from the
-            # ORIGINAL filename, fetch a poster (TMDB->OMDB), and save poster.jpg/.png
-            # into this video's output dir. A failure NEVER fails extraction.
             poster_name: Optional[str] = None
-            poster_info: Optional[Dict[str, Any]] = None
-            if fetch_poster and not dry_run:
-                poster_name, poster_info = self._fetch_video_poster(
-                    os.path.basename(src), target_dir, log)
-                if poster_name:
-                    item["poster"] = poster_info
-                    current["poster"] = poster_name
 
             # smart segmentation - split videos > 5 min into <5-min, subtitle-aligned
             # clips (cut from BOTH the tiny mp4 AND the mp3). Runs EVERY time so any

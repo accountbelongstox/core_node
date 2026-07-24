@@ -1,255 +1,159 @@
-/**
- * PcAssistStrip — compact Assist Laravel status (Queue Center shared strip).
- * GET /api/local/assist/status + hub task-center reachability.
- */
+/** Pycore → Laravel capability control-plane status. */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Handshake, AlertTriangle, Play, Loader2, AudioLines, Power, RefreshCw, Check, WifiOff,
-  Image as ImageIcon, Film,
+  AlertTriangle, Check, Handshake, Loader2, Play, Power, RefreshCw, WifiOff,
 } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { AssistStatus, AssistCapabilities, PcTaskRecord } from '../../../core/api-libs/pycore';
-import { humanBytes } from '../utils/pcFormat';
-import { useQueueCenterHub, laravelLiveSyncOffline, laravelEndpointMismatch } from '../hooks/useQueueCenterHub';
+import type { AssistCapabilities, AssistStatus } from '../../../core/api-libs/pycore';
+import {
+  laravelEndpointMismatch, laravelLiveSyncOffline, useQueueCenterHub,
+} from '../hooks/useQueueCenterHub';
 
 type AssistCapKey = keyof AssistCapabilities;
-const ASSIST_CAP_KEYS: AssistCapKey[] = ['ai_translate', 'subtitle', 'stt'];
+const ADVANCED_CAPABILITIES: AssistCapKey[] = ['subtitle', 'stt'];
 
-const isAssistStatus = (s: unknown): s is AssistStatus =>
-  !!s && typeof (s as AssistStatus).enabled === 'boolean' && !!(s as AssistStatus).capabilities;
-
-const lastTaskTitle = (rec: PcTaskRecord): string =>
-  `${rec.task_type} '${rec.title}' — ${rec.status}${rec.error ? `: ${rec.error}` : ''}`;
-
-const lastTaskSummary = (rec: PcTaskRecord): string => {
-  const head = `${rec.task_type} '${rec.title || '—'}'`;
-  if (!rec.success && rec.error) return `${head} failed: ${rec.error}`;
-  const d = rec.detail ?? {};
-  const out: string[] = [];
-  if (typeof d.audio_bytes === 'number') out.push(`audio ${humanBytes(d.audio_bytes)}`);
-  if (typeof d.image_bytes === 'number') out.push(`image ${humanBytes(d.image_bytes)}`);
-  if (d.translation) out.push(`→ ${d.translation}`);
-  const tail = out.length ? ` → ${out.join(' · ')}` : '';
-  return `${head}${tail} · ${rec.posted_back ? 'posted-back' : 'not returned'}`;
-};
+const isAssistStatus = (value: unknown): value is AssistStatus =>
+  Boolean(value && typeof (value as AssistStatus).enabled === 'boolean'
+    && (value as AssistStatus).capabilities);
 
 export const PcAssistStrip: React.FC = () => {
   const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
-  // All status now comes from the SHARED hub (one poll for the whole page).
   const status = isAssistStatus(hub.assist) ? hub.assist : null;
   const loading = hub.loading;
-  const err = status
-    ? null
-    : ((hub.assist && (hub.assist as any).error) || (hub.pycoreReachable ? null : hub.error));
-  // The single most recent assist task, filtered client-side from the shared
-  // recent-tasks list the hub already fetches (no separate request).
-  const lastTask: PcTaskRecord | null = hub.recent?.records?.find((r) => r.worker === 'assist') ?? null;
-  const [cycling, setCycling] = useState(false);
-  const [cycleMsg, setCycleMsg] = useState<string | null>(null);
-  // A per-capability toggle is in flight; disables the whole grid until done.
-  const [capBusy, setCapBusy] = useState(false);
-  const mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-
-  const runCycle = useCallback(async () => {
-    if (cycling) return;
-    setCycling(true);
-    setCycleMsg(null);
-    try {
-      const r = await pycoreApi.runAssistCycle();
-      if (!mounted.current) return;
-      if (r?.ok) {
-        setCycleMsg(`Cycle done — processed ${r.processed ?? 0}, submitted ${r.submitted ?? 0}, released ${r.released ?? 0}${
-          Array.isArray(r.errors) && r.errors.length ? `, ${r.errors.length} error(s)` : ''}`);
-      } else {
-        setCycleMsg(`Cycle failed: ${(r as any)?.error || (r as any)?.detail || 'assist disabled?'}`);
-      }
-      await hub.refreshHub();
-    } catch (e: any) {
-      if (mounted.current) setCycleMsg(`Cycle failed: ${e?.message || 'pycore unreachable'}`);
-    } finally {
-      if (mounted.current) setCycling(false);
-    }
-  }, [cycling, hub]);
-
-  // Flip a single assist capability ON/OFF (independent of the master enable).
-  const toggleCap = useCallback(async (cap: AssistCapKey) => {
-    if (capBusy || !status) return;
-    setCapBusy(true);
-    setCycleMsg(null);
-    const next = !status.capabilities?.[cap];
-    try {
-      const r = await pycoreApi.setAssistConfig({ capabilities: { [cap]: next } });
-      if ((r as any)?.success === false) {
-        throw new Error((r as any)?.error || (r as any)?.detail || 'unavailable');
-      }
-      await hub.refreshHub();
-    } catch (e: any) {
-      if (mounted.current) setCycleMsg(`Toggle failed: ${e?.message || 'pycore unreachable'}`);
-    } finally {
-      if (mounted.current) setCapBusy(false);
-    }
-  }, [capBusy, status, hub]);
-
-  // Degraded strip while assist status loads — never block the queue tabs below.
   const liveSyncOffline = laravelLiveSyncOffline(hub);
   const endpointMismatch = laravelEndpointMismatch(hub);
+  const [runningCycle, setRunningCycle] = useState(false);
+  const [capabilityBusy, setCapabilityBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  const runCycle = useCallback(async () => {
+    if (runningCycle) return;
+    setRunningCycle(true);
+    setMessage(null);
+    try {
+      const response = await pycoreApi.runAssistCycle();
+      if (!mounted.current) return;
+      setMessage(response.ok
+        ? `Triggered ${response.processed ?? 0} enabled worker(s).`
+        : `Run failed: ${response.errors?.join(' · ') || response.error || 'unavailable'}`);
+      await hub.refreshHub();
+    } catch (error: any) {
+      if (mounted.current) setMessage(`Run failed: ${error?.message || 'Pycore unreachable'}`);
+    } finally {
+      if (mounted.current) setRunningCycle(false);
+    }
+  }, [hub, runningCycle]);
+
+  const toggleCapability = useCallback(async (capability: AssistCapKey) => {
+    if (!status || capabilityBusy) return;
+    setCapabilityBusy(true);
+    setMessage(null);
+    try {
+      await pycoreApi.setAssistConfig({
+        capabilities: { [capability]: !status.capabilities[capability] },
+      });
+      await hub.refreshHub();
+    } catch (error: any) {
+      if (mounted.current) setMessage(`Toggle failed: ${error?.message || 'Pycore unreachable'}`);
+    } finally {
+      if (mounted.current) setCapabilityBusy(false);
+    }
+  }, [capabilityBusy, hub, status]);
+
   if (!status) {
     return (
       <section className="pc-glass p-3 flex items-center gap-2 text-xs text-slate-500">
         <Handshake className="w-4 h-4 text-rose-400 shrink-0" />
-        <span className="font-bold text-slate-600 dark:text-slate-300">Assist Laravel</span>
-        {hub.laravelReachable === true && hub.translationPending != null && (
-          <span className="text-slate-400">
-            Laravel sync OK · translation pending {hub.translationPending}
-          </span>
-        )}
-        {liveSyncOffline && (
-          <span className="truncate text-amber-500" title={hub.laravelStoredEndpoint ?? undefined}>
-            Laravel live sync paused{hub.laravelStoredEndpoint ? ` (selected ${hub.laravelStoredEndpoint})` : ''}
-          </span>
-        )}
-        {endpointMismatch && (
-          <span className="truncate text-sky-500" title={`Active ${hub.laravelActiveEndpoint}`}>
-            using {hub.laravelActiveEndpoint}
-          </span>
-        )}
-        {err ? (
-          <span className="truncate text-slate-400" title={err}>assist status loading ({err})</span>
-        ) : loading ? (
-          <span className="text-slate-400">loading…</span>
-        ) : null}
-        <button onClick={() => hub.refreshHub()} disabled={loading}
-          className="ml-auto p-1.5 rounded-lg pc-glass hover:bg-rose-500/10 text-rose-500 transition disabled:opacity-50 shrink-0" title="Refresh assist status">
+        <span className="font-bold text-slate-600 dark:text-slate-300">Pycore → Laravel</span>
+        <span className="truncate">{hub.error || 'Control-plane status is loading.'}</span>
+        <button type="button" onClick={() => hub.refreshHub()} disabled={loading}
+          className="ml-auto p-1.5 rounded-lg pc-glass hover:bg-rose-500/10 text-rose-500 disabled:opacity-50">
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </section>
     );
   }
 
-  const badge = (text: string, on: boolean, onCls: string, offCls = 'bg-slate-500/15 text-slate-400') => (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wide ${on ? onCls : offCls}`}>
-      {text}
-    </span>
-  );
-  const cov = status.laravel_status?.cover;
-  const tts = status.laravel_status?.tts;
-  const poster = status.laravel_status?.poster;
-  const c = status.counters;
-
   return (
-    <section className="pc-glass p-3 space-y-1.5">
+    <section className="pc-glass p-3 space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
         <Handshake className="w-4 h-4 text-rose-400 shrink-0" />
-        <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Assist Laravel</span>
-        {badge(status.enabled ? 'Enabled' : 'Disabled', status.enabled, 'bg-emerald-500/15 text-emerald-500')}
-        {badge(status.running ? 'Running' : 'Idle', status.running, 'bg-sky-500/15 text-sky-500')}
-        {status.circuit?.open && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wide bg-amber-500/15 text-amber-500"
-            title="Backed off after repeated failures">
-            <AlertTriangle className="w-3 h-3" /> circuit open
-            {status.circuit.cooldown_s > 0 && <span className="font-mono">{Math.round(status.circuit.cooldown_s)}s</span>}
-          </span>
-        )}
+        <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Pycore → Laravel</span>
+        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase ${
+          status.enabled ? 'bg-emerald-500/15 text-emerald-500' : 'bg-slate-500/15 text-slate-400'}`}>
+          {status.enabled ? 'Enabled' : 'Disabled'}
+        </span>
+        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase ${
+          status.running ? 'bg-sky-500/15 text-sky-500' : 'bg-slate-500/15 text-slate-400'}`}>
+          {status.running ? 'Workers active' : 'Workers idle'}
+        </span>
         {status.endpoint?.base_url && (
-          <span className="text-[10px] font-mono text-slate-400 truncate max-w-[14rem]"
-            title={status.endpoint.label ? `${status.endpoint.label} — ${status.endpoint.base_url}` : status.endpoint.base_url}>
-            → {status.endpoint.base_url}
-          </span>
+          <span className="text-[10px] font-mono text-slate-400 truncate max-w-[18rem]"
+            title={status.endpoint.base_url}>→ {status.endpoint.base_url}</span>
         )}
         {liveSyncOffline && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wide bg-amber-500/15 text-amber-500">
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-500">
             <WifiOff className="w-3 h-3" /> Laravel live sync paused
           </span>
         )}
         {endpointMismatch && (
-          <span className="text-[10px] font-mono text-sky-500 truncate max-w-[14rem]"
+          <span className="text-[10px] font-mono text-sky-500 truncate max-w-[18rem]"
             title={`Selected ${hub.laravelStoredEndpoint} · active ${hub.laravelActiveEndpoint}`}>
             active → {hub.laravelActiveEndpoint}
           </span>
         )}
-        <div className="ml-auto flex items-center gap-1.5 shrink-0">
-          <button onClick={runCycle} disabled={!status.enabled || cycling}
-            title={status.enabled ? 'Run one claim→process→submit pass now' : 'Turn Auto On first (or it stays idle)'}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold pc-glass hover:bg-rose-500/10 text-rose-500 transition disabled:opacity-50">
-            {cycling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-            Run cycle now
+        <div className="ml-auto flex items-center gap-1.5">
+          <button type="button" onClick={runCycle} disabled={!status.enabled || runningCycle}
+            title="Trigger one pass of every enabled canonical worker"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold pc-glass text-rose-500 disabled:opacity-50">
+            {runningCycle
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <Play className="w-3.5 h-3.5" />}
+            Run enabled workers
           </button>
-          <button onClick={() => hub.refreshHub()} disabled={loading}
-            className="p-1.5 rounded-lg pc-glass hover:bg-rose-500/10 text-rose-500 transition disabled:opacity-50" title="Refresh assist status">
+          <button type="button" onClick={() => hub.refreshHub()} disabled={loading}
+            className="p-1.5 rounded-lg pc-glass text-rose-500 disabled:opacity-50">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-[10px] font-mono text-slate-500">
-        <span title="Assist worker counters (this process)">
-          claimed <b className="text-slate-700 dark:text-slate-300">{c?.claimed ?? 0}</b>
-          {' · '}submitted <b className="text-emerald-500">{c?.submitted ?? 0}</b>
-          {' · '}released <b className="text-slate-700 dark:text-slate-300">{c?.released ?? 0}</b>
-          {' · '}failures <b className={c?.failures ? 'text-rose-500' : 'text-slate-700 dark:text-slate-300'}>{c?.failures ?? 0}</b>
-        </span>
-        {cov && false && (
-          <span className="inline-flex items-center gap-1" title="Cover — delegated to apps/mcp-chrome (hidden)">
-            <ImageIcon className="w-3 h-3 text-indigo-400" />
-            cover <b className="text-sky-500">{cov.pending}</b> pending · <b className="text-violet-500">{cov.leased}</b> leased
-          </span>
-        )}
-        {tts && (
-          <span className="inline-flex items-center gap-1" title="Laravel TTS queue (pending / leased)">
-            <AudioLines className="w-3 h-3 text-indigo-400" />
-            tts <b className="text-sky-500">{tts.pending}</b> pending · <b className="text-violet-500">{tts.leased}</b> leased
-          </span>
-        )}
-        {poster && false && (
-          <span className="inline-flex items-center gap-1"
-            title="Poster — delegated to apps/mcp-chrome (hidden)">
-            <Film className="w-3 h-3 text-indigo-400" />
-            poster <b className="text-sky-500">{poster.pending}</b> pending · <b className="text-violet-500">{poster.leased}</b> leased · <b className="text-emerald-500">{poster.ready}</b> ready
-          </span>
-        )}
-        {status.last_cycle_at && (
-          <span title="Last assist cycle">last cycle {new Date(status.last_cycle_at).toLocaleTimeString()}</span>
-        )}
-      </div>
-
-      <div className="pt-0.5">
+      <div>
         <div className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">
           {t('queueCenter.assist.capabilities')}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-          {ASSIST_CAP_KEYS.map((cap) => {
-            const on = !!status.capabilities?.[cap];
+          {ADVANCED_CAPABILITIES.map((capability) => {
+            const on = Boolean(status.capabilities[capability]);
             return (
-              <button key={cap} onClick={() => toggleCap(cap)} disabled={capBusy}
-                title={t(`queueCenter.assist.cap.${cap}` as const)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition disabled:opacity-50 ${
-                  on
-                    ? 'bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25'
-                    : 'pc-glass text-slate-500 hover:bg-emerald-500/10'}`}>
-                {on ? <Check className="w-3.5 h-3.5 shrink-0" /> : <Power className="w-3.5 h-3.5 shrink-0" />}
-                <span className="truncate">{t(`queueCenter.assist.cap.${cap}` as const)}</span>
+              <button type="button" key={capability}
+                onClick={() => void toggleCapability(capability)} disabled={capabilityBusy}
+                title={t(`queueCenter.assist.cap.${capability}` as const)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold disabled:opacity-50 ${
+                  on ? 'bg-emerald-500/15 text-emerald-500' : 'pc-glass text-slate-500'}`}>
+                {on ? <Check className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
+                <span className="truncate">{t(`queueCenter.assist.cap.${capability}` as const)}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {lastTask && (
-        <p className="text-[10px] font-mono text-slate-400 truncate" title={lastTaskTitle(lastTask)}>
-          last: {lastTaskSummary(lastTask)}
+      {message && (
+        <p className={`text-[11px] ${message.startsWith('Run failed') || message.startsWith('Toggle failed')
+          ? 'text-rose-500' : 'text-slate-500'}`}>
+          {(message.startsWith('Run failed') || message.startsWith('Toggle failed'))
+            && <AlertTriangle className="w-3 h-3 inline mr-1" />}
+          {message}
         </p>
-      )}
-
-      {status.last_error && (
-        <p className="text-[11px] text-rose-500 break-words" title="Last assist error">
-          <AlertTriangle className="w-3 h-3 inline mr-1 -mt-0.5" />{status.last_error}
-        </p>
-      )}
-      {cycleMsg && (
-        <p className="text-[11px] text-slate-500 dark:text-slate-400">{cycleMsg}</p>
       )}
     </section>
   );

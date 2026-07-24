@@ -20,8 +20,7 @@ source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 # Serialize pip into the shared venv (safe under the LLM parallel group). Defensive.
 PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
-[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+. "$PIPLOCK_LIB"
 # Idempotent HF weight download (sentinel + curl resume + size verify).
 source "$PARENT_DIR_LEVEL_2/common/tts_install_assets_common.sh"
 
@@ -114,10 +113,7 @@ install_dependencies() {
     # Note: NLLB-200 works well with CPU, no need for GPU-specific torch
     print_info "Installing transformers, sentencepiece, and protobuf..."
     echo ""
-    # Pin transformers to the shared LLM spec so DeepSeek-OCR's 4.46.3 survives. NO --upgrade
-    # (matches 95/97): the spec is an exact ==4.46.3, and --upgrade would also float
-    # sentencepiece/protobuf/sacremoses, diverging 98 from the other LLM installers. pip still
-    # installs any of these that are missing.
+    # Preserve the shared transformers distribution; pip installs only missing packages.
     print_and_run_from_common vpip "$VENV_PYTHON3" -m pip install "$LLM_TRANSFORMERS_SPEC" sentencepiece protobuf sacremoses
     echo ""
 

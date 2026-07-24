@@ -8,19 +8,8 @@ $PY_TOOLS_DIR = Join-Path $SCRIPT_DIR "build_py_tools"
 $GLOBAL_VARS_PS1 = Join-Path $CORE_NODE_DIR "scripts\shells\win\win_common\GlobalVars.ps1"
 $VALIDATION_HELPER_PS1 = Join-Path $PY_TOOLS_DIR "validation_helper.ps1"
 
-if (Test-Path $GLOBAL_VARS_PS1) {
-    . $GLOBAL_VARS_PS1
-} else {
-    Write-Host "Error: GlobalVars.ps1 not found" -ForegroundColor Red
-    exit 1
-}
-
-if (Test-Path $VALIDATION_HELPER_PS1) {
-    . $VALIDATION_HELPER_PS1
-} else {
-    Write-Host "Error: validation_helper.ps1 not found" -ForegroundColor Red
-    exit 1
-}
+. $GLOBAL_VARS_PS1
+. $VALIDATION_HELPER_PS1
 
 function Get-GlobalVar {
     param(

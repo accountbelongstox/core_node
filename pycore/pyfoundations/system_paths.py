@@ -20,8 +20,9 @@ Directory Structure:
 """
 
 import os
-import sys
 import platform
+import subprocess
+import sys
 from pathlib import Path
 from typing import Optional, Tuple, List, Any, Dict
 
@@ -36,10 +37,12 @@ from pycore.pyfoundations.system_info import (
     get_linux_distro_info as _get_linux_distro_info,
     get_largest_mnt_drive as _get_largest_mounted_drive,
 )
-
-import subprocess
-
-
+from pycore.pyfoundations.app_config_path import get_app_config_dir as _get_foundation_app_config_dir
+from pycore.pyfoundations.user_data_store import (
+    UserDataStore,
+    get_user_data_store,
+    STORE_FILE_NAME,
+)
 
 def _get_dev_compile_base(secondary_base: 'Path', suffix: str) -> 'Path':
     """Development-tooling base directory (where <base>/_<name>_<ver> with node/py
@@ -191,7 +194,7 @@ def get_app_config_dir() -> Path:
     Returns:
         Path: Application config directory (.core_node/config/)
     """
-    return _ensure_dir(get_system_cache_dir() / 'config')
+    return _get_foundation_app_config_dir()
 
 
 def get_app_data_dir() -> Path:
@@ -660,21 +663,6 @@ APP_LOGS_DIR = get_app_logs_dir()
 CORE_NODE_ROOT = get_core_node_root()
 LOCAL_DATA_DIR = get_local_data_dir()
 APP_TEMP_DIR = get_app_temp_dir()
-
-
-# ===========================================================================
-# User Data Store -- split into its own module (user_data_store.py). Imported
-# here and re-exported so the public API (pyfoundations/__init__.py and the many
-# `from pycore.pyfoundations.system_paths import UserDataStore` /
-# `get_user_data_store` callers) is unchanged. This import sits AFTER
-# get_app_config_dir is defined, and user_data_store.py imports
-# get_app_config_dir LAZILY (function-local), so there is no circular import.
-# ===========================================================================
-from pycore.pyfoundations.user_data_store import (  # noqa: E402  (intentional bottom import)
-    UserDataStore,
-    get_user_data_store,
-    STORE_FILE_NAME,
-)
 
 
 __all__ = [

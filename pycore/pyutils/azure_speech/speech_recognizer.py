@@ -8,6 +8,11 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional, List
 
 from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 from pycore.pyutils.common.stt_base_provider import BaseSpeechRecognitionProvider
 from pycore.pyutils.azure_speech.stt_provider import AzureSpeechRecognitionProvider
 
@@ -19,7 +24,14 @@ class SpeechRecognizer:
         self._providers: Dict[str, BaseSpeechRecognitionProvider] = {}
         self._current_provider: Optional[str] = None
         self._initialized = False
+        init_serialized_owner(
+            self,
+            "azure_speech.recognizer.state",
+            "SpeechRecognizerState",
+            timeout=300.0,
+        )
 
+    @serialized_method
     def initialize(self) -> bool:
         if self._initialized:
             return True
@@ -38,6 +50,7 @@ class SpeechRecognizer:
         ColorPrint.blue(f"[SpeechRecognizer] Initialized with {len(self._providers)} provider(s)")
         return True
 
+    @serialized_method
     def set_provider(self, provider_name: str) -> bool:
         if provider_name not in self._providers:
             ColorPrint.red(f"[SpeechRecognizer] Provider not available: {provider_name}")
@@ -46,6 +59,7 @@ class SpeechRecognizer:
         ColorPrint.blue(f"[SpeechRecognizer] Active provider: {provider_name}")
         return True
 
+    @serialized_method
     def get_current_provider(self) -> Optional[BaseSpeechRecognitionProvider]:
         if not self.initialize():
             return None
@@ -53,6 +67,7 @@ class SpeechRecognizer:
             return None
         return self._providers.get(self._current_provider)
 
+    @serialized_method
     def recognize_from_file(
         self,
         audio_file: str | Path,
@@ -74,6 +89,7 @@ class SpeechRecognizer:
         audio_path = Path(audio_file) if isinstance(audio_file, str) else audio_file
         return active_provider.recognize_from_file(audio_path, language)
 
+    @serialized_method
     def start_continuous_recognition(
         self,
         audio_source: Any = None,
@@ -109,6 +125,7 @@ class SpeechRecognizer:
             on_error=on_error,
         )
 
+    @serialized_method
     def stop_recognition(self, provider: Optional[str] = None) -> bool:
         if provider:
             selected = self._providers.get(provider)
@@ -120,10 +137,12 @@ class SpeechRecognizer:
             return False
         return active.stop_recognition()
 
+    @serialized_method
     def get_available_providers(self) -> List[str]:
         self.initialize()
         return list(self._providers.keys())
 
+    @serialized_method
     def get_supported_languages(self, provider: Optional[str] = None) -> List[str]:
         if provider:
             selected = self._providers.get(provider)
@@ -146,11 +165,12 @@ class SpeechRecognizer:
         }
 
 
-_global_speech_recognizer: Optional[SpeechRecognizer] = None
+_SPEECH_RECOGNIZER_PROVIDER = SerializedSingletonProvider(
+    SpeechRecognizer,
+    "azure_speech.recognizer.provider",
+    "SpeechRecognizerProvider",
+)
 
 
 def get_speech_recognizer() -> SpeechRecognizer:
-    global _global_speech_recognizer
-    if _global_speech_recognizer is None:
-        _global_speech_recognizer = SpeechRecognizer()
-    return _global_speech_recognizer
+    return _SPEECH_RECOGNIZER_PROVIDER.get()

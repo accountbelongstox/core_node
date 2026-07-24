@@ -44,7 +44,7 @@ def print_recognition_cache_info(text: str, language: str, speech_manager=None):
 
     try:
         # Initialize database if needed
-        if "speech" not in database_manager.connection_strings:
+        if not database_manager.is_database_registered("speech"):
             database_manager.register_database("speech")
             database_manager.load_tables(
                 database_name="speech",

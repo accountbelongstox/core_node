@@ -4,7 +4,7 @@ Qwen3-TTS HTTP API for pycore (subprocess in the DEDICATED isolated venv).
 
 Runs inside the dedicated isolated venv (see pycore/pyutils/tts/qwen3tts_venv.py),
 launched by tts_service_manager.py (production) or qwen3tts_service.py (tester) -
-NEVER the main pycore interpreter, because qwen-tts pins transformers==4.57.3 which
+NEVER the main pycore interpreter, because qwen-tts owns transformer dependencies that
 conflicts with the main interpreter's ~4.46.x pin. No pycore imports here - standalone
 script. Lifecycle spec: development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5.
 

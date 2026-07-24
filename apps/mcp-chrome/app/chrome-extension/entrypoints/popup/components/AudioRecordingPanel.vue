@@ -56,37 +56,14 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { getMessage } from '../../../utils/i18n';
-import { localStorage } from '@/services/ExtensionStorage';
-import { STORAGE_KEYS } from '@/utils/storage-keys';
-
-interface ApiServer {
-  id: string;
-  name: string;
-  url: string;
-  authToken: string;
-  streamingMode: 'realtime' | 'chunks' | 'file';
-  chunkInterval: number;
-  enabled: boolean;
-}
-
-interface RecordingSettings {
-  includeMicrophone: boolean;
-  saveLocal: boolean;
-  enableAutoStop: boolean;
-  silenceDuration: number;
-  maxDuration: number;
-}
+import { useAudioRecordingConfig } from '../composables/useAudioRecordingConfig';
 
 interface RecordingInfo {
   isRecording: boolean;
   duration: number;
   chunkCount: number;
-}
-
-interface BackgroundStreaming {
-  enabled: boolean;
 }
 
 // Firefox has no chrome.tabCapture / chrome.offscreen APIs, so the whole tab
@@ -96,26 +73,18 @@ const isFirefox = import.meta.env.FIREFOX;
 const firefoxUnsupportedMessage =
   'Audio recording is not available on Firefox: it requires the Chrome-only tabCapture and offscreen APIs.';
 
-const sessionMetadataText = ref('');
-const sessionMetadata = ref<Record<string, any>>({});
-const sessionMetadataError = ref('');
-const apiServers = ref<ApiServer[]>([]);
-const recordingSettings = ref<RecordingSettings>({
-  includeMicrophone: true,
-  saveLocal: false,
-  enableAutoStop: false,
-  silenceDuration: 30,
-  maxDuration: 600,
-});
+const {
+  apiServers,
+  recordingSettings,
+  sessionMetadata,
+  initialize: initializeConfig,
+  updateSessionMetadata,
+} = useAudioRecordingConfig();
 
 const recordingInfo = ref<RecordingInfo>({
   isRecording: false,
   duration: 0,
   chunkCount: 0,
-});
-
-const backgroundStreaming = ref<BackgroundStreaming>({
-  enabled: false,
 });
 
 // Recordable-tab picker. chrome.tabCapture CANNOT capture chrome://, extension,
@@ -157,32 +126,6 @@ const loadRecordableTabs = async () => {
   }
 };
 
-const updateSessionMetadata = (alertOnError = false) => {
-  const raw = sessionMetadataText.value.trim();
-  if (!raw) {
-    sessionMetadata.value = {};
-    sessionMetadataError.value = '';
-    return true;
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      throw new Error('Metadata must be a JSON object');
-    }
-    sessionMetadata.value = parsed;
-    sessionMetadataError.value = '';
-    return true;
-  } catch (error: any) {
-    const message = error?.message || 'Invalid JSON';
-    sessionMetadataError.value = message;
-    if (alertOnError) {
-      alert(getMessage('invalidJsonError', [message]));
-    }
-    return false;
-  }
-};
-
 const getRecordingStatusText = () => {
   return recordingInfo.value.isRecording ? getMessage('recordingStatus') : getMessage('idleStatus');
 };
@@ -191,71 +134,6 @@ const formatDuration = (seconds: number) => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, '0')}`;
-};
-
-const addServer = () => {
-  const newServer: ApiServer = {
-    id: `server_${Date.now()}`,
-    name: getMessage('defaultServerName', [(apiServers.value.length + 1).toString()]),
-    url: '',
-    authToken: '',
-    streamingMode: 'realtime',
-    chunkInterval: 1000,
-    enabled: false,
-  };
-  apiServers.value.push(newServer);
-  saveConfig();
-};
-
-const removeServer = (index: number) => {
-  apiServers.value.splice(index, 1);
-  saveConfig();
-};
-
-const toggleServer = (index: number) => {
-  apiServers.value[index].enabled = !apiServers.value[index].enabled;
-  saveConfig();
-};
-
-const saveConfig = async () => {
-  try {
-    updateSessionMetadata(false);
-    const config = {
-      apiServers: apiServers.value,
-      recordingSettings: recordingSettings.value,
-      backgroundStreaming: backgroundStreaming.value,
-      sessionMetadata: sessionMetadata.value,
-      sessionMetadataText: sessionMetadataText.value,
-    };
-    await localStorage.set(STORAGE_KEYS.AUDIO_RECORDING_CONFIG, config);
-    console.log('Audio recording config saved');
-  } catch (error) {
-    console.error('Failed to save audio recording config:', error);
-  }
-};
-
-const loadConfig = async () => {
-  try {
-    const config = await localStorage.getOptional<{
-      apiServers?: typeof apiServers.value;
-      recordingSettings?: typeof recordingSettings.value;
-      backgroundStreaming?: boolean;
-      sessionMetadata?: Record<string, string | number | boolean>;
-      sessionMetadataText?: string;
-    }>(STORAGE_KEYS.AUDIO_RECORDING_CONFIG);
-    if (config) {
-      apiServers.value = config.apiServers || [];
-      recordingSettings.value = config.recordingSettings || recordingSettings.value;
-      backgroundStreaming.value = config.backgroundStreaming || backgroundStreaming.value;
-      sessionMetadata.value = config.sessionMetadata || {};
-      sessionMetadataText.value =
-        config.sessionMetadataText ||
-        (Object.keys(sessionMetadata.value).length ? JSON.stringify(sessionMetadata.value, null, 2) : '');
-      sessionMetadataError.value = '';
-    }
-  } catch (error) {
-    console.error('Failed to load audio recording config:', error);
-  }
 };
 
 const startRecording = async () => {
@@ -316,41 +194,6 @@ const stopRecording = async () => {
   }
 };
 
-const toggleBackgroundStreaming = async () => {
-  try {
-    if (isFirefox) {
-      backgroundStreaming.value.enabled = false;
-      alert(firefoxUnsupportedMessage);
-      return;
-    }
-
-    if (backgroundStreaming.value.enabled && !updateSessionMetadata(true)) {
-      backgroundStreaming.value.enabled = false;
-      return;
-    }
-
-    await saveConfig();
-
-    const response = await chrome.runtime.sendMessage({
-      type: 'audio_toggle_background_streaming',
-      enabled: backgroundStreaming.value.enabled,
-      config: {
-        apiServers: apiServers.value.filter(s => s.enabled),
-        recordingSettings: recordingSettings.value,
-        sessionMetadata: sessionMetadata.value,
-      },
-    });
-
-    if (!response || !response.success) {
-      console.error('Failed to toggle background streaming:', response?.error);
-      backgroundStreaming.value.enabled = !backgroundStreaming.value.enabled;
-    }
-  } catch (error) {
-    console.error('Error toggling background streaming:', error);
-    backgroundStreaming.value.enabled = !backgroundStreaming.value.enabled;
-  }
-};
-
 let durationTimer: ReturnType<typeof setInterval> | null = null;
 
 const startDurationTimer = () => {
@@ -369,18 +212,16 @@ const stopDurationTimer = () => {
   }
 };
 
-const setupRecordingStatusListener = () => {
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message.type === 'audio_recording_status_update') {
-      recordingInfo.value = message.status;
-    }
-  });
+const handleRecordingStatusMessage = (message: any) => {
+  if (message.type === 'audio_recording_status_update') {
+    recordingInfo.value = message.status;
+  }
 };
 
 onMounted(async () => {
-  await loadConfig();
+  await initializeConfig();
   await loadRecordableTabs();
-  setupRecordingStatusListener();
+  chrome.runtime.onMessage.addListener(handleRecordingStatusMessage);
 
   try {
     const response = await chrome.runtime.sendMessage({
@@ -395,5 +236,10 @@ onMounted(async () => {
   } catch (error) {
     console.error('Failed to get initial recording status:', error);
   }
+});
+
+onUnmounted(() => {
+  stopDurationTimer();
+  chrome.runtime.onMessage.removeListener(handleRecordingStatusMessage);
 });
 </script>

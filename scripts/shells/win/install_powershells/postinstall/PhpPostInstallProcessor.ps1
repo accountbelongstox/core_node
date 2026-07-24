@@ -227,7 +227,7 @@ function Install-PECL {
             else {
                 $peclVersion = & $PhpPath $peclPhpPath version 2>&1
             }
-            if ($peclVersion -match "PECL|PEAR") {
+            if (("$peclVersion").Contains('PECL') -or ("$peclVersion").Contains('PEAR')) {
                 Write-Host "$LogPrefix PECL is working correctly (verified)" -ForegroundColor Green
                 return $peclPath
             }

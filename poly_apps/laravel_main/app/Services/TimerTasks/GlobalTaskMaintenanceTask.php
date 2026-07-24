@@ -69,6 +69,7 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
         $released = $this->taskManager->releaseTimedOutTasks();
         $cleaned = $this->taskManager->cleanOfflineWorkers();
         $retagged = $this->retagLegacyDictionaryTasks();
+        $mediaRetagged = $this->retagLegacyWordMediaTasks();
         $expired = $this->expireStalePendingTasks();
         $purged = $this->purgeExpiredTerminalTasks();
         $workersPurged = $this->purgeStaleWorkers();
@@ -76,11 +77,12 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
         // interactive tier cannot indefinitely starve them (capped below FAST).
         $aged = app(\App\Services\PriorityAgeService::class)->ageTasksPriority();
 
-        if ($released > 0 || $cleaned > 0 || $retagged > 0 || $expired > 0 || $purged > 0 || $workersPurged > 0 || $aged > 0) {
+        if ($released > 0 || $cleaned > 0 || $retagged > 0 || $mediaRetagged > 0 || $expired > 0 || $purged > 0 || $workersPurged > 0 || $aged > 0) {
             $this->logInfo('Maintenance cycle', [
                 'tasks_released' => $released,
                 'workers_marked_offline' => $cleaned,
                 'legacy_tasks_retagged' => $retagged,
+                'legacy_word_media_retagged' => $mediaRetagged,
                 'stale_pending_expired' => $expired,
                 'terminal_tasks_purged' => $purged,
                 'stale_workers_purged' => $workersPurged,
@@ -173,6 +175,22 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
             ->where('execution_type', GlobalTask::EXECUTION_REMOTE_TRANSLATION)
             ->where('status', GlobalTask::STATUS_PENDING)
             ->update(['execution_type' => GlobalTask::EXECUTION_REMOTE_CLIENT]);
+    }
+
+    /** Move legacy word_media rows onto the image-capability fast lane. */
+    private function retagLegacyWordMediaTasks(): int
+    {
+        return GlobalTask::query()
+            ->where('task_type', 'word_media')
+            ->whereIn('execution_type', [
+                GlobalTask::EXECUTION_REMOTE_CLIENT,
+                GlobalTask::EXECUTION_REMOTE_TRANSLATION,
+            ])
+            ->where('status', GlobalTask::STATUS_PENDING)
+            ->update([
+                'execution_type' => GlobalTask::EXECUTION_REMOTE_FAST,
+                'capability' => GlobalTask::CAPABILITY_IMAGE,
+            ]);
     }
 
     /**

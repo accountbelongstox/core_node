@@ -230,9 +230,7 @@ async function attachMedia(
  * Capture media bytes IN-PAGE for a set of image URLs + an optional audio URL,
  * returning base64 parts. A data: URL is decoded locally; the rest are fetched
  * by the resident BingMediaFetcher (referrer/cookie-bound — only the page can
- * read them). Shared by attachMedia (scrape path) and buildRefetchEntry (the
- * URL re-fetch path). Best-effort: a capture failure yields fewer bytes, never
- * throws.
+ * read them). Best-effort: a capture failure yields fewer bytes, never throws.
  */
 export async function captureMediaInTab(
   tabId: number,
@@ -277,31 +275,6 @@ export async function captureMediaInTab(
     }
   }
   return { imageParts, audioBase64 };
-}
-
-/**
- * Build a MEDIA-ONLY result entry by re-fetching the stored full Bing URLs
- * in-page — NO Bing search, NO re-translate. translation is left empty so the
- * backend writeback skips the translation branch and only fills image/audio
- * (fill-missing). Used by the bulk re-fetch path for words whose static media
- * files went missing but whose remote URLs were persisted.
- */
-export async function buildRefetchEntry(
-  word: string,
-  md5: string | undefined,
-  imageUrls: string[],
-  audioUrl: string | null,
-  tabId: number,
-): Promise<ResultEntry> {
-  const entry: ResultEntry = { word, translation: '', provider: 'bing' };
-  if (md5) entry.md5 = md5;
-  const { imageParts, audioBase64 } = await captureMediaInTab(tabId, imageUrls, audioUrl);
-  if (imageParts.length > 0) entry.image_base64 = imageParts;
-  if (audioBase64) {
-    entry.audio_base64 = audioBase64;
-    entry.audio_mime = 'audio/mpeg';
-  }
-  return entry;
 }
 
 /** Prefer the US pronunciation, else the first phonetic/voice URL available. */

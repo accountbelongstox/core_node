@@ -40,11 +40,8 @@ import { submitOutbox, isTerminalWorkerResultError } from '../outbox/submit-outb
  * generated inline server-side (edge-tts in the pycore worker), never by a
  * browser tab, so Chrome must not claim it. `ai_translate` is also NOT here:
  * it belongs ONLY to the web-AI translate worker, which advertises it
- * explicitly via its own `capabilities`. `image` is NOT here either (B17): a
- * Chrome tab cannot GENERATE a word image, so per the audio+image=pycore-only
- * downgrade Chrome must never claim image. This constant is the default set for
- * the dictionary/media style workers (Bing) that scrape pages — `translate`
- * only.
+ * explicitly via its own `capabilities`. Image-search workers likewise declare
+ * `image` explicitly; this default remains limited to dictionary translation.
  */
 export const CHROME_FAST_CAPABILITIES: WorkerCapability[] = ['translate'];
 
@@ -220,6 +217,13 @@ export abstract class SimpleWorkerBase {
       throw new Error('API URL is required');
     }
 
+    // A rapid Stop -> Start must not replace workerClient/config while the
+    // previous claimed task is still submitting its terminal result. Wait for
+    // that single serialized cycle to settle, then register the new run.
+    while (this.cycleInFlight) {
+      await this.delay(50);
+    }
+
     this.config = {
       apiUrl: config.apiUrl.trim().replace(/\/+$/, ''),
       workerName: config.workerName || `MCP Chrome ${this.processorKey} Worker`,
@@ -251,16 +255,14 @@ export abstract class SimpleWorkerBase {
       clearTimeout(this.fastRepollTimer);
       this.fastRepollTimer = null;
     }
-    // Reset loop/guard state so a subsequent start() always launches a fresh
-    // poll loop. Without this a rapid stop+start could see pollLoopActive
-    // still true (the old loop hasn't observed isRunning=false yet) and skip
-    // starting a new one, leaving the worker running with no poll.
-    this.pollLoopActive = false;
-    this.cycleInFlight = false;
+    // Do not clear pollLoopActive/cycleInFlight here. A browser task may still
+    // be unwinding after Stop; clearing its mutex would let a rapid off/on
+    // toggle launch a second task against the same tab. If Start arrives before
+    // the loop observes isRunning=false, that loop is safely reused. Otherwise
+    // runPollLoop clears pollLoopActive when it exits and the next Start creates
+    // a fresh loop.
     this.needsFastRepoll = false;
-    this.terminalPosted = false;
     this.stats.isOnline = false;
-    this.stats.currentTaskId = null;
     logger.info(this.workerLabel, 'Worker stopped');
   }
 

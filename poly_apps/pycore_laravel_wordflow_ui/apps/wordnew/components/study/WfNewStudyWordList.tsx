@@ -23,10 +23,12 @@ import { Volume2, Star, Check, RotateCcw } from 'lucide-react';
 import type { Word, ElementTheme } from '../../WfNewTypes';
 import { studyT } from './WfNewStudyLocales';
 import { WfNewNoTranslation } from './WfNewNoTranslation';
+import { useVisibleWordPriority } from '../../hooks/useVisibleWordPriority';
 
 interface WfNewStudyWordListProps {
   words: Word[];
   lang: string;
+  sourceLanguage: string;
   theme: ElementTheme;
   brief: boolean;
   favorites: Word[];
@@ -50,6 +52,7 @@ interface WfNewStudyWordListProps {
 export const WfNewStudyWordList: React.FC<WfNewStudyWordListProps> = ({
   words,
   lang,
+  sourceLanguage,
   theme,
   brief,
   favorites,
@@ -69,6 +72,7 @@ export const WfNewStudyWordList: React.FC<WfNewStudyWordListProps> = ({
 }) => {
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const bindVisiblePriority = useVisibleWordPriority(sourceLanguage, lang);
   // Last MANUAL scroll timestamp (wheel / touch). While the user is scrolling,
   // the auto-scroll must not yank the active row back to center — that fights
   // the gesture. Programmatic scrollIntoView does not trip these events.
@@ -126,12 +130,19 @@ export const WfNewStudyWordList: React.FC<WfNewStudyWordListProps> = ({
         const isRevealed = revealed.has(word.id);
         const isFav = favorites.some((f) => f.id === word.id);
         const readCount = readCountOf ? readCountOf(word) : 0;
+        const priorityRef = bindVisiblePriority({
+          word: word.text,
+          hasTranslation: word.hasTranslation ?? !!word.translation,
+          hasAudio: !!word.audioUrl || (word.audioFiles?.length ?? 0) > 0,
+          hasImage: false,
+        });
         return (
           <div
             key={word.id}
             ref={(el) => {
               if (el) rowRefs.current.set(word.id, el);
               else rowRefs.current.delete(word.id);
+              priorityRef(el);
             }}
             onClick={() => (onSelectWord ? onSelectWord(word, index) : onOpenDetail(word))}
             className={`${jumbo ? 'p-5' : 'p-4'} rounded-2xl border flex justify-between items-center group cursor-pointer transition-all ${

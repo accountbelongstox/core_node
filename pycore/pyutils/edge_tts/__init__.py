@@ -19,7 +19,8 @@ from pycore.pyutils.edge_tts.edge_tts_client import EdgeTTSClient, get_edge_tts_
 from pycore.pyutils.edge_tts.processor import TTSProcessor
 from pycore.pyutils.edge_tts.translator import TTSTranslator
 from pycore.pyutils.edge_tts.parser import TTSFileParser
-from pycore.pyutils.edge_tts.thread_manager import TTSThreadManager, get_tts_thread_manager, BaseTTSWorkerThread
+from pycore.pyutils.edge_tts.thread_manager import TTSThreadManager, get_tts_thread_manager
+from pycore.pyutils.edge_tts.worker_thread_base import BaseTTSWorkerThread
 from pycore.pyutils.edge_tts.edge_tts_worker_thread import EdgeTTSWorkerThread
 
 __all__ = [

@@ -1,6 +1,8 @@
 #!/bin/bash
 # Resolve pycore/tts_install_assets from install_shells (5 levels below repo root).
 
+TTS_ISOLATED_VENV_READY=0
+
 pycore_repo_root_from_install_shells() {
     local script_dir="$1"
     (cd "$script_dir/../../../../.." && pwd)
@@ -88,9 +90,10 @@ tts_dependency_stamp_matches() {
 }
 
 tts_engine_health_ok() {
-    local py="$1" engine="$2" policy_path
+    local py="$1" engine="$2" policy_path output
     policy_path="$(tts_runtime_policy_path)"
-    "$py" "$policy_path" health-probe "$engine" >/dev/null 2>&1
+    output="$("$py" "$policy_path" health-probe "$engine" 2>/dev/null)"
+    [[ "$output" == *"__HEALTH_READY__"* ]]
 }
 
 tts_dependencies_ready() {
@@ -110,21 +113,27 @@ tts_write_dependency_stamp() {
 
 tts_provision_isolated_venv() {
     local py="$1" engine="$2" force="${3:-0}"
-    local repo_root force_value
+    local repo_root force_value probe_output
     repo_root="$(_core_node_repo_root_from_tts_common)"
     force_value="0"
     [[ "$force" == "1" ]] && force_value="1"
+    TTS_ISOLATED_VENV_READY=0
     PYCORE_ISOLATED_ROOT="$repo_root" \
     PYCORE_ISOLATED_ENGINE="$engine" \
     PYCORE_ISOLATED_FORCE="$force_value" \
     "$py" -c 'import os, sys
 sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
 from pycore.pyfoundations import isolated_venv
-result = isolated_venv.ensure_venv(
+isolated_venv.ensure_venv(
     os.environ["PYCORE_ISOLATED_ENGINE"],
     force=os.environ.get("PYCORE_ISOLATED_FORCE") == "1",
-)
-sys.exit(0 if result else 1)'
+)'
+    probe_output="$(PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" "$py" -c 'import os, sys
+sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
+from pycore.pyfoundations import isolated_venv
+print("__VENV_READY__" if isolated_venv.venv_healthy(os.environ["PYCORE_ISOLATED_ENGINE"]) else "__VENV_NOT_READY__")' 2>/dev/null)"
+    [[ "$probe_output" == *"__VENV_READY__"* ]] && TTS_ISOLATED_VENV_READY=1
+    :
 }
 
 tts_resolve_isolated_python() {
@@ -171,14 +180,16 @@ prereq_install_probe() {
     local absent_ok=0
     local absent_note=""
     local failed=0
-    local mod args=()
+    local mod probe_output args=()
     if [[ "${1:-}" == "--absent-ok" ]]; then
         absent_ok=1
         absent_note="${2:-}"
         shift 2
     fi
     args=("$@")
-    echo "${prefix}[idempotent-probe] running post-install verification ..."
+    if [[ "${#args[@]}" -gt 0 ]]; then
+        echo "${prefix}[idempotent-probe] running post-install verification ..."
+    fi
     if [[ -z "$py" ]] || ! command -v "$py" >/dev/null 2>&1; then
         if [[ "$absent_ok" -eq 1 ]]; then
             echo "${prefix}[idempotent-probe] SKIP interpreter (${absent_note:-explicitly skipped})"
@@ -188,7 +199,8 @@ prereq_install_probe() {
         return 1
     fi
     for mod in "${args[@]}"; do
-        if "$py" -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$mod') else 1)" 2>/dev/null; then
+        probe_output="$("$py" -c "import importlib.util; print('__IMPORT_OK__' if importlib.util.find_spec('$mod') else '__IMPORT_MISSING__')" 2>/dev/null)"
+        if [[ "$probe_output" == *"__IMPORT_OK__"* ]]; then
             echo "${prefix}[idempotent-probe] OK  import $mod"
         elif [[ "$absent_ok" -eq 1 ]]; then
             if [[ -n "$absent_note" ]]; then
@@ -275,15 +287,16 @@ def walk(base):
             out[full]=size
     return out
 
+selected={}
 for base in bases:
     if not base:
         continue
     catalog=walk(base)
     if catalog:
-        for name,size in sorted(catalog.items()):
-            print(f"{name}\t{size}")
-        sys.exit(0)
-sys.exit(1)' "$repo" "https://huggingface.co" "$mirror"
+        selected=catalog
+        break
+for name,size in sorted(selected.items()):
+    print(f"{name}\t{size}")' "$repo" "https://huggingface.co" "$mirror"
 }
 
 _hf_catalog_size() {
@@ -311,7 +324,7 @@ _hf_file_complete() {
         local have
         have="$(wc -c < "$path" 2>/dev/null | tr -d ' ')"
         [[ "${have:-0}" -ge "$expected" ]]
-        return $?
+        return
     fi
     [[ -s "$path" ]]
 }
@@ -426,15 +439,16 @@ _core_node_repo_root_from_tts_common() {
 
 _invoke_qwen3tts_weights_ready_check() {
     local dir="$1" repo="${2:-}" py="${3:-python3}"
-    local repo_root
+    local probe_output repo_root
     [[ -d "$dir" ]] || return 1
     command -v "$py" >/dev/null 2>&1 || return 2
     repo_root="$(_core_node_repo_root_from_tts_common)"
-    "$py" -c "import sys
+    probe_output="$("$py" -c "import sys
 from pathlib import Path
 sys.path.insert(0, r'''$repo_root''')
 from pycore.pyutils.tts.qwen3tts_weights import local_weights_ready
-sys.exit(0 if local_weights_ready(Path(r'''$dir'''), r'''$repo''') else 1)" >/dev/null 2>&1
+print('__WEIGHTS_READY__' if local_weights_ready(Path(r'''$dir'''), r'''$repo''') else '__WEIGHTS_NOT_READY__')" 2>/dev/null)"
+    [[ "$probe_output" == *"__WEIGHTS_READY__"* ]]
 }
 
 neural_tts_local_weights_ready() {

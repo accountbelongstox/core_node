@@ -1,11 +1,15 @@
 # Idempotent PaddlePaddle CPU/GPU build guard (Windows). Mirrors linux/common/paddle_cpu_guard.sh.
 
-. (Join-Path $PSScriptRoot 'CudaIndex.ps1')
-. (Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1')
-. (Join-Path $PSScriptRoot 'NvidiaCuStackAlign.ps1')
+$cudaIndexPath = Join-Path $PSScriptRoot 'CudaIndex.ps1'
+$pythonRuntimePath = Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1'
+$nvidiaAlignPath = Join-Path $PSScriptRoot 'NvidiaCuStackAlign.ps1'
+. $pythonRuntimePath
+. $cudaIndexPath
+. $nvidiaAlignPath
 
 $script:PaddleCpuIndexUrl = Get-AiRuntimePolicyValue -Name 'AI_PADDLE_CPU_INDEX' -Default 'https://www.paddlepaddle.org.cn/packages/stable/cpu/'
-$script:PaddleDefaultVersion = (Get-AiCudaTiers | Select-Object -First 1).PaddleVersion
+$script:PaddleCpuPackage = Get-AiRuntimePolicyValue -Name 'AI_PADDLE_CPU_PACKAGE' -Default 'paddlepaddle'
+$script:PaddleGpuPackage = Get-AiRuntimePolicyValue -Name 'AI_PADDLE_GPU_PACKAGE' -Default 'paddlepaddle-gpu'
 
 function Get-PcgPython {
     param([string]$Override)
@@ -18,63 +22,19 @@ function Test-PcgGpuPresent {
     return [bool](Get-CudaRuntimePolicy).Enabled
 }
 
-function Get-PaddleExpectedVersion {
-    param([PSCustomObject]$Policy)
-    if ($env:PCG_PADDLE_VERSION) { return $env:PCG_PADDLE_VERSION }
-    if ($Policy -and $Policy.PaddleVersion) { return $Policy.PaddleVersion }
-    return $script:PaddleDefaultVersion
-}
-
 function Get-PaddleBuildState {
     param([string]$PythonCmd)
     $out = $null
     $text = ''
-    if (-not (Test-PaddleDistInfoPresent -PythonExe $PythonCmd)) {
+    if (-not (Test-PaddlePackageInstalled -PythonExe $PythonCmd)) {
         return ''
     }
 
     $out = & $PythonCmd -c "import paddle; print('__PADDLE_GPU__' if paddle.device.is_compiled_with_cuda() else '__PADDLE_CPU__')" 2>&1
     $text = ("$out").Trim()
-    if ($LASTEXITCODE -ne 0) { return '' }
     if ($text -match '__PADDLE_GPU__') { return 'gpu' }
     if ($text -match '__PADDLE_CPU__') { return 'cpu' }
     return ''
-}
-
-function Test-PaddleRequirementsSatisfied {
-    param([string]$PythonCmd)
-    $probeCode = @'
-import importlib.metadata as metadata
-try:
-    from packaging.markers import default_environment
-    from packaging.requirements import Requirement
-except ImportError:
-    from pip._vendor.packaging.markers import default_environment
-    from pip._vendor.packaging.requirements import Requirement
-
-try:
-    dist = metadata.distribution("paddlepaddle-gpu")
-except metadata.PackageNotFoundError:
-    try:
-        dist = metadata.distribution("paddlepaddle")
-    except metadata.PackageNotFoundError:
-        raise SystemExit(1)
-
-environment = default_environment()
-for raw in dist.requires or ():
-    requirement = Requirement(raw)
-    if requirement.marker and not requirement.marker.evaluate(environment):
-        continue
-    try:
-        installed = metadata.version(requirement.name)
-    except metadata.PackageNotFoundError:
-        raise SystemExit(1)
-    if requirement.specifier and not requirement.specifier.contains(installed, prereleases=True):
-        raise SystemExit(1)
-raise SystemExit(0)
-'@
-    & $PythonCmd -c $probeCode 2>$null
-    return ($LASTEXITCODE -eq 0)
 }
 
 function Test-PaddleCudaUsable {
@@ -86,47 +46,43 @@ function Test-PaddleCudaUsable {
 function Get-PaddleCudaState {
     param([string]$PythonCmd)
     $out = $null
-    $text = ''
+    $marker = '__PADDLE_CUDA__'
+    $markerIndex = -1
+    $lineText = ''
     $out = & $PythonCmd -c "import paddle; print('__PADDLE_CUDA__' + str(paddle.version.cuda() or ''))" 2>&1
-    $text = ("$out").Trim()
-    if ($LASTEXITCODE -ne 0) { return '' }
-    if ($text -match '__PADDLE_CUDA__([0-9.]+)') { return [string]$Matches[1] }
+    foreach ($line in @($out)) {
+        $lineText = ([string]$line).Trim()
+        $markerIndex = $lineText.IndexOf($marker, [System.StringComparison]::Ordinal)
+        if ($markerIndex -ge 0) {
+            return $lineText.Substring($markerIndex + $marker.Length).Trim()
+        }
+    }
     return ''
 }
 
 function Convert-PaddleCudaStateToTag {
     param([string]$State)
-    if ($State -match '^(\d+)\.(\d+)') {
-        return ('cu{0}{1}' -f $Matches[1], $Matches[2])
+    $major = 0
+    $minor = 0
+    $parts = ([string]$State).Split('.')
+    if ($parts.Length -ge 2 -and
+        [int]::TryParse($parts[0], [ref]$major) -and
+        [int]::TryParse($parts[1], [ref]$minor)) {
+        return ('cu{0}{1}' -f $major, $minor)
     }
     return ''
 }
 
-function Test-PaddleVersionMatches {
-    param(
-        [string]$PipExe,
-        [string]$ExpectedVersion
-    )
-    $installed = Get-PipPackageVersion -PipExe $PipExe -PackageName 'paddlepaddle-gpu'
-    if (-not $installed) {
-        $installed = Get-PipPackageVersion -PipExe $PipExe -PackageName 'paddlepaddle'
-    }
-    return $installed -eq $ExpectedVersion
-}
-
 function Remove-PaddlePackages {
     param([string]$PipExe)
-    & $PipExe uninstall -y paddlepaddle paddlepaddle-gpu
+    & $PipExe uninstall -y $script:PaddleCpuPackage $script:PaddleGpuPackage
 }
 
 function Install-CpuPaddle {
-    param(
-        [string]$PipExe,
-        [string]$Version
-    )
-    & $PipExe install --index-url $script:PaddleCpuIndexUrl "paddlepaddle==$Version"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Paddle CPU wheel installation failed with exit code $LASTEXITCODE."
+    param([string]$PipExe)
+    & $PipExe install --index-url $script:PaddleCpuIndexUrl $script:PaddleCpuPackage
+    if (-not (Test-PipPackageInstalled -PipExe $PipExe -PackageName $script:PaddleCpuPackage)) {
+        Write-Host '[paddle-guard] Paddle CPU distribution is still missing; retrying next run.' -ForegroundColor DarkYellow
     }
 }
 
@@ -136,11 +92,10 @@ function Install-GpuPaddle {
         [string]$PipExe
     )
     $policy = Get-CudaRuntimePolicy
-    $version = Get-PaddleExpectedVersion -Policy $policy
     Write-Host '[paddle-guard] Installing the official self-contained Python CUDA runtime dependencies once; this does not replace the NVIDIA driver or system CUDA Toolkit.' -ForegroundColor Cyan
-    & $PipExe install --index-url $policy.PaddleIndexUrl "paddlepaddle-gpu==$version"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Paddle GPU wheel installation failed with exit code $LASTEXITCODE. Re-run to resume the idempotent repair."
+    & $PipExe install --index-url $policy.PaddleIndexUrl $script:PaddleGpuPackage
+    if (-not (Test-PipPackageInstalled -PipExe $PipExe -PackageName $script:PaddleGpuPackage)) {
+        Write-Host '[paddle-guard] Paddle GPU distribution is still missing; retrying next run.' -ForegroundColor DarkYellow
     }
     if ($PythonCmd) {
         Sync-NvidiaCuStack -PythonCmd $PythonCmd -PipExe $PipExe -TargetMajor $policy.Major
@@ -153,6 +108,11 @@ function Ensure-PaddleBuild {
         [string]$PipExe,
         [switch]$RepairOnly
     )
+    $cudaState = ''
+    $distPresent = $false
+    $installedTag = ''
+    $policy = $null
+    $state = ''
     if (-not $PythonCmd) {
         Write-Host '[paddle-guard] No python interpreter found; skipping.' -ForegroundColor Yellow
         return
@@ -169,8 +129,7 @@ function Ensure-PaddleBuild {
 
     $state = Get-PaddleBuildState -PythonCmd $PythonCmd
     $policy = Get-CudaRuntimePolicy
-    $expectedVersion = Get-PaddleExpectedVersion -Policy $policy
-    $distPresent = Test-PaddleDistInfoPresent -PythonExe $PythonCmd
+    $distPresent = Test-PaddlePackageInstalled -PythonExe $PythonCmd
 
     if ($policy.Enabled) {
         if (-not $state) {
@@ -179,15 +138,8 @@ function Ensure-PaddleBuild {
             } elseif (-not $distPresent) {
                 Write-Host '[paddle-guard] GPU present, Paddle is absent -> installing the driver-compatible GPU wheel and its Python runtime libraries.'
                 Install-GpuPaddle -PythonCmd $PythonCmd -PipExe $PipExe
-            } elseif (-not (Test-PaddleVersionMatches -PipExe $PipExe -ExpectedVersion $expectedVersion)) {
-                Write-Host "[paddle-guard] Paddle metadata exists but its version differs from $expectedVersion -> repairing."
-                Remove-PaddlePackages -PipExe $PipExe
-                Install-GpuPaddle -PythonCmd $PythonCmd -PipExe $PipExe
-            } elseif (-not (Test-PaddleRequirementsSatisfied -PythonCmd $PythonCmd)) {
-                Write-Host '[paddle-guard] Paddle installation was interrupted or has missing declared dependencies -> resuming dependency repair.' -ForegroundColor Yellow
-                Install-GpuPaddle -PythonCmd $PythonCmd -PipExe $PipExe
             } else {
-                Write-Host '[paddle-guard] Paddle package and declared dependencies are present, but import still fails; leaving them unchanged to prevent a reinstall loop.' -ForegroundColor DarkYellow
+                Write-Host '[paddle-guard] Paddle metadata is present, but import fails; preserving it to prevent a reinstall loop.' -ForegroundColor DarkYellow
             }
             return
         }
@@ -199,8 +151,8 @@ function Ensure-PaddleBuild {
         }
         $cudaState = Get-PaddleCudaState -PythonCmd $PythonCmd
         $installedTag = Convert-PaddleCudaStateToTag -State $cudaState
-        if ($installedTag -ne $policy.Tag -or -not (Test-PaddleVersionMatches -PipExe $PipExe -ExpectedVersion $expectedVersion)) {
-            Write-Host "[paddle-guard] paddle cuda='$cudaState' or package version differs from $($policy.Tag)/$expectedVersion -> repairing."
+        if ($installedTag -ne $policy.Tag) {
+            Write-Host "[paddle-guard] Paddle CUDA '$cudaState' differs from the $($policy.Tag) ABI policy -> repairing."
             Remove-PaddlePackages -PipExe $PipExe
             Install-GpuPaddle -PythonCmd $PythonCmd -PipExe $PipExe
             return
@@ -220,31 +172,18 @@ function Ensure-PaddleBuild {
                 Write-Host '[paddle-guard] No GPU, no usable Paddle import (repair-only) -> no package mutation.'
             } elseif (-not $distPresent) {
                 Write-Host '[paddle-guard] No GPU, Paddle is absent -> installing CPU build.'
-                Install-CpuPaddle -PipExe $PipExe -Version $expectedVersion
-            } elseif (-not (Test-PaddleVersionMatches -PipExe $PipExe -ExpectedVersion $expectedVersion)) {
-                Write-Host "[paddle-guard] Paddle metadata exists but the CPU version differs from $expectedVersion -> repairing."
-                Remove-PaddlePackages -PipExe $PipExe
-                Install-CpuPaddle -PipExe $PipExe -Version $expectedVersion
-            } elseif (-not (Test-PaddleRequirementsSatisfied -PythonCmd $PythonCmd)) {
-                Write-Host '[paddle-guard] Paddle CPU installation has missing declared dependencies -> resuming dependency repair.' -ForegroundColor Yellow
-                Install-CpuPaddle -PipExe $PipExe -Version $expectedVersion
+                Install-CpuPaddle -PipExe $PipExe
             } else {
-                Write-Host '[paddle-guard] Paddle CPU package and declared dependencies are present, but import still fails; leaving them unchanged to prevent a reinstall loop.' -ForegroundColor DarkYellow
+                Write-Host '[paddle-guard] Paddle CPU metadata is present, but import fails; preserving it to prevent a reinstall loop.' -ForegroundColor DarkYellow
             }
         }
         'cpu' {
-            if (Test-PaddleVersionMatches -PipExe $PipExe -ExpectedVersion $expectedVersion) {
-                Write-Host '[paddle-guard] No GPU, paddle already CPU build; ok.'
-            } else {
-                Write-Host "[paddle-guard] No GPU, paddle CPU version drift -> aligning to $expectedVersion."
-                Remove-PaddlePackages -PipExe $PipExe
-                Install-CpuPaddle -PipExe $PipExe -Version $expectedVersion
-            }
+            Write-Host '[paddle-guard] No GPU, Paddle is already a CPU build; no change.'
         }
         'gpu' {
             Write-Host '[paddle-guard] No GPU but paddle GPU build -> switching to CPU build.'
             Remove-PaddlePackages -PipExe $PipExe
-            Install-CpuPaddle -PipExe $PipExe -Version $expectedVersion
+            Install-CpuPaddle -PipExe $PipExe
         }
     }
 }

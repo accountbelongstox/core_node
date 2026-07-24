@@ -16,7 +16,7 @@ import {
   Pause, Cpu, MemoryStick, Captions, ChevronDown, ChevronUp, ListChecks,
   SlidersHorizontal, PanelRightClose, Scissors, CornerDownRight, MonitorSmartphone,
   UploadCloud, Film, Grid2x2, Music, Image as ImageIcon,
-  KeyRound, AlertTriangle, Languages, Lock, Wand2,
+  Languages, Lock, Wand2,
 } from 'lucide-react';
 import {
   pycoreApi, connectPycoreWs, onWsStatus,
@@ -24,7 +24,6 @@ import {
 import type {
   VideoExtractEntry, VideoExtractMode, VideoExtractOptions, WhisperLanguage,
   SystemResources, VideoExtractOpenKind,
-  PosterStatus, PosterTestResponse, AssistPosterCounts,
 } from '../../../core/api-libs/pycore';
 import { WF_SUPPORTED_LANGUAGES } from '../../../core/api-libs/wordflow/wordflowLanguages';
 import { usePcVideoExtract } from '../PcVideoExtractContext';
@@ -135,221 +134,6 @@ const parentOf = (dir: string): string => {
   const d = dir.endsWith(sep) ? dir.slice(0, -1) : dir;
   const i = d.lastIndexOf(sep);
   return i > 0 ? d.slice(0, i) : d;
-};
-
-/**
- * PcMoviePosterStrip — compact Movie/TV poster pipeline status panel for the
- * Video Extract page (MOVIE_POSTER_PIPELINE.md). Shows the TMDB/OMDB provider
- * key status (from pycore GET /api/local/poster/status), the per-status poster
- * counts for the media produced by extraction (from the assist snapshot's
- * `poster` block, GET /api/local/assist/status), and a small inline title→
- * poster lookup/preview (POST /api/local/poster/test). All pycore endpoints are
- * REUSED from pycoreApi; every call is guarded so an offline backend degrades to
- * a muted line instead of crashing the page.
- *
- * 404 hardening: getJSON does NOT throw on a non-2xx body, so a stale backend
- * can return `{detail:"Not Found"}` with NO providers/keys. We treat a payload
- * missing the expected `providers` array as "endpoint missing" and show a clear
- * "restart backend" notice rather than rendering empty/zero badges silently.
- */
-const PcMoviePosterStrip: React.FC = () => {
-  const [status, setStatus] = useState<PosterStatus | null>(null);
-  const [counts, setCounts] = useState<AssistPosterCounts | null>(null);
-  const [loading, setLoading] = useState(false);
-  // null = not yet loaded; '' = loaded OK; non-empty = error / endpoint-missing.
-  const [err, setErr] = useState<string | null>(null);
-  const [testTitle, setTestTitle] = useState('');
-  const [testYear, setTestYear] = useState('');
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<PosterTestResponse | null>(null);
-  const [testErr, setTestErr] = useState<string | null>(null);
-  const mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Poster key status (TMDB/OMDB). getJSON never throws on a 404 body, so
-      // validate the SHAPE: a real status carries a providers array.
-      const s = await pycoreApi.getPosterStatus();
-      if (!mounted.current) return;
-      if (s && Array.isArray((s as any).providers)) {
-        setStatus(s); setErr('');
-      } else {
-        setStatus(null);
-        setErr((s as any)?.detail || (s as any)?.error
-          ? 'Poster status endpoint missing — restart the pycore backend (:59000).'
-          : 'Poster status unavailable.');
-      }
-      // Poster counts ride the assist snapshot's optional `poster` block. Absent
-      // (older backend) → leave counts null (the counts row simply hides).
-      const a = await pycoreApi.getAssistStatus().catch(() => null);
-      if (!mounted.current) return;
-      const p = a?.laravel_status?.poster;
-      setCounts(p && typeof p.total === 'number' ? p : null);
-    } catch (e: any) {
-      if (mounted.current) { setStatus(null); setErr(e?.message || 'pycore unreachable'); }
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const runTest = async () => {
-    const title = testTitle.trim();
-    if (!title) { setTestErr('Enter a movie / show title'); return; }
-    setTesting(true); setTestErr(null); setTestResult(null);
-    try {
-      const yr = testYear.trim() ? Number(testYear.trim()) : undefined;
-      const r = await pycoreApi.testPoster(title, Number.isFinite(yr) ? yr : undefined);
-      if (!mounted.current) return;
-      // testPoster never throws ({found:false} on a miss) — but a stale backend
-      // 404 returns a body with neither `found` nor `error`: surface that too.
-      if (r && (typeof r.found === 'boolean' || r.error)) {
-        setTestResult(r);
-        if (!r.found && !r.error) setTestErr('No poster found for that title.');
-        if (r.error) setTestErr(r.error);
-      } else {
-        setTestErr('Poster test endpoint missing — restart the pycore backend (:59000).');
-      }
-    } catch (e: any) {
-      if (mounted.current) setTestErr(e?.message || 'Poster lookup failed');
-    } finally {
-      if (mounted.current) setTesting(false);
-    }
-  };
-
-  const providers = status?.providers ?? [];
-  const countItems: Array<{ label: string; value: number; cls: string }> = counts ? [
-    { label: 'Pending', value: counts.pending, cls: 'text-amber-500' },
-    { label: 'Ready', value: counts.ready, cls: 'text-emerald-500' },
-    { label: 'Failed', value: counts.failed, cls: 'text-rose-500' },
-    { label: 'None', value: counts.none, cls: 'text-slate-400' },
-  ] : [];
-
-  return (
-    <section className="pc-glass p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-        <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-2">
-          <ImageIcon className="w-4 h-4 text-rose-500" /> Movie {L.vePoster} status
-        </h3>
-        <button onClick={load} disabled={loading}
-          className="text-[11px] font-bold flex items-center gap-1 text-rose-500 hover:text-rose-400 transition disabled:opacity-50">
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
-        </button>
-      </div>
-      <p className="text-[11px] text-slate-400 mb-3">
-        TMDB / OMDB poster fetch for the media produced by extraction (Books / Subtitles).
-      </p>
-
-      {/* endpoint-missing / offline notice (never silently show empty badges) */}
-      {err ? (
-        <div className="mb-3 flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span className="break-words">{err}</span>
-        </div>
-      ) : !status ? (
-        <p className="text-[11px] text-slate-400">Loading…</p>
-      ) : (
-        <>
-          {/* provider key badges */}
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1">
-              <KeyRound className="w-3.5 h-3.5" /> Keys:
-            </span>
-            {providers.map((p) => (
-              <span key={p.name}
-                title={p.configured ? `${p.name.toUpperCase()} key configured` : `${p.name.toUpperCase()} key missing`}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wide ${
-                  p.configured
-                    ? 'bg-emerald-500/15 text-emerald-500'
-                    : 'bg-slate-200/50 dark:bg-white/5 text-slate-400 line-through'}`}>
-                {p.name}
-                {p.name === 'tmdb' && p.has_v4_token && (
-                  <span className="not-italic normal-case text-[10px] text-emerald-400">v4</span>
-                )}
-              </span>
-            ))}
-            {providers.every((p) => !p.configured) && (
-              <span className="text-[11px] text-amber-500">No provider keys configured — set TMDB_API_KEY / OMDB_API_KEY.</span>
-            )}
-          </div>
-
-          {/* per-status counts (only when the assist snapshot exposes them) */}
-          {counts ? (
-            <div className="grid grid-cols-4 gap-3 text-[11px] mb-3">
-              {countItems.map((c) => (
-                <div key={c.label}>
-                  <div className="text-slate-400 uppercase tracking-wide">{c.label}</div>
-                  <div className={`font-bold ${c.cls}`}>{c.value}</div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[11px] text-slate-400 mb-3">
-              Poster counts unavailable — the assist snapshot has no <span className="font-mono">poster</span> block yet (start the assist worker / update the backend).
-            </p>
-          )}
-
-          {/* inline title → poster lookup + preview */}
-          <div className="pt-3 border-t border-slate-200/60 dark:border-white/5">
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="flex-1 min-w-[10rem]">
-                <label className="block text-[11px] text-slate-500 mb-1">Test lookup — title</label>
-                <input type="text" value={testTitle}
-                  onChange={(e) => setTestTitle(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') runTest(); }}
-                  placeholder="e.g. Inception"
-                  className="w-full text-xs bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl p-2.5 text-slate-800 dark:text-slate-200 focus:outline-none" />
-              </div>
-              <div className="w-24">
-                <label className="block text-[11px] text-slate-500 mb-1">Year</label>
-                <input type="text" inputMode="numeric" value={testYear}
-                  onChange={(e) => setTestYear(e.target.value.replace(/[^0-9]/g, ''))}
-                  onKeyDown={(e) => { if (e.key === 'Enter') runTest(); }}
-                  placeholder="2010"
-                  className="w-full text-xs bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl p-2.5 text-slate-800 dark:text-slate-200 focus:outline-none" />
-              </div>
-              <button onClick={runTest} disabled={testing}
-                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition flex items-center gap-1 disabled:opacity-50">
-                {testing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                Look up
-              </button>
-            </div>
-
-            {testErr && <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">{testErr}</p>}
-
-            {testResult?.found && (
-              <div className="mt-3 flex gap-3 items-start p-3 rounded-2xl bg-slate-100 dark:bg-black/30 border border-slate-200/50 dark:border-white/5">
-                {testResult.image_base64 && (
-                  <img
-                    src={`data:${testResult.mime || 'image/jpeg'};base64,${testResult.image_base64}`}
-                    alt={testResult.meta?.title || 'poster'}
-                    className="w-20 h-auto rounded-lg shrink-0 object-cover" />
-                )}
-                <div className="text-[11px] space-y-1 min-w-0">
-                  <div className="font-bold text-slate-700 dark:text-slate-200 truncate">
-                    {testResult.meta?.title || testTitle}
-                    {testResult.meta?.year ? ` (${testResult.meta.year})` : ''}
-                  </div>
-                  {testResult.provider && (
-                    <div className="text-slate-500">
-                      Source: <span className="font-bold uppercase">{testResult.provider}</span>
-                      {testResult.source_id ? ` · ${testResult.source_id}` : ''}
-                    </div>
-                  )}
-                  {testResult.meta?.overview && (
-                    <p className="text-slate-500 line-clamp-3">{testResult.meta.overview}</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-    </section>
-  );
 };
 
 const PcVideoExtractPage: React.FC = () => {
@@ -1091,10 +875,6 @@ const PcVideoExtractPage: React.FC = () => {
           )}
         </section>
       )}
-
-      {/* Movie / TV poster pipeline: key status + counts + inline test/preview
-          for the media produced by extraction (TMDB/OMDB via pycore). */}
-      <PcMoviePosterStrip />
 
       {/* Segment ↔ subtitle map for the CURRENT file */}
       {segmentsDir && (

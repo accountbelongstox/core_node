@@ -4,7 +4,7 @@
 TkinterStartupThread - Thread-Safe Startup Window (orchestrator)
 
 Follows project multi-threading standards:
-- Directly inherits threading.Thread (not using Thread(target=func))
+- Directly inherits threading.Thread without target-based construction
 - Uses THREAD_BUS for all communication (no callbacks or parameters)
 - Signals ready/closed states via THREAD_BUS
 - Main thread can wait for signals without blocking
@@ -95,40 +95,44 @@ class TkinterStartupThread(threading.Thread):
             enable_language_selector: Show language selector
             enable_tray: Enable system tray menu (persists after debug window closes)
         """
-        super().__init__()
-        self.daemon = False  # Non-daemon - main thread should wait
+        super().__init__(name="TkinterStartupThread", daemon=False)
 
-        # Window configuration
-        self.app_name = app_name
-        self.width = width
-        self.height = height
-        self.icon_path = icon_path
-        self.logo_path = logo_path
-        self.enable_language_selector = enable_language_selector
-        self.enable_tray = enable_tray
+        # Thread control
+        self._control_prefix = f'pyutils.native_ui.startup.{id(self)}'
+        self._config_queue = f'{self._control_prefix}.config'
+        self._stop_signal = f'{self._control_prefix}.stop'
+        self._close_signal = f'{self._control_prefix}.close'
+        self._running_signal = f'{self._control_prefix}.running'
+        self._log_queue_name = f'{self._control_prefix}.logs'
+        THREAD_BUS.send_message(self._config_queue, {
+            "app_name": app_name,
+            "width": width,
+            "height": height,
+            "icon_path": icon_path,
+            "logo_path": logo_path,
+            "enable_language_selector": bool(enable_language_selector),
+            "enable_tray": bool(enable_tray),
+        })
+        THREAD_BUS.signal(self._running_signal, False)
 
-        # UI components (created in run() via startup_ui_builder)
+    def run(self):
+        """Thread execution (called automatically by start())"""
+        thread_name = self.__class__.__name__
+        config = THREAD_BUS.receive_message(self._config_queue) or {}
+        self.app_name = config.get("app_name", "Application")
+        self.width = int(config.get("width") or 500)
+        self.height = int(config.get("height") or 400)
+        self.icon_path = config.get("icon_path")
+        self.logo_path = config.get("logo_path")
+        self.enable_language_selector = bool(config.get("enable_language_selector", True))
+        self.enable_tray = bool(config.get("enable_tray", False))
         self.root: Optional[tk.Tk] = None
         self.text_widget: Optional[tk.Text] = None
         self.progress_bar: Optional[ttk.Progressbar] = None
         self.status_label: Optional[tk.Label] = None
         self.language_var: Optional[tk.StringVar] = None
         self.language_frame: Optional[tk.Frame] = None
-
-        # Tray components (created if enable_tray is True, via startup_tray_runner)
         self.tray: Optional[Any] = None
-
-        # Thread control
-        self._control_prefix = f'pyutils.native_ui.startup.{id(self)}'
-        self._stop_signal = f'{self._control_prefix}.stop'
-        self._close_signal = f'{self._control_prefix}.close'
-        self._running_signal = f'{self._control_prefix}.running'
-        self._log_queue_name = f'{self._control_prefix}.logs'
-        THREAD_BUS.signal(self._running_signal, False)
-
-    def run(self):
-        """Thread execution (called automatically by start())"""
-        thread_name = self.__class__.__name__
 
         # 1. Log startup
         ColorPrint.print_info(f"[{thread_name}] Thread starting")
@@ -224,7 +228,10 @@ class TkinterStartupThread(threading.Thread):
             log_data = THREAD_BUS.receive_message(self._log_queue_name)
             if not isinstance(log_data, dict):
                 break
-            self._append_log(log_data['message'], log_data['level'])
+            if log_data.get("kind") == "status":
+                self._update_status_label(str(log_data.get("status") or ""))
+            else:
+                self._append_log(log_data['message'], log_data['level'])
 
         # Schedule next check
         if THREAD_BUS.get_signal(self._running_signal, False) and self.root:
@@ -360,15 +367,10 @@ class TkinterStartupThread(threading.Thread):
         Args:
             status: Status text
         """
-        if self.root and self.status_label:
-            try:
-                # Check if root window still exists before using after()
-                if self.root.winfo_exists():
-                    # Use dedicated method instead of lambda (follows pycore standards)
-                    self.root.after(0, self._update_status_label, status)
-            except Exception as e:
-                # Silently ignore errors if window is being destroyed
-                pass
+        THREAD_BUS.send_message(self._log_queue_name, {
+            "kind": "status",
+            "status": status,
+        })
 
     def _update_status_label(self, status: str):
         """
@@ -393,12 +395,7 @@ class TkinterStartupThread(threading.Thread):
         """
         ColorPrint.print_info("[TkinterStartupThread] Close request received from external thread")
         THREAD_BUS.signal(self._close_signal, True)
-
-        # CRITICAL FIX: If tray is running, stop it immediately
-        # This fixes the bug where program hangs on exit when tray is running
-        if self.tray:
-            ColorPrint.print_warn("[TkinterStartupThread] Stopping tray immediately...")
-            self.tray.stop()
+        THREAD_BUS.trigger_event("tray.request_stop", {})
 
     def stop(self):
         """
@@ -415,12 +412,7 @@ class TkinterStartupThread(threading.Thread):
         # Signal stop event (prevents entering tray mode after window closes)
         THREAD_BUS.signal(self._stop_signal, True)
 
-        # Stop tray if running (must be done BEFORE request_close to avoid race condition)
-        if self.tray:
-            ColorPrint.print_info("[TkinterStartupThread] Stopping tray...")
-            self.tray.stop()
-
-        # Close window if still running
+        THREAD_BUS.trigger_event("tray.request_stop", {})
         self.request_close()
 
     def is_running(self) -> bool:

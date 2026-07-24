@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Resolve the python interpreter for faster-whisper / CTranslate2.
 
-Pycore uses a single system Python 3.13 (no venv). faster-whisper and
-CTranslate2 run in-process in that interpreter; on GPU hosts CTranslate2 falls
-back to CPU int8 so cu13 paddle/torch DLLs are never clobbered by cu12 libs.
+Pycore uses one shared Python runtime. faster-whisper and CTranslate2 run
+in-process; GPU is selected only when CTranslate2 matches the centralized CUDA
+major, otherwise inference falls back to CPU int8 without a second CUDA stack.
 
 Resolution order:
   1. env PYCORE_WHISPER_PYTHON (explicit override)

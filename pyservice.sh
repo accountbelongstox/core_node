@@ -86,7 +86,7 @@
 # page is served and no Qt window/tray is created (those are Windows-only), so the
 # worker is effectively an RPC server - configure it with `pyservice config ...`.
 # ---------------------------------------------------------------------------
-set -euo pipefail
+set -uo pipefail
 
 # Resolve this script's directory (repo root), following symlinks.
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
@@ -100,12 +100,12 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || ec
 # worker import a stale /usr/local torch -> ~5GB reinstall every launch. Source the helper
 # now (lightweight, no gvar dependency); call it once $PY is resolved.
 # shellcheck source=/dev/null
-source "$SCRIPT_DIR/scripts/shells/linux/common/venv_python_common.sh" 2>/dev/null || true
+source "$SCRIPT_DIR/scripts/shells/linux/common/venv_python_common.sh"
 
 # Wire the ONE shared, all-users cache location (CORE_NODE_CACHE_DIR + HF_HOME /
 # TORCH_HOME / PIP_CACHE_DIR / XDG_CACHE_HOME ...) for the running service so every
 # model download lands in /var/_core_node/cache, shared across all users.
-[ -f "$SCRIPT_DIR/scripts/shells/linux/common/shared_cache_env.sh" ] && source "$SCRIPT_DIR/scripts/shells/linux/common/shared_cache_env.sh"
+source "$SCRIPT_DIR/scripts/shells/linux/common/shared_cache_env.sh"
 
 BIND_HOST="0.0.0.0"
 PORT="59000"
@@ -384,10 +384,7 @@ else
         export BARK_SKIP=1
         export PARLER_SKIP=1
     fi
-    if ! bash "$PREPARE_REL" --python "$PY" "${PREPARE_ARGS[@]+"${PREPARE_ARGS[@]}"}"; then
-        echo "[!] Prerequisite step failed; worker launch cancelled." >&2
-        exit 1
-    fi
+    bash "$PREPARE_REL" --python "$PY" "${PREPARE_ARGS[@]+"${PREPARE_ARGS[@]}"}"
 fi
 
 if [[ "$ONLY" -eq 1 ]]; then

@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 from datetime import datetime
 
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from pycore.pyutils.mcp.file_processing.image_analyzer_with_ocr_color_extraction_and_pixel_matrix import (
     get_image_analyzer_singleton
 )
@@ -252,15 +253,16 @@ class FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata:
         }
 
 
-# Create singleton instance
-_file_info_extractor_instance = None
+_FILE_INFO_EXTRACTOR_PROVIDER = SerializedSingletonProvider(
+    FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata,
+    "mcp.file_info_extractor.provider",
+    "MCPFileInfoExtractorProviderThread",
+    timeout=300.0,
+)
 
 def get_file_info_extractor_singleton() -> FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata:
     """Get singleton instance of file info extractor"""
-    global _file_info_extractor_instance
-    if _file_info_extractor_instance is None:
-        _file_info_extractor_instance = FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata()
-    return _file_info_extractor_instance
+    return _FILE_INFO_EXTRACTOR_PROVIDER.get()
 
 
 # Convenience function with long descriptive name

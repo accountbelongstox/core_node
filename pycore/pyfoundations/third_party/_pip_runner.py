@@ -8,7 +8,7 @@ All third-party subprocess execution MUST go through run_third_party_command() o
 - Capture mode (capture_output=True): subprocess.run(capture_output=True) for pip show etc.
 Ref: https://docs.python.org/3/library/subprocess.html
 
-Imports _PACKAGE_CACHE from _cache (for _clear_cnocr_cache).
+Imports _PACKAGE_CACHE from the leaf-only package cache.
 """
 
 import sys
@@ -16,12 +16,14 @@ import importlib
 import platform
 from typing import Optional
 
+from packaging.requirements import InvalidRequirement, Requirement
+
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import Commander
 from pycore.pyfoundations.pybasecommon.safe_subprocess import subprocess
 from pycore.pyfoundations.pybasecommon.compute_caps import last_ort_install_ran
 
-from ._cache import _PACKAGE_CACHE
+from ._package_cache import _PACKAGE_CACHE
 
 
 def run_third_party_command(
@@ -48,26 +50,22 @@ def run_third_party_command(
 
 def build_pip_install_command(
     package_name: str,
-    upgrade: bool = False,
     index_url: Optional[str] = None,
 ) -> list:
     """
     Build pip install command (list of args) with platform-specific flags.
     Callers must run it only via run_pip_install_with_realtime_output(pip_cmd, package_name).
-    If upgrade is True, adds --upgrade. If index_url is set (e.g. ORT CUDA 11 feed), adds --index-url.
+    Existing distributions are preserved; pip resolves dependencies for missing packages.
     """
     current_platform = platform.system()
     pip_cmd = [sys.executable, "-m", "pip", "install"]
 
-    # On Linux/Mac, use --break-system-packages --ignore-installed for reliable installation
-    # On Windows, use normal pip install
+    # Linux may require the explicit system-package override; never ignore installed packages.
     if current_platform != 'Windows':
-        pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
+        pip_cmd.append("--break-system-packages")
     else:
         pip_cmd.append("--no-user")
 
-    if upgrade:
-        pip_cmd.append("--upgrade")
     if index_url:
         pip_cmd.extend(["--index-url", index_url])
     pip_cmd.append(package_name)
@@ -92,13 +90,20 @@ def run_command_with_realtime_output(cmd: list, description: str = "") -> None:
 
 
 def _is_pip_package_installed(package_name: str) -> bool:
-    """Return True if the package is installed (pip show succeeds). Used to skip uninstall/install when no switch needed."""
+    """Detect distribution metadata through pip output without using its exit status."""
+    try:
+        distribution_name = Requirement(package_name).name
+    except InvalidRequirement:
+        distribution_name = package_name.strip()
+    if not distribution_name or "://" in distribution_name:
+        return False
     proc = run_third_party_command(
-        [sys.executable, "-m", "pip", "show", package_name],
+        [sys.executable, "-m", "pip", "show", distribution_name],
         capture_output=True,
         timeout=10,
     )
-    return proc.returncode == 0 if proc is not None else False
+    output = (getattr(proc, "stdout", "") or "") if proc is not None else ""
+    return any(line.strip().lower().startswith("name:") for line in output.splitlines())
 
 
 def _run_pip_uninstall(package_name: str) -> None:
@@ -114,16 +119,18 @@ def _run_pip_uninstall(package_name: str) -> None:
 def _run_pip_install_for_ocr(package_name: str, index_url: Optional[str] = None) -> None:
     """
     Run pip install <package_name> with real-time output.
-    Used to install onnxruntime-gpu[cuda,cudnn], onnxruntime, or nvidia-cublas-cu12. index_url optional.
+    Used to install ONNX Runtime or centralized CUDA-policy dependency specs. index_url optional.
     """
     pip_cmd = build_pip_install_command(package_name, index_url=index_url)
     run_pip_install_with_realtime_output(pip_cmd, package_name)
 
 
 def _run_pip_install_for_ocr_force(package_name: str) -> None:
-    """Run pip install <package_name> --force-reinstall. Used when ORT GPU is listed but import fails."""
-    pip_cmd = build_pip_install_command(package_name) + ["--force-reinstall"]
-    run_pip_install_with_realtime_output(pip_cmd, package_name)
+    """Preserve installed ORT metadata; only install the package when it is missing."""
+    if _is_pip_package_installed(package_name):
+        ColorPrint.yellow(f"[ORT] {package_name} is installed but cannot load; preserving it for installer repair.")
+    else:
+        _run_pip_install_for_ocr(package_name)
 
 
 def _fix_ort_dependency_conflicts() -> None:
@@ -133,24 +140,18 @@ def _fix_ort_dependency_conflicts() -> None:
     """
     if not last_ort_install_ran():
         return
-    if _is_pip_package_installed("numba"):
-        ColorPrint.blue("[HF] Reinstalling numba (no version pin) after ORT install...")
-        pip_cmd = build_pip_install_command("numba", upgrade=True)
-        run_pip_install_with_realtime_output(pip_cmd, "numba")
-    if _is_pip_package_installed("osam"):
-        ColorPrint.blue("[HF] Reinstalling osam with --no-deps (onnxruntime-gpu satisfies runtime)...")
-        pip_cmd = build_pip_install_command("osam", upgrade=True) + ["--no-deps"]
-        run_pip_install_with_realtime_output(pip_cmd, "osam")
+    ColorPrint.blue("[ORT] Pip owns dependency compatibility; installed distributions are preserved.")
 
 
 def _verify_onnx_import() -> bool:
     """Return True if 'import onnxruntime as ort; ort.get_available_providers()' succeeds in a subprocess."""
     proc = run_third_party_command(
-        [sys.executable, "-c", "import onnxruntime as ort; ort.get_available_providers()"],
+        [sys.executable, "-c", "import onnxruntime as ort; ort.get_available_providers(); print('__ORT_READY__')"],
         capture_output=True,
         timeout=30,
     )
-    return proc is not None and proc.returncode == 0
+    output = (getattr(proc, "stdout", "") or "") if proc is not None else ""
+    return "__ORT_READY__" in output
 
 
 def _clear_cnocr_cache() -> None:

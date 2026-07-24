@@ -57,15 +57,10 @@ class TaskCenterController extends Controller
     ];
 
     /**
-     * Which client(s) are eligible to claim a task of each capability, derived
-     * from the canonical downgrade decision: translate races on BOTH clients;
-     * audio + image are PYCORE-ONLY (chrome has no audio/image lane);
-     * sentence_audio is chrome's web-audio assist; subtitle/poster are
-     * pycore-only retrieval lanes. NULL capability (any) is reported separately
-     * as the union of all clients. Keep this in lock-step with GlobalTask's
-     * CAPABILITY_* vocabulary and capabilityMatches() — never advertise a
-     * claimant a client cannot actually fulfill (the dead 'image'-on-chrome
-     * bug B17).
+     * Eligible clients are read from GlobalTask's canonical capability maps.
+     * Chrome owns browser-driven image/poster work and shares translation/audio
+     * where both runtimes advertise the capability. NULL capability is reported
+     * separately as the union of all clients.
      */
     // Both maps are canonical on GlobalTask — this controller reads them from
     // there so the Queue Center and the pycore-manager overview never contradict.
@@ -270,9 +265,9 @@ class TaskCenterController extends Controller
      * derived from CAPABILITY_CLAIMANTS (the canonical downgrade), so the FE
      * never hardcodes routing.
      *
-     * Counts come from ONE grouped query over the live (pending/processing)
-     * rows, keyed by (capability, is_fast_tier, status), so the overview stays a
-     * single poll.
+     * Counts come from one grouped query over the live rows, keyed by
+     * (capability, execution_type, status). The lane is determined by the
+     * execution type, not the priority-tier marker.
      *
      * @return array<int,array<string,mixed>>
      */
@@ -280,17 +275,19 @@ class TaskCenterController extends Controller
     {
         $live = [GlobalTask::STATUS_PENDING, GlobalTask::STATUS_PROCESSING];
 
-        // (capability, is_fast_tier, status) -> count over live rows only.
+        // (capability, execution_type, status) -> count over live rows only.
         $rows = GlobalTask::query()
             ->whereIn('status', $live)
-            ->groupBy('capability', 'is_fast_tier', 'status')
-            ->selectRaw('capability, is_fast_tier, status, count(*) as total')
+            ->groupBy('capability', 'execution_type', 'status')
+            ->selectRaw('capability, execution_type, status, count(*) as total')
             ->get();
 
         $tally = [];
         foreach ($rows as $row) {
             $cap = $row->capability ?? '_null';
-            $fastKey = $row->is_fast_tier ? 'fast' : 'single';
+            $fastKey = $row->execution_type === GlobalTask::EXECUTION_REMOTE_FAST
+                ? 'fast'
+                : 'single';
             $tally[$cap][$fastKey][$row->status] = (int) $row->total;
         }
 
@@ -301,8 +298,8 @@ class TaskCenterController extends Controller
         //                in capabilities (the capability-match narrowing).
         //   single_lane: worker has the dedicated execution_type (from
         //                CAPABILITY_SINGLE_LANE) in processor_types. Capabilities
-        //                with no dedicated lane (image, ai_translate) are
-        //                always false for single_lane - they ride fast only.
+        //                with no dedicated lane (ai_translate) are false for
+        //                single_lane; image also has the dedicated Gemini lane.
         //   NULL-cap:    any online worker at all.
         $onlineWorkers = Worker::online()->get();
         $onlineFastCaps = [];   // set of capabilities any online fast worker advertises

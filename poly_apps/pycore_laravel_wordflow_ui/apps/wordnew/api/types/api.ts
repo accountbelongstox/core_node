@@ -250,21 +250,6 @@ export interface WfNewApi {
     opts?: { accent?: WfNewWordAccent },
   ): Promise<WfNewWordMedia>;
 
-  /**
-   * Upload frontend-generated word audio (e.g. Puter.js txt2speech) to Laravel
-   * for persistence (POST /word/audio/upload). Laravel matches the dictionary
-   * row by (lang, md5), validates the MP3, and stores it via the canonical
-   * storeWordAudioBytes (fill-missing - never clobbers existing audio). On the
-   * next page load the word reports hasAudio=true from the saved file.
-   */
-  saveWordAudio(payload: {
-    md5: string;
-    lang: string;
-    audio_base64: string;
-    provider?: string;
-    accent?: WfNewWordAccent;
-  }): Promise<{ ok: boolean; stored?: boolean }>;
-
   /** Resolve sentence-library audio (file-first). On miss, backend bumps priority.
    *  `variantKey` requests a specific accent/voice variant; the response carries
    *  `tts_status` (pending|processing|completed|failed) + `audio_files` variants. */
@@ -273,17 +258,6 @@ export interface WfNewApi {
     language: string,
     variantKey?: string,
   ): Promise<{ exists: boolean; url?: string | null; queued?: boolean; content_id?: string; hash?: string; tts_status?: string | null; audio_files?: WfAudioFileVariant[] }>;
-
-  /** Explicit priority bump + fast task for one sentence (book-reader retry). */
-  bumpSentenceAudio(contentId: string, language: string): Promise<{ success: boolean; task_id?: string | null }>;
-
-  /** Batch high-priority hint for the now-visible reader page: on a chapter/page
-   *  switch, raise tts_priority for every visible sentence that lacks audio in ONE
-   *  round-trip so pycore processes them (qwen3tts-first) ahead of the background
-   *  fill-missing sweep. Rows are created on demand from `text` when never ingested. */
-  prioritizeSentenceAudio(
-    items: { text: string; language: string }[],
-  ): Promise<{ success: boolean; queued: number }>;
 
   // ---- Book reading progress (server-side, auth:sanctum) ----
   getBookReadingProgress(sourceKey: string): Promise<WfNewBookReadingProgress | null>;

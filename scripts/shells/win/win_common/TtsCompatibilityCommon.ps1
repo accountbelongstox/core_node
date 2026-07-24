@@ -6,7 +6,11 @@ $script:TtsPolicyPythonFile = Join-Path $script:TtsPolicyRepoRoot 'pycore\pyfoun
 function Get-TtsPolicyPythonVersion {
     param([Parameter(Mandatory = $true)][string]$PythonExe)
     $text = Get-PythonVersionTextFromExe -PythonExe $PythonExe
-    if ($text -match '(\d+\.\d+)') { return $Matches[1] }
+    $parts = @()
+    if ($text -and $text.StartsWith('Python ', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $parts = $text.Substring(7).Split('.')
+        if ($parts.Length -ge 2) { return "$($parts[0]).$($parts[1])" }
+    }
     return ''
 }
 
@@ -78,16 +82,15 @@ function Test-TtsEngineHealth {
         [Parameter(Mandatory = $true)][string]$PythonExe,
         [Parameter(Mandatory = $true)][string]$Engine
     )
+    $output = ''
     $previous = $ErrorActionPreference
-    $exitCode = 1
     if (-not (Test-Path -LiteralPath $PythonExe) -or -not (Test-Path -LiteralPath $script:TtsPolicyPythonFile)) {
         return $false
     }
     $ErrorActionPreference = 'Continue'
-    & $PythonExe $script:TtsPolicyPythonFile health-probe $Engine 2>$null | Out-Null
-    $exitCode = $LASTEXITCODE
+    $output = (& $PythonExe $script:TtsPolicyPythonFile health-probe $Engine 2>$null) -join ''
     $ErrorActionPreference = $previous
-    return ($exitCode -eq 0)
+    return ($output -match '__HEALTH_READY__')
 }
 
 function Test-TtsDependencyStamp {

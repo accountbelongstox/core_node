@@ -86,6 +86,7 @@ class QwenTtsWorkerService extends SimpleWorkerBase {
           ...(item.md5 ? { md5: item.md5 } : {}),
           audio_base64: bytesToBase64(bytes),
           audio_mime: result.audio?.mime || 'audio/wav',
+          provider: 'qwen3-tts',
         });
       }
 
@@ -153,14 +154,17 @@ class QwenTtsWorkerService extends SimpleWorkerBase {
 
   private normalizeWords(payload: Task['payload']): AudioWord[] {
     const words: AudioWord[] = [];
-    const rawWords = Array.isArray(payload.words) ? payload.words : [];
+    const rawWords: unknown[] = Array.isArray(payload.words) ? payload.words : [];
 
     for (const item of rawWords) {
-      const word = typeof item === 'string' ? item.trim() : String(item?.word || '').trim();
+      const record = item && typeof item === 'object'
+        ? item as Record<string, unknown>
+        : null;
+      const word = typeof item === 'string' ? item.trim() : String(record?.word || '').trim();
       if (!word) continue;
       words.push({
         word,
-        ...(typeof item === 'object' && item?.md5 ? { md5: String(item.md5) } : {}),
+        ...(record?.md5 ? { md5: String(record.md5) } : {}),
       });
     }
 

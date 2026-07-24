@@ -64,8 +64,9 @@ export function initializeProcessors(): void {
   taskCenter.registerProcessor(puterAiTranslateProcessor, false);
 
   // Poster + vocabulary cover via Google/Bing image search (replaces pycore
-  // TMDB/OMDB + AI cover). Also polls Laravel /assist/claim for cover/poster.
-  taskCenter.registerProcessor(mediaImageProcessor, true);
+  // TMDB/OMDB + AI cover). Opt-in through its Task-tab checkbox; while active
+  // it also polls Laravel /assist/claim for cover/poster.
+  taskCenter.registerProcessor(mediaImageProcessor, false);
 
   console.log('[TaskCenter] Processors initialized');
 }

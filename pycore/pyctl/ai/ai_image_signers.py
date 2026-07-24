@@ -25,6 +25,8 @@ from email.utils import formatdate
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import quote
 
+from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
+
 # Optional: google-auth for Vertex AI service-account OAuth (RS256 JWT -> token).
 try:
     from google.oauth2 import service_account as _gcp_service_account
@@ -94,9 +96,15 @@ def _aws_sigv4_headers(access_key: str, secret_key: str, region: str, service: s
 # Vertex OAuth access-token cache (keyed by SA client_email; tokens last ~1h).
 # Local to this module - NOT shared gateway singleton state (ai_gateway_state).
 _vertex_token_cache: Dict[str, Dict[str, Any]] = {}
+_VERTEX_TOKEN_QUEUE = 'pyctl.ai.vertex_token_cache'
+_VERTEX_TOKEN_WORKER = SerializedWorkerThread(
+    _VERTEX_TOKEN_QUEUE,
+    'VertexTokenCacheThread',
+)
+_VERTEX_TOKEN_WORKER.start()
 
 
-def _vertex_access_token(sa_json_str: str) -> Tuple[Optional[str], Optional[str]]:
+def _refresh_vertex_access_token(sa_json_str: str) -> Tuple[Optional[str], Optional[str]]:
     """Service-account JSON -> short-lived OAuth access token (cached). Returns
     (token, None) or (None, error)."""
     if not _GCP_AUTH_AVAILABLE:
@@ -118,3 +126,13 @@ def _vertex_access_token(sa_json_str: str) -> Tuple[Optional[str], Optional[str]
         return None, f"OAuth refresh failed: {e}"
     _vertex_token_cache[cache_key] = {"token": creds.token, "exp": now + 3000}
     return creds.token, None
+
+
+def _vertex_access_token(sa_json_str: str) -> Tuple[Optional[str], Optional[str]]:
+    """Resolve a Vertex token on the cache owner thread."""
+    return call_serialized(
+        _VERTEX_TOKEN_QUEUE,
+        _refresh_vertex_access_token,
+        sa_json_str,
+        timeout=60.0,
+    )

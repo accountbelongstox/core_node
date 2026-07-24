@@ -20,7 +20,7 @@ use App\Models\AppQyV1AiPrompt;
  * is the supported way to change it. Operator-created rows (source='database')
  * are a completely separate set of prompt_key values and are never touched.
  *
- * Both preset prompts fan out through the `ai_prompt_requests` inbox
+ * Preset prompts fan out through the `ai_prompt_requests` inbox
  * (AppQyV1AiPromptFanoutTask): insert one row with the source content, matching
  * prompt_keys resolve here, and each becomes one global_tasks row on the
  * declared task_type's lane.
@@ -102,6 +102,27 @@ PROMPT,
             'response_schema' => self::TRANSLATE_BILINGUAL_ANALYSIS_SCHEMA,
         ],
         [
+            'prompt_key' => 'short_article_generation',
+            'task_type' => 'gemini_chat',
+            'title' => 'Generate a short article',
+            'prompt_template' => <<<'PROMPT'
+Write a coherent short article that naturally uses the source words, sentences, or topic below.
+
+Source:
+{source_text}
+
+Target language: {target_language}
+
+Rules:
+- Use the target language when provided; otherwise use the source language.
+- Keep the article between 120 and 220 words unless the source explicitly requests another length.
+- Include a concise title followed by the article body.
+- Preserve the intended meanings of supplied words or sentences.
+- Return the title and article only, without analysis or markdown code fences.
+PROMPT,
+            'response_schema' => null,
+        ],
+        [
             'prompt_key' => 'notebooklm_dialogue',
             'task_type' => 'notebooklm',
             'title' => 'Generate a dialogue from words/sentences',
@@ -146,15 +167,27 @@ PROMPT,
         return ['seeded' => count($keys), 'prompt_keys' => $keys];
     }
 
-    /** True when every code-owned prompt_key already exists in the database. */
+    /** True when every code-owned row exists and still matches its code default. */
     public static function isSeeded(): bool
     {
         $expected = array_map(fn ($p) => $p['prompt_key'], self::CODE_PROMPTS);
-        $found = AppQyV1AiPrompt::whereIn('prompt_key', $expected)
-            ->where('source', AppQyV1AiPrompt::SOURCE_CODE)
-            ->pluck('prompt_key')
-            ->all();
+        $rows = AppQyV1AiPrompt::whereIn('prompt_key', $expected)
+            ->get()
+            ->keyBy('prompt_key');
 
-        return count(array_intersect($expected, $found)) === count($expected);
+        foreach (self::CODE_PROMPTS as $prompt) {
+            $row = $rows->get($prompt['prompt_key']);
+            if (!$row
+                || $row->source !== AppQyV1AiPrompt::SOURCE_CODE
+                || $row->task_type !== $prompt['task_type']
+                || $row->title !== $prompt['title']
+                || $row->prompt_template !== $prompt['prompt_template']
+                || (bool) $row->enabled !== true
+                || json_encode($row->response_schema) !== json_encode($prompt['response_schema'])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

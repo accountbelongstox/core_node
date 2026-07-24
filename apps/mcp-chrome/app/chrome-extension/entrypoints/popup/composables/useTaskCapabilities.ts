@@ -25,7 +25,7 @@ export function useTaskCapabilities(): TaskCapabilitiesComposable {
   );
   const enabledKeys = computed<CapabilityKey[]>(() =>
     CAPABILITIES
-      .filter((capability) => !capability.stub && capabilityState[capability.key].value)
+      .filter((capability) => capabilityState[capability.key].value)
       .map((capability) => capability.key),
   );
   const enabledCount = computed(() => enabledKeys.value.length);

@@ -10,8 +10,7 @@
  *   loop:
  *     GET  /api/app_qy_v1/vocabulary/validity/pending?language&limit=200
  *     -> if zero words: DONE (stop).
- *     buildValidityPrompt(words) -> deepseekSendPromptTool.execute(...)
- *     -> parseValidityClassification(answer, words)
+ *     runWordValidityClassification(words, deepseek)
  *     POST /api/app_qy_v1/vocabulary/validity/report  (valid + invalid together)
  *
  * Convergence guard (critical): a batch that classifies ZERO of the requested
@@ -19,18 +18,13 @@
  * empty rounds the runner stops with an error status. A max-rounds cap and a
  * stop() flag (checked each iteration) are additional stop conditions.
  *
- * All prompt/parse logic is REUSED from word-validity-classifier.ts so it can
- * never drift from the server-lane worker.
+ * The shared runtime also serves the production lane and Extension test panel.
  */
 
 import { BaseApiClient, type ApiResponse } from '../../api/BaseApiClient';
 import { apiManager } from '@/services/ApiManager';
-import { deepseekSendPromptTool } from '../../tools/browser/deepseek';
-import {
-  buildValidityPrompt,
-  parseValidityClassification,
-  type ClassifierWord,
-} from './word-validity-classifier';
+import type { ClassifierWord } from './word-validity-classifier';
+import { runWordValidityClassification } from './word-validity-web-runtime';
 import { logger } from '@/utils/logger';
 import { DEFAULT_TARGET_LANG, type ValidityStatus } from '@/utils/task-center-types';
 import { VALIDITY_PATHS } from '@/utils/api-paths';
@@ -186,21 +180,20 @@ class WordValidityRunnerService {
         }
 
         // 2. Classify via DeepSeek web tab.
-        const prompt = buildValidityPrompt(words.map((w) => w.word), targetLanguage);
-        let answer: string;
+        let classification;
         try {
-          const toolResult = await deepseekSendPromptTool.execute({
-            prompt,
-            waitForCompletion: true,
-          });
-          answer = this.extractDeepSeekAnswer(toolResult);
+          classification = await runWordValidityClassification(
+            words,
+            'deepseek',
+            targetLanguage,
+          );
         } catch (error: any) {
           this.status.lastError = error?.message || 'DeepSeek tab drive failed';
           logger.error(LOG, `Round ${this.status.rounds}: ${this.status.lastError}`);
           break;
         }
 
-        const { valid, invalid } = parseValidityClassification(answer, words);
+        const { valid, invalid } = classification;
         const classified = valid.length + invalid.length;
 
         // 3. Convergence guard: a wholly-empty round must not loop forever.
@@ -292,27 +285,6 @@ class WordValidityRunnerService {
     return out;
   }
 
-  /** deepseek tool returns content[0].text = JSON{result:{content}}. */
-  private extractDeepSeekAnswer(toolResult: any): string {
-    if (toolResult?.isError) {
-      const errText = toolResult?.content?.[0]?.text;
-      throw new Error(typeof errText === 'string' ? errText : 'deepseek tool error');
-    }
-    const text = toolResult?.content?.[0]?.text;
-    if (typeof text !== 'string' || !text) {
-      throw new Error('deepseek tool returned no content');
-    }
-    let outer: any;
-    try {
-      outer = JSON.parse(text);
-    } catch {
-      return text;
-    }
-    const content = outer?.result?.content;
-    if (typeof content === 'string' && content) return content;
-    if (typeof outer?.result === 'string') return outer.result;
-    throw new Error('deepseek tool result carried no assistant content');
-  }
 }
 
 // Singleton instance.

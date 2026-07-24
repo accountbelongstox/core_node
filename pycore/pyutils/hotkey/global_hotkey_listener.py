@@ -6,9 +6,9 @@ Provides system-wide hotkey monitoring with high priority and conflict resolutio
 """
 
 import os
+import subprocess
 import sys
 import time
-import threading
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from typing import Dict, List, Callable, Optional, Set
 from dataclasses import dataclass
@@ -16,6 +16,11 @@ from enum import Enum
 
 # Import ColorPrint from pycore (same package)
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 
 
 def _auto_install_dependencies():
@@ -125,10 +130,14 @@ class HotkeyListener:
         """Initialize hotkey listener"""
         self.hotkeys: Dict[str, HotkeyInfo] = {}
         self.listening = False
-        self.listener_thread: Optional[threading.Thread] = None
         self.conflict_resolution = True
         self.original_hooks: Dict[str, Callable] = {}
         self.keyboard_available = KEYBOARD_AVAILABLE
+        init_serialized_owner(
+            self,
+            "hotkey.listener.state",
+            "HotkeyListenerState",
+        )
         
         if not KEYBOARD_AVAILABLE:
             ColorPrint.yellow("[INIT] HotkeyListener initialized but keyboard/mouse modules not available")
@@ -136,6 +145,7 @@ class HotkeyListener:
         else:
             ColorPrint.green("[INIT] HotkeyListener initialized")
     
+    @serialized_method
     def register_hotkey(
         self, 
         hotkey: str, 
@@ -187,6 +197,7 @@ class HotkeyListener:
             ColorPrint.red(f"[ERROR] Failed to register hotkey '{hotkey}': {e}")
             return False
     
+    @serialized_method
     def unregister_hotkey(self, hotkey: str) -> bool:
         """
         Unregister a hotkey
@@ -218,14 +229,17 @@ class HotkeyListener:
             ColorPrint.red(f"[ERROR] Failed to unregister hotkey '{hotkey}': {e}")
             return False
     
+    @serialized_method
     def enable_hotkey(self, hotkey: str) -> bool:
         """Enable a hotkey"""
         return self._set_hotkey_enabled(hotkey, True)
     
+    @serialized_method
     def disable_hotkey(self, hotkey: str) -> bool:
         """Disable a hotkey"""
         return self._set_hotkey_enabled(hotkey, False)
     
+    @serialized_method
     def _set_hotkey_enabled(self, hotkey: str, enabled: bool) -> bool:
         """Set hotkey enabled state"""
         try:
@@ -251,6 +265,7 @@ class HotkeyListener:
             ColorPrint.red(f"[ERROR] Failed to set hotkey '{hotkey}' enabled state: {e}")
             return False
     
+    @serialized_method
     def start_listening(self) -> bool:
         """
         Start listening for hotkeys
@@ -280,6 +295,7 @@ class HotkeyListener:
             ColorPrint.red(f"[ERROR] Failed to start listening: {e}")
             return False
     
+    @serialized_method
     def stop_listening(self) -> bool:
         """
         Stop listening for hotkeys
@@ -304,6 +320,7 @@ class HotkeyListener:
             ColorPrint.red(f"[ERROR] Failed to stop listening: {e}")
             return False
     
+    @serialized_method
     def update_hotkey(self, old_hotkey: str, new_hotkey: str) -> bool:
         """
         Update a hotkey binding
@@ -348,6 +365,7 @@ class HotkeyListener:
             ColorPrint.red(f"[ERROR] Failed to update hotkey: {e}")
             return False
     
+    @serialized_method
     def get_registered_hotkeys(self) -> List[Dict]:
         """
         Get list of registered hotkeys
@@ -365,6 +383,7 @@ class HotkeyListener:
             for info in self.hotkeys.values()
         ]
     
+    @serialized_method
     def clear_all_hotkeys(self) -> bool:
         """
         Clear all registered hotkeys
@@ -400,18 +419,19 @@ class HotkeyListener:
             
         try:
             def hotkey_callback():
-                if info.enabled:
+                callback_state = self._get_callback_state(hotkey)
+                if callback_state is not None:
                     try:
                         ColorPrint.blue(f"[HOTKEY] Triggered: {hotkey}")
                         
                         # Execute the main callback
-                        info.callback()
+                        callback_state[0]()
                         
                         # If there's an original callback (system hotkey), execute it after
-                        if info.original_callback:
+                        if callback_state[1]:
                             try:
                                 ColorPrint.blue(f"[HOTKEY] Executing original system callback for '{hotkey}'")
-                                info.original_callback()
+                                callback_state[1]()
                             except Exception as e:
                                 ColorPrint.red(f"[ERROR] Original callback error for '{hotkey}': {e}")
                                 
@@ -436,6 +456,13 @@ class HotkeyListener:
             
         except Exception as e:
             ColorPrint.red(f"[ERROR] Failed to register '{hotkey}' with keyboard module: {e}")
+
+    @serialized_method
+    def _get_callback_state(self, hotkey: str):
+        info = self.hotkeys.get(hotkey)
+        if info is None or not info.enabled:
+            return None
+        return info.callback, info.original_callback
     
     def _handle_hotkey_conflict(self, hotkey: str, info: HotkeyInfo, new_callback: Callable) -> bool:
         """
@@ -533,14 +560,16 @@ class HotkeyListener:
     def __del__(self):
         """Cleanup when object is destroyed"""
         try:
-            if self.listening:
-                self.stop_listening()
+            self.stop_listening()
         except:
             pass
 
 
-# Global hotkey listener instance
-_global_hotkey_listener: Optional[HotkeyListener] = None
+_HOTKEY_LISTENER_PROVIDER = SerializedSingletonProvider(
+    HotkeyListener,
+    "hotkey.listener.provider",
+    "HotkeyListenerProvider",
+)
 
 
 def get_global_hotkey_listener() -> HotkeyListener:
@@ -550,10 +579,7 @@ def get_global_hotkey_listener() -> HotkeyListener:
     Returns:
         Global HotkeyListener instance
     """
-    global _global_hotkey_listener
-    if _global_hotkey_listener is None:
-        _global_hotkey_listener = HotkeyListener()
-    return _global_hotkey_listener
+    return _HOTKEY_LISTENER_PROVIDER.get()
 
 
 def register_global_hotkey(

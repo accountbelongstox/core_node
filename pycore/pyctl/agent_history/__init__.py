@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Local AI agent history — extract Claude/Codex/Cursor/Gemini/Kimi/Antigravity sessions to txt store."""
+"""Extract installed local AI-agent sessions to the shared text store."""
 
 from .agent_history_service import AgentHistoryService, get_agent_history_service
 

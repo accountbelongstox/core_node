@@ -48,9 +48,7 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
     );
   }
 
-  // mcp-chrome delegated categories — hidden from overview (cover/poster/image).
-  const MCP_CHROME_HIDDEN = new Set(['cover', 'poster', 'image', 'movie_poster']);
-  const categories = (data.categories ?? []).filter((c) => !MCP_CHROME_HIDDEN.has(c.key));
+  const categories = data.categories ?? [];
   const workers = data.workers ?? [];
   // Reachability comes ONLY from the hub's task-center fields — the cached
   // snapshot above may be days old and must never supply the flag.

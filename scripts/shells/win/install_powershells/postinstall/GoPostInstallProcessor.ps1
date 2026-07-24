@@ -140,7 +140,7 @@ function Test-GoInstallation {
     try {
         # Test Go version
         $goVersion = & $GoPath version 2>&1
-        if ("$goVersion" -match 'go version') {
+        if (("$goVersion").Contains('go version')) {
             Write-Host "$LogPrefix Go version check passed" -ForegroundColor Green
             $versionLine = ($goVersion | Select-Object -First 1).ToString()
             Write-Host "$LogPrefix $versionLine" -ForegroundColor Cyan

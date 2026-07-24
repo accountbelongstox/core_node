@@ -23,18 +23,17 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-source "$COMMON_DIR/gvar_common.sh" 2>/dev/null || true
-source "$COMMON_DIR/venv_python_common.sh" 2>/dev/null || true
-. "$COMMON_DIR/base_libs/lib_gpu.sh" 2>/dev/null || true
+source "$COMMON_DIR/gvar_common.sh"
+source "$COMMON_DIR/venv_python_common.sh"
+. "$COMMON_DIR/base_libs/lib_gpu.sh"
 . "$COMMON_DIR/tts_install_assets_common.sh"
 PIPLOCK_LIB="$COMMON_DIR/base_libs/pip_lock.sh"
-[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+. "$PIPLOCK_LIB"
 
 resolve_python() {
     local p
     for p in "$PYTHON" python3 python; do
-        if command -v "$p" >/dev/null 2>&1 && "$p" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
+        if command -v "$p" >/dev/null 2>&1; then
             command -v "$p"; return 0
         fi
     done
@@ -115,15 +114,19 @@ echo "============================================================"
 echo " [install_kokoro] Kokoro-82M (sherpa-onnx)"
 echo "============================================================"
 
-[[ "${KOKORO_SKIP:-0}" == "1" ]] && { echo "[install_kokoro] [i] KOKORO_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_kokoro] " --absent-ok "KOKORO_SKIP=1" sherpa_onnx; }
-if model_ok; then
-    tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "Kokoro multi-lang model present at $MODEL_DIR"
-    complete_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx
-fi
+[[ "${KOKORO_SKIP:-0}" == "1" ]] && { echo "[install_kokoro] [i] KOKORO_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_kokoro] " --absent-ok "KOKORO_SKIP=1" sherpa_onnx soundfile; }
 
 if ! PYTHON="$(resolve_python)"; then
     echo "[install_kokoro] [!] Python 3 not found."
-    fail_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx
+    fail_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx soundfile
+fi
+
+if model_ok && "$PYTHON" -c "import sherpa_onnx, soundfile" 2>/dev/null; then
+    tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "Kokoro multi-lang model present at $MODEL_DIR"
+    complete_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx soundfile
+fi
+if model_ok; then
+    echo "[install_kokoro] [repair] model is complete; repairing Python dependencies without downloading it again."
 fi
 
 echo "[install_kokoro]  model dir : $MODEL_DIR"
@@ -136,7 +139,7 @@ done
 echo "[install_kokoro]  compute   : $(command -v gpu_present >/dev/null 2>&1 && gpu_present && echo 'CUDA -> full Kokoro model' || echo 'CPU -> int8 Kokoro model')"
 echo "[install_kokoro]  model url : $MODEL_URL"
 
-if ! "$PYTHON" -c "import sherpa_onnx" 2>/dev/null; then
+if ! "$PYTHON" -c "import sherpa_onnx, soundfile" 2>/dev/null; then
     echo "[install_kokoro] [..] pip install sherpa-onnx soundfile ..."
     pip_install sherpa-onnx soundfile
 fi
@@ -146,14 +149,14 @@ if model_ok; then
 else
     if ! download_model; then
         echo "[install_kokoro] [!] model download failed; retrying next run." >&2
-        fail_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx
+        fail_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx soundfile
     fi
 fi
 
 if ! model_ok; then
     echo "[install_kokoro] [!] model verification failed; retrying next run." >&2
-    fail_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx
+    fail_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx soundfile
 fi
 
 echo "[install_kokoro] [OK] Kokoro ready. Export KOKORO_TTS_MODEL_DIR=$MODEL_DIR if needed."
-complete_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx
+complete_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx soundfile

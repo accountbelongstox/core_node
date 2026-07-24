@@ -9,6 +9,13 @@ from typing import Dict, Set, Callable, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
 import asyncio
+import copy
+
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 
 
 @dataclass
@@ -54,8 +61,6 @@ class EventBus:
         - group.disabled - Group disabled
     """
 
-    _instance: Optional['EventBus'] = None
-
     def __init__(self):
         # Event subscribers
         self._subscribers: Dict[str, Set[Callable]] = {}
@@ -64,16 +69,18 @@ class EventBus:
         self._history: list[Event] = []
         self._max_history = 1000
 
-        # Lock for thread safety
-        self._lock = asyncio.Lock()
+        init_serialized_owner(
+            self,
+            'pyfoundations.event_bus.state',
+            'EventBusStateThread',
+        )
 
     @classmethod
     def instance(cls) -> 'EventBus':
         """Get singleton instance"""
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
+        return _EVENT_BUS_PROVIDER.get()
 
+    @serialized_method
     def subscribe(self, event_type: str, callback: Callable[[Event], Any]):
         """
         Subscribe to event
@@ -87,6 +94,7 @@ class EventBus:
 
         self._subscribers[event_type].add(callback)
 
+    @serialized_method
     def unsubscribe(self, event_type: str, callback: Callable[[Event], Any]):
         """
         Unsubscribe from event
@@ -123,25 +131,25 @@ class EventBus:
             metadata=metadata
         )
 
-        # Add to history
-        async with self._lock:
-            self._history.append(event)
-            if len(self._history) > self._max_history:
-                self._history.pop(0)
+        callbacks = self._record_event(event)
+        for callback in callbacks:
+            if asyncio.iscoroutinefunction(callback):
+                await callback(event)
+            else:
+                callback(event)
 
-        # Notify subscribers
-        if event_type in self._subscribers:
-            for callback in self._subscribers[event_type].copy():
-                # Verify callback is callable
-                if not callable(callback):
-                    continue
+    @serialized_method
+    def _record_event(self, event: Event) -> list[Callable]:
+        self._history.append(event)
+        if len(self._history) > self._max_history:
+            self._history.pop(0)
+        return [
+            callback
+            for callback in self._subscribers.get(event.type, set())
+            if callable(callback)
+        ]
 
-                # Call callback - let errors expose naturally
-                if asyncio.iscoroutinefunction(callback):
-                    await callback(event)
-                else:
-                    callback(event)
-
+    @serialized_method
     def get_history(self, event_type: Optional[str] = None, limit: int = 100) -> list[Event]:
         """
         Get event history
@@ -158,12 +166,14 @@ class EventBus:
         else:
             events = self._history.copy()
 
-        return events[-limit:]
+        return copy.deepcopy(events[-limit:])
 
+    @serialized_method
     def clear_history(self):
         """Clear event history"""
         self._history.clear()
 
+    @serialized_method
     def get_subscribers_count(self, event_type: str) -> int:
         """Get number of subscribers for event type"""
         return len(self._subscribers.get(event_type, set()))
@@ -199,6 +209,13 @@ class EventTypes:
     # App lifecycle events
     APP_STARTED = "app.started"
     APP_STOPPED = "app.stopped"
+
+
+_EVENT_BUS_PROVIDER = SerializedSingletonProvider(
+    EventBus,
+    'pyfoundations.event_bus.provider',
+    'EventBusProviderThread',
+)
 
 
 # Example usage:

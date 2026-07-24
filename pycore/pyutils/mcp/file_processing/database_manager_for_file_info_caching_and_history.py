@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from contextlib import contextmanager
 
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from pycore.pygvar import PYTOOLS_TMP_DIR
 
 logger = logging.getLogger(__name__)
@@ -309,12 +310,14 @@ class DatabaseManagerForFileInfoCachingAndHistory:
         return sha256_hash.hexdigest()
 
 
-_db_manager_instance = None
+_DATABASE_MANAGER_PROVIDER = SerializedSingletonProvider(
+    DatabaseManagerForFileInfoCachingAndHistory,
+    "mcp.file_database.provider",
+    "MCPFileDatabaseProviderThread",
+    timeout=300.0,
+)
 
 
 def get_database_manager_singleton() -> DatabaseManagerForFileInfoCachingAndHistory:
     """Get singleton instance of database manager"""
-    global _db_manager_instance
-    if _db_manager_instance is None:
-        _db_manager_instance = DatabaseManagerForFileInfoCachingAndHistory()
-    return _db_manager_instance
+    return _DATABASE_MANAGER_PROVIDER.get()

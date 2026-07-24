@@ -9,17 +9,14 @@ use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
 /**
  * AppQyV1 Cover Maintenance Timer Task (pull-only architecture).
  *
- * Cover/image generation is NO LONGER driven here. pycore is the sole driver:
- * its AssistWorker polls /api/app_qy_v1/assist/claim, generates locally via the
- * unified AI gateway and submits results back (see
- * poly_apps/laravel_main/docs/COVER_PULL_ARCHITECTURE.md). This task is repurposed to
- * MAINTENANCE-ONLY - it recovers stuck rows so pycore can always make progress
- * and never calls any AI client.
+ * Cover/image generation is not driven here. apps/mcp-chrome owns search,
+ * download and submission through the shared assist endpoints. This task is
+ * maintenance-only: it recovers stuck rows and never calls an image provider.
  *
  * Every tick (5s) it runs one transactional pass that:
  *   - resets `failed` rows (cover_attempts >= MAX_RETRIES AND cover_finished_at
  *     older than the failed cooldown) back to `pending`, cover_attempts = 0,
- *     clearing the assist lease + cover_error_message so pycore re-claims them;
+ *     clearing the assist lease + cover_error_message for mcp-chrome to reclaim;
  *   - resets `processing` rows stuck older than the assist lease (60 min) back
  *     to `pending`;
  *   - clears stale `assist_claimed_at`/`_by` leases older than 60 min.
@@ -94,7 +91,7 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
         }
 
         // Proactively enrol cover-missing PUBLIC libraries into the claim pool
-        // so the media_image / pycore assist workers can scrape/generate a cover
+        // so the mcp-chrome media image worker can search for a cover
         // WITHOUT the library first being rendered on the home page (rendering is
         // what otherwise lazily initialises the cover_* columns via
         // AppQyV1VocabularyCoverService::getCoverData). Throttled + bounded;
@@ -192,7 +189,7 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
                     'assist_claimed_by' => null,
                 ]);
 
-            // 3) stale assist leases (> 60 min) -> cleared so pycore can reclaim.
+            // 3) stale assist leases (> 60 min) -> cleared for mcp-chrome.
             $staleLeases = AppQyV1VocabularyLibraryModel::query()
                 ->whereNotNull('assist_claimed_at')
                 ->where('assist_claimed_at', '<', $leaseBefore)

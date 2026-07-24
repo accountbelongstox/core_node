@@ -86,6 +86,7 @@ from pycore.pyfoundations.serialized_worker import (
 )
 # Rule §4: all inter-thread data exchange goes through the global bus.
 from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyheartbeat import get_heartbeat_system
 # requests is a third-party dep — always via the lazy accessor (SSE transport).
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
@@ -93,7 +94,7 @@ from pycore.callmodule.services.sync.laravel_endpoint_manager import (
 )
 # Sibling services (same layer): the monitor (snapshot push) + worker (word dedup).
 from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
-from pycore.callmodule.services.translation_worker_service import (
+from pycore.callmodule.services.translation_worker.worker import (
     get_translation_worker_service,
 )
 # Sentence-audio lane: bump hub (UI toasts/WS) + worker (re-key + wake) for the
@@ -101,6 +102,12 @@ from pycore.callmodule.services.translation_worker_service import (
 from pycore.callmodule.services.queue_bump_hub import get_queue_bump_hub
 from pycore.callmodule.services.tts_sentence_worker_service import (
     get_tts_sentence_worker_service,
+)
+from pycore.callmodule.services.sentence_queue_monitor_service import (
+    get_sentence_queue_monitor_service,
+)
+from pycore.callmodule.services.tts_queue_poller_service import (
+    get_tts_queue_poller_service,
 )
 
 
@@ -122,15 +129,6 @@ class TranslationWsClient:
     read loop on a background thread with auto-reconnect; supervised by a light
     heartbeat callback. (Class name kept for import/back-compat.)
     """
-
-    _instance: Optional["TranslationWsClient"] = None
-
-    def __new__(cls, *args, **kwargs):
-        """Singleton — one WS client per process. Rule §4: no locks; class-attr
-        assignment is GIL-atomic (same idiom as pyheartbeat)."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
 
     def __init__(
         self,
@@ -176,9 +174,7 @@ class TranslationWsClient:
         self._worker = None
         self._sentence_worker = None
 
-        # Background thread + control flags. Rule §4: no lock/Event — the
-        # thread reference is a plain GIL-atomic attribute and the stop request
-        # rides the THREAD_BUS _BUS_STOP signal (has_signal/signal/clear_signal).
+        # The state owner retains the task handle; stop requests use THREAD_BUS.
         self._thread: Optional[Any] = None
         self._connected = False
 
@@ -343,6 +339,26 @@ class TranslationWsClient:
         # wake the sentence worker (single payload), or wake-only (aggregate).
         elif suffix == "sentencepriority":
             self._handle_sentence_priority(data)
+
+        elif suffix == "wordaudiopriority":
+            items = data.get("items") if data.get("batch") else [data]
+            worker = get_tts_queue_poller_service()
+            for item in items if isinstance(items, list) else []:
+                if not isinstance(item, dict):
+                    continue
+                md5 = str(item.get("md5") or "").strip()
+                language = str(item.get("language") or "").strip()
+                if md5 and language:
+                    worker.prioritize_word(md5, language)
+            if get_heartbeat_system().is_callback_enabled("tts_queue_poller"):
+                worker.poll_and_process()
+
+        # word_image.priority / cover.priority are intentionally not woken here:
+        # apps/mcp-chrome owns image and cover execution. Pycore only relays
+        # priority requests to Laravel.
+
+        elif suffix == "articlepublished":
+            THREAD_BUS.trigger_event("article.published", data)
         # Unknown channel events are ignored (forward-compatible).
 
     @staticmethod
@@ -351,10 +367,6 @@ class TranslationWsClient:
         synthesis' list reflects a bump/change immediately instead of waiting
         for the next monitor poll (non-blocking, re-entrancy-guarded)."""
         try:
-            from pycore.callmodule.services.sentence_queue_monitor_service import (
-                get_sentence_queue_monitor_service,
-            )
-
             get_sentence_queue_monitor_service().poll_once()
         except Exception as e:  # noqa: BLE001 — never break the SSE read loop
             ColorPrint.yellow(f"[TranslationSSE] sentence queue monitor kick failed: {e}")
@@ -370,8 +382,10 @@ class TranslationWsClient:
             if data.get("batch"):
                 # Aggregate bump: no per-row payload; the next claim already
                 # orders by priority DESC server-side, so wake only.
-                self._get_sentence_worker().notify_batch_bump()
-                self._refresh_sentence_queue_monitor()
+                if get_heartbeat_system().is_callback_enabled("tts_sentence_worker"):
+                    self._get_sentence_worker().notify_batch_bump()
+                if get_heartbeat_system().is_callback_enabled("sentence_queue_monitor"):
+                    self._refresh_sentence_queue_monitor()
                 return
             content_id = str(data.get("content_id") or "").strip()
             language = str(data.get("language") or "").strip()
@@ -394,8 +408,10 @@ class TranslationWsClient:
                     "source": "sse",
                 },
             )
-            self._get_sentence_worker().notify_bump(content_id, language, priority)
-            self._refresh_sentence_queue_monitor()
+            if get_heartbeat_system().is_callback_enabled("tts_sentence_worker"):
+                self._get_sentence_worker().notify_bump(content_id, language, priority)
+            if get_heartbeat_system().is_callback_enabled("sentence_queue_monitor"):
+                self._refresh_sentence_queue_monitor()
         except Exception as e:  # noqa: BLE001 — never break the SSE read loop
             ColorPrint.yellow(f"[TranslationSSE] sentence.priority handling failed: {e}")
 
@@ -560,9 +576,7 @@ class TranslationWsClient:
     def _start_thread(self) -> None:
         """Start the background SSE thread if it isn't already running.
 
-        Rule §4: no lock — the alive check and the thread assignment are plain
-        GIL-atomic ops; the heartbeat supervisor is the only periodic caller,
-        and the worst-case race is one extra is_alive() pass on the next tick.
+        The alive check and task-handle update run on the serialized state owner.
         """
         thread = self._thread
         if thread and thread.is_alive():
@@ -615,7 +629,6 @@ class TranslationWsClient:
     @serialized_method
     def get_status(self) -> Dict[str, Any]:
         """Service status snapshot (read-only)."""
-        # Rule §4: plain GIL-atomic attribute read, no lock.
         thread = self._thread
         alive = bool(thread and thread.is_alive())
         return {

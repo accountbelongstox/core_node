@@ -1,7 +1,6 @@
-/** Daily Reading data gateway — polls the Laravel article worker's recent
- * endpoint only (wordnew never calls pycore directly). Field fallbacks keep
- * the block backward-compatible with both the `articles|rows` reading payload
- * and the older `data.items|items` agent-history shape. */
+/** Daily Reading data gateway — reads canonical article rows from Laravel.
+ * Pycore push only invalidates this query; Laravel remains the data authority.
+ * Field fallbacks retain compatibility with older agent-history payloads. */
 import { wfNewApi } from '../../api';
 
 export interface DailyReadingRow {

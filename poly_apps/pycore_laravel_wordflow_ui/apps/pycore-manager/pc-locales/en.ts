@@ -375,11 +375,9 @@ export const pcEn = {
   },
   queueCenter: {
     title: 'Queue Center',
-    subtitle: 'All pycore queues in one place — system operations, voice-subtitle tasks, Laravel translations.',
+    subtitle: 'One control plane for Laravel queues, pycore consumers, engine settings, and completed-task resources.',
     sections: {
       overview: 'Processing Control',
-      manager: 'Voice Playback Queue',
-      tasks: 'Local Task Records',
       translation: 'Missing Word Translation',
       wordAudio: 'Word Audio',
       sentence: 'Sentence Audio',
@@ -388,16 +386,12 @@ export const pcEn = {
     sectionsToggle: {
       assistOn: 'Auto-assist is ON — pycore polls Laravel and drains its queues. Click to turn off.',
       assistOff: 'Turn Auto-assist ON — pycore starts draining Laravel queues automatically.',
-      pollOn: 'Live updates ON — this section polls/refreshes automatically. Click to pause.',
-      pollOff: 'Live updates paused — click to resume automatic refresh for this section.',
       workerOn: 'Missing-word translation is ON — pycore processes Laravel tasks with Google first. Click to stop.',
       workerOff: 'Start missing-word translation with pycore Google Translate.',
-      wordOn: 'Word-audio auto-start is ON — pycore synthesizes missing word audio automatically. Click to stop.',
-      wordOff: 'Turn word-audio auto-start ON — pycore starts synthesizing missing word audio.',
       sentenceOn: 'Sentence-audio auto-start is ON — pycore synthesizes missing sentence audio automatically. Click to stop.',
       sentenceOff: 'Turn sentence-audio auto-start ON — pycore starts synthesizing missing sentence audio.',
     },
-    auto: 'Auto',
+    auto: 'Live refresh',
     autoOn: 'on',
     autoOff: 'off',
     autoOnTitle: 'Auto-refresh on — the shared snapshot refreshes every {{sec}}s',
@@ -406,7 +400,7 @@ export const pcEn = {
     // Pending-assist overview.
     overview: {
       title: 'Pending Assist Overview',
-      hint: 'Every queue category and which end assists it. Chrome handles the missing-translation and word-image queues; pycore and AI handle the rest.',
+      hint: 'Every queue category and its consumer. mcp-chrome handles word images, covers, and posters; pycore handles translation, audio, speech, and subtitles.',
       backendOffline: 'Laravel backend offline — categories are listed but counts are unavailable.',
       reachable: 'Laravel reachable',
       generatedAt: 'Updated {{time}}',
@@ -537,7 +531,7 @@ export const pcEn = {
     },
     heartbeatWorkers: {
       title: 'Heartbeat Workers',
-      subtitle: 'PyHeartbeat callbacks — enable/disable monitor & WS',
+      subtitle: 'Live callback state — lifecycle follows the section switches',
       loading: 'Loading heartbeat workers…',
       unavailable: 'Heartbeat workers unavailable — pycore (:59000) may be offline.',
       translation_queue_monitor: 'Queue monitor',
@@ -626,7 +620,7 @@ export const pcEn = {
   },
   agentHistory: {
     title: 'Agent History',
-    subtitle: 'Local Claude / Codex / Cursor / Gemini prompts and AI replies — extracted continuously from your user data dirs into pycore txt files.',
+    subtitle: 'Local Agent / Claude / Codex / Cursor / Gemini / Kimi / Antigravity / Cline / Ark CLI prompts and AI replies — continuously extracted into pycore txt files.',
     refresh: 'Refresh now',
     liveOn: 'Live (10s)',
     liveOff: 'Paused',
@@ -652,7 +646,7 @@ export const pcEn = {
     prev: 'Prev',
     next: 'Next',
     articleTitle: 'Extract as articles',
-    articleSubtitle: 'Build ≥200-word raw blocks from prompts/AI replies, generate EN articles via OpenRouter free model, local TTS, upload to Laravel.',
+    articleSubtitle: 'Build ≥200-word raw blocks, generate Chinese via OpenRouter free, translate to English with the built-in local LLM fallback chain, synthesize English audio, then publish to Laravel.',
     extractAsArticle: 'Extract words as short articles',
     referenceLang: 'Reference (CN)',
     targetLang: 'Target (EN)',

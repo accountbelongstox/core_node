@@ -37,7 +37,6 @@ from .done_words_cache import DoneWordsCache
 from .task_heap import TaskHeap
 from .handlers import (
     translation as h_translation,
-    audio as h_audio,
     stt as h_stt,
     media as h_media,
     ai_translate as h_ai_translate,
@@ -60,37 +59,19 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         actual translation + result POST never blocks the heartbeat thread.
     """
 
-    # Singleton state MUST live on the CONCRETE subclass (base __new__ uses cls)
-    # so a base-level _instance is not shared across sibling workers.
-    # Rule §4: no _instance_lock - the base __new__ is a plain GIL-atomic
-    # check-then-assign (same idiom as pyheartbeat).
-    _instance: Optional["TranslationWorkerService"] = None
-
     # ---- Execution-type lanes (must equal GlobalTask::EXECUTION_TYPES) ----
     # The shared interactive fast lane both pycore and chrome register for.
     TRANSLATION_FAST_PROCESSOR_TYPE = "remote_fast"
     # The legacy dedicated translation lane (still advertised for back-compat).
     TRANSLATION_PROCESSOR_TYPE = "remote_translation"
-    # Local-TTS audio assist lane (word_audio rides this).
-    AUDIO_EXECUTION_TYPE = "remote_audio"
     # Dedicated pycore-only retrieval/generation lanes (knob-gated, see config).
     SUBTITLE_EXECUTION_TYPE = "remote_subtitle"
-    POSTER_EXECUTION_TYPE = "remote_poster"
-    SENTENCE_AUDIO_EXECUTION_TYPE = "remote_sentence_audio"
     # Speech-to-text lane (remote_stt). Laravel defines EXECUTION_REMOTE_STT +
     # CAPABILITY_STT and routes stt=>pycore; advertised only while the assist
     # 'stt' toggle is on (off by default - see lane_gating.stt_enabled).
     STT_EXECUTION_TYPE = "remote_stt"
 
     # task_type tags carried in payloads on these lanes.
-    AUDIO_TASK_TYPE = "word_audio"
-    # Word-image task_type. It rides the SHARED fast lane (remote_fast) with
-    # capability='image' (NO dedicated execution_type) - claim is narrowed purely
-    # by the 'image' capability, mirroring how ai_translate rides the fast lane.
-    IMAGE_TASK_TYPE = "word_media"
-    # Article-level TTS (long-form text -> one MP3). Rides remote_audio like
-    # word_audio; no per-word real-pronunciation chain - text goes straight to TTS.
-    ARTICLE_AUDIO_TASK_TYPE = "article_audio"
     # STT task_type tags accepted on the remote_stt lane.
     STT_TASK_TYPES = ("stt", "audio_transcribe")
 
@@ -160,8 +141,9 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         # Last advertised processor-type set; re-register fires when it changes
         # (live toggle of a dedicated lane).
         self._advertised_processor_types: Optional[List[str]] = None
+        self._advertised_capabilities: Optional[List[str]] = None
         # Per-backend priority heap + jittered fast-drain burst (reuses
-        # tts_sentence_worker_service._PriorityQueue, extended to per-backend).
+        # SentencePriorityQueue, extended to per-backend routing by TaskHeap).
         self._task_heap = TaskHeap(self)
         # Latest fast/urgent counters parsed from pull/heartbeat responses.
         self._pending_fast = 0
@@ -244,12 +226,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
 
         Dispatch order (unified client) - delegates to the per-lane handlers:
           - capability == 'ai_translate'  -> ai_translate.ai_translate_words
-          - task_type == 'word_audio'     -> audio.process_audio_task
-          - task_type == 'article_audio'  -> audio.process_article_audio_task
-          - task_type == 'word_media'     -> media.process_image_task
           - task_type == 'subtitle_search'-> media.process_subtitle_search_task
-          - task_type == 'poster'         -> media.process_poster_task
-          - task_type == 'sentence_audio' -> audio.process_sentence_audio_task
           - task_type == 'prompt_translation' -> prompt_translate.process_prompt_translation_task
           - task_type in STT_TASK_TYPES   -> stt.process_stt_task
           - task_type word_translation/'' -> translation.process_word_translation
@@ -266,23 +243,8 @@ class TranslationWorkerService(BaseLaravelWorkerService):
                 h_ai_translate.ai_translate_words(self, task)
                 return
 
-            if task_type == self.AUDIO_TASK_TYPE:
-                h_audio.process_audio_task(self, task)
-                return
-            if task_type == self.ARTICLE_AUDIO_TASK_TYPE:
-                h_audio.process_article_audio_task(self, task)
-                return
-            if task_type == self.IMAGE_TASK_TYPE:
-                h_media.process_image_task(self, task)
-                return
             if task_type == "subtitle_search":
                 h_media.process_subtitle_search_task(self, task)
-                return
-            if task_type == "poster":
-                h_media.process_poster_task(self, task)
-                return
-            if task_type == "sentence_audio":
-                h_audio.process_sentence_audio_task(self, task)
                 return
             if task_type == "prompt_translation":
                 h_prompt_translate.process_prompt_translation_task(self, task)
@@ -386,9 +348,8 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         task_id blacklisted forever, so a re-offered task (after Laravel's lease
         timeout) could never be re-claimed by this worker until restart.
 
-        Rule §4: no lock - iterate a snapshot list, then one GIL-atomic pop per
-        entry (entries added concurrently are simply not in the snapshot).
-        Name kept for the existing task_heap.py call site.
+        State-owner serialization keeps the scan and removals in one operation.
+        The name remains for the existing task_heap.py call site.
         """
         expired = [tid for tid, dl in list(self._inflight.items()) if dl <= now]
         for tid in expired:
@@ -421,10 +382,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         self._purge_inflight_locked(now)
         ttl = int(task.get("timeout_seconds") or self.INFLIGHT_DEFAULT_TTL)
         deadline = now + max(ttl, self.INFLIGHT_DEFAULT_TTL)
-        # Rule §4: setdefault is one GIL-atomic claim - the first dispatcher
-        # wins; a concurrent dispatch of the same task_id sees the stored
-        # deadline and backs off. An expired leftover entry is taken over with
-        # a single atomic set (same outcome as the old locked check-then-set).
+        # The state owner makes the duplicate claim check and update indivisible.
         existing = self._inflight.setdefault(task_id, deadline)
         if existing is not deadline:
             if existing > now:
@@ -484,7 +442,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         except Exception as e:
             # If the TaskManager is unavailable, fall back to a plain daemon thread so
             # the worker still functions (heartbeat thread stays unblocked either way).
-            # Rule §4: named Thread subclass, no threading.Thread(target=...) spawn.
+            # The fallback task and its payload are delivered through THREAD_BUS.
             ColorPrint.yellow(
                 f"[TranslationWorker] TaskManager dispatch failed ({e}); using thread fallback"
             )
@@ -512,10 +470,13 @@ class TranslationWorkerService(BaseLaravelWorkerService):
             # Live-toggle re-registration: if a dedicated lane was enabled/disabled
             # since the last register, re-advertise the new processor-type set so
             # Laravel starts/stops handing those lanes to this worker immediately.
+            processor_types = self._effective_processor_types()
+            capabilities = self._effective_capabilities()
             if (self._advertised_processor_types is not None
-                    and self._effective_processor_types() != self._advertised_processor_types):
+                    and (processor_types != self._advertised_processor_types
+                         or capabilities != self._advertised_capabilities)):
                 ColorPrint.blue(
-                    "[TranslationWorker] advertised lane set changed - re-registering")
+                    "[TranslationWorker] advertised lanes/capabilities changed - re-registering")
                 self._registered = False
                 if not self._register():
                     return
@@ -555,7 +516,6 @@ class TranslationWorkerService(BaseLaravelWorkerService):
     @serialized_method
     def get_status(self) -> Dict[str, Any]:
         """Service status snapshot (read-only)."""
-        # Rule §4: len() on the dict is a single GIL-atomic read - no lock.
         inflight = len(self._inflight)
         return {
             "service": "Translation Worker",
@@ -587,7 +547,6 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         not blind to the interactive fast lane.
         """
         per_backend = self._task_heap.per_backend_depth()
-        # Rule §4: len() on the dict is a single GIL-atomic read - no lock.
         inflight = len(self._inflight)
         return {
             "api_url": self.api_url,

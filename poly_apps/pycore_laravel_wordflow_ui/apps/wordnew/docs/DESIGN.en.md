@@ -1,4 +1,12 @@
-# Shelf Study Experience — Feature & Requirements Design（书架背词学习体验设计文档）
+# Shelf Study Experience — Feature and Requirements Design
+
+> **AI maintenance rule:** Read this English document first; it is the canonical
+> specification. Every change to this file MUST update `DESIGN.zh.md` in the same
+> change, preserving matching section numbers and requirements. Never update only
+> one language file. `DESIGN.zh.md` is a backup translation only, not an
+> independent or authoritative specification. If a requested edit starts from the
+> Chinese file, update this English source first and then synchronize the Chinese
+> backup in the same change.
 
 > Scope: the `#/shelf` route (`components/WfNewShelfTab.tsx`) — specifically the
 > **Default Vocabulary Group** deep-dive panel (when a course/group is opened).
@@ -676,3 +684,19 @@ documented in code comments with rationale):
   `api-libs/wordflow` (with `play_time` support), not on the wfNewApi surface —
   so it has no mock counterpart; in mock mode the fire-and-forget call degrades
   silently (`.catch(() => undefined)`). Accepted as-is.
+
+---
+
+## 6. Agent Daily Reading, sentence-word playback, and mcp-chrome covers
+
+The planned cross-stack contract for agent-history monitoring, bilingual Daily
+Reading articles, English audio, `/wordnew#/article/:sort`, shared sentence-word
+analysis/playback, preview-driven queue priority, and exclusive mcp-chrome cover
+ownership is maintained in:
+
+`development-guides/cross-docs/AGENT_DAILY_READING_AND_MEDIA_PIPELINE.md`
+
+That contract is canonical for this new scope. This document's implemented shelf
+progress and playback behavior remains authoritative where the new contract
+explicitly reuses it. The new scope is PLANNED and must not be treated as
+implemented until its acceptance audit is recorded in the canonical cross-doc.

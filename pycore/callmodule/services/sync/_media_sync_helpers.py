@@ -8,7 +8,7 @@ terminal-punctuation + subtitle-track regexes / the ingest chunk size) and the
 small PURE helpers reused across the subtitle, book and HTTP seams
 (``source_key_for``, ``_read_text``, ``_nonempty``, ``_put_if``, ``_as_int``,
 ``_history_paths``, ``_seg_index_for``), plus the best-effort movie/TV poster
-attach (``_attach_poster`` / ``_poster_enabled``) and Laravel base-URL
+Laravel base-URL
 resolution (``resolve_laravel_base_url`` - delegates to
 ``laravel_endpoint_manager``).
 
@@ -34,10 +34,6 @@ from pycore import ColorPrint, get_user_data_store
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     resolve_laravel_base_url as _resolve_managed_endpoint,
 )
-# Movie/TV poster fetch backend (best-effort; only ``find_poster`` is needed
-# here - the payload builders call ``parse_title_year`` themselves).
-from pycore.pyutils.external_apis.movie_poster_client import find_poster
-
 
 # --------------------------------------------------------------------------- #
 # Constants                                                                    #
@@ -72,12 +68,6 @@ _STATUS_MAX_PAGES = 5
 # (same section the /api/local/video-extract/history endpoint serves).
 _USER_DATA_SECTION = "video_extract"
 
-# Poster fetch toggle. Default ON; a user-data setting can disable it without a
-# code change (media_sync.fetch_poster = false). Best-effort: a poster failure
-# NEVER breaks ingest (see _attach_poster).
-_POSTER_USER_DATA_SECTION = "media_sync"
-_POSTER_SETTING_KEY = "fetch_poster"
-
 # Sibling per-language track pattern: ``<stem>.<lang>.srt`` / ``<stem>.<lang>.vtt``.
 # The lang token is matched against the canonical supported set, so only real
 # language tracks are picked up (not e.g. ``movie.forced.srt``).
@@ -90,40 +80,6 @@ _TRACK_RE = re.compile(r"^(?P<stem>.+)\.(?P<lang>[A-Za-z]{2,3})\.(?:srt|vtt)$",
 # (full_content + sentence_seq + word_ids) / subtitle source row is sent only on
 # the FIRST chunk; later chunks carry a minimal source {source_key}.
 _BOOK_CHUNK = 1500
-
-
-def _poster_enabled() -> bool:
-    """True when poster fetch is enabled (default ON; user-data may disable)."""
-    try:
-        section = get_user_data_store().get_section(_POSTER_USER_DATA_SECTION) or {}
-        if _POSTER_SETTING_KEY in section:
-            return bool(section.get(_POSTER_SETTING_KEY))
-    except Exception:
-        pass
-    return True
-
-
-def _attach_poster(
-    source: Dict[str, Any],
-    title: str,
-    year: Optional[int] = None,
-    kind: str = "movie",
-) -> None:
-    """Best-effort poster attach at ingest — DISABLED in pycore.
-
-    Poster search is delegated to apps/mcp-chrome (Google Images via task center).
-    """
-    return
-
-    # --- Legacy TMDB/OMDB ingest fetch (disabled) ---
-    # if not (title and title.strip()) or not _poster_enabled():
-    #     return
-    # try:
-    #     poster = find_poster(title.strip(), year=year, kind=kind)
-    #     if poster:
-    #         source["poster"] = poster
-    # except Exception as exc:
-    #     ColorPrint.yellow(f"[MediaSync] poster fetch skipped for '{title}' ({exc})")
 
 
 # --------------------------------------------------------------------------- #

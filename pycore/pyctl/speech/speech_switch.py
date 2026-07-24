@@ -35,6 +35,7 @@ from pycore.pyutils.whisper_stt import WhisperSTTProvider
 from pycore.pyutils.azure_speech import AzureSpeechRecognitionProvider
 from pycore.pyheartbeat import get_global_thread_pool
 from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
     SerializedWorkerThread,
     call_serialized,
 )
@@ -601,7 +602,11 @@ class SpeechSwitch:
 
 
 # Global singleton instance
-_speech_switch: Optional[SpeechSwitch] = None
+_SPEECH_SWITCH_PROVIDER = SerializedSingletonProvider(
+    SpeechSwitch,
+    "speech.switch.provider",
+    "SpeechSwitchProvider",
+)
 
 
 def get_speech_switch() -> SpeechSwitch:
@@ -611,12 +616,7 @@ def get_speech_switch() -> SpeechSwitch:
     Returns:
         SpeechSwitch instance
     """
-    global _speech_switch
-
-    if _speech_switch is None:
-        _speech_switch = SpeechSwitch()
-
-    return _speech_switch
+    return _SPEECH_SWITCH_PROVIDER.get()
 
 
 def initialize_speech_switch() -> SpeechSwitch:

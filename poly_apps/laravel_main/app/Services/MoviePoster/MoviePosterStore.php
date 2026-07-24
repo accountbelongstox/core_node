@@ -45,7 +45,7 @@ class MoviePosterStore
     }
 
     /**
-     * Apply a poster result (from MoviePosterClient or a decoded ingest payload)
+     * Apply a poster result submitted by mcp-chrome or a decoded legacy ingest payload
      * to a media model: validate bytes, write the file, set the poster_* columns
      * with poster_status='ready'. Fill-missing — a model already 'ready' is left
      * untouched.

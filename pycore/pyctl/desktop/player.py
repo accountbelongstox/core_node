@@ -8,8 +8,6 @@ Plays audio from queue and displays subtitles in UI.
 import threading
 import time
 from pathlib import Path
-from typing import Optional
-
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pyfoundations.third_party import get_third_package_pygame
 from pycore.pyctl.desktop.queue_manager import get_voice_subtitle_queue
@@ -164,11 +162,7 @@ class VoiceSubtitlePlayer:
         ColorPrint.green(f"[Player] Finished playing: {text[:30]}...")
 
 
-# Global player instance
-_voice_subtitle_player: Optional[VoiceSubtitlePlayer] = None
-
-
-def get_voice_subtitle_player() -> VoiceSubtitlePlayer:
+def get_voice_subtitle_player() -> None:
     """
     Get global voice subtitle player instance
 
@@ -178,14 +172,5 @@ def get_voice_subtitle_player() -> VoiceSubtitlePlayer:
     NOTE: Server-side playback is now disabled.
     All audio playback happens in the frontend (browser).
     """
-    global _voice_subtitle_player
-
-    # DISABLED: Server-side playback no longer needed - frontend plays audio
-    # if _voice_subtitle_player is None:
-    #     with _player_lock:
-    #         if _voice_subtitle_player is None:
-    #             _voice_subtitle_player = VoiceSubtitlePlayer()
-    #             _voice_subtitle_player.start()
-
-    # Return None - no server-side player
+    # Server-side playback is disabled; the browser owns audio playback.
     return None

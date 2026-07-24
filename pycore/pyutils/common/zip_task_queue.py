@@ -9,8 +9,7 @@ import logging
 from pycore.pyfoundations.third_party import get_third_package_psutil
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
-    SerializedWorkerThread,
-    call_serialized,
+    SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
     start_bus_task,
@@ -371,21 +370,12 @@ class ZipTaskQueue:
         }
 
 
-_global_queue_instance: Optional[ZipTaskQueue] = None
-_GLOBAL_QUEUE_NAME = "zip_task_queue.global"
-_global_queue_worker = SerializedWorkerThread(
-    _GLOBAL_QUEUE_NAME,
-    "GlobalZipTaskQueueState",
+_GLOBAL_ZIP_QUEUE_PROVIDER = SerializedSingletonProvider(
+    ZipTaskQueue,
+    "zip_task_queue.provider",
+    "GlobalZipTaskQueueProviderThread",
 )
-_global_queue_worker.start()
-
-
-def _get_or_create_global_queue() -> ZipTaskQueue:
-    global _global_queue_instance
-    if _global_queue_instance is None:
-        _global_queue_instance = ZipTaskQueue()
-    return _global_queue_instance
 
 
 def get_global_zip_queue() -> ZipTaskQueue:
-    return call_serialized(_GLOBAL_QUEUE_NAME, _get_or_create_global_queue)
+    return _GLOBAL_ZIP_QUEUE_PROVIDER.get()

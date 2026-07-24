@@ -13,7 +13,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 
-from pycore import ColorPrint
+from pycore import ColorPrint, THREAD_BUS
 from pycore.pyfoundations.system_paths import map_web_path
 from pycore.pyutils.whisper_stt import whisper_stt_provider
 
@@ -26,20 +26,25 @@ CACHE_FILE = SUBTITLE_OUTPUT_DIR / ".stt_cache.json"
 
 AUDIO_EXTENSIONS = {'.mp3', '.wav', '.m4a', '.flac', '.ogg', '.aac', '.opus'}
 
-_auto_convert_enabled = False
+_AUTO_CONVERT_SIGNAL = "notebooklm_stt.auto_convert_enabled"
+THREAD_BUS.signal(_AUTO_CONVERT_SIGNAL, False)
+
+
+def _auto_convert_enabled() -> bool:
+    return bool(THREAD_BUS.get_signal(_AUTO_CONVERT_SIGNAL, False))
 
 
 def apply_notebooklm_auto_convert(enabled: bool, run_scan: bool = False) -> bool:
     """Set auto-convert flag (used by system_settings boot + settings API)."""
-    global _auto_convert_enabled
-    _auto_convert_enabled = bool(enabled)
-    if _auto_convert_enabled:
+    enabled = bool(enabled)
+    THREAD_BUS.signal(_AUTO_CONVERT_SIGNAL, enabled)
+    if enabled:
         ColorPrint.green("[NotebookLM STT] Auto-convert enabled")
         if run_scan:
             _auto_convert_all()
     else:
         ColorPrint.yellow("[NotebookLM STT] Auto-convert disabled")
-    return _auto_convert_enabled
+    return enabled
 
 
 class SettingsRequest(BaseModel):
@@ -213,7 +218,7 @@ def _convert_audio_to_text(audio_path: Path, use_cache: bool = True) -> Dict:
 
 def _auto_convert_all():
     """Auto-convert all audio files in background"""
-    if not _auto_convert_enabled:
+    if not _auto_convert_enabled():
         ColorPrint.yellow("[NotebookLM STT] Auto-convert disabled, skipping")
         return
 
@@ -258,7 +263,7 @@ async def get_status():
     """Get STT service status"""
     return {
         'success': True,
-        'enabled': _auto_convert_enabled,
+        'enabled': _auto_convert_enabled(),
         'audio_dir': str(NOTEBOOKLM_AUDIO_DIR),
         'subtitle_dir': str(SUBTITLE_OUTPUT_DIR),
         'whisper_initialized': whisper_stt_provider._initialized
@@ -273,22 +278,21 @@ async def update_settings(request: SettingsRequest, background_tasks: Background
     Args:
         enabled: Enable/disable auto-convert
     """
-    global _auto_convert_enabled
-    _auto_convert_enabled = apply_notebooklm_auto_convert(
+    enabled = apply_notebooklm_auto_convert(
         request.enabled, run_scan=request.enabled
     )
 
     return {
         'success': True,
-        'enabled': _auto_convert_enabled,
-        'message': f"Auto-convert {'enabled' if _auto_convert_enabled else 'disabled'}"
+        'enabled': enabled,
+        'message': f"Auto-convert {'enabled' if enabled else 'disabled'}"
     }
 
 
 @router.post("/convert-all")
 async def convert_all(background_tasks: BackgroundTasks):
     """Manually trigger convert all audio files"""
-    if not _auto_convert_enabled:
+    if not _auto_convert_enabled():
         raise HTTPException(status_code=400, detail="Auto-convert is disabled")
 
     background_tasks.add_task(_auto_convert_all)

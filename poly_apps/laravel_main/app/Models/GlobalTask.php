@@ -102,7 +102,7 @@ class GlobalTask extends Model
     // other's tasks (retry_count++ -> permanent failure within max_retries).
     const EXECUTION_REMOTE_VALIDITY = 'remote_validity';
 
-    // Dedicated pycore-only retrieval/generation lanes. Kept OFF remote_fast so
+    // Dedicated retrieval/generation lanes. Kept off remote_fast so
     // they never starve the interactive fast lane; claimed via the normal
     // per-processor_type pull loop (a dedicated worker registers each lane).
     const EXECUTION_REMOTE_SUBTITLE = 'remote_subtitle';
@@ -151,7 +151,7 @@ class GlobalTask extends Model
 
     // Capability vocabulary (the ONE canonical set). A task's `capability` is one
     // of these or NULL (any). A worker advertises a subset via workers.capabilities.
-    const CAPABILITY_AUDIO = 'audio';            // TTS / word_audio / article_audio — pycore
+    const CAPABILITY_AUDIO = 'audio';            // TTS / word_audio / article_audio — pycore or Chrome
     const CAPABILITY_IMAGE = 'image';            // word_media / gemini_image — chrome
     const CAPABILITY_TRANSLATE = 'translate';    // word_translation — either client
     const CAPABILITY_SENTENCE_AUDIO = 'sentence_audio'; // chrome web-audio assist
@@ -160,7 +160,7 @@ class GlobalTask extends Model
     const CAPABILITY_AI_TRANSLATE = 'ai_translate';
     const CAPABILITY_PUTER_TRANSLATE = 'puter_translate'; // chrome Puter REST translator
     const CAPABILITY_SUBTITLE = 'subtitle';      // pycore-only subtitle retrieval
-    const CAPABILITY_POSTER = 'poster';          // pycore-only movie poster (DISTINCT from 'image' = word art)
+    const CAPABILITY_POSTER = 'poster';          // mcp-chrome movie poster (distinct from word art)
     const CAPABILITY_STT = 'stt';                // pycore-only speech-to-text transcription
 
     const CAPABILITIES = [
@@ -182,20 +182,18 @@ class GlobalTask extends Model
      * contradict each other (the old bug where one said 'image=chrome' and the
      * other said 'image=pycore', both incomplete).
      *
-     * Truth: pycore handles word_audio/image/sentence_audio/subtitle/poster/stt
-     * via its TranslationWorkerService + AssistWorker; chrome handles
-     * remote_client word_image (Bing) + remote_sentence_audio + remote_notebooklm
-     * + remote_gemini. word_translation races on BOTH.
+     * Pycore and chrome can both handle audio and AI translation. Pycore owns
+     * subtitle/STT; mcp-chrome owns word images and posters.
      */
     const CAPABILITY_CLAIMANTS = [
         self::CAPABILITY_TRANSLATE => ['pycore', 'chrome'],
         self::CAPABILITY_AI_TRANSLATE => ['pycore', 'chrome'],
         self::CAPABILITY_PUTER_TRANSLATE => ['chrome'],
         self::CAPABILITY_AUDIO => ['pycore', 'chrome'],
-        self::CAPABILITY_IMAGE => ['pycore', 'chrome'],
+        self::CAPABILITY_IMAGE => ['chrome'],
         self::CAPABILITY_SENTENCE_AUDIO => ['pycore', 'chrome'],
         self::CAPABILITY_SUBTITLE => ['pycore'],
-        self::CAPABILITY_POSTER => ['pycore'],
+        self::CAPABILITY_POSTER => ['chrome'],
         self::CAPABILITY_STT => ['pycore'],
     ];
 
@@ -210,20 +208,21 @@ class GlobalTask extends Model
         self::CAPABILITY_AI_TRANSLATE => 'pycore',
         self::CAPABILITY_PUTER_TRANSLATE => 'chrome',
         self::CAPABILITY_AUDIO => 'pycore',
-        self::CAPABILITY_IMAGE => 'pycore',
+        self::CAPABILITY_IMAGE => 'chrome',
         self::CAPABILITY_SENTENCE_AUDIO => 'pycore',
         self::CAPABILITY_SUBTITLE => 'pycore',
-        self::CAPABILITY_POSTER => 'pycore',
+        self::CAPABILITY_POSTER => 'chrome',
         self::CAPABILITY_STT => 'pycore',
     ];
 
     /**
-     * Dedicated (non-fast) execution_type per capability. Capabilities that ride
-     * ONLY the shared fast lane (image, ai_translate) have no entry.
+     * Dedicated (non-fast) execution_type per capability. Image has both a fast
+     * word-media path and a dedicated Gemini-image path; ai_translate is fast-only.
      */
     const CAPABILITY_SINGLE_LANE = [
         self::CAPABILITY_TRANSLATE => self::EXECUTION_REMOTE_TRANSLATION,
         self::CAPABILITY_AUDIO => self::EXECUTION_REMOTE_AUDIO,
+        self::CAPABILITY_IMAGE => self::EXECUTION_REMOTE_GEMINI,
         self::CAPABILITY_SUBTITLE => self::EXECUTION_REMOTE_SUBTITLE,
         self::CAPABILITY_POSTER => self::EXECUTION_REMOTE_POSTER,
         self::CAPABILITY_SENTENCE_AUDIO => self::EXECUTION_REMOTE_SENTENCE_AUDIO,

@@ -43,13 +43,9 @@ $winCommonDir = Join-Path $coreNodeDir "scripts\shells\win\win_common"
 $skipEncryptCacheDir = "C:\_node_core"
 $skipEncryptCacheFile = Join-Path $skipEncryptCacheDir "git_skip_encrypt_cache.db"
 $githubHostRefreshScript = Join-Path $scriptPath "github_host_refresh.ps1"
-if (Test-Path $githubHostRefreshScript) {
-    . $githubHostRefreshScript
-}
+. $githubHostRefreshScript
 $giteeHostRefreshScript = Join-Path $scriptPath "gitee_host_refresh.ps1"
-if (Test-Path $giteeHostRefreshScript) {
-    . $giteeHostRefreshScript
-}
+. $giteeHostRefreshScript
 
 # Initialize skip encrypt cache
 function Initialize-SkipEncryptCache {

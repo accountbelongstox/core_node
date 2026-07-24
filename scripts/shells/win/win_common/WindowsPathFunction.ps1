@@ -22,6 +22,8 @@ $systemName = "win"
 $osInfo = Get-CimInstance Win32_OperatingSystem
 $winVer = $osInfo.Version
 $winBuild = [int]$osInfo.BuildNumber
+$windowsPathInitializationState = Get-Variable -Name 'PycoreWindowsPathInitialized' -Scope Global -ErrorAction SilentlyContinue
+$windowsPathInitializationRequired = (-not $SkipInit) -and (($null -eq $windowsPathInitializationState) -or (-not [bool]$windowsPathInitializationState.Value) -or ($action -eq 'init'))
 
 $Global:HAS_ADMIN_RIGHTS = $false
 try {
@@ -72,11 +74,11 @@ $Global:WINENVS_DIR = ".winenvs"
 # Load GlobalVars.ps1 to get PROJECT_DIR and INLINE_WINENVS_DIR
 # This is needed when WindowsPathFunction.ps1 is called as a standalone script
 $scriptDir = $PSScriptRoot
-if ($scriptDir) {
-    $globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
-    if (Test-Path $globalVarsPath) {
-        . $globalVarsPath
-    }
+$globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
+$globalVarsLoaded = Get-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -ErrorAction SilentlyContinue
+if ($null -eq $globalVarsLoaded -or -not [bool]$globalVarsLoaded.Value) {
+    . $globalVarsPath
+    Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
 }
 
 function Test-IsExecutableFile {
@@ -758,7 +760,7 @@ function Sync-InlineToGlobal {
 
 # Ensure .winenvs exists in Machine PATH before executing any action (after all functions are defined)
 # Only run initialization if -SkipInit is not specified
-if (-not $SkipInit) {
+if ($windowsPathInitializationRequired) {
     Write-Log "Initializing WindowsPathFunction..." -color "Cyan"
 
     if (-not $Global:HAS_ADMIN_RIGHTS) {
@@ -786,8 +788,7 @@ if (-not $SkipInit) {
 
         Write-Log "WindowsPathFunction initialization complete" -color "Green"
     }
-} else {
-    Write-Log "WindowsPathFunction initialization skipped (SkipInit flag)" -color "Gray"
+    Set-Variable -Name 'PycoreWindowsPathInitialized' -Scope Global -Value $true
 }
 
 # Main logic (skip when dot-sourced without an explicit action)
@@ -988,5 +989,3 @@ switch ($action) {
     }
 }
 }
-
-

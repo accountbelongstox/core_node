@@ -14,6 +14,7 @@ from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import threading
 from contextlib import nullcontext
 from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
 )
@@ -54,20 +55,8 @@ class ServerManager:
     - Thread-safe operations
     """
 
-    _instance: Optional['ServerManager'] = None
-
-    def __new__(cls):
-        """Singleton pattern implementation"""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-
     def __init__(self):
-        """Initialize server manager (only once)"""
-        if getattr(self, '_initialized', False):
-            return
-
+        """Initialize server manager."""
         self._servers: Dict[str, ServerProcess] = {}
         init_serialized_owner(
             self,
@@ -79,7 +68,6 @@ class ServerManager:
         self._shutdown_registered = False
 
         ColorPrint.print_info("[ServerManager] Initialized (singleton)")
-        self._initialized = True
 
     def is_port_available(self, port: int, host: str = '127.0.0.1') -> bool:
         """
@@ -430,6 +418,13 @@ class ServerManager:
             ColorPrint.print_warn(f"[ServerManager] Failed to register shutdown hook: {e}")
 
 
+_SERVER_MANAGER_PROVIDER = SerializedSingletonProvider(
+    ServerManager,
+    "native_ui.server_manager.provider",
+    "ServerManagerProvider",
+)
+
+
 def get_server_manager() -> ServerManager:
     """
     Get the singleton ServerManager instance
@@ -437,7 +432,7 @@ def get_server_manager() -> ServerManager:
     Returns:
         ServerManager singleton instance
     """
-    return ServerManager()
+    return _SERVER_MANAGER_PROVIDER.get()
 
 
 # Export

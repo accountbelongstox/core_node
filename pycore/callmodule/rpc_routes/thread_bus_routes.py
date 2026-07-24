@@ -16,6 +16,7 @@ changes to connected WS clients for real-time UI refresh:
 - code_sync_update: Code Sync peer-mesh status/config ticks
 - engine_load_status_update: per-engine model-load progress (idle/loading/loaded/
   error) for class-B models + class-C servers, TTS+STT
+- article.published: agent-history Daily Reading publication
 """
 
 from pycore import ColorPrint, THREAD_BUS
@@ -62,6 +63,8 @@ def register_thread_bus_routes(server):
     # Engine model-load progress (class-B models + class-C servers, TTS+STT) ->
     # live UI refresh alongside the polled /api/local/engines/load-status endpoint.
     server.register_thread_bus_listener('engine_load_status_update')
+    # Agent-history pipeline and Laravel SSE relay -> Wordnew Daily Reading.
+    server.register_thread_bus_listener('article.published')
 
     ColorPrint.green("[ConfigBuilder] Registered thread_bus.trigger_event + broadcast listeners")
 

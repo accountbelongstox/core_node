@@ -19,18 +19,16 @@ use Illuminate\Support\Facades\Schema;
  * the pycore TTS lane. This task deliberately does NOT re-enqueue those, to
  * avoid a third translation enqueuer / duplicate audio work.)
  *
- * It enqueues word_media tasks (EXECUTION_REMOTE_CLIENT — the chrome Bing
- * worker) whose single lookup pass fills the image (and re-confirms translation
- * fill-missing). Selection honors the project rules:
+ * It enqueues word_media tasks on the shared image-capability lane. The Chrome
+ * media-image worker fills each missing image through web image search.
+ * Selection honors the project rules:
  *   - has_translation = true   (缺图片 only under the premise of a translation)
  *   - is_valid = true          (never touch invalid / placeholder words)
- *   - no image on the row yet   (image_files empty)
- *   - image_status NOT terminal (NULL / not in ['completed','none']) — so a word
- *     Bing was already checked for and has NO images (image_status='none') is
- *     never re-queued.
+ *   - no mcp-chrome submission marker yet, even when a legacy image exists
  *
  * Registered automatically by the auto-discovering OctaneTimerServiceProvider
- * (sys:init wires it in). Default OFF — flip APPQYV1_MEDIA_SCAN=true to enable.
+ * (sys:init wires it in). The mcp-chrome task checkbox controls task claiming;
+ * this bounded scanner only keeps the queue populated.
  */
 class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
 {
@@ -42,6 +40,7 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
     private $taskManager;
     // image_status existence is host-dependent; probed lazily per language table.
     private array $imageStatusColumnCache = [];
+    private array $imageMcpColumnCache = [];
 
     public function __construct()
     {
@@ -60,11 +59,7 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
 
     public function isEnabled(): bool
     {
-        // Default OFF: the on-query path (AppQyV1WordMediaService) already enqueues
-        // word_media for visible words; flip APPQYV1_MEDIA_SCAN=true to also scan
-        // the whole dictionary for translated-but-image-less words in the
-        // background.
-        return env('APPQYV1_MEDIA_SCAN', false);
+        return env('APPQYV1_MEDIA_SCAN', true);
     }
 
     public function exec(): void
@@ -85,55 +80,56 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
             }
 
             $limit = self::WORDS_PER_TASK * (self::MAX_TASKS_PER_LANGUAGE - $pendingCount);
-            // $refetch collects file-gone words that HAVE stored full URLs — those
-            // are re-fetched from the URL (fast, no re-translate); $words is the
-            // re-scrape list (never-fetched + file-gone WITHOUT stored URLs).
-            $refetch = [];
-            $words = $this->translatedWordsMissingImages($langCode, $limit, $refetch);
+            $words = $this->translatedWordsMissingImages(
+                $langCode,
+                $limit,
+                $this->pendingWordMd5ForLanguage($langCode)
+            );
 
             foreach (array_chunk($words, self::WORDS_PER_TASK) as $chunk) {
-                $this->createTask($langCode, $chunk, false);
-                $totalCreated++;
-            }
-            foreach (array_chunk($refetch, self::WORDS_PER_TASK) as $chunk) {
-                $this->createTask($langCode, $chunk, true);
+                $this->createTask($langCode, $chunk);
                 $totalCreated++;
             }
         }
 
         if ($totalCreated > 0) {
-            $this->logInfo('Background word_media tasks enqueued (scrape + url-refetch)', [
+            $this->logInfo('Background mcp-chrome word_media tasks enqueued', [
                 'total_tasks' => $totalCreated,
             ]);
         }
     }
 
     /**
-     * Translated, valid words that still lack an image and are NOT terminal
-     * (image_status NULL or not in ['completed','none']). Returns [{word,md5}].
+     * Translated, valid words without an mcp-chrome submission marker.
+     * Returns [{word,md5}].
      */
-    private function translatedWordsMissingImages(string $langCode, int $limit, array &$refetch): array
+    private function translatedWordsMissingImages(string $langCode, int $limit, array $excludedMd5): array
     {
         $hasStatus = $this->hasImageStatusColumn($langCode);
+        $hasMcpMarker = $this->hasImageMcpColumn($langCode);
         $out = [];
 
-        // Branch A — never-fetched / pending: empty image_files and NOT a terminal
-        // verdict. Nested closure so the image_status predicate is ANDed under
-        // has_translation/is_valid (a top-level orWhere would drop those guards).
         $qa = AppQyV1LangDictionaryModel::forLanguage($langCode)
             ->where('has_translation', true)
-            ->where('is_valid', true)
-            ->where(function ($q) {
+            ->where('is_valid', true);
+        if (!empty($excludedMd5)) {
+            $qa->whereNotIn('md5', $excludedMd5);
+        }
+        if ($hasMcpMarker) {
+            $qa->whereNull('image_mcp_submitted_at');
+        } else {
+            $qa->where(function ($q) {
                 $q->whereNull('image_files')
                     ->orWhere('image_files', '')
                     ->orWhere('image_files', '[]')
                     ->orWhere('image_files', '{}');
             });
-        if ($hasStatus) {
-            $qa->where(function ($q) {
-                $q->whereNull('image_status')
-                    ->orWhereNotIn('image_status', ['completed', 'none']);
-            });
+            if ($hasStatus) {
+                $qa->where(function ($q) {
+                    $q->whereNull('image_status')
+                        ->orWhereNotIn('image_status', ['completed', 'none']);
+                });
+            }
         }
         foreach ($qa->orderByDesc('query_count')->limit($limit)->get(['content', 'md5']) as $row) {
             $word = $row->content ?? null;
@@ -142,28 +138,27 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
             }
         }
 
-        // Branch B — REPAIR: rows that CLAIM images (non-empty image_files,
-        // image_status='completed') but whose STATIC FILE is gone. This is exactly
-        // the user's "翻译中标识有图但静态文件不存在" case, which Branch A (empty
-        // image_files only) cannot catch and the on-demand path treats as settled.
-        // Detect via resolveImageUrl()===null (the is_file check), then revert the
-        // row to never-checked (image_files/image_status null) so the writeback's
-        // fill-missing re-stores on the next scrape. Bounded by $limit.
-        if ($hasStatus && count($out) < $limit) {
+        // Repair mcp-submitted rows whose local file was removed. Clearing the
+        // marker makes the row claimable again and lets mcp-chrome replace it.
+        if (($hasMcpMarker || $hasStatus) && count($out) < $limit) {
             $media = new AppQyV1WordMediaService();
-            $candidates = AppQyV1LangDictionaryModel::forLanguage($langCode)
+            $candidateQuery = AppQyV1LangDictionaryModel::forLanguage($langCode)
                 ->where('has_translation', true)
                 ->where('is_valid', true)
-                ->where('image_status', 'completed')
-                ->whereNotNull('image_files')
-                ->orderByDesc('query_count')
-                ->limit($limit)
-                ->get();
+                ->whereNotNull('image_files');
+            if (!empty($excludedMd5)) {
+                $candidateQuery->whereNotIn('md5', $excludedMd5);
+            }
+            if ($hasMcpMarker) {
+                $candidateQuery->whereNotNull('image_mcp_submitted_at');
+            } elseif ($hasStatus) {
+                $candidateQuery->where('image_status', 'completed');
+            }
+            $candidates = $candidateQuery->orderByDesc('query_count')->limit($limit)->get();
             foreach ($candidates as $row) {
-                if (count($out) + count($refetch) >= $limit) {
+                if (count($out) >= $limit) {
                     break;
                 }
-                // Intact file on disk -> not missing, leave it.
                 if ($media->resolveImageUrl($row) !== null) {
                     continue;
                 }
@@ -171,33 +166,21 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
                 if (!is_string($word) || $word === '') {
                     continue;
                 }
-                // Revert to never-checked so the writeback's fill-missing re-stores
-                // (both the re-fetch and the re-scrape paths need a clean slate).
-                $stored = is_array($row->bing_resource_urls) ? $row->bing_resource_urls : null;
                 $row->image_files = null;
-                $row->image_status = null;
-                $row->image_completed_at = null;
+                if ($hasStatus) {
+                    $row->image_status = null;
+                    $row->image_completed_at = null;
+                }
+                if ($hasMcpMarker) {
+                    $row->image_mcp_submitted_at = null;
+                }
                 try {
                     $row->save();
                 } catch (\Throwable $e) {
                     continue;
                 }
                 $md5 = $row->md5 ?? md5($word);
-                $imageUrls = ($stored && is_array($stored['images'] ?? null)) ? array_values($stored['images']) : [];
-                $audioUrl = ($stored && is_string($stored['audio'] ?? null)) ? $stored['audio'] : null;
-                if (!empty($imageUrls) || $audioUrl !== null) {
-                    // FAST PATH: stored full URLs exist -> re-fetch the bytes in-page,
-                    // no Bing search / no re-translate.
-                    $refetch[] = [
-                        'word' => $word,
-                        'md5' => $md5,
-                        'image_urls' => $imageUrls,
-                        'audio_url' => $audioUrl,
-                    ];
-                } else {
-                    // No stored URLs -> fall back to a fresh re-scrape.
-                    $out[] = ['word' => $word, 'md5' => $md5];
-                }
+                $out[] = ['word' => $word, 'md5' => $md5];
             }
         }
 
@@ -219,6 +202,21 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
         return $this->imageStatusColumnCache[$langCode] = $has;
     }
 
+    private function hasImageMcpColumn(string $langCode): bool
+    {
+        if (array_key_exists($langCode, $this->imageMcpColumnCache)) {
+            return $this->imageMcpColumnCache[$langCode];
+        }
+        try {
+            $model = AppQyV1LangDictionaryModel::forLanguage($langCode)->getModel();
+            $has = Schema::connection($model->getConnectionName())
+                ->hasColumn($model->getTable(), 'image_mcp_submitted_at');
+        } catch (\Throwable $e) {
+            $has = false;
+        }
+        return $this->imageMcpColumnCache[$langCode] = $has;
+    }
+
     private function countPendingForLanguage(string $langCode): int
     {
         return GlobalTask::query()
@@ -229,7 +227,34 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
             ->count();
     }
 
-    private function createTask(string $langCode, array $words, bool $refetch): void
+    private function pendingWordMd5ForLanguage(string $langCode): array
+    {
+        $seen = [];
+        $tasks = GlobalTask::query()
+            ->where('app_name', 'AppQyV1')
+            ->where('task_type', 'word_media')
+            ->where('status', GlobalTask::STATUS_PENDING)
+            ->where('payload->language', $langCode)
+            ->get(['payload']);
+        foreach ($tasks as $task) {
+            $payload = is_array($task->payload) ? $task->payload : [];
+            $items = is_array($payload['words'] ?? null)
+                ? $payload['words']
+                : [$payload['content'] ?? null];
+            foreach ($items as $item) {
+                $word = is_array($item) ? ($item['word'] ?? null) : $item;
+                $md5 = is_array($item) ? ($item['md5'] ?? null) : null;
+                if (is_string($md5) && $md5 !== '') {
+                    $seen[$md5] = true;
+                } elseif (is_string($word) && $word !== '') {
+                    $seen[md5($word)] = true;
+                }
+            }
+        }
+        return array_keys($seen);
+    }
+
+    private function createTask(string $langCode, array $words): void
     {
         $timeoutSeconds = 60 + (count($words) * 3);
         if ($timeoutSeconds > 600) {
@@ -242,25 +267,18 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
             'target_language' => self::TARGET_LANGUAGE,
             'word_count' => count($words),
         ];
-        // mode='refetch' makes the chrome worker re-download media from the
-        // per-word image_urls/audio_url already in $words — no Bing search.
-        if ($refetch) {
-            $payload['mode'] = 'refetch';
-        }
-
-        // EXECUTION_REMOTE_TRANSLATION, NOT remote_client: the chrome Bing worker
-        // registers processor_types ['remote_translation','remote_fast'] only, so a
-        // remote_client task would strand unclaimed. capability defaults to null
-        // (the worker's caps are ['translate'] — an 'image' capability would also
-        // strand). task_type stays 'word_media' (handled + routed by task_type).
+        // word_media belongs to the shared image-capability lane. Keep the low
+        // background priority while making it claimable by the media-image worker.
         $this->taskManager->createTask(
             'AppQyV1',
             'word_media',
-            GlobalTask::EXECUTION_REMOTE_TRANSLATION,
+            GlobalTask::EXECUTION_REMOTE_FAST,
             $payload,
             $timeoutSeconds,
             self::PRIORITY_LOW,
-            3
+            3,
+            false,
+            GlobalTask::CAPABILITY_IMAGE
         );
     }
 }

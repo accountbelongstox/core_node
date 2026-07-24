@@ -277,15 +277,8 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
         client_ip = self.client_address[0]
         db.record_connection('client_connect', client_ip, request_path='/api/files')
 
-        # Add to connected clients list if not already there
         client_info = {'ip': client_ip, 'last_seen': time.time()}
-        if not any(c['ip'] == client_ip for c in config.connected_clients):
-            config.connected_clients.append(client_info)
-        else:
-            # Update last seen time
-            for c in config.connected_clients:
-                if c['ip'] == client_ip:
-                    c['last_seen'] = time.time()
+        config.upsert_connected_client(client_info)
 
         if not config.root_dir or not config.root_dir.exists():
             self._send_json({'error': 'Root directory not found'}, 500)

@@ -9,6 +9,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
 from pycore.pyutils.mcp.codebase.tree_generator import (
     IGNORE_DIRS,
@@ -405,8 +406,11 @@ class CodebaseFileSearcher:
         return matches
 
 
-# Singleton instance
-_file_searcher_singleton: Optional[CodebaseFileSearcher] = None
+_FILE_SEARCHER_PROVIDER = SerializedSingletonProvider(
+    CodebaseFileSearcher,
+    "mcp.codebase_file_searcher.provider",
+    "MCPCodebaseFileSearcherProviderThread",
+)
 
 
 def get_codebase_file_searcher_singleton(
@@ -414,7 +418,4 @@ def get_codebase_file_searcher_singleton(
     enable_global_access: bool = True
 ) -> CodebaseFileSearcher:
     """Get singleton instance of CodebaseFileSearcher"""
-    global _file_searcher_singleton
-    if _file_searcher_singleton is None:
-        _file_searcher_singleton = CodebaseFileSearcher(project_root, enable_global_access)
-    return _file_searcher_singleton
+    return _FILE_SEARCHER_PROVIDER.get(project_root, enable_global_access)

@@ -15,7 +15,15 @@
 
 # 0 (true) when an NVIDIA GPU is usable, 1 otherwise.
 gpu_present() {
-    [[ "${TORCH_FORCE_CUDA:-0}" == "1" ]] && return 0
-    [[ "${CUDA_VISIBLE_DEVICES:-}" == "-1" ]] && return 1
-    command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
+    local smi=""
+    local output=""
+    if [[ "${TORCH_FORCE_CUDA:-0}" == "1" ]]; then
+        output="GPU 0: forced"
+    elif [[ "${CUDA_VISIBLE_DEVICES:-}" != "-1" ]]; then
+        smi="$(command -v nvidia-smi 2>/dev/null || true)"
+        if [[ -n "$smi" ]]; then
+            output="$("$smi" -L 2>/dev/null || true)"
+        fi
+    fi
+    [[ "$output" == *"GPU "* ]]
 }

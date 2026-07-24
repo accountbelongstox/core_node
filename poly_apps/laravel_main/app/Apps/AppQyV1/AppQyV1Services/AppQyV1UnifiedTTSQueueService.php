@@ -554,9 +554,9 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
-     * Create (idempotently) a pycore word_audio/article_audio GlobalTask linked
-     * to a canonical row, so pycore's audio lane runs the real-pronunciation API
-     * chain then its TTS fallback. Ungated variant of maybeCreateGlobalAudioTask:
+     * Create an idempotent word_audio/article_audio GlobalTask linked to a
+     * canonical row. Pycore or the enabled Chrome Qwen3-TTS worker may consume
+     * the shared audio lane. Ungated variant of maybeCreateGlobalAudioTask:
      * used by the timer's API-miss delegation path, where Laravel MUST drive the
      * task unconditionally (Laravel drives, pycore generates). Best-effort and
      * idempotent - skips when an active linked task already exists and never
@@ -597,7 +597,7 @@ class AppQyV1UnifiedTTSQueueService
                 3,
                 // Interactive (FE position='beginning') audio jumps to task-top:
                 // createTask rewrites it onto remote_fast + PRIORITY_FAST. The
-                // capability=audio tag keeps it pycore-only (chrome has no audio lane).
+                // capability=audio routes it only to workers that advertise audio.
                 $interactive,
                 \App\Models\GlobalTask::CAPABILITY_AUDIO,
                 [

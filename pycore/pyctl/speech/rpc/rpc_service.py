@@ -21,6 +21,7 @@ Usage:
 from typing import Optional, Dict, Any
 
 from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
 # Import all route registration functions
 from pycore.pyctl.speech.rpc.routes import (
@@ -118,18 +119,22 @@ class RPCService:
         }
 
 
-# Global singleton
-_global_rpc_service: Optional[RPCService] = None
+def _create_rpc_service(rpc_server=None, tts_switch=None, stt_switch=None) -> RPCService:
+    if rpc_server is None:
+        raise ValueError("rpc_server required for first initialization")
+    return RPCService(rpc_server, tts_switch, stt_switch)
+
+
+_RPC_SERVICE_PROVIDER = SerializedSingletonProvider(
+    _create_rpc_service,
+    "speech.rpc_service.provider",
+    "SpeechRPCServiceProvider",
+)
 
 
 def get_rpc_service(rpc_server=None, tts_switch=None, stt_switch=None) -> RPCService:
     """Get global RPC service singleton"""
-    global _global_rpc_service
-    if _global_rpc_service is None:
-        if rpc_server is None:
-            raise ValueError("rpc_server required for first initialization")
-        _global_rpc_service = RPCService(rpc_server, tts_switch, stt_switch)
-    return _global_rpc_service
+    return _RPC_SERVICE_PROVIDER.get(rpc_server, tts_switch, stt_switch)
 
 
 def start_rpc_service(rpc_server, tts_switch=None, stt_switch=None) -> RPCService:

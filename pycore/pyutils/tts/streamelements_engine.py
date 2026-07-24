@@ -18,6 +18,7 @@ from typing import Optional, Tuple
 import time
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyutils.common.api_secrets import streamelements_api_key
 
@@ -25,23 +26,22 @@ STREAMELEMENTS_SPEECH_URL = "https://api.streamelements.com/kappa/v2/speech"
 # (connect, read) timeouts (seconds).
 _HTTP_TIMEOUT: Tuple[int, int] = (8, 60)
 _VOICE_BY_ACCENT = {"us": "Joanna", "uk": "Amy"}
-_WARNED_MISSING_KEY = False
+_WARNED_MISSING_KEY = SerializedValue(False, "StreamElementsWarningState")
 _AUTH_COOLDOWN_S = 300.0
-_cooldown_until = 0.0
+_COOLDOWN_UNTIL = SerializedValue(0.0, "StreamElementsCooldownState")
 
 
 def in_cooldown() -> bool:
-    return time.monotonic() < _cooldown_until
+    return time.monotonic() < float(_COOLDOWN_UNTIL.get())
 
 
 def cooldown_remaining() -> float:
-    rem = _cooldown_until - time.monotonic()
+    rem = float(_COOLDOWN_UNTIL.get()) - time.monotonic()
     return max(0.0, rem)
 
 
 def _set_auth_cooldown() -> None:
-    global _cooldown_until
-    _cooldown_until = time.monotonic() + _AUTH_COOLDOWN_S
+    _COOLDOWN_UNTIL.set(time.monotonic() + _AUTH_COOLDOWN_S)
 
 
 def _key() -> str:
@@ -77,12 +77,10 @@ def disabled_reason() -> Optional[str]:
 
 def warn_if_disabled() -> bool:
     """Startup hint when the key is missing. Returns True when disabled. Idempotent."""
-    global _WARNED_MISSING_KEY
     reason = disabled_reason()
     if reason is None:
         return False
-    if not _WARNED_MISSING_KEY:
-        _WARNED_MISSING_KEY = True
+    if _WARNED_MISSING_KEY.compare_and_set(False, True):
         ColorPrint.yellow(
             f"[streamelements] {reason}. "
             "Set STREAMELEMENTS_API_KEY via Special Software env manager "

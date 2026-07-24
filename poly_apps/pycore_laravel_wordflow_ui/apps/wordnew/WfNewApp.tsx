@@ -37,7 +37,6 @@ import { wfNewNotify, useWfNewToasts } from './WfNewNotify';
 import { WfNewBottomDock } from './components/WfNewBottomDock';
 import { CourseBlockCard, WordRowItem } from './components/WfNewCards';
 import { WfNewSettings } from './pages/WfNewSettings';
-import DailyReading from '../../components/views/DailyReading';
 
 // New Custom Study Suites Pages
 import { WfNewWalkman } from './pages/WfNewWalkman';
@@ -69,6 +68,7 @@ import { WfNewHomeDashboard } from './components/WfNewHomeDashboard';
 import { WfNewOnboarding } from './pages/WfNewOnboarding';
 import { WfNewNavLogo } from './components/WfNewNavLogo';
 import { WfNewNotificationBell } from './components/WfNewNotificationBell';
+import { WfDailyReadingSection } from './components/daily-reading/WfDailyReadingSection';
 
 import { useWfNewAppState, type WfTab } from './hooks/useWfNewAppState';
 
@@ -597,7 +597,7 @@ export const WfNewApp: React.FC = () => {
             </motion.div>
           )}
 
-          {/* ====== DAILY SHORT-SENTENCE READING (pycore-assisted translations) ====== */}
+          {/* ====== DAILY BILINGUAL ARTICLES (Pycore publish, Laravel authority) ====== */}
           {activeTab === 'daily-reading' && (
             <motion.div
               key="daily-reading"
@@ -606,7 +606,20 @@ export const WfNewApp: React.FC = () => {
               exit={{ opacity: 0, y: -15 }}
               className="space-y-6"
             >
-              <DailyReading />
+              <WfDailyReadingSection
+                theme={activeTheme}
+                trans={trans}
+                routeMode
+                onOpenBook={(sourceKey, title) => openHomeGroup({
+                  id: sourceKey,
+                  kind: 'book',
+                  sourceKey,
+                  title,
+                  count: 0,
+                  countUnit: 'sentences',
+                  category: 'agent_history',
+                })}
+              />
             </motion.div>
           )}
 

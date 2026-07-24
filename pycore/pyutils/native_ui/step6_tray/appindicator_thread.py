@@ -70,13 +70,15 @@ class AppIndicatorSystemTrayThread(threading.Thread):
                 "  (legacy)        sudo apt-get install python3-gi gir1.2-appindicator3-0.1"
             )
 
-        self.app_id = app_id
-        self.app_name = app_name
-        self.icon_path = icon_path
-        self.icon_name = icon_name
-        self.menu_items = menu_items or []
-        self.trigger_shutdown_on_exit = trigger_shutdown_on_exit
-        self.tray: Optional[AppIndicatorSystemTray] = None
+        self._config_queue = f"native_ui.appindicator.config.{id(self)}"
+        THREAD_BUS.send_message(self._config_queue, {
+            "app_id": app_id,
+            "app_name": app_name,
+            "icon_path": icon_path,
+            "icon_name": icon_name,
+            "menu_items": list(menu_items or []),
+            "trigger_shutdown_on_exit": bool(trigger_shutdown_on_exit),
+        })
 
         ColorPrint.blue(f"[AppIndicatorThread] Initialized - App: {app_name}")
 
@@ -87,29 +89,31 @@ class AppIndicatorSystemTrayThread(threading.Thread):
             return
 
         ColorPrint.green("[AppIndicatorThread] Starting tray...")
+        config = THREAD_BUS.receive_message(self._config_queue) or {}
 
         # Create tray instance
-        self.tray = AppIndicatorSystemTray(
-            app_id=self.app_id,
-            app_name=self.app_name,
-            icon_path=self.icon_path,
-            icon_name=self.icon_name,
-            trigger_shutdown_on_exit=self.trigger_shutdown_on_exit
+        tray = AppIndicatorSystemTray(
+            app_id=config.get("app_id", "pycore-app"),
+            app_name=config.get("app_name", "Application"),
+            icon_path=config.get("icon_path"),
+            icon_name=config.get("icon_name"),
+            trigger_shutdown_on_exit=bool(config.get("trigger_shutdown_on_exit", True)),
         )
 
         # Set menu items
-        if self.menu_items:
-            self.tray.set_menu_items(self.menu_items)
+        menu_items = config.get("menu_items") or []
+        if menu_items:
+            tray.set_menu_items(menu_items)
 
         # Signal that tray is starting
         THREAD_BUS.trigger_event('tray.thread.started', {
-            'app_id': self.app_id,
+            'app_id': config.get("app_id", "pycore-app"),
             'backend': 'appindicator'
         })
 
         # Run tray (blocks until stopped)
         ColorPrint.green(f"[AppIndicatorThread] Tray running...")
-        self.tray.run()
+        tray.run()
 
         # Signal that tray has stopped
         THREAD_BUS.trigger_event('tray.thread.stopped', {})
@@ -121,9 +125,7 @@ class AppIndicatorSystemTrayThread(threading.Thread):
 
         This method is thread-safe via GLib.idle_add() in the tray implementation.
         """
-        if self.tray:
-            ColorPrint.blue(f"[AppIndicatorThread] Requesting stop...")
-            self.tray.stop()
+        THREAD_BUS.trigger_event("tray.request_stop", {})
 
     def update_menu(self, menu_items: List[AppIndicatorMenuItem]):
         """
@@ -132,8 +134,7 @@ class AppIndicatorSystemTrayThread(threading.Thread):
         Args:
             menu_items: New list of menu items
         """
-        if self.tray:
-            self.tray.update_menu(menu_items)
+        THREAD_BUS.trigger_event("tray.update_menu", {"menu_items": list(menu_items)})
 
     def get_tray(self) -> Optional[AppIndicatorSystemTray]:
         """
@@ -141,7 +142,8 @@ class AppIndicatorSystemTrayThread(threading.Thread):
 
         Note: Direct access should be minimized. Prefer THREAD_BUS events.
         """
-        return self.tray
+        ColorPrint.yellow("[AppIndicatorThread] Direct tray access is unavailable")
+        return None
 
 
 # Utility function

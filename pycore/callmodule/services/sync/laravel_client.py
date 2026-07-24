@@ -18,15 +18,14 @@ bridge) goes through here. Each request:
   * returns the raw ``requests.Response`` so callers keep
     ``.status_code`` / ``.json()`` / ``.text`` / ``.iter_lines()``.
 
-Uses one ``requests.Session`` per caller thread for connection pooling without
-sharing mutable session state. Synchronous (matches every existing call site).
-The SSE reader uses ``get_stream()`` and consumes the response on its own thread.
+Uses one ``requests.Session`` per request, so no mutable HTTP state crosses
+threads. Synchronous (matches every existing call site). Streaming responses
+retain and close their owning session with the response.
 
 Layering: imports ``laravel_endpoint_manager`` (one-way, top-level). The recorder
 lives in its own zero-dep module so the endpoint manager can import it too without
 cycling back here. No function-level internal imports.
 """
-import threading
 import time
 from typing import Any, Dict, Optional
 from urllib.parse import urlsplit
@@ -132,16 +131,6 @@ def _summarize_response(resp: Any) -> str:
 class LaravelClient:
     """Singleton unified pycore->Laravel HTTP client."""
 
-    def __init__(self):
-        self._thread_state = threading.local()
-
-    def _session_get(self):
-        session = getattr(self._thread_state, "session", None)
-        if session is None:
-            session = get_third_package_requests().Session()
-            self._thread_state.session = session
-        return session
-
     def _resolve_base(self, base_url: Optional[str]) -> str:
         if base_url:
             return base_url.rstrip("/")
@@ -193,13 +182,26 @@ class LaravelClient:
             timeout = _DEFAULT_TIMEOUT
         started = time.perf_counter()
         status = 0
+        session = get_third_package_requests().Session()
         try:
-            resp = self._session_get().request(
+            resp = session.request(
                 method, url,
                 params=params, data=data, json=json, files=files,
                 headers=headers, timeout=timeout, stream=stream,
                 allow_redirects=allow_redirects, **kwargs,
             )
+            if stream:
+                original_close = resp.close
+
+                def close_stream_response() -> None:
+                    try:
+                        original_close()
+                    finally:
+                        session.close()
+
+                resp.close = close_stream_response
+            else:
+                session.close()
             ms = (time.perf_counter() - started) * 1000.0
             status = resp.status_code
             body_summary = "" if stream else _summarize_response(resp)
@@ -218,6 +220,7 @@ class LaravelClient:
             })
             return resp
         except Exception as e:
+            session.close()
             ms = (time.perf_counter() - started) * 1000.0
             err = _short_err(e)
             ColorPrint.red(f"[laravel] {method} {display_path} -> ERR ({ms:.0f}ms) {err}")

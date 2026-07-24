@@ -40,7 +40,15 @@ CUDA_INDEX_LIB=""
 CUDA_POLICY_TAG=""
 CUDA_POLICY_MAJOR=""
 CTRANSLATE_CUDA_MAJOR="12"
+CTRANSLATE_GPU_PACKAGE_CSV=""
+CTRANSLATE_DEPS_READY=1
+CTRANSLATE_GPU_PACKAGES=()
+MISSING_CTRANSLATE_PACKAGES=()
+package_spec=""
+package_metadata=""
 USE_CTRANSLATE_CUDA=0
+FASTER_WHISPER_METADATA=""
+FASTER_WHISPER_READY=0
 
 # Resolve the common dir the same way sibling install scripts do.
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -53,13 +61,15 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 # target the shared venv built by 13_ensure_python.sh, not the system python.
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
-# Serialize pip into the shared venv (safe under the parallel install driver). Defensive.
+# Serialize pip into the shared venv.
 PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
-[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+. "$PIPLOCK_LIB"
 CUDA_INDEX_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/cuda_index.sh"
-[ -f "$CUDA_INDEX_LIB" ] && . "$CUDA_INDEX_LIB"
+. "$CUDA_INDEX_LIB"
+. "$PARENT_DIR_LEVEL_2/common/base_libs/lib_gpu.sh"
 CTRANSLATE_CUDA_MAJOR="${AI_CTRANSLATE2_CUDA_MAJOR:-12}"
+CTRANSLATE_GPU_PACKAGE_CSV="${AI_CTRANSLATE2_GPU_PACKAGES:-}"
+IFS=',' read -ra CTRANSLATE_GPU_PACKAGES <<< "$CTRANSLATE_GPU_PACKAGE_CSV"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -70,31 +80,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Resolve a real Python 3 interpreter (prefer the one passed in, else PATH).
-resolve_python() {
-    local preferred="$1"
-    if [[ -n "$preferred" ]] && command -v "$preferred" >/dev/null 2>&1; then
-        echo "[run] $preferred -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)'" >&2
-        if "$preferred" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
-            command -v "$preferred"; return 0
-        fi
-    fi
-    local name
-    for name in python3 python; do
-        if command -v "$name" >/dev/null 2>&1; then
-            echo "[run] $name -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)'" >&2
-            if "$name" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
-                command -v "$name"; return 0
-            fi
-        fi
-    done
-    return 1
-}
-
-py_has_module() {
-    echo "[run] $PYTHON -c \"import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$1') else 1)\"" >&2
-    "$PYTHON" -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$1') else 1)" >/dev/null 2>&1
-}
 get_ram_gb() {
     if [[ -r /proc/meminfo ]]; then
         awk '/^MemTotal:/{ printf "%d", $2/1024/1024 }' /proc/meminfo && return 0
@@ -118,16 +103,22 @@ is_server() {
     if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" || -n "${XDG_CURRENT_DESKTOP:-}" ]]; then return 1; fi
     return 0
 }
-# GPU detection -- same logic as the canonical lib_gpu.sh / the *_cpu_guard.sh helpers
-# (nvidia-smi -L; honors TORCH_FORCE_CUDA=1 and CUDA_VISIBLE_DEVICES=-1).
+# GPU detection from the canonical shared helper.
 has_cuda() {
-    [ "${TORCH_FORCE_CUDA:-0}" = "1" ] && return 0
-    [ "${CUDA_VISIBLE_DEVICES:-}" = "-1" ] && return 1
-    command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
+    gpu_present
 }
 
 ctranslate_cuda_usable() {
-    "$PYTHON" -c 'import ctranslate2,sys; sys.exit(0 if ctranslate2.get_cuda_device_count() > 0 else 1)' >/dev/null 2>&1
+    local output=""
+    output="$("$PYTHON" -c "import ctranslate2; print('__CUDA_READY__' if ctranslate2.get_cuda_device_count() > 0 else '__CUDA_UNAVAILABLE__')" 2>/dev/null || true)"
+    [[ "$output" == *"__CUDA_READY__"* ]]
+}
+
+pip_package_present() {
+    local package_name="$1"
+    local metadata=""
+    metadata="$("$PYTHON" -m pip show "$package_name" 2>/dev/null || true)"
+    [[ "$metadata" == *"Name:"* ]]
 }
 
 echo "============================================================"
@@ -139,10 +130,6 @@ echo "============================================================"
 # venv (not the externally-managed system python). An explicit --python still wins.
 if [[ "$PYTHON" == "python3" ]]; then
     PYTHON="$(venv_python_from_common)"
-fi
-if ! PYTHON="$(resolve_python "$PYTHON")"; then
-    echo "[X] Python 3 was NOT found. Run 13_ensure_python.sh first, or pass --python <path>." >&2
-    exit 1
 fi
 echo "  python : $PYTHON"
 
@@ -163,29 +150,49 @@ if [[ "$FORCE" -eq 0 ]]; then
     fi
 fi
 
-# --- 2) faster-whisper (idempotent) -------------------------------------- #
-if py_has_module faster_whisper && [[ "$FORCE" -eq 0 ]]; then
-    tts_idempotent_msg "$PYTHON" "$SCRIPT_CURRENT_DIR" "faster-whisper already installed"
+# --- 2) faster-whisper (pip metadata idempotency) ------------------------ #
+FASTER_WHISPER_METADATA="$("$PYTHON" -m pip show faster-whisper 2>/dev/null || true)"
+if [[ "$FASTER_WHISPER_METADATA" == *"Name:"* ]]; then
+    FASTER_WHISPER_READY=1
+    tts_idempotent_msg "$PYTHON" "$SCRIPT_CURRENT_DIR" "faster-whisper metadata is present"
 else
-    echo "[..] pip install --upgrade faster-whisper ..."
-    # Install INTO the shared venv; no PEP668 escape flags needed there.
-    PIP_ARGS=(--upgrade faster-whisper)
+    echo "[..] pip install faster-whisper ..."
+    PIP_ARGS=(faster-whisper)
     echo "[run] $PYTHON -m pip install ${PIP_ARGS[*]}"
-    if ! vpip "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
-        echo "[X] faster-whisper install failed." >&2
-        fail_prereq_step "$PYTHON" "[faster_whisper] " faster_whisper
+    vpip "$PYTHON" -m pip install "${PIP_ARGS[@]}" || true
+    FASTER_WHISPER_METADATA="$("$PYTHON" -m pip show faster-whisper 2>/dev/null || true)"
+    if [[ "$FASTER_WHISPER_METADATA" == *"Name:"* ]]; then
+        FASTER_WHISPER_READY=1
+        echo "[OK] faster-whisper installed."
+    else
+        echo "[!] faster-whisper metadata is still missing; retrying next run."
     fi
-    if ! py_has_module faster_whisper; then
-        echo "[X] faster-whisper still not importable after install." >&2
-        fail_prereq_step "$PYTHON" "[faster_whisper] " faster_whisper
-    fi
-    echo "[OK] faster-whisper installed."
 fi
 
 # --- 3) Runtime mode: preserve the one canonical CUDA major -------------- #
 CUDA_POLICY_TAG="$(cuda_policy_tag)"
 CUDA_POLICY_MAJOR="$(cuda_policy_field major "$CUDA_POLICY_TAG" 2>/dev/null || true)"
-if has_cuda && [[ "$CUDA_POLICY_MAJOR" == "$CTRANSLATE_CUDA_MAJOR" ]] && ctranslate_cuda_usable; then
+if has_cuda && [[ "$CUDA_POLICY_MAJOR" == "$CTRANSLATE_CUDA_MAJOR" ]]; then
+    CTRANSLATE_DEPS_READY=1
+    MISSING_CTRANSLATE_PACKAGES=()
+    for package_spec in "${CTRANSLATE_GPU_PACKAGES[@]}"; do
+        if [[ -n "$package_spec" ]] && ! pip_package_present "$package_spec"; then
+            CTRANSLATE_DEPS_READY=0
+            MISSING_CTRANSLATE_PACKAGES+=("$package_spec")
+        fi
+    done
+    if [[ ${#MISSING_CTRANSLATE_PACKAGES[@]} -gt 0 ]]; then
+        echo "[..] installing missing CTranslate2 GPU dependencies: ${MISSING_CTRANSLATE_PACKAGES[*]}"
+        vpip "$PYTHON" -m pip install "${MISSING_CTRANSLATE_PACKAGES[@]}" || true
+        CTRANSLATE_DEPS_READY=1
+        for package_spec in "${CTRANSLATE_GPU_PACKAGES[@]}"; do
+            if [[ -n "$package_spec" ]] && ! pip_package_present "$package_spec"; then
+                CTRANSLATE_DEPS_READY=0
+            fi
+        done
+    fi
+fi
+if has_cuda && [[ "$CUDA_POLICY_MAJOR" == "$CTRANSLATE_CUDA_MAJOR" ]] && [[ "$CTRANSLATE_DEPS_READY" -eq 1 ]] && ctranslate_cuda_usable; then
     USE_CTRANSLATE_CUDA=1
     echo "[OK] CTranslate2 CUDA $CTRANSLATE_CUDA_MAJOR is usable."
 elif has_cuda; then
@@ -201,11 +208,11 @@ if [[ "$USE_CTRANSLATE_CUDA" -eq 1 ]]; then _gpu_flag="--gpu"; fi
 tts_official_env_line "$PYTHON" "$SCRIPT_CURRENT_DIR" faster_whisper | while read -r _line; do
     echo "  official env (faster_whisper): $_line"
 done
-if [[ -z "$MODEL" || "$MODEL" == "auto" ]]; then
+if [[ "$FASTER_WHISPER_READY" -eq 1 && ( -z "$MODEL" || "$MODEL" == "auto" ) ]]; then
     MODEL="$(tts_model_tier "$PYTHON" "$SCRIPT_CURRENT_DIR" faster_whisper_model "$_gpu_flag")"
     echo "[..] auto model tier ($(echo "$_gpu_flag" | tr -d '-')): '$MODEL'"
 fi
-if [[ -n "$MODEL" && "$MODEL" != "auto" ]]; then
+if [[ "$FASTER_WHISPER_READY" -eq 1 && -n "$MODEL" && "$MODEL" != "auto" ]]; then
     echo "[..] Pre-downloading faster-whisper model '$MODEL' ..."
     echo "[run] $PYTHON -c \"from faster_whisper import download_model; download_model('$MODEL'); print('cached')\""
     if "$PYTHON" -c "from faster_whisper import download_model; download_model('$MODEL'); print('cached')"; then
@@ -216,5 +223,3 @@ if [[ -n "$MODEL" && "$MODEL" != "auto" ]]; then
         echo "[!] model download did not complete; it will download on first use."
     fi
 fi
-
-complete_prereq_step "$PYTHON" "[faster_whisper] " faster_whisper

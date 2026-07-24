@@ -84,22 +84,21 @@ class ImageProviderThread(threading.Thread):
 
     def __init__(
         self,
-        provider: str,
         queue_name: str,
-        response_signal: str,
     ) -> None:
-        super().__init__(name=f"ImageProvider-{provider}", daemon=True)
-        self._provider = provider
+        super().__init__(name="ImageProviderThread", daemon=True)
         self._queue_name = queue_name
-        self._response_signal = response_signal
 
     def run(self) -> None:
         payload = THREAD_BUS.receive_message(self._queue_name)
         if not isinstance(payload, dict):
             return
+        provider = str(payload.get("provider") or "")
+        response_signal = str(payload.get("response_signal") or "")
+        response_guard = str(payload.get("response_guard") or "")
         result = {
             "success": False,
-            "provider": self._provider,
+            "provider": provider,
             "model": "",
             "image_base64": "",
             "mime": "",
@@ -107,7 +106,7 @@ class ImageProviderThread(threading.Thread):
             "error": None,
         }
         try:
-            _IMAGE_DISPATCH[self._provider](
+            _IMAGE_DISPATCH[provider](
                 payload.get('prompt', ''),
                 payload.get('size'),
                 payload.get('use_model'),
@@ -115,8 +114,7 @@ class ImageProviderThread(threading.Thread):
             )
         except Exception as exc:
             result["error"] = str(exc)
-        if time.time() <= float(payload.get('deadline') or 0.0):
-            THREAD_BUS.signal(self._response_signal, result)
+        THREAD_BUS.signal_if_present(response_guard, response_signal, result)
         THREAD_BUS.clear_queue(self._queue_name)
 
 
@@ -188,13 +186,17 @@ def _run_image_helper(
     request_id = f"{threading.get_ident()}.{time.time_ns()}"
     queue_name = f"pyctl.ai.image_provider.{name}.{request_id}"
     response_signal = f"{queue_name}.result"
+    response_guard = f"{response_signal}.waiting"
+    THREAD_BUS.signal(response_guard, True)
     THREAD_BUS.send_message(queue_name, {
+        'provider': name,
+        'response_signal': response_signal,
+        'response_guard': response_guard,
         'prompt': prompt,
         'size': size,
         'use_model': use_model,
-        'deadline': time.time() + secs,
     })
-    ImageProviderThread(name, queue_name, response_signal).start()
+    ImageProviderThread(queue_name).start()
     result = THREAD_BUS.wait_signal(response_signal, timeout=secs)
     THREAD_BUS.clear_signal(response_signal)
     if isinstance(result, dict):

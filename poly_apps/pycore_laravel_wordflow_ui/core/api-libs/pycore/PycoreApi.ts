@@ -21,7 +21,6 @@ import type {
   TranslationQueueResponse, TranslationQueueActionResponse,
   LocalTaskDetailResponse, PycoreGlobalTaskDetailResponse,
   AssistStatus, AssistConfigPatch, AssistConfigResponse, AssistCycleResponse,
-  PosterStatus, PosterTestResponse,
   TranslateStatus, TranslateResponse, TranslateAiResponse,
   ImageSearchStatus, ImageSearchResponse, ImageSearchCompareResponse,
   ImageSearchHistoryResponse, ImageSearchHistoryDeleteResponse, ImageSearchHistoryClearResponse,
@@ -1080,7 +1079,7 @@ export const pycoreApi = {
     getJSONEnvelope<PycoreGlobalTaskDetailResponse>(
       `/api/local/task-center/tasks/${encodeURIComponent(taskId)}/detail`),
 
-  // --- Assist Laravel (pycore drains Laravel's cover/tts/translation work) - #
+  // --- Pycore → Laravel queue capability control plane ------------------- #
   // Status includes the worker loop state, circuit breaker, counters and the
   // last observed Laravel-side queue counts. Config is a PATCH (only the
   // provided fields change). Cycle runs one claim→process→submit pass NOW and
@@ -1120,20 +1119,6 @@ export const pycoreApi = {
     ),
   completedTaskResourceUrl: (cacheKey: string) =>
     rewritePycoreEndpoint(`/api/local/tasks/completed/resources/${encodeURIComponent(cacheKey)}`),
-
-  // --- Movie / TV poster (TMDB + OMDB key status + fetch toggle + lookup) -- #
-  // status: masked provider keys + the ingest fetch flag (media_sync.fetch_poster).
-  // config: persist that same flag. test: one poster lookup with the base64 image
-  // inlined so the UI can preview it (never throws — {found:false} on a miss).
-  getPosterStatus: () => getJSON<PosterStatus>('/api/local/poster/status'),
-  setPosterConfig: (enabled: boolean) =>
-    postJSON<PosterStatus>('/api/local/poster/config', { enabled }),
-  testPoster: (title: string, year?: number) =>
-    postJSON<PosterTestResponse>('/api/local/poster/test',
-      year != null ? { title, year } : { title }),
-  /** Zero the local-reuse-vs-fetch counters; returns the fresh status. */
-  resetPosterStats: () =>
-    postJSON<PosterStatus>('/api/local/poster/stats/reset', {}),
 
   // --- Google Translate (free googletrans + AI comparison on one input) --- #
   // status: googletrans availability/version + cache info. translate: the free
@@ -1211,39 +1196,8 @@ export const pycoreApi = {
   testWordAudio: (word: string, lang = 'en') =>
     postJSON<WordAudioTestResponse>('/api/local/word-audio/test', { word, lang }),
 
-  // --- Puter.js word-audio batch (browser-side synth -> laravel upload) ---- #
-  // Fetch up to `limit` missing-audio words (is_valid=true only) for the
-  // Queue Center persistent batch bar. pycore proxies laravel.
-  getWordAudioMissingBatch: (limit = 1000, language = 'en') =>
-    getJSON<{ success: boolean; language?: string; count?: number; words?: { word: string; md5: string; language: string }[]; error?: string }>(
-      `/api/local/word-audio/missing-batch?limit=${encodeURIComponent(String(limit))}&language=${encodeURIComponent(language)}`,
-    ),
-  // Upload one synthesized clip (base64 mp3) -> laravel store (fill-missing).
-  // `cleaned_word` notifies laravel the spoken text was cleaned (HTML entities
-  // -> '-') so the backend can fix the dictionary row content.
-  uploadWordAudio: (payload: { md5: string; lang: string; audio_base64: string; provider?: string; accent?: 'us' | 'uk' | null; cleaned_word?: string }) =>
-    postJSON<{ success: boolean; data?: { stored: boolean; md5: string; language: string }; error?: string }>(
-      '/api/local/word-audio/upload', payload,
-    ),
-  // Fetch audio from the Youdao (Longman CDN) via pycore proxy (avoids CORS).
-  // type=1 -> UK, type=2 -> US. Returns base64 mp3 on success.
-  fetchYoudaoAudio: (word: string, type: 1 | 2 = 2) =>
-    getJSON<{ success: boolean; audio_base64?: string; mime?: string; bytes?: number; error?: string }>(
-      `/api/local/word-audio/youdao?word=${encodeURIComponent(word)}&type=${type}`,
-    ),
-  synthesizeWordEdgeTts: (word: string, lang = 'en', accent = 'us') =>
-    postJSON<{ success: boolean; audio_base64?: string; accent?: string; bytes?: number; mime?: string; error?: string }>(
-      '/api/local/word-audio/edge-synth', { word, lang, accent },
-    ),
-  // Write back the cleaned word text to the laravel dictionary row (garbled
-  // text / HTML markup -> '-' replacement detected during browser-side batch).
-  fixWordText: (payload: { md5: string; lang: string; cleaned_word: string }) =>
-    postJSON<{ success: boolean; updated?: number; error?: string }>(
-      '/api/local/word-audio/fix-word', payload,
-    ),
-  // Move a word to the front of the audio generation queue. Broadcasts
-  // 'word_audio_priority_boost' on the pycore WS bus so the pycore-manager
-  // Queue Center batch bar re-orders its in-flight pending list immediately.
+  // Move a word to the front of Laravel's canonical audio queue and wake the
+  // dedicated Pycore word-audio worker.
   boostWordAudioPriority: (md5: string, lang: string) =>
     postJSON<{ success: boolean; laravel_updated?: boolean; error?: string }>(
       '/api/local/word-audio/boost-priority', { md5, lang },
@@ -1251,6 +1205,30 @@ export const pycoreApi = {
   boostWordAudioPriorities: (items: Array<{ md5: string; lang: string }>) =>
     postJSON<{ success: boolean; count: number; results?: Array<Record<string, unknown>>; error?: string }>(
       '/api/local/word-audio/boost-priority/batch', { items },
+    ),
+  prioritizeWordImages: (items: Array<{ word: string; language: string }>) =>
+    postJSON<{ success: boolean; count?: number; error?: string }>(
+      '/api/local/queue-priority/word-image', { items },
+    ),
+  prioritizeSentenceAudio: (items: Array<{ text: string; language: string; content_id?: string }>) =>
+    postJSON<{ success: boolean; bumped?: number; error?: string }>(
+      '/api/local/queue-priority/sentence-audio', { items },
+    ),
+  prioritizeSentenceAudioItem: (contentId: string, language: string) =>
+    postJSON<{ success?: boolean; ok?: boolean; priority?: number; error?: string }>(
+      '/api/local/queue-priority/sentence-audio/item', { content_id: contentId, language },
+    ),
+  prioritizeWordAudioWords: (words: string[], language: string) =>
+    postJSON<{ success: boolean; queued?: number; error?: string }>(
+      '/api/local/queue-priority/word-audio', { words, language },
+    ),
+  prioritizeCovers: (ids: number[], all = false) =>
+    postJSON<{ success: boolean; reset?: number; priority?: number; error?: string }>(
+      '/api/local/queue-priority/cover', { ids, all },
+    ),
+  prioritizePosters: (items: Array<{ media_type: 'book' | 'subtitle'; id: number }>) =>
+    postJSON<{ success: boolean; promoted?: number; error?: string }>(
+      '/api/local/queue-priority/poster', { items },
     ),
 
   // --- translate history (Google / AI translate usage records) ------------ #

@@ -10,10 +10,8 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Lifecycle: Bucket-A LLM. transformers is installed at the shared pin via
-# Install-PinnedTransformers (version-idempotent, never --upgrade, self-heals a
-# clobbered pin). Qwen2.5 needs transformers>=4.37.0; the shared 4.46.x pin
-# satisfies that and keeps all LLM steps aligned in the one system Python 3.13.
+# Lifecycle: Bucket-A LLM. The shared transformers distribution is preserved;
+# pip resolves compatibility only when the package is missing.
 # Contract: development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7.
 
 $scriptRoot = $PSScriptRoot

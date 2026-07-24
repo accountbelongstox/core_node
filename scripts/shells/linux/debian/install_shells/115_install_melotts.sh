@@ -34,7 +34,7 @@ resolve_python() {
     local candidate=""
 
     for candidate in "$PYTHON" python3 python; do
-        if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' >/dev/null 2>&1; then
+        if command -v "$candidate" >/dev/null 2>&1; then
             command -v "$candidate"
             return 0
         fi
@@ -89,7 +89,8 @@ tts_official_env_line "$PYTHON" "$SCRIPT_DIR" melotts | while read -r line; do
 done
 
 if [[ "$FORCE" -eq 0 ]] && tts_dependency_stamp_matches "$PYTHON" "melotts" "$DEPS_SENTINEL"; then
-    if tts_provision_isolated_venv "$PYTHON" "melotts" 0; then
+    tts_provision_isolated_venv "$PYTHON" "melotts" 0
+    if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
         tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "MeloTTS isolated venv verified"
         complete_prereq_step "$PYTHON" "$PREFIX"
     fi
@@ -104,7 +105,8 @@ fi
 mkdir -p "$TARGET_DIR"
 install_pycore_torch_stack "$PYTHON" "$PREFIX"
 echo "${PREFIX}[..] building/verifying isolated MeloTTS venv ..."
-if ! tts_provision_isolated_venv "$PYTHON" "melotts" "$FORCE"; then
+tts_provision_isolated_venv "$PYTHON" "melotts" "$FORCE"
+if [[ "$TTS_ISOLATED_VENV_READY" -ne 1 ]]; then
     echo "${PREFIX}[!] venv build incomplete; main interpreter was left untouched." >&2
     fail_prereq_step "$PYTHON" "$PREFIX"
 fi

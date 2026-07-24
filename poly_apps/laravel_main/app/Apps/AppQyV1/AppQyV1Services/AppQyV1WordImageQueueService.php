@@ -10,6 +10,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1ImageUrl;
 use App\Providers\PathMapper;
@@ -27,9 +28,8 @@ use Illuminate\Support\Facades\Log;
  * add()/addBatch() semantics match the TTS queue add (so the FE + pycore see one
  * model):
  *   - already_available : the image file is on disk -> nothing to do.
- *   - moved_to_front    : re-request with position 'beginning' (image_priority =
- *                         PRIORITY_FRONT = 100), the request that bumps a word to
- *                         the head of the queue.
+ *   - moved_to_front    : re-request with position 'beginning' assigns a
+ *                         MAX(image_priority)+1 ticket.
  *   - queued            : marked image_status='pending' with image_priority at
  *                         least PRIORITY_DEFAULT.
  *
@@ -49,9 +49,6 @@ class AppQyV1WordImageQueueService
     /** Default priority floor applied when a word is queued without 'beginning'. */
     const PRIORITY_DEFAULT = 30;
 
-    /** Priority applied when a request is moved to the front of the queue. */
-    const PRIORITY_FRONT = 100;
-
     /**
      * Add a batch of words to the image queue.
      *
@@ -62,8 +59,9 @@ class AppQyV1WordImageQueueService
     public function addBatch(array $words, string $position = 'end'): array
     {
         $results = [];
+        $entries = $position === 'beginning' ? array_reverse($words, true) : $words;
 
-        foreach ($words as $index => $entry) {
+        foreach ($entries as $index => $entry) {
             $word = is_array($entry) ? ($entry['word'] ?? null) : null;
             $language = is_array($entry) ? ($entry['language'] ?? null) : null;
 
@@ -81,6 +79,9 @@ class AppQyV1WordImageQueueService
             $result['word'] = $word;
             $results[] = $result;
         }
+        usort($results, static fn (array $left, array $right): int =>
+            ((int) ($left['index'] ?? 0)) <=> ((int) ($right['index'] ?? 0))
+        );
 
         return [
             'success' => true,
@@ -110,8 +111,9 @@ class AppQyV1WordImageQueueService
         $md5 = md5($word);
         $entry = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
 
-        // File-first: an image already on disk -> immediately available.
-        if ($entry && $this->imageOnDisk($entry)) {
+        // A local image is final only after mcp-chrome has submitted it. Legacy
+        // files remain visible while a Chrome replacement is queued.
+        if ($entry && $this->imageOnDisk($entry) && $this->submittedByMcp($entry)) {
             return [
                 'success' => true,
                 'status' => 'already_available',
@@ -135,10 +137,6 @@ class AppQyV1WordImageQueueService
         }
 
         $status = $this->markRowPending($entry, $position);
-
-        // Phase 5 dual-write: mirror the pending image row as a linked GlobalTask
-        // (flag-gated, best-effort) so the unified task system tracks it.
-        $this->maybeCreateGlobalImageTask($entry, $langCode);
 
         return [
             'success' => true,
@@ -168,13 +166,12 @@ class AppQyV1WordImageQueueService
             return false;
         }
 
-        // Already has an image -> no queue work needed.
-        if ($this->imageOnDisk($entry)) {
+        // Only a Chrome-submitted image is terminal.
+        if ($this->imageOnDisk($entry) && $this->submittedByMcp($entry)) {
             return false;
         }
 
         $this->markRowPending($entry, 'beginning');
-        $this->maybeCreateGlobalImageTask($entry, $langCode);
         return true;
     }
 
@@ -186,6 +183,9 @@ class AppQyV1WordImageQueueService
     private function markRowPending(AppQyV1LangDictionaryModel $row, string $position): string
     {
         $row->image_status = self::STATUS_PENDING;
+        if ($this->hasMcpSubmissionColumn($row)) {
+            $row->image_mcp_submitted_at = null;
+        }
         if (!$row->image_requested_at) {
             $row->image_requested_at = now();
         }
@@ -196,80 +196,24 @@ class AppQyV1WordImageQueueService
         $row->image_locked_by = null;
 
         if ($position === 'beginning') {
-            $row->image_priority = self::PRIORITY_FRONT;
+            $connection = $row->getConnection();
+            $table = $row->getTable();
+            $connection->transaction(function () use ($connection, $table, $row): void {
+                AppQyV1TableMaps::lockTableForFrontTicket($connection, $table);
+                $head = $connection->selectOne(
+                    "SELECT COALESCE(MAX(image_priority), 0) + 1 AS priority FROM {$table}"
+                );
+                $row->image_priority = (int) ($head->priority ?? 1);
+                $row->save();
+            });
             $status = 'moved_to_front';
         } else {
             $row->image_priority = max((int) ($row->image_priority ?? 0), self::PRIORITY_DEFAULT);
+            $row->save();
             $status = 'queued';
         }
 
-        $row->save();
-
         return $status;
-    }
-
-    /**
-     * Phase 5 dual-write (OPTIONAL): when APPQYV1_DUAL_WRITE_IMAGE is enabled,
-     * mirror a pending image row as a linked GlobalTask on the chrome assist lane
-     * (remote_client). NOTE: word images already flow through the GlobalTask
-     * system via AppQyV1WordMediaService, so this is OFF by default and gated by
-     * its OWN flag (separate from the audio APPQYV1_DUAL_WRITE_GLOBAL) to avoid
-     * creating duplicate image tasks. Enable only after confirming the existing
-     * image GlobalTask path is NOT already covering these rows. Best-effort and
-     * idempotent — never throws into the enqueue path and skips when an active
-     * linked task already exists.
-     */
-    private function maybeCreateGlobalImageTask(AppQyV1LangDictionaryModel $row, string $language): void
-    {
-        if (!(bool) env('APPQYV1_DUAL_WRITE_IMAGE', false)) {
-            return;
-        }
-
-        try {
-            if (!empty($row->image_global_task_id)) {
-                $active = \App\Models\GlobalTask::where('task_id', $row->image_global_task_id)
-                    ->whereIn('status', [
-                        \App\Models\GlobalTask::STATUS_PENDING,
-                        \App\Models\GlobalTask::STATUS_ASSIGNED,
-                        \App\Models\GlobalTask::STATUS_PROCESSING,
-                    ])
-                    ->exists();
-                if ($active) {
-                    return;
-                }
-            }
-
-            $task = app(\App\Services\TaskManagerService::class)->createTask(
-                'AppQyV1',
-                'word_media',
-                \App\Models\GlobalTask::EXECUTION_REMOTE_CLIENT,
-                [
-                    'language' => $language,
-                    'content' => $row->content ?? null,
-                    'md5' => $row->md5 ?? null,
-                ],
-                300,
-                (int) ($row->image_priority ?? 0),
-                3,
-                false,
-                \App\Models\GlobalTask::CAPABILITY_IMAGE,
-                [
-                    'dict_row_id' => (int) $row->id,
-                    'dict_language' => $language,
-                    'dict_row_table' => $row->getTable(),
-                    'group_key' => $row->md5 ?? null,
-                ]
-            );
-
-            $row->image_global_task_id = $task->task_id;
-            $row->save();
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('[AppQyV1WordImageQueueService] dual-write global image task failed', [
-                'dict_row_id' => $row->id ?? null,
-                'language' => $language,
-                'error' => $e->getMessage(),
-            ]);
-        }
     }
 
     /**
@@ -295,6 +239,18 @@ class AppQyV1WordImageQueueService
         }
 
         return false;
+    }
+
+    private function submittedByMcp(AppQyV1LangDictionaryModel $row): bool
+    {
+        return $this->hasMcpSubmissionColumn($row)
+            && $row->getAttribute('image_mcp_submitted_at') !== null;
+    }
+
+    private function hasMcpSubmissionColumn(AppQyV1LangDictionaryModel $row): bool
+    {
+        return $row->getConnection()->getSchemaBuilder()
+            ->hasColumn($row->getTable(), 'image_mcp_submitted_at');
     }
 
     /**

@@ -906,6 +906,9 @@ export interface TtsStatus {
   streamelements_key_present?: boolean;
   /** Fallback chain in priority order (chattts -> cosyvoice -> fishspeech -> qwen3tts -> bark -> parler -> … -> azure). */
   engines?: TtsEngine[];
+  /** Effective sentence and word profiles used by their queue workers. */
+  sentence_priority?: string[];
+  word_priority?: string[];
   error?: string;
 }
 
@@ -1409,7 +1412,7 @@ export interface PycoreGlobalTaskDetailResponse {
   laravel_reachable?: boolean;
 }
 
-// --- Assist Laravel (pycore drains Laravel's cover/tts/translation queues) - #
+// --- Pycore → Laravel queue capability control plane ---------------------- #
 export interface AssistCapabilities {
   cover: boolean;
   tts: boolean;
@@ -1432,16 +1435,12 @@ export interface AssistCapabilities {
 export interface AssistConfig {
   enabled: boolean;
   capabilities: AssistCapabilities;
-  poll_interval_s: number;
-  batch_limit: number;
 }
 
 /** PATCH-style config update — only the provided fields change. */
 export interface AssistConfigPatch {
   enabled?: boolean;
   capabilities?: Partial<AssistCapabilities>;
-  poll_interval_s?: number;
-  batch_limit?: number;
 }
 
 /** Per-poster_status distribution as observed Laravel-side by the assist
@@ -1451,7 +1450,7 @@ export interface AssistPosterCounts {
   total: number; leased: number;
 }
 
-/** Laravel-side queue counts as last observed by the assist worker. */
+/** Laravel-side queue counts reported by the selected backend. */
 export interface AssistLaravelStatus {
   cover?: {
     pending: number; retry: number; processing: number;
@@ -1472,12 +1471,10 @@ export interface AssistStatus {
   capabilities: AssistCapabilities;
   /** The Laravel endpoint assist targets (follows laravel_api.select); null = none. */
   endpoint: { base_url: string; label?: string } | null;
-  /** Whether the assist worker loop is currently running. */
+  /** Whether at least one canonical capability worker is active. */
   running: boolean;
   /** Circuit breaker: open = backed off after repeated failures. */
   circuit: { open: boolean; cooldown_s: number };
-  poll_interval_s: number;
-  batch_limit: number;
   counters: { claimed: number; submitted: number; released: number; failures: number };
   last_error: string | null;
   last_cycle_at: string | null;
@@ -1499,50 +1496,6 @@ export interface AssistCycleResponse {
   submitted: number;
   released: number;
   errors: string[];
-  error?: string;
-}
-
-// --- Movie / TV poster (pycore /api/local/poster) ------------------------- #
-export interface PosterProvider {
-  name: 'tmdb' | 'omdb';
-  /** True when at least one key/token for the provider is configured. */
-  configured: boolean;
-  /** TMDB only: the v4 read-access bearer token is present. */
-  has_v4_token?: boolean;
-}
-export interface PosterStatus {
-  /** Mirrors the ingest flag user-data media_sync.fetch_poster (default ON). */
-  enabled: boolean;
-  /** True when pycore ingest/assist poster fetch is disabled. */
-  pycore_fetch_disabled?: boolean;
-  /** Handler for poster search (apps/mcp-chrome task center). */
-  delegated_to?: string;
-  delegation_note?: string;
-  providers: PosterProvider[];
-  /** Masked (first6…last4) — full secrets never leave the backend. */
-  keys: {
-    TMDB_API_KEY: string;
-    TMDB_API_READ_ACCESS_TOKEN: string;
-    OMDB_API_KEY: string;
-  };
-  /** How posters were obtained at ingest: local reuse of the extract poster.jpg
-   *  vs a fresh TMDB/OMDB fetch (cumulative since the last reset). */
-  stats?: { reused: number; fetched: number };
-}
-export interface PosterMeta {
-  title?: string;
-  original_title?: string;
-  year?: number | null;
-  overview?: string;
-  poster_url?: string;
-}
-export interface PosterTestResponse {
-  found: boolean;
-  provider?: 'tmdb' | 'omdb' | string;
-  source_id?: string;
-  mime?: string;
-  meta?: PosterMeta;
-  image_base64?: string;
   error?: string;
 }
 
@@ -1926,20 +1879,9 @@ export type QueueCenterControlName = 'assist' | 'translation' | 'word_audio' | '
 
 export interface QueueCenterControlState {
   configured: boolean;
+  requested?: boolean;
   running: boolean;
   owner: string;
-}
-
-export interface QueueCenterLocalTaskRow {
-  task_id: string;
-  task_type: string;
-  status: string;
-  progress: number;
-  created_at?: string;
-  updated_at?: string;
-  input_data?: Record<string, unknown>;
-  result?: Record<string, unknown> | null;
-  error?: string | null;
 }
 
 export interface QueueCenterSnapshot {
@@ -1956,8 +1898,6 @@ export interface QueueCenterSnapshot {
   controls: Record<QueueCenterControlName, QueueCenterControlState>;
   data: {
     task_center: PcTaskCenterResponse;
-    manager_queue?: Record<string, unknown> | null;
-    local_tasks?: { success: boolean; tasks: QueueCenterLocalTaskRow[]; count: number } | null;
     translation: TranslationQueueResponse | null;
     word_audio: WordTtsAutoStatus | null;
     sentence_audio: SentenceAudioAutoStatus | null;
@@ -2377,9 +2317,11 @@ export interface PcCompletedTaskArchiveResponse {
   error?: string;
 }
 
-/** POST /api/local/tasks/completed/sync — Laravel archive synchronization. */
+/** POST /api/local/tasks/completed/sync — cross-end archive synchronization. */
 export interface PcCompletedTaskSyncResponse {
   success: boolean;
+  partial?: boolean;
+  laravel_error?: string | null;
   synced: number;
   resource_count: number;
   last_sync_at: string | null;

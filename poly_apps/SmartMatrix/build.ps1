@@ -45,9 +45,7 @@ param(
 # Import GlobalVars using relative path
 $scriptRoot = $PSScriptRoot
 $globalVarsPath = Join-Path (Split-Path (Split-Path $scriptRoot -Parent) -Parent) "scripts\shells\win\win_common\GlobalVars.ps1"
-if (Test-Path $globalVarsPath) {
-    . $globalVarsPath
-}
+. $globalVarsPath
 
 # Color output functions
 function Write-ColorOutput {

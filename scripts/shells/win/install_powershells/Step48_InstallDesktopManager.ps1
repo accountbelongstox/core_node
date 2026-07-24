@@ -40,20 +40,20 @@ Write-Host '============================================================' -Foreg
 
 if (-not (Test-Path (Join-Path $uiDir 'package.json'))) {
     Write-Host "[skip] pycore_laravel_wordflow_ui not found at $uiDir" -ForegroundColor DarkYellow
-    exit 0
+    return
 }
 
 $pnpm = Get-Command pnpm -ErrorAction SilentlyContinue
 if (-not $pnpm) {
     Write-Host '[skip] pnpm not found on PATH. UI is optional; install Node 18+ and pnpm to enable it.' -ForegroundColor DarkYellow
     Write-Host '       (npm install -g pnpm)' -ForegroundColor DarkGray
-    exit 0
+    return
 }
 
 $nodeModules = Join-Path $uiDir 'node_modules'
 if ((Test-Path $nodeModules) -and -not $Force) {
     Write-Host '[OK] node_modules present; skipping pnpm install.' -ForegroundColor Green
-    exit 0
+    return
 }
 
 Write-Host ("[..] pnpm install in {0} ..." -f $uiDir) -ForegroundColor Yellow
@@ -69,4 +69,4 @@ try {
 finally {
     Pop-Location
 }
-exit 0
+return

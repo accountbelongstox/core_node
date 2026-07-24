@@ -364,7 +364,7 @@ const VocabularyLearning: React.FC = () => {
 
   /**
    * Retry a single library's FAILED cover. Resets that row to `pending` so
-   * pycore re-claims and regenerates it (pull-only cover architecture), then
+   * mcp-chrome reclaims and replaces it (pull-based cover architecture), then
    * reloads the list so the new cover/status surfaces.
    */
   const handleRetryCover = async (library: any) => {

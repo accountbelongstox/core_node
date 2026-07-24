@@ -18,7 +18,7 @@ Layout:
   done_words_cache.py     - DoneWordsCache (multi-pycore word-dedup set).
   task_heap.py            - per-backend priority heap + jittered fast-drain
                             burst (reuses tts_sentence_worker_service.
-                            _PriorityQueue, extended to per-backend keying).
+                            SentencePriorityQueue, extended to per-backend keying).
   handlers/               - per-lane task processing (translation/audio/stt/
                             media/ai_translate/prompt_translate). Each handler
                             takes the worker instance AT CALL TIME - handlers

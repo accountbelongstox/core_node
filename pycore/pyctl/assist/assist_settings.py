@@ -2,15 +2,11 @@
 """
 Assist-Laravel settings (unified user-data store, section ``assist_laravel``).
 
-Extracted verbatim (behavior-preserving) from the former assist_worker.py
-monolith. Holds the settings contract + the per-capability assist toggle gates
-that form the SINGLE control plane the Queue Center exposes:
+Holds the per-capability gates that form the single Queue Center control plane:
 
     { enabled: bool (default False),
-      capabilities: { translation, ai_translate, cover, poster, image, tts,
-                      sentence_audio, subtitle, stt },
-      poll_interval_s: int (default 30, 5..600),
-      batch_limit: int (default 3, 1..10) }
+      capabilities: { translation, ai_translate, tts,
+                      sentence_audio, subtitle, stt } }
 
 translation_worker_enabled_on_start / assist_capability_enabled gate the
 EXISTING TranslationWorkerService lanes: section ABSENT => legacy default
@@ -28,22 +24,15 @@ from pycore.pyfoundations.system_paths import get_user_data_store
 
 USER_DATA_SECTION = "assist_laravel"
 
-# Laravel assist API prefix (relative to the selected endpoint base URL).
+# Laravel queue-status API prefix (relative to the selected endpoint base URL).
 ASSIST_API_PREFIX = "/api/app_qy_v1/assist"
 
-POLL_INTERVAL_MIN, POLL_INTERVAL_MAX = 5, 600
-BATCH_LIMIT_MIN, BATCH_LIMIT_MAX = 1, 10
-
 # Per-capability assist toggles - the SINGLE control plane the Queue Center
-# exposes. Each key gates a real lane/claim (see translation_worker_service
-# _*_enabled gates + AssistWorker.CLAIMABLE_TYPES):
+# exposes. Each key gates one canonical queue worker or lane:
 #   translation    word translation (translation_worker heartbeat)
 #   ai_translate   AI translation (remote_fast ai_translate capability)
-#   cover          delegated to apps/mcp-chrome (Google Images); OFF in pycore
-#   poster         delegated to apps/mcp-chrome (Google Images); OFF in pycore
-#   image          word media AI image; delegated to apps/mcp-chrome — OFF in pycore
-#   tts            word voice / TTS (remote_audio lane + assist-queue tts claim)
-#   sentence_audio sentence voice (remote_sentence_audio lane) - INDEPENDENT of tts
+#   tts            word voice / TTS (dedicated tts_queue_poller)
+#   sentence_audio sentence voice (dedicated tts_sentence_worker)
 #   subtitle       subtitle search (remote_subtitle lane)
 #   stt            speech -> text (remote_stt lane; Laravel lane added separately)
 DEFAULT_SETTINGS: Dict[str, Any] = {
@@ -51,19 +40,14 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "capabilities": {
         "translation": True,
         "ai_translate": True,
-        "cover": False,
-        "poster": False,
-        "image": False,
         "tts": True,
         "sentence_audio": True,
         # subtitle search: OFF by default - the SubtitleSearchController is absent
         # at this baseline, so an enabled subtitle lane would claim tasks and fail
         # them (burning retries). Enable only once the controller is restored.
         "subtitle": False,
-        "stt": True,
+        "stt": False,
     },
-    "poll_interval_s": 30,
-    "batch_limit": 3,
 }
 
 
@@ -71,16 +55,8 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
 # Merge / validate
 # ============================================================
 
-def _clamp(value: Any, lo: int, hi: int, default: int) -> int:
-    """Coerce ``value`` to an int clamped into [lo, hi]; ``default`` on junk."""
-    try:
-        return max(lo, min(hi, int(value)))
-    except (TypeError, ValueError):
-        return default
-
-
 def _merge_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """Merge a raw section dict over DEFAULT_SETTINGS with validation/clamping."""
+    """Merge a raw section dictionary over the capability defaults."""
     raw = raw if isinstance(raw, dict) else {}
     caps_raw = raw.get("capabilities")
     caps_raw = caps_raw if isinstance(caps_raw, dict) else {}
@@ -91,12 +67,6 @@ def _merge_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     return {
         "enabled": bool(raw.get("enabled", DEFAULT_SETTINGS["enabled"])),
         "capabilities": caps,
-        "poll_interval_s": _clamp(
-            raw.get("poll_interval_s"), POLL_INTERVAL_MIN, POLL_INTERVAL_MAX,
-            DEFAULT_SETTINGS["poll_interval_s"]),
-        "batch_limit": _clamp(
-            raw.get("batch_limit"), BATCH_LIMIT_MIN, BATCH_LIMIT_MAX,
-            DEFAULT_SETTINGS["batch_limit"]),
     }
 
 
@@ -127,10 +97,10 @@ def save_assist_settings(patch: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     Returns the effective settings after saving.
     """
     store = get_user_data_store()
-    current = store.get_section(USER_DATA_SECTION)
+    current = store.get_section(USER_DATA_SECTION) or {}
     patch = patch if isinstance(patch, dict) else {}
     merged_raw = dict(current)
-    for key in ("enabled", "poll_interval_s", "batch_limit"):
+    for key in ("enabled",):
         if key in patch:
             merged_raw[key] = patch[key]
     if isinstance(patch.get("capabilities"), dict):

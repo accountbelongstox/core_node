@@ -201,11 +201,9 @@ disable_conflicting_web_servers() {
     # re-pulled as a transitive dep (libapache2-mod-php <- php meta), then purge. The
     # shared "外挂" guard does pin + purge idempotently; the block below is kept as a
     # belt-and-suspenders cleanup.
-    if [ -f "$PARENT_DIR_LEVEL_2/common/apache_block_guard.sh" ]; then
-        # shellcheck source=/dev/null
-        source "$PARENT_DIR_LEVEL_2/common/apache_block_guard.sh"
-        abg_block_apache || true
-    fi
+    # shellcheck source=/dev/null
+    source "$PARENT_DIR_LEVEL_2/common/apache_block_guard.sh"
+    abg_block_apache
 
     # Remove Apache2 packages if installed (they cause conflicts)
     if dpkg -l | grep -q "^ii.*apache2"; then

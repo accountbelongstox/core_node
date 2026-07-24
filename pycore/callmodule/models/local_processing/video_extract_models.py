@@ -69,11 +69,6 @@ class VideoExtractRequest(BaseModel):
     translate: bool = Field(False, description="Translate non-ASCII names to English (needs network); "
                                               "otherwise transliterate offline.")
 
-    # --- movie/TV poster --------------------------------------------------- #
-    fetch_poster: bool = Field(True, description="Fetch a movie/TV poster (TMDB->OMDB) for each "
-                                                 "video from its filename and save poster.jpg into "
-                                                 "the output dir. Best-effort; never fails extraction.")
-
     # --- misc -------------------------------------------------------------- #
     dry_run: bool = Field(False, description="Plan only; write nothing.")
     # Persisted as part of "last_options" only; the FE drives the actual

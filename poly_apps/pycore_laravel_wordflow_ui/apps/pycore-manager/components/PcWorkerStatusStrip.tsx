@@ -1,47 +1,25 @@
 /**
- * PcWorkerStatusStrip — PyHeartbeat callback on/off, run counts, aux toggles.
+ * PcWorkerStatusStrip — PyHeartbeat callback state and run counts.
  *
- * Reads worker status from the SHARED Queue Center hub (useQueueCenterHub) — no
- * self-polling. Toggling an aux worker calls pycoreApi then refreshes the hub.
+ * Reads worker status from the shared Queue Center hub. Worker lifecycle is
+ * owned by the section switches so this component never creates a second
+ * control path.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Cpu, RefreshCw, Loader2, AlertTriangle, Power, Check, Radio, Eye,
+  Cpu, RefreshCw, Loader2, AlertTriangle, Power, Check,
 } from 'lucide-react';
-import { pycoreApi, getPycoreHealth } from '../../../core/api-libs/pycore';
+import { getPycoreHealth } from '../../../core/api-libs/pycore';
 import type { HeartbeatCallbackRow } from '../../../core/api-libs/pycore';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
-
-const AUX_KEYS = ['translation_queue_monitor', 'translation_ws_client'] as const;
 
 const PcWorkerStatusStrip: React.FC<{ refreshTick?: number }> = () => {
   const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
   const data = hub.workers;
   const loading = hub.loading;
-  const [busy, setBusy] = useState<string | null>(null);
-  const [toggleErr, setToggleErr] = useState<string | null>(null);
-  const err = toggleErr || (hub.pycoreReachable ? null : hub.error);
-  const mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-
-  const toggleAux = async (name: string) => {
-    if (!data || busy) return;
-    const row = data.callbacks.find((c) => c.name === name);
-    if (!row) return;
-    setBusy(name);
-    setToggleErr(null);
-    try {
-      const result = await pycoreApi.setHeartbeatWorkerConfig(name, !row.enabled);
-      if (!result?.success) throw new Error(result?.error || 'toggle rejected');
-      await hub.refreshHub();
-    } catch (e: any) {
-      if (mounted.current) setToggleErr(e?.message || 'toggle failed');
-    } finally {
-      if (mounted.current) setBusy(null);
-    }
-  };
+  const err = hub.pycoreReachable ? null : hub.error;
 
   const chip = (c: HeartbeatCallbackRow) => (
     <span
@@ -68,7 +46,7 @@ const PcWorkerStatusStrip: React.FC<{ refreshTick?: number }> = () => {
           {t('queueCenter.heartbeatWorkers.title')}
         </span>
         <span className="text-[10px] text-slate-400">{t('queueCenter.heartbeatWorkers.subtitle')}</span>
-        <button onClick={() => hub.refreshHub()} disabled={(loading && !data) || !!busy}
+        <button onClick={() => hub.refreshHub()} disabled={loading && !data}
           className="ml-auto p-1.5 rounded-lg pc-glass hover:bg-violet-500/10 text-violet-500 transition disabled:opacity-50 shrink-0"
           title={t('queueCenter.refreshActive')}>
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -84,31 +62,6 @@ const PcWorkerStatusStrip: React.FC<{ refreshTick?: number }> = () => {
       {data && (
         <div className="flex flex-wrap gap-1.5">
           {data.callbacks.map(chip)}
-        </div>
-      )}
-
-      {data && (
-        <div className="flex flex-wrap gap-2 items-center text-[10px]">
-          {AUX_KEYS.map((key) => {
-            const row = data.callbacks.find((c) => c.name === key);
-            if (!row) return null;
-            const Icon = key.includes('ws') ? Radio : Eye;
-            return (
-              <button
-                key={key}
-                type="button"
-                disabled={!!busy}
-                onClick={() => toggleAux(key)}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded-xl font-bold transition disabled:opacity-50 ${
-                  row.enabled
-                    ? 'bg-sky-500/15 text-sky-600'
-                    : 'pc-glass text-slate-500 hover:bg-sky-500/10'
-                }`}>
-                <Icon className="w-3 h-3" />
-                {t(`queueCenter.heartbeatWorkers.${key}` as const)} {row.enabled ? t('queueCenter.autoOn') : t('queueCenter.autoOff')}
-              </button>
-            );
-          })}
         </div>
       )}
 

@@ -6,6 +6,7 @@ Provides hardcoded routes for translator functions to avoid repeated module load
 """
 
 from typing import Optional
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from pycore.pyfoundations.third_party import get_third_package_fastapi
 
 fastapi = get_third_package_fastapi()
@@ -14,17 +15,21 @@ HTTPException = fastapi.HTTPException
 
 from pydantic import BaseModel
 
-# Pre-load translator module (singleton pattern)
-_translator_instance = None
+def _create_translator():
+    from pycore.pyutils.translator import GoogleTranslator
+    return GoogleTranslator()
+
+
+_TRANSLATOR_PROVIDER = SerializedSingletonProvider(
+    _create_translator,
+    'bak.translator.provider',
+    'ArchivedTranslatorProviderThread',
+)
 
 
 def get_translator():
     """Get or create translator singleton instance"""
-    global _translator_instance
-    if _translator_instance is None:
-        from pycore.pyutils.translator import GoogleTranslator
-        _translator_instance = GoogleTranslator()
-    return _translator_instance
+    return _TRANSLATOR_PROVIDER.get()
 
 
 # Request/Response models

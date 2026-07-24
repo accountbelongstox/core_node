@@ -32,7 +32,7 @@ OS_ID=""
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-[[ -f "$CUDA_POLICY_LIB" ]] && source "$CUDA_POLICY_LIB"
+source "$CUDA_POLICY_LIB"
 
 cnp_have() { command -v "$1" >/dev/null 2>&1; }
 

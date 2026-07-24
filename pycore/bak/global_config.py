@@ -12,12 +12,18 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    SerializedStateObject,
+    serialized_method,
+)
+
 
 DEFAULT_HTTP_PORT = 59000
 DEFAULT_PYCORE_ROOT = Path(__file__).parent.parent
 
 
-class GlobalConfig:
+class GlobalConfig(SerializedStateObject):
     """
     Global configuration object for Pycore Module Caller service.
 
@@ -48,27 +54,36 @@ class GlobalConfig:
         # Security
         self.allowed_modules: list = []  # Empty = allow all
         self.blocked_modules: list = []  # Modules to explicitly block
+        self.enable_serialized_state(
+            'bak.global_config.state',
+            'ArchivedGlobalConfigStateThread',
+        )
 
+    @serialized_method
     def enable_api(self):
         """Enable API access"""
         self.api_enabled = True
         print("[Config] API access enabled")
 
+    @serialized_method
     def disable_api(self):
         """Disable API access"""
         self.api_enabled = False
         print("[Config] API access disabled")
 
+    @serialized_method
     def enable_debug(self):
         """Enable debug mode"""
         self.debug_mode = True
         print("[Config] Debug mode enabled")
 
+    @serialized_method
     def disable_debug(self):
         """Disable debug mode"""
         self.debug_mode = False
         print("[Config] Debug mode disabled")
 
+    @serialized_method
     def update_network_info(self):
         """Update local network information"""
         try:
@@ -79,6 +94,7 @@ class GlobalConfig:
         except:
             self.local_ip = "127.0.0.1"
 
+    @serialized_method
     def add_call_history(self, module: str, function: str, success: bool, error: Optional[str] = None):
         """Add entry to call history"""
         entry = {
@@ -95,6 +111,7 @@ class GlobalConfig:
         if len(self.call_history) > self.max_history_size:
             self.call_history = self.call_history[-self.max_history_size:]
 
+    @serialized_method
     def is_module_allowed(self, module_path: str) -> tuple[bool, str]:
         """
         Check if module is allowed to be called
@@ -118,6 +135,7 @@ class GlobalConfig:
 
         return False, f"Module '{module_path}' not in allowed list"
 
+    @serialized_method
     def get_status(self) -> dict:
         """Get current configuration status"""
         return {
@@ -134,21 +152,22 @@ class GlobalConfig:
             'blocked_modules': self.blocked_modules
         }
 
+    @serialized_method
     def __repr__(self):
         api_status = "ENABLED" if self.api_enabled else "DISABLED"
         return f"<GlobalConfig port={self.http_port} api={api_status} debug={self.debug_mode}>"
 
 
-# Global singleton instance
-_global_config: Optional[GlobalConfig] = None
+_GLOBAL_CONFIG_PROVIDER = SerializedSingletonProvider(
+    GlobalConfig,
+    'bak.global_config.provider',
+    'ArchivedGlobalConfigProviderThread',
+)
 
 
 def get_global_config() -> GlobalConfig:
     """Get or create global configuration singleton"""
-    global _global_config
-    if _global_config is None:
-        _global_config = GlobalConfig()
-    return _global_config
+    return _GLOBAL_CONFIG_PROVIDER.get()
 
 
 def init_global_config(
@@ -169,23 +188,19 @@ def init_global_config(
     Returns:
         GlobalConfig instance
     """
-    global _global_config
-
-    if _global_config is None:
-        _global_config = GlobalConfig()
-
+    config = get_global_config()
     if pycore_root:
-        _global_config.pycore_root = Path(pycore_root)
+        config.pycore_root = Path(pycore_root)
 
-    _global_config.http_port = http_port
-    _global_config.host = host
-    _global_config.debug_mode = debug
+    config.http_port = http_port
+    config.host = host
+    config.debug_mode = debug
 
     # Update network information
-    _global_config.update_network_info()
+    config.update_network_info()
 
-    print(f"[Config] Initialized: {_global_config}")
-    print(f"[Config] Pycore Root: {_global_config.pycore_root}")
-    print(f"[Config] Server will listen on {_global_config.host}:{_global_config.http_port}")
+    print(f"[Config] Initialized: {config}")
+    print(f"[Config] Pycore Root: {config.pycore_root}")
+    print(f"[Config] Server will listen on {config.host}:{config.http_port}")
 
-    return _global_config
+    return config

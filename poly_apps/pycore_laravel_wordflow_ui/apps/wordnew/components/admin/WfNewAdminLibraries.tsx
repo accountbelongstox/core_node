@@ -30,6 +30,7 @@ import {
 import { ElementTheme } from '../../WfNewTypes';
 import type { WfNewAdminLibrariesPage, WfNewAdminLibraryRow } from '../../api';
 import { wfNewAdminApi } from '../../api';
+import { pycoreApi } from '../../../../core/api-libs/pycore';
 
 /** Language selection shared with the words panel (concrete languages only). */
 const ADMIN_LANG_KEY = 'wfnew_admin_lang';
@@ -177,7 +178,7 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
     if (busy.has(key)) return;
     withBusy(key, true);
     try {
-      await wfNewAdminApi.retryCovers([lib.id]);
+      await pycoreApi.prioritizeCovers([Number(lib.id)]);
       if (!aliveRef.current) return;
       addToast(trans('admin.lib.coverQueued'), 'success');
       load();

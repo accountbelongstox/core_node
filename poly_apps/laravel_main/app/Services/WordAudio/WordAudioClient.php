@@ -47,7 +47,7 @@ class WordAudioClient
      * 401/403 so the rest of THIS request's chain (a batch of words can call
      * findPronunciation() repeatedly) never burns further Forvo calls.
      * Laravel requests are short-lived, so a simple static property is
-     * sufficient (mirrors pycore movie_poster_client's _omdb_disabled_reason).
+     * sufficient and prevents repeated failed provider probes.
      */
     private static ?string $forvoDisabledReason = null;
 

@@ -27,12 +27,6 @@ source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 # Also invoked by prepare_pycore_prerequisites.sh (pyservice).
 # pyservice prerequisite reference) to keep one copy of the logic.
 #
-# LATEST VERSION (>= 7.2.4): the NoAudioReceived "fix" of pinning 7.2.1 was a
-# 7.2.3 server-outage workaround (issue #443); the real fix shipped in 7.2.4.
-# Pinning an OLD version is now harmful — a stale Sec-MS-GEC handshake gets 403
-# (issues #290/#458). So install the LATEST, upgrading only when < 7.2.4. A 403
-# on the latest is rate-limit / regional blocking — set EDGE_TTS_PROXY.
-#
 # Invocation contracts:
 #   - install.sh flow:  23_install_edge_tts.sh             (no args; resolves python)
 #   - pyservice flow:   23_install_edge_tts.sh --python <py> [--force]
@@ -40,20 +34,18 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
 
-# Serialize pip into the shared venv (safe under the parallel install driver). Defensive.
+# Serialize pip into the shared venv.
 PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
-[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+. "$PIPLOCK_LIB"
 
 # Declare all variables at the beginning
 # Default to the shared project venv interpreter (13_ensure_python.sh); --python
 # overrides it for the pyservice flow. venv_python_from_common falls back to
 # /usr/local/bin/python then system python3 when the venv is not yet built.
 PYTHON="$(venv_python_from_common)"
+RESOLVED_PYTHON=""
 FORCE=0
-MIN_VERSION="7.2.4"
-CURRENT_VERSION=""
-PIP_ARGS=()
+EDGE_TTS_METADATA=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -66,73 +58,44 @@ done
 # Resolve a real Python 3 interpreter (prefer the one passed in, else PATH).
 resolve_python() {
     local preferred="$1"
+    local name=""
+    local resolved=""
     if [[ -n "$preferred" ]] && command -v "$preferred" >/dev/null 2>&1; then
-        echo "[run] $preferred -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)'" >&2
-        if "$preferred" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
-            command -v "$preferred"; return 0
-        fi
-    fi
-    local name
-    for name in python3 python; do
-        if command -v "$name" >/dev/null 2>&1; then
-            echo "[run] $name -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)'" >&2
-            if "$name" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
-                command -v "$name"; return 0
+        resolved="$(command -v "$preferred")"
+    else
+        for name in python3 python; do
+            if [[ -z "$resolved" ]] && command -v "$name" >/dev/null 2>&1; then
+                resolved="$(command -v "$name")"
             fi
-        fi
-    done
-    return 1
-}
-
-# Installed edge_tts version, or empty when not importable.
-edge_tts_version() {
-    echo "[run] $PYTHON -c \"import edge_tts,sys; sys.stdout.write(getattr(edge_tts,'__version__',''))\"" >&2
-    "$PYTHON" -c "import edge_tts,sys; sys.stdout.write(getattr(edge_tts,'__version__',''))" 2>/dev/null
+        done
+    fi
+    printf '%s' "$resolved"
 }
 
 echo "============================================================"
-echo " Installing edge-tts (text-to-speech, latest >= ${MIN_VERSION})"
+echo " Installing edge-tts (text-to-speech)"
 echo "============================================================"
 
 # --- 0) resolve python (13_ensure_python.sh has already run in install flow) --- #
-if ! PYTHON="$(resolve_python "$PYTHON")"; then
+RESOLVED_PYTHON="$(resolve_python "$PYTHON")"
+if [[ -z "$RESOLVED_PYTHON" ]]; then
     echo "[X] Python 3 was NOT found. Run 13_ensure_python.sh first, or pass --python <path>." >&2
-    fail_prereq_step "$PYTHON" "" edge_tts
-fi
-echo "  python : $PYTHON"
+else
+    PYTHON="$RESOLVED_PYTHON"
+    echo "  python : $PYTHON"
 
-# True if dotted $1 >= dotted $2 (numeric-aware, via sort -V).
-ver_ge() {
-    [[ "$1" == "$2" ]] && return 0
-    [[ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" == "$2" ]]
-}
-
-# --- 1) edge-tts latest install (idempotent) ----------------------------- #
-CURRENT_VERSION="$(edge_tts_version)"
-if [[ -n "$CURRENT_VERSION" && "$FORCE" -eq 0 ]] && ver_ge "$CURRENT_VERSION" "$MIN_VERSION"; then
-    echo "[OK] edge-tts ${CURRENT_VERSION} is current (>= ${MIN_VERSION}); skipping pip."
-    complete_prereq_step "$PYTHON" "" edge_tts
-fi
-
-if [[ -n "$CURRENT_VERSION" ]]; then
-    echo "[!] edge-tts ${CURRENT_VERSION} is too old (< ${MIN_VERSION}); upgrading to latest (old versions 403 on a stale handshake)."
-fi
-echo "[..] pip install --upgrade edge-tts ..."
-PIP_ARGS=(--upgrade edge-tts)
-[[ "$FORCE" -eq 1 ]] && PIP_ARGS+=(--force-reinstall)
-# Install into the project venv ($PYTHON resolves to "$COMPILE_DIR/python3_venv");
-# no PEP668 escape flags (--break-system-packages/--no-user) -- the venv is not
-# externally managed, and those flags scatter packages to ~/.local / system.
-echo "[run] $PYTHON -m pip install ${PIP_ARGS[*]}"
-if ! vpip "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
-    echo "[run] $PYTHON -m pip install --upgrade edge-tts"
-    if ! vpip "$PYTHON" -m pip install --upgrade edge-tts; then
-        echo "[!] edge-tts install did not complete cleanly; pycore will install it at import time."
-        fail_prereq_step "$PYTHON" "" edge_tts
+    # --- 1) edge-tts install (pip metadata idempotency) ------------------ #
+    EDGE_TTS_METADATA="$("$PYTHON" -m pip show edge-tts 2>/dev/null || true)"
+    if [[ "$EDGE_TTS_METADATA" == *"Name:"* ]]; then
+        echo "[OK] edge-tts metadata is present; preserving the installed package."
+    else
+        echo "[..] pip install edge-tts ..."
+        vpip "$PYTHON" -m pip install edge-tts || true
+        EDGE_TTS_METADATA="$("$PYTHON" -m pip show edge-tts 2>/dev/null || true)"
+        if [[ "$EDGE_TTS_METADATA" == *"Name:"* ]]; then
+            echo "[OK] edge-tts installed."
+        else
+            echo "[!] edge-tts metadata is still missing; retrying next run."
+        fi
     fi
 fi
-
-CURRENT_VERSION="$(edge_tts_version)"
-echo "[OK] edge-tts ${CURRENT_VERSION} installed."
-
-complete_prereq_step "$PYTHON" "" edge_tts

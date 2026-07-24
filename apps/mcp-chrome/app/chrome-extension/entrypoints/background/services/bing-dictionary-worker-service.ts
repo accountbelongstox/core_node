@@ -20,7 +20,6 @@ import { tabController } from './tab-controller';
 import {
   classify,
   buildEntry,
-  buildRefetchEntry,
   normalizeWords,
   type NormalizedWord,
   type ResultEntry,
@@ -154,7 +153,6 @@ const IDLE_DISCARD_MS = 60_000;
 // created once, not on every processTask call.
 const HANDLED_TASK_TYPES = new Set([
   'word_translation',
-  'word_media',
   'word_audio',
   'bing_dictionary',
   'dictionary_translation',
@@ -200,6 +198,7 @@ class BingDictionaryWorkerService {
   // orphaned bing.com/dict tabs. A re-entrant tick is dropped on the floor; the
   // in-flight poll drains the work and the next tick picks up anything new.
   private polling = false;
+  private reconfiguring = false;
   // Single-foreground mutex: serializes the ENTIRE human-input critical section
   // (activate + confirm-active + type + click-search + that word's lookup) so
   // exactly ONE slot drives the foreground tab at a time. This is what kills the
@@ -245,6 +244,13 @@ class BingDictionaryWorkerService {
     }
     if (!config.apiUrl) {
       throw new Error('API URL is required');
+    }
+
+    // Preserve the client that owns an already-claimed task. A rapid Stop ->
+    // Start must wait until its terminal result has been posted before replacing
+    // workerClient/config or touching the shared tab pool.
+    while (this.polling || this.processing) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
     }
 
     this.config = this.normalizeConfig(config);
@@ -400,80 +406,6 @@ class BingDictionaryWorkerService {
   }
 
   /**
-   * Bulk media RE-FETCH (mode='refetch'): for words whose static media files went
-   * missing but whose full Bing URLs were persisted, re-download the bytes IN-PAGE
-   * from those stored URLs — NO Bing search / NO re-translate. One background
-   * bing.com/dict tab supplies the referrer/cookies the in-page fetch needs. The
-   * result carries ONLY image_base64/audio_base64 (translation empty), so the
-   * writeback fills media without touching translations.
-   */
-  private async handleRefetch(task: Task, workerId: string): Promise<void> {
-    if (!this.workerClient || !this.config) return;
-    const raw = Array.isArray(task.payload.words) ? (task.payload.words as any[]) : [];
-    const targetLanguage = task.payload.target_language || this.config.targetLanguage;
-
-    const tabIds = await this.pool.ensure(1, false);
-    this.stats.activeTabs = this.pool.size;
-    this.syncManagedTabs();
-    const tabId = tabIds[0];
-    if (tabId === undefined) {
-      await this.workerClient.submitResult({
-        task_id: task.task_id,
-        worker_id: workerId,
-        status: 'failed',
-        error: 'refetch: no tab available',
-      });
-      this.taskCache.delete(task.task_id);
-      return;
-    }
-    // The in-page fetch needs the bing.com origin — wait for the tab to settle.
-    await bingDictionaryTool.waitForTabIdle(tabId);
-
-    const translations: ResultEntry[] = [];
-    for (const item of raw) {
-      if (!this.isRunning) break;
-      const word = item && typeof item.word === 'string' ? item.word : null;
-      if (!word) continue;
-      const imageUrls = Array.isArray(item.image_urls)
-        ? item.image_urls.filter((u: unknown): u is string => typeof u === 'string' && u !== '')
-        : [];
-      const audioUrl = typeof item.audio_url === 'string' && item.audio_url !== '' ? item.audio_url : null;
-      if (imageUrls.length === 0 && !audioUrl) continue;
-      this.stats.currentWord = word;
-      const entry = await buildRefetchEntry(word, item.md5, imageUrls, audioUrl, tabId);
-      if (entry.image_base64 || entry.audio_base64) translations.push(entry);
-      // Human-paced gap so the re-fetch isn't a tight fixed-cadence burst.
-      await new Promise((resolve) =>
-        setTimeout(resolve, LOOKUP_DELAY_BASE_MS + Math.floor(Math.random() * LOOKUP_DELAY_JITTER_MS)),
-      );
-    }
-    this.stats.currentWord = null;
-
-    if (translations.length > 0) {
-      const resp = await this.workerClient.submitResult({
-        task_id: task.task_id,
-        worker_id: workerId,
-        status: 'completed',
-        progress: 100,
-        result: { target_language: targetLanguage, provider: 'bing', translations },
-      });
-      logger.info(
-        LOG,
-        `Refetch ${task.task_id}: re-fetched media for ${translations.length} word(s) (no re-translate); ` +
-          `backend ok=${resp?.success}`,
-      );
-    } else {
-      await this.workerClient.submitResult({
-        task_id: task.task_id,
-        worker_id: workerId,
-        status: 'failed',
-        error: 'refetch produced no media bytes',
-      });
-    }
-    this.taskCache.delete(task.task_id);
-  }
-
-  /**
    * Run fn while holding the single-foreground lock (only one slot's
    * activate+type+lookup at a time). The chain advances on settle (success OR
    * failure), so a throwing fn never deadlocks the next caller; the rejection is
@@ -587,22 +519,41 @@ class BingDictionaryWorkerService {
   async updateConfig(patch: WorkerConfig): Promise<void> {
     const prev = this.config;
     const next = this.normalizeConfig(patch, prev ?? undefined);
-    this.config = next;
 
     if (!this.isRunning) {
+      this.config = next;
       logger.info(LOG, 'Config stored (service idle; applies on next start)');
       return;
     }
 
-    // Re-point + re-register if the endpoint changed (best-effort).
-    if (next.apiUrl && (!prev || prev.apiUrl !== next.apiUrl)) {
-      logger.info(LOG, `Endpoint changed live -> ${next.apiUrl}, re-registering`);
-      this.workerClient = new WorkerApiClient(next.apiUrl);
+    // Re-point only between poll cycles. A task claimed from the old endpoint
+    // must submit its terminal result to that same endpoint.
+    const endpointChanged = !!next.apiUrl && (!prev || prev.apiUrl !== next.apiUrl);
+    if (endpointChanged) {
+      const previousClient = this.workerClient;
+      this.reconfiguring = true;
       try {
+        while (this.polling || this.processing) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        if (!this.isRunning) {
+          this.config = next;
+          return;
+        }
+        logger.info(LOG, `Endpoint changed live -> ${next.apiUrl}, re-registering`);
+        this.config = next;
+        this.workerClient = new WorkerApiClient(next.apiUrl);
         await this.registerWorker();
       } catch (error) {
+        this.config = prev;
+        this.workerClient = previousClient;
         logger.error(LOG, 'Re-register after endpoint change failed', error);
+        throw error;
+      } finally {
+        this.reconfiguring = false;
       }
+    } else {
+      this.config = next;
     }
 
     // Re-arm the poll loop on a new interval (no immediate extra poll).
@@ -826,7 +777,7 @@ class BingDictionaryWorkerService {
     // slow batch would otherwise overlap the next tick and race two concurrent
     // runs on the shared tab pool. Drop a re-entrant tick on the floor; the
     // in-flight poll drains the work and the next tick picks up anything new.
-    if (this.polling) return;
+    if (this.polling || this.reconfiguring) return;
     this.polling = true;
     try {
       await this.pollAndProcessTasksInner();
@@ -1069,14 +1020,6 @@ class BingDictionaryWorkerService {
       const words = normalizeWords(rawWords);
       if (words.length === 0) {
         throw new Error('No words in task payload');
-      }
-
-      // Bulk RE-FETCH fast path: re-download missing media from the STORED full
-      // Bing URLs in-page — NO Bing search, NO re-translate. Each raw payload word
-      // carries its own image_urls/audio_url.
-      if ((task.payload as any).mode === 'refetch') {
-        await this.handleRefetch(task, workerId);
-        return;
       }
 
       // Per-word tab activation is opt-in (default OFF) — see readActivateFlag.

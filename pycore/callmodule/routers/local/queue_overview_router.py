@@ -31,13 +31,16 @@ I/O itself — everything comes from in-process singletons.
 """
 
 import time
+import copy
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import fastapi
 
-from pycore.callmodule.services import (
-    get_queue_monitor_service,
+from pycore import THREAD_BUS
+
+from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
+from pycore.callmodule.services.translation_worker.worker import (
     get_translation_worker_service,
 )
 from pycore.callmodule.callmodule_config import Config
@@ -67,7 +70,8 @@ _ASSIST_OVERVIEW_PATH = "/api/app_qy_v1/assist/overview"
 _ASSIST_OVERVIEW_TTL = 4.0       # seconds a cached snapshot serves rapid polls
 _ASSIST_OVERVIEW_TIMEOUT = 8.0   # bounded — a slow Laravel must not stall the card grid
                                  # (TTL cache + last-good fallback absorb the wait)
-_assist_overview_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
+_ASSIST_OVERVIEW_CACHE_SIGNAL = 'callmodule.queue_overview.assist_cache'
+THREAD_BUS.signal(_ASSIST_OVERVIEW_CACHE_SIGNAL, {"ts": 0.0, "data": None})
 
 
 def _assist_overview_base() -> Optional[str]:
@@ -88,8 +92,12 @@ def _fetch_assist_overview() -> Optional[Dict[str, Any]]:
     has ever been fetched and the current fetch failed.
     """
     now = time.monotonic()
-    cached = _assist_overview_cache.get("data")
-    if cached is not None and (now - _assist_overview_cache["ts"]) < _ASSIST_OVERVIEW_TTL:
+    cache_state = THREAD_BUS.get_signal(
+        _ASSIST_OVERVIEW_CACHE_SIGNAL,
+        {"ts": 0.0, "data": None},
+    )
+    cached = copy.deepcopy(cache_state.get("data"))
+    if cached is not None and (now - cache_state["ts"]) < _ASSIST_OVERVIEW_TTL:
         return cached
     snapshot = _monitor().get_snapshot(refresh=False)
     if not snapshot.get("laravel_reachable"):
@@ -104,9 +112,11 @@ def _fetch_assist_overview() -> Optional[Dict[str, Any]]:
         if resp.status_code == 200:
             data = resp.json()
             if isinstance(data, dict) and data.get("success") and data.get("categories"):
-                _assist_overview_cache["data"] = data
-                _assist_overview_cache["ts"] = now
-                return data
+                THREAD_BUS.signal(
+                    _ASSIST_OVERVIEW_CACHE_SIGNAL,
+                    {"ts": now, "data": copy.deepcopy(data)},
+                )
+                return copy.deepcopy(data)
     except Exception:  # noqa: BLE001 — best-effort; fall back to the last good snapshot
         pass
     return cached

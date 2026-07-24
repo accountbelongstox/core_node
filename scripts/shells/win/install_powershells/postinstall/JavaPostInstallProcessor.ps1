@@ -131,7 +131,7 @@ function Test-JavaInstallation {
     try {
         # Test Java version
         $javaVersion = & $JavaPath -version 2>&1
-        if ("$javaVersion" -match 'version') {
+        if (("$javaVersion").Contains('version')) {
             Write-Host "$LogPrefix Java version check passed" -ForegroundColor Green
             $versionLine = ($javaVersion | Select-Object -First 1).ToString()
             Write-Host "$LogPrefix $versionLine" -ForegroundColor Cyan
@@ -144,7 +144,7 @@ function Test-JavaInstallation {
         $javacPath = Join-Path (Split-Path $JavaPath -Parent) "javac.exe"
         if (Test-Path $javacPath) {
             $javacVersion = & $javacPath -version 2>&1
-            if ("$javacVersion" -match 'javac') {
+            if (("$javacVersion").Contains('javac')) {
                 Write-Host "$LogPrefix Java compiler check passed" -ForegroundColor Green
             } else {
                 Write-Host "$LogPrefix Java compiler check failed" -ForegroundColor Yellow

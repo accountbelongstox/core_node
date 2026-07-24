@@ -521,12 +521,12 @@ class AppQyV1ApiInfo
                 "parameters" => ["texts", "language", "voice"]
             ],
 
-            // Third-party assist protocol (pycore worker surface, 60-minute lease)
+            // Third-party image-assist protocol (mcp-chrome, 60-minute lease)
             [
                 "path" => "/api/app_qy_v1/assist/claim",
                 "method" => "POST",
                 "feature" => "Assist Claim",
-                "description" => "Claim cover/TTS work units under a 60-minute lease (pycore worker)",
+                "description" => "Claim cover or poster image work under a 60-minute lease",
                 "auth_required" => false,
                 "parameters" => ["types", "limit", "claimer"]
             ],
@@ -534,9 +534,9 @@ class AppQyV1ApiInfo
                 "path" => "/api/app_qy_v1/assist/submit",
                 "method" => "POST",
                 "feature" => "Assist Submit",
-                "description" => "Submit a generated artifact (cover image_base64 / tts audio_base64) for a claimed unit",
+                "description" => "Submit a cover or poster image for a claimed unit",
                 "auth_required" => false,
-                "parameters" => ["type", "id", "image_base64", "audio_base64", "mime", "voice", "claimer"]
+                "parameters" => ["type", "id", "media_type", "image_base64", "mime", "provider", "claimer"]
             ],
             [
                 "path" => "/api/app_qy_v1/assist/release",

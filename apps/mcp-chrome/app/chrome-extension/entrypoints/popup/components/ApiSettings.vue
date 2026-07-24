@@ -403,6 +403,8 @@ onMounted(async () => {
   document.addEventListener('click', onDocumentClick);
   unsubEndpoint = apiManager.onEndpointChange(() => {
     currentEndpoint.value = apiManager.getCurrentEndpoint();
+    autoMode.value = apiManager.isAutoMode();
+    void refreshEndpoints();
   });
   scheduleNext();
 });

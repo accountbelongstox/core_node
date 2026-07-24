@@ -230,68 +230,15 @@ install_python_essentials() {
     return 0
 }
 
-# Repair the Debian/Ubuntu/Kali "no RECORD file" uninstall blocker.
-#
-# apt installs some Python packages (e.g. mpmath, a sympy dependency) into
-# /usr/lib/python3/dist-packages WITHOUT a RECORD file. When a PyPI package needs
-# a DIFFERENT version of such a package (e.g. torch requires mpmath<1.4 but the
-# distro ships 1.4.x), pip tries to uninstall the distro copy, cannot (no RECORD),
-# and aborts the whole install with "uninstall-no-record-file".
-#
-# Fix (dpkg-safe, idempotent): for each blocked package, install the required
-# version pip-side with --ignore-installed --no-deps into /usr/local/.../dist-packages,
-# which shadows the apt copy via sys.path precedence WITHOUT removing dpkg-owned
-# files. The caller then retries the original install, which now sees the
-# constraint satisfied and performs no uninstall. Returns 0 if a shadow was applied.
-# Args: $1=python_cmd  $2=pip output log file.
-pip_repair_no_record_blocker() {
-    local python_cmd="$1"
-    local log="$2"
-    local sysflags=()
-    local applied=1
-    local blockers b constraint
-
-    # System interpreter (not a venv) needs the PEP 668 escape flags.
-    if [ ! -f "$(dirname "$python_cmd")/../pyvenv.cfg" ]; then
-        sysflags=("--break-system-packages" "--no-user")
-    fi
-
-    # Packages pip refused to uninstall: "no RECORD file was found for <pkg>."
-    blockers="$(grep -oiE "no RECORD file was found for [A-Za-z0-9._-]+" "$log" 2>/dev/null \
-        | awk '{print $NF}' | sed 's/\.$//' | sort -u)"
-    [ -z "$blockers" ] && return 1
-
-    for b in $blockers; do
-        # Recover the version constraint pip was resolving, e.g.
-        #   "Collecting mpmath<1.4,>=1.1.0 (from sympy>=1.13.3->torch)".
-        constraint="$(grep -oiE "Collecting ${b}[<>=!,0-9. ]*" "$log" 2>/dev/null \
-            | head -1 | sed "s/^[Cc]ollecting ${b}//; s/[[:space:]].*//")"
-        echo "[13] Repair: distro '${b}' has no RECORD file; installing pip-managed '${b}${constraint}' into /usr/local (shadows apt copy, dpkg untouched)."
-        if "$python_cmd" -m pip install "${sysflags[@]}" --ignore-installed --no-deps \
-            "${b}${constraint}" --index-url https://pypi.org/simple/; then
-            applied=0
-        fi
-    done
-    return $applied
-}
-
 # Generic function to run pip install with real-time output
-# Args: $1=python_cmd, $2=package_spec (e.g., "package" or "package==1.0.0" or "--upgrade package1 package2"), $3=additional_flags (optional)
+# Args: $1=python_cmd, $2=space-delimited package specs.
 run_pip_install_realtime() {
     local python_cmd="$1"
     local package_spec="$2"
-    local additional_flags="${3:-}"
-
-    if [ -z "$python_cmd" ] || [ -z "$package_spec" ]; then
-        return 1
-    fi
-
-    # Build command array for safe execution
-    local cmd_args=("$python_cmd" "-m" "pip" "install")
-
-    # Split package_spec into words and add to cmd_args
-    # This handles cases like "--upgrade package1 package2"
     local IFS=' '
+    local cmd_args=("$python_cmd" "-m" "pip" "install")
+    local package_words=()
+
     read -ra package_words <<< "$package_spec"
     cmd_args+=("${package_words[@]}")
 
@@ -305,77 +252,58 @@ run_pip_install_realtime() {
         cmd_args+=("--break-system-packages" "--no-user")
     fi
     
-    # Add additional flags if provided
-    if [ -n "$additional_flags" ]; then
-        read -ra flag_words <<< "$additional_flags"
-        cmd_args+=("${flag_words[@]}")
-    fi
-
-    # Execute with real-time output, capturing it so we can auto-repair the
-    # Debian/Ubuntu/Kali "no RECORD file" uninstall blocker and retry once.
     echo "[13] ${cmd_args[*]}"
-    local pip_log
-    pip_log="$(mktemp 2>/dev/null || echo "/tmp/_core_node_pip_$$.log")"
-    "${cmd_args[@]}" 2>&1 | tee "$pip_log"
-    local rc=${PIPESTATUS[0]}
-
-    if [ "$rc" -ne 0 ] && grep -qiE "no RECORD file was found for|uninstall-no-record-file" "$pip_log"; then
-        if pip_repair_no_record_blocker "$python_cmd" "$pip_log"; then
-            echo "[13] Retrying after no-RECORD repair: ${cmd_args[*]}"
-            "${cmd_args[@]}" 2>&1 | tee "$pip_log"
-            rc=${PIPESTATUS[0]}
-        fi
-    fi
-
-    rm -f "$pip_log"
-    return $rc
+    "${cmd_args[@]}" || true
 }
 
-# Function to upgrade pip with official PyPI only
+# Preserve the pip bundled into the selected interpreter.
 upgrade_pip_official() {
     local pip_cmd="$1"
     local python_cmd="$2"
 
-    print_step_from_common_functions "Upgrading pip to latest version using official PyPI..."
-
-    if [ -z "$pip_cmd" ] || [ ! -f "$pip_cmd" ]; then
+    if [ -n "$pip_cmd" ] && [ -f "$pip_cmd" ]; then
+        print_success_from_common_functions "pip is present for $python_cmd; preserving the installed version"
+    else
         print_warning_from_common_functions "pip binary not found at: $pip_cmd"
-        return 1
     fi
-
-    print_step_from_common_functions "Executing command: $python_cmd -m pip install --upgrade pip --index-url https://pypi.org/simple/"
-
-    # IDEMPOTENCY: Always upgrade pip to ensure latest version
-    # Use --no-user to force system-level installation (not /var/_core_node/Users)
-    run_pip_install_realtime "$python_cmd" "--upgrade pip" "--ignore-installed" || true
-    return 0
 }
 
 # Function to install required Python packages with official PyPI only
 install_python_packages_official() {
     local pip_cmd="$1"
     local python_cmd="$2"
+    local package_name=""
+    local package_spec=""
+    local package_metadata=""
+    local constrained=0
+    local missing_packages=()
+    local packages=()
     shift 2
-    local packages=("$@")
+    packages=("$@")
 
     if [ -z "$pip_cmd" ] || [ ! -f "$pip_cmd" ]; then
         print_warning_from_common_functions "pip binary not found, skipping package installation"
-        return 1
+    else
+        for package_spec in "${packages[@]}"; do
+            package_name="${package_spec%%<*}"
+            package_name="${package_name%%>*}"
+            package_name="${package_name%%=*}"
+            package_name="${package_name%%!*}"
+            package_name="${package_name%%~*}"
+            constrained=0
+            [[ "$package_name" != "$package_spec" ]] && constrained=1
+            package_metadata="$("$python_cmd" -m pip show "$package_name" 2>/dev/null || true)"
+            if [[ "$constrained" -eq 1 || "$package_metadata" != *"Name:"* ]]; then
+                missing_packages+=("$package_spec")
+            fi
+        done
+        if [[ ${#missing_packages[@]} -gt 0 ]]; then
+            print_step_from_common_functions "Installing missing/ABI-constrained Python packages: ${missing_packages[*]}"
+            run_pip_install_realtime "$python_cmd" "${missing_packages[*]}"
+        else
+            print_success_from_common_functions "Python package metadata is complete; preserving installed packages"
+        fi
     fi
-
-    if [ ${#packages[@]} -eq 0 ]; then
-        print_info_from_common_functions "No packages to install"
-        return 0
-    fi
-
-    print_step_from_common_functions "Installing Python packages using official PyPI: ${packages[*]}"
-
-    print_step_from_common_functions "Executing command: $python_cmd -m pip install --upgrade ${packages[*]} --index-url https://pypi.org/simple/"
-
-    # IDEMPOTENCY: Always check and install/upgrade packages
-    # Use --no-user to force system-level installation (not /var/_core_node/Users)
-    run_pip_install_realtime "$python_cmd" "--upgrade ${packages[*]}" "--ignore-installed" || true
-    return 0
 }
 
 # Function to set pip mirror to official PyPI
@@ -446,10 +374,10 @@ check_urllib3_for_certbot() {
     # certbot 2.x depends on urllib3.util.ssl_.DEFAULT_CIPHERS, which urllib3 2.x REMOVED, so
     # this repair pins the last 1.x (1.26.18) -- the SAME version 28_install_certbot.sh enforces
     # (one system-python urllib3 policy; --no-user matches 26 too). Upgrading to a newer 2.x
-    # would not fix a DEFAULT_CIPHERS failure. The worker's venv pin (urllib3>=2.0,<3 in
+    # would not fix a DEFAULT_CIPHERS failure. The worker venv owns its modern urllib3 major in
     # third_party.py) is a SEPARATE interpreter and is unaffected.
-    echo "[13] $USE_SUDO $sys_py3 -m pip install --break-system-packages --no-user urllib3==1.26.18"
-    $USE_SUDO "$sys_py3" -m pip install --break-system-packages --no-user urllib3==1.26.18 2>&1 || true
+    echo "[13] $USE_SUDO $sys_py3 -m pip install --break-system-packages --no-user urllib3<2"
+    $USE_SUDO "$sys_py3" -m pip install --break-system-packages --no-user 'urllib3<2' 2>&1 || true
 
     # Re-test certbot functionally.
     if certbot plugins >/dev/null 2>&1; then

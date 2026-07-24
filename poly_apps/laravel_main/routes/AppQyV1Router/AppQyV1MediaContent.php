@@ -28,13 +28,10 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/content/{type}/{id}', [AppQyV1MediaContentPublicController::class, 'getContent'])
             ->whereNumber('id');
 
-        // On-demand movie/TV poster fetch + backfill (TMDB -> OMDB, PHP).
-        // Canonical contract: docs/MOVIE_POSTER_PIPELINE.md §7.
+        // Move a movie/TV poster to the mcp-chrome search queue head.
         Route::post('/poster/fetch', [AppQyV1MoviePosterController::class, 'fetch']);
 
-        // Cheap, no-auth poster-pipeline status snapshot (provider key config +
-        // masked keys + per-type poster_status counts) for the laravel-manager
-        // "Movie Poster" panel. Never throws.
+        // Cheap, no-auth mcp-chrome poster queue snapshot.
         Route::get('/poster/status', [AppQyV1MoviePosterController::class, 'status']);
     });
 });

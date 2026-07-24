@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyutils.tts import isolated_venv
 
 _ENGINE = "melotts"
@@ -35,7 +36,7 @@ _DEFAULT_PORT = 57212
 _HEALTH_TIMEOUT_S = 3.0
 _REQUEST_TIMEOUT_S = float(os.environ.get("MELOTTS_HTTP_TIMEOUT_S", "300") or "300")
 
-_last_synth_error: Optional[str] = None
+_LAST_SYNTH_ERROR = SerializedValue(None, "MeloTTSErrorState")
 
 
 def base_url() -> str:
@@ -66,7 +67,7 @@ def disabled_reason() -> Optional[str]:
 
 
 def last_synth_error() -> Optional[str]:
-    return _last_synth_error
+    return _LAST_SYNTH_ERROR.get()
 
 
 def is_model_loaded() -> bool:
@@ -129,11 +130,10 @@ def synthesize(
     """POST /synthesize and write the returned audio bytes to output_mp3. The wire
     format follows the output suffix ('wav' for .wav, else 'mp3'). Returns False
     on failure (the orchestrator then falls through to the next engine)."""
-    global _last_synth_error
-    _last_synth_error = None
+    _LAST_SYNTH_ERROR.set(None)
     cleaned = (text or "").strip()
     if not cleaned:
-        _last_synth_error = "empty text"
+        _LAST_SYNTH_ERROR.set("empty text")
         return False
     out = Path(output_mp3)
     payload: Dict[str, Any] = {
@@ -147,14 +147,15 @@ def synthesize(
         payload["speaker"] = picked
     ok, data, err = _post_bytes("/synthesize", payload)
     if not ok or not data:
-        _last_synth_error = err or "melotts synthesize failed"
-        ColorPrint.red(f"[melo-tts] synth failed: {_last_synth_error}")
+        synth_error = err or "melotts synthesize failed"
+        _LAST_SYNTH_ERROR.set(synth_error)
+        ColorPrint.red(f"[melo-tts] synth failed: {synth_error}")
         return False
     try:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(data)
     except OSError as exc:
-        _last_synth_error = f"write failed: {exc}"
+        _LAST_SYNTH_ERROR.set(f"write failed: {exc}")
         return False
     return True
 

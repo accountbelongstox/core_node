@@ -18,6 +18,7 @@ from enum import Enum
 from typing import Any, Dict
 
 from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 
 
 _STATE_SIGNAL = 'pyctl.mcp.global_state'
@@ -56,6 +57,11 @@ class MCPGlobalState:
     def __init__(self):
         """Initialize state manager"""
         self._start_time = time.time()
+        init_serialized_owner(
+            self,
+            "mcp.global_state.owner",
+            "MCPGlobalStateOwner",
+        )
         if THREAD_BUS.get_signal(_STATE_SIGNAL) is None:
             THREAD_BUS.signal(_STATE_SIGNAL, {
                 'state': ProcessingState.IDLE,
@@ -63,6 +69,7 @@ class MCPGlobalState:
                 'last_task_time': 0.0,
             })
 
+    @serialized_method
     def begin_task(self, task_id: str = None) -> None:
         """
         Mark beginning of task processing
@@ -78,6 +85,7 @@ class MCPGlobalState:
             'last_task_time': time.time(),
         })
 
+    @serialized_method
     def end_task(self, task_id: str = None) -> None:
         """
         Mark end of task processing
@@ -96,6 +104,7 @@ class MCPGlobalState:
             'active_tasks': active_tasks,
         })
 
+    @serialized_method
     def is_idle(self) -> bool:
         """
         Check if backend is idle
@@ -106,6 +115,7 @@ class MCPGlobalState:
         state = THREAD_BUS.get_signal(_STATE_SIGNAL, {}) or {}
         return state.get('state') == ProcessingState.IDLE
 
+    @serialized_method
     def is_busy(self) -> bool:
         """
         Check if backend is busy
@@ -116,6 +126,7 @@ class MCPGlobalState:
         state = THREAD_BUS.get_signal(_STATE_SIGNAL, {}) or {}
         return state.get('state') == ProcessingState.BUSY
 
+    @serialized_method
     def can_shutdown(self) -> bool:
         """
         Check if shutdown is allowed
@@ -133,6 +144,7 @@ class MCPGlobalState:
             and int(state.get('active_tasks') or 0) == 0
         )
 
+    @serialized_method
     def get_snapshot(self) -> StateSnapshot:
         """
         Get current state snapshot
@@ -163,6 +175,7 @@ class MCPGlobalState:
             message=message,
         )
 
+    @serialized_method
     def to_dict(self) -> Dict[str, Any]:
         """
         Get state as dictionary (for protocol messages)
@@ -185,7 +198,7 @@ class MCPGlobalState:
 # Global Singleton Instance
 # ============================================================
 
-_global_state_instance: MCPGlobalState = None
+_global_state_instance = MCPGlobalState()
 
 
 def get_global_state() -> MCPGlobalState:
@@ -195,9 +208,6 @@ def get_global_state() -> MCPGlobalState:
     Returns:
         MCPGlobalState singleton
     """
-    global _global_state_instance
-    if _global_state_instance is None:
-        _global_state_instance = MCPGlobalState()
     return _global_state_instance
 
 

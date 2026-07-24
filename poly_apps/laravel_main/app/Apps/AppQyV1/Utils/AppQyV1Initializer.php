@@ -591,7 +591,7 @@ class AppQyV1Initializer implements AppInitializerInterface
 
     /**
      * Idempotently upsert the code-owned AI prompt library defaults
-     * (translate_bilingual_analysis, notebooklm_dialogue). Never touches
+     * (translation analysis, short article, NotebookLM dialogue). Never touches
      * operator-created (source='database') prompt rows.
      */
     private function seedAiPrompts(): array

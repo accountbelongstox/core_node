@@ -26,23 +26,20 @@ export interface CapabilityDef {
   storageKey: string;
   zhLabel: string;
   hint: string;
-  /** TaskCenter processorTypes this capability enables. Empty => stub. */
+  /** TaskCenter processorTypes this capability enables. */
   processors: string[];
   /** True when this capability also drives the client-side validity runner. */
   usesValidityRunner: boolean;
-  /** Reserved for capability discovery during rolling upgrades. */
-  stub: boolean;
 }
 
 export const CAPABILITIES: CapabilityDef[] = [
   {
     key: 'image',
     storageKey: 'tkCapImage',
-    zhLabel: '执行图片生成任务',
-    hint: 'Gemini image + poster/cover generation',
+    zhLabel: '执行图片与封面任务',
+    hint: 'Book/library covers and word images via Google/Bing, plus Gemini image tasks',
     processors: [LANES.REMOTE_GEMINI, LANES.MEDIA_IMAGE],
     usesValidityRunner: false,
-    stub: false,
   },
   {
     key: 'audio',
@@ -51,7 +48,6 @@ export const CAPABILITIES: CapabilityDef[] = [
     hint: 'Laravel audio queue → shared Qwen3-TTS runtime → write-back',
     processors: [LANES.QWEN_TTS],
     usesValidityRunner: false,
-    stub: false,
   },
   {
     key: 'validity',
@@ -60,7 +56,6 @@ export const CAPABILITIES: CapabilityDef[] = [
     hint: 'Laravel validity queue → shared web classifier → write-back',
     processors: [LANES.WORD_VALIDITY_WEB],
     usesValidityRunner: false,
-    stub: false,
   },
   {
     key: 'article',
@@ -69,7 +64,6 @@ export const CAPABILITIES: CapabilityDef[] = [
     hint: 'Gemini short-article and text generation',
     processors: [LANES.REMOTE_GEMINI_TEXT],
     usesValidityRunner: false,
-    stub: false,
   },
   {
     key: 'notebooklm',
@@ -78,7 +72,6 @@ export const CAPABILITIES: CapabilityDef[] = [
     hint: 'Laravel NotebookLM queue → shared browser runtime → write-back',
     processors: [LANES.REMOTE_NOTEBOOKLM],
     usesValidityRunner: false,
-    stub: false,
   },
   {
     key: 'bing',
@@ -87,7 +80,6 @@ export const CAPABILITIES: CapabilityDef[] = [
     hint: 'Bing dictionary translation, phonetics and media capture',
     processors: [LANES.BING_DICTIONARY],
     usesValidityRunner: false,
-    stub: false,
   },
   {
     key: 'aiTranslate',
@@ -96,7 +88,6 @@ export const CAPABILITIES: CapabilityDef[] = [
     hint: 'DeepSeek web translation tasks on the AI fast lane',
     processors: [LANES.WEB_AI_TRANSLATE],
     usesValidityRunner: false,
-    stub: false,
   },
 ];
 

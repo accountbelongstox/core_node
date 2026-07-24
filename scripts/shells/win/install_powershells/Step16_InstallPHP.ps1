@@ -419,8 +419,9 @@ function Step16_InstallPHP {
         $actualPhpVersion = $PHP_VERSION_DISPLAY
         try {
             $versionOutput = & $phpExePath --version 2>&1 | Select-Object -First 1
-            if ($versionOutput -match 'PHP (\d+\.\d+\.\d+)') {
-                $actualPhpVersion = $matches[1]
+            if (([string]$versionOutput).StartsWith('PHP ', [System.StringComparison]::OrdinalIgnoreCase) -and
+                ([string]$versionOutput).Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries).Count -gt 1) {
+                $actualPhpVersion = ([string]$versionOutput).Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)[1]
             }
         }
         catch {

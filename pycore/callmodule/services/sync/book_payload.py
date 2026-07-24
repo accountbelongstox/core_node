@@ -41,16 +41,12 @@ from pycore.callmodule.services.processors.book_structure import (
 from pycore.pyfoundations.text_parsing import normalize_language_codes
 # Multi-language statistics engine (primary-language detection + meta for v3).
 from pycore.pyutils.text_stats import compute_text_stats
-# Movie/TV poster title+year parse (the actual fetch is in _attach_poster).
-from pycore.pyutils.external_apis.movie_poster_client import parse_title_year
-
 # Shared constants + pure helpers (cycle-free bottom seam).
 from pycore.callmodule.services.sync._media_sync_helpers import (
     _TERMINAL_RE,
     source_key_for,
     _read_text,
     _put_if,
-    _attach_poster,
 )
 
 
@@ -192,12 +188,6 @@ def build_book_payload_v2(path: str, full_content: str, language: str = "en") ->
     }
     _put_if(source, "sentence_count", structure.get("sentence_count") or None)
 
-    # Best-effort movie/TV poster (§4 ingest addition) using the HUMAN book title
-    # (the stem, not the ascii name). Movie DBs miss for most real documents - the
-    # poster key is then omitted and laravel leaves poster_status='pending'.
-    poster_title, poster_year = parse_title_year(stem)
-    _attach_poster(source, poster_title, poster_year, kind="book")
-
     source["metadata"] = {
         "primary_language": stats.get("primary_language"),
         "languages": stats.get("languages"),
@@ -311,10 +301,6 @@ def build_book_payload_v3(
     source["selected_languages"] = tree.get("selected_languages") or selected
     _put_if(source, "full_content", full_content)
     _put_if(source, "sentence_count", tree.get("sentence_count") or None)
-
-    # Best-effort movie/TV poster (using the HUMAN book title; usually omitted).
-    poster_title, poster_year = parse_title_year(stem)
-    _attach_poster(source, poster_title, poster_year, kind="book")
 
     source["metadata"] = {
         "primary_language": stats.get("primary_language"),

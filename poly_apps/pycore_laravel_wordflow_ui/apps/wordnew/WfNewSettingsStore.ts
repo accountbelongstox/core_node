@@ -36,10 +36,6 @@ export interface WfNewSettings {
   dailyGoal: number;
   speechRate: number;
   voiceAccent: string;
-  /** Auto-generate missing word audio via the Puter.js library (library table
-   *  view): on page load it batch-synthesizes every audio-less word + prefetches
-   *  the next 3 pages, uploading each clip to Laravel for persistence. Default ON. */
-  usePuterAudio: boolean;
   settingNativeLang: string;
   settingTargetLang: string;
   /** Multi-select learning targets (backend learning_languages). settingTargetLang stays as the primary for legacy reads. */
@@ -129,6 +125,9 @@ export interface WfNewSettings {
   readerWordCards: boolean;
   /** Where the word-card words are read relative to the sentence audio. */
   readerWordCardPosition: 'before' | 'after';
+  /** Number of times each new sentence word is played. */
+  readerWordRepeats: number;
+  readerWordMode: 'new' | 'all';
   /** ISO8601 stamp for last reader-settings cloud sync (merge guard). */
   readerSettingsUpdatedAt: string | null;
   // ---- user data ----
@@ -151,7 +150,6 @@ const makeDefaults = (): WfNewSettings => ({
   dailyGoal: 20,
   speechRate: 1.0,
   voiceAccent: 'en-US',
-  usePuterAudio: false,
   settingNativeLang: 'zh',
   settingTargetLang: 'en',
   settingTargetLangs: ['en'],
@@ -203,6 +201,8 @@ const makeDefaults = (): WfNewSettings => ({
   readerVariantByLang: {},
   readerWordCards: false,
   readerWordCardPosition: 'before',
+  readerWordRepeats: 1,
+  readerWordMode: 'new',
   readerSettingsUpdatedAt: null,
   favorites: [],
   streakDays: 8,

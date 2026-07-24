@@ -12,6 +12,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordMediaService;
@@ -207,20 +208,92 @@ class AppQyV1WordMediaController extends BaseController
         }
         try {
             $conn = $dictModel->getConnection();
-            $updated = $conn->transaction(function () use ($conn, $table, $md5) {
+            $boost = $conn->transaction(function () use ($conn, $table, $md5) {
                 AppQyV1TableMaps::lockTableForFrontTicket($conn, $table);
-                return $conn->update(
+                $updated = $conn->update(
                     "UPDATE {$table} SET tts_priority = (SELECT m FROM (SELECT COALESCE(MAX(tts_priority), 0) + 1 AS m FROM {$table}) x) WHERE md5 = ? AND (is_valid IS NULL OR is_valid IS TRUE)",
                     [$md5]
                 );
+                $row = $updated > 0
+                    ? $conn->selectOne("SELECT tts_priority FROM {$table} WHERE md5 = ?", [$md5])
+                    : null;
+                return [
+                    'updated' => $updated,
+                    'priority' => (int) ($row->tts_priority ?? 0),
+                ];
             });
-            return response()->json(['success' => true, 'updated' => $updated]);
+            if ($boost['updated'] > 0) {
+                AppQyV1TranslationEventModel::emit('word_audio.priority', [
+                    'md5' => $md5,
+                    'language' => $langCode,
+                    'priority' => $boost['priority'],
+                ]);
+            }
+            return response()->json(['success' => true] + $boost);
         } catch (\Throwable $e) {
             Log::warning('[WordMedia] boostPriority failed: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'DB error: ' . $e->getMessage(),
             ]);
+        }
+    }
+
+    public function boostPriorityBatch(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'items' => 'required|array|min:1|max:200',
+            'items.*.md5' => 'required|string|max:64',
+            'items.*.lang' => 'required|string|max:20',
+        ]);
+        $groups = [];
+        foreach ($validated['items'] as $item) {
+            $language = AppQyV1DictionaryService::getLanguageCode(trim((string) $item['lang']));
+            $groups[$language][] = trim((string) $item['md5']);
+        }
+        $boosted = [];
+        try {
+            foreach ($groups as $language => $md5s) {
+                $dictModel = AppQyV1LangDictionaryModel::forLanguage($language);
+                $table = $dictModel->getModel()->getTable();
+                if (!$dictModel->getConnection()->getSchemaBuilder()->hasTable($table)) {
+                    continue;
+                }
+                $conn = $dictModel->getConnection();
+                $rows = $conn->transaction(function () use ($conn, $table, $md5s, $language): array {
+                    AppQyV1TableMaps::lockTableForFrontTicket($conn, $table);
+                    $head = $conn->selectOne("SELECT COALESCE(MAX(tts_priority), 0) AS priority FROM {$table}");
+                    $ticket = (int) ($head->priority ?? 0) + count($md5s);
+                    $result = [];
+                    foreach ($md5s as $index => $md5) {
+                        $priority = $ticket - $index;
+                        $updated = $conn->update(
+                            "UPDATE {$table} SET tts_priority = ? WHERE md5 = ? AND (is_valid IS NULL OR is_valid IS TRUE)",
+                            [$priority, $md5]
+                        );
+                        if ($updated > 0) {
+                            $result[] = ['md5' => $md5, 'language' => $language, 'priority' => $priority];
+                        }
+                    }
+                    return $result;
+                });
+                $boosted = array_merge($boosted, $rows);
+            }
+            if (!empty($boosted)) {
+                AppQyV1TranslationEventModel::emit('word_audio.priority', [
+                    'batch' => true,
+                    'count' => count($boosted),
+                    'items' => $boosted,
+                ]);
+            }
+            return response()->json([
+                'success' => true,
+                'count' => count($boosted),
+                'items' => $boosted,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('[WordMedia] boostPriorityBatch failed: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'DB error: ' . $e->getMessage()]);
         }
     }
 

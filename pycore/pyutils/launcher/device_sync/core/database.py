@@ -12,6 +12,11 @@ from pathlib import Path
 from typing import Optional, List, Dict
 from datetime import datetime
 
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 from .config import get_cache_dir
 
 
@@ -30,6 +35,12 @@ class SyncDatabase:
         """Initialize database"""
         self.db_path = get_cache_dir() / 'sync_history.db'
         self._init_database()
+        init_serialized_owner(
+            self,
+            'device_sync.database.state',
+            'DeviceSyncDatabaseStateThread',
+            timeout=300.0,
+        )
 
     def _init_database(self):
         """Initialize database schema"""
@@ -96,6 +107,7 @@ class SyncDatabase:
         conn.commit()
         conn.close()
 
+    @serialized_method
     def create_session(self, session_type: str, device_id: str) -> int:
         """
         Create a new sync session
@@ -121,6 +133,7 @@ class SyncDatabase:
 
         return session_id
 
+    @serialized_method
     def update_session(self, session_id: int, status: str,
                       files_scanned: int = None, files_transferred: int = None,
                       bytes_transferred: int = None, error_message: str = None):
@@ -158,6 +171,7 @@ class SyncDatabase:
         conn.commit()
         conn.close()
 
+    @serialized_method
     def record_transfer(self, session_id: Optional[int], operation: str,
                        file_path: str, file_size: int, status: str,
                        remote_device: str = None, error_message: str = None):
@@ -174,6 +188,7 @@ class SyncDatabase:
         conn.commit()
         conn.close()
 
+    @serialized_method
     def record_scan(self, scan_type: str, files_found: int,
                    duration_seconds: float, scan_node_modules: bool):
         """Record file scan"""
@@ -188,6 +203,7 @@ class SyncDatabase:
         conn.commit()
         conn.close()
 
+    @serialized_method
     def record_connection(self, connection_type: str, remote_ip: str,
                          remote_device_id: str = None, remote_hostname: str = None,
                          request_path: str = None):
@@ -203,6 +219,7 @@ class SyncDatabase:
         conn.commit()
         conn.close()
 
+    @serialized_method
     def get_recent_transfers(self, limit: int = 50) -> List[Dict]:
         """Get recent file transfers"""
         conn = sqlite3.connect(self.db_path)
@@ -227,6 +244,7 @@ class SyncDatabase:
             'remote_device': row[5]
         } for row in rows]
 
+    @serialized_method
     def get_recent_scans(self, limit: int = 10) -> List[Dict]:
         """Get recent scans"""
         conn = sqlite3.connect(self.db_path)
@@ -250,6 +268,7 @@ class SyncDatabase:
             'scan_node_modules': bool(row[4])
         } for row in rows]
 
+    @serialized_method
     def get_recent_connections(self, limit: int = 50) -> List[Dict]:
         """Get recent connections"""
         conn = sqlite3.connect(self.db_path)
@@ -274,6 +293,7 @@ class SyncDatabase:
             'request_path': row[5]
         } for row in rows]
 
+    @serialized_method
     def get_stats(self) -> Dict:
         """Get database statistics"""
         conn = sqlite3.connect(self.db_path)
@@ -312,12 +332,14 @@ class SyncDatabase:
 
 
 # Global database instance
-_sync_db: Optional[SyncDatabase] = None
+_SYNC_DATABASE_PROVIDER = SerializedSingletonProvider(
+    SyncDatabase,
+    'device_sync.database.provider',
+    'DeviceSyncDatabaseProviderThread',
+    timeout=300.0,
+)
 
 
 def get_sync_database() -> SyncDatabase:
     """Get or create global sync database instance"""
-    global _sync_db
-    if _sync_db is None:
-        _sync_db = SyncDatabase()
-    return _sync_db
+    return _SYNC_DATABASE_PROVIDER.get()

@@ -1,19 +1,17 @@
 /**
  * MoviePosterPanel — laravel-manager view of the movie/TV poster pipeline.
  *
- * Reads GET /media/poster/status (provider key config + masked keys + per-type
- * poster_status counts) and exposes a "Test / fetch poster" control that calls
+ * Reads GET /media/poster/status (mcp-chrome ownership + per-type queue counts)
+ * and exposes a "Queue poster" control that calls
  * POST /media/poster/fetch for one media row (book / subtitle, by id or
- * source_key) — exercising the real TMDB→OMDB→AI-cover chain and rendering the
- * returned image_url + resulting poster_status.
+ * source_key) to move it to the shared mcp-chrome queue head.
  *
  * Styling reuses the shared AI Tools kit (ToolWrapper / AiBentoCard /
  * AiToolAlert / provider badges) — no new design system.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Film, RefreshCcw, CheckCircle2, MinusCircle, KeyRound, ShieldCheck,
-  AlertTriangle, ImageIcon, Send,
+  Film, RefreshCcw, CheckCircle2, MinusCircle, AlertTriangle, ImageIcon, Send,
 } from 'lucide-react';
 import { api } from '../../core/api';
 import type {
@@ -69,7 +67,7 @@ const MoviePosterPanel: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Test / fetch control state.
+  // Manual priority control state.
   const [testType, setTestType] = useState<MediaType>('book');
   const [testId, setTestId] = useState<string>('');
   const [testSourceKey, setTestSourceKey] = useState<string>('');
@@ -127,8 +125,7 @@ const MoviePosterPanel: React.FC = () => {
     }
   }, [testType, testId, testSourceKey]);
 
-  const tmdb = status?.providers.find((p) => p.name === 'tmdb');
-  const omdb = status?.providers.find((p) => p.name === 'omdb');
+  const mcpChrome = status?.providers.find((p) => p.name === 'mcp-chrome');
 
   const statusTone = (s?: string): string => {
     if (s === 'ready') return 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400';
@@ -142,7 +139,7 @@ const MoviePosterPanel: React.FC = () => {
       title="Movie Poster"
       icon={Film}
       gradient="indigo"
-      description="Poster pipeline status & on-demand fetch"
+      description="mcp-chrome search queue status and priority"
       actions={
         <button
           onClick={() => load(true)}
@@ -164,50 +161,21 @@ const MoviePosterPanel: React.FC = () => {
           </AiToolAlert>
         )}
 
-        {/* Provider key status */}
-        <AiBentoCard title="Providers">
+        {/* Execution ownership */}
+        <AiBentoCard title="Execution Owner">
           {loading && !status ? (
             <div className="text-xs text-slate-500 py-6 text-center flex flex-col items-center gap-2">
               <RefreshCcw className="w-5 h-5 animate-spin text-slate-400" /> Loading status…
             </div>
           ) : (
-            <div className={AI_GRID_2}>
-              {/* TMDB */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-100">tmdb</span>
-                  <ConfigBadge ok={!!tmdb?.configured} okLabel="Configured" offLabel="Not configured" />
-                  <span
-                    className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide ${
-                      tmdb?.has_v4_token ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400' : 'bg-slate-500/15 text-slate-500 dark:text-slate-400'
-                    }`}
-                    title="TMDB v4 read-access Bearer token (optional)"
-                  >
-                    <ShieldCheck className="w-3 h-3" /> {tmdb?.has_v4_token ? 'v4 token' : 'no v4 token'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400 flex-wrap">
-                  <span className="inline-flex items-center gap-1" title="TMDB_API_KEY (masked)">
-                    <KeyRound className="w-3 h-3" /><span className="font-mono">{status?.keys?.['TMDB_API_KEY'] || '-'}</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1" title="TMDB_API_READ_ACCESS_TOKEN (masked)">
-                    <ShieldCheck className="w-3 h-3" /><span className="font-mono">{status?.keys?.['TMDB_API_READ_ACCESS_TOKEN'] || '-'}</span>
-                  </span>
-                </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-bold text-slate-800 dark:text-slate-100">apps/mcp-chrome</span>
+                <ConfigBadge ok={!!mcpChrome?.configured} okLabel="Queue owner" offLabel="Unavailable" />
               </div>
-
-              {/* OMDB */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-100">omdb</span>
-                  <ConfigBadge ok={!!omdb?.configured} okLabel="Configured" offLabel="Not configured" />
-                </div>
-                <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400 flex-wrap">
-                  <span className="inline-flex items-center gap-1" title="OMDB_API_KEY (masked)">
-                    <KeyRound className="w-3 h-3" /><span className="font-mono">{status?.keys?.['OMDB_API_KEY'] || '-'}</span>
-                  </span>
-                </div>
-              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Google/Bing image search, download and Laravel submission run only while the Image capability is enabled in the mcp-chrome Task tab.
+              </p>
             </div>
           )}
         </AiBentoCard>
@@ -226,12 +194,11 @@ const MoviePosterPanel: React.FC = () => {
           </div>
         </AiBentoCard>
 
-        {/* Test / fetch poster */}
-        <AiBentoCard title="Test / Fetch Poster">
+        {/* Queue one poster */}
+        <AiBentoCard title="Queue Poster">
           <div className="space-y-4">
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Resolve one media row by id (preferred) or source key, then run the real
-              TMDB → OMDB → AI-cover chain and show the resulting image + status.
+              Resolve one media row by id (preferred) or source key, clear its MCP submission marker and move it to the queue head.
             </p>
 
             <div className={AI_GRID_2}>
@@ -273,7 +240,7 @@ const MoviePosterPanel: React.FC = () => {
                 className={`${commonClasses.button} ${commonClasses.buttonPrimary} text-xs flex items-center gap-1.5 disabled:opacity-50`}
               >
                 {fetching ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                {fetching ? 'Fetching…' : 'Fetch poster'}
+                {fetching ? 'Queueing…' : 'Queue poster'}
               </button>
               {fetchResult && (
                 <span
@@ -282,6 +249,7 @@ const MoviePosterPanel: React.FC = () => {
                   {fetchResult.poster_status}
                   {fetchResult.provider ? ` · ${fetchResult.provider}` : ''}
                   {fetchResult.already_done ? ' · cached' : ''}
+                  {fetchResult.queued ? ' · queued' : ''}
                 </span>
               )}
             </div>
@@ -300,14 +268,14 @@ const MoviePosterPanel: React.FC = () => {
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">Poster</div>
                 <img
                   src={fetchResult.image_url}
-                  alt="Fetched poster"
+                  alt="Current poster"
                   className="max-h-72 w-auto rounded-xl border border-slate-200/70 dark:border-white/10 shadow-sm"
                 />
                 <p className="mt-1.5 text-[10px] font-mono break-all text-slate-400">{fetchResult.image_url}</p>
               </div>
             ) : fetchResult && !fetchError ? (
               <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <ImageIcon className="w-4 h-4" /> No poster image was produced (status: {fetchResult.poster_status}).
+                <ImageIcon className="w-4 h-4" /> The task is queued; no submitted poster is cached yet.
               </div>
             ) : null}
           </div>

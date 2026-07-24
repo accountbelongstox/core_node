@@ -12,6 +12,8 @@
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$sharedCacheEnvPath = Join-Path $PSScriptRoot 'SharedCacheEnv.ps1'
+$sharedCacheLoaded = Get-Variable -Name 'PycoreSharedCacheEnvLoaded' -Scope Script -ErrorAction SilentlyContinue
 . (Join-Path $PSScriptRoot 'AiRuntimePolicy.ps1')
 
 function Test-AdminPrivileges {
@@ -135,7 +137,10 @@ $Global:SCOOP_GLOBAL_DIR = "$LANG_COMPILER_DIR\scoop\apps"
 $Global:CHOCO_EXE = "$CHOCO_DIR\choco.exe"
 $Global:CHOCO_CACHE_DIR = "$TEMP_DIR\chocolatey"
 
-. (Join-Path $PSScriptRoot 'SharedCacheEnv.ps1')
+if ($null -eq $sharedCacheLoaded -or -not [bool]$sharedCacheLoaded.Value) {
+    . $sharedCacheEnvPath
+    Set-Variable -Name 'PycoreSharedCacheEnvLoaded' -Scope Script -Value $true
+}
 
 $Global:USER_DIR = "D:\programing\Users\$env:USERNAME\.core_node"
 $Global:USER_CACHE_DIR = Join-Path $Global:CORE_NODE_CACHE_DIR 'core_node'

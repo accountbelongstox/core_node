@@ -25,7 +25,7 @@ from pycore.callmodule.services import (
     get_queue_monitor_service,
     get_translation_ws_client,
 )
-from pycore.callmodule.services.assist_wiring import register_assist_worker_start
+from pycore.callmodule.services.assist_wiring import register_assist_runtime
 from pycore.callmodule.services.heartbeat_tts_workers import (
     register_sentence_queue_monitor,
     register_tts_queue_poller,
@@ -350,11 +350,8 @@ def _register_heartbeat_workers():
     except Exception as e:
         ColorPrint.red(f"[EventHandlers] Failed to register translation_worker: {e}")
 
-    # Assist-Laravel worker (cover + tts claim/generate/submit): wired here —
-    # the active launcher path — right beside the translation worker so it
-    # starts at sys-init whenever the persisted assist_laravel.enabled toggle
-    # is on (default off). register_assist_worker_start() is exception-safe.
-    register_assist_worker_start()
+    # Apply the persisted control plane after every callback is registered.
+    register_assist_runtime()
 
     # Agent-history extraction worker (backfill -> live article pipeline):
     # previously registered ONLY on the native_ui path (callmodule_main), so

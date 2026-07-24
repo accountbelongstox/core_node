@@ -90,8 +90,12 @@ class EngineProbeThread(threading.Thread):
         if not isinstance(payload, dict):
             return
         result = _probe_engine_status(payload.get('status_fn'))
-        if time.time() <= float(payload.get('deadline') or 0.0):
-            THREAD_BUS.signal(self._response_signal, result)
+        response_guard = f"{self._response_signal}.waiting"
+        THREAD_BUS.signal_if_present(
+            response_guard,
+            self._response_signal,
+            result,
+        )
         THREAD_BUS.clear_queue(self._queue_name)
 
 
@@ -181,10 +185,10 @@ def _engines_from_orchestrator(
     request_id = f"{threading.get_ident()}.{time.time_ns()}"
     queue_name = f"callmodule.capabilities.probe.{request_id}"
     response_signal = f"{queue_name}.result"
-    deadline = time.time() + _ENGINE_PROBE_TIMEOUT_S
+    response_guard = f"{response_signal}.waiting"
+    THREAD_BUS.signal(response_guard, True)
     THREAD_BUS.send_message(queue_name, {
         'status_fn': status_fn,
-        'deadline': deadline,
     })
     EngineProbeThread(queue_name, response_signal).start()
     result = THREAD_BUS.wait_signal(

@@ -52,10 +52,17 @@ def apply_assist_runtime(config: Dict[str, Any]) -> None:
     want_word_audio = enabled and bool(caps.get("tts", True))
     want_sentence_audio = enabled and bool(caps.get("sentence_audio", True))
     want_subtitle = enabled and bool(caps.get("subtitle", False))
+    want_stt = enabled and bool(caps.get("stt", False))
+    want_translation_worker = (
+        want_translation or want_ai_translate or want_subtitle or want_stt
+    )
+    want_realtime = (
+        want_translation_worker or want_word_audio or want_sentence_audio
+    )
 
-    _toggle_callback("translation_worker", want_translation or want_ai_translate)
+    _toggle_callback("translation_worker", want_translation_worker)
     _toggle_callback("translation_queue_monitor", want_translation or want_ai_translate)
-    _toggle_callback("translation_ws_client", want_translation or want_ai_translate)
+    _toggle_callback("translation_ws_client", want_realtime)
 
     _toggle_callback("tts_queue_poller", want_word_audio)
     _toggle_callback("tts_sentence_worker", want_sentence_audio)
@@ -67,5 +74,5 @@ def apply_assist_runtime(config: Dict[str, Any]) -> None:
     ColorPrint.blue(
         f"[AssistSync] runtime applied master={enabled} "
         f"translation={want_translation} word_audio={want_word_audio} "
-        f"sentence_audio={want_sentence_audio}"
+        f"sentence_audio={want_sentence_audio} stt={want_stt}"
     )

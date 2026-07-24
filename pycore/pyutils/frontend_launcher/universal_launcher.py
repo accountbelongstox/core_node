@@ -28,7 +28,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 import time
 from dataclasses import dataclass
 from pycore.pyfoundations.serialized_worker import BusTaskThread, start_bus_task
-from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from typing import List, Optional, Tuple
 import subprocess
@@ -124,7 +124,7 @@ class UniversalFrontendLauncher:
         self.config = config
         self.process: Optional[subprocess.Popen] = None
         self._static_http_thread: Optional[BusTaskThread] = None
-        self._static_server: Optional[ThreadingHTTPServer] = None
+        self._static_server: Optional[HTTPServer] = None
         self._last_install_check: Optional[float] = None
 
     def start_dev_and_wait(self) -> bool:
@@ -178,7 +178,7 @@ class UniversalFrontendLauncher:
             ColorPrint.red(f"[UniversalFrontend] Cannot start static server, static_dir missing: {self.config.static_dir}")
             return False
         handler = self._build_static_handler(self.config.static_dir)
-        server = ThreadingHTTPServer((host, port), handler)
+        server = HTTPServer((host, port), handler)
         self._static_server = server
         thread = start_bus_task(
             server.serve_forever,

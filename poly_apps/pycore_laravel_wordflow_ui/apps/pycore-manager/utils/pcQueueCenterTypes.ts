@@ -3,7 +3,7 @@
  * the section body panels).
  *
  * FE ↔ BE endpoint map (pycore-manager Queue Center):
- *   hub          GET /api/local/task-center          → PcTaskCenterResponse
+ *   hub          GET /api/local/task-center/snapshot → QueueCenterSnapshot
  *   overview     GET /api/local/queue/overview       → PcQueueOverview
  *   translation  GET /api/local/translation/queue    → cached monitor snapshot
  *   sentence     GET /api/local/sentence-audio/queue → SentenceAudioQueueSnapshot

@@ -50,7 +50,15 @@ let initialization: Promise<void> | null = null;
 let unsubscribe: (() => void) | null = null;
 
 function applyConfig(config?: StoredAudioRecordingConfig): void {
-  if (!config) return;
+  if (!config) {
+    apiServers.value = [];
+    recordingSettings.value = { ...DEFAULT_RECORDING_SETTINGS };
+    backgroundStreaming.value = { enabled: false };
+    sessionMetadata.value = {};
+    sessionMetadataText.value = '';
+    sessionMetadataError.value = '';
+    return;
+  }
   apiServers.value = Array.isArray(config.apiServers) ? config.apiServers : [];
   recordingSettings.value = {
     ...DEFAULT_RECORDING_SETTINGS,

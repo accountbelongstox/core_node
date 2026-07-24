@@ -1,25 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-Assist-Laravel router — local HTTP face of the pyctl AssistWorker.
+Assist-Laravel router — persisted control plane for canonical queue workers.
 
 Endpoints (prefix /api/local/assist):
   GET  /status -> { enabled, capabilities, endpoint:{base_url,label}|null,
-                    running, circuit:{open,cooldown_s}, poll_interval_s,
-                    batch_limit, counters:{claimed,submitted,released,failures},
-                    last_error, last_cycle_at,
+                    running,
                     laravel_status: <passthrough of the selected endpoint's
                     GET /api/app_qy_v1/assist/status; 6s timeout; null on
                     any failure> }
-  POST /config -> persist {enabled?, capabilities?{cover?,tts?,translation?},
-                    poll_interval_s? (5..600), batch_limit? (1..10)} to the
+  POST /config -> persist {enabled?, capabilities?{tts?,translation?}} to the
                     unified user-data store (section ``assist_laravel``) and
-                    apply LIVE: start/stop the assist worker AND gate the
-                    existing translation_worker heartbeat callback under the
-                    same master toggle (enabled && capabilities.translation).
+                    apply live to the dedicated heartbeat workers.
                     -> { ok, config }
-  POST /cycle  -> run ONE claim->generate->submit cycle immediately.
-                    400 while disabled. -> { ok, processed, submitted,
-                    released, errors:[...] }
+  POST /cycle  -> wake one pass of every enabled canonical worker.
 
 Endpoints are plain ``def`` (FastAPI threadpool) because claim/generate/submit
 are blocking — same pattern as ai_image_router.
@@ -35,17 +28,21 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyheartbeat import get_heartbeat_system
 from pycore.pyctl.assist import (
     ASSIST_API_PREFIX,
-    BATCH_LIMIT_MAX,
-    BATCH_LIMIT_MIN,
-    POLL_INTERVAL_MAX,
-    POLL_INTERVAL_MIN,
     load_assist_settings,
     save_assist_settings,
 )
-from pycore.callmodule.services import get_queue_monitor_service
+from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
+from pycore.callmodule.services.translation_worker.worker import (
+    get_translation_worker_service,
+)
+from pycore.callmodule.services.tts_queue_poller_service import (
+    get_tts_queue_poller_service,
+)
+from pycore.callmodule.services.tts_sentence_worker_service import (
+    get_tts_sentence_worker_service,
+)
 from pycore.callmodule.callmodule_config import Config
 from pycore.callmodule.services.assist_wiring import (
-    ensure_assist_worker_wired,
     resolve_selected_endpoint_for_ui,
 )
 from pycore.callmodule.services.assist_capability_sync import apply_assist_runtime
@@ -59,20 +56,21 @@ router = fastapi.APIRouter(prefix="/api/local/assist",
 # Remote (tailscale/cloud) endpoints exceed 2s on a cold hit — 6s keeps the
 # status from falsely reporting the backend as down.
 _LARAVEL_STATUS_TIMEOUT = 6.0
+_RUNTIME_CALLBACKS = (
+    "translation_worker",
+    "tts_queue_poller",
+    "tts_sentence_worker",
+    "subtitle_search_worker",
+)
 
 
 class CapabilitiesPatch(BaseModel):
     # Each capability is optional — omitted keys keep their stored value. These
     # are the per-capability assist toggles the Queue Center exposes; each gates a
-    # real lane/claim (see assist_worker.DEFAULT_SETTINGS + the worker _*_enabled
-    # gates). translation/audio(tts)/sentence_audio/subtitle/poster/image/
-    # ai_translate gate the TranslationWorkerService lanes; cover/tts/poster are
-    # also the AssistWorker claim types.
+    # real canonical worker or lane. Translation, audio, sentence audio, subtitle, STT and AI
+    # translation are pycore-owned. Image and cover work belongs to mcp-chrome.
     translation: Optional[bool] = None
     ai_translate: Optional[bool] = None
-    cover: Optional[bool] = None
-    poster: Optional[bool] = None
-    image: Optional[bool] = None
     tts: Optional[bool] = None
     sentence_audio: Optional[bool] = None
     subtitle: Optional[bool] = None
@@ -82,8 +80,6 @@ class CapabilitiesPatch(BaseModel):
 class ConfigRequest(BaseModel):
     enabled: Optional[bool] = None
     capabilities: Optional[CapabilitiesPatch] = None
-    poll_interval_s: Optional[int] = None  # 5..600
-    batch_limit: Optional[int] = None      # 1..10
 
 
 def _laravel_reachable_from_monitor() -> bool:
@@ -114,6 +110,18 @@ def _fetch_laravel_status(base_url: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _runtime_running() -> bool:
+    """Whether at least one canonical capability worker is enabled."""
+    heartbeat = get_heartbeat_system()
+    for name in _RUNTIME_CALLBACKS:
+        try:
+            if heartbeat.is_callback_enabled(name):
+                return True
+        except Exception:  # noqa: BLE001
+            continue
+    return False
+
+
 def _apply_translation_gate(config: Dict[str, Any]) -> None:
     """Legacy alias — full runtime sync replaces translation-only gate."""
     apply_assist_runtime(config)
@@ -124,10 +132,9 @@ def assist_status(include_laravel: bool = True):
     """
     Full assist snapshot: persisted settings, selected endpoint, worker run
     state + counters, and a best-effort passthrough of the selected Laravel
-    endpoint's own /assist/status (null when unreachable within 2s).
+    endpoint's own /assist/status (null when unreachable within 6s).
     """
     try:
-        worker = ensure_assist_worker_wired()
         settings = load_assist_settings()
         laravel_reachable = _laravel_reachable_from_monitor()
         endpoint = resolve_selected_endpoint_for_ui(monitor_reachable=laravel_reachable)
@@ -135,20 +142,17 @@ def assist_status(include_laravel: bool = True):
             _fetch_laravel_status(endpoint["base_url"])
             if include_laravel and laravel_reachable and endpoint and endpoint.get("base_url") else None
         )
-        worker_state = worker.get_status()
         return {
             "enabled": settings["enabled"],
             "capabilities": settings["capabilities"],
             "endpoint": endpoint,
             "laravel_reachable": laravel_reachable,
-            "running": worker_state["running"],
-            "circuit": worker_state["circuit"],
-            "poll_interval_s": settings["poll_interval_s"],
-            "batch_limit": settings["batch_limit"],
-            "counters": worker_state["counters"],
-            "last_error": worker_state["last_error"],
-            "last_cycle_at": worker_state["last_cycle_at"],
-            "claimer": worker_state["claimer"],
+            "running": _runtime_running(),
+            "circuit": {"open": False, "cooldown_s": 0},
+            "counters": {"claimed": 0, "submitted": 0, "released": 0, "failures": 0},
+            "last_error": None,
+            "last_cycle_at": None,
+            "claimer": None,
             "laravel_status": laravel_status,
         }
     except Exception as exc:  # noqa: BLE001 - never 500; print full traceback
@@ -161,8 +165,6 @@ def assist_status(include_laravel: bool = True):
             "laravel_reachable": False,
             "running": False,
             "circuit": {"open": False, "cooldown_s": 0},
-            "poll_interval_s": 0,
-            "batch_limit": 0,
             "counters": {},
             "last_error": f"status error: {exc}",
             "last_cycle_at": None,
@@ -176,27 +178,11 @@ def assist_status(include_laravel: bool = True):
 def assist_config(req: ConfigRequest):
     """
     Persist a settings patch to user_data.json (section ``assist_laravel``)
-    and apply it live: start/stop the assist polling loop and gate the
-    translation worker. 400 on out-of-range numbers.
+    and apply it live to the canonical queue workers. 400 on invalid numbers.
     """
-    if req.poll_interval_s is not None and not (
-            POLL_INTERVAL_MIN <= req.poll_interval_s <= POLL_INTERVAL_MAX):
-        raise fastapi.HTTPException(
-            status_code=400,
-            detail=f"poll_interval_s must be {POLL_INTERVAL_MIN}..{POLL_INTERVAL_MAX}")
-    if req.batch_limit is not None and not (
-            BATCH_LIMIT_MIN <= req.batch_limit <= BATCH_LIMIT_MAX):
-        raise fastapi.HTTPException(
-            status_code=400,
-            detail=f"batch_limit must be {BATCH_LIMIT_MIN}..{BATCH_LIMIT_MAX}")
-
     patch: Dict[str, Any] = {}
     if req.enabled is not None:
         patch["enabled"] = bool(req.enabled)
-    if req.poll_interval_s is not None:
-        patch["poll_interval_s"] = req.poll_interval_s
-    if req.batch_limit is not None:
-        patch["batch_limit"] = req.batch_limit
     if req.capabilities is not None:
         caps = {k: v for k, v in req.capabilities.dict().items() if v is not None}
         if caps:
@@ -204,12 +190,7 @@ def assist_config(req: ConfigRequest):
 
     config = save_assist_settings(patch)
 
-    # Apply live: start/stop the assist loop + gate the translation worker.
-    worker = ensure_assist_worker_wired()
-    if config["enabled"]:
-        worker.start()
-    else:
-        worker.stop()
+    # The control plane owns capability intent; each queue has one consumer.
     _apply_translation_gate(config)
 
     ColorPrint.green(f"[AssistRouter] Config applied: {config}")
@@ -219,21 +200,45 @@ def assist_config(req: ConfigRequest):
 @router.post("/cycle")
 def assist_cycle():
     """
-    Run ONE claim->generate->submit cycle immediately (synchronous; serialized
-    against the background loop). 400 while the worker is disabled — enable it
-    first via POST /api/local/assist/config.
+    Trigger one pass of each enabled canonical worker.
     """
     settings = load_assist_settings()
     if not settings["enabled"]:
         raise fastapi.HTTPException(
             status_code=400,
-            detail="assist worker is disabled — enable it via POST /api/local/assist/config")
-    worker = ensure_assist_worker_wired()
-    result = worker.run_cycle(settings)
+            detail="queue processing is disabled — enable it first")
+
+    caps = settings.get("capabilities") or {}
+    triggered = 0
+    errors = []
+    if (
+        caps.get("translation", True)
+        or caps.get("ai_translate", True)
+        or caps.get("subtitle", False)
+        or caps.get("stt", False)
+    ):
+        try:
+            get_translation_worker_service(Config.LARAVEL_WORKER_API_URL).poll_once()
+            triggered += 1
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"translation: {exc}")
+    if caps.get("tts", True):
+        try:
+            get_tts_queue_poller_service().poll_and_process()
+            triggered += 1
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"word_audio: {exc}")
+    if caps.get("sentence_audio", True):
+        try:
+            get_tts_sentence_worker_service().poll_and_process()
+            triggered += 1
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"sentence_audio: {exc}")
+
     return {
-        "ok": result["ok"],
-        "processed": result["processed"],
-        "submitted": result["submitted"],
-        "released": result["released"],
-        "errors": result["errors"],
+        "ok": not errors,
+        "processed": triggered,
+        "submitted": 0,
+        "released": 0,
+        "errors": errors,
     }

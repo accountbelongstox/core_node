@@ -20,6 +20,7 @@ import sys
 import subprocess
 from pathlib import Path
 from typing import Optional, List
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
 
 class AppExecutableLauncher:
@@ -184,8 +185,11 @@ class AppExecutableLauncher:
         return False
 
 
-# Global singleton instance
-_app_executable_launcher = None
+_APP_EXECUTABLE_LAUNCHER_PROVIDER = SerializedSingletonProvider(
+    AppExecutableLauncher,
+    "app_executable_launcher.provider",
+    "AppExecutableLauncherProvider",
+)
 
 
 def get_app_executable_launcher() -> AppExecutableLauncher:
@@ -195,7 +199,4 @@ def get_app_executable_launcher() -> AppExecutableLauncher:
     Returns:
         AppExecutableLauncher instance
     """
-    global _app_executable_launcher
-    if _app_executable_launcher is None:
-        _app_executable_launcher = AppExecutableLauncher()
-    return _app_executable_launcher
+    return _APP_EXECUTABLE_LAUNCHER_PROVIDER.get()

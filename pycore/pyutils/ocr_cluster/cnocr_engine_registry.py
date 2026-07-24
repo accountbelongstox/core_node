@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.pybasecommon.compute_caps import is_onnx_cuda_usable
+from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 from pycore.pyfoundations.third_party import (
     get_third_package_cnocr,
     get_cnocr_prewarmed,
@@ -74,6 +75,9 @@ _PREWARMED_MODEL_KEYS: Dict[str, str] = {
 
 _engines_by_model: Dict[str, Optional[CnOCREngine]] = {}
 _cnocr_module_loaded = False
+_ENGINE_QUEUE = "ocr.cnocr_engine_registry"
+_ENGINE_WORKER = SerializedWorkerThread(_ENGINE_QUEUE, "CnOCREngineRegistryThread")
+_ENGINE_WORKER.start()
 
 
 def _is_cnocr_debug() -> bool:
@@ -109,7 +113,7 @@ def _run_screen_capture_test() -> None:
         if img is None:
             ColorPrint.gray("[CnOCR DEBUG] Screen test skipped: grab returned None")
             return
-        default_eng = get_cnocr_engine_default()
+        default_eng = _get_engine_for_model_key("general")
         if default_eng is None:
             ColorPrint.yellow("[CnOCR DEBUG] Screen test skipped: no default engine")
             return
@@ -218,7 +222,7 @@ def _get_engine_for_model_key(model_key: str) -> Optional[CnOCREngine]:
     return None
 
 
-def ensure_cnocr_loaded_and_engines_initialized() -> bool:
+def _ensure_cnocr_loaded_and_engines_initialized() -> bool:
     """
     Initialize CnOCR at app startup (not lazy). Per OCR_INIT.md: prewarm zh/en/cht,
     then eagerly create and cache all language engines (general, general_en, general_cht)
@@ -229,12 +233,20 @@ def ensure_cnocr_loaded_and_engines_initialized() -> bool:
         return False
     # 默认初始化全部语言（OCR_INIT 文档：prewarm 后立即建 general / general_en / general_cht）
     for model_key in ("general", "general_en", "general_cht"):
-        if get_cnocr_engine_by_model_key(model_key) is None:
+        if _get_engine_for_model_key(model_key) is None:
             ColorPrint.yellow("[CnOCR] Engine %s (from prewarmed) not available after init" % model_key)
     _print_init_status()
     if _is_cnocr_debug():
         _run_screen_capture_test()
     return True
+
+
+def ensure_cnocr_loaded_and_engines_initialized() -> bool:
+    return call_serialized(
+        _ENGINE_QUEUE,
+        _ensure_cnocr_loaded_and_engines_initialized,
+        timeout=600.0,
+    )
 
 
 def get_cnocr_engine_default() -> Optional[CnOCREngine]:
@@ -244,4 +256,9 @@ def get_cnocr_engine_default() -> Optional[CnOCREngine]:
 
 def get_cnocr_engine_by_model_key(model_key: str) -> Optional[CnOCREngine]:
     """Return engine for model key: general, number, document."""
-    return _get_engine_for_model_key(model_key)
+    return call_serialized(
+        _ENGINE_QUEUE,
+        _get_engine_for_model_key,
+        model_key,
+        timeout=600.0,
+    )

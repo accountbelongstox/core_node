@@ -9,7 +9,10 @@
  * ask for. Every mutation goes through here; nothing else writes this key.
  */
 
-import type { CapabilityKey } from '@/utils/task-capabilities';
+import {
+  CAPABILITY_BY_KEY,
+  type CapabilityKey,
+} from '@/utils/task-capabilities';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 /** Persisted shape. Absent => treated as { running:false, activeCapabilities:[] }. */
@@ -30,9 +33,12 @@ export async function getRunIntent(): Promise<RunIntent> {
     if (!raw || typeof raw !== 'object') return { ...DEFAULT_INTENT };
     const running = raw.running === true;
     const activeCapabilities = Array.isArray(raw.activeCapabilities)
-      ? (raw.activeCapabilities.filter((k: unknown): k is CapabilityKey => typeof k === 'string') as CapabilityKey[])
+      ? raw.activeCapabilities.filter(
+          (key: unknown): key is CapabilityKey =>
+            typeof key === 'string' && key in CAPABILITY_BY_KEY,
+        )
       : [];
-    return { running, activeCapabilities };
+    return { running: running && activeCapabilities.length > 0, activeCapabilities };
   } catch {
     return { ...DEFAULT_INTENT };
   }
@@ -48,7 +54,10 @@ export async function setRunIntent(intent: RunIntent): Promise<void> {
       activeCapabilities.push(key);
     }
   }
-  const payload: RunIntent = { running: intent.running === true, activeCapabilities };
+  const payload: RunIntent = {
+    running: intent.running === true && activeCapabilities.length > 0,
+    activeCapabilities,
+  };
   try {
     await chrome.storage.local.set({ [STORAGE_KEY]: payload });
   } catch {

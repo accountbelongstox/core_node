@@ -37,8 +37,8 @@ export const END_META: Record<Exclude<EndId, 'home'>, { label: string; path: str
 /**
  * Per-app live-service gate: which ends keep the pycore live bus (WS + SSE on
  * :59000) CONNECTED. Every other end SUSPENDS it — the connection is closed and
- * stops reconnecting — so being on, say, /wordnew never reconnect-spams the pycore
- * backend; navigating back to a pycore end resumes it. The shell applies this on
+ * stops reconnecting. Wordnew stays connected because queue priority and Daily
+ * Reading publication events are owned by pycore. The shell applies this on
  * every route change (ShellContext) via setPycoreActive(). Background services run
  * ONLY under their owning route; everything else is paused, not torn down.
  */
@@ -46,7 +46,7 @@ export const END_USES_PYCORE: Record<EndId, boolean> = {
   'home': false,
   'laravel-manager': false,
   'pycore-manager': true,
-  'wordflow': false,   // the word-learning end (wordnew) does not use the pycore bus
+  'wordflow': true,    // queue priority + Daily Reading publication events
   'vortex': true,      // OKX panels drive the pycore RPC bus
   'pdd-manager': false, // admin console talks only to laravel_main :9000, no pycore bus
 };

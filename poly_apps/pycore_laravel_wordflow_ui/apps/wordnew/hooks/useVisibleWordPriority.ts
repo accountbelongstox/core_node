@@ -6,14 +6,16 @@ const VISIBLE_PRIORITY = 200;
 const MAX_BATCH_SIZE = 100;
 
 export interface VisiblePriorityWord {
-  md5: string;
+  md5?: string;
   word: string;
   hasTranslation: boolean;
   hasAudio: boolean;
+  hasImage: boolean;
 }
 
 interface PendingVisibleWord extends VisiblePriorityWord {
   language: string;
+  queueKey: string;
 }
 
 export function useVisibleWordPriority(language: string, targetLanguage: string) {
@@ -34,12 +36,13 @@ export function useVisibleWordPriority(language: string, targetLanguage: string)
   flushRef.current = () => {
     timerRef.current = null;
     const rows = Array.from(pendingRef.current.values()).slice(0, MAX_BATCH_SIZE);
-    for (const row of rows) pendingRef.current.delete(row.md5);
+    for (const row of rows) pendingRef.current.delete(row.queueKey);
     if (rows.length === 0) return;
     const translationWords = rows.filter((row) => !row.hasTranslation).map((row) => row.word);
-    const audioItems = rows
-      .filter((row) => !row.hasAudio && row.md5)
-      .map((row) => ({ md5: row.md5, lang: row.language }));
+    const audioWords = rows.filter((row) => !row.hasAudio).map((row) => row.word);
+    const imageItems = rows
+      .filter((row) => !row.hasImage && row.word)
+      .map((row) => ({ word: row.word, language: row.language }));
     const requests: Promise<unknown>[] = [];
     if (translationWords.length > 0) {
       requests.push(pycoreApi.stackQueue(
@@ -49,7 +52,10 @@ export function useVisibleWordPriority(language: string, targetLanguage: string)
         VISIBLE_PRIORITY,
       ));
     }
-    if (audioItems.length > 0) requests.push(pycoreApi.boostWordAudioPriorities(audioItems));
+    if (audioWords.length > 0) {
+      requests.push(pycoreApi.prioritizeWordAudioWords(audioWords, languageRef.current));
+    }
+    if (imageItems.length > 0) requests.push(pycoreApi.prioritizeWordImages(imageItems));
     void Promise.allSettled(requests).finally(() => {
       if (pendingRef.current.size > 0 && timerRef.current === null) {
         timerRef.current = setTimeout(() => flushRef.current(), FLUSH_DELAY_MS);
@@ -68,11 +74,16 @@ export function useVisibleWordPriority(language: string, targetLanguage: string)
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
         const word = elementWordsRef.current.get(entry.target);
-        if (!word || (word.hasTranslation && word.hasAudio)) continue;
-        const key = `${languageRef.current}:${targetLanguageRef.current}:${word.md5}`;
+        if (!word || (word.hasTranslation && word.hasAudio && word.hasImage)) continue;
+        const wordKey = word.md5 || word.word.toLocaleLowerCase();
+        const key = `${languageRef.current}:${targetLanguageRef.current}:${wordKey}`;
         if (notifiedRef.current.has(key)) continue;
         notifiedRef.current.add(key);
-        pendingRef.current.set(word.md5, { ...word, language: languageRef.current });
+        pendingRef.current.set(wordKey, {
+          ...word,
+          language: languageRef.current,
+          queueKey: wordKey,
+        });
       }
       if (pendingRef.current.size > 0 && timerRef.current === null) {
         timerRef.current = setTimeout(() => flushRef.current(), FLUSH_DELAY_MS);
@@ -89,24 +100,25 @@ export function useVisibleWordPriority(language: string, targetLanguage: string)
   }, [language, targetLanguage]);
 
   const bindRef = useRef((word: VisiblePriorityWord) => {
-    latestWordsRef.current.set(word.md5, word);
-    const currentElement = elementsRef.current.get(word.md5);
+    const wordKey = word.md5 || word.word.toLocaleLowerCase();
+    latestWordsRef.current.set(wordKey, word);
+    const currentElement = elementsRef.current.get(wordKey);
     if (currentElement) elementWordsRef.current.set(currentElement, word);
-    let callback = callbacksRef.current.get(word.md5);
+    let callback = callbacksRef.current.get(wordKey);
     if (!callback) {
       callback = (element: HTMLElement | null) => {
-        const previous = elementsRef.current.get(word.md5);
+        const previous = elementsRef.current.get(wordKey);
         if (previous) {
           observerRef.current?.unobserve(previous);
           elementWordsRef.current.delete(previous);
-          elementsRef.current.delete(word.md5);
+          elementsRef.current.delete(wordKey);
         }
         if (!element) return;
-        elementsRef.current.set(word.md5, element);
-        elementWordsRef.current.set(element, latestWordsRef.current.get(word.md5) || word);
+        elementsRef.current.set(wordKey, element);
+        elementWordsRef.current.set(element, latestWordsRef.current.get(wordKey) || word);
         observerRef.current?.observe(element);
       };
-      callbacksRef.current.set(word.md5, callback);
+      callbacksRef.current.set(wordKey, callback);
     }
     return callback;
   });

@@ -86,9 +86,8 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [lang]);
 
   // Per-app live-service gate: scope the pycore live bus (WS/SSE :59000) to the
-  // ends that use it. On every other route it is SUSPENDED so an inactive end
-  // (e.g. /wordnew) never reconnect-spams the pycore backend; returning to a
-  // pycore end (pycore-manager / vortex) resumes it. See END_USES_PYCORE.
+  // ends that use it. Wordnew uses the bus for queue priority and Daily Reading
+  // publication events; unrelated ends remain suspended. See END_USES_PYCORE.
   useEffect(() => {
     setPycoreActive(END_USES_PYCORE[end]);
   }, [end]);

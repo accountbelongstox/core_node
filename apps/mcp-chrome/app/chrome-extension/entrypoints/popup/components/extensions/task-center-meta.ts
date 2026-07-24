@@ -30,7 +30,7 @@ export interface TaskTypeMeta {
 /** Covers the unified task types plus the local bing_dictionary worker kind. */
 export const TASK_TYPE_META: Record<string, TaskTypeMeta> = {
   word_translation: { label: 'Word Translation', icon: '🔤', badge: 'TRANSLATE', zhLabel: '待翻译任务', color: '#818cf8' },
-  word_media: { label: 'Word Media', icon: '🖼️', badge: 'MEDIA', zhLabel: '待生成图片', color: '#a78bfa' },
+  word_media: { label: 'Word Image', icon: '🖼️', badge: 'WORD IMAGE', zhLabel: '待搜索单词图片', color: '#a78bfa' },
   word_audio: { label: 'Word Audio', icon: '🔊', badge: 'AUDIO', zhLabel: '待生成语音', color: '#2dd4bf' },
   gemini_image: { label: 'Gemini Image', icon: '🎨', badge: 'IMAGE', zhLabel: '待 AI 生图', color: '#c084fc' },
   gemini_chat: { label: 'Gemini Chat', icon: '💬', badge: 'CHAT', zhLabel: '待 AI 对话', color: '#f472b6' },
@@ -38,7 +38,7 @@ export const TASK_TYPE_META: Record<string, TaskTypeMeta> = {
   word_validity: { label: 'Word Validity', icon: '✅', badge: 'VALIDITY', zhLabel: '待有效检测', color: '#22c55e' },
   prompt_translation: { label: 'Prompt Translation', icon: '🌐', badge: 'PROMPT', zhLabel: '待提示词翻译', color: '#06b6d4' },
   sentence_audio: { label: 'Sentence Audio', icon: '🎧', badge: 'SENTENCE', zhLabel: '待句子音频', color: '#34d399' },
-  poster: { label: 'Poster', icon: '🎬', badge: 'POSTER', zhLabel: '待生成海报', color: '#fb7185' },
+  poster: { label: 'Book / Media Cover', icon: '🎬', badge: 'COVER', zhLabel: '待搜索图书封面', color: '#fb7185' },
   subtitle_search: { label: 'Subtitle Search', icon: '💬', badge: 'SUBTITLE', zhLabel: '待字幕搜索', color: '#60a5fa' },
   bing_dictionary: { label: 'Bing Dictionary', icon: '📖', badge: 'DICT' },
 };

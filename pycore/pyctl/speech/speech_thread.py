@@ -46,26 +46,28 @@ class SpeechTranscriptionThread(threading.Thread):
             daemon: Run as daemon thread
         """
         super().__init__(name="SpeechTranscriptionThread", daemon=daemon)
-
-        self.mode = mode
-        self.mic_language = mic_language
-        self.system_language = system_language
-
+        self._config_signal = f"speech.transcription.config.{id(self)}"
         self._stop_signal = f"speech.transcription.stop.{id(self)}"
+        THREAD_BUS.signal(self._config_signal, {
+            "mode": mode,
+            "mic_language": mic_language,
+            "system_language": system_language,
+        })
         THREAD_BUS.clear_signal(self._stop_signal)
-        self._speech_initialized = False
 
         ColorPrint.blue(f"[SpeechThread] Initialized - Mode: {mode}")
 
     def run(self):
         """Thread main execution"""
         ColorPrint.green("[SpeechThread] Starting...")
+        config = dict(THREAD_BUS.get_signal(self._config_signal, {}) or {})
+        mode = str(config.get("mode") or "single")
 
         # Send startup message via THREAD_BUS
         THREAD_BUS.signal("speech.thread.started", {
-            "mode": self.mode,
-            "mic_language": self.mic_language,
-            "system_language": self.system_language
+            "mode": mode,
+            "mic_language": config.get("mic_language"),
+            "system_language": config.get("system_language"),
         })
 
         # Initialize speech manager
@@ -77,18 +79,17 @@ class SpeechTranscriptionThread(threading.Thread):
             })
             return
 
-        self._speech_initialized = True
         ColorPrint.green("[SpeechThread] Speech manager initialized")
 
         # Run appropriate mode
-        if self.mode == "single":
+        if mode == "single":
             self._run_single_source()
-        elif self.mode == "dual":
+        elif mode == "dual":
             self._run_dual_source()
         else:
-            ColorPrint.red(f"[SpeechThread] Unknown mode: {self.mode}")
+            ColorPrint.red(f"[SpeechThread] Unknown mode: {mode}")
             THREAD_BUS.signal("speech.thread.error", {
-                "error": f"Unknown mode: {self.mode}"
+                "error": f"Unknown mode: {mode}"
             })
             return
 
@@ -148,44 +149,43 @@ class SpeechServiceThread(threading.Thread):
             daemon: Run as daemon thread
         """
         super().__init__(name="SpeechServiceThread", daemon=daemon)
-
-        self.auto_start = auto_start
+        self._config_signal = f"speech.service.config.{id(self)}"
         self._stop_signal = f"speech.service.stop.{id(self)}"
+        THREAD_BUS.signal(self._config_signal, {"auto_start": bool(auto_start)})
         THREAD_BUS.clear_signal(self._stop_signal)
-        self._service_initialized = False
-        self._speech_manager = None
 
         ColorPrint.blue(f"[SpeechService] Initialized - Auto-start: {auto_start}")
 
     def run(self):
         """Thread main execution"""
         ColorPrint.green("[SpeechService] Starting...")
+        config = dict(THREAD_BUS.get_signal(self._config_signal, {}) or {})
+        auto_start = bool(config.get("auto_start"))
 
         # Send startup message
         THREAD_BUS.signal("speech.service.started", {
-            "auto_start": self.auto_start
+            "auto_start": auto_start
         })
 
         # Initialize speech manager
-        self._speech_manager = get_speech_manager()
+        speech_manager = get_speech_manager()
 
-        if not self._speech_manager.initialize():
+        if not speech_manager.initialize():
             ColorPrint.red("[SpeechService] Failed to initialize")
             THREAD_BUS.signal("speech.service.error", {
                 "error": "Initialization failed"
             })
             return
 
-        self._service_initialized = True
         ColorPrint.green("[SpeechService] Initialized and ready")
 
         THREAD_BUS.signal("speech.service.ready", {
-            "stt_available": self._speech_manager.is_stt_available(),
-            "tts_available": self._speech_manager.is_tts_available()
+            "stt_available": speech_manager.is_stt_available(),
+            "tts_available": speech_manager.is_tts_available()
         })
 
         # Auto-start if requested
-        if self.auto_start:
+        if auto_start:
             ColorPrint.blue("[SpeechService] Auto-starting transcription...")
             THREAD_BUS.signal("speech.service.auto_start", {})
 
@@ -194,7 +194,7 @@ class SpeechServiceThread(threading.Thread):
             # Check for commands from message queue
             command = THREAD_BUS.receive_message("speech.service.commands", block=False)
             if command:
-                self._handle_command(command)
+                self._handle_command(command, speech_manager)
 
             time.sleep(0.1)  # Short sleep to avoid busy-wait
 
@@ -202,7 +202,7 @@ class SpeechServiceThread(threading.Thread):
         ColorPrint.yellow("[SpeechService] Stopped")
         THREAD_BUS.signal("speech.service.stopped", {})
 
-    def _handle_command(self, command: Dict[str, Any]):
+    def _handle_command(self, command: Dict[str, Any], speech_manager: Any):
         """Handle command from message queue"""
         cmd_type = command.get("type")
 
@@ -218,13 +218,10 @@ class SpeechServiceThread(threading.Thread):
             self.stop()
 
         elif cmd_type == "status":
-            if self._speech_manager:
-                status = self._speech_manager.get_status()
-            else:
-                status = {"initialized": False}
+            status = speech_manager.get_status()
 
             THREAD_BUS.signal("speech.service.status_response", {
-                "initialized": self._service_initialized,
+                "initialized": True,
                 "running": self.is_running(),
                 "speech_status": status
             })

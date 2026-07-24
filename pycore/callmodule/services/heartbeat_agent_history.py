@@ -9,8 +9,11 @@ Shared by callmodule_main (native_ui path) and event_handlers
 import os
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.user_data_store import get_user_data_store
 from pycore.pyheartbeat import get_heartbeat_system
-from pycore.callmodule.services import get_agent_history_tick_service
+from pycore.callmodule.services.agent_history_tick_service import (
+    get_agent_history_tick_service,
+)
 
 
 def register_agent_history_extraction() -> None:
@@ -20,14 +23,18 @@ def register_agent_history_extraction() -> None:
     Architecture:
     - Callback name: 'agent_history_extraction'
     - Interval: PYCORE_AGENT_HISTORY_INTERVAL env (default 10s)
-    - Initial state: ENABLED by default
+    - Initial state: persisted Agent History Auto setting
     - Store: <cache>/pycore/.ai_state/agent_history/*.txt
     - Control: POST /api/heartbeat/enable|disable/agent_history_extraction
     """
     heartbeat = get_heartbeat_system()
     service = get_agent_history_tick_service()
     interval = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
-    enabled = os.environ.get("PYCORE_AGENT_HISTORY_ENABLED", "1").strip().lower() not in ("0", "false", "no")
+    config = get_user_data_store().get_section("agent_history_article") or {}
+    env_enabled = os.environ.get("PYCORE_AGENT_HISTORY_ENABLED")
+    enabled = bool(config.get("enabled", False)) if env_enabled is None else (
+        env_enabled.strip().lower() not in ("0", "false", "no")
+    )
 
     heartbeat.register_callback(
         name='agent_history_extraction',

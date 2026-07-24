@@ -8,9 +8,11 @@
 
     <div class="tk-cap-summary">
       <span>Selections are synchronized with Settings Center.</span>
-      <strong>{{ checkedNonStubKeys.length }} selected</strong>
+      <strong>{{ checkedCapabilityKeys.length }} selected</strong>
       <span v-if="isRunning">{{ state.activeCapabilities.length }} active</span>
     </div>
+
+    <p v-if="error" class="tk-error">{{ error }}</p>
 
     <div class="flex items-center justify-between">
       <span class="text-xs" style="color: var(--text-muted)">选择任务后点击开始 · Select tasks then Start</span>
@@ -26,15 +28,16 @@
         <button
           class="px-4 py-2 bg-purple-500 text-white font-medium rounded-lg hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm"
           @click="toggleCenter"
-          :disabled="!config.apiUrl || (!isRunning && checkedNonStubKeys.length === 0)"
+          :disabled="!isRunning && (!config.apiUrl || checkedCapabilityKeys.length === 0)"
         >
           {{ isRunning ? 'Stop' : 'Start' }}
         </button>
       </div>
     </div>
 
-    <!-- Backend REQUEST status + validity runner progress (from get_status). -->
-    <div v-if="state.backend || showValidity" class="tk-status">
+    <!-- Production Laravel request status. Single-feature validity diagnostics
+         stay in the Extension test panel. -->
+    <div v-if="state.backend" class="tk-status">
       <div v-if="state.backend" class="tk-be" :class="backendOnline ? 'tk-be--on' : 'tk-be--off'">
         <span class="tk-be-dot">{{ backendOnline ? '●' : '○' }}</span>
         <span class="tk-be-label">{{ backendOnline ? 'Backend online' : 'Backend offline' }}</span>
@@ -45,15 +48,6 @@
         >· {{ state.backend.consecutiveFailures }} fails</span>
         <span v-if="state.backend.lastError" class="tk-be-err" :title="state.backend.lastError">
           · {{ state.backend.lastError }}
-        </span>
-      </div>
-      <div v-if="showValidity && state.validity" class="tk-validity">
-        有效检测 Validity: round {{ state.validity.rounds }}
-        · +{{ state.validity.totalValid }} valid
-        · +{{ state.validity.totalInvalid }} invalid
-        <span v-if="state.validity.running" class="tk-validity-run">· running</span>
-        <span v-if="state.validity.lastError" class="tk-be-err" :title="state.validity.lastError">
-          · {{ state.validity.lastError }}
         </span>
       </div>
     </div>
@@ -143,17 +137,18 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref, computed, watch } from 'vue';
+import { nextTick, onMounted, ref, computed, watch } from 'vue';
 import { useTaskCenter } from '../../composables/useTaskCenter';
 import { useTaskCapabilities } from '../../composables/useTaskCapabilities';
 import { usePersistedRef } from '@/composables/usePersistedRef';
-import { CAPABILITIES } from '@/utils/task-capabilities';
+import { CAPABILITIES, type CapabilityKey } from '@/utils/task-capabilities';
 import TaskCapabilitySelector from '../TaskCapabilitySelector.vue';
 import UnifiedTaskCenter from './UnifiedTaskCenter.vue';
 
 const {
   config,
   state,
+  error,
   startTaskCenter,
   stopTaskCenter,
   setCapability,
@@ -167,6 +162,9 @@ const unifiedRef = ref<{ loadAll: () => Promise<void> } | null>(null);
 // Collapse the long per-processor list by default (persisted). The 4-tile
 // summary bento above stays visible; only the 12-row detail folds.
 const showProcessors = usePersistedRef('tkShowProcessors', false);
+const suppressedCapabilityChanges = new Set<CapabilityKey>();
+const capabilityRequestVersions = new Map<CapabilityKey, number>();
+const capabilityRequestQueues = new Map<CapabilityKey, Promise<void>>();
 
 // ── Capability checkboxes ─────────────────────────────────────────────
 // Rendered straight from the shared catalog so the popup UI and the background
@@ -174,20 +172,36 @@ const showProcessors = usePersistedRef('tkShowProcessors', false);
 // ref per capability (survives popup blur/close), keyed by its catalog storageKey.
 const {
   capabilityState: capState,
-  enabledKeys: checkedNonStubKeys,
+  enabledKeys: checkedCapabilityKeys,
 } = useTaskCapabilities();
 
 const isRunning = computed(() => state.value.isRunning);
 
-// Live switches: WHILE running, toggling a (non-stub) checkbox flips that lane
+// Live switches: WHILE running, toggling a checkbox flips that lane
 // on/off immediately via set_capability — no full restart. While stopped, the
 // persisted ref just remembers the choice for the next Start.
 for (const def of CAPABILITIES) {
-  if (def.stub) continue;
   watch(capState[def.key], (enabled) => {
-    if (state.value.isRunning) {
-      void setCapability(def.key, enabled);
-    }
+    if (!state.value.isRunning || suppressedCapabilityChanges.has(def.key)) return;
+    const version = (capabilityRequestVersions.get(def.key) || 0) + 1;
+    capabilityRequestVersions.set(def.key, version);
+    const previous = capabilityRequestQueues.get(def.key) || Promise.resolve();
+    const request = previous.then(async () => {
+      const accepted = await setCapability(def.key, enabled);
+      if (accepted || capabilityRequestVersions.get(def.key) !== version) return;
+
+      suppressedCapabilityChanges.add(def.key);
+      capState[def.key].value = state.value.activeCapabilities.includes(def.key);
+      await nextTick();
+      suppressedCapabilityChanges.delete(def.key);
+    });
+    const cleanup = () => {
+      if (capabilityRequestQueues.get(def.key) === request) {
+        capabilityRequestQueues.delete(def.key);
+      }
+    };
+    capabilityRequestQueues.set(def.key, request);
+    void request.then(cleanup, cleanup);
   });
 }
 
@@ -197,16 +211,10 @@ const backendLastRequest = computed(() =>
   state.value.backend?.lastRequestAt ? formatTimestamp(state.value.backend.lastRequestAt) : '',
 );
 
-// Show the validity progress line whenever the runner has run or is running.
-const showValidity = computed(() => {
-  const v = state.value.validity;
-  return !!v && (v.running || v.rounds > 0 || v.done);
-});
-
 const onStart = async () => {
   // 1. Immediately populate every lane's pending count, THEN 2. start lanes.
   await unifiedRef.value?.loadAll?.();
-  await startTaskCenter(checkedNonStubKeys.value);
+  await startTaskCenter(checkedCapabilityKeys.value);
 };
 
 const onStop = async () => {
@@ -224,13 +232,25 @@ const toggleCenter = async () => {
 const getProcessorName = (type: string): string => {
   const names: Record<string, string> = {
     bing_dictionary: 'Bing Dictionary',
+    qwen_tts: 'Qwen3 TTS',
+    word_validity_web: 'Word Validity',
+    web_ai_translate: 'Web-AI Translate',
     deepseek: 'DeepSeek AI',
   };
   return names[type] || type;
 };
 
-onMounted(() => {
-  initialize();
+onMounted(async () => {
+  await initialize();
+  if (state.value.isRunning) {
+    const active = new Set(state.value.activeCapabilities);
+    for (const capability of CAPABILITIES) {
+      suppressedCapabilityChanges.add(capability.key);
+      capState[capability.key].value = active.has(capability.key);
+    }
+    await nextTick();
+    suppressedCapabilityChanges.clear();
+  }
 });
 </script>
 
@@ -250,6 +270,15 @@ onMounted(() => {
 .tk-cap-summary strong {
   color: var(--text);
   white-space: nowrap;
+}
+.tk-error {
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid rgb(244 63 94 / 35%);
+  border-radius: 8px;
+  background: rgb(244 63 94 / 10%);
+  color: #fb7185;
+  font-size: 10px;
 }
 
 /* ── Collapsible section header ── */
@@ -271,7 +300,7 @@ onMounted(() => {
 .tk-collapse:hover { border-color: var(--accent); background: var(--surface); }
 .tk-collapse-caret { font-size: 9px; color: var(--text-faint); }
 
-/* ── Backend status + validity progress strip ── */
+/* ── Backend status strip ── */
 .tk-status {
   display: flex; flex-direction: column; gap: 3px;
   padding: 6px 8px; border-radius: 8px;
@@ -290,9 +319,6 @@ onMounted(() => {
   color: #f43f5e; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.tk-validity { color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.tk-validity-run { color: var(--success, #10b981); font-weight: 700; }
-
 .tk-input {
   background: var(--surface-2);
   border: 2px solid var(--border);

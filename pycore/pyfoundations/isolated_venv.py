@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence
 
@@ -221,20 +222,117 @@ def _recreate_venv(engine: str) -> bool:
     return _run([sys.executable, "-m", "venv", "--system-site-packages", str(target)])
 
 
+def _local_shared_overrides(venv_python: str, package_names: Sequence[str]) -> List[str]:
+    if not package_names:
+        return []
+    code = (
+        "import importlib.metadata as m, pathlib, sys\n"
+        f"names = {list(package_names)!r}\n"
+        "prefix = pathlib.Path(sys.prefix).resolve()\n"
+        "for name in names:\n"
+        "    try:\n"
+        "        location = pathlib.Path(m.distribution(name).locate_file('')).resolve()\n"
+        "        location.relative_to(prefix)\n"
+        "    except (m.PackageNotFoundError, OSError, ValueError):\n"
+        "        continue\n"
+        "    print(name)\n"
+    )
+    try:
+        result = subprocess.run(
+            [venv_python, "-c", code],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except OSError:
+        return []
+    if result.returncode != 0:
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _remove_local_shared_overrides(venv_python: str, package_names: Sequence[str]) -> bool:
+    overrides = _local_shared_overrides(venv_python, package_names)
+    if not overrides:
+        return True
+    ColorPrint.yellow(
+        "[isolated-venv] removing local shared-runtime overrides: " + ", ".join(overrides)
+    )
+    return _run([venv_python, "-m", "pip", "uninstall", "-y", *overrides])
+
+
+def _shared_constraints(venv_python: str, package_names: Sequence[str]) -> List[str]:
+    if not package_names:
+        return []
+    code = (
+        "import importlib.metadata as m\n"
+        f"names = {list(package_names)!r}\n"
+        "for name in names:\n"
+        "    try:\n"
+        "        print(f'{name}=={m.version(name)}')\n"
+        "    except m.PackageNotFoundError:\n"
+        "        pass\n"
+    )
+    try:
+        result = subprocess.run(
+            [venv_python, "-c", code],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except OSError:
+        return []
+    if result.returncode != 0:
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
 def _install_into(
     venv_python: str,
     pip_packages: Sequence[str],
     pins: Sequence[str],
     health_imports: str,
     force: bool,
+    shared_packages: Sequence[str],
+    managed_venv: bool,
 ) -> bool:
+    constraint_path: Optional[Path] = None
     if not force and _venv_healthy(venv_python, health_imports):
         return True
+    if managed_venv and not _remove_local_shared_overrides(venv_python, shared_packages):
+        return False
     install_list = [*pins, *pip_packages]
-    if install_list:
-        ColorPrint.blue(f"[isolated-venv] installing: {', '.join(install_list)}")
-        if not _run([venv_python, "-m", "pip", "install", *install_list]):
-            return False
+    constraints = _shared_constraints(venv_python, shared_packages)
+    try:
+        pip_args = [venv_python, "-m", "pip", "install"]
+        if constraints:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                prefix="pycore-shared-runtime-",
+                suffix=".txt",
+                delete=False,
+            ) as handle:
+                handle.write("\n".join(constraints) + "\n")
+                constraint_path = Path(handle.name)
+            pip_args.extend(["--constraint", str(constraint_path)])
+            ColorPrint.blue(
+                "[isolated-venv] preserving shared runtime: " + ", ".join(constraints)
+            )
+        if install_list:
+            ColorPrint.blue(f"[isolated-venv] installing: {', '.join(install_list)}")
+            if not _run([*pip_args, *install_list]):
+                return False
+    finally:
+        if constraint_path is not None:
+            try:
+                constraint_path.unlink(missing_ok=True)
+            except OSError:
+                pass
     if not _venv_healthy(venv_python, health_imports):
         ColorPrint.yellow("[isolated-venv] import-health probe still fails after install")
         return False
@@ -252,6 +350,7 @@ def ensure_venv(
     spec = engine_spec(engine)
     packages = tuple(spec.get("packages", ())) if pip_packages is None else tuple(pip_packages)
     resolved_pins = tuple(spec.get("pins", ())) if pins is None else tuple(pins)
+    shared_packages = tuple(spec.get("shared_packages", ()))
     probe = health_imports or spec.get("health_imports") or _default_health_imports(packages, resolved_pins)
     probe = _gpu_required_probe(engine, probe)
     override = (os.environ.get(_override_env(engine)) or "").strip()
@@ -259,7 +358,15 @@ def ensure_venv(
     if override and Path(override).is_file() and not _same_interpreter(override, sys.executable):
         if not _compatible(engine, override):
             return None
-        if not _install_into(override, packages, resolved_pins, probe, force):
+        if not _install_into(
+            override,
+            packages,
+            resolved_pins,
+            probe,
+            force,
+            shared_packages,
+            managed_venv=False,
+        ):
             return None
         return override
 
@@ -267,16 +374,24 @@ def ensure_venv(
         return None
 
     python_path = _venv_python_path(engine)
-    needs_rebuild = (
-        force
-        or not python_path.is_file()
-        or not _stamp_matches(engine)
-        or not _venv_healthy(str(python_path), probe)
-    )
+    needs_rebuild = force or not python_path.is_file()
+    if python_path.is_file() and not _interpreter_version(str(python_path)):
+        needs_rebuild = True
     if needs_rebuild:
         if not _recreate_venv(engine) or not python_path.is_file():
             return None
-        if not _install_into(str(python_path), packages, resolved_pins, probe, force=True):
+
+    needs_repair = needs_rebuild or not _stamp_matches(engine) or not _venv_healthy(str(python_path), probe)
+    if needs_repair:
+        if not _install_into(
+            str(python_path),
+            packages,
+            resolved_pins,
+            probe,
+            force=force,
+            shared_packages=shared_packages,
+            managed_venv=True,
+        ):
             return None
         _write_stamp(engine)
 

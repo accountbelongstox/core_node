@@ -24,7 +24,7 @@ from pycore.pyutils.device.scrcpy_device import ScrcpyDevice, ServerParams, Vide
 from pycore.pyutils.device.port_pool import PortPool
 from pycore import ColorPrint
 from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyfoundations.serialized_worker import await_bus_task
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider, await_bus_task
 
 
 class DeviceConnectionState(Enum):
@@ -398,8 +398,25 @@ class ConnectionManager:
         return list(self.connections.keys())
 
 
-# ✅ 延迟初始化（需要先初始化依赖组件）
-_connection_manager: Optional[ConnectionManager] = None
+def _create_connection_manager(
+    device_manager=None,
+    port_pool=None,
+    server_manager=None,
+    adb_path: str = "adb",
+) -> ConnectionManager:
+    if device_manager is None or port_pool is None or server_manager is None:
+        raise ValueError(
+            "device_manager, port_pool, and server_manager are required "
+            "for first initialization"
+        )
+    return ConnectionManager(device_manager, port_pool, server_manager, adb_path)
+
+
+_CONNECTION_MANAGER_PROVIDER = SerializedSingletonProvider(
+    _create_connection_manager,
+    "device.connection_manager.provider",
+    "ConnectionManagerProvider",
+)
 
 def get_connection_manager(
     device_manager=None,
@@ -419,19 +436,11 @@ def get_connection_manager(
     Returns:
         ConnectionManager全局实例
     """
-    global _connection_manager
-    if _connection_manager is None:
-        if device_manager is None or port_pool is None or server_manager is None:
-            raise ValueError(
-                "首次调用get_connection_manager()需要提供 "
-                "device_manager, port_pool, server_manager"
-            )
-        _connection_manager = ConnectionManager(
-            device_manager=device_manager,
-            port_pool=port_pool,
-            server_manager=server_manager,
-            adb_path=adb_path
-        )
-    return _connection_manager
+    return _CONNECTION_MANAGER_PROVIDER.get(
+        device_manager,
+        port_pool,
+        server_manager,
+        adb_path,
+    )
 
 __all__ = ['ConnectionManager', 'DeviceConnection', 'DeviceConnectionState', 'get_connection_manager']

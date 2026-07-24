@@ -211,7 +211,7 @@ def engine_unavailable_reason(name: str) -> Optional[str]:
         return "edge-tts client failed to initialize (check package / network)"
 
     if name == "parler":
-        return "Parler-TTS is disabled because qwen-tts requires transformers==4.57.3"
+        return "Parler-TTS is disabled because qwen-tts owns an isolated transformer dependency set"
 
     return None
 

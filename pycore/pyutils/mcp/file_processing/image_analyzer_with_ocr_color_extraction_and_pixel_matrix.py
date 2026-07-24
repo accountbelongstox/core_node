@@ -10,6 +10,7 @@ import hashlib
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont, get_third_package_numpy
 
 import os
@@ -261,11 +262,12 @@ class ImageAnalyzerWithOCRColorExtractionAndPixelMatrix:
         return sha256_hash.hexdigest()
 
 
-_image_analyzer_instance = None
+_IMAGE_ANALYZER_PROVIDER = SerializedSingletonProvider(
+    ImageAnalyzerWithOCRColorExtractionAndPixelMatrix,
+    "mcp.image_analyzer.provider",
+    "MCPImageAnalyzerProviderThread",
+)
 
 def get_image_analyzer_singleton() -> ImageAnalyzerWithOCRColorExtractionAndPixelMatrix:
     """Get singleton instance of image analyzer"""
-    global _image_analyzer_instance
-    if _image_analyzer_instance is None:
-        _image_analyzer_instance = ImageAnalyzerWithOCRColorExtractionAndPixelMatrix()
-    return _image_analyzer_instance
+    return _IMAGE_ANALYZER_PROVIDER.get()

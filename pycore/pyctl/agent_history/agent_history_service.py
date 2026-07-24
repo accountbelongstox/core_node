@@ -2,7 +2,7 @@
 """
 Local AI agent history extractor — pycore twin of Laravel DeveloperHistoryService.
 
-Incrementally scans Claude/Codex/Cursor/Gemini/Kimi/Antigravity source files
+Incrementally scans Agent/Claude/Codex/Cursor/Gemini/Kimi/Antigravity/Cline/Ark source files
 from user home dirs, parses prompts + AI returns, and persists to txt files under
 ``<cache>/pycore/.ai_state/agent_history/`` (no database).
 """
@@ -17,23 +17,29 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pycore.pyctl.agent_history import agent_history_txt as txt
+import pycore.pyctl.agent_history.agent_history_txt as txt
+from pycore.pyctl.agent_history.ark_cli_extractor import ArkCliExtractor
 from pycore.pyctl.agent_history.antigravity_extractor import AntigravityExtractor
 from pycore.pyctl.agent_history.claude_extractor import ClaudeCodeExtractor
+from pycore.pyctl.agent_history.cline_extractor import ClineExtractor
 from pycore.pyctl.agent_history.codex_extractor import CodexExtractor
 from pycore.pyctl.agent_history.cursor_extractor import CursorExtractor
 from pycore.pyctl.agent_history.gemini_extractor import GeminiExtractor
+from pycore.pyctl.agent_history.generic_agent_extractor import GenericAgentExtractor
 from pycore.pyctl.agent_history.kimi_extractor import KimiExtractor
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
     SerializedWorkerThread,
     call_serialized,
 )
 
 PROMPTS_CAP = 8000
-TOOL_MARKERS = (".claude", ".codex", ".gemini", ".cursor", ".kimi-code", ".kimi")
+TOOL_MARKERS = (
+    ".claude", ".codex", ".gemini", ".cursor", ".kimi-code", ".kimi",
+    ".ark", ".ark-cli", ".agent",
+)
 
-_service: Optional["AgentHistoryService"] = None
 _EXTRACT_QUEUE = 'pyctl.agent_history.extract'
 _SUMMARY_SIGNAL = 'pyctl.agent_history.summary'
 _EXTRACT_WORKER = SerializedWorkerThread(
@@ -82,6 +88,9 @@ class AgentHistoryService:
             CursorExtractor(),
             KimiExtractor(),
             AntigravityExtractor(),
+            ClineExtractor(),
+            ArkCliExtractor(),
+            GenericAgentExtractor(),
         ]
 
     def is_dev_machine(self) -> bool:
@@ -383,8 +392,12 @@ class AgentHistoryService:
                 p["edited"] = True
 
 
+_AGENT_HISTORY_PROVIDER = SerializedSingletonProvider(
+    AgentHistoryService,
+    "agent_history.service.provider",
+    "AgentHistoryServiceProvider",
+)
+
+
 def get_agent_history_service() -> AgentHistoryService:
-    global _service
-    if _service is None:
-        _service = AgentHistoryService()
-    return _service
+    return _AGENT_HISTORY_PROVIDER.get()

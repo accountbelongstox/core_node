@@ -94,8 +94,16 @@ class AppQyV1WordGroupService
             }
             $skippedCount += count($wordsToAdd) - count($validIds);
 
-            // Single JSON merge - one row write for the whole batch.
-            $addedCount = $progressRow->putWords($validIds, (string) now(), $weights);
+            // The language-default group is the Shelf learning stream. Keep
+            // sentence-playback additions aligned with words added from the
+            // Shelf UI by assigning their initial randomized positions here.
+            $assignRandomPosition = (bool) $group->is_language_default;
+            $addedCount = $progressRow->putWords(
+                $validIds,
+                (string) now(),
+                $weights,
+                $assignRandomPosition
+            );
             if ($addedCount > 0) {
                 $progressRow->save();
             }

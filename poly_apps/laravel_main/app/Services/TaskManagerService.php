@@ -20,6 +20,7 @@ use App\Services\TaskProcessors\PosterTaskProcessor;
 use App\Services\TaskProcessors\SentenceAudioTaskProcessor;
 use App\Services\TaskProcessors\PromptTranslationTaskProcessor;
 use App\Services\TaskProcessors\WordValidityTaskProcessor;
+use App\Services\TaskProcessors\ArticleAudioTaskProcessor;
 
 class TaskManagerService
 {
@@ -34,6 +35,14 @@ class TaskManagerService
      * an HTTP 500 that loses a worker's result POST.
      */
     private const TRANSACTION_ATTEMPTS = 3;
+
+    /** Task types with a matching capability worker on the shared fast lane. */
+    private const FAST_PROMOTABLE_TASK_TYPES = [
+        'word_translation',
+        'word_audio',
+        'sentence_audio',
+        'word_media',
+    ];
 
     /**
      * Short-TTL cache for the hot, unbounded status tally (getTaskStats). The
@@ -128,10 +137,10 @@ class TaskManagerService
             $this->processorRegistry->register(new WordGeminiImageTaskProcessor($this));
             $this->processorRegistry->register(new GeminiTextTaskProcessor($this));
 
-            // Unified task system extension (dedicated pycore-only lanes):
-            //   - subtitle_search -> validate/normalize subtitle hits (remote_subtitle).
-            //   - poster          -> MoviePosterStore writeback (remote_poster).
-            //   - sentence_audio  -> SentenceAudio report writeback (remote_sentence_audio).
+            // Unified task system extension (dedicated execution lanes):
+            //   - subtitle_search -> pycore validates subtitle hits (remote_subtitle).
+            //   - poster          -> mcp-chrome search + MoviePosterStore writeback (remote_poster).
+            //   - sentence_audio  -> pycore SentenceAudio writeback (remote_sentence_audio).
             $this->processorRegistry->register(new SubtitleSearchTaskProcessor($this));
             $this->processorRegistry->register(new PosterTaskProcessor($this));
             $this->processorRegistry->register(new SentenceAudioTaskProcessor($this));
@@ -143,6 +152,7 @@ class TaskManagerService
             // unchecked words valid/invalid; this marks is_valid in bulk so the
             // translation enqueue skips the junk (remote_validity lane).
             $this->processorRegistry->register(new WordValidityTaskProcessor($this));
+            $this->processorRegistry->register(new ArticleAudioTaskProcessor());
 
             // Future processors can be registered here:
             // $this->processorRegistry->register(new ImageTaskProcessor($this));
@@ -167,10 +177,11 @@ class TaskManagerService
         ?string $capability = null,
         array $linkAttributes = []
     ): GlobalTask {
-        // Interactive (FE `interactive=true`) requests jump onto the shared fast
-        // lane at the FAST priority tier, so BOTH clients see them as urgent and
-        // the first idle one claims immediately. The `capability` tag narrows
-        // which client may claim it (NULL = either).
+        // Eligible interactive requests jump onto the shared fast lane at the
+        // FAST priority tier. Dedicated-lane tasks retain their execution type;
+        // otherwise no matching worker could claim them.
+        $interactive = $interactive
+            && in_array($taskType, self::FAST_PROMOTABLE_TASK_TYPES, true);
         if ($interactive) {
             $executionType = GlobalTask::EXECUTION_REMOTE_FAST;
             $priority = max($priority, GlobalTask::PRIORITY_FAST);
@@ -569,12 +580,12 @@ class TaskManagerService
 
             $target = max((int) $task->priority, $newPriority);
             // "Task-top" is the shared FAST LANE, not merely a higher number: a
-            // still-pending task bumped to the FAST tier is also moved onto
-            // remote_fast (+is_fast_tier) so every eligible client can claim it
-            // immediately. capability is left untouched, so a pycore-only task
-            // (e.g. capability=audio/image) stays pycore-only on the fast lane.
+            // A still-pending, fast-capable task bumped to the FAST tier is also
+            // moved onto remote_fast. Dedicated-lane task types only receive the
+            // numeric priority increase and remain claimable by their worker.
             $promoteToFast = $target >= GlobalTask::PRIORITY_FAST
-                && $task->execution_type !== GlobalTask::EXECUTION_REMOTE_FAST;
+                && $task->execution_type !== GlobalTask::EXECUTION_REMOTE_FAST
+                && in_array($task->task_type, self::FAST_PROMOTABLE_TASK_TYPES, true);
 
             if ($target !== (int) $task->priority || $promoteToFast) {
                 $task->priority = $target;
@@ -1453,6 +1464,14 @@ class TaskManagerService
                     return 'Sentence-audio result carried no audio_files/audio_base64';
                 }
                 return null;
+
+            case 'article_audio':
+                $hasAudio = !empty($inner['audio_base64'])
+                    || !empty($result['audio_base64']);
+
+                return $hasAudio
+                    ? null
+                    : 'Article-audio result carried no audio_base64';
         }
 
         switch ($task->execution_type) {

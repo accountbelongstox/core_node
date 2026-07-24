@@ -63,6 +63,14 @@ export const FEATURE_DEFINITIONS = [
     accent: 'indigo',
     defaultEnabled: false,
   },
+  {
+    id: 'word-validity',
+    name: 'Word Validity',
+    description: 'Test word validity classification with the shared web runtime.',
+    icon: 'WV',
+    accent: 'emerald',
+    defaultEnabled: false,
+  },
 ] as const;
 
 export type FeatureDefinition = (typeof FEATURE_DEFINITIONS)[number];

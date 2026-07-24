@@ -6,12 +6,11 @@
 .DESCRIPTION
     Bucket B (isolated), see
     development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5/§7:
-    MeloTTS pins transformers==4.27.4, which would DOWNGRADE the shared Bucket-A pin
-    (transformers==4.46.x) in the single system Python 3.13, breaking DeepSeek/Qwen2.5/NLLB.
+    MeloTTS owns transformer dependencies that may conflict with the shared system stack.
     Therefore melo is NEVER installed into the main interpreter. Instead this step builds a
     DEDICATED per-engine venv via pycore/pyutils/tts/isolated_venv.ensure_venv('melotts', ...)
     (created --system-site-packages so it REUSES the system CUDA torch; only melo + its pinned
-    transformers==4.27.4 are layered inside, shadowing the system copies). Production runs
+    package-managed transformer dependencies are layered inside, shadowing system copies). Production runs
     melotts as a class-C HTTP server (melotts_api_server.py, port 57212) under that venv; the
     main interpreter only talks to it over HTTP.
 
@@ -20,7 +19,7 @@
     building it unrequested. Skip entirely with MELOTTS_SKIP=1.
 
     Idempotent + self-repairing: a .deps_done sentinel + a venv-ready probe short-circuit a
-    completed build; ensure_venv() re-runs an import-health probe and rebuilds a broken venv.
+    completed build; ensure_venv() re-runs an import-health probe and repairs a broken venv.
     -Force rebuilds the venv from scratch and re-warms the models.
 
     Official: https://github.com/myshell-ai/MeloTTS  import: from melo.api import TTS
@@ -65,7 +64,9 @@ $winCommonDir     = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
 . (Join-Path $winCommonDir 'PythonRuntimeCommon.ps1')
+. (Join-Path $winCommonDir 'CudaIndex.ps1')
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
+$resolvedPython = $Global:PYTHON_EXE_PATH
 
 $coreNodeRoot   = $Global:CORE_NODE_DIR
 $stagingDefault = Get-PycoreLocalDataSubDir -SubDir 'melotts'
@@ -122,13 +123,14 @@ Write-Host '============================================================' -Foreg
 
 if ($env:MELOTTS_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] MELOTTS_SKIP=1 -> skipping." -ForegroundColor DarkGray
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @() -AbsentOk -AbsentNote 'MELOTTS_SKIP=1'
+    return
 }
 
-$resolvedPython = $Global:PYTHON_EXE_PATH
 if (-not ($resolvedPython -and (Test-Path -LiteralPath $resolvedPython))) {
     Write-Host "$SCRIPT_INDEX [!] Python 3 not found at $Global:PYTHON_EXE_PATH. Run Step8_InstallPython first." -ForegroundColor DarkYellow
     Complete-PrereqStep -Prefix $SCRIPT_INDEX -ImportModules @()
+    return
 }
 
 $venvProvisioned = Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts'
@@ -139,7 +141,7 @@ if ($meloPolicy) {
     $meloPackages = @($meloPolicy.packages)
     $meloHealth = [string]$meloPolicy.health_imports
 }
-$hasCuda = Test-CudaPresent
+$hasCuda = (Get-CudaRuntimePolicy).Enabled
 if ($hasCuda) {
     $device = 'cuda:0'
     $langs = 'EN,ZH,JP,KR,ES,FR'
@@ -156,6 +158,7 @@ if ($venvHealthy -and (Test-TtsDependencyStamp -PythonExe $resolvedPython -Engin
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'MeloTTS isolated venv already provisioned' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     Write-Host "$SCRIPT_INDEX  Runtime: pycore launches the melotts HTTP server (class C) under the isolated venv on demand." -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+    return
 }
 
 # EXPLICIT opt-in only: building the venv takes minutes, so require the user to ask
@@ -163,15 +166,15 @@ if ($venvHealthy -and (Test-TtsDependencyStamp -PythonExe $resolvedPython -Engin
 if (-not $venvProvisioned -and -not $doFull -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [i] opt-in only -> NOT building the isolated venv. Pass -Full or MELOTTS_INSTALL=1." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @() -AbsentOk -AbsentNote $optInNote
+    return
 }
 
 New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 
-# --- Isolated venv (Bucket B): melo + transformers==4.27.4 go ONLY into the
+# --- Isolated venv (Bucket B): MeloTTS and its transformer dependencies go only into the
 #     dedicated venv (--system-site-packages reuses the system CUDA torch). The main
 #     interpreter's shared transformers pin is never touched. Self-repairing:
-#     ensure_venv re-runs the import-health probe and rebuilds a broken venv. --- #
-& $resolvedPython -m pip install --upgrade pip 2>&1 | Out-Host
+#     ensure_venv re-runs the import-health probe and repairs a broken venv. --- #
 Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
 Write-Host "$SCRIPT_INDEX [..] building/verifying isolated melotts venv (ensure_venv; first build takes minutes) ..." -ForegroundColor Yellow
 $venvReady = Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts' -PipPackages $meloPackages -Pins $meloPins -HealthImports $meloHealth -Force:$Force
@@ -197,7 +200,8 @@ if ($venvReady) {
 }
 
 if (-not $venvReady) {
-    throw "$SCRIPT_INDEX MeloTTS isolated venv is not ready; retrying next run."
+    Write-Host "$SCRIPT_INDEX [!] MeloTTS isolated venv is not ready; retrying next run." -ForegroundColor DarkYellow
+    return
 }
 
 Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()

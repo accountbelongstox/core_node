@@ -14,9 +14,22 @@ win32gui = get_third_package_win32gui()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 
 # Last lookup result per cache_key (found or not). Log only on state change.
 _window_finder_last_found: Dict[str, bool] = {}
+_WINDOW_STATE_QUEUE = 'pyutils.window_finder.state'
+_WINDOW_STATE_WORKER = SerializedWorkerThread(
+    _WINDOW_STATE_QUEUE,
+    'WindowFinderStateThread',
+)
+_WINDOW_STATE_WORKER.start()
+
+
+def _replace_window_found_state(cache_key: str, current_found: bool) -> Optional[bool]:
+    last_found = _window_finder_last_found.get(cache_key)
+    _window_finder_last_found[cache_key] = current_found
+    return last_found
 
 
 class WindowFinder:
@@ -162,13 +175,16 @@ class WindowFinder:
         # Log only on state change: not found -> found, or found -> lost
         if cache_key is not None:
             current_found = bool(found_windows)
-            last_found = _window_finder_last_found.get(cache_key)
+            last_found = call_serialized(
+                _WINDOW_STATE_QUEUE,
+                _replace_window_found_state,
+                cache_key,
+                current_found,
+            )
             if last_found is False and current_found:
                 ColorPrint.print_min_interval(f"[WindowFinder] Window found: {canonical_label}", "1min", "green")
             elif last_found is True and not current_found:
                 ColorPrint.print_min_interval(f"[WindowFinder] Window lost: {canonical_label}", "1min", "yellow")
-            _window_finder_last_found[cache_key] = current_found
-
         return found_windows
 
     @staticmethod

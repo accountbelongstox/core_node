@@ -14,14 +14,18 @@ import time
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_user_data_store
+from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyutils.tts import tts_service_manager
 from pycore.pyctl.assist import (
     assist_capability_enabled,
     load_assist_settings,
     save_assist_settings,
 )
 
-from pycore.callmodule.services import get_tts_sentence_worker_service
+from pycore.callmodule.services.tts_sentence_worker_service import (
+    get_tts_sentence_worker_service,
+)
 
 
 _SECTION = "sentence_audio_auto"
@@ -29,28 +33,45 @@ _AUTO_KEY = "auto_start"
 _CONCURRENCY_KEY = "concurrency"
 _HEARTBEAT_NAME = "tts_sentence_worker"
 _LARAVEL_SUMMARY_TTL_S = 30.0
+_SUMMARY_STATE_QUEUE = "sentence_audio_auto.summary"
 _laravel_summary_cache: Dict[str, Any] = {}
 _laravel_summary_ts: float = 0.0
+_SUMMARY_STATE_WORKER = SerializedWorkerThread(
+    _SUMMARY_STATE_QUEUE,
+    "SentenceAudioSummaryStateThread",
+)
+_SUMMARY_STATE_WORKER.start()
+
+
+def _read_summary_cache(now: float) -> Dict[str, Any]:
+    if _laravel_summary_cache and (now - _laravel_summary_ts) < _LARAVEL_SUMMARY_TTL_S:
+        return dict(_laravel_summary_cache)
+    return {}
+
+
+def _store_summary_cache(summary: Dict[str, Any], now: float) -> Dict[str, Any]:
+    global _laravel_summary_cache, _laravel_summary_ts
+    if summary:
+        _laravel_summary_cache = dict(summary)
+        _laravel_summary_ts = now
+        result = dict(summary)
+        result["cached_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
+        return result
+    return dict(_laravel_summary_cache)
 
 
 def _laravel_queue_summary() -> Dict[str, Any]:
     """Cached Laravel pending/leased counts (limit=0 claim)."""
-    global _laravel_summary_cache, _laravel_summary_ts
     now = time.time()
-    if _laravel_summary_cache and (now - _laravel_summary_ts) < _LARAVEL_SUMMARY_TTL_S:
-        return dict(_laravel_summary_cache)
+    cached = call_serialized(_SUMMARY_STATE_QUEUE, _read_summary_cache, now)
+    if cached:
+        return cached
     summary: Dict[str, Any] = {}
     try:
         summary = get_tts_sentence_worker_service().fetch_queue_summary() or {}
     except Exception:
         pass
-    if summary:
-        _laravel_summary_cache = dict(summary)
-        _laravel_summary_ts = now
-        summary["cached_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
-    elif _laravel_summary_cache:
-        return dict(_laravel_summary_cache)
-    return summary
+    return call_serialized(_SUMMARY_STATE_QUEUE, _store_summary_cache, summary, now)
 
 
 def get_config() -> Dict[str, Any]:
@@ -140,8 +161,6 @@ def _warm_sentence_engine() -> None:
     cost. Runs on a daemon thread; the managed-service settings gates
     (server_enabled / server_auto_manage) still apply inside ensure_running."""
     try:
-        from pycore.pyutils.tts import tts_service_manager
-
         if tts_service_manager.prepare_server_for_use("qwen3tts"):
             ColorPrint.green("[SentenceAudioAuto] qwen3tts server warm — model loaded")
         else:

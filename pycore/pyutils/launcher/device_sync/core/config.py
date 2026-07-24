@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import Optional
 
 from pycore.pyfoundations.system_paths import get_system_cache_dir
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    SerializedStateObject,
+    serialized_method,
+)
 
 import traceback
 import time
@@ -42,7 +47,7 @@ def get_cache_dir() -> Path:
     return cache_dir
 
 
-class GlobalConfig:
+class GlobalConfig(SerializedStateObject):
     """
     Global configuration object shared across all device sync components.
 
@@ -93,6 +98,11 @@ class GlobalConfig:
         # Scan statistics
         self.last_scan_time: Optional[float] = None  # Last file scan timestamp
         self.total_scans: int = 0  # Total number of scans performed
+        self.enable_serialized_state(
+            'device_sync.config.state',
+            'DeviceSyncConfigStateThread',
+            timeout=300.0,
+        )
 
     @property
     def file_cache(self) -> list:
@@ -121,6 +131,7 @@ class GlobalConfig:
         """Get number of online devices (computed property)"""
         return len(self.online_devices)
 
+    @serialized_method
     def set_as_primary(self):
         """Set this device as PRIMARY server"""
         print(f"[Config] set_as_primary() called")
@@ -130,6 +141,7 @@ class GlobalConfig:
         print(f"[Config] AFTER: isPrimaryServer={self.isPrimaryServer}, sync_enabled={self.sync_enabled}")
         print(f"[Config] Set as PRIMARY server (id={id(self)})")
 
+    @serialized_method
     def set_as_secondary(self):
         """Set this device as SECONDARY (client)"""
         print(f"[Config] set_as_secondary() called")
@@ -139,6 +151,7 @@ class GlobalConfig:
         print(f"[Config] AFTER: isPrimaryServer={self.isPrimaryServer}")
         print(f"[Config] Set as SECONDARY (id={id(self)})")
 
+    @serialized_method
     def enable_sync(self):
         """Enable sync (only for SECONDARY)"""
         if self.isPrimaryServer:
@@ -149,21 +162,25 @@ class GlobalConfig:
         print("[Config] Sync enabled")
         return True
 
+    @serialized_method
     def disable_sync(self):
         """Disable sync"""
         self.sync_enabled = False
         print("[Config] Sync disabled")
 
+    @serialized_method
     def enable_api(self):
         """Enable API access"""
         self.api_enabled = True
         print("[Config] API access enabled")
 
+    @serialized_method
     def disable_api(self):
         """Disable API access"""
         self.api_enabled = False
         print("[Config] API access disabled")
 
+    @serialized_method
     def update_network_info(self):
         """Update local network information"""
         # Get local IP
@@ -206,6 +223,7 @@ class GlobalConfig:
             except:
                 pass
 
+    @serialized_method
     def update_online_devices(self, devices: list):
         """Update list of online devices"""
         self.online_devices = devices
@@ -216,12 +234,14 @@ class GlobalConfig:
             if d.get('mode') == 'primary'
         ]
 
+    @serialized_method
     def get_primary_server(self):
         """Get PRIMARY server (first one if multiple)"""
         if self.primary_servers:
             return self.primary_servers[0]
         return None
 
+    @serialized_method
     def has_multiple_primary_servers(self) -> bool:
         """Check if there are multiple PRIMARY servers (conflict)"""
         return len(self.primary_servers) > 1
@@ -270,6 +290,18 @@ class GlobalConfig:
 
         return False
 
+    @serialized_method
+    def upsert_connected_client(self, client_info: dict) -> bool:
+        """Insert a client or refresh its last-seen data atomically."""
+        client_ip = client_info.get('ip')
+        for client in self.connected_clients:
+            if client.get('ip') == client_ip:
+                client.update(client_info)
+                return False
+        self.connected_clients.append(dict(client_info))
+        return True
+
+    @serialized_method
     def build_file_cache(self):
         """Build file cache for root directory"""
 
@@ -318,6 +350,7 @@ class GlobalConfig:
             # Don't clear existing cache on error
             traceback.print_exc()
 
+    @serialized_method
     def get_status(self) -> dict:
         """Get current configuration status"""
 
@@ -346,22 +379,23 @@ class GlobalConfig:
             'last_scan_time': datetime.fromtimestamp(self.last_scan_time).strftime('%Y-%m-%d %H:%M:%S') if self.last_scan_time else None
         }
 
+    @serialized_method
     def __repr__(self):
         mode = "PRIMARY" if self.isPrimaryServer else "SECONDARY"
         sync = "ON" if self.sync_enabled else "OFF"
         return f"<GlobalConfig mode={mode} sync={sync} port={self.http_port} ip={self.local_ip}>"
 
 
-# Global singleton instance
-_global_config: Optional[GlobalConfig] = None
+_GLOBAL_CONFIG_PROVIDER = SerializedSingletonProvider(
+    GlobalConfig,
+    'device_sync.config.provider',
+    'DeviceSyncConfigProviderThread',
+)
 
 
 def get_global_config() -> GlobalConfig:
     """Get or create global configuration singleton"""
-    global _global_config
-    if _global_config is None:
-        _global_config = GlobalConfig()
-    return _global_config
+    return _GLOBAL_CONFIG_PROVIDER.get()
 
 
 def init_global_config(root_dir: str, http_port: int = 58923) -> GlobalConfig:
@@ -375,30 +409,26 @@ def init_global_config(root_dir: str, http_port: int = 58923) -> GlobalConfig:
     Returns:
         GlobalConfig instance
     """
-    global _global_config
-
-    if _global_config is None:
-        _global_config = GlobalConfig()
-
-    _global_config.root_dir = Path(root_dir)
-    _global_config.http_port = http_port
+    config = get_global_config()
+    config.root_dir = Path(root_dir)
+    config.http_port = http_port
 
     # Get hostname
-    _global_config.hostname = socket.gethostname()
+    config.hostname = socket.gethostname()
 
     # Get device ID from unified cache directory
     cache_dir = get_cache_dir()
     device_id_file = cache_dir / 'device_id.txt'
     if device_id_file.exists():
-        _global_config.device_id = device_id_file.read_text().strip()
+        config.device_id = device_id_file.read_text().strip()
     else:
-        _global_config.device_id = str(uuid.uuid4())
-        device_id_file.write_text(_global_config.device_id)
+        config.device_id = str(uuid.uuid4())
+        device_id_file.write_text(config.device_id)
 
     # Update network information
-    _global_config.update_network_info()
+    config.update_network_info()
 
-    print(f"[Config] Initialized: {_global_config}")
-    print(f"[Config] Network: {_global_config.network_prefix}.x (Gateway: {_global_config.gateway_ip})")
+    print(f"[Config] Initialized: {config}")
+    print(f"[Config] Network: {config.network_prefix}.x (Gateway: {config.gateway_ip})")
 
-    return _global_config
+    return config

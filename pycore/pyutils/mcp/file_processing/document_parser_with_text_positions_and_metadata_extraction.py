@@ -12,6 +12,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from pathlib import Path
 
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from pycore.pyfoundations.third_party import get_third_package_pypdf, get_third_package_pdfplumber, get_third_package_python_docx, get_third_package_openpyxl, get_third_package_python_pptx
 
 pypdf = get_third_package_pypdf()
@@ -492,11 +493,12 @@ class DocumentParserWithTextPositionsAndMetadataExtraction:
         return sha256_hash.hexdigest()
 
 
-_document_parser_instance = None
+_DOCUMENT_PARSER_PROVIDER = SerializedSingletonProvider(
+    DocumentParserWithTextPositionsAndMetadataExtraction,
+    "mcp.document_parser.provider",
+    "MCPDocumentParserProviderThread",
+)
 
 def get_document_parser_singleton() -> DocumentParserWithTextPositionsAndMetadataExtraction:
     """Get singleton instance of document parser"""
-    global _document_parser_instance
-    if _document_parser_instance is None:
-        _document_parser_instance = DocumentParserWithTextPositionsAndMetadataExtraction()
-    return _document_parser_instance
+    return _DOCUMENT_PARSER_PROVIDER.get()

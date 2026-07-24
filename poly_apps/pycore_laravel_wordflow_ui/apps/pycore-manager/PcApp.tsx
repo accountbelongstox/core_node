@@ -75,7 +75,7 @@ const PcApp: React.FC = () => {
         <Route path="video-extract" element={<Navigate to="/pycore-manager/content?tab=subtitles" replace />} />
         <Route path="books" element={<Navigate to="/pycore-manager/content?tab=books" replace />} />
         <Route path="corebook" element={<Navigate to="/pycore-manager/content?tab=books" replace />} />
-        <Route path="movie-poster" element={<Navigate to="/pycore-manager/content?tab=poster" replace />} />
+        <Route path="movie-poster" element={<Navigate to="/pycore-manager/queue-center?tab=overview" replace />} />
         <Route path="ai-status" element={<Navigate to="/pycore-manager/ai?tab=capability" replace />} />
         <Route path="ai-image" element={<Navigate to="/pycore-manager/ai?tab=studio" replace />} />
         <Route path="ai-keys" element={<Navigate to="/pycore-manager/ai?tab=keys" replace />} />

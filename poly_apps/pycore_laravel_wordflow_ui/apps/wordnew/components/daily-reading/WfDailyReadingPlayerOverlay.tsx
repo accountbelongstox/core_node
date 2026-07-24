@@ -90,7 +90,7 @@ export const WfDailyReadingPlayerOverlay: React.FC<Props> = ({ player, trans }) 
               <button
                 type="button"
                 onClick={player.prev}
-                disabled={index === 0}
+                disabled={index === 0 && player.playbackMode !== 'repeat-all'}
                 className="p-2.5 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 hover:border-indigo-500/30 disabled:opacity-30 disabled:pointer-events-none transition-colors"
                 title={trans('home.dailyReading.prev')}
               >
@@ -107,7 +107,7 @@ export const WfDailyReadingPlayerOverlay: React.FC<Props> = ({ player, trans }) 
               <button
                 type="button"
                 onClick={player.next}
-                disabled={index >= list.length - 1}
+                disabled={index >= list.length - 1 && player.playbackMode === 'sequential'}
                 className="p-2.5 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 hover:border-indigo-500/30 disabled:opacity-30 disabled:pointer-events-none transition-colors"
                 title={trans('home.dailyReading.next')}
               >
@@ -123,6 +123,54 @@ export const WfDailyReadingPlayerOverlay: React.FC<Props> = ({ player, trans }) 
               <X className="w-4 h-4" />
             </button>
           </div>
+          <label className="flex items-center justify-between gap-3 text-[11px] text-zinc-500">
+            <span>Playback order</span>
+            <select
+              value={player.playbackMode}
+              onChange={(event) => player.updateSettings({ playbackMode: event.target.value as typeof player.playbackMode })}
+              className="rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300"
+            >
+              <option value="sequential">Sequential</option>
+              <option value="repeat-all">Repeat all</option>
+              <option value="repeat-one">Repeat one</option>
+              <option value="shuffle">Shuffle</option>
+            </select>
+          </label>
+          <div className="grid grid-cols-2 gap-2 text-[11px] text-zinc-500">
+            <label className="flex items-center justify-between gap-2">
+              <span>Words</span>
+              <select
+                value={player.wordMode}
+                onChange={(event) => player.updateSettings({ wordMode: event.target.value as typeof player.wordMode })}
+                className="rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300"
+              >
+                <option value="new">New only</option>
+                <option value="all">All words</option>
+                <option value="off">Off</option>
+              </select>
+            </label>
+            <label className="flex items-center justify-between gap-2">
+              <span>Word repeats</span>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={player.wordRepeats}
+                onChange={(event) => player.updateSettings({ wordRepeats: Number(event.target.value) })}
+                disabled={player.wordMode === 'off'}
+                className="w-14 rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300 disabled:opacity-40"
+              />
+            </label>
+          </div>
+          <label className="flex items-center justify-between gap-3 text-[11px] text-zinc-500">
+            <span>Play sentence before words</span>
+            <input
+              type="checkbox"
+              checked={player.sentenceFirst}
+              disabled={player.wordMode === 'off'}
+              onChange={(event) => player.updateSettings({ sentenceFirst: event.target.checked })}
+            />
+          </label>
         </div>
       </div>
     </div>

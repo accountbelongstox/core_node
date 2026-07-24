@@ -15,6 +15,7 @@ from datetime import datetime
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
     SerializedWorkerThread,
     call_serialized,
 )
@@ -460,8 +461,11 @@ class VoiceSubtitleQueue:
         return removed_count
 
 
-# Global instance
-_voice_subtitle_queue: Optional[VoiceSubtitleQueue] = None
+_VOICE_SUBTITLE_QUEUE_PROVIDER = SerializedSingletonProvider(
+    VoiceSubtitleQueue,
+    "desktop.voice_subtitle_queue.provider",
+    "VoiceSubtitleQueueProvider",
+)
 
 
 def get_voice_subtitle_queue() -> VoiceSubtitleQueue:
@@ -471,9 +475,4 @@ def get_voice_subtitle_queue() -> VoiceSubtitleQueue:
     Returns:
         VoiceSubtitleQueue: Global queue instance
     """
-    global _voice_subtitle_queue
-
-    if _voice_subtitle_queue is None:
-        _voice_subtitle_queue = VoiceSubtitleQueue()
-
-    return _voice_subtitle_queue
+    return _VOICE_SUBTITLE_QUEUE_PROVIDER.get()

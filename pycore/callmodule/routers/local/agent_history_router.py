@@ -22,8 +22,9 @@ from typing import Optional
 
 import fastapi
 
-from pycore.pyctl.agent_history import get_agent_history_service
-from pycore.callmodule.services import agent_history_article_records as records
+from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyctl.agent_history.agent_history_service import get_agent_history_service
+import pycore.callmodule.services.agent_history_article_records as records
 from pycore.callmodule.services.agent_history_tick_service import get_agent_history_tick_service
 from pycore.callmodule.services.agent_history_article_service import get_agent_history_article_service
 
@@ -110,6 +111,10 @@ def article_config_get():
 def article_config_post(body: dict):
     svc = get_agent_history_article_service()
     cfg = svc.save_config(body or {})
+    if cfg.get("enabled"):
+        get_heartbeat_system().enable_callback("agent_history_extraction")
+    else:
+        get_heartbeat_system().disable_callback("agent_history_extraction")
     # No inline extract here: AgentHistoryTickService already extracts every
     # heartbeat (~10s), so enabling the toggle returns immediately instead of
     # blocking the request on a full user-dir scan.
@@ -119,6 +124,7 @@ def article_config_post(body: dict):
 @router.post("/article/start")
 def article_start():
     svc = get_agent_history_article_service()
+    get_heartbeat_system().enable_callback("agent_history_extraction")
     return {"success": True, "data": svc.start_backfill()}
 
 

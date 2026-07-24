@@ -13,14 +13,19 @@
 # Usage:  . setuptools_guard.sh ; ensure_pkg_resources "$PYTHON"
 ensure_pkg_resources() {
     local py="${1:-python3}"
-    if "$py" -c "import pkg_resources" >/dev/null 2>&1; then return 0; fi
-    echo "[setuptools-guard] pkg_resources missing (setuptools>=81 removed it) -> pinning setuptools<81 ..."
-    "$py" -m pip install --break-system-packages --upgrade 'setuptools<81' 2>/dev/null \
-        || "$py" -m pip install --upgrade 'setuptools<81' || true
-    if "$py" -c "import pkg_resources" >/dev/null 2>&1; then
-        echo "[setuptools-guard] [OK] pkg_resources restored (setuptools<81)."
-        return 0
+    local probe=""
+    probe="$("$py" -c "import pkg_resources; print('__FOUND__')" 2>/dev/null || true)"
+    if [[ "$probe" == *"__FOUND__"* ]]; then
+        echo "[setuptools-guard] pkg_resources is available; preserving setuptools."
+    else
+        echo "[setuptools-guard] pkg_resources missing -> applying the setuptools<81 compatibility boundary ..."
+        "$py" -m pip install --break-system-packages 'setuptools<81' 2>/dev/null \
+            || "$py" -m pip install 'setuptools<81' || true
+        probe="$("$py" -c "import pkg_resources; print('__FOUND__')" 2>/dev/null || true)"
+        if [[ "$probe" == *"__FOUND__"* ]]; then
+            echo "[setuptools-guard] [OK] pkg_resources restored."
+        else
+            echo "[setuptools-guard] [!] pkg_resources remains unavailable; retrying next run."
+        fi
     fi
-    echo "[setuptools-guard] [!] pkg_resources still unavailable after pinning setuptools<81."
-    return 1
 }

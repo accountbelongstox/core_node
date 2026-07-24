@@ -33,8 +33,7 @@ import time
 
 Image = get_third_package_PIL_Image()
 
-from pycore import ColorPrint
-from pycore.pyfoundations import APP_CACHE_DIR
+from pycore.pyfoundations import APP_CACHE_DIR, ColorPrint
 
 
 # Image conversion cache directory

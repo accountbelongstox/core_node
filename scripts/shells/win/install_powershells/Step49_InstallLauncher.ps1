@@ -42,13 +42,13 @@ Write-Host '============================================================' -Foreg
 $wtPresent = [bool](Get-Command 'wt.exe' -ErrorAction SilentlyContinue)
 if ($wtPresent -and (-not $Force)) {
     Write-Host '[OK] Windows Terminal (wt.exe) already present; skipping.' -ForegroundColor Green
-    exit 0
+    return
 }
 
 $wingetCmd = Get-Command 'winget' -ErrorAction SilentlyContinue
 if (-not $wingetCmd) {
     Write-Host '[i] winget not found; cannot auto-install Windows Terminal. Install it from the Microsoft Store, then the grid launcher will use it.' -ForegroundColor DarkYellow
-    exit 0
+    return
 }
 
 Write-Host ('[..] winget install {0} ...' -f $wtPackage) -ForegroundColor Yellow
@@ -67,4 +67,4 @@ try {
 }
 
 # Non-fatal by design: the launcher still runs with whatever terminal is present.
-exit 0
+return

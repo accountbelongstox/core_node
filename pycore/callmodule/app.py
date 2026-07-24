@@ -5,6 +5,10 @@ FastAPI Application Factory
 
 from pathlib import Path
 from pycore.pyfoundations.third_party import get_third_package_fastapi
+from pycore.callmodule.services.heartbeat_agent_history import (
+    register_agent_history_extraction,
+)
+from pycore.pyheartbeat import get_heartbeat_system
 
 fastapi = get_third_package_fastapi()
 
@@ -37,6 +41,7 @@ from .routers.local import (
     task_center_router,
     queue_overview_router,
     queue_bumps_router,
+    queue_priority_router,
     task_history_router,
     assist_router,
     sentence_audio_router,
@@ -46,6 +51,7 @@ from .routers.local import (
     task_settings_router,
     vocabulary_router,
     version_router,
+    agent_history_router,
 )
 from .routers.upload import router as upload_router
 from .routers.client import router as client_router
@@ -66,6 +72,8 @@ def create_app() -> FastAPI:
         FastAPI: Configured application instance
     """
     config = get_global_config()
+    heartbeat = get_heartbeat_system()
+    heartbeat_owned = {"value": False}
 
     app = FastAPI(
         title="Pycore Module Caller",
@@ -115,6 +123,7 @@ def create_app() -> FastAPI:
     app.include_router(task_center_router)
     app.include_router(queue_overview_router)
     app.include_router(queue_bumps_router)
+    app.include_router(queue_priority_router)
     app.include_router(task_history_router)
     app.include_router(assist_router)
     app.include_router(sentence_audio_router)
@@ -124,6 +133,7 @@ def create_app() -> FastAPI:
     app.include_router(task_settings_router)
     app.include_router(vocabulary_router)
     app.include_router(version_router)
+    app.include_router(agent_history_router)
 
     # Upload layer router
     app.include_router(upload_router)
@@ -141,6 +151,10 @@ def create_app() -> FastAPI:
     async def startup_event():
         """Startup event handler"""
         config.server_running = True
+        register_agent_history_extraction()
+        if not heartbeat.is_running():
+            heartbeat.start()
+            heartbeat_owned["value"] = True
         config.update_network_info()
         print("=" * 60)
         print("Pycore Module Caller FastAPI Server Started")
@@ -155,6 +169,8 @@ def create_app() -> FastAPI:
     async def shutdown_event():
         """Shutdown event handler"""
         config.server_running = False
+        if heartbeat_owned["value"]:
+            heartbeat.stop()
         print("Shutting down server...")
 
     return app

@@ -12,7 +12,8 @@ import platform
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from ._cache import _PACKAGE_CACHE, _lazy_import
+from ._cache import _lazy_import
+from ._package_cache import _PACKAGE_CACHE
 from ._deps import OPTIONAL_PACKAGES, WINDOWS_OCR_WINRT_PACKAGES
 from ._pip_runner import (
     build_pip_install_command,
@@ -53,76 +54,27 @@ def install_and_reimport_azure():
         return None
 
 
-def _edge_tts_version_ge(version: str, minimum: str) -> bool:
-    """True if dotted `version` >= `minimum` (numeric-aware, no packaging dep)."""
-    def parts(v):
-        out = []
-        for p in str(v).split('.'):
-            num = ''.join(ch for ch in p if ch.isdigit())
-            out.append(int(num) if num else 0)
-        return out
-    a, b = parts(version), parts(minimum)
-    a += [0] * (len(b) - len(a))
-    b += [0] * (len(a) - len(b))
-    return a >= b
-
-
 def install_and_reimport_edge_tts():
-    """
-    Install / upgrade Edge TTS and import it. Targets the LATEST release.
-
-    History: edge-tts 7.2.3 hit a server-side outage -> NoAudioReceived (issue
-    #443); the same-day workaround was "pin 7.2.1". That fix shipped in 7.2.4
-    ("Resolve NoAudioReceived issue"). Pinning an OLD version is now harmful: a
-    stale Sec-MS-GEC handshake gets rejected with HTTP 403 (issues #290/#458).
-    So we require >= 7.2.4 and upgrade to the latest otherwise. A 403 on the
-    latest version is rate-limit / regional blocking (set EDGE_TTS_PROXY), not a
-    version problem.
-
-    Returns:
-        The imported module if successful, None otherwise.
-    """
-    MIN_VERSION = "7.2.4"   # first release that resolved NoAudioReceived
-
-    # Try direct hard import first.
+    """Import Edge TTS, installing it once only when pip metadata is absent."""
     try:
         import edge_tts
-        current_version = getattr(edge_tts, '__version__', '0')
-
-        if _edge_tts_version_ge(current_version, MIN_VERSION):
-            ColorPrint.green(f"[SUCCESS] Edge TTS {current_version} is compatible (>= {MIN_VERSION})")
-            return edge_tts
-
-        ColorPrint.yellow(f"[WARNING] Edge TTS {current_version} is too old (< {MIN_VERSION}); "
-                          "old versions 403 on a stale Sec-MS-GEC handshake. Upgrading to latest...")
-        pip_cmd = build_pip_install_command("edge-tts")
-        pip_cmd.append("--upgrade")
-        run_pip_install_with_realtime_output(pip_cmd, "edge-tts (latest)")
-
-        importlib.invalidate_caches()
-        if 'edge_tts' in sys.modules:
-            del sys.modules['edge_tts']
-        import edge_tts
-        new_version = getattr(edge_tts, '__version__', 'unknown')
-        ColorPrint.green(f"[SUCCESS] Edge TTS upgraded from {current_version} to {new_version}")
+        ColorPrint.green("[SUCCESS] Edge TTS is available")
         return edge_tts
-
     except ImportError:
-        ColorPrint.blue("[INFO] Edge TTS not installed")
-    except AttributeError:
-        ColorPrint.yellow("[WARNING] Edge TTS installed but version cannot be detected")
+        pass
 
-    # Install the latest version.
-    ColorPrint.blue("[INFO] Installing latest Edge TTS...")
+    if _is_pip_package_installed("edge-tts"):
+        ColorPrint.yellow("[WARNING] Edge TTS metadata exists but import failed; preserving it for installer repair")
+        return None
+
+    ColorPrint.blue("[INFO] Installing missing Edge TTS...")
     pip_cmd = build_pip_install_command("edge-tts")
-    pip_cmd.append("--upgrade")
-    run_pip_install_with_realtime_output(pip_cmd, "edge-tts (latest)")
+    run_pip_install_with_realtime_output(pip_cmd, "edge-tts")
 
     importlib.invalidate_caches()
     try:
         import edge_tts
-        installed_version = getattr(edge_tts, '__version__', 'unknown')
-        ColorPrint.green(f"[SUCCESS] Successfully installed Edge TTS {installed_version}")
+        ColorPrint.green("[SUCCESS] Successfully installed Edge TTS")
         return edge_tts
     except ImportError as e:
         ColorPrint.yellow("[WARNING] Package installation completed but import still failed")
@@ -177,6 +129,18 @@ def get_third_package_whisper():
             ColorPrint.yellow("[WARNING] Install with: pip install -U openai-whisper")
             _PACKAGE_CACHE['whisper'] = None
     return _PACKAGE_CACHE['whisper']
+
+
+def get_third_package_easyocr():
+    """Get EasyOCR package (lazy load, optional)."""
+    if 'easyocr' not in _PACKAGE_CACHE:
+        try:
+            import easyocr
+            _PACKAGE_CACHE['easyocr'] = easyocr
+        except ImportError:
+            ColorPrint.yellow("[WARNING] EasyOCR not available")
+            _PACKAGE_CACHE['easyocr'] = None
+    return _PACKAGE_CACHE['easyocr']
 
 
 def _ensure_watchdog_submodules():

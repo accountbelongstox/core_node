@@ -63,11 +63,14 @@ function Ensure-SoxOnPath {
         [switch]$Force
     )
 
-    if (-not (Get-Command Add-Path -ErrorAction SilentlyContinue)) {
-        . (Join-Path $PSScriptRoot 'WindowsPathFunction.ps1')
+    $soxPath = $null
+    $windowsPathFunctionPath = Join-Path $PSScriptRoot 'WindowsPathFunction.ps1'
+    $windowsPathFunctionLoaded = Get-Variable -Name 'PycoreWindowsPathFunctionLoaded' -Scope Script -ErrorAction SilentlyContinue
+    if ($null -eq $windowsPathFunctionLoaded -or -not [bool]$windowsPathFunctionLoaded.Value) {
+        . $windowsPathFunctionPath
+        Set-Variable -Name 'PycoreWindowsPathFunctionLoaded' -Scope Script -Value $true
     }
 
-    $soxPath = $null
     if ((Test-SoxOnPath) -and -not $Force) {
         $soxPath = (Get-Command sox -ErrorAction SilentlyContinue).Source
     }
@@ -593,7 +596,7 @@ function Install-WhisperModelWeights {
 # melotts + gptsovits pin a transformers that must NEVER touch the shared main  #
 # interpreter, so they run their api server inside a DEDICATED per-engine venv.  #
 # These helpers invoke the SYSTEM Python to build/verify/resolve that venv;      #
-# ensure_venv() is self-repairing (rebuilds a broken venv) and idempotent.       #
+# ensure_venv() is self-repairing (repairs a broken venv in place) and idempotent.#
 # See development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md. #
 # --------------------------------------------------------------------------- #
 function ConvertTo-PyStringLiteral {
@@ -625,6 +628,9 @@ function Test-IsolatedTtsVenvProvisioned {
     $rootLiteral = ($CoreNodeRoot -replace "'", "''")
     $engineLit = ConvertTo-PyStringLiteral -Value $Engine
     $methodLit = if ($Healthy) { "'venv_healthy'" } else { "'venv_ready'" }
+    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
+    $prevEap = $ErrorActionPreference
+    $out = ''
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
@@ -634,13 +640,14 @@ sys.stdout.write('__VENV_READY__' if probe($engineLit) else '__VENV_NOTREADY__')
 "@
     # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
     # check_and_install_dependencies() (it does pip ops and throws under Stop).
-    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
-    $env:PYCORE_SKIP_DEP_CHECK = '1'
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    $out = (& $PythonExe -c $pyCode 2>$null) -join ''
-    $ErrorActionPreference = $prevEap
-    $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
+    try {
+        $env:PYCORE_SKIP_DEP_CHECK = '1'
+        $ErrorActionPreference = 'Continue'
+        $out = (& $PythonExe -c $pyCode 2>$null) -join ''
+    } finally {
+        $ErrorActionPreference = $prevEap
+        $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
+    }
     return ($out -match '__VENV_READY__')
 }
 
@@ -664,19 +671,23 @@ function Resolve-IsolatedTtsVenvPython {
     )
     $rootLiteral = ($CoreNodeRoot -replace "'", "''")
     $engineLit = ConvertTo-PyStringLiteral -Value $Engine
+    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
+    $prevEap = $ErrorActionPreference
+    $out = ''
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
 from pycore.pyfoundations import isolated_venv
 sys.stdout.write(isolated_venv.resolve_python($engineLit) or '')
 "@
-    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
-    $env:PYCORE_SKIP_DEP_CHECK = '1'
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    $out = (& $PythonExe -c $pyCode 2>$null) -join ''
-    $ErrorActionPreference = $prevEap
-    $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
+    try {
+        $env:PYCORE_SKIP_DEP_CHECK = '1'
+        $ErrorActionPreference = 'Continue'
+        $out = (& $PythonExe -c $pyCode 2>$null) -join ''
+    } finally {
+        $ErrorActionPreference = $prevEap
+        $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
+    }
     $out = "$out".Trim()
     if ($out -and (Test-Path -LiteralPath $out)) { return $out }
     return ''
@@ -685,9 +696,9 @@ sys.stdout.write(isolated_venv.resolve_python($engineLit) or '')
 function Invoke-IsolatedTtsVenvEnsure {
     # Build/verify an engine's isolated venv via isolated_venv.ensure_venv(). Runs the
     # system Python LIVE (pip output streams to console; first build takes minutes) and
-    # reads readiness from the process exit code (0 = health-imports succeed in the venv).
-    # ensure_venv() is self-repairing: it re-runs the import-health probe and rebuilds a
-    # broken venv. Mirrors Step61's Invoke-Qwen3TtsEnsureVenv, generalised to any engine.
+    # probes the resulting venv directly after provisioning.
+    # ensure_venv() is self-repairing: it re-runs the import-health probe and repairs a
+    # broken venv in place. Mirrors Step61's helper, generalised to any engine.
     param(
         [Parameter(Mandatory = $true)][string]$PythonExe,
         [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
@@ -703,24 +714,28 @@ function Invoke-IsolatedTtsVenvEnsure {
     $pinLit = if ($null -eq $Pins) { 'None' } else { ConvertTo-PyListLiteral -Items $Pins }
     $forceLiteral = if ($Force) { 'True' } else { 'False' }
     $healthArg = if ($HealthImports) { 'health_imports=' + (ConvertTo-PyStringLiteral -Value $HealthImports) + ', ' } else { '' }
+    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
+    $prevEap = $ErrorActionPreference
+    $venvOk = $false
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
 from pycore.pyfoundations import isolated_venv
-py = isolated_venv.ensure_venv($engineLit, pip_packages=$pkgLit, pins=$pinLit, ${healthArg}force=$forceLiteral)
-sys.exit(0 if py else 1)
+isolated_venv.ensure_venv($engineLit, pip_packages=$pkgLit, pins=$pinLit, ${healthArg}force=$forceLiteral)
 "@
     # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
     # check_and_install_dependencies(); ensure_venv() does its own venv provisioning.
-    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
-    $env:PYCORE_SKIP_DEP_CHECK = '1'
-    # Run LIVE (attached): ensure_venv streams pip output; first build takes minutes.
-    # Out-Host (no 2>&1) shows it live WITHOUT letting the child's stdout leak into this
-    # function's return value, and avoids native stderr wrapping into ErrorRecords under
-    # ErrorActionPreference Stop. $LASTEXITCODE stays the exe's.
-    & $PythonExe -c $pyCode | Out-Host
-    $venvOk = ($LASTEXITCODE -eq 0)
-    $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
+    try {
+        $env:PYCORE_SKIP_DEP_CHECK = '1'
+        $ErrorActionPreference = 'Continue'
+        # Run LIVE (attached): ensure_venv streams pip output; first build takes minutes.
+        # Out-Host keeps child stdout out of the function's boolean return value.
+        & $PythonExe -c $pyCode | Out-Host
+        $venvOk = Test-IsolatedTtsVenvHealthy -PythonExe $PythonExe -CoreNodeRoot $CoreNodeRoot -Engine $Engine
+    } finally {
+        $ErrorActionPreference = $prevEap
+        $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
+    }
     return $venvOk
 }
 

@@ -27,8 +27,7 @@
       ASCII English (spaces removed, non-ASCII transliterated or translated).
 
     Python and ffmpeg are detected up-front; missing tools produce clear guidance.
-    The Python worker and the dependency checker are both invoked through a
-    RELATIVE path from this script.
+    The Python worker and dependency checker are resolved from this script directory.
 
 .PARAMETER Root
     Source root folder to scan. Default: D:\.tmp
@@ -131,6 +130,21 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$videoToolsDir = (Resolve-Path -LiteralPath $PSScriptRoot).Path
+$scriptsDir = Split-Path $videoToolsDir -Parent
+$shellsDir = Join-Path $scriptsDir 'shells'
+$winCommonDir = Join-Path (Join-Path $shellsDir 'win') 'win_common'
+$checkerPath = Join-Path (Join-Path $videoToolsDir 'py_video_tools') 'check_deps.py'
+$workerPath = Join-Path (Join-Path $videoToolsDir 'py_video_tools') 'video_audio_extractor.py'
+$fwInstallerPath = Join-Path (Join-Path (Join-Path $shellsDir 'win') 'install_powershells') 'Step11_InstallFasterWhisper.ps1'
+$cudaIndexPath = Join-Path $winCommonDir 'CudaIndex.ps1'
+$cudaPolicy = $null
+$ctranslateCudaMajor = 12
+$ctranslateGpuPackages = @()
+$ctranslatePolicyMatch = $false
+$gpuPackage = ''
+
+. $cudaIndexPath
 
 # Authenticate Hugging Face downloads (faster, avoids rate limiting).
 # Precedence: existing $env:HF_TOKEN  >  -HfToken arg  >  assembled default.
@@ -241,35 +255,45 @@ if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
     $ErrorActionPreference = $prevEap
 }
 if (-not $NoSubtitle) {
-    if ($hasGpu) { Write-Host '[OK] NVIDIA GPU detected -> whisper will use CUDA.' -ForegroundColor Green }
-    else         { Write-Host '[i] No NVIDIA GPU detected -> whisper will use CPU (int8).' -ForegroundColor DarkYellow }
+    $cudaPolicy = Get-CudaRuntimePolicy
+    $ctranslateCudaMajor = [int](Get-AiRuntimePolicyValue -Name 'AI_CTRANSLATE2_CUDA_MAJOR' -Default '12')
+    $ctranslateGpuPackages = @(Get-AiRuntimePolicyList -Name 'AI_CTRANSLATE2_GPU_PACKAGES')
+    $ctranslatePolicyMatch = ($hasGpu -and $cudaPolicy.Enabled -and $cudaPolicy.Major -eq $ctranslateCudaMajor)
+    if ($ctranslatePolicyMatch) {
+        Write-Host '[OK] NVIDIA GPU and canonical CTranslate2 CUDA policy match; GPU inference will be probed.' -ForegroundColor Green
+    } elseif ($hasGpu) {
+        Write-Host ("[i] NVIDIA GPU uses canonical {0}; CTranslate2 requires CUDA {1}, so whisper uses CPU int8." -f $cudaPolicy.Tag, $ctranslateCudaMajor) -ForegroundColor DarkYellow
+    } else {
+        Write-Host '[i] No NVIDIA GPU detected -> whisper will use CPU (int8).' -ForegroundColor DarkYellow
+    }
 }
 
 # --- setup: detect libs + model via helpers; install/download in PS1 ----- #
-# The package list lives in py_video_tools\check_deps.py (no requirements.txt is
+# The base package list lives in py_video_tools\check_deps.py (no requirements.txt is
 # used for installation). The worker resolves the whisper model and reports its
 # cache state via --whisper-info; the dedicated installer does pip + model
-# download. The Python worker itself never installs anything. All RELATIVE paths.
-$checkerRel     = '.\py_video_tools\check_deps.py'
-$workerRel      = '.\py_video_tools\video_audio_extractor.py'
-$fwInstallerRel = '..\shells\win\install_powershells\Step11_InstallFasterWhisper.ps1'
+# download. The Python worker itself never installs anything.
 
 $featureArgs = @('--feature', 'naming')
 if (-not $NoSubtitle) { $featureArgs += @('--feature', 'subtitle') }
 if ($Translate)       { $featureArgs += @('--feature', 'translate') }
-if ($hasGpu -and -not $NoSubtitle) { $featureArgs += '--gpu' }
+if ($ctranslatePolicyMatch -and -not $NoSubtitle) {
+    foreach ($gpuPackage in $ctranslateGpuPackages) {
+        $featureArgs += @('--gpu-package', $gpuPackage)
+    }
+}
 
 Push-Location -LiteralPath $PSScriptRoot
 try {
     # @(...) forces an array even for a single line, so splatting passes whole
     # package names (NOT individual characters - that caused the pip '-' error).
-    $missing = @(& $py.Path $checkerRel @featureArgs |
+    $missing = @(& $py.Path $checkerPath @featureArgs |
                  Where-Object { $_ -and $_.Trim() -ne '' })
 
     # Ask the worker which model is effective and whether it is already cached.
     $wModel = ''; $wCached = $true
     if (-not $NoSubtitle) {
-        $info = & $py.Path $workerRel --whisper-info `
+        $info = & $py.Path $workerPath --whisper-info `
                     --whisper-model $WhisperModel --whisper-device $WhisperDevice --whisper-compute $WhisperCompute
         foreach ($ln in $info) {
             if ($ln -match '^model=(.*)$')  { $wModel  = $Matches[1].Trim() }
@@ -293,35 +317,34 @@ try {
             Write-Host ("[..] Installing via pip: {0}" -f ($simpleLibs -join ', ')) -ForegroundColor Yellow
             $prevEap = $ErrorActionPreference
             $ErrorActionPreference = 'Continue'
-            try { & $py.Path -m pip install --upgrade @simpleLibs } catch { }
+            & $py.Path -m pip install @simpleLibs
             $ErrorActionPreference = $prevEap
         }
         # faster-whisper package and/or model handled by the dedicated installer.
         if ($needFw -or $needModel) {
             $fwArgs = @('-Python', $py.Path)
-            if ($hasGpu)                       { $fwArgs += '-Gpu' }
             if ($wModel -and $wModel -ne 'auto') { $fwArgs += @('-Model', $wModel) }
             Write-Host '[..] Launching dedicated faster-whisper installer ...' -ForegroundColor Yellow
-            & $fwInstallerRel @fwArgs
+            & $fwInstallerPath @fwArgs
         }
     }
 
     Write-Host '[..] Library status:' -ForegroundColor Cyan
-    & $py.Path $checkerRel @featureArgs --report
+    & $py.Path $checkerPath @featureArgs --report
 }
 finally {
     Pop-Location
 }
 
 # --------------------------------------------------------------------------- #
-# Build worker arguments and invoke the Python script via a RELATIVE path.    #
+# Build worker arguments and invoke the Python script by absolute path.       #
 # --------------------------------------------------------------------------- #
 
 if (-not $Output) { $Output = Join-Path $Root '_compressed_result' }
 
 $pyArgs = @(
     '-u',                        # unbuffered: stream all worker output in real time
-    $workerRel,
+    $workerPath,
     '--root',        $Root,
     '--output',      $Output,
     '--ffmpeg',      $ff.Path,
@@ -342,17 +365,10 @@ if ($Translate) { $pyArgs += '--translate' }
 if ($DryRun)      { $pyArgs += '--dry-run' }
 
 Write-Host ''
-Write-Host ("[>] Running worker (relative): {0}" -f $workerRel) -ForegroundColor Cyan
+Write-Host ("[>] Running worker: {0}" -f $workerPath) -ForegroundColor Cyan
 Write-Host ''
 
-# Run from this script's own folder so the relative worker path resolves.
-Push-Location -LiteralPath $PSScriptRoot
-try {
-    & $py.Path @pyArgs
-    $code = $LASTEXITCODE
-}
-finally {
-    Pop-Location
-}
+& $py.Path @pyArgs
+$code = $LASTEXITCODE
 
 exit $code

@@ -6,7 +6,7 @@ Hugging Face audio lab. Official: https://github.com/huggingface/parler-tts
   pip install git+https://github.com/huggingface/parler-tts.git
 
 Official perfect-support environment (see pycore/tts_install_assets/tts_model_tiers.py):
-  Python 3.10+ (3.13 OK with torch>=2.5); transformers; soundfile.
+  Python 3.10+; transformers; soundfile.
   GPU: parler-tts/parler-tts-large-v1; CPU: parler-tts/parler-tts-mini-v1.
 
 Config:

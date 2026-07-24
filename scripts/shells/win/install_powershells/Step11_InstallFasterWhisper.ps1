@@ -15,10 +15,8 @@
 # Step9_InstallCudaNvidiaPrereq, and Step10_InstallPythonPrereqPackages so
 # torch/paddle cu13 are already present. Also invoked by PreparePycorePrerequisites.ps1.
 #
-# CUDA policy: single system Python 3.13 stays cu13-only. faster-whisper +
-# CTranslate2 install into that interpreter; on GPU hosts CTranslate2 uses CPU
-# int8 (no cu12 nvidia libs, no venv). Sync-NvidiaCuStack removes stray cu12
-# packages that would clobber cu13 paddle/torch DLLs.
+# CUDA policy: CTranslate2 uses GPU only when its supported CUDA major matches the
+# canonical Torch/Paddle major. Otherwise it uses CPU int8 and no second CUDA stack.
 [CmdletBinding()]
 param(
     [string]$Region = 'Global',
@@ -40,11 +38,15 @@ $sysPip                = $null
 $modelExplicit         = (-not [string]::IsNullOrWhiteSpace($Model) -and $Model -ne 'auto')
 $cudaPolicy            = $null
 $ctranslateCudaMajor   = 12
+$ctranslateGpuPackages = @()
+$ctranslateDepsReady   = $true
+$packageSpec           = ''
 $useCtranslateCuda     = $false
 
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
 . (Join-Path $winCommonDir 'PythonRuntimeCommon.ps1')
+. (Join-Path $winCommonDir 'CudaIndex.ps1')
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
 
 function Test-PyModule {
@@ -57,10 +59,24 @@ function Test-CtranslateCudaUsable {
     param([string]$PythonExe)
     $previousErrorActionPreference = $ErrorActionPreference
     $output = ''
+    $probeCode = @'
+import importlib.util
+import os
+
+if os.name == "nt":
+    for module_name in ("nvidia.cublas", "nvidia.cudnn"):
+        spec = importlib.util.find_spec(module_name)
+        if spec and spec.submodule_search_locations:
+            bin_dir = os.path.join(list(spec.submodule_search_locations)[0], "bin")
+            if os.path.isdir(bin_dir):
+                os.add_dll_directory(bin_dir)
+import ctranslate2
+print("__CT2_CUDA_OK__" if ctranslate2.get_cuda_device_count() > 0 else "__CT2_CUDA_OFF__")
+'@
     try {
         $ErrorActionPreference = 'Continue'
-        $output = (& $PythonExe -c "import ctranslate2; print('__CT2_CUDA_OK__' if ctranslate2.get_cuda_device_count() > 0 else '__CT2_CUDA_OFF__')" 2>$null) -join ''
-        return ($LASTEXITCODE -eq 0 -and $output -match '__CT2_CUDA_OK__')
+        $output = (& $PythonExe -c $probeCode 2>$null) -join ''
+        return ($output -match '__CT2_CUDA_OK__')
     } finally {
         $ErrorActionPreference = $previousErrorActionPreference
     }
@@ -74,6 +90,7 @@ $resolvedPython = $Global:PYTHON_EXE_PATH
 if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [X] System Python 3.13 was NOT found. Run Step8_InstallPython first." -ForegroundColor Red
     Complete-PrereqStep -Prefix $SCRIPT_INDEX -ImportModules @('faster_whisper')
+    return
 }
 Write-Host ("$SCRIPT_INDEX python : {0}" -f $resolvedPython) -ForegroundColor DarkGray
 
@@ -92,6 +109,7 @@ if (-not $Force) {
     if ($reasons.Count -gt 0) {
         Write-Host ("$SCRIPT_INDEX [skip] System too small for faster-whisper ({0}); skipping. Use -Force to override." -f ($reasons -join '; ')) -ForegroundColor DarkYellow
         Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('faster_whisper') -AbsentOk -AbsentNote 'resource policy'
+        return
     }
 }
 
@@ -99,6 +117,7 @@ $hasGpu = Test-NvidiaGpuPresent
 $sysPip = $Global:PIP_EXE_PATH
 $cudaPolicy = Get-CudaRuntimePolicy
 $ctranslateCudaMajor = [int](Get-AiRuntimePolicyValue -Name 'AI_CTRANSLATE2_CUDA_MAJOR' -Default '12')
+$ctranslateGpuPackages = @(Get-AiRuntimePolicyList -Name 'AI_CTRANSLATE2_GPU_PACKAGES')
 
 if ($hasGpu) {
     if (-not $cudaPolicy.Enabled -or $cudaPolicy.Major -ne $ctranslateCudaMajor) {
@@ -106,20 +125,38 @@ if ($hasGpu) {
     }
 }
 
-if ((Test-PyModule -Py $resolvedPython -PackageName 'faster-whisper') -and -not $Force) {
-    Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'faster-whisper already installed' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('faster_whisper')
-}
-
-Write-Host "$SCRIPT_INDEX [..] pip install --upgrade faster-whisper (system Python) ..." -ForegroundColor Yellow
-& $sysPip install --upgrade faster-whisper
 if (Test-PyModule -Py $resolvedPython -PackageName 'faster-whisper') {
-    Write-Host "$SCRIPT_INDEX [OK] faster-whisper installed." -ForegroundColor Green
+    Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'faster-whisper already installed' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 } else {
-    Write-Host "$SCRIPT_INDEX [X] faster-whisper still not importable after install." -ForegroundColor Red
+    Write-Host "$SCRIPT_INDEX [..] pip install faster-whisper (system Python) ..." -ForegroundColor Yellow
+    & $sysPip install faster-whisper
+    if (Test-PyModule -Py $resolvedPython -PackageName 'faster-whisper') {
+        Write-Host "$SCRIPT_INDEX [OK] faster-whisper installed." -ForegroundColor Green
+    } else {
+        Write-Host "$SCRIPT_INDEX [X] faster-whisper still not importable after install." -ForegroundColor Red
+    }
 }
 
-$useCtranslateCuda = ($hasGpu -and $cudaPolicy.Enabled -and $cudaPolicy.Major -eq $ctranslateCudaMajor -and (Test-CtranslateCudaUsable -PythonExe $resolvedPython))
+$ctranslateDepsReady = $true
+if ($hasGpu -and $cudaPolicy.Enabled -and $cudaPolicy.Major -eq $ctranslateCudaMajor) {
+    foreach ($packageSpec in $ctranslateGpuPackages) {
+        if (-not (Test-PythonRequirementSatisfied -PythonExe $resolvedPython -PipSpec $packageSpec)) {
+            $ctranslateDepsReady = $false
+        }
+    }
+    if (-not $ctranslateDepsReady -and $ctranslateGpuPackages.Count -gt 0) {
+        Write-Host ("$SCRIPT_INDEX [..] installing canonical CTranslate2 GPU dependencies: {0}" -f ($ctranslateGpuPackages -join ', ')) -ForegroundColor Yellow
+        & $sysPip install @ctranslateGpuPackages
+        $ctranslateDepsReady = $true
+        foreach ($packageSpec in $ctranslateGpuPackages) {
+            if (-not (Test-PythonRequirementSatisfied -PythonExe $resolvedPython -PipSpec $packageSpec)) {
+                $ctranslateDepsReady = $false
+            }
+        }
+    }
+}
+
+$useCtranslateCuda = ($hasGpu -and $cudaPolicy.Enabled -and $cudaPolicy.Major -eq $ctranslateCudaMajor -and $ctranslateDepsReady -and (Test-CtranslateCudaUsable -PythonExe $resolvedPython))
 if ($hasGpu -and $cudaPolicy.Major -eq $ctranslateCudaMajor -and -not $useCtranslateCuda) {
     Write-Host "$SCRIPT_INDEX [i] CTranslate2 CUDA probe is unavailable; using CPU int8 without mutating the canonical CUDA stack." -ForegroundColor DarkGray
 }

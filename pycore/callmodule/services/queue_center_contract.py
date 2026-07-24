@@ -4,7 +4,9 @@
 from typing import Any, Dict, List, Tuple
 
 from pycore.callmodule.callmodule_config import Config
-from pycore.callmodule.services.translation_worker import get_translation_worker_service
+from pycore.callmodule.services.translation_worker.worker import (
+    get_translation_worker_service,
+)
 
 
 CALLBACK_QUEUE_ROLES: Dict[str, str] = {
@@ -18,8 +20,8 @@ CALLBACK_QUEUE_ROLES: Dict[str, str] = {
 }
 
 QUEUE_CATEGORY_CATALOG: List[Dict[str, str]] = [
-    {"key": "word_translation", "label": "Word Translation", "handler": "any"},
-    {"key": "ai_translate", "label": "AI Translate", "handler": "any"},
+    {"key": "word_translation", "label": "Word Translation", "handler": "pycore"},
+    {"key": "ai_translate", "label": "AI Translate", "handler": "pycore"},
     {"key": "word_media", "label": "Word Media", "handler": "chrome"},
     {"key": "word_audio", "label": "Word Audio", "handler": "pycore"},
     {"key": "sentence_audio", "label": "Sentence Audio", "handler": "pycore"},

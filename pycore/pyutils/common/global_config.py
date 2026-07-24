@@ -17,6 +17,7 @@ Architecture:
 import json
 from typing import Optional, Dict, Any
 from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.database import get_database_manager
 
 from pycore.database.models import TableKeys
@@ -84,6 +85,12 @@ class GlobalConfig:
 
         # Auto-initialize
         self._initialize()
+        init_serialized_owner(
+            self,
+            'pyutils.global_config.state',
+            'GlobalConfigStateThread',
+            timeout=300.0,
+        )
 
     def _initialize(self):
         """Initialize database connection and table (lazy)"""
@@ -98,7 +105,7 @@ class GlobalConfig:
             self._config_model = CommonConfigModel
 
             # Register common database if not already registered
-            if 'common' not in self._db_manager.connection_strings:
+            if not self._db_manager.is_database_registered('common'):
                 self._db_manager.register_database(database_name='common')
 
             # Load config table if not already loaded
@@ -152,6 +159,7 @@ class GlobalConfig:
 
     # ===== Public API (Backward Compatible) =====
 
+    @serialized_method
     def get(self, key: str, default: Any = None) -> Any:
         """
         Get configuration value
@@ -181,6 +189,7 @@ class GlobalConfig:
             ColorPrint.yellow(f"[GlobalConfig] Failed to get {key}: {e}")
             return default
 
+    @serialized_method
     def set(self, key: str, value: Any) -> bool:
         """
         Set configuration value
@@ -210,6 +219,7 @@ class GlobalConfig:
             ColorPrint.red(f"[GlobalConfig] Failed to set {key}: {e}")
             return False
 
+    @serialized_method
     def get_all(self) -> Dict[str, Any]:
         """
         Get all configuration
@@ -237,6 +247,7 @@ class GlobalConfig:
             ColorPrint.red(f"[GlobalConfig] Failed to get all configs: {e}")
             return {}
 
+    @serialized_method
     def update(self, config_dict: Dict[str, Any]) -> bool:
         """
         Update multiple configuration values
@@ -266,6 +277,7 @@ class GlobalConfig:
             ColorPrint.red(f"[GlobalConfig] Failed to update: {e}")
             return False
 
+    @serialized_method
     def reset_to_defaults(self):
         """Reset configuration to defaults"""
         try:
@@ -277,6 +289,7 @@ class GlobalConfig:
         except Exception as e:
             ColorPrint.red(f"[GlobalConfig] Failed to reset: {e}")
 
+    @serialized_method
     def has_key(self, key: str) -> bool:
         """
         Check if configuration key exists
@@ -294,6 +307,7 @@ class GlobalConfig:
             ColorPrint.yellow(f"[GlobalConfig] Failed to check key {key}: {e}")
             return False
 
+    @serialized_method
     def delete(self, key: str) -> bool:
         """
         Delete configuration key

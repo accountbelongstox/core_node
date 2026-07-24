@@ -17,7 +17,7 @@ namespace App\Utils;
  * Distinguishes Chinese / English / Japanese / Korean by writing system, which
  * is the decisive signal for short prompts (statistical n-gram libraries need
  * sentence-length input and misclassify 1-2 word CJK). Generalizes the existing
- * in-repo Unicode-script technique (BookTextStatsService / MoviePosterClient).
+ * in-repo Unicode-script technique used by BookTextStatsService.
  *
  * Returns 2-letter codes consistent with AppQyV1TranslationService::LANGUAGES.
  */

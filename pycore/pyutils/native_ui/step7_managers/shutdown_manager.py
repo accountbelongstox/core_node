@@ -15,10 +15,10 @@ Features:
 - Shutdown timeout handling
 
 Usage:
-    from pycore.pyutils.native_ui import ShutdownManager
+    from pycore.pyutils.native_ui import get_shutdown_manager
 
     # Get singleton instance
-    shutdown_mgr = ShutdownManager()
+    shutdown_mgr = get_shutdown_manager()
 
     # Register pre-shutdown hooks
     def cleanup_resources():
@@ -43,6 +43,7 @@ Author: Extracted from d3-check, adapted for pycore
 """
 
 from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
     start_bus_task,
@@ -78,20 +79,8 @@ class ShutdownManager:
     Singleton pattern implementation for global shutdown management.
     """
 
-    _instance: Optional['ShutdownManager'] = None
-
-    def __new__(cls):
-        """Singleton pattern implementation"""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-
     def __init__(self):
-        """Initialize shutdown manager (only once)"""
-        if getattr(self, '_initialized', False):
-            return
-
+        """Initialize shutdown manager."""
         # Shutdown state
         self._signal_prefix = f'pyutils.native_ui.shutdown.{id(self)}'
 
@@ -107,7 +96,6 @@ class ShutdownManager:
         THREAD_BUS.signal(f'{self._signal_prefix}.ui_quit', None)
 
         ColorPrint.print_info("[ShutdownManager] Initialized (singleton)")
-        self._initialized = True
 
     def register_ui_quit_callback(self, callback: Callable):
         """
@@ -330,6 +318,13 @@ class ShutdownManager:
         ColorPrint.print_info("[ShutdownManager] State reset")
 
 
+_SHUTDOWN_MANAGER_PROVIDER = SerializedSingletonProvider(
+    ShutdownManager,
+    "native_ui.shutdown_manager.provider",
+    "ShutdownManagerProvider",
+)
+
+
 def get_shutdown_manager() -> ShutdownManager:
     """
     Get the singleton ShutdownManager instance
@@ -337,7 +332,7 @@ def get_shutdown_manager() -> ShutdownManager:
     Returns:
         ShutdownManager singleton instance
     """
-    return ShutdownManager()
+    return _SHUTDOWN_MANAGER_PROVIDER.get()
 
 
 # Export

@@ -29,6 +29,7 @@ from typing import Dict, Callable, Optional, Any
 # Core imports
 from pycore import THREAD_BUS, ColorPrint
 from pycore.pyfoundations import get_global_task_queue, TaskState
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pythreadpool import GlobalThreadPool, get_global_thread_pool, ThreadStatus
 
 
@@ -152,7 +153,7 @@ class HeartbeatCallbackThread(threading.Thread):
 # Heartbeat Pusher (Main Thread)
 # ============================================================
 
-class HeartbeatPusher(threading.Thread):
+class HeartbeatPusherThread(threading.Thread):
     """
     Unified heartbeat pusher
 
@@ -174,18 +175,18 @@ class HeartbeatPusher(threading.Thread):
             tick_interval: Tick interval in seconds (default: 1.0)
             thread_pool: GlobalThreadPool instance
         """
-        super().__init__(name='HeartbeatPusher', daemon=True)
-
-        self.tick_interval = tick_interval
+        super().__init__(name='HeartbeatPusherThread', daemon=True)
+        self._config_signal = f"heartbeat.config.{id(self)}"
         self._stop_signal = f"heartbeat.stop.{id(self)}"
         self._running_signal = f"heartbeat.running.{id(self)}"
         self._stats_signal = f"heartbeat.stats.{id(self)}"
         THREAD_BUS.clear_signal(self._stop_signal)
+        THREAD_BUS.signal(self._config_signal, {
+            "tick_interval": tick_interval,
+            "thread_pool": thread_pool,
+        })
         THREAD_BUS.signal(self._running_signal, False)
         THREAD_BUS.signal(self._stats_signal, {})
-
-        self._task_queue = get_global_task_queue()
-        self._thread_pool = thread_pool or get_global_thread_pool()
 
         if THREAD_BUS.get_signal(_CALLBACKS_SIGNAL) is None:
             THREAD_BUS.signal(_CALLBACKS_SIGNAL, {})
@@ -206,6 +207,20 @@ class HeartbeatPusher(threading.Thread):
             name="heartbeat"
         )
         ColorPrint.blue("[Heartbeat] Registered THREAD_BUS shutdown handler (priority=100)")
+
+    @property
+    def tick_interval(self) -> float:
+        config = THREAD_BUS.get_signal(self._config_signal, {}) or {}
+        return float(config.get("tick_interval") or 1.0)
+
+    @property
+    def _task_queue(self):
+        return get_global_task_queue()
+
+    @property
+    def _thread_pool(self):
+        config = THREAD_BUS.get_signal(self._config_signal, {}) or {}
+        return config.get("thread_pool") or get_global_thread_pool()
 
     def register_callback(
         self,
@@ -490,6 +505,9 @@ class HeartbeatPusher(threading.Thread):
 # Heartbeat System
 # ============================================================
 
+HeartbeatPusher = HeartbeatPusherThread
+
+
 class HeartbeatSystem:
     """
     Unified heartbeat system coordinator
@@ -497,31 +515,22 @@ class HeartbeatSystem:
     Simplified version that only manages HeartbeatPusher.
     """
 
-    _instance: Optional['HeartbeatSystem'] = None
-    def __new__(cls):
-        """Singleton pattern"""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
     def __init__(self):
         """Initialize heartbeat system"""
-        if hasattr(self, '_initialized') and self._initialized:
-            return
-
-        self._initialized = True
         self._running_signal = f"heartbeat.system.running.{id(self)}"
         THREAD_BUS.signal(self._running_signal, False)
 
         self._task_queue = get_global_task_queue()
         self._thread_pool = get_global_thread_pool()
 
-        self._heartbeat_pusher: Optional[HeartbeatPusher] = None
+        self._heartbeat_pusher: Optional[HeartbeatPusherThread] = None
 
         self._config = {
             'tick_interval': 1.0,
         }
+        init_serialized_owner(self, "heartbeat.system.state", "HeartbeatSystemState")
 
+    @serialized_method
     def start(self, tick_interval: Optional[float] = None):
         """
         Start heartbeat system
@@ -538,7 +547,7 @@ class HeartbeatSystem:
 
         ColorPrint.green("[HeartbeatSystem] Starting...")
 
-        self._heartbeat_pusher = HeartbeatPusher(
+        self._heartbeat_pusher = HeartbeatPusherThread(
             tick_interval=self._config['tick_interval'],
             thread_pool=self._thread_pool
         )
@@ -548,6 +557,7 @@ class HeartbeatSystem:
 
         ColorPrint.green("[HeartbeatSystem] Started successfully")
 
+    @serialized_method
     def stop(self):
         """Stop heartbeat system"""
         if not THREAD_BUS.get_signal(self._running_signal, False):
@@ -563,6 +573,7 @@ class HeartbeatSystem:
 
         ColorPrint.blue("[HeartbeatSystem] Stopped")
 
+    @serialized_method
     def is_running(self) -> bool:
         """Check if system is running"""
         return bool(THREAD_BUS.get_signal(self._running_signal, False)) and (
@@ -570,6 +581,7 @@ class HeartbeatSystem:
             self._heartbeat_pusher.is_running()
         )
 
+    @serialized_method
     def register_callback(
         self,
         name: str,
@@ -591,29 +603,34 @@ class HeartbeatSystem:
         else:
             ColorPrint.yellow("[HeartbeatSystem] Not started, cannot register callback")
 
+    @serialized_method
     def unregister_callback(self, name: str):
         """Unregister a callback"""
         if self._heartbeat_pusher:
             self._heartbeat_pusher.unregister_callback(name)
 
+    @serialized_method
     def enable_callback(self, name: str) -> bool:
         """Enable a callback. Returns False when the name is not registered."""
         if self._heartbeat_pusher:
             return self._heartbeat_pusher.enable_callback(name)
         return False
 
+    @serialized_method
     def disable_callback(self, name: str) -> bool:
         """Disable a callback. Returns False when the name is not registered."""
         if self._heartbeat_pusher:
             return self._heartbeat_pusher.disable_callback(name)
         return False
 
+    @serialized_method
     def is_callback_enabled(self, name: str) -> bool:
         """Return live enabled flag for a registered callback."""
         if self._heartbeat_pusher:
             return self._heartbeat_pusher.is_callback_enabled(name)
         return False
 
+    @serialized_method
     def get_stats(self) -> dict:
         """Get comprehensive system statistics"""
         stats = {
@@ -628,6 +645,7 @@ class HeartbeatSystem:
 
         return stats
 
+    @serialized_method
     def get_total_ticks(self) -> int:
         """Get total tick count from heartbeat"""
         if self._heartbeat_pusher:
@@ -638,6 +656,7 @@ class HeartbeatSystem:
         """Get current timestamp"""
         return time.time()
 
+    @serialized_method
     def get_uptime(self) -> float:
         """Get heartbeat system uptime in seconds"""
         if not self._heartbeat_pusher:
@@ -649,7 +668,7 @@ class HeartbeatSystem:
 # Global Instance and Helper Functions
 # ============================================================
 
-_heartbeat_system: Optional[HeartbeatSystem] = None
+_heartbeat_system = HeartbeatSystem()
 def get_heartbeat_system() -> HeartbeatSystem:
     """
     Get heartbeat system singleton
@@ -657,11 +676,6 @@ def get_heartbeat_system() -> HeartbeatSystem:
     Returns:
         HeartbeatSystem instance
     """
-    global _heartbeat_system
-
-    if _heartbeat_system is None:
-        _heartbeat_system = HeartbeatSystem()
-
     return _heartbeat_system
 
 
@@ -685,6 +699,7 @@ def initialize_heartbeat_system() -> HeartbeatSystem:
 __all__ = [
     'CallbackInfo',
     'HeartbeatPusher',
+    'HeartbeatPusherThread',
     'HeartbeatSystem',
     'get_heartbeat_system',
     'initialize_heartbeat_system'

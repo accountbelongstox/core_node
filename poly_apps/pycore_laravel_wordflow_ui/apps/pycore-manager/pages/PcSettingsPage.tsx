@@ -6,9 +6,7 @@
  * system-settings (pycoreApi.getSystemSettings/setSystemSettings —
  * monitorClipboard, scheduledScreenshot, screenshotInterval, notebooklmAutoConvert),
  * the Laravel endpoint selection (PcLaravelEndpointSwitcher — pycore-owned
- * `laravel_api.*` RPCs), the Assist Laravel worker config
- * (pycoreApi.getAssistStatus/setAssistConfig — pycore drains Laravel's
- * cover/tts/translation queues against the SELECTED endpoint above) and
+ * `laravel_api.*` RPCs), task engine tuning, and
  * auto-start on boot (pycoreApi.getAutostart/setAutostart). Every backend call
  * is guarded; an inline "pycore unreachable" state is shown when the backend
  * (:59000) is offline. Local React state, pycoreApi, lucide-react and
@@ -17,8 +15,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Settings2, Power, RefreshCw, Clipboard, Image as ImageIcon, FileText,
-  AlertTriangle, Info, Wifi, Handshake, Server, Languages, Volume2, Save, Loader2,
-  Sparkles, Film, Captions, Mic,
+  AlertTriangle, Info, Wifi, Volume2, Save, Loader2,
 } from 'lucide-react';
 import {
   pycoreApi,
@@ -26,10 +23,9 @@ import {
   getPycoreRecheckIntervalMs, setPycoreRecheckIntervalMs,
 } from '../../../core/api-libs/pycore';
 import type {
-  AutostartStatus, AutostartTarget, PycoreHealthState, AssistCapabilities, AssistStatus, TtsSettings,
+  AutostartStatus, AutostartTarget, PycoreHealthState, TtsSettings,
 } from '../../../core/api-libs/pycore';
 import PcLaravelEndpointSwitcher from '../components/PcLaravelEndpointSwitcher';
-import PcTtsAutoRunPanel from '../components/PcTtsAutoRunPanel';
 
 interface SystemSettings {
   monitorClipboard: boolean;
@@ -45,50 +41,6 @@ const DEFAULTS: SystemSettings = {
   notebooklmAutoConvert: false,
 };
 
-// --- Assist Laravel (pycore drains Laravel's cover/tts/translation queues) - #
-interface AssistForm {
-  enabled: boolean;
-  capabilities: AssistCapabilities;
-  poll_interval_s: number;
-  batch_limit: number;
-  // Live worker loop state (status-only, never sent in the config payload).
-  running: boolean;
-}
-
-const ASSIST_DEFAULTS: AssistForm = {
-  enabled: false,
-  capabilities: {
-    translation: true,
-    ai_translate: true,
-    cover: false,
-    poster: false,
-    image: false,
-    tts: true,
-    sentence_audio: true,
-    subtitle: false,
-    stt: false,
-  },
-  poll_interval_s: 30,
-  batch_limit: 5,
-  running: false,
-};
-
-const ASSIST_CAPS: { key: keyof AssistCapabilities; label: string; Icon: React.FC<{ className?: string }> }[] = [
-  { key: 'translation', label: 'Word translation', Icon: Languages },
-  { key: 'ai_translate', label: 'AI translate', Icon: Sparkles },
-  // mcp-chrome delegated — not shown in pycore settings UI:
-  // { key: 'cover', label: 'Cover images (mcp-chrome)', Icon: ImageIcon },
-  // { key: 'poster', label: 'Movie/TV poster (mcp-chrome)', Icon: Film },
-  // { key: 'image', label: 'Word media (mcp-chrome)', Icon: Sparkles },
-  { key: 'tts', label: 'Voice (TTS) — words + sentences', Icon: Volume2 },
-  { key: 'subtitle', label: 'Subtitle search', Icon: Captions },
-  { key: 'stt', label: 'Speech-to-text', Icon: Mic },
-];
-
-/** Loose 404/error bodies must not populate the form — shape-guard the reply. */
-const isAssistStatus = (s: any): s is AssistStatus =>
-  !!s && typeof s.enabled === 'boolean' && !!s.capabilities;
-
 const isAutostart = (s: any): s is AutostartStatus =>
   !!s && typeof s.enabled === 'boolean' && typeof s.supported === 'boolean';
 
@@ -101,18 +53,6 @@ const TTS_TUNING_DEFAULTS: TtsTuningForm = {
   synth_timeout_s: 20,
   edge_cooldown_s: 300,
 };
-
-const mergeAssistCapabilities = (caps?: AssistCapabilities): AssistCapabilities => ({
-  translation: caps?.translation !== false,
-  ai_translate: caps?.ai_translate !== false,
-  cover: caps?.cover !== false,
-  poster: caps?.poster !== false,
-  image: caps?.image !== false,
-  tts: caps?.tts !== false,
-  sentence_audio: caps?.sentence_audio !== false,
-  subtitle: caps?.subtitle === true,
-  stt: caps?.stt === true,
-});
 
 const PcSettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<SystemSettings>(DEFAULTS);
@@ -168,66 +108,6 @@ const PcSettingsPage: React.FC = () => {
       setLoading(false);
     }
   }, []);
-
-  // --- Assist Laravel ------------------------------------------------------ #
-  const [assist, setAssist] = useState<AssistForm>(ASSIST_DEFAULTS);
-  // null = loading, false = endpoint missing / pycore offline, true = loaded.
-  const [assistAvailable, setAssistAvailable] = useState<boolean | null>(null);
-  const [assistEndpoint, setAssistEndpoint] = useState<{ base_url: string; label?: string } | null>(null);
-  const [assistSaving, setAssistSaving] = useState(false);
-  const [assistNotice, setAssistNotice] = useState<{ ok: boolean; text: string } | null>(null);
-
-  const loadAssist = useCallback(async () => {
-    setAssistAvailable(null);
-    try {
-      const s = await pycoreApi.getAssistStatus();
-      if (!isAssistStatus(s)) throw new Error((s as any)?.error || (s as any)?.detail || 'assist status unavailable');
-      setAssist({
-        enabled: s.enabled === true,
-        capabilities: mergeAssistCapabilities(s.capabilities),
-        poll_interval_s: typeof s.poll_interval_s === 'number' ? s.poll_interval_s : ASSIST_DEFAULTS.poll_interval_s,
-        batch_limit: typeof s.batch_limit === 'number' ? s.batch_limit : ASSIST_DEFAULTS.batch_limit,
-        running: s.running === true,
-      });
-      setAssistEndpoint(s.endpoint ?? null);
-      setAssistAvailable(true);
-    } catch {
-      setAssistAvailable(false);
-    }
-  }, []);
-
-  const saveAssist = useCallback(async () => {
-    setAssistSaving(true);
-    setAssistNotice(null);
-    const caps = { ...assist.capabilities };
-    caps.sentence_audio = caps.tts;
-    try {
-      const r = await pycoreApi.setAssistConfig({
-        enabled: assist.enabled,
-        capabilities: caps,
-        poll_interval_s: Math.max(5, Math.round(assist.poll_interval_s) || ASSIST_DEFAULTS.poll_interval_s),
-        batch_limit: Math.max(1, Math.round(assist.batch_limit) || ASSIST_DEFAULTS.batch_limit),
-      });
-      if (!r || r.ok !== true) throw new Error((r as any)?.error || (r as any)?.detail || 'save rejected');
-      // Reflect what the backend actually applied (clamping etc.). The config
-      // response carries no live `running` flag — keep the last status value and
-      // let the next loadAssist() refresh it.
-      if (r.config) {
-        setAssist((prev) => ({
-          enabled: r.config.enabled === true,
-          capabilities: mergeAssistCapabilities(r.config.capabilities),
-          poll_interval_s: typeof r.config.poll_interval_s === 'number' ? r.config.poll_interval_s : prev.poll_interval_s,
-          batch_limit: typeof r.config.batch_limit === 'number' ? r.config.batch_limit : prev.batch_limit,
-          running: prev.running,
-        }));
-      }
-      setAssistNotice({ ok: true, text: 'Assist settings saved.' });
-    } catch (e: any) {
-      setAssistNotice({ ok: false, text: `Save failed: ${e?.message || 'pycore unreachable'}` });
-    } finally {
-      setAssistSaving(false);
-    }
-  }, [assist]);
 
   // --- TTS tuning ---------------------------------------------------------- #
   const [ttsTuning, setTtsTuning] = useState<TtsTuningForm>(TTS_TUNING_DEFAULTS);
@@ -321,7 +201,6 @@ const PcSettingsPage: React.FC = () => {
 
   useEffect(() => {
     loadSettings();
-    loadAssist();
     loadTtsTuning();
     loadTaskChains();
     pycoreApi.getAutostart().then((s) => {
@@ -481,146 +360,6 @@ const PcSettingsPage: React.FC = () => {
         </div>
       </section>
 
-      {/* Assist Laravel: pycore claims cover/tts/translation work from the
-          SELECTED Laravel endpoint above and submits the results back. */}
-      <section className="pc-glass p-6 space-y-3">
-        <div className="flex items-center justify-between gap-4 mb-1">
-          <h2 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Assist Laravel</h2>
-          <button onClick={loadAssist} disabled={assistAvailable === null}
-            className="p-1.5 rounded-lg pc-glass hover:bg-rose-500/10 text-rose-500 transition disabled:opacity-50" title="Reload assist config">
-            <RefreshCw className={`w-3.5 h-3.5 ${assistAvailable === null ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-
-        {assistAvailable === false && (
-          <div className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span className="break-words">
-              Assist endpoints unavailable — the pycore backend may be offline or not deployed with assist support yet.
-            </span>
-          </div>
-        )}
-
-        {row(
-          <Handshake className="w-5 h-5" />, 'Assist Laravel queues',
-          'Pycore periodically claims cover / TTS / translation work from the selected Laravel backend, processes it locally and submits the results.',
-          <div className="flex items-center gap-3 shrink-0">
-            {assistAvailable === true && (
-              <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md ${
-                assist.running
-                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                  : 'bg-slate-500/15 text-slate-400'}`}
-                title={assist.running
-                  ? 'The assist worker loop is currently running.'
-                  : 'The assist worker loop is stopped.'}>
-                <span className={`w-1.5 h-1.5 rounded-full ${assist.running ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                {assist.running ? 'Running' : 'Stopped'}
-              </span>
-            )}
-            {toggle(assist.enabled, assistAvailable !== true,
-              () => setAssist((a) => ({ ...a, enabled: !a.enabled })))}
-          </div>,
-          'bg-rose-500/10 text-rose-500',
-        )}
-
-        {/* capabilities — meaningless without the master switch, so greyed/
-            disabled while `enabled` is OFF. Ticking any capability ON also flips
-            the master ON in the same update so the worker actually starts. */}
-        <div className={`rounded-2xl p-4 bg-slate-100/60 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 ${assistAvailable === true && assist.enabled ? '' : 'opacity-50'}`}>
-          <div className="text-xs font-bold text-slate-700 dark:text-zinc-200 mb-0.5">Capabilities</div>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
-            {assistAvailable === true && !assist.enabled
-              ? 'Enable Assist Laravel above to choose which kinds of work this pycore instance takes.'
-              : 'Which kinds of Laravel work this pycore instance is allowed to take.'}
-          </p>
-          <div className="flex flex-wrap gap-x-6 gap-y-2">
-            {ASSIST_CAPS.map(({ key, label, Icon }) => (
-              <label key={key} className={`flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 select-none ${
-                assistAvailable === true && assist.enabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
-                <input type="checkbox"
-                  checked={assist.capabilities[key]}
-                  disabled={assistAvailable !== true || !assist.enabled}
-                  onChange={() => setAssist((a) => {
-                    const nextOn = !a.capabilities[key];
-                    const caps = { ...a.capabilities, [key]: nextOn };
-                    if (key === 'tts') caps.sentence_audio = nextOn;
-                    return {
-                      ...a,
-                      enabled: nextOn ? true : a.enabled,
-                      capabilities: caps,
-                    };
-                  })}
-                  className="w-3.5 h-3.5 accent-rose-500 disabled:cursor-not-allowed" />
-                <Icon className="w-3.5 h-3.5 text-rose-400" />
-                {label}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* poll interval + batch limit */}
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div className={`flex items-center justify-between gap-4 rounded-2xl p-4 bg-slate-100/60 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 ${assistAvailable === true ? '' : 'opacity-50'}`}>
-            <div className="min-w-0">
-              <div className="text-xs font-bold text-slate-700 dark:text-zinc-200">Poll interval</div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">How often the worker asks Laravel for work.</p>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <input type="number" min={5} step={5}
-                value={assist.poll_interval_s}
-                disabled={assistAvailable !== true}
-                onChange={(e) => setAssist((a) => ({ ...a, poll_interval_s: Number(e.target.value) }))}
-                className="w-20 px-2 py-1.5 text-xs text-right rounded-xl border border-slate-300/50 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-zinc-200 disabled:opacity-50" />
-              <span className="text-[11px] text-slate-500 dark:text-slate-400">s</span>
-            </div>
-          </div>
-          <div className={`flex items-center justify-between gap-4 rounded-2xl p-4 bg-slate-100/60 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 ${assistAvailable === true ? '' : 'opacity-50'}`}>
-            <div className="min-w-0">
-              <div className="text-xs font-bold text-slate-700 dark:text-zinc-200">Batch limit</div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">Max items claimed per cycle.</p>
-            </div>
-            <input type="number" min={1} step={1}
-              value={assist.batch_limit}
-              disabled={assistAvailable !== true}
-              onChange={(e) => setAssist((a) => ({ ...a, batch_limit: Number(e.target.value) }))}
-              className="w-20 px-2 py-1.5 text-xs text-right rounded-xl border border-slate-300/50 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-zinc-200 disabled:opacity-50 shrink-0" />
-          </div>
-        </div>
-
-        {/* target endpoint (read-only — follows the Connection selection) */}
-        <div className="rounded-2xl p-4 bg-slate-100/60 dark:bg-white/5 border border-slate-300/35 dark:border-white/5">
-          <div className="flex items-center gap-2 min-w-0">
-            <Server className="w-4 h-4 text-rose-400 shrink-0" />
-            <span className="text-xs font-bold text-slate-700 dark:text-zinc-200 shrink-0">Target endpoint</span>
-            <span className="text-xs font-mono text-slate-600 dark:text-slate-300 truncate"
-              title={assistEndpoint?.base_url}>
-              {assistEndpoint?.base_url ?? '— none selected —'}
-            </span>
-            {assistEndpoint?.label && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-rose-500/10 text-rose-500 font-bold shrink-0">
-                {assistEndpoint.label}
-              </span>
-            )}
-          </div>
-          <p className="text-[10px] text-slate-400 mt-1">
-            Read-only — assist follows the Laravel endpoint selected in Connection above.
-          </p>
-        </div>
-
-        {/* save */}
-        <div className="flex items-center gap-3">
-          <button onClick={saveAssist} disabled={assistAvailable !== true || assistSaving}
-            className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-500/20 transition flex items-center gap-1.5">
-            {assistSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-            Save assist settings
-          </button>
-          {assistNotice && (
-            <span className={`text-[11px] ${assistNotice.ok ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {assistNotice.text}
-            </span>
-          )}
-        </div>
-      </section>
 
       {/* Per-task-type capability fallback chains */}
       <section className="pc-glass p-6 space-y-3">
@@ -729,10 +468,6 @@ const PcSettingsPage: React.FC = () => {
           )}
         </div>
       </section>
-
-      {/* edge-tts auto-run toggles (sentence + word). Persisted UI switch — the
-          backend reads these at startup instead of a hardcoded Config default. */}
-      <PcTtsAutoRunPanel />
 
       {/* backend system settings */}
       <section className="pc-glass p-6 space-y-3">

@@ -18,6 +18,7 @@ from enum import Enum
 
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
     SerializedWorkerThread,
     call_serialized,
 )
@@ -452,15 +453,13 @@ class TaskManager:
         return f"task_{task_type}_{timestamp}_{unique_id}"
 
 
-# Global singleton
-_task_manager: Optional[TaskManager] = None
+_TASK_MANAGER_PROVIDER = SerializedSingletonProvider(
+    TaskManager,
+    "desktop.task_manager.provider",
+    "DesktopTaskManagerProvider",
+)
 
 
 def get_task_manager() -> TaskManager:
     """Get global task manager instance"""
-    global _task_manager
-
-    if _task_manager is None:
-        _task_manager = TaskManager()
-
-    return _task_manager
+    return _TASK_MANAGER_PROVIDER.get()

@@ -15,11 +15,10 @@
 
 SCRIPT_INDEX="[NPM_PRE_CHECK]"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALLATION_LIBRARY_PATH="$(dirname "$(dirname "$SCRIPT_CURRENT_DIR")")/common/installation_library.sh"
 
 # Source required libraries
-if [ -f "$SCRIPT_CURRENT_DIR/installation_library.sh" ]; then
-    source "$SCRIPT_CURRENT_DIR/installation_library.sh"
-fi
+source "$INSTALLATION_LIBRARY_PATH"
 
 # Check if package_id is provided
 if [ -z "$1" ]; then
@@ -123,17 +122,13 @@ main() {
        [ "$ISSUE_STAGING_EXISTS" = true ] || \
        [ "$ISSUE_ORPHANED_BINARY" = true ]; then
         log_install "Running npm cleanup helper..."
-        if [ -f "$SCRIPT_CURRENT_DIR/npm_cleanup_helper.sh" ]; then
-            bash "$SCRIPT_CURRENT_DIR/npm_cleanup_helper.sh" "$PACKAGE_ID" "$APP_NAME"
-        fi
+        bash "$SCRIPT_CURRENT_DIR/npm_cleanup_helper.sh" "$PACKAGE_ID" "$APP_NAME"
     fi
 
     # Run permission fixer if needed
     if [ "$ISSUE_PERMISSION" = true ]; then
         log_install "Running npm permission fixer..."
-        if [ -f "$SCRIPT_CURRENT_DIR/npm_permission_fixer.sh" ]; then
-            bash "$SCRIPT_CURRENT_DIR/npm_permission_fixer.sh"
-        fi
+        bash "$SCRIPT_CURRENT_DIR/npm_permission_fixer.sh"
     fi
 
     log_success "Pre-installation check and fix completed"

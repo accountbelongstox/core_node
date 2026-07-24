@@ -238,7 +238,7 @@ function Test-RubyInstallation {
     try {
         # Test Ruby version
         $rubyVersion = & $RubyPath --version 2>&1
-        if ("$rubyVersion" -match 'ruby') {
+        if (("$rubyVersion").Contains('ruby')) {
             Write-Host "$LogPrefix Ruby version check passed" -ForegroundColor Green
             $versionLine = ($rubyVersion | Select-Object -First 1).ToString()
             Write-Host "$LogPrefix $versionLine" -ForegroundColor Cyan
@@ -255,7 +255,7 @@ function Test-RubyInstallation {
         
         if (Test-Path $gemPath) {
             $gemVersion = & $gemPath --version 2>&1
-            if ("$gemVersion" -match '\d') {
+            if (-not [string]::IsNullOrWhiteSpace([string]$gemVersion)) {
                 Write-Host "$LogPrefix Gem check passed" -ForegroundColor Green
                 $gemVersionLine = ($gemVersion | Select-Object -First 1).ToString()
                 Write-Host "$LogPrefix Gem version: $gemVersionLine" -ForegroundColor Cyan

@@ -1171,12 +1171,12 @@ GLOBAL_VAR_DIR="$CORE_NODE_DATA_DIR/global_var"
 # Wire the ONE shared, all-users cache location (CORE_NODE_CACHE_DIR + HF_HOME /
 # TORCH_HOME / PIP_CACHE_DIR / XDG_CACHE_HOME ...). Idempotent, set -u-safe, and it
 # respects any value the caller already exported.
-if [ -f "$(dirname "${BASH_SOURCE[0]}")/shared_cache_env.sh" ]; then source "$(dirname "${BASH_SOURCE[0]}")/shared_cache_env.sh"; fi
+source "$(dirname "${BASH_SOURCE[0]}")/shared_cache_env.sh"
 
 # Wire the ONE shared GPU/CUDA detector (gpu_present) from base_libs/lib_gpu.sh -- the
 # canonical CUDADetector mirror -- so every install script selects GPU build + LARGE model
 # vs CPU build + small model the SAME way. Defining-only (no side effects); safe under set -u.
-if [ -f "$(dirname "${BASH_SOURCE[0]}")/base_libs/lib_gpu.sh" ]; then source "$(dirname "${BASH_SOURCE[0]}")/base_libs/lib_gpu.sh"; fi
+source "$(dirname "${BASH_SOURCE[0]}")/base_libs/lib_gpu.sh"
 
 # Global download directory for all installation scripts
 CORE_NODE_SHARED_DOWNLOADS="$CORE_NODE_DATA_DIR/shared_downloads"

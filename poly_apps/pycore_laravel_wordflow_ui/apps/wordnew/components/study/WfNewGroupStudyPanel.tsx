@@ -369,6 +369,7 @@ export const WfNewGroupStudyPanel: React.FC<WfNewGroupStudyPanelProps> = ({
             <WfNewStudyWordList
               words={dueWords}
               lang={lang}
+              sourceLanguage={group.language}
               theme={theme}
               brief={brief}
               favorites={favorites}
@@ -443,6 +444,7 @@ export const WfNewGroupStudyPanel: React.FC<WfNewGroupStudyPanelProps> = ({
                   <WfNewStudyWordList
                     words={liveWords}
                     lang={lang}
+                    sourceLanguage={group.language}
                     theme={theme}
                     brief={brief}
                     favorites={favorites}
@@ -480,6 +482,7 @@ export const WfNewGroupStudyPanel: React.FC<WfNewGroupStudyPanelProps> = ({
             <WfNewStudyWordList
               words={liveWords}
               lang={lang}
+              sourceLanguage={group.language}
               theme={theme}
               brief={brief}
               favorites={favorites}

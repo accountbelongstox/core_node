@@ -14,6 +14,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations import ColorPrint, Task, ENCYCLOPEDIA
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 from pycore.pythreadpool.registry import THREAD_REGISTRY
@@ -96,24 +97,19 @@ class GlobalThreadPool:
     All mappings are stored in Encyclopedia for global access.
     """
 
-    _instance: Optional['GlobalThreadPool'] = None
-    def __new__(cls):
-        """Singleton pattern"""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
     def __init__(self):
         """Initialize thread pool"""
-        if hasattr(self, '_initialized') and self._initialized:
-            return
-
-        self._initialized = True
         if THREAD_BUS.get_signal(THREAD_POOL_THREADS_KEY) is None:
             THREAD_BUS.signal(THREAD_POOL_THREADS_KEY, {})
         if THREAD_BUS.get_signal(THREAD_POOL_TASK_HANDLERS_KEY) is None:
             THREAD_BUS.signal(THREAD_POOL_TASK_HANDLERS_KEY, {})
 
+        init_serialized_owner(
+            self,
+            "global_thread_pool.state",
+            "GlobalThreadPoolState",
+            timeout=60.0,
+        )
         self._sync_to_encyclopedia()
 
     @property
@@ -134,6 +130,7 @@ class GlobalThreadPool:
     def _task_type_handlers(self, value: Dict[str, List[str]]) -> None:
         THREAD_BUS.signal(THREAD_POOL_TASK_HANDLERS_KEY, value)
 
+    @serialized_method
     def _sync_to_encyclopedia(self):
         """Sync thread pool mappings to Encyclopedia"""
         threads_data = {
@@ -143,6 +140,7 @@ class GlobalThreadPool:
         ENCYCLOPEDIA.add(THREAD_POOL_THREADS_KEY, threads_data)
         ENCYCLOPEDIA.add(THREAD_POOL_TASK_HANDLERS_KEY, self._task_type_handlers.copy())
 
+    @serialized_method
     def register_thread(
         self,
         name: str,
@@ -225,6 +223,7 @@ class GlobalThreadPool:
         )
         return True
 
+    @serialized_method
     def unregister_thread(self, name: str) -> bool:
         """
         Unregister thread from pool
@@ -252,6 +251,7 @@ class GlobalThreadPool:
         ColorPrint.blue(f"[ThreadPool] Unregistered thread: {name}")
         return True
 
+    @serialized_method
     def get_thread(self, name: str) -> Optional[ThreadInfo]:
         """
         Get thread info by name
@@ -264,6 +264,7 @@ class GlobalThreadPool:
         """
         return self._threads.get(name)
 
+    @serialized_method
     def get_all_threads(self) -> List[ThreadInfo]:
         """
         Get all registered threads
@@ -273,6 +274,7 @@ class GlobalThreadPool:
         """
         return list(self._threads.values())
 
+    @serialized_method
     def get_handlers_for_task_type(self, task_type: str) -> List[tuple]:
         """
         Get list of (thread_info, handler_fn) for a specific task type
@@ -295,6 +297,7 @@ class GlobalThreadPool:
                 handlers.append((thread_info, handler_fn))
         return handlers
 
+    @serialized_method
     def is_thread_alive(self, name: str) -> bool:
         """
         Check if thread is alive
@@ -308,6 +311,7 @@ class GlobalThreadPool:
         thread_info = self.get_thread(name)
         return thread_info.is_alive() if thread_info else False
 
+    @serialized_method
     def update_heartbeat(self, name: str):
         """
         Update thread heartbeat timestamp
@@ -330,6 +334,7 @@ class GlobalThreadPool:
         self._threads = threads
         self._sync_to_encyclopedia()
 
+    @serialized_method
     def update_status(self, name: str, status: ThreadStatus):
         """
         Update thread status
@@ -347,6 +352,7 @@ class GlobalThreadPool:
         self._sync_to_encyclopedia()
         ColorPrint.blue(f"[ThreadPool] Thread '{name}' status: {status.value}")
 
+    @serialized_method
     def check_health(self, heartbeat_timeout: float = 30.0) -> Dict[str, List[str]]:
         """
         Check health of all threads
@@ -373,6 +379,7 @@ class GlobalThreadPool:
             'unhealthy': unhealthy
         }
 
+    @serialized_method
     def get_stats(self) -> Dict[str, Any]:
         """
         Get thread pool statistics
@@ -400,6 +407,7 @@ class GlobalThreadPool:
             },
         }
 
+    @serialized_method
     def get_shutdown_order(self) -> List[tuple]:
         """
         Get threads in shutdown order (by priority, lower first)
@@ -474,7 +482,7 @@ class GlobalThreadPool:
         return results
 
 
-_global_thread_pool: Optional[GlobalThreadPool] = None
+_global_thread_pool = GlobalThreadPool()
 def get_global_thread_pool() -> GlobalThreadPool:
     """
     Get global thread pool singleton
@@ -482,11 +490,6 @@ def get_global_thread_pool() -> GlobalThreadPool:
     Returns:
         GlobalThreadPool instance
     """
-    global _global_thread_pool
-
-    if _global_thread_pool is None:
-        _global_thread_pool = GlobalThreadPool()
-
     return _global_thread_pool
 
 

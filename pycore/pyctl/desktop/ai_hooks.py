@@ -22,9 +22,12 @@ ONLY AI exit.
 from typing import Any, Callable, Dict, Optional
 
 from pycore import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedValue
 
-_text_handler: Optional[Callable[..., Dict[str, Any]]] = None
-_image_handler: Optional[Callable[..., Dict[str, Any]]] = None
+_AI_HANDLERS = SerializedValue(
+    (None, None),
+    "DesktopAIHandlersStateThread",
+)
 
 
 def set_ai_handlers(
@@ -32,14 +35,13 @@ def set_ai_handlers(
     image_handler: Optional[Callable[..., Dict[str, Any]]] = None,
 ) -> None:
     """Inject the unified AI gateway functions (called once at app startup)."""
-    global _text_handler, _image_handler
-    if text_handler is not None:
-        _text_handler = text_handler
-    if image_handler is not None:
-        _image_handler = image_handler
+    current_text_handler, current_image_handler = _AI_HANDLERS.get()
+    next_text_handler = text_handler or current_text_handler
+    next_image_handler = image_handler or current_image_handler
+    _AI_HANDLERS.set((next_text_handler, next_image_handler))
     ColorPrint.green(
-        f"[ai_hooks] AI handlers wired (text={_text_handler is not None}, "
-        f"image={_image_handler is not None})")
+        f"[ai_hooks] AI handlers wired (text={next_text_handler is not None}, "
+        f"image={next_image_handler is not None})")
 
 
 def _not_wired() -> Dict[str, Any]:
@@ -52,16 +54,18 @@ def _not_wired() -> Dict[str, Any]:
 
 def ai_generate_text(prompt: str, source: str = "") -> Dict[str, Any]:
     """Text generation through the injected gateway (prompt passed unchanged)."""
-    if _text_handler is None:
+    text_handler, _ = _AI_HANDLERS.get()
+    if text_handler is None:
         return _not_wired()
-    return _text_handler(prompt=prompt, source=source)
+    return text_handler(prompt=prompt, source=source)
 
 
 def ai_describe_image(image_path: str, prompt: Optional[str] = None, source: str = "") -> Dict[str, Any]:
     """Image description through the injected gateway."""
-    if _image_handler is None:
+    _, image_handler = _AI_HANDLERS.get()
+    if image_handler is None:
         return _not_wired()
-    return _image_handler(image_path=image_path, prompt=prompt, source=source)
+    return image_handler(image_path=image_path, prompt=prompt, source=source)
 
 
 __all__ = ["set_ai_handlers", "ai_generate_text", "ai_describe_image"]

@@ -16,30 +16,29 @@
 
 $ErrorActionPreference = 'Stop'
 
-$failed             = @()
 $neuralBatchInstall = ($env:NEURAL_TTS_INSTALL -eq '1')
 $manifestPath       = Join-Path $PSScriptRoot 'PycorePrerequisitesList.ps1'
 $winCommonDir       = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 $name               = ''
 $scriptPath         = ''
 $invokeArgs         = @{}
-$previousStepEap    = 'Stop'
-$failurePosition    = ''
 $skipVariable       = ''
 $skipValue          = ''
+$installMode        = ''
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
 . $manifestPath
 
 Write-Host '------------------------------------------------------' -ForegroundColor Cyan
 Write-Host ' Pycore prerequisites (PreparePycorePrerequisites)' -ForegroundColor Cyan
 Write-Host '------------------------------------------------------' -ForegroundColor Cyan
-Write-Host '[i] Idempotent and SELF-REPAIRING: re-running repairs environment drift (e.g. a clobbered' -ForegroundColor Cyan
-Write-Host '    transformers pin is restored to the shared version). See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.' -ForegroundColor Cyan
+Write-Host '[i] Idempotent and SELF-REPAIRING: installed pip distributions are preserved; reruns repair' -ForegroundColor Cyan
+Write-Host '    missing package metadata or incomplete model files. See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.' -ForegroundColor Cyan
 
 foreach ($entry in $PycorePrerequisiteScripts) {
     $name = $entry.Key
+    $installMode = [string]$entry.InstallMode
 
-    $skipVariable = if ($entry.ContainsKey('SkipEnv')) { [string]$entry.SkipEnv } else { '' }
+    $skipVariable = [string]$entry.SkipEnv
     $skipValue = if ($skipVariable) { [Environment]::GetEnvironmentVariable($skipVariable, 'Process') } else { '' }
     if ($skipValue -eq '1') {
         Write-Host ("[skip] {0} ({1}=1)" -f $name, $skipVariable) -ForegroundColor DarkGray
@@ -49,48 +48,19 @@ foreach ($entry in $PycorePrerequisiteScripts) {
     Write-Host ("[..] Prerequisite: {0}" -f $name) -ForegroundColor Yellow
 
     $scriptPath = Get-PycorePrerequisiteScriptPath -ScriptName $entry.Script
-    if (-not (Test-Path -LiteralPath $scriptPath)) {
-        Write-Host ("[!] {0} missing: {1}" -f $name, $scriptPath) -ForegroundColor DarkYellow
-        $failed += $name
-        continue
-    }
-
     $invokeArgs = @{}
-    if ($neuralBatchInstall -and ($NeuralTtsOptInKeys -contains $name)) {
-        if (Test-InstallScriptSwitch -ScriptPath $scriptPath -SwitchName 'Full') {
-            $invokeArgs['Full'] = $true
-        }
+    if ($neuralBatchInstall -and $installMode -eq 'neural' -and $entry.Full) {
+        $invokeArgs['Full'] = $true
     }
-    elseif ($env:MELOTTS_INSTALL -eq '1' -and $name -eq 'melotts') {
-        if (Test-InstallScriptSwitch -ScriptPath $scriptPath -SwitchName 'Full') {
-            $invokeArgs['Full'] = $true
-        }
+    elseif ($env:MELOTTS_INSTALL -eq '1' -and $name -eq 'melotts' -and $entry.Full) {
+        $invokeArgs['Full'] = $true
     }
 
-    try {
-        $previousStepEap = $ErrorActionPreference
-        $ErrorActionPreference = 'Continue'
-        if ($invokeArgs.Count -gt 0) {
-            & $scriptPath @invokeArgs
-        } else {
-            & $scriptPath
-        }
-    } catch {
-        Write-Host ("[!] {0} threw: {1}" -f $name, $_.Exception.Message) -ForegroundColor DarkYellow
-        $failurePosition = ([string]$_.InvocationInfo.PositionMessage).Trim()
-        if ($failurePosition) {
-            Write-Host ("[!] {0} location: {1}" -f $name, $failurePosition) -ForegroundColor DarkYellow
-        }
-        $failed += $name
-    } finally {
-        $ErrorActionPreference = $previousStepEap
+    if ($invokeArgs.Count -gt 0) {
+        & $scriptPath @invokeArgs
+    } else {
+        & $scriptPath
     }
-}
-
-if ($failed.Count -gt 0) {
-    Write-Host ("[!] Some prerequisites did not complete cleanly: {0}" -f ($failed -join ', ')) -ForegroundColor DarkYellow
-    exit 1
 }
 
 Write-Host '[OK] All prerequisites complete.' -ForegroundColor Green
-exit 0

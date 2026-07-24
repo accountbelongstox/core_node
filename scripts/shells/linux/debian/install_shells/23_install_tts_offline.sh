@@ -35,12 +35,11 @@ PIP_ARGS=()
 
 source "$COMMON_DIR/gvar_common.sh"
 source "$COMMON_DIR/venv_python_common.sh"
-. "$COMMON_DIR/base_libs/lib_gpu.sh" 2>/dev/null || true
+. "$COMMON_DIR/base_libs/lib_gpu.sh"
 . "$COMMON_DIR/tts_install_assets_common.sh"
 set -uo pipefail
 
-[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+. "$PIPLOCK_LIB"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -58,21 +57,21 @@ resolve_python() {
         echo "$VENV_PYTHON3"; return 0
     fi
     local preferred="$1" name
-    if [[ -n "$preferred" ]] && command -v "$preferred" >/dev/null 2>&1 \
-        && "$preferred" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
+    if [[ -n "$preferred" ]] && command -v "$preferred" >/dev/null 2>&1; then
         command -v "$preferred"; return 0
     fi
     for name in python3 python; do
-        if command -v "$name" >/dev/null 2>&1 \
-            && "$name" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
+        if command -v "$name" >/dev/null 2>&1; then
             command -v "$name"; return 0
         fi
     done
     return 1
 }
 
-py_has_module() {
-    "$PYTHON" -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$1') else 1)" >/dev/null 2>&1
+pip_has_package() {
+    local metadata
+    metadata="$("$PYTHON" -m pip show "$1" 2>/dev/null)"
+    [[ "$metadata" == *"Name:"* ]]
 }
 
 pip_install() {
@@ -117,19 +116,15 @@ if ! PYTHON="$(resolve_python "$PYTHON")"; then
 fi
 echo "  python : $PYTHON"
 _gpu_flag="--cpu"
-if command -v gpu_present >/dev/null 2>&1 && gpu_present; then _gpu_flag="--gpu"; fi
+if gpu_present; then _gpu_flag="--gpu"; fi
 MODEL_URL="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" kokoro_url "$_gpu_flag")"
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" sherpa | while read -r _line; do
     echo "  official env (sherpa): $_line"
 done
 echo "  model url: $MODEL_URL ($(echo "$_gpu_flag" | tr -d '-'))"
 
-if [[ -f "$SHERPA_GUARD" ]]; then
-    SOG_PYTHON="$PYTHON" bash "$SHERPA_GUARD" --python "$PYTHON"
-elif ! py_has_module sherpa_onnx; then
-    pip_install --upgrade sherpa-onnx || true
-fi
-if py_has_module sherpa_onnx; then
+SOG_PYTHON="$PYTHON" bash "$SHERPA_GUARD" --python "$PYTHON"
+if pip_has_package sherpa-onnx; then
     echo "[OK] sherpa-onnx present."
 else
     echo "[!] sherpa-onnx not importable; retrying next run." >&2

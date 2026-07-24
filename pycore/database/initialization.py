@@ -90,7 +90,7 @@ class DatabaseInitializer:
         db_manager = get_database_manager()
 
         # Register database
-        if 'common' not in db_manager.connection_strings:
+        if not db_manager.is_database_registered('common'):
             db_manager.register_database('common')
             ColorPrint.blue("[DatabaseInitializer] Registered: common")
 
@@ -114,7 +114,7 @@ class DatabaseInitializer:
         db_manager = get_database_manager()
 
         # Register database
-        if 'speech' not in db_manager.connection_strings:
+        if not db_manager.is_database_registered('speech'):
             db_manager.register_database('speech')
             ColorPrint.blue("[DatabaseInitializer] Registered: speech")
 
@@ -154,7 +154,7 @@ class DatabaseInitializer:
         db_manager = get_database_manager()
 
         # Register database
-        if 'clipboard' not in db_manager.connection_strings:
+        if not db_manager.is_database_registered('clipboard'):
             db_manager.register_database('clipboard')
             ColorPrint.blue("[DatabaseInitializer] Registered: clipboard")
 

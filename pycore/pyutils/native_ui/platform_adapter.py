@@ -43,6 +43,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pycore import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
 import ctypes
 
@@ -490,7 +491,11 @@ class PlatformAdapter:
 # Singleton Instance
 # ============================================================
 
-_platform_adapter_instance: Optional[PlatformAdapter] = None
+_PLATFORM_ADAPTER_PROVIDER = SerializedSingletonProvider(
+    PlatformAdapter,
+    "native_ui.platform_adapter.provider",
+    "PlatformAdapterProvider",
+)
 
 
 def get_platform_adapter() -> PlatformAdapter:
@@ -500,12 +505,7 @@ def get_platform_adapter() -> PlatformAdapter:
     Returns:
         PlatformAdapter singleton
     """
-    global _platform_adapter_instance
-
-    if _platform_adapter_instance is None:
-        _platform_adapter_instance = PlatformAdapter()
-
-    return _platform_adapter_instance
+    return _PLATFORM_ADAPTER_PROVIDER.get()
 
 
 # ============================================================

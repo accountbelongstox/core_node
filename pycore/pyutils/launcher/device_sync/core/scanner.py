@@ -17,7 +17,12 @@ import time
 import urllib.request
 import urllib.error
 from typing import List, Dict, Optional
-from pycore.pyfoundations.serialized_worker import map_bus_tasks
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    map_bus_tasks,
+    serialized_method,
+)
 
 from .logging import setup_logging
 from ..network_cache import NetworkCache
@@ -35,6 +40,44 @@ SCAN_TIMEOUT = 0.3
 
 # Max concurrent scan threads (reduced from 100 to avoid Windows performance issues)
 MAX_THREADS = 30
+
+
+def _scan_device_request(request: Dict) -> Optional[Dict]:
+    """Probe one address using only data delivered through THREAD_BUS."""
+    ip = request['ip']
+    local_ip = request['local_ip']
+    port = request['port']
+    if ip == local_ip:
+        return None
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(SCAN_TIMEOUT)
+    try:
+        if sock.connect_ex((ip, port)) != 0:
+            return None
+    except Exception:
+        return None
+    finally:
+        sock.close()
+
+    url = f"http://{ip}:{port}/api/status"
+    try:
+        with urllib.request.urlopen(url, timeout=1) as response:
+            info = json.loads(response.read().decode('utf-8'))
+        return {
+            'ip': ip,
+            'hostname': info.get('hostname', 'unknown'),
+            'device_id': info.get('device_id', 'unknown'),
+            'mode': info.get('mode'),
+            'sync_enabled': info.get('sync_enabled', False),
+            'http_port': port,
+            'last_seen': time.time(),
+        }
+    except urllib.error.URLError:
+        return None
+    except Exception as exc:
+        logger.debug(f"Failed to get device info from {ip}: {exc}")
+        return None
 
 
 class SimpleDeviceScanner:
@@ -69,7 +112,14 @@ class SimpleDeviceScanner:
 
         # Network cache
         self.network_cache = NetworkCache()
+        init_serialized_owner(
+            self,
+            'device_sync.scanner.state',
+            'DeviceSyncScannerStateThread',
+            timeout=300.0,
+        )
 
+    @serialized_method
     def scan_devices(self, force_rescan_network: bool = False) -> List[Dict]:
         """
         Scan devices on local network (uses cached network config)
@@ -98,9 +148,16 @@ class SimpleDeviceScanner:
         start_time = time.time()
 
         devices = []
-        addresses = [f"{self.network_prefix}.{host_num}" for host_num in range(1, 256)]
+        addresses = [
+            {
+                'ip': f"{self.network_prefix}.{host_num}",
+                'local_ip': self.local_ip,
+                'port': self.port,
+            }
+            for host_num in range(1, 256)
+        ]
         for device_info in map_bus_tasks(
-            self._scan_device,
+            _scan_device_request,
             addresses,
             MAX_THREADS,
             thread_prefix="CoreDeviceScan",
@@ -226,6 +283,7 @@ class SimpleDeviceScanner:
         """
         return [d for d in devices if d.get('mode') == 'primary']
 
+    @serialized_method
     def find_primary_device(self) -> Optional[Dict]:
         """
         Scan and find PRIMARY device
@@ -250,6 +308,7 @@ class SimpleDeviceScanner:
         logger.info(f"Found primary device: {primary['hostname']} ({primary['ip']})")
         return primary
 
+    @serialized_method
     def scan_if_needed(self, force: bool = False, interval: float = 60.0):
         """
         Scan network if needed (only in SECONDARY mode)
@@ -273,13 +332,13 @@ class SimpleDeviceScanner:
             self.scan_devices()
 
 
-# Global scanner instance
-_scanner: SimpleDeviceScanner | None = None
+_SCANNER_PROVIDER = SerializedSingletonProvider(
+    SimpleDeviceScanner,
+    'device_sync.scanner.provider',
+    'DeviceSyncScannerProviderThread',
+)
 
 
 def get_network_scanner() -> SimpleDeviceScanner:
     """Get or create global network scanner singleton"""
-    global _scanner
-    if _scanner is None:
-        _scanner = SimpleDeviceScanner()
-    return _scanner
+    return _SCANNER_PROVIDER.get()

@@ -23,6 +23,7 @@ from pycore.pyfoundations.pybasecommon.compute_caps import (
 
 # Event bus
 from pycore.pyfoundations.event_bus import EventBus, EventTypes, Event
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 # Secret management
 from pycore.pyfoundations.secret_manager import (
@@ -57,6 +58,7 @@ from pycore.pyfoundations.tasks import (
 
 # Unified user data store (merged into system_paths)
 from pycore.pyfoundations.system_paths import (
+    APP_CACHE_DIR,
     UserDataStore,
     get_user_data_store
 )
@@ -71,6 +73,7 @@ __all__ = [
     'EventBus',
     'EventTypes',
     'Event',
+    'THREAD_BUS',
 
     # Secret management
     'get_secret_directories',
@@ -103,6 +106,7 @@ __all__ = [
     'get_global_task_queue',
 
     # User data store
+    'APP_CACHE_DIR',
     'UserDataStore',
     'get_user_data_store',
 ]

@@ -7,6 +7,13 @@ Routes Configuration - Centralized route definitions
 from typing import Dict, List, Callable, Tuple
 from dataclasses import dataclass
 from enum import Enum
+import copy
+
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 
 
 class HTTPMethod(Enum):
@@ -36,6 +43,11 @@ class RoutesConfig:
     def __init__(self):
         self.routes: List[RouteDefinition] = []
         self._initialize_routes()
+        init_serialized_owner(
+            self,
+            'flutter_dev_tools.routes.state',
+            'FlutterDevToolsRoutesStateThread',
+        )
 
     def _initialize_routes(self) -> None:
         """Initialize all route definitions"""
@@ -85,18 +97,26 @@ class RoutesConfig:
             handler: Handler function reference
             description: Route description
         """
-        route = RouteDefinition(
+        if hasattr(self, '_serialized_queue_name'):
+            self._add_route(path, method, handler, description)
+            return
+        self.routes.append(RouteDefinition(
             path=path,
             method=method,
             handler=handler,
             description=description
-        )
-        self.routes.append(route)
+        ))
 
+    @serialized_method
+    def _add_route(self, path: str, method: HTTPMethod, handler: str, description: str) -> None:
+        self.routes.append(RouteDefinition(path, method, handler, description))
+
+    @serialized_method
     def get_routes_by_method(self, method: HTTPMethod) -> List[RouteDefinition]:
         """Get all routes for specific HTTP method"""
-        return [r for r in self.routes if r.method == method]
+        return copy.deepcopy([r for r in self.routes if r.method == method])
 
+    @serialized_method
     def get_route_patterns(self) -> Dict[HTTPMethod, List[Tuple[str, str]]]:
         """
         Get route patterns grouped by method
@@ -111,6 +131,7 @@ class RoutesConfig:
 
         return patterns
 
+    @serialized_method
     def print_routes(self) -> None:
         """Print all registered routes"""
         print("\n" + "=" * 80)
@@ -128,8 +149,11 @@ class RoutesConfig:
         print("=" * 80 + "\n")
 
 
-# Singleton instance
-_routes_config_instance = None
+_ROUTES_CONFIG_PROVIDER = SerializedSingletonProvider(
+    RoutesConfig,
+    'flutter_dev_tools.routes.provider',
+    'FlutterDevToolsRoutesProviderThread',
+)
 
 
 def get_routes_config() -> RoutesConfig:
@@ -139,9 +163,4 @@ def get_routes_config() -> RoutesConfig:
     Returns:
         RoutesConfig instance
     """
-    global _routes_config_instance
-
-    if _routes_config_instance is None:
-        _routes_config_instance = RoutesConfig()
-
-    return _routes_config_instance
+    return _ROUTES_CONFIG_PROVIDER.get()

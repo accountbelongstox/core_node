@@ -95,17 +95,12 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({ onMe
   const ttsRaw = hub.tts as any;
   const ttsStatus: TtsStatus | null =
     ttsRaw && ttsRaw.success !== false && Array.isArray(ttsRaw.engines) ? (ttsRaw as TtsStatus) : null;
-  const qwen = ttsStatus?.engines?.find((e) => e.name === 'qwen3tts') ?? null;
-  const qwenReady = !!qwen?.available;
-  const sentenceFallback = ttsStatus
-    ? ((ttsStatus.engines ?? [])
-        .filter((e) => e.name !== 'qwen3tts' && e.available)
-        .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))[0]?.name
-        ?? ttsStatus.active
-        ?? null)
-    : null;
-
-  const activeEngineName = qwenReady ? 'qwen3tts' : sentenceFallback;
+  const sentencePriority = ttsStatus?.sentence_priority?.length
+    ? ttsStatus.sentence_priority
+    : [...(ttsStatus?.engines ?? [])].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99)).map((engine) => engine.name);
+  const activeEngineName = sentencePriority.find((name) => (
+    ttsStatus?.engines?.find((engine) => engine.name === name)?.available
+  )) ?? null;
   const activeEngine = ttsStatus?.engines?.find(e => e.name === activeEngineName);
   const concurrencyAnn = ttsConcurrencyAnnotation(activeEngine?.concurrency, activeEngineName || '');
   const isSerialEngine = (activeEngine?.concurrency ?? (activeEngineName === 'edge' ? 'serial' : undefined)) === 'serial';
@@ -155,22 +150,22 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({ onMe
           <span className="uppercase tracking-wide text-slate-400">
             {t('queueCenter.sentenceQueue.engineLabel')}
           </span>
-          {qwenReady ? (
+          {activeEngineName ? (
             <span
               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-              title={t('queueCenter.sentenceQueue.engineQwenTitle')}>
-              qwen3tts
-              <span className="font-mono text-[9px] opacity-80">{t('queueCenter.sentenceQueue.engineGpu')}</span>
-              {qwen?.server_running && <span className="font-mono text-[9px] opacity-80">svc</span>}
+              title="First available engine in the configured sentence TTS priority">
+              {activeEngineName}
+              {activeEngineName === 'qwen3tts' && (
+                <span className="font-mono text-[9px] opacity-80">{t('queueCenter.sentenceQueue.engineGpu')}</span>
+              )}
+              {activeEngine?.server_running && <span className="font-mono text-[9px] opacity-80">svc</span>}
             </span>
           ) : (
             <span
               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400"
-              title={qwen?.disabled_reason || qwen?.note || t('queueCenter.sentenceQueue.engineFallbackTitle')}>
+              title={t('queueCenter.sentenceQueue.engineFallbackTitle')}>
               <AlertTriangle className="w-3 h-3 shrink-0" />
-              {sentenceFallback
-                ? t('queueCenter.sentenceQueue.engineFallback', { engine: sentenceFallback })
-                : t('queueCenter.sentenceQueue.engineFallbackNone')}
+              {t('queueCenter.sentenceQueue.engineFallbackNone')}
             </span>
           )}
           {concurrencyAnn && (

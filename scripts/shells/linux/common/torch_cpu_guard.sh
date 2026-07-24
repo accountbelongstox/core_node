@@ -35,19 +35,19 @@
 
 TCG_CPU_INDEX_URL="https://download.pytorch.org/whl/cpu"
 TCG_TORCH_PACKAGES=(torch torchvision torchaudio)
+TCG_TORCH_HEALTH_PACKAGES=(torch torchvision torchaudio)
 
 # Serialize venv-mutating pip through the shared lock so this guard is safe to run while
-# the TTS/LLM parallel groups install concurrently. Defensive: pass-through if lib absent.
+# the TTS/LLM parallel groups install concurrently.
 _TCG_PIPLOCK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/base_libs/pip_lock.sh"
-[ -f "$_TCG_PIPLOCK" ] && . "$_TCG_PIPLOCK"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+. "$_TCG_PIPLOCK"
 # Driver-matched CUDA wheel index (single source of truth) so a GPU install never grabs the
 # default "latest" wheel (e.g. cu130) that a 12.4 driver can't run.
 _TCG_CUDAIDX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/base_libs/cuda_index.sh"
-[ -f "$_TCG_CUDAIDX" ] && . "$_TCG_CUDAIDX"
-command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "${AI_TORCH_CPU_INDEX:-https://download.pytorch.org/whl/cpu}"; }
+. "$_TCG_CUDAIDX"
 TCG_CPU_INDEX_URL="${AI_TORCH_CPU_INDEX:-$TCG_CPU_INDEX_URL}"
-IFS=',' read -ra TCG_TORCH_PACKAGES <<< "${AI_TORCH_PACKAGES:-torch,torchvision,torchaudio}"
+IFS=',' read -ra TCG_TORCH_PACKAGES <<< "$(canonical_torch_packages_csv)"
+IFS=',' read -ra TCG_TORCH_HEALTH_PACKAGES <<< "${AI_TORCH_HEALTH_PACKAGES:-torch,torchvision,torchaudio}"
 
 # Resolve a python interpreter (env/arg/python3/python). Echoes the path; 1 if none.
 tcg_resolve_python() {
@@ -84,15 +84,37 @@ PY
 # 12.4 driver) imports fine but reports is_available()=False ("driver too old"); this is
 # the authoritative "does the CUDA build actually work on THIS driver" probe.
 tcg_torch_cuda_usable() {
-    local py="$1"
-    "$py" - >/dev/null 2>&1 <<'PY'
-import sys
+    local py="$1" output=""
+    output="$("$py" - 2>/dev/null <<'PY'
 try:
     import torch
-    sys.exit(0 if torch.cuda.is_available() else 1)
+    print("__CUDA_READY__" if torch.cuda.is_available() else "__CUDA_UNAVAILABLE__")
 except Exception:
-    sys.exit(1)
+    print("__CUDA_UNAVAILABLE__")
 PY
+    )"
+    [[ "$output" == *"__CUDA_READY__"* ]]
+}
+
+tcg_torch_packages_installed() {
+    local py="$1"
+    local package=""
+    local metadata=""
+    local missing=0
+    for package in "${TCG_TORCH_HEALTH_PACKAGES[@]}"; do
+        metadata="$("$py" -m pip show "$package" 2>/dev/null || true)"
+        if [[ "$metadata" != *"Name:"* ]]; then
+            missing=1
+        fi
+    done
+    [[ "$missing" -eq 0 ]]
+}
+
+tcg_torch_metadata_present() {
+    local py="$1"
+    local metadata=""
+    metadata="$("$py" -m pip show torch 2>/dev/null || true)"
+    [[ "$metadata" == *"Name:"* ]]
 }
 
 tcg_torch_state_tag() {
@@ -117,8 +139,11 @@ tcg_purge_nvidia_wheels() {
 
 # Install the CPU build of torch + torchvision + torchaudio from the CPU index.
 tcg_install_cpu_torch() {
-    local py="$1"
-    vpip "$py" -m pip install --break-system-packages --ignore-installed --force-reinstall \
+    local py="$1" force="${2:-0}"
+    if [[ "$force" == "1" ]]; then
+        vpip "$py" -m pip uninstall -y "${TCG_TORCH_PACKAGES[@]}" >/dev/null 2>&1 || true
+    fi
+    vpip "$py" -m pip install --break-system-packages \
         --index-url "$TCG_CPU_INDEX_URL" "${TCG_TORCH_PACKAGES[@]}" || true
 }
 
@@ -130,6 +155,10 @@ tcg_ensure_torch_build() {
         return 0
     fi
     state="$(tcg_torch_cuda_state "$py")"
+    if [[ -z "$state" ]] && tcg_torch_metadata_present "$py"; then
+        echo "[torch-guard] torch metadata is present, but its binary cannot load; preserving it to prevent a reinstall loop."
+        return 0
+    fi
 
     if tcg_gpu_present; then
         policy_tag="$(cuda_policy_tag)"
@@ -138,24 +167,20 @@ tcg_ensure_torch_build() {
             return 0
         fi
         index_url="$(torch_cuda_index_url)"
-        # --ignore-installed (used below): torch needs mpmath<1.4 but Debian/Ubuntu/Kali ship
-        # mpmath 1.4.x in /usr/lib/python3/dist-packages with NO RECORD file, so a plain
-        # install aborts with "uninstall-no-record-file". Ignoring installed packages makes
-        # pip drop the required mpmath into /usr/local/.../dist-packages (which shadows the
-        # apt copy) without touching the dpkg-owned files. Matches tcg_install_cpu_torch.
         if [[ -z "$state" ]]; then
             if [[ "$repair_only" == "1" ]]; then
                 echo "[torch-guard] GPU present, torch missing (repair-only) -> nothing to repair."
             else
                 echo "[torch-guard] GPU present, torch missing -> installing driver-matched CUDA build."
-                vpip "$py" -m pip install --break-system-packages --no-user --ignore-installed \
+                vpip "$py" -m pip install --break-system-packages --no-user \
                     --index-url "$index_url" "${TCG_TORCH_PACKAGES[@]}" || true
             fi
             return 0
         fi
         if [[ "$state" == "None" ]]; then
             echo "[torch-guard] GPU present, torch is CPU-only -> switching to canonical $policy_tag."
-            vpip "$py" -m pip install --break-system-packages --no-user --ignore-installed --force-reinstall \
+            vpip "$py" -m pip uninstall -y "${TCG_TORCH_PACKAGES[@]}" >/dev/null 2>&1 || true
+            vpip "$py" -m pip install --break-system-packages --no-user \
                 --index-url "$index_url" "${TCG_TORCH_PACKAGES[@]}" || true
             return 0
         fi
@@ -163,14 +188,20 @@ tcg_ensure_torch_build() {
         if [[ "$installed_tag" != "$policy_tag" ]]; then
             echo "[torch-guard] torch cuda=$state differs from canonical $policy_tag -> aligning."
             vpip "$py" -m pip uninstall -y "${TCG_TORCH_PACKAGES[@]}" >/dev/null 2>&1 || true
-            vpip "$py" -m pip install --break-system-packages --no-user --ignore-installed --force-reinstall \
+            vpip "$py" -m pip install --break-system-packages --no-user \
+                --index-url "$index_url" "${TCG_TORCH_PACKAGES[@]}" || true
+            return 0
+        fi
+        if ! tcg_torch_packages_installed "$py"; then
+            echo "[torch-guard] $installed_tag torch group is incomplete -> repairing from the canonical release group."
+            vpip "$py" -m pip install --break-system-packages --no-user \
                 --index-url "$index_url" "${TCG_TORCH_PACKAGES[@]}" || true
             return 0
         fi
         if tcg_torch_cuda_usable "$py"; then
-            echo "[torch-guard] GPU present, canonical $policy_tag torch is usable; no change."
+            echo "[torch-guard] GPU present, installed $policy_tag torch group is usable; preserving installed versions."
         else
-            echo "[torch-guard] Canonical $policy_tag is installed but CUDA cannot initialize; leaving it unchanged to avoid a reinstall loop. Repair the NVIDIA driver/runtime."
+            echo "[torch-guard] Installed $policy_tag torch cannot initialize CUDA; leaving it unchanged to avoid a reinstall loop. Repair the NVIDIA driver/runtime."
         fi
         return 0
     fi
@@ -186,11 +217,16 @@ tcg_ensure_torch_build() {
             fi
             ;;
         "None")
-            echo "[torch-guard] No GPU, torch already CPU build; ok."
+            if tcg_torch_packages_installed "$py"; then
+                echo "[torch-guard] No GPU, installed CPU torch group is usable; preserving installed versions."
+            else
+                echo "[torch-guard] No GPU, CPU torch group is incomplete -> repairing."
+                tcg_install_cpu_torch "$py"
+            fi
             ;;
         *)
             echo "[torch-guard] No GPU but CUDA torch (cuda=$state) -> switching to CPU build + purging nvidia-*."
-            tcg_install_cpu_torch "$py"
+            tcg_install_cpu_torch "$py" 1
             tcg_purge_nvidia_wheels "$py"
             ;;
     esac

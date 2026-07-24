@@ -15,10 +15,10 @@ Features:
 - Singleton pattern for global access
 
 Usage:
-    from pycore.pyutils.timer_manager import TimerManager
+    from pycore.pyutils.timer_manager import get_timer_manager
 
     # Get singleton instance
-    manager = TimerManager()
+    manager = get_timer_manager()
 
     # Register a task
     def my_task():
@@ -39,7 +39,6 @@ Usage:
 Author: Extracted from d3-check, adapted for pycore
 """
 
-import threading
 import time
 from typing import Dict, Callable, Optional, Any, List
 from dataclasses import dataclass, field, replace
@@ -47,6 +46,7 @@ from dataclasses import dataclass, field, replace
 from pycore import ColorPrint
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
     start_bus_task,
@@ -80,23 +80,11 @@ class TimerManager:
     """
     Timer Manager - Centralized periodic task execution system
 
-    Singleton pattern implementation for global timer management.
+    Global timer management with THREAD_BUS-owned state.
     """
 
-    _instance: Optional['TimerManager'] = None
-
-    def __new__(cls):
-        """Singleton pattern implementation"""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-
     def __init__(self):
-        """Initialize timer manager (only once)"""
-        if getattr(self, '_initialized', False):
-            return
-
+        """Initialize timer manager."""
         self._tasks: Dict[str, TimerTask] = {}
         init_serialized_owner(
             self,
@@ -108,7 +96,6 @@ class TimerManager:
         THREAD_BUS.signal(self._running_signal, False)
 
         ColorPrint.print_info("[TimerManager] Initialized (singleton)")
-        self._initialized = True
 
     @serialized_method
     def register_task(
@@ -378,6 +365,13 @@ class TimerManager:
         return len(self._tasks)
 
 
+_TIMER_MANAGER_PROVIDER = SerializedSingletonProvider(
+    TimerManager,
+    "native_ui.timer_manager.provider",
+    "TimerManagerProvider",
+)
+
+
 # Factory function for convenience
 def get_timer_manager() -> TimerManager:
     """
@@ -386,7 +380,7 @@ def get_timer_manager() -> TimerManager:
     Returns:
         TimerManager singleton instance
     """
-    return TimerManager()
+    return _TIMER_MANAGER_PROVIDER.get()
 
 
 # Export

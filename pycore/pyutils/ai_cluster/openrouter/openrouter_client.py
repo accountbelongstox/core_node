@@ -24,12 +24,12 @@ Usage:
 """
 
 import json
-import threading
 from typing import Dict, Any, Optional, List, Iterator, Callable
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
 requests = get_third_package_requests()
 
@@ -413,8 +413,11 @@ class OpenRouterClient:
         return list(self.MODELS.keys())
 
 
-# Global singleton instance
-_global_client: Optional[OpenRouterClient] = None
+_OPENROUTER_CLIENT_PROVIDER = SerializedSingletonProvider(
+    OpenRouterClient,
+    "openrouter.client.provider",
+    "OpenRouterClientProvider",
+)
 
 
 def get_openrouter_client(
@@ -433,11 +436,8 @@ def get_openrouter_client(
     Returns:
         OpenRouterClient: Global client instance
     """
-    global _global_client
-    if _global_client is None:
-        _global_client = OpenRouterClient(
-            api_key=api_key,
-            site_url=site_url,
-            site_name=site_name
-        )
-    return _global_client
+    return _OPENROUTER_CLIENT_PROVIDER.get(
+        api_key=api_key,
+        site_url=site_url,
+        site_name=site_name,
+    )

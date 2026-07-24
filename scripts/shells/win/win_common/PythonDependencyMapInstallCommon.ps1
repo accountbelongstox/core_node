@@ -1,6 +1,23 @@
 # Installs the central pycore package policy for Windows Step10.
 
-. (Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1')
+$pythonRuntimePath = Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1'
+$cudaIndexPath = Join-Path $PSScriptRoot 'CudaIndex.ps1'
+$nvidiaAlignPath = Join-Path $PSScriptRoot 'NvidiaCuStackAlign.ps1'
+$pythonRuntimeLoaded = Get-Variable -Name 'PycorePythonRuntimeCommonLoaded' -Scope Script -ErrorAction SilentlyContinue
+$cudaIndexLoaded = Get-Variable -Name 'PycoreCudaIndexLoaded' -Scope Script -ErrorAction SilentlyContinue
+$nvidiaAlignLoaded = Get-Variable -Name 'PycoreNvidiaCuStackAlignLoaded' -Scope Script -ErrorAction SilentlyContinue
+if ($null -eq $pythonRuntimeLoaded -or -not [bool]$pythonRuntimeLoaded.Value) {
+    . $pythonRuntimePath
+    Set-Variable -Name 'PycorePythonRuntimeCommonLoaded' -Scope Script -Value $true
+}
+if ($null -eq $cudaIndexLoaded -or -not [bool]$cudaIndexLoaded.Value) {
+    . $cudaIndexPath
+    Set-Variable -Name 'PycoreCudaIndexLoaded' -Scope Script -Value $true
+}
+if ($null -eq $nvidiaAlignLoaded -or -not [bool]$nvidiaAlignLoaded.Value) {
+    . $nvidiaAlignPath
+    Set-Variable -Name 'PycoreNvidiaCuStackAlignLoaded' -Scope Script -Value $true
+}
 
 $script:PycoreWinCommonDir = $PSScriptRoot
 $script:PycoreWinDir = Split-Path -Parent $script:PycoreWinCommonDir
@@ -13,25 +30,23 @@ function Get-PycorePolicyPackageRows {
     param(
         [Parameter(Mandatory = $true)]
         [string]$PythonExe,
-        [ValidateSet('installer', 'prepare', 'winrt')]
+        [ValidateSet('installer', 'prepare', 'document', 'ocr', 'winrt')]
         [string]$Set = 'installer'
     )
 
-    if (-not (Test-Path -LiteralPath $script:PycorePackagePolicyPath)) {
-        Write-Host "[python-deps] [ERROR] central package policy missing: $script:PycorePackagePolicyPath" -ForegroundColor Red
-        return @()
-    }
-
+    $line = ''
+    $output = @()
+    $parts = @()
+    $rows = @()
     $output = @(& $PythonExe $script:PycorePackagePolicyPath --platform windows --set $Set 2>$null)
-    $rows = New-Object System.Collections.Generic.List[object]
     foreach ($line in $output) {
         $parts = "$line" -split "`t", 2
         if ($parts.Count -ne 2 -or -not $parts[1]) {
             continue
         }
-        $rows.Add([pscustomobject]@{ ImportName = $parts[0]; PipSpec = $parts[1] })
+        $rows += [pscustomobject]@{ ImportName = $parts[0]; PipSpec = $parts[1] }
     }
-    return @($rows)
+    $rows
 }
 
 function Get-PipPackageBaseName {
@@ -40,64 +55,124 @@ function Get-PipPackageBaseName {
         [string]$PipSpec
     )
 
-    $name = ($PipSpec -split '\[')[0]
-    $name = ($name -split '[<>=!,\s]')[0].Trim()
-    return $name
+    return Get-PipPackageNameFromSpec -PipSpec $PipSpec
 }
 
-function Test-PycoreRequirementSatisfied {
+function Test-OnnxRuntimeImportReady {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$PythonExe,
-        [Parameter(Mandatory = $true)]
-        [string]$PipSpec
+        [string]$PythonExe
     )
-    $previousSpec = $env:PYCORE_REQUIREMENT_SPEC
-    $previousPreference = $ErrorActionPreference
-    $code = @'
-import importlib.metadata as metadata
-import os
-try:
-    from packaging.requirements import Requirement
-except ImportError:
-    from pip._vendor.packaging.requirements import Requirement
 
-requirement = Requirement(os.environ["PYCORE_REQUIREMENT_SPEC"])
-try:
-    installed = metadata.version(requirement.name)
-except metadata.PackageNotFoundError:
-    raise SystemExit(1)
-raise SystemExit(0 if not requirement.specifier or requirement.specifier.contains(installed, prereleases=True) else 1)
-'@
-    $env:PYCORE_REQUIREMENT_SPEC = $PipSpec
-    $ErrorActionPreference = 'Continue'
-    & $PythonExe -c $code 2>$null
-    $ok = ($LASTEXITCODE -eq 0)
-    $ErrorActionPreference = $previousPreference
-    $env:PYCORE_REQUIREMENT_SPEC = $previousSpec
-    return $ok
+    $output = @()
+    $text = ''
+    $output = & $PythonExe -c "import onnxruntime as ort; ort.get_available_providers(); print('__ORT_READY__')" 2>$null
+    $text = (@($output) -join [Environment]::NewLine)
+    return $text.Contains('__ORT_READY__')
 }
 
 function Ensure-OnnxRuntimeCpuBuild {
     param(
         [Parameter(Mandatory = $true)]
         [string]$PipExe,
+        [Parameter(Mandatory = $true)]
+        [string]$PythonExe,
         [string]$LogPrefix = '[python-deps]'
     )
 
-    $gpuPkg = 'onnxruntime-gpu'
     $cpuPkg = 'onnxruntime'
-    if (Test-NvidiaGpuPresent) {
-        Write-Host "$LogPrefix [i] GPU present; ONNX runtime left to the OCR initializer." -ForegroundColor DarkGray
+    $gpuPkg = 'onnxruntime-gpu'
+    $moduleReady = $false
+    $targetInstalled = $false
+    $targetPkg = ''
+    $otherInstalled = $false
+    $otherPkg = ''
+    $cudaPolicy = Get-CudaRuntimePolicy
+    $ortCudaMajor = [int](Get-AiRuntimePolicyValue -Name 'AI_ONNXRUNTIME_CUDA_MAJOR' -Default '12')
+    $useGpuOrt = ((Test-NvidiaGpuPresent) -and $cudaPolicy.Enabled -and $cudaPolicy.Major -eq $ortCudaMajor)
+    $targetPkg = if ($useGpuOrt) { $gpuPkg } else { $cpuPkg }
+    $otherPkg = if ($useGpuOrt) { $cpuPkg } else { $gpuPkg }
+    $targetInstalled = Test-PipPackageInstalled -PipExe $PipExe -PackageName $targetPkg
+    $otherInstalled = Test-PipPackageInstalled -PipExe $PipExe -PackageName $otherPkg
+    $moduleReady = Test-OnnxRuntimeImportReady -PythonExe $PythonExe
+
+    if ($targetInstalled -and $moduleReady) {
+        Write-Host "$LogPrefix [SKIP] $targetPkg is importable" -ForegroundColor DarkGray
         return
     }
-    if (Test-PipPackageInstalled -PipExe $PipExe -PackageName $gpuPkg) {
-        Write-Host "$LogPrefix [..] No GPU but $gpuPkg present -> switching to $cpuPkg ..." -ForegroundColor Yellow
-        & $PipExe uninstall -y $gpuPkg
+
+    Write-Host "$LogPrefix [..] repairing ONNX Runtime package/module state with $targetPkg ..." -ForegroundColor Yellow
+    if ($otherInstalled) {
+        & $PipExe uninstall -y $otherPkg
     }
-    if (-not (Test-PipPackageInstalled -PipExe $PipExe -PackageName $cpuPkg)) {
-        Write-Host "$LogPrefix [..] Installing CPU $cpuPkg ..." -ForegroundColor Yellow
-        & $PipExe install $cpuPkg
+    if ($targetInstalled) {
+        & $PipExe uninstall -y $targetPkg
+    }
+    & $PipExe install $targetPkg
+    $moduleReady = Test-OnnxRuntimeImportReady -PythonExe $PythonExe
+    if (-not $moduleReady) {
+        Write-Host "$LogPrefix [!] ONNX Runtime module remains unavailable; it will retry next run." -ForegroundColor DarkYellow
+    }
+    if ($cudaPolicy.Enabled) {
+        Sync-NvidiaCuStack -PythonCmd $PythonExe -PipExe $PipExe -TargetMajor $cudaPolicy.Major
+    }
+}
+
+function Get-PycoreMissingPolicyRows {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$Rows,
+        [Parameter(Mandatory = $true)]
+        [System.Collections.IDictionary]$InstalledPackages
+    )
+
+    $missing = @()
+    $pipBase = ''
+    $row = $null
+    foreach ($row in $Rows) {
+        $pipBase = Get-PipPackageBaseName -PipSpec $row.PipSpec
+        if (-not (Test-PipPackageInSet -InstalledPackages $InstalledPackages -PackageName $pipBase)) {
+            $missing += $row
+        }
+    }
+    return $missing
+}
+
+function Install-PycorePolicySet {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('installer', 'prepare', 'document', 'ocr', 'winrt')]
+        [string]$Set,
+        [Parameter(Mandatory = $true)]
+        [string]$PythonExe,
+        [Parameter(Mandatory = $true)]
+        [string]$PipExe,
+        [string]$LogPrefix = '[python-deps]'
+    )
+
+    $installedPackages = @{}
+    $missing = @()
+    $pipSpecs = @()
+    $remaining = @()
+    $rows = @(Get-PycorePolicyPackageRows -PythonExe $PythonExe -Set $Set)
+    $installedPackages = Get-PipInstalledPackageSet -PipExe $PipExe
+    $missing = @(Get-PycoreMissingPolicyRows -Rows $rows -InstalledPackages $installedPackages)
+    if ($missing.Count -eq 0) {
+        Write-Host "$LogPrefix [SKIP] ${Set}: $($rows.Count) packages ready" -ForegroundColor DarkGray
+        return
+    }
+
+    $pipSpecs = @($missing | ForEach-Object { [string]$_.PipSpec })
+    Write-Host ("$LogPrefix [..] installing {0} missing ${Set} package(s): {1}" -f $pipSpecs.Count, ($pipSpecs -join ', ')) -ForegroundColor Yellow
+    & $PipExe install @pipSpecs
+
+    $installedPackages = Get-PipInstalledPackageSet -PipExe $PipExe -Refresh
+    $remaining = @(Get-PycoreMissingPolicyRows -Rows $rows -InstalledPackages $installedPackages)
+    if ($remaining.Count -gt 0) {
+        $pipSpecs = @($remaining | ForEach-Object { [string]$_.PipSpec })
+        Write-Host ("$LogPrefix [!] ${Set} remains incomplete: {0}" -f ($pipSpecs -join ', ')) -ForegroundColor DarkYellow
+    } else {
+        Write-Host "$LogPrefix [OK] ${Set}: $($rows.Count) packages ready" -ForegroundColor Green
     }
 }
 
@@ -115,45 +190,11 @@ function Install-PycoreDependencyMapPackage {
     )
 
     $pipBase = Get-PipPackageBaseName -PipSpec $PipSpec
-    $requirementReady = Test-PycoreRequirementSatisfied -PythonExe $PythonExe -PipSpec $PipSpec
-    $moduleReady = Test-PycorePythonModulePresent -PythonExe $PythonExe -ModuleName $ImportName
-    if ($requirementReady -and $moduleReady) {
-        Write-Host "$LogPrefix [SKIP] $PipSpec already satisfies policy" -ForegroundColor DarkGray
-        return $true
+    if (Test-PipPackageInstalled -PipExe $PipExe -PackageName $pipBase) {
+        return
     }
-    if ($requirementReady -and -not $moduleReady) {
-        Write-Host "$LogPrefix [..] repairing $PipSpec (metadata present, import missing) ..." -ForegroundColor Yellow
-        & $PipExe install --force-reinstall --no-deps $PipSpec
-    } else {
-        Write-Host "$LogPrefix [..] aligning $PipSpec ..." -ForegroundColor Yellow
-        & $PipExe install --upgrade $PipSpec
-    }
-    $installOk = ($LASTEXITCODE -eq 0)
-    $requirementReady = Test-PycoreRequirementSatisfied -PythonExe $PythonExe -PipSpec $PipSpec
-    $moduleReady = Test-PycorePythonModulePresent -PythonExe $PythonExe -ModuleName $ImportName
-    if ($installOk -and $requirementReady -and $moduleReady) {
-        Write-Host "$LogPrefix [OK] $pipBase installed" -ForegroundColor Green
-        return $true
-    }
-    Write-Host "$LogPrefix [!] $pipBase still missing after install" -ForegroundColor DarkYellow
-    return $false
-}
-
-function Test-PycorePythonModulePresent {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$PythonExe,
-        [Parameter(Mandatory = $true)]
-        [string]$ModuleName
-    )
-
-    $modLiteral = ($ModuleName -replace "'", "''")
-    $code = "import importlib.util; print('__FOUND__' if importlib.util.find_spec('$modLiteral') else '__MISSING__')"
-    $previousPreference = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    $output = (& $PythonExe -c $code 2>$null) -join ''
-    $ErrorActionPreference = $previousPreference
-    return ($output -match '__FOUND__')
+    Write-Host "$LogPrefix [..] installing missing $PipSpec ..." -ForegroundColor Yellow
+    & $PipExe install $PipSpec
 }
 
 function Install-PycoreWinrtOcrPackages {
@@ -165,27 +206,7 @@ function Install-PycoreWinrtOcrPackages {
         [string]$LogPrefix = '[python-deps]'
     )
 
-    if (Test-PycorePythonModulePresent -PythonExe $PythonExe -ModuleName 'winrt.windows.media.ocr') {
-        Write-Host "$LogPrefix [SKIP] Windows OCR already importable" -ForegroundColor DarkGray
-        return
-    }
-    $rows = @(Get-PycorePolicyPackageRows -PythonExe $PythonExe -Set 'winrt')
-    $missing = New-Object System.Collections.Generic.List[string]
-    foreach ($row in $rows) {
-        $pipBase = Get-PipPackageBaseName -PipSpec $row.PipSpec
-        if (-not (Test-PipPackageInstalled -PipExe $PipExe -PackageName $pipBase)) {
-            $missing.Add($row.PipSpec)
-        }
-    }
-    if ($missing.Count -gt 0) {
-        Write-Host ("$LogPrefix [..] pip install {0} ..." -f ($missing -join ' ')) -ForegroundColor Yellow
-        & $PipExe install @missing
-    }
-    if (Test-PycorePythonModulePresent -PythonExe $PythonExe -ModuleName 'winrt.windows.media.ocr') {
-        Write-Host "$LogPrefix [OK] Windows OCR installed" -ForegroundColor Green
-    } else {
-        Write-Host "$LogPrefix [!] Windows OCR is unavailable; EasyOCR remains available" -ForegroundColor DarkYellow
-    }
+    Install-PycorePolicySet -Set 'winrt' -PythonExe $PythonExe -PipExe $PipExe -LogPrefix $LogPrefix
 }
 
 function Install-PycorePrepareAlignedPackages {
@@ -197,13 +218,8 @@ function Install-PycorePrepareAlignedPackages {
         [string]$LogPrefix = '[python-deps]'
     )
 
-    $rows = @(Get-PycorePolicyPackageRows -PythonExe $PythonExe -Set 'prepare')
     Install-PycoreWinrtOcrPackages -PythonExe $PythonExe -PipExe $PipExe -LogPrefix $LogPrefix
-    foreach ($row in $rows) {
-        if (-not (Install-PycoreDependencyMapPackage -ImportName $row.ImportName -PipSpec $row.PipSpec -PipExe $PipExe -PythonExe $PythonExe -LogPrefix $LogPrefix)) {
-            throw "Prepare-aligned package failed: $($row.PipSpec)."
-        }
-    }
+    Install-PycorePolicySet -Set 'prepare' -PythonExe $PythonExe -PipExe $PipExe -LogPrefix $LogPrefix
 }
 
 function Install-PycoreDependencyMapPackages {
@@ -218,24 +234,10 @@ function Install-PycoreDependencyMapPackages {
         $PythonExe = Join-Path (Split-Path -Parent (Split-Path -Parent $PipExe)) 'python.exe'
     }
     Write-Host "$LogPrefix Installing central pycore package policy ..." -ForegroundColor Cyan
-    if (Get-Command Ensure-PipCacheDirConfigured -ErrorAction SilentlyContinue) {
-        Ensure-PipCacheDirConfigured -PipExe $PipExe
-    }
-    Ensure-OnnxRuntimeCpuBuild -PipExe $PipExe -LogPrefix $LogPrefix
+    Ensure-PipCacheDirConfigured -PipExe $PipExe
+    Ensure-OnnxRuntimeCpuBuild -PipExe $PipExe -PythonExe $PythonExe -LogPrefix $LogPrefix
 
-    $installed = 0
-    $failed = 0
-    $rows = @(Get-PycorePolicyPackageRows -PythonExe $PythonExe -Set 'installer')
-    foreach ($row in $rows) {
-        if (Install-PycoreDependencyMapPackage -ImportName $row.ImportName -PipSpec $row.PipSpec -PipExe $PipExe -PythonExe $PythonExe -LogPrefix $LogPrefix) {
-            $installed++
-        } else {
-            $failed++
-        }
-    }
-    Write-Host "$LogPrefix Package policy summary: $installed ok, $failed missing/skipped" -ForegroundColor Cyan
-    if ($failed -gt 0) {
-        throw "$failed central pycore package(s) failed policy validation."
-    }
+    Install-PycorePolicySet -Set 'installer' -PythonExe $PythonExe -PipExe $PipExe -LogPrefix $LogPrefix
+    Write-Host "$LogPrefix Central pycore package policy complete" -ForegroundColor Cyan
     Install-PycorePrepareAlignedPackages -PythonExe $PythonExe -PipExe $PipExe -LogPrefix $LogPrefix
 }

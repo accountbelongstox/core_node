@@ -18,14 +18,13 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
-# Serialize pip into the shared venv (safe under the LLM parallel group). Defensive.
+# Serialize pip into the shared venv.
 PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
-[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+. "$PIPLOCK_LIB"
 # Driver-matched CUDA wheel index (single source of truth).
 TORCH_CUDA_IDX_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/cuda_index.sh"
-[ -f "$TORCH_CUDA_IDX_LIB" ] && . "$TORCH_CUDA_IDX_LIB"
-command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "${AI_TORCH_CPU_INDEX:-https://download.pytorch.org/whl/cpu}"; }
+. "$TORCH_CUDA_IDX_LIB"
+. "$PARENT_DIR_LEVEL_2/common/base_libs/lib_gpu.sh"
 # Idempotent HF weight download (sentinel + curl resume + size verify).
 source "$PARENT_DIR_LEVEL_2/common/tts_install_assets_common.sh"
 
@@ -92,6 +91,7 @@ check_python() {
 
 install_dependencies() {
     local python_cmd=$1
+    local torch_metadata=""
 
     print_info "Installing Python dependencies..."
     print_info "Using Python command: $python_cmd"
@@ -101,11 +101,7 @@ install_dependencies() {
     # (nvidia-smi -L; honors TORCH_FORCE_CUDA=1 / CUDA_VISIBLE_DEVICES=-1).
     print_info "Checking for GPU availability..."
     local has_gpu=false
-    if [ "${TORCH_FORCE_CUDA:-0}" = "1" ]; then
-        has_gpu=true
-    elif [ "${CUDA_VISIBLE_DEVICES:-}" = "-1" ]; then
-        has_gpu=false
-    elif command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
+    if gpu_present; then
         has_gpu=true
     fi
     if [ "$has_gpu" = true ]; then
@@ -121,24 +117,10 @@ install_dependencies() {
     # a no-op), and reinstalling just churns versions and risks conflicts with the
     # other model installers that share this venv. Only install torch when it is
     # genuinely absent.
-    local torch_ver=""
-    if "$VENV_PYTHON3" -c "import torch" >/dev/null 2>&1; then
-        torch_ver="$("$VENV_PYTHON3" -c 'import torch; print(torch.__version__)' 2>/dev/null)"
-        if [[ "$has_gpu" == true ]] && ! "$VENV_PYTHON3" -c "import torch; assert torch.cuda.is_available()" >/dev/null 2>&1; then
-            # torch imports but its CUDA build cannot init on THIS driver (e.g. a too-new wheel
-            # like cu130 on a 12.4 driver) - reusing it runs Qwen2.5 on CPU AND leaves the worker
-            # re-triggering reinstalls. Uninstall the stale build + reinstall the driver-matched one.
-            _qwen_torch_idx="$(torch_cuda_index_url)"
-            print_warning "Existing torch ($torch_ver) cannot use CUDA on this driver - reinstalling driver-matched build ($_qwen_torch_idx)..."
-            echo ""
-            vpip "$VENV_PYTHON3" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
-            echo "[99] $VENV_PYTHON3 -m pip install torch torchvision torchaudio --index-url $_qwen_torch_idx --force-reinstall"
-            vpip "$VENV_PYTHON3" -m pip install torch torchvision torchaudio --index-url "$_qwen_torch_idx" --force-reinstall
-            echo ""
-        else
-            print_success "Reusing existing torch ($torch_ver) from the prerequisite install; skipping torch install"
-            echo ""
-        fi
+    torch_metadata="$("$VENV_PYTHON3" -m pip show torch 2>/dev/null || true)"
+    if [[ "$torch_metadata" == *"Name:"* ]]; then
+        print_success "torch metadata is present; preserving the canonical prerequisite build"
+        echo ""
     elif [[ "$has_gpu" == true ]]; then
         _qwen_torch_idx="$(torch_cuda_index_url)"
         print_info "torch not found - installing driver-matched GPU torch ($_qwen_torch_idx)..."

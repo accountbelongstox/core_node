@@ -47,6 +47,11 @@ from typing import Optional, List, Dict, Any
 
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_speechsdk
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 
 speechsdk = get_third_package_speechsdk()
 from pycore.pyutils.azure_speech.config import AzureSpeechConfig
@@ -87,7 +92,14 @@ class AzureSpeechClient:
         self._initialized = False
         self._speech_config: Optional[speechsdk.SpeechConfig] = None
         self._active_tasks = 0
+        init_serialized_owner(
+            self,
+            "azure_speech.client.state",
+            "AzureSpeechClientState",
+            timeout=300.0,
+        )
     
+    @serialized_method
     def initialize(self) -> bool:
         """
         Initialize Azure Speech client with SpeechConfig
@@ -127,6 +139,7 @@ class AzureSpeechClient:
         ColorPrint.blue(f"[AzureSpeech] Initialized with region: {AzureSpeechConfig.AZURE_SPEECH_REGION}")
         return True
     
+    @serialized_method
     def synthesize(self, text: str, output_path: Path, 
                    voice: Optional[str] = None) -> bool:
         """
@@ -192,6 +205,7 @@ class AzureSpeechClient:
         finally:
             self._mark_task_end()
     
+    @serialized_method
     def add_to_queue(self, item: WordModel | SentenceModel | DocumentModel) -> bool:
         """
         Add item to shared queue
@@ -210,10 +224,12 @@ class AzureSpeechClient:
             return TTSQueueOps.add_word(item)
         return False
 
+    @serialized_method
     def is_busy(self) -> bool:
         """Return True while synthesis tasks are running."""
         return self._active_tasks > 0
 
+    @serialized_method
     def has_quota_issue(self) -> bool:
         """Expose whether Azure TTS is currently blocked due to quota."""
         blocked, _ = is_tts_quota_blocked()
@@ -234,14 +250,13 @@ class AzureSpeechClient:
             mark_tts_quota_exceeded(error_details)
 
 
-# Global Azure Speech client instance
-_global_azure_speech_client: Optional[AzureSpeechClient] = None
+_AZURE_SPEECH_CLIENT_PROVIDER = SerializedSingletonProvider(
+    AzureSpeechClient,
+    "azure_speech.client.provider",
+    "AzureSpeechClientProvider",
+)
 
 
 def get_azure_speech_client() -> AzureSpeechClient:
     """Get global Azure Speech client instance"""
-    global _global_azure_speech_client
-    if _global_azure_speech_client is None:
-        _global_azure_speech_client = AzureSpeechClient()
-    return _global_azure_speech_client
-
+    return _AZURE_SPEECH_CLIENT_PROVIDER.get()

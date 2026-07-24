@@ -11,34 +11,34 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   SlidersHorizontal, RefreshCw, X, Loader2, AlertTriangle, Save, ChevronUp, ChevronDown,
-  Mic, AudioLines, Image as ImageIcon, Languages,
+  Mic, AudioLines, Languages,
 } from 'lucide-react';
 import { pycoreApi, ttsEngineUiState, ttsEngineBadgeLabel } from '../../../core/api-libs/pycore';
 import type { PcCapabilitySettings, PcCapabilityBlock, PcCapabilityKey, PcCapabilityOptions } from '../../../core/api-libs/pycore';
 
-const CAP_KEYS: PcCapabilityKey[] = ['stt', 'tts', 'sentence_tts', 'word_tts', 'image', 'translation'];
-const CAP_ICON: Record<PcCapabilityKey, React.FC<{ className?: string }>> = {
-  stt: Mic, tts: AudioLines, image: ImageIcon, translation: Languages,
+type DisplayedCapabilityKey = Exclude<PcCapabilityKey, 'image'>;
+
+const CAP_KEYS: DisplayedCapabilityKey[] = ['stt', 'tts', 'sentence_tts', 'word_tts', 'translation'];
+const CAP_ICON: Record<DisplayedCapabilityKey, React.FC<{ className?: string }>> = {
+  stt: Mic, tts: AudioLines, translation: Languages,
   sentence_tts: AudioLines, word_tts: AudioLines,
 };
-const CAP_DEFAULT_PRIORITY: Record<PcCapabilityKey, string[]> = {
+const CAP_DEFAULT_PRIORITY: Record<DisplayedCapabilityKey, string[]> = {
   stt: ['whisper', 'ai', 'vosk'],
   tts: ['gptsovits', 'streamelements', 'sherpa', 'melotts', 'edge', 'gtts_web', 'azure', 'chattts', 'cosyvoice', 'fishspeech', 'qwen3tts', 'bark', 'voxcpm2', 'kokoro', 'f5tts'],
   // Sentence TTS: qwen3tts-first (high-quality neural voices for sentence audio).
   sentence_tts: ['qwen3tts', 'chattts', 'cosyvoice', 'fishspeech', 'bark', 'voxcpm2', 'kokoro', 'gptsovits', 'f5tts', 'melotts', 'sherpa', 'edge', 'streamelements', 'gtts_web', 'azure'],
   // Word TTS: edge-first (fast lightweight single-word pronunciation).
   word_tts: ['edge', 'streamelements', 'gtts_web', 'sherpa', 'melotts', 'gptsovits', 'chattts', 'cosyvoice', 'fishspeech', 'qwen3tts', 'bark', 'voxcpm2', 'kokoro', 'f5tts', 'azure'],
-  image: ['zhipuai', 'dashscope', 'pollinations'],
-  translation: ['ecdict', 'wordnet', 'google', 'ai'],
+  translation: ['google', 'ecdict', 'wordnet', 'ai'],
 };
 /** Clear English titles for each capability block (the translation keys are not
  *  defined in the i18n tables, so raw keys would show otherwise). */
-const CAP_LABEL: Record<PcCapabilityKey, string> = {
+const CAP_LABEL: Record<DisplayedCapabilityKey, string> = {
   stt: 'Speech-to-Text',
   tts: 'Text-to-Speech (Default)',
   sentence_tts: 'Text-to-Speech (Sentence)',
   word_tts: 'Text-to-Speech (Word)',
-  image: 'Image Generation',
   translation: 'Translation',
 };
 
@@ -46,11 +46,11 @@ export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }
   const { t } = useTranslation('pc');
   const [settings, setSettings] = useState<PcCapabilitySettings | null>(null);
   // Local editable copy (priority order + options) per capability.
-  const [draft, setDraft] = useState<Record<PcCapabilityKey, PcCapabilityBlock>>(() =>
+  const [draft, setDraft] = useState<Record<DisplayedCapabilityKey, PcCapabilityBlock>>(() =>
     CAP_KEYS.reduce((acc, k) => {
       acc[k] = { priority: [...CAP_DEFAULT_PRIORITY[k]], available: {}, installed: {}, setup_reasons: {}, options: {} };
       return acc;
-    }, {} as Record<PcCapabilityKey, PcCapabilityBlock>));
+    }, {} as Record<DisplayedCapabilityKey, PcCapabilityBlock>));
   const [available, setAvailable] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [savingCap, setSavingCap] = useState<PcCapabilityKey | null>(null);
@@ -76,7 +76,7 @@ export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }
           options: b?.options ?? {},
         };
         return acc;
-      }, {} as Record<PcCapabilityKey, PcCapabilityBlock>));
+      }, {} as Record<DisplayedCapabilityKey, PcCapabilityBlock>));
       setAvailable(true);
     } catch {
       if (mounted.current) setAvailable(false);
@@ -88,7 +88,7 @@ export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }
   // Load once when the drawer is first opened (and on explicit reload).
   useEffect(() => { if (open && available === null) load(); }, [open, available, load]);
 
-  const move = (cap: PcCapabilityKey, idx: number, dir: -1 | 1) => {
+  const move = (cap: DisplayedCapabilityKey, idx: number, dir: -1 | 1) => {
     setDraft((prev) => {
       const list = [...prev[cap].priority];
       const j = idx + dir;
@@ -98,15 +98,15 @@ export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }
     });
   };
 
-  const setOption = (cap: PcCapabilityKey, key: string, value: number) => {
+  const setOption = (cap: DisplayedCapabilityKey, key: string, value: number) => {
     setDraft((prev) => ({ ...prev, [cap]: { ...prev[cap], options: { ...prev[cap].options, [key]: value } } }));
   };
 
-  const setBoolOption = (cap: PcCapabilityKey, key: string, value: boolean) => {
+  const setBoolOption = (cap: DisplayedCapabilityKey, key: string, value: boolean) => {
     setDraft((prev) => ({ ...prev, [cap]: { ...prev[cap], options: { ...prev[cap].options, [key]: value } } }));
   };
 
-  const save = useCallback(async (cap: PcCapabilityKey) => {
+  const save = useCallback(async (cap: DisplayedCapabilityKey) => {
     setSavingCap(cap);
     setNotice(null);
     try {

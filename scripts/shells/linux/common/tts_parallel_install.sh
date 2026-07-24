@@ -49,7 +49,7 @@ source "$SCRIPT_DIR/gvar_common.sh"
 source "$SCRIPT_DIR/venv_python_common.sh"
 set -uo pipefail
 
-[ -f "$PT_COMMON_DIR/base_libs/pip_lock.sh" ] && . "$PT_COMMON_DIR/base_libs/pip_lock.sh"
+. "$PT_COMMON_DIR/base_libs/pip_lock.sh"
 export PIP_LOCK_FILE
 . "$PT_COMMON_DIR/base_libs/parallel_terminals.sh"
 
@@ -74,10 +74,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ "$PYTHON" == "python3" ]] && command -v venv_python_from_common >/dev/null 2>&1; then
+if [[ "$PYTHON" == "python3" ]]; then
     PYTHON="$(venv_python_from_common)"
 fi
-command -v "$PYTHON" >/dev/null 2>&1 || PYTHON="python3"
 PT_PYTHON="$PYTHON"
 
 if [[ -n "${CORE_NODE_PROJECT_ROOT:-}" && -d "$CORE_NODE_PROJECT_ROOT/scripts/shells/linux/debian/install_shells" ]]; then
@@ -93,13 +92,13 @@ pt_add_task "edge-tts"        "22_install_edge_tts"       "bash '$INSTALL_SHELLS
 pt_add_task "faster-whisper"  "15_install_faster_whisper" "bash '$INSTALL_SHELLS_DIR/15_install_faster_whisper.sh' --python '$PYTHON' $FORCE_ARG"
 pt_add_task "openai-whisper"  "109_install_whisper"       "bash '$INSTALL_SHELLS_DIR/109_install_whisper.sh' --python '$PYTHON' $FORCE_ARG"
 pt_add_task "vosk"            "110_install_vosk"          "bash '$INSTALL_SHELLS_DIR/110_install_vosk.sh' --python '$PYTHON' $FORCE_ARG"
-pt_add_task "azure-sdk"       "pip azure-speech"          ". '$PT_COMMON_DIR/base_libs/pip_lock.sh' 2>/dev/null || true; if ! command -v vpip >/dev/null 2>&1; then vpip(){ \"\$@\"; }; fi; vpip '$PYTHON' -m pip install --upgrade azure-cognitiveservices-speech"
+pt_add_task "azure-sdk"       "pip azure-speech"          ". '$PT_COMMON_DIR/base_libs/pip_lock.sh'; vpip '$PYTHON' -m pip install azure-cognitiveservices-speech"
 [[ "$MELOTTS" -eq 1 ]]   && pt_add_task "melotts"   "115_install_melotts"   "bash '$INSTALL_SHELLS_DIR/115_install_melotts.sh' --python '$PYTHON' --full $FORCE_ARG"
 [[ "$GPTSOVITS" -eq 1 ]] && pt_add_task "gptsovits" "114_install_gptsovits" "bash '$INSTALL_SHELLS_DIR/114_install_gptsovits.sh' --python '$PYTHON' --full $FORCE_ARG"
 [[ "$CHATTTS" -eq 1 ]]   && pt_add_task "chattts"   "111_install_chattts"   "bash '$INSTALL_SHELLS_DIR/111_install_chattts.sh' --python '$PYTHON' --full $FORCE_ARG"
 [[ "$COSYVOICE" -eq 1 ]] && pt_add_task "cosyvoice" "112_install_cosyvoice" "bash '$INSTALL_SHELLS_DIR/112_install_cosyvoice.sh' --python '$PYTHON' --full $FORCE_ARG"
 [[ "$FISHSPEECH" -eq 1 ]] && pt_add_task "fishspeech" "117_install_fishspeech" "bash '$INSTALL_SHELLS_DIR/117_install_fishspeech.sh' --python '$PYTHON' --full $FORCE_ARG"
-[[ "$KOKORO" -eq 1 ]]    && pt_add_task "kokoro"    "118_install_kokoro"    "bash '$INSTALL_SHELLS_DIR/118_install_kokoro.sh' --python '$PYTHON' --full $FORCE_ARG"
+[[ "$KOKORO" -eq 1 ]]    && pt_add_task "kokoro"    "118_install_kokoro"    "bash '$INSTALL_SHELLS_DIR/118_install_kokoro.sh' --python '$PYTHON' $FORCE_ARG"
 [[ "$VOXCPM2" -eq 1 ]]   && pt_add_task "voxcpm2"   "119_install_voxcpm2"   "bash '$INSTALL_SHELLS_DIR/119_install_voxcpm2.sh' --python '$PYTHON' --full $FORCE_ARG"
 [[ "$BARK" -eq 1 ]]      && pt_add_task "bark"      "116_install_bark"      "bash '$INSTALL_SHELLS_DIR/116_install_bark.sh' --python '$PYTHON' --full $FORCE_ARG"
 [[ "$PARLER" -eq 1 ]]    && pt_add_task "parler"    "139_install_parler"    "bash '$INSTALL_SHELLS_DIR/139_install_parler.sh' --python '$PYTHON' --full $FORCE_ARG"

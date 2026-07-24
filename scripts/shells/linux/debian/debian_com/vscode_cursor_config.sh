@@ -23,10 +23,8 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 CORE_NODE_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-# Source global variables (relative path)
-if [ -f "$PARENT_DIR_LEVEL_2/common/gvar_common.sh" ]; then
-    source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-fi
+# Source global variables from the resolved project path.
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Shared download directory
 get_shared_download_dir() {

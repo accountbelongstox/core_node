@@ -129,14 +129,10 @@ pt_wait_for_done() {
 # Post-phase CPU/GPU guards (serial; the parallel phase is over). Opt-in via PT_RUN_GUARDS.
 pt_run_guards() {
     [[ "${PT_RUN_GUARDS:-0}" -eq 1 ]] || return 0
-    if [[ -f "$PT_COMMON_DIR/torch_cpu_guard.sh" ]]; then
-        echo "[..] torch CPU/GPU guard (repair-only)"
-        TCG_REPAIR_ONLY=1 bash "$PT_COMMON_DIR/torch_cpu_guard.sh" --python "$PT_PYTHON" || true
-    fi
-    if [[ -f "$PT_COMMON_DIR/onnxruntime_cpu_guard.sh" ]]; then
-        echo "[..] onnxruntime CPU/GPU guard (repair-only)"
-        OCG_REPAIR_ONLY=1 bash "$PT_COMMON_DIR/onnxruntime_cpu_guard.sh" --python "$PT_PYTHON" || true
-    fi
+    echo "[..] torch CPU/GPU guard (repair-only)"
+    TCG_REPAIR_ONLY=1 bash "$PT_COMMON_DIR/torch_cpu_guard.sh" --python "$PT_PYTHON"
+    echo "[..] onnxruntime CPU/GPU guard (repair-only)"
+    OCG_REPAIR_ONLY=1 bash "$PT_COMMON_DIR/onnxruntime_cpu_guard.sh" --python "$PT_PYTHON"
 }
 
 pt_summary() {

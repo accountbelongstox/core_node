@@ -158,16 +158,15 @@ const isFast = computed(() =>
 );
 
 // ---- Jump-to-task-top (bump) ----------------------------------------------
-// Privileged categories that may be bumped to the fast lane: translate / audio /
-// image. Match on either capability or task_type so a row works whether or not
-// the lean list carried a capability.
-const PRIVILEGED_CAPS = new Set(['translate', 'ai_translate', 'audio', 'sentence_audio', 'image']);
+// Privileged categories that have a matching worker on the shared fast lane.
+// Dedicated Gemini-image, NotebookLM and text lanes must retain their lane even
+// when their numeric priority is raised.
+const PRIVILEGED_CAPS = new Set(['translate', 'ai_translate', 'audio', 'sentence_audio']);
 const PRIVILEGED_TASK_TYPES = new Set([
   'word_translation',
   'word_audio',
   'sentence_audio',
   'word_media',
-  'gemini_image',
 ]);
 const LIVE_STATUSES = new Set(['pending', 'assigned', 'processing']);
 

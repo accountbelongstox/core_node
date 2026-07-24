@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1UnifiedTTSQueueService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1TTSQueueMetrics;
 use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1AddTTSTaskRequest;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
 use Illuminate\Http\Request;
@@ -67,7 +68,7 @@ class AppQyV1TTSQueueController extends Controller
 
         // FE fast-track: interactive=true forces the row to the FRONT of the
         // audio queue (tts_priority=MAX(tts_priority)+1 move-to-front ticket) — the working fast path for word audio
-        // via pycore's assist worker. The front priority also propagates into
+        // via Pycore's dedicated word-audio worker. The front priority also propagates into
         // the linked GlobalTask when APPQYV1_DUAL_WRITE_GLOBAL is enabled.
         $position = (bool) $request->input('interactive', false)
             ? 'beginning'
@@ -359,7 +360,7 @@ class AppQyV1TTSQueueController extends Controller
 
         // FE fast-track: interactive=true sends the batch to the FRONT of the
         // audio queue (tts_priority=MAX(tts_priority)+1 move-to-front ticket) — the working fast path for word audio
-        // via pycore's assist worker (the `audio` capability is pycore's; chrome
+        // via Pycore's dedicated word-audio worker (audio is Pycore-owned; Chrome
         // serves only `sentence_audio`). Propagates into the linked GlobalTask
         // when APPQYV1_DUAL_WRITE_GLOBAL is enabled.
         if ((bool) $request->input('interactive', false)) {
@@ -367,6 +368,17 @@ class AppQyV1TTSQueueController extends Controller
         }
 
         $result = $this->queueService->batchAddTasks($tasks, $defaultPosition);
+
+        if ((bool) $request->input('interactive', false)) {
+            AppQyV1TranslationEventModel::emit('word_audio.priority', [
+                'batch' => true,
+                'count' => count($tasks),
+                'items' => array_map(static fn ($task) => [
+                    'content' => $task['content'] ?? '',
+                    'language' => $task['language'] ?? '',
+                ], $tasks),
+            ]);
+        }
 
         return $this->success($this->addLogsToResponse($result), 'Batch tasks processed successfully');
     }

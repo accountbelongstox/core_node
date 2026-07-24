@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Log;
  * Poster Task Processor
  *
  * Write-back stage for the `poster` task type (execution_type 'remote_poster' —
- * its own dedicated pycore-only generation lane, claimed by processor_type, kept
- * OFF remote_fast so it never starves the interactive lane). Advertised
+ * its own dedicated mcp-chrome search lane, claimed by processor_type and kept
+ * off remote_fast so it never starves the interactive lane. Advertised
  * capability tag 'poster' (DISTINCT from 'image' = word art) is mainly for
  * UI/provider display. This is the GlobalTask sibling of the assist-protocol
  * poster pull path (AppQyV1AssistService::submitPoster).

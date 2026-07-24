@@ -10,9 +10,9 @@ at its top level). The worker instance is passed AT CALL TIME, exposing
 ``_post_result`` / ``_record_task`` / ``partition_words`` / ``mark_words_done``
 etc. via the instance.
 
-Handlers keep delegating to the EXISTING engines (tts_orchestrator,
-stt_orchestrator, word_audio_client, movie_poster_client, google_translator,
-dictionary, prompt_translate, ai.generate_image, result_cache) - no engine logic
-moves. Cross-handler helpers (e.g. prompt_translate needs audio.synthesize_word_
+Handlers keep delegating to the existing engines (tts_orchestrator,
+stt_orchestrator, google_translator, dictionary,
+prompt_translate, result_cache). Cross-handler helpers (for example,
+prompt_translate needs audio.synthesize_word_
 audio) import from a SIBLING handler module, never from worker.py.
 """

@@ -33,7 +33,7 @@ def register_clipboard_routes(rpc_server, service_instances: Dict[str, Any] = No
 
     db_manager = get_database_manager()
 
-    if 'clipboard' not in db_manager.connection_strings:
+    if not db_manager.is_database_registered('clipboard'):
         ColorPrint.blue("[ClipboardRoutes] Initializing clipboard database...")
         db_manager.register_database(database_name='clipboard')
         db_manager.load_tables(
@@ -71,7 +71,7 @@ def register_clipboard_routes(rpc_server, service_instances: Dict[str, Any] = No
             db_manager = get_database_manager()
 
             # Check if clipboard database is registered
-            if 'clipboard' not in db_manager.connection_strings:
+            if not db_manager.is_database_registered('clipboard'):
                 ColorPrint.yellow("[ClipboardRoutes] Clipboard database not registered, returning empty list")
                 return {
                     'success': True,
@@ -130,7 +130,7 @@ def register_clipboard_routes(rpc_server, service_instances: Dict[str, Any] = No
             db_manager = get_database_manager()
 
             # Check if clipboard database is registered
-            if 'clipboard' not in db_manager.connection_strings:
+            if not db_manager.is_database_registered('clipboard'):
                 ColorPrint.yellow("[ClipboardRoutes] Clipboard database not registered, returning empty sync")
                 return {
                     'success': True,

@@ -186,7 +186,7 @@ function Install-DeepSeekOCRDependencies {
         Write-Host "$SCRIPT_INDEX Note: Linux is officially supported; Windows may require source build or a community wheel." -ForegroundColor Yellow
         Write-Host ""
 
-        if (Test-PythonDistInfoPresent -PythonExe $PythonCommand -DistPrefixes @('flash_attn')) {
+        if (Test-PipPackageInstalled -PipExe $Global:PIP_EXE_PATH -PackageName 'flash-attn') {
             Write-Host "$SCRIPT_INDEX [SKIP] flash-attn already installed" -ForegroundColor Green
         }
         else {
@@ -196,7 +196,7 @@ function Install-DeepSeekOCRDependencies {
             & $Global:PIP_EXE_PATH install flash-attn --no-build-isolation
             Write-Host ""
 
-            if (Test-PythonDistInfoPresent -PythonExe $PythonCommand -DistPrefixes @('flash_attn')) {
+            if (Test-PipPackageInstalled -PipExe $Global:PIP_EXE_PATH -PackageName 'flash-attn') {
                 Write-Host "$SCRIPT_INDEX [OK] flash-attn installed" -ForegroundColor Green
             }
             else {

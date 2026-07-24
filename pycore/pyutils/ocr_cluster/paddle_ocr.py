@@ -19,6 +19,7 @@ Pitfalls encountered during development:
 import os
 import sys
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.ai_runtime_policy import PADDLE_CPU_PACKAGE
 import time
 import json
 from pathlib import Path
@@ -131,7 +132,7 @@ class PaddleOCREngine:
             ColorPrint.blue("[INSTALL] Installing PaddlePaddle (CPU version)...")
             paddle_cmd = [
                 python_exe, "-m", "pip", "install",
-                "paddlepaddle==3.0.0",
+                PADDLE_CPU_PACKAGE,
                 "-i", "https://www.paddlepaddle.org.cn/packages/stable/cpu/"
             ]
 

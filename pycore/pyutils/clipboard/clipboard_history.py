@@ -13,6 +13,11 @@ The actual data is stored in the clipboard database via ClipboardHistoryModel.
 import time
 from typing import List, Dict, Any, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 
 
 class ClipboardHistory:
@@ -39,9 +44,15 @@ class ClipboardHistory:
         """
         self.max_items = max_items
         self.items: List[Dict[str, Any]] = []
+        init_serialized_owner(
+            self,
+            "clipboard.history.state",
+            "ClipboardHistoryState",
+        )
 
         ColorPrint.blue("[ClipboardHistory] Initialized (database-backed)")
 
+    @serialized_method
     def add_item(
         self,
         content: str,
@@ -65,7 +76,7 @@ class ClipboardHistory:
         recent_items = self.items[-10:] if len(self.items) >= 10 else self.items
         for item in recent_items:
             if item['content'] == content:
-                return item
+                return dict(item)
 
         # Create new item
         item = {
@@ -84,8 +95,9 @@ class ClipboardHistory:
         if len(self.items) > self.max_items:
             self.items = self.items[-self.max_items:]
 
-        return item
+        return dict(item)
 
+    @serialized_method
     def get_recent(self, limit: int = 50, client_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get recent clipboard items
@@ -104,8 +116,9 @@ class ClipboardHistory:
             items = [item for item in items if item['client_id'] == client_id]
 
         # Return most recent first
-        return list(reversed(items[-limit:]))
+        return [dict(item) for item in reversed(items[-limit:])]
 
+    @serialized_method
     def get_since(self, timestamp: float, client_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get clipboard items since timestamp
@@ -123,8 +136,9 @@ class ClipboardHistory:
         if client_id:
             items = [item for item in items if item['client_id'] == client_id]
 
-        return items
+        return [dict(item) for item in items]
 
+    @serialized_method
     def search(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
         """
         Search clipboard history
@@ -143,8 +157,9 @@ class ClipboardHistory:
         ]
 
         # Return most recent matches first
-        return list(reversed(matches[-limit:]))
+        return [dict(item) for item in reversed(matches[-limit:])]
 
+    @serialized_method
     def clear_history(self, client_id: Optional[str] = None):
         """
         Clear clipboard history
@@ -159,8 +174,7 @@ class ClipboardHistory:
             self.items = []
             ColorPrint.yellow("[ClipboardHistory] Cleared all history")
 
-        self._save_history()
-
+    @serialized_method
     def get_statistics(self) -> Dict[str, Any]:
         """Get clipboard history statistics"""
         if not self.items:
@@ -185,13 +199,13 @@ class ClipboardHistory:
         }
 
 
-# Global singleton instance
-_global_clipboard_history: Optional[ClipboardHistory] = None
+_CLIPBOARD_HISTORY_PROVIDER = SerializedSingletonProvider(
+    ClipboardHistory,
+    "clipboard.history.provider",
+    "ClipboardHistoryProvider",
+)
 
 
 def get_clipboard_history() -> ClipboardHistory:
     """Get global clipboard history singleton"""
-    global _global_clipboard_history
-    if _global_clipboard_history is None:
-        _global_clipboard_history = ClipboardHistory()
-    return _global_clipboard_history
+    return _CLIPBOARD_HISTORY_PROVIDER.get()

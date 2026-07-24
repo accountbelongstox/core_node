@@ -30,14 +30,18 @@ Usage:
     result = provider.recognize_from_video(Path("video.mp4"))
 """
 
-import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore.pyfoundations import ColorPrint, is_cuda_available
+from pycore.pyfoundations import ColorPrint, THREAD_BUS, is_cuda_available
 from pycore.pyutils.common.stt_base_provider import BaseSpeechRecognitionProvider
-from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
 from pycore.pyutils.whisper_stt.audio_utils import (
     convert_to_whisper_format,
     download_audio_from_url,
@@ -114,10 +118,18 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
         self._model_name = model_name  # None means auto-detect
         self._model = None
         self._initialized = False
-        self._is_recognizing = False
         self._mic_capture: Optional[MicrophoneCapture] = None
         self._system_capture: Optional[SystemAudioCapture] = None
+        self._recognizing_signal = f"whisper_stt.{id(self)}.recognizing"
+        THREAD_BUS.signal(self._recognizing_signal, False)
+        init_serialized_owner(
+            self,
+            "whisper_stt.state",
+            "WhisperSTTState",
+            timeout=600.0,
+        )
 
+    @serialized_method
     def initialize(self, model_name: Optional[str] = None) -> bool:
         """
         Initialize Whisper model
@@ -159,6 +171,7 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
         ColorPrint.green(f"[WhisperSTT] Model loaded: {self._model_name}")
         return True
 
+    @serialized_method
     def recognize_from_file(
         self,
         audio_file: Path,
@@ -247,6 +260,7 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
             "error": "",
         }
 
+    @serialized_method
     def recognize_from_microphone(
         self,
         duration_seconds: float = 5.0,
@@ -280,6 +294,7 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
 
         return result
 
+    @serialized_method
     def recognize_from_system_audio(
         self,
         duration_seconds: float = 5.0,
@@ -314,6 +329,7 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
 
         return result
 
+    @serialized_method
     def recognize_from_url(
         self,
         url: str,
@@ -342,6 +358,7 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
 
         return result
 
+    @serialized_method
     def recognize_from_video(
         self,
         video_file: Path,
@@ -359,6 +376,7 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
         """
         return self.recognize_from_file(video_file, language)
 
+    @serialized_method
     def recognize_continuous(
         self,
         audio_source: Any,
@@ -384,12 +402,12 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
         Returns:
             True if started successfully
         """
-        if self._is_recognizing:
+        if THREAD_BUS.get_signal(self._recognizing_signal, False):
             if on_error:
                 on_error("Already recognizing")
             return False
 
-        self._is_recognizing = True
+        THREAD_BUS.signal(self._recognizing_signal, True)
 
         # Start recognition in background thread
         start_bus_task(
@@ -415,7 +433,7 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
         """Continuous recognition loop"""
         chunk_duration = 5.0  # Record 5-second chunks
 
-        while self._is_recognizing:
+        while THREAD_BUS.get_signal(self._recognizing_signal, False):
             # Record chunk based on source
             if audio_source == "system":
                 result = self.recognize_from_system_audio(chunk_duration, language)
@@ -428,6 +446,7 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
             elif on_error:
                 on_error(result.get("error", "Recognition failed"))
 
+    @serialized_method
     def stop_recognition(self) -> bool:
         """
         Stop continuous recognition
@@ -435,10 +454,10 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
         Returns:
             True if stopped successfully
         """
-        if not self._is_recognizing:
+        if not THREAD_BUS.get_signal(self._recognizing_signal, False):
             return False
 
-        self._is_recognizing = False
+        THREAD_BUS.signal(self._recognizing_signal, False)
 
         if self._mic_capture and self._mic_capture.is_recording():
             self._mic_capture.stop_recording()
@@ -449,6 +468,7 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
         ColorPrint.blue("[WhisperSTT] Continuous recognition stopped")
         return True
 
+    @serialized_method
     def is_available(self) -> bool:
         """
         Check if Whisper is available
@@ -459,6 +479,7 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
         whisper = _get_whisper()
         return whisper is not None
 
+    @serialized_method
     def get_supported_languages(self) -> List[str]:
         """
         Get list of supported languages
@@ -473,24 +494,29 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
             "hi", "it", "nl", "pl", "tr", "vi", "th", "id", "ms", "tl",
         ]
 
+    @serialized_method
     def get_provider_name(self) -> str:
         """Get provider name"""
         return "Whisper"
 
+    @serialized_method
     def get_model_name(self) -> str:
         """Get current model name"""
         return self._model_name
 
+    @serialized_method
     def list_available_models(self) -> List[str]:
         """Get list of available Whisper models"""
         return WHISPER_MODELS.copy()
 
+    @serialized_method
     def list_microphone_devices(self) -> List[Dict]:
         """List available microphone devices"""
         if self._mic_capture is None:
             self._mic_capture = MicrophoneCapture()
         return self._mic_capture.list_devices()
 
+    @serialized_method
     def list_loopback_devices(self) -> List[Dict]:
         """List available loopback devices (Windows only)"""
         if self._system_capture is None:
@@ -526,8 +552,12 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
         }
 
 
-# Global singleton
-_whisper_provider: Optional[WhisperSTTProvider] = None
+_WHISPER_PROVIDER = SerializedSingletonProvider(
+    WhisperSTTProvider,
+    "whisper_stt.provider",
+    "WhisperSTTProvider",
+    timeout=300.0,
+)
 
 
 def get_whisper_stt_provider(model_name: Optional[str] = None) -> WhisperSTTProvider:
@@ -540,12 +570,7 @@ def get_whisper_stt_provider(model_name: Optional[str] = None) -> WhisperSTTProv
     Returns:
         WhisperSTTProvider instance
     """
-    global _whisper_provider
-
-    if _whisper_provider is None:
-        _whisper_provider = WhisperSTTProvider(model_name)
-
-    return _whisper_provider
+    return _WHISPER_PROVIDER.get(model_name)
 
 
 __all__ = [

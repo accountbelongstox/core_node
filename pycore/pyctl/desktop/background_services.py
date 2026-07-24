@@ -20,6 +20,7 @@ from pycore.pyutils.window.screenshot import WindowScreenshot
 from pycore.pyctl.desktop.ai_hooks import ai_generate_text
 from pycore.pyctl.desktop.processor import process_text_input, process_image_input
 from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
     SerializedWorkerThread,
     call_serialized,
 )
@@ -390,8 +391,11 @@ class VoiceSubtitleBackgroundServices:
             self._update_state(screenshot_lang=lang)
 
 
-# Global singleton instance
-_background_services: Optional[VoiceSubtitleBackgroundServices] = None
+_BACKGROUND_SERVICES_PROVIDER = SerializedSingletonProvider(
+    VoiceSubtitleBackgroundServices,
+    "desktop.background_services.provider",
+    "VoiceSubtitleBackgroundServicesProvider",
+)
 
 
 def get_background_services() -> VoiceSubtitleBackgroundServices:
@@ -401,9 +405,4 @@ def get_background_services() -> VoiceSubtitleBackgroundServices:
     Returns:
         VoiceSubtitleBackgroundServices: Global instance
     """
-    global _background_services
-
-    if _background_services is None:
-        _background_services = VoiceSubtitleBackgroundServices()
-
-    return _background_services
+    return _BACKGROUND_SERVICES_PROVIDER.get()

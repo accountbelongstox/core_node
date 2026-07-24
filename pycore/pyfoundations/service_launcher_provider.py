@@ -16,10 +16,13 @@ pulls it via ``get_service_launcher()`` with a plain top-level import — so the
 lazy in-function ``from pycore.pylauncher import ServiceLauncher`` workarounds
 can move to the file top per PYTHON_PYCORE.md §1.4.
 
-Imports nothing but stdlib — a valid pyfoundations leaf.
+Uses only pyfoundations infrastructure and stdlib.
 """
 
-_service_launcher_provider = None
+from pycore.pyfoundations.serialized_worker import SerializedValue
+
+
+_SERVICE_LAUNCHER_PROVIDER = SerializedValue(None, "ServiceLauncherHookState")
 
 
 def register_service_launcher_provider(provider) -> None:
@@ -28,8 +31,7 @@ def register_service_launcher_provider(provider) -> None:
     Called by ``pycore.pylauncher`` at its import time so lower layers never
     import pylauncher directly (preserves the one-directional layer dependency).
     """
-    global _service_launcher_provider
-    _service_launcher_provider = provider
+    _SERVICE_LAUNCHER_PROVIDER.set(provider)
 
 
 def get_service_launcher():
@@ -39,10 +41,11 @@ def get_service_launcher():
     one (e.g. native_ui driven without importing pylauncher first) — the seam
     cannot self-heal, since pyfoundations may not import UP into pylauncher.
     """
-    if _service_launcher_provider is None:
+    provider = _SERVICE_LAUNCHER_PROVIDER.get()
+    if provider is None:
         raise RuntimeError(
             "ServiceLauncher provider not registered — import pycore.pylauncher "
             "before starting native_ui services (pylauncher registers the "
             "provider at its import time)."
         )
-    return _service_launcher_provider
+    return provider

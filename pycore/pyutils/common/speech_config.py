@@ -15,6 +15,7 @@ Architecture:
 
 from typing import Optional, Dict, Any
 from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.database import get_database_manager
 
 from pycore.database.models import TableKeys
@@ -59,6 +60,12 @@ class SpeechConfig:
 
         # Auto-initialize
         self._initialize()
+        init_serialized_owner(
+            self,
+            'pyutils.speech_config.state',
+            'SpeechConfigStateThread',
+            timeout=300.0,
+        )
 
     def _initialize(self):
         """Initialize database connection and table (lazy)"""
@@ -73,7 +80,7 @@ class SpeechConfig:
             self._config_model = SpeechConfigModel
 
             # Register speech database if not already registered
-            if 'speech' not in self._db_manager.connection_strings:
+            if not self._db_manager.is_database_registered('speech'):
                 self._db_manager.register_database(database_name='speech')
 
             # Load config table if not already loaded
@@ -118,6 +125,7 @@ class SpeechConfig:
 
     # ===== Public API (Backward Compatible with GlobalConfig) =====
 
+    @serialized_method
     def get(self, key: str, default: Any = None) -> Any:
         """
         Get configuration value
@@ -143,6 +151,7 @@ class SpeechConfig:
             ColorPrint.yellow(f"[SpeechConfig] Failed to get {key}: {e}")
             return default
 
+    @serialized_method
     def set(self, key: str, value: Any, description: Optional[str] = None) -> bool:
         """
         Set configuration value
@@ -171,6 +180,7 @@ class SpeechConfig:
             ColorPrint.red(f"[SpeechConfig] Failed to set {key}: {e}")
             return False
 
+    @serialized_method
     def get_all(self) -> Dict[str, Any]:
         """
         Get all configuration
@@ -192,6 +202,7 @@ class SpeechConfig:
             ColorPrint.red(f"[SpeechConfig] Failed to get all configs: {e}")
             return {}
 
+    @serialized_method
     def get_by_category(self, category: str) -> Dict[str, Any]:
         """
         Get all configs in a specific category
@@ -216,6 +227,7 @@ class SpeechConfig:
             ColorPrint.red(f"[SpeechConfig] Failed to get category {category}: {e}")
             return {}
 
+    @serialized_method
     def update(self, config_dict: Dict[str, Any]) -> bool:
         """
         Update multiple configuration values
@@ -243,6 +255,7 @@ class SpeechConfig:
             ColorPrint.red(f"[SpeechConfig] Failed to update: {e}")
             return False
 
+    @serialized_method
     def has_key(self, key: str) -> bool:
         """
         Check if configuration key exists
@@ -260,6 +273,7 @@ class SpeechConfig:
             ColorPrint.yellow(f"[SpeechConfig] Failed to check key {key}: {e}")
             return False
 
+    @serialized_method
     def delete(self, key: str) -> bool:
         """
         Delete configuration key
@@ -278,6 +292,7 @@ class SpeechConfig:
             ColorPrint.red(f"[SpeechConfig] Failed to delete {key}: {e}")
             return False
 
+    @serialized_method
     def reset_to_defaults(self):
         """Reset all speech configuration to defaults"""
         try:
@@ -292,6 +307,7 @@ class SpeechConfig:
         except Exception as e:
             ColorPrint.red(f"[SpeechConfig] Failed to reset: {e}")
 
+    @serialized_method
     def get_statistics(self) -> Dict[str, Any]:
         """
         Get configuration statistics

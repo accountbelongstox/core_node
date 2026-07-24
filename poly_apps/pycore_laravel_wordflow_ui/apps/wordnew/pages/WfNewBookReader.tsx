@@ -18,6 +18,7 @@ import {
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wfReadingProgressCenter } from '../services/WfReadingProgressCenter';
 import { wfReaderSettingsRoamer } from '../services/WfReaderSettingsRoamer';
+import { pycoreApi } from '../../../core/api-libs/pycore';
 import { WfBookReaderPlayback } from '../services/WfBookReaderPlayback';
 import { WfBookReaderProgressSaver } from '../services/WfBookReaderProgressSaver';
 import {
@@ -40,6 +41,7 @@ import {
 import { cellKeyOf, ttsStatusToCellState, type WfAudioCellState } from '../utils/WfAudioCellState';
 import { pickSentenceAudioUrl, readerPreferredAccent } from '../utils/WfSentenceAudioPick';
 import { ensureAudio } from '../cache/WfNewAudioCache';
+import { readWordCardsForSentence } from '../services/WfBookReaderWordCards';
 
 interface WfNewBookReaderProps {
   sourceKey: string;
@@ -100,6 +102,12 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const [readerVariantByLang, setReaderVariantByLang] = useState<Record<string, string>>(
     () => ({ ...wfNewSettings.get('readerVariantByLang') }),
   );
+  const [wordCards, setWordCards] = useState(() => wfNewSettings.get('readerWordCards'));
+  const [wordCardPosition, setWordCardPosition] = useState<'before' | 'after'>(
+    () => wfNewSettings.get('readerWordCardPosition'),
+  );
+  const [wordRepeats, setWordRepeats] = useState(() => wfNewSettings.get('readerWordRepeats'));
+  const [wordMode, setWordMode] = useState<'new' | 'all'>(() => wfNewSettings.get('readerWordMode'));
 
   const syncReaderStateFromStore = useCallback(() => {
     setSimul(wfNewSettings.get('readerSimul'));
@@ -111,6 +119,10 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
     setAutoPlayOnOpen(wfNewSettings.get('readerAutoPlayOnOpen'));
     setBrowserTts(wfNewSettings.get('readerBrowserTts'));
     setReaderVariantByLang({ ...wfNewSettings.get('readerVariantByLang') });
+    setWordCards(wfNewSettings.get('readerWordCards'));
+    setWordCardPosition(wfNewSettings.get('readerWordCardPosition'));
+    setWordRepeats(wfNewSettings.get('readerWordRepeats'));
+    setWordMode(wfNewSettings.get('readerWordMode'));
     const prefLangs = (wfNewSettings.get('readerLangs') || []).filter((l) => languages.includes(l));
     if (prefLangs.length) {
       const prefSimul = wfNewSettings.get('readerSimul');
@@ -157,6 +169,10 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const autoAdvanceRef = useRef(autoAdvance);
   const repeatOneRef = useRef(repeatOne);
   const languagesRef = useRef(languages);
+  const wordCardsRef = useRef(wordCards);
+  const wordCardPositionRef = useRef(wordCardPosition);
+  const wordRepeatsRef = useRef(wordRepeats);
+  const wordModeRef = useRef(wordMode);
   useEffect(() => { transRef.current = trans; }, [trans]);
   useEffect(() => { addToastRef.current = addToast; }, [addToast]);
   useEffect(() => { sequenceRef.current = sequence; }, [sequence]);
@@ -164,6 +180,10 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   useEffect(() => { autoAdvanceRef.current = autoAdvance; }, [autoAdvance]);
   useEffect(() => { repeatOneRef.current = repeatOne; }, [repeatOne]);
   useEffect(() => { languagesRef.current = languages; }, [languages]);
+  useEffect(() => { wordCardsRef.current = wordCards; }, [wordCards]);
+  useEffect(() => { wordCardPositionRef.current = wordCardPosition; }, [wordCardPosition]);
+  useEffect(() => { wordRepeatsRef.current = wordRepeats; }, [wordRepeats]);
+  useEffect(() => { wordModeRef.current = wordMode; }, [wordMode]);
 
   useEffect(() => { versesRef.current = verses; }, [verses]);
   useEffect(() => { pageRef.current = page; }, [page]);
@@ -367,6 +387,19 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       goNextChapter: () => goNextChapterRef.current(),
       resolveAudioUrl: (verse, lang, shouldContinue) => resolveAudioUrlRef.current(verse, lang, shouldContinue),
       bumpMissingAudio: (v, lang, text) => { void bumpSentenceAudioImmediate(text, lang); },
+      wordCards: {
+        isEnabled: () => wordCardsRef.current,
+        getPosition: () => wordCardPositionRef.current,
+        readForVerse: async (verse, shouldContinue) => {
+          const sentence = verse.languages?.en?.text?.trim() || '';
+          if (sentence) await readWordCardsForSentence(
+            sentence,
+            shouldContinue,
+            wordRepeatsRef.current,
+            wordModeRef.current,
+          );
+        },
+      },
     });
     return () => { playbackRef.current?.stop(); };
   }, [sourceKey]);
@@ -488,7 +521,7 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
     const sig = items.map((it) => `${it.language}:${it.text}`).join('|');
     if (sig === lastBumpBatchSigRef.current) return;
     lastBumpBatchSigRef.current = sig;
-    void wfNewApi.prioritizeSentenceAudio(items).catch((e) => {
+    void pycoreApi.prioritizeSentenceAudio(items).catch((e) => {
       console.warn('[wordnew] Failed to prioritize visible sentence audio.', e);
     });
   }, [verses, orderedDisplayLangs]);
@@ -616,6 +649,7 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
           trans={trans} languages={languages} simul={simul} selectedLangs={selectedLangs}
           displayMode={displayMode} sequence={sequence} speedByLang={speedByLang}
           autoAdvance={autoAdvance} repeatOne={repeatOne} autoPlayOnOpen={autoPlayOnOpen} browserTts={browserTts}
+          wordCards={wordCards} wordCardPosition={wordCardPosition} wordRepeats={wordRepeats} wordMode={wordMode}
           onModeChange={setMode} onToggleLang={toggleLang}
           onDisplayModeChange={(m) => { setDisplayMode(m); wfNewSettings.setField('readerDisplayMode', m); persistReaderChange(); }}
           onSequenceChange={(s) => { setSequence(s); wfNewSettings.setField('readerPlaySequence', s); persistReaderChange(); }}
@@ -624,6 +658,10 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
           onRepeatOneChange={(v) => { setRepeatOne(v); wfNewSettings.setField('readerRepeatOne', v); persistReaderChange(); }}
           onAutoPlayOnOpenChange={(v) => { setAutoPlayOnOpen(v); wfNewSettings.setField('readerAutoPlayOnOpen', v); persistReaderChange(); }}
           onBrowserTtsChange={(v) => { setBrowserTts(v); wfNewSettings.setField('readerBrowserTts', v); persistReaderChange(); }}
+          onWordCardsChange={(v) => { setWordCards(v); wfNewSettings.setField('readerWordCards', v); persistReaderChange(); }}
+          onWordCardPositionChange={(v) => { setWordCardPosition(v); wfNewSettings.setField('readerWordCardPosition', v); persistReaderChange(); }}
+          onWordRepeatsChange={(v) => { const next = Math.max(1, Math.min(10, v || 1)); setWordRepeats(next); wfNewSettings.setField('readerWordRepeats', next); persistReaderChange(); }}
+          onWordModeChange={(v) => { setWordMode(v); wfNewSettings.setField('readerWordMode', v); persistReaderChange(); }}
         />
       )}
 

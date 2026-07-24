@@ -6,15 +6,12 @@ GET /api/local/tasks/recent backs the FE pycore-manager Queue Center "Recent"
 tab (PcTaskRecentResponse in pycoreTypes.ts): a newest-first log of finished
 task units with a roll-up stats block. POST /api/local/tasks/clear wipes it.
 
-The dedicated cross-end task-record ring (pycore + chrome, with per-task latency
-/ posted_back / free-form detail) is a separate subsystem that may not be wired
-in this clone. This router therefore degrades to the pyctl TaskManager — the
-task store that IS always present — and maps each record onto the PcTaskRecord
-shape the FE expects. It does NOT whitelist task types (the log is open: every
-task_type the TaskManager holds is surfaced), so no per-type label gate exists
-here.
+The response merges the persistent cross-end task store, completed-task archive
+and the in-process pyctl TaskManager fallback. Every task_type is surfaced; no
+per-type label gate exists here.
 
-All data comes from the in-process TaskManager singleton — no network I/O.
+Reads combine the in-process TaskManager with the local persistent stores. Only
+the explicit completed-archive sync endpoint contacts Laravel.
 """
 
 from datetime import datetime, timezone
@@ -131,7 +128,7 @@ def _to_record(seq: int, task: Dict[str, Any]) -> Dict[str, Any]:
     detail.update(result or {})
 
     # Cross-end attribution: the recorder may tag a task with the producing
-    # worker/end (e.g. assist cover/tts/poster -> worker='assist'); fall back to
+    # worker/end (e.g. canonical TTS or mcp-chrome media); fall back to
     # the pycore-local defaults so existing records are unchanged.
     worker = str(input_data.get("_worker") or "pycore-local")
     end = str(input_data.get("_end") or "pycore")

@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Named thread helpers for the Word Audio TTS queue worker."""
+"""THREAD_BUS helpers for the Word Audio TTS queue worker."""
 
-import threading
 from typing import Any, Dict, Optional, Tuple
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 _LANGUAGE_ALIASES = {
     "english": "en",
@@ -76,44 +74,30 @@ class WordTaskQueue:
         return selected
 
 
-class TTSWorkerBatchThread(threading.Thread):
-    def __init__(self, worker: Any) -> None:
-        super().__init__(daemon=True, name="tts-worker-batch")
-        self._worker = worker
-
-    def run(self) -> None:
-        self._worker._process_batch()
-
-
-class TTSWorkerLaneThread(threading.Thread):
-    def __init__(self, worker: Any, base: str, tasks: WordTaskQueue,
-                 index: int, result_queue: str) -> None:
-        super().__init__(daemon=True, name=f"tts-worker-lane-{index}")
-        self._worker = worker
-        self._base = base
-        self._tasks = tasks
-        self._result_queue = result_queue
-
-    def run(self) -> None:
-        processed = succeeded = failed = 0
-        while True:
-            task = self._worker._next_active_task(self._tasks)
-            if task is None:
-                break
-            processed += 1
-            if self._worker._process_task(self._base, task):
-                succeeded += 1
-            else:
-                failed += 1
-        THREAD_BUS.send_message(self._result_queue, {
-            "processed": processed,
-            "succeeded": succeeded,
-            "failed": failed,
-        })
+def run_tts_worker_lane(payload: Dict[str, Any]) -> Dict[str, int]:
+    """Drain one word TTS lane; payload and result travel through THREAD_BUS."""
+    worker = payload["worker"]
+    base = payload["base"]
+    tasks = payload["tasks"]
+    processed = succeeded = failed = 0
+    while True:
+        task = worker._next_active_task(tasks)
+        if task is None:
+            break
+        processed += 1
+        if worker._process_task(base, task):
+            succeeded += 1
+        else:
+            failed += 1
+    return {
+        "processed": processed,
+        "succeeded": succeeded,
+        "failed": failed,
+    }
 
 
 def task_deque(tasks: list[Dict[str, Any]]) -> WordTaskQueue:
     return WordTaskQueue(tasks)
 
 
-__all__ = ["TTSWorkerBatchThread", "TTSWorkerLaneThread", "WordTaskQueue", "task_deque"]
+__all__ = ["WordTaskQueue", "run_tts_worker_lane", "task_deque"]

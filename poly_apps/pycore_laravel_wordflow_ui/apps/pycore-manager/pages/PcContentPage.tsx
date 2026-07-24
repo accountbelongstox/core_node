@@ -10,19 +10,16 @@
  *                  audio (TTS), submit to laravel_main) as a collapsible section.
  *   - Add Document (PcAddDocumentView)  — upload a doc/text file → analyze →
  *                  ingest into the shared sentence library as source_type='document'.
- *   - Movie Poster (PcMoviePosterPage)  — TMDB/OMDB/SerpApi poster status + lookup
- *                  test for the Books/Subtitles cover pipeline.
  *
  * STATE RETENTION (the requirement): the active sub-tab is reflected in the URL
  * (?tab=…) AND mirrored to localStorage, so the legacy routes (/books,
- * /video-extract, /corebook→books, /movie-poster) redirect here with the matching ?tab=
+ * /video-extract and /corebook→books) redirect here with the matching ?tab=
  * and a page refresh restores the same sub-tab. Crucially, sub-views are KEEP-ALIVE
  * mounted: once a sub-tab has been visited it stays mounted (just hidden via
  * `display:none`) instead of unmounting, so in-progress UI (selections, analysis
  * results, running jobs, sync progress) is preserved when switching sub-tabs.
  * Across a FULL reload each sub-view additionally re-hydrates its progress from the
- * backend idempotently (Books getBooksState, Video-Extract task re-attach, CoreBook
- * library fetch, Poster status), so the page returns to where the user left off.
+ * backend idempotently, so the page returns to where the user left off.
  *
  * Labels are hardcoded English to match the embedded pages (no `t` object).
  */
@@ -30,17 +27,16 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Library, BookOpen, Captions, FileText, Clapperboard, type LucideIcon,
+  Library, BookOpen, Captions, FileText, type LucideIcon,
 } from 'lucide-react';
 import PcBooksPage from './PcBooksPage';
 import PcVideoExtractPage from './PcVideoExtractPage';
 import PcAddDocumentView from '../components/PcAddDocumentView';
-import PcMoviePosterPage from './PcMoviePosterPage';
 
-type ContentTab = 'subtitles' | 'books' | 'document' | 'poster';
+type ContentTab = 'subtitles' | 'books' | 'document';
 
 const TAB_KEY = 'pc_content_tab';
-const TAB_ORDER: ContentTab[] = ['subtitles', 'books', 'document', 'poster'];
+const TAB_ORDER: ContentTab[] = ['subtitles', 'books', 'document'];
 
 const isTab = (v: string | null): v is ContentTab =>
   v != null && (TAB_ORDER as string[]).includes(v);
@@ -51,10 +47,9 @@ const TABS: TabDef[] = [
   { key: 'subtitles', label: 'Subtitles', hint: 'Extract subtitles from video and sync the per-cue multi-language correspondence to Laravel.', Icon: Captions },
   { key: 'books', label: 'Books', hint: 'Add book files or folders, analyze them, and sync to Laravel — plus the advanced CoreBook enrichment (AI languages, audio, whole/partial submit).', Icon: BookOpen },
   { key: 'document', label: 'Add Document', hint: 'Upload a document or text file, analyze it, and ingest it into the shared sentence library.', Icon: FileText },
-  { key: 'poster', label: 'Movie Poster', hint: 'Poster providers (TMDB / OMDB / SerpApi) status and a lookup test for the Books/Subtitles cover pipeline.', Icon: Clapperboard },
 ];
 
-// Each sub-view's own outer chrome: Books / Video-Extract / Movie-Poster render
+// Each sub-view's own outer chrome: Books and Video-Extract render
 // their own `p-6 md:p-8` padding; Add-Document does not, so it gets a padded
 // wrapper here. (CoreBook now lives inside Books as an advanced section.)
 const renderSubView = (key: ContentTab): React.ReactNode => {
@@ -62,7 +57,6 @@ const renderSubView = (key: ContentTab): React.ReactNode => {
     case 'subtitles': return <PcVideoExtractPage />;
     case 'books': return <PcBooksPage />;
     case 'document': return <div className="p-6 md:p-8"><PcAddDocumentView /></div>;
-    case 'poster': return <PcMoviePosterPage />;
   }
 };
 

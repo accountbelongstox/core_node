@@ -138,10 +138,25 @@ function Enable-WSLFeature {
     }
 }
 
+function Get-WSLStatusValue {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Lines,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+    $lineText = ''
+    foreach ($line in $Lines) {
+        $lineText = ([string]$line).Trim()
+        if ($lineText.StartsWith($Label, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $lineText.Substring($Label.Length).Trim()
+        }
+    }
+    return ''
+}
+
 function Get-WSLVersionInfo {
     try {
         $wslStatus = & wsl --status 2>&1
-        if ("$wslStatus" -notmatch "not installed") {
+        if (-not ("$wslStatus").Contains('not installed')) {
             # Extract version information
             $versionInfo = @{
                 IsInstalled = $true
@@ -150,17 +165,9 @@ function Get-WSLVersionInfo {
                 WSLVersion = "Unknown"
             }
             
-            if ($wslStatus -match "Default Version: (\d+)") {
-                $versionInfo.DefaultVersion = $matches[1]
-            }
-            
-            if ($wslStatus -match "WSL version: ([^\r\n]+)") {
-                $versionInfo.WSLVersion = $matches[1].Trim()
-            }
-            
-            if ($wslStatus -match "Default kernel version: ([^\r\n]+)") {
-                $versionInfo.KernelVersion = $matches[1].Trim()
-            }
+            $versionInfo.DefaultVersion = Get-WSLStatusValue -Lines @($wslStatus) -Label 'Default Version:'
+            $versionInfo.WSLVersion = Get-WSLStatusValue -Lines @($wslStatus) -Label 'WSL version:'
+            $versionInfo.KernelVersion = Get-WSLStatusValue -Lines @($wslStatus) -Label 'Default kernel version:'
             
             return $versionInfo
         } else {
@@ -650,7 +657,7 @@ function Process-WSLUpgrade {
             try {
                 & wsl --set-default-version 2
                 $wslStatusAfterDefault = & wsl --status 2>&1
-                if ("$wslStatusAfterDefault" -match "Default Version: 2") {
+                if (("$wslStatusAfterDefault").Contains('Default Version: 2')) {
                     Write-ColorMessage -Message "[WSL Upgrade] WSL2 set as default version." -Type "Success"
                     
                     # Convert existing distributions

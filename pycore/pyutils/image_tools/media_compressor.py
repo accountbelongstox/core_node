@@ -34,7 +34,7 @@ from typing import Optional, Dict, Tuple, Union, List, Callable
 from pycore.pyfoundations.third_party import get_third_package_cv2
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider, start_bus_task
 
 # Re-exported data contracts (kept importable from this module for backwards
 # compatibility with callers that import them from media_compressor).
@@ -665,8 +665,11 @@ class MediaCompressor:
         return f"{size_bytes:.1f}TB"
 
 
-# Singleton instance
-_media_compressor: Optional[MediaCompressor] = None
+_MEDIA_COMPRESSOR_PROVIDER = SerializedSingletonProvider(
+    MediaCompressor,
+    "media.compressor.provider",
+    "MediaCompressorProvider",
+)
 
 
 def get_media_compressor(verbose: bool = False) -> MediaCompressor:
@@ -679,10 +682,7 @@ def get_media_compressor(verbose: bool = False) -> MediaCompressor:
     Returns:
         MediaCompressor instance
     """
-    global _media_compressor
-    if _media_compressor is None:
-        _media_compressor = MediaCompressor(verbose=verbose)
-    return _media_compressor
+    return _MEDIA_COMPRESSOR_PROVIDER.get(verbose=verbose)
 
 
 if __name__ == "__main__":

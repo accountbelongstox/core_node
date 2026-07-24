@@ -7,7 +7,7 @@ extensions. Official: https://huggingface.co/docs/transformers/model_doc/bark
   Do NOT pip install bark (unrelated PyPI package per suno-ai/bark README).
 
 Official perfect-support environment (see pycore/tts_install_assets/tts_model_tiers.py):
-  Python 3.10+ (3.13 OK with torch>=2.5); transformers>=4.31; scipy.
+  Python 3.10+; transformers; scipy.
   GPU: suno/bark (~2GB VRAM); CPU: suno/bark-small.
 
 Config:

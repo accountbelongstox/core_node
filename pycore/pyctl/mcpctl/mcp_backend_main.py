@@ -29,7 +29,7 @@ from pycore import ColorPrint, THREAD_BUS
 from pycore.pylauncher import LauncherConfig, ServiceLauncher
 from pycore.pygvar import MCP_BACKEND_RPC_PORT
 from pycore.pyctl.mcpctl.backend.config import BACKEND_INFO_TEMPLATE
-from pycore.pyctl.mcpctl.backend import handlers
+from pycore.pyctl.mcpctl.backend.handlers.context import set_handler_context
 from pycore.pyctl.mcpctl.backend.rpc_routes import register_mcp_routes
 from pycore.pyctl.mcpctl.global_state import get_global_state
 from pyapps.mcp.controller import (
@@ -114,13 +114,12 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
     codebase_controller = get_codebase_controller_singleton()
     ColorPrint.green("[Backend] All controllers initialized (File, Database, Codebase)")
 
-    # Set global controllers for handlers (复用业务逻辑)
-    handlers.file_processing.backend_info = backend_info
-    handlers.file_processing.file_controller = file_controller
-    handlers.database.backend_info = backend_info
-    handlers.database.db_controller = db_controller
-    handlers.codebase.backend_info = backend_info
-    handlers.codebase.codebase_controller = codebase_controller
+    set_handler_context(
+        backend_info,
+        file_controller,
+        db_controller,
+        codebase_controller,
+    )
 
     # Register MCP routes to RPC v2 server (使用 rpc_routes.py)
     ColorPrint.blue("[Backend] Registering MCP routes to RPC v2 server...")

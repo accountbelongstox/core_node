@@ -10,6 +10,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordImageQueueService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordMediaService;
 use Illuminate\Http\JsonResponse;
@@ -61,6 +62,14 @@ class AppQyV1WordImageQueueController extends BaseController
             foreach ($validated['words'] as $w) {
                 $mediaService->ensureImageFastTask($w['word'], $w['language']);
             }
+        }
+
+        if ($position === 'beginning') {
+            AppQyV1TranslationEventModel::emit('word_image.priority', [
+                'batch' => true,
+                'count' => count($validated['words']),
+                'items' => $validated['words'],
+            ]);
         }
 
         return response()->json($result);

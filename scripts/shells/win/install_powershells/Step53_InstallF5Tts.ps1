@@ -41,7 +41,9 @@ $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 $stagingDefault = Get-PycoreLocalDataSubDir -SubDir 'f5tts'
 $targetDir = if ($env:F5TTS_DIR) { $env:F5TTS_DIR } else { $stagingDefault }
 $depsSentinel = Join-Path $targetDir '.deps_done'
+. (Join-Path $winCommonDir 'CudaIndex.ps1')
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
+$resolvedPython = $Global:PYTHON_EXE_PATH
 $apiServerSrc = Join-Path (Get-PycoreTtsInstallAssetsDir -InstallScriptRoot $PSScriptRoot) 'f5tts_api_server.py'
 $apiServerDst = Join-Path $targetDir 'f5tts_api_server.py'
 
@@ -58,29 +60,33 @@ Write-Host '============================================================' -Foreg
 if ($env:F5TTS_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] F5TTS_SKIP=1 -> skipping." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts') -AbsentOk -AbsentNote 'F5TTS_SKIP=1'
+    return
 }
 if (Test-ServerUp -Url $serverUrl) {
     Write-Host "$SCRIPT_INDEX [OK] server reachable at $serverUrl -> nothing to do." -ForegroundColor Green
     Write-Host "$SCRIPT_INDEX      Set F5TTS_REF_AUDIO + F5TTS_REF_TEXT to enable the engine." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts') -AbsentOk -AbsentNote 'external server reachable'
+    return
 }
 if ((Test-Path (Join-Path $targetDir 'src\f5_tts\api.py')) -and (Test-TtsDependenciesReady -PythonExe $Global:PYTHON_EXE_PATH -Engine 'f5tts' -Path $depsSentinel) -and -not $Force -and -not $doFull) {
     Write-Host "$SCRIPT_INDEX [OK] F5-TTS already installed -> skipping." -ForegroundColor Green
     Write-Host ("$SCRIPT_INDEX  START:  cd `"{0}`"; python f5tts_api_server.py" -f $targetDir) -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts')
+    return
 }
 if (-not $doFull -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [i] status-only (not installed). Pass -Full, F5TTS_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts') -AbsentOk -AbsentNote 'opt-in'
+    return
 }
 
-$hasCuda = Test-CudaPresent
+$hasCuda = (Get-CudaRuntimePolicy).Enabled
 Write-Host ("$SCRIPT_INDEX  staging : {0}" -f $targetDir) -ForegroundColor DarkGray
 
-$resolvedPython = $Global:PYTHON_EXE_PATH
 if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [!] Python 3 not found. Run Step8_InstallPython first." -ForegroundColor DarkYellow
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts')
+    return
 }
 
 if (Test-Path (Join-Path $targetDir 'src\f5_tts\api.py')) {
@@ -89,13 +95,15 @@ if (Test-Path (Join-Path $targetDir 'src\f5_tts\api.py')) {
     $git = Get-Command git -ErrorAction SilentlyContinue
     if (-not $git) {
         Write-Host "$SCRIPT_INDEX [!] git not found; cannot clone F5-TTS." -ForegroundColor DarkYellow
-        throw "$SCRIPT_INDEX git not found; cannot clone F5-TTS."
+        Write-Host "$SCRIPT_INDEX [!] git not found; F5-TTS will retry next run." -ForegroundColor DarkYellow
+        return
     }
     Write-Host ("$SCRIPT_INDEX [..] cloning {0} -> {1}" -f $REPO_URL, $targetDir) -ForegroundColor Yellow
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $targetDir) | Out-Null
     try { & git.exe clone --depth 1 --progress $REPO_URL $targetDir } catch {
         Write-Host ("$SCRIPT_INDEX [!] clone failed: {0}" -f $_.Exception.Message) -ForegroundColor DarkYellow
-        throw ("$SCRIPT_INDEX clone failed: {0}" -f $_.Exception.Message)
+        Write-Host ("$SCRIPT_INDEX [!] clone failed; retrying next run: {0}" -f $_.Exception.Message) -ForegroundColor DarkYellow
+        return
     }
 }
 
@@ -119,7 +127,8 @@ if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'f5tts' -Path 
 }
 
 if (-not (Test-Path (Join-Path $targetDir 'src\f5_tts\api.py')) -or -not (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'f5tts' -Path $depsSentinel)) {
-    throw "$SCRIPT_INDEX F5-TTS is not ready; incomplete components will retry next run."
+    Write-Host "$SCRIPT_INDEX [!] F5-TTS is not ready; incomplete components will retry next run." -ForegroundColor DarkYellow
+    return
 }
 
 Write-Host "$SCRIPT_INDEX [OK] F5-TTS ready ($targetDir)." -ForegroundColor Green

@@ -23,6 +23,7 @@ from pycore.pyfoundations.third_party import (
     get_third_package_PIL_ImageDraw,
     get_third_package_PIL_ImageFont,
 )
+from pycore.pyfoundations.ai_runtime_policy import PADDLE_CPU_PACKAGE
 
 
 # Check for optional dependencies at module level
@@ -343,7 +344,7 @@ def install_paddleocr_dependencies() -> Dict[str, Any]:
         # Install PaddlePaddle CPU version first
         result1 = exec_silent([
             sys.executable, "-m", "pip", "install",
-            "paddlepaddle==3.0.0",
+            PADDLE_CPU_PACKAGE,
             "-i", "https://www.paddlepaddle.org.cn/packages/stable/cpu/"
         ], capture_output=True, text=True, timeout=300)
 

@@ -11,9 +11,13 @@ Manages callback queues for UI lifecycle events:
 Supports multiple callbacks executed in order.
 """
 
-import threading
 from typing import List, Callable, Optional
 from pycore import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 
 import traceback
 
@@ -50,7 +54,13 @@ class CallbackManager:
 
         # Restart callback (single)
         self._restart_callback: Optional[Callable] = None
+        init_serialized_owner(
+            self,
+            "native_ui.callback_manager.state",
+            "CallbackManagerState",
+        )
 
+    @serialized_method
     def add_ready_callback(self, callback: Callable) -> None:
         """
         Add callback to ready queue
@@ -67,6 +77,7 @@ class CallbackManager:
         if self.debug:
             ColorPrint.print_info(f"[CallbackManager] Added ready callback: {callback.__name__}")
 
+    @serialized_method
     def add_closed_callback(self, callback: Callable) -> None:
         """
         Add callback to closed queue
@@ -83,6 +94,7 @@ class CallbackManager:
         if self.debug:
             ColorPrint.print_info(f"[CallbackManager] Added closed callback: {callback.__name__}")
 
+    @serialized_method
     def add_closing_callback(self, callback: Callable) -> None:
         """
         Add callback to closing queue
@@ -99,6 +111,7 @@ class CallbackManager:
         if self.debug:
             ColorPrint.print_info(f"[CallbackManager] Added closing callback: {callback.__name__}")
 
+    @serialized_method
     def set_restart_callback(self, callback: Callable) -> None:
         """
         Set restart callback (only one allowed)
@@ -115,6 +128,7 @@ class CallbackManager:
         if self.debug:
             ColorPrint.print_info(f"[CallbackManager] Set restart callback: {callback.__name__}")
 
+    @serialized_method
     def execute_ready_callbacks(self) -> None:
         """
         Execute all ready callbacks in order
@@ -133,6 +147,7 @@ class CallbackManager:
                 ColorPrint.print_error(f"[CallbackManager] Error in ready callback {i+1}: {e}")
                 traceback.print_exc()
 
+    @serialized_method
     def execute_closed_callbacks(self) -> None:
         """
         Execute all closed callbacks in order
@@ -151,6 +166,7 @@ class CallbackManager:
                 ColorPrint.print_error(f"[CallbackManager] Error in closed callback {i+1}: {e}")
                 traceback.print_exc()
 
+    @serialized_method
     def execute_closing_callbacks(self) -> None:
         """
         Execute all closing callbacks in order
@@ -170,6 +186,7 @@ class CallbackManager:
                 ColorPrint.print_error(f"[CallbackManager] Error in closing callback {i+1}: {e}")
                 traceback.print_exc()
 
+    @serialized_method
     def execute_restart_callback(self) -> None:
         """Execute restart callback if set"""
         if self._restart_callback is None:
@@ -186,6 +203,7 @@ class CallbackManager:
             ColorPrint.print_error(f"[CallbackManager] Error in restart callback: {e}")
             traceback.print_exc()
 
+    @serialized_method
     def has_ready_callbacks(self) -> bool:
         """
         Check if there are any ready callbacks
@@ -195,6 +213,7 @@ class CallbackManager:
         """
         return len(self._ready_callbacks) > 0
 
+    @serialized_method
     def has_closed_callbacks(self) -> bool:
         """
         Check if there are any closed callbacks
@@ -204,6 +223,7 @@ class CallbackManager:
         """
         return len(self._closed_callbacks) > 0
 
+    @serialized_method
     def has_closing_callbacks(self) -> bool:
         """
         Check if there are any closing callbacks
@@ -213,6 +233,7 @@ class CallbackManager:
         """
         return len(self._closing_callbacks) > 0
 
+    @serialized_method
     def has_restart_callback(self) -> bool:
         """
         Check if restart callback is set
@@ -222,6 +243,7 @@ class CallbackManager:
         """
         return self._restart_callback is not None
 
+    @serialized_method
     def clear_all(self) -> None:
         """Clear all callback queues and reset restart callback"""
         self._ready_callbacks.clear()
@@ -232,8 +254,11 @@ class CallbackManager:
             ColorPrint.print_info("[CallbackManager] Cleared all callbacks")
 
 
-# Singleton instance for global callback manager
-_callback_manager_instance: Optional[CallbackManager] = None
+_CALLBACK_MANAGER_PROVIDER = SerializedSingletonProvider(
+    CallbackManager,
+    "native_ui.callback_manager.provider",
+    "CallbackManagerProvider",
+)
 
 
 def get_callback_manager(debug: bool = False) -> CallbackManager:
@@ -246,7 +271,4 @@ def get_callback_manager(debug: bool = False) -> CallbackManager:
     Returns:
         CallbackManager singleton instance
     """
-    global _callback_manager_instance
-    if _callback_manager_instance is None:
-        _callback_manager_instance = CallbackManager(debug=debug)
-    return _callback_manager_instance
+    return _CALLBACK_MANAGER_PROVIDER.get(debug=debug)

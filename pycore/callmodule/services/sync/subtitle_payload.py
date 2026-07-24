@@ -42,8 +42,6 @@ from pycore.pyfoundations.text_parsing import (
     normalize_language_codes,
     guess_language,
 )
-# Movie/TV poster title+year parse (the actual fetch is in _attach_poster).
-from pycore.pyutils.external_apis.movie_poster_client import parse_title_year
 
 # Shared constants + pure helpers (cycle-free bottom seam). ``_seg_index_for``
 # is shared with subtitle_slots (moved here so both derive_sentences and the slot
@@ -54,7 +52,6 @@ from pycore.callmodule.services.sync._media_sync_helpers import (
     source_key_for,
     _read_text,
     _put_if,
-    _attach_poster,
     _seg_index_for,
 )
 # v3 correspondence-slot builders (extracted to keep this file under the 800-line
@@ -232,12 +229,6 @@ def build_payload(
     _put_if(source, "subtitle_count", len(srt_subs) or None)
     _put_if(source, "segment_count", mapping.get("segment_count") or (len(raw_segments) or None))
     _put_if(source, "sentence_count", len(sentence_rows) or None)
-
-    # Best-effort movie/TV poster (§4 ingest addition). Parse a clean title+year
-    # from the HUMAN filename (original basename, else stem) - not the ascii stem.
-    poster_basename = filename.get("original") or mapping.get("stem") or ""
-    poster_title, poster_year = parse_title_year(poster_basename)
-    _attach_poster(source, poster_title, poster_year)
 
     # ---- segments block ---------------------------------------------------
     segments: List[Dict[str, Any]] = []
@@ -564,10 +555,6 @@ def build_payload_v3(
     _put_if(source, "subtitle_count", len(primary_cues) or None)
     _put_if(source, "segment_count", mapping.get("segment_count") or (len(raw_segments) or None))
     _put_if(source, "sentence_count", len(sentence_slots) or None)
-
-    poster_basename = filename.get("original") or mapping.get("stem") or ""
-    poster_title, poster_year = parse_title_year(poster_basename)
-    _attach_poster(source, poster_title, poster_year)
 
     # ---- segments block (clip mapping unchanged) --------------------------
     segments: List[Dict[str, Any]] = []

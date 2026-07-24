@@ -8,6 +8,7 @@
  * their own try/catch empty states. */
 
 import { wordflowApi } from '../api-libs/wordflow/WordflowApi';
+import { pycoreApi } from '../../../core/api-libs/pycore';
 import { StorageCenter, StorageKey } from '../api-libs/wordflow/WordflowStorage';
 import type { Word } from '../api-libs/wordflow/wordflowTypes';
 
@@ -145,13 +146,8 @@ class WfTranslationCenterClass {
   /**
    * Enqueue interactive fast-lane fill requests for a freshly looked-up word
    * when the dictionary result is missing pieces a user is waiting on:
-   *   - no translation  → translationQueueBatchAdd(..., { interactive:true })
-   *   - no audio        → ttsQueueBatchAdd(..., { interactive:true })
-   *   - no image        → imageQueueBatchAdd(..., { interactive:true })
-   * Translation/audio go to the shared `remote_fast` lane at priority 100; the
-   * image gap promotes the canonical word_media image task onto the same lane
-   * (capability "image", chrome-claimed). Background/batch paths keep
-   * interactive:false, so only this user-initiated lookup fast-tracks.
+   * Wordnew sends every priority hint to pycore. Pycore updates Laravel's
+   * canonical queue, then the enabled pycore or mcp-chrome worker consumes it.
    */
   private async fastTrackGaps(word: string, language: string, response: any): Promise<void> {
     const detail = response?.data && typeof response.data === 'object' ? response.data : null;
@@ -174,13 +170,13 @@ class WfTranslationCenterClass {
 
     const jobs: Array<Promise<unknown>> = [];
     if (!hasTranslation) {
-      jobs.push(wordflowApi.translationQueueBatchAdd([word], undefined, { interactive: true, language }));
+      jobs.push(pycoreApi.stackQueue([word], language, detail.target_language || 'zh', 200));
     }
     if (!hasAudio) {
-      jobs.push(wordflowApi.ttsQueueBatchAdd([word], language, { interactive: true }));
+      jobs.push(pycoreApi.prioritizeWordAudioWords([word], language));
     }
     if (!hasImage) {
-      jobs.push(wordflowApi.imageQueueBatchAdd([word], language, { interactive: true }));
+      jobs.push(pycoreApi.prioritizeWordImages([{ word, language }]));
     }
     if (jobs.length > 0) {
       await Promise.allSettled(jobs);

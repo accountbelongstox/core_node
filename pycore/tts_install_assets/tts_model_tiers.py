@@ -48,8 +48,8 @@ OFFICIAL_ENV: dict[str, str] = {
     ),
     "faster_whisper": (
         "Python 3.8+; CTranslate2 backend. "
-        "GPU: CUDA 12 + nvidia-cublas-cu12 + nvidia-cudnn-cu12==9.*; model large-v3. "
-        "CPU: int8 compute; model medium — largest CPU-viable tier."
+        "GPU: only when CTranslate2 matches the canonical CUDA major; model large-v3. "
+        "Otherwise: CPU int8 with model medium and no second CUDA stack."
     ),
     "sherpa": (
         "Python 3.8+; pip install sherpa-onnx. "
@@ -97,19 +97,19 @@ OFFICIAL_ENV: dict[str, str] = {
         "NLTK averaged_perceptron_tagger_eng; GPU preferred; HF models lazy/ warm on install."
     ),
     "bark": (
-        "Python 3.10+ (3.13 native with torch>=2.5); pip install transformers scipy. "
+        "Python 3.10+; pip install transformers scipy. "
         "Do NOT pip install bark (wrong package). GPU: suno/bark; CPU: suno/bark-small. "
         "BARK_VOICE_PRESET for speaker style (e.g. v2/en_speaker_6)."
     ),
     "parler": (
-        "Python 3.10+ (3.13 native with torch>=2.5); "
+        "Python 3.10+; "
         "pip install git+https://github.com/huggingface/parler-tts.git. "
         "GPU: parler-tts/parler-tts-large-v1; CPU: parler-tts/parler-tts-mini-v1. "
         "PARLER_DESCRIPTION controls voice/style."
     ),
     "qwen3tts": (
         "Python 3.10+ (3.13 via pip qwen-tts; avoid legacy ComfyUI conversion scripts). "
-        "pip install -U qwen-tts; torch>=2.5. "
+        "pip install qwen-tts; use the shared CUDA torch build. "
         "SoX binary on PATH (pysox; winget ChrisBagwell.SoX / apt sox). "
         "GPU: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice; "
         "CPU: Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice. "

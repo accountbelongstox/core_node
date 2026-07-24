@@ -13,9 +13,14 @@
 # Set UTF-8 encoding for proper Chinese character handling
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
+$globalVarsPath = Join-Path $PSScriptRoot 'GlobalVars.ps1'
+$globalVarsLoaded = Get-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -ErrorAction SilentlyContinue
 
 # Import variable management functions and global variables
-. "$PSScriptRoot\GlobalVars.ps1"
+if ($null -eq $globalVarsLoaded -or -not [bool]$globalVarsLoaded.Value) {
+    . $globalVarsPath
+    Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
+}
 
 # Define WindowsPathFunction.ps1 path for centralized management
 $script:WindowsPathFunctionPath = Join-Path $PSScriptRoot "WindowsPathFunction.ps1"

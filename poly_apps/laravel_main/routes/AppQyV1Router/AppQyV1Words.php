@@ -85,4 +85,5 @@ Route::post('/word/fix-text', [AppQyV1WordMediaController::class, 'fixWordText']
 // immediately.
 //   POST /api/app_qy_v1/word/boost-priority  { md5, lang }
 Route::post('/word/boost-priority', [AppQyV1WordMediaController::class, 'boostPriority']);
+Route::post('/word/boost-priority/batch', [AppQyV1WordMediaController::class, 'boostPriorityBatch']);
 });

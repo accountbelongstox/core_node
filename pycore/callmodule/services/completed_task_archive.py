@@ -13,6 +13,9 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import unquote, urlsplit
 
 from pycore.pyfoundations.system_paths import get_app_cache_dir
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyctl.desktop.task_manager import get_task_manager
+from pycore.callmodule.services.task_history_store import query_records
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
@@ -123,6 +126,12 @@ class CompletedTaskArchive:
         self.manifest_path = self.root / "index.json"
         self.records_dir.mkdir(parents=True, exist_ok=True)
         self.resources_dir.mkdir(parents=True, exist_ok=True)
+        init_serialized_owner(
+            self,
+            "completed_task_archive.state",
+            "CompletedTaskArchiveState",
+            timeout=300.0,
+        )
 
     def _manifest(self) -> Dict[str, Any]:
         if not self.manifest_path.is_file():
@@ -203,7 +212,7 @@ class CompletedTaskArchive:
     def _cache_resources(self, record: Dict[str, Any], base_url: str) -> List[Dict[str, Any]]:
         resources: List[Dict[str, Any]] = []
         seen = set()
-        for _key, source in _walk_resources({"payload": record.get("payload"), "result": record.get("result")}):
+        for _key, source in _walk_resources(record):
             if source in seen:
                 continue
             seen.add(source)
@@ -257,48 +266,138 @@ class CompletedTaskArchive:
             "capability": raw.get("capability"),
         }
 
+    def _normalize_local_task(self, raw: Dict[str, Any], base_url: str) -> Dict[str, Any]:
+        payload = raw.get("input_data") if isinstance(raw.get("input_data"), dict) else {}
+        result = raw.get("result") if isinstance(raw.get("result"), dict) else {}
+        task_id = str(raw.get("task_id") or "")
+        source = {"payload": payload, "result": result, "task_id": task_id}
+        resources = self._cache_resources(source, base_url)
+        detail = _compact_inline_resources(dict(payload))
+        detail.update(_compact_inline_resources(result))
+        detail["resources"] = resources
+        status = str(raw.get("status") or "completed")
+        return {
+            "archive_id": f"pycore-task:{task_id}",
+            "ts": raw.get("updated_at") or raw.get("created_at") or _now_iso(),
+            "end": str(payload.get("_end") or "pycore"),
+            "worker": str(payload.get("_worker") or "pycore-local"),
+            "task_type": raw.get("task_type") or "unknown",
+            "task_id": task_id,
+            "source_api": "local",
+            "title": self._title(source),
+            "content": self._title(source),
+            "language": payload.get("language") or payload.get("target_language") or "",
+            "status": status,
+            "success": status in ("completed", "submitted", "already_done"),
+            "posted_back": status in ("completed", "submitted", "already_done"),
+            "latency_ms": None,
+            "error": raw.get("error"),
+            "detail": detail,
+            "resources": resources,
+            "execution_type": payload.get("execution_type"),
+            "capability": payload.get("capability"),
+        }
+
+    def _normalize_history_record(self, raw: Dict[str, Any], base_url: str) -> Dict[str, Any]:
+        detail = raw.get("detail") if isinstance(raw.get("detail"), dict) else {}
+        source = {"payload": detail, "result": {}}
+        resources = self._cache_resources(source, base_url)
+        compact = _compact_inline_resources(dict(detail))
+        compact["resources"] = resources
+        identity_source = json.dumps({
+            "task_id": raw.get("task_id"),
+            "task_type": raw.get("task_type"),
+            "ts": raw.get("ts"),
+            "title": raw.get("title") or raw.get("content"),
+        }, ensure_ascii=False, sort_keys=True)
+        identity = hashlib.sha256(identity_source.encode("utf-8")).hexdigest()
+        success = bool(raw.get("success"))
+        return {
+            "archive_id": f"pycore-history:{identity}",
+            "ts": raw.get("ts") or _now_iso(),
+            "end": str(raw.get("end") or "pycore"),
+            "worker": str(raw.get("worker") or "pycore-local"),
+            "task_type": raw.get("task_type") or "unknown",
+            "task_id": str(raw.get("task_id") or identity),
+            "source_api": "local",
+            "title": str(raw.get("title") or raw.get("content") or ""),
+            "content": str(raw.get("content") or raw.get("title") or ""),
+            "language": str(raw.get("language") or ""),
+            "status": "completed" if success else "failed",
+            "success": success,
+            "posted_back": bool(raw.get("posted_back", success)),
+            "latency_ms": raw.get("latency_ms"),
+            "error": raw.get("error"),
+            "detail": compact,
+            "resources": resources,
+        }
+
+    def _store_record(self, record: Dict[str, Any], rows: Dict[str, Dict[str, Any]]) -> None:
+        archive_id = str(record["archive_id"])
+        _atomic_json(self._record_path(archive_id), record)
+        rows[archive_id] = {
+            "archive_id": archive_id,
+            "task_id": record.get("task_id"),
+            "task_type": record.get("task_type"),
+            "status": record.get("status"),
+            "ts": record.get("ts"),
+            "worker": record.get("worker"),
+            "resource_count": len(record.get("resources") or []),
+        }
+
+    @serialized_method
     def sync_all(self) -> Dict[str, Any]:
-        base_url = get_laravel_endpoint_manager().get_active_base_url()
-        if not base_url:
-            return {"success": False, "error": "Laravel endpoint unavailable", "synced": 0}
+        base_url = get_laravel_endpoint_manager().get_active_base_url() or ""
         manifest = self._manifest()
         rows = {str(row.get("archive_id")): row for row in manifest.get("records", []) if row.get("archive_id")}
         cursor = 0
         synced = 0
-        while True:
-            response = get_laravel_client().get(
-                _HISTORY_PATH,
-                base_url=base_url,
-                params={"limit": _PAGE_LIMIT, "cursor_id": cursor},
-                timeout=30,
-            )
-            if response.status_code != 200:
-                return {"success": False, "error": f"Laravel HTTP {response.status_code}", "synced": synced}
-            envelope = response.json()
-            data = envelope.get("data") if isinstance(envelope, dict) else None
-            records = data.get("records") if isinstance(data, dict) else None
-            if not isinstance(records, list):
-                return {"success": False, "error": "Invalid Laravel completed-history response", "synced": synced}
-            for raw in records:
-                if not isinstance(raw, dict):
-                    continue
-                record = self._normalize(raw, base_url)
-                _atomic_json(self._record_path(record["archive_id"]), record)
-                resources = record.get("resources") or []
-                rows[record["archive_id"]] = {
-                    "archive_id": record["archive_id"],
-                    "task_id": record["task_id"],
-                    "task_type": record["task_type"],
-                    "status": record["status"],
-                    "ts": record["ts"],
-                    "worker": record["worker"],
-                    "resource_count": len(resources),
-                }
-                synced += 1
-            next_cursor = data.get("next_cursor_id") if isinstance(data, dict) else None
-            if not next_cursor or not records:
-                break
-            cursor = int(next_cursor)
+        laravel_error: Optional[str] = None
+        if base_url:
+            try:
+                while True:
+                    response = get_laravel_client().get(
+                        _HISTORY_PATH,
+                        base_url=base_url,
+                        params={"limit": _PAGE_LIMIT, "cursor_id": cursor},
+                        timeout=30,
+                    )
+                    if response.status_code != 200:
+                        laravel_error = f"Laravel HTTP {response.status_code}"
+                        break
+                    envelope = response.json()
+                    data = envelope.get("data") if isinstance(envelope, dict) else None
+                    records = data.get("records") if isinstance(data, dict) else None
+                    if not isinstance(records, list):
+                        laravel_error = "Invalid Laravel completed-history response"
+                        break
+                    for raw in records:
+                        if not isinstance(raw, dict):
+                            continue
+                        record = self._normalize(raw, base_url)
+                        self._store_record(record, rows)
+                        synced += 1
+                    next_cursor = data.get("next_cursor_id") if isinstance(data, dict) else None
+                    if not next_cursor or not records:
+                        break
+                    cursor = int(next_cursor)
+            except Exception as exc:  # noqa: BLE001 - local archive must still sync
+                laravel_error = str(exc)
+        else:
+            laravel_error = "Laravel endpoint unavailable"
+
+        for raw in get_task_manager().get_all_tasks():
+            if raw.get("status") in ("pending", "processing"):
+                continue
+            self._store_record(self._normalize_local_task(raw, base_url), rows)
+            synced += 1
+
+        history = query_records(limit=1000)
+        for raw in history.get("entries") or []:
+            if not isinstance(raw, dict):
+                continue
+            self._store_record(self._normalize_history_record(raw, base_url), rows)
+            synced += 1
         ordered = sorted(rows.values(), key=lambda row: str(row.get("ts") or ""), reverse=True)
         types: Dict[str, int] = {}
         for row in ordered:
@@ -311,8 +410,15 @@ class CompletedTaskArchive:
             "last_sync_at": _now_iso(),
         }
         _atomic_json(self.manifest_path, manifest)
-        return {"success": True, "synced": synced, **{key: manifest[key] for key in ("types", "resource_count", "last_sync_at")}}
+        return {
+            "success": True,
+            "partial": laravel_error is not None,
+            "laravel_error": laravel_error,
+            "synced": synced,
+            **{key: manifest[key] for key in ("types", "resource_count", "last_sync_at")},
+        }
 
+    @serialized_method
     def query(self, task_type: Optional[str] = None, limit: int = 200, offset: int = 0) -> Dict[str, Any]:
         manifest = self._manifest()
         rows = list(manifest.get("records") or [])
@@ -344,6 +450,7 @@ class CompletedTaskArchive:
             "next_offset": start + len(records) if start + len(records) < total else None,
         }
 
+    @serialized_method
     def resource_path(self, cache_key: str) -> Optional[Path]:
         safe = Path(cache_key).name
         path = (self.resources_dir / safe).resolve()
@@ -352,11 +459,8 @@ class CompletedTaskArchive:
         return path
 
 
-_archive: Optional[CompletedTaskArchive] = None
+_archive = CompletedTaskArchive()
 
 
 def get_completed_task_archive() -> CompletedTaskArchive:
-    global _archive
-    if _archive is None:
-        _archive = CompletedTaskArchive()
     return _archive

@@ -7,8 +7,8 @@ Stack-based global shutdown handler registry. Handlers execute in priority
 order (lower number = earlier shutdown), producing a stack effect where child
 subsystems (lower priority) shut down before the main process (higher priority).
 
-This class is a stateless strategy operating on the owning ThreadBus's
-copy-on-write shutdown snapshots.
+This class is a stateless strategy operating on the owning ThreadBus state
+thread.
 
 TODO (reuse batch): consolidate with the near-duplicate
 pycore/pyfoundations/shutdown_manager.py once that module is reconciled.
@@ -74,19 +74,22 @@ class ShutdownStack:
                 name="rpc_cleanup"
             )
         """
-        handler_name = name
-        if handler_name is None:
-            handler_name = f"handler_{len(self._bus._shutdown_handlers)}"
+        def register() -> str:
+            handler_name = name
+            if handler_name is None:
+                handler_name = f"handler_{len(self._bus._shutdown_handlers)}"
 
-        handlers = [
-            registered
-            for registered in self._bus._shutdown_handlers
-            if registered[1] != handler_name
-        ]
-        handlers.append((priority, handler_name, handler))
-        handlers.sort(key=lambda item: item[0])
-        self._bus._shutdown_handlers = handlers
-        return handler_name
+            handlers = [
+                registered
+                for registered in self._bus._shutdown_handlers
+                if registered[1] != handler_name
+            ]
+            handlers.append((priority, handler_name, handler))
+            handlers.sort(key=lambda item: item[0])
+            self._bus._shutdown_handlers = handlers
+            return handler_name
+
+        return self._bus._call_state(register)
 
     def unregister_shutdown_handler(self, name: str) -> bool:
         """
@@ -98,10 +101,15 @@ class ShutdownStack:
         Returns:
             True if handler was removed
         """
-        handlers = self._bus._shutdown_handlers
-        updated_handlers = [handler for handler in handlers if handler[1] != name]
-        self._bus._shutdown_handlers = updated_handlers
-        return len(updated_handlers) < len(handlers)
+        def unregister() -> bool:
+            handlers = self._bus._shutdown_handlers
+            updated_handlers = [
+                handler for handler in handlers if handler[1] != name
+            ]
+            self._bus._shutdown_handlers = updated_handlers
+            return len(updated_handlers) < len(handlers)
+
+        return bool(self._bus._call_state(unregister))
 
     def execute_shutdown(self, reason: str = "User requested shutdown") -> None:
         """
@@ -117,11 +125,16 @@ class ShutdownStack:
             THREAD_BUS.execute_shutdown("Application closing")
             # Executes: RPC(50) -> Speech(60) -> Heartbeat(100)
         """
-        if self._bus._shutdown_executed:
-            return
+        def claim_shutdown() -> Optional[tuple]:
+            if self._bus._shutdown_executed:
+                return None
+            handlers = tuple(self._bus._shutdown_handlers)
+            self._bus._shutdown_executed = True
+            return handlers
 
-        handlers = tuple(self._bus._shutdown_handlers)
-        self._bus._shutdown_executed = True
+        handlers = self._bus._call_state(claim_shutdown)
+        if handlers is None:
+            return
 
         if not handlers:
             return
@@ -216,7 +229,12 @@ class ShutdownStack:
                 import os, sys
                 os.execv(sys.executable, [sys.executable] + sys.argv)
         """
-        self._bus._restart_requested = True
+        self._bus._call_state(
+            setattr,
+            self._bus,
+            '_restart_requested',
+            True,
+        )
 
         # Signal restart (in addition to shutdown)
         self._bus.signal('global.restart.requested', {
@@ -253,7 +271,11 @@ class ShutdownStack:
                 # Restart process
                 os.execv(sys.executable, [sys.executable] + sys.argv)
         """
-        return self._bus._restart_requested
+        return bool(self._bus._call_state(
+            getattr,
+            self._bus,
+            '_restart_requested',
+        ))
 
     def get_shutdown_reason(self) -> Optional[str]:
         """
@@ -274,7 +296,12 @@ class ShutdownStack:
         Use this after handling shutdown to reset state.
         """
         self._bus.clear_signal('global.shutdown.requested')
-        self._bus._shutdown_executed = False
+        self._bus._call_state(
+            setattr,
+            self._bus,
+            '_shutdown_executed',
+            False,
+        )
 
     def get_shutdown_handlers(self) -> List[tuple]:
         """
@@ -283,4 +310,6 @@ class ShutdownStack:
         Returns:
             List of (priority, name, handler) tuples sorted by priority
         """
-        return list(self._bus._shutdown_handlers)
+        return self._bus._call_state(
+            lambda: list(self._bus._shutdown_handlers)
+        )

@@ -18,11 +18,10 @@ Refs:
 - PyTorch https://pytorch.org/get-started/locally
 - ORT CUDA EP https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements
 - ORT TensorRT EP https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#requirements
-- PyPI onnxruntime-gpu [cuda,cudnn] does not include nvidia-cublas-cu12; install it explicitly.
+- Stable ORT GPU dependencies are derived from the centralized supported CUDA major.
 
-NOTE: onnxruntime / torch / onnx are OPTIONAL third-party packages probed lazily
-at the point of use (inside try/except), never required at import time. This is a
-hardware-capability probe module, so those guarded local imports are intentional.
+NOTE: onnxruntime / torch / onnx are OPTIONAL packages resolved through
+importlib or an injected getter, so import statements remain at file scope.
 """
 from __future__ import annotations
 
@@ -32,17 +31,37 @@ import importlib
 import platform
 import re
 import shutil
-from typing import Dict, Optional, Tuple, Callable
+from typing import Any, Callable, Dict, Optional, Tuple
 
 # Intra-pybasecommon imports (allowed: same stdlib-only kernel package).
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
+from pycore.pyfoundations.ai_runtime_policy import ONNXRUNTIME_CUDA_MAJOR
+from pycore.pyfoundations.serialized_worker import SerializedValue
+
+_TORCH_GETTER_STATE = SerializedValue(
+    None,
+    "ComputeTorchGetterStateThread",
+)
+
+
+def register_compute_torch_getter(getter: Callable[[], Any]) -> None:
+    """Register the third-party layer's lazy Torch getter."""
+    _TORCH_GETTER_STATE.set(getter)
 
 
 def _get_torch():
-    """Lazy torch getter — avoids circular import with third_party at module load."""
-    from pycore.pyfoundations.third_party import get_third_package_torch
-    return get_third_package_torch()
+    """Resolve Torch through the injected upper-layer getter."""
+    getter = _TORCH_GETTER_STATE.get()
+    return getter() if callable(getter) else None
+
+
+def _get_onnxruntime():
+    """Lazy ONNX Runtime getter so package switching cannot leave a stale module."""
+    try:
+        return importlib.import_module("onnxruntime")
+    except ImportError:
+        return None
 
 
 # ===========================================================================
@@ -56,7 +75,7 @@ class CUDADetector:
     """
 
     _cached_result: Optional[bool] = None
-    _cached_info: Optional[Dict[str, any]] = None
+    _cached_info: Optional[Dict[str, Any]] = None
 
     @classmethod
     def is_cuda_available(cls) -> bool:
@@ -68,7 +87,7 @@ class CUDADetector:
         return cls._cached_result
 
     @classmethod
-    def get_cuda_info(cls) -> Dict[str, any]:
+    def get_cuda_info(cls) -> Dict[str, Any]:
         """Get detailed CUDA information (version, GPUs, driver version)."""
         if cls._cached_info is not None:
             return cls._cached_info
@@ -159,7 +178,7 @@ class CUDADetector:
             return False
 
     @classmethod
-    def _check_nvidia_smi(cls) -> Optional[Dict[str, any]]:
+    def _check_nvidia_smi(cls) -> Optional[Dict[str, Any]]:
         """Check if nvidia-smi is available and get GPU info."""
         try:
             smi = cls._nvidia_smi_cmd()
@@ -177,12 +196,18 @@ class CUDADetector:
                             'memory_total': parts[2] if len(parts) > 2 else None,
                         })
 
-                # Get CUDA version
+                # NVIDIA-SMI reports the maximum CUDA runtime supported by the active
+                # driver. New Windows drivers label this field "CUDA UMD Version".
                 cuda_version = None
                 try:
-                    cuda_result = exec_silent([smi, '--query-gpu=compute_cap', '--format=csv,noheader'], info=False)
+                    cuda_result = exec_silent([smi], info=False)
                     if cuda_result.return_code == 0:
-                        cuda_version = cuda_result.stdout.strip().split('\n')[0] if cuda_result.stdout else None
+                        match = re.search(
+                            r"CUDA(?:\s+UMD)?\s+Version:\s*([0-9]+(?:\.[0-9]+)?)",
+                            cuda_result.stdout or "",
+                            re.IGNORECASE,
+                        )
+                        cuda_version = match.group(1) if match else None
                 except Exception:
                     pass
 
@@ -262,7 +287,7 @@ def is_cuda_available() -> bool:
     return CUDADetector.is_cuda_available()
 
 
-def get_cuda_info() -> Dict[str, any]:
+def get_cuda_info() -> Dict[str, Any]:
     """Get CUDA information."""
     return CUDADetector.get_cuda_info()
 
@@ -279,10 +304,9 @@ ORT_GPU_PKG = "onnxruntime-gpu"
 
 def get_ort_install_package() -> str:
     """
-    Package to install for ORT: CPU-only or GPU with CUDA 12 extras.
-    Used by ONNX switch and ensure_onnx_cuda_usable; nvidia-cublas-cu12 is installed separately.
+    Package to install for ORT under the one canonical CUDA-major policy.
     """
-    if CUDADetector.is_cuda_available():
+    if is_onnx_cuda_policy_compatible():
         return "onnxruntime-gpu[cuda,cudnn]"
     return ORT_CPU_PKG
 
@@ -294,7 +318,7 @@ CNOCR_PIP_GPU = "cnocr[ort-gpu]"
 
 def get_cnocr_pip_package() -> str:
     """Package to install for CnOCR: cnocr[ort-cpu] or cnocr[ort-gpu]."""
-    if CUDADetector.is_cuda_available():
+    if is_onnx_cuda_policy_compatible():
         return CNOCR_PIP_GPU
     return CNOCR_PIP_CPU
 
@@ -310,7 +334,10 @@ def get_paddle_install_package() -> str:
 # ===========================================================================
 # ONNX Runtime capability: "system has GPU" vs "ONNX Runtime can use CUDA"
 # ===========================================================================
-_ORT_CUDA_USABLE: Optional[bool] = None
+_ORT_CUDA_USABLE_STATE = SerializedValue(
+    None,
+    "ONNXRuntimeCUDAStateThread",
+)
 
 
 def _get_torch_cuda_major() -> Optional[int]:
@@ -330,20 +357,22 @@ def _get_torch_cuda_major() -> Optional[int]:
         return None
 
 
+def is_onnx_cuda_policy_compatible() -> bool:
+    """Whether stable ORT GPU matches the canonical PyTorch CUDA major."""
+    return (
+        CUDADetector.is_cuda_available()
+        and _get_torch_cuda_major() == ONNXRUNTIME_CUDA_MAJOR
+    )
+
+
 def _prepare_onnx_cuda_dlls() -> None:
-    """
-    Load CUDA/cuDNN/cuBLAS DLLs before first ORT use to avoid "cublasLt64_12.dll missing" (Error 126).
-    When PyTorch is CUDA 11.x and onnxruntime-gpu is CUDA 12 (PyPI), do NOT load from PyTorch lib (wrong DLLs).
-    Use preload_dlls(directory="") to load only from nvidia site-packages (requires nvidia-cublas-cu12 etc.).
-    """
+    """Preload the canonical PyTorch/ORT CUDA libraries before the provider probe."""
+    ort_module = _get_onnxruntime()
+    if ort_module is None:
+        return
     try:
-        torch_major = _get_torch_cuda_major()
-        if getattr(ort, "preload_dlls", None) is not None:
-            if torch_major == 11:
-                # PyPI onnxruntime-gpu is CUDA 12; PyTorch has CUDA 11 DLLs. Load only from nvidia site-packages.
-                ort.preload_dlls(directory="")
-            else:
-                ort.preload_dlls()
+        if getattr(ort_module, "preload_dlls", None) is not None:
+            ort_module.preload_dlls()
     except Exception:
         pass
     try:
@@ -354,16 +383,17 @@ def _prepare_onnx_cuda_dlls() -> None:
 
 def clear_onnx_cuda_usable_cache() -> None:
     """Clear cached ORT CUDA result so next is_onnx_cuda_usable() will probe again (e.g. after preload_dlls or pip install)."""
-    global _ORT_CUDA_USABLE
-    _ORT_CUDA_USABLE = None
+    _ORT_CUDA_USABLE_STATE.set(None)
 
 
 def _make_minimal_onnx_bytes() -> Optional[bytes]:
     """Build minimal ONNX model bytes for session test. Returns None if onnx not available."""
     try:
-        from onnx import helper, TensorProto
-        c = helper.make_tensor("c", TensorProto.FLOAT, [1], [1.0])
-        out_vi = helper.make_tensor_value_info("out", TensorProto.FLOAT, [1])
+        onnx_module = importlib.import_module("onnx")
+        helper = onnx_module.helper
+        tensor_proto = onnx_module.TensorProto
+        c = helper.make_tensor("c", tensor_proto.FLOAT, [1], [1.0])
+        out_vi = helper.make_tensor_value_info("out", tensor_proto.FLOAT, [1])
         node = helper.make_node("Identity", ["c"], ["out"])
         graph = helper.make_graph([node], "minimal", [], [out_vi], initializer=[c])
         model = helper.make_model(graph)
@@ -374,11 +404,10 @@ def _make_minimal_onnx_bytes() -> Optional[bytes]:
 
 def _probe_ort_cuda() -> bool:
     """Actually try create CUDA session (no cache). Returns True if session runs."""
-    try:
-        pass
-    except ImportError:
+    ort_module = _get_onnxruntime()
+    if ort_module is None:
         return False
-    get_providers = getattr(ort, "get_available_providers", None)
+    get_providers = getattr(ort_module, "get_available_providers", None)
     if get_providers is None:
         return False
     if "CUDAExecutionProvider" not in get_providers():
@@ -387,10 +416,10 @@ def _probe_ort_cuda() -> bool:
     if not model_bytes:
         return False
     try:
-        sess = ort.InferenceSession(
+        sess = ort_module.InferenceSession(
             model_bytes,
             providers=["CUDAExecutionProvider"],
-            sess_options=ort.SessionOptions(),
+            sess_options=ort_module.SessionOptions(),
         )
         sess.run(["out"], {})
     except Exception:
@@ -403,56 +432,58 @@ def is_onnx_cuda_usable() -> bool:
     Return True only if ONNX Runtime can create an inference session with CUDAExecutionProvider.
     Cached per process. When False, OCR uses context='cpu' (after ensure_onnx_cuda_usable() has been tried).
     """
-    global _ORT_CUDA_USABLE
-    if _ORT_CUDA_USABLE is not None:
-        return _ORT_CUDA_USABLE
-    _ORT_CUDA_USABLE = _probe_ort_cuda()
-    return _ORT_CUDA_USABLE
+    if not is_onnx_cuda_policy_compatible():
+        _ORT_CUDA_USABLE_STATE.set(False)
+        return False
+    cached = _ORT_CUDA_USABLE_STATE.get()
+    if cached is not None:
+        return bool(cached)
+    probed = _probe_ort_cuda()
+    _ORT_CUDA_USABLE_STATE.set(probed)
+    return probed
 
 
-# Required for ORT GPU CUDA EP. TensorRT EP (tensorrt-cu12) is optional and often slow to install
-# (downloads large binaries from NVIDIA); skip auto-install to avoid blocking. See PyPI tensorrt-cu12 readme.
-_ORT_GPU_REQUIRED = ("nvidia-cublas-cu12",)
+# Required for the stable ORT GPU CUDA EP. TensorRT is not auto-installed.
+_ORT_GPU_REQUIRED = (f"nvidia-cublas-cu{ONNXRUNTIME_CUDA_MAJOR}",)
 
 
-# Set to True when _run_ensure_cuda12_packages actually ran pip install (did not skip). Used so dependency fix runs only when pip may have printed conflicts.
-_ort_install_ran_this_run: bool = False
+# Set when the ORT GPU dependency installer actually mutated packages.
+_ORT_INSTALL_RAN_STATE = SerializedValue(
+    False,
+    "ONNXRuntimeInstallStateThread",
+)
 
 
 def last_ort_install_ran() -> bool:
     """True if this process ran ORT GPU install (did not skip); used to run dependency fix only when pip may have shown conflicts."""
-    return _ort_install_ran_this_run
+    return bool(_ORT_INSTALL_RAN_STATE.get())
 
 
-def _run_ensure_cuda12_packages(
+def _run_ensure_ort_gpu_packages(
     run_pip_install: Optional[Callable[[str], None]],
     log: Callable[[str], None],
     is_pip_package_installed: Optional[Callable[[str], bool]] = None,
 ) -> None:
     """
-    Install required base libraries for ORT GPU (CUDA 12): ORT package (from the
-    CPU/GPU package helpers above), nvidia-cublas-cu12 (cublasLt64_12.dll). TensorRT
-    EP (tensorrt-cu12) is not auto-installed to avoid long/hanging installs; use CUDA
-    EP only, or install tensorrt-cu12 manually if needed.
+    Install the stable ORT GPU package and matching CUDA-major base libraries.
     When is_pip_package_installed is provided, skip pip install if ORT GPU and all _ORT_GPU_REQUIRED are already installed.
     """
-    global _ort_install_ran_this_run
-    _ort_install_ran_this_run = False
+    _ORT_INSTALL_RAN_STATE.set(False)
     if run_pip_install is None:
         return
     if is_pip_package_installed is not None:
         if is_pip_package_installed(ORT_GPU_PKG) and all(
             is_pip_package_installed(p) for p in _ORT_GPU_REQUIRED
         ):
-            log("[HF] ORT GPU deps already satisfied (onnxruntime-gpu + nvidia-cublas-cu12), skipping install.")
+            log("[HF] ORT GPU dependencies already satisfy the canonical CUDA policy; skipping install.")
             return
     try:
         ort_pkg = get_ort_install_package()
-        log("[HF] Ensuring ORT GPU deps (CUDA EP): %s + nvidia-cublas-cu12..." % ort_pkg)
+        log("[HF] Ensuring ORT GPU dependencies for CUDA %s: %s..." % (ONNXRUNTIME_CUDA_MAJOR, ort_pkg))
         run_pip_install(ort_pkg)
         for pkg in _ORT_GPU_REQUIRED:
             run_pip_install(pkg)
-        _ort_install_ran_this_run = True
+        _ORT_INSTALL_RAN_STATE.set(True)
     except Exception:
         pass
 
@@ -463,18 +494,20 @@ def ensure_onnx_cuda_usable(
     is_pip_package_installed: Optional[Callable[[str], bool]] = None,
 ) -> bool:
     """
-    Best-effort to make ORT CUDA usable when system has GPU. Runs pip install (CUDA 12 packages)
-    before any import of onnxruntime so cublasLt64_12.dll is present; then preload_dlls and probe.
-    When is_pip_package_installed is provided, skips install if onnxruntime-gpu and nvidia-cublas-cu12 are already installed.
+    Best-effort to make ORT CUDA usable only when its stable GPU build matches the
+    one canonical CUDA major. Incompatible hosts use CPU ORT without adding another stack.
     Only then fall back to CPU. log(msg) optional for [HF] messages.
     """
-    global _ORT_CUDA_USABLE
-    if not CUDADetector.is_cuda_available():
-        return False
     _log = log if log is not None else lambda _: None
+    if not is_onnx_cuda_policy_compatible():
+        _ORT_CUDA_USABLE_STATE.set(False)
+        _log(
+            "[HF] Stable ORT GPU requires CUDA %s but canonical torch uses CUDA %s; using CPU ORT."
+            % (ONNXRUNTIME_CUDA_MAJOR, _get_torch_cuda_major() or "none")
+        )
+        return False
 
-    # 0) Install CUDA 12 packages before first onnxruntime import (avoids "cublasLt64_12.dll missing" on load). Skip when already installed.
-    _run_ensure_cuda12_packages(run_pip_install, _log, is_pip_package_installed)
+    _run_ensure_ort_gpu_packages(run_pip_install, _log, is_pip_package_installed)
     for key in list(sys.modules.keys()):
         if key == "onnxruntime" or key.startswith("onnxruntime."):
             del sys.modules[key]
@@ -485,39 +518,31 @@ def ensure_onnx_cuda_usable(
     _prepare_onnx_cuda_dlls()
     if is_onnx_cuda_usable():
         return True
-    torch_major = _get_torch_cuda_major()
-
-    # 2) preload_dlls explicitly (ORT 1.21+): when PyTorch is 11 use directory="" (nvidia only).
+    # 2) Explicit preload for ORT 1.21+.
     clear_onnx_cuda_usable_cache()
     try:
-        if getattr(ort, "preload_dlls", None) is not None:
-            if torch_major == 11:
-                _log("[HF] Trying onnxruntime.preload_dlls(directory='') (PyTorch CUDA 11, ORT CUDA 12)...")
-                ort.preload_dlls(directory="")
-            else:
-                ort.preload_dlls()
+        ort_module = _get_onnxruntime()
+        if ort_module is not None and getattr(ort_module, "preload_dlls", None) is not None:
+            ort_module.preload_dlls()
             if _probe_ort_cuda():
-                _ORT_CUDA_USABLE = True
+                _ORT_CUDA_USABLE_STATE.set(True)
                 _log("[HF] ORT CUDA usable after preload_dlls().")
                 return True
     except Exception:
         pass
     clear_onnx_cuda_usable_cache()
 
-    # 3) Import PyTorch to preload DLLs. Skip when PyTorch is CUDA 11 (ORT PyPI is CUDA 12).
-    if torch_major != 11:
-        try:
-            _log("[HF] Trying import torch to preload CUDA/cuDNN...")
-            torch = _get_torch()
-            if getattr(torch, "cuda", None) is not None and torch.cuda.is_available():
-                if _probe_ort_cuda():
-                    _ORT_CUDA_USABLE = True
-                    _log("[HF] ORT CUDA usable after torch preload.")
-                    return True
-        except Exception:
-            pass
-    elif torch_major == 11:
-        _log("[HF] PyTorch is CUDA 11.x; ORT (PyPI) is CUDA 12.x — using nvidia site-packages only.")
+    # 3) Import canonical PyTorch to preload matching CUDA/cuDNN libraries.
+    try:
+        _log("[HF] Trying import torch to preload CUDA/cuDNN...")
+        torch = _get_torch()
+        if getattr(torch, "cuda", None) is not None and torch.cuda.is_available():
+            if _probe_ort_cuda():
+                _ORT_CUDA_USABLE_STATE.set(True)
+                _log("[HF] ORT CUDA usable after torch preload.")
+                return True
+    except Exception:
+        pass
     clear_onnx_cuda_usable_cache()
 
     return is_onnx_cuda_usable()
@@ -532,7 +557,7 @@ ORT_CUDA_REQUIREMENTS_URL = "https://onnxruntime.ai/docs/execution-providers/CUD
 class CudaInitializer:
     """
     Single entry for CUDA init: print system GPU info, then ensure ONNX Runtime can use CUDA
-    (preload_dlls, import torch, pip install onnxruntime-gpu[cuda,cudnn] + nvidia-cublas-cu12).
+    (preload_dlls, import torch, and policy-matched ORT GPU dependencies).
     Run once per process (guarded). Caller injects print_cuda_prompt, run_pip_install, log.
 
     Whole project has only this one CUDA init. Used as predecessor to OCR init
@@ -572,22 +597,27 @@ class CudaInitializer:
             return
         self._done = True
         self._print_cuda_prompt()
-        # Align ORT with PyTorch CUDA version (e.g. install ORT from CUDA 11 feed when PyTorch is cu11) before ensure.
+        # Align ORT with the canonical CUDA policy before probing the provider.
         if self._run_ort_version_switch is not None:
             self._run_ort_version_switch()
         system_gpu = self.is_system_gpu()
-        if system_gpu:
+        ort_policy_compatible = is_onnx_cuda_policy_compatible()
+        if ort_policy_compatible:
             ensure_onnx_cuda_usable(
                 run_pip_install=self._run_pip_install,
                 log=self._log,
                 is_pip_package_installed=self._is_pip_package_installed,
             )
         ort_gpu = self.is_ort_cuda_usable()
-        if system_gpu and not ort_gpu:
+        if system_gpu and not ort_policy_compatible:
+            ColorPrint.blue(
+                "[HF] Canonical CUDA %s has no stable ORT GPU match (required CUDA %s); OCR uses CPU ORT."
+                % (_get_torch_cuda_major() or "none", ONNXRUNTIME_CUDA_MAJOR)
+            )
+        elif system_gpu and not ort_gpu:
             ColorPrint.yellow(
-                "[HF] ORT CUDA not usable (e.g. cublasLt64_12.dll missing). "
-                "For OCR on CUDA 12 run: pip install onnxruntime-gpu[cuda,cudnn] nvidia-cublas-cu12 . See %s"
-                % ORT_CUDA_REQUIREMENTS_URL
+                "[HF] ORT CUDA %s is selected but unavailable. See %s"
+                % (ONNXRUNTIME_CUDA_MAJOR, ORT_CUDA_REQUIREMENTS_URL)
             )
         ColorPrint.blue(
             "[HF] Download/inference device: is_onnx_cuda_usable()=%s -> %s"

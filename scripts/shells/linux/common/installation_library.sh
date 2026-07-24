@@ -25,6 +25,7 @@ SCRIPT_INDEX="[INSTALL_LIB]"
 
 # Source required files - use dynamic relative path
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEBIAN_COM_DIR="$(dirname "$SCRIPT_CURRENT_DIR")/debian/debian_com"
 source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
 
 # Self-healing: remove git merge conflict markers from apt sources.
@@ -517,15 +518,9 @@ install_via_npm() {
 
     # Run pre-installation checks and auto-fix
     log_install "Running pre-installation checks..."
-    local helper_dir="$SCRIPT_CURRENT_DIR"
+    local helper_dir="$DEBIAN_COM_DIR"
 
-    if [ -f "$helper_dir/npm_pre_install_checker.sh" ]; then
-        bash "$helper_dir/npm_pre_install_checker.sh" "$package_id" "$app_name" 2>/dev/null || {
-            log_warning "Pre-installation check reported issues, but continuing with installation"
-        }
-    else
-        log_warning "Pre-installation checker not found, skipping checks"
-    fi
+    bash "$helper_dir/npm_pre_install_checker.sh" "$package_id" "$app_name" 2>/dev/null
 
     # Resolve npm + node to ABSOLUTE paths and run npm under an explicit PATH that
     # includes node's bin dir. sudo's secure_path normally excludes /usr/local/bin
@@ -589,9 +584,7 @@ install_via_npm() {
             # On failure, run cleanup and try again
             if [ $retry_count -eq 0 ]; then
                 log_install "Running cleanup before retry..."
-                if [ -f "$helper_dir/npm_cleanup_helper.sh" ]; then
-                    bash "$helper_dir/npm_cleanup_helper.sh" "$package_id" "$app_name" 2>/dev/null || true
-                fi
+                bash "$helper_dir/npm_cleanup_helper.sh" "$package_id" "$app_name" 2>/dev/null
                 sleep 2
             fi
 

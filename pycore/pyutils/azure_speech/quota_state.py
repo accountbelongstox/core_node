@@ -7,48 +7,68 @@ Stores whether TTS or STT have hit quota/usage limits so other components
 can mark the provider as unavailable without introducing circular imports.
 """
 
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
-_tts_blocked: bool = False
-_tts_error: Optional[str] = None
+from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 
-_stt_blocked: bool = False
-_stt_error: Optional[str] = None
+
+_QUOTA_STATE_QUEUE = "azure_speech.quota_state"
+_quota_state: Dict[str, Tuple[bool, Optional[str]]] = {
+    "tts": (False, None),
+    "stt": (False, None),
+}
+_QUOTA_STATE_WORKER = SerializedWorkerThread(
+    _QUOTA_STATE_QUEUE,
+    "AzureSpeechQuotaStateThread",
+)
+_QUOTA_STATE_WORKER.start()
+
+
+def _set_quota_state(kind: str, blocked: bool, error: Optional[str]) -> None:
+    _quota_state[kind] = (blocked, error)
+
+
+def _get_quota_state(kind: str) -> Tuple[bool, Optional[str]]:
+    return _quota_state[kind]
 
 
 def mark_tts_quota_exceeded(error: Optional[str] = None) -> None:
     """Mark Azure TTS as unusable due to quota reach."""
-    global _tts_blocked, _tts_error
-    _tts_blocked = True
-    _tts_error = error or "Azure TTS quota exceeded"
+    call_serialized(
+        _QUOTA_STATE_QUEUE,
+        _set_quota_state,
+        "tts",
+        True,
+        error or "Azure TTS quota exceeded",
+    )
 
 
 def clear_tts_quota_issue() -> None:
     """Clear stored TTS quota failure."""
-    global _tts_blocked, _tts_error
-    _tts_blocked = False
-    _tts_error = None
+    call_serialized(_QUOTA_STATE_QUEUE, _set_quota_state, "tts", False, None)
 
 
 def is_tts_quota_blocked() -> Tuple[bool, Optional[str]]:
     """Return whether TTS quota is exhausted and associated error."""
-    return _tts_blocked, _tts_error
+    return call_serialized(_QUOTA_STATE_QUEUE, _get_quota_state, "tts")
 
 
 def mark_stt_quota_exceeded(error: Optional[str] = None) -> None:
     """Mark Azure STT as unusable due to quota reach."""
-    global _stt_blocked, _stt_error
-    _stt_blocked = True
-    _stt_error = error or "Azure STT quota exceeded"
+    call_serialized(
+        _QUOTA_STATE_QUEUE,
+        _set_quota_state,
+        "stt",
+        True,
+        error or "Azure STT quota exceeded",
+    )
 
 
 def clear_stt_quota_issue() -> None:
     """Clear stored STT quota failure."""
-    global _stt_blocked, _stt_error
-    _stt_blocked = False
-    _stt_error = None
+    call_serialized(_QUOTA_STATE_QUEUE, _set_quota_state, "stt", False, None)
 
 
 def is_stt_quota_blocked() -> Tuple[bool, Optional[str]]:
     """Return whether STT quota is exhausted and associated error."""
-    return _stt_blocked, _stt_error
+    return call_serialized(_QUOTA_STATE_QUEUE, _get_quota_state, "stt")

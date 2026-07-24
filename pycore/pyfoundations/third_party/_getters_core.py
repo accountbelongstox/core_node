@@ -23,7 +23,8 @@ import platform
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from ._cache import _PACKAGE_CACHE, _lazy_import
+from ._cache import _lazy_import
+from ._package_cache import _PACKAGE_CACHE
 
 
 # Standard packages getter functions

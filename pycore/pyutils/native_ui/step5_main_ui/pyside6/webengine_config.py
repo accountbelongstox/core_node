@@ -36,6 +36,7 @@ from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtWebEngineCore import QWebEngineSettings, qWebEngineVersion
 
 from pycore import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.codec_diagnostic import check_proprietary_codec_support, print_codec_solutions
@@ -47,7 +48,10 @@ from pycore.pyutils.native_ui.step5_main_ui.pyside6.codec_diagnostic import chec
 # ---------------------------------------------------------------------------
 # Guard so the pre-QApplication tier configuration runs exactly once even when
 # both the native launcher and the framework call configure_webengine_all_tiers().
-_ALL_TIERS_CONFIGURED = False
+_ALL_TIERS_CONFIGURED = SerializedValue(
+    False,
+    "WebEngineTierConfigurationStateThread",
+)
 
 # GPU rendering mode selectable via the PYCORE_WEBENGINE_GPU env var (or a
 # persisted fallback marker). 'auto' = normal accelerated path.
@@ -440,8 +444,7 @@ def configure_webengine_all_tiers(
             'note': str
         }
     """
-    global _ALL_TIERS_CONFIGURED
-    if _ALL_TIERS_CONFIGURED:
+    if not _ALL_TIERS_CONFIGURED.compare_and_set(False, True):
         # Idempotent: both the native launcher and the framework call this before
         # QApplication; run it once so the env var isn't populated twice.
         ColorPrint.yellow("[WebEngineConfig] Tiers already configured; skipping duplicate call")
@@ -546,7 +549,6 @@ def configure_webengine_all_tiers(
     ColorPrint.blue(f"[WebEngineConfig] Tier 3 (settings): Pending (will be applied in webview)")
     ColorPrint.blue("=" * 80)
 
-    _ALL_TIERS_CONFIGURED = True
     return results
 
 

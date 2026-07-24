@@ -3,7 +3,7 @@
  *
  * Every section is a card with a header row (icon, title, live count, and an
  * idempotent toggle switch where applicable) plus the existing panel component
- * as its body. Shared hub: GET /api/local/task-center (useQueueCenterHub);
+ * as its body. Shared hub: GET /api/local/task-center/snapshot (useQueueCenterHub);
  * toggles mutate via PycoreApi then hub.refreshHub(). Legacy ?tab= links
  * scroll to the matching section anchor instead of switching tabs.
  */
@@ -16,7 +16,7 @@ import {
 import { getPycoreHealth, PYCORE_HEALTH_EVENT } from '../../../core/api-libs/pycore';
 import PcTranslationQueuePanel from './PcTranslationQueuePage';
 import PcSentenceQueuePanel from './PcSentenceQueuePanel';
-import { PcPuterWordAudioBatchBar } from '../components/PcPuterWordAudioBatchBar';
+import { PcWordAudioPanel } from '../components/PcWordAudioPanel';
 import PcQueueOverviewPanel from './PcQueueOverviewPanel';
 import PcRecentTasksPanel from './PcRecentTasksPanel';
 import PcWorkerStatusStrip from '../components/PcWorkerStatusStrip';
@@ -294,7 +294,7 @@ const QueueCenterBody: React.FC<{
           title: wordAudioOn ? 'Disable Word Audio worker' : 'Enable Word Audio worker',
         }}>
         <PcTtsEnginesStrip />
-        <PcPuterWordAudioBatchBar />
+        <PcWordAudioPanel />
       </QcSectionCard>
 
       <QcSectionCard

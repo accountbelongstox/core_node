@@ -17,6 +17,7 @@ from typing import Dict, Optional, Callable
 
 from pycore.pyutils.common.robust_downloader import RobustDownloader
 from pycore.pyfoundations.system_paths import get_system_cache_dir
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
 import shutil
 
@@ -275,16 +276,16 @@ class ScrcpyInitializer:
         return self.extract_package()
 
 
-# Global singleton instance
-_initializer_instance = None
+_INITIALIZER_PROVIDER = SerializedSingletonProvider(
+    ScrcpyInitializer,
+    "scrcpy.initializer.provider",
+    "ScrcpyInitializerProvider",
+)
 
 
 def get_initializer() -> ScrcpyInitializer:
     """Get global ScrcpyInitializer instance"""
-    global _initializer_instance
-    if _initializer_instance is None:
-        _initializer_instance = ScrcpyInitializer()
-    return _initializer_instance
+    return _INITIALIZER_PROVIDER.get()
 
 
 # Convenience functions

@@ -17,7 +17,12 @@ from typing import Optional, Callable
 from pycore import THREAD_BUS, ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_pyperclip
 from pycore.pyutils.clipboard.clipboard_history import get_clipboard_history
-from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
 
 pyperclip = get_third_package_pyperclip()
 
@@ -44,25 +49,29 @@ class ClipboardMonitor:
         self.client_id = client_id
         self.poll_interval = poll_interval
         self.clipboard_history = get_clipboard_history()
+        self.monitor_thread = None
+        self._running_signal = f"clipboard.monitor.{id(self)}.running"
+        self._content_signal = f"clipboard.monitor.{id(self)}.content"
+        self._callback_signal = f"clipboard.monitor.{id(self)}.callback"
+        THREAD_BUS.signal(self._running_signal, False)
+        THREAD_BUS.signal(self._content_signal, "")
+        init_serialized_owner(
+            self,
+            "clipboard.monitor.state",
+            "ClipboardMonitorState",
+        )
 
-        # Monitor state
-        self.running = False
-        self.monitor_thread: Optional[threading.Thread] = None
-        self.last_content = ""
-
-        # Callback
-        self.on_change: Optional[Callable[[str], None]] = None
-
+    @serialized_method
     def start(self):
         """Start monitoring clipboard"""
-        if self.running:
+        if THREAD_BUS.get_signal(self._running_signal, False):
             ColorPrint.yellow(f"[ClipboardMonitor] Already running for client: {self.client_id}")
             return
 
-        self.running = True
+        THREAD_BUS.signal(self._running_signal, True)
 
         # Get initial clipboard content
-        self.last_content = pyperclip.paste()
+        THREAD_BUS.signal(self._content_signal, pyperclip.paste())
 
         # Start monitor thread
         self.monitor_thread = start_bus_task(
@@ -81,12 +90,13 @@ class ClipboardMonitor:
 
         ColorPrint.green(f"[ClipboardMonitor] Started for client: {self.client_id}")
 
+    @serialized_method
     def stop(self):
         """Stop monitoring clipboard"""
-        if not self.running:
+        if not THREAD_BUS.get_signal(self._running_signal, False):
             return
 
-        self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         if self.monitor_thread:
             self.monitor_thread.join(timeout=2.0)
@@ -102,7 +112,7 @@ class ClipboardMonitor:
         - Checks THREAD_BUS.is_shutdown_requested() for graceful shutdown
         - Triggers 'clipboard.changed' events when content changes
         """
-        while self.running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             # THREAD_BUS Integration: Check if global shutdown was requested
             if THREAD_BUS.is_shutdown_requested():
                 ColorPrint.yellow(f"[ClipboardMonitor] THREAD_BUS shutdown detected, stopping...")
@@ -112,7 +122,8 @@ class ClipboardMonitor:
             current_content = pyperclip.paste()
 
             # Check if changed
-            if current_content != self.last_content:
+            last_content = THREAD_BUS.get_signal(self._content_signal, "")
+            if current_content != last_content:
                 if current_content and current_content.strip():
                     # Save to history
                     self.clipboard_history.add_item(
@@ -130,16 +141,23 @@ class ClipboardMonitor:
                     }, async_mode=True)
 
                     # Call legacy callback (backward compatibility)
-                    if self.on_change:
-                        self.on_change(current_content)
+                    callback = THREAD_BUS.get_signal(self._callback_signal)
+                    if callable(callback):
+                        start_bus_task(
+                            callback,
+                            current_content,
+                            thread_name="ClipboardChangeCallbackThread",
+                        )
 
                     ColorPrint.blue(f"[ClipboardMonitor] Clipboard changed: {current_content[:50]}...")
 
-                self.last_content = current_content
+                THREAD_BUS.signal(self._content_signal, current_content)
 
             # Sleep
             time.sleep(self.poll_interval)
+        THREAD_BUS.signal(self._running_signal, False)
 
+    @serialized_method
     def set_clipboard(self, content: str, add_to_history: bool = True):
         """
         Set clipboard content
@@ -149,7 +167,7 @@ class ClipboardMonitor:
             add_to_history: Whether to add to history
         """
         pyperclip.copy(content)
-        self.last_content = content
+        THREAD_BUS.signal(self._content_signal, content)
 
         if add_to_history:
             self.clipboard_history.add_item(
@@ -160,13 +178,17 @@ class ClipboardMonitor:
 
         ColorPrint.green(f"[ClipboardMonitor] Clipboard set: {content[:50]}...")
 
+    @serialized_method
     def set_change_callback(self, callback: Callable[[str], None]):
         """Set callback for clipboard changes"""
-        self.on_change = callback
+        THREAD_BUS.signal(self._callback_signal, callback)
 
 
-# Global singleton instance
-_global_clipboard_monitor: Optional[ClipboardMonitor] = None
+_CLIPBOARD_MONITOR_PROVIDER = SerializedSingletonProvider(
+    ClipboardMonitor,
+    "clipboard.monitor.provider",
+    "ClipboardMonitorProvider",
+)
 
 
 def get_clipboard_monitor(client_id: str = "system") -> ClipboardMonitor:
@@ -179,7 +201,4 @@ def get_clipboard_monitor(client_id: str = "system") -> ClipboardMonitor:
     Returns:
         ClipboardMonitor instance
     """
-    global _global_clipboard_monitor
-    if _global_clipboard_monitor is None:
-        _global_clipboard_monitor = ClipboardMonitor(client_id=client_id)
-    return _global_clipboard_monitor
+    return _CLIPBOARD_MONITOR_PROVIDER.get(client_id=client_id)

@@ -23,7 +23,7 @@
 #
 # GPU/CPU: TorchCpuGuard.ps1 and PaddleCpuGuard.ps1 auto-select the correct wheel
 # index from nvidia-smi; CPU-only hosts never pull CUDA/nvidia-* stacks.
-# Idempotent: each bundle skips when imports already succeed.
+# Idempotent: each bundle skips when pip metadata already exists.
 # Mirrors linux/debian/install_shells/14_install_python_prereq_packages.sh.
 
 $stepErrorActionPreference = 'Continue'
@@ -37,6 +37,7 @@ $shellsWinRoot = Split-Path $scriptRoot -Parent
 $winCommonDir = Join-Path $shellsWinRoot "win_common"
 
 . (Join-Path $winCommonDir "GlobalVars.ps1")
+Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
 . (Join-Path $winCommonDir "CommonFunc.ps1")
 . (Join-Path $winCommonDir "PythonPrereqInstallCommon.ps1")
 

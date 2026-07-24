@@ -3,28 +3,51 @@
  * text inline (article_en with reference_cn). A Play button (header = play
  * all, per row = start from that article) opens the fullscreen sequential
  * player overlay; the book button opens the read-along reader. */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, Headphones, ListMusic, Loader2, Newspaper } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewTypes';
 import { fetchDailyReadings, type DailyReadingRow } from './dailyReadingApi';
 import { useDailyReadingPlayer } from './useDailyReadingPlayer';
 import { WfDailyReadingPlayerOverlay } from './WfDailyReadingPlayerOverlay';
+import { connectPycoreWs, subscribe } from '../../../../core/api-libs/pycore';
 
 interface Props {
   theme: ElementTheme;
   trans: (k: string, r?: Record<string, string | number>) => string;
   onOpenBook: (sourceKey: string, title: string) => void;
+  routeMode?: boolean;
 }
 
 const POLL_MS = 12_000;
+type ArticleSort = 'recent' | 'oldest' | 'title';
 
-export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBook }) => {
+function initialArticleSort(): ArticleSort {
+  if (typeof window === 'undefined') return 'recent';
+  const match = window.location.hash.match(/^#\/article\/(recent|oldest|title)$/);
+  return (match?.[1] as ArticleSort | undefined) ?? 'recent';
+}
+
+export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBook, routeMode = false }) => {
   const [rows, setRows] = useState<DailyReadingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [articleSort, setArticleSort] = useState<ArticleSort>(initialArticleSort);
   const mounted = useRef(true);
   const player = useDailyReadingPlayer();
+  const visibleRows = useMemo(() => {
+    const sorted = [...rows];
+    if (articleSort === 'oldest') return sorted.reverse();
+    if (articleSort === 'title') return sorted.sort((left, right) => left.title_en.localeCompare(right.title_en));
+    return sorted;
+  }, [articleSort, rows]);
+
+  const changeSort = useCallback((next: ArticleSort) => {
+    setArticleSort(next);
+    if (routeMode && typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `#/article/${next}`);
+    }
+  }, [routeMode]);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -47,13 +70,17 @@ export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBoo
     mounted.current = true;
     load(false);
     const id = setInterval(() => load(true), POLL_MS);
+    connectPycoreWs();
+    const onArticlePublished = () => load(true);
+    const unsubscribe = subscribe('article.published', onArticlePublished);
     return () => {
       mounted.current = false;
       clearInterval(id);
+      unsubscribe();
     };
   }, [load]);
 
-  const playableCount = rows.filter((r) => !!r.audio_url).length;
+  const playableCount = visibleRows.filter((r) => !!r.audio_url).length;
 
   return (
     <section className={`${theme.cardClass} rounded-3xl border border-white/5 p-5 space-y-4`}>
@@ -66,11 +93,23 @@ export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBoo
           <p className="text-[11px] text-zinc-500 mt-1">{trans('home.dailyReading.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
+          {routeMode && (
+            <select
+              value={articleSort}
+              onChange={(event) => changeSort(event.target.value as ArticleSort)}
+              className="rounded-xl border border-white/10 bg-slate-950 px-2 py-1.5 text-[11px] text-zinc-300"
+              aria-label="Article sort"
+            >
+              <option value="recent">Recent</option>
+              <option value="oldest">Oldest</option>
+              <option value="title">Title</option>
+            </select>
+          )}
           {loading && <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />}
           {playableCount > 0 && (
             <button
               type="button"
-              onClick={() => player.start(rows)}
+              onClick={() => player.start(visibleRows)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-gradient-to-tr from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-transform"
               title={trans('home.dailyReading.playAll')}
             >
@@ -87,7 +126,7 @@ export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBoo
         </p>
       ) : (
         <ul className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-          {rows.map((row) => {
+          {visibleRows.map((row) => {
             const expanded = expandedId === row.id;
             const dateLabel = row.reading_date ?? row.created_at;
             return (
@@ -120,7 +159,7 @@ export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBoo
                   {row.audio_url && (
                     <button
                       type="button"
-                      onClick={() => player.start(rows, row.id)}
+                      onClick={() => player.start(visibleRows, row.id)}
                       className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 transition-colors"
                       title={trans('home.dailyReading.playFrom')}
                     >

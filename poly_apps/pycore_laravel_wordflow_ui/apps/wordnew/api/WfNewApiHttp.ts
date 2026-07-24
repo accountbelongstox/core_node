@@ -507,27 +507,6 @@ export const wfNewApiHttp: WfNewApi = {
     };
   },
 
-  async saveWordAudio(payload: {
-    md5: string;
-    lang: string;
-    audio_base64: string;
-    provider?: string;
-    accent?: WfNewWordAccent;
-  }): Promise<{ ok: boolean; stored?: boolean }> {
-    try {
-      const res = await postJSON<any>(WfNewApiPaths.wordAudioUpload, {
-        md5: payload.md5,
-        lang: payload.lang,
-        audio_base64: payload.audio_base64,
-        provider: payload.provider ?? 'puter',
-        accent: payload.accent,
-      });
-      return { ok: !!res?.success, stored: !!res?.data?.stored };
-    } catch {
-      return { ok: false };
-    }
-  },
-
   async getWordMedia(
     language: string,
     word: string,
@@ -579,29 +558,6 @@ export const wfNewApiHttp: WfNewApi = {
       hash: res?.hash ?? res?.content_id ?? undefined,
       tts_status: res?.tts_status ?? null,
       audio_files: Array.isArray(res?.audio_files) ? res.audio_files : [],
-    };
-  },
-
-  async bumpSentenceAudio(contentId: string, language: string) {
-    const res = await postJSON<any>(WfNewApiPaths.sentenceAudioBump, {
-      content_id: contentId,
-      language,
-      interactive: true,
-      create_task: true,
-    });
-    return { success: !!(res?.success ?? res?.ok), task_id: res?.task_id ?? null };
-  },
-
-  async prioritizeSentenceAudio(items: { text: string; language: string }[]) {
-    const clean = (items || []).filter((it) => it && it.text?.trim() && it.language);
-    if (!clean.length) return { success: true, queued: 0 };
-    const res = await postJSON<any>(WfNewApiPaths.sentenceAudioBumpBatch, {
-      items: clean.map((it) => ({ text: it.text, language: it.language })),
-      interactive: true,
-    });
-    return {
-      success: !!(res?.success ?? res?.ok),
-      queued: Number(res?.queued ?? res?.data?.queued ?? 0) || 0,
     };
   },
 

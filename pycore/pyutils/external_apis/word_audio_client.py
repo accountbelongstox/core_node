@@ -70,7 +70,7 @@ from pycore.pyfoundations.third_party import (
 # --------------------------------------------------------------------------- #
 # Constants                                                                    #
 # --------------------------------------------------------------------------- #
-# (connect, read) timeouts (seconds) — mirrors movie_poster_client's budget.
+# Connect/read timeouts keep each provider attempt bounded.
 _HTTP_TIMEOUT: Tuple[int, int] = (8, 25)
 
 FREE_DICTIONARY_API_BASE = "https://api.dictionaryapi.dev/api/v2/entries/en"
@@ -232,7 +232,7 @@ def _free_dictionary_api(
 # commons.wikimedia.org can be slow/flaky; a single read timeout would
 # otherwise stall the pronunciation chain once per accent pass per word. Latch
 # a process-wide disable on the first timeout (mirrors _forvo_disabled_reason
-# / movie_poster_client._omdb_disabled_reason) and short-circuit every later
+# client-level disabled reason) and short-circuit every later
 # Wikimedia lookup. The tighter per-source timeout bounds the one wait paid
 # before the latch fires.
 _WIKIMEDIA_DISABLED_SIGNAL = 'pyutils.word_audio.wikimedia.disabled'
@@ -428,7 +428,7 @@ def _cambridge_dictionary(
 # within a run, yet a batch may look up many words — a single auth failure
 # would otherwise burn a network round-trip per word for nothing. Latch a
 # process-wide disable on the first auth failure (mirrors
-# movie_poster_client._omdb_disabled_reason) and short-circuit every later
+# client-level disabled reason) and short-circuit every later
 # Forvo lookup.
 _FORVO_DISABLED_SIGNAL = 'pyutils.word_audio.forvo.disabled'
 

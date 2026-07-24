@@ -10,6 +10,11 @@ import time
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
 
 import re
@@ -30,8 +35,15 @@ class DatabaseOperationsManager:
         self.engines: Dict[str, Any] = {}  # connection_string -> engine
         self.query_history: List[Dict[str, Any]] = []
         self.max_history_size = 1000
+        init_serialized_owner(
+            self,
+            "mcp.database_operations.state",
+            "MCPDatabaseOperationsStateThread",
+            timeout=300.0,
+        )
         logger.debug("[DatabaseOperationsManager] Initialized")
 
+    @serialized_method
     def get_or_create_engine(self, connection_string: str) -> Any:
         """
         Get or create SQLAlchemy engine with connection pooling
@@ -62,6 +74,7 @@ class DatabaseOperationsManager:
 
         return self.engines[conn_hash]
 
+    @serialized_method
     def execute_query_with_safety_checks(
         self,
         connection_string: str,
@@ -166,6 +179,7 @@ class DatabaseOperationsManager:
                 'timestamp': datetime.now().isoformat()
             }
 
+    @serialized_method
     def execute_batch_operations(
         self,
         connection_string: str,
@@ -254,6 +268,7 @@ class DatabaseOperationsManager:
                 'timestamp': datetime.now().isoformat()
             }
 
+    @serialized_method
     def get_schema_information(
         self,
         connection_string: str,
@@ -318,6 +333,7 @@ class DatabaseOperationsManager:
                 'timestamp': datetime.now().isoformat()
             }
 
+    @serialized_method
     def get_database_statistics(
         self,
         connection_string: str
@@ -406,18 +422,19 @@ class DatabaseOperationsManager:
         if len(self.query_history) > self.max_history_size:
             self.query_history = self.query_history[-self.max_history_size:]
 
+    @serialized_method
     def get_query_history(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get recent query execution history"""
-        return self.query_history[-limit:]
+        return [dict(entry) for entry in self.query_history[-limit:]]
 
 
-# Singleton instance
-_database_operations_singleton: Optional[DatabaseOperationsManager] = None
+_DATABASE_OPERATIONS_PROVIDER = SerializedSingletonProvider(
+    DatabaseOperationsManager,
+    "mcp.database_operations.provider",
+    "MCPDatabaseOperationsProviderThread",
+)
 
 
 def get_database_operations_manager_singleton() -> DatabaseOperationsManager:
     """Get singleton instance of DatabaseOperationsManager"""
-    global _database_operations_singleton
-    if _database_operations_singleton is None:
-        _database_operations_singleton = DatabaseOperationsManager()
-    return _database_operations_singleton
+    return _DATABASE_OPERATIONS_PROVIDER.get()

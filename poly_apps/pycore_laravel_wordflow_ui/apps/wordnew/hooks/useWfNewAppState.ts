@@ -57,7 +57,7 @@ export function wfNewPageHeader(
     case 'settings': return { title: trans('settings.title'), subtitle: trans('settings.sub') };
     case 'about': return { title: trans('about.title'), subtitle: trans('about.sub') };
     case 'admin': return { title: trans('hdr.admin'), subtitle: trans('hdr.adminSub') };
-    case 'daily-reading': return { title: 'Daily Reading', subtitle: 'AI-translated short sentences' };
+    case 'daily-reading': return { title: 'Daily Reading', subtitle: 'Bilingual short articles with English audio' };
     case 'social': return { title: trans('bc.social') };
     case 'auth': return { title: trans('bc.auth') };
     case 'content-list':
@@ -152,6 +152,10 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
       'learning-model', 'review-settings', 'playback', 'book-reader', 'content-list', 'about',
       'daily-reading', 'admin',
     ];
+    if (fromHash === 'article' || fromHash.startsWith('article/')) {
+      setActiveTabRaw('daily-reading');
+      return;
+    }
     // Deep-link to a vocabulary library: #/library/<id>?page=N&view=dash|table
     if (fromHash.startsWith('library/')) {
       const [path, query = ''] = fromHash.split('?');
@@ -188,6 +192,10 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     // restores the exact word-browser state.
     if (activeTab === 'library' && libraryRoute) {
       next = `#/library/${encodeURIComponent(libraryRoute.id)}?page=${libraryRoute.page}&view=${libraryRoute.view}`;
+    }
+    if (activeTab === 'daily-reading') {
+      const current = window.location.hash;
+      next = /^#\/article\/(recent|oldest|title)$/.test(current) ? current : '#/article/recent';
     }
     if (window.location.hash !== next) {
       window.history.replaceState(null, '', next);

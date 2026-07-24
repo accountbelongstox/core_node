@@ -20,6 +20,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 
 
 _TASK_MAP_SIGNAL = 'heartbeat.tasks.map'
@@ -153,6 +154,7 @@ class GlobalTaskQueue:
                 'total_added': 0,
                 'total_removed': 0,
             })
+        init_serialized_owner(self, "global_task_queue.state", "GlobalTaskQueueState")
 
     def put(self, task: Task, block: bool = True, timeout: Optional[float] = None) -> bool:
         """
@@ -177,11 +179,15 @@ class GlobalTaskQueue:
 
         queue_name = self._queue_name(task.priority)
         THREAD_BUS.send_message(queue_name, task)
+        self._record_added(task)
+        return True
+
+    @serialized_method
+    def _record_added(self, task: Task) -> None:
         task_map = dict(THREAD_BUS.get_signal(_TASK_MAP_SIGNAL, {}) or {})
         task_map[task.task_id] = task
         THREAD_BUS.signal(_TASK_MAP_SIGNAL, task_map)
         self._increment_stat('total_added')
-        return True
 
     def get(self, block: bool = True, timeout: Optional[float] = None) -> Optional[Task]:
         """
@@ -208,6 +214,7 @@ class GlobalTaskQueue:
                 return None
             time.sleep(0.01)
 
+    @serialized_method
     def remove(self, task_id: str) -> bool:
         """
         Remove task from task map (used for cancellation)
@@ -229,6 +236,7 @@ class GlobalTaskQueue:
             return True
         return False
 
+    @serialized_method
     def get_task(self, task_id: str) -> Optional[Task]:
         """
         Get task by ID
@@ -242,6 +250,7 @@ class GlobalTaskQueue:
         task_map = THREAD_BUS.get_signal(_TASK_MAP_SIGNAL, {}) or {}
         return task_map.get(task_id)
 
+    @serialized_method
     def cleanup_completed(self, max_keep: int = 1000):
         """
         Clean up completed/failed/cancelled tasks from map
@@ -286,6 +295,7 @@ class GlobalTaskQueue:
         """Check if queue is full"""
         return self.size() >= self._max_size
 
+    @serialized_method
     def get_stats(self) -> Dict[str, int]:
         """
         Get queue statistics
@@ -310,6 +320,7 @@ class GlobalTaskQueue:
             'state_counts': state_counts,
         }
 
+    @serialized_method
     def get_pending_tasks(self) -> List[Task]:
         """
         Get list of all pending tasks
@@ -323,6 +334,7 @@ class GlobalTaskQueue:
             if task.state == TaskState.PENDING
         ]
 
+    @serialized_method
     def get_running_tasks(self) -> List[Task]:
         """
         Get list of all running tasks
@@ -336,6 +348,7 @@ class GlobalTaskQueue:
             if task.state == TaskState.RUNNING
         ]
 
+    @serialized_method
     def clear(self):
         """Clear all tasks from queue and map"""
         for priority in TaskPriority:
@@ -347,15 +360,15 @@ class GlobalTaskQueue:
         """Return the THREAD_BUS queue key for one priority."""
         return f"{_TASK_QUEUE_PREFIX}.{priority.value}"
 
-    @staticmethod
-    def _increment_stat(name: str) -> None:
+    @serialized_method
+    def _increment_stat(self, name: str) -> None:
         """Publish one updated queue counter."""
         stats = dict(THREAD_BUS.get_signal(_TASK_STATS_SIGNAL, {}) or {})
         stats[name] = stats.get(name, 0) + 1
         THREAD_BUS.signal(_TASK_STATS_SIGNAL, stats)
 
 
-_global_task_queue: Optional[GlobalTaskQueue] = None
+_global_task_queue = GlobalTaskQueue()
 def get_global_task_queue() -> GlobalTaskQueue:
     """
     Get global task queue singleton
@@ -363,11 +376,6 @@ def get_global_task_queue() -> GlobalTaskQueue:
     Returns:
         GlobalTaskQueue singleton instance
     """
-    global _global_task_queue
-
-    if _global_task_queue is None:
-        _global_task_queue = GlobalTaskQueue()
-
     return _global_task_queue
 
 

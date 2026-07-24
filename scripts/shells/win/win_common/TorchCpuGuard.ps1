@@ -1,11 +1,15 @@
 # Idempotent PyTorch CPU/GPU build guard (Windows). Mirrors linux/common/torch_cpu_guard.sh.
 
-. (Join-Path $PSScriptRoot 'CudaIndex.ps1')
-. (Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1')
-. (Join-Path $PSScriptRoot 'NvidiaCuStackAlign.ps1')
+$cudaIndexPath = Join-Path $PSScriptRoot 'CudaIndex.ps1'
+$pythonRuntimePath = Join-Path $PSScriptRoot 'PythonRuntimeCommon.ps1'
+$nvidiaAlignPath = Join-Path $PSScriptRoot 'NvidiaCuStackAlign.ps1'
+. $pythonRuntimePath
+. $cudaIndexPath
+. $nvidiaAlignPath
 
 $script:TorchCpuIndexUrl = Get-AiRuntimePolicyValue -Name 'AI_TORCH_CPU_INDEX' -Default 'https://download.pytorch.org/whl/cpu'
-$script:TorchPackages = Get-AiRuntimePolicyList -Name 'AI_TORCH_PACKAGES'
+$script:TorchPackages = Get-CanonicalTorchPackageSpecs
+$script:TorchHealthPackages = Get-AiRuntimePolicyList -Name 'AI_TORCH_HEALTH_PACKAGES'
 
 function Get-TcgPython {
     param([string]$Override)
@@ -20,7 +24,8 @@ function Test-TcgGpuPresent {
 
 function Get-TorchCudaState {
     param([string]$PythonCmd)
-    if (-not (Test-PythonDistInfoPresent -PythonExe $PythonCmd -DistPrefixes @('torch'))) {
+    $pipExe = Get-PipExeForPythonExe -PythonExe $PythonCmd
+    if (-not $pipExe -or -not (Test-PipPackageInstalled -PipExe $pipExe -PackageName 'torch')) {
         return ''
     }
 
@@ -35,8 +40,13 @@ function Get-TorchCudaState {
 
 function Convert-TorchCudaStateToTag {
     param([string]$State)
-    if ($State -match '^(\d+)\.(\d+)') {
-        return ('cu{0}{1}' -f $Matches[1], $Matches[2])
+    $major = 0
+    $minor = 0
+    $parts = ([string]$State).Split('.')
+    if ($parts.Length -ge 2 -and
+        [int]::TryParse($parts[0], [ref]$major) -and
+        [int]::TryParse($parts[1], [ref]$minor)) {
+        return ('cu{0}{1}' -f $major, $minor)
     }
     return ''
 }
@@ -47,22 +57,40 @@ function Test-TorchCudaUsable {
     return ("$out" -match '__CUDA_OK__')
 }
 
+function Test-TorchPackagesInstalled {
+    param(
+        [string]$PipExe
+    )
+    foreach ($package in $script:TorchHealthPackages) {
+        if (-not (Test-PipPackageInstalled -PipExe $PipExe -PackageName $package)) {
+            return $false
+        }
+    }
+    return $true
+}
+
 function Remove-OrphanNvidiaWheels {
     param(
         [string]$PythonCmd,
         [string]$PipExe
     )
 
+    $line = ''
+    $listOutput = @()
+    $lower = ''
+    $name = ''
+    $pkgNames = @()
+    $separatorIndex = -1
     if (-not $PipExe) {
         return
     }
 
     $listOutput = & $PipExe list --format=freeze 2>&1
-    $pkgNames = @()
     foreach ($line in ("$listOutput" -split "`n")) {
         $line = $line.Trim()
-        if ($line -match '^([^=]+)==') {
-            $name = $Matches[1]
+        $separatorIndex = $line.IndexOf('==', [System.StringComparison]::Ordinal)
+        if ($separatorIndex -gt 0) {
+            $name = $line.Substring(0, $separatorIndex)
             $lower = $name.ToLower()
             if ($lower.StartsWith('nvidia-') -or $lower -eq 'triton') {
                 $pkgNames += $name
@@ -78,18 +106,30 @@ function Remove-OrphanNvidiaWheels {
 
 function Install-CpuTorch {
     param(
-        [string]$PipExe
+        [string]$PipExe,
+        [switch]$Force
     )
-    & $PipExe install --ignore-installed --force-reinstall --index-url $script:TorchCpuIndexUrl @script:TorchPackages
+    $installArgs = @()
+    if ($Force) {
+        & $PipExe uninstall -y @script:TorchPackages
+    }
+    $installArgs = @('install', '--index-url', $script:TorchCpuIndexUrl)
+    & $PipExe @installArgs @script:TorchPackages
 }
 
 function Install-GpuTorch {
     param(
         [string]$PythonCmd,
         [string]$PipExe,
-        [PSCustomObject]$Policy
+        [PSCustomObject]$Policy,
+        [switch]$Force
     )
-    & $PipExe install --ignore-installed --force-reinstall --index-url $Policy.TorchIndexUrl @script:TorchPackages
+    $installArgs = @()
+    if ($Force) {
+        & $PipExe uninstall -y @script:TorchPackages
+    }
+    $installArgs = @('install', '--index-url', $Policy.TorchIndexUrl)
+    & $PipExe @installArgs @script:TorchPackages
     Sync-NvidiaCuStack -PythonCmd $PythonCmd -PipExe $PipExe -TargetMajor $Policy.Major
 }
 
@@ -115,6 +155,10 @@ function Ensure-TorchBuild {
 
     $state = Get-TorchCudaState -PythonCmd $PythonCmd
     $policy = Get-CudaRuntimePolicy
+    if ($state -eq 'Broken') {
+        Write-Host '[torch-guard] torch metadata is present, but its binary cannot load; preserving it to prevent a reinstall loop.' -ForegroundColor DarkYellow
+        return
+    }
 
     if ($policy.Enabled) {
         if (-not $state) {
@@ -128,26 +172,31 @@ function Ensure-TorchBuild {
         }
         if ($state -eq 'None') {
             Write-Host "[torch-guard] GPU present, torch is CPU-only -> switching to canonical $($policy.Tag) build."
-            Install-GpuTorch -PythonCmd $PythonCmd -PipExe $PipExe -Policy $policy
+            Install-GpuTorch -PythonCmd $PythonCmd -PipExe $PipExe -Policy $policy -Force
             return
         }
         $installedTag = Convert-TorchCudaStateToTag -State $state
-        if ($state -eq 'Broken' -or $installedTag -ne $policy.Tag) {
+        if ($installedTag -ne $policy.Tag) {
             Write-Host "[torch-guard] torch state '$state' does not match $($policy.Tag) -> repairing once."
+            Install-GpuTorch -PythonCmd $PythonCmd -PipExe $PipExe -Policy $policy -Force
+            return
+        }
+        if (-not (Test-TorchPackagesInstalled -PipExe $PipExe)) {
+            Write-Host "[torch-guard] $installedTag torch group is incomplete -> repairing from the canonical release group."
             Install-GpuTorch -PythonCmd $PythonCmd -PipExe $PipExe -Policy $policy
             return
         }
         Sync-NvidiaCuStack -PythonCmd $PythonCmd -PipExe $PipExe -TargetMajor $policy.Major
         if (Test-TorchCudaUsable -PythonCmd $PythonCmd) {
-            Write-Host "[torch-guard] GPU present, canonical $installedTag torch is usable; no change."
+            Write-Host "[torch-guard] GPU present, installed $installedTag torch group is usable; preserving installed versions."
         } else {
-            Write-Host "[torch-guard] canonical $installedTag is installed but CUDA cannot initialize; leaving it unchanged to avoid a reinstall loop. Repair the NVIDIA driver/runtime." -ForegroundColor DarkYellow
+            Write-Host "[torch-guard] installed $installedTag torch cannot initialize CUDA; leaving it unchanged to avoid a reinstall loop. Repair the NVIDIA driver/runtime." -ForegroundColor DarkYellow
         }
         return
     }
 
     switch ($state) {
-        { $_ -in @('', 'Broken') } {
+        '' {
             if ($RepairOnly) {
                 Write-Host '[torch-guard] No GPU, torch not installed -> nothing to repair.'
             } else {
@@ -156,11 +205,16 @@ function Ensure-TorchBuild {
             }
         }
         'None' {
-            Write-Host '[torch-guard] No GPU, torch already CPU build; ok.'
+            if (Test-TorchPackagesInstalled -PipExe $PipExe) {
+                Write-Host '[torch-guard] No GPU, installed CPU torch group is usable; preserving installed versions.'
+            } else {
+                Write-Host '[torch-guard] No GPU, CPU torch group is incomplete -> repairing.'
+                Install-CpuTorch -PipExe $PipExe
+            }
         }
         default {
             Write-Host "[torch-guard] No GPU but CUDA torch (cuda=$state) -> switching to CPU build + purging nvidia-*."
-            Install-CpuTorch -PipExe $PipExe
+            Install-CpuTorch -PipExe $PipExe -Force
             Remove-OrphanNvidiaWheels -PythonCmd $PythonCmd -PipExe $PipExe
         }
     }

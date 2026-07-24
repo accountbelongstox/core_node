@@ -162,8 +162,8 @@ class PushSender:
         delay = min(MAX_BACKOFF, 2 ** min(attempt, 16))
         retry["next_retry_at"] = time.time() + delay
         retry["attempt"] = min(attempt + 1, 16)
-            first = not retry["logged"]
-            retry["logged"] = True
+        first = not retry["logged"]
+        retry["logged"] = True
         if first:
             what = "link dropped mid-sync" if mid_sync else "unreachable"
             name = peer.get("name") or host

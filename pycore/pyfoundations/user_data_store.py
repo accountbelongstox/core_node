@@ -11,12 +11,8 @@ This was originally a standalone module, later merged into ``system_paths``
 (see the former "merged from the former user_data_store module" comment), and is
 now split back out as part of the ``system_paths`` modularization.
 
-CIRCULAR-IMPORT NOTE: ``UserDataStore`` depends on ``get_app_config_dir`` from
-``system_paths``, and ``system_paths`` re-exports ``UserDataStore`` /
-``get_user_data_store`` from here. To break the cycle, ``get_app_config_dir`` is
-imported LAZILY (function-local) -- there is NO top-level ``system_paths``
-import in this module, so importing ``user_data_store`` first (or having
-``system_paths`` import it at the bottom of its body) never deadlocks.
+The configuration-path primitive lives in ``app_config_path`` so this module
+and ``system_paths`` remain acyclic while keeping every import at file scope.
 """
 
 import os
@@ -32,17 +28,12 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 
-from pycore.pyfoundations.system_paths import get_app_config_dir
+from pycore.pyfoundations.app_config_path import get_app_config_dir
 
 
 
 # Canonical store file name inside the config directory.
 STORE_FILE_NAME = "user_data.json"
-
-
-def _get_app_config_dir() -> Path:
-    """Resolve the app config dir lazily (avoids circular import with system_paths)."""
-    return get_app_config_dir()
 
 
 class UserDataStoreThread(threading.Thread):
@@ -72,6 +63,7 @@ class UserDataStoreThread(threading.Thread):
                 continue
 
             response_signal = request.get('response_signal', '')
+            response_guard = request.get('response_guard', '')
             operation = request.get('operation', '')
             payload = request.get('payload', {})
             try:
@@ -86,7 +78,14 @@ class UserDataStoreThread(threading.Thread):
             except Exception as exc:
                 response = {'success': False, 'error': str(exc)}
             if response_signal:
-                THREAD_BUS.signal(response_signal, response)
+                if response_guard:
+                    THREAD_BUS.signal_if_present(
+                        response_guard,
+                        response_signal,
+                        response,
+                    )
+                else:
+                    THREAD_BUS.signal(response_signal, response)
 
     # --- paths ------------------------------------------------------------- #
     @property
@@ -355,7 +354,7 @@ class UserDataStore:
         base_dir: Optional[Path] = None,
         file_name: str = STORE_FILE_NAME,
     ) -> None:
-        self._base_dir = Path(base_dir) if base_dir else _get_app_config_dir()
+        self._base_dir = Path(base_dir) if base_dir else get_app_config_dir()
         self._path = self._base_dir / file_name
         self._queue_name = f"user_data_store.requests.{uuid.uuid4().hex}"
         self._worker = UserDataStoreThread(self._queue_name)
@@ -447,10 +446,13 @@ class UserDataStore:
         response_signal = (
             f"{self._queue_name}.response.{uuid.uuid4().hex}"
         )
+        response_guard = f"{response_signal}.waiting"
+        THREAD_BUS.signal(response_guard, True)
         THREAD_BUS.send_message(self._queue_name, {
             'operation': operation,
             'payload': payload,
             'response_signal': response_signal,
+            'response_guard': response_guard,
         })
         response = THREAD_BUS.wait_signal(response_signal, timeout=30.0)
         THREAD_BUS.clear_signal(response_signal)
@@ -464,14 +466,11 @@ class UserDataStore:
 
 
 # --- module-level singleton ----------------------------------------------- #
-_store_singleton: Optional[UserDataStore] = None
+_store_singleton = UserDataStore()
 
 
 def get_user_data_store() -> UserDataStore:
     """Return the process-wide :class:`UserDataStore` singleton."""
-    global _store_singleton
-    if _store_singleton is None:
-        _store_singleton = UserDataStore()
     return _store_singleton
 
 

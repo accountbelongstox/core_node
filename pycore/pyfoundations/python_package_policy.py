@@ -15,29 +15,29 @@ DEPENDENCY_MAP: Dict[str, str] = {
     "psutil": "psutil",
     "mss": "mss",
     "torch": "torch",
-    "ultralytics": "ultralytics>=8.0",
+    "ultralytics": "ultralytics>=8,<9",
     "numpy": "numpy",
     "adb_shell": "adb-shell",
     "av": "av",
     "uvicorn": "uvicorn[standard]",
     "websockets": "websockets",
-    "requests": "requests>=2.28,<3",
-    "urllib3": "urllib3>=2.0,<3",
-    "idna": "idna>=3.0,<4",
-    "chardet": "chardet>=5.0,<6",
-    "certifi": "certifi>=2024.2.0",
-    "zmq": "pyzmq>=25,<28",
-    "msgpack": "msgpack>=1.0,<2",
-    "werkzeug": "Werkzeug>=3.0,<4",
-    "h5py": "h5py>=3.0,<4",
-    "absl": "absl-py>=2.0,<3",
-    "google.protobuf": "protobuf>=3.7,<7",
+    "requests": "requests>=2,<3",
+    "urllib3": "urllib3>=2,<3",
+    "idna": "idna>=3,<4",
+    "chardet": "chardet>=5,<6",
+    "certifi": "certifi",
+    "zmq": "pyzmq",
+    "msgpack": "msgpack>=1,<2",
+    "werkzeug": "Werkzeug>=3,<4",
+    "h5py": "h5py>=3,<4",
+    "absl": "absl-py>=2,<3",
+    "google.protobuf": "protobuf",
     "grpc": "grpcio",
-    "six": "six>=1.17.0",
+    "six": "six>=1,<2",
     "aiohttp": "aiohttp",
     "fastapi": "fastapi",
-    "typing_extensions": "typing_extensions>=4.13.0",
-    "PyQt5": "PyQt5>=5.15,<6",
+    "typing_extensions": "typing_extensions>=4,<5",
+    "PyQt5": "PyQt5>=5,<6",
     "matplotlib": "matplotlib",
     "labelme": "labelme",
     "labelImg": "labelImg",
@@ -112,6 +112,16 @@ PREPARE_ALIGNED_PACKAGES: Dict[str, str] = {
     "easyocr": "easyocr",
 }
 
+DOCUMENT_PARSING_IMPORTS: Tuple[str, ...] = (
+    "pdfplumber",
+    "docx",
+    "bs4",
+    "lxml",
+    "ebooklib",
+    "striprtf",
+    "multipart",
+)
+
 GUI_ONLY_IMPORTS = frozenset({"PySide6", "PyQt5", "labelme", "labelImg"})
 SPECIALIZED_IMPORTS = frozenset({"torch", "ultralytics", "edge_tts", "whisper", "gi"})
 BACKEND_IMPORTS = frozenset(
@@ -155,6 +165,21 @@ def package_rows(set_name: str, platform_name: str, include_optional: bool = Tru
     if set_name == "prepare":
         yield from PREPARE_ALIGNED_PACKAGES.items()
         return
+    if set_name == "document":
+        for import_name in DOCUMENT_PARSING_IMPORTS:
+            if import_name in PREPARE_ALIGNED_PACKAGES:
+                yield import_name, PREPARE_ALIGNED_PACKAGES[import_name]
+            elif import_name in DEPENDENCY_MAP:
+                yield import_name, DEPENDENCY_MAP[import_name]
+            else:
+                yield import_name, OPTIONAL_PACKAGES[import_name]
+        return
+    if set_name == "ocr":
+        yield "easyocr", PREPARE_ALIGNED_PACKAGES["easyocr"]
+        if platform_name == "windows":
+            for pip_spec in WINDOWS_OCR_WINRT_PACKAGES:
+                yield "winrt.windows.media.ocr", pip_spec
+        return
     if set_name == "winrt" and platform_name == "windows":
         for pip_spec in WINDOWS_OCR_WINRT_PACKAGES:
             yield "winrt.windows.media.ocr", pip_spec
@@ -163,7 +188,11 @@ def package_rows(set_name: str, platform_name: str, include_optional: bool = Tru
 def _main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--platform", choices=("linux", "windows"), required=True)
-    parser.add_argument("--set", choices=("installer", "prepare", "winrt"), default="installer")
+    parser.add_argument(
+        "--set",
+        choices=("installer", "prepare", "document", "ocr", "winrt"),
+        default="installer",
+    )
     parser.add_argument("--no-optional", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
@@ -183,6 +212,7 @@ if __name__ == "__main__":
 __all__ = [
     "BACKEND_IMPORTS",
     "DEPENDENCY_MAP",
+    "DOCUMENT_PARSING_IMPORTS",
     "GUI_ONLY_IMPORTS",
     "OPTIONAL_PACKAGES",
     "PREPARE_ALIGNED_PACKAGES",

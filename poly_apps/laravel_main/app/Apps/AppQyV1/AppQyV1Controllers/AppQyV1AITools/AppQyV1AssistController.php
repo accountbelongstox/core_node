@@ -2,19 +2,22 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AssistService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1PosterPriorityService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 /**
- * Third-party assist protocol (pycore worker surface).
+ * Third-party assist protocol (shared worker surface).
  *
- * pycore claims units of work (vocabulary covers, TTS words), generates them
- * with its local providers and reports the artifacts back. Claims carry a
- * 60-minute lease; see AppQyV1AssistService for the exact semantics.
+ * mcp-chrome claims image work through this lease-based surface. Pycore audio
+ * uses the dedicated TTS worker endpoints.
  *
  * Routes (routes/AppQyV1Router/AppQyV1Assist.php):
  *   POST /api/app_qy_v1/assist/claim
@@ -38,10 +41,12 @@ use Illuminate\Support\Facades\Validator;
 class AppQyV1AssistController extends Controller
 {
     private AppQyV1AssistService $assist;
+    private AppQyV1PosterPriorityService $posterPriority;
 
     public function __construct()
     {
         $this->assist = new AppQyV1AssistService();
+        $this->posterPriority = new AppQyV1PosterPriorityService();
     }
 
     /**
@@ -58,7 +63,7 @@ class AppQyV1AssistController extends Controller
 
     /**
      * POST /api/app_qy_v1/assist/claim
-     * Body: { types: ('cover'|'tts')[], limit?: int 1..10 = 3, claimer: string }
+     * Body: { types: ('cover'|'poster')[], limit?: int 1..10 = 3, claimer: string }
      * Response: { success, items: [{type, id, payload}], lease_minutes }
      */
     public function claim(Request $request): JsonResponse
@@ -69,7 +74,7 @@ class AppQyV1AssistController extends Controller
 
         $validator = Validator::make($request->all(), [
             'types' => 'required|array|min:1',
-            'types.*' => 'string|in:cover,tts,poster',
+            'types.*' => 'string|in:cover,poster',
             'limit' => 'nullable|integer|min:1|max:10',
             'claimer' => 'required|string|min:1|max:56',
         ]);
@@ -91,9 +96,6 @@ class AppQyV1AssistController extends Controller
             if (in_array('cover', $types, true)) {
                 $items = array_merge($items, $this->assist->claimCovers($claimer, $limit));
             }
-            if (in_array('tts', $types, true)) {
-                $items = array_merge($items, $this->assist->claimTts($claimer, $limit));
-            }
             if (in_array('poster', $types, true)) {
                 $items = array_merge($items, $this->assist->claimPosters($claimer, $limit));
             }
@@ -112,7 +114,6 @@ class AppQyV1AssistController extends Controller
     /**
      * POST /api/app_qy_v1/assist/submit
      * Body (cover):  { type:'cover', id, image_base64, mime?, claimer? }
-     * Body (tts):    { type:'tts', id, audio_base64, mime?, voice?, claimer? }
      * Body (poster): { type:'poster', media_type:'book'|'subtitle', id,
      *                  image_base64, mime?, claimer?, provider?, source_id? }
      * Response: { ok, status, already_done?, error? }
@@ -124,19 +125,15 @@ class AppQyV1AssistController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'type' => 'required|string|in:cover,tts,poster',
+            'type' => 'required|string|in:cover,poster',
             'media_type' => 'required_if:type,poster|string|in:book,subtitle',
             'id' => 'required|integer|min:1',
             'image_base64' => 'required_if:type,cover|required_if:type,poster|string',
-            'audio_base64' => 'required_if:type,tts|string',
             'mime' => 'nullable|string|max:100',
-            'voice' => 'nullable|string|max:100',
-            'claimer' => 'nullable|string|max:56',
             // Provenance (detailed records): which AI provider/model/engine made
             // the artifact and how long it took. All optional + best-effort.
             'provider' => 'nullable|string|max:64',
             'model' => 'nullable|string|max:128',
-            'engine' => 'nullable|string|max:64',
             'latency_ms' => 'nullable|integer|min:0',
             // Poster provenance: the movie-DB / generator result id.
             'source_id' => 'nullable|string|max:64',
@@ -152,7 +149,6 @@ class AppQyV1AssistController extends Controller
 
         $type = $request->input('type');
         $id = (int) $request->input('id');
-        $claimer = trim((string) $request->input('claimer', '')) ?: 'unknown';
 
         try {
             $latencyMs = $request->input('latency_ms');
@@ -177,14 +173,6 @@ class AppQyV1AssistController extends Controller
                     $request->input('provider'),
                     $request->input('source_id')
                 );
-            } else {
-                $result = $this->assist->submitTts(
-                    $id,
-                    (string) $request->input('audio_base64'),
-                    $claimer,
-                    $request->input('voice'),
-                    $request->input('engine') ?? $request->input('provider')
-                );
             }
         } catch (\Throwable $e) {
             Log::error('[Assist] submit failed', ['type' => $type, 'id' => $id, 'error' => $e->getMessage()]);
@@ -202,7 +190,7 @@ class AppQyV1AssistController extends Controller
 
     /**
      * POST /api/app_qy_v1/assist/release
-     * Body: { type:'cover'|'tts'|'poster', ids: int[], error?: string,
+     * Body: { type:'cover'|'poster', ids: int[], error?: string,
      *         claimer?: string, media_type?:'book'|'subtitle' (poster only) }
      * Response: { released: int }
      */
@@ -213,12 +201,11 @@ class AppQyV1AssistController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'type' => 'required|string|in:cover,tts,poster',
+            'type' => 'required|string|in:cover,poster',
             'media_type' => 'required_if:type,poster|string|in:book,subtitle',
             'ids' => 'required|array|min:1',
             'ids.*' => 'integer|min:1',
             'error' => 'nullable|string|max:2000',
-            'claimer' => 'nullable|string|max:56',
         ]);
 
         if ($validator->fails()) {
@@ -231,15 +218,12 @@ class AppQyV1AssistController extends Controller
         $type = $request->input('type');
         $ids = $request->input('ids');
         $error = $request->input('error');
-        $claimer = trim((string) $request->input('claimer', '')) ?: 'unknown';
 
         try {
             if ($type === 'cover') {
                 $released = $this->assist->releaseCovers($ids, $error);
             } elseif ($type === 'poster') {
                 $released = $this->assist->releasePosters((string) $request->input('media_type'), $ids, $error);
-            } else {
-                $released = $this->assist->releaseTts($ids, $error, $claimer);
             }
         } catch (\Throwable $e) {
             Log::error('[Assist] release failed', ['type' => $type, 'error' => $e->getMessage()]);
@@ -259,7 +243,7 @@ class AppQyV1AssistController extends Controller
      *
      * Resets the given failed/stuck covers (or ALL failed/stuck rows when
      * all=true) back to pending, cover_attempts = 0, clearing the lease +
-     * cover_error_message so pycore re-claims them.
+     * cover_error_message so mcp-chrome reclaims them.
      */
     public function coverRetry(Request $request): JsonResponse
     {
@@ -292,6 +276,34 @@ class AppQyV1AssistController extends Controller
 
         try {
             $reset = $this->assist->retryFailedCovers($ids, $all);
+            $model = new AppQyV1VocabularyLibraryModel();
+            $connection = DB::connection($model->getConnectionName());
+            $boost = $connection->transaction(function () use ($ids, $all): array {
+                $head = AppQyV1VocabularyLibraryModel::query()
+                    ->orderByDesc('cover_priority')
+                    ->lockForUpdate()
+                    ->first(['cover_priority']);
+                $ticket = (int) ($head->cover_priority ?? 0) + 1;
+                $query = AppQyV1VocabularyLibraryModel::query()
+                    ->whereIn('cover_status', ['pending', 'retry', 'failed']);
+                if (!$all) {
+                    $query->whereIn('id', $ids);
+                }
+                $promoted = $query->update([
+                    'cover_priority' => $ticket,
+                    'cover_status' => 'pending',
+                    'assist_claimed_by' => null,
+                    'assist_claimed_at' => null,
+                ]);
+                return ['priority' => $ticket, 'promoted' => $promoted];
+            });
+            AppQyV1TranslationEventModel::emit('cover.priority', [
+                'batch' => true,
+                'count' => $boost['promoted'],
+                'ids' => $all ? [] : array_values($ids),
+                'all' => $all,
+                'priority' => $boost['priority'],
+            ]);
         } catch (\Throwable $e) {
             Log::error('[Assist] cover retry failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Internal error during retry'], 500);
@@ -300,7 +312,33 @@ class AppQyV1AssistController extends Controller
         return response()->json([
             'success' => true,
             'reset' => $reset,
+            'promoted' => $boost['promoted'],
+            'priority' => $boost['priority'],
         ]);
+    }
+
+    public function posterPriority(Request $request): JsonResponse
+    {
+        if (!AppQyV1AssistService::isAssistEnabled()) {
+            return $this->disabledResponse();
+        }
+        $validator = Validator::make($request->all(), [
+            'items' => 'required|array|min:1|max:100',
+            'items.*.media_type' => 'required|string|in:book,subtitle',
+            'items.*.id' => 'required|integer|min:1',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'error' => $validator->errors()->first()], 422);
+        }
+
+        $items = $request->input('items');
+        $promoted = $this->posterPriority->promote($items);
+        AppQyV1TranslationEventModel::emit('poster.priority', [
+            'batch' => true,
+            'count' => $promoted,
+            'items' => $items,
+        ]);
+        return response()->json(['success' => true, 'promoted' => $promoted]);
     }
 
     /**
@@ -358,7 +396,7 @@ class AppQyV1AssistController extends Controller
      * Response: { success, reset:int, checked:int }
      *
      * Finds covers marked 'ready' whose file is missing on disk and re-queues
-     * them to 'pending' so pycore regenerates them (recovery for lost files).
+     * them to 'pending' so mcp-chrome replaces them (recovery for lost files).
      */
     public function coverReconcile(): JsonResponse
     {
@@ -428,7 +466,7 @@ class AppQyV1AssistController extends Controller
      *
      * Single rich aggregate snapshot consumed by pycore's Queue Center overview
      * (SHARED CONTRACT v2). Returns every assist category (word_translation,
-     * word_image, word_audio, sentence_audio, subtitle_lang, book_lang, cover,
+     * word_media, word_audio, sentence_audio, subtitle_lang, book_lang, cover,
      * poster) with pending/processing/leased/total + by_language + sample rows,
      * plus the online worker roster. Cache-backed (30s TTL); ?fresh=1 forces a
      * recompute. NO-AUTH, matching the other assist worker surfaces.

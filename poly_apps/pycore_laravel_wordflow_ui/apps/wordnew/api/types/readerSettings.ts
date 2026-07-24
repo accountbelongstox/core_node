@@ -16,6 +16,8 @@ export interface WfNewReaderSettingsBlob {
   readerWordCards?: boolean;
   /** Word-card reading position relative to the sentence audio. */
   readerWordCardPosition?: 'before' | 'after';
+  readerWordRepeats?: number;
+  readerWordMode?: 'new' | 'all';
   /** ISO8601 — used for last-write-wins merge on pull. */
   updatedAt?: string | null;
 }

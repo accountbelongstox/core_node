@@ -9,6 +9,7 @@ export interface PcWordAudioLogRow {
   lang?: string;
   md5?: string;
   live?: boolean;
+  playable?: boolean;
 }
 
 interface PcWordAudioLogProps {
@@ -40,7 +41,7 @@ export const PcWordAudioLog: React.FC<PcWordAudioLogProps> = ({ rows, onClear, o
           <span className="font-mono text-slate-300 truncate flex-1" title={row.text || row.detail}>{row.text || row.detail || '—'}</span>
           {row.lang && <span className="text-[10px] text-slate-500 shrink-0">{row.lang}</span>}
           {row.detail && row.text && <span className="text-[10px] text-slate-500 truncate shrink-0 max-w-[40%]" title={row.detail}>{row.detail}</span>}
-          {row.md5 && row.lang && <button onClick={() => onPlay(row)}
+          {(row.playable || row.md5) && row.lang && <button onClick={() => onPlay(row)}
             className="shrink-0 rounded bg-slate-700 px-1.5 py-0.5 text-[10px] text-slate-200 hover:bg-slate-600"
             title="Play audio">▶</button>}
           {row.live && <span className="text-[9px] text-sky-400 shrink-0">live</span>}

@@ -41,16 +41,9 @@ $ErrorActionPreference = "Stop"
 $script:BatchDecryptionCompleted = $false
 
 # Source GlobalVars.ps1 if not already loaded
-if (-not (Get-Command Get-CoreNodeDir -ErrorAction SilentlyContinue)) {
-    $scriptDir = $PSScriptRoot
-    $globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
-
-    if (Test-Path $globalVarsPath) {
-        . $globalVarsPath
-    } else {
-        throw "ERROR: GlobalVars.ps1 not found. Cannot determine core_node directory."
-    }
-}
+$scriptDir = $PSScriptRoot
+$globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
+. $globalVarsPath
 
 <#
 .SYNOPSIS

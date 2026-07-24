@@ -18,7 +18,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.system_paths import get_user_data_store
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
-from pycore.callmodule.services import agent_history_article_records as records
+import pycore.callmodule.services.agent_history_article_records as records
 from pycore.pyctl.agent_history.agent_history_fragments import (
     build_raw_batches,
     collect_fragments,
@@ -169,16 +169,17 @@ class AgentHistoryArticleService:
         ):
             if key in patch:
                 cfg[key] = patch[key]
+        cfg["reference_lang"] = "CN"
+        cfg["target_lang"] = "EN"
         if patch.get("enabled") is True:
             # ON toggle = master switch: the next heartbeat tick runs the full
             # pipeline automatically (backfill -> live), no manual start call.
             cfg["extract_as_article"] = True
+            cfg["live_listen"] = True
             if cfg.get("phase") == "idle":
                 cfg["phase"] = "backfill"
-                cfg["live_listen"] = True
             elif cfg.get("phase") == "done":
                 cfg["phase"] = "live"
-                cfg["live_listen"] = True
             self._log("info", "pipeline enabled (auto backfill -> live)")
         get_user_data_store().set_section(_SECTION, cfg)
         return cfg
@@ -619,7 +620,7 @@ class AgentHistoryArticleService:
                 tts_lang,
                 out,
                 accent=accent,
-                priority_profile="default",
+                priority_profile="sentence",
             )
             if not result.get("success") or not out.is_file():
                 err = str(result.get("error") or "TTS failed")

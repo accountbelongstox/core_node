@@ -316,11 +316,13 @@ class Win32SystemTrayThread(threading.Thread):
         daemon: bool = True,
     ):
         super().__init__(name="Win32SystemTrayThread", daemon=daemon)
-        self.app_name = app_name
-        self.icon_path = icon_path
-        self.menu_items = menu_items
-        self.trigger_shutdown_on_exit = trigger_shutdown_on_exit
-        self.tray: Optional[Win32SystemTray] = None
+        self._config_queue = f"native_ui.win32_tray.config.{id(self)}"
+        THREAD_BUS.send_message(self._config_queue, {
+            "app_name": app_name,
+            "icon_path": icon_path,
+            "menu_items": list(menu_items or []),
+            "trigger_shutdown_on_exit": bool(trigger_shutdown_on_exit),
+        })
         ColorPrint.blue(f"[Win32SystemTrayThread] Initialized - App: {app_name}")
 
     def run(self):
@@ -328,14 +330,18 @@ class Win32SystemTrayThread(threading.Thread):
             ColorPrint.red("[Win32SystemTrayThread] pywin32 not available, cannot start")
             return
         ColorPrint.green("[Win32SystemTrayThread] Starting tray...")
-        self.tray = Win32SystemTray(
-            app_name=self.app_name,
-            icon_path=self.icon_path,
-            menu_items=self.menu_items,
-            trigger_shutdown_on_exit=self.trigger_shutdown_on_exit,
+        config = THREAD_BUS.receive_message(self._config_queue) or {}
+        tray = Win32SystemTray(
+            app_name=config.get("app_name", "Application"),
+            icon_path=config.get("icon_path"),
+            menu_items=config.get("menu_items"),
+            trigger_shutdown_on_exit=bool(config.get("trigger_shutdown_on_exit", True)),
         )
-        THREAD_BUS.trigger_event("tray.thread.started", {"app_name": self.app_name, "backend": "win32"})
+        THREAD_BUS.trigger_event("tray.thread.started", {
+            "app_name": config.get("app_name", "Application"),
+            "backend": "win32",
+        })
         ColorPrint.green("[Win32SystemTrayThread] Tray running...")
-        self.tray.run()
+        tray.run()
         THREAD_BUS.trigger_event("tray.thread.stopped", {})
         ColorPrint.yellow("[Win32SystemTrayThread] Stopped")

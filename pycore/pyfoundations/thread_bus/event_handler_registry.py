@@ -7,8 +7,8 @@ Priority-ordered event handler registry with synchronous and asynchronous
 dispatch. Handlers are stored as (priority, handler) tuples per event name and
 executed in priority order (lower number = higher priority).
 
-This class is a stateless strategy operating on the owning ThreadBus's
-copy-on-write event-handler snapshots.
+This class is a stateless strategy operating on the owning ThreadBus state
+thread.
 
 TODO (reuse batch): consolidate with the overlapping
 pycore/pyfoundations/event_bus.py (EventBus) once the two event systems are
@@ -81,13 +81,13 @@ class EventHandlerRegistry:
 
             THREAD_BUS.register_event_handler('app.close', on_close, priority=10)
         """
-        handlers = list(self._bus._event_handlers.get(event_name, ()))
-        handlers.append((priority, handler))
-        handlers.sort(key=lambda item: item[0])
-        self._bus._event_handlers = {
-            **self._bus._event_handlers,
-            event_name: handlers,
-        }
+        def register() -> None:
+            handlers = list(self._bus._event_handlers.get(event_name, ()))
+            handlers.append((priority, handler))
+            handlers.sort(key=lambda item: item[0])
+            self._bus._event_handlers[event_name] = handlers
+
+        self._bus._call_state(register)
 
     def unregister_event_handler(
         self,
@@ -104,20 +104,20 @@ class EventHandlerRegistry:
         Returns:
             True if handler was removed
         """
-        handlers = self._bus._event_handlers.get(event_name)
-        if handlers is None:
-            return False
+        def unregister() -> bool:
+            handlers = self._bus._event_handlers.get(event_name)
+            if handlers is None:
+                return False
 
-        updated_handlers = [
-            (priority, registered_handler)
-            for priority, registered_handler in handlers
-            if registered_handler != handler
-        ]
-        self._bus._event_handlers = {
-            **self._bus._event_handlers,
-            event_name: updated_handlers,
-        }
-        return len(updated_handlers) < len(handlers)
+            updated_handlers = [
+                (priority, registered_handler)
+                for priority, registered_handler in handlers
+                if registered_handler != handler
+            ]
+            self._bus._event_handlers[event_name] = updated_handlers
+            return len(updated_handlers) < len(handlers)
+
+        return bool(self._bus._call_state(unregister))
 
     def trigger_event(
         self,
@@ -143,7 +143,9 @@ class EventHandlerRegistry:
             # Trigger window maximize event
             THREAD_BUS.trigger_event('window.maximize')
         """
-        handlers = tuple(self._bus._event_handlers.get(event_name, ()))
+        handlers = self._bus._call_state(
+            lambda: tuple(self._bus._event_handlers.get(event_name, ()))
+        )
         if not handlers:
             return True
 
@@ -187,7 +189,12 @@ class EventHandlerRegistry:
         Returns:
             Dictionary of event handlers
         """
-        handler_snapshots = self._bus._event_handlers
+        handler_snapshots = self._bus._call_state(
+            lambda: {
+                name: tuple(handlers)
+                for name, handlers in self._bus._event_handlers.items()
+            }
+        )
         if event_name:
             handlers = handler_snapshots.get(event_name, [])
             return {
@@ -220,11 +227,10 @@ class EventHandlerRegistry:
         Args:
             event_name: Optional event name to clear (if None, clear all)
         """
-        if event_name:
-            self._bus._event_handlers = {
-                name: handlers
-                for name, handlers in self._bus._event_handlers.items()
-                if name != event_name
-            }
-            return
-        self._bus._event_handlers = {}
+        def clear() -> None:
+            if event_name:
+                self._bus._event_handlers.pop(event_name, None)
+                return
+            self._bus._event_handlers.clear()
+
+        self._bus._call_state(clear)

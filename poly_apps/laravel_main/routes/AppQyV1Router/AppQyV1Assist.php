@@ -7,16 +7,14 @@ use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 /*
 |--------------------------------------------------------------------------
-| Third-party assist protocol (pycore worker surface)
+| mcp-chrome media assist protocol
 |--------------------------------------------------------------------------
 |
-| pycore claims work (vocabulary covers, TTS words), generates it with its
-| local AI providers and reports artifacts back under a 60-minute lease.
+| mcp-chrome claims vocabulary covers and media posters, searches for suitable
+| images, and reports artifacts back under a 60-minute lease.
 |
-| TRUST LEVEL: NO-AUTH, deliberately matching the existing pycore worker
-| pull surfaces - /api/worker/tasks/{pull,result} (word translations),
-| /api/app_qy_v1/ai_tools/tts/worker/{claim,report} and the translation
-| queue control plane. pycore is a server-side caller without a user token;
+| TRUST LEVEL: NO-AUTH, deliberately matching the existing local worker pull
+| surfaces. mcp-chrome is a trusted local caller without a user token;
 | only Sanctum's stateful boot is stripped to keep the routes cheap, and
 | every submitted artifact is validated server-side before touching state.
 |
@@ -29,12 +27,13 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
         Route::post('/submit', [AppQyV1AssistController::class, 'submit']);
         Route::post('/release', [AppQyV1AssistController::class, 'release']);
         Route::post('/cover/retry', [AppQyV1AssistController::class, 'coverRetry']);
+        Route::post('/poster/priority', [AppQyV1AssistController::class, 'posterPriority']);
         // Discard unsatisfactory covers (delete file + re-queue) and recover
         // covers whose file is missing on disk.
         Route::post('/cover/clear', [AppQyV1AssistController::class, 'coverClear']);
         Route::post('/cover/reconcile', [AppQyV1AssistController::class, 'coverReconcile']);
         Route::get('/status', [AppQyV1AssistController::class, 'status']);
-        // Cheap cache-backed pending snapshot (cover/tts/translation), warmed by
+        // Cheap cache-backed cross-queue snapshot, warmed by
         // the Octane cover timer — third parties + dashboard poll this freely.
         Route::get('/pending', [AppQyV1AssistController::class, 'pending']);
         // Rich aggregate snapshot for pycore's Queue Center overview (SHARED

@@ -34,7 +34,7 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { BING_DICT_MSG } from '@/common/message-types';
 import { localStorage } from '@/services/ExtensionStorage';
@@ -52,6 +52,7 @@ const config = ref<ClientConfig>({
   targetLanguage: 'zh',
 });
 let unsubscribe: (() => void) | null = null;
+let initialized = false;
 
 const normalize = (value: Partial<ClientConfig>): ClientConfig => ({
   apiUrl: apiBaseUrl.value.replace(/\/+$/, ''),
@@ -81,10 +82,23 @@ const save = async () => {
   }
 };
 
+watch(apiBaseUrl, (url) => {
+  if (!initialized) return;
+  const normalized = url.replace(/\/+$/, '');
+  if (config.value.apiUrl === normalized) return;
+  config.value.apiUrl = normalized;
+  void save();
+});
+
 onMounted(async () => {
   applyStored(
     await localStorage.getOptional<ClientConfig>(STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG),
   );
+  initialized = true;
+  if (config.value.apiUrl !== apiBaseUrl.value.replace(/\/+$/, '')) {
+    config.value.apiUrl = apiBaseUrl.value.replace(/\/+$/, '');
+    await save();
+  }
   unsubscribe = localStorage.subscribe<ClientConfig>(
     STORAGE_KEYS.BING_DICTIONARY_CLIENT_CONFIG,
     applyStored,

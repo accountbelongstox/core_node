@@ -17,10 +17,14 @@ Main Functions:
 import os
 import sys
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.serialized_worker import SerializedValue
 from pathlib import Path
 from typing import Dict, List, Optional
 
-BATCH_DECRYPTION_ATTEMPTED = False
+_BATCH_DECRYPTION_ATTEMPTED = SerializedValue(
+    False,
+    "SecretDecryptionAttemptStateThread",
+)
 
 
 def get_secret_directories() -> Dict[str, Path]:
@@ -131,8 +135,7 @@ def decrypt_all_secrets(password: Optional[str] = None) -> bool:
     Returns:
         True if successful, False otherwise
     """
-    global BATCH_DECRYPTION_ATTEMPTED
-    BATCH_DECRYPTION_ATTEMPTED = True
+    _BATCH_DECRYPTION_ATTEMPTED.set(True)
 
     dirs = get_secret_directories()
     encrypted_dir = dirs['ENCRYPTED_DIR']
@@ -229,8 +232,6 @@ def _read_secret_value(key_name: str) -> str:
     Returns:
         Secret value as string (first non-empty line) or empty string if not available
     """
-    global BATCH_DECRYPTION_ATTEMPTED
-
     if not key_name:
         return ""
 
@@ -267,7 +268,11 @@ def _read_secret_value(key_name: str) -> str:
 
     # Step 2: If not found in RAW_DIR, check ENCRYPTED_DIR for .js file
     encrypted_file = dirs['ENCRYPTED_DIR'] / f"{key_name}.js"
-    if encrypted_file.exists() and not BATCH_DECRYPTION_ATTEMPTED:
+    should_decrypt = (
+        encrypted_file.exists()
+        and _BATCH_DECRYPTION_ATTEMPTED.compare_and_set(False, True)
+    )
+    if should_decrypt:
         # Step 3: File exists but not decrypted yet, trigger auto-decryption
         print(f"[SECRET_MANAGER] Key '{key_name}' is encrypted. Triggering batch decryption...")
         if decrypt_all_secrets():

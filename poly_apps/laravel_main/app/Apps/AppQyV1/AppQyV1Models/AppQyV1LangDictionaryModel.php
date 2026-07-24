@@ -65,6 +65,7 @@ class AppQyV1LangDictionaryModel extends Model
         'image_attempts',
         'image_requested_at',
         'image_completed_at',
+        'image_mcp_submitted_at',
         // Full remote Bing resource URLs { images:[...], audio:'...' } for in-page
         // re-fetch of missing media without a re-translate.
         'bing_resource_urls',
@@ -98,6 +99,7 @@ class AppQyV1LangDictionaryModel extends Model
         'image_locked_at' => 'datetime',
         'image_requested_at' => 'datetime',
         'image_completed_at' => 'datetime',
+        'image_mcp_submitted_at' => 'datetime',
     ];
 
     public function __construct(array $attributes = [])

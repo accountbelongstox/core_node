@@ -5,6 +5,8 @@ namespace App\Services\TaskProcessors;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordTranslationWriteback;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 
 /**
  * Word Translation Task Processor
@@ -61,7 +63,7 @@ class WordTranslationTaskProcessor implements TaskProcessorInterface
 
     public function canProcess(GlobalTask $task): bool
     {
-        // word_media (chrome/remote_client) and word_audio (pycore/remote_audio)
+        // word_media (chrome/remote_fast) and word_audio (pycore/remote_audio)
         // are the media-on-demand twins of word_translation: every worker result
         // carries the SAME shape (translations[] with optional image_base64 /
         // audio_base64 + phonetics) and is persisted by the SAME
@@ -134,6 +136,26 @@ class WordTranslationTaskProcessor implements TaskProcessorInterface
             'audio_saved' => (int) ($outcome['audio_saved'] ?? 0),
             'images_saved' => (int) ($outcome['images_saved'] ?? 0),
         ];
+
+        if ($task->task_type === 'word_audio') {
+            $langCode = AppQyV1DictionaryService::getLanguageCode($language);
+            $audioReady = 0;
+            foreach ($translations as $item) {
+                $word = is_array($item) ? trim((string) ($item['word'] ?? '')) : '';
+                $md5 = is_array($item) ? trim((string) ($item['md5'] ?? '')) : '';
+                if ($md5 === '' && $word !== '') {
+                    $md5 = md5($word);
+                }
+                if ($md5 === '') {
+                    continue;
+                }
+                $entry = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
+                if ($entry && !empty($entry->has_audio)) {
+                    $audioReady++;
+                }
+            }
+            return $audioReady;
+        }
 
         // Stored count for the result-trust layer: words actually persisted plus
         // words authoritatively invalidated (a confirmed no-entry / region-redirect

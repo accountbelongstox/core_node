@@ -150,7 +150,7 @@ function Invoke-Context7Step {
     } finally {
         $ErrorActionPreference = $prevEap
     }
-    if ($versionText -match "\d+\.\d+") {
+    if ($versionText) {
         Write-ColorMessage -Message "Context7 npx package available ($versionText)." -Type "Success"
     } else {
         Write-ColorMessage -Message "Context7 npx package not detected; hosted HTTP server is used anyway. Will register in Step 4 if CONTEXT7_API_KEY is set." -Type "Info"

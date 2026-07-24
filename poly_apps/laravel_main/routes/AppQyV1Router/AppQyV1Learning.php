@@ -7,6 +7,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning\AppQyV1VocabularyRecomme
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning\AppQyV1QuizController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning\AppQyV1UserStatsController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning\AppQyV1DailyRecitationController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning\AppQyV1SentenceWordTableController;
 
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'app_qy_v1';
@@ -52,5 +53,7 @@ Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function (
 Route::prefix($apiVersionPrefix)->group(function () {
     Route::prefix('learning')->group(function () {
         Route::get('/recommendations', [AppQyV1VocabularyRecommendationController::class, 'getRecommendations']);
+        Route::post('/sentence-words', [AppQyV1SentenceWordTableController::class, 'resolve']);
+        Route::post('/sentence-words/played', [AppQyV1SentenceWordTableController::class, 'markPlayed']);
     });
 });

@@ -65,15 +65,24 @@ Author: Extracted from d3-check, adapted for pycore
 import json
 import os
 import locale
-import threading
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable
 
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusKeys, BusSignals
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
 
 # Base translations directory (step0_i18n/translations/)
 _BASE_I18N_DIR = Path(__file__).parent / "translations"
+
+
+def _notify_i18n_listener(listener: Callable[[str], None], language: str) -> None:
+    listener(language)
 
 
 class I18nManager:
@@ -83,20 +92,8 @@ class I18nManager:
     Singleton pattern implementation for global i18n management.
     """
 
-    _instance: Optional['I18nManager'] = None
-
-    def __new__(cls):
-        """Singleton pattern implementation"""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-
     def __init__(self):
-        """Initialize i18n manager (only once)"""
-        if getattr(self, '_initialized', False):
-            return
-
+        """Initialize i18n manager."""
         self._config_dir: Optional[Path] = None
         self._current_language = "en"  # Default
         self._supported_languages: List[str] = ["en"]
@@ -104,6 +101,11 @@ class I18nManager:
         self._language_change_listeners: List[Callable[[str], None]] = []
         self._is_configured = False
         self._base_config: Dict[str, Any] = {}  # Store base config for merging
+        init_serialized_owner(
+            self,
+            "native_ui.i18n.state",
+            "I18nManagerState",
+        )
 
         # Load base translations from step0_i18n/translations/
         self._load_base_translations()
@@ -123,8 +125,8 @@ class I18nManager:
         ColorPrint.print_info("[I18nManager] Registered I18N_SET_LANGUAGE event handler")
 
         ColorPrint.print_info("[I18nManager] Initialized (singleton)")
-        self._initialized = True
 
+    @serialized_method
     def extend_translations(
         self,
         app_dir: str,
@@ -369,6 +371,7 @@ class I18nManager:
 
         ColorPrint.print_warn("[I18nManager] Using default configuration")
 
+    @serialized_method
     def get(
         self,
         key: str,
@@ -425,6 +428,7 @@ class I18nManager:
                 return None
         return None if isinstance(value, dict) else value
 
+    @serialized_method
     def set_language(self, language: str) -> bool:
         """
         Set current language
@@ -471,14 +475,17 @@ class I18nManager:
 
         return True
 
+    @serialized_method
     def get_current_language(self) -> str:
         """Get current language code"""
         return self._current_language
 
+    @serialized_method
     def get_supported_languages(self) -> List[str]:
         """Get list of supported language codes"""
         return self._supported_languages.copy()
 
+    @serialized_method
     def get_language_name_key(self, language_code: str) -> str:
         """
         Get i18n key for language name (e.g., "language.name.en")
@@ -498,6 +505,7 @@ class I18nManager:
             # Fallback: return key format anyway (translation may exist in translation files)
             return f"language.name.{language_code}"
 
+    @serialized_method
     def add_listener(self, listener: Callable[[str], None]):
         """
         Add language change listener
@@ -509,6 +517,7 @@ class I18nManager:
             self._language_change_listeners.append(listener)
             ColorPrint.print_info("[I18nManager] Added language change listener")
 
+    @serialized_method
     def remove_listener(self, listener: Callable[[str], None]):
         """Remove language change listener"""
         if listener in self._language_change_listeners:
@@ -519,12 +528,18 @@ class I18nManager:
         """Notify all listeners of language change"""
         for listener in self._language_change_listeners:
             try:
-                listener(language)
+                start_bus_task(
+                    _notify_i18n_listener,
+                    listener,
+                    language,
+                    thread_name="I18nListenerThread",
+                )
             except Exception as e:
                 ColorPrint.print_error(
                     f"[I18nManager] Error in language change listener: {e}"
                 )
 
+    @serialized_method
     def add_translations(
         self,
         language: str,
@@ -554,6 +569,7 @@ class I18nManager:
             f"[I18nManager] Added/updated translations for language: {language}"
         )
 
+    @serialized_method
     def reload(self) -> bool:
         """
         Reload translations from configuration directory
@@ -577,6 +593,13 @@ class I18nManager:
             return False
 
 
+_I18N_MANAGER_PROVIDER = SerializedSingletonProvider(
+    I18nManager,
+    "native_ui.i18n.provider",
+    "I18nManagerProvider",
+)
+
+
 def get_i18n_manager() -> I18nManager:
     """
     Get the singleton I18nManager instance
@@ -584,7 +607,7 @@ def get_i18n_manager() -> I18nManager:
     Returns:
         I18nManager singleton instance
     """
-    return I18nManager()
+    return _I18N_MANAGER_PROVIDER.get()
 
 
 # Export

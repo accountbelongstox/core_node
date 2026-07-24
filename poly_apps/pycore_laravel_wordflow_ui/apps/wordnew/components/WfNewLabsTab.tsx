@@ -27,7 +27,7 @@ interface WfNewLabsTabProps {
   onForge: () => void;
   /** Remove a forged custom word by id. */
   onRemoveCustom: (id: string) => void;
-  /** Open the daily short-sentence reading page. */
+  /** Open the daily bilingual article page. */
   onOpenDailyReading: () => void;
 }
 
@@ -47,7 +47,7 @@ export const WfNewLabsTab: React.FC<WfNewLabsTabProps> = ({
         <p className="text-zinc-500 text-xs font-mono">{trans('lab.sub')}</p>
       </div>
 
-      {/* Entry to the daily short-sentence reading (pycore-assisted translations). */}
+      {/* Entry to the daily bilingual article page. */}
       <button
         onClick={onOpenDailyReading}
         className={`w-full p-4 rounded-2xl text-left flex items-center justify-between ${activeTheme.cardClass} hover:scale-[1.01] transition-transform`}
@@ -55,7 +55,7 @@ export const WfNewLabsTab: React.FC<WfNewLabsTabProps> = ({
         <span className="flex items-center gap-2 text-sm font-bold">
           <BookOpen className="w-4 h-4 text-indigo-400" /> Daily Reading
         </span>
-        <span className="text-xs text-zinc-500 font-mono">AI-translated short sentences -&gt;</span>
+        <span className="text-xs text-zinc-500 font-mono">Bilingual articles + English audio -&gt;</span>
       </button>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

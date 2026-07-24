@@ -2,7 +2,7 @@
 """
 Subprocess-backed Qwen3-TTS service runner + HTTP client.
 
-qwen-tts pins transformers==4.57.3, which conflicts with the main interpreter's
+qwen-tts owns transformer dependencies that may conflict with the main interpreter's
 pin (parler-tts -> 4.46.x); both cannot coexist in one interpreter. So qwen-tts is
 NEVER imported in-process: it runs as pycore/tts_install_assets/qwen3tts_api_server.py
 inside the DEDICATED venv (see qwen3tts_venv.py) and callers talk to it over HTTP.
@@ -148,7 +148,7 @@ class Qwen3TtsService:
         env = dict(os.environ)
             # The api server is standalone (no pycore imports). Drop any inherited
             # PYTHONPATH/PYTHONHOME so a leaked main-interpreter site-packages entry
-            # cannot shadow the venv's transformers==4.57.3 with the system's 4.46.x.
+            # cannot shadow the venv's transformer dependencies with the system stack.
         env.pop("PYTHONPATH", None)
         env.pop("PYTHONHOME", None)
         env["QWEN3TTS_HOST"] = self.host

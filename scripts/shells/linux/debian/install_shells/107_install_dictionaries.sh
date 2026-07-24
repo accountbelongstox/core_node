@@ -60,16 +60,19 @@ mkdir -p "$DICT_DIR"
 
 # --- helper: verify the db has the stardict table --------------------------------
 verify_db() {
-    "$PYTHON" - "$1" <<'PY' 2>/dev/null
+    local probe_output
+    probe_output="$("$PYTHON" - "$1" <<'PY' 2>/dev/null
 import sqlite3, sys
 try:
     c = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
     n = c.execute("SELECT COUNT(*) FROM stardict").fetchone()[0]
     c.close()
-    sys.exit(0 if n > 1000 else 1)
+    print("__DB_READY__" if n > 1000 else "__DB_NOT_READY__")
 except Exception:
-    sys.exit(1)
+    print("__DB_NOT_READY__")
 PY
+    )"
+    [[ "$probe_output" == *"__DB_READY__"* ]]
 }
 
 # --- ECDICT --------------------------------------------------------------------

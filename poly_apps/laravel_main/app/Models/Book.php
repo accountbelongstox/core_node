@@ -52,6 +52,7 @@ class Book extends Model
         'poster_status',
         'poster_meta',
         'poster_fetched_at',
+        'poster_mcp_submitted_at',
         'assist_claimed_at',
         'assist_claimed_by',
     ];
@@ -65,6 +66,7 @@ class Book extends Model
         'metadata' => 'array',
         'poster_meta' => 'array',
         'poster_fetched_at' => 'datetime',
+        'poster_mcp_submitted_at' => 'datetime',
         'assist_claimed_at' => 'datetime',
     ];
 

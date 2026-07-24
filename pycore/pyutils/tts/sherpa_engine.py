@@ -22,10 +22,14 @@ from pathlib import Path
 from typing import Any, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
 from pycore.pyfoundations.third_party import get_third_package_sherpa_onnx
 from pycore.pyutils.tts.audio_utils import samples_to_mp3
 
+_MODEL_QUEUE = "tts.sherpa.model"
+_MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, "SherpaTTSModelThread")
+_MODEL_WORKER.start()
 _tts: Any = None
 
 
@@ -117,7 +121,7 @@ def available() -> bool:
     return root.is_dir() and _find(root, "*.onnx") is not None and _find(root, "tokens.txt") is not None
 
 
-def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
+def _synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
     """Synthesize `text` to `output_mp3` (offline). Returns False on failure."""
     tts = _get_tts()
     if tts is None:
@@ -145,13 +149,33 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
     return samples_to_mp3(samples, sample_rate, output_mp3)
 
 
-def is_model_loaded() -> bool:
+def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
+    return call_serialized(
+        _MODEL_QUEUE,
+        _synthesize,
+        text,
+        lang,
+        output_mp3,
+        speed,
+        timeout=900.0,
+    )
+
+
+def _is_model_loaded() -> bool:
     return _tts is not None
 
 
-def unload_model() -> None:
+def is_model_loaded() -> bool:
+    return call_serialized(_MODEL_QUEUE, _is_model_loaded)
+
+
+def _unload_model() -> None:
     global _tts
     _tts = None
+
+
+def unload_model() -> None:
+    call_serialized(_MODEL_QUEUE, _unload_model)
 
 
 __all__ = ["available", "synthesize", "model_dir", "is_model_loaded", "unload_model"]

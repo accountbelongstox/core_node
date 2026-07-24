@@ -10,7 +10,7 @@ own priority; the UI only reads status.
 
 Engine taxonomy (spec §1):
   - class A (cloud / CLI API: edge-tts, azure, gtts_web, streamelements): NOT
-    managed here. edge-tts is SERIALIZED process-wide by its own lock in
+    managed here. edge-tts is SERIALIZED process-wide by its THREAD_BUS owner in
     edge_tts_client.py; unregistered names are a no-op in `using()`.
   - class B (in-process local model: sherpa/kokoro/bark/voxcpm2;
     faster-whisper/whisper/vosk): kind="model". Loaded lazily by the engine on
@@ -113,8 +113,9 @@ class ServiceSpec:
     # kind="server": called when the health endpoint answers but the process is
     # NOT one we launched (stale orphan from a previous run, manual start). It
     # should terminate that foreign process and return True when the port is
-    # free; returning False keeps the legacy attach-to-foreign behavior.
-    stop_foreign: Optional[Callable[[], bool]] = None
+    # free, False when a listener could not be stopped, and None when no foreign
+    # listener was found. False aborts startup rather than attaching to old code.
+    stop_foreign: Optional[Callable[[], Optional[bool]]] = None
 
 
 def _gpu_release() -> None:
@@ -157,9 +158,7 @@ class ManagedServiceManager:
         self._logfiles: Dict[str, Any] = {}
         # shared across kinds
         self._last_activity: Dict[str, float] = {}
-        # busy tokens per service (a SET, not a counter: setdefault/add/discard
-        # are each single GIL-atomic ops, so concurrent using() calls for the
-        # same service can never lose an in-flight mark)
+        # Busy tokens are mutated only by the serialized state owner.
         self._in_flight: Dict[str, set] = {}
         # server health cache (short TTL - status polls hit many at once)
         self._run_cache: Dict[str, Tuple[float, bool]] = {}
@@ -302,6 +301,17 @@ class ManagedServiceManager:
         if spec.kind == "model":
             return bool(spec.is_loaded and spec.is_loaded())
         # server
+        proc = self._processes.get(name)
+        if proc is not None and proc.poll() is not None:
+            self._processes.pop(name, None)
+            logf = self._logfiles.pop(name, None)
+            if logf is not None:
+                try:
+                    logf.close()
+                except OSError:
+                    pass
+            self._last_activity.pop(name, None)
+            self._run_cache.pop(name, None)
         now = time.monotonic()
         cached = self._run_cache.get(name)
         if cached is not None and now - cached[0] < _RUN_CACHE_TTL_S:
@@ -413,10 +423,7 @@ class ManagedServiceManager:
             cwd, argv, env = cmd[0], cmd[1], cmd[2]
         else:
             cwd, argv = cmd[0], cmd[1]
-        # Rule §4: no lock around this check-then-start — the early exit is an
-        # idempotent double-check and the registry insert below uses the
-        # GIL-atomic dict.setdefault, so a lost race terminates the duplicate
-        # instead of corrupting state.
+        # The serialized state owner makes check-and-start non-reentrant.
         if self._is_managed_process(spec.name):
             self._touch(spec.name)
             return True
@@ -429,8 +436,7 @@ class ManagedServiceManager:
             popen_kwargs["env"] = self._launch_env(argv, env)
         try:
             proc = subprocess.Popen(argv, **popen_kwargs)
-            # Single GIL-atomic insert; if a concurrent start already registered
-            # a process for this name, kill the duplicate we just spawned.
+            # Keep the defensive duplicate-process check for external changes.
             existing = self._processes.setdefault(spec.name, proc)
             if existing is not proc:
                 try:
@@ -475,16 +481,16 @@ class ManagedServiceManager:
             pass
         ok = self._wait_healthy(spec, _START_TIMEOUT_S)
         self._invalidate_run_cache(spec.name)
-        if spec.on_started:
-            try:
-                spec.on_started()
-            except Exception:  # noqa: BLE001
-                pass
         if not ok:
             self.stop(spec.name)
             ColorPrint.yellow(f"[managed] {spec.name} failed to become healthy")
             self._report_load_error(spec.name, "server failed to become healthy")
             return False
+        if spec.on_started:
+            try:
+                spec.on_started()
+            except Exception:  # noqa: BLE001
+                pass
         ColorPrint.green(f"[managed] {spec.name} ready")
         try:
             model_load_status.set_log_tail(spec.name, self.read_log_tail(spec.name))
@@ -532,8 +538,6 @@ class ManagedServiceManager:
         if not spec.config_ready():
             return False
         st = self._settings(spec.category)
-        if st.get("single_active", True):
-            self._stop_others(spec.category, name)
         if not force:
             if not st.get("auto_manage", True):
                 # Even when auto-manage is off, still track activity so an already-
@@ -543,7 +547,9 @@ class ManagedServiceManager:
                 return self.is_running(name)
             if not st.get("enabled", {}).get(name, True):
                 return self.is_running(name)
-        if self.is_running(name):
+        foreign_checked = False
+        running = self.is_running(name)
+        if running:
             if (
                 spec.kind == "server"
                 and not self._is_managed_process(name)
@@ -557,19 +563,38 @@ class ManagedServiceManager:
                     f"[managed] {name}: foreign process holds the service port — reclaiming"
                 )
                 try:
-                    if spec.stop_foreign():
+                    foreign_checked = True
+                    if spec.stop_foreign() is True:
                         self._invalidate_run_cache(name)
                     else:
-                        self._touch(name)
-                        return True
+                        ColorPrint.yellow(
+                            f"[managed] {name}: foreign listener could not be reclaimed"
+                        )
+                        return False
                 except Exception as e:  # noqa: BLE001
                     ColorPrint.yellow(f"[managed] {name} stop_foreign failed: {e}")
-                    self._touch(name)
-                    return True
+                    return False
             else:
+                if st.get("single_active", True):
+                    self._stop_others(spec.category, name)
                 self._touch(name)
                 return True
         if spec.kind == "server":
+            if spec.stop_foreign is not None and not foreign_checked:
+                try:
+                    reclaim_result = spec.stop_foreign()
+                except Exception as e:  # noqa: BLE001
+                    ColorPrint.yellow(f"[managed] {name} foreign preflight failed: {e}")
+                    reclaim_result = None
+                if reclaim_result is False:
+                    ColorPrint.yellow(
+                        f"[managed] {name}: occupied service port could not be reclaimed"
+                    )
+                    return False
+                if reclaim_result is True:
+                    self._invalidate_run_cache(name)
+            if st.get("single_active", True):
+                self._stop_others(spec.category, name)
             return self._start_server(spec)
         # model: the engine loads on use; just record activity so the watchdog
         # owns the subsequent idle-unload.
@@ -585,7 +610,6 @@ class ManagedServiceManager:
         if self.in_flight(name) > 0:
             return {"success": False, "error": f"{name} busy (in-flight)"}
         if spec.kind == "server":
-            # Rule §4: three independent GIL-atomic dict pops, no lock.
             proc = self._processes.pop(name, None)
             logf = self._logfiles.pop(name, None)
             self._last_activity.pop(name, None)
@@ -633,9 +657,12 @@ class ManagedServiceManager:
         if spec is None:
             return None
         try:
-            self.ensure_running(name)
+            ready = self.ensure_running(name)
         except Exception as e:  # noqa: BLE001
             ColorPrint.yellow(f"[managed] ensure_running {name} failed: {e}")
+            raise RuntimeError(f"managed service {name} failed to start") from e
+        if not ready:
+            raise RuntimeError(f"managed service {name} is unavailable")
         token = object()
         self._in_flight.setdefault(name, set()).add(token)
         self._touch(name)
@@ -696,6 +723,12 @@ class ManagedServiceManager:
         for name, proc in list(self._processes.items()):
             if proc.poll() is not None:
                 self._processes.pop(name, None)
+                logf = self._logfiles.pop(name, None)
+                if logf is not None:
+                    try:
+                        logf.close()
+                    except OSError:
+                        pass
                 self._last_activity.pop(name, None)
                 self._invalidate_run_cache(name)
 

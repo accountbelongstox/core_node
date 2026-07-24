@@ -94,6 +94,7 @@ __all__ = [
     'UserDataStore',
     'get_user_data_store',
     'GlobalVarManager',
+    'THREAD_BUS',
 
     # Device structures
     'AndroidDevice',

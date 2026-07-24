@@ -59,7 +59,7 @@ class AppQyV1WordTranslationWriteback
      *   - 'image_base64' (Bing sample images: base64 string list, or a list of
      *     { base64, mime? }) -> decoded, validated by magic bytes, stored as
      *     LOCAL files; their relative paths go into image_files
-     *   - 'audio_base64' (base64 mp3 of Bing's pronunciation) -> stored via
+     *   - 'audio_base64' (base64 audio from Bing or a TTS worker) -> stored via
      *     AppQyV1DictionaryTTSCoordinator::storeWordAudioBytes
      *
      * $invalidWords is a list of ['word' => ...] (or bare strings) the worker
@@ -99,9 +99,10 @@ class AppQyV1WordTranslationWriteback
         // worker so it can log the backend's audio/image reception result.
         $audioSaved = 0;
         $imagesSaved = 0;
+        $mcpImageSubmission = str_starts_with($provider, 'mcp-chrome');
 
         // Audio writes do file I/O, so they are deferred to after the row-lock
-        // transaction commits (collected as [md5 => raw mp3 bytes]).
+        // transaction commits (collected as [md5 => raw audio bytes]).
         $audioQueue = [];
 
         // Image writes also do file I/O; deferred to after-commit, collected as
@@ -154,6 +155,7 @@ class AppQyV1WordTranslationWriteback
             $taskId,
             $hasImageStatusColumn,
             $hasBingUrlsColumn,
+            $mcpImageSubmission,
             &$processed,
             &$failed,
             &$broadcastQueue,
@@ -314,10 +316,11 @@ class AppQyV1WordTranslationWriteback
                     // Fill-missing — only when the row has no images yet; the
                     // decode/validate/write-file + image_files update happens after
                     // the lock is released (file I/O must not run under the lock).
-                    if ($hasImages && empty($entry->image_files)) {
+                    if ($hasImages && (empty($entry->image_files) || $mcpImageSubmission)) {
                         $imageQueue[$entry->md5] = [
                             'content' => $entry->content,
                             'images' => $imageBase64,
+                            'provider' => $provider,
                         ];
                     }
 
@@ -359,10 +362,11 @@ class AppQyV1WordTranslationWriteback
                             $audioQueue[] = [
                                 'md5' => $entry->md5,
                                 'bytes' => $bytes,
+                                'mime' => (string) ($item['audio_mime'] ?? $item['mime'] ?? ''),
                                 'variant_key' => (string) ($item['variant_key'] ?? ''),
                                 'accent' => $item['accent'] ?? null,
                                 'gender' => $item['gender'] ?? null,
-                                'provider' => (string) ($item['provider'] ?? $item['engine'] ?? 'bing'),
+                                'provider' => (string) ($item['provider'] ?? $item['engine'] ?? $provider),
                             ];
                         }
                     }
@@ -399,7 +403,7 @@ class AppQyV1WordTranslationWriteback
 
         // Persist Bing pronunciation audio after the lock is released — file I/O
         // must not run inside the row-lock transaction. The coordinator validates
-        // MP3 magic, writes to the deterministic EdgeTTS path, and flips has_audio
+        // format magic, writes to the deterministic EdgeTTS path, and flips has_audio
         // (fill-missing). Best-effort: an audio failure never fails translation.
         if (!empty($audioQueue)) {
             $coordinator = new AppQyV1DictionaryTTSCoordinator();
@@ -416,7 +420,8 @@ class AppQyV1WordTranslationWriteback
                         $aq['bytes'],
                         $aq['provider'] ?? 'bing',
                         $aq['variant_key'] ?: null,
-                        $meta
+                        $meta,
+                        $aq['mime'] ?? null
                     )) {
                         $audioSaved++;
                     }
@@ -439,7 +444,13 @@ class AppQyV1WordTranslationWriteback
         // failure never fails translation.
         foreach ($imageQueue as $md5 => $payload) {
             try {
-                $imagesSaved += self::storeWordImages($langCode, (string) $md5, $payload['content'] ?? '', $payload['images'] ?? []);
+                $imagesSaved += self::storeWordImages(
+                    $langCode,
+                    (string) $md5,
+                    $payload['content'] ?? '',
+                    $payload['images'] ?? [],
+                    $payload['provider'] ?? $provider
+                );
             } catch (\Throwable $e) {
                 Log::warning('[AppQyV1WordTranslationWriteback] image store failed', [
                     'task_id' => $taskId,
@@ -641,7 +652,13 @@ class AppQyV1WordTranslationWriteback
      * @param array<int, string> $base64List
      * @return int Number of image files actually written (0 when none/skipped).
      */
-    private static function storeWordImages(string $langCode, string $md5, string $content, array $base64List): int
+    private static function storeWordImages(
+        string $langCode,
+        string $md5,
+        string $content,
+        array $base64List,
+        string $provider
+    ): int
     {
         if ($md5 === '' || empty($base64List)) {
             return 0;
@@ -653,8 +670,15 @@ class AppQyV1WordTranslationWriteback
         if (!$entry) {
             return 0;
         }
-        // Fill-missing: never clobber existing images.
-        if (!empty($entry->image_files)) {
+        $schema = \Illuminate\Support\Facades\Schema::connection($entry->getConnectionName());
+        $hasMcpMarker = $schema->hasColumn($entry->getTable(), 'image_mcp_submitted_at');
+        $mcpSubmission = str_starts_with($provider, 'mcp-chrome');
+        $replaceExisting = $mcpSubmission && (
+            $hasMcpMarker
+                ? $entry->getAttribute('image_mcp_submitted_at') === null
+                : !str_starts_with((string) ($entry->image_provider ?? ''), 'mcp-chrome')
+        );
+        if (!empty($entry->image_files) && !$replaceExisting) {
             return 0;
         }
 
@@ -707,11 +731,11 @@ class AppQyV1WordTranslationWriteback
         // Re-check fill-missing right before the write (a concurrent path may have
         // filled images between the read above and now).
         $entry->refresh();
-        if (!empty($entry->image_files)) {
+        if (!empty($entry->image_files) && !$replaceExisting) {
             return 0;
         }
         $entry->image_files = $relativePaths;
-        $entry->image_provider = 'bing';
+        $entry->image_provider = $provider !== '' ? $provider : 'mcp-chrome-search';
 
         // Reflect queue completion on the image_* process-state columns (mirrors
         // the tts_* completion transition) so the image queue/coordinator sees
@@ -723,6 +747,9 @@ class AppQyV1WordTranslationWriteback
             $entry->image_completed_at = now();
             $entry->image_locked_at = null;
             $entry->image_locked_by = null;
+        }
+        if ($mcpSubmission && $hasMcpMarker) {
+            $entry->image_mcp_submitted_at = now();
         }
 
         $entry->save();

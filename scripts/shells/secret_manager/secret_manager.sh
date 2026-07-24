@@ -39,15 +39,7 @@ BATCH_DECRYPTION_COMPLETED=false
 # Source gvar_common.sh for get_core_node_dir function if not already loaded
 if ! type get_core_node_dir &>/dev/null; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    # Try linux/common first (backward compat) then sibling scripts in shells root
-    if [ -f "$SCRIPT_DIR/../linux/common/gvar_common.sh" ]; then
-        source "$SCRIPT_DIR/../linux/common/gvar_common.sh"
-    elif [ -f "$SCRIPT_DIR/gvar_common.sh" ]; then
-        source "$SCRIPT_DIR/gvar_common.sh"
-    else
-        echo "ERROR: gvar_common.sh not found. Cannot determine core_node directory." >&2
-        exit 1
-    fi
+    source "$SCRIPT_DIR/../linux/common/gvar_common.sh"
 fi
 
 #=============================================================================
@@ -537,5 +529,4 @@ export -f _secret_find_disguise_tool
 export -f _secret_read_password
 
 echo "[SECRET_MANAGER] Library loaded successfully" >&2
-
 

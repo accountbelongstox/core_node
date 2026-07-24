@@ -40,13 +40,21 @@ class DatabaseWorkerThread(threading.Thread):
                 continue
 
             response_signal = request.get('response_signal', '')
+            response_guard = request.get('response_guard', '')
             try:
                 result = self._handle_request(request)
                 response = {'success': True, 'result': result}
             except Exception as exc:
                 response = {'success': False, 'error': str(exc)}
             if response_signal:
-                THREAD_BUS.signal(response_signal, response)
+                if response_guard:
+                    THREAD_BUS.signal_if_present(
+                        response_guard,
+                        response_signal,
+                        response,
+                    )
+                else:
+                    THREAD_BUS.signal(response_signal, response)
 
         if self._connection is not None:
             self._connection.close()
@@ -242,11 +250,14 @@ class DatabaseBase:
         response_signal = (
             f"{self._queue_name}.response.{uuid.uuid4().hex}"
         )
+        response_guard = f"{response_signal}.waiting"
         request = {
             'operation': operation,
             'response_signal': response_signal,
+            'response_guard': response_guard,
             **payload,
         }
+        THREAD_BUS.signal(response_guard, True)
         THREAD_BUS.send_message(self._queue_name, request)
         response = THREAD_BUS.wait_signal(
             response_signal,

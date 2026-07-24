@@ -6,6 +6,7 @@ Shared configuration for RPC v2 components.
 
 import os
 from typing import Dict, Optional, Any
+from pycore.pyfoundations.serialized_worker import SerializedStateObject, serialized_method
 
 from pycore.pyutils.rpc_v2.constants import (
     DEFAULT_SERVER_PORT,
@@ -18,21 +19,10 @@ from pycore.pyutils.rpc_v2.constants import (
 )
 
 
-class RPCConfig:
+class RPCConfig(SerializedStateObject):
     """Singleton-style configuration shared by discovery/protocol/address providers."""
 
-    _instance: Optional["RPCConfig"] = None
-    _initialized = False
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
     def __init__(self):
-        if self._initialized:
-            return
-
         self.port: int = int(os.getenv("RPC_PORT", DEFAULT_SERVER_PORT))
         self.host: str = os.getenv("RPC_HOST", DEFAULT_SERVER_HOST)
         self.scan_timeout: float = DEFAULT_SCAN_TIMEOUT
@@ -44,20 +34,28 @@ class RPCConfig:
         self.cache_enabled: bool = True
         self.cache_ttl: float = 300.0
 
-        self._initialized = True
+        self.enable_serialized_state(
+            "rpc_v2.config.state",
+            "RPCConfigState",
+        )
 
+    @serialized_method
     def get_port(self) -> int:
         return self.port
 
+    @serialized_method
     def set_port(self, port: int):
         self.port = int(port)
 
+    @serialized_method
     def get_host(self) -> str:
         return self.host
 
+    @serialized_method
     def set_host(self, host: str):
         self.host = host
 
+    @serialized_method
     def get_config(self) -> Dict[str, Any]:
         return {
             "port": self.port,
@@ -72,6 +70,7 @@ class RPCConfig:
             "cache_ttl": self.cache_ttl,
         }
 
+    @serialized_method
     def update_config(self, cfg: Dict[str, Any]):
         for key, value in cfg.items():
             if hasattr(self, key):

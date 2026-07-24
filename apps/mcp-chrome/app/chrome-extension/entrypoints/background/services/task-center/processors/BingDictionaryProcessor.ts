@@ -30,7 +30,7 @@ class BingDictionaryProcessor implements ITaskProcessor {
       batchSize: config.batchSize || 5,
       tabCount: config.tabCount || 3,
       targetLanguage: config.targetLanguage || 'zh',
-    });
+    }, config.surface !== false);
 
     console.log('[BingProcessor] Bing Dictionary Processor started');
   }

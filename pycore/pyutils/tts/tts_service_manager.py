@@ -388,11 +388,24 @@ def _model_unload(engine: str) -> None:
 # --------------------------------------------------------------------------- #
 # Registration into the unified manager                                        #
 # --------------------------------------------------------------------------- #
-def _stop_foreign_server(engine: str) -> bool:
+def _listener_pids(psutil: Any, port: int) -> List[int]:
+    """Return process IDs currently listening on one TCP port."""
+    pids = set()
+    for conn in psutil.net_connections(kind="tcp"):
+        local_address = getattr(conn, "laddr", None)
+        if not local_address or getattr(local_address, "port", None) != port:
+            continue
+        if conn.status == psutil.CONN_LISTEN and conn.pid:
+            pids.add(int(conn.pid))
+    return sorted(pids)
+
+
+def _stop_foreign_server(engine: str) -> Optional[bool]:
     """Terminate a process we did NOT launch that is LISTENING on this engine's
     port — typically a stale orphan from a previous pycore run (its stdout pipe
     is dead, so every synth request 500s instantly while /health keeps passing).
-    Returns True when the foreign listener was stopped and the port is free."""
+    Returns True when reclaimed, False when a listener remains, and None when
+    no listener can be identified."""
     spec = _server_spec(engine)
     if spec is None:
         return False
@@ -402,32 +415,46 @@ def _stop_foreign_server(engine: str) -> bool:
     try:
         psutil = get_third_package_psutil()
     except Exception:  # noqa: BLE001
-        return False
-    killed = False
+        return None
     try:
-        for conn in psutil.net_connections(kind="tcp"):
-            laddr = getattr(conn, "laddr", None)
-            if not laddr or getattr(laddr, "port", None) != port:
-                continue
-            if conn.status != psutil.CONN_LISTEN or not conn.pid or conn.pid == os.getpid():
-                continue
+        listener_pids = _listener_pids(psutil, port)
+        if not listener_pids:
+            return None
+        if os.getpid() in listener_pids:
+            ColorPrint.yellow(
+                f"[tts] refusing to reclaim {engine} port {port} from this process"
+            )
+            return False
+        for pid in listener_pids:
             try:
-                proc = psutil.Process(conn.pid)
+                proc = psutil.Process(pid)
                 proc.terminate()
-                proc.wait(timeout=8)
-                killed = True
-                ColorPrint.yellow(
-                    f"[tts] stopped foreign {engine} server (pid={conn.pid}) on port {port}"
-                )
-            except Exception:  # noqa: BLE001
                 try:
-                    psutil.Process(conn.pid).kill()
-                    killed = True
-                except Exception:  # noqa: BLE001
-                    pass
+                    proc.wait(timeout=8)
+                except psutil.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=8)
+            except psutil.NoSuchProcess:
+                pass
+            except Exception as exc:  # noqa: BLE001
+                ColorPrint.yellow(
+                    f"[tts] failed to stop foreign {engine} server "
+                    f"(pid={pid}, port={port}): {exc}"
+                )
+        remaining = _listener_pids(psutil, port)
+        if remaining:
+            ColorPrint.yellow(
+                f"[tts] foreign {engine} listener still owns port {port}: {remaining}"
+            )
+            return False
+        for pid in listener_pids:
+            ColorPrint.yellow(
+                f"[tts] stopped foreign {engine} server "
+                f"(pid={pid}) on port {port}"
+            )
     except Exception:  # noqa: BLE001
-        return False
-    return killed
+        return None
+    return True
 
 
 def _register_services() -> None:

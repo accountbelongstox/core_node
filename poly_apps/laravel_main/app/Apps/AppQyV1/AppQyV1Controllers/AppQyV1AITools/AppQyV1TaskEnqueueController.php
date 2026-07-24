@@ -44,7 +44,7 @@ use Illuminate\Validation\Rule;
  *                      dictionary row for `word`, so a prompt-only task generates
  *                      an image whose result is then dropped (no row to attach it
  *                      to) — prompt-only is a LANE TEST, not a real fill.
- *   - word_media    -> remote_client (chrome). payload { words:[{word,md5}],
+ *   - word_media    -> remote_fast + image (chrome). payload { words:[{word,md5}],
  *                      language, target_language? }.
  *   - gemini_chat   -> remote_gemini_text (chrome, dedicated lane). payload
  *                      { question|source_text, title? }. Text-only Gemini
@@ -56,7 +56,7 @@ use Illuminate\Validation\Rule;
  * processor type and pull assigns by execution_type with an atomic claim —
  * sharing a lane would let one feature's worker claim another's tasks
  * (and each other's) and starve them until timeout.
- *   - word_audio    -> remote_audio (pycore).
+ *   - word_audio    -> remote_audio (pycore or Qwen3-TTS Chrome worker).
  *   - word_translation -> remote_translation (pycore/self-filler).
  */
 class AppQyV1TaskEnqueueController extends Controller
@@ -71,7 +71,7 @@ class AppQyV1TaskEnqueueController extends Controller
         'notebooklm' => GlobalTask::EXECUTION_REMOTE_NOTEBOOKLM,
         'gemini_image' => GlobalTask::EXECUTION_REMOTE_GEMINI,
         'gemini_chat' => GlobalTask::EXECUTION_REMOTE_GEMINI_TEXT,
-        'word_media' => GlobalTask::EXECUTION_REMOTE_CLIENT,
+        'word_media' => GlobalTask::EXECUTION_REMOTE_FAST,
         'word_audio' => GlobalTask::EXECUTION_REMOTE_AUDIO,
         'word_translation' => GlobalTask::EXECUTION_REMOTE_TRANSLATION,
         // New dedicated pycore-only retrieval/generation lanes (each gets its own
@@ -81,18 +81,14 @@ class AppQyV1TaskEnqueueController extends Controller
         'sentence_audio' => GlobalTask::EXECUTION_REMOTE_SENTENCE_AUDIO,
     ];
 
-    /**
-     * Default capability tag per task_type when the caller omits `capability`.
-     * For the dedicated lanes the tag is pinned to its provider tag (used mainly
-     * for UI / provider display, since the lane is claimed by processor_type).
-     * Task types absent here default to NULL (any-eligible).
-     */
-    private const TASK_TYPE_DEFAULT_CAPABILITY = [
+    /** Fixed capability tags for task shapes with a single eligible worker. */
+    private const TASK_TYPE_FIXED_CAPABILITY = [
         'subtitle_search' => GlobalTask::CAPABILITY_SUBTITLE,
         'poster' => GlobalTask::CAPABILITY_POSTER,
         'sentence_audio' => GlobalTask::CAPABILITY_SENTENCE_AUDIO,
-        // Pin audio so an interactive promotion onto remote_fast stays pycore-only
-        // (chrome has no audio lane). word_translation stays NULL = either client.
+        'word_media' => GlobalTask::CAPABILITY_IMAGE,
+        // Pin audio so an interactive promotion keeps its capability filter.
+        // word_translation stays null and may be claimed by either client.
         'word_audio' => GlobalTask::CAPABILITY_AUDIO,
     ];
 
@@ -100,9 +96,8 @@ class AppQyV1TaskEnqueueController extends Controller
      * task_types allowed to "jump to task-top" via interactive=true. Restricted to
      * the translate + audio categories: each has a confirmed claimant AND a result
      * write-back (WordTranslationTaskProcessor handles word_audio by task_type).
-     * IMAGE (word_media / gemini_image) is intentionally excluded until the pycore
-     * image lane exists (its claimant routing is decided separately). Non-privileged
-     * types (notebooklm / subtitle_search / poster) never jump.
+     * Image and poster work is owned by mcp-chrome and promoted through the
+     * dedicated media priority surfaces. Other non-interactive types never jump.
      */
     private const INTERACTIVE_ALLOWED_TYPES = [
         'word_translation',
@@ -126,9 +121,7 @@ class AppQyV1TaskEnqueueController extends Controller
             'priority' => 'nullable|integer|min:0|max:' . self::MAX_PRIORITY,
             'timeout_seconds' => 'nullable|integer|min:10|max:3600',
             'max_retries' => 'nullable|integer|min:0|max:10',
-            // Optional capability tag (drift-proof against the model vocabulary).
-            // When omitted, the new dedicated task types default to their pinned
-            // provider tag (see TASK_TYPE_DEFAULT_CAPABILITY); others stay NULL.
+            // Optional capability tag for task types without a fixed capability.
             'capability' => ['nullable', 'string', Rule::in(GlobalTask::CAPABILITIES)],
             // "Jump to task-top": honored ONLY for the translate/audio privileged
             // types (see INTERACTIVE_ALLOWED_TYPES); ignored for everything else.
@@ -166,9 +159,10 @@ class AppQyV1TaskEnqueueController extends Controller
         $timeout = $validated['timeout_seconds'] ?? 120;
         $maxRetries = $validated['max_retries'] ?? 3;
 
-        // Capability: explicit request value wins; otherwise fall back to the
-        // pinned default for the new dedicated task types (NULL = any-eligible).
-        $capability = $validated['capability'] ?? (self::TASK_TYPE_DEFAULT_CAPABILITY[$taskType] ?? null);
+        // Capability-routed task types are pinned so a caller cannot place work
+        // on a fast lane whose worker cannot execute that task shape.
+        $capability = self::TASK_TYPE_FIXED_CAPABILITY[$taskType]
+            ?? ($validated['capability'] ?? null);
 
         // Honor "jump to task-top" only for the privileged translate/audio types;
         // for everything else interactive is ignored so they keep their natural
@@ -288,9 +282,9 @@ class AppQyV1TaskEnqueueController extends Controller
      * Resolve the worker-required field the canonical payload omits, so a
      * dedicated-lane task is never enqueued unworkable:
      *   - sentence_audio: look up the sentence TEXT by content_id+language and
-     *     inject `content` (the pycore edge-tts worker synthesizes payload.content).
+     *     inject `content` for the sentence-audio worker.
      *   - poster: look up the media TITLE by media_type+id and inject `title`
-     *     (+ `filename` fallback) so the pycore worker can call find_poster.
+     *     (+ `filename` fallback) for the mcp-chrome search worker.
      * Sets $error (-> 422) when the source row/text is missing. A caller that
      * already supplied content/title is trusted (no lookup).
      */

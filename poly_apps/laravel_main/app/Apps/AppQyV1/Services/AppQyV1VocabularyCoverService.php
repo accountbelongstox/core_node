@@ -56,7 +56,7 @@ class AppQyV1VocabularyCoverService
             $library->cover_filename = $expectedFilename;
         }
 
-        // Re-requesting a failed cover re-queues it for pycore: keep the
+        // Re-requesting a failed cover re-queues it for mcp-chrome: keep the
         // existing filename/prompt, reset attempts and clear the lease +
         // error so the maintenance pass / assist claim picks it up again.
         if ($library->cover_status === 'failed') {

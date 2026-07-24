@@ -36,6 +36,7 @@ from enum import Enum
 from typing import List, Dict, Any, Optional, Callable, Iterator
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyutils.ai_cluster.openrouter.openrouter_client import get_openrouter_client
 
@@ -460,13 +461,13 @@ def list_free_models():
     ColorPrint.blue("\n" + "=" * 70)
 
 
-# Module-level flag to prevent duplicate printing
-_free_models_printed = False
+_FREE_MODELS_PRINTED = SerializedValue(
+    False,
+    "OpenRouterFreeModelPrintStateThread",
+)
 
 
 def _print_free_models_once():
     """Print free models only once per process"""
-    global _free_models_printed
-    if not _free_models_printed:
+    if _FREE_MODELS_PRINTED.compare_and_set(False, True):
         list_free_models()
-        _free_models_printed = True

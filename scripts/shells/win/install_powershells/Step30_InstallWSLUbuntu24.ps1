@@ -52,6 +52,8 @@ function Write-StepMessage {
 }
 
 function Test-WSL2Version {
+    $separatorIndex = -1
+    $versionValue = ''
     Write-StepMessage -Message "Testing WSL2 version..." -Type "Info"
 
     try {
@@ -67,8 +69,10 @@ function Test-WSL2Version {
             foreach ($line in $wslVersionOutput) {
                 if ($line -like "*WSL version*") {
                     $versionLine = $line.ToString().Trim()
-                    if ($versionLine -match "(\d+\.\d+\.\d+\.\d+)") {
-                        Write-StepMessage -Message "WSL version: $($matches[1])" -Type "Info"
+                    $separatorIndex = $versionLine.IndexOf(':')
+                    if ($separatorIndex -ge 0) {
+                        $versionValue = $versionLine.Substring($separatorIndex + 1).Trim()
+                        Write-StepMessage -Message "WSL version: $versionValue" -Type "Info"
                     }
                     break
                 }
@@ -325,7 +329,7 @@ function Install-UbuntuWSL {
     try {
         & wsl --install -d Ubuntu-24.04
         $wslListAfterInstall = & wsl --list --verbose 2>&1
-        if ("$wslListAfterInstall" -match 'Ubuntu-24\.04|Ubuntu 24\.04') {
+        if (("$wslListAfterInstall").Contains('Ubuntu-24.04') -or ("$wslListAfterInstall").Contains('Ubuntu 24.04')) {
             Write-StepMessage -Message "Ubuntu installed successfully using native method" -Type "Success"
             return $true
         }

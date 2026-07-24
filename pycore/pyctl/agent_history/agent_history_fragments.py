@@ -7,7 +7,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.text_parsing import tokenize_words
-from pycore.pyctl.agent_history import agent_history_txt as txt
+import pycore.pyctl.agent_history.agent_history_txt as txt
 
 _CODE_TOKEN_RE = re.compile(r"\[\[CODE_\d+\]\]")
 _FENCE_RE = re.compile(r"```[\s\S]*?```|`[^`]+`")

@@ -100,9 +100,9 @@ from pycore.callmodule.routers.local import (
     queue_bumps_router,
     task_history_router,
     assist_router,
-    poster_router,
     image_search_router,
     sentence_audio_router,
+    queue_priority_router,
     dictionary_router,
     word_audio_router,
     word_tts_router,
@@ -458,10 +458,10 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 queue_overview_router,   # Unified queue overview — never-blind category catalog incl ai_translate+subtitle_search (/api/local/queue/overview)
                 queue_bumps_router,      # Cross-lane priority bump feed (/api/local/queue/bumps)
                 task_history_router,     # Recent-task cross-end log + clear (/api/local/tasks/recent, /clear)
-                assist_router,           # Assist-Laravel worker control (/api/local/assist): status/config/cycle for cover+tts generation
-                poster_router,           # Movie/TV poster status+config+test (/api/local/poster): TMDB/OMDB/SerpApi key status + fetch toggle + lookup preview
+                assist_router,           # Assist-Laravel worker control (/api/local/assist): status/config/cycle for non-image queues
                 image_search_router,     # SerpApi Google-Images search + AI compare + history (/api/local/image-search)
                 sentence_audio_router,   # Sentence-library audio auto-start + run-once (/api/local/sentence-audio)
+                queue_priority_router,
                 word_tts_router,         # Word-dictionary TTS auto-start + run-once (/api/local/word-tts)
                 heartbeat_workers_router,# Heartbeat worker status + monitor/WS toggles (/api/local/heartbeat-workers)
                 dictionary_router,       # Offline ECDICT+WordNet word dictionary (/api/local/dictionary): lookup + status

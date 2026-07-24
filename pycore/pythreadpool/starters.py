@@ -19,6 +19,7 @@ import traceback
 from typing import Dict, Any, Optional
 
 from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.serialized_worker import SerializedValue
 from .registry import SERVICE_STARTERS, THREAD_REGISTRY
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 
@@ -32,7 +33,10 @@ from pycore.pyutils.rpc_v2 import FastAPIRPCServerRunner
 # Global Built-in Event Handlers
 # ============================================================
 
-_restart_handlers_registered = False
+_RESTART_HANDLERS_REGISTERED = SerializedValue(
+    False,
+    "BuiltInHandlerRegistrationStateThread",
+)
 
 
 def _register_builtin_handlers():
@@ -43,8 +47,7 @@ def _register_builtin_handlers():
     These are built-in methods that should be handled in pythreadpool,
     not in sub-applications (callmodule).
     """
-    global _restart_handlers_registered
-    if _restart_handlers_registered:
+    if not _RESTART_HANDLERS_REGISTERED.compare_and_set(False, True):
         return
 
     ColorPrint.blue("[BuiltInHandlers] Registering built-in event handlers...")
@@ -59,18 +62,13 @@ def _register_builtin_handlers():
         reason = event_data.get('reason', 'Restart requested')
         ColorPrint.yellow(f"[BuiltInHandlers] Restart requested: {reason}")
 
-        # Mark that we want to restart after shutdown
-        THREAD_BUS._restart_requested = True
-
-        # Trigger shutdown (this will execute all shutdown handlers)
         if not THREAD_BUS.is_shutdown_requested():
             ColorPrint.blue("[BuiltInHandlers] Initiating shutdown for restart...")
-            THREAD_BUS.request_shutdown(reason=f"Restart: {reason}", execute_handlers=True)
+            THREAD_BUS.request_restart(reason=f"Restart: {reason}", execute_handlers=True)
 
     # Register restart handler with high priority
     THREAD_BUS.register_event_handler('app.restart', handle_app_restart, priority=1)
 
-    _restart_handlers_registered = True
     ColorPrint.green("[BuiltInHandlers] Built-in event handlers registered")
 
 

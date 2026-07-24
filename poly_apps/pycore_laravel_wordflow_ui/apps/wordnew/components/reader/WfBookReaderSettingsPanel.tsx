@@ -18,6 +18,10 @@ interface WfBookReaderSettingsPanelProps {
   repeatOne: boolean;
   autoPlayOnOpen: boolean;
   browserTts: boolean;
+  wordCards: boolean;
+  wordCardPosition: 'before' | 'after';
+  wordRepeats: number;
+  wordMode: 'new' | 'all';
   onModeChange: (simul: boolean) => void;
   onToggleLang: (code: string) => void;
   onDisplayModeChange: (mode: WfNewReaderDisplayMode) => void;
@@ -27,13 +31,18 @@ interface WfBookReaderSettingsPanelProps {
   onRepeatOneChange: (v: boolean) => void;
   onAutoPlayOnOpenChange: (v: boolean) => void;
   onBrowserTtsChange: (v: boolean) => void;
+  onWordCardsChange: (v: boolean) => void;
+  onWordCardPositionChange: (v: 'before' | 'after') => void;
+  onWordRepeatsChange: (v: number) => void;
+  onWordModeChange: (v: 'new' | 'all') => void;
 }
 
 export const WfBookReaderSettingsPanel: React.FC<WfBookReaderSettingsPanelProps> = ({
   activeTheme, trans, languages, simul, selectedLangs, displayMode, sequence, speedByLang,
-  autoAdvance, repeatOne, autoPlayOnOpen, browserTts,
+  autoAdvance, repeatOne, autoPlayOnOpen, browserTts, wordCards, wordCardPosition, wordRepeats, wordMode,
   onModeChange, onToggleLang, onDisplayModeChange, onSequenceChange, onSpeedChange,
   onAutoAdvanceChange, onRepeatOneChange, onAutoPlayOnOpenChange, onBrowserTtsChange,
+  onWordCardsChange, onWordCardPositionChange, onWordRepeatsChange, onWordModeChange,
 }) => {
   const addStep = () => {
     const lang = languages[0] || 'en';
@@ -161,6 +170,40 @@ export const WfBookReaderSettingsPanel: React.FC<WfBookReaderSettingsPanelProps>
           <label className="flex items-center gap-1.5 cursor-pointer" title={trans('reader.browserTtsHint')}>
             <input type="checkbox" checked={browserTts} onChange={(e) => onBrowserTtsChange(e.target.checked)} />
             {trans('reader.browserTts')}
+          </label>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" checked={wordCards} onChange={(e) => onWordCardsChange(e.target.checked)} />
+            Play new sentence words
+          </label>
+          <select
+            value={wordCardPosition}
+            disabled={!wordCards}
+            onChange={(e) => onWordCardPositionChange(e.target.value as 'before' | 'after')}
+            className="bg-slate-900/80 border border-white/10 rounded px-2 py-1 disabled:opacity-40"
+          >
+            <option value="before">Words, then sentence</option>
+            <option value="after">Sentence, words, then sentence</option>
+          </select>
+          <select
+            value={wordMode}
+            disabled={!wordCards}
+            onChange={(e) => onWordModeChange(e.target.value as 'new' | 'all')}
+            className="bg-slate-900/80 border border-white/10 rounded px-2 py-1 disabled:opacity-40"
+          >
+            <option value="new">New words only</option>
+            <option value="all">All sentence words</option>
+          </select>
+          <label className="flex items-center gap-1.5">
+            <span>Word repeats</span>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={wordRepeats}
+              disabled={!wordCards}
+              onChange={(e) => onWordRepeatsChange(Number(e.target.value))}
+              className="w-14 bg-slate-900/80 border border-white/10 rounded px-2 py-1 disabled:opacity-40"
+            />
           </label>
         </div>
       </div>

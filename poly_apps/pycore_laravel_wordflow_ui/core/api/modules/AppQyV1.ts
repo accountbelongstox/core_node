@@ -175,12 +175,10 @@ export interface TranslationHistoryResponse {
 
 // ========== Movie/TV poster pipeline ==========
 
-/** One provider entry in the poster-pipeline status. `has_v4_token` is only
- *  present for tmdb (the optional v4 Bearer read-access token). */
+/** One execution owner entry in the poster-pipeline status. */
 export interface PosterProviderStatus {
-  name: 'tmdb' | 'omdb' | string;
+  name: 'mcp-chrome' | string;
   configured: boolean;
-  has_v4_token?: boolean;
 }
 
 /** Per-poster_status distribution for one media table. */
@@ -192,24 +190,25 @@ export interface PosterStatusCounts {
   total: number;
 }
 
-/** GET /media/poster/status — provider key config + masked keys + per-type
- *  poster_status counts (book / subtitle). Cheap, no-auth, never throws. */
+/** GET /media/poster/status — mcp-chrome ownership plus per-type queue counts. */
 export interface PosterStatusData {
   providers: PosterProviderStatus[];
-  /** Masked (first6…last4) key values keyed by secret base; null when unset. */
   keys: Record<string, string | null>;
+  owner?: 'mcp-chrome' | string;
+  source?: 'search-engine' | string;
   counts: {
     book: PosterStatusCounts;
     subtitle: PosterStatusCounts;
   };
 }
 
-/** POST /media/poster/fetch — on-demand poster fetch (TMDB→OMDB→AI cover). */
+/** POST /media/poster/fetch — move one poster to the mcp-chrome queue head. */
 export interface PosterFetchResult {
   image_url: string | null;
   poster_status: 'pending' | 'ready' | 'failed' | 'none';
   provider?: string | null;
   already_done?: boolean;
+  queued?: boolean;
 }
 
 // ========== Sentence-library audio (file-first resolution) ==========
@@ -578,20 +577,16 @@ export class AppQyV1API extends BaseAPI {
 
   // ========== Movie/TV poster pipeline ==========
   /**
-   * GET /media/poster/status — cheap, no-auth poster-pipeline snapshot:
-   * provider key config (tmdb configured + v4 token, omdb configured), masked
-   * key values, and per-type poster_status counts (book / subtitle). Real-time
-   * diagnostic data, never cached.
+   * GET /media/poster/status — cheap mcp-chrome poster queue snapshot with
+   * per-type poster_status counts (book / subtitle).
    */
   async getPosterStatus(): Promise<APIResponse<PosterStatusData>> {
     return this.get<PosterStatusData>('/media/poster/status', undefined, false);
   }
 
   /**
-   * POST /media/poster/fetch — on-demand poster fetch for one media row.
-   * Resolve the row by `id` (preferred) OR `sourceKey`; the server runs the
-   * real TMDB→OMDB→AI-cover chain and returns `{ image_url, poster_status,
-   * provider? }`.
+   * POST /media/poster/fetch — resolve by `id` or `sourceKey`, clear the MCP
+   * submission marker and move the row to the mcp-chrome queue head.
    */
   async fetchPoster(
     type: 'book' | 'subtitle',

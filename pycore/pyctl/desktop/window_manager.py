@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QScreen
 
 from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from typing import Optional, Tuple
 
 
@@ -206,8 +207,11 @@ class VoiceSubtitleWindowManager:
         return self._is_subtitle_mode
 
 
-# Global singleton instance
-_window_manager: Optional[VoiceSubtitleWindowManager] = None
+_WINDOW_MANAGER_PROVIDER = SerializedSingletonProvider(
+    VoiceSubtitleWindowManager,
+    "desktop.window_manager.provider",
+    "VoiceSubtitleWindowManagerProvider",
+)
 
 
 def get_window_manager() -> VoiceSubtitleWindowManager:
@@ -217,9 +221,4 @@ def get_window_manager() -> VoiceSubtitleWindowManager:
     Returns:
         VoiceSubtitleWindowManager: Global instance
     """
-    global _window_manager
-
-    if _window_manager is None:
-        _window_manager = VoiceSubtitleWindowManager()
-
-    return _window_manager
+    return _WINDOW_MANAGER_PROVIDER.get()

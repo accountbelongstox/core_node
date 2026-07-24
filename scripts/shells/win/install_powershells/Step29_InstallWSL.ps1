@@ -78,10 +78,10 @@ function Get-WSLVersion {
     try {
         $wslStatus = & wsl --status 2>&1
         if ("$wslStatus" -notmatch "not installed") {
-            if ($wslStatus -match "Default Version: 2") {
+            if (("$wslStatus").Contains('Default Version: 2')) {
                 $script:WSLVersion = "WSL2"
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL2 is the default version" -Type "Success"
-            } elseif ($wslStatus -match "Default Version: 1") {
+            } elseif (("$wslStatus").Contains('Default Version: 1')) {
                 $script:WSLVersion = "WSL1"
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL1 is the default version" -Type "Warning"
             } else {
@@ -483,7 +483,7 @@ function Step29_InstallWSL {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Setting WSL2 as default version..." -Type "Info"
             & wsl --set-default-version 2
             $wslStatusAfterDefault = & wsl --status 2>&1
-            if ("$wslStatusAfterDefault" -match "Default Version: 2") {
+            if (("$wslStatusAfterDefault").Contains('Default Version: 2')) {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL2 set as default version" -Type "Success"
             } else {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to set WSL2 as default version" -Type "Error"

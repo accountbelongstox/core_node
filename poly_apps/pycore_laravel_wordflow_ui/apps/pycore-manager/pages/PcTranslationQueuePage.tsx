@@ -63,9 +63,12 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ onMeta }) => {
   // Force Laravel's monitor once after a mutation, then refresh the shared snapshot.
   const fetchQueue = useCallback(async (refresh: boolean) => {
     setRefreshing(true);
-    if (refresh) await pycoreApi.queueTranslation(true);
-    await hub.refreshHub();
-    if (mounted.current) setRefreshing(false);
+    try {
+      if (refresh) await pycoreApi.queueTranslation(true);
+    } finally {
+      await hub.refreshHub();
+      if (mounted.current) setRefreshing(false);
+    }
   }, [hub]);
 
   // Report the pending count + in-flight state up to the tab bar.
@@ -173,9 +176,9 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ onMeta }) => {
             {wsConnected !== null && (
               <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide ${
                 wsConnected ? 'bg-emerald-500/15 text-emerald-500' : 'bg-slate-500/15 text-slate-400'}`}
-                title={wsConnected ? 'Live-log WebSocket connected' : 'Live-log WebSocket not connected'}>
+                title={wsConnected ? 'Laravel queue SSE connected' : 'Laravel queue SSE not connected'}>
                 <Radio className="w-3 h-3" />
-                {wsConnected ? 'WS live' : 'WS off'}
+                {wsConnected ? 'SSE live' : 'SSE off'}
               </span>
             )}
           </div>

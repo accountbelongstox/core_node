@@ -1314,10 +1314,10 @@ class WordflowApiService {
   }
 
   /**
-   * Re-queue a failed/stuck library cover for pycore (pull-only generation).
+   * Re-queue a failed/stuck library cover for mcp-chrome.
    * POST /api/app_qy_v1/assist/cover/retry { ids:[libraryId] } resets that row
-   * to `pending` (cover_attempts=0, lease + error cleared) so the AssistWorker
-   * re-claims and regenerates it. No-auth assist group; mirrors laravel-manager's
+   * to `pending` (cover_attempts=0, lease + error cleared) so the media image
+   * worker reclaims it. No-auth assist group; mirrors laravel-manager's
    * api.appQyV1.retryCover. Callers should refetch the library list afterwards.
    */
   async retryCover(libraryId: number): Promise<any> {
@@ -1328,12 +1328,9 @@ class WordflowApiService {
   }
 
   /**
-   * On-demand movie/TV poster fetch + backfill for one book/subtitle
-   * (MOVIE_POSTER_PIPELINE.md §7). POST /media/poster/fetch
-   * { type, id?, source_key? } → MoviePosterClient (TMDB→OMDB, CJK titles
-   * translated first), saves the local file and returns the fresh
-   * { image_url, poster_status }. Optional/non-blocking: callers should refetch
-   * the list afterwards. Pass an id OR a source_key (id preferred).
+   * Move one book/subtitle poster to the mcp-chrome queue head. This clears the
+   * MCP submission marker so an existing non-MCP image is also replaced. Pass
+   * an id or source_key (id preferred), then refetch the list after submission.
    */
   async retryPoster(
     type: 'book' | 'subtitle',

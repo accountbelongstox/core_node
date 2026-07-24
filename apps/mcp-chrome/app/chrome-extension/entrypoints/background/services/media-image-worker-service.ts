@@ -1,8 +1,9 @@
 /**
- * Media Image Worker — poster + vocabulary cover via Google/Bing image search.
+ * Media Image Worker — book, library and word imagery via Google/Bing search.
  *
  * Fulfils:
- *   - GlobalTask `poster` on dedicated `remote_poster` lane (capability poster)
+ *   - GlobalTask `poster` on dedicated `remote_poster` lane
+ *   - GlobalTask `word_media` on the fast lane (capability image)
  *   - Laravel assist pool items `cover` + `poster` via /assist/claim + /assist/submit
  *
  * Replaces pycore TMDB/OMDB + AI cover generation (delegated to mcp-chrome).
@@ -49,11 +50,11 @@ class MediaImageWorkerService extends SimpleWorkerBase {
   }
 
   protected get capabilities(): WorkerCapability[] {
-    return ['poster'];
+    return ['poster', 'image'];
   }
 
   protected get baseProcessorTypes(): ProcessorType[] {
-    return [LANES.REMOTE_POSTER];
+    return [LANES.REMOTE_POSTER, LANES.REMOTE_FAST];
   }
 
   protected get workerLabel(): string {
@@ -61,7 +62,7 @@ class MediaImageWorkerService extends SimpleWorkerBase {
   }
 
   protected handlesTaskType(taskType: string): boolean {
-    return taskType === 'poster';
+    return taskType === 'poster' || taskType === 'word_media';
   }
 
   async start(config: SimpleWorkerConfig): Promise<void> {
@@ -74,7 +75,7 @@ class MediaImageWorkerService extends SimpleWorkerBase {
     super.stop();
   }
 
-  getStatus(): { isRunning: boolean; stats: Record<string, unknown> } {
+  getStatus() {
     const base = super.getStatus();
     return {
       ...base,
@@ -233,6 +234,10 @@ class MediaImageWorkerService extends SimpleWorkerBase {
 
   protected async executeTask(task: Task): Promise<void> {
     const payload = (task.payload as Record<string, unknown>) || {};
+    if (task.task_type === 'word_media') {
+      await this.executeWordMediaTask(task, payload);
+      return;
+    }
     const mediaType = payload.media_type === 'subtitle' ? 'subtitle' : 'book';
     const title = String(payload.title || payload.name || '').trim();
     const yearRaw = payload.year;
@@ -267,8 +272,58 @@ class MediaImageWorkerService extends SimpleWorkerBase {
     logger.info(LOG, `Poster task ${task.task_id} completed (${mediaType})`);
   }
 
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private async executeWordMediaTask(task: Task, payload: Record<string, unknown>): Promise<void> {
+    const rawWords = Array.isArray(payload.words)
+      ? payload.words
+      : [payload.word || payload.content].filter(Boolean);
+    const words = rawWords
+      .map((item) => {
+        const record = item && typeof item === 'object'
+          ? item as Record<string, unknown>
+          : null;
+        const word = String(record?.word ?? item ?? '').trim();
+        const md5 = String(record?.md5 || '').trim();
+        return word ? { word, md5 } : null;
+      })
+      .filter((item): item is { word: string; md5: string } => item !== null)
+      .slice(0, 40);
+    const language = String(payload.language || payload.source_language || 'en');
+    const targetLanguage = String(payload.target_language || 'zh');
+    const translations: Array<Record<string, unknown>> = [];
+    const errors: string[] = [];
+
+    for (const item of words) {
+      const query = buildVocabCoverQuery(item.word, `${language} word meaning illustration`);
+      const image = await resolvePosterImageFromSearch(query, { waitForVerification: false });
+      if (!image) {
+        errors.push(`${item.word}: no image found`);
+        continue;
+      }
+      translations.push({
+        word: item.word,
+        ...(item.md5 ? { md5: item.md5 } : {}),
+        translation: '',
+        image_base64: [{ base64: image.imageBase64, mime: image.mime }],
+        provider: image.provider,
+        model: image.engine,
+        source_url: image.sourceUrl,
+      });
+      await this.delay(600);
+    }
+
+    if (!translations.length) {
+      await this.submitResult(task.task_id, 'failed', undefined, {
+        error: errors.join('; ') || 'word_media task has no words',
+      });
+      return;
+    }
+    await this.submitResult(task.task_id, 'completed', {
+      translations,
+      target_language: targetLanguage,
+      provider: 'mcp-chrome-search',
+      errors,
+    });
+    logger.info(LOG, `Word-media task ${task.task_id} completed (${translations.length}/${words.length})`);
   }
 }
 

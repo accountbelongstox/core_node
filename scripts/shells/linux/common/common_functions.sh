@@ -6,31 +6,27 @@
 COMMON_FUNCS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHELLS_DIR="$(dirname "$COMMON_FUNCS_DIR")"
 AI_RUNTIME_POLICY_FILE="$(dirname "$SHELLS_DIR")/ai_runtime_policy.env"
+PIP_LOCK_PATH="$COMMON_FUNCS_DIR/base_libs/pip_lock.sh"
 
 # Source gvar_common.sh from the same directory
 source "$COMMON_FUNCS_DIR/gvar_common.sh"
-[[ -f "$AI_RUNTIME_POLICY_FILE" ]] && source "$AI_RUNTIME_POLICY_FILE"
+source "$AI_RUNTIME_POLICY_FILE"
 
 # Source fs_perm_helpers.sh (idempotent recursive chown/chmod; avoids pinning
 # the userspace ntfs-3g FUSE driver on NTFS/FUSE mounts).
 source "$COMMON_FUNCS_DIR/fs_perm_helpers.sh"
+source "$PIP_LOCK_PATH"
 
-# Single transformers pin shared by the local LLM stack (95_deepseek / 96_deepseek_ocr /
-# 97_qwen25 / 98_nllb200). 4.46.3 is DeepSeek-OCR's required version and also satisfies
-# Qwen2.5 (>=4.37.0), NLLB-200 and DeepSeek-VL, so all four agree on ONE version in the
-# shared venv — no version race when they run in parallel (llm_parallel_install.sh) or in
-# the sequential dd.sh sweep. Override the env var to bump it everywhere at once.
+# Shared transformers requirement for the local LLM stack. Existing distributions are
+# preserved and pip resolves the requirement only when the package is absent.
 LLM_TRANSFORMERS_SPEC="${LLM_TRANSFORMERS_SPEC:-${AI_SHARED_TRANSFORMERS_SPEC:-transformers}}"
 
 
 shared_transformers_matches_from_common_functions() {
     local python_cmd="$1"
-    local expected_version=""
-
-    if [[ "$LLM_TRANSFORMERS_SPEC" == transformers==* ]]; then
-        expected_version="${LLM_TRANSFORMERS_SPEC#transformers==}"
-    fi
-    LLM_TRANSFORMERS_EXPECTED_VERSION="$expected_version" "$python_cmd" -c 'import importlib.metadata as metadata, os; expected = os.environ.get("LLM_TRANSFORMERS_EXPECTED_VERSION", ""); installed = metadata.version("transformers"); raise SystemExit(0 if not expected or installed == expected else 1)' >/dev/null 2>&1
+    local metadata=""
+    metadata="$("$python_cmd" -m pip show transformers 2>/dev/null || true)"
+    [[ "$metadata" == *"Name:"* ]]
 }
 
 ensure_shared_transformers_from_common_functions() {
@@ -39,13 +35,8 @@ ensure_shared_transformers_from_common_functions() {
     if shared_transformers_matches_from_common_functions "$python_cmd"; then
         return 0
     fi
-    echo "[transformers-policy] Aligning shared runtime to $LLM_TRANSFORMERS_SPEC ..."
-    if declare -F vpip >/dev/null 2>&1; then
-        vpip "$python_cmd" -m pip install "$LLM_TRANSFORMERS_SPEC"
-    else
-        "$python_cmd" -m pip install "$LLM_TRANSFORMERS_SPEC"
-    fi
-    shared_transformers_matches_from_common_functions "$python_cmd"
+    echo "[transformers-policy] Installing missing $LLM_TRANSFORMERS_SPEC ..."
+    vpip "$python_cmd" -m pip install "$LLM_TRANSFORMERS_SPEC"
 }
 
 

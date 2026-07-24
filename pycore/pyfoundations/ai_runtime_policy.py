@@ -44,23 +44,24 @@ PADDLE_INDEX_BASE = _POLICY.get(
     "AI_PADDLE_INDEX_BASE", "https://www.paddlepaddle.org.cn/packages/stable"
 )
 PADDLE_CPU_INDEX = _POLICY.get("AI_PADDLE_CPU_INDEX", f"{PADDLE_INDEX_BASE}/cpu/")
-SHARED_TRANSFORMERS_VERSION = (
-    SHARED_TRANSFORMERS_SPEC.split("==", 1)[1].strip()
-    if "==" in SHARED_TRANSFORMERS_SPEC
-    else ""
-)
+PADDLE_CPU_PACKAGE = _POLICY.get("AI_PADDLE_CPU_PACKAGE", "paddlepaddle")
+PADDLE_GPU_PACKAGE = _POLICY.get("AI_PADDLE_GPU_PACKAGE", "paddlepaddle-gpu")
 CTRANSLATE2_CUDA_MAJOR = int(_POLICY.get("AI_CTRANSLATE2_CUDA_MAJOR", "12"))
+ONNXRUNTIME_CUDA_MAJOR = int(_POLICY.get("AI_ONNXRUNTIME_CUDA_MAJOR", "12"))
 
 
 def _csv(name: str) -> Tuple[str, ...]:
     return tuple(item.strip() for item in _POLICY.get(name, "").split(",") if item.strip())
 
 
+CTRANSLATE2_GPU_PACKAGES = _csv("AI_CTRANSLATE2_GPU_PACKAGES")
+
+
 def _cuda_tiers() -> Tuple[Dict[str, Any], ...]:
     tiers = []
     for row in _csv("AI_CUDA_TIERS"):
         parts = row.split(":")
-        if len(parts) != 6:
+        if len(parts) != 5:
             continue
         tiers.append(
             {
@@ -69,7 +70,6 @@ def _cuda_tiers() -> Tuple[Dict[str, Any], ...]:
                 "major": int(parts[2]),
                 "toolkit_version": parts[3],
                 "toolkit_driver": parts[4],
-                "paddle_version": parts[5],
             }
         )
     return tuple(sorted(tiers, key=lambda item: item["minimum_driver_cv"], reverse=True))
@@ -81,15 +81,11 @@ OCR_PACKAGES = _csv("AI_OCR_PACKAGES")
 BACKEND_COMMON_PACKAGES = _csv("AI_BACKEND_COMMON_PACKAGES")
 BACKEND_WINDOWS_PACKAGES = _csv("AI_BACKEND_WINDOWS_PACKAGES")
 BACKEND_PACKAGES = BACKEND_COMMON_PACKAGES + BACKEND_WINDOWS_PACKAGES
+ISOLATED_SHARED_PACKAGES = _csv("AI_ISOLATED_SHARED_PACKAGES")
 
 
 def _shared_transformers_health(imports: str) -> str:
-    if not SHARED_TRANSFORMERS_VERSION:
-        return imports
-    return (
-        f"{imports}; import importlib.metadata as _metadata; "
-        f"assert _metadata.version('transformers') == {SHARED_TRANSFORMERS_VERSION!r}"
-    )
+    return imports
 
 
 _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
@@ -126,14 +122,14 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "python_max": "3.13",
         "isolated": True,
         "packages": ("melotts", "unidic-lite"),
-        "pins": ("transformers==4.27.4",),
+        "pins": (),
         "health_imports": "import torch, transformers; from melo.api import TTS",
     },
     "fishspeech": {
         "python_min": "3.10",
         "python_max": "3.12",
         "isolated": False,
-        "packages": ("fish-audio-sdk>=1.0.0", "fastapi", "uvicorn", "requests"),
+        "packages": ("fish-audio-sdk", "fastapi", "uvicorn", "requests"),
         "health_imports": "import fishaudio, fastapi, uvicorn, torch",
     },
     "kokoro": {
@@ -175,7 +171,11 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
         "isolated": True,
         "packages": _csv("AI_QWEN_TTS_PACKAGES"),
         "pins": _csv("AI_QWEN_TTS_PINS"),
-        "health_imports": "import uvicorn, fastapi, soundfile, pydub, numpy, torch; import qwen_tts",
+        "health_imports": _POLICY.get(
+            "AI_QWEN_TTS_HEALTH_IMPORTS",
+            "import torch, torchaudio; from qwen_tts import Qwen3TTSModel",
+        ),
+        "shared_packages": ISOLATED_SHARED_PACKAGES,
         "require_cuda_when_present": True,
     },
 }
@@ -213,6 +213,9 @@ def engine_spec(engine: str) -> Dict[str, Any]:
     out["policy_version"] = POLICY_VERSION
     out["packages"] = list(out.get("packages", ()))
     out["pins"] = list(out.get("pins", ()))
+    out["shared_packages"] = list(
+        out.get("shared_packages", ISOLATED_SHARED_PACKAGES if out.get("isolated") else ())
+    )
     return out
 
 
@@ -241,7 +244,9 @@ def engine_compatibility(engine: str, python_version: str) -> Dict[str, Any]:
 
 
 def engine_fingerprint(engine: str) -> str:
-    payload = json.dumps(engine_spec(engine), sort_keys=True, separators=(",", ":"))
+    spec = engine_spec(engine)
+    spec.pop("policy_version", None)
+    payload = json.dumps(spec, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -272,12 +277,14 @@ def _main(argv: Optional[Sequence[str]] = None) -> int:
     if args.command == "health-probe":
         probe = engine_spec(args.engine).get("health_imports", "")
         if not probe:
-            return 1
+            print("__HEALTH_MISSING__")
+            return 0
         try:
             exec(probe, {})
-            return 0
+            print("__HEALTH_READY__")
         except Exception:
-            return 1
+            print("__HEALTH_FAILED__")
+        return 0
     if args.command == "cuda-tier":
         print(json.dumps(cuda_tier_for_driver(args.driver_cv), sort_keys=True))
         return 0
@@ -294,8 +301,13 @@ __all__ = [
     "BACKEND_WINDOWS_PACKAGES",
     "CUDA_TIERS",
     "CTRANSLATE2_CUDA_MAJOR",
+    "CTRANSLATE2_GPU_PACKAGES",
+    "ISOLATED_SHARED_PACKAGES",
     "OCR_PACKAGES",
+    "ONNXRUNTIME_CUDA_MAJOR",
     "PADDLE_CPU_INDEX",
+    "PADDLE_CPU_PACKAGE",
+    "PADDLE_GPU_PACKAGE",
     "PADDLE_INDEX_BASE",
     "POLICY_VERSION",
     "PYTHON_VERSION",

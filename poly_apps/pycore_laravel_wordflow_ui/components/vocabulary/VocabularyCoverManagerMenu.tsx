@@ -1,7 +1,7 @@
 /**
  * VocabularyCoverManagerMenu — a top-right management dropdown for the
  * "Vocabulary Libraries" section. Groups the cover-maintenance actions that
- * drive pycore's pull-only cover regeneration:
+ * drive mcp-chrome's pull-based cover replacement:
  *
  *   - Regenerate ALL covers  -> clearCover({ all:true })  (delete files + fresh
  *                               randomized prompt; destructive -> confirm)
@@ -102,7 +102,7 @@ const VocabularyCoverManagerMenu: React.FC<Props> = ({ onChanged }) => {
     void run(
       'Regenerate all covers',
       () => api.appQyV1.clearCover({ all: true }),
-      (d) => `Cleared ${d.cleared ?? 0} cover(s) (${d.files_deleted ?? 0} image file(s) deleted) — pycore will regenerate them.`,
+      (d) => `Cleared ${d.cleared ?? 0} cover(s) (${d.files_deleted ?? 0} image file(s) deleted) — mcp-chrome will replace them.`,
     );
   }, [run]);
 
@@ -202,7 +202,7 @@ const VocabularyCoverManagerMenu: React.FC<Props> = ({ onChanged }) => {
         onClose={() => { if (busy !== 'Regenerate all covers') setConfirmRegenAll(false); }}
         onConfirm={regenerateAll}
         title="Regenerate all covers"
-        message="This deletes EVERY cover image and re-queues all libraries for regeneration with new, varied prompts. Existing covers will be gone until pycore regenerates them. Continue?"
+        message="This deletes every cover image and re-queues all libraries for search-based replacement. Existing covers will be gone until mcp-chrome submits replacements. Continue?"
         confirmText="Regenerate all"
         cancelText="Cancel"
         variant="danger"

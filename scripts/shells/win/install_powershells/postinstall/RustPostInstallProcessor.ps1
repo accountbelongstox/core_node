@@ -180,7 +180,7 @@ function Test-RustInstallation {
     try {
         # Test Rust compiler version
         $rustVersion = & $RustPath --version 2>&1
-        if ("$rustVersion" -match 'rustc') {
+        if (("$rustVersion").Contains('rustc')) {
             Write-Host "$LogPrefix Rust compiler check passed" -ForegroundColor Green
             $versionLine = ($rustVersion | Select-Object -First 1).ToString()
             Write-Host "$LogPrefix $versionLine" -ForegroundColor Cyan
@@ -193,7 +193,7 @@ function Test-RustInstallation {
         $cargoPath = Join-Path (Split-Path $RustPath -Parent) "cargo.exe"
         if (Test-Path $cargoPath) {
             $cargoVersion = & $cargoPath --version 2>&1
-            if ("$cargoVersion" -match 'cargo') {
+            if (("$cargoVersion").Contains('cargo')) {
                 Write-Host "$LogPrefix Cargo check passed" -ForegroundColor Green
                 $cargoVersionLine = ($cargoVersion | Select-Object -First 1).ToString()
                 Write-Host "$LogPrefix $cargoVersionLine" -ForegroundColor Cyan

@@ -30,6 +30,7 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import map_web_path
 from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
 )
@@ -59,16 +60,7 @@ def _ecdict_db_path():
 class DictionaryService:
     """Singleton offline dictionary (ECDICT + WordNet). Lazy, thread-safe."""
 
-    _instance: Optional["DictionaryService"] = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
     def __init__(self):
-        if getattr(self, "_initialized", False):
-            return
         self._db_path = _ecdict_db_path()
         self._conn: Optional[sqlite3.Connection] = None
         self._columns: List[str] = []
@@ -82,7 +74,6 @@ class DictionaryService:
             'DictionaryServiceThread',
             timeout=120.0,
         )
-        self._initialized = True
 
     # -------------------- ECDICT --------------------
 
@@ -268,9 +259,16 @@ class DictionaryService:
         }
 
 
+_DICTIONARY_SERVICE_PROVIDER = SerializedSingletonProvider(
+    DictionaryService,
+    "translator.dictionary.provider",
+    "DictionaryServiceProvider",
+)
+
+
 def get_dictionary_service() -> DictionaryService:
     """Get the offline DictionaryService singleton."""
-    return DictionaryService()
+    return _DICTIONARY_SERVICE_PROVIDER.get()
 
 
 __all__ = ["DictionaryService", "get_dictionary_service"]

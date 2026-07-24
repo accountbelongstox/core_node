@@ -12,6 +12,27 @@ pcpi_package_base() {
     printf '%s' "$base"
 }
 
+pcpi_package_key() {
+    local name="$1"
+    name="${name,,}"
+    name="${name//_/-}"
+    name="${name//./-}"
+    printf '%s' "$name"
+}
+
+pcpi_metadata_snapshot() {
+    local py="$1"
+    "$py" - <<'PY'
+import importlib.metadata as metadata
+
+names = {
+    (distribution.metadata.get("Name") or "").strip().lower()
+    for distribution in metadata.distributions()
+}
+print("\n".join(sorted(name for name in names if name)))
+PY
+}
+
 pcpi_is_gui_import() {
     local import_name="$1"
     case "$import_name" in
@@ -21,8 +42,8 @@ pcpi_is_gui_import() {
 }
 
 pcpi_requirement_satisfied() {
-    local py="$1" spec="$2"
-    PYCORE_REQUIREMENT_SPEC="$spec" "$py" - <<'PY' >/dev/null 2>&1
+    local py="$1" spec="$2" probe_output
+    probe_output="$(PYCORE_REQUIREMENT_SPEC="$spec" "$py" - <<'PY' 2>/dev/null
 import importlib.metadata as metadata
 import os
 try:
@@ -32,34 +53,39 @@ except ImportError:
 
 requirement = Requirement(os.environ["PYCORE_REQUIREMENT_SPEC"])
 try:
-    installed = metadata.version(requirement.name)
+    metadata.distribution(requirement.name)
 except metadata.PackageNotFoundError:
-    raise SystemExit(1)
-raise SystemExit(0 if not requirement.specifier or requirement.specifier.contains(installed, prereleases=True) else 1)
+    print("__PIP_MISSING__")
+else:
+    print("__PIP_PRESENT__")
 PY
+    )"
+    [[ "$probe_output" == *"__PIP_PRESENT__"* ]]
 }
 
 pcpi_import_present() {
-    local py="$1" import_name="$2"
-    PYCORE_IMPORT_NAME="$import_name" "$py" - <<'PY' >/dev/null 2>&1
+    local py="$1" import_name="$2" probe_output
+    probe_output="$(PYCORE_IMPORT_NAME="$import_name" "$py" - <<'PY' 2>/dev/null
 import importlib.util
 import os
-raise SystemExit(0 if importlib.util.find_spec(os.environ["PYCORE_IMPORT_NAME"]) else 1)
+print("__IMPORT_PRESENT__" if importlib.util.find_spec(os.environ["PYCORE_IMPORT_NAME"]) else "__IMPORT_MISSING__")
 PY
+    )"
+    [[ "$probe_output" == *"__IMPORT_PRESENT__"* ]]
 }
 
 install_pycore_package_policy() {
-    local py="$1" prefix="${2:-[python-policy]}"
-    local import_name pip_spec installed failed
-    local -a pip_args pip_flags
-    installed=0
+    local py="$1" prefix="${2:-[python-policy]}" package_set="${3:-installer}"
+    local base import_name index key name pip_spec ready skipped failed
+    local -a pip_flags pip_specs missing_specs
+    local -A installed
+    pip_specs=()
+    missing_specs=()
+    ready=0
+    skipped=0
     failed=0
     pip_flags=()
 
-    if [[ ! -f "$_PCPI_POLICY_FILE" ]]; then
-        echo "$prefix [ERROR] central package policy missing: $_PCPI_POLICY_FILE" >&2
-        return 1
-    fi
     if [[ ! -f "$(dirname "$py")/../pyvenv.cfg" ]]; then
         pip_flags=(--break-system-packages --no-user)
     fi
@@ -68,31 +94,52 @@ install_pycore_package_policy() {
         [[ -n "$import_name" && -n "$pip_spec" ]] || continue
         if [[ "${PYCORE_FORCE_GUI:-0}" != "1" && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]] \
             && pcpi_is_gui_import "$import_name"; then
-            echo "$prefix [SKIP] headless GUI package: $pip_spec"
+            skipped=$((skipped + 1))
             continue
         fi
-        if pcpi_requirement_satisfied "$py" "$pip_spec" && pcpi_import_present "$py" "$import_name"; then
-            echo "$prefix [SKIP] $pip_spec already satisfies policy"
-            installed=$((installed + 1))
-            continue
-        fi
-        if pcpi_requirement_satisfied "$py" "$pip_spec"; then
-            echo "$prefix [..] repairing $pip_spec (metadata present, import missing) ..."
-            pip_args=(--force-reinstall --no-deps)
-        else
-            echo "$prefix [..] aligning $pip_spec ..."
-            pip_args=(--upgrade)
-        fi
-        if "$py" -m pip install "${pip_flags[@]}" "${pip_args[@]}" "$pip_spec" \
-            && pcpi_requirement_satisfied "$py" "$pip_spec" \
-            && pcpi_import_present "$py" "$import_name"; then
-            installed=$((installed + 1))
-        else
-            failed=$((failed + 1))
-            echo "$prefix [!] $pip_spec failed; it will retry next run." >&2
-        fi
-    done < <("$py" "$_PCPI_POLICY_FILE" --platform linux)
+        pip_specs+=("$pip_spec")
+    done < <("$py" "$_PCPI_POLICY_FILE" --platform linux --set "$package_set")
 
-    echo "$prefix package policy summary: $installed ready, $failed failed"
-    [[ "$failed" -eq 0 ]]
+    while IFS= read -r name; do
+        [[ -n "$name" ]] || continue
+        key="$(pcpi_package_key "$name")"
+        installed["$key"]=1
+    done < <(pcpi_metadata_snapshot "$py")
+
+    for index in "${!pip_specs[@]}"; do
+        base="$(pcpi_package_base "${pip_specs[$index]}")"
+        key="$(pcpi_package_key "$base")"
+        if [[ -n "${installed[$key]:-}" ]]; then
+            ready=$((ready + 1))
+        else
+            missing_specs+=("${pip_specs[$index]}")
+        fi
+    done
+
+    if [[ "${#missing_specs[@]}" -eq 0 ]]; then
+        echo "$prefix [SKIP] $package_set: $ready packages ready, $skipped headless skipped"
+    else
+        echo "$prefix [..] installing ${#missing_specs[@]} missing $package_set package(s): ${missing_specs[*]}"
+        "$py" -m pip install "${pip_flags[@]}" "${missing_specs[@]}"
+
+        installed=()
+        while IFS= read -r name; do
+            [[ -n "$name" ]] || continue
+            key="$(pcpi_package_key "$name")"
+            installed["$key"]=1
+        done < <(pcpi_metadata_snapshot "$py")
+
+        ready=0
+        failed=0
+        for pip_spec in "${pip_specs[@]}"; do
+            base="$(pcpi_package_base "$pip_spec")"
+            key="$(pcpi_package_key "$base")"
+            if [[ -n "${installed[$key]:-}" ]]; then
+                ready=$((ready + 1))
+            else
+                failed=$((failed + 1))
+            fi
+        done
+        echo "$prefix package policy summary: $ready ready, $failed failed, $skipped headless skipped"
+    fi
 }

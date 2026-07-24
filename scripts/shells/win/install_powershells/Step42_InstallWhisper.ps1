@@ -29,8 +29,7 @@
     /turbo, plus the .en variants). Skipped if already cached.
 
 .PARAMETER Force
-    Reinstall openai-whisper even if it already imports, AND bypass the
-    system-capacity guard (install even on an undersized machine).
+    Bypass the system-capacity guard; installed pip packages remain unchanged.
 #>
 [CmdletBinding()]
 param(
@@ -42,25 +41,18 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
+. (Join-Path $winCommonDir 'CudaIndex.ps1')
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
 . (Join-Path $winCommonDir 'PythonRuntimeCommon.ps1')
 
 $SCRIPT_INDEX = '[Step42-Whisper]'
 $Python = $Global:PYTHON_EXE_PATH
+$pipExePath = $Global:PIP_EXE_PATH
 
 # Minimum system capacity to bother installing whisper on. -Force overrides.
 $MinRamGB      = 1        # skip if total physical RAM is below this
 $MinFreeDiskGB = 100      # skip if total FREE space across all fixed drives is below this
-
-function Test-PyModule {
-    param([string]$Py, [string]$Module)
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    $out = (& $Py -c "import importlib.util; print('__FOUND__' if importlib.util.find_spec('$Module') else '__MISSING__')" 2>$null) -join ''
-    $ErrorActionPreference = $prevEap
-    return ($out -match '__FOUND__')
-}
 
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host ' Installing openai-whisper (speech-to-text)' -ForegroundColor Cyan
@@ -90,22 +82,21 @@ if (-not $Force) {
     if ($reasons.Count -gt 0) {
         Write-Host ("[skip] System too small for whisper ({0}); skipping install. Use -Force to override." -f ($reasons -join '; ')) -ForegroundColor DarkYellow
         Complete-PrereqStep -PythonExe $Python -Prefix $SCRIPT_INDEX -ImportModules @('whisper') -AbsentOk -AbsentNote 'resource policy'
+        return
     }
 }
 
 # --- 1) openai-whisper --------------------------------------------------- #
-if ((Test-PyModule -Py $Python -Module 'whisper') -and -not $Force) {
-    $ver = & $Python -c "import whisper; print(getattr(whisper,'__version__','?'))" 2>$null
-    Write-TtsIdempotentSkip -PythonExe $Python -Reason "whisper already installed (version $ver)" -InstallScriptRoot $PSScriptRoot
+if (Test-PipPackageInstalled -PipExe $pipExePath -PackageName 'openai-whisper') {
+    Write-TtsIdempotentSkip -PythonExe $Python -Reason 'openai-whisper is installed' -InstallScriptRoot $PSScriptRoot
 } else {
-    Write-Host '[..] pip install --upgrade openai-whisper ...' -ForegroundColor Yellow
-    & $Global:PIP_EXE_PATH install --upgrade openai-whisper
-    if (-not (Test-PyModule -Py $Python -Module 'whisper')) {
-        Write-Host '[X] whisper still not importable after install.' -ForegroundColor Red
-        exit 1
+    Write-Host '[..] pip install openai-whisper ...' -ForegroundColor Yellow
+    & $pipExePath install openai-whisper
+    if (-not (Test-PipPackageInstalled -PipExe $pipExePath -PackageName 'openai-whisper')) {
+        Write-Host '[!] openai-whisper metadata is still missing; retrying next run.' -ForegroundColor DarkYellow
+    } else {
+        Write-Host '[OK] openai-whisper installed.' -ForegroundColor Green
     }
-    $ver = & $Python -c "import whisper; print(getattr(whisper,'__version__','?'))" 2>$null
-    Write-Host ("[OK] openai-whisper installed (version {0})." -f $ver) -ForegroundColor Green
 }
 
 # --- 2) ffmpeg presence check (runtime dependency, not installed here) ---- #
@@ -117,7 +108,7 @@ if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
 }
 
 # --- 3) model pre-download (GPU large-v3 / CPU medium when -Model omitted) - #
-$hasCuda = Test-CudaPresent
+$hasCuda = (Get-CudaRuntimePolicy).Enabled
 Write-TtsOfficialEnv -PythonExe $Python -Engine whisper -InstallScriptRoot $PSScriptRoot
 if (-not $Model) {
     $Model = Resolve-TtsModelTier -PythonExe $Python -Key whisper_model -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Shared PyTorch wheel install — sources cuda_index.sh (Step9 canonical CUDA index).
-# CTranslate2 cu12 libs for faster-whisper stay in 15_install_faster_whisper.sh.
+# Shared PyTorch wheel install using the centralized CUDA index.
 
 _torch_cuda_install_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if ! command -v torch_cuda_index_url >/dev/null 2>&1; then

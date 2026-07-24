@@ -2,11 +2,9 @@
 # -*- coding: utf-8 -*-
 """Standalone faster-whisper transcribe runner.
 
-Runs in the dedicated cu12 venv (see scripts/shells/win/win_common/
-WhisperCu12Venv.ps1) so CTranslate2's cu12 nvidia libs (nvidia-cublas-cu12 /
-nvidia-cudnn-cu12) stay isolated from paddle/torch cu13 in the system Python.
-Invoked as a subprocess by pycore's subtitle_engine; the main pycore process
-never imports faster_whisper/ctranslate2 (which would clobber cu13 DLLs).
+Runs under the caller-selected interpreter. The central CUDA policy selects GPU
+only when CTranslate2 matches the canonical CUDA major; otherwise callers use
+CPU int8 without provisioning another CUDA stack.
 
 No pycore imports - only stdlib + faster_whisper/ctranslate2/huggingface_hub.
 
@@ -26,6 +24,23 @@ import sys
 from typing import Any, Dict, Optional, Tuple
 
 import importlib.util as _u
+
+try:
+    from faster_whisper import WhisperModel
+    from faster_whisper.tokenizer import _LANGUAGE_CODES
+    from faster_whisper.utils import _MODELS
+except ImportError:
+    WhisperModel = None
+    _LANGUAGE_CODES = {"en"}
+    _MODELS = {}
+try:
+    from huggingface_hub import scan_cache_dir
+except ImportError:
+    scan_cache_dir = None
+try:
+    from whisper.tokenizer import LANGUAGES
+except ImportError:
+    LANGUAGES = {}
 
 
 WHISPER_MODEL_CANDIDATES = ("tiny", "base", "small", "medium", "large-v3", "turbo")
@@ -47,11 +62,7 @@ def _emit(obj: Dict[str, Any]) -> None:
 
 
 def _add_nvidia_dll_dirs() -> None:
-    """Make the venv's pip-installed cu12 cuBLAS/cuDNN DLLs discoverable for
-    CTranslate2 (Windows). CTranslate2 does not auto-find them; without this the
-    cuda model load fails and falls back to CPU. In the cu12 venv these resolve
-    to the VENV's nvidia\<lib>\bin (cu12), never the system Python's cu13 dirs.
-    """
+    """Expose canonical pip-installed NVIDIA DLL directories on Windows."""
     if os.name != "nt":
         return
     try:
@@ -67,6 +78,8 @@ def _add_nvidia_dll_dirs() -> None:
 
 def _load_model(model_name: str, device: str, compute_type: str) -> Tuple[Optional[Any], Optional[str]]:
     _add_nvidia_dll_dirs()
+    if WhisperModel is None:
+        return None, "faster-whisper is not installed"
     try:
         return WhisperModel(model_name, device=device, compute_type=compute_type), None
     except Exception as exc:
@@ -161,7 +174,7 @@ def _probe_installed() -> int:
     installed = []
     if repos:
         try:
-            cached = {r.repo_id for r in scan_cache_dir().repos}
+            cached = {r.repo_id for r in scan_cache_dir().repos} if scan_cache_dir else set()
             installed = [n for n in WHISPER_MODEL_CANDIDATES
                          if repos.get(n) and repos[n] in cached]
         except Exception:
@@ -171,9 +184,8 @@ def _probe_installed() -> int:
 
 
 def main() -> int:
-    # Make the venv's cu12 cuBLAS/cuDNN DLLs discoverable (and exclude PATH) for
-    # ALL modes - importing faster_whisper (even .utils/.tokenizer) pulls in
-    # ctranslate2, which loads the cu12 DLLs.
+    # Importing faster_whisper pulls in CTranslate2, so expose the current
+    # interpreter's canonical NVIDIA DLL directories before every mode.
     _add_nvidia_dll_dirs()
     parser = argparse.ArgumentParser()
     parser.add_argument("--probe", choices=["catalog", "languages", "installed"], default=None)

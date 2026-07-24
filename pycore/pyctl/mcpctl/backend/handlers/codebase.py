@@ -2,15 +2,11 @@
 """Codebase Handlers (8 tools)"""
 
 from typing import Dict, Any
-
-# Global controllers (initialized by main)
-backend_info = {}
-codebase_controller = None
-
+from pycore.pyctl.mcpctl.backend.handlers.context import get_codebase_context
 
 async def handle_codebase_get_directory_tree_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Codebase get directory tree tool handler"""
-    global codebase_controller
+    backend_info, codebase_controller = get_codebase_context()
     try:
         result = await codebase_controller.get_directory_tree_with_multiple_formats(
             target_path=params.get("target_path"),
@@ -27,7 +23,7 @@ async def handle_codebase_get_directory_tree_async(params: Dict[str, Any], reque
 
 async def handle_codebase_find_files_by_pattern_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Codebase find files by pattern tool handler"""
-    global codebase_controller
+    backend_info, codebase_controller = get_codebase_context()
     try:
         result = await codebase_controller.find_files_by_pattern(
             filename_pattern=params.get("filename_pattern"),
@@ -44,7 +40,7 @@ async def handle_codebase_find_files_by_pattern_async(params: Dict[str, Any], re
 
 async def handle_codebase_search_content_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Codebase search content tool handler"""
-    global codebase_controller
+    backend_info, codebase_controller = get_codebase_context()
     try:
         result = await codebase_controller.search_content_in_files(
             search_text=params.get("search_text"),
@@ -62,7 +58,7 @@ async def handle_codebase_search_content_async(params: Dict[str, Any], request_i
 
 async def handle_codebase_get_file_content_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Codebase get file content tool handler"""
-    global codebase_controller
+    backend_info, codebase_controller = get_codebase_context()
     try:
         result = await codebase_controller.get_file_content_with_comprehensive_analysis(
             file_path=params.get("file_path"),
@@ -79,7 +75,7 @@ async def handle_codebase_get_file_content_async(params: Dict[str, Any], request
 
 async def handle_codebase_analyze_statistics_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Codebase analyze statistics tool handler"""
-    global codebase_controller
+    backend_info, codebase_controller = get_codebase_context()
     try:
         result = await codebase_controller.analyze_codebase_statistics(
             target_path=params.get("target_path")
@@ -92,7 +88,7 @@ async def handle_codebase_analyze_statistics_async(params: Dict[str, Any], reque
 
 async def handle_codebase_describe_directory_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Codebase describe directory tool handler"""
-    global codebase_controller
+    backend_info, codebase_controller = get_codebase_context()
     try:
         result = await codebase_controller.describe_directory_with_summary(
             directory_path=params.get("directory_path"),
@@ -108,7 +104,7 @@ async def handle_codebase_describe_directory_async(params: Dict[str, Any], reque
 
 async def handle_codebase_scan_framework_apps_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Codebase scan framework apps tool handler"""
-    global codebase_controller
+    backend_info, codebase_controller = get_codebase_context()
     try:
         result = await codebase_controller.scan_for_framework_applications(
             scan_path=params.get("scan_path")
@@ -121,7 +117,7 @@ async def handle_codebase_scan_framework_apps_async(params: Dict[str, Any], requ
 
 async def handle_codebase_health_check_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Codebase health check tool handler"""
-    global codebase_controller
+    backend_info, codebase_controller = get_codebase_context()
     try:
         result = await codebase_controller.health_check()
         result["backend_id"] = backend_info.get("backend_id", "unknown")

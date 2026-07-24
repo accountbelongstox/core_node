@@ -28,6 +28,7 @@ Reference: PYHEARTBEAT_ARCHITECTURE.md
 from pycore.pyheartbeat.heartbeat import (
     CallbackInfo,
     HeartbeatPusher,
+    HeartbeatPusherThread,
     HeartbeatSystem,
     get_heartbeat_system,
     initialize_heartbeat_system
@@ -52,6 +53,7 @@ __all__ = [
     # Components
     'CallbackInfo',
     'HeartbeatPusher',
+    'HeartbeatPusherThread',
 
     # Thread Pool
     'ThreadStatus',
@@ -64,4 +66,3 @@ __all__ = [
 ]
 
 __version__ = '3.0.0'  # Unified architecture
-

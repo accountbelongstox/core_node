@@ -66,6 +66,7 @@ _LARAVEL_MISSING_BATCH = "/api/app_qy_v1/word/audio/missing-batch"
 _LARAVEL_UPLOAD = "/api/app_qy_v1/word/audio/upload"
 _LARAVEL_FIX_WORD = "/api/app_qy_v1/word/fix-text"
 _LARAVEL_BOOST = "/api/app_qy_v1/word/boost-priority"
+_LARAVEL_BOOST_BATCH = "/api/app_qy_v1/word/boost-priority/batch"
 _LARAVEL_WORD_MEDIA = "/api/app_qy_v1/word/{lang}/{word}/media"
 # Youdao (朗文) public CDN: type=1 UK, type=2 US. No key needed.
 _YOUDAO_URL = "http://dict.youdao.com/dictvoice"
@@ -507,16 +508,26 @@ def boost_priority(payload: Dict[str, Any]):
 def boost_priority_batch(request: WordAudioPriorityBatchRequest):
     """Move visible words to the Laravel audio queue front in display order."""
     items = request.items[:200]
-    results: List[Dict[str, Any]] = []
-    for item in reversed(items):
-        result = _apply_priority_boost(
-            item.md5.strip(), item.lang.strip(), wake_worker=False
+    payload = [{"md5": item.md5.strip(), "lang": item.lang.strip()} for item in items]
+    payload = [item for item in payload if item["md5"] and item["lang"]]
+    base = _laravel_base()
+    if not base or not payload:
+        return {"success": False, "count": 0, "error": "laravel endpoint or items missing"}
+    try:
+        response = get_laravel_client().post(
+            _LARAVEL_BOOST_BATCH,
+            base_url=base,
+            json={"items": payload},
+            timeout=30,
         )
-        results.append({"md5": item.md5, "lang": item.lang, **result})
-    if results and get_heartbeat_system().is_callback_enabled("tts_queue_poller"):
-        get_tts_queue_poller_service().poll_and_process()
-    return {
-        "success": all(bool(result.get("success")) for result in results),
-        "count": len(results),
-        "results": list(reversed(results)),
-    }
+        result = response.json()
+        worker = get_tts_queue_poller_service()
+        for item in payload:
+            worker.prioritize_word(item["md5"], item["lang"])
+            THREAD_BUS.trigger_event("word_audio_priority_boost", item)
+        if get_heartbeat_system().is_callback_enabled("tts_queue_poller"):
+            worker.poll_and_process()
+        return result if isinstance(result, dict) else {"success": False, "count": 0}
+    except Exception as exc:  # noqa: BLE001 - never 500
+        ColorPrint.yellow(f"[WordAudio] batch priority boost failed: {exc}")
+        return {"success": False, "count": 0, "error": str(exc)}

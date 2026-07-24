@@ -25,6 +25,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
+from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyctl.ai.ai_keys import PROVIDER_ORDER
 from pycore.pyctl.ai.ai_rate_limits import resolve_limit
@@ -42,6 +43,12 @@ _COOLDOWN_BASE_S = 60.0
 _COOLDOWN_MAX_S = 1800.0
 _RECORDS_MAX = 100
 _USAGE_FILE = APP_CONFIG_DIR / "ai_gateway_usage.json"
+_STATE_MUTATION_QUEUE = 'pyctl.ai.gateway_state.mutations'
+_STATE_MUTATION_WORKER = SerializedWorkerThread(
+    _STATE_MUTATION_QUEUE,
+    'AIGatewayStateMutationThread',
+)
+_STATE_MUTATION_WORKER.start()
 
 # Image network/time bounds. (connect, read) so a BLOCKED host fails in ~8s
 # instead of hanging; a hard per-provider thread bound covers SDK calls (e.g. the
@@ -229,7 +236,7 @@ def _apply_failure_cooldown(
             f"[ai_gateway] {provider} unreachable - cooling down {int(_IMG_UNREACHABLE_COOLDOWN_S)}s")
 
 
-def _on_result(provider: str, ok: bool, error: Optional[str]) -> None:
+def _apply_result(provider: str, ok: bool, error: Optional[str]) -> None:
     state = _gateway_state()
     stats = {
         name: dict(values)
@@ -248,7 +255,11 @@ def _on_result(provider: str, ok: bool, error: Optional[str]) -> None:
     _save_stats()
 
 
-def _on_probe_result(provider: str, ok: bool, error: Optional[str]) -> None:
+def _on_result(provider: str, ok: bool, error: Optional[str]) -> None:
+    call_serialized(_STATE_MUTATION_QUEUE, _apply_result, provider, ok, error)
+
+
+def _apply_probe_result(provider: str, ok: bool, error: Optional[str]) -> None:
     """Record a live probe outcome and pause providers that cannot be used."""
     if ok:
         return
@@ -262,12 +273,16 @@ def _on_probe_result(provider: str, ok: bool, error: Optional[str]) -> None:
     _save_stats()
 
 
+def _on_probe_result(provider: str, ok: bool, error: Optional[str]) -> None:
+    call_serialized(_STATE_MUTATION_QUEUE, _apply_probe_result, provider, ok, error)
+
+
 def _in_cooldown(provider: str) -> bool:
     stats = _gateway_state().get('stats', {})
     return time.time() < stats[provider]["cooldown_until"]
 
 
-def clear_expired_cooldowns() -> Dict[str, Any]:
+def _clear_expired_cooldowns() -> Dict[str, Any]:
     """
     Reset the 429/quota cooldown for providers whose cooldown window has elapsed,
     so dispatch and the UI reflect the recovered provider WITHOUT waiting for the
@@ -294,7 +309,11 @@ def clear_expired_cooldowns() -> Dict[str, Any]:
     return {"cleared": cleared}
 
 
-def _record(kind: str, source: str, result: Dict[str, Any]) -> None:
+def clear_expired_cooldowns() -> Dict[str, Any]:
+    return call_serialized(_STATE_MUTATION_QUEUE, _clear_expired_cooldowns)
+
+
+def _append_record(kind: str, source: str, result: Dict[str, Any]) -> None:
     state = _gateway_state()
     records = list(state.get('records', ()))
     records.append({
@@ -317,3 +336,7 @@ def _record(kind: str, source: str, result: Dict[str, Any]) -> None:
         record_usage(kind, result.get("provider", ""), result.get("model", ""),
                      bool(result.get("success")), result.get("latency_ms"), source,
                      result.get("error"))
+
+
+def _record(kind: str, source: str, result: Dict[str, Any]) -> None:
+    call_serialized(_STATE_MUTATION_QUEUE, _append_record, kind, source, result)

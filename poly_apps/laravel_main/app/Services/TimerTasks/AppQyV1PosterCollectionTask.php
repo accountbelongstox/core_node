@@ -10,12 +10,10 @@ use App\Models\Subtitle;
 /**
  * AppQyV1 Poster Collection / Maintenance Timer Task (pull-only architecture).
  *
- * Poster fetching is NOT done here. pycore is the sole fetcher: its AssistWorker
- * polls /api/app_qy_v1/assist/claim with type='poster', fetches the poster from
- * TMDB/OMDB (or generates an AI cover) and submits the bytes back under a
- * 60-minute lease (see AppQyV1AssistService::claimPosters/submitPoster). This
- * task only KEEPS THE QUEUE FLOWING so claimPosters always has work to hand out
- * — it never calls any AI / movie-DB client.
+ * Poster fetching is NOT done here. mcp-chrome claims poster work through the
+ * assist API, searches for a suitable source, and submits the bytes under a
+ * 60-minute lease. This task only keeps claimable rows flowing and never calls
+ * a search, image, or movie-database provider.
  *
  * Posters live on the poster_* columns of BOTH media tables (books + subtitles).
  * A row's claimable state is poster_status (pending|ready|failed|none); the
@@ -24,7 +22,7 @@ use App\Models\Subtitle;
  *
  * Every tick (5s) one pass per media table:
  *   - (re)queues 'failed' posters older than the FAILED backoff back to
- *     'pending' (clearing the lease + poster_fetched_at) so pycore re-claims
+ *     'pending' (clearing the lease + poster_fetched_at) so mcp-chrome reclaims
  *     them — a transient fetch failure is retried, not stuck forever;
  *   - clears stale assist leases (> 60 min) so a dead worker's claims free up.
  *
@@ -100,7 +98,7 @@ class AppQyV1PosterCollectionTask extends OctaneTimerTaskAbstract
                     'assist_claimed_by' => null,
                 ]);
 
-            // 2) stale assist leases (> 60 min) -> cleared so pycore reclaims.
+            // 2) stale assist leases (> 60 min) -> cleared for mcp-chrome.
             $staleLeases += (int) $modelClass::query()
                 ->whereNotNull('assist_claimed_at')
                 ->where('assist_claimed_at', '<', $leaseBefore)

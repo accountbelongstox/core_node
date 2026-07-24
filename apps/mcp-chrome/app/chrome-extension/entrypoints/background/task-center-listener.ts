@@ -1,7 +1,6 @@
 /**
  * Task Center Message Listener
  * Handles messages from popup to control the unified task center
- * Under 320 lines
  */
 
 import { taskCenter, type TaskCenterConfig } from './services/task-center/TaskCenter';
@@ -29,12 +28,28 @@ import {
 } from '@/utils/task-center-types';
 import { submitOutbox } from './services/outbox/submit-outbox';
 import { LANES } from '@/utils/task-center-lanes';
+import { runWordValidityClassification } from './services/word-validity/word-validity-web-runtime';
+import type { AiWebProvider } from './tools/browser/ai-web-common';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
+
+interface PersistedTaskCenterRuntime {
+  running: boolean;
+  config: (TaskCenterConfig & { activeCapabilities?: CapabilityKey[] }) | null;
+}
+
+const TASK_CENTER_RUNTIME_KEY = STORAGE_KEYS.TASK_CENTER_RUNTIME;
+const TASK_CENTER_WATCHDOG_ALARM = STORAGE_KEYS.TASK_CENTER_WATCHDOG_ALARM;
+const BING_WATCHDOG_ALARM = STORAGE_KEYS.BING_WATCHDOG_ALARM;
+const WATCHDOG_PERIOD_MINUTES = 1;
 
 /**
  * Last successful start config, so a live `set_capability` toggle can start a
  * lane with the same apiUrl the user started with (no full restart needed).
  */
 let lastStartConfig: TaskCenterConfig | null = null;
+let restoreInFlight: Promise<void> | null = null;
+let runtimeEpoch = 0;
+let lifecycleQueue: Promise<void> = Promise.resolve();
 
 /**
  * Initialize message listener for Task Center
@@ -56,6 +71,17 @@ export function initTaskCenterListener() {
     }
   });
 
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === TASK_CENTER_WATCHDOG_ALARM || alarm.name === BING_WATCHDOG_ALARM) {
+      void restoreTaskCenterRuntime();
+    }
+  });
+  chrome.runtime.onStartup.addListener(() => {
+    void restoreTaskCenterRuntime();
+  });
+  chrome.runtime.onInstalled.addListener(() => {
+    void restoreTaskCenterRuntime();
+  });
   console.log('[Task Center Listener] Initialized');
 }
 
@@ -70,12 +96,133 @@ async function buildFullStatus(): Promise<FullTaskCenterStatus> {
   const validity = wordValidityRunnerService.getStatus();
   return {
     ...status,
-    isRunning: status.isRunning || validity.running || (
-      intent.running && intent.activeCapabilities.length > 0
-    ),
+    isRunning: status.isRunning || validity.running,
+    activeApiUrl: lastStartConfig?.apiUrl || null,
     validity,
     activeCapabilities: intent.activeCapabilities,
   };
+}
+
+async function persistTaskCenterRuntime(
+  running: boolean,
+  config: (TaskCenterConfig & { activeCapabilities?: CapabilityKey[] }) | null,
+): Promise<void> {
+  const payload: PersistedTaskCenterRuntime = { running, config: running ? config : null };
+  try {
+    await chrome.storage.session.set({ [TASK_CENTER_RUNTIME_KEY]: payload });
+    if (running) {
+      await chrome.alarms.create(TASK_CENTER_WATCHDOG_ALARM, {
+        delayInMinutes: WATCHDOG_PERIOD_MINUTES,
+        periodInMinutes: WATCHDOG_PERIOD_MINUTES,
+      });
+    } else {
+      await chrome.alarms.clear(TASK_CENTER_WATCHDOG_ALARM);
+    }
+  } catch (error) {
+    console.error('[Task Center] Failed to persist runtime:', error);
+  }
+}
+
+async function performRuntimeRestore(): Promise<void> {
+  const restoreEpoch = runtimeEpoch;
+
+  const [intent, stored] = await Promise.all([
+    getRunIntent(),
+    chrome.storage.session.get(TASK_CENTER_RUNTIME_KEY),
+  ]);
+  if (restoreEpoch !== runtimeEpoch) return;
+
+  const runtime = stored[TASK_CENTER_RUNTIME_KEY] as PersistedTaskCenterRuntime | undefined;
+  if (!intent.running) {
+    await persistTaskCenterRuntime(false, null);
+    await bingDictionaryWorkerService.stopAndClear();
+    return;
+  }
+  if (!runtime?.running || !runtime.config?.apiUrl) {
+    await persistTaskCenterRuntime(false, null);
+    await bingDictionaryWorkerService.resume();
+    return;
+  }
+
+  const activeCapabilities = sanitizeCapabilities(intent.activeCapabilities);
+  const enabledProcessors = processorsForCapabilities(activeCapabilities);
+  const usesValidity = activeCapabilities.some((key) => CAPABILITY_BY_KEY[key]?.usesValidityRunner);
+  if (enabledProcessors.length === 0 && !usesValidity) return;
+
+  const processors = { ...(runtime.config.processors || {}) };
+  processors[LANES.BING_DICTIONARY] = {
+    ...(processors[LANES.BING_DICTIONARY] || { apiUrl: runtime.config.apiUrl }),
+    apiUrl: runtime.config.apiUrl,
+    surface: false,
+  };
+  const config = {
+    ...runtime.config,
+    processors,
+    activeCapabilities,
+    enabledProcessors,
+  };
+  const centerWasRunning = taskCenter.isTaskCenterRunning();
+  const validityWasRunning = wordValidityRunnerService.getStatus().running;
+  let centerStarted = false;
+  let validityStarted = false;
+
+  try {
+    if (enabledProcessors.length > 0 && !centerWasRunning) {
+      await taskCenter.startAll(config);
+      centerStarted = true;
+    }
+    if (restoreEpoch !== runtimeEpoch) {
+      if (centerStarted) taskCenter.stopAll();
+      return;
+    }
+    if (usesValidity && !validityWasRunning) {
+      await wordValidityRunnerService.start({ apiUrl: config.apiUrl });
+      validityStarted = true;
+    }
+    if (restoreEpoch !== runtimeEpoch) {
+      if (validityStarted) wordValidityRunnerService.stop();
+      if (centerStarted) taskCenter.stopAll();
+      return;
+    }
+    lastStartConfig = config;
+    await persistTaskCenterRuntime(true, config);
+    if (restoreEpoch !== runtimeEpoch) {
+      if (validityStarted) wordValidityRunnerService.stop();
+      if (centerStarted) taskCenter.stopAll();
+      if (lastStartConfig === config) lastStartConfig = null;
+      return;
+    }
+    console.log('[Task Center] Restored active processors after service-worker restart');
+  } catch (error) {
+    if (validityStarted) wordValidityRunnerService.stop();
+    if (centerStarted) taskCenter.stopAll();
+    console.error('[Task Center] Runtime restore failed:', error);
+  }
+}
+
+export function restoreTaskCenterRuntime(): Promise<void> {
+  if (!restoreInFlight) {
+    restoreInFlight = lifecycleQueue
+      .then(() => performRuntimeRestore())
+      .catch((error) => {
+        console.error('[Task Center] Runtime restore failed:', error);
+      })
+      .finally(() => {
+        restoreInFlight = null;
+      });
+  }
+  return restoreInFlight;
+}
+
+async function runLifecycleAction(action: () => Promise<void>): Promise<void> {
+  const pendingRestore = restoreInFlight;
+  const operation = lifecycleQueue.then(async () => {
+    runtimeEpoch++;
+    if (pendingRestore) await pendingRestore;
+    await action();
+  });
+  lifecycleQueue = operation.catch(() => undefined);
+  await operation;
 }
 
 /** Back-compat: derive capability keys from a raw processorType allowlist. */
@@ -105,7 +252,13 @@ function sanitizeCapabilities(raw: unknown): CapabilityKey[] {
  * global-task lane). Actions: start / stop / status.
  */
 async function handleValidityRunnerMessage(
-  message: { type: string; action: string; config?: ValidityRunnerConfig },
+  message: {
+    type: string;
+    action: string;
+    config?: ValidityRunnerConfig;
+    words?: string[];
+    provider?: AiWebProvider;
+  },
   sendResponse: (response: any) => void,
 ) {
   try {
@@ -122,6 +275,21 @@ async function handleValidityRunnerMessage(
       }
       case 'status': {
         sendResponse({ success: true, status: wordValidityRunnerService.getStatus() });
+        break;
+      }
+      case 'test': {
+        const words = Array.isArray(message.words)
+          ? message.words
+              .map((word) => String(word).trim())
+              .filter(Boolean)
+              .map((word) => ({ word }))
+          : [];
+        if (words.length === 0) {
+          sendResponse({ success: false, error: 'Enter at least one word' });
+          break;
+        }
+        const result = await runWordValidityClassification(words, message.provider);
+        sendResponse({ success: true, result });
         break;
       }
       default: {
@@ -151,33 +319,49 @@ async function handleTaskCenterMessage(
   try {
     switch (message.action) {
       case 'start': {
-        await handleStart(message.config, sendResponse);
+        await runLifecycleAction(() => handleStart(message.config, sendResponse));
         break;
       }
 
       case 'stop': {
-        taskCenter.stopAll();
-        wordValidityRunnerService.stop();
-        // Belt-and-suspenders: force-clear the Bing watchdog + session run-intent
-        // so the crawler can NEVER resurrect after Stop (even if its processor
-        // was not running in this SW instance).
-        await bingDictionaryWorkerService.stopAndClear();
-        await clearRunIntent();
-        lastStartConfig = null;
-        sendResponse({
-          success: true,
-          message: 'Task Center stopped',
-          status: await buildFullStatus(),
+        await runLifecycleAction(async () => {
+          taskCenter.stopAll();
+          wordValidityRunnerService.stop();
+          // Belt-and-suspenders: force-clear the Bing watchdog + session run-intent
+          // so the crawler can NEVER resurrect after Stop (even if its processor
+          // was not running in this SW instance).
+          await bingDictionaryWorkerService.stopAndClear();
+          await clearRunIntent();
+          await persistTaskCenterRuntime(false, null);
+          lastStartConfig = null;
+          sendResponse({
+            success: true,
+            message: 'Task Center stopped',
+            status: await buildFullStatus(),
+          });
         });
         break;
       }
 
       case 'set_capability': {
-        await handleSetCapability(message.capability, message.enabled === true, message.config, sendResponse);
+        await runLifecycleAction(() =>
+          handleSetCapability(
+            message.capability,
+            message.enabled === true,
+            message.config,
+            sendResponse,
+          ),
+        );
+        break;
+      }
+
+      case 'reconfigure': {
+        await runLifecycleAction(() => handleReconfigure(message.config, sendResponse));
         break;
       }
 
       case 'get_status': {
+        if (restoreInFlight) await restoreInFlight;
         sendResponse({ success: true, ...(await buildFullStatus()) });
         break;
       }
@@ -276,24 +460,76 @@ async function handleStart(
   }
 
   // Start the task-center lanes (skip when only the validity runner is active).
-  if (enabledProcessors.length > 0) {
-    await taskCenter.startAll(config);
-  }
+  const centerWasRunning = taskCenter.isTaskCenterRunning();
+  const validityWasRunning = wordValidityRunnerService.getStatus().running;
+  try {
+    if (enabledProcessors.length > 0) {
+      await taskCenter.startAll(config);
+    }
 
-  // Start the client-driven validity runner when a validity-runner capability is
-  // active (independent of the global-task lane).
-  if (usesValidity) {
-    await wordValidityRunnerService.start({ apiUrl: config.apiUrl });
+    // Start the client-driven validity runner when a validity-runner capability is
+    // active (independent of the global-task lane).
+    if (usesValidity) {
+      await wordValidityRunnerService.start({ apiUrl: config.apiUrl });
+    }
+  } catch (error) {
+    if (!validityWasRunning) wordValidityRunnerService.stop();
+    if (!centerWasRunning) taskCenter.stopAll();
+    throw error;
   }
 
   lastStartConfig = config;
   await setRunIntent({ running: true, activeCapabilities });
+  await persistTaskCenterRuntime(true, config);
 
   sendResponse({
     success: true,
     message: 'Task Center started',
     status: await buildFullStatus(),
   });
+}
+
+/**
+ * Move every active lane to a new shared API endpoint without mixing task
+ * ownership across backends. stop() lets an already-claimed task finish on its
+ * original client; each processor's next start waits for that cycle to settle.
+ * A failed new start restores the last known-good runtime.
+ */
+async function handleReconfigure(
+  config: (TaskCenterConfig & { activeCapabilities?: CapabilityKey[] }) | undefined,
+  sendResponse: (response: any) => void,
+): Promise<void> {
+  const activeCapabilities = sanitizeCapabilities(config?.activeCapabilities);
+  if (!config?.apiUrl || activeCapabilities.length === 0) {
+    sendResponse({ success: false, error: 'Running configuration with active capabilities is required' });
+    return;
+  }
+
+  const previousIntent = await getRunIntent();
+  const previousConfig = lastStartConfig
+    ? {
+        ...lastStartConfig,
+        processors: { ...(lastStartConfig.processors || {}) },
+        activeCapabilities: previousIntent.activeCapabilities,
+        enabledProcessors: processorsForCapabilities(previousIntent.activeCapabilities),
+      }
+    : null;
+
+  taskCenter.stopAll();
+  wordValidityRunnerService.stop();
+
+  try {
+    await handleStart(config, sendResponse);
+  } catch (error) {
+    if (previousConfig?.apiUrl && previousIntent.activeCapabilities.length > 0) {
+      try {
+        await handleStart(previousConfig, () => undefined);
+      } catch (rollbackError) {
+        console.error('[Task Center] Failed to restore previous configuration:', rollbackError);
+      }
+    }
+    throw error;
+  }
 }
 
 /**
@@ -331,13 +567,41 @@ async function handleSetCapability(
       });
       return;
     }
-    for (const p of def.processors) {
-      const processorConfig = effectiveConfig?.processors?.[p] || { apiUrl };
-      taskCenter.enableProcessor(p);
-      await taskCenter.startProcessor(p, { ...processorConfig, apiUrl });
-    }
-    if (def.usesValidityRunner) {
-      await wordValidityRunnerService.start({ apiUrl });
+    const startedProcessors: string[] = [];
+    try {
+      if (!taskCenter.isTaskCenterRunning()) {
+        await taskCenter.startAll({
+          ...(effectiveConfig || { apiUrl }),
+          apiUrl,
+          activeCapabilities,
+          enabledProcessors: processorsForCapabilities(activeCapabilities),
+        });
+      } else {
+        for (const p of def.processors) {
+          const processorConfig = effectiveConfig?.processors?.[p] || { apiUrl };
+          const wasRunning = taskCenter.getProcessorStatus(p)?.isRunning === true;
+          taskCenter.enableProcessor(p);
+          try {
+            await taskCenter.startProcessor(p, { ...processorConfig, apiUrl });
+          } catch (error) {
+            if (!wasRunning) taskCenter.disableProcessor(p);
+            throw error;
+          }
+          if (!wasRunning) startedProcessors.push(p);
+        }
+      }
+      if (def.usesValidityRunner) {
+        await wordValidityRunnerService.start({ apiUrl });
+      }
+    } catch (error: any) {
+      for (const processorType of startedProcessors.reverse()) {
+        taskCenter.disableProcessor(processorType);
+      }
+      sendResponse({
+        success: false,
+        error: error?.message || `Failed to start capability: ${capability}`,
+      });
+      return;
     }
     // Remember the apiUrl so a later toggle can start more lanes.
     if (apiUrl) {
@@ -375,8 +639,29 @@ async function handleSetCapability(
     }
   }
 
+  if (activeCapabilities.length === 0 && taskCenter.isTaskCenterRunning()) {
+    taskCenter.stopAll();
+    lastStartConfig = null;
+  }
+
   // Update run-intent's active set; running is true while >=1 capability active.
   await setRunIntent({ running: activeCapabilities.length > 0, activeCapabilities });
+  if (activeCapabilities.length > 0) {
+    const baseConfig = lastStartConfig || effectiveConfig;
+    lastStartConfig = {
+      ...(baseConfig || { apiUrl }),
+      apiUrl,
+      processors: {
+        ...(baseConfig?.processors || {}),
+        ...(effectiveConfig?.processors || {}),
+      },
+      activeCapabilities,
+      enabledProcessors: processorsForCapabilities(activeCapabilities),
+    };
+    await persistTaskCenterRuntime(true, lastStartConfig);
+  } else {
+    await persistTaskCenterRuntime(false, null);
+  }
 
   sendResponse({ success: true, status: await buildFullStatus() });
 }

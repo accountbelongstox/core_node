@@ -67,6 +67,7 @@ $apkScript = Join-Path $root 'scripts\flavor\build_apk.py'
 $apkArguments = @()
 $pythonCommand = $null
 $nativeAndroidPath = $null
+$py = $null
 
 if ($Apk) {
   $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
@@ -79,7 +80,7 @@ if ($Apk) {
   if ($NoOpenOutput) { $apkArguments = @($apkArguments; '--open'; 'no') }
   if ($NonInteractive) { $apkArguments = @($apkArguments; '--non-interactive') }
   & $pythonCommand.Source @apkArguments
-  exit $LASTEXITCODE
+  return
 }
 
 function Get-Flavors {
@@ -106,12 +107,14 @@ if ($available -notcontains $App) {
 }
 
 # Resolve a python interpreter.
-$py = (Get-Command python -ErrorAction SilentlyContinue) ?? (Get-Command python3 -ErrorAction SilentlyContinue)
+$py = Get-Command python -ErrorAction SilentlyContinue
+if (-not $py) {
+  $py = Get-Command python3 -ErrorAction SilentlyContinue
+}
 if (-not $py) { Write-Error "python not found on PATH (needed for asset/config prep)." }
 
 Write-Host "==> Preparing flavor '$App' (capacitor config + resources)" -ForegroundColor Green
 & $py.Source (Join-Path $root 'scripts/flavor/flavor_build.py') --app $App --root $root
-if ($LASTEXITCODE -ne 0) { Write-Error "flavor_build.py failed (exit $LASTEXITCODE)." }
 
 # Build the web assets with the flavor selected.
 $env:VITE_APP_FLAVOR = $App

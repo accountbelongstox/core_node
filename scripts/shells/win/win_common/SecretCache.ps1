@@ -42,17 +42,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # Import GlobalVars.ps1 if not already loaded
-if (-not (Get-Variable -Name "Global:CORE_NODE_DIR" -ErrorAction SilentlyContinue)) {
-    $scriptDir = $PSScriptRoot
-    $globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
-
-    if (Test-Path $globalVarsPath) {
-        . $globalVarsPath
-    } else {
-        Write-Error "ERROR: GlobalVars.ps1 not found. Cannot determine cache directory."
-        return
-    }
-}
+$scriptDir = $PSScriptRoot
+$globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
+. $globalVarsPath
 
 <#
 .SYNOPSIS

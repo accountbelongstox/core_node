@@ -279,6 +279,7 @@ export class ApiManager {
     this.autoMode = enabled;
     await this.saveSettings({ autoMode: enabled });
     console.log('[API Manager] Auto mode:', enabled ? 'on' : 'off');
+    this.notifyEndpointChange();
   }
 
   async setEndpoint(endpointId: string): Promise<boolean> {
@@ -369,6 +370,7 @@ export class ApiManager {
 
     await this.saveSettings({ customEndpoints });
     this.customEndpoints = customEndpoints; // keep in-memory list in sync
+    this.notifyEndpointChange();
 
     return id;
   }
@@ -390,6 +392,8 @@ export class ApiManager {
       this.currentEndpoint = null;
       await this.initialize({ autoDetect: true });
     }
+
+    this.notifyEndpointChange();
 
     return true;
   }

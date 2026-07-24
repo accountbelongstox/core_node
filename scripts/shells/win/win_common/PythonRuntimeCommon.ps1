@@ -1,17 +1,17 @@
 # Shared Python runtime discovery and PATH helpers for Windows installer scripts.
 # Uses absolute paths from GlobalVars and binary-on-disk checks (not exit codes).
 #
-# Bucket-A pin: Install-PinnedTransformers implements the shared-transformers rule from
-# development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7 — the LLM
-# steps (DeepSeek-VL/OCR, Qwen2.5, NLLB-200, Bark) install transformers at ONE version
-# ($Global:LLM_TRANSFORMERS_SPEC) and NEVER --upgrade, and this helper self-heals a pin a
-# later step clobbered (version-idempotent, so a stale .deps_done sentinel cannot hide drift).
+# Install-PinnedTransformers is retained as the shared entry point for existing callers;
+# it now preserves any installed compatible distribution and delegates constraints to pip.
 
-if (-not (Get-Command Normalize-WindowsPath -ErrorAction SilentlyContinue)) {
-    . (Join-Path $PSScriptRoot 'WindowsPathFunction.ps1')
-}
-
+$windowsPathFunctionPath = Join-Path $PSScriptRoot 'WindowsPathFunction.ps1'
+$windowsPathFunctionLoaded = Get-Variable -Name 'PycoreWindowsPathFunctionLoaded' -Scope Script -ErrorAction SilentlyContinue
 $script:PrereqPythonMinors = @(13)
+$script:PipInstalledPackageCache = @{}
+if ($null -eq $windowsPathFunctionLoaded -or -not [bool]$windowsPathFunctionLoaded.Value) {
+    . $windowsPathFunctionPath
+    Set-Variable -Name 'PycoreWindowsPathFunctionLoaded' -Scope Script -Value $true
+}
 
 function Get-OptionalGlobalValue {
     param(
@@ -44,16 +44,27 @@ function Test-PythonDistInfoPresent {
         [string[]]$DistPrefixes
     )
 
+    $entry = $null
+    $entryName = ''
+    $normalizedPrefix = ''
+    $prefix = ''
+    $present = $false
     $site = Get-PythonSitePackagesDir -PythonExe $PythonExe
     if (-not (Test-Path -LiteralPath $site)) {
         return $false
     }
 
     foreach ($prefix in $DistPrefixes) {
-        $norm = ($prefix -replace '[-\.]', '_').ToLower()
-        $hits = Get-ChildItem -LiteralPath $site -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -like "${norm}*.dist-info" -or $_.Name -like "${prefix}*.dist-info" }
-        if (-not $hits) {
+        $normalizedPrefix = $prefix.Replace('-', '_').Replace('.', '_').ToLowerInvariant()
+        $present = $false
+        foreach ($entry in (Get-ChildItem -LiteralPath $site -Directory -Filter '*.dist-info' -ErrorAction SilentlyContinue)) {
+            $entryName = $entry.Name.ToLowerInvariant()
+            if ($entryName.StartsWith("$normalizedPrefix-", [System.StringComparison]::Ordinal)) {
+                $present = $true
+                break
+            }
+        }
+        if (-not $present) {
             return $false
         }
     }
@@ -61,14 +72,18 @@ function Test-PythonDistInfoPresent {
     return $true
 }
 
-function Test-PaddleDistInfoPresent {
+function Test-PaddlePackageInstalled {
     param(
         [Parameter(Mandatory = $true)]
         [string]$PythonExe
     )
 
-    return (Test-PythonDistInfoPresent -PythonExe $PythonExe -DistPrefixes @('paddlepaddle')) -or
-        (Test-PythonDistInfoPresent -PythonExe $PythonExe -DistPrefixes @('paddlepaddle_gpu'))
+    $pipExe = Get-PipExeForPythonExe -PythonExe $PythonExe
+    if (-not $pipExe) {
+        return $false
+    }
+    return (Test-PipPackageInstalled -PipExe $pipExe -PackageName 'paddlepaddle') -or
+        (Test-PipPackageInstalled -PipExe $pipExe -PackageName 'paddlepaddle-gpu')
 }
 
 function Test-PipPackageInstalled {
@@ -79,73 +94,117 @@ function Test-PipPackageInstalled {
         [string]$PackageName
     )
 
+    $nameLine = $null
+    $prevEap = $ErrorActionPreference
+    $show = @()
     if (-not (Test-Path -LiteralPath $PipExe)) {
         return $false
     }
 
-    # Prefer Scripts\python.exe (venv); else parent\python.exe (system Python layout).
-    $scriptsDir = Split-Path -Parent $PipExe
-    $siblingPy = Join-Path $scriptsDir 'python.exe'
-    $parentPy = Join-Path (Split-Path -Parent $scriptsDir) 'python.exe'
-    $pythonExe = $null
-    if (Test-Path -LiteralPath $siblingPy) { $pythonExe = $siblingPy }
-    elseif (Test-Path -LiteralPath $parentPy) { $pythonExe = $parentPy }
-    if ($pythonExe) {
-        if (Test-PythonDistInfoPresent -PythonExe $pythonExe -DistPrefixes @($PackageName)) {
-            return $true
-        }
-    }
-
-    $prevEap = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
         $show = & $PipExe show $PackageName 2>&1
     } finally {
         $ErrorActionPreference = $prevEap
     }
-    return ("$show" -match '(?m)^Name:\s')
+    $nameLine = @($show) | Where-Object { ([string]$_).Trim().StartsWith('Name:', [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+    return $null -ne $nameLine
 }
 
-function Get-PipPackageVersion {
+function Get-PipPackageNameFromSpec {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$PipExe,
+        [string]$PipSpec
+    )
+
+    $name = ([string]$PipSpec).Trim()
+    $separatorIndex = $name.IndexOfAny([char[]]'[<>=!~; ')
+    if ($separatorIndex -ge 0) {
+        $name = $name.Substring(0, $separatorIndex)
+    }
+    return $name.Trim()
+}
+
+function ConvertTo-PipPackageKey {
+    param(
         [Parameter(Mandatory = $true)]
         [string]$PackageName
     )
 
+    return $PackageName.Trim().Replace('_', '-').Replace('.', '-').ToLowerInvariant()
+}
+
+function Get-PipInstalledPackageSet {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PipExe,
+        [switch]$Refresh
+    )
+
+    $cacheKey = $PipExe.ToLowerInvariant()
+    $installed = @{}
+    $item = $null
+    $items = @()
+    $jsonText = ''
+    $name = ''
     if (-not (Test-Path -LiteralPath $PipExe)) {
-        return ''
+        return $installed
+    }
+    if (-not $Refresh -and $script:PipInstalledPackageCache.ContainsKey($cacheKey)) {
+        return $script:PipInstalledPackageCache[$cacheKey]
     }
 
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        $show = & $PipExe show $PackageName 2>&1
-    } finally {
-        $ErrorActionPreference = $prevEap
+    $jsonText = (& $PipExe list --format=json --disable-pip-version-check 2>$null) -join [Environment]::NewLine
+    if (-not $jsonText.Trim().StartsWith('[', [System.StringComparison]::Ordinal)) {
+        throw "pip metadata snapshot is unavailable from $PipExe"
     }
-    if ("$show" -match '(?m)^Version:\s*(\S+)') {
-        return $Matches[1]
+    $items = $jsonText | ConvertFrom-Json
+    foreach ($item in $items) {
+        $name = ConvertTo-PipPackageKey -PackageName ([string]$item.name)
+        if ($name) {
+            $installed[$name] = $true
+        }
     }
+    $script:PipInstalledPackageCache[$cacheKey] = $installed
+    return $installed
+}
 
-    return ''
+function Test-PipPackageInSet {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Collections.IDictionary]$InstalledPackages,
+        [Parameter(Mandatory = $true)]
+        [string]$PackageName
+    )
+
+    $key = ConvertTo-PipPackageKey -PackageName $PackageName
+    return [bool]$InstalledPackages[$key]
+}
+
+function Test-PythonRequirementSatisfied {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PythonExe,
+        [Parameter(Mandatory = $true)]
+        [string]$PipSpec
+    )
+    $packageName = ''
+    $pipExe = $null
+    $packageName = Get-PipPackageNameFromSpec -PipSpec $PipSpec
+    $pipExe = Get-PipExeForPythonExe -PythonExe $PythonExe
+    if (-not $pipExe -or -not $packageName) { return $false }
+    return Test-PipPackageInstalled -PipExe $pipExe -PackageName $packageName
 }
 
 function Install-PinnedTransformers {
     <#
     .SYNOPSIS
-        Version-idempotent transformers install for the shared Bucket-A LLM stack.
+        Idempotent transformers install for the shared Bucket-A LLM stack.
     .DESCRIPTION
         Implements the Bucket-A rule in
         development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7:
-        DeepSeek-VL/DeepSeek-OCR/Qwen2.5/NLLB-200/Bark share ONE transformers version
-        ($Global:LLM_TRANSFORMERS_SPEC) in the single system Python 3.13. Installs $Spec
-        ONLY when transformers is absent OR the installed version differs from the pinned
-        version; NEVER uses --upgrade (the floating upgrade is the race that clobbers the
-        pin). Because the decision is version-based, this self-heals a pin that another
-        step clobbered even when the caller's .deps_done sentinel already exists.
-        Reuses Get-PipPackageVersion / Test-PipPackageInstalled.
+        DeepSeek-VL/DeepSeek-OCR/Qwen2.5/NLLB-200/Bark share the system interpreter.
+        Existing distributions are preserved; missing packages are delegated to pip.
     #>
     param(
         [Parameter(Mandatory = $true)]
@@ -157,10 +216,7 @@ function Install-PinnedTransformers {
     )
 
     $effectiveSpec = $Spec
-    $packageName = ''
-    $wantVersion = ''
-    $installedVersion = ''
-    $needInstall = $false
+    $packageName = 'transformers'
 
     if (-not $effectiveSpec) {
         $effectiveSpec = $Global:LLM_TRANSFORMERS_SPEC
@@ -169,45 +225,20 @@ function Install-PinnedTransformers {
         $effectiveSpec = Get-AiRuntimePolicyValue -Name 'AI_SHARED_TRANSFORMERS_SPEC' -Default 'transformers'
     }
 
-    if ($effectiveSpec -match '^\s*([A-Za-z0-9_.\-]+)\s*==\s*(.+?)\s*$') {
-        $packageName = $Matches[1]
-        $wantVersion = $Matches[2].Trim()
-    } else {
-        $packageName = ($effectiveSpec -split '[\s<>=!~]')[0].Trim()
-    }
-    if (-not $packageName) { $packageName = 'transformers' }
-
     if (-not (Test-Path -LiteralPath $PipExe)) {
-        Write-Host ("{0}[pinned-transformers] pip not found at {1}; cannot install {2}." -f $Prefix, $PipExe, $effectiveSpec) -ForegroundColor DarkYellow
+        Write-Host ("{0}[shared-transformers] pip not found at {1}; cannot install {2}." -f $Prefix, $PipExe, $effectiveSpec) -ForegroundColor DarkYellow
         return $false
     }
 
-    $installedVersion = Get-PipPackageVersion -PipExe $PipExe -PackageName $packageName
-
-    if (-not $installedVersion) {
-        $needInstall = $true
-        Write-Host ("{0}[pinned-transformers] {1} absent -> installing {2} (shared Bucket-A pin)." -f $Prefix, $packageName, $effectiveSpec) -ForegroundColor Yellow
-    } elseif ($wantVersion -and ($installedVersion -ne $wantVersion)) {
-        $needInstall = $true
-        Write-Host ("{0}[pinned-transformers] {1} {2} != pinned {3} -> repairing (self-heal clobbered pin)." -f $Prefix, $packageName, $installedVersion, $wantVersion) -ForegroundColor Yellow
-    } else {
-        Write-Host ("{0}[pinned-transformers] {1} {2} matches shared pin -> skip (idempotent)." -f $Prefix, $packageName, $installedVersion) -ForegroundColor Green
+    if (Test-PipPackageInstalled -PipExe $PipExe -PackageName $packageName) {
+        Write-Host ("{0}[shared-transformers] {1} is installed -> skip (idempotent)." -f $Prefix, $packageName) -ForegroundColor Green
         return $true
     }
 
-    if ($needInstall) {
-        # NEVER --upgrade: install the EXACT pinned spec so the shared LLM stack stays aligned.
-        # Out-Host (no 2>&1): show pip output LIVE without leaking stdout into this function's
-        # return value (caller reads only the boolean / discards it with Out-Null); avoiding
-        # 2>&1 keeps native stderr from wrapping into ErrorRecords under ErrorActionPreference Stop.
-        & $PipExe install $effectiveSpec | Out-Host
-    }
+    Write-Host ("{0}[shared-transformers] {1} is missing -> installing {2}." -f $Prefix, $packageName, $effectiveSpec) -ForegroundColor Yellow
+    & $PipExe install $effectiveSpec | Out-Host
 
-    $installedVersion = Get-PipPackageVersion -PipExe $PipExe -PackageName $packageName
-    if ($wantVersion) {
-        return ($installedVersion -eq $wantVersion)
-    }
-    return [bool]$installedVersion
+    return Test-PipPackageInstalled -PipExe $PipExe -PackageName $packageName
 }
 
 function Resolve-NvidiaSmiExe {
@@ -228,6 +259,9 @@ function Resolve-NvidiaSmiExe {
 }
 
 function Test-NvidiaGpuPresent {
+    $lineText = ''
+    $nvidiaSmi = $null
+    $output = @()
     if ($env:TORCH_FORCE_CUDA -eq '1' -or $env:PADDLE_FORCE_CUDA -eq '1' -or $env:SOG_FORCE_GPU -eq '1') {
         return $true
     }
@@ -238,7 +272,13 @@ function Test-NvidiaGpuPresent {
     }
 
     $output = & $nvidiaSmi -L 2>&1
-    return ("$output" -match '(?m)^GPU\s+\d+:')
+    foreach ($line in @($output)) {
+        $lineText = ([string]$line).Trim()
+        if ($lineText.StartsWith('GPU ', [System.StringComparison]::OrdinalIgnoreCase) -and $lineText.Contains(':')) {
+            return $true
+        }
+    }
+    return $false
 }
 
 function Get-PythonVersionTextFromExe {
@@ -252,12 +292,22 @@ function Get-PythonVersionTextFromExe {
         return $null
     }
 
-    try {
-        $versionLines = & $PythonExe @($ExtraArgs + @('--version')) 2>&1
-        return ("$versionLines").Trim()
-    } catch {
-        return $null
-    }
+    $previousPreference = $ErrorActionPreference
+    $major = 0
+    $minor = 0
+    $versionText = ''
+    $versionParts = @()
+    $versionLines = @()
+    $ErrorActionPreference = 'Continue'
+    $versionLines = & $PythonExe @($ExtraArgs + @('--version')) 2>&1
+    $ErrorActionPreference = $previousPreference
+    $versionText = ("$versionLines").Trim()
+    if (-not $versionText.StartsWith('Python ', [System.StringComparison]::OrdinalIgnoreCase)) { return $null }
+    $versionParts = $versionText.Substring(7).Split('.')
+    if ($versionParts.Length -lt 2 -or
+        -not [int]::TryParse($versionParts[0], [ref]$major) -or
+        -not [int]::TryParse($versionParts[1], [ref]$minor)) { return $null }
+    return $versionText
 }
 
 function Test-PythonExeVersionMatches {
@@ -268,35 +318,48 @@ function Test-PythonExeVersionMatches {
         [string[]]$ExtraArgs = @()
     )
 
+    $major = 0
+    $minor = 0
+    $versionText = ''
+    $versionParts = @()
     $versionText = Get-PythonVersionTextFromExe -PythonExe $PythonExe -ExtraArgs $ExtraArgs
     if (-not $versionText) {
         return $false
     }
 
-    foreach ($minor in $AllowedMinors) {
-        if ($versionText -match "Python\s+3\.$minor(\.|$|\s)") {
-            return $true
-        }
-    }
-    return $false
+    $versionParts = $versionText.Substring(7).Split('.')
+    if ($versionParts.Length -lt 2 -or
+        -not [int]::TryParse($versionParts[0], [ref]$major) -or
+        -not [int]::TryParse($versionParts[1], [ref]$minor)) { return $false }
+    return $major -eq 3 -and $AllowedMinors -contains $minor
 }
 
 function Get-CoreNodePythonDirCandidates {
-    $dirs = New-Object System.Collections.Generic.List[string]
+    $dirs = @()
+    $entry = $null
+    $entries = @()
+    $numericSuffix = 0
+    $suffix = ''
 
     if ($Global:PYTHON_DIR) {
-        $dirs.Add($Global:PYTHON_DIR)
+        $dirs += $Global:PYTHON_DIR
     }
     if ($Global:PYTHON_EXE_PATH) {
-        $dirs.Add((Split-Path -Parent $Global:PYTHON_EXE_PATH))
+        $dirs += (Split-Path -Parent $Global:PYTHON_EXE_PATH)
     }
     if ($Global:LANG_COMPILER_DIR -and $Global:PYTHON_VERSION_COMPACT) {
-        $dirs.Add((Join-Path $Global:LANG_COMPILER_DIR ("python$($Global:PYTHON_VERSION_COMPACT)")))
+        $dirs += (Join-Path $Global:LANG_COMPILER_DIR ("python$($Global:PYTHON_VERSION_COMPACT)"))
     }
     if ($Global:LANG_COMPILER_DIR -and (Test-Path -LiteralPath $Global:LANG_COMPILER_DIR)) {
-        Get-ChildItem -Path $Global:LANG_COMPILER_DIR -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -match '^python\d+$' } |
-            ForEach-Object { $dirs.Add($_.FullName) }
+        $entries = @(Get-ChildItem -Path $Global:LANG_COMPILER_DIR -Directory -ErrorAction SilentlyContinue)
+        foreach ($entry in $entries) {
+            $suffix = $entry.Name.Substring([Math]::Min(6, $entry.Name.Length))
+            $numericSuffix = 0
+            if ($entry.Name.StartsWith('python', [System.StringComparison]::OrdinalIgnoreCase) -and
+                $suffix -and [int]::TryParse($suffix, [ref]$numericSuffix)) {
+                $dirs += $entry.FullName
+            }
+        }
     }
 
     return @($dirs | Select-Object -Unique)
@@ -345,7 +408,7 @@ function Get-PythonRunArgs {
         [string]$PythonCmd
     )
 
-    if ($PythonCmd -match '\\py\.exe$' -or ($PythonCmd -eq 'py')) {
+    if ((Split-Path -Leaf $PythonCmd) -eq 'py.exe' -or ($PythonCmd -eq 'py')) {
         foreach ($ver in @('-3.13')) {
             if (Test-PythonExeVersionMatches -PythonExe $PythonCmd -ExtraArgs @($ver)) {
                 return @($PythonCmd, $ver)
@@ -431,7 +494,7 @@ function Set-CoreNodePythonPathPriority {
             continue
         }
 
-        $keptEntries = New-Object System.Collections.Generic.List[string]
+        $keptEntries = @()
         foreach ($segment in ($currentPath -split ';')) {
             if ([string]::IsNullOrWhiteSpace($segment)) {
                 continue
@@ -446,7 +509,7 @@ function Set-CoreNodePythonPathPriority {
                 continue
             }
 
-            if ($segment -match 'python\d+' -or $segment -match '\\Python\d+' -or $segment -match '\\Python\\') {
+            if ($segment.ToLowerInvariant().Contains('python')) {
                 if ($LogPrefix) {
                     Write-Host "$LogPrefix Removing stale Python PATH entry from $scope (install kept on disk): $segment" -ForegroundColor Yellow
                 }
@@ -454,7 +517,7 @@ function Set-CoreNodePythonPathPriority {
             }
 
             if (-not ($keptEntries -contains $normalizedSegment)) {
-                $keptEntries.Add($normalizedSegment)
+                $keptEntries += $normalizedSegment
             }
         }
 
@@ -525,13 +588,13 @@ function Resolve-InstallerPythonExe {
 
     if ($PreferredPath -and (Test-Path -LiteralPath $PreferredPath)) {
         $versionText = Get-PythonVersionTextFromExe -PythonExe $PreferredPath
-        if ($versionText -match 'Python\s+3\.') {
+        if ($versionText.StartsWith('Python 3.', [System.StringComparison]::OrdinalIgnoreCase)) {
             return (Resolve-Path -LiteralPath $PreferredPath).Path
         }
     }
 
     $resolved = Resolve-PrereqPythonExe -PreferredPath $PreferredPath
-    if ($resolved -and $resolved -match '\\py\.exe$') {
+    if ($resolved -and (Split-Path -Leaf $resolved) -eq 'py.exe') {
         if ($Global:PYTHON_EXE_PATH -and (Test-Path -LiteralPath $Global:PYTHON_EXE_PATH)) {
             return (Resolve-Path -LiteralPath $Global:PYTHON_EXE_PATH).Path
         }

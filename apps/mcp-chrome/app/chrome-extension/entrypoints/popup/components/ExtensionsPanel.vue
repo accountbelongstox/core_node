@@ -76,6 +76,7 @@ import BookStudyGenerator from './extensions/BookStudyGenerator.vue';
 import AiTranslateHub from './extensions/AiTranslateHub.vue';
 import WebSearchPanel from './extensions/WebSearchPanel.vue';
 import QwenTtsPanel from './extensions/QwenTtsPanel.vue';
+import WordValidityPanel from './extensions/WordValidityPanel.vue';
 
 const FEATURE_COMPONENTS: Record<FeatureId, Component> = {
   'bing-dictionary': BingDictionary,
@@ -86,6 +87,7 @@ const FEATURE_COMPONENTS: Record<FeatureId, Component> = {
   'ai-translate-hub': AiTranslateHub,
   'web-search': WebSearchPanel,
   'qwen-tts': QwenTtsPanel,
+  'word-validity': WordValidityPanel,
 };
 
 const { extensions, enabledExtensionsCount, toggleExtension, initialize } = useExtensionConfig();

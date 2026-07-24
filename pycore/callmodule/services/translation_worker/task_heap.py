@@ -4,26 +4,22 @@ TaskHeap - per-backend priority heap + jittered fast-drain burst.
 
 Extracted (behavior-preserving) from the former translation_worker_service.py monolith.
 
-REUSE-FIRST (per plan): instead of a 3rd copy of the heap mechanics, this imports
-``_PriorityQueue`` from tts_sentence_worker_service.py and EXTENDS it to per-backend
-keying - one ``_PriorityQueue`` instance per Laravel base URL, so distinct backends
-never interleave. ``_PriorityQueue`` already encapsulates the ``(-priority, seq)``
-min-heap + FIFO tie-break as single GIL-atomic heapq calls; TaskHeap adds the
+REUSE-FIRST: instead of a third copy of the heap mechanics, this imports
+``SentencePriorityQueue`` from the sentence-worker support component and extends
+it to per-backend keying. One queue per Laravel base URL prevents interleaving.
+``SentencePriorityQueue`` encapsulates the ``(-priority, seq)``
+min-heap + FIFO tie-break on its own state owner; TaskHeap adds the
 per-backend routing, the inflight-skip on enqueue, the dispatch-on-drain, and the
 jittered fast-drain burst.
 
 The heap operations are tightly coupled to worker state (inflight tracking,
 _dispatch, _pull_tasks, circuit breaker, api_url, fast-drain knobs), so TaskHeap
 holds a ``worker`` reference. This is CIRCULAR-IMPORT SAFE: task_heap.py imports
-ONLY tts_sentence_worker_service (for _PriorityQueue) + stdlib - it NEVER imports
-worker.py; it receives the worker instance at construction time.
+ONLY the sentence-worker support component + stdlib; it never imports worker.py
+and receives the worker instance at construction time.
 
-Rule §4 (no manual locks):
-  ``_heaps`` mutations are single GIL-atomic dict ops (setdefault/get), and
-  ``_PriorityQueue`` is itself lock-free, so enqueue/drain need no TaskHeap-level
-  lock; the worker's inflight guard stays the only serialization on enqueue.
-  Fast-drain lifecycle state travels through THREAD_BUS. The burst runs on a
-  named Thread subclass (TranslateFastDrainThread), never a bare Thread spawn.
+Rule §4: TaskHeap and every ``SentencePriorityQueue`` use THREAD_BUS-backed state
+owners. Fast-drain lifecycle state and task startup also travel through the bus.
 """
 
 import random
@@ -33,9 +29,7 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method, start_bus_task
 from pycore.pyfoundations.thread_bus import THREAD_BUS
-# REUSE the sibling's priority-queue primitive (single max-heap on priority with
-# FIFO tie-break) rather than copying a 3rd heap implementation.
-from pycore.callmodule.services.tts_sentence_worker_service import _PriorityQueue
+from pycore.callmodule.services.tts_sentence_worker_support import SentencePriorityQueue
 
 
 class TaskHeap:
@@ -43,11 +37,11 @@ class TaskHeap:
 
     def __init__(self, worker) -> None:
         self._worker = worker
-        # base_url -> _PriorityQueue (one max-heap per backend so distinct
+        # base_url -> SentencePriorityQueue (one max-heap per backend so distinct
         # backends never interleave; FIFO tie-break is per-backend, which is
         # behaviorally identical to the original global seq since drain is
         # per-backend and tasks from different backends are never compared).
-        self._heaps: Dict[str, "_PriorityQueue"] = {}
+        self._heaps: Dict[str, "SentencePriorityQueue"] = {}
         self._fast_drain_signal = f"translation.fast_drain.active.{id(self)}"
         THREAD_BUS.signal(self._fast_drain_signal, False)
         init_serialized_owner(self, "translation.task_heap", "TranslationTaskHeapState")
@@ -56,7 +50,7 @@ class TaskHeap:
     def task_priority(task: Dict[str, Any]) -> int:
         """Numeric priority of a pulled task (default 0). Higher drains first.
 
-        Kept for API parity/traceability; _PriorityQueue.push internalizes the
+        Kept for API parity/traceability; SentencePriorityQueue.push handles the
         same non-numeric-safe parse.
         """
         try:
@@ -74,7 +68,7 @@ class TaskHeap:
         added = 0
         pq = self._heaps.get(base)
         if pq is None:
-            pq = _PriorityQueue()
+            pq = SentencePriorityQueue()
             self._heaps[base] = pq
         for task in tasks:
             pq.push(task)
@@ -97,13 +91,11 @@ class TaskHeap:
     @serialized_method
     def depth(self) -> int:
         """Total queued (claimed-but-undispatched) tasks across all backends."""
-        # Rule §4: lock-free snapshot; the worst-case race is a stale count.
         return sum(len(pq) for pq in self._heaps.values())
 
     @serialized_method
     def per_backend_depth(self) -> Dict[str, int]:
         """Per-backend queued depth (for get_queue_status)."""
-        # Rule §4: lock-free snapshot; the worst-case race is a stale count.
         return {b: len(pq) for b, pq in self._heaps.items()}
 
     def is_fast_drain_active(self) -> bool:
@@ -117,9 +109,6 @@ class TaskHeap:
         """Arm a fast-drain burst when pending_fast>0 and none is already running."""
         if pending_fast <= 0:
             return
-        # Rule §4: plain GIL-atomic flag, no lock - poll_once (heartbeat thread)
-        # is the only ARMER here (the burst thread only ever resets to False),
-        # so check-then-set cannot double-spawn.
         if THREAD_BUS.get_signal(self._fast_drain_signal, False):
             return
         THREAD_BUS.signal(self._fast_drain_signal, True)

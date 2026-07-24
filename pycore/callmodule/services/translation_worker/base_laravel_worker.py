@@ -8,22 +8,19 @@ generic "worker task" API (/api/worker/register|heartbeat|tasks/pull|tasks/resul
 Extracted verbatim (behavior-preserving) from the former translation_worker_service.py
 monolith. Holds the parts that are IDENTICAL across the Laravel-pulled workers:
 
-  - Singleton __new__ using ``cls`` so the CONCRETE subclass singleton works
-    (the _instance MUST live on the concrete subclass, never here - otherwise
-    two subclasses would share one singleton).
+  - THREAD_BUS-backed mutable worker state.
   - Stable hostname-based worker_id + candidate Laravel base-URL discovery.
   - Lazy third-party ``requests`` accessor + noisy-exception condenser.
   - One-shot "no reachable Laravel" connection-failure hint.
   - register / heartbeat / pull / _post_result HTTP with retry + circuit breaker.
 
 The concrete subclass (TranslationWorkerService) supplies:
-  - _instance (class attribute)
   - worker_name, _log_prefix (set in __init__ before any base HTTP method runs)
   - _effective_processor_types() / _effective_capabilities() (lane gating)
   - the lane-specific task processing
 
 REUSE-FIRST TODO: tts_queue_poller_service.py + tts_sentence_worker_service.py
-duplicate this exact scaffold (singleton __new__, _build_worker_id, candidate
+duplicate this exact scaffold (_build_worker_id, candidate
 discovery, _short_err, register/heartbeat/pull/_post_result, circuit breaker).
 They should be retrofitted to inherit BaseLaravelWorkerService in a LATER reuse
 batch - NOT in this split (their contracts differ slightly: dedicated claim/report
@@ -53,11 +50,7 @@ class BaseLaravelWorkerService:
     """
     Base class for Laravel-pulled pycore workers (register/heartbeat/pull/result).
 
-    Subclasses MUST define ``_instance`` (Optional[<subclass>]) as a CLASS
-    attribute for the singleton __new__ below to key on the CONCRETE type
-    (a base-level _instance would be shared across all subclasses - a latent
-    multi-worker bug). Threading rule §4: no _instance_lock - the __new__
-    below is a plain GIL-atomic check-then-assign.
+    Concrete singleton construction is handled by a THREAD_BUS-backed provider.
     """
 
     # Default inflight TTL when a task carries no timeout_seconds: a re-offered
@@ -86,18 +79,6 @@ class BaseLaravelWorkerService:
     # (those are per-task, not backend-wide).
     CIRCUIT_FAIL_THRESHOLD = 3
     CIRCUIT_COOLDOWN_SECONDS = 120
-
-    def __new__(cls, *args, **kwargs):
-        """Singleton - one worker per process, keyed on the CONCRETE subclass.
-
-        Uses ``cls._instance`` (defined on the subclass) so distinct concrete
-        workers each get their own singleton. Threading rule §4: GIL-atomic
-        check-then-assign, no lock - the worst race outcome is one duplicate
-        instance built and discarded (subclass __init__ is idempotent-guarded).
-        """
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
 
     # -------------------- base init (called by subclass __init__) --------------------
 
@@ -138,8 +119,7 @@ class BaseLaravelWorkerService:
         # INFLIGHT_DEFAULT_TTL) and expired entries are purged before the skip
         # check, so a re-offered task can be claimed again.
         self._inflight: Dict[str, float] = {}
-        # Threading rule §4: no _inflight_lock - each mutation of this store is
-        # a single GIL-atomic dict set/pop (see worker.py / task_heap.py).
+        # The serialized worker owns every mutation of this store.
         self._http_timeout = 8  # seconds for register/heartbeat/pull/result calls
 
         # Log prefix - subclass overrides (e.g. "[TranslationWorker]"). Default
@@ -328,6 +308,7 @@ class BaseLaravelWorkerService:
                     self.api_url = base
                     self._registered = True
                     self._advertised_processor_types = list(processor_types)
+                    self._advertised_capabilities = list(capabilities)
                     if self._conn_unreachable_warned or self._conn_fail_streak:
                         ColorPrint.green(
                             f"{self._log_prefix} Reconnected to Laravel at {base} "

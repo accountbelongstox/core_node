@@ -28,12 +28,15 @@ export function usePersistedRef<T>(key: string, defaultValue: T): Ref<T> {
   // would clobber it); don't echo a value we just received from storage back out.
   let loaded = false;
   let applyingExternal = false;
+  let revision = 0;
+  let locallyChangedBeforeLoad = false;
 
   // Restore the stored value (if any) on creation.
   void (async () => {
+    const loadRevision = revision;
     try {
       const got = await chrome.storage.local.get([storageKey]);
-      if (got && got[storageKey] !== undefined) {
+      if (revision === loadRevision && got && got[storageKey] !== undefined) {
         applyingExternal = true;
         state.value = got[storageKey] as T;
         applyingExternal = false;
@@ -42,6 +45,11 @@ export function usePersistedRef<T>(key: string, defaultValue: T): Ref<T> {
       console.debug('[usePersistedRef] load failed:', key, error);
     } finally {
       loaded = true;
+      if (locallyChangedBeforeLoad) {
+        chrome.storage.local
+          .set({ [storageKey]: state.value })
+          .catch((error) => console.debug('[usePersistedRef] save failed:', key, error));
+      }
     }
   })();
 
@@ -49,12 +57,17 @@ export function usePersistedRef<T>(key: string, defaultValue: T): Ref<T> {
   watch(
     state,
     (value) => {
-      if (!loaded || applyingExternal) return;
+      if (applyingExternal) return;
+      revision++;
+      if (!loaded) {
+        locallyChangedBeforeLoad = true;
+        return;
+      }
       chrome.storage.local
         .set({ [storageKey]: value })
         .catch((error) => console.debug('[usePersistedRef] save failed:', key, error));
     },
-    { deep: true },
+    { deep: true, flush: 'sync' },
   );
 
   // Keep other open surfaces (e.g. the options page) in sync.
@@ -65,6 +78,7 @@ export function usePersistedRef<T>(key: string, defaultValue: T): Ref<T> {
     if (area !== 'local' || !(storageKey in changes)) return;
     const next = changes[storageKey].newValue;
     if (next === undefined || JSON.stringify(next) === JSON.stringify(state.value)) return;
+    revision++;
     applyingExternal = true;
     state.value = next as T;
     applyingExternal = false;

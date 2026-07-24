@@ -17,10 +17,8 @@ $SCRIPT_ROOT = $PSScriptRoot
 $WIN_COMMON_DIR = $SCRIPT_ROOT
 $GLOBAL_VARS_PATH = Join-Path $WIN_COMMON_DIR "GlobalVars.ps1"
 
-# Load global variables if available
-if (Test-Path $GLOBAL_VARS_PATH) {
-    . $GLOBAL_VARS_PATH
-}
+# Load global variables from the trusted project path.
+. $GLOBAL_VARS_PATH
 
 # Define startup directories
 $SYSTEM_STARTUP_DIR = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"

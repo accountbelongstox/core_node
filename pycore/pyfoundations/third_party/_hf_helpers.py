@@ -17,7 +17,7 @@ from typing import Optional, Union, List
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector, get_cnocr_pip_package
 
-from ._cache import _PACKAGE_CACHE
+from ._package_cache import _PACKAGE_CACHE
 from ._deps import DEPENDENCY_MAP
 from ._pip_runner import build_pip_install_command, run_pip_install_with_realtime_output
 
@@ -46,10 +46,6 @@ def get_third_package_huggingface_hub():
     return _PACKAGE_CACHE.get('huggingface_hub')
 
 
-# Official PyPI latest (for init log); see https://pypi.org/pypi/cnocr/json
-CNOCR_OFFICIAL_LATEST_VERSION = "2.3.2.3"
-
-
 def _print_cnocr_init_info(cnocr_module):
     """Print GPU support and loaded versions at cnocr init (official: PyPI cnocr, ort-cpu/ort-gpu)."""
     gpu_available = CUDADetector.is_cuda_available()
@@ -61,7 +57,7 @@ def _print_cnocr_init_info(cnocr_module):
     except Exception:
         pass
     ColorPrint.blue(
-        f"[CnOCR] GPU: {'yes' if gpu_available else 'no'} | cnocr: {cnocr_ver} | onnxruntime: {onnx_ver} | official latest: {CNOCR_OFFICIAL_LATEST_VERSION}"
+        f"[CnOCR] GPU: {'yes' if gpu_available else 'no'} | cnocr: {cnocr_ver} | onnxruntime: {onnx_ver}"
     )
 
 
@@ -69,7 +65,7 @@ def get_third_package_cnocr():
     """
     Get cnocr package (lazy load). Official: https://cnocr.readthedocs.io/zh-cn/stable/install/
     GPU: pip install cnocr[ort-gpu], CPU: pip install cnocr[ort-cpu].
-    When installing: uses get_cnocr_pip_package() (CUDADetector); installs latest (--upgrade).
+    When installing: uses get_cnocr_pip_package() and preserves installed distributions.
     Returns None if still unavailable after install attempt. On first load prints GPU support and versions.
     """
     if 'cnocr' not in _PACKAGE_CACHE:
@@ -80,8 +76,8 @@ def get_third_package_cnocr():
         except (ImportError, ModuleNotFoundError):
             pip_package = get_cnocr_pip_package()
             if pip_package:
-                ColorPrint.yellow(f"[INSTALL] Package 'cnocr' not found. Installing latest '{pip_package}' (official)...")
-                pip_cmd = build_pip_install_command(pip_package, upgrade=True)
+                ColorPrint.yellow(f"[INSTALL] Package 'cnocr' not found. Installing '{pip_package}'...")
+                pip_cmd = build_pip_install_command(pip_package)
                 run_pip_install_with_realtime_output(pip_cmd, pip_package)
                 importlib.invalidate_caches()
                 try:

@@ -1,5 +1,5 @@
 /**
- * Agent History — local Claude/Codex/Cursor/Gemini/Kimi/Antigravity sessions extracted by pycore.
+ * Agent History — installed Agent/Claude/Codex/Cursor/Gemini/Kimi/Antigravity/Cline/Ark sessions extracted by pycore.
  * Reads /api/local/agent-history/* (no Laravel login). Auto-refreshes every 10s.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';

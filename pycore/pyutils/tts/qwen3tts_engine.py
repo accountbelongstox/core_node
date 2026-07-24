@@ -2,7 +2,7 @@
 """
 Qwen3-TTS engine - HTTP client to the isolated-venv api server (class C).
 
-qwen-tts pins transformers==4.57.3, which cannot coexist with the main
+qwen-tts owns transformer dependencies that may not coexist with the main
 interpreter's pin (parler/bark -> 4.46.x). Therefore qwen-tts is NEVER imported
 in this (main) interpreter. Instead it runs as
 pycore/tts_install_assets/qwen3tts_api_server.py inside a DEDICATED venv (see
@@ -31,13 +31,14 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.isolated_venv import venv_ready as isolated_venv_ready
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedValue
 
 _DEFAULT_HOST = "127.0.0.1"
 _DEFAULT_PORT = 57210
 _HEALTH_TIMEOUT_S = 3.0
 _REQUEST_TIMEOUT_S = float(os.environ.get("QWEN3TTS_HTTP_TIMEOUT_S", "900") or "900")
 
-_last_synth_error: Optional[str] = None
+_LAST_SYNTH_ERROR = SerializedValue(None, "Qwen3TTSErrorState")
 
 
 def base_url() -> str:
@@ -68,7 +69,7 @@ def disabled_reason() -> Optional[str]:
 
 
 def last_synth_error() -> Optional[str]:
-    return _last_synth_error
+    return _LAST_SYNTH_ERROR.get()
 
 
 def is_model_loaded() -> bool:
@@ -171,11 +172,10 @@ def synthesize(
     format follows the output suffix ('wav' for .wav, else 'mp3'). ``speed`` is
     accepted for API symmetry but not supported by the qwen3tts server."""
     del speed
-    global _last_synth_error
-    _last_synth_error = None
+    _LAST_SYNTH_ERROR.set(None)
     cleaned = (text or "").strip()
     if not cleaned:
-        _last_synth_error = "empty text"
+        _LAST_SYNTH_ERROR.set("empty text")
         return False
     out = Path(output_mp3)
     payload: Dict[str, Any] = {"text": cleaned, "language": (lang or "en"), "format": _fmt_for(out)}
@@ -187,14 +187,15 @@ def synthesize(
         payload["instruct"] = style
     ok, data, err = _post_bytes("/synthesize", payload)
     if not ok or not data:
-        _last_synth_error = err or "qwen3tts synthesize failed"
-        ColorPrint.red(f"[qwen3tts] synth failed: {_last_synth_error}")
+        synth_error = err or "qwen3tts synthesize failed"
+        _LAST_SYNTH_ERROR.set(synth_error)
+        ColorPrint.red(f"[qwen3tts] synth failed: {synth_error}")
         return False
     try:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(data)
     except OSError as exc:
-        _last_synth_error = f"write failed: {exc}"
+        _LAST_SYNTH_ERROR.set(f"write failed: {exc}")
         return False
     return True
 
@@ -208,13 +209,12 @@ def synthesize_variants(
     """POST /synthesize_batch (one server call generating N voice variants at the
     GPU's max parallel speed), base64-decode each result, write files in order.
     Returns one bool per variant (index-aligned with ``variants`` / ``out_paths``)."""
-    global _last_synth_error
-    _last_synth_error = None
+    _LAST_SYNTH_ERROR.set(None)
     cleaned = (text or "").strip()
     n = min(len(variants), len(out_paths))
     results = [False] * max(n, 0)
     if not cleaned or n == 0:
-        _last_synth_error = "empty text" if not cleaned else "no variants"
+        _LAST_SYNTH_ERROR.set("empty text" if not cleaned else "no variants")
         return results
     # The server applies ONE format to the whole batch; take it from the first path.
     fmt = _fmt_for(Path(out_paths[0]))
@@ -229,12 +229,13 @@ def synthesize_variants(
     payload = {"text": cleaned, "language": (lang or "en"), "variants": wire_variants, "format": fmt}
     ok, body, err = _post_json("/synthesize_batch", payload)
     if not ok or not isinstance(body, dict):
-        _last_synth_error = err or "qwen3tts batch failed"
-        ColorPrint.red(f"[qwen3tts] batch synth failed: {_last_synth_error}")
+        synth_error = err or "qwen3tts batch failed"
+        _LAST_SYNTH_ERROR.set(synth_error)
+        ColorPrint.red(f"[qwen3tts] batch synth failed: {synth_error}")
         return results
     rows = body.get("results")
     if not isinstance(rows, list):
-        _last_synth_error = "malformed batch response"
+        _LAST_SYNTH_ERROR.set("malformed batch response")
         return results
     for i in range(n):
         row = rows[i] if i < len(rows) else None
@@ -252,7 +253,7 @@ def synthesize_variants(
         except (ValueError, OSError):
             results[i] = False
     if not all(results):
-        _last_synth_error = "one or more Qwen3-TTS variants failed"
+        _LAST_SYNTH_ERROR.set("one or more Qwen3-TTS variants failed")
     return results
 
 

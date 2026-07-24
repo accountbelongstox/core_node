@@ -49,14 +49,13 @@ function Get-AiCudaTiers {
     $rows = Get-AiRuntimePolicyList -Name 'AI_CUDA_TIERS'
     foreach ($row in $rows) {
         $parts = $row.Split(':')
-        if ($parts.Count -ne 6) { continue }
+        if ($parts.Count -ne 5) { continue }
         $tiers += [PSCustomObject]@{
             Tag             = $parts[0]
             MinimumDriverCv = [int]$parts[1]
             Major           = [int]$parts[2]
             ToolkitVersion  = $parts[3]
             ToolkitDriver   = $parts[4]
-            PaddleVersion   = $parts[5]
             DisplayVersion  = $parts[0].Substring(2).Insert($parts[0].Length - 3, '.')
         }
     }

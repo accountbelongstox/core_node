@@ -39,9 +39,11 @@ $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 $stagingDefault = Get-PycoreLocalDataSubDir -SubDir 'fishspeech'
 $targetDir = if ($env:FISHSPEECH_DIR) { $env:FISHSPEECH_DIR } else { $stagingDefault }
 $depsSentinel = Join-Path $targetDir '.deps_done'
+. (Join-Path $winCommonDir 'CudaIndex.ps1')
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
 $apiServerSrc = Join-Path (Get-PycoreTtsInstallAssetsDir -InstallScriptRoot $PSScriptRoot) 'fishspeech_api_server.py'
 $apiServerDst = Join-Path $targetDir 'fishspeech_api_server.py'
+$resolvedPython = $Global:PYTHON_EXE_PATH
 
 function Test-ServerUp {
     param([string]$Url)
@@ -63,33 +65,38 @@ Write-Host '============================================================' -Foreg
 if ($env:FISHSPEECH_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] FISHSPEECH_SKIP=1 -> skipping." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('fishaudio') -AbsentOk -AbsentNote 'FISHSPEECH_SKIP=1'
+    return
 }
 if (Test-ServerUp -Url $serverUrl) {
     Write-Host "$SCRIPT_INDEX [OK] server reachable at $serverUrl -> nothing to do." -ForegroundColor Green
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('fishaudio') -AbsentOk -AbsentNote 'external server reachable'
+    return
 }
-$resolvedPython = $Global:PYTHON_EXE_PATH
 if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'fishspeech' -Path $depsSentinel) -and (Test-Path $apiServerDst) -and -not $Force -and -not $doFull) {
     Write-Host "$SCRIPT_INDEX [OK] Fish Audio already installed -> skipping." -ForegroundColor Green
     Write-Host ("$SCRIPT_INDEX  START:  cd `"{0}`"; python fishspeech_api_server.py   (serves {1})" -f $targetDir, $serverUrl) -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('fishaudio')
+    return
 }
 if (-not $doFull -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [i] status-only. Pass -Full, FISHSPEECH_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('fishaudio') -AbsentOk -AbsentNote 'opt-in'
+    return
 }
 
 if (-not $resolvedPython) {
     Write-Host "$SCRIPT_INDEX [!] Python 3 not found. Run Step8_InstallPython first." -ForegroundColor DarkYellow
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('fishaudio')
+    return
 }
 if (-not (Test-TtsEngineCompatible -PythonExe $resolvedPython -Engine 'fishspeech' -Prefix "$SCRIPT_INDEX ")) {
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
+    return
 }
 $fishPolicy = Get-TtsEngineInstallPolicy -PythonExe $resolvedPython -Engine 'fishspeech'
 if ($fishPolicy) { $fishPackages = @($fishPolicy.packages) }
 
-$hasCuda = Test-CudaPresent
+$hasCuda = (Get-CudaRuntimePolicy).Enabled
 Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine fishspeech -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 $fishCkpt = Resolve-TtsModelTier -PythonExe $resolvedPython -Key fishspeech_checkpoint -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)
 if ($fishCkpt -and -not $env:FISHSPEECH_CHECKPOINT) {
@@ -134,6 +141,7 @@ if (Test-TtsEngineHealth -PythonExe $resolvedPython -Engine 'fishspeech') {
     Write-Host ("$SCRIPT_INDEX  SDK: set FISH_API_KEY; cd `"{0}`"; python fishspeech_api_server.py" -f $targetDir) -ForegroundColor Cyan
     Write-Host "$SCRIPT_INDEX  Local: download checkpoints per https://speech.fish.audio/install/ then run tools/api_server.py" -ForegroundColor DarkGray
 } else {
-    throw "$SCRIPT_INDEX Fish Speech dependencies are incomplete; retrying next run."
+    Write-Host "$SCRIPT_INDEX [!] Fish Speech dependencies are incomplete; retrying next run." -ForegroundColor DarkYellow
+    return
 }
 Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('fishaudio')

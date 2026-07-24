@@ -11,33 +11,33 @@ so Path(__file__).resolve().parents index for the repo root is 3 (was 2).
 
 import os
 import sys
-import importlib
+
+from pycore.pyfoundations.serialized_worker import SerializedValue
 import importlib.metadata
-import platform
 import shutil
-from pathlib import Path
 from typing import Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
-from pycore.pyfoundations.ai_runtime_policy import cuda_tier_by_tag
+from pycore.pyfoundations.ai_runtime_policy import (
+    TORCH_INDEX_BASE,
+    cuda_tier_by_tag,
+    cuda_tier_for_driver,
+)
 
 from ._deps import (
     PYTORCH_CUDA_INDEX_URL,
     PYTORCH_CPU_INDEX_URL,
-    _PYTORCH_CUDA_WHEELS,
-    _PYTORCH_CUDA_DEFAULT_TAG,
 )
 from ._pip_runner import (
+    _is_pip_package_installed,
     run_third_party_command,
     run_pip_install_with_realtime_output,
-    _run_pip_uninstall,
-    build_pip_install_command,
 )
 
 try:
     import torch
-except ImportError:
+except Exception:  # The installed binary may fail to load; startup must not reinstall it.
     torch = None
 
 
@@ -73,85 +73,30 @@ def _print_cuda_support_prompt():
     ColorPrint.blue("[CUDA] ---")
 
 
-def _uninstall_orphan_nvidia_wheels():
-    """Reclaim disk after switching torch to CPU on a no-GPU host: pip leaves the
-    nvidia-* CUDA wheels (~4.3G) behind. Uninstall every nvidia-* and triton wheel."""
-    proc = run_third_party_command(
-        [sys.executable, "-m", "pip", "list", "--format=freeze"],
-        capture_output=True,
-        timeout=30,
-    )
-    if proc is None or proc.returncode != 0:
-        return
-    names = []
-    for line in (proc.stdout or "").splitlines():
-        name = line.split("==", 1)[0].strip()
-        low = name.lower()
-        if low.startswith("nvidia-") or low == "triton":
-            names.append(name)
-    if names:
-        run_third_party_command(
-            [sys.executable, "-m", "pip", "uninstall", "-y", *names],
-            "pip uninstall nvidia-* (no GPU)",
-        )
-
-
 def _ensure_torch_cpu_build_when_no_gpu():
-    """No NVIDIA GPU, but a CUDA build of torch is installed -> it dragged in ~4.3G of
-    nvidia-* wheels for nothing. Reinstall the CPU build from the CPU index and remove
-    the orphaned nvidia-* wheels. No-op if torch is absent or already the CPU build.
-    Override: TORCH_FORCE_CUDA=1 leaves it alone."""
+    """Preserve an installed torch distribution; install-time guards own ABI changes."""
     if os.environ.get("TORCH_FORCE_CUDA") == "1":
         return
     if torch is None:
         return
     if getattr(torch.version, "cuda", None) is None:
         return  # already a CPU build
-    # SAFETY: never downgrade a CUDA torch that actually WORKS. nvidia-smi can be
-    # missing from a sanitized PATH (false 'no GPU'); if torch itself sees the GPU
-    # there IS a GPU, so keep the CUDA build instead of a destructive ~5G reinstall.
-    try:
-        if torch.cuda.is_available():
-            ColorPrint.blue(
-                "[CUDA] torch reports CUDA available; keeping the CUDA build "
-                "(ignoring the nvidia-smi PATH miss)."
-            )
-            return
-    except Exception:  # noqa: BLE001
-        pass
     ColorPrint.yellow(
-        "[CUDA] No GPU detected, but torch is a CUDA build (pulls ~4.3G nvidia-*). "
-        "Reinstalling the CPU build and removing nvidia-* wheels."
+        "[CUDA] No GPU detected while a CUDA torch build is installed; preserving it. "
+        "The installer owns explicit CPU/GPU ABI changes."
     )
-    current_platform = platform.system()
-    pip_cmd = [sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio",
-               "--index-url", PYTORCH_CPU_INDEX_URL, "--force-reinstall"]
-    if current_platform != "Windows":
-        pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
-    else:
-        pip_cmd.append("--no-user")
-    run_pip_install_with_realtime_output(pip_cmd, "torch (CPU, no GPU)")
-    _uninstall_orphan_nvidia_wheels()
-    importlib.invalidate_caches()
-    if "torch" in sys.modules:
-        del sys.modules["torch"]
 
 
-_sherpa_onnx_build_checked = False
+_SHERPA_ONNX_BUILD_CHECKED = SerializedValue(
+    False,
+    "SherpaONNXBuildCheckStateThread",
+)
 
 
 def _ensure_sherpa_onnx_cpu_build_when_no_gpu():
-    """No NVIDIA GPU but a '+cuda' build of sherpa-onnx is installed -> switch to the
-    CPU wheel from PyPI. Unlike torch, the sherpa-onnx CPU wheel is the DEFAULT and
-    pulls no CUDA libs; the '+cuda' build needs the system CUDA Toolkit + cuDNN and
-    is useless (often un-importable) without a GPU. Mirrors the install-time
-    scripts/shells/linux/common/sherpa_onnx_cpu_guard.sh. Runs at most once / process.
-    No-op if sherpa-onnx is absent, already CPU, or a GPU is present.
-    Override: TORCH_FORCE_CUDA=1 / SHERPA_ONNX_FORCE_CUDA=1 leaves it alone."""
-    global _sherpa_onnx_build_checked
-    if _sherpa_onnx_build_checked:
+    """Preserve installed sherpa-onnx; the installer owns explicit ABI changes."""
+    if not _SHERPA_ONNX_BUILD_CHECKED.compare_and_set(False, True):
         return
-    _sherpa_onnx_build_checked = True
     if os.environ.get("TORCH_FORCE_CUDA") == "1" or os.environ.get("SHERPA_ONNX_FORCE_CUDA") == "1":
         return
     try:
@@ -164,18 +109,8 @@ def _ensure_sherpa_onnx_cpu_build_when_no_gpu():
         return  # GPU present -> keep the CUDA build
     ColorPrint.yellow(
         f"[sherpa] No GPU detected, but sherpa-onnx is a CUDA build ({version}); "
-        "reinstalling the CPU wheel."
+        "preserving it and allowing the caller to skip the engine."
     )
-    pip_cmd = [sys.executable, "-m", "pip", "install", "sherpa-onnx", "--force-reinstall"]
-    if platform.system() != "Windows":
-        pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
-    else:
-        pip_cmd.append("--no-user")
-    run_pip_install_with_realtime_output(pip_cmd, "sherpa-onnx (CPU, no GPU)")
-    importlib.invalidate_caches()
-    for _mod in list(sys.modules.keys()):
-        if _mod == "sherpa_onnx" or _mod.startswith("sherpa_onnx."):
-            del sys.modules[_mod]
 
 
 def _detect_driver_cuda_version() -> Optional[Tuple[int, int]]:
@@ -201,14 +136,12 @@ def _detect_driver_cuda_version() -> Optional[Tuple[int, int]]:
 
 
 def _resolve_pytorch_cuda_index_url() -> str:
-    """Driver-matched PyTorch CUDA wheel index. Resolution order (so the default is NEVER a
-    second hardcode - it auto-syncs from the system / the shell helper):
-      1. env PYTORCH_CUDA_INDEX_URL - explicit override;
-      2. the shared shell resolver scripts/shells/linux/common/base_libs/cuda_index.sh
-         - the SINGLE source of truth for the driver->wheel mapping AND the default, so this
-         module and every *.sh installer always agree;
-      3. in-process nvidia-smi parse (same mapping) only if that .sh is unreachable.
-    """
+    """Resolve the driver-matched wheel index from the central Python policy."""
+    requested_driver = None
+    requested_tier = None
+    requested_tag = ""
+    driver_cv = None
+    tier = None
     if PYTORCH_CUDA_INDEX_URL:
         return PYTORCH_CUDA_INDEX_URL
     requested_tag = (os.environ.get("CORE_CUDA_TAG") or "").strip().lower()
@@ -217,108 +150,39 @@ def _resolve_pytorch_cuda_index_url() -> str:
     if requested_tier is not None and requested_driver is not None:
         driver_cv = requested_driver[0] * 100 + requested_driver[1]
         if driver_cv >= requested_tier["minimum_driver_cv"]:
-            return "https://download.pytorch.org/whl/" + requested_tier["tag"]
-    # (2) Defer to the shell single-source-of-truth so Python + the *.sh installers can't
-    # diverge (the default lives there, not here).
-    # NOTE: this file lives in pycore/pyfoundations/third_party/_torch_cuda.py, so the repo
-    # root is parents[3] (parents[0]=third_party, [1]=pyfoundations, [2]=pycore, [3]=root).
-    try:
-        helper = Path(__file__).resolve().parents[3] / "scripts/shells/linux/common/base_libs/cuda_index.sh"
-        if helper.is_file():
-            proc = run_third_party_command(
-                ["bash", "-c", '. "$1"; torch_cuda_index_url', "_", str(helper)],
-                capture_output=True, timeout=20)
-            url = (getattr(proc, "stdout", "") or "").strip() if proc is not None else ""
-            if url.startswith("https://download.pytorch.org/whl/"):
-                return url
-    except Exception:
-        pass
-    # (3) Fallback only when the shell helper is missing: same driver->wheel mapping.
-    drv = _detect_driver_cuda_version()
-    tag = _PYTORCH_CUDA_DEFAULT_TAG
-    if drv is not None:
-        for cmaj, cmin, wheel in _PYTORCH_CUDA_WHEELS:
-            if drv >= (cmaj, cmin):
-                tag = wheel
-                break
-    if not tag:
+            return f"{TORCH_INDEX_BASE}/{requested_tier['tag']}"
+    if requested_driver is not None:
+        driver_cv = requested_driver[0] * 100 + requested_driver[1]
+        tier = cuda_tier_for_driver(driver_cv)
+    if tier is None:
         return PYTORCH_CPU_INDEX_URL
-    return "https://download.pytorch.org/whl/" + tag
+    return f"{TORCH_INDEX_BASE}/{tier['tag']}"
 
 
 def _ensure_torch_cuda_build_first():
-    """
-    Run before other package checks. Ensure torch is CUDA build only when system supports CUDA.
-    System support: NVIDIA GPU + driver (nvidia-smi or CUDA env). Per PyTorch docs: is_available() for runtime.
-    On a host with NO GPU, ensure torch is the CPU build (not a stray CUDA build).
-    """
+    """Install torch only when absent; never mutate an installed runtime at startup."""
     _print_cuda_support_prompt()
-
-    # No CUDA support: make sure any stray CUDA-build torch is switched to CPU.
-    if not CUDADetector.is_cuda_available():
-        _ensure_torch_cpu_build_when_no_gpu()
-        return
-
-    if torch is not None and getattr(torch, "cuda", None) is not None and torch.cuda.is_available():
-        return
+    cuda_available = CUDADetector.is_cuda_available()
     if torch is not None:
-        if getattr(torch.version, "cuda", None) is None:
-            ColorPrint.blue(
-                "[INFO] Ensuring PyTorch CUDA build (current is CPU-only; system has NVIDIA GPU). "
-                "See https://pytorch.org/get-started/locally"
+        if cuda_available and not torch.cuda.is_available():
+            ColorPrint.yellow(
+                "[CUDA] Installed torch cannot initialize CUDA; preserving it to avoid a startup reinstall loop."
             )
-        else:
-            if torch.cuda.is_available():
-                return
-            ColorPrint.blue("[INFO] Reinstalling PyTorch CUDA build (driver/runtime may need match)...")
-    else:
-        ColorPrint.blue("[INFO] Installing PyTorch with CUDA first (system has NVIDIA GPU)...")
-    current_platform = platform.system()
-    cuda_index_url = _resolve_pytorch_cuda_index_url()
-    ColorPrint.blue("[INFO] PyTorch CUDA wheel index (driver-matched): " + cuda_index_url)
-    # We only reach here when torch is missing OR present-but-cuda-unavailable (CPU-only build
-    # OR a CUDA build too new for the driver, e.g. cu130 on a 12.4 driver). When REPLACING an
-    # existing build, uninstall the importable torch stack FIRST and always --force-reinstall:
-    # otherwise --ignore-installed merely drops the driver-matched wheel BESIDE the stale one,
-    # the stale build keeps shadowing it, torch.cuda.is_available() stays False, and this
-    # reinstall fires again on every launch (the ~5GB re-download loop). --ignore-installed is
-    # still passed for the mpmath<1.4-no-RECORD case (Debian/Kali ship mpmath 1.4.x without a
-    # RECORD file, which aborts a plain reinstall of torch's deps).
-    if torch is not None:
-        for _pkg in ("torch", "torchvision", "torchaudio"):
-            _run_pip_uninstall(_pkg)
+        elif not cuda_available:
+            _ensure_torch_cpu_build_when_no_gpu()
+        return
+    if _is_pip_package_installed("torch"):
+        ColorPrint.yellow(
+            "[CUDA] torch package metadata exists but the binary cannot load; preserving it for installer repair."
+        )
+        return
+
+    cuda_index_url = _resolve_pytorch_cuda_index_url() if cuda_available else PYTORCH_CPU_INDEX_URL
+    ColorPrint.blue("[INFO] torch is missing; installing from " + cuda_index_url)
     pip_cmd = [sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio",
                "--index-url", cuda_index_url]
-    if current_platform != "Windows":
-        pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
+    if os.name != "nt":
+        pip_cmd.append("--break-system-packages")
     else:
         pip_cmd.append("--no-user")
-    if torch is not None:
-        pip_cmd.append("--force-reinstall")
-    run_pip_install_with_realtime_output(pip_cmd, "torch (CUDA)")
-    importlib.invalidate_caches()
-    if "torch" in sys.modules:
-        del sys.modules["torch"]
-
-    # Verify CUDA torch actually loads (e.g. avoid WinError 127 from torch_cuda.dll). If not, install CPU build so app runs.
-    proc = run_third_party_command(
-        [sys.executable, "-c", "import torch"],
-        capture_output=True,
-        timeout=60,
-    )
-    if proc is not None and proc.returncode != 0:
-        err = (proc.stderr or "").strip() or (proc.stdout or "").strip()
-        ColorPrint.yellow(
-            "[CUDA] PyTorch CUDA build failed to load (e.g. WinError 127 / missing DLL). Installing CPU build so the app can run."
-        )
-        if err:
-            ColorPrint.yellow("[CUDA] Error: " + err[:400])
-        pip_cpu = [sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio", "--force-reinstall"]
-        if current_platform != "Windows":
-            pip_cpu.extend(["--break-system-packages", "--ignore-installed"])
-        else:
-            pip_cpu.append("--no-user")
-        run_pip_install_with_realtime_output(pip_cpu, "torch (CPU fallback)")
-        importlib.invalidate_caches()
-        if "torch" in sys.modules:
-            del sys.modules["torch"]
+    run_pip_install_with_realtime_output(pip_cmd, "torch")

@@ -323,6 +323,7 @@ const onStorageChanged = async (
   if (area !== 'local' || !changes[STORAGE_KEYS.API_SETTINGS]) return;
   await apiManager.initialize({ autoDetect: false });
   syncSelection();
+  await refreshEndpoints();
 };
 
 onMounted(async () => {

@@ -227,6 +227,7 @@ export type { TaskCenterConfig, TaskCenterStats, ProcessorStatus, ValidityStatus
 /** Popup-local reactive state, built from the shared status shapes. */
 export interface TaskCenterState {
   isRunning: boolean;
+  activeApiUrl: string | null;
   stats: TaskCenterStats | null;
   backend: BackendHealth | null;
   validity: ValidityStatus | null;
@@ -249,12 +250,15 @@ export function useTaskCenter() {
   });
   const state = ref<TaskCenterState>({
     isRunning: false,
+    activeApiUrl: null,
     stats: null,
     backend: null,
     validity: null,
     activeCapabilities: [],
   });
   const error = ref('');
+  let endpointRequestVersion = 0;
+  let endpointRequestQueue: Promise<void> = Promise.resolve();
 
   watch(apiBaseUrl, (url) => {
     if (!url) return;
@@ -329,13 +333,15 @@ export function useTaskCenter() {
     };
   };
 
-  // Start the center with the checked, NON-stub capability keys. The background
-  // derives the concrete processorTypes and boots the validity runner itself
-  // (whenever 'validity' is present) — the popup only names capabilities.
+  // Start the center with the checked capability keys. The background
+  // derives the concrete processorTypes; the popup only names capabilities.
   const startTaskCenter = async (activeCapabilities: CapabilityKey[]) => {
     try {
+      error.value = '';
       await apiManager.initialize({ autoDetect: false });
+      config.value.apiUrl = apiManager.getCurrentBaseUrl();
       await loadRuntimeProcessorSettings();
+      await saveConfig();
       const response = await chrome.runtime.sendMessage({
         type: TASK_CENTER_MSG,
         action: 'start',
@@ -366,6 +372,7 @@ export function useTaskCenter() {
   // background enables/disables the lane (and the validity runner) in place.
   const setCapability = async (capability: CapabilityKey, enabled: boolean) => {
     try {
+      error.value = '';
       await loadRuntimeProcessorSettings();
       const response = await chrome.runtime.sendMessage({
         type: TASK_CENTER_MSG,
@@ -381,18 +388,22 @@ export function useTaskCenter() {
       if (response && response.success) {
         logger.info(LOG, `Capability ${capability} -> ${enabled}`);
         await loadState();
+        return true;
       } else {
         logger.error(LOG, 'Failed to set capability', response?.error);
         error.value = response?.error || 'Failed to update capability';
+        return false;
       }
     } catch (err: any) {
       logger.error(LOG, 'Set capability error', err);
       error.value = err.message || 'Failed to update capability';
+      return false;
     }
   };
 
   const stopTaskCenter = async () => {
     try {
+      error.value = '';
       const response = await chrome.runtime.sendMessage({
         type: TASK_CENTER_MSG,
         action: 'stop',
@@ -413,6 +424,48 @@ export function useTaskCenter() {
       error.value = err.message || 'Failed to stop Task Center';
     }
   };
+
+  const reconfigureTaskCenter = async () => {
+    if (!state.value.isRunning || state.value.activeCapabilities.length === 0) return;
+    try {
+      error.value = '';
+      await loadRuntimeProcessorSettings();
+      await saveConfig();
+      const response = await chrome.runtime.sendMessage({
+        type: TASK_CENTER_MSG,
+        action: 'reconfigure',
+        config: {
+          ...config.value,
+          processors: { ...(config.value.processors || {}) },
+          activeCapabilities: [...state.value.activeCapabilities],
+        },
+      });
+      if (!response?.success) {
+        error.value = response?.error || 'Failed to switch the running API endpoint';
+        logger.error(LOG, 'Endpoint reconfiguration failed', response?.error);
+      }
+      await loadState();
+    } catch (err: any) {
+      error.value = err?.message || 'Failed to switch the running API endpoint';
+      logger.error(LOG, 'Endpoint reconfiguration error', err);
+      await loadState();
+    }
+  };
+
+  watch(apiBaseUrl, (url) => {
+    const next = String(url || '').replace(/\/+$/, '');
+    const active = String(state.value.activeApiUrl || '').replace(/\/+$/, '');
+    if (!next || !state.value.isRunning || (active && next === active)) return;
+
+    const version = ++endpointRequestVersion;
+    endpointRequestQueue = endpointRequestQueue.then(async () => {
+      if (version !== endpointRequestVersion) return;
+      await reconfigureTaskCenter();
+    });
+    endpointRequestQueue = endpointRequestQueue.catch((err) => {
+      logger.error(LOG, 'Queued endpoint reconfiguration failed', err);
+    });
+  });
 
   const startValidityRunner = async (runnerConfig?: ValidityRunnerConfig) => {
     try {
@@ -450,6 +503,7 @@ export function useTaskCenter() {
       if (response && response.success) {
         const status = response as { success: boolean } & FullTaskCenterStatus;
         state.value.isRunning = status.isRunning;
+        state.value.activeApiUrl = status.activeApiUrl ?? null;
         state.value.stats = status.stats;
         state.value.backend = status.backend ?? null;
         state.value.validity = status.validity ?? null;
@@ -484,7 +538,18 @@ export function useTaskCenter() {
     const result = await chrome.storage.local.get(STORAGE_KEYS.TASK_CENTER_ACTIVE);
     isActive.value = result[STORAGE_KEYS.TASK_CENTER_ACTIVE] === true;
     await loadConfig();
+    if (apiBaseUrl.value) {
+      config.value.apiUrl = apiBaseUrl.value;
+      if (config.value.processors?.[LANES.BING_DICTIONARY]) {
+        config.value.processors[LANES.BING_DICTIONARY].apiUrl = apiBaseUrl.value.replace(/\/+$/, '');
+      }
+    }
     await loadState();
+    const selectedApiUrl = config.value.apiUrl.replace(/\/+$/, '');
+    const activeApiUrl = String(state.value.activeApiUrl || '').replace(/\/+$/, '');
+    if (state.value.isRunning && activeApiUrl && selectedApiUrl && activeApiUrl !== selectedApiUrl) {
+      await reconfigureTaskCenter();
+    }
     if (state.value.isRunning) {
       startStatsPolling();
     }

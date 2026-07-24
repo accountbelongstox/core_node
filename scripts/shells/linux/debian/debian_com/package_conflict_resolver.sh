@@ -15,11 +15,10 @@
 
 SCRIPT_INDEX="[PKG_CONFLICT]"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALLATION_LIBRARY_PATH="$(dirname "$(dirname "$SCRIPT_CURRENT_DIR")")/common/installation_library.sh"
 
 # Source required libraries
-if [ -f "$SCRIPT_CURRENT_DIR/installation_library.sh" ]; then
-    source "$SCRIPT_CURRENT_DIR/installation_library.sh"
-fi
+source "$INSTALLATION_LIBRARY_PATH"
 
 # Check required parameters
 if [ -z "$1" ] || [ -z "$2" ]; then

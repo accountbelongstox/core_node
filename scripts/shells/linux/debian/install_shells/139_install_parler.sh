@@ -1,6 +1,6 @@
 ﻿#!/bin/bash
 # Parler-TTS prerequisite (Linux) — Hugging Face parler-tts.
-# Category 1: Python 3.13 native with torch>=2.5.
+# Category 1: Python 3.13 native with the shared torch distribution.
 #
 # Official: pip install git+https://github.com/huggingface/parler-tts.git
 #
@@ -35,14 +35,13 @@ done
 . "$SCRIPT_DIR/../../common/base_libs/cuda_index.sh"
 
 PIPLOCK_LIB="$SCRIPT_DIR/../../common/base_libs/pip_lock.sh"
-[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+. "$PIPLOCK_LIB"
 pip_i() { vpip "$PYTHON" -m pip install --break-system-packages "$@" 2>/dev/null || vpip "$PYTHON" -m pip install "$@"; }
 
 resolve_python() {
     local p
     for p in "$PYTHON" python3 python; do
-        if command -v "$p" >/dev/null 2>&1 && "$p" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
+        if command -v "$p" >/dev/null 2>&1; then
             command -v "$p"; return 0
         fi
     done

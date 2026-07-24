@@ -1,0 +1,243 @@
+<?php
+
+namespace App\Apps\AppQyV1\AppQyV1Services;
+
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
+use App\Models\LangSentence;
+use App\Providers\PathMapper;
+use App\Services\MediaIngestService;
+use Illuminate\Support\Facades\Log;
+
+trait AppQyV1SentenceAudioLookupTrait
+{
+    /**
+     * Paginated, disk-reconciled list for Queue Center.
+     *
+     * @return array{total:int,page:int,per_page:int,items:array<int,array<string,mixed>>,summary:array{languages:array<string,int>,reconciled:int}}
+     */
+    public function listMissing(?string $language, int $page, int $perPage): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+        $items = [];
+        $total = 0;
+        $langTotals = [];
+        $reconciled = 0;
+
+        foreach ($this->languagesFor($language) as $lang) {
+            if (!$this->tableExists($lang)) {
+                continue;
+            }
+            $langTotal = $this->pendingCountForLanguage($lang);
+            $langTotals[$lang] = $langTotal;
+            $total += $langTotal;
+        }
+
+        $skip = ($page - 1) * $perPage;
+        $languages = $this->languagesFor($language);
+        $langCount = count($languages);
+        $quota = $langCount > 1 ? max(1, (int) ceil($perPage / $langCount)) : $perPage;
+        $perLangSkip = $langCount > 1 ? intdiv($skip, $langCount) : $skip;
+        $collectedByLang = [];
+
+        foreach ($languages as $lang) {
+            if (count($items) >= $perPage) {
+                break;
+            }
+            $take = min($quota, $perPage - count($items));
+            $collectedByLang[$lang] = $this->collectMissingItemsForLanguage(
+                $lang, $perLangSkip, $take, $items, $reconciled
+            );
+        }
+        foreach ($languages as $lang) {
+            if (count($items) >= $perPage) {
+                break;
+            }
+            $take = $perPage - count($items);
+            $this->collectMissingItemsForLanguage(
+                $lang,
+                $perLangSkip + (int) ($collectedByLang[$lang] ?? 0),
+                $take,
+                $items,
+                $reconciled
+            );
+        }
+
+        return [
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'items' => $items,
+            'summary' => [
+                'languages' => $langTotals,
+                'reconciled' => $reconciled,
+            ],
+        ];
+    }
+
+    /** @param array<int,array<string,mixed>> $items */
+    private function collectMissingItemsForLanguage(
+        string $lang,
+        int $skip,
+        int $take,
+        array &$items,
+        int &$reconciled
+    ): int {
+        if ($take <= 0 || !$this->tableExists($lang)) {
+            return 0;
+        }
+        $rows = LangSentence::onLang($lang)
+            ->where(function ($query) {
+                $query->where('has_audio', false)
+                    ->orWhereIn('tts_status', ['pending', 'failed']);
+            })
+            ->orderByDesc('tts_priority')
+            ->orderByDesc('occurrence_count')
+            ->orderBy('id')
+            ->skip($skip)
+            ->take($take * 4)
+            ->get(['content_id', 'text', 'language', 'tts_priority', 'tts_status', 'tts_locked_by', 'occurrence_count', 'has_audio', 'audio_files']);
+        $collected = 0;
+        foreach ($rows as $row) {
+            if ($collected >= $take) {
+                break;
+            }
+            $this->reconcilePartialRow($row, $lang);
+            if (!$this->rowNeedsAudioWork($lang, $row)) {
+                $reconciled++;
+                continue;
+            }
+            $missing = $this->missingVariantsForRow($lang, $row);
+            $items[] = [
+                'content_id' => (string) $row->content_id,
+                'text' => (string) $row->text,
+                'language' => $lang,
+                'tts_priority' => (int) ($row->tts_priority ?? 0),
+                'tts_status' => (string) ($row->tts_status ?? 'pending'),
+                'tts_locked_by' => $row->tts_locked_by,
+                'occurrence_count' => (int) ($row->occurrence_count ?? 0),
+                'missing_variants' => array_map(fn ($variant) => $variant['key'] ?? '', $missing),
+            ];
+            $collected++;
+        }
+        return $collected;
+    }
+
+    /** @return array<int,array<string,mixed>> */
+    private function formatAudioFilesForApi(LangSentence $sentence): array
+    {
+        $rows = AppQyV1SentenceAudioFiles::list($sentence);
+        $out = [];
+        foreach ($rows as $row) {
+            $path = is_string($row['path'] ?? null) ? $row['path'] : '';
+            $out[] = [
+                'variant_key' => $row['variant_key'] ?? '',
+                'accent' => $row['accent'] ?? null,
+                'gender' => $row['gender'] ?? null,
+                'source' => $row['source'] ?? null,
+                'voice_type' => $row['voice_type'] ?? null,
+                'provider' => $row['provider'] ?? null,
+                'path' => $path,
+                'has_file' => (bool) ($row['has_file'] ?? false),
+                'url' => $path !== '' ? AppQyV1SentenceAudioUrl::forRelative($path) : null,
+            ];
+        }
+        return $out;
+    }
+
+    public function relativePathFor(string $language, string $contentId, ?string $variantKey = null): string
+    {
+        $suffix = ($variantKey !== null && $variantKey !== '') ? ('_' . $variantKey) : '';
+        return $language . '/' . $contentId . $suffix . '.mp3';
+    }
+
+    public function variantExistsOnDisk(string $language, string $contentId, ?string $variantKey = null): bool
+    {
+        $relative = $this->relativePathFor($language, $contentId, $variantKey);
+        $full = PathMapper::getAppQyV1SentenceSoundsDir($relative);
+        clearstatcache(true, $full);
+        return is_file($full) && filesize($full) > 0;
+    }
+
+    /** @return array{relative:string,full:string}|null */
+    private function findOnDisk(string $language, string $contentId): ?array
+    {
+        foreach (self::AUDIO_EXTENSIONS as $extension) {
+            $relative = $language . '/' . $contentId . '.' . $extension;
+            $full = PathMapper::getAppQyV1SentenceSoundsDir($relative);
+            clearstatcache(true, $full);
+            if (is_file($full) && filesize($full) > 0) {
+                return ['relative' => $relative, 'full' => $full];
+            }
+        }
+        return null;
+    }
+
+    private function locate(string $contentId, string $language): ?LangSentence
+    {
+        if (!$this->tableExists($language)) {
+            return null;
+        }
+        return LangSentence::onLang($language)->where('content_id', $contentId)->first();
+    }
+
+    private function ensureSentenceRow(string $contentId, string $language, string $text): ?LangSentence
+    {
+        if (!$this->tableExists($language)) {
+            return null;
+        }
+
+        $existing = LangSentence::onLang($language)->where('content_id', $contentId)->first();
+        if ($existing) {
+            $existing->occurrence_count = (int) ($existing->occurrence_count ?? 0) + 1;
+            if ($this->isEmptyValue($existing->getAttribute('text'))) {
+                $existing->text = $text;
+            }
+            $existing->save();
+            return $existing;
+        }
+
+        $model = LangSentence::for($language);
+        $model->fill([
+            'content_id' => $contentId,
+            'sentence_id' => MediaIngestService::computeSentenceId($text, $language),
+            'corr_id' => 'reader|' . $contentId,
+            'text' => $text,
+            'language' => $language,
+            'occurrence_count' => 1,
+            'has_audio' => false,
+            'tts_priority' => self::PRIORITY_DEFAULT,
+            'tts_status' => 'pending',
+        ]);
+        $model->save();
+
+        Log::info('[SentenceAudio] Ensured sentence row for reader resolve', [
+            'content_id' => $contentId,
+            'language' => $language,
+        ]);
+        return $model;
+    }
+
+    private function isEmptyValue(mixed $value): bool
+    {
+        if ($value === null) {
+            return true;
+        }
+        if (is_string($value)) {
+            return trim($value) === '';
+        }
+        return false;
+    }
+
+    private function reconcilePresent(LangSentence $sentence, string $relativePath): void
+    {
+        if (!$sentence->has_audio || $sentence->audio !== $relativePath) {
+            $sentence->has_audio = true;
+            $sentence->audio = $relativePath;
+        }
+        $sentence->tts_status = 'completed';
+        if ($sentence->tts_completed_at === null) {
+            $sentence->tts_completed_at = now();
+        }
+    }
+}

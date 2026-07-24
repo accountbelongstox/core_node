@@ -13,13 +13,12 @@ import { initNotebookLMListener } from './notebooklm-listener';
 import { initPuterTranslateListener } from './puter-translate-listener';
 import { initQwenTtsListener } from './qwen-tts-listener';
 import { initSemanticSimilarityListener, initializeSemanticEngineIfCached } from './semantic-similarity';
-import { initBingWorkerLifecycle } from './services/bing-dictionary-worker-service';
 import { submitOutbox } from './services/outbox/submit-outbox';
 import { initTabController } from './services/tab-controller';
 import { taskCenter } from './services/task-center/TaskCenter';
 import { initializeProcessors } from './services/task-center/init-processors';
 import { initStorageManagerListener } from './storage-manager';
-import { initTaskCenterListener } from './task-center-listener';
+import { initTaskCenterListener, restoreTaskCenterRuntime } from './task-center-listener';
 import { setupAudioStatusListener } from './tools/audio';
 import { initWebSearchListener } from './web-search-listener';
 import { initBackendTimeoutCache } from '@/utils/backend-timeout';
@@ -37,7 +36,6 @@ const CORE_SERVICES: BackgroundService[] = [
   { name: 'storage-manager', initialize: initStorageManagerListener },
   { name: 'audio-status', initialize: setupAudioStatusListener },
   { name: 'tab-controller', initialize: initTabController },
-  { name: 'bing-lifecycle', initialize: initBingWorkerLifecycle },
 ];
 
 const FEATURE_SERVICES: BackgroundService[] = [
@@ -67,7 +65,8 @@ function initializeServiceGroup(services: BackgroundService[]): void {
 }
 
 export function initializeBackground(): void {
-  // Registration only: no task processor may auto-start during service-worker boot.
+  // Register the lifecycle listener synchronously, then restore only after every
+  // processor dependency and feature message listener is ready.
   taskCenter.initialize();
   initializeProcessors();
   initTaskCenterListener();
@@ -76,6 +75,7 @@ export function initializeBackground(): void {
   submitOutbox.start();
   initializeServiceGroup(CORE_SERVICES);
   initializeServiceGroup(FEATURE_SERVICES);
+  void restoreTaskCenterRuntime();
 
   void logger.init();
   void getDeepSeekPollingService().initialize().catch((error) => {

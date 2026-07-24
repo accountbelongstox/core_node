@@ -6,10 +6,10 @@ I18n (Internationalization) Package
 Provides multi-language support for applications.
 
 Usage:
-    from pycore.pyutils.i18n import I18nManager
+    from pycore.pyutils.i18n import get_i18n_manager
 
     # Get singleton instance
-    i18n = I18nManager()
+    i18n = get_i18n_manager()
 
     # Extend with app translations (base translations already loaded)
     from pathlib import Path

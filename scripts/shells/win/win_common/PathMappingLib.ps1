@@ -505,8 +505,8 @@ function Set-IdempotentDirectoryJunction {
 
     Write-PathMapLog -Message "Creating junction: $link -> $target (mklink /J)" -Type "Info"
     cmd /c mklink /J "$link" "$target"
-    if ($LASTEXITCODE -ne 0) {
-        Write-PathMapLog -Message "mklink /J failed for $link -> $target (exit $LASTEXITCODE)" -Type "Error"
+    if (-not (Test-PathIsDirectoryJunction -Path $link)) {
+        Write-PathMapLog -Message "mklink /J did not create the expected junction: $link -> $target" -Type "Error"
         return $false
     }
 

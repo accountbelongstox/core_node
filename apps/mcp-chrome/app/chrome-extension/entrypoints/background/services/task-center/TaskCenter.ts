@@ -197,6 +197,7 @@ class TaskCenterService {
     // results can be correlated. Event emission is folded into the result
     // inspection below (no separate unhandled .then() derived promise).
     const startEntries: { processorType: string; promise: Promise<void> }[] = [];
+    const failedProcessors: string[] = [];
 
     for (const [processorType, entry] of this.registry.entries()) {
       if (!entry.enabled) {
@@ -214,6 +215,7 @@ class TaskCenterService {
         // Synchronous throw (defensive - start() is async so rejections land in
         // allSettled below, but guard anyway).
         console.error(`[TaskCenter] ❌ Failed to activate processor ${processorType}:`, error);
+        failedProcessors.push(processorType);
         this.emitEvent({
           type: 'processor_failed',
           processorType,
@@ -224,7 +226,6 @@ class TaskCenterService {
 
     const results = await Promise.allSettled(startEntries.map((e) => e.promise));
     let startedCount = 0;
-    const failedProcessors: string[] = [];
     results.forEach((result, i) => {
       const { processorType } = startEntries[i];
       if (result.status === 'fulfilled') {
@@ -248,12 +249,25 @@ class TaskCenterService {
       }
     });
 
-    // Only mark the center running if at least one processor actually started.
-    // If all failed, keep isRunning false so the user can retry without Stop,
-    // and throw so the listener surfaces the failure.
-    if (startedCount === 0) {
+    // Starting the selected production lanes is transactional. A partial start
+    // would make the capability checkboxes claim more work than is actually
+    // being processed, so stop every lane started in this attempt and let the
+    // caller surface one actionable failure.
+    if (failedProcessors.length > 0 || startedCount === 0) {
+      results.forEach((result, index) => {
+        if (result.status !== 'fulfilled') return;
+        const { processorType } = startEntries[index];
+        const entry = this.registry.get(processorType);
+        try {
+          if (entry?.processor.getStatus().isRunning) entry.processor.stop();
+        } catch (error) {
+          console.error(`[TaskCenter] Failed to roll back processor ${processorType}:`, error);
+        }
+      });
       throw new Error(
-        `No processors started successfully. Failed: ${failedProcessors.join(', ') || 'none attempted'}`,
+        failedProcessors.length > 0
+          ? `Failed to start processors: ${failedProcessors.join(', ')}`
+          : 'No processors were selected for startup',
       );
     }
 
@@ -272,8 +286,7 @@ class TaskCenterService {
    */
   stopAll(): void {
     if (!this.isRunning) {
-      console.warn('[TaskCenter] Task Center not running');
-      return;
+      console.warn('[TaskCenter] Center flag is stopped; cleaning up any residual processors');
     }
 
     console.log('[TaskCenter] 🛑 Deactivating Task Center...');

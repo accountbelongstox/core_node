@@ -23,6 +23,7 @@ import importlib
 import importlib.util
 from pathlib import Path
 from typing import Optional, List
+from pycore.pyfoundations.serialized_worker import SerializedValue
 
 
 # Optional executable-launcher hook. pylauncher (a higher layer) registers a
@@ -30,7 +31,10 @@ from typing import Optional, List
 # WITHOUT pyfoundations importing UP into pylauncher (which the layering forbids:
 # pyfoundations may import only pybasecommon + stdlib). When no provider is
 # registered, the executable-search step is simply skipped.
-_executable_launcher_provider = None
+_EXECUTABLE_LAUNCHER_PROVIDER = SerializedValue(
+    None,
+    "ExecutableLauncherHookState",
+)
 
 
 def register_executable_launcher_provider(provider) -> None:
@@ -41,8 +45,7 @@ def register_executable_launcher_provider(provider) -> None:
     Called by pycore.pylauncher at its import time so app_launcher never imports
     pylauncher directly (preserves the one-directional layer dependency).
     """
-    global _executable_launcher_provider
-    _executable_launcher_provider = provider
+    _EXECUTABLE_LAUNCHER_PROVIDER.set(provider)
 
 
 class AppLauncher:
@@ -379,10 +382,11 @@ class AppLauncher:
         # provider (pylauncher). This allows parallel startup of other processes
         # without blocking the main app. Skipped when no provider is registered,
         # so pyfoundations never imports UP into pylauncher.
-        if _executable_launcher_provider is not None:
+        executable_launcher_provider = _EXECUTABLE_LAUNCHER_PROVIDER.get()
+        if executable_launcher_provider is not None:
             if not is_mcp_mode:
                 print(f'[Launcher] Searching for executable files in app directory...')
-            executable_launcher = _executable_launcher_provider()
+            executable_launcher = executable_launcher_provider()
             if executable_launcher is not None:
                 executable_launcher.search_and_launch_app_executables(
                     self.app_dir,

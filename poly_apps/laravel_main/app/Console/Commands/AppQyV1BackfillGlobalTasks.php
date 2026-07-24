@@ -81,7 +81,7 @@ class AppQyV1BackfillGlobalTasks extends Command
                                 $totals['audio']++;
                             }
                             if ($hasImg && ($row->image_status !== null || !empty($row->has_image))) {
-                                $this->upsertBackfillTask($connName, $wordTable, $row, $lang, 'image', 'word_media', GlobalTask::EXECUTION_REMOTE_CLIENT, GlobalTask::CAPABILITY_IMAGE, $dryRun);
+                                $this->upsertBackfillTask($connName, $wordTable, $row, $lang, 'image', 'word_media', GlobalTask::EXECUTION_REMOTE_FAST, GlobalTask::CAPABILITY_IMAGE, $dryRun);
                                 $totals['image']++;
                             }
                         }

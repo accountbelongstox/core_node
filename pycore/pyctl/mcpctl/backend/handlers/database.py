@@ -2,15 +2,11 @@
 """Database Handlers (7 tools)"""
 
 from typing import Dict, Any
-
-# Global controllers (initialized by main)
-backend_info = {}
-db_controller = None
-
+from pycore.pyctl.mcpctl.backend.handlers.context import get_database_context
 
 async def handle_database_namespace_negotiation_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Database namespace negotiation tool handler"""
-    global db_controller
+    backend_info, db_controller = get_database_context()
     try:
         result = await db_controller.create_and_negotiate_namespace(
             client_identifier=params.get("client_identifier", "default_client"),
@@ -24,7 +20,7 @@ async def handle_database_namespace_negotiation_async(params: Dict[str, Any], re
 
 async def handle_database_register_and_connect_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Database register and connect tool handler"""
-    global db_controller
+    backend_info, db_controller = get_database_context()
     try:
         result = await db_controller.register_database_connection(
             namespace=params.get("namespace"),
@@ -39,7 +35,7 @@ async def handle_database_register_and_connect_async(params: Dict[str, Any], req
 
 async def handle_database_execute_query_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Database execute query with safety tool handler"""
-    global db_controller
+    backend_info, db_controller = get_database_context()
     try:
         result = await db_controller.execute_safe_query(
             namespace=params.get("namespace"),
@@ -57,7 +53,7 @@ async def handle_database_execute_query_async(params: Dict[str, Any], request_id
 
 async def handle_database_batch_operations_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Database batch operations tool handler"""
-    global db_controller
+    backend_info, db_controller = get_database_context()
     try:
         result = await db_controller.execute_batch_operations(
             namespace=params.get("namespace"),
@@ -75,7 +71,7 @@ async def handle_database_batch_operations_async(params: Dict[str, Any], request
 
 async def handle_database_schema_inspection_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Database schema inspection tool handler"""
-    global db_controller
+    backend_info, db_controller = get_database_context()
     try:
         result = await db_controller.get_database_schema(
             namespace=params.get("namespace"),
@@ -90,7 +86,7 @@ async def handle_database_schema_inspection_async(params: Dict[str, Any], reques
 
 async def handle_database_get_statistics_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Database get statistics tool handler"""
-    global db_controller
+    backend_info, db_controller = get_database_context()
     try:
         result = await db_controller.get_database_statistics(
             namespace=params.get("namespace"),
@@ -104,7 +100,7 @@ async def handle_database_get_statistics_async(params: Dict[str, Any], request_i
 
 async def handle_database_health_check_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Database health check tool handler"""
-    global db_controller
+    backend_info, db_controller = get_database_context()
     try:
         result = await db_controller.health_check()
         result["backend_id"] = backend_info.get("backend_id", "unknown")

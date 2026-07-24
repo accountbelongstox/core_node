@@ -39,7 +39,7 @@ SERVER_URL="${SERVER_URL%/}"
 resolve_python() {
     local p
     for p in "$PYTHON" python3 python; do
-        if command -v "$p" >/dev/null 2>&1 && "$p" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
+        if command -v "$p" >/dev/null 2>&1; then
             command -v "$p"; return 0
         fi
     done
@@ -50,8 +50,7 @@ resolve_python() {
 . "$SCRIPT_DIR/../../common/base_libs/cuda_index.sh"
 
 PIPLOCK_LIB="$SCRIPT_DIR/../../common/base_libs/pip_lock.sh"
-[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
-command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+. "$PIPLOCK_LIB"
 pip_i() { vpip "$PYTHON" -m pip install --break-system-packages "$@" 2>/dev/null || vpip "$PYTHON" -m pip install "$@"; }
 
 server_up() {
@@ -116,7 +115,7 @@ if tts_dependencies_ready "$PYTHON" "fishspeech" "$DEPS_SENTINEL" && [[ "$FORCE"
 else
     install_pycore_torch_stack "$PYTHON" "[install_fishspeech] "
     echo "[install_fishspeech] [..] pip install fish-audio-sdk fastapi uvicorn requests ..."
-    pip_i "fish-audio-sdk>=1.0.0" fastapi uvicorn requests || true
+    pip_i fish-audio-sdk fastapi uvicorn requests || true
     if [[ -f "$TARGET_DIR/pyproject.toml" || -f "$TARGET_DIR/setup.py" ]]; then
         echo "[install_fishspeech] [..] pip install -e fish-speech (best-effort) ..."
         (cd "$TARGET_DIR" && pip_i -e .) 2>/dev/null || true

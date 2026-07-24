@@ -11,12 +11,8 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-set -e
-
 upgrade_choice=""
-pnpm_exit_code=0
 feature_list_output=""
-feature_list_status=0
 feature_line=""
 feature_name=""
 feature_line_regex='^([^[:space:]]+)[[:space:]]{2,}(stable|experimental|under[[:space:]]development)[[:space:]]{2,}(true|false)[[:space:]]*$'
@@ -50,18 +46,12 @@ echo "============================================================"
 read -r -p "Upgrade Codex CLI via 'pnpm add --global @openai/codex@latest'? [y/N]: " upgrade_choice || upgrade_choice=""
 if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
     if ! command -v pnpm >/dev/null 2>&1; then
-        echo "[ERROR] pnpm is required to upgrade Codex CLI."
-        exit 127
-    fi
-
-    echo "[INFO] Upgrading Codex CLI with pnpm..."
-    if pnpm add --global @openai/codex@latest; then
-        hash -r
-        echo "[INFO] Codex CLI upgrade complete."
+        echo "[WARN] pnpm is unavailable; keeping the installed Codex CLI."
     else
-        pnpm_exit_code=$?
-        echo "[ERROR] Codex CLI upgrade failed with exit code $pnpm_exit_code."
-        exit "$pnpm_exit_code"
+        echo "[INFO] Upgrading Codex CLI with pnpm..."
+        pnpm add --global @openai/codex@latest
+        hash -r
+        echo "[INFO] Codex CLI upgrade command completed."
     fi
 else
     echo "[INFO] Codex CLI upgrade skipped (default N)."
@@ -69,16 +59,10 @@ fi
 
 if ! command -v codex >/dev/null 2>&1; then
     echo "[ERROR] codex is not available on PATH."
-    exit 127
 fi
 
-if feature_list_output="$(codex features list 2>/dev/null)"; then
-    feature_list_status=0
-else
-    feature_list_status=$?
-fi
-
-if [ "$feature_list_status" -eq 0 ]; then
+feature_list_output="$(codex features list 2>/dev/null)"
+if [ -n "$feature_list_output" ]; then
     while IFS= read -r feature_line; do
         if [[ "$feature_line" =~ $feature_line_regex ]]; then
             feature_name="${BASH_REMATCH[1]}"

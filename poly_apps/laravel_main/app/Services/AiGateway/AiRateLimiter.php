@@ -38,7 +38,7 @@ class AiRateLimiter
      */
     private const PROVIDER_LIMITS = [
         'github' => ['rpm' => 15, 'rpd' => 150, 'note' => 'GitHub Models low tier (Copilot Free)'],
-        'openrouter' => ['rpm' => 20, 'rpd' => 50, 'note' => 'OpenRouter :free with <$10 lifetime credits'],
+        'openrouter' => ['rpm' => 20, 'rpd' => 1000, 'note' => 'OpenRouter :free shared daily quota'],
         'gemini' => ['rpm' => 5, 'rpd' => 20, 'note' => 'Gemini 2.5 Flash free tier (conservative)'],
         'groq' => [
             'rpm' => 30, 'rpd' => 1000,

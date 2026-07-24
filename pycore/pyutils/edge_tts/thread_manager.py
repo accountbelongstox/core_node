@@ -19,145 +19,15 @@ from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
 )
-import time
 from typing import Dict, Optional
 
 from pycore import ColorPrint
 from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyutils.common.tts_queue_ops import TTSQueueOps
-from pycore.pyutils.common.tts_models import ItemType, ItemStatus
-from pycore.pyutils.edge_tts.edge_tts_client import get_edge_tts_client
-from pycore.pyutils.edge_tts.translator import TTSTranslator
+from pycore.pyutils.common.tts_models import ItemType
+from pycore.pyutils.edge_tts.worker_thread_base import BaseTTSWorkerThread
 
 from pycore.pyutils.edge_tts.edge_tts_worker_thread import EdgeTTSWorkerThread
 
-
-
-class BaseTTSWorkerThread(threading.Thread):
-    """
-    Base worker thread for TTS processing
-    
-    This is a base class that should be extended by TTS libraries
-    (e.g., edge_tts, azure_speech) to implement their specific processing logic.
-    """
-    
-    def __init__(self, thread_id: int, item_type: ItemType, interval: float = 1.0):
-        """
-        Initialize worker thread
-        
-        Args:
-            thread_id: Thread ID
-            item_type: Type of items to process
-            interval: Polling interval in seconds
-        """
-        super().__init__(name=f"TTSWorker-{item_type.value}-{thread_id}", daemon=True)
-        self.thread_id = thread_id
-        self.item_type = item_type
-        self.interval = interval
-        self._stop_signal = f"tts.worker.stop.{id(self)}"
-        THREAD_BUS.clear_signal(self._stop_signal)
-        self.translator = TTSTranslator()
-        self.translator.initialize()
-    
-    def run(self):
-        """
-        Thread main loop
-
-        THREAD_BUS Integration:
-        - Checks is_shutdown_requested() for graceful shutdown
-        - Triggers tts.worker.completed event after processing
-        """
-        THREAD_BUS.set_thread_state(self.name, 'starting')
-        ColorPrint.blue(f"[TTSWorker] {self.name} started")
-
-        THREAD_BUS.set_thread_state(self.name, 'running')
-
-        while not THREAD_BUS.get_signal(self._stop_signal, False):
-            # THREAD_BUS Integration: Check if global shutdown was requested
-            if THREAD_BUS.is_shutdown_requested():
-                ColorPrint.yellow(f"[TTSWorker] {self.name} THREAD_BUS shutdown detected, stopping...")
-                break
-
-            try:
-                # Get item from queue
-                if self.item_type == ItemType.DOCUMENT:
-                    item = TTSQueueOps.get_document(timeout=self.interval)
-                elif self.item_type == ItemType.SENTENCE:
-                    item = TTSQueueOps.get_sentence(timeout=self.interval)
-                elif self.item_type == ItemType.WORD:
-                    item = TTSQueueOps.get_word(timeout=self.interval)
-                else:
-                    item = None
-
-                if item:
-                    self._process_item(item)
-                else:
-                    # No item, wait a bit
-                    time.sleep(self.interval)
-
-            except Exception as e:
-                ColorPrint.red(f"[TTSWorker] {self.name} error: {e}")
-                time.sleep(self.interval)
-
-        THREAD_BUS.set_thread_state(self.name, 'stopped')
-        ColorPrint.blue(f"[TTSWorker] {self.name} stopped")
-    
-    def _process_item(self, item):
-        """
-        Process a single item
-
-        This method should be overridden by subclasses to implement
-        specific TTS processing logic.
-
-        THREAD_BUS Integration:
-        - Triggers tts.worker.completed event after processing
-        """
-        ColorPrint.blue(f"[TTSWorker] Processing {self.item_type.value}: {item.md5[:8]}...")
-
-        # Process based on item type
-        if self.item_type == ItemType.DOCUMENT:
-            self._process_document(item)
-        elif self.item_type == ItemType.SENTENCE:
-            self._process_sentence(item)
-        elif self.item_type == ItemType.WORD:
-            self._process_word(item)
-
-        TTSQueueOps.mark_completed(item.md5)
-
-        # THREAD_BUS Integration: Trigger completion event
-        THREAD_BUS.trigger_event('tts.worker.completed', {
-            'item_type': self.item_type.value,
-            'item_md5': item.md5,
-            'worker_name': self.name
-        }, async_mode=True)
-    
-    def _process_document(self, document):
-        """
-        Process document
-        
-        Should be overridden by subclasses.
-        """
-        pass
-    
-    def _process_sentence(self, sentence):
-        """
-        Process sentence
-        
-        Should be overridden by subclasses.
-        """
-        pass
-    
-    def _process_word(self, word):
-        """
-        Process word
-        
-        Should be overridden by subclasses.
-        """
-        pass
-    
-    def stop(self):
-        """Stop thread"""
-        THREAD_BUS.signal(self._stop_signal, True)
 
 
 class TTSNetworkThread(threading.Thread):
@@ -173,11 +43,18 @@ class TTSNetworkThread(threading.Thread):
             interval: Polling interval in seconds
         """
         super().__init__(name=f"TTSNetwork-{thread_id}", daemon=True)
-        self.thread_id = thread_id
-        self.api_url = api_url
-        self.interval = interval
+        self._config_signal = f"tts.network.config.{id(self)}"
         self._stop_signal = f"tts.network.stop.{id(self)}"
+        THREAD_BUS.signal(self._config_signal, {
+            "thread_id": thread_id,
+            "api_url": api_url,
+            "interval": interval,
+        })
         THREAD_BUS.clear_signal(self._stop_signal)
+
+    @property
+    def interval(self) -> float:
+        return float(THREAD_BUS.get_signal(self._config_signal, {})["interval"])
     
     def run(self):
         """
@@ -368,13 +245,10 @@ class TTSThreadManager:
 
 
 # Global thread manager instance
-_global_thread_manager: Optional[TTSThreadManager] = None
+_global_thread_manager = TTSThreadManager()
 
 
 def get_tts_thread_manager() -> TTSThreadManager:
     """Get global TTS thread manager instance"""
-    global _global_thread_manager
-    if _global_thread_manager is None:
-        _global_thread_manager = TTSThreadManager()
     return _global_thread_manager
 

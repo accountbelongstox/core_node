@@ -1,23 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-Shared mutable singleton root for the third_party package.
+Shared lazy-import service for the third_party package.
 
-_PACKAGE_CACHE is THE single package cache shared by every getter and by
-_lazy_import. It MUST live in exactly this module and be imported everywhere
-else ("from ._cache import _PACKAGE_CACHE") - never re-declared - or lazy
-caching and cnocr cache-clear break silently.
-
-_lazy_import is the lazy import helper with auto-install. Its cross-package
-dependencies (get_third_package_cnocr, DEPENDENCY_MAP, build_pip_install_command,
-...) are imported DEFERRED inside the function so that _cache can be imported
-FIRST (leaf) without triggering a circular import.
+The mutable cache lives in the leaf-only _package_cache module. Keeping that
+state separate lets every dependency stay at file scope without a cycle.
 """
 
 import importlib
 
-# Global cache for loaded packages. THE shared mutable singleton root.
-# Mutated by _lazy_import, all getters, and _clear_cnocr_cache.
-_PACKAGE_CACHE = {}
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+from ._deps import DEPENDENCY_MAP, OPTIONAL_PACKAGES, WINDOWS_ONLY_PACKAGES
+from ._hf_helpers import get_third_package_cnocr
+from ._package_cache import _PACKAGE_CACHE
+from ._pip_runner import build_pip_install_command, run_pip_install_with_realtime_output
 
 
 def _lazy_import(package_name: str, import_statement: str):
@@ -32,9 +28,6 @@ def _lazy_import(package_name: str, import_statement: str):
         The imported module/package
     """
     if package_name == 'cnocr':
-        # cnocr has its own GPU/CPU-aware loader; defer import to avoid a cycle
-        # (_hf_helpers imports _PACKAGE_CACHE from this module).
-        from ._hf_helpers import get_third_package_cnocr
         return get_third_package_cnocr()
     if package_name not in _PACKAGE_CACHE:
         local_vars = {}
@@ -43,10 +36,6 @@ def _lazy_import(package_name: str, import_statement: str):
             exec(import_statement, globals(), local_vars)
             _PACKAGE_CACHE[package_name] = local_vars.get(package_name.split('.')[-1])
         except (ImportError, ModuleNotFoundError) as e:
-            # Deferred imports break the load-time cycle (this module is leaf-first).
-            from ._deps import DEPENDENCY_MAP, OPTIONAL_PACKAGES, WINDOWS_ONLY_PACKAGES
-            from ._pip_runner import build_pip_install_command, run_pip_install_with_realtime_output
-            from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
             # Package not installed, try to install it
             pip_package = None
             # Look up in DEPENDENCY_MAP

@@ -7,15 +7,15 @@ Global message bus for inter-thread communication.
 Follows project multi-threading standards:
 - No direct parameter passing between threads
 - All communication via global queue/signals
-- Lock-free operations use GIL-atomic assignment and deque operations
+- Mutable communication state is owned and exchanged through THREAD_BUS
 
 Package layout (split from the former monolithic thread_bus.py):
 - shutdown_stack.py      : ShutdownStack - stack-based shutdown handler registry
 - event_handler_registry.py : EventHandlerRegistry - priority event handlers
 - __init__.py (this file) : ThreadBus facade + THREAD_BUS singleton
 
-The ThreadBus instance owns all internal state containers. Mutable registries
-use copy-on-write replacement so readers always observe a complete snapshot.
+The ThreadBus instance owns all internal state containers. One dedicated state
+thread serializes every registry, signal, state, and queue operation.
 
 Usage:
     from pycore import THREAD_BUS
@@ -40,6 +40,40 @@ from pycore.pyfoundations.thread_bus.shutdown_stack import ShutdownStack
 from pycore.pyfoundations.thread_bus.event_handler_registry import EventHandlerRegistry
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+
+class ThreadBusStateThread(threading.Thread):
+    """Own ThreadBus containers and execute state operations sequentially."""
+
+    def __init__(self) -> None:
+        super().__init__(name="ThreadBusStateThread", daemon=True)
+        self._requests: deque = deque()
+
+    def call(self, callback: Callable, *args: Any, **kwargs: Any) -> Any:
+        if threading.current_thread() is self:
+            return callback(*args, **kwargs)
+
+        response: deque = deque(maxlen=1)
+        self._requests.append((callback, args, kwargs, response))
+        while not response:
+            time.sleep(0.001)
+        succeeded, result = response.popleft()
+        if succeeded:
+            return result
+        raise result
+
+    def run(self) -> None:
+        while True:
+            try:
+                callback, args, kwargs, response = self._requests.popleft()
+            except IndexError:
+                time.sleep(0.001)
+                continue
+            try:
+                result = callback(*args, **kwargs)
+                response.append((True, result))
+            except Exception as exc:
+                response.append((False, exc))
 
 
 
@@ -80,9 +114,16 @@ class ThreadBus:
         self._shutdown_executed: bool = False
         self._restart_requested: bool = False  # Flag for restart after shutdown
 
-        # Composed helpers operate on copy-on-write snapshots owned by this bus.
+        self._state_owner = ThreadBusStateThread()
+        self._state_owner.start()
+
+        # Composed helpers route state operations through this bus owner.
         self._shutdown_stack = ShutdownStack(self)
         self._event_registry = EventHandlerRegistry(self)
+
+    def _call_state(self, callback: Callable, *args: Any, **kwargs: Any) -> Any:
+        """Execute one internal state operation on the bus owner thread."""
+        return self._state_owner.call(callback, *args, **kwargs)
 
     # ============ Signal Operations ============
 
@@ -102,7 +143,29 @@ class ThreadBus:
             'timestamp': time.time(),
             'thread_id': threading.get_ident()
         }
-        self._signals = {**self._signals, name: signal}
+        self._call_state(self._signals.__setitem__, name, signal)
+
+    def signal_if_present(
+        self,
+        guard_name: str,
+        name: str,
+        data: Any = None,
+    ) -> bool:
+        """Publish a response only while its waiter guard still exists."""
+        signal = {
+            'data': data,
+            'timestamp': time.time(),
+            'thread_id': threading.get_ident(),
+        }
+
+        def publish() -> bool:
+            if guard_name not in self._signals:
+                return False
+            self._signals.pop(guard_name, None)
+            self._signals[name] = signal
+            return True
+
+        return bool(self._call_state(publish))
 
     def has_signal(self, name: str) -> bool:
         """
@@ -114,7 +177,7 @@ class ThreadBus:
         Returns:
             True if signal exists
         """
-        return name in self._signals
+        return bool(self._call_state(self._signals.__contains__, name))
 
     def get_signal(self, name: str, default: Any = None) -> Any:
         """
@@ -127,7 +190,7 @@ class ThreadBus:
         Returns:
             Signal data or default
         """
-        signal = self._signals.get(name)
+        signal = self._call_state(self._signals.get, name)
         return signal['data'] if signal else default
 
     def wait_signal(self, name: str, timeout: Optional[float] = None) -> Any:
@@ -147,15 +210,16 @@ class ThreadBus:
             if data:
                 print("Startup complete:", data)
         """
-        signal = self._signals.get(name)
-        if signal is not None:
-            return signal['data']
+        missing = object()
+        signal_data = self.get_signal(name, missing)
+        if signal_data is not missing:
+            return signal_data
 
         started_at = time.monotonic()
         while timeout is None or time.monotonic() - started_at < timeout:
-            signal = self._signals.get(name)
-            if signal is not None:
-                return signal['data']
+            signal_data = self.get_signal(name, missing)
+            if signal_data is not missing:
+                return signal_data
             time.sleep(0.005)
         return None
 
@@ -169,18 +233,17 @@ class ThreadBus:
         Returns:
             True if signal was removed
         """
-        if name not in self._signals:
-            return False
-        self._signals = {
-            signal_name: signal
-            for signal_name, signal in self._signals.items()
-            if signal_name != name
-        }
-        return True
+        def clear() -> bool:
+            removed = name in self._signals
+            self._signals.pop(name, None)
+            self._signals.pop(f"{name}.waiting", None)
+            return removed
+
+        return bool(self._call_state(clear))
 
     def clear_all_signals(self) -> None:
         """Clear all signals"""
-        self._signals = {}
+        self._call_state(self._signals.clear)
 
     # ============ Thread State Operations ============
 
@@ -203,7 +266,7 @@ class ThreadBus:
             'thread_id': threading.get_ident(),
             **kwargs
         }
-        self._thread_states = {**self._thread_states, thread_name: thread_state}
+        self._call_state(self._thread_states.__setitem__, thread_name, thread_state)
 
     def get_thread_state(self, thread_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -215,7 +278,8 @@ class ThreadBus:
         Returns:
             Thread state dict or None
         """
-        return self._thread_states.get(thread_name)
+        state = self._call_state(self._thread_states.get, thread_name)
+        return dict(state) if state is not None else None
 
     def wait_thread_state(self, thread_name: str, expected_state: str,
                          timeout: Optional[float] = None) -> bool:
@@ -237,11 +301,11 @@ class ThreadBus:
         """
         start_time = time.time()
         while True:
-            state_data = self._thread_states.get(thread_name)
+            state_data = self.get_thread_state(thread_name)
             if state_data and state_data['state'] == expected_state:
                 return True
 
-            if timeout and (time.time() - start_time) >= timeout:
+            if timeout is not None and (time.time() - start_time) >= timeout:
                 return False
 
             time.sleep(0.01)  # Short sleep to avoid busy-wait
@@ -253,7 +317,7 @@ class ThreadBus:
         Returns:
             List of thread names
         """
-        return list(self._thread_states.keys())
+        return self._call_state(lambda: list(self._thread_states.keys()))
 
     # ============ Message Queue Operations ============
 
@@ -271,12 +335,16 @@ class ThreadBus:
                 'data': {'id': 123}
             })
         """
-        queue = self._queues.setdefault(queue_name, deque())
-        queue.append({
+        envelope = {
             'message': message,
             'timestamp': time.time(),
             'sender_thread_id': threading.get_ident()
-        })
+        }
+
+        def send() -> None:
+            self._queues.setdefault(queue_name, deque()).append(envelope)
+
+        self._call_state(send)
 
     def receive_message(self, queue_name: str, block: bool = False,
                        timeout: Optional[float] = None) -> Any:
@@ -298,22 +366,27 @@ class ThreadBus:
             # Blocking with timeout
             msg = THREAD_BUS.receive_message('work_queue', block=True, timeout=1.0)
         """
-        if not block:
+        missing = object()
+
+        def receive() -> Any:
             queue = self._queues.get(queue_name)
-            if queue:
-                item = queue.popleft()
-                return item['message']
-            return None
+            if not queue:
+                return missing
+            item = queue.popleft()
+            return item['message']
+
+        if not block:
+            message = self._call_state(receive)
+            return None if message is missing else message
 
         # Blocking mode
         start_time = time.time()
         while True:
-            queue = self._queues.get(queue_name)
-            if queue:
-                item = queue.popleft()
-                return item['message']
+            message = self._call_state(receive)
+            if message is not missing:
+                return message
 
-            if timeout and (time.time() - start_time) >= timeout:
+            if timeout is not None and (time.time() - start_time) >= timeout:
                 return None
 
             time.sleep(0.01)
@@ -328,8 +401,9 @@ class ThreadBus:
         Returns:
             Number of messages in queue
         """
-        queue = self._queues.get(queue_name)
-        return len(queue) if queue else 0
+        return int(self._call_state(
+            lambda: len(self._queues.get(queue_name, ()))
+        ))
 
     def clear_queue(self, queue_name: str) -> None:
         """
@@ -338,9 +412,7 @@ class ThreadBus:
         Args:
             queue_name: Queue identifier
         """
-        queues = dict(self._queues)
-        queues.pop(queue_name, None)
-        self._queues = queues
+        self._call_state(self._queues.pop, queue_name, None)
 
     # ============ Event Handler Operations (delegated) ============
 
@@ -382,10 +454,13 @@ class ThreadBus:
 
     def reset(self) -> None:
         """Reset all data (for testing/cleanup)"""
-        self._signals = {}
-        self._thread_states = {}
-        self._queues = {}
-        self._event_handlers = {}
+        def reset_state() -> None:
+            self._signals.clear()
+            self._thread_states.clear()
+            self._queues.clear()
+            self._event_handlers.clear()
+
+        self._call_state(reset_state)
 
     def stats(self) -> Dict[str, Any]:
         """
@@ -394,23 +469,25 @@ class ThreadBus:
         Returns:
             Statistics dictionary
         """
-        signals = self._signals
-        thread_states = self._thread_states
-        queues = self._queues
-        event_handlers = self._event_handlers
-        return {
-            'signals_count': len(signals),
-            'threads_count': len(thread_states),
-            'queues_count': len(queues),
-            'events_count': 0,
-            'event_handlers_count': len(event_handlers),
-            'active_threads': list(thread_states.keys()),
-            'active_signals': list(signals.keys()),
-            'active_queues': {name: len(q) for name, q in queues.items()},
-            'active_event_handlers': {
-                name: len(handlers) for name, handlers in event_handlers.items()
+        def snapshot() -> Dict[str, Any]:
+            return {
+                'signals_count': len(self._signals),
+                'threads_count': len(self._thread_states),
+                'queues_count': len(self._queues),
+                'events_count': 0,
+                'event_handlers_count': len(self._event_handlers),
+                'active_threads': list(self._thread_states.keys()),
+                'active_signals': list(self._signals.keys()),
+                'active_queues': {
+                    name: len(queue) for name, queue in self._queues.items()
+                },
+                'active_event_handlers': {
+                    name: len(handlers)
+                    for name, handlers in self._event_handlers.items()
+                },
             }
-        }
+
+        return self._call_state(snapshot)
 
     def __repr__(self) -> str:
         """String representation"""

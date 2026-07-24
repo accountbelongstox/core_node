@@ -31,10 +31,11 @@ Usage:
     bus_mgr.on_dependency_complete(callback_func)
 """
 
-import threading
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
 from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from pycore.pyfoundations.thread_bus_constants import (
     BusNamespaces,
     BusKeys,
@@ -59,28 +60,15 @@ class NativeUIBusManager:
         # Recommended: Use factory function
         bus_mgr = get_bus_manager()
 
-        # Or direct instantiation (returns singleton)
-        bus_mgr = NativeUIBusManager()
+        # Or use the class-level accessor
+        bus_mgr = NativeUIBusManager.get_instance()
     """
 
-    _instance: Optional['NativeUIBusManager'] = None
-
-    def __new__(cls):
-        """Singleton pattern implementation"""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-
     def __init__(self):
-        """Initialize bus manager (only once)"""
-        if getattr(self, '_initialized', False):
-            return
-
+        """Initialize bus manager."""
         self._bus = THREAD_BUS
 
         ColorPrint.print_info("[NativeUIBusManager] Initialized (singleton)")
-        self._initialized = True
 
     @classmethod
     def get_instance(cls) -> 'NativeUIBusManager':
@@ -90,7 +78,7 @@ class NativeUIBusManager:
         Returns:
             NativeUIBusManager singleton instance
         """
-        return cls()
+        return _NATIVE_UI_BUS_MANAGER_PROVIDER.get()
 
     # ========================================================
     # Dependency Check Methods
@@ -391,6 +379,13 @@ class NativeUIBusManager:
 # Convenience Functions
 # ============================================================
 
+_NATIVE_UI_BUS_MANAGER_PROVIDER = SerializedSingletonProvider(
+    NativeUIBusManager,
+    "native_ui.bus_manager.provider",
+    "NativeUIBusManagerProvider",
+)
+
+
 def get_bus_manager() -> NativeUIBusManager:
     """
     Get NativeUIBusManager singleton instance
@@ -398,7 +393,7 @@ def get_bus_manager() -> NativeUIBusManager:
     Returns:
         NativeUIBusManager instance
     """
-    return NativeUIBusManager()
+    return _NATIVE_UI_BUS_MANAGER_PROVIDER.get()
 
 
 def get_native_ui_bus_manager() -> NativeUIBusManager:
@@ -410,7 +405,7 @@ def get_native_ui_bus_manager() -> NativeUIBusManager:
     Returns:
         NativeUIBusManager singleton instance
     """
-    return NativeUIBusManager()
+    return _NATIVE_UI_BUS_MANAGER_PROVIDER.get()
 
 
 # ============================================================

@@ -4,7 +4,7 @@
 Tkinter System Tray Thread
 
 Thread-safe system tray wrapper following project threading standards:
-- Directly inherits threading.Thread (not using Thread(target=func))
+- Directly inherits threading.Thread without target-based construction
 - Uses THREAD_BUS for all communication
 - No shared mutable state or cross-thread callbacks
 """
@@ -47,12 +47,13 @@ class TkinterSystemTrayThread(threading.Thread):
             daemon: Run as daemon thread (default: True)
         """
         super().__init__(name="TkinterSystemTrayThread", daemon=daemon)
-
-        self.app_name = app_name
-        self.icon_path = icon_path
-        self.menu_items = menu_items
-        self.trigger_shutdown_on_exit = trigger_shutdown_on_exit
-        self.tray: Optional[TkinterSystemTray] = None
+        self._config_queue = f"native_ui.tk_tray.config.{id(self)}"
+        THREAD_BUS.send_message(self._config_queue, {
+            "app_name": app_name,
+            "icon_path": icon_path,
+            "menu_items": list(menu_items or []),
+            "trigger_shutdown_on_exit": bool(trigger_shutdown_on_exit),
+        })
 
         ColorPrint.blue(f"[TkinterSystemTrayThread] Initialized - App: {app_name}")
 
@@ -63,23 +64,24 @@ class TkinterSystemTrayThread(threading.Thread):
             return
 
         ColorPrint.green("[TkinterSystemTrayThread] Starting tray...")
+        config = THREAD_BUS.receive_message(self._config_queue) or {}
 
         # Create tray instance
-        self.tray = TkinterSystemTray(
-            app_name=self.app_name,
-            icon_path=self.icon_path,
-            menu_items=self.menu_items,
-            trigger_shutdown_on_exit=self.trigger_shutdown_on_exit
+        tray = TkinterSystemTray(
+            app_name=config.get("app_name", "Application"),
+            icon_path=config.get("icon_path"),
+            menu_items=config.get("menu_items"),
+            trigger_shutdown_on_exit=bool(config.get("trigger_shutdown_on_exit", True)),
         )
 
         # Signal that tray is starting
         THREAD_BUS.trigger_event('tray.thread.started', {
-            'app_name': self.app_name
+            'app_name': config.get("app_name", "Application")
         })
 
         # Run tray (blocks until stopped)
         ColorPrint.green(f"[TkinterSystemTrayThread] Tray running...")
-        self.tray.run()
+        tray.run()
 
         # Signal that tray has stopped
         THREAD_BUS.trigger_event('tray.thread.stopped', {})
@@ -94,10 +96,8 @@ class TkinterSystemTrayThread(threading.Thread):
         Request thread to stop (called from other threads).
         This method violates project threading standards by calling methods across threads.
         """
-        ColorPrint.yellow("[TkinterSystemTrayThread] WARNING: request_stop() is deprecated, use THREAD_BUS event 'tray.request_stop'")
-        if self.tray:
-            ColorPrint.blue(f"[TkinterSystemTrayThread] Requesting stop...")
-            self.tray.stop()
+        ColorPrint.yellow("[TkinterSystemTrayThread] request_stop() forwards to THREAD_BUS")
+        THREAD_BUS.trigger_event("tray.request_stop", {})
 
     def update_menu(self, menu_items: List[TrayMenuItem]):
         """
@@ -109,9 +109,7 @@ class TkinterSystemTrayThread(threading.Thread):
         Args:
             menu_items: New list of menu items
         """
-        ColorPrint.yellow("[TkinterSystemTrayThread] WARNING: update_menu() is deprecated, use THREAD_BUS event 'tray.update_menu'")
-        if self.tray:
-            self.tray.update_menu(menu_items)
+        THREAD_BUS.trigger_event("tray.update_menu", {"menu_items": list(menu_items)})
 
     def get_tray(self) -> Optional[TkinterSystemTray]:
         """
@@ -120,5 +118,5 @@ class TkinterSystemTrayThread(threading.Thread):
         Get tray instance (for controlled access).
         This method is deprecated as it exposes internal state to other threads.
         """
-        ColorPrint.yellow("[TkinterSystemTrayThread] WARNING: get_tray() is deprecated")
-        return self.tray
+        ColorPrint.yellow("[TkinterSystemTrayThread] Direct tray access is unavailable")
+        return None

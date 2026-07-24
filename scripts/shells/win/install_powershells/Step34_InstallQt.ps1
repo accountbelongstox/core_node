@@ -57,6 +57,7 @@ $installType = ""
 $mirrorBaseUrl = ""
 $toolsList = @()
 $missingTools = @()
+$parsedQtVersion = $null
 
 Write-Host ""
 Write-Host "================================================================================" -ForegroundColor Cyan
@@ -157,7 +158,7 @@ else {
 }
 
 # Validate Qt version format
-if ($QtVersion -eq "Global" -or $QtVersion -eq "China" -or -not ($QtVersion -match '^\d+\.\d+\.\d+$')) {
+if ($QtVersion -eq "Global" -or $QtVersion -eq "China" -or -not ([version]::TryParse($QtVersion, [ref]$parsedQtVersion)) -or $QtVersion.Split('.').Count -ne 3) {
     Write-Host "  [$SCRIPT_INDEX] ERROR: Invalid Qt version format: '$QtVersion'" -ForegroundColor Red
     Write-Host "  [$SCRIPT_INDEX] Expected format: X.Y.Z (e.g., 6.10.0)" -ForegroundColor Yellow
     Write-Host "  [$SCRIPT_INDEX] Using default version: 6.10.0" -ForegroundColor Cyan
@@ -165,12 +166,12 @@ if ($QtVersion -eq "Global" -or $QtVersion -eq "China" -or -not ($QtVersion -mat
 }
 
 # Construct Qt variables
-$versionParts = $QtVersion -split '\.'
+$versionParts = $QtVersion.Split('.')
 if ($versionParts.Count -lt 2) {
     Write-Host "  [$SCRIPT_INDEX] ERROR: Qt version must have at least major.minor format" -ForegroundColor Red
     Write-Host "  [$SCRIPT_INDEX] Using default version: 6.10.0" -ForegroundColor Cyan
     $QtVersion = "6.10.0"
-    $versionParts = $QtVersion -split '\.'
+$versionParts = $QtVersion.Split('.')
 }
 
 $qtVersionMajorMinor = $versionParts[0] + "." + $versionParts[1]
@@ -267,7 +268,7 @@ if (Test-Path $maintenanceToolPath) {
         Write-Host "  [$SCRIPT_INDEX]   - CMAKE_PREFIX_PATH includes: $qtInstallDir" -ForegroundColor Green
 
         # Set Qt6_DIR or Qt5_DIR
-        $qtVer = if ($qtCMakeDir -match "Qt6") { "Qt6" } else { "Qt5" }
+    $qtVer = if ($qtCMakeDir.Contains('Qt6')) { "Qt6" } else { "Qt5" }
         & $windowsPathFuncPath "setvar" "${qtVer}_DIR" $qtCMakeDir
         Write-Host "  [$SCRIPT_INDEX]   - ${qtVersion}_DIR = $qtCMakeDir" -ForegroundColor Green
     }
@@ -327,7 +328,7 @@ if (Test-Path $qtExePath) {
         Write-Host "  [$SCRIPT_INDEX]   - CMAKE_PREFIX_PATH includes: $qtInstallDir" -ForegroundColor Green
 
         # Set Qt6_DIR or Qt5_DIR
-        $qtVer = if ($qtCMakeDir -match "Qt6") { "Qt6" } else { "Qt5" }
+    $qtVer = if ($qtCMakeDir.Contains('Qt6')) { "Qt6" } else { "Qt5" }
         & $windowsPathFuncPath "setvar" "${qtVer}_DIR" $qtCMakeDir
         Write-Host "  [$SCRIPT_INDEX]   - ${qtVersion}_DIR = $qtCMakeDir" -ForegroundColor Green
     }
@@ -977,7 +978,7 @@ if (Test-Path $qtCMakeDir) {
     Write-Host "  [$SCRIPT_INDEX]   - CMAKE_PREFIX_PATH includes: $qtInstallDir" -ForegroundColor Green
 
     # Also set Qt6_DIR or Qt5_DIR for explicit CMake detection
-    $qtVersion = if ($qtCMakeDir -match "Qt6") { "Qt6" } else { "Qt5" }
+    $qtVersion = if ($qtCMakeDir.Contains('Qt6')) { "Qt6" } else { "Qt5" }
     Set-EnvVar -varName "${qtVersion}_DIR" -varValue $qtCMakeDir
     Write-Host "  [$SCRIPT_INDEX]   - ${qtVersion}_DIR set to: $qtCMakeDir" -ForegroundColor Green
 }

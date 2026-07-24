@@ -90,10 +90,10 @@ function Test-WingetAuthorization {
     try {
         # Test if winget can run basic commands without prompting
         $wingetVersion = & winget --version 2>$null
-        if ($wingetVersion -match '\d') {
+        if (-not [string]::IsNullOrWhiteSpace([string]$wingetVersion)) {
             # Test source list command which often triggers authorization prompts
             $sources = & winget source list 2>$null
-            if ("$sources" -match 'winget') {
+            if (("$sources").Contains('winget')) {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Winget is properly authorized and working" -Type "Success"
                 return $true
             }
