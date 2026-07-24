@@ -336,6 +336,12 @@ def start_ui(config: Dict[str, Any]) -> Any:
         app_id = ui_config.app_id or ui_config.app_name.lower().replace(' ', '_')
         THREAD_BUS.trigger_event(f'{app_id}.close', {})
         ColorPrint.green(f"[ui] PySide6 UI stop signal sent ({app_id}.close)")
+        if ui_thread.is_alive() and threading.current_thread() is not ui_thread:
+            ui_thread.join(timeout=5.0)
+            if ui_thread.is_alive():
+                ColorPrint.yellow("[ui] PySide6 UI thread did not stop within 5s; continuing shutdown")
+            else:
+                ColorPrint.green("[ui] PySide6 UI thread stopped")
 
     priority = THREAD_REGISTRY['ui']['shutdown_priority']
     THREAD_BUS.register_shutdown_handler(

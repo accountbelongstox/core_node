@@ -170,7 +170,8 @@ def main(host='0.0.0.0', port=59000, debug=False, reload=True):
     while not THREAD_BUS.is_shutdown_requested():
         time.sleep(0.5)
 
-    ColorPrint.blue("[Main] Shutdown signal received")
+    shutdown_reason = THREAD_BUS.get_shutdown_reason() or "unknown"
+    ColorPrint.blue(f"[Main] Shutdown signal received (reason={shutdown_reason})")
     ColorPrint.blue("[Main] Shutting down all services...")
     launcher.stop()
     ColorPrint.green("[Main] Shutdown complete")

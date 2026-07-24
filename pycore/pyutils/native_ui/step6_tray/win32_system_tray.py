@@ -195,24 +195,45 @@ class Win32SystemTray:
         return next_id
 
     def _show_menu(self):
+        """Display the current menu and dispatch the selected command.
+
+        ``TPM_RETURNCMD`` avoids relying on shell-specific ``WM_COMMAND``
+        routing.  Explorer may deliver either ``WM_RBUTTONUP`` or
+        ``WM_CONTEXTMENU`` for a notification icon, so both are handled by
+        ``_wnd_proc`` below.
+        """
         hmenu = self._build_menu()
-        pos = win32gui.GetCursorPos()
         try:
-            win32gui.SetForegroundWindow(self.hwnd)  # required for correct dismissal
-        except Exception:
-            pass
-        win32gui.TrackPopupMenu(
-            hmenu, win32con.TPM_LEFTALIGN | win32con.TPM_RIGHTBUTTON,
-            pos[0], pos[1], 0, self.hwnd, None,
-        )
-        win32gui.PostMessage(self.hwnd, win32con.WM_NULL, 0, 0)
-        win32gui.DestroyMenu(hmenu)
+            pos = win32gui.GetCursorPos()
+            try:
+                win32gui.SetForegroundWindow(self.hwnd)  # required for dismissal
+            except Exception:
+                pass
+            command_id = win32gui.TrackPopupMenu(
+                hmenu,
+                win32con.TPM_LEFTALIGN
+                | win32con.TPM_RIGHTBUTTON
+                | getattr(win32con, "TPM_RETURNCMD", 0x0100),
+                pos[0],
+                pos[1],
+                0,
+                self.hwnd,
+                None,
+            )
+            signal = self._id_to_signal.get(command_id)
+            if signal:
+                ColorPrint.blue(f"[Win32Tray] Menu item -> signal: {signal}")
+                THREAD_BUS.trigger_event(signal, {"signal": signal})
+            win32gui.PostMessage(self.hwnd, win32con.WM_NULL, 0, 0)
+        finally:
+            win32gui.DestroyMenu(hmenu)
 
     # ---------- window proc ----------
 
     def _wnd_proc(self, hwnd, msg, wparam, lparam):
         if msg == WM_TRAYICON:
-            if lparam == win32con.WM_RBUTTONUP:
+            context_message = getattr(win32con, "WM_CONTEXTMENU", 0x007B)
+            if lparam in (win32con.WM_RBUTTONUP, context_message):
                 self._show_menu()
             elif lparam in (win32con.WM_LBUTTONUP, win32con.WM_LBUTTONDBLCLK):
                 if self._default_signal:
