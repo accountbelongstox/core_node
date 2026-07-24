@@ -57,6 +57,28 @@ function Find-SoxExecutable {
     return $null
 }
 
+function Get-SoxPathCacheFile {
+    $userDataDir = $env:LOCALAPPDATA
+    if (-not $userDataDir) { return $null }
+    return (Join-Path $userDataDir 'pycore\cache\sox_path.txt')
+}
+
+function Add-SoxProcessPath {
+    param([Parameter(Mandatory = $true)][string]$ExecutablePath)
+
+    $parentDir = Split-Path $ExecutablePath -Parent
+    if (-not $parentDir) { return }
+
+    $pathEntries = @($env:Path -split ';' | Where-Object { $_ })
+    $normalizedParent = (Normalize-WindowsPath $parentDir).TrimEnd('\')
+    $hasEntry = @($pathEntries | Where-Object {
+        ((Normalize-WindowsPath $_).TrimEnd('\')) -ieq $normalizedParent
+    }).Count -gt 0
+    if (-not $hasEntry) {
+        $env:Path = "$parentDir;$env:Path"
+    }
+}
+
 function Ensure-SoxOnPath {
     param(
         [string]$Prefix = '',
@@ -64,6 +86,7 @@ function Ensure-SoxOnPath {
     )
 
     $soxPath = $null
+    $soxCacheFile = Get-SoxPathCacheFile
     $windowsPathFunctionPath = Join-Path $PSScriptRoot 'WindowsPathFunction.ps1'
     $windowsPathFunctionLoaded = Get-Variable -Name 'PycoreWindowsPathFunctionLoaded' -Scope Script -ErrorAction SilentlyContinue
     if ($null -eq $windowsPathFunctionLoaded -or -not [bool]$windowsPathFunctionLoaded.Value) {
@@ -73,6 +96,17 @@ function Ensure-SoxOnPath {
 
     if ((Test-SoxOnPath) -and -not $Force) {
         $soxPath = (Get-Command sox -ErrorAction SilentlyContinue).Source
+    }
+
+    if (-not $soxPath -and -not $Force -and $soxCacheFile -and (Test-Path -LiteralPath $soxCacheFile -PathType Leaf)) {
+        $cachedPath = (Get-Content -LiteralPath $soxCacheFile -Raw -ErrorAction SilentlyContinue)
+        if ($cachedPath) { $cachedPath = $cachedPath.Trim() }
+        if ($cachedPath -and (Test-Path -LiteralPath $cachedPath -PathType Leaf)) {
+            $soxPath = $cachedPath
+            Add-SoxProcessPath -ExecutablePath $soxPath
+        } elseif ($soxCacheFile) {
+            Remove-Item -LiteralPath $soxCacheFile -Force -ErrorAction SilentlyContinue
+        }
     }
 
     if (-not $soxPath) {
@@ -110,7 +144,12 @@ function Ensure-SoxOnPath {
     }
 
     if ($soxPath) {
-        Add-Path -newPath $soxPath
+        Add-SoxProcessPath -ExecutablePath $soxPath
+        if ($soxCacheFile) {
+            $cacheDir = Split-Path $soxCacheFile -Parent
+            New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+            Set-Content -LiteralPath $soxCacheFile -Value $soxPath -Encoding ASCII
+        }
         return $true
     }
 
