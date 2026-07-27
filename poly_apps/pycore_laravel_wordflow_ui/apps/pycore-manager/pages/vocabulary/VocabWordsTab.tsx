@@ -10,8 +10,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Loader2, Trash2, RefreshCw, CheckCircle2, XCircle, Pencil, Flag, Search,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { VocabDictionaryWordRow } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '../../../../core/api-libs/pycore';
+import type { VocabDictionaryWordRow } from '../../../../core/api-libs/pycore';
 import { VL, VocabBanner, VocabLoading, PresenceBadge, humanInt, vp, toArray } from './vocabShared';
 
 const FILTERS: Array<{ value: string; label: string }> = [

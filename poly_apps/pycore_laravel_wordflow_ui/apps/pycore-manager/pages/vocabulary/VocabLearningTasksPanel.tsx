@@ -9,8 +9,8 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { VocabAssistCategory } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '../../../../core/api-libs/pycore';
+import type { VocabAssistCategory } from '../../../../core/api-libs/pycore';
 import { VL, VocabBanner, VocabLoading, humanInt, vp, toArray } from './vocabShared';
 
 const L = {
