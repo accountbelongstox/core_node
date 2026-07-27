@@ -142,8 +142,7 @@ function Test-WinCommonFiles {
         "StartupManager.ps1",
         "WindowsPathFunction.ps1",
         "WindowsServiceManager.ps1",
-        "CommonFunc.7z.gz.js",
-        "applicationsXml\ApplicationsList.xml"
+        "CommonFunc.7z.gz.js"
     )
     
     $missingFiles = @()

@@ -9,6 +9,7 @@ if ($null -eq $cudaIndexLoaded -or -not [bool]$cudaIndexLoaded.Value) {
 }
 
 $script:NvidiaAlignPrefix = '[nvidia-cu-align]'
+$script:NvidiaCuAlignmentStateVariable = 'PycoreNvidiaCuAlignLastTarget'
 
 function Sync-NvidiaCuStack {
     param(
@@ -25,5 +26,10 @@ function Sync-NvidiaCuStack {
         Write-Host "$script:NvidiaAlignPrefix no active CUDA ABI; pip keeps the installed dependency set." -ForegroundColor DarkGray
         return
     }
+    $alignState = Get-Variable -Name $script:NvidiaCuAlignmentStateVariable -Scope Script -ErrorAction SilentlyContinue
+    if ($alignState -and $alignState.Value -eq $TargetMajor) {
+        return
+    }
+    Set-Variable -Name $script:NvidiaCuAlignmentStateVariable -Scope Script -Value $TargetMajor
     Write-Host "$script:NvidiaAlignPrefix target=cu$TargetMajor; Torch/Paddle wheel metadata owns the NVIDIA dependency set." -ForegroundColor Green
 }

@@ -2,16 +2,14 @@
  * PycoreBlob — fetch pycore binary assets (images/audio) over the WS bus as
  * data: URLs, instead of loading them as HTTP element `src` from :59000.
  *
- * Uses the backend `local_http.blob` RPC (in-process ASGI dispatch → base64).
- * Falls back to the direct HTTP URL only when the WS bus is not connected (an
- * element can still load it directly in that case). An in-memory cache keeps a
+ * Uses the native `pycore.router.resource` RPC route and receives base64 data.
+ * Returns an empty URL while the WS bus is unavailable. An in-memory cache keeps a
  * given path's data URL stable across re-renders so a list of thumbnails does not
  * re-fetch on every render.
  */
 import { callRpc, isWsConnected } from './PycoreWs';
-import { rewritePycoreEndpoint } from './pycoreTarget';
+import { PYCORE_RPC_ROUTES } from './PycoreRpcRoutes';
 
-const WS_BLOB_TIMEOUT_MS = 20_000;
 const _cache = new Map<string, string>();
 const _inflight = new Map<string, Promise<string>>();
 
@@ -33,7 +31,7 @@ export async function fetchPycoreBlobUrl(url: string): Promise<string> {
   if (/^(data:|blob:)/i.test(url)) return url;
   const cached = _cache.get(url);
   if (cached) return cached;
-  if (!isWsConnected()) return rewritePycoreEndpoint(url);
+  if (!isWsConnected()) return '';
   const existing = _inflight.get(url);
   if (existing) return existing;
 
@@ -41,18 +39,16 @@ export async function fetchPycoreBlobUrl(url: string): Promise<string> {
   const p = (async (): Promise<string> => {
     try {
       const r: any = await callRpc(
-        'local_http.blob',
-        { path, timeout_s: WS_BLOB_TIMEOUT_MS / 1000 },
-        WS_BLOB_TIMEOUT_MS + 2000,
+        PYCORE_RPC_ROUTES.routerResource,
+        { route: path },
       );
       if (r && r.success && typeof r.base64 === 'string') {
         const dataUrl = `data:${r.mime || 'application/octet-stream'};base64,${r.base64}`;
         _cache.set(url, dataUrl);
         return dataUrl;
       }
-    } catch { /* fall through to HTTP */ }
-    // WS blob failed — let the element load the direct URL instead.
-    return rewritePycoreEndpoint(url);
+    } catch { /* the WS request remains durable on the server */ }
+    return '';
   })().finally(() => { _inflight.delete(url); });
 
   _inflight.set(url, p);

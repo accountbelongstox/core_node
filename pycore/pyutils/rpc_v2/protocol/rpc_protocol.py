@@ -89,7 +89,7 @@ class RPCProtocolServer:
 
         @self.app.get(RPC_INFO_PATH)
         async def info_endpoint():
-            payload = self.rpc_server._build_status_payload()
+            payload = await self.rpc_server._build_status_payload()
             payload["protocol_version"] = RPC_PROTOCOL_VERSION
             payload["service_name"] = self.service_info.service_name
             payload["metadata"] = self.service_info.metadata

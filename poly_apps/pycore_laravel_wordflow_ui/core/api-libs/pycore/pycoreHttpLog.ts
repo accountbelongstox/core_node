@@ -3,7 +3,7 @@
  * the pycore-manager HTTP debugger (PcHttpDebugger). Holds BOTH directions:
  *
  *   - direction 'pycore': FE -> pycore requests. Instrumented at the two FE
- *     choke points: PycoreWs.callRpc (WS RPC, incl. the local_http.* bridge +
+ *     choke points: PycoreWs.callRpc (native WS RPC routes +
  *     direct live-test routes) and PycoreApi.PycoreMasterClient.request (HTTP
  *     fallback + multipart uploads). WS-connected calls go through callRpc only;
  *     HTTP-only through MasterClient only - no double-count on a single path.
@@ -23,9 +23,9 @@ export interface HttpDebugRecord {
   direction: HttpDirection;
   /** HTTP verb (GET/POST/...) or 'RPC' for direct WS routes. */
   method: string;
-  /** RPC route (e.g. 'local_http.get', 'local.tts.test') when via WS. */
+  /** Native RPC v2 route name when sent over WS. */
   route?: string;
-  /** URL path (no host). For WS local_http.* this is params.path. */
+  /** Optional legacy router path carried as RPC params. */
   path: string;
   /** Full URL when available (HTTP path / laravel url). */
   fullUrl?: string;
@@ -87,10 +87,9 @@ export function summarizeHttpParams(value: unknown): string {
   }
 }
 
-/** Map an rpc_v2 route to an HTTP verb label for the debugger (local_http.* bridge). */
+/** Map a native rpc_v2 route to a debugger operation label. */
 export function rpcRouteToHttpMethod(route: string): string {
-  if (route === 'local_http.get' || route === 'local_http.blob') return 'GET';
-  if (route === 'local_http.post') return 'POST';
-  if (route === 'local_http.delete') return 'DELETE';
+  if (route === 'pycore.router.resource') return 'RESOURCE';
+  if (route === 'pycore.router.invoke') return 'RPC';
   return 'RPC';
 }

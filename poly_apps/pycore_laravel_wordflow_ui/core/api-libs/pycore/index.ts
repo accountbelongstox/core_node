@@ -3,6 +3,8 @@
  * Re-exports the singleton client, WS helpers, cache helpers and shared types.
  */
 export { pycoreApi, mapQueueSnapshot } from './PycoreApi';
+export { PYCORE_RPC_ROUTES } from './PycoreRpcRoutes';
+export type { PycoreRpcRoute } from './PycoreRpcRoutes';
 export type {
   PycoreApi, QueueResponse, RuntimeInfo, SystemSettingsResponse,
   BookLanguageRow, BookTopWord, BookTextStats, BookFileEntry,
@@ -17,11 +19,9 @@ export type {
 } from './PycoreApi';
 
 export {
-  connectPycoreWs, subscribe, subscribeWs, callRpc, onWsStatus, onWsDiag,
-  isWsConnected, getClientId, setPycoreActive,
+  connectPycoreWs, subscribe, subscribeWs, subscribeRpcCompletion, callRpc, onWsStatus, onWsDiag,
+  isWsConnected, getClientId, getBrowserId, setPycoreActive,
 } from './PycoreWs';
-
-export { connectPycoreSse, isSseConnected, setPycoreSseActive } from './PycoreSse';
 
 export {
   getPycoreTarget, isPycoreRemote, pycoreTargetHost,
@@ -29,13 +29,13 @@ export {
   localPycoreHost, localPycoreOrigin, pycoreEffectiveHost,
   isPycoreSecureContext, pnaBlockedReason, isViteDevShell,
   isLoopbackPage, directPycoreHost, pycoreLocalConnectionHint,
-  rewritePycoreEndpoint, pycoreWsUrlOverride, pycoreSseUrlOverride,
+  rewritePycoreEndpoint, pycoreWsUrlOverride,
 } from './pycoreTarget';
 export type { PycoreTarget, PycorePresetHost } from './pycoreTarget';
 
 export {
   PYCORE_PORT, PycorePaths,
-  normalizePycorePath, buildPycoreHttpUrl, buildPycoreWsUrl, buildPycoreSseBaseUrl,
+  normalizePycorePath, buildPycoreHttpUrl, buildPycoreWsUrl,
 } from './pycoreEndpoints';
 
 export {

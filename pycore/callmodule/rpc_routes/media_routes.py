@@ -21,6 +21,7 @@ from pycore.callmodule.services.sync.laravel_media_sync import (
 from pycore.callmodule.services.processors.book_processor import iter_books
 # Unified pycore->Laravel HTTP gateway (times + logs + records every call).
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
+from pycore.callmodule.rpc_routes.route_names import BOOK_SYNC_SOURCE, MEDIA_ENRICH
 
 
 def register_media_routes(server):
@@ -124,13 +125,13 @@ def register_media_routes(server):
             return {'success': False, 'error': str(e)}
 
     server.route(
-        name='book.sync_source',
+        name=BOOK_SYNC_SOURCE,
         handler=book_sync_source,
         sync=False,
         description='Idempotently ingest book(s) into the shared sentence library',
     )
     server.route(
-        name='media.enrich',
+        name=MEDIA_ENRICH,
         handler=media_enrich,
         sync=False,
         description='Trigger laravel_main sentence-library enrichment',

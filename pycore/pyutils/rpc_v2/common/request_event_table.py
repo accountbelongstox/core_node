@@ -82,7 +82,8 @@ class RequestEventTable:
         self.events[request_id] = event
         if self.debug:
             ColorPrint.blue(
-                f"[RequestEventTable] Created event id={request_id[:8]} route={route} client={client_type}"
+                f"[RequestEventTable] Created event id={request_id[:8]} route={route} "
+                f"client_id={(client_id or '-')[:8]} client={client_type}"
             )
         return replace(event, params=dict(event.params))
 
@@ -132,7 +133,7 @@ class RequestEventTable:
     def get_pending_notifications(self, client_id: Optional[str] = None) -> List[RequestEvent]:
         events = []
         for event in self.events.values():
-            if event.status == RequestStatus.COMPLETED and (client_id is None or event.client_id == client_id):
+            if event.status in (RequestStatus.COMPLETED, RequestStatus.ACK_PENDING) and (client_id is None or event.client_id == client_id):
                 events.append(replace(event, params=dict(event.params)))
         return events
 

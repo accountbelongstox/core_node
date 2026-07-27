@@ -76,21 +76,27 @@ class TaskCenterController extends Controller
 
     /**
      * GET /api/task-center/settings
-     * Task-center runtime toggles, read from the user-data config
-     * (UserConfigService). use_server_binary_assist (default OFF) gates whether
-     * Laravel may call local TTS binaries - OFF = pycore generates everything.
+     *
+     * Soft-deprecated: pycore Queue Center is the sole control plane for
+     * translation ON/OFF. laravel_translation_* keys are no longer written.
+     * use_server_binary_assist remains readable for legacy callers.
      */
     public function getSettings(): JsonResponse
     {
         $config = app(UserConfigService::class);
         return $this->success([
+            'deprecated' => true,
+            'deprecation' => 'pycore Queue Center is the sole control plane; laravel_translation_* keys are unused.',
             'use_server_binary_assist' => $config->useServerBinaryAssist(),
-        ], 'Task center settings');
+        ], 'Task center settings (deprecated — use pycore Queue Center)');
     }
 
     /**
      * POST /api/task-center/settings
-     * Persist task-center runtime toggles to the user-data config.
+     *
+     * Soft-deprecated no-op for laravel_translation_* keys (kept so old
+     * callers do not 404). Optional use_server_binary_assist writes still
+     * allowed for now; translation toggles must go through pycore.
      */
     public function updateSettings(Request $request): JsonResponse
     {
@@ -101,9 +107,12 @@ class TaskCenterController extends Controller
                 return $this->error('Failed to write settings file', 500);
             }
         }
+        // laravel_translation_* writes intentionally ignored — pycore is sole control plane.
         return $this->success([
+            'deprecated' => true,
+            'deprecation' => 'pycore Queue Center is the sole control plane; laravel_translation_* writes are ignored.',
             'use_server_binary_assist' => $config->useServerBinaryAssist(),
-        ], 'Task center settings updated');
+        ], 'Task center settings updated (deprecated — translation keys ignored)');
     }
 
     /**
@@ -179,6 +188,7 @@ class TaskCenterController extends Controller
                 'stats' => $this->workerManager->getWorkerStats(),
             ],
             'relations' => $relations,
+            'section_contracts' => $this->buildSectionContracts(),
             'timestamp' => now()->toISOString(),
         ], 'Task center overview retrieved successfully');
     }
@@ -202,8 +212,32 @@ class TaskCenterController extends Controller
         if ($cursorId > 0) {
             $query->where('id', '<', $cursorId);
         }
-        if ($taskType !== '') {
-            $query->where('task_type', $taskType);
+        if ($taskType !== '' && $taskType !== 'all') {
+            if ($taskType === 'word_audio') {
+                $query->where('task_type', 'like', '%word%')->where(function ($q) {
+                    $q->where('task_type', 'like', '%audio%')->orWhere('task_type', 'like', '%tts%');
+                });
+            } elseif ($taskType === 'sentence_audio') {
+                $query->where('task_type', 'like', '%sentence%')->where(function ($q) {
+                    $q->where('task_type', 'like', '%audio%')->orWhere('task_type', 'like', '%tts%');
+                });
+            } elseif ($taskType === 'media_image') {
+                $query->where(function ($q) {
+                    $q->where('task_type', 'like', '%media%')
+                      ->orWhere('task_type', 'like', '%image%')
+                      ->orWhere('task_type', 'like', '%cover%')
+                      ->orWhere('task_type', 'like', '%poster%');
+                });
+            } elseif ($taskType === 'translation') {
+                $query->where(function ($q) {
+                    $q->where('task_type', 'like', '%translate%')
+                      ->orWhere('task_type', 'like', '%translation%');
+                });
+            } elseif ($taskType === 'assist') {
+                $query->where('task_type', 'like', '%assist%');
+            } else {
+                $query->where('task_type', $taskType);
+            }
         }
         $tasks = $query
             ->select([
@@ -241,6 +275,9 @@ class TaskCenterController extends Controller
                 'created_at' => $task->created_at?->toISOString(),
                 'updated_at' => $task->updated_at?->toISOString(),
                 'completed_at' => $task->completed_at?->toISOString(),
+                'is_local' => false,
+                'source' => 'laravel',
+                'last_error' => $task->error,
             ];
         })->values();
         $nextCursor = $tasks->isEmpty() ? null : (int) $tasks->last()->id;
@@ -353,5 +390,55 @@ class TaskCenterController extends Controller
         ];
 
         return $categories;
+    }
+
+    /**
+     * Build the unified section contracts for Laravel-owned scopes.
+     */
+    private function buildSectionContracts(): array
+    {
+        $config = app(UserConfigService::class);
+        $toggleState = [
+            'requested_by' => null,
+            'enabled' => (bool) $config->get('laravel_translation_enabled', false),
+            'reason' => null,
+            'paused_by_user' => $config->get('laravel_translation_paused') !== null ? (bool) $config->get('laravel_translation_paused') : null,
+            'graceful_stop' => (bool) $config->get('laravel_translation_graceful_stop', false),
+        ];
+        
+        $categories = $this->buildCategories();
+        $aiTranslateStats = ['pending' => 0, 'processing' => 0, 'leased' => 0, 'total' => 0];
+        foreach ($categories as $cat) {
+            if ($cat['capability'] === 'ai_translate' || $cat['capability'] === 'word_translation') {
+                $aiTranslateStats['pending'] += $cat['single_lane']['pending'] + $cat['fast_lane']['pending'];
+                $aiTranslateStats['processing'] += $cat['single_lane']['processing'] + $cat['fast_lane']['processing'];
+            }
+        }
+        $aiTranslateStats['total'] = $aiTranslateStats['pending'] + $aiTranslateStats['processing'];
+        
+        $workerStats = $this->workerManager->getWorkerStats();
+        $online = ($workerStats['online'] ?? 0) > 0;
+        
+        $lifecycle = $toggleState['enabled'] ? 'on' : 'off';
+        
+        return [
+            [
+                'type' => 'laravel_translation',
+                'category' => 'ai_translate',
+                'queue' => $aiTranslateStats,
+                'worker' => [
+                    'online' => $online,
+                    'claimed' => $workerStats['processing'] ?? 0,
+                    'ok' => $workerStats['completed'] ?? 0,
+                    'fail' => $workerStats['failed'] ?? 0,
+                    'last_heartbeat' => null,
+                ],
+                'toggle' => $toggleState,
+                'lifecycle' => $lifecycle,
+                'error_code' => null,
+                'last_error' => null,
+                'updated_at' => now()->toISOString(),
+            ]
+        ];
     }
 }

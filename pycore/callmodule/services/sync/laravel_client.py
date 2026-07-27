@@ -147,6 +147,8 @@ class LaravelClient:
         return isinstance(path, str) and (path.startswith("http://") or path.startswith("https://"))
 
     def _build_url(self, path: str, base_url: Optional[str]) -> str:
+        if " " in path or '"' in path or "'" in path:
+            raise ValueError(f"Invalid URL path (contains spaces or quotes): {path}")
         if self._is_full_url(path):
             return path
         base = self._resolve_base(base_url)

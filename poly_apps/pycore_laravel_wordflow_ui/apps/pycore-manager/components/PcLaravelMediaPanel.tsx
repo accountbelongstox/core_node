@@ -25,6 +25,7 @@ import {
   Database, ChevronDown, ChevronUp, RefreshCw, WifiOff, Wifi, Film, BookOpen,
 } from 'lucide-react';
 import { callRpc, PYCORE_LARAVEL_API_CHANGED_EVENT } from '../../../core/api-libs/pycore';
+import { PYCORE_RPC_ROUTES } from '../../../core/api-libs/pycore/PycoreRpcRoutes';
 import { laravelApi } from '../../../core/api-libs/laravel/LaravelApi';
 import { getSharedBaseURL } from '../../../core/api/base/BaseAPI';
 import { getDefaultBaseURL } from '../../../config/constants';
@@ -163,7 +164,7 @@ const PcLaravelMediaPanel: React.FC = () => {
   // the direct dashboard query when pycore is offline.
   const refresh = useCallback(async () => {
     setLoading(true);
-    const r: BackendStatus | null = await callRpc('video_extract.backend_status', {})
+  const r: BackendStatus | null = await callRpc(PYCORE_RPC_ROUTES.videoExtractBackendStatus, {})
       .then((res: any) => (res?.success ? (res as BackendStatus) : null))
       .catch(() => null);
     if (r) {

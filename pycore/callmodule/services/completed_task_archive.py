@@ -16,6 +16,10 @@ from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyctl.desktop.task_manager import get_task_manager
 from pycore.callmodule.services.task_history_store import query_records
+from pycore.callmodule.services.task_type_contract import (
+    aggregate_task_counts,
+    normalize_task_type,
+)
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
@@ -29,6 +33,7 @@ _RESOURCE_KEY_HINTS = (
     "audio", "image", "video", "subtitle", "poster", "cover", "file",
     "download", "document", "archive", "media", "path", "url",
 )
+_SKIP_RESOURCE_KEYS = frozenset({"synth_command", "command", "cmd"})
 _RESOURCE_EXTENSIONS = {
     ".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac",
     ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg",
@@ -67,13 +72,22 @@ def _safe_extension(source: str, mime: Optional[str] = None) -> str:
 
 def _resource_string(key: str, value: str) -> bool:
     lowered_key = key.lower()
-    lowered_value = value.lower().split("?", 1)[0]
-    hinted = any(hint in lowered_key for hint in _RESOURCE_KEY_HINTS)
-    extension = Path(lowered_value).suffix in _RESOURCE_EXTENSIONS
-    return extension or hinted and (
+    if lowered_key in _SKIP_RESOURCE_KEYS:
+        return False
+    # CLI / display strings (e.g. edge-tts --write-media …mp3) are never resources.
+    if " " in value or '"' in value or "'" in value:
+        if not value.startswith(("http://", "https://", "data:")) and not _is_local_file(value):
+            return False
+    url_or_local = (
         value.startswith(("http://", "https://", "/", "data:"))
         or _is_local_file(value)
     )
+    if not url_or_local:
+        return False
+    lowered_value = value.lower().split("?", 1)[0]
+    hinted = any(hint in lowered_key for hint in _RESOURCE_KEY_HINTS)
+    extension = Path(lowered_value).suffix in _RESOURCE_EXTENSIONS
+    return extension or hinted
 
 
 def _is_local_file(value: str) -> bool:
@@ -249,7 +263,7 @@ class CompletedTaskArchive:
             "ts": raw.get("completed_at") or raw.get("updated_at") or raw.get("created_at") or _now_iso(),
             "end": "laravel",
             "worker": raw.get("worker") or "laravel",
-            "task_type": raw.get("task_type") or "unknown",
+            "task_type": normalize_task_type(raw.get("task_type")),
             "task_id": raw.get("task_id") or "",
             "source_api": base_url,
             "title": self._title(raw),
@@ -281,7 +295,7 @@ class CompletedTaskArchive:
             "ts": raw.get("updated_at") or raw.get("created_at") or _now_iso(),
             "end": str(payload.get("_end") or "pycore"),
             "worker": str(payload.get("_worker") or "pycore-local"),
-            "task_type": raw.get("task_type") or "unknown",
+            "task_type": normalize_task_type(raw.get("task_type")),
             "task_id": task_id,
             "source_api": "local",
             "title": self._title(source),
@@ -317,7 +331,7 @@ class CompletedTaskArchive:
             "ts": raw.get("ts") or _now_iso(),
             "end": str(raw.get("end") or "pycore"),
             "worker": str(raw.get("worker") or "pycore-local"),
-            "task_type": raw.get("task_type") or "unknown",
+            "task_type": normalize_task_type(raw.get("task_type")),
             "task_id": str(raw.get("task_id") or identity),
             "source_api": "local",
             "title": str(raw.get("title") or raw.get("content") or ""),
@@ -398,11 +412,30 @@ class CompletedTaskArchive:
                 continue
             self._store_record(self._normalize_history_record(raw, base_url), rows)
             synced += 1
-        ordered = sorted(rows.values(), key=lambda row: str(row.get("ts") or ""), reverse=True)
-        types: Dict[str, int] = {}
-        for row in ordered:
-            task_type = str(row.get("task_type") or "unknown")
-            types[task_type] = types.get(task_type, 0) + 1
+        now = datetime.now(timezone.utc)
+        cutoff_ts = now.timestamp() - 7 * 24 * 3600
+        
+        valid_rows = []
+        for row in rows.values():
+            ts_str = str(row.get("ts") or "")
+            try:
+                # Handle Z suffix for UTC
+                if ts_str.endswith("Z"):
+                    ts_str = ts_str[:-1] + "+00:00"
+                row_ts = datetime.fromisoformat(ts_str).timestamp()
+                if row_ts >= cutoff_ts:
+                    valid_rows.append(row)
+                else:
+                    # Delete expired record file
+                    archive_id = str(row.get("archive_id"))
+                    record_path = self._record_path(archive_id)
+                    if record_path.is_file():
+                        record_path.unlink(missing_ok=True)
+            except (ValueError, TypeError):
+                valid_rows.append(row)
+
+        ordered = sorted(valid_rows, key=lambda row: str(row.get("ts") or ""), reverse=True)
+        types = aggregate_task_counts({str(row.get("task_type") or "assist"): 1 for row in ordered})
         manifest = {
             "records": ordered,
             "types": types,
@@ -422,8 +455,9 @@ class CompletedTaskArchive:
     def query(self, task_type: Optional[str] = None, limit: int = 200, offset: int = 0) -> Dict[str, Any]:
         manifest = self._manifest()
         rows = list(manifest.get("records") or [])
+        canonical_type = normalize_task_type(task_type)
         if task_type:
-            rows = [row for row in rows if row.get("task_type") == task_type]
+            rows = [row for row in rows if normalize_task_type(row.get("task_type")) == canonical_type]
         total = len(rows)
         start = max(0, int(offset or 0))
         size = max(1, min(int(limit or 200), 1000))
@@ -442,7 +476,7 @@ class CompletedTaskArchive:
             "records": records,
             "count": len(records),
             "total": total,
-            "types": manifest.get("types") or {},
+            "types": aggregate_task_counts({row.get("task_type") or "assist": 1 for row in rows}),
             "resource_count": int(manifest.get("resource_count") or 0),
             "last_sync_at": manifest.get("last_sync_at"),
             "offset": start,

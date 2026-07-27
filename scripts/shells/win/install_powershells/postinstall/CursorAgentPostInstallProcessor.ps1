@@ -11,10 +11,16 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Cursor Agent Post-Installation Processor
-# Cursor install never skips agent detection; agent detection never skips PATH refresh. Repeated runs fully verify and repair.
+# Official verification is `agent --version` (https://cursor.com/docs/cli/installation).
+# Cursor install never skips agent detection; agent detection never skips PATH refresh.
 
 $script:AgentInstallUrl = "https://cursor.com/install?win32=true"
 $script:RipgrepWingetId = "BurntSushi.ripgrep.MSVC"
+$script:AgentVersionsDir = $null
+$script:AgentCacheDir = $null
+
+$script:AgentVersionsDir = Join-Path $env:LOCALAPPDATA "cursor-agent\versions"
+$script:AgentCacheDir = Join-Path $env:LOCALAPPDATA "cursor-agent"
 
 function Update-ProcessPathFromRegistry {
     $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
@@ -37,20 +43,20 @@ function Test-RipgrepPresent {
     if (-not $rgCmd) { return $false }
     try {
         $null = & rg --version 2>&1
-        return $true
     } catch {
         return $false
     }
+    return $true
 }
 
 function Get-AgentVersion {
     Update-ProcessPathFromRegistry
     try {
-        $v = & cursor --version 2>&1
+        $v = & agent --version 2>&1
         if ($v) { return ($v | Out-String).Trim() }
     } catch { }
     try {
-        $v = & agent --version 2>&1
+        $v = & cursor --version 2>&1
         if ($v) { return ($v | Out-String).Trim() }
     } catch { }
     return ""
@@ -65,18 +71,95 @@ function Get-RipgrepVersion {
     return ""
 }
 
-# Cursor IDE runs: node ...\AppData\Local\cursor-agent\versions\<version>\index.js
-# If that path is missing/corrupt (e.g. another install step removed it), idempotent skip would leave agent broken.
+# Legacy Node runtime layout (optional). Modern agent CLI is a standalone binary;
+# official verify is only `agent --version`. Missing index.js must NOT force reinstall.
 function Test-AgentRuntimeIntact {
-    $versionsDir = Join-Path $env:LOCALAPPDATA "cursor-agent\versions"
-    if (-not (Test-Path $versionsDir -PathType Container)) { return $false }
+    if (-not (Test-Path -LiteralPath $script:AgentVersionsDir -PathType Container)) { return $false }
     try {
-        $versionDirs = Get-ChildItem -Path $versionsDir -Directory -ErrorAction SilentlyContinue
+        $versionDirs = Get-ChildItem -LiteralPath $script:AgentVersionsDir -Directory -ErrorAction SilentlyContinue
         foreach ($dir in $versionDirs) {
             $indexJs = Join-Path $dir.FullName "index.js"
-            if (Test-Path $indexJs -PathType Leaf) { return $true }
+            if (Test-Path -LiteralPath $indexJs -PathType Leaf) { return $true }
         }
     } catch { }
+    return $false
+}
+
+function Clear-CorruptCursorAgentDownloadState {
+    param([string]$LogPrefix)
+
+    $removed = $false
+    if (Test-Path -LiteralPath $script:AgentVersionsDir -PathType Container) {
+        try {
+            $versionDirs = Get-ChildItem -LiteralPath $script:AgentVersionsDir -Directory -ErrorAction SilentlyContinue
+            foreach ($dir in $versionDirs) {
+                $indexJs = Join-Path $dir.FullName "index.js"
+                if (-not (Test-Path -LiteralPath $indexJs -PathType Leaf)) {
+                    Write-Host "$LogPrefix Clearing incomplete agent version dir: $($dir.FullName)" -ForegroundColor Yellow
+                    Remove-Item -LiteralPath $dir.FullName -Recurse -Force -ErrorAction SilentlyContinue
+                    $removed = $true
+                }
+            }
+        } catch { }
+    }
+
+    $tempRoot = $env:TEMP
+    if (-not [string]::IsNullOrWhiteSpace($tempRoot) -and (Test-Path -LiteralPath $tempRoot -PathType Container)) {
+        try {
+            $zipCandidates = Get-ChildItem -LiteralPath $tempRoot -Filter "*cursor*agent*.zip" -File -ErrorAction SilentlyContinue
+            foreach ($zip in $zipCandidates) {
+                Write-Host "$LogPrefix Removing temp agent zip: $($zip.FullName)" -ForegroundColor Yellow
+                Remove-Item -LiteralPath $zip.FullName -Force -ErrorAction SilentlyContinue
+                $removed = $true
+            }
+        } catch { }
+    }
+    return $removed
+}
+
+function Install-CursorAgentCliWithRetry {
+    param(
+        [string]$LogPrefix,
+        [int]$MaxAttempts = 2
+    )
+
+    $attempt = 0
+    $lastError = ""
+    while ($attempt -lt $MaxAttempts) {
+        $attempt = $attempt + 1
+        try {
+            if ($attempt -gt 1) {
+                Write-Host "$LogPrefix Retrying agent CLI install (attempt $attempt/$MaxAttempts) after clearing corrupt download state..." -ForegroundColor Yellow
+                Clear-CorruptCursorAgentDownloadState -LogPrefix $LogPrefix | Out-Null
+            }
+            # Download script to file first (more reliable than irm|iex on truncated/gzip edge cases).
+            $stamp = [System.DateTime]::UtcNow.ToString("yyyyMMddHHmmssfff")
+            $pidPart = [System.Diagnostics.Process]::GetCurrentProcess().Id
+            $scriptFile = Join-Path $env:TEMP ("core_node_cursor_agent_install_{0}_{1}.ps1" -f $pidPart, $stamp)
+            Invoke-WebRequest -Uri $script:AgentInstallUrl -OutFile $scriptFile -UseBasicParsing -TimeoutSec 180
+            if (-not (Test-Path -LiteralPath $scriptFile -PathType Leaf) -or ((Get-Item -LiteralPath $scriptFile).Length -lt 32)) {
+                throw "Downloaded install script is empty or missing: $scriptFile"
+            }
+            # Dot-source / iex in-process so PATH updates from the installer apply to this session.
+            $scriptText = Get-Content -LiteralPath $scriptFile -Raw -ErrorAction Stop
+            Remove-Item -LiteralPath $scriptFile -Force -ErrorAction SilentlyContinue
+            Invoke-Expression $scriptText
+            return $true
+        } catch {
+            $lastError = $_.Exception.Message
+            Write-Host "$LogPrefix Agent CLI install attempt $attempt failed: $lastError" -ForegroundColor Red
+            $isZipCorrupt = $lastError -match "Central Directory|End of Central|zip|archive"
+            if ($isZipCorrupt) {
+                Clear-CorruptCursorAgentDownloadState -LogPrefix $LogPrefix | Out-Null
+            }
+            if (-not $isZipCorrupt -or $attempt -ge $MaxAttempts) {
+                break
+            }
+        }
+    }
+    if ($lastError -match "denied|Access to the path") {
+        Write-Host "$LogPrefix Close Cursor/agent then run as Administrator: irm 'https://cursor.com/install?win32=true' | iex" -ForegroundColor Yellow
+    }
     return $false
 }
 
@@ -96,48 +179,57 @@ function Invoke-CursorAgentPostInstallProcessor {
 
     $agentOk = $false
     $ripgrepOk = $false
+    $agentNeedInstall = $false
+    $agentPresentBefore = $false
+    $agentVerBefore = ""
+    $agentBroken = $false
+    $runtimeIntact = $false
+    $agentVer = ""
+    $rgVer = ""
+    $ripgrepPresentBefore = $false
+    $wingetPath = $null
+    $proc = $null
 
-    # Cursor install never skips agent detection; agent detection never skips PATH. Always refresh PATH then detect.
     Update-ProcessPathFromRegistry
     if ($PackageName -eq "Cursor") {
         Write-Host "$LogPrefix Cursor install flow: running full agent detection (PATH refreshed, no skip)." -ForegroundColor Cyan
     }
 
-    # --- Step 1: Agent CLI. Always run PATH-backed detection first; install/repair only when missing or broken. ---
+    # --- Step 1: Agent CLI. Official verify: agent --version. Do not force reinstall for missing legacy index.js. ---
     $agentPresentBefore = Test-AgentCommandPresent
     $agentVerBefore = Get-AgentVersion
-    $agentBroken = $agentPresentBefore -and (-not $agentVerBefore -or [string]::IsNullOrWhiteSpace($agentVerBefore))
+    $agentBroken = $agentPresentBefore -and [string]::IsNullOrWhiteSpace($agentVerBefore)
     $runtimeIntact = Test-AgentRuntimeIntact
-    $agentNeedInstall = -not $agentPresentBefore -or $agentBroken -or -not $runtimeIntact
+    $agentNeedInstall = (-not $agentPresentBefore) -or $agentBroken
     if ($agentBroken) {
         Write-Host "$LogPrefix Agent CLI in PATH but version check failed (broken); will attempt repair." -ForegroundColor Yellow
     }
-    if (-not $runtimeIntact -and $agentPresentBefore) {
-        Write-Host "$LogPrefix Agent runtime missing or corrupt (no index.js under cursor-agent\versions); will re-run install." -ForegroundColor Yellow
+    if (-not $runtimeIntact -and $agentPresentBefore -and -not $agentBroken) {
+        Write-Host "$LogPrefix Note: legacy cursor-agent\versions\index.js not found; agent CLI version OK — skipping reinstall (idempotent)." -ForegroundColor Cyan
     }
     if ($agentNeedInstall) {
         Write-Host "$LogPrefix Installing Cursor agent CLI (cursor + agent command)..." -ForegroundColor Cyan
-        try {
-            Invoke-RestMethod -Uri $script:AgentInstallUrl -Method Get | Invoke-Expression
-        } catch {
-            $errMsg = $_.Exception.Message
-            Write-Host "$LogPrefix Agent CLI install failed: $errMsg" -ForegroundColor Red
-            if ($errMsg -match "denied|Access to the path") {
-                Write-Host "$LogPrefix Idempotent repair ran but install failed (permission). Agent remains broken until you run the command below." -ForegroundColor Yellow
-                Write-Host "$LogPrefix Close Cursor/agent then run as Administrator: irm 'https://cursor.com/install?win32=true' | iex" -ForegroundColor Yellow
-            }
-        }
+        Clear-CorruptCursorAgentDownloadState -LogPrefix $LogPrefix | Out-Null
+        $null = Install-CursorAgentCliWithRetry -LogPrefix $LogPrefix -MaxAttempts 2
     } else {
         Write-Host "$LogPrefix Agent CLI present and version OK; skipping install (idempotent)." -ForegroundColor Green
     }
-    # Always run full agent detection after install/repair (never skip); PATH refresh is inside detection.
+
     Update-ProcessPathFromRegistry
     $agentOk = Test-AgentCommandPresent
     $agentVer = Get-AgentVersion
     if ($agentVer) { Write-Host "$LogPrefix Agent CLI version: $agentVer" -ForegroundColor Cyan } else { Write-Host "$LogPrefix Agent CLI version: (could not get)" -ForegroundColor Yellow }
-    if ($agentOk) { Write-Host "$LogPrefix Agent CLI detection: present." -ForegroundColor Green } else { Write-Host "$LogPrefix Agent CLI detection: not found in PATH." -ForegroundColor Red }
+    if ($agentOk -and -not [string]::IsNullOrWhiteSpace($agentVer)) {
+        $agentOk = $true
+        Write-Host "$LogPrefix Agent CLI detection: present." -ForegroundColor Green
+    } elseif ($agentOk) {
+        $agentOk = $false
+        Write-Host "$LogPrefix Agent CLI detection: binary on PATH but version check failed." -ForegroundColor Red
+    } else {
+        Write-Host "$LogPrefix Agent CLI detection: not found in PATH." -ForegroundColor Red
+    }
 
-    # --- Step 2: RipGrep. Always run PATH-backed detection; install when not present; never skip detection. ---
+    # --- Step 2: RipGrep ---
     Update-ProcessPathFromRegistry
     $ripgrepPresentBefore = Test-RipgrepPresent
     if (-not $ripgrepPresentBefore) {
@@ -155,7 +247,6 @@ function Invoke-CursorAgentPostInstallProcessor {
     } else {
         Write-Host "$LogPrefix RipGrep present; skipping install (idempotent)." -ForegroundColor Green
     }
-    # Always run full RipGrep detection after (never skip); PATH refresh is inside detection.
     Update-ProcessPathFromRegistry
     $ripgrepOk = Test-RipgrepPresent
     $rgVer = Get-RipgrepVersion

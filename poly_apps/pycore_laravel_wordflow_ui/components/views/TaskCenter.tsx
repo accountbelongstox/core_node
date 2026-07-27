@@ -18,8 +18,8 @@ import React, { useState, useEffect } from 'react';
 import { Language } from '../../types';
 import { api } from '../../core/api';
 import type { TaskCenterOverview } from '../../core/api/modules/ServerManagerAPI';
-import { usePersistentTask } from '../../core/tasks/usePersistentTask';
 import { TRANSLATIONS } from '../../constants';
+import { TaskCenterProvider, useTaskCenterState } from './task-center/TaskCenterState';
 import {
   LayoutDashboard,
   Timer,
@@ -59,84 +59,30 @@ const TAB_ICONS: Record<TaskCenterTab, React.ComponentType<{ className?: string 
 
 const TAB_ORDER: TaskCenterTab[] = ['overview', 'scheduler', 'queue', 'workers', 'assist', 'dispatch', 'assistDist'];
 
-const TaskCenter: React.FC<TaskCenterProps> = ({ lang = 'en', initialTab = 'overview' }) => {
+const TaskCenterContent: React.FC<TaskCenterProps> = ({ lang = 'en', initialTab = 'overview' }) => {
   const [activeTab, setActiveTab] = useState<TaskCenterTab>(initialTab);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-  const [refreshIntervalSec, setRefreshIntervalSec] = useState(5);
-  const [refreshToken, setRefreshToken] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    overview,
+    loading,
+    error,
+    refreshNow,
+    autoRefresh,
+    setAutoRefresh,
+    refreshIntervalSec,
+    setRefreshIntervalSec,
+  } = useTaskCenterState();
 
   const t = TRANSLATIONS[lang].taskCenter;
-
-  // Aggregate overview poll — powers the header chips + the overview tab and
-  // annotates scheduler rows with queue roles. Same persistent-session pattern
-  // as the panels: errors settle to null (keep last snapshot, show banner).
-  const fetchOverview = (): Promise<TaskCenterOverview | null> =>
-    api.serverManager.getTaskCenterOverview()
-      .then((response) => {
-        if (response.success && response.data) {
-          setError(null);
-          setLoading(false);
-          return response.data;
-        }
-        setError(response.error || t.load_failed);
-        setLoading(false);
-        return null;
-      })
-      .catch((err: any) => {
-        setError(err?.message || t.load_failed);
-        setLoading(false);
-        return null;
-      });
-
-  const task = usePersistentTask<TaskCenterOverview>('laravel.task-center', {
-    intervalMs: refreshIntervalSec * 1000,
-    poll: fetchOverview,
-    reattach: fetchOverview,
-  });
-  const overview = task.data;
-
-  // Initial load (idempotent — reuse a live session's data after navigation).
-  useEffect(() => {
-    if (overview) return;
-    setLoading(true);
-    fetchOverview().then((snapshot) => {
-      if (snapshot) task.set(snapshot);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Auto-refresh toggle / interval drive the persistent poll loop on/off.
-  useEffect(() => {
-    if (autoRefresh) {
-      if (task.running) task.end();
-      task.begin();
-    } else if (task.running) {
-      task.end();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRefresh, refreshIntervalSec]);
-
-  // Manual refresh: refetch the aggregate AND signal the active panel.
-  const refreshNow = () => {
-    setLoading(true);
-    fetchOverview().then((snapshot) => {
-      if (snapshot) task.set(snapshot);
-    });
-    setRefreshToken((token) => token + 1);
-  };
 
   const chips: React.ReactNode[] = [];
   if (overview) {
     chips.push(
       <span
         key="scheduler"
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-          overview.scheduler.running
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${overview.scheduler.running
             ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
             : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-        }`}
+          }`}
       >
         <span
           className={`w-1.5 h-1.5 rounded-full ${overview.scheduler.running ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}
@@ -222,11 +168,10 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ lang = 'en', initialTab = 'over
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition ${
-                active
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition ${active
                   ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
                   : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-              }`}
+                }`}
             >
               <Icon className="w-4 h-4" />
               {t.tabs[tab]}
@@ -242,34 +187,21 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ lang = 'en', initialTab = 'over
       {activeTab === 'scheduler' && (
         <SchedulerPanel
           lang={lang}
-          autoRefresh={autoRefresh}
-          refreshIntervalSec={refreshIntervalSec}
-          refreshToken={refreshToken}
-          overview={overview}
         />
       )}
       {activeTab === 'queue' && (
         <QueuePanel
           lang={lang}
-          autoRefresh={autoRefresh}
-          refreshIntervalSec={refreshIntervalSec}
-          refreshToken={refreshToken}
         />
       )}
       {activeTab === 'workers' && (
         <WorkersPanel
           lang={lang}
-          autoRefresh={autoRefresh}
-          refreshIntervalSec={refreshIntervalSec}
-          refreshToken={refreshToken}
         />
       )}
       {activeTab === 'assist' && (
         <AssistRequestsPanel
           lang={lang}
-          autoRefresh={autoRefresh}
-          refreshIntervalSec={refreshIntervalSec}
-          refreshToken={refreshToken}
         />
       )}
       {/* Dispatch — MCP task-dispatch categories/queue + prompt mappings,
@@ -282,9 +214,6 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ lang = 'en', initialTab = 'over
       {activeTab === 'assistDist' && (
         <AssistDistributionPanel
           lang={lang}
-          autoRefresh={autoRefresh}
-          refreshIntervalSec={refreshIntervalSec}
-          refreshToken={refreshToken}
         />
       )}
 
@@ -297,5 +226,11 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ lang = 'en', initialTab = 'over
     </div>
   );
 };
+
+const TaskCenter: React.FC<TaskCenterProps> = (props) => (
+  <TaskCenterProvider>
+    <TaskCenterContent {...props} />
+  </TaskCenterProvider>
+);
 
 export default TaskCenter;

@@ -45,6 +45,9 @@ class AppQyV1SystemInitComplianceCtl extends BaseController
 
     public function complianceReport(Request $request)
     {
+        $startTime = microtime(true);
+        $requestId = $request->header('X-Request-ID', uniqid('req_', true));
+
         $sections = [];
 
         $sections[] = $this->markerSection();
@@ -63,6 +66,15 @@ class AppQyV1SystemInitComplianceCtl extends BaseController
                 $compliant = false;
             }
         }
+
+        $durationMs = round((microtime(true) - $startTime) * 1000, 2);
+        \Illuminate\Support\Facades\Log::info('[QueueCenter] sys:init compliance accessed', [
+            'request_id' => $requestId,
+            'client' => $request->ip(),
+            'compliant' => $compliant,
+            'sections_count' => count($sections),
+            'duration_ms' => $durationMs,
+        ]);
 
         return $this->success([
             'compliant' => $compliant,

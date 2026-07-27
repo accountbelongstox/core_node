@@ -37,7 +37,7 @@ from pycore.pyfoundations.serialized_worker import (
 PROMPTS_CAP = 8000
 TOOL_MARKERS = (
     ".claude", ".codex", ".gemini", ".cursor", ".kimi-code", ".kimi",
-    ".ark", ".ark-cli", ".agent",
+    ".ark", ".ark-cli", ".agent", ".cline", ".antigravity",
 )
 
 _EXTRACT_QUEUE = 'pyctl.agent_history.extract'

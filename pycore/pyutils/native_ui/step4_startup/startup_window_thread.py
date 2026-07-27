@@ -391,11 +391,13 @@ class TkinterStartupThread(threading.Thread):
         IMPORTANT: Does not use root.after() to avoid "main thread is not in main loop" error.
         Instead, sets a flag that is checked by _process_logs() which runs in the Tkinter thread.
 
-        ALSO: If tray is running, stop it immediately (since _process_logs() won't run in tray mode).
+        ALSO: If this startup thread owns a tray, stop that tray immediately
+        (the independent runtime tray must remain alive).
         """
         ColorPrint.print_info("[TkinterStartupThread] Close request received from external thread")
         THREAD_BUS.signal(self._close_signal, True)
-        THREAD_BUS.trigger_event("tray.request_stop", {})
+        if getattr(self, "enable_tray", False) and getattr(self, "tray", None) is not None:
+            THREAD_BUS.trigger_event("tray.request_stop", {})
 
     def stop(self):
         """
@@ -412,7 +414,8 @@ class TkinterStartupThread(threading.Thread):
         # Signal stop event (prevents entering tray mode after window closes)
         THREAD_BUS.signal(self._stop_signal, True)
 
-        THREAD_BUS.trigger_event("tray.request_stop", {})
+        if getattr(self, "enable_tray", False) and getattr(self, "tray", None) is not None:
+            THREAD_BUS.trigger_event("tray.request_stop", {})
         self.request_close()
 
     def is_running(self) -> bool:

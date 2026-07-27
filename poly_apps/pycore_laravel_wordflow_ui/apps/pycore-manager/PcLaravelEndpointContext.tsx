@@ -2,6 +2,11 @@
  * PcLaravelEndpointContext — shared Laravel API endpoint state for the
  * pycore-manager end. Single source of truth for `laravel_api.*` RPC data so
  * the global top-bar switcher and Settings page stay in sync.
+ *
+ * Recovers from a slow `laravel_api.select` by ALSO listening to a
+ * `laravel_endpoint_changed` WS broadcast from the server: even when the
+ * caller's 30s promise has already timed out, the broadcast pulls the UI
+ * back into sync as soon as the switch actually completes.
  */
 import React, {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
@@ -9,8 +14,11 @@ import React, {
 import {
   pycoreLaravelApi, PYCORE_LARAVEL_API_CHANGED_EVENT,
   buildPcPreparedLaravelEndpoints, normalizeLaravelApiUrl, LARAVEL_API_PORT,
+  subscribeWs,
 } from '../../core/api-libs/pycore';
 import type { LaravelApiEndpoint } from '../../core/api-libs/pycore';
+
+const LARAVEL_ENDPOINT_CHANGED_EVENT = 'laravel_endpoint_changed';
 
 export interface PcLaravelEndpointContextValue {
   endpoints: LaravelApiEndpoint[];
@@ -41,6 +49,17 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
   const [error, setError] = useState<string | null>(null);
   const [fallback, setFallback] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // De-dup CustomEvent dispatch across the two paths (promise success +
+  // WS broadcast). Both may fire for the same switch; we only surface it
+  // once so downstream listeners don't reload twice.
+  const lastEndpointUrlRef = useRef<string | null>(null);
+
+  const dispatchEndpointChanged = useCallback((url: string) => {
+    if (!url || url === lastEndpointUrlRef.current) return;
+    lastEndpointUrlRef.current = url;
+    window.dispatchEvent(new CustomEvent(PYCORE_LARAVEL_API_CHANGED_EVENT, { detail: { url } }));
+  }, []);
 
   const reload = useCallback(async (): Promise<boolean> => {
     setLoading(true);
@@ -79,6 +98,28 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [reload]);
 
+  // Subscribe to the server-side broadcast: `laravel_api.select` emits a
+  // `laravel_endpoint_changed` event AFTER the switch is persisted. The
+  // UI updates from this broadcast even when the caller's promise has
+  // already timed out on the 30s RPC ceiling.
+  useEffect(() => {
+    const off = subscribeWs(LARAVEL_ENDPOINT_CHANGED_EVENT, (data: any) => {
+      if (!data || typeof data !== 'object') return;
+      if (Array.isArray(data.endpoints)) setEndpoints(data.endpoints);
+      if (typeof data.current === 'string' && data.current) {
+        setCurrent(data.current);
+        dispatchEndpointChanged(data.current);
+      } else if (typeof data.url === 'string' && data.url) {
+        setCurrent(data.url);
+        dispatchEndpointChanged(data.url);
+      }
+      setError(null);
+      setFallback(false);
+      setSwitching(null);
+    });
+    return () => { off(); };
+  }, [dispatchEndpointChanged]);
+
   // Ensure the browser's CURRENT ORIGIN (host, forced to the laravel port 9000)
   // is a candidate — the backend cannot know the window URL, so the FE adds it
   // once after the list first loads. Idempotent: the backend dedups, and we
@@ -105,13 +146,16 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
       const r = await pycoreLaravelApi.select(url);
       if (r && r.success === false) throw new Error(r.error || 'select failed');
       await reload();
-      window.dispatchEvent(new CustomEvent(PYCORE_LARAVEL_API_CHANGED_EVENT, { detail: { url } }));
+      dispatchEndpointChanged(url);
+      setSwitching(null);
     } catch (e: any) {
+      // A late-arriving `laravel_endpoint_changed` broadcast may still
+      // recover the UI even when this promise rejected. The broadcast
+      // handler also resets `switching`, so this reset is idempotent.
       setActionError(e?.message || 'select failed');
-    } finally {
       setSwitching(null);
     }
-  }, [current, switching, reload]);
+  }, [current, switching, reload, dispatchEndpointChanged]);
 
   const addUrl = useCallback(async (url: string) => {
     const trimmed = url.trim();

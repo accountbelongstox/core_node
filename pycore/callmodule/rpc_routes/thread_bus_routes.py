@@ -20,6 +20,7 @@ changes to connected WS clients for real-time UI refresh:
 """
 
 from pycore import ColorPrint, THREAD_BUS
+from pycore.callmodule.rpc_routes.route_names import THREAD_BUS_TRIGGER
 
 
 def register_thread_bus_routes(server):
@@ -44,7 +45,7 @@ def register_thread_bus_routes(server):
         return {'success': True, 'event': event_name}
 
     server.route(
-        name='thread_bus.trigger_event',
+        name=THREAD_BUS_TRIGGER,
         handler=thread_bus_trigger_event,
         sync=False,
         description='Trigger a THREAD_BUS event from the web UI',

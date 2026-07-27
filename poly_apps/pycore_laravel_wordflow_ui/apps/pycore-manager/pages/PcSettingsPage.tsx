@@ -315,7 +315,7 @@ const PcSettingsPage: React.FC = () => {
         {row(
           <Wifi className="w-5 h-5" />, 'Pycore backend',
           pcHealth.up === null
-            ? 'Not checked yet.'
+            ? (pcHealth.reachability === 'probing' ? 'Probing RPC…' : 'Not checked yet.')
             : pcHealth.up
               ? `Online — ping answered in ${pcHealth.responseTime}ms.`
               : 'Offline — retrying at the interval below until it answers.',

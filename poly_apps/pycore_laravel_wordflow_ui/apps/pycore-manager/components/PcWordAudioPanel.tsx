@@ -35,14 +35,30 @@ export function PcWordAudioPanel(): JSX.Element {
     : ttsRaw ? 'missing' : null;
   const serial = (selected?.concurrency ?? (engine === 'edge' ? 'serial' : undefined)) === 'serial';
   const concurrencyLabel = ttsConcurrencyAnnotation(selected?.concurrency, engine);
+  /*
+   * [gpt-5.3-codex-spark:LEGACY-START]
+   * Old behavior read worker status from hub.controls.word_audio?.running and showed
+   * worker state from `auto_start` + controls signals.
+   * New behavior uses sectionContracts.word_audio for contract-aligned status.
+   * // const workerOn = hub.voiceWord?.auto_start === true;
+   // const workerRunning = hub.controls.word_audio?.running === true;
+   // const heartbeatOn = worker?.heartbeat_enabled ?? hub.voiceWord?.heartbeat_enabled ?? false;
+   * [gpt-5.3-codex-spark:LEGACY-END]
+   */
+  const wordSection = hub.sectionContracts.word_audio;
   const worker = hub.voiceWord?.worker;
-  const workerOn = hub.voiceWord?.auto_start === true;
-  const workerRunning = hub.controls.word_audio?.running === true;
-  const heartbeatOn = worker?.heartbeat_enabled ?? hub.voiceWord?.heartbeat_enabled ?? false;
+  const workerOn = wordSection.toggle.enabled;
+  const workerRunning = wordSection.lifecycle === 'on';
+  const workerConfigured = workerOn && wordSection.lifecycle !== 'off';
+  const heartbeatOn = wordSection.worker.online || worker?.heartbeat_enabled || false;
   const pending = hub.voiceWord?.laravel?.pending;
   const leased = hub.voiceWord?.laravel?.leased;
   const effectiveConcurrency = hub.voiceWord?.concurrency;
   const recommendedConcurrency = hub.voiceWord?.concurrency_recommended;
+
+  const sectionWorkerLabel = workerOn
+    ? (wordSection.lifecycle === 'starting' ? 'starting' : workerRunning ? 'running' : workerConfigured ? 'configured' : 'off')
+    : 'off';
 
   useEffect(() => {
     if (engineNames.includes(engine)) return;
@@ -109,7 +125,7 @@ export function PcWordAudioPanel(): JSX.Element {
           {engine}
         </span>
         <span className={`text-[10px] font-bold ${workerOn ? 'text-emerald-400' : 'text-slate-500'}`}>
-          {workerOn ? (workerRunning ? '● worker · running' : '● worker · configured') : 'worker · off'}
+          {workerOn ? `● worker · ${sectionWorkerLabel}` : 'worker · off'}
         </span>
         <span className="text-[10px] text-slate-500 truncate flex-1 min-w-0">
           Laravel pending {pending ?? '—'} · leased {leased ?? '—'}
@@ -158,15 +174,15 @@ export function PcWordAudioPanel(): JSX.Element {
             </label>
           </div>
 
-          <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1 text-[10px] text-slate-500 flex gap-2 flex-wrap">
-            <span>pycore worker</span>
-            <span className={heartbeatOn ? 'text-emerald-400' : 'text-slate-500'}>
-              heartbeat {heartbeatOn ? 'on' : 'off'}
-            </span>
-            <span className="font-mono">
-              claimed {worker?.total_claimed ?? 0} · ok {worker?.total_succeeded ?? 0} · fail {worker?.total_failed ?? 0}
-            </span>
-          </div>
+        <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1 text-[10px] text-slate-500 flex gap-2 flex-wrap">
+          <span>pycore worker</span>
+          <span className={heartbeatOn ? 'text-emerald-400' : 'text-slate-500'}>
+            heartbeat {heartbeatOn ? 'on' : 'off'}
+          </span>
+          <span className="font-mono">
+              claimed {wordSection.worker.claimed ?? 0} · ok {wordSection.worker.ok ?? 0} · fail {wordSection.worker.fail ?? 0}
+          </span>
+        </div>
 
           <p className="rounded border border-sky-700/40 bg-sky-950/20 px-2 py-1 text-[10px] text-sky-300/90">
             One Pycore worker claims canonical missing-audio rows from Laravel. Engine priority and concurrency apply to
@@ -179,5 +195,3 @@ export function PcWordAudioPanel(): JSX.Element {
     </div>
   );
 }
-
-

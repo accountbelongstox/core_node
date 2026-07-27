@@ -18,6 +18,11 @@ from pycore.callmodule.services.sync.laravel_media_sync import (
     sync_all,
     sync_source,
 )
+from pycore.callmodule.rpc_routes.route_names import (
+    VIDEO_EXTRACT_BACKEND_STATUS,
+    VIDEO_EXTRACT_SYNC_ALL,
+    VIDEO_EXTRACT_SYNC_SOURCE,
+)
 
 
 def register_video_extract_routes(server):
@@ -101,19 +106,19 @@ def register_video_extract_routes(server):
             return {'success': False, 'error': str(e)}
 
     server.route(
-        name='video_extract.sync_source',
+        name=VIDEO_EXTRACT_SYNC_SOURCE,
         handler=video_extract_sync_source,
         sync=False,
         description='Idempotently sync a scanned source to laravel_main',
     )
     server.route(
-        name='video_extract.backend_status',
+        name=VIDEO_EXTRACT_BACKEND_STATUS,
         handler=video_extract_backend_status,
         sync=False,
         description='Compare local extract outputs against laravel_main holdings',
     )
     server.route(
-        name='video_extract.sync_all',
+        name=VIDEO_EXTRACT_SYNC_ALL,
         handler=video_extract_sync_all,
         sync=False,
         description='Idempotently sync every known source to laravel_main',

@@ -11,10 +11,11 @@ import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { TranslationQueueItem, TranslationQueueSummary, PycoreGlobalTaskDetail } from '../../../core/api-libs/pycore/pycoreTypes';
 import { PcGlobalTaskDetailModal } from '../components/PcTaskDetailModal';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
+import { useTaskCenterState } from '../hooks/TaskCenterState';
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
 
 const EMPTY_SUMMARY: TranslationQueueSummary = {
-  pending: 0, processing: 0, completed: 0, failed: 0, total: 0,
+  pending: 0, processing: 0, leased: 0, completed: 0, failed: 0, total: 0, missing_dictionary_words: 0,
 };
 
 function ageLabel(seconds: number): string {
@@ -33,84 +34,50 @@ function wordsLabel(words: string[]): string {
 /** Contract with PcQueueCenterPage. */
 type PanelProps = QueueCenterPanelProps;
 
-const PcTranslationQueuePanel: React.FC<PanelProps> = ({ onMeta }) => {
+const PcTranslationQueuePanel: React.FC<PanelProps> = () => {
   const hub = useQueueCenterHub();
-  const { laravelReachable, laravelStoredEndpoint, laravelActiveEndpoint } = hub;
+  const state = useTaskCenterState();
+  const { laravelStoredEndpoint, laravelActiveEndpoint, hubState, diagnostics } = hub;
   const laravelEndpoint = laravelStoredEndpoint || laravelActiveEndpoint;
-  const reachable = laravelReachable === true;
   const snap = hub.translationQueue;
   const items: TranslationQueueItem[] | null = snap?.items ?? null;
   const summary: TranslationQueueSummary = snap?.summary ?? EMPTY_SUMMARY;
   const wsConnected = snap?.ws_connected ?? null;
   const error = hub.sliceErrors.translation ?? snap?.error ?? null;
-  const loading = hub.loading && snap === null;
-  const [refreshing, setRefreshing] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [busyTask, setBusyTask] = useState<string | null>(null);
+  const loading = hubState === 'loading' && snap === null;
 
   const [stackWords, setStackWords] = useState('');
   const [stackLang, setStackLang] = useState('en');
   const [stackTarget, setStackTarget] = useState('zh');
-  const [stacking, setStacking] = useState(false);
 
   const [selectedItem, setSelectedItem] = useState<TranslationQueueItem | null>(null);
-  const [taskDetail, setTaskDetail] = useState<PycoreGlobalTaskDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
 
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
+  /*
+   * [gpt-5.3-codex-spark:LEGACY-START]
+   * { onMeta?.({ count: snap ? summary.pending : null, loading: loading || refreshing }); }
+   * [gpt-5.3-codex-spark:LEGACY-END]
+   */
+
   // Force Laravel's monitor once after a mutation, then refresh the shared snapshot.
   const fetchQueue = useCallback(async (refresh: boolean) => {
-    setRefreshing(true);
-    try {
-      if (refresh) await pycoreApi.queueTranslation(true);
-    } finally {
-      await hub.refreshHub();
-      if (mounted.current) setRefreshing(false);
-    }
-  }, [hub]);
-
-  // Report the pending count + in-flight state up to the tab bar.
-  useEffect(() => {
-    onMeta?.({ count: snap ? summary.pending : null, loading: loading || refreshing });
-  }, [snap, summary.pending, loading, refreshing, onMeta]);
+    await state.fetchTranslationQueue(refresh, hub.refreshHub);
+  }, [state, hub]);
 
   const changePriority = useCallback(async (it: TranslationQueueItem, next: number) => {
-    setBusyTask(it.task_id);
-    try {
-      const r = await pycoreApi.setQueuePriority(it.task_id, next);
-      if (r?.success === false) throw new Error(r?.error || 'Action failed');
-      setNotice('Priority updated');
-      await fetchQueue(true);
-    } catch (e: any) {
-      setNotice(`Action failed: ${e?.message || ''}`.trim());
-    } finally {
-      if (mounted.current) setBusyTask(null);
-    }
-  }, [fetchQueue]);
+    await state.changeTranslationPriority(it.task_id, next, hub.refreshHub);
+  }, [state, hub]);
 
   const submitStack = useCallback(async () => {
-    const words = stackWords.split(/[\n,]+/).map((w) => w.trim()).filter(Boolean);
-    if (words.length === 0) { setNotice('Enter at least one word'); return; }
-    setStacking(true);
-    try {
-      const r = await pycoreApi.stackQueue(words, stackLang.trim() || 'en', stackTarget.trim() || 'zh');
-      if (r?.success === false) throw new Error(r?.error || 'Action failed');
-      setNotice('Words stacked at high priority');
-      setStackWords('');
-      await fetchQueue(true);
-    } catch (e: any) {
-      setNotice(`Action failed: ${e?.message || ''}`.trim());
-    } finally {
-      if (mounted.current) setStacking(false);
-    }
-  }, [stackWords, stackLang, stackTarget, fetchQueue]);
+    await state.submitTranslationStack(stackWords, stackLang, stackTarget, hub.refreshHub);
+    setStackWords('');
+  }, [stackWords, stackLang, stackTarget, state, hub]);
 
   const openTaskDetail = useCallback(async (it: TranslationQueueItem) => {
     setSelectedItem(it);
-    setDetailLoading(true);
-    setTaskDetail({
+    await state.openTranslationTaskDetail(it.task_id, {
       task_id: it.task_id,
       app_name: '—',
       task_type: 'word_translation',
@@ -122,23 +89,12 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ onMeta }) => {
       updated_at: null,
       payload: { words: it.words, language: it.language, target_language: it.target_language, priority: it.priority },
     });
-    try {
-      const r = await pycoreApi.getTranslationTaskDetail(it.task_id);
-      if (mounted.current && r?.success && r.task) {
-        setTaskDetail(r.task);
-      }
-    } catch {
-      // Keep list-row snapshot.
-    } finally {
-      if (mounted.current) setDetailLoading(false);
-    }
-  }, []);
+  }, [state]);
 
   const closeTaskDetail = useCallback(() => {
     setSelectedItem(null);
-    setTaskDetail(null);
-    setDetailLoading(false);
-  }, []);
+    state.closeTranslationTaskDetail();
+  }, [state]);
 
   const inputCls = 'w-full rounded-xl px-3 py-2 text-sm border outline-none transition bg-white dark:bg-white/5 border-slate-300 dark:border-white/10 focus:border-sky-400 text-slate-700 dark:text-zinc-200';
   const stat = 'rounded-2xl p-4 border bg-slate-100/60 dark:bg-white/5 border-slate-300/35 dark:border-white/5';
@@ -160,52 +116,53 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ onMeta }) => {
           <div>
             <h2 className="text-sm font-bold flex items-center gap-2 text-slate-700 dark:text-slate-200">
               <ListOrdered className="w-4 h-4 text-sky-500" /> Missing word translations
-              <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500">{summary.pending}</span>
+              <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500">{summary.missing_dictionary_words ?? summary.pending}</span>
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Laravel owns the queue; pycore translates with Google first and shared fallbacks.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide ${
-              reachable ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'}`}
-              title={reachable ? 'Online' : 'Offline'}>
-              {reachable ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-              {reachable ? 'Online' : 'Offline'}
-            </span>
-            {wsConnected !== null && (
-              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide ${
-                wsConnected ? 'bg-emerald-500/15 text-emerald-500' : 'bg-slate-500/15 text-slate-400'}`}
-                title={wsConnected ? 'Laravel queue SSE connected' : 'Laravel queue SSE not connected'}>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide ${wsConnected ? 'bg-emerald-500/15 text-emerald-500' : 'bg-slate-500/15 text-slate-400'}`}>
                 <Radio className="w-3 h-3" />
-                {wsConnected ? 'SSE live' : 'SSE off'}
+                Transport: {wsConnected ? 'Online' : 'Offline'}
               </span>
-            )}
+              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide ${hubState === 'ready' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'}`}>
+                Queue Source: {hubState === 'ready' ? 'Reachable' : hubState === 'error' ? 'Unreachable' : 'Unknown'}
+              </span>
+            </div>
+            <div className="text-[10px] text-slate-500 font-mono">
+              {wsConnected && (snap?.ws_event_count ?? 0) === 0
+                ? 'SSE Online / Queue snapshot: waiting for first successful poll'
+                : `Queue Count: ${summary.total} | Event Count: ${snap?.ws_event_count ?? 0}`}
+            </div>
           </div>
         </div>
 
-        {!reachable && (
-          <div className="mb-4 flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
-            <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
-            <span className="break-words">
-              Backend unreachable
-              {laravelEndpoint ? <> at <span className="font-mono">{laravelEndpoint}</span></> : null}
-              {' '}— showing the last known snapshot. Enable Assist Translation and check the Laravel endpoint in Settings.
-            </span>
-          </div>
-        )}
-
-        {error && (
-          <div className="mb-4 flex items-start gap-2 text-xs rounded-2xl p-3 border bg-rose-500/10 border-rose-500/30 text-rose-500">
+        {hubState !== 'ready' && hubState !== 'loading' && (
+          <div className={`mb-4 flex items-start gap-2 text-xs rounded-2xl p-3 border ${hubState === 'error' ? 'bg-rose-500/10 border-rose-500/30 text-rose-500' : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'}`}>
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span className="break-words">{error}</span>
+            <div className="flex flex-col gap-1">
+              <span className="break-words font-bold">
+                {hubState === 'error' ? 'Backend unreachable' : 'Backend degraded'}
+                {laravelEndpoint ? <> at <span className="font-mono">{laravelEndpoint}</span></> : null}
+              </span>
+              {error && <span className="break-words">{error}</span>}
+              {diagnostics && (
+                <div className="mt-1 font-mono text-[10px] opacity-80">
+                  HTTP {diagnostics.http_status ?? 'N/A'} • {diagnostics.response_time_ms ?? 'N/A'}ms
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {/* summary stat chips */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-          {chip('Pending', summary.pending, 'text-sky-500')}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
+          {chip('Queued Pending', summary.pending, 'text-sky-500')}
           {chip('Processing', summary.processing, 'text-violet-500')}
+          {chip('Leased', summary.leased, 'text-amber-500')}
           {chip('Completed', summary.completed, 'text-emerald-500')}
           {chip('Failed', summary.failed, 'text-rose-500')}
         </div>
@@ -217,17 +174,18 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ onMeta }) => {
           </div>
         ) : list.length === 0 ? (
           <div className="text-xs text-slate-500 py-6 text-center border border-dashed border-slate-300 dark:border-white/10 rounded-2xl">
-            The translation queue is empty.
+            {(summary.missing_dictionary_words ?? 0) > 0 && summary.pending === 0
+              ? '有缺词但尚未入队'
+              : 'The translation queue is empty.'}
           </div>
         ) : (
           <ul className="space-y-1.5 max-h-[480px] overflow-y-auto">
             {list.map((it) => {
-              const busy = busyTask === it.task_id;
+              const busy = state.translationBusyTask === it.task_id;
               return (
                 <li key={it.task_id}
                   onClick={() => openTaskDetail(it)}
-                  className={`${stat} flex items-center gap-3 transition cursor-pointer hover:border-sky-400/40 ${
-                    it.recently_bumped ? 'ring-2 ring-amber-400/70 animate-pulse border-amber-400/40' : ''}`}>
+                  className={`${stat} flex items-center gap-3 transition cursor-pointer hover:border-sky-400/40 ${it.recently_bumped ? 'ring-2 ring-amber-400/70 animate-pulse border-amber-400/40' : ''}`}>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold bg-sky-500/15 text-sky-500 tabular-nums" title="Priority">
@@ -244,7 +202,9 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ onMeta }) => {
                     </div>
                     <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1 flex-wrap">
                       <span className="inline-flex items-center gap-1" title="Status">
-                        <CheckCircle2 className="w-3 h-3" />
+                        {it.status === 'pending' ? <ListOrdered className="w-3 h-3" /> :
+                          it.status === 'processing' || it.status === 'assigned' ? <RefreshCcw className="w-3 h-3 animate-spin" /> :
+                            <CheckCircle2 className="w-3 h-3" />}
                         <span className="font-mono">{it.status}</span>
                       </span>
                       <span className="inline-flex items-center gap-1" title="Translation">
@@ -286,8 +246,8 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ onMeta }) => {
           </ul>
         )}
 
-        {notice && (
-          <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">{notice}</p>
+        {state.translationNotice && (
+          <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">{state.translationNotice}</p>
         )}
       </section>
 
@@ -314,17 +274,17 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ onMeta }) => {
             Target language
             <input value={stackTarget} onChange={(e) => setStackTarget(e.target.value)} className={`${inputCls} mt-1`} />
           </label>
-          <button onClick={submitStack} disabled={stacking}
+          <button onClick={submitStack} disabled={state.translationStacking}
             className="self-end px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition disabled:opacity-50 shrink-0">
-            <Zap className={`w-3.5 h-3.5 ${stacking ? 'animate-pulse' : ''}`} /> Stack
+            <Zap className={`w-3.5 h-3.5 ${state.translationStacking ? 'animate-pulse' : ''}`} /> Stack
           </button>
         </div>
       </section>
 
       {selectedItem && (
         <PcGlobalTaskDetailModal
-          task={taskDetail}
-          loading={detailLoading}
+          task={state.translationTaskDetail}
+          loading={state.translationDetailLoading}
           onClose={closeTaskDetail}
         />
       )}

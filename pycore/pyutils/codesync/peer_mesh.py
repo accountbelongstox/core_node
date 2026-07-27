@@ -221,12 +221,23 @@ class PeerMeshManager:
             except Exception:
                 continue
 
-    @serialized_method
     def record_heartbeat(self, payload: Dict[str, Any],
                          source: Optional[str] = None) -> None:
         """Record an inbound heartbeat from a peer (keyed by its reported id, with
         source addr / lan_ip kept so snapshot() can match it to a configured peer
-        whose id is a manually-assigned `host:port`)."""
+        whose id is a manually-assigned `host:port`).
+
+        State write stays on the mesh worker; UI snapshot/emit runs AFTER so we
+        never hold the mesh queue while calling manager.get_local_peer_status()."""
+        self._store_heartbeat(payload, source)
+        try:
+            emit_event("code_sync_update", self.snapshot())
+        except Exception:
+            pass
+
+    @serialized_method
+    def _store_heartbeat(self, payload: Dict[str, Any],
+                         source: Optional[str] = None) -> None:
         if not isinstance(payload, dict):
             return
         sender = str(payload.get("id") or source or "").strip()
@@ -238,21 +249,20 @@ class PeerMeshManager:
             "source": source,
             "lan_ip": payload.get("lan_ip"),
         }
-        # Reflect new presence in the UI immediately (snapshot() takes the lock,
-        # so build it AFTER releasing ours to avoid re-entrancy).
-        try:
-            emit_event("code_sync_update", self.snapshot())
-        except Exception:
-            pass
 
-    def _match_heartbeat(self, peer: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _match_heartbeat(
+        self,
+        peer: Dict[str, Any],
+        heartbeats: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
         """Find a heartbeat belonging to a configured peer. A peer's id may be its
         machine-id (auto) or `host:port` (manually added), while a heartbeat is
         keyed by the sender's machine-id — so match on id, source addr, lan_ip, or
         the id reported inside the heartbeat status."""
+        hb_map = self._heartbeats if heartbeats is None else heartbeats
         pid = peer.get("id")
         host = peer.get("host")
-        for hid, hb in self._heartbeats.items():
+        for hid, hb in hb_map.items():
             if hid == pid:
                 return hb
             if host and (hb.get("source") == host or hb.get("lan_ip") == host):
@@ -358,22 +368,39 @@ class PeerMeshManager:
 
     # ----- snapshot -------------------------------------------------------- #
     @serialized_method
+    def _copy_mesh_state(self) -> Dict[str, Any]:
+        """Copy raw mesh-owned state only (no cross-owner calls)."""
+        return {
+            "peer_state": {pid: dict(st) for pid, st in self._peer_state.items()},
+            "heartbeats": {hid: dict(hb) for hid, hb in self._heartbeats.items()},
+            "pending": set(self._pending),
+        }
+
     def snapshot(self) -> Dict[str, Any]:
+        """Merge probe + heartbeat into a UI/status snapshot.
+
+        Mesh state is copied on the mesh worker; composition and
+        ``_local_status_fn`` (manager) run AFTER so we never AB-BA with Manager."""
+        state = self._copy_mesh_state()
+        peer_state = state["peer_state"]
+        heartbeats = state["heartbeats"]
+        pending = state["pending"]
         self_id = self.config.machine_id
         now = time.time()
+        stale_limit = self._heartbeat_stale_seconds()
         peers_out: List[Dict[str, Any]] = []
         for peer in self.config.list_peers():
             pid = peer.get("id")
             if pid == self_id:
                 continue
-            st = self._peer_state.get(pid, {})
+            st = peer_state.get(pid, {})
             probe_ok = bool(st.get("reachable", False))
             probe_seen = st.get("last_seen")
             probe_status = st.get("status")
 
-            hb = self._match_heartbeat(peer)
+            hb = self._match_heartbeat(peer, heartbeats)
             hb_checkin = hb.get("last_checkin") if hb else None
-            hb_fresh = bool(hb_checkin and (now - hb_checkin) <= self._heartbeat_stale_seconds())
+            hb_fresh = bool(hb_checkin and (now - hb_checkin) <= stale_limit)
 
             # Merge the two directions.
             reachable = probe_ok or hb_fresh
@@ -397,7 +424,7 @@ class PeerMeshManager:
                 "last_checkin": hb_checkin,
                 "via": via,
                 "status": status,
-                "pending": pid in self._pending,
+                "pending": pid in pending,
             })
         local = {}
         try:

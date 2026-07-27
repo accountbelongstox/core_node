@@ -18,8 +18,8 @@ import {
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wfReadingProgressCenter } from '../services/WfReadingProgressCenter';
 import { wfReaderSettingsRoamer } from '../services/WfReaderSettingsRoamer';
-import { pycoreApi } from '../../../core/api-libs/pycore';
 import { WfBookReaderPlayback } from '../services/WfBookReaderPlayback';
+import { useReaderPriorityBoost } from '../hooks/usePriorityBoost';
 import { WfBookReaderProgressSaver } from '../services/WfBookReaderProgressSaver';
 import {
   formatBookLangLabel,
@@ -148,7 +148,6 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const playingRef = useRef(false);
   const requestedCellKeys = useRef<Set<string>>(new Set());
   const resolvedAudioUrlsRef = useRef<Record<string, string>>({});
-  const lastBumpBatchSigRef = useRef('');
   const reloadRef = useRef<() => void>(() => { });
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const scrollPausedUntil = useRef(0);
@@ -490,19 +489,11 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
 
   useEffect(() => {
     requestedCellKeys.current = new Set();
-    lastBumpBatchSigRef.current = '';
     resetSentenceAudioScheduler();
   }, [sourceKey, activeChapter, flat, page]);
 
-  // On the initial verses load AND on every chapter/page switch (verses change)
-  // send ONE high-priority batch hint to laravel for every now-visible sentence
-  // that still lacks audio, so pycore bumps those sentences to the FRONT of its
-  // queue (qwen3tts-first, per the backend engine order) ahead of the background
-  // fill-missing sweep. Fire-and-forget: a failure never blocks the reader
-  // (per-cell polling still requests each one). The signature ref dedupes repeat
-  // invocations over the same data (e.g. StrictMode/double load), so each
-  // distinct missing-audio set is sent exactly once.
-  useEffect(() => {
+  // Visible verse texts lacking audio → debounced Laravel sentence bump-batch.
+  const priorityBoostSentences = useMemo(() => {
     const seen = new Set<string>();
     const items: { text: string; language: string }[] = [];
     for (const v of verses) {
@@ -517,14 +508,9 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
         items.push({ text, language: lang });
       }
     }
-    if (!items.length) return;
-    const sig = items.map((it) => `${it.language}:${it.text}`).join('|');
-    if (sig === lastBumpBatchSigRef.current) return;
-    lastBumpBatchSigRef.current = sig;
-    void pycoreApi.prioritizeSentenceAudio(items).catch((e) => {
-      console.warn('[wordnew] Failed to prioritize visible sentence audio.', e);
-    });
+    return items.length ? items : null;
   }, [verses, orderedDisplayLangs]);
+  useReaderPriorityBoost(priorityBoostSentences);
 
   useEffect(() => {
     if (!resumeTarget || resumeApplied || loadingVerses || !verses.length) return;

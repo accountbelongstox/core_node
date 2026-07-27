@@ -86,6 +86,10 @@ export const WfNewApiPaths = {
 
   // ---- Sentence audio (book reader on-demand TTS) ----
   sentenceAudio: sentenceAudioPath,
+  /** Raise TTS priority for a batch of visible sentences (POST { items, interactive? }). */
+  sentenceBumpBatch: p('/ai_tools/tts/sentence/bump-batch'),
+  /** Stack words into the translation queue at high priority (POST { words, language, target_language, priority? }). */
+  translationQueueStack: p('/ai_tools/translation/queue/stack'),
 
   // ---- Learning languages (AppQyV1Learning.php — prefix app_qy_v1/learning, sanctum) ----
   /** GET native + learning_languages / POST to update them. */

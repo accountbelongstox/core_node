@@ -150,7 +150,11 @@ def restore_persisted_auto_start() -> None:
         return
 
     try:
-        get_tts_sentence_worker_service().poll_and_process()
+        threading.Thread(
+            target=get_tts_sentence_worker_service().poll_and_process,
+            daemon=True,
+            name="sentence-audio-restore-poll"
+        ).start()
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[SentenceAudioAuto] restore immediate cycle failed ({exc})")
 
@@ -195,14 +199,20 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
         except Exception as exc:  # noqa: BLE001
             ColorPrint.yellow(f"[SentenceAudioAuto] live concurrency apply failed ({exc})")
 
+    error: Optional[str] = None
     heartbeat = get_heartbeat_system()
     try:
-        if enabled:
+        ok = (
             heartbeat.enable_callback(_HEARTBEAT_NAME)
-        else:
-            heartbeat.disable_callback(_HEARTBEAT_NAME)
+            if enabled
+            else heartbeat.disable_callback(_HEARTBEAT_NAME)
+        )
+        if not ok:
+            error = f"{_HEARTBEAT_NAME} is not registered"
+            ColorPrint.yellow(f"[SentenceAudioAuto] {error}")
     except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[SentenceAudioAuto] heartbeat toggle failed ({exc})")
+        error = f"heartbeat toggle failed ({exc})"
+        ColorPrint.yellow(f"[SentenceAudioAuto] {error}")
 
     settings = load_assist_settings()
     caps = dict(settings.get("capabilities") or {})
@@ -212,7 +222,11 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
     if enabled:
         try:
             worker = get_tts_sentence_worker_service()
-            worker.poll_and_process()
+            threading.Thread(
+                target=worker.poll_and_process,
+                daemon=True,
+                name="sentence-audio-auto-poll"
+            ).start()
         except Exception as exc:  # noqa: BLE001
             ColorPrint.yellow(f"[SentenceAudioAuto] immediate cycle failed ({exc})")
         try:
@@ -221,7 +235,10 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
             ColorPrint.yellow(f"[SentenceAudioAuto] engine warm-up spawn failed ({exc})")
 
     ColorPrint.blue(f"[SentenceAudioAuto] auto_start set to {bool(enabled)}")
-    return get_status()
+    status = get_status()
+    if error:
+        status["error"] = error
+    return status
 
 
 def get_status() -> Dict[str, Any]:

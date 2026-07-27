@@ -42,6 +42,11 @@ from pycore.callmodule.tray_menu import (
     TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL,
 )
 from pycore.callmodule.config import build_tray_service_config, update_tray_menu_with_singleton
+from pycore.callmodule.tray_codesync_cache import (
+    apply_tray_codesync_cache_refresh,
+    on_code_sync_update,
+    start_tray_codesync_cache,
+)
 
 
 class TrayServiceToggleThread(threading.Thread):
@@ -109,6 +114,10 @@ def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port
         singleton_port: Singleton port (included in the pystray fallback menu)
     """
     ColorPrint.blue("[EventHandlers] Registering tray event handlers...")
+
+    apply_tray_codesync_cache_refresh(push_menu=False)
+    start_tray_codesync_cache(launcher, port=port, singleton_port=singleton_port)
+    THREAD_BUS.register_event_handler("code_sync_update", on_code_sync_update, priority=5)
 
     # Guard so the pystray fallback is started at most once
     fallback_started = {'value': False}
@@ -215,6 +224,7 @@ def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port
             result = mgr.set_distributing(not mgr.distributing)
             if result.get("success"):
                 ColorPrint.green(f"[Tray] Code sync distribute: {result.get('message', result)}")
+                apply_tray_codesync_cache_refresh(push_menu=True)
             else:
                 ColorPrint.yellow(f"[Tray] Code sync distribute failed: {result.get('message', result)}")
         except Exception as e:
@@ -234,6 +244,7 @@ def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port
             result = mgr.set_skip_update(not mgr.is_skip_update())
             if result.get("success"):
                 ColorPrint.green(f"[Tray] Code sync skip-update: {result.get('message', result)}")
+                apply_tray_codesync_cache_refresh(push_menu=True)
             else:
                 ColorPrint.yellow(f"[Tray] Code sync skip-update failed: {result.get('message', result)}")
         except Exception as e:

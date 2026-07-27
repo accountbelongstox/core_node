@@ -1,12 +1,10 @@
 /**
  * Shell home — cross-end summary. One card per end with a live-ish health dot and
- * an entry link. pycore pings :59000/ping directly; laravel/wordflow health is
- * refined when their API libraries' probes are wired into the home cards.
+ * an entry link. Pycore health is derived from the native RPC v2 WebSocket only.
  */
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Server, Cpu, GraduationCap, ArrowRight, Coins, ShoppingBag } from 'lucide-react';
-import { rewritePycoreEndpoint } from '../core/api-libs/pycore/pycoreTarget';
 import { isWsConnected } from '../core/api-libs/pycore/PycoreWs';
 import { END_META } from './shellTypes';
 
@@ -77,18 +75,8 @@ export const ShellHome: React.FC = () => {
       setPycoreHealth('up');
       return () => { alive = false; };
     }
-    // DOCUMENTED EXCEPTION: the home route is a non-pycore end where the pycore WS
-    // bus is intentionally SUSPENDED (shell-per-app live-service gate), so the
-    // health dot uses a one-shot HTTP /ping — the only liveness signal available
-    // here. Do NOT migrate this to the WS bridge; there is no live bus to ride.
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 4000);
-    const pingUrl = rewritePycoreEndpoint('/ping');
-    fetch(pingUrl, { signal: ctrl.signal })
-      .then((r) => { if (alive) setPycoreHealth(r.ok ? 'up' : 'down'); })
-      .catch(() => { if (alive) setPycoreHealth('down'); })
-      .finally(() => clearTimeout(t));
-    return () => { alive = false; ctrl.abort(); clearTimeout(t); };
+    setPycoreHealth('down');
+    return () => { alive = false; };
   }, []);
 
   const healthFor = (id: string): Health => (id === 'pycore-manager' ? pycoreHealth : 'unknown');

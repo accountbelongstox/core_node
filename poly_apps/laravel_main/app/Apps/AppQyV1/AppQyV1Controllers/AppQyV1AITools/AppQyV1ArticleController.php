@@ -32,6 +32,7 @@ use App\Providers\AppTablePrefixServiceProvider;
 use App\Providers\PathMapper;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingDocumentService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailySentenceService;
 use Illuminate\Support\Facades\Log;
 
 class AppQyV1ArticleController
@@ -561,6 +562,76 @@ class AppQyV1ArticleController
     }
 
     /**
+     * List articles. When type/article_type=short, delegates to the file-backed
+     * daily-sentence store (formerly GET /api/app_qy_v1/daily-sentences/list).
+     *
+     * GET /api/app_qy_v1/ai_tools/article/list?type=short
+     */
+    public function listArticles(Request $request): JsonResponse
+    {
+        $type = strtolower(trim((string) (
+            $request->query('type', $request->query('article_type', ''))
+        )));
+
+        if ($type === 'short' || $type === 'daily_short') {
+            $limit = (int) $request->query('limit', $request->query('pageSize', 50));
+            $page = (int) $request->query('page', 0);
+            $offset = $page > 0 ? ($page - 1) * max(1, $limit) : (int) $request->query('offset', 0);
+            $data = (new AppQyV1DailySentenceService())->list($limit, $offset);
+            $data['article_type'] = 'short';
+            $data['deprecated_notice'] = 'Short sentences live under article/list?type=short; /daily-sentences/list is deprecated.';
+            return $this->success($data, 'Short articles (daily sentences)');
+        }
+
+        return $this->error('Unsupported article list type. Use type=short.', 400, [
+            'supported_types' => ['short'],
+        ]);
+    }
+
+    /**
+     * Recommend one article. type=short → daily-sentence recommend.
+     *
+     * GET /api/app_qy_v1/ai_tools/article/recommend?type=short
+     */
+    public function recommendArticle(Request $request): JsonResponse
+    {
+        $type = strtolower(trim((string) (
+            $request->query('type', $request->query('article_type', 'short'))
+        )));
+
+        if ($type === 'short' || $type === 'daily_short') {
+            $item = (new AppQyV1DailySentenceService())->recommend();
+            return $this->success([
+                'item' => $item,
+                'article_type' => 'short',
+                'deprecated_notice' => 'Short sentences live under article/recommend?type=short; /daily-sentences/recommend is deprecated.',
+            ], 'Short article recommendation');
+        }
+
+        return $this->error('Unsupported article recommend type. Use type=short.', 400, [
+            'supported_types' => ['short'],
+        ]);
+    }
+
+    /**
+     * Stream stored TTS audio for a short/daily sentence (thin alias of
+     * daily-sentences/audio/{id}). Prefer metadata.audio_url when present.
+     *
+     * GET /api/app_qy_v1/ai_tools/article/audio/{id}
+     */
+    public function shortAudio(string $id)
+    {
+        $path = (new AppQyV1DailySentenceService())->audioFile($id);
+        if (!is_file($path)) {
+            return $this->notFound('Audio not found');
+        }
+        return response()->file($path, [
+            'Content-Type' => 'audio/mpeg',
+            'Cache-Control' => 'public, max-age=86400',
+        ]);
+    }
+
+    /**
      * Worker-facing article submit (no auth — pycore Agent History pipeline).
      *
      * POST /api/app_qy_v1/ai_tools/article/worker/submit
@@ -741,7 +812,7 @@ class AppQyV1ArticleController
         }
 
         $safeId = preg_replace('/[^A-Za-z0-9._-]/', '_', $articleId) ?: 'article';
-        $dir = PathMapper::getAppQyV1AudioDir('agent_history/' . $language);
+        $dir = PathMapper::getAppQyV1AudioBaseDir('agent_history/' . $language);
         if (!is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }

@@ -46,7 +46,7 @@ Architecture / layering (pycore rules):
 import os
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from pycore import ColorPrint, get_user_data_store
 from pycore.pyfoundations.serialized_worker import (
@@ -179,6 +179,8 @@ class LaravelEndpointManager:
         self._ui_failed_at: float = 0.0             # monotonic ts of last UI-path probe miss
         # Last probe result per url: {url, healthy, latency_ms, last_checked, ...}
         self._probe_results: Dict[str, Dict[str, Any]] = {}
+        # Callbacks invoked (best-effort) when select() confirms a healthy new endpoint.
+        self._endpoint_change_listeners: List[Callable[[str], None]] = []
         init_serialized_owner(
             self,
             "laravel_endpoint_manager.state",
@@ -434,6 +436,26 @@ class LaravelEndpointManager:
         self._failed_sweep_at = 0.0
         self._ui_failed_at = 0.0
 
+    def register_endpoint_change_listener(self, callback: Callable[[str], None]) -> None:
+        """Register a callback invoked when select() confirms a healthy new endpoint.
+
+        The callback receives the new base URL (no trailing slash). Callbacks are
+        called synchronously in select() on the state-owner thread; they must be
+        fast and exception-safe.
+        """
+        if callback not in self._endpoint_change_listeners:
+            self._endpoint_change_listeners.append(callback)
+
+    def _notify_endpoint_changed(self, new_url: str) -> None:
+        """Invoke all registered listeners (best-effort, never raises)."""
+        for cb in list(self._endpoint_change_listeners):
+            try:
+                cb(new_url)
+            except Exception as exc:  # noqa: BLE001
+                ColorPrint.yellow(
+                    f"[LaravelEndpoints] endpoint-change listener {cb!r} raised: {exc}"
+                )
+
     # ----------------------------------------------------------------- #
     # List management (RPC-facing)                                       #
     # ----------------------------------------------------------------- #
@@ -525,7 +547,10 @@ class LaravelEndpointManager:
 
         Invalidates the resolve cache so the NEXT resolve() re-probes
         stored-first against the new choice. Also probes the selection once so
-        the response carries fresh health info for the UI.
+        the response carries fresh health info for the UI. When the new endpoint
+        is healthy, all registered endpoint-change listeners are notified
+        immediately so singleton workers re-register without waiting for their
+        next heartbeat tick.
         """
         u = _normalize(url)
         if not u:
@@ -538,8 +563,9 @@ class LaravelEndpointManager:
         self.invalidate()
         probe_res = self.probe(u)
         if probe_res.get("healthy"):
-            # Selection is live — pre-warm the resolve cache with it.
+            # Selection is live — pre-warm the resolve cache and notify workers.
             self._resolved = u
+            self._notify_endpoint_changed(u)
         ColorPrint.green(
             f"[LaravelEndpoints] Selected {u} "
             f"({'healthy' if probe_res.get('healthy') else 'UNHEALTHY'})")
@@ -590,3 +616,8 @@ def get_laravel_endpoint_manager() -> LaravelEndpointManager:
 def resolve_laravel_base_url() -> str:
     """Shared Laravel base URL for all pycore services (UI-selected, stored-first)."""
     return get_laravel_endpoint_manager().resolve()
+
+
+def register_endpoint_change_listener(callback: Callable[[str], None]) -> None:
+    """Register a callback on the process-wide endpoint manager (module-level helper)."""
+    get_laravel_endpoint_manager().register_endpoint_change_listener(callback)

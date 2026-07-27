@@ -1,7 +1,54 @@
 # -*- coding: utf-8 -*-
 """Dependency-neutral Queue Center catalog and scheduler metadata."""
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional, TypedDict, Literal
+
+QueueCenterScope = Literal['heartbeat', 'assist_translation', 'word_audio', 'sentence_audio', 'media_image']
+QueueCenterSectionLifecycle = Literal['off', 'starting', 'on', 'error']
+
+class QueueCenterToggleEnvelope(TypedDict):
+    requested_by: Optional[str]
+    enabled: bool
+    reason: Optional[str]
+    graceful_stop: bool
+    paused_by_user: Optional[bool]
+
+class QueueCenterControlMetrics(TypedDict):
+    pending: int
+    processing: int
+    leased: int
+    total: int
+
+class QueueCenterWorkerMetrics(TypedDict):
+    online: bool
+    claimed: int
+    ok: Optional[int]
+    fail: Optional[int]
+    last_heartbeat: Optional[str]
+
+class QueueCenterSectionContract(TypedDict, total=False):
+    type: QueueCenterScope
+    category: str
+    queue: QueueCenterControlMetrics
+    worker: QueueCenterWorkerMetrics
+    toggle: QueueCenterToggleEnvelope
+    lifecycle: QueueCenterSectionLifecycle
+    error_code: Optional[str]
+    last_error: Optional[str]
+    updated_at: Optional[str]
+
+def build_empty_queue_contract(updated_at: Optional[str] = None) -> QueueCenterSectionContract:
+    return {
+        "type": "media_image",
+        "category": "fallback",
+        "queue": {"pending": 0, "processing": 0, "leased": 0, "total": 0},
+        "worker": {"online": False, "claimed": 0, "ok": 0, "fail": 0, "last_heartbeat": None},
+        "toggle": {"requested_by": None, "enabled": False, "reason": None, "graceful_stop": False, "paused_by_user": None},
+        "lifecycle": "off",
+        "error_code": None,
+        "last_error": None,
+        "updated_at": updated_at,
+    }
 
 from pycore.callmodule.callmodule_config import Config
 from pycore.callmodule.services.translation_worker.worker import (
@@ -17,6 +64,7 @@ CALLBACK_QUEUE_ROLES: Dict[str, str] = {
     "tts_sentence_worker": "consumer",
     "ai_rate_reset": "maintainer",
     "agent_history_extraction": "maintainer",
+    "agent_history_pipeline": "maintainer",
 }
 
 QUEUE_CATEGORY_CATALOG: List[Dict[str, str]] = [

@@ -11,7 +11,10 @@ export const TOOL_LABELS: Record<string, string> = {
   gemini: 'Gemini',
   cursor: 'Cursor',
   kimi: 'Kimi',
-  antigravity: 'Antigravity'
+  antigravity: 'Antigravity',
+  cline: 'Cline',
+  'ark-cli': 'Ark CLI',
+  agent: 'Agent'
 };
 
 export const TOOL_BADGE: Record<string, string> = {
@@ -20,7 +23,10 @@ export const TOOL_BADGE: Record<string, string> = {
   gemini: 'bg-violet-500/15 text-violet-600 dark:text-violet-300 border-violet-500/30',
   cursor: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30',
   kimi: 'bg-pink-500/15 text-pink-600 dark:text-pink-300 border-pink-500/30',
-  antigravity: 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30'
+  antigravity: 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30',
+  cline: 'bg-blue-500/15 text-blue-600 dark:text-blue-300 border-blue-500/30',
+  'ark-cli': 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border-indigo-500/30',
+  agent: 'bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/30'
 };
 
 export const ROLE_STYLE: Record<string, { ring: string; label: string; icon: React.ReactNode }> = {
@@ -35,6 +41,5 @@ export const ROLE_STYLE: Record<string, { ring: string; label: string; icon: Rea
 export const toolLabel = (tool: string): string => TOOL_LABELS[tool] || tool;
 
 export const toolPill = (tool: string): string =>
-  `inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
-    TOOL_BADGE[tool] || 'bg-slate-500/15 text-slate-500 border-slate-500/30'
+  `inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${TOOL_BADGE[tool] || 'bg-slate-500/15 text-slate-500 border-slate-500/30'
   }`;

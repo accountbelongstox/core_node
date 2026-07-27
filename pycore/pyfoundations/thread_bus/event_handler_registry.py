@@ -16,8 +16,8 @@ reconciled.
 """
 
 import threading
-import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Optional
+from typing import Dict
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
@@ -83,6 +83,9 @@ class EventHandlerRegistry:
         """
         def register() -> None:
             handlers = list(self._bus._event_handlers.get(event_name, ()))
+            for registered_priority, registered_handler in handlers:
+                if registered_handler == handler:
+                    return
             handlers.append((priority, handler))
             handlers.sort(key=lambda item: item[0])
             self._bus._event_handlers[event_name] = handlers

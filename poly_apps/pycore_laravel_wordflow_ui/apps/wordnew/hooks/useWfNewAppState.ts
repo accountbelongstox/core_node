@@ -195,7 +195,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     }
     if (activeTab === 'daily-reading') {
       const current = window.location.hash;
-      next = /^#\/article\/(recent|oldest|title)$/.test(current) ? current : '#/article/recent';
+      next = /^#\/article(\/(latest|oldest|source|unread|random))?$/.test(current) ? current : '#/article/latest';
     }
     if (window.location.hash !== next) {
       window.history.replaceState(null, '', next);
@@ -421,7 +421,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     // token is live; after logout it would fall back to anonymous device state).
     wfReaderSettingsRoamer.flush();
     // Best-effort: clear the API session token (real impl); the mock is stateless.
-    void wfNewApi.logout().catch(() => {});
+    void wfNewApi.logout().catch(() => { });
     clearUserSession(true);
     addToast(trans('toast.loggedOut'), 'info');
   };
@@ -469,8 +469,8 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     startSocialSse();
 
     // Heartbeat: immediately, then on a ~30s interval while active.
-    void wfNewApi.presenceHeartbeat().catch(() => {});
-    const heartbeat = setInterval(() => { void wfNewApi.presenceHeartbeat().catch(() => {}); }, 30000);
+    void wfNewApi.presenceHeartbeat().catch(() => { });
+    const heartbeat = setInterval(() => { void wfNewApi.presenceHeartbeat().catch(() => { }); }, 30000);
 
     // Prime the unread badge + keep it live via push.
     void wfNewApi.getUnreadCount().catch(() => 0);

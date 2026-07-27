@@ -52,6 +52,7 @@ from pycore.pyutils.rpc_v2.server.request_processor import RequestProcessor
 from pycore.pyutils.rpc_v2.server.http_handler import HttpRPCHandler
 from pycore.pyutils.rpc_v2.server.websocket_handler import WebSocketRPCHandler
 from pycore.pyutils.rpc_v2.server.sse_broadcaster import SSEBroadcaster
+from pycore.pyutils.rpc_v2.server._serialized_bridge import await_serialized
 from pycore.pyutils.rpc_v2.protocol import RPCProtocolServer
 
 WS_PATH = RPC_CONSTANTS.WS_PATH
@@ -315,14 +316,12 @@ class FastAPIRPCServer:
             'timestamp': time.time()
         }
 
-        for client_id, websocket in clients.items():
-            try:
-                await websocket.send_json(message)
-                if self.debug:
-                    ColorPrint.blue(f"[Broadcast] Sent {event_name} to client {client_id[:8]}")
-            except Exception as e:
-                if self.debug:
-                    ColorPrint.yellow(f"[Broadcast] Failed to send to client {client_id[:8]}: {e}")
+        for client_id in list(clients.keys()):
+            success = await self.client_registry.send_to_client(
+                client_id, message, track_stats=False
+            )
+            if success and self.debug:
+                ColorPrint.blue(f"[Broadcast] Sent {event_name} to client {client_id[:8]}")
 
     def broadcast_event_sync(self, event_name: str, data: Dict[str, Any]):
         """
@@ -421,15 +420,33 @@ class FastAPIRPCServer:
                 self._broadcast_loop = asyncio.get_running_loop()
             return await self.sse_broadcaster.handle_sse(request, client_id=client_id, since=since)
 
-    def _build_status_payload(self) -> Dict[str, Any]:
-        """Return diagnostics for /rpc/status."""
+    async def _build_status_payload(self) -> Dict[str, Any]:
+        """Return diagnostics for /rpc/status.
+
+        Both table stats calls run through the serialized bridge with a
+        short timeout: if a table thread is unresponsive the endpoint
+        still returns a JSON payload marking the affected section as
+        `{"error": "timeout"}` instead of blocking uvicorn.
+        """
+        async def _safe_stats(fn: Callable[[], Dict[str, Any]]) -> Dict[str, Any]:
+            try:
+                return await await_serialized(fn, timeout=2.0)
+            except TimeoutError:
+                return {"error": "timeout"}
+            except Exception as exc:  # unexpected — surface message not crash
+                return {"error": str(exc)}
+
+        event_stats, inventory_stats = await asyncio.gather(
+            _safe_stats(self.request_event_table.get_stats),
+            _safe_stats(self.inventory_table.get_stats),
+        )
         return {
             "service": "FastAPIRPCServer",
             "host": self.host,
             "port": self.port,
             "routes": self.routes_manager.get_all_routes(),
-            "event_table": self.request_event_table.get_stats(),
-            "inventory": self.inventory_table.get_stats(),
+            "event_table": event_stats,
+            "inventory": inventory_stats,
         }
 
 

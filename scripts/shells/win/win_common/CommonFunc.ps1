@@ -624,10 +624,12 @@ function Find-ExecutableByKeyword {
         "C:\Program Files (x86)",
         "$env:USERPROFILE",
         "$env:USERPROFILE\bin"
-    )
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
     if ($IncludeSystemPaths) {
         $searchPaths += $systemPaths
     }
+    # Drop null/empty entries from AdditionalScanPaths and other sources
+    $searchPaths = @($searchPaths | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
     # Build search keywords array and remove duplicates
     $allKeywords = @($Keywords)
     if ($AdditionalKeywords -and $AdditionalKeywords.Count -gt 0) {
@@ -642,7 +644,10 @@ function Find-ExecutableByKeyword {
     
     # Search in specified paths first
     foreach ($searchPath in $searchPaths) {
-        if (Test-Path $searchPath) {
+        if ([string]::IsNullOrWhiteSpace([string]$searchPath)) {
+            continue
+        }
+        if (Test-Path -LiteralPath $searchPath) {
             # Add to searched paths list if not already present
             if ($searchPath -notin $searchedPaths) {
                 $searchedPaths += $searchPath
@@ -1257,8 +1262,15 @@ function Invoke-WingetCommand {
             $uninstallExitCode = $uninstallProcess.ExitCode
             $uninstallCompleted = $true
 
+            # 0x800401F5 / -2147221003 = Application not found (nothing installed to remove)
+            $uninstallNothingToDo = ($uninstallExitCode -eq 0) -or ($uninstallExitCode -eq -2147221003) -or ([uint32]$uninstallExitCode -eq [uint32]0x800401F5)
             if ($uninstallExitCode -eq 0) {
                 Write-Host "       Successfully cleaned old installation of $Id" -ForegroundColor Green
+            }
+            elseif ($uninstallNothingToDo) {
+                Write-Host "       No existing installation of $Id to uninstall (exit code: $uninstallExitCode), skipping registry cleanup" -ForegroundColor Yellow
+                $uninstallCompleted = $true
+                $uninstallExitCode = 0
             }
             else {
                 Write-Host "       Failed to clean old installation of $Id (exit code: $uninstallExitCode), attempting precise registry cleanup..." -ForegroundColor Yellow

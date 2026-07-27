@@ -111,7 +111,7 @@ class EncryptedConstantsManager:
 
         ColorMessage.write("Enter values for encrypted constants:", 'info')
         if mode == 'replace':
-            ColorMessage.write("(Press Enter to keep current value)", 'info')
+            ColorMessage.write("(Enter=keep current; Space=clear to Not set, confirm [N/y])", 'info')
         else:
             ColorMessage.write("(Press Enter to skip a variable)", 'info')
         print()
@@ -122,7 +122,10 @@ class EncryptedConstantsManager:
             ColorMessage.write("-" * 60, 'info')
             existing_values = self._load_existing_values(config, file_number)
             print()
-            ColorMessage.write("Enter new values (press Enter to keep current value):", 'info')
+            ColorMessage.write(
+                "Enter new values (Enter=keep; Space=clear to Not set):",
+                'info'
+            )
             print()
 
         user_inputs = self.variable_input_handler.collect_variable_inputs(
@@ -146,16 +149,27 @@ class EncryptedConstantsManager:
         input("Press Enter to continue...")
 
     def _save_to_secret_ignore(self, user_inputs: Dict[str, str], file_number: int):
-        """Save values to .secret_ignore directory"""
+        """Save values to .secret_ignore directory. Empty string clears to [Not set]."""
         if not self.raw_dir.exists():
             self.raw_dir.mkdir(parents=True, exist_ok=True)
 
         saved_count = 0
+        cleared_count = 0
         for var_name, var_value in user_inputs.items():
             secret_key_name = f"{var_name}_{file_number}"
             secret_file = self.raw_dir / secret_key_name
 
             try:
+                if var_value == "" or var_value is None:
+                    if secret_file.exists():
+                        secret_file.unlink()
+                    ColorMessage.write(
+                        f"[OK] Cleared {var_name} (#{file_number}) to [Not set]",
+                        'success'
+                    )
+                    cleared_count += 1
+                    continue
+
                 safe_write_secret(secret_file, var_value)
                 ColorMessage.write(f"[OK] Saved {var_name} (#{file_number}) to .secret_ignore", 'success')
                 saved_count += 1
@@ -166,6 +180,8 @@ class EncryptedConstantsManager:
             ColorMessage.write(f"Saved {saved_count}/{len(user_inputs)} encrypted constants to .secret_ignore", 'success')
             ColorMessage.write(f"Location: {self.raw_dir}", 'info')
             ColorMessage.write(f"File number: {file_number}", 'info')
+        if cleared_count > 0:
+            ColorMessage.write(f"Cleared {cleared_count} constant(s) to [Not set]", 'success')
 
     def view_encrypted_constants(self, config_name: str, config: Dict[str, Any]):
         """View encrypted constants from .secret_ignore directory"""

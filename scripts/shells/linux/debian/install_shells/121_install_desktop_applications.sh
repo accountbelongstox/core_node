@@ -515,44 +515,37 @@ fix_pnpm_permissions() {
     fi
 }
 
-# Function to install via pnpm
+# Function to install via pnpm (absolute PNPM_BIN; idempotent)
 install_via_pnpm() {
     local package_id="$1"
     local app_name="$2"
+    local pnpm_bin=""
 
-    if ! command_exists npm; then
-        log_message "pnpm is not installed. Cannot install $app_name"
+    if [ -n "${PNPM_BIN:-}" ] && [ -x "$PNPM_BIN" ]; then
+        pnpm_bin="$PNPM_BIN"
+    elif [ -n "${NODE_BIN_DIR:-}" ] && [ -x "$NODE_BIN_DIR/pnpm" ]; then
+        pnpm_bin="$NODE_BIN_DIR/pnpm"
+    elif command -v pnpm >/dev/null 2>&1; then
+        pnpm_bin="$(command -v pnpm)"
+    else
+        log_message "pnpm not found. Run 16_install_node_24.sh first. Cannot install $app_name"
         return 1
     fi
 
-    log_message "Installing $app_name via npm: $package_id"
-    # Idempotency: prevent ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY when pnpm runs without a TTY (re-run safety).
+    log_message "Installing $app_name via pnpm ($pnpm_bin): $package_id"
     export npm_config_confirm_modules_purge=false
-    # Skip if already installed globally so re-runs are a no-op.
-    if pnpm list -g "$package_id" >/dev/null 2>&1 || command_exists "$app_name"; then
+    if "$pnpm_bin" list -g "$package_id" >/dev/null 2>&1 || command_exists "$app_name"; then
         log_message "$app_name already installed globally via pnpm, skipping add -g"
         fix_pnpm_permissions
         return 0
     fi
-    if timeout 300 pnpm add -g --config.confirm-modules-purge=false "$package_id"; then
-        log_message "Successfully installed $app_name via npm"
-
-        # Fix permissions for pnpm global binaries
+    if timeout 300 env "PATH=${NODE_BIN_DIR:-}:$PATH" "npm_config_confirm_modules_purge=false" \
+        "$pnpm_bin" add -g --config.confirm-modules-purge=false "$package_id"; then
+        log_message "Successfully installed $app_name via pnpm"
         fix_pnpm_permissions
-
-        # Get pnpm global prefix and fix permissions for the specific package
-        local pnpm_global_prefix=$(pnpm config get prefix 2>/dev/null)
-        if [ -n "$pnpm_global_prefix" ]; then
-            # Fix permissions for the entire pnpm installation
-            log_message "Fixing permissions for pnpm installation at: $pnpm_global_prefix"
-            fix_installation_permissions_from_common_functions "$pnpm_global_prefix" "755" "true" 2>&1 | while IFS= read -r line; do
-                log_message "$line"
-            done
-        fi
-
         return 0
     else
-        log_message "Failed to install $app_name via npm"
+        log_message "Failed to install $app_name via pnpm"
         return 1
     fi
 }
@@ -788,8 +781,8 @@ install_application() {
         fi
 
         # For pnpm packages, refresh the symlink to point directly to pnpm binary
-        if [ "$install_method" = "npm" ]; then
-            log_message "Refreshing npm package links for $display_name"
+        if [ "$install_method" = "npm" ] || [ "$install_method" = "pnpm" ]; then
+            log_message "Refreshing pnpm package links for $display_name"
             refresh_npm_package_links "$exec_name" "$lookup_app"
         fi
 
@@ -838,7 +831,7 @@ install_application() {
         create_launch_script "$lookup_app"
         
         # For pnpm packages, also refresh the direct symlink
-        if [ "$install_method" = "npm" ]; then
+        if [ "$install_method" = "npm" ] || [ "$install_method" = "pnpm" ]; then
             refresh_npm_package_links "$exec_name" "$lookup_app"
         fi
     fi

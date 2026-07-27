@@ -115,6 +115,11 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         Route::get('/task/{taskId}', [AppQyV1ArticleController::class, 'getTaskStatus']);
         Route::post('/worker/submit', [AppQyV1ArticleController::class, 'workerSubmit']);
         Route::get('/worker/recent', [AppQyV1ArticleController::class, 'workerRecent']);
+        // Short/daily-sentences aliases (type=short | article_type=short).
+        // Replaces /api/app_qy_v1/daily-sentences/*; old routes remain as wrappers.
+        Route::get('/list', [AppQyV1ArticleController::class, 'listArticles']);
+        Route::get('/recommend', [AppQyV1ArticleController::class, 'recommendArticle']);
+        Route::get('/audio/{id}', [AppQyV1ArticleController::class, 'shortAudio']);
     });
 
     // Word-image queue intake (P3). Mirrors the TTS queue batch/add: a re-request

@@ -12,6 +12,7 @@ from pycore import ColorPrint
 from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.text_parsing import normalize_language_codes
 from pycore.callmodule.controllers.local_processing.corebook_controller import CoreBookController
+from pycore.callmodule.rpc_routes.route_names import COREBOOK_AUTOFLOW
 
 _controller = CoreBookController()
 
@@ -43,7 +44,7 @@ def register_corebook_routes(server):
             return {"success": False, "errors": [str(exc)]}
 
     server.route(
-        name="corebook.autoflow",
+        name=COREBOOK_AUTOFLOW,
         handler=corebook_autoflow,
         sync=False,
         description="CoreBook one-click pipeline: convert, translate, TTS, submit",

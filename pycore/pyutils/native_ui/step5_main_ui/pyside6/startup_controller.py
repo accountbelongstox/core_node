@@ -35,12 +35,11 @@ class StartupControllerMixin:
 
     def _register_startup_autoclose_handler(self):
         """Register event handler to auto-close startup window when third-party packages are loaded."""
+        completion_signal = 'system.third_party_packages_loaded.completed'
+
         def handle_packages_loaded(event_data):
-            """Handle system.third_party_packages_loaded event"""
-            # Set signal to mark initialization complete (thread-safe via THREAD_BUS)
-            # Mark initialization complete (legacy signal; tk window uses THREAD_BUS for close)
+            """Handle system.third_party_packages_loaded event."""
             THREAD_BUS.signal('startup_window.initialization_complete', True)
-            ColorPrint.green("[PySide6Framework] Set startup_window.initialization_complete signal")
 
             if self.startup_config.auto_close and self.startup_thread:
                 ColorPrint.blue("[PySide6Framework] Third-party packages loaded, auto-closing startup window...")
@@ -51,6 +50,10 @@ class StartupControllerMixin:
                     ColorPrint.yellow("[PySide6Framework] auto_close=False, keeping startup window as debug window")
 
         THREAD_BUS.register_event_handler('system.third_party_packages_loaded', handle_packages_loaded, priority=50)
+
+        if self.startup_config.auto_close and THREAD_BUS.has_signal(completion_signal):
+            ColorPrint.blue("[PySide6Framework] Startup completion signal already set, closing startup window now.")
+            handle_packages_loaded(None)
 
     def show_startup(self):
         """Show startup window (tkinter) for dependency installation. Uses TkinterStartupThread (single tk build)."""

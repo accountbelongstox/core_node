@@ -71,16 +71,22 @@ validate_package_exists() {
     local app_name="$3"
 
     case "$method" in
-        "npm")
-            # Check if npm package exists in registry
-            log_install "Validating NPM package: $package_id"
-            if npm info "$package_id" >/dev/null 2>&1; then
-                log_success "NPM package $package_id exists"
-                return 0
-            else
-                log_error "NPM package $package_id not found in registry"
-                return 1
+        "npm"|"pnpm")
+            # Registry check via npm info when available; skip hard-fail if offline.
+            log_install "Validating registry package: $package_id"
+            local npm_info_bin=""
+            if [ -n "${NPM_BIN:-}" ] && [ -x "$NPM_BIN" ]; then
+                npm_info_bin="$NPM_BIN"
+            elif command -v npm >/dev/null 2>&1; then
+                npm_info_bin="$(command -v npm)"
             fi
+            if [ -n "$npm_info_bin" ] && "$npm_info_bin" info "$package_id" >/dev/null 2>&1; then
+                log_success "Package $package_id exists in registry"
+                return 0
+            fi
+            # Soft-pass: install step will fail loudly if the package is truly missing.
+            log_warning "Could not validate $package_id via npm info; proceeding with pnpm install"
+            return 0
             ;;
         "apt")
             # Check if apt package exists
@@ -492,111 +498,96 @@ install_via_web() {
 }
 
 # Install via NPM
+# Install Node.js global packages via pnpm (project standard).
+# Uses absolute PNPM_BIN from gvar_common (NODE_BIN_DIR/pnpm) so first-run installs
+# work before PATH/env is refreshed. METHOD "npm" is a legacy alias for the same path.
 install_via_npm() {
     local package_id="$1"
     local app_name="$2"
+    local pnpm_bin=""
+    local pnpm_run_path=""
+    local package_basename=""
+    local binary_path=""
+    local max_retries=2
+    local retry_count=0
+    local helper_dir="$DEBIAN_COM_DIR"
 
-    log_install "Installing $app_name via NPM: $package_id"
+    log_install "Installing $app_name via PNPM: $package_id"
 
-    # Check if npm is installed
-    if ! command_exists npm; then
-        log_install "Installing Node.js and npm first..."
-        $USE_SUDO apt update
-        if $USE_SUDO apt install -y nodejs npm; then
-            log_success "Node.js and npm installed successfully"
-        else
-            log_error "Failed to install Node.js and npm"
-            return 1
-        fi
+    # Prefer gvar absolute path (set by 16_install_node_24.sh / gvar_common.sh).
+    if [ -n "${PNPM_BIN:-}" ] && [ -x "$PNPM_BIN" ]; then
+        pnpm_bin="$PNPM_BIN"
+    elif [ -n "${NODE_BIN_DIR:-}" ] && [ -x "$NODE_BIN_DIR/pnpm" ]; then
+        pnpm_bin="$NODE_BIN_DIR/pnpm"
+    elif command -v pnpm >/dev/null 2>&1; then
+        pnpm_bin="$(command -v pnpm)"
+    else
+        log_error "pnpm not found. Run 16_install_node_24.sh first (installs pnpm next to node)."
+        return 1
     fi
+    log_install "Using pnpm absolute path: $pnpm_bin"
 
-    # Validate package exists before attempting installation
-    if ! validate_package_exists "npm" "$package_id" "$app_name"; then
-        log_error "Skipping $app_name - package not found in NPM registry"
+    if ! validate_package_exists "pnpm" "$package_id" "$app_name"; then
+        log_error "Skipping $app_name - package validation failed"
         return 2
     fi
 
-    # Run pre-installation checks and auto-fix
-    log_install "Running pre-installation checks..."
-    local helper_dir="$DEBIAN_COM_DIR"
+    # Idempotency: under no TTY, pnpm may abort module-dir purge; auto-confirm.
+    export npm_config_confirm_modules_purge="${npm_config_confirm_modules_purge:-false}"
 
-    bash "$helper_dir/npm_pre_install_checker.sh" "$package_id" "$app_name" 2>/dev/null
+    pnpm_run_path="${NODE_BIN_DIR:-$(dirname "$pnpm_bin")}:${PNPM_GLOBAL_BIN_DIR:-}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-    # Resolve npm + node to ABSOLUTE paths and run npm under an explicit PATH that
-    # includes node's bin dir. sudo's secure_path normally excludes /usr/local/bin
-    # and the dev node dir (/opt/_<os>/node/<ver>/bin), so a bare "$USE_SUDO npm"
-    # fails with "npm: command not found"; and even an absolute npm can fail to find
-    # `node`. Derive the dir from `node` (NOT `npm`, which resolves into
-    # lib/node_modules/...) to get the real bin dir holding node + npm + global CLIs.
-    local npm_bin npm_node_bin npm_node_dir npm_run_path _npm_cand
-    npm_bin="$(command -v npm 2>/dev/null)"
-    if [ -z "$npm_bin" ]; then
-        for _npm_cand in /usr/local/bin/npm /usr/bin/npm "$HOME/.local/bin/npm"; do
-            [ -x "$_npm_cand" ] && { npm_bin="$_npm_cand"; break; }
-        done
-        # Else the NEWEST dev-tree npm (sort -V so node-v24 beats node-v22).
-        if [ -z "$npm_bin" ]; then
-            _npm_cand="$(ls -1 /opt/_*/node/*/bin/npm 2>/dev/null | sort -V | tail -1)"
-            [ -n "$_npm_cand" ] && [ -x "$_npm_cand" ] && npm_bin="$_npm_cand"
-        fi
+    # Idempotent skip when already present globally or on PATH.
+    if env "PATH=$pnpm_run_path" "$pnpm_bin" list -g "$package_id" >/dev/null 2>&1; then
+        log_success "$app_name already installed globally via pnpm, skipping add -g"
+        return 0
     fi
-    [ -z "$npm_bin" ] && npm_bin="npm"
-    npm_node_bin="$(command -v node 2>/dev/null)"
-    if [ -n "$npm_node_bin" ]; then
-        npm_node_dir="$(dirname "$(readlink -f "$npm_node_bin" 2>/dev/null || echo "$npm_node_bin")")"
-    else
-        npm_node_dir="$(dirname "$npm_bin")"
+    package_basename=$(echo "$package_id" | sed 's|.*/||' | sed 's|@.*||')
+    if [ -n "${PNPM_GLOBAL_BIN_DIR:-}" ] && [ -x "$PNPM_GLOBAL_BIN_DIR/$package_basename" ]; then
+        log_success "$app_name binary already at $PNPM_GLOBAL_BIN_DIR/$package_basename, skipping"
+        return 0
     fi
-    npm_run_path="${npm_node_dir}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    if command_exists "$package_basename"; then
+        log_success "$app_name already on PATH ($(command -v "$package_basename")), skipping"
+        return 0
+    fi
 
-    # Install npm package globally with timeout and retry logic
-    local max_retries=2
-    local retry_count=0
+    bash "$helper_dir/npm_pre_install_checker.sh" "$package_id" "$app_name" 2>/dev/null || true
 
     while [ $retry_count -lt $max_retries ]; do
-        if timeout 300 $USE_SUDO env "PATH=$npm_run_path" "$npm_bin" install -g "$package_id"; then
-            log_success "Successfully installed $app_name via NPM"
+        if timeout 300 env "PATH=$pnpm_run_path" "npm_config_confirm_modules_purge=false" \
+            "$pnpm_bin" add -g --config.confirm-modules-purge=false "$package_id"; then
+            log_success "Successfully installed $app_name via PNPM"
 
-            # Fix permissions for npm global binaries
-            log_install "Setting executable permissions for npm global binaries..."
-            local npm_global_bin
-            npm_global_bin=$($USE_SUDO env "PATH=$npm_run_path" "$npm_bin" config get prefix 2>/dev/null)
-            if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
-                # Set executable permissions for all binaries in npm global bin directory
-                $USE_SUDO find "$npm_global_bin/bin" -type f -name "*" -exec chmod +x {} \; 2>/dev/null || true
-                log_success "Set executable permissions for binaries in: $npm_global_bin/bin"
-
-                # Also check for the specific package binary
-                local package_name=$(echo "$package_id" | sed 's/.*\///' | sed 's/@.*//')
-                local binary_path="$npm_global_bin/bin/$package_name"
+            if [ -n "${PNPM_GLOBAL_BIN_DIR:-}" ] && [ -d "$PNPM_GLOBAL_BIN_DIR" ]; then
+                $USE_SUDO find "$PNPM_GLOBAL_BIN_DIR" -type f -exec chmod +x {} \; 2>/dev/null || true
+                binary_path="$PNPM_GLOBAL_BIN_DIR/$package_basename"
                 if [ -f "$binary_path" ]; then
-                    $USE_SUDO chmod +x "$binary_path"
-                    log_success "Set executable permission for: $binary_path"
+                    $USE_SUDO chmod +x "$binary_path" 2>/dev/null || true
+                    log_success "Executable ready: $binary_path"
                 fi
-            else
-                log_warning "Could not determine npm global bin directory"
             fi
-
             return 0
-        else
-            log_error "NPM installation failed on attempt $((retry_count + 1))/$max_retries"
+        fi
 
-            # On failure, run cleanup and try again
-            if [ $retry_count -eq 0 ]; then
-                log_install "Running cleanup before retry..."
-                bash "$helper_dir/npm_cleanup_helper.sh" "$package_id" "$app_name" 2>/dev/null
-                sleep 2
-            fi
-
-            ((retry_count++))
-            if [ $retry_count -lt $max_retries ]; then
-                log_warning "Retrying installation..."
-            fi
+        log_error "PNPM installation failed on attempt $((retry_count + 1))/$max_retries"
+        if [ $retry_count -eq 0 ]; then
+            bash "$helper_dir/npm_cleanup_helper.sh" "$package_id" "$app_name" 2>/dev/null || true
+            sleep 2
+        fi
+        retry_count=$((retry_count + 1))
+        if [ $retry_count -lt $max_retries ]; then
+            log_warning "Retrying pnpm installation..."
         fi
     done
 
-    log_error "Failed to install $app_name via NPM after $max_retries retries"
+    log_error "Failed to install $app_name via PNPM after $max_retries retries"
     return 1
+}
+
+# Alias: explicit pnpm method name (same implementation as install_via_npm).
+install_via_pnpm() {
+    install_via_npm "$@"
 }
 
 # Install via PIPX
@@ -867,15 +858,14 @@ universal_install() {
             install_via_web "$package_id" "$app_name"
             install_result=$?
             ;;
-        "npm")
-            install_via_npm "$package_id" "$app_name"
+        "npm"|"pnpm")
+            install_via_pnpm "$package_id" "$app_name"
             install_result=$?
-            # Fix NPM permissions after installation
             if [ $install_result -eq 0 ]; then
-                log_install "Fixing NPM permissions after installation"
-                fix_npm_global_permissions_from_common_functions 2>&1 | while IFS= read -r line; do
-                    log_install "$line"
-                done
+                log_install "Fixing pnpm global bin permissions after installation"
+                if [ -n "${PNPM_GLOBAL_BIN_DIR:-}" ] && [ -d "$PNPM_GLOBAL_BIN_DIR" ]; then
+                    $USE_SUDO find "$PNPM_GLOBAL_BIN_DIR" -type f -exec chmod +x {} \; 2>/dev/null || true
+                fi
             fi
             ;;
         "pipx")
@@ -1026,7 +1016,7 @@ universal_install() {
 
 # Export functions for use by other scripts
 export -f install_via_apt install_via_snap install_via_flatpak install_via_web
-export -f install_via_npm install_via_pipx install_via_uv install_via_uv_tool
+export -f install_via_npm install_via_pnpm install_via_pipx install_via_uv install_via_uv_tool
 export -f install_via_uvx install_via_curl install_via_microsoft_apt universal_install
 export -f log_install log_success log_error log_warning command_exists validate_package_exists
 export -f is_snap_package is_command_from_snap force_cleanup_package needs_cleanup_before_install

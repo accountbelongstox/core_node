@@ -7,6 +7,10 @@ Processes POST /rpc + /rpc/{route_name} and the GET /rpc/query/{id} polling
 endpoint. Mirrors the legacy HttpHandler flow on top of the shared
 event/inventory tables + ACK manager. Constructed with injected tables/managers
 + debug (same pattern as ack_manager / request_processor / routes_manager).
+
+All @serialized_method table calls are routed through `await_serialized`
+(pycore/pyutils/rpc_v2/server/_serialized_bridge.py) so the uvicorn event
+loop never blocks on the table owner threads.
 """
 
 from __future__ import annotations
@@ -34,6 +38,7 @@ from pycore.pyutils.rpc_v2.common import (
 from pycore.pyutils.rpc_v2.server.ack_manager import FastAPIAckManager
 from pycore.pyutils.rpc_v2.server.routes_manager import RoutesManager
 from pycore.pyutils.rpc_v2.server.request_processor import RequestProcessor
+from pycore.pyutils.rpc_v2.server._serialized_bridge import await_serialized
 
 MSG_TYPES = RPC_CONSTANTS.MESSAGE_TYPES
 ERROR_CODES = RPC_CONSTANTS.ERROR_CODES
@@ -137,23 +142,30 @@ class HttpRPCHandler:
             )
 
         # Inventory check
-        inventory_item = self.inventory_table.get(request_id, remove=False)
+        inventory_item = await await_serialized(
+            self.inventory_table.get, request_id, remove=False
+        )
         if inventory_item:
             if self.debug:
                 ColorPrint.green(f"[HTTP RPC] Found inventory hit for request {request_id}")
-            event = self.request_event_table.get_event(request_id) or self.request_event_table.create_event(
+            event = await await_serialized(
+                self.request_event_table.get_event, request_id
+            ) or await await_serialized(
+                self.request_event_table.create_event,
                 request_id=request_id,
                 route=inventory_item.route,
                 params=params,
                 client_id=session_id,
                 client_type="http",
             )
-            self.request_event_table.set_result(
+            await await_serialized(
+                self.request_event_table.set_result,
                 request_id=request_id,
                 result=inventory_item.result,
                 error=inventory_item.error,
             )
-            return self.ack_manager.prepare_http_response_with_ack(
+            return await await_serialized(
+                self.ack_manager.prepare_http_response_with_ack,
                 request_id=request_id,
                 data={
                     "type": MSG_TYPES["RESPONSE"],
@@ -169,10 +181,13 @@ class HttpRPCHandler:
                 event=event,
             )
 
-        existing_event = self.request_event_table.get_event(request_id)
+        existing_event = await await_serialized(
+            self.request_event_table.get_event, request_id
+        )
         if existing_event:
             if existing_event.status == RequestStatus.COMPLETED:
-                return self.ack_manager.prepare_http_response_with_ack(
+                return await await_serialized(
+                    self.ack_manager.prepare_http_response_with_ack,
                     request_id=request_id,
                     data={
                         "type": MSG_TYPES["RESPONSE"],
@@ -205,7 +220,8 @@ class HttpRPCHandler:
         # Check if route is synchronous (immediate response)
         is_sync = self.routes_manager.is_sync_route(route)
 
-        event = self.request_event_table.create_event(
+        event = await await_serialized(
+            self.request_event_table.create_event,
             request_id=request_id,
             route=route,
             params=params,
@@ -234,13 +250,17 @@ class HttpRPCHandler:
             )
 
             # Get completed event
-            event = self.request_event_table.get_event(request_id)
+            event = await await_serialized(
+                self.request_event_table.get_event, request_id
+            )
             if event and event.status == RequestStatus.COMPLETED:
                 if self.debug:
                     ColorPrint.green(f"[HTTP RPC] Sync route {route} completed, returning result")
 
                 # Mark sync responses as notified to skip ACK/redo flow
-                self.request_event_table.mark_notified(request_id)
+                await await_serialized(
+                    self.request_event_table.mark_notified, request_id
+                )
 
                 # Return result immediately (no requires_ack)
                 return JSONResponse(
@@ -289,7 +309,8 @@ class HttpRPCHandler:
                 )
             )
 
-            return self.ack_manager.prepare_http_response_with_ack(
+            return await await_serialized(
+                self.ack_manager.prepare_http_response_with_ack,
                 request_id=request_id,
                 data={
                     "type": MSG_TYPES["RESPONSE"],
@@ -305,23 +326,30 @@ class HttpRPCHandler:
 
     async def handle_query_result(self, request_id: str) -> JSONResponse:
         """HTTP polling endpoint."""
-        inventory_item = self.inventory_table.get(request_id, remove=False)
+        inventory_item = await await_serialized(
+            self.inventory_table.get, request_id, remove=False
+        )
         if inventory_item:
             if self.debug:
                 ColorPrint.green(f"[HTTP Query] Inventory replay for {request_id}")
-            event = self.request_event_table.get_event(request_id) or self.request_event_table.create_event(
+            event = await await_serialized(
+                self.request_event_table.get_event, request_id
+            ) or await await_serialized(
+                self.request_event_table.create_event,
                 request_id=request_id,
                 route=inventory_item.route,
                 params={},
                 client_id=inventory_item.client_id,
                 client_type=inventory_item.client_type,
             )
-            self.request_event_table.set_result(
+            await await_serialized(
+                self.request_event_table.set_result,
                 request_id=request_id,
                 result=inventory_item.result,
                 error=inventory_item.error,
             )
-            return self.ack_manager.prepare_http_response_with_ack(
+            return await await_serialized(
+                self.ack_manager.prepare_http_response_with_ack,
                 request_id=request_id,
                 data={
                     "type": MSG_TYPES["RESPONSE"],
@@ -337,7 +365,9 @@ class HttpRPCHandler:
                 event=event,
             )
 
-        event = self.request_event_table.get_event(request_id)
+        event = await await_serialized(
+            self.request_event_table.get_event, request_id
+        )
         if not event:
             if self.debug:
                 ColorPrint.yellow(f"[HTTP Query] Request {request_id} not found")
@@ -354,7 +384,8 @@ class HttpRPCHandler:
             )
 
         if event.status == RequestStatus.COMPLETED:
-            return self.ack_manager.prepare_http_response_with_ack(
+            return await await_serialized(
+                self.ack_manager.prepare_http_response_with_ack,
                 request_id=request_id,
                 data={
                     "type": MSG_TYPES["RESPONSE"],

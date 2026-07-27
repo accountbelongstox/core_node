@@ -44,28 +44,67 @@ function diag(level: string, message: string) {
   (level === 'error' ? console.error : console.log)(`[pycore-ws] ${message}`);
 }
 
-// Stable per-BROWSER client id so the server keys this client consistently across
-// reconnects, reloads AND tabs. Uses localStorage, NOT sessionStorage: a webview
-// clears sessionStorage on each page load, which minted a brand-new id every time
-// ("a new id on every action"). localStorage persists until the browser profile /
-// storage is cleared — i.e. a new id only when you switch browser. Storage access
-// can throw in a sandboxed webview, so it stays guarded.
-const CLIENT_ID_KEY = 'pycore_ws_client_id';
+// Stable browser profile id (localStorage) + per-tab connection id (sessionStorage).
+// The server allows ONE live WS per client_id; sharing one id across tabs makes the
+// newest connection supersede the older one (close 4000). Durable owner tasks can
+// still key off getBrowserId() separately from getClientId().
+const BROWSER_ID_KEY = 'pycore_ws_browser_id';
+const TAB_ID_KEY = 'pycore_ws_tab_id';
+/** Legacy single-id key — migrated into browser id, then cleared. */
+const LEGACY_CLIENT_ID_KEY = 'pycore_ws_client_id';
+
+let browserId: string | null = null;
+let tabId: string | null = null;
 let clientId: string | null = null;
 
-export function getClientId(): string {
-  if (clientId) return clientId;
+function mintId(prefix: string): string {
+  return `${prefix}-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+}
+
+export function getBrowserId(): string {
+  if (browserId) return browserId;
   try {
-    // Prefer localStorage; migrate a legacy sessionStorage id forward if present.
-    const stored = localStorage.getItem(CLIENT_ID_KEY) || sessionStorage.getItem(CLIENT_ID_KEY);
+    const stored = localStorage.getItem(BROWSER_ID_KEY)
+      || localStorage.getItem(LEGACY_CLIENT_ID_KEY)
+      || sessionStorage.getItem(LEGACY_CLIENT_ID_KEY);
     if (stored) {
-      clientId = stored;
-      try { localStorage.setItem(CLIENT_ID_KEY, stored); } catch { /* ignore */ }
-      return clientId;
+      browserId = stored;
+      try { localStorage.setItem(BROWSER_ID_KEY, stored); } catch { /* ignore */ }
+      try { localStorage.removeItem(LEGACY_CLIENT_ID_KEY); } catch { /* ignore */ }
+      return browserId;
     }
   } catch { /* ignore */ }
-  clientId = `ui-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
-  try { localStorage.setItem(CLIENT_ID_KEY, clientId); } catch { /* ignore */ }
+  browserId = mintId('browser');
+  try { localStorage.setItem(BROWSER_ID_KEY, browserId); } catch { /* ignore */ }
+  return browserId;
+}
+
+function getTabId(): string {
+  if (tabId) return tabId;
+  try {
+    const stored = sessionStorage.getItem(TAB_ID_KEY);
+    if (stored) {
+      tabId = stored;
+      return tabId;
+    }
+  } catch { /* ignore */ }
+  tabId = mintId('tab');
+  try { sessionStorage.setItem(TAB_ID_KEY, tabId); } catch { /* ignore */ }
+  return tabId;
+}
+
+/** Per-tab WS identity: browserId:tabId. Never shared across tabs. */
+export function getClientId(): string {
+  if (clientId) return clientId;
+  clientId = `${getBrowserId()}:${getTabId()}`;
+  return clientId;
+}
+
+/** Mint a fresh tab segment after server supersede so this page can reconnect. */
+function rotateTabClientId(): string {
+  tabId = mintId('tab');
+  try { sessionStorage.setItem(TAB_ID_KEY, tabId); } catch { /* ignore */ }
+  clientId = `${getBrowserId()}:${tabId}`;
   return clientId;
 }
 
@@ -74,17 +113,11 @@ function withClientId(base: string): string {
 }
 
 let socket: WebSocket | null = null;
-// The shared FastAPIWsRpcClient instance, when that path is in use. It is the
-// preferred transport for request/response RPC (.call). The dashboard shell
-// never loads the backend's ws_rpc_client.js script (cross-origin :59000), so
-// in practice the NATIVE socket is always the active path here — it speaks the
-// same rpc_v2 wire protocol for requests (see nativeCall), making callRpc work
-// without the shared script.
-let sharedClient: any = null;
 let connected = false;
 let started = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
+let reconnectDelayMs = 1_000;
 // Route-scoped gate: when the active shell end does NOT use pycore (e.g. /wordnew),
 // the bus is SUSPENDED — the socket is closed and all (re)connect attempts become
 // no-ops, so an inactive end never reconnect-spams :59000. Resumed when a pycore
@@ -95,15 +128,24 @@ let suspended = false;
 /** Synchronous check for PycoreSse to avoid async-import race on route switch. */
 export function isPycoreSuspended(): boolean { return suspended; }
 
-const RECONNECT_MS = 3000;
-const CALL_TIMEOUT_MS = 30000;
+const RECONNECT_MIN_MS = 1_000;
+const RECONNECT_MAX_MS = 30_000;
+const RECONNECT_JITTER_MS = 250;
+const DEFAULT_RPC_TIMEOUT_MS = 30_000;
 
 // ---- native request/response support (rpc_v2 wire protocol) ---------------
 // Frames: send {type:'request', id, route, params}; the server replies with
 // {type:'response', id, result, error, requires_ack} (async routes deliver the
 // response after a {type:'event', event:'request_accepted'} frame and expect
 // an {type:'ack', id} back) or {type:'error', id, error, message}.
-type PendingCall = { resolve: (v: any) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> };
+type PendingCall = {
+  resolve: (v: any) => void;
+  reject: (e: Error) => void;
+  frame: { type: 'request'; id: string; event_id: string; client_id: string; route: string; params: any };
+  sent: boolean;
+  timer: ReturnType<typeof setTimeout> | null;
+  timeoutMs: number;
+};
 const pendingCalls = new Map<string, PendingCall>();
 
 function newRequestId(): string {
@@ -111,27 +153,60 @@ function newRequestId(): string {
   return `req-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 }
 
+function clearPendingTimer(entry: PendingCall): void {
+  if (entry.timer != null) {
+    clearTimeout(entry.timer);
+    entry.timer = null;
+  }
+}
+
+function armPendingTimer(entry: PendingCall): void {
+  clearPendingTimer(entry);
+  const id = entry.frame.id;
+  const waitMs = entry.timeoutMs;
+  const method = entry.frame.route;
+  entry.timer = setTimeout(() => {
+    if (!pendingCalls.has(id)) return;
+    pendingCalls.delete(id);
+    entry.timer = null;
+    entry.reject(new Error(`RPC timeout after ${waitMs}ms: ${method}`));
+  }, waitMs);
+}
+
+function rejectPendingCall(id: string, error: Error): void {
+  const entry = pendingCalls.get(id);
+  if (!entry) return;
+  pendingCalls.delete(id);
+  clearPendingTimer(entry);
+  entry.reject(error);
+}
+
+/** Reject every in-flight RPC (close without reconnect, suspend, or supersede). */
+function rejectAllPending(reason: string): void {
+  const err = new Error(reason);
+  const ids = Array.from(pendingCalls.keys());
+  for (const id of ids) {
+    rejectPendingCall(id, err);
+  }
+}
+
 function settlePendingCall(msg: any): boolean {
   // Returns true when the frame belonged to a pending native call.
   if (!msg.id || (msg.type !== 'response' && msg.type !== 'error')) return false;
-  const entry = pendingCalls.get(msg.id);
+  const eventId = msg.event_id || msg.id;
+  const entry = pendingCalls.get(eventId);
   if (!entry) return false;
-  clearTimeout(entry.timer);
-  pendingCalls.delete(msg.id);
-  if (msg.requires_ack && socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ type: 'ack', id: msg.id }));
-  }
+  pendingCalls.delete(eventId);
+  clearPendingTimer(entry);
   if (msg.type === 'error' || msg.error) {
     entry.reject(new Error(String(msg.message || msg.error || 'RPC error')));
   } else {
     entry.resolve(msg.result);
   }
+  if (msg.requires_ack && socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: 'ack', id: eventId, event_id: eventId, client_id: getClientId() }));
+  }
   return true;
-}
-
-function rejectAllPendingCalls(reason: string) {
-  pendingCalls.forEach((entry) => { clearTimeout(entry.timer); entry.reject(new Error(reason)); });
-  pendingCalls.clear();
 }
 
 // ---- WS traffic logging ----------------------------------------------------
@@ -152,22 +227,44 @@ function wsLog(dir: '>>>' | '<<<', routeOrType: string, payload: any, id?: strin
     typeof body === 'object' ? body : body);
 }
 
-function nativeCall(method: string, params: any, timeoutMs: number): Promise<any> {
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
-    return Promise.reject(new Error('RPC unavailable: WebSocket not connected.'));
-  }
+function sendPendingCall(entry: PendingCall): void {
+  // Only send when the RPC v2 welcome handshake completed (protocol-ready).
+  if (!connected || !socket || socket.readyState !== WebSocket.OPEN || entry.sent) return;
+  // Refresh client_id on the wire in case we rotated after supersede.
+  entry.frame.client_id = getClientId();
+  socket.send(JSON.stringify(entry.frame));
+  entry.sent = true;
+  // Timeout starts at actual send — not at enqueue — so startup queue wait
+  // does not consume the caller's budget. Re-send after reconnect re-arms a
+  // full timeout (armPendingTimer clears any prior timer first).
+  armPendingTimer(entry);
+}
+
+function nativeCall(method: string, params: any, timeoutMs?: number): Promise<any> {
   const id = newRequestId();
-  const frame = { type: 'request', id, route: method, params: params ?? {} };
+  const waitMs = typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : DEFAULT_RPC_TIMEOUT_MS;
+  const frame = {
+    type: 'request' as const,
+    id,
+    event_id: id,
+    client_id: getClientId(),
+    route: method,
+    params: params ?? {},
+  };
   wsLog('>>>', method, params, id);
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pendingCalls.delete(id);
-      const msg = `RPC timeout after ${timeoutMs}ms: ${method}`;
-      if (_wsLogEnabled) console.warn(`[WS] %cTIMEOUT %c${msg}`, 'color:#ff7043', 'color:#888');
-      reject(new Error(msg));
-    }, timeoutMs);
-    pendingCalls.set(id, { resolve, reject, timer });
-    socket!.send(JSON.stringify(frame));
+    const entry: PendingCall = {
+      resolve,
+      reject,
+      frame,
+      sent: false,
+      timer: null,
+      timeoutMs: waitMs,
+    };
+    pendingCalls.set(id, entry);
+    // Arm timer immediately so requests don't hang forever if WS is disconnected.
+    armPendingTimer(entry);
+    sendPendingCall(entry);
   });
 }
 
@@ -285,10 +382,18 @@ function scheduleReconnect() {
   // Don't reconnect if a socket is already live — avoids stacking/churn.
   if (socket && socket.readyState === WebSocket.OPEN) return;
   reconnectAttempts += 1;
+  const jitter = Math.max(0, Math.floor(Math.random() * RECONNECT_JITTER_MS));
+  const delayMs = Math.min(RECONNECT_MAX_MS, reconnectDelayMs + jitter);
+  reconnectDelayMs = Math.min(RECONNECT_MAX_MS, reconnectDelayMs * 2);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     openSocket();
-  }, RECONNECT_MS);
+  }, delayMs);
+}
+
+/** Subscribe to durable RPC completions delivered after reconnect or reload. */
+export function subscribeRpcCompletion(handler: EventHandler): () => void {
+  return subscribe('rpc_completion', handler);
 }
 
 function openSocket() {
@@ -300,18 +405,26 @@ function openSocket() {
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
   if (socket) { socket.onclose = null; socket.close(); socket = null; }
 
+  // New socket: protocol not ready until welcome. isWsConnected() tracks RPC ready.
+  setConnected(false);
+  pendingCalls.forEach((entry) => {
+    clearPendingTimer(entry);
+    entry.sent = false;
+  });
+
   const url = withClientId(resolveWsUrl());
   diag('info', `connecting ${url} (attempt ${reconnectAttempts + 1})`);
   const ws = new WebSocket(url);
   socket = ws;
 
   ws.onopen = () => {
+    // Transport upgrade only — wait for welcome before setConnected / flush.
     reconnectAttempts = 0;
+    reconnectDelayMs = RECONNECT_MIN_MS;
     unreachableHintLogged = false;
-    diag('info', `connected as client_id=${getClientId()}`);
-    if (_wsLogEnabled) console.log(`%c[WS] %cCONNECTED %cclient_id=${getClientId()}`,
+    diag('info', `socket open as client_id=${getClientId()} — awaiting welcome`);
+    if (_wsLogEnabled) console.log(`%c[WS] %cOPEN %cclient_id=${getClientId()} (awaiting welcome)`,
       'color:#66bb6a', 'color:#4fc3f7;font-weight:bold', 'color:#888');
-    setConnected(true);
   };
 
   ws.onmessage = (ev) => {
@@ -319,11 +432,42 @@ function openSocket() {
     let msg: any;
     try { msg = JSON.parse(ev.data); } catch { return; }
     if (!msg || typeof msg !== 'object') return;
+    if (msg.type === 'welcome') {
+      diag('info', `welcome received for client_id=${msg.client_id || getClientId()}`);
+      setConnected(true);
+      pendingCalls.forEach((entry) => {
+        clearPendingTimer(entry);
+        entry.sent = false;
+        sendPendingCall(entry);
+      });
+      return;
+    }
     // Request/response frames for native callRpc (response/error with our id).
     if (settlePendingCall(msg)) {
       const dir = msg.type === 'error' ? '<<< ERR' : '<<<';
       wsLog(dir as '<<<', msg.type === 'error' ? (msg.error || 'error') : 'response',
         msg.type === 'error' ? msg : (msg.result ?? msg), msg.id);
+      return;
+    }
+    if (msg.type === 'response' || msg.type === 'error') {
+      // A completion can arrive after the original promise timed out, or after
+      // a page reload. Durable async completions need an ACK; late sync replies
+      // (e.g. timed-out ui.ping) must not surface as unknown rpc_completion.
+      const eventId = msg.event_id || msg.id;
+      if (msg.requires_ack && eventId && socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: 'ack',
+          id: eventId,
+          event_id: eventId,
+          client_id: getClientId(),
+        }));
+      }
+      if (msg.sync_response || msg.requires_ack !== true) {
+        wsLog('<<<', 'late_sync', msg, eventId);
+        return;
+      }
+      wsLog('<<<', 'rpc_completion', msg, eventId);
+      dispatch('rpc_completion', msg);
       return;
     }
     // Broadcast events from server.
@@ -345,15 +489,30 @@ function openSocket() {
   ws.onclose = (ev) => {
     setConnected(false);
     if (socket === ws) socket = null;
-    rejectAllPendingCalls('Connection lost');
-    // 4000 = server "superseded": a newer connection for our client_id took over
-    // (e.g. another tab/instance of this origin). Do NOT reconnect, or the two
-    // sockets would supersede each other forever (connect/disconnect churn).
+    // 4000 = server "superseded": another connection claimed this client_id.
+    // Rotate the tab id, fail pending RPCs, and reconnect — never leave
+    // started=true with socket=null and no reconnect path.
     if (ev.code === 4000) {
-      diag('warn', 'superseded by a newer connection (same client_id) — not reconnecting');
+      const oldId = getClientId();
+      const newId = rotateTabClientId();
+      rejectAllPending(`WS superseded (client_id ${oldId} → ${newId})`);
+      diag('warn', `superseded (client_id rotated ${oldId} → ${newId}) — reconnecting`);
+      reconnectAttempts = 0;
+      reconnectDelayMs = RECONNECT_MIN_MS;
+      if (!suspended && started) scheduleReconnect();
       return;
     }
-    diag('warn', `closed code=${ev.code}${ev.reason ? ` reason=${ev.reason}` : ''} — retrying in ${RECONNECT_MS / 1000}s`);
+    // Transient close: keep pending for resend after welcome; clear old timers
+    // so a single call never has overlapping timers across reconnects.
+    pendingCalls.forEach((entry) => {
+      clearPendingTimer(entry);
+      entry.sent = false;
+    });
+    const nextDelay = Math.min(RECONNECT_MAX_MS, reconnectDelayMs + Math.max(0, Math.floor(Math.random() * RECONNECT_JITTER_MS)));
+    diag(
+      'warn',
+      `closed code=${ev.code}${ev.reason ? ` reason=${ev.reason}` : ''} — retrying in ${Math.round(nextDelay / 1000)}s`,
+    );
     // 3rd consecutive failure → one explicit global-log warning (not silent).
     if (reconnectAttempts >= 3) {
       logUnreachableHintOnce();
@@ -367,46 +526,18 @@ function openSocket() {
   };
 }
 
-/**
- * Drive connection through the shared rpc_v2 client (FastAPIWsRpcClient) when it
- * is available on window — it brings request/response, ACKs and a battle-tested
- * reconnect loop. Falls back to the native socket below otherwise. Either path
- * feeds the same subscribe/onWsStatus/onWsDiag interface.
- */
-function startSharedClient(Ctor: any): void {
-  const base = resolveWsUrl(); // the shared client appends ?client_id= itself
-  diag('info', `using shared FastAPIWsRpcClient -> ${base}`);
-  const client = new Ctor(base, {
-    reconnect: true,
-    reconnectInterval: RECONNECT_MS,
-    maxReconnectAttempts: Number.MAX_SAFE_INTEGER,
-  });
-  client.on('connection', () => { diag('info', `connected as client_id=${client.clientId}`); setConnected(true); });
-  client.on('disconnect', (d: any) => { diag('warn', `disconnected code=${d?.code ?? '?'}${d?.reason ? ` reason=${d.reason}` : ''} — retrying`); setConnected(false); });
-  client.on('reconnect', (d: any) => diag('info', `reconnecting (attempt ${d?.attempt ?? '?'})`));
-  client.on('event', (msg: any) => { if (!sseEventsActive && msg && typeof msg.event === 'string') dispatch(msg.event, msg.data ?? {}); });
-  // Keep a module ref so callRpc() can issue request/response RPCs through it.
-  sharedClient = client;
-  client.connect();
-}
-
 /** Alias for subscribe(), per the WS bus naming used by callers. */
 export function subscribeWs(event: string, handler: EventHandler): () => void {
   return subscribe(event, handler);
 }
 
 /**
- * Request/response RPC over the rpc_v2 bus. Prefers the shared
- * FastAPIWsRpcClient (which implements .call) when its script was loaded;
- * otherwise the native-socket path issues the SAME rpc_v2 request frame
- * itself (see nativeCall) — so RPC works in the dashboard shell, which never
- * loads the backend's shared client script.
+ * Request/response RPC over the native rpc_v2 WebSocket bus.
  */
-export function callRpc(method: string, params: any = {}, timeoutMs: number = CALL_TIMEOUT_MS): Promise<any> {
-  // Instrument EVERY FE->pycore RPC (local_http.* bridge + direct live-test
-  // routes) for the PcHttpDebugger: route, params path/summary, status, duration.
+export function callRpc(method: string, params: any = {}, timeoutMs?: number): Promise<any> {
+  // Instrument every FE->pycore native RPC for the PcHttpDebugger.
   const nowFn = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
-  const started = nowFn();
+  const startedAt = nowFn();
   const wsPath = (params && typeof params.path === 'string') ? params.path : method;
   const paramsSummary = summarizeHttpParams(params);
   const record = (status: number, error?: string | null) => {
@@ -417,19 +548,10 @@ export function callRpc(method: string, params: any = {}, timeoutMs: number = CA
       path: wsPath,
       paramsSummary,
       status,
-      ms: nowFn() - started,
+      ms: nowFn() - startedAt,
       error: error || null,
     });
   };
-  if (sharedClient && typeof sharedClient.call === 'function') {
-    if (!connected) {
-      record(0, 'RPC unavailable: WebSocket not connected.');
-      return Promise.reject(new Error('RPC unavailable: WebSocket not connected.'));
-    }
-    return Promise.resolve(sharedClient.call(method, params, timeoutMs))
-      .then((r: any) => { record(200); return r; })
-      .catch((e: any) => { record(0, e?.message || String(e)); throw e; });
-  }
   return nativeCall(method, params, timeoutMs)
     .then((r: any) => { record(200); return r; })
     .catch((e: any) => { record(0, e?.message || String(e)); throw e; });
@@ -458,19 +580,12 @@ export function connectPycoreWs(): void {
   } catch { /* sandboxed */ }
   if (suspended) {
     diag('info', 'connect requested while route inactive — deferring until a pycore end is active');
+    reconnectAttempts = 0;
+    reconnectDelayMs = RECONNECT_MIN_MS;
     return;
   }
-  // Broadcast events ride the SAME WS bus — NO separate HTTP SSE stream. The
-  // onmessage handler dispatches {type:'event'} frames directly (sseEventsActive
-  // stays false), so subscribe()/onWsStatus() work unchanged over WS only. This
-  // removes the last HTTP connection to :59000 for live events.
-  const Shared = (typeof window !== 'undefined') ? (window as any).FastAPIWsRpcClient : undefined;
-  if (Shared) {
-    startSharedClient(Shared);
-  } else {
-    diag('info', 'shared rpc client not loaded — using native socket');
-    openSocket();
-  }
+  diag('info', 'using native WebSocket RPC v2 client');
+  openSocket();
 }
 
 /**
@@ -487,19 +602,15 @@ export function setPycoreActive(active: boolean): void {
   if (active) {
     diag('info', 'route active — resuming pycore bus');
     reconnectAttempts = 0;
+    reconnectDelayMs = RECONNECT_MIN_MS;
     if (started) {
-      if (sharedClient && typeof sharedClient.connect === 'function') {
-        try { sharedClient.connect(); } catch { /* ignore */ }
-      } else {
-        openSocket();
-      }
+      openSocket();
     }
   } else {
-    diag('info', 'route inactive — suspending pycore bus (closing WS/SSE)');
+    diag('info', 'route inactive — suspending native pycore WS');
+    reconnectAttempts = 0;
+    reconnectDelayMs = RECONNECT_MIN_MS;
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-    if (sharedClient && typeof sharedClient.disconnect === 'function') {
-      try { sharedClient.disconnect(); } catch { /* ignore */ }
-    }
     if (socket) {
       const s = socket;
       socket = null;
@@ -507,7 +618,7 @@ export function setPycoreActive(active: boolean): void {
       s.onopen = null; s.onmessage = null; s.onerror = null; s.onclose = null;
       try { s.close(); } catch { /* ignore */ }
     }
-    rejectAllPendingCalls('pycore bus suspended (route inactive)');
+    rejectAllPending('pycore WS suspended (route inactive)');
     setConnected(false);
   }
 }

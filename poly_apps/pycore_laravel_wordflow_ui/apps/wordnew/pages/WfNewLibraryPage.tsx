@@ -38,6 +38,7 @@ import { pickSentenceAudioUrl, readerPreferredAccent } from '../utils/WfSentence
 import { buildWordCell } from '../utils/WfLibraryWordCell';
 import { WfLibraryWordRow, wordRowKey } from '../components/library/WfLibraryWordRow';
 import { useVisibleWordPriority } from '../hooks/useVisibleWordPriority';
+import { useLibraryPriorityBoost } from '../hooks/usePriorityBoost';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 
 type LibraryView = 'dash' | 'table';
@@ -128,6 +129,11 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
   const currentPage = pg?.currentPage ?? page;
 
   const wordRows = data?.words ?? EMPTY_WORDS;
+  const untranslatedWords = useMemo(
+    () => wordRows.filter((w) => !w.hasTranslation && w.word?.trim()).map((w) => w.word.trim()),
+    [wordRows],
+  );
+  useLibraryPriorityBoost(libraryId, untranslatedWords, libLang, nativeLang);
   useEffect(() => { wordsRef.current = wordRows; }, [wordRows]);
   useEffect(() => { variantByKeyRef.current = variantByKey; }, [variantByKey]);
   useEffect(() => { mediaByMd5Ref.current = mediaByMd5; }, [mediaByMd5]);

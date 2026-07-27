@@ -139,7 +139,6 @@ def main(host='0.0.0.0', port=59000, debug=False, reload=True):
 
     # 4. Update tray menu with singleton port (callmodule layer - config update)
     if singleton_port:
-        time.sleep(0.5)  # wait for tray to register tray.update_menu handler
         update_tray_menu_with_singleton(launcher, port, singleton_port)
 
     ColorPrint.green("=" * 70)

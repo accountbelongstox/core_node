@@ -21,7 +21,7 @@ import {
   Settings2, FolderOpen, Lock, FolderX, Gauge, ArrowUp, ArrowDown, Layers,
   ChevronDown, Wand2,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi, isWsConnected } from '../../../core/api-libs/pycore';
 import { appendChatMessages } from '../../../shared/AiChatKit/aiChatHistory';
 import type { AiChatMessage } from '../../../shell/shellTypes';
 import type {
@@ -347,6 +347,12 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
   const loadCatalog = useCallback(async (refresh: boolean) => {
     if (refresh) setRefreshing(true); else setLoading(true);
     try {
+      if (!isWsConnected()) {
+        setProviders(null);
+        setUnreachable(true);
+        setError('pycore WebSocket not connected');
+        return;
+      }
       const r = await pycoreApi.getAiCatalog();
       if (Array.isArray(r?.providers)) {
         setProviders(r.providers);

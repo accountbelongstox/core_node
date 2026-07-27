@@ -35,6 +35,11 @@ _DEFAULT_WORD_PRIORITY = _WORD_FRONT_ORDER + tuple(
     engine for engine in _DEFAULT_PRIORITY
     if engine not in _WORD_FRONT_ORDER and engine not in _WORD_EXCLUDED
 )
+# Agent History articles: local engines only — never edge / cloud TTS.
+_CLOUD_TTS_ENGINES = frozenset({"edge", "streamelements", "gtts_web", "azure"})
+_DEFAULT_AGENT_HISTORY_TTS = tuple(
+    engine for engine in _DEFAULT_PRIORITY if engine not in _CLOUD_TTS_ENGINES
+)
 _LEGACY_SAVED_ORDERS: Tuple[Tuple[str, ...], ...] = (
     ("edge", "sherpa", "melotts", "gptsovits", "azure"),
     ("edge", "sherpa", "melotts", "gptsovits", "gtts_web", "azure"),
@@ -228,6 +233,10 @@ def configured_tts_priority(profile: str = "default") -> tuple[str, ...]:
         return sentence
     if profile == "word":
         return tuple(engine for engine in word if engine not in _WORD_EXCLUDED)
+    if profile == "agent_history":
+        # Prefer the configured default chain, then strip every cloud engine.
+        local = tuple(engine for engine in default if engine not in _CLOUD_TTS_ENGINES)
+        return local or _DEFAULT_AGENT_HISTORY_TTS
     return default
 
 

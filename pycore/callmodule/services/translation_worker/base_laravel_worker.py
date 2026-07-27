@@ -42,6 +42,7 @@ from pycore.pyfoundations.serialized_worker import init_serialized_owner, serial
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
+    register_endpoint_change_listener,
 )
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 
@@ -130,6 +131,28 @@ class BaseLaravelWorkerService:
             "translation.worker.state",
             "TranslationWorkerState",
             timeout=60.0,
+        )
+        # Register for immediate notification when the user switches endpoint in
+        # the UI so we re-register on the NEXT heartbeat tick instead of waiting
+        # for the worker to naturally detect the URL change.
+        register_endpoint_change_listener(self.on_endpoint_changed)
+
+    def on_endpoint_changed(self, new_url: str) -> None:
+        """Immediately reset registration state when the Laravel endpoint changes.
+
+        Called synchronously by LaravelEndpointManager.select() the moment the user
+        confirms a new endpoint. On the next poll_once() tick _register() will use
+        ``new_url`` instead of the stale one, so the worker re-appears on Laravel
+        within one heartbeat interval rather than waiting out the old endpoint.
+        """
+        prev = self.api_url
+        self.api_url = new_url.rstrip("/")
+        self._registered = False
+        self._conn_fail_streak = 0
+        self._conn_unreachable_warned = False
+        ColorPrint.blue(
+            f"{self._log_prefix} Endpoint changed {prev!r} → {new_url!r}; "
+            "will re-register on next tick"
         )
 
     # -------------------- identity --------------------

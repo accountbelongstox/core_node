@@ -4,7 +4,8 @@ Capability probe — CUDA/compute + free-library availability for the
 "Capability Status" UI.
 
 Cheap and side-effect-free: library checks use importlib.util.find_spec (no heavy
-import, no install), and the CUDA block reuses the cached, nvidia-smi-based
+import, no install), TTS engine rows use installed / managed-running snapshots
+(no HTTP health probes), and the CUDA block reuses the cached, nvidia-smi-based
 CUDADetector. Heavier per-engine probes (AI providers, OCR/TTS/STT orchestrators, edge-tts
 live synth) keep their own dedicated endpoints; this fills the gaps —
 GPU/CUDA compute readiness and the pycore library registry (pip packages +
@@ -34,9 +35,8 @@ from pycore.pyutils.common.model_tiers import (
     runtime_whisper_model,
     tier_summary_lines,
 )
+from pycore.pyutils.common.managed_service import managed_services
 from pycore.pyutils.tts.tts_orchestrator import default_tts_engine_priority
-
-from pycore.pyutils.tts.tts_orchestrator import engine_available
 from pycore.pyutils.tts.tts_engine_probe import engine_installed
 
 
@@ -120,10 +120,17 @@ def _dist_version(dist: str) -> Optional[str]:
 
 
 def _tts_engine_available(name: str) -> bool:
+    """Cheap snapshot: managed running, else installed. No HTTP health probes.
+
+    Live readiness stays on dedicated TTS status endpoints; this registry must
+    stay side-effect-free for the capability panel.
+    """
     try:
-        return bool(engine_available(name))
+        if managed_services.spec(name) is not None:
+            return bool(managed_services.is_running(name))
     except Exception:
-        return False
+        pass
+    return _tts_engine_installed(name)
 
 
 def _tier_payload(tier_engine: Optional[str]) -> Dict[str, Any]:

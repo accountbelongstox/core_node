@@ -55,6 +55,11 @@ class ClientSession:
 
     pending_messages: List[Dict[str, Any]] = field(default_factory=list)
 
+    # Per-connection send lock: serialises websocket.send_json for this
+    # client so concurrent broadcasts + RPC responses never interleave
+    # frames on the same socket.
+    send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
 
 class ClientRegistry:
     """
@@ -237,7 +242,12 @@ class ClientRegistry:
         return delivered
 
     async def safe_send(self, client_id: str, payload: Dict[str, Any], track_stats: bool = True) -> bool:
-        """Send JSON payload if websocket is active."""
+        """Send JSON payload if websocket is active, serialised on a per-client lock.
+
+        Every outbound frame — welcome, request_accepted, response, event,
+        broadcast — goes through here so concurrent producers cannot
+        interleave partial JSON on the same socket.
+        """
         session = self._clients.get(client_id)
         websocket = session.websocket if session else None
         if not session or not websocket:
@@ -246,15 +256,40 @@ class ClientRegistry:
         if not self._is_websocket_connected(websocket):
             return False
 
-        try:
-            await websocket.send_json(payload)
-            if track_stats:
-                session.sent_messages += 1
-            return True
-        except Exception as exc:  # pragma: no cover - network failures
-            if self.debug:
-                ColorPrint.yellow(f"[ClientRegistry] Failed to send payload to {client_id[:8]}... ({exc})")
-            return False
+        async with session.send_lock:
+            # Re-check inside the lock — a supersede could have replaced
+            # session.websocket between the outer check and here.
+            websocket = session.websocket
+            if not websocket or not self._is_websocket_connected(websocket):
+                return False
+            try:
+                await websocket.send_json(payload)
+                if track_stats:
+                    session.sent_messages += 1
+                return True
+            except Exception as exc:  # pragma: no cover - network failures
+                if self.debug:
+                    frame_type = payload.get("type") if isinstance(payload, dict) else "?"
+                    route = payload.get("route") if isinstance(payload, dict) else None
+                    request_id = (
+                        (payload.get("id") or payload.get("event_id")) if isinstance(payload, dict) else None
+                    )
+                    ColorPrint.yellow(
+                        f"[ClientRegistry] send failed client={client_id[:8]} "
+                        f"type={frame_type} route={route} id={request_id} err={exc}"
+                    )
+                return False
+
+    # Public alias — new call sites should reference send_to_client so the
+    # unified send path is discoverable from search. safe_send retained for
+    # existing callers.
+    async def send_to_client(
+        self,
+        client_id: str,
+        payload: Dict[str, Any],
+        track_stats: bool = True,
+    ) -> bool:
+        return await self.safe_send(client_id, payload, track_stats=track_stats)
 
     @staticmethod
     def _is_websocket_connected(websocket: Any) -> bool:

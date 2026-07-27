@@ -53,7 +53,8 @@ $GlobalVarsPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\Globa
 .PARAMETER InstallType
     Supported installation methods:
     - "winget"  : Windows Package Manager (default, recommended for Windows)
-    - "npm"     : Node.js Package Manager (for JavaScript/Node.js packages)
+    - "npm"     : Routed to pnpm (legacy alias; prefer "pnpm")
+    - "pnpm"    : pnpm via Global:PNPM_EXE_PATH absolute path (Node.js packages)
     - "pip"     : Python Package Installer (for Python packages)
     - "pipx"    : Python Package Installer for Applications (isolated Python apps)
     - "uv"      : Fast Python package installer and resolver
@@ -402,7 +403,7 @@ $Global:BasePackages = @{
         Name               = "MermaidCLI"
         DesktopCategory    = $Global:DESKTOP_CATEGORY_DOCUMENT_TOOLS
         Description        = "Mermaid CLI - Command line interface for Mermaid diagrams"
-        InstallType        = "npm"
+        InstallType        = "pnpm"
         ForceToInstallDir  = $false
         VerifySuffix       = "--version"
         AdditionalKeywords = @("mermaid", "mermaid-cli")
@@ -774,7 +775,9 @@ $Global:APPLICATIONS_PACKAGES = @{
         ForceToInstallDir   = $true
         VerifySuffix        = ""
         MenuName            = "Open with Cursor"
-        AppCustomInstallDir = "C:\Users\$env:USERNAME\AppData\Local\Programs\cursor"
+        # winget --location: install under APP_INSTALL_DIR (idempotent; repairs if found elsewhere)
+        AppCustomInstallDir = $Global:CURSOR_INSTALL_DIR
+        AdditionalKeywords  = @("cursor", "Cursor.exe")
         DesktopShortcuts    = @(
             @{
                 CreateDesktopShortcut = $true
@@ -815,24 +818,6 @@ $Global:APPLICATIONS_PACKAGES = @{
                 Type = @("AddExec")
             }
         )
-    }
-    # Step16 install source: this .ps1 only. ApplicationsList.xml/JSON are not loaded by install flow (see Step16 line 71).
-    # Official CLI: run command "agent" after install (https://cursor.com/docs/cli/overview). Executable: agent.exe.
-    CursorAgent     = @{
-        Exec                = "agent.exe"
-        Name                = "CursorAgent"
-        DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
-        Description         = "Cursor Agent - AI-powered coding assistant (CLI)"
-        InstallType         = "powershell"
-        ForceToInstallDir   = $false
-        VerifySuffix        = "--version"
-        AdditionalKeywords  = @("agent", "cursor", "cursor-agent")
-        EnvVars             = @(
-            @{
-                Type = @("Path")
-            }
-        )
-        PowerShellCommand   = "irm 'https://cursor.com/install?win32=true' | iex"
     }
     Bandizip        = @{
         PackageId            = "Bandisoft.Bandizip"
@@ -1171,7 +1156,7 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         Name               = "ClaudeCodeRouter"
         DesktopCategory    = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
         Description        = "Claude Code Router for AI-powered code analysis and routing"
-        InstallType        = "npm"
+        InstallType        = "pnpm"
         ForceToInstallDir  = $false
         VerifySuffix       = ""
         AdditionalKeywords = @("claude-code-router", "claude-router", "code-analysis")
@@ -1221,7 +1206,7 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         Name              = "GeminiCli"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
         Description       = "Google Gemini CLI - AI assistant with MCP server integration support"
-        InstallType       = "npm"
+        InstallType       = "pnpm"
         ForceToInstallDir = $false
         VerifySuffix      = "--version"
         AdditionalKeywords = @("gemini-cli", "gemini.cmd", "gemini.bat")
@@ -1245,7 +1230,7 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         Name              = "ClaudeCode"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
         Description       = "Anthropic Claude Code - AI-powered development assistant"
-        InstallType       = "npm"
+        InstallType       = "pnpm"
         ForceToInstallDir = $false
         VerifySuffix      = "--version"
         AdditionalKeywords = @("claude", "claude-code")
@@ -1261,7 +1246,7 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         Name                = "OpenClaw"
         DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
         Description         = "OpenClaw - Personal AI assistant (https://openclaw.ai), WhatsApp/Telegram/Slack/Discord gateway with Pi RPC agent"
-        InstallType         = "npm"
+        InstallType         = "pnpm"
         ForceToInstallDir   = $false
         VerifySuffix        = ""
         AdditionalKeywords = @("openclaw", "claw", "openclaw-gateway")
@@ -1278,10 +1263,72 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
         Description         = "Qwen Code - Alibaba QwenLM coding agent CLI"
         # Official: https://github.com/QwenLM/qwen-code
-        InstallType         = "npm"
+        InstallType         = "pnpm"
         ForceToInstallDir   = $false
         VerifySuffix        = "--version"
         AdditionalKeywords  = @("qwen", "qwen-code", "qwen.cmd")
+        DesktopShortcuts    = @()
+        EnvVars             = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+    }
+    # Official CLI: run command "agent" after install (https://cursor.com/docs/cli/overview). Executable: agent.exe.
+    # Formerly Step128_InstallCursorAgent.ps1; installed via Step21 DevSoftwarePackages.
+    CursorAgent     = @{
+        Exec                = "agent.exe"
+        Name                = "CursorAgent"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description         = "Cursor Agent - AI-powered coding assistant (CLI)"
+        InstallType         = "powershell"
+        ForceToInstallDir   = $false
+        VerifySuffix        = "--version"
+        AdditionalKeywords  = @("agent", "cursor", "cursor-agent")
+        EnvVars             = @(
+            @{
+                Type = @("Path")
+            }
+        )
+        PowerShellCommand   = "irm 'https://cursor.com/install?win32=true' | iex"
+        PostInstallCallbacks = @(
+            @{
+                Type = "CursorAgent"
+            }
+        )
+    }
+    # Official: https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started
+    # Formerly Step129_InstallKimiCode.ps1; installed via Step21 DevSoftwarePackages.
+    KimiCode = @{
+        PackageId           = ""
+        Exec                = "kimi.exe"
+        Name                = "KimiCode"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description         = "Kimi Code CLI - AI coding agent for the terminal by Moonshot AI"
+        InstallType         = "powershell"
+        ForceToInstallDir   = $false
+        VerifySuffix        = "--version"
+        AdditionalKeywords  = @("kimi", "kimi-code", "kimi.exe", "kimi.cmd")
+        DesktopShortcuts    = @()
+        EnvVars             = @(
+            @{
+                Type = @("Path")
+            }
+        )
+        PowerShellCommand   = "irm 'https://code.kimi.com/kimi-code/install.ps1' | iex"
+    }
+    # Official: https://docs.cline.bot/getting-started/installing-cline (pnpm add -g cline)
+    # Formerly Step130_InstallClineCLI.ps1; installed via Step21 DevSoftwarePackages.
+    ClineCLI = @{
+        PackageId           = "cline"
+        Exec                = "cline"
+        Name                = "ClineCLI"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description         = "Cline CLI - AI coding agent for terminal workflows"
+        InstallType         = "pnpm"
+        ForceToInstallDir   = $false
+        VerifySuffix        = "--version"
+        AdditionalKeywords  = @("cline", "cline.cmd", "cline.bat")
         DesktopShortcuts    = @()
         EnvVars             = @(
             @{
@@ -1295,8 +1342,8 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         Name                = "ArkCli"
         DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
         Description         = "Volcano Engine Ark CLI - Ark MaaS toolbox"
-        # Official: https://github.com/volcengine/ark-cli
-        InstallType         = "npm"
+        # Official: https://github.com/volcengine/ark-cli (pnpm: @volcengine/ark-cli)
+        InstallType         = "pnpm"
         ForceToInstallDir   = $false
         VerifySuffix        = "--version"
         AdditionalKeywords  = @("arkcli", "ark-cli", "arkcli.cmd")
@@ -1394,7 +1441,7 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         Name              = "OpenAICodex"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
         Description       = "OpenAI Codex - AI code generation and completion tool"
-        InstallType       = "npm"
+        InstallType       = "pnpm"
         ForceToInstallDir = $false
         VerifySuffix      = "--version"
         AdditionalKeywords = @("codex", "openai-codex")
@@ -1504,8 +1551,8 @@ $Global:MCP_SERVICES_PACKAGES = @{
     AlibabaDataworksMCP = @{
         Name              = "AlibabaDataworksMCP"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
-        Description       = "Alibaba Cloud DataWorks MCP Server - Cloud data processing and management (npm global install)"
-        InstallType       = "npm"
+        Description       = "Alibaba Cloud DataWorks MCP Server - Cloud data processing and management (pnpm global install)"
+        InstallType       = "pnpm"
         PackageId         = "alibabacloud-dataworks-mcp-server"
         ForceToInstallDir = $false
         VerifySuffix      = ""
@@ -1627,14 +1674,16 @@ $Global:COMMON_SOFTWARE_PACKAGES = @{
         )
     }
     WeChat = @{
-        Exec               = "WeChat.exe"
+        Exec               = "Weixin.exe"
         Name               = "WeChat"
         DesktopCategory    = $Global:DESKTOP_CATEGORY_SOCIAL_MEDIA
-        Description        = "Popular instant messaging and social media app"
+        Description        = "Popular instant messaging and social media app (Weixin)"
         InstallType        = "postscript"
         InstallScript      = "WeChatInstallProcessor.ps1"
-        AdditionalKeywords = @($Global:CHINESE_WEIXIN, "WeChat", "Weixin")
+        AppCustomInstallDir = $Global:WEIXIN_INSTALL_DIR
+        AdditionalKeywords = @("Weixin.exe", "WeChat.exe", "WeChat", "Weixin", $Global:CHINESE_WEIXIN)
         InstallSearchPaths = @(
+            $Global:WEIXIN_INSTALL_DIR,
             "C:\Program Files\Tencent\WeChat",
             "C:\Program Files (x86)\Tencent\WeChat",
             (Join-Path $env:LOCALAPPDATA "Tencent\WeChat"),
@@ -1670,9 +1719,20 @@ $Global:COMMON_SOFTWARE_PACKAGES = @{
         DesktopCategory    = $Global:DESKTOP_CATEGORY_SOCIAL_MEDIA
         Description        = "Next-generation QQ instant messaging client"
         InstallType        = "winget"
-        ForceToInstallDir  = $false
+        # Same pattern as Cursor/Weixin: GlobalVars constant + winget --location + repair if needed
+        ForceToInstallDir   = $true
+        AppCustomInstallDir = $Global:QQ_INSTALL_DIR
         VerifySuffix       = ""
-        AdditionalKeywords = @("QQ", "QQNT")
+        AdditionalKeywords = @("QQ.exe", "QQNT", "QQ")
+        InstallSearchPaths = @(
+            $Global:QQ_INSTALL_DIR,
+            "C:\Program Files\Tencent\QQNT",
+            "C:\Program Files\Tencent\QQ",
+            "C:\Program Files (x86)\Tencent\QQNT",
+            "C:\Program Files (x86)\Tencent\QQ",
+            (Join-Path $env:LOCALAPPDATA "Programs\QQ"),
+            (Join-Path $env:LOCALAPPDATA "Tencent\QQ")
+        )
         DesktopShortcuts   = @(
             @{
                 CreateDesktopShortcut = $true

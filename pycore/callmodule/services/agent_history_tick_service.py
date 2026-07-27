@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""PyHeartbeat tick service — continuously extracts local AI agent history."""
+"""PyHeartbeat tick service — extract and article pipeline on separate locks."""
 
 from __future__ import annotations
 
@@ -13,49 +13,136 @@ from pycore.pyctl.agent_history.agent_history_service import get_agent_history_s
 from pycore.callmodule.services.agent_history_article_service import get_agent_history_article_service
 
 DEFAULT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
+EXTRACT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_EXTRACT_INTERVAL", "60"))
+PIPELINE_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_PIPELINE_INTERVAL", str(DEFAULT_INTERVAL)))
+
+CALLBACK_EXTRACT = "agent_history_extraction"
+CALLBACK_PIPELINE = "agent_history_pipeline"
 
 
-class AgentHistoryTickService:
-    """Singleton: one incremental extraction pass per heartbeat tick."""
+class _ExtractGate:
+    """Serialized extract pass — must not share a lock with the article pipeline."""
 
-    def __init__(self) -> None:
-        self._tick_count = 0
-        self._last_summary: Dict[str, Any] = {}
+    def __init__(self, owner: "AgentHistoryTickService") -> None:
+        self._owner = owner
         init_serialized_owner(
             self,
-            "agent_history_tick.state",
-            "AgentHistoryTickState",
+            "agent_history.extract",
+            "AgentHistoryExtract",
             timeout=300.0,
         )
 
     @serialized_method
+    def run(self) -> None:
+        self._owner._run_extract()
+
+
+class _PipelineGate:
+    """Serialized article pipeline pass — independent of extract."""
+
+    def __init__(self, owner: "AgentHistoryTickService") -> None:
+        self._owner = owner
+        init_serialized_owner(
+            self,
+            "agent_history.pipeline",
+            "AgentHistoryPipeline",
+            timeout=300.0,
+        )
+
+    @serialized_method
+    def run(self) -> None:
+        self._owner._run_pipeline()
+
+
+class AgentHistoryTickService:
+    """Singleton: extract and pipeline heartbeats with a lock-free status snapshot."""
+
+    def __init__(self) -> None:
+        self._extract_count = 0
+        self._pipeline_count = 0
+        self._last_summary: Dict[str, Any] = {}
+        # Snapshot for UI polls — plain attribute reads, never waits on extract/pipeline.
+        self._snapshot: Dict[str, Any] = {
+            "tick_count": 0,
+            "extract_count": 0,
+            "pipeline_count": 0,
+            "last": {},
+            "interval": DEFAULT_INTERVAL,
+            "extract_interval": EXTRACT_INTERVAL,
+            "pipeline_interval": PIPELINE_INTERVAL,
+        }
+        self._extract_gate = _ExtractGate(self)
+        self._pipeline_gate = _PipelineGate(self)
+
+    def _publish_snapshot(self) -> None:
+        self._snapshot = {
+            "tick_count": int(self._extract_count) + int(self._pipeline_count),
+            "extract_count": int(self._extract_count),
+            "pipeline_count": int(self._pipeline_count),
+            "last": dict(self._last_summary) if isinstance(self._last_summary, dict) else {},
+            "interval": DEFAULT_INTERVAL,
+            "extract_interval": EXTRACT_INTERVAL,
+            "pipeline_interval": PIPELINE_INTERVAL,
+        }
+
+    def get_status_snapshot(self) -> Dict[str, Any]:
+        """Lock-free status for article_logs / UI (never blocks on extract/pipeline)."""
+        snap = self._snapshot
+        return dict(snap) if isinstance(snap, dict) else {
+            "tick_count": 0,
+            "extract_count": 0,
+            "pipeline_count": 0,
+            "last": {},
+            "interval": DEFAULT_INTERVAL,
+        }
+
+    def get_status(self) -> Dict[str, Any]:
+        """Public status — same as snapshot (no serialized wait)."""
+        return self.get_status_snapshot()
+
+    def tick_extract(self) -> None:
+        """Heartbeat: incremental history extract only."""
+        self._extract_gate.run()
+
+    def tick_pipeline(self) -> None:
+        """Heartbeat: at most one article batch."""
+        self._pipeline_gate.run()
+
     def tick(self) -> None:
-        self._tick_count += 1
+        """Compatibility: run extract then pipeline (each on its own lock)."""
+        self.tick_extract()
+        self.tick_pipeline()
+
+    def _run_extract(self) -> None:
+        self._extract_count += 1
         try:
             result = get_agent_history_service().extract(force=False)
-            self._last_summary = result
+            self._last_summary = result if isinstance(result, dict) else {}
             if result.get("changed"):
                 ColorPrint.gray(
                     f"[AgentHistory] updated: {result.get('changed')} sources, "
                     f"{result.get('sessions', '?')} sessions, {result.get('prompts', '?')} prompts"
                 )
-            try:
-                published = get_agent_history_article_service().tick_pipeline()
-                if published:
-                    mode = "live" if published.get("live") else "backfill"
-                    THREAD_BUS.trigger_event("article.published", published)
-                    ColorPrint.gray(
-                        f"[AgentHistoryArticle] {mode} article published: "
-                        f"{published.get('title_en') or published.get('article_id')}"
-                    )
-            except Exception as art_err:  # noqa: BLE001
-                ColorPrint.yellow(f"[AgentHistoryArticle] pipeline tick error: {art_err}")
         except Exception as e:  # noqa: BLE001
-            ColorPrint.yellow(f"[AgentHistory] tick error: {e}")
+            ColorPrint.yellow(f"[AgentHistory] extract tick error: {e}")
+        finally:
+            self._publish_snapshot()
 
-    @serialized_method
-    def get_status(self) -> Dict[str, Any]:
-        return {"tick_count": self._tick_count, "last": self._last_summary, "interval": DEFAULT_INTERVAL}
+    def _run_pipeline(self) -> None:
+        self._pipeline_count += 1
+        try:
+            published = get_agent_history_article_service().tick_pipeline()
+            if published:
+                mode = "live" if published.get("live") else "backfill"
+                THREAD_BUS.trigger_event("article.published", published)
+                ColorPrint.gray(
+                    f"[AgentHistoryArticle] {mode} article published: "
+                    f"{published.get('title_en') or published.get('article_id')}"
+                )
+        except Exception as art_err:  # noqa: BLE001
+            ColorPrint.yellow(f"[AgentHistoryArticle] pipeline tick error: {art_err}")
+        finally:
+            self._publish_snapshot()
 
 
 class _AgentHistoryTickProvider:

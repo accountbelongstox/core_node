@@ -8,6 +8,7 @@ import { PcLiveProvider } from './PcLiveContext';
 import { PcLaravelEndpointProvider } from './PcLaravelEndpointContext';
 import { PcCapabilityProvider } from './PcCapabilityContext';
 import { PcVideoExtractProvider } from './PcVideoExtractContext';
+import { QueueCenterHubProvider } from './hooks/useQueueCenterHub';
 
 export function PcProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -15,7 +16,9 @@ export function PcProviders({ children }: { children: React.ReactNode }) {
       <PcLaravelEndpointProvider>
         <PcCapabilityProvider>
           <PcVideoExtractProvider>
-            {children}
+            <QueueCenterHubProvider>
+              {children}
+            </QueueCenterHubProvider>
           </PcVideoExtractProvider>
         </PcCapabilityProvider>
       </PcLaravelEndpointProvider>

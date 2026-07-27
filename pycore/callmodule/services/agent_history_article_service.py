@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Agent History -> raw batches -> OpenRouter CN article -> local-LLM EN translation -> TTS -> cache + Laravel."""
+"""Agent History -> raw batches -> OpenRouter CN + EN -> local TTS -> cache + Laravel."""
 
 from __future__ import annotations
 
 import base64
 import json
 import re
-import tempfile
 import time
 import uuid
 from collections import deque
@@ -16,7 +15,8 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.pyfoundations.system_paths import get_user_data_store
+from pycore.pyfoundations.system_paths import get_user_data_store, get_local_data_dir, get_app_cache_dir
+from pycore.pyfoundations.tts_engine_policy import configured_tts_priority
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 import pycore.callmodule.services.agent_history_article_records as records
 from pycore.pyctl.agent_history.agent_history_fragments import (
@@ -25,20 +25,23 @@ from pycore.pyctl.agent_history.agent_history_fragments import (
     count_words,
     sanitize_fragment_text,
 )
-from pycore.pyctl.ai import generate_text
-from pycore.pyctl.ai.ai_rate_limits import rate_status
-from pycore.pyutils.llm.llm_orchestrator import chat as llm_orchestrator_chat
-from pycore.pyutils.tts import synthesize
+from pycore.pyctl.ai.ai_chat import chat_once
+from pycore.pyctl.ai.ai_rate_limits import check_rate_limit, rate_status
+from pycore.pyutils.tts import synthesize, engine_available
 from pycore.callmodule.services.sync.laravel_endpoint_manager import get_laravel_endpoint_manager
 
 _SECTION = "agent_history_article"
 _DEFAULT_MODEL = "openrouter/free"
 _JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 _LOG_RING_MAX = 120
-# Consecutive failures of the SAME batch before it is skipped (deterministic
-# failures must not retry forever, silently).
+# Consecutive failures before logging a held-batch warning (cursor never advances
+# on OpenRouter / TTS failure — the batch is kept for the next tick).
 _MAX_BATCH_ATTEMPTS = 5
-# Target-language code -> TTS orchestrator language code (edge-tts voices).
+_QUOTA_ERROR = "openrouter daily request limit reached"
+_NO_LOCAL_TTS = "no local TTS engine available"
+# Module import ≈ process start for this worker — used to drop pre-boot last_error.
+_PROCESS_STARTED_AT = time.time()
+# Target-language code -> TTS orchestrator language code.
 _TTS_LANG_MAP = {
     "EN": "en", "CN": "zh", "JA": "ja", "KO": "ko", "FR": "fr", "DE": "de",
     "ES": "es", "RU": "ru", "AR": "ar", "PT": "pt", "IT": "it", "TH": "th",
@@ -114,6 +117,7 @@ def _default_config() -> Dict[str, Any]:
             "attempts": 0,
         },
         "last_error": None,
+        "last_error_at": None,
         "last_run_at": None,
         "published": [],
     }
@@ -153,7 +157,7 @@ class AgentHistoryArticleService:
         store = get_user_data_store()
         cfg = store.get_section(_SECTION) or {}
         out = _default_config()
-        out.update({k: v for k, v in cfg.items() if k in out or k == "cursor"})
+        out.update({k: v for k, v in cfg.items() if k in out or k == "cursor" or k == "last_error_at"})
         if not isinstance(out.get("cursor"), dict):
             out["cursor"] = _default_config()["cursor"]
         if not isinstance(out.get("published"), list):
@@ -172,8 +176,6 @@ class AgentHistoryArticleService:
         cfg["reference_lang"] = "CN"
         cfg["target_lang"] = "EN"
         if patch.get("enabled") is True:
-            # ON toggle = master switch: the next heartbeat tick runs the full
-            # pipeline automatically (backfill -> live), no manual start call.
             cfg["extract_as_article"] = True
             cfg["live_listen"] = True
             if cfg.get("phase") == "idle":
@@ -202,23 +204,72 @@ class AgentHistoryArticleService:
         rows.sort(key=lambda r: str(r.get("published_at") or ""), reverse=True)
         return rows[: max(1, min(int(limit or 50), 200))]
 
+    def _set_last_error(self, cfg: Dict[str, Any], err: Optional[str]) -> None:
+        cfg["last_error"] = err
+        cfg["last_error_at"] = _now_iso() if err else None
+
+    def _heal_stale_last_error(self, cfg: Dict[str, Any]) -> Dict[str, Any]:
+        """Drop last_error written before this process started (ghost llamacpp etc.)."""
+        if not cfg.get("last_error"):
+            return cfg
+        stamp = cfg.get("last_error_at") or cfg.get("last_run_at")
+        err_ts = 0.0
+        if stamp:
+            try:
+                err_ts = datetime.fromisoformat(str(stamp).replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                err_ts = 0.0
+        if err_ts and err_ts >= _PROCESS_STARTED_AT:
+            return cfg
+        cfg["last_error"] = None
+        cfg["last_error_at"] = None
+        get_user_data_store().set_section(_SECTION, cfg)
+        self._log("info", "cleared stale last_error from before process start")
+        return cfg
+
     def get_logs(self) -> Dict[str, Any]:
         """UI log panel snapshot: recent events + progress + openrouter rate usage.
 
         Pure in-memory (events ring + config JSON + cached pending count + rate
-        status) so the 4s poll can NEVER exceed the GET ceiling regardless of how
-        large the history is — the pending count is refreshed by the heartbeat tick,
-        not recomputed here.
+        status + tick snapshot) so the 4s poll never waits on extract/pipeline locks.
         """
+        from pycore.callmodule.services.agent_history_tick_service import (
+            get_agent_history_tick_service,
+        )
+
         cfg = self.get_config()
         cursor = cfg.get("cursor") or {}
         published = list(cfg.get("published") or [])
         pending = int(self._pending_cache)
         ai_usage: Dict[str, Any] = {}
         try:
-            ai_usage = rate_status("openrouter") or {}
+            raw = rate_status("openrouter") or {}
+            # rate_status(provider) wraps the snapshot under "status".
+            ai_usage = raw.get("status") if isinstance(raw.get("status"), dict) else raw
         except Exception as e:  # noqa: BLE001
             ai_usage = {"provider": "openrouter", "enforced": False, "error": str(e)}
+        # Surface remaining daily REQUESTS (CN + EN each count once; ~500 articles/day).
+        limits = ai_usage.get("limits") if isinstance(ai_usage.get("limits"), dict) else {}
+        usage = ai_usage.get("usage") if isinstance(ai_usage.get("usage"), dict) else {}
+        rpd = limits.get("rpd")
+        used = int(usage.get("day") or 0)
+        remaining = max(0, int(rpd) - used) if isinstance(rpd, int) else None
+        resets = ai_usage.get("resets_in") if isinstance(ai_usage.get("resets_in"), dict) else {}
+        ai_usage["requests"] = {
+            "used": used,
+            "limit": rpd,
+            "remaining": remaining,
+            "unit": "requests",
+            "note": "CN generation + EN translation = 2 requests per article",
+            "resets_in_s": resets.get("day"),
+        }
+        # Shared usage file mtime — do not change the rate_limits store path.
+        usage_path = get_local_data_dir() / ".ai_state" / "ai_rate_usage.json"
+        try:
+            ai_usage["as_of"] = int(usage_path.stat().st_mtime) if usage_path.is_file() else None
+        except OSError:
+            ai_usage["as_of"] = None
+        tick_snap = get_agent_history_tick_service().get_status_snapshot()
         return {
             "events": list(self._events)[:60],
             "progress": {
@@ -234,11 +285,13 @@ class AgentHistoryArticleService:
                 },
                 "last_run_at": cfg.get("last_run_at"),
                 "last_error": cfg.get("last_error"),
+                "last_error_at": cfg.get("last_error_at"),
                 "reference_lang": cfg.get("reference_lang"),
                 "target_lang": cfg.get("target_lang"),
                 "min_raw_words": cfg.get("min_raw_words"),
             },
             "ai_usage": ai_usage,
+            "tick": tick_snap,
         }
 
     def start_backfill(self) -> Dict[str, Any]:
@@ -280,9 +333,19 @@ class AgentHistoryArticleService:
     def tick_pipeline(self) -> Optional[Dict[str, Any]]:
         """Process at most one raw batch per heartbeat (backfill then live)."""
         cfg = self.get_config()
+        cfg = self._heal_stale_last_error(cfg)
         if not cfg.get("enabled") or not cfg.get("extract_as_article"):
             return None
         phase = str(cfg.get("phase") or "idle")
+        if phase == "paused_quota":
+            # Resume only when OpenRouter daily budget has room again.
+            if not self._openrouter_day_remaining():
+                return None
+            cfg["phase"] = "live" if cfg.get("live_listen", True) else "backfill"
+            self._set_last_error(cfg, None)
+            get_user_data_store().set_section(_SECTION, cfg)
+            self._log("info", "openrouter quota recovered — resuming pipeline")
+            phase = str(cfg.get("phase"))
         if phase == "idle":
             # Master switch on but never kicked (e.g. enabled in a stored config
             # from before the ON-toggle auto-start): begin backfill right away.
@@ -343,24 +406,18 @@ class AgentHistoryArticleService:
             except Exception as e:  # noqa: BLE001
                 err = str(e)
                 cfg = self.get_config()
-                cfg["last_error"] = err
+                self._set_last_error(cfg, err)
                 attempts = int(cfg["cursor"].get("attempts") or 0) + 1
                 cfg["cursor"]["attempts"] = attempts
-                if attempts >= _MAX_BATCH_ATTEMPTS:
-                    # Deterministic failure: skip the batch (advance like
-                    # success) instead of retrying it forever, silently.
-                    cfg["cursor"]["raw_index"] = batch_number
-                    cfg["cursor"]["fragment_index"] = next_idx
-                    cfg["cursor"]["after_ts"] = int(batch.get("last_ts") or 0)
-                    cfg["cursor"]["after_fragment_id"] = str(batch.get("last_fragment_id") or "")
-                    cfg["cursor"]["attempts"] = 0
-                    if consumed_all:
-                        cfg["phase"] = "live" if cfg.get("live_listen", True) else "done"
+                # Never advance cursor on OpenRouter / TTS failure — keep the batch.
+                if err == _QUOTA_ERROR or cfg.get("phase") == "paused_quota":
+                    self._log("error", err, event="paused_quota")
+                elif attempts >= _MAX_BATCH_ATTEMPTS:
                     self._log(
                         "error",
-                        f"backfill batch #{batch_number} skipped after {attempts} "
-                        f"failed attempts: {err}",
-                        event="batch_skipped", error=err,
+                        f"backfill batch #{batch_number} held after {attempts} "
+                        f"failed attempts (cursor unchanged): {err}",
+                        event="batch_held", error=err,
                     )
                 else:
                     self._log(
@@ -370,6 +427,19 @@ class AgentHistoryArticleService:
                 get_user_data_store().set_section(_SECTION, cfg)
                 ColorPrint.red(f"[AgentHistoryArticle] backfill batch failed: {e}")
                 return None
+        # Fragments exist but no complete batch yet (below min_raw_words).
+        if frags:
+            pending_words = sum(count_words(str(f.get("text") or "")) for f in frags)
+            self._log(
+                "info",
+                f"pending: {len(frags)} fragments / ~{pending_words} words "
+                f"(need min_raw_words={min_words}) — waiting for more history",
+                event="pending_min_words",
+            )
+            cfg = self.get_config()
+            cfg["last_run_at"] = _now_iso()
+            get_user_data_store().set_section(_SECTION, cfg)
+            return None
         cfg = self.get_config()
         cfg["phase"] = "live" if cfg.get("live_listen", True) else "done"
         cfg["last_run_at"] = _now_iso()
@@ -386,6 +456,14 @@ class AgentHistoryArticleService:
         min_words = int(cfg.get("min_raw_words") or 200)
         batches, _ = build_raw_batches(frags, min_words=min_words, start_index=0)
         if not batches:
+            if frags:
+                pending_words = sum(count_words(str(f.get("text") or "")) for f in frags)
+                self._log(
+                    "info",
+                    f"pending: {len(frags)} fragments / ~{pending_words} words "
+                    f"(need min_raw_words={min_words}) — waiting for more history",
+                    event="pending_min_words",
+                )
             return None
         self._log(
             "info",
@@ -402,18 +480,18 @@ class AgentHistoryArticleService:
         except Exception as e:  # noqa: BLE001
             cfg = self.get_config()
             err = str(e)
-            cfg["last_error"] = err
+            self._set_last_error(cfg, err)
             attempts = int(cfg["cursor"].get("attempts") or 0) + 1
             cfg["cursor"]["attempts"] = attempts
-            if attempts >= _MAX_BATCH_ATTEMPTS:
-                batch = batches[0]
-                cfg["cursor"]["after_ts"] = int(batch.get("last_ts") or 0)
-                cfg["cursor"]["after_fragment_id"] = str(batch.get("last_fragment_id") or "")
-                cfg["cursor"]["attempts"] = 0
+            # Keep the batch — never advance after_ts / after_fragment_id here.
+            if err == _QUOTA_ERROR or cfg.get("phase") == "paused_quota":
+                self._log("error", err, event="paused_quota")
+            elif attempts >= _MAX_BATCH_ATTEMPTS:
                 self._log(
                     "error",
-                    f"live batch skipped after {attempts} failed attempts: {err}",
-                    event="batch_skipped",
+                    f"live batch held after {attempts} failed attempts "
+                    f"(cursor unchanged): {err}",
+                    event="batch_held",
                     error=err,
                 )
             else:
@@ -480,7 +558,7 @@ class AgentHistoryArticleService:
             cfg["cursor"]["after_fragment_id"] = batch["last_fragment_id"]
         if batch.get("last_ts"):
             cfg["cursor"]["after_ts"] = int(batch["last_ts"])
-        cfg["last_error"] = None
+        self._set_last_error(cfg, None)
         get_user_data_store().set_section(_SECTION, cfg)
         self._log(
             "success",
@@ -526,25 +604,59 @@ class AgentHistoryArticleService:
             raise ValueError("model returned non-object JSON")
         return data
 
+    def _openrouter_day_remaining(self) -> bool:
+        """True when OpenRouter daily request budget still has room."""
+        rate = check_rate_limit("openrouter")
+        if rate.allowed:
+            return True
+        msg = (rate.message or "").lower()
+        return "requests/day" not in msg and "day exceeded" not in msg
+
+    def _ensure_openrouter_quota(self) -> None:
+        """Block the pipeline before any OpenRouter call when daily quota is gone.
+
+        chat_once already records successful requests; failed attempts are not
+        counted, so retries cannot burn the budget. We still gate here so the
+        pipeline pauses cleanly instead of thrashing.
+        """
+        rate = check_rate_limit("openrouter")
+        if rate.allowed:
+            return
+        msg = rate.message or "openrouter rate limit"
+        if "requests/day" in msg.lower() or "day exceeded" in msg.lower():
+            cfg = self.get_config()
+            cfg["phase"] = "paused_quota"
+            self._set_last_error(cfg, _QUOTA_ERROR)
+            get_user_data_store().set_section(_SECTION, cfg)
+            self._log("error", _QUOTA_ERROR, event="paused_quota")
+            raise RuntimeError(_QUOTA_ERROR)
+        # RPM / short-window limits: fail this tick, retry later (no permanent pause).
+        self._log("warn", f"openrouter temporarily limited: {msg}")
+        raise RuntimeError(msg)
+
     def _generate_chinese(self, cfg: Dict[str, Any], raw_text: str, model: str) -> Dict[str, Any]:
+        prompt = self._article_prompt_cn(cfg, raw_text)
+        self._ensure_openrouter_quota()
         self._log("info", f"AI generate CN start (openrouter: {model})")
-        res = generate_text(
-            prompt=self._article_prompt_cn(cfg, raw_text),
-            provider="openrouter",
-            model=model,
+        # chat_once pins OpenRouter — generate_text would fall through other providers.
+        res = chat_once(
+            "openrouter",
+            [{"role": "user", "content": prompt}],
+            model,
             source="agent_history_article",
         ) or {}
         if not res.get("success"):
             err = str(res.get("error") or "article generation failed")
-            self._log("error", f"AI generate CN failed: {err}")
-            raise RuntimeError(err)
+            self._log("error", f"AI generate CN failed on openrouter: {err}")
+            raise RuntimeError(f"OpenRouter CN failed: {err}")
+        self._log("success", f"AI CN ok (openrouter/{res.get('model') or model})")
         data = self._parse_json_obj(str(res.get("text") or ""))
         reference_cn = sanitize_fragment_text(str(data.get("reference_cn") or ""))
         if len(reference_cn) < 80:
             raise ValueError("generated Chinese article too short")
         data["reference_cn"] = reference_cn
         data["title_cn"] = str(data.get("title_cn") or "").strip()
-        self._log("success", f"AI CN ok: {len(reference_cn)} chars ({res.get('provider')}/{res.get('model') or model})")
+        data["used_model"] = model
         return data
 
     def _translate_article(
@@ -553,34 +665,23 @@ class AgentHistoryArticleService:
         article_cn: Dict[str, Any],
         model: str,
     ) -> Tuple[Dict[str, Any], str]:
-        """Local LLM translates CN -> EN; falls back to OpenRouter on failure."""
+        """OpenRouter-only CN -> EN translation (no local LLM / other-provider fallback)."""
         prompt = self._translate_prompt(article_cn)
-        messages = [{"role": "user", "content": prompt}]
-        self._log("info", "translate start (built-in local engine priority)")
-        res = llm_orchestrator_chat(messages)
-        if res.get("success"):
-            try:
-                used_engine = str(res.get("engine") or "direct")
-                self._log("success", f"translate ok (local: {used_engine})")
-                return self._parse_json_obj(str(res.get("text") or "")), f"local:{used_engine}"
-            except (ValueError, json.JSONDecodeError) as e:
-                self._log("warn", f"local translation unparseable, fallback to openrouter: {e}")
-        else:
-            self._log("warn", f"local translation failed ({res.get('error')}), fallback to openrouter")
-            ColorPrint.yellow(f"[AgentHistoryArticle] local LLM translate failed: {res.get('error')}")
-        res = generate_text(
-            prompt=prompt,
-            provider="openrouter",
-            model=model,
+        self._ensure_openrouter_quota()
+        self._log("info", f"translate start (openrouter: {model})")
+        res = chat_once(
+            "openrouter",
+            [{"role": "user", "content": prompt}],
+            model,
             source="agent_history_translate",
         ) or {}
         if not res.get("success"):
             err = str(res.get("error") or "translation failed")
-            self._log("error", f"translate failed (openrouter fallback): {err}")
-            raise RuntimeError(err)
+            self._log("error", f"translate failed (openrouter): {err}")
+            raise RuntimeError(f"OpenRouter EN failed: {err}")
         data = self._parse_json_obj(str(res.get("text") or ""))
-        self._log("success", "translate ok (openrouter fallback)")
-        return data, "openrouter-fallback"
+        self._log("success", "translate ok (openrouter)")
+        return data, "openrouter"
 
     def _generate_article(self, cfg: Dict[str, Any], raw_text: str) -> Dict[str, Any]:
         model = str(cfg.get("openrouter_model") or _DEFAULT_MODEL)
@@ -596,7 +697,7 @@ class AgentHistoryArticleService:
             "article_en": article_en,
             "word_count": count_words(article_en),
             "provider": "openrouter",
-            "model": model,
+            "model": article_cn.get("used_model", model),
             "translation_engine": engine,
         }
         self._log(
@@ -611,37 +712,57 @@ class AgentHistoryArticleService:
             raise ValueError("empty article for TTS")
         tts_lang = self._tts_lang_code(str(cfg.get("target_lang") or "EN"))
         accent = "us" if tts_lang == "en" else None
-        self._log("info", f"TTS start (lang={tts_lang}, accent={accent or '-'})")
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-            out = Path(tmp.name)
+        local_order = configured_tts_priority("agent_history")
+        if not any(engine_available(name) for name in local_order):
+            self._log("error", _NO_LOCAL_TTS)
+            raise RuntimeError(_NO_LOCAL_TTS)
+        self._log(
+            "info",
+            f"TTS start (local profile agent_history, lang={tts_lang}, "
+            f"chain={'->'.join(local_order[:6])})",
+        )
+        # Write under app cache (not NamedTemporaryFile): on Windows Defender can
+        # briefly lock a just-closed temp path and make immediate unlink/read race.
+        cache_dir = get_app_cache_dir() / "agent_history_tts"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        out = cache_dir / f"article_{uuid.uuid4().hex}.mp3"
         try:
             result = synthesize(
                 clean,
                 tts_lang,
                 out,
                 accent=accent,
-                priority_profile="sentence",
+                priority_profile="agent_history",
             )
+            engine = str(result.get("engine") or "")
+            if engine in ("edge", "streamelements", "gtts_web", "azure"):
+                self._log("error", f"TTS rejected cloud engine: {engine}")
+                raise RuntimeError(_NO_LOCAL_TTS)
             if not result.get("success") or not out.is_file():
-                err = str(result.get("error") or "TTS failed")
+                err = str(result.get("error") or _NO_LOCAL_TTS)
                 self._log("error", f"TTS failed: {err}")
-                raise RuntimeError(err)
+                raise RuntimeError(err if err else _NO_LOCAL_TTS)
             data = out.read_bytes()
             self._log(
                 "success",
-                f"TTS ok: engine={result.get('engine')}, {len(data)} bytes",
+                f"TTS ok: engine={engine} (local), {len(data)} bytes",
+                tts_engine=engine,
             )
             return {
                 "audio_base64": base64.b64encode(data).decode("ascii"),
-                "engine": result.get("engine"),
+                "engine": engine,
                 "accent": result.get("accent"),
                 "bytes": len(data),
             }
         finally:
-            try:
-                out.unlink(missing_ok=True)
-            except OSError:
-                pass
+            for _attempt in range(5):
+                if not out.exists():
+                    break
+                try:
+                    out.unlink(missing_ok=True)
+                    break
+                except OSError:
+                    time.sleep(0.05 * (_attempt + 1))
 
     def _retry_pending_uploads(self, cfg: Dict[str, Any]) -> None:
         """Re-upload cached records whose Laravel upload previously failed."""

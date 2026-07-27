@@ -10,6 +10,7 @@ use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\EdgeTTS\EdgeTTSService;
 use App\Services\WordAudio\WordAudioClient;
+use App\Services\UserConfig\UserConfigService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -24,11 +25,9 @@ use Illuminate\Support\Facades\Schema;
  *   - word:    {prefix}_tts_cache_{lang} rows (tts_status / tts_attempts /
  *              tts_priority / tts_locked_* / tts_requested_at / tts_completed_at)
  *   - article: {prefix}_{lang}_article_library rows (same tts_* columns)
- *   - sentence: STATELESS — there is no backing row anymore. A sentence task
- *              is resolved against the deterministic EdgeTTS file path; when
- *              the file is missing it is generated SYNCHRONOUSLY inline by
- *              addTask (semantics change vs. the old queue, which deferred
- *              sentence generation to the timer).
+ *   - sentence: file check first. When useServerBinaryAssist is OFF (default),
+ *              bump for pycore and return queued — never call generateAudio.
+ *              When assist is ON, generate synchronously via EdgeTTSService.
  *
  * External response shapes are byte-compatible with the legacy queue API
  * (qy_capacitor + wordflow FE poll these): status strings
@@ -451,8 +450,9 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
-     * SENTENCE task: stateless. Deterministic file check, then synchronous
-     * inline generation (no row, no task_id, no deferred processing).
+     * SENTENCE task: file check first. When useServerBinaryAssist is OFF
+     * (default), enqueue for pycore and return queued — never call generateAudio.
+     * When assist is ON, generate synchronously via EdgeTTSService (desktop).
      */
     private function addSentenceTask(string $content, string $language): array
     {
@@ -465,6 +465,32 @@ class AppQyV1UnifiedTTSQueueService
                 'status' => 'already_available',
                 'audio_path' => $relativePath,
                 'audio_url' => AppQyV1TtsUrl::forPath($relativePath),
+            ];
+        }
+
+        // Default OFF: Laravel must not synthesize — leave pending for pycore.
+        if (!app(UserConfigService::class)->useServerBinaryAssist()) {
+            try {
+                $contentId = md5($content);
+                (new AppQyV1SentenceAudioService())->bumpPriority(
+                    $contentId,
+                    $language,
+                    true,
+                    true,
+                    $content
+                );
+            } catch (\Throwable $e) {
+                Log::warning('[UnifiedTTSQueue] sentence bump for pycore failed', [
+                    'language' => $language,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            return [
+                'success' => true,
+                'status' => 'queued',
+                'queued' => true,
+                'message' => 'Deferred to pycore TTS worker (use_server_binary_assist=off)',
             ];
         }
 
@@ -1492,6 +1518,11 @@ class AppQyV1UnifiedTTSQueueService
      */
     private function processPendingArticles(int $maxArticles): array
     {
+        // Default OFF: do not claim/synthesize articles locally — pycore owns TTS.
+        if (!app(UserConfigService::class)->useServerBinaryAssist()) {
+            return ['processed' => 0, 'succeeded' => 0, 'failed' => 0];
+        }
+
         $processed = 0;
         $succeeded = 0;
         $failed = 0;
@@ -1591,6 +1622,14 @@ class AppQyV1UnifiedTTSQueueService
      */
     private function generateArticleAudio(string $content, string $language): array
     {
+        // Safety gate: never fork EdgeTTS when binary assist is OFF.
+        if (!app(UserConfigService::class)->useServerBinaryAssist()) {
+            return [
+                'success' => false,
+                'error' => 'Local article TTS disabled; deferred to pycore (use_server_binary_assist=off)',
+            ];
+        }
+
         $sentences = $this->splitIntoSentences($content);
 
         if (empty($sentences)) {

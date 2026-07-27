@@ -20,6 +20,7 @@
  * those replies can never break the UI.
  */
 import { callRpc } from './PycoreWs';
+import { PYCORE_RPC_ROUTES } from './PycoreRpcRoutes';
 
 /** One Laravel API endpoint as known to the pycore backend. */
 export interface LaravelApiEndpoint {
@@ -62,23 +63,23 @@ export const PYCORE_LARAVEL_API_CHANGED_EVENT = 'pycore:laravel-api-changed';
 export const pycoreLaravelApi = {
   /** List known Laravel endpoints + which one is current. */
   list: (): Promise<LaravelApiListResponse> =>
-    callRpc('laravel_api.list', {}),
+    callRpc(PYCORE_RPC_ROUTES.laravelApiList, {}),
 
   /** Add a custom Laravel base URL. */
   add: (url: string): Promise<LaravelApiMutateResponse> =>
-    callRpc('laravel_api.add', { url }),
+    callRpc(PYCORE_RPC_ROUTES.laravelApiAdd, { url }),
 
   /** Remove a (custom) Laravel base URL. */
   remove: (url: string): Promise<LaravelApiMutateResponse> =>
-    callRpc('laravel_api.remove', { url }),
+    callRpc(PYCORE_RPC_ROUTES.laravelApiRemove, { url }),
 
   /** Switch the sync engine's target to `url`. */
   select: (url: string): Promise<LaravelApiMutateResponse> =>
-    callRpc('laravel_api.select', { url }),
+    callRpc(PYCORE_RPC_ROUTES.laravelApiSelect, { url }),
 
   /** Re-probe one endpoint (`url`) or all endpoints (no arg). */
   probe: (url?: string): Promise<LaravelApiMutateResponse> =>
-    callRpc('laravel_api.probe', url ? { url } : {}),
+    callRpc(PYCORE_RPC_ROUTES.laravelApiProbe, url ? { url } : {}),
 };
 
 export type PycoreLaravelApi = typeof pycoreLaravelApi;

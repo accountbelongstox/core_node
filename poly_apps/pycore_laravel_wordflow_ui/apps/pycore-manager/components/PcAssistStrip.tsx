@@ -7,7 +7,7 @@ import {
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { AssistCapabilities, AssistStatus } from '../../../core/api-libs/pycore';
 import {
-  laravelEndpointMismatch, laravelLiveSyncOffline, useQueueCenterHub,
+  laravelEndpointMismatch, laravelLiveSyncOffline, useQueueCenterHub, workerEndpointMismatch,
 } from '../hooks/useQueueCenterHub';
 
 type AssistCapKey = keyof AssistCapabilities;
@@ -24,6 +24,7 @@ export const PcAssistStrip: React.FC = () => {
   const loading = hub.loading;
   const liveSyncOffline = laravelLiveSyncOffline(hub);
   const endpointMismatch = laravelEndpointMismatch(hub);
+  const workerMismatch = workerEndpointMismatch(hub);
   const [runningCycle, setRunningCycle] = useState(false);
   const [capabilityBusy, setCapabilityBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -104,7 +105,14 @@ export const PcAssistStrip: React.FC = () => {
             <WifiOff className="w-3 h-3" /> Laravel live sync paused
           </span>
         )}
-        {endpointMismatch && (
+        {workerMismatch && (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-500"
+            title={`${hub.workerApiUrl} → ${hub.laravelActiveEndpoint}`}>
+            <AlertTriangle className="w-3 h-3" />
+            {t('queueCenter.endpointMismatch')}
+          </span>
+        )}
+        {endpointMismatch && !workerMismatch && (
           <span className="text-[10px] font-mono text-sky-500 truncate max-w-[18rem]"
             title={`Selected ${hub.laravelStoredEndpoint} · active ${hub.laravelActiveEndpoint}`}>
             active → {hub.laravelActiveEndpoint}

@@ -2,33 +2,48 @@
  * PycoreHealth — reachability state + all-Offline retry loop for the
  * pycore-manager end.
  *
- * The pycore end has a single "endpoint": the pycore backend on :59000 (direct).
- * Health = GET /ping answers 2xx within the probe timeout. The shared
- * STORED-FIRST detection contract degenerates here to that single probe (there is
- * nothing to sweep or fail over to), so every check costs exactly one request.
- * other two ends:
- *  - while DOWN, re-ping at a configurable interval (default below,
- *    overridable in PcSettingsPage, read fresh on every tick);
- *  - the loop stops as soon as the backend answers — an up backend is never
- *    polled;
- *  - path-prefix gating: PcApp (mounted only under /pycore-manager) runs the
- *    initial check and owns start/stop of the loop.
+ * The pycore end has a single "endpoint": the pycore backend on :59000
+ * (direct). Health blends TWO signals:
+ *   1. WS liveness (onWsStatus) — no upgrade means definitively down.
+ *      onWsStatus(true) means RPC v2 welcome/ready, not bare WebSocket.OPEN.
+ *   2. RPC probe (`ui.ping`, 3s timeout) — WS ready but RPC unresponsive
+ *      is a real state; probing catches it while `isWsConnected()` alone
+ *      cannot. Two consecutive probe failures are needed before flipping
+ *      to down, so a single transient blip is tolerated.
  *
- * Listeners subscribe via PYCORE_HEALTH_EVENT on window; the interval override
- * lives in plain localStorage (per-browser UI config, synchronous reads).
+ * Loop:
+ *  - while DOWN (ws_disconnected / rpc_unresponsive), re-ping at a
+ *    configurable interval (default below, overridable in PcSettingsPage,
+ *    read fresh on every tick);
+ *  - while PROBING after WS becomes ready, retry failed pings on a short
+ *    interval (not the 60s offline cadence);
+ *  - the loop stops as soon as the backend answers — an up backend is
+ *    never polled;
+ *  - path-prefix gating: PcApp (mounted only under /pycore-manager) runs
+ *    the initial check and owns start/stop of the loop.
+ *
+ * Listeners subscribe via PYCORE_HEALTH_EVENT on window; the interval
+ * override lives in plain localStorage (per-browser UI config).
  */
 import {
   OfflineRecheckScheduler,
   clampRecheckInterval,
 } from '../../health/OfflineRecheckScheduler';
-import { rewritePycoreEndpoint } from './pycoreTarget';
-import { isWsConnected } from './PycoreWs';
+import { isWsConnected, onWsStatus, callRpc } from './PycoreWs';
+
+export type PycoreReachability =
+  | 'unknown'
+  | 'probing'
+  | 'ws_disconnected'
+  | 'rpc_unresponsive'
+  | 'healthy';
 
 export interface PycoreHealthState {
-  /** null until the first check finishes. */
+  /** null until the first decisive check finishes (or while probing). */
   up: boolean | null;
   responseTime: number | null;
   timestamp: number | null;
+  reachability: PycoreReachability;
 }
 
 export const PYCORE_HEALTH_EVENT = 'pycore-health-changed';
@@ -36,64 +51,100 @@ export const PYCORE_HEALTH_EVENT = 'pycore-health-changed';
 export const PYCORE_HEALTH_DEFAULTS = {
   /** Default ALL-Offline retry interval (ms). */
   healthCheckInterval: 60_000,
-  /** Probe timeout (ms) — matches the other ends' 3s cold-start allowance. */
-  timeout: 3_000,
+  /** ui.ping RPC probe timeout (ms). Short — long enough to survive a
+   *  cold Octane hit but not so long that a stalled bus locks the UI. */
+  pingTimeoutMs: 3_000,
+  /** Consecutive probe failures required before flipping to down.
+   *  A single 3s miss on a busy machine is not enough evidence. */
+  failuresBeforeDown: 2,
+  /** Short gap between probe attempts while reachability is probing. */
+  probeRetryMs: 750,
 };
 
-const RECHECK_INTERVAL_LS_KEY = 'pc_health_recheck_interval_ms';
+const RECHECK_INTERVAL_MS_KEY = 'pc_health_recheck_interval_ms';
 
-let lastState: PycoreHealthState = { up: null, responseTime: null, timestamp: null };
-
-export function getPycoreHealth(): PycoreHealthState {
-  return lastState;
-}
+let lastState: PycoreHealthState = {
+  up: null,
+  responseTime: null,
+  timestamp: null,
+  reachability: 'unknown',
+};
+let wsStatusBound = false;
+let inFlight: Promise<boolean> | null = null;
+let consecutiveFailures = 0;
+let probeRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function getPycoreRecheckIntervalMs(): number {
-  const raw = localStorage.getItem(RECHECK_INTERVAL_LS_KEY);
+  const raw = localStorage.getItem(RECHECK_INTERVAL_MS_KEY);
   const parsed = raw === null ? NaN : Number(raw);
   return clampRecheckInterval(parsed, PYCORE_HEALTH_DEFAULTS.healthCheckInterval);
 }
 
 export function setPycoreRecheckIntervalMs(ms: number): void {
   const clamped = clampRecheckInterval(ms, PYCORE_HEALTH_DEFAULTS.healthCheckInterval);
-  localStorage.setItem(RECHECK_INTERVAL_LS_KEY, String(clamped));
+  localStorage.setItem(RECHECK_INTERVAL_MS_KEY, String(clamped));
 }
 
-/** Single-flight: interval ticks and manual re-checks share one in-flight ping. */
-let inFlight: Promise<boolean> | null = null;
+function clearProbeRetry(): void {
+  if (probeRetryTimer != null) {
+    clearTimeout(probeRetryTimer);
+    probeRetryTimer = null;
+  }
+}
 
-/** One ping with the probe timeout; updates state and notifies listeners. */
+function scheduleProbeRetry(): void {
+  clearProbeRetry();
+  probeRetryTimer = setTimeout(() => {
+    probeRetryTimer = null;
+    void checkPycoreNow();
+  }, PYCORE_HEALTH_DEFAULTS.probeRetryMs);
+}
+
+/** Read WS liveness + RPC probe and notify listeners. */
 export function checkPycoreNow(): Promise<boolean> {
+  ensureWsHealthSubscription();
   if (inFlight) return inFlight;
 
   inFlight = (async () => {
     const start = performance.now();
-    let up = false;
-    // WS liveness IS reachability: when the RPC bus is connected, pycore is up, so
-    // health rides the WS transport with no HTTP probe. Only when WS is NOT
-    // connected do we fall back to a one-shot HTTP /ping (you cannot probe over a
-    // socket that isn't open) to detect recovery.
-    if (isWsConnected()) {
-      up = true;
-    } else {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), PYCORE_HEALTH_DEFAULTS.timeout);
-      try {
-        const response = await fetch(rewritePycoreEndpoint('/ping'), { signal: controller.signal });
-        up = response.ok;
-      } catch {
-        up = false;
-      } finally {
-        clearTimeout(timeoutId);
-      }
+    if (!isWsConnected()) {
+      // Nothing to probe — WS / RPC ready handshake is not up.
+      consecutiveFailures = 0;
+      clearProbeRetry();
+      applyReachability('ws_disconnected', Math.round(performance.now() - start));
+      return false;
     }
-    lastState = {
-      up,
-      responseTime: Math.round(performance.now() - start),
-      timestamp: Date.now(),
-    };
-    window.dispatchEvent(new CustomEvent(PYCORE_HEALTH_EVENT));
-    return up;
+    // WS is RPC-ready. Probe RPC to distinguish healthy from unresponsive.
+    let rpcOk = false;
+    try {
+      await callRpc('ui.ping', {}, PYCORE_HEALTH_DEFAULTS.pingTimeoutMs);
+      rpcOk = true;
+    } catch {
+      rpcOk = false;
+    }
+    const ms = Math.round(performance.now() - start);
+    if (rpcOk) {
+      consecutiveFailures = 0;
+      clearProbeRetry();
+      applyReachability('healthy', ms);
+      return true;
+    }
+    consecutiveFailures += 1;
+    if (consecutiveFailures >= PYCORE_HEALTH_DEFAULTS.failuresBeforeDown) {
+      clearProbeRetry();
+      applyReachability('rpc_unresponsive', ms);
+      return false;
+    }
+    // First miss after ready: stay probing (up=null). Never retain a prior
+    // ws_disconnected/false across a successful welcome handshake.
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[pycore-health] ui.ping failed (attempt ${consecutiveFailures}/${PYCORE_HEALTH_DEFAULTS.failuresBeforeDown}); ` +
+      'keeping probing state.',
+    );
+    applyReachability('probing', ms);
+    scheduleProbeRetry();
+    return false;
   })().finally(() => {
     inFlight = null;
   });
@@ -106,23 +157,85 @@ const scheduler = new OfflineRecheckScheduler({
   getIntervalMs: getPycoreRecheckIntervalMs,
 });
 
+function applyReachability(reachability: PycoreReachability, responseTime: number): void {
+  const up =
+    reachability === 'healthy'
+      ? true
+      : reachability === 'probing' || reachability === 'unknown'
+        ? null
+        : false;
+  lastState = {
+    up,
+    responseTime,
+    timestamp: Date.now(),
+    reachability,
+  };
+  window.dispatchEvent(new CustomEvent(PYCORE_HEALTH_EVENT));
+  if (up === true) {
+    clearProbeRetry();
+    scheduler.stop();
+  } else if (up === false) {
+    // Decisive offline — use the long offline recheck cadence.
+    scheduler.start();
+  } else {
+    // probing / unknown — do not run the 60s offline loop.
+    scheduler.stop();
+  }
+}
+
+function ensureWsHealthSubscription(): void {
+  if (wsStatusBound) return;
+  wsStatusBound = true;
+  onWsStatus((connected) => {
+    if (!connected) {
+      consecutiveFailures = 0;
+      clearProbeRetry();
+      applyReachability('ws_disconnected', 0);
+      return;
+    }
+    // WS became RPC-ready: clear offline state, enter probing, short-retry
+    // probes — never keep the prior ws_disconnected/up=false snapshot.
+    consecutiveFailures = 0;
+    clearProbeRetry();
+    scheduler.stop();
+    applyReachability('probing', 0);
+    void checkPycoreNow();
+  });
+}
+
+export function getPycoreHealth(): PycoreHealthState {
+  ensureWsHealthSubscription();
+  return lastState;
+}
+
 /**
- * Manual re-check (PcSettingsPage button). Also re-syncs the loop: still down
- * → (re)start it, recovered → stop it.
+ * Manual re-check (PcSettingsPage button). Also re-syncs the loop.
  */
 export async function recheckPycoreNow(): Promise<boolean> {
   const up = await checkPycoreNow();
-  if (up) scheduler.stop();
-  else scheduler.start();
+  if (up) {
+    clearProbeRetry();
+    scheduler.stop();
+  } else if (lastState.up === false) {
+    scheduler.start();
+  }
   return up;
 }
 
 /** Align the loop with current state: run only while the backend is down. */
 export function syncPycoreOfflineRecheckLoop(): void {
-  if (lastState.up) scheduler.stop();
-  else scheduler.start();
+  ensureWsHealthSubscription();
+  if (lastState.up === true) {
+    clearProbeRetry();
+    scheduler.stop();
+  } else if (lastState.up === false) {
+    scheduler.start();
+  } else {
+    scheduler.stop();
+  }
 }
 
 export function stopPycoreOfflineRecheckLoop(): void {
+  clearProbeRetry();
   scheduler.stop();
 }

@@ -321,6 +321,9 @@ class AppQyV1TranslationQueueController extends Controller
      */
     public function controlList(Request $request): JsonResponse
     {
+        $startTime = microtime(true);
+        $requestId = $request->header('X-Request-ID', uniqid('req_', true));
+
         $validated = $request->validate([
             'status' => 'nullable|string',
             'limit' => 'nullable|integer|min:1|max:1000',
@@ -377,6 +380,7 @@ class AppQyV1TranslationQueueController extends Controller
 
             $pending = $countFor([GlobalTask::STATUS_PENDING]);
             $processing = $countFor([GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING]);
+            $leased = $countFor([GlobalTask::STATUS_ASSIGNED]);
             $completed = $countFor([GlobalTask::STATUS_COMPLETED, GlobalTask::STATUS_COMPLETED_DEMO]);
             $failed = $countFor([GlobalTask::STATUS_FAILED]);
 
@@ -388,6 +392,7 @@ class AppQyV1TranslationQueueController extends Controller
             return [
                 'pending' => $pending,
                 'processing' => $processing,
+                'leased' => $leased,
                 'completed' => $completed,
                 'failed' => $failed,
                 'total' => $total,
@@ -466,9 +471,23 @@ class AppQyV1TranslationQueueController extends Controller
             ];
         }
 
+        $durationMs = round((microtime(true) - $startTime) * 1000, 2);
+        Log::info('[QueueCenter] controlList accessed', [
+            'request_id' => $requestId,
+            'client' => $request->ip(),
+            'status_filter' => $validated['status'] ?? 'all',
+            'database' => 'global_tasks',
+            'table' => 'global_tasks',
+            'items_returned' => count($items),
+            'total_filtered' => $filteredTotal,
+            'duration_ms' => $durationMs,
+        ]);
+
         return $this->success([
             'summary' => $summary,
             'items' => $items,
+            'source' => 'global_tasks',
+            'generated_at' => now()->toIso8601String(),
             // Server-side pagination metadata (additive; existing consumers that
             // only read summary/items are unaffected).
             'pagination' => [
@@ -510,6 +529,9 @@ class AppQyV1TranslationQueueController extends Controller
      */
     public function controlPendingWords(Request $request): JsonResponse
     {
+        $startTime = microtime(true);
+        $requestId = $request->header('X-Request-ID', uniqid('req_', true));
+
         $validated = $request->validate([
             'language' => 'nullable|string',
             'target_language' => 'nullable|string',
@@ -580,6 +602,14 @@ class AppQyV1TranslationQueueController extends Controller
             ->where('payload->target_language', $targetCode)
             ->count();
 
+        $leased = GlobalTask::query()
+            ->where('app_name', 'AppQyV1')
+            ->where('task_type', 'word_translation')
+            ->where('status', GlobalTask::STATUS_ASSIGNED)
+            ->where('payload->language', $langCode)
+            ->where('payload->target_language', $targetCode)
+            ->count();
+
         // The requested page of untranslated words to preview (most-queried first).
         $pageWords = AppQyV1LangDictionaryModel::forLanguage($langCode)
             ->where('has_translation', false)
@@ -609,16 +639,32 @@ class AppQyV1TranslationQueueController extends Controller
         }
 
         $pendingTotal = (int) $summary['pending'];
+        $durationMs = round((microtime(true) - $startTime) * 1000, 2);
+        
+        Log::info('[QueueCenter] controlPendingWords accessed', [
+            'request_id' => $requestId,
+            'client' => $request->ip(),
+            'language' => $langCode,
+            'target_language' => $targetCode,
+            'database' => 'appqyv1_lang_dictionary',
+            'table' => AppQyV1LangDictionaryModel::forLanguage($langCode)->getTable(),
+            'items_returned' => count($items),
+            'total_pending' => $pendingTotal,
+            'duration_ms' => $durationMs,
+        ]);
 
         return $this->success([
             'summary' => [
                 'pending' => $pendingTotal,
                 'processing' => $processing,
+                'leased' => $leased,
                 'completed' => (int) $summary['completed'],
                 'failed' => (int) $summary['failed'],
                 'total' => (int) $summary['total'],
             ],
             'items' => $items,
+            'source' => 'appqyv1_lang_dictionary',
+            'generated_at' => now()->toIso8601String(),
             'pagination' => [
                 'limit' => $limit,
                 'offset' => $offset,

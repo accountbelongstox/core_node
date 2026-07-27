@@ -473,15 +473,30 @@ class AppQyV1AssistController extends Controller
      */
     public function overview(Request $request): JsonResponse
     {
+        $startTime = microtime(true);
+        $requestId = $request->header('X-Request-ID', uniqid('req_', true));
         $fresh = (bool) $request->query('fresh', false);
 
         try {
             $snapshot = $this->assist->overviewSnapshot($fresh);
+            $durationMs = round((microtime(true) - $startTime) * 1000, 2);
+            Log::info('[QueueCenter] overview accessed', [
+                'request_id' => $requestId,
+                'client' => $request->ip(),
+                'fresh' => $fresh,
+                'duration_ms' => $durationMs,
+            ]);
         } catch (\Throwable $e) {
-            Log::error('[Assist] overview failed', ['error' => $e->getMessage()]);
+            $durationMs = round((microtime(true) - $startTime) * 1000, 2);
+            Log::error('[QueueCenter] overview failed', [
+                'request_id' => $requestId,
+                'client' => $request->ip(),
+                'error' => $e->getMessage(),
+                'duration_ms' => $durationMs,
+            ]);
             return response()->json([
                 'success' => false,
-                'error' => 'Internal error building overview',
+                'error' => 'Internal error building overview: ' . $e->getMessage(),
                 'categories' => [],
                 'workers' => [],
             ], 500);

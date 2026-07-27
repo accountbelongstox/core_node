@@ -14,6 +14,9 @@ _FENCE_RE = re.compile(r"```[\s\S]*?```|`[^`]+`")
 _NOISE_RE = re.compile(r"[^\w\s\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af.,!?;:'\"()-]+")
 _WS_RE = re.compile(r"\s+")
 
+# session_id -> (mtime, events). Invalidated when the session .txt mtime changes.
+_SESSION_EVENTS_CACHE: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}
+
 
 def sanitize_fragment_text(text: str) -> str:
     """Strip code placeholders, fences, and noisy symbols for word counting."""
@@ -71,6 +74,22 @@ def _session_events(detail: Dict[str, Any]) -> List[Dict[str, Any]]:
     return events
 
 
+def _session_events_cached(session_id: str, detail: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Parse session events once per file mtime."""
+    sid = str(session_id or "")
+    path = txt.sessions_dir() / f"{txt.safe_id(sid)}.txt"
+    try:
+        mtime = float(path.stat().st_mtime)
+    except OSError:
+        mtime = 0.0
+    cached = _SESSION_EVENTS_CACHE.get(sid)
+    if cached is not None and cached[0] == mtime:
+        return cached[1]
+    events = _session_events(detail)
+    _SESSION_EVENTS_CACHE[sid] = (mtime, events)
+    return events
+
+
 def collect_fragments(
     *,
     after_ts: int = 0,
@@ -88,7 +107,7 @@ def collect_fragments(
         detail = txt.read_session(sid)
         if not detail:
             continue
-        for ev in _session_events(detail):
+        for ev in _session_events_cached(sid, detail):
             ts = int(ev.get("ts") or 0)
             fid = str(ev.get("fragment_id") or "")
             if ts < after_ts:
@@ -122,10 +141,15 @@ def build_raw_batches(
                 continue
             parts.append(text)
             used.append(frag)
-            words = count_words("\n\n".join(parts))
+            # Incremental word count — avoid O(n^2) re-join counting inside the loop.
+            words += count_words(text)
         if words < min_words:
             break
         raw_text = "\n\n".join(parts)
+        # One precise recount for the joined batch (joiners can change token boundaries).
+        words = count_words(raw_text)
+        if words < min_words:
+            break
         batches.append({
             "raw_text": raw_text,
             "word_count": words,

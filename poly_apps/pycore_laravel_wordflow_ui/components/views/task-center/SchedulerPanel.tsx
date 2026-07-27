@@ -11,14 +11,13 @@
  * overview (passed down as prop) are annotated with the shared RoleBadge —
  * the visible join between the scheduler layer and the queue layer.
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Language } from '../../../types';
 import { api } from '../../../core/api';
 import type {
-  TaskCenterOverview,
   TaskCenterQueueRole,
 } from '../../../core/api/modules/ServerManagerAPI';
-import { usePersistentTask } from '../../../core/tasks/usePersistentTask';
+import { useTaskCenterState } from './TaskCenterState';
 import {
   Activity,
   Layers,
@@ -52,12 +51,6 @@ import {
 
 interface SchedulerPanelProps {
   lang: Language;
-  autoRefresh: boolean;
-  refreshIntervalSec: number;
-  /** Bumped by TaskCenter's manual-refresh button → one immediate fetch. */
-  refreshToken: number;
-  /** Aggregate overview (for queue_role row annotation); may be null while loading. */
-  overview: TaskCenterOverview | null;
 }
 
 interface TaskStatus {
@@ -135,13 +128,8 @@ const getStatusIcon = (status: string) => {
 
 const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
   lang,
-  autoRefresh,
-  refreshIntervalSec,
-  refreshToken,
-  overview,
 }) => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { octaneTasks: octaneStatus, overview, loading, error, refreshNow } = useTaskCenterState();
   const [filter, setFilter] = useState<'all' | 'enabled' | 'running' | 'error' | 'disabled'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTask, setSelectedTask] = useState<TaskStatus | null>(null);
@@ -158,81 +146,6 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
     });
     return map;
   }, [overview]);
-
-  // Backed by the global task layer (`laravel.octane-tasks`): the polled
-  // OctaneStatus snapshot + its poll loop live in <TaskPersistenceProvider>
-  // above the router, so they survive leaving and returning to this tab and a
-  // full reload re-polls. Loading/error are panel-local UI; the poll fn mirrors
-  // them through React state for the banner/spinner. No try/catch — `.catch`.
-  const fetchOctaneStatus = (): Promise<OctaneStatus | null> =>
-    api.serverManager.getOctaneTasksStatus()
-      .then((response: any) => {
-        if (response.success && response.data) {
-          setError(null);
-          setLoading(false);
-          return response.data as OctaneStatus;
-        }
-        let msg = response.error || 'Failed to load Octane status';
-        if (response.isTimeout) {
-          msg = 'Request timed out — the Octane server did not respond in time.';
-        } else if (response.isNetworkError) {
-          msg = 'Network unreachable — is the Laravel Octane server running on this host?';
-        }
-        setError(msg);
-        setLoading(false);
-        return null; // settle (keep last snapshot); error banner shows the reason
-      })
-      .catch((err: any) => {
-        setError(err?.message || 'Failed to load Octane status');
-        setLoading(false);
-        return null;
-      });
-
-  const task = usePersistentTask<OctaneStatus>('laravel.octane-tasks', {
-    intervalMs: refreshIntervalSec * 1000,
-    poll: fetchOctaneStatus,
-    reattach: fetchOctaneStatus,
-  });
-  const octaneStatus = task.data;
-
-  // Initial load: one immediate fetch pushed into the shared session (idempotent
-  // — if a session is already live from a prior visit/reload, reuse its data).
-  useEffect(() => {
-    if (octaneStatus) return;
-    setLoading(true);
-    setError(null);
-    fetchOctaneStatus().then((s) => { if (s) task.set(s); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // The shared header auto-refresh toggle drives the persistent poll loop
-  // on/off. Changing the interval while running restarts the loop so the new
-  // cadence takes effect.
-  useEffect(() => {
-    if (autoRefresh) {
-      if (task.running) task.end();
-      task.begin();
-    } else if (task.running) {
-      task.end();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRefresh, refreshIntervalSec]);
-
-  // Manual refresh from the shared header = one immediate fetch pushed into
-  // the shared session.
-  useEffect(() => {
-    if (refreshToken === 0) return;
-    setLoading(true);
-    setError(null);
-    fetchOctaneStatus().then((s) => { if (s) task.set(s); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshToken]);
-
-  const loadOctaneStatus = () => {
-    setLoading(true);
-    setError(null);
-    fetchOctaneStatus().then((s) => { if (s) task.set(s); });
-  };
 
   const runVerify = async () => {
     setVerifying(true);
@@ -302,16 +215,16 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
     let tasks: TaskStatus[];
     switch (filter) {
       case 'enabled':
-        tasks = octaneStatus.tasks.filter(t => t.enabled);
+        tasks = octaneStatus.tasks.filter((t: TaskStatus) => t.enabled);
         break;
       case 'running':
-        tasks = octaneStatus.tasks.filter(t => t.running);
+        tasks = octaneStatus.tasks.filter((t: TaskStatus) => t.running);
         break;
       case 'error':
-        tasks = octaneStatus.tasks.filter(t => t.status === 'error' || t.status === 'running_with_errors');
+        tasks = octaneStatus.tasks.filter((t: TaskStatus) => t.status === 'error' || t.status === 'running_with_errors');
         break;
       case 'disabled':
-        tasks = octaneStatus.tasks.filter(t => !t.enabled);
+        tasks = octaneStatus.tasks.filter((t: TaskStatus) => !t.enabled);
         break;
       default:
         tasks = octaneStatus.tasks;
@@ -320,7 +233,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       tasks = tasks.filter(
-        t => t.name.toLowerCase().includes(q) || t.class.toLowerCase().includes(q)
+        (t: TaskStatus) => t.name.toLowerCase().includes(q) || t.class.toLowerCase().includes(q)
       );
     }
     return tasks;
@@ -332,7 +245,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
         <p className="font-semibold">Failed to load Octane status</p>
         <p className="text-xs opacity-80 mt-1">{error}</p>
         <button
-          onClick={loadOctaneStatus}
+          onClick={refreshNow}
           className={`${commonClasses.button} ${commonClasses.buttonPrimary} inline-flex items-center gap-2 mx-auto mt-3`}
         >
           <RefreshCw className="w-4 h-4" />
@@ -359,11 +272,10 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
               )}
               <div>
                 <div
-                  className={`font-semibold ${
-                    verifyResult.success
+                  className={`font-semibold ${verifyResult.success
                       ? 'text-green-700 dark:text-green-400'
                       : 'text-red-700 dark:text-red-400'
-                  }`}
+                    }`}
                 >
                   {verifyResult.success
                     ? 'All Octane timer tasks are properly initialized'
@@ -462,11 +374,10 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
                 <button
                   key={f}
                   onClick={() => setFilter(f as any)}
-                  className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                    filter === f
+                  className={`px-3 py-1 rounded text-xs font-medium transition-colors ${filter === f
                       ? 'bg-indigo-600 text-white'
                       : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
-                  }`}
+                    }`}
                 >
                   {f.charAt(0).toUpperCase() + f.slice(1)}
                 </button>
@@ -543,38 +454,36 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
                               Registered
                             </span>
                           )}
-                          {row.running && (
-                            <span className="px-2 py-0.5 rounded text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
-                              Running
-                            </span>
-                          )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400 font-mono">
-                        {row.class}
-                      </td>
-                      <td className="px-4 py-3 text-center text-sm">
-                        <span className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-700 font-mono">
-                          {row.interval}s
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-mono text-slate-500 dark:text-slate-400 break-all">
+                          {row.class}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center text-sm font-mono">
-                        {row.runtime?.run_count || 0}
+                        {row.interval}ms
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm font-mono text-slate-600 dark:text-slate-400">
+                        {row.runtime?.run_count ?? 0}
                       </td>
                       <td className="px-4 py-3 text-center text-sm">
-                        {row.runtime && row.runtime.error_count > 0 ? (
+                        {row.runtime?.error_count ? (
                           <span className="px-2 py-1 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-mono">
                             {row.runtime.error_count}
                           </span>
                         ) : (
-                          <span className="text-slate-400">0</span>
+                          <span className="text-slate-400 font-mono">0</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
-                        {formatLastRunAgo(row.runtime?.last_run_ago)}
+                        <div className="flex items-center gap-1.5">
+                          <Activity className="w-3.5 h-3.5" />
+                          {formatLastRunAgo(row.runtime?.last_run_ago)}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center text-sm font-mono text-slate-600 dark:text-slate-400">
-                        {formatDuration(row.runtime?.last_duration ?? null)}
+                        {formatDuration(row.runtime?.last_duration)}
                       </td>
                     </tr>
                   ))}
@@ -582,133 +491,10 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
               </table>
             </div>
 
-            {getFilteredTasks().length === 0 && (
-              <EmptyState icon={Activity} message="No tasks found with current filter" className="py-12" />
+            {octaneStatus.tasks.length === 0 && (
+              <EmptyState icon={Layers} message="No Octane tasks discovered" className="py-8" />
             )}
           </div>
-
-          {/* Task Detail Modal */}
-          {selectedTask && (() => {
-            const detail = taskDetail || selectedTask;
-            return (
-            <Portal>
-            <div
-              className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP}`}
-              onClick={closeTaskDetail}
-            >
-              <div
-                className={`${commonClasses.card} max-w-2xl w-full max-h-[80vh] overflow-y-auto`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {detailLoading && (
-                  <div className="flex items-center gap-2 px-6 py-2 text-xs text-indigo-600 dark:text-indigo-400 border-b border-slate-200 dark:border-slate-700">
-                    <InlineSpinner size={14} />
-                    Loading live task detail…
-                  </div>
-                )}
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-xl font-bold mb-1 flex items-center gap-2">
-                        {detail.name}
-                        {queueRoleByName[detail.name] && (
-                          <RoleBadge role={queueRoleByName[detail.name]} lang={lang} />
-                        )}
-                      </h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 font-mono">
-                        {detail.class}
-                      </p>
-                      {taskDetail && !detailLoading && (
-                        <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded text-xs bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
-                          <Info className="w-3 h-3" /> Live data
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      onClick={closeTaskDetail}
-                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                    >
-                      <XCircle className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  <div className="space-y-4">
-                    {/* Status */}
-                    <div>
-                      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Status</div>
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(detail.status)}
-                        <StatusBadge status={detail.status} kind="scheduler" size="sm" />
-                      </div>
-                    </div>
-
-                    {/* Configuration */}
-                    <div>
-                      <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Configuration</div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
-                          <div className="text-xs text-slate-500 dark:text-slate-400">Interval</div>
-                          <div className="text-lg font-bold font-mono">{detail.interval}s</div>
-                        </div>
-                        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
-                          <div className="text-xs text-slate-500 dark:text-slate-400">Enabled</div>
-                          <div className="text-lg font-bold">{detail.enabled ? 'Yes' : 'No'}</div>
-                        </div>
-                        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
-                          <div className="text-xs text-slate-500 dark:text-slate-400">Registered</div>
-                          <div className="text-lg font-bold">{detail.registered ? 'Yes' : 'No'}</div>
-                        </div>
-                        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
-                          <div className="text-xs text-slate-500 dark:text-slate-400">Running</div>
-                          <div className="text-lg font-bold">{detail.running ? 'Yes' : 'No'}</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Runtime Statistics */}
-                    {detail.runtime && (
-                      <div>
-                        <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Runtime Statistics</div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
-                            <div className="text-xs text-slate-500 dark:text-slate-400">Run Count</div>
-                            <div className="text-2xl font-bold font-mono">{detail.runtime.run_count}</div>
-                          </div>
-                          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
-                            <div className="text-xs text-slate-500 dark:text-slate-400">Error Count</div>
-                            <div className={`text-2xl font-bold font-mono ${detail.runtime.error_count > 0 ? 'text-red-600 dark:text-red-400' : ''}`}>
-                              {detail.runtime.error_count}
-                            </div>
-                          </div>
-                          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
-                            <div className="text-xs text-slate-500 dark:text-slate-400">Last Run</div>
-                            <div className="text-sm font-medium">{formatLastRunAgo(detail.runtime.last_run_ago)}</div>
-                          </div>
-                          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
-                            <div className="text-xs text-slate-500 dark:text-slate-400">Last Duration</div>
-                            <div className="text-sm font-medium font-mono">
-                              {formatDuration(detail.runtime.last_duration)}
-                            </div>
-                          </div>
-                        </div>
-
-                        {detail.runtime.last_error && (
-                          <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                            <div className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">Last Error</div>
-                            <div className="text-sm text-red-700 dark:text-red-300 font-mono">
-                              {detail.runtime.last_error}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-            </Portal>
-            );
-          })()}
 
           {/* Last Updated */}
           <div className="text-center text-xs text-slate-500 dark:text-slate-400">
@@ -716,6 +502,119 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
           </div>
         </>
       ) : null}
+
+      {/* Task Detail Modal */}
+      {selectedTask && (
+        <Portal id={OVERLAY_CONTAINER}>
+          <div className={`fixed inset-0 ${OVERLAY_Z} flex items-center justify-center p-4`}>
+            <div className={`absolute inset-0 ${OVERLAY_BACKDROP}`} onClick={closeTaskDetail} />
+            <div className="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  {getStatusIcon(selectedTask.status)}
+                  <h3 className="text-lg font-semibold">{selectedTask.name}</h3>
+                  <StatusBadge status={selectedTask.status} kind="scheduler" />
+                </div>
+                <button
+                  onClick={closeTaskDetail}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                >
+                  <XCircle className="w-5 h-5 text-slate-500" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto">
+                <div className="space-y-6">
+                  {/* Basic Info */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <div className="text-xs text-slate-500 dark:text-slate-400">Class</div>
+                      <div className="text-sm font-mono break-all">{selectedTask.class}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-xs text-slate-500 dark:text-slate-400">Interval</div>
+                      <div className="text-sm font-mono">{selectedTask.interval}ms</div>
+                    </div>
+                  </div>
+
+                  {/* Runtime Stats */}
+                  <div>
+                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-indigo-500" />
+                      Runtime Statistics
+                    </h4>
+                    {detailLoading ? (
+                      <div className="py-8 flex justify-center">
+                        <InlineSpinner />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Runs</div>
+                          <div className="text-lg font-mono">{taskDetail?.runtime?.run_count ?? selectedTask.runtime?.run_count ?? 0}</div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Errors</div>
+                          <div className={`text-lg font-mono ${(taskDetail?.runtime?.error_count ?? selectedTask.runtime?.error_count ?? 0) > 0 ? 'text-red-500' : ''}`}>
+                            {taskDetail?.runtime?.error_count ?? selectedTask.runtime?.error_count ?? 0}
+                          </div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Last Run</div>
+                          <div className="text-sm mt-1">{formatLastRunAgo(taskDetail?.runtime?.last_run_ago ?? selectedTask.runtime?.last_run_ago)}</div>
+                        </div>
+                        <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Duration</div>
+                          <div className="text-sm font-mono mt-1">{formatDuration(taskDetail?.runtime?.last_duration ?? selectedTask.runtime?.last_duration)}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Last Error */}
+                  {(taskDetail?.runtime?.last_error || selectedTask.runtime?.last_error) && (
+                    <div>
+                      <h4 className="text-sm font-semibold mb-3 flex items-center gap-2 text-red-500">
+                        <AlertTriangle className="w-4 h-4" />
+                        Last Error
+                      </h4>
+                      <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 text-sm font-mono text-red-600 dark:text-red-400 whitespace-pre-wrap break-all">
+                        {taskDetail?.runtime?.last_error || selectedTask.runtime?.last_error}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Config State */}
+                  <div>
+                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                      <Settings className="w-4 h-4 text-slate-500" />
+                      Configuration State
+                    </h4>
+                    <div className="flex gap-4">
+                      <div className="flex items-center gap-2">
+                        {selectedTask.enabled ? (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-slate-400" />
+                        )}
+                        <span className="text-sm text-slate-600 dark:text-slate-400">Enabled</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {selectedTask.registered ? (
+                          <CheckCircle className="w-4 h-4 text-blue-500" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-slate-400" />
+                        )}
+                        <span className="text-sm text-slate-600 dark:text-slate-400">Registered</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Portal>
+      )}
     </div>
   );
 };

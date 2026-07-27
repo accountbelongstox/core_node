@@ -7,6 +7,7 @@ Handles user input for configuration variables with support for:
 - Text input
 - Smart recognition
 - Existing value preservation
+- Clear to Not set (single space + N/y confirm, only when already set)
 """
 
 from typing import List, Dict, Any, Optional
@@ -23,6 +24,10 @@ from utils.smart_recognition import (
     get_token_variables,
     get_value_for_input_type
 )
+
+
+# Empty string in collect/save maps means clear secret to [Not set].
+CLEAR_TO_NOT_SET = ""
 
 
 class VariableInputHandler:
@@ -68,6 +73,59 @@ class VariableInputHandler:
         secret_key_name = f"{var_name}_{file_number}"
         return resolve_secret_value(secret_key_name)
 
+    def read_value_with_keep_or_clear(
+        self,
+        display_name: str,
+        existing_value: Optional[str] = None,
+        prompt: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Shared text prompt: Enter keeps current; single space clears (N/y once).
+
+        Only when ``existing_value`` is set:
+          - Enter -> keep current
+          - exactly one space -> confirm Clear to [Not set]? [N/y]
+        When not set: Enter skips; space is ignored as empty.
+
+        Returns:
+            None — skip (no existing, empty Enter)
+            existing value — keep
+            CLEAR_TO_NOT_SET ("") — clear to Not set
+            str — new value
+        """
+        has_existing = bool(existing_value)
+        if prompt is None:
+            if has_existing:
+                prompt = (
+                    f"  Value (Enter=keep current; Space=clear to Not set): "
+                )
+            else:
+                prompt = f"  Value: "
+
+        raw = input(prompt)
+        # Do not strip before detecting the clear gesture (exactly one space).
+        if has_existing and raw == " ":
+            ColorMessage.write(
+                f"  Clear {display_name} to [Not set]? [N/y]: ",
+                'warning',
+                no_newline=True,
+            )
+            confirm = input().strip().lower()
+            if confirm == "y":
+                ColorMessage.write(f"  [OK] Will clear {display_name} to [Not set]", 'success')
+                return CLEAR_TO_NOT_SET
+            ColorMessage.write(f"  [OK] Keeping current value", 'success')
+            return existing_value
+
+        user_input = raw.strip()
+        if user_input:
+            return user_input
+        if has_existing:
+            ColorMessage.write(f"  [OK] Keeping current value", 'success')
+            return existing_value
+        ColorMessage.write(f"  [SKIP] Skipped", 'warning')
+        return None
+
     def prompt_variable_value(
         self,
         var: Dict[str, Any],
@@ -82,9 +140,9 @@ class VariableInputHandler:
     ) -> Optional[str]:
         """
         Prompt user for a single variable value
-        
+
         Returns:
-            User input value, existing value if skipped, or None
+            User input value, existing value if kept, "" if cleared, or None if skipped
         """
         if auto_filled_variables is None:
             auto_filled_variables = set()
@@ -104,12 +162,24 @@ class VariableInputHandler:
             ColorMessage.write(f"{display_name}:", 'info')
             ColorMessage.write(f"  {description}", 'info')
 
-        if existing_value:
-            prompt = f"  Value (press Enter to keep current): "
-        else:
-            prompt = f"  Value: "
+        hints = var.get('Hints') or []
+        if hints:
+            ColorMessage.write("  URL hints:", 'info')
+            for hint in hints:
+                label = hint.get('Label', '')
+                value = hint.get('Value', '')
+                if label and value:
+                    ColorMessage.write(f"    [{label}] {value}", 'success')
 
-        user_input = input(prompt).strip()
+        user_input = self.read_value_with_keep_or_clear(display_name, existing_value)
+
+        # Cleared / kept / skipped — no smart recognition
+        if user_input is None:
+            return None
+        if user_input == CLEAR_TO_NOT_SET:
+            return CLEAR_TO_NOT_SET
+        if existing_value and user_input == existing_value:
+            return existing_value
 
         # Smart recognition handling
         if user_input and config:
@@ -141,15 +211,8 @@ class VariableInputHandler:
                         ColorMessage.write(f"  [OK] Will set {display_name}", 'success')
                         return value
 
-        if user_input:
-            ColorMessage.write(f"  [OK] Will set {display_name}", 'success')
-            return user_input
-        elif existing_value:
-            ColorMessage.write(f"  [OK] Keeping current value", 'success')
-            return existing_value
-        else:
-            ColorMessage.write(f"  [SKIP] Skipped", 'warning')
-            return None
+        ColorMessage.write(f"  [OK] Will set {display_name}", 'success')
+        return user_input
 
     def collect_variable_inputs(
         self,
@@ -160,9 +223,10 @@ class VariableInputHandler:
     ) -> Dict[str, str]:
         """
         Collect user inputs for all variables in a configuration
-        
+
         Returns:
-            Dictionary mapping variable names to their values
+            Dictionary mapping variable names to their values.
+            Empty string value means clear to [Not set].
         """
         if existing_values is None:
             existing_values = {}
@@ -216,7 +280,7 @@ class VariableInputHandler:
                         print()
                         continue
 
-            # Prompt for value
+            # Prompt for value (None = skip; "" = clear; other = set/keep)
             value = self.prompt_variable_value(
                 var=var,
                 existing_value=existing_value,
@@ -229,10 +293,10 @@ class VariableInputHandler:
                 auto_filled_variables=auto_filled_variables
             )
 
-            if value:
+            if value is not None:
                 user_inputs[var_name] = value
                 # Update extracted_data if smart recognition was used
-                if var_index == 0 and value != existing_value:
+                if var_index == 0 and value and value != existing_value:
                     input_type = var.get('InputType', 'Text')
                     if has_whitespace_in_middle(str(value)):
                         extracted_data = extract_api_url_and_token(str(value))
@@ -247,5 +311,4 @@ class VariableInputHandler:
         return user_inputs
 
 
-__all__ = ['VariableInputHandler']
-
+__all__ = ['VariableInputHandler', 'CLEAR_TO_NOT_SET']

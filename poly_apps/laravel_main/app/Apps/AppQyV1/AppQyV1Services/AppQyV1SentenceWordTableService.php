@@ -199,7 +199,9 @@ class AppQyV1SentenceWordTableService
 
     private function tokenize(string $sentence): array
     {
+        // Duplicate occurrences are intentionally preserved so playback can replay
+        // the same word each time it appears in the sentence (original sentence order).
         preg_match_all("/[\\p{L}]+(?:['’][\\p{L}]+)*/u", mb_strtolower($sentence), $matches);
-        return array_slice(array_values(array_unique($matches[0] ?? [])), 0, self::MAX_WORDS);
+        return array_slice(array_values($matches[0] ?? []), 0, self::MAX_WORDS);
     }
 }

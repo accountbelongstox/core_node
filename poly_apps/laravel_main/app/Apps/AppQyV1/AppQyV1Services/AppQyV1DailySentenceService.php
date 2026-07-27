@@ -52,7 +52,8 @@ class AppQyV1DailySentenceService
             return $existing;
         }
         return [
-            'url' => '/api/app_qy_v1/daily-sentences/audio/' . $id,
+            // Prefer article alias; daily-sentences/audio/{id} remains as a thin redirect.
+            'url' => '/api/app_qy_v1/ai_tools/article/audio/' . $id,
             'language' => 'en',
             'mime' => 'audio/mpeg',
         ];

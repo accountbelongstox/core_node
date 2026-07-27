@@ -319,6 +319,10 @@ class AppIndicatorSystemTray:
         THREAD_BUS.register_event_handler('tray.update_menu', handle_update_menu, priority=10)
         ColorPrint.blue("[AppIndicatorSystemTray] THREAD_BUS event handlers registered")
 
+        latest_menu_payload = THREAD_BUS.get_signal("tray.menu.payload")
+        if isinstance(latest_menu_payload, dict):
+            handle_update_menu(latest_menu_payload)
+
     def run(self):
         """
         Run tray (blocks until stopped).

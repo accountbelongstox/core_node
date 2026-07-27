@@ -44,6 +44,8 @@ Usage:
 
 from __future__ import annotations  # Enable deferred type hint evaluation
 
+import hashlib
+import json
 import threading
 from pathlib import Path
 from typing import List, Optional, Callable, TYPE_CHECKING
@@ -195,6 +197,7 @@ class TkinterSystemTray:
 
         self._tray_icon: Optional[pystray.Icon] = None
         self._running_signal = f"native_ui.tkinter_tray.running.{id(self)}"
+        self._menu_signature = {'value': None}
         THREAD_BUS.signal(self._running_signal, False)
 
     def _load_icon(self) -> Image:
@@ -320,6 +323,11 @@ class TkinterSystemTray:
             """Handle tray.update_menu event"""
             menu_items = event_data.get('menu_items')
             if menu_items:
+                signature = self._menu_signature_value(menu_items)
+                if signature == self._menu_signature.get('value'):
+                    ColorPrint.blue("[TRAY] Menu unchanged, skip rebuild")
+                    return
+                self._menu_signature['value'] = signature
                 ColorPrint.blue("[TRAY] Received menu update via THREAD_BUS")
                 self.update_menu(menu_items)
 
@@ -334,6 +342,10 @@ class TkinterSystemTray:
         # rebuilds on every right-click), so re-translate on language change.
         THREAD_BUS.register_event_handler('ui.i18n.language_changed', handle_language_changed, priority=10)
         ColorPrint.blue("[TRAY] THREAD_BUS event handlers registered")
+
+        latest_menu_payload = THREAD_BUS.get_signal("tray.menu.payload")
+        if isinstance(latest_menu_payload, dict):
+            handle_update_menu(latest_menu_payload)
 
     def run(self):
         """
@@ -423,6 +435,10 @@ class TkinterSystemTray:
         Args:
             menu_items: New list of TrayMenuItem objects
         """
+        signature = self._menu_signature_value(menu_items)
+        if signature == self._menu_signature.get('value'):
+            return
+        self._menu_signature['value'] = signature
         self.menu_items = menu_items
 
         if self._tray_icon and THREAD_BUS.get_signal(self._running_signal, False):
@@ -434,6 +450,43 @@ class TkinterSystemTray:
             except Exception:
                 pass
             ColorPrint.blue("[TRAY] Menu updated")
+
+    @staticmethod
+    def _menu_signature_value(menu_items: List[TrayMenuItem]) -> str:
+        """Stable signature for tray menu payloads."""
+        from pycore.pyutils.native_ui.step0_i18n import i18n
+
+        def normalize_item(item):
+            children = getattr(item, "submenu", None)
+            data = {
+                "text": getattr(item, "text", None),
+                "default": bool(getattr(item, "default", False)),
+                "action": getattr(item, "action_signal", None) or getattr(item, "signal", None),
+            }
+            if children:
+                data["submenu"] = [normalize_item(sub_item) for sub_item in children]
+            if getattr(item, "checked", None) is not None:
+                data["checked"] = item.checked
+            if getattr(item, "enabled_getter", None) is None:
+                data["enabled"] = bool(getattr(item, "enabled", True))
+            return data
+
+        normalized = {
+            "items": [normalize_item(menu_item) for menu_item in menu_items],
+            "codesync": THREAD_BUS.get_signal("tray.codesync.state", {}),
+            "language": i18n.get_current_language(),
+            "voice_subtitle_visible": THREAD_BUS.get_signal(
+                "voice_subtitle_ui.window_visible", False
+            ),
+        }
+
+        try:
+            payload = json.dumps(
+                normalized, sort_keys=True, ensure_ascii=False, default=str
+            ).encode("utf-8")
+            return hashlib.md5(payload).hexdigest()
+        except Exception:
+            return hashlib.md5(str(menu_items).encode("utf-8")).hexdigest()
 
 
 # Example menu items

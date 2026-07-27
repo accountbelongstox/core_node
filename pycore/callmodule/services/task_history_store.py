@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.system_paths import get_user_data_store
+from pycore.callmodule.services.task_type_contract import match_task_type
+from pycore.callmodule.services.task_type_contract import normalize_task_type
 
 _SECTION = "task_history"
 _MAX_ENTRIES = 2000
@@ -31,6 +33,8 @@ class _TaskHistoryState:
         section = store.get_section(_SECTION) or {}
         entries = list(section.get("entries") or [])
         row = dict(record)
+        if row.get("task_type") is not None:
+            row["task_type"] = normalize_task_type(row.get("task_type"))
         row.setdefault("ts", _now_iso())
         row.setdefault("at", int(time.time()))
         entries.insert(0, row)
@@ -63,7 +67,7 @@ class _TaskHistoryState:
         if task_type:
             entries = [
                 entry for entry in entries
-                if str(entry.get("task_type") or "") == task_type
+                if match_task_type(entry.get("task_type"), task_type)
             ]
         if worker:
             entries = [

@@ -12,7 +12,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_user_data_store
 
 from pycore.pyctl.desktop.background_services import get_background_services
-from pycore.callmodule.routers.notebooklm_stt_router import apply_notebooklm_auto_convert
+from pycore.callmodule.services.notebooklm_stt import apply_notebooklm_auto_convert
 
 
 _SECTION = "system_settings"

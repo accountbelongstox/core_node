@@ -11,8 +11,8 @@ mp3 under ``<local_data_dir>/cache/agent_history/`` (see
   audio/<id>.mp3      synthesized TTS audio
 
 Record fields: id, created_at, title_cn, title_en, reference_cn (trimmed),
-article_en, word_count, openrouter_model, translation_engine
-(local|openrouter-fallback), audio_file, uploaded, uploaded_at.
+article_en, word_count, openrouter_model, translation_engine (openrouter),
+audio_file, uploaded, uploaded_at.
 """
 
 from __future__ import annotations

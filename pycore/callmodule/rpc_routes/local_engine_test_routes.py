@@ -24,9 +24,21 @@ Routes:
   local.ai.status   {}          -> AI gateway status
 """
 
+import asyncio
 from typing import Any, Dict, List
 
 from pycore import ColorPrint
+from pycore.callmodule.rpc_routes.route_names import (
+    LOCAL_AI_CHAT,
+    LOCAL_AI_IMAGE_TEST,
+    LOCAL_AI_STATUS,
+    LOCAL_OCR_STATUS,
+    LOCAL_OCR_TEST,
+    LOCAL_STT_STATUS,
+    LOCAL_STT_TEST,
+    LOCAL_TTS_STATUS,
+    LOCAL_TTS_TEST,
+)
 from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyctl.ai import speech_history
 from pycore.pyctl.ai.ai_gateway import generate_image, generate_text, gateway_status
@@ -261,31 +273,31 @@ def register_local_engine_test_routes(server):
         return await await_bus_task(_ai_image_test, params or {}, timeout=None)
 
     server.route(
-        name="local.tts.test",
+        name=LOCAL_TTS_TEST,
         handler=local_tts_test,
         sync=False,
         description="Live TTS synth test for one engine (cold-start safe, per-engine params)",
     )
     server.route(
-        name="local.stt.test",
+        name=LOCAL_STT_TEST,
         handler=local_stt_test,
         sync=False,
         description="Live STT round-trip test for one engine",
     )
     server.route(
-        name="local.ocr.test",
+        name=LOCAL_OCR_TEST,
         handler=local_ocr_test,
         sync=False,
         description="Live OCR recognition test for one engine",
     )
     server.route(
-        name="local.ai.chat",
+        name=LOCAL_AI_CHAT,
         handler=local_ai_chat,
         sync=False,
         description="Live AI chat test (one turn through the gateway)",
     )
     server.route(
-        name="local.ai.image.test",
+        name=LOCAL_AI_IMAGE_TEST,
         handler=local_ai_image_test,
         sync=False,
         description="Live AI image generation test for one provider",
@@ -293,37 +305,37 @@ def register_local_engine_test_routes(server):
 
     # -- status (fast reads, no network) --
     async def local_tts_status(params, request_id, context):
-        return await await_bus_task(_tts_status, params or {})
+        return await asyncio.to_thread(_tts_status, params or {})
 
     async def local_stt_status(params, request_id, context):
-        return await await_bus_task(_stt_status, params or {})
+        return await asyncio.to_thread(_stt_status, params or {})
 
     async def local_ocr_status(params, request_id, context):
-        return await await_bus_task(_ocr_status, params or {})
+        return await asyncio.to_thread(_ocr_status, params or {})
 
     async def local_ai_status(params, request_id, context):
-        return await await_bus_task(_ai_status, params or {})
+        return await asyncio.to_thread(_ai_status, params or {})
 
     server.route(
-        name="local.tts.status",
+        name=LOCAL_TTS_STATUS,
         handler=local_tts_status,
         sync=False,
         description="TTS engine list with per-engine quota/cooldown/availability",
     )
     server.route(
-        name="local.stt.status",
+        name=LOCAL_STT_STATUS,
         handler=local_stt_status,
         sync=False,
         description="STT engine availability snapshot",
     )
     server.route(
-        name="local.ocr.status",
+        name=LOCAL_OCR_STATUS,
         handler=local_ocr_status,
         sync=False,
         description="OCR engine availability snapshot",
     )
     server.route(
-        name="local.ai.status",
+        name=LOCAL_AI_STATUS,
         handler=local_ai_status,
         sync=False,
         description="AI gateway status (providers, tiers, quotas)",

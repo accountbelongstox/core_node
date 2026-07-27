@@ -22,8 +22,13 @@ THREAD_BUS. Also listens to THREAD_BUS 'tray.request_stop' / 'tray.update_menu'.
 """
 
 import hashlib
+import json
 import os
+import ctypes
+import ctypes.wintypes as wintypes
 import tempfile
+import time
+import sys
 import threading
 from pathlib import Path
 from typing import List, Optional
@@ -52,6 +57,34 @@ except ImportError:
     Image = None
     PIL_AVAILABLE = False
 
+if WIN32_AVAILABLE:
+    class _NotifyIconIdentifier(ctypes.Structure):
+        _fields_ = [
+            ("cbSize", wintypes.DWORD),
+            ("hWnd", wintypes.HWND),
+            ("uID", wintypes.UINT),
+            ("guidItem", wintypes.BYTE * 16),
+        ]
+
+    class _Rect(ctypes.Structure):
+        _fields_ = [
+            ("left", wintypes.LONG),
+            ("top", wintypes.LONG),
+            ("right", wintypes.LONG),
+            ("bottom", wintypes.LONG),
+        ]
+
+    _shell32 = ctypes.windll.shell32
+    _notify_icon_get_rect = _shell32.Shell_NotifyIconGetRect
+    _notify_icon_get_rect.argtypes = [ctypes.POINTER(_NotifyIconIdentifier), ctypes.POINTER(_Rect)]
+    _notify_icon_get_rect.restype = ctypes.HRESULT
+    _HAS_NOTIFYICON_GET_RECT = True
+else:
+    _notify_icon_get_rect = None
+    _NotifyIconIdentifier = None
+    _Rect = None
+    _HAS_NOTIFYICON_GET_RECT = False
+
 # Tray notification callback message id (icon -> our window)
 WM_TRAYICON = (win32con.WM_USER + 20) if WIN32_AVAILABLE else 0
 _MENU_ID_BASE = 1024
@@ -77,11 +110,101 @@ class Win32SystemTray:
 
         self.hwnd = None
         self._hicon = None
+        self._menu_signature = {'value': None}
         self._running_signal = f"native_ui.win32_tray.running.{id(self)}"
         THREAD_BUS.signal(self._running_signal, False)
         self._id_to_signal = {}     # menu command id -> action_signal
         self._default_signal = None  # left-click default action
         self._taskbar_created_msg = None
+        self._last_show_menu_at = 0.0
+        self._show_menu_guard_seconds = 0.18
+
+    @staticmethod
+    def _decode_signed_short(value):
+        if value > 0x7FFF:
+            return value - 0x10000
+        return value
+
+    @staticmethod
+    def _clamp_rect_to_screen(x, y, width=1, height=1):
+        try:
+            screen_left = win32api.GetSystemMetrics(win32con.SM_XVIRTUALSCREEN)
+            screen_top = win32api.GetSystemMetrics(win32con.SM_YVIRTUALSCREEN)
+            screen_width = win32api.GetSystemMetrics(win32con.SM_CXVIRTUALSCREEN)
+            screen_height = win32api.GetSystemMetrics(win32con.SM_CYVIRTUALSCREEN)
+            if screen_width <= 0 or screen_height <= 0:
+                return (x, y)
+            width = max(width, 1)
+            height = max(height, 1)
+            x = max(screen_left, min(x, screen_left + screen_width - width))
+            y = max(screen_top, min(y, screen_top + screen_height - height))
+            return (int(x), int(y))
+        except Exception:
+            return (x, y)
+
+    @staticmethod
+    def _decode_lparam_point(lparam):
+        if not isinstance(lparam, int):
+            return None
+        x = Win32SystemTray._decode_signed_short(lparam & 0xFFFF)
+        y = Win32SystemTray._decode_signed_short((lparam >> 16) & 0xFFFF)
+        if x == -1 and y == -1:
+            return None
+        return x, y
+
+    @staticmethod
+    def _is_non_zero_point(point):
+        if not point:
+            return False
+        return point[0] != 0 or point[1] != 0
+
+    @staticmethod
+    def _log_to_cmd(message, level='info'):
+        try:
+            stream = sys.stdout
+            print(f"[Win32Tray] {message}", file=stream, flush=True)
+        except Exception:
+            pass
+
+    def _resolve_menu_position(self, msg, wparam, lparam):
+        if msg == getattr(win32con, "WM_CONTEXTMENU", 0x007B):
+            point = self._decode_lparam_point(lparam)
+            if self._is_non_zero_point(point):
+                return self._clamp_rect_to_screen(point[0], point[1])
+
+        tray_rect = self._get_tray_icon_rect()
+        if tray_rect:
+            left, top, right, bottom = tray_rect
+            center_x = int((left + right) / 2)
+            center_y = int((top + bottom) / 2)
+            return self._clamp_rect_to_screen(
+                center_x,
+                center_y,
+                width=max(right - left, 1),
+                height=max(bottom - top, 1),
+            )
+        try:
+            cursor_pos = win32gui.GetCursorPos()
+            return self._clamp_rect_to_screen(cursor_pos[0], cursor_pos[1])
+        except Exception:
+            return (0, 0)
+
+    def _get_tray_icon_rect(self):
+        if not _HAS_NOTIFYICON_GET_RECT or not self.hwnd:
+            return None
+        try:
+            identifier = _NotifyIconIdentifier()
+            identifier.cbSize = ctypes.sizeof(_NotifyIconIdentifier)
+            identifier.hWnd = wintypes.HWND(self.hwnd)
+            identifier.uID = 0
+            identifier.guidItem = (wintypes.BYTE * 16)()
+            rect = _Rect()
+            result = _notify_icon_get_rect(ctypes.byref(identifier), ctypes.byref(rect))
+            if result != 0:
+                return None
+            return rect.left, rect.top, rect.right, rect.bottom
+        except Exception:
+            return None
 
     # ---------- icon ----------
 
@@ -194,7 +317,7 @@ class Win32SystemTray:
                     self._default_signal = signal
         return next_id
 
-    def _show_menu(self):
+    def _show_menu(self, msg=None, wparam=None, lparam=None):
         """Display the current menu and dispatch the selected command.
 
         ``TPM_RETURNCMD`` avoids relying on shell-specific ``WM_COMMAND``
@@ -202,9 +325,18 @@ class Win32SystemTray:
         ``WM_CONTEXTMENU`` for a notification icon, so both are handled by
         ``_wnd_proc`` below.
         """
+        now = time.monotonic()
+        if now - self._last_show_menu_at < self._show_menu_guard_seconds:
+            return
+        self._last_show_menu_at = now
+
         hmenu = self._build_menu()
         try:
-            pos = win32gui.GetCursorPos()
+            self._log_to_cmd("Right click detected. Opening tray context menu.")
+            pos = self._resolve_menu_position(msg, wparam, lparam)
+            if not isinstance(pos, tuple) or len(pos) < 2:
+                pos = (0, 0)
+            self._log_to_cmd(f"Tray menu anchor point: ({pos[0]}, {pos[1]})")
             try:
                 win32gui.SetForegroundWindow(self.hwnd)  # required for dismissal
             except Exception:
@@ -222,6 +354,7 @@ class Win32SystemTray:
             )
             signal = self._id_to_signal.get(command_id)
             if signal:
+                self._log_to_cmd(f"Tray menu selected: {signal}")
                 ColorPrint.blue(f"[Win32Tray] Menu item -> signal: {signal}")
                 THREAD_BUS.trigger_event(signal, {"signal": signal})
             win32gui.PostMessage(self.hwnd, win32con.WM_NULL, 0, 0)
@@ -231,10 +364,15 @@ class Win32SystemTray:
     # ---------- window proc ----------
 
     def _wnd_proc(self, hwnd, msg, wparam, lparam):
+        context_message = getattr(win32con, "WM_CONTEXTMENU", 0x007B)
+
+        if msg == context_message:
+            self._show_menu(context_message, wparam, lparam)
+            return 0
+
         if msg == WM_TRAYICON:
-            context_message = getattr(win32con, "WM_CONTEXTMENU", 0x007B)
             if lparam in (win32con.WM_RBUTTONUP, context_message):
-                self._show_menu()
+                self._show_menu(msg, wparam, lparam)
             elif lparam in (win32con.WM_LBUTTONUP, win32con.WM_LBUTTONDBLCLK):
                 if self._default_signal:
                     THREAD_BUS.trigger_event(self._default_signal, {"signal": self._default_signal})
@@ -274,12 +412,20 @@ class Win32SystemTray:
         def handle_update(event_data):
             items = event_data.get("menu_items")
             if items is not None:
+                signature = self._menu_signature_value(items)
+                if signature == self._menu_signature.get('value'):
+                    return
+                self._menu_signature['value'] = signature
                 self.menu_items = items  # rebuilt on next right-click (GUI-thread safe)
                 ColorPrint.blue("[Win32Tray] Menu updated")
 
         THREAD_BUS.register_event_handler("tray.request_stop", handle_stop, priority=10)
         THREAD_BUS.register_event_handler("tray.update_menu", handle_update, priority=10)
         ColorPrint.blue("[Win32Tray] THREAD_BUS event handlers registered")
+
+        latest_menu_payload = THREAD_BUS.get_signal("tray.menu.payload")
+        if isinstance(latest_menu_payload, dict):
+            handle_update(latest_menu_payload)
 
     # ---------- lifecycle ----------
 
@@ -322,7 +468,49 @@ class Win32SystemTray:
 
     def update_menu(self, menu_items: List[TrayMenuItem]):
         """Replace menu items; the menu is rebuilt lazily on next right-click."""
+        signature = self._menu_signature_value(menu_items)
+        if signature == self._menu_signature.get('value'):
+            return
+        self._menu_signature['value'] = signature
         self.menu_items = menu_items
+
+    @staticmethod
+    def _menu_signature_value(menu_items: List[TrayMenuItem]) -> str:
+        """Stable signature for tray menu payloads (object/list payload)."""
+        from pycore.pyutils.native_ui.step0_i18n import i18n
+
+        def normalize_item(item):
+            children = getattr(item, "submenu", None)
+            data = {
+                "text": getattr(item, "text", None),
+                "action_signal": getattr(item, "action_signal", ""),
+                "default": bool(getattr(item, "default", False)),
+            }
+            if children:
+                data["submenu"] = [normalize_item(sub_item) for sub_item in children]
+            checked = getattr(item, "checked", None)
+            if checked is not None:
+                data["checked"] = checked
+            if getattr(item, "enabled_getter", None) is None:
+                data["enabled"] = bool(getattr(item, "enabled", True))
+            return data
+
+        normalized = {
+            "items": [normalize_item(menu_item) for menu_item in menu_items],
+            "codesync": THREAD_BUS.get_signal("tray.codesync.state", {}),
+            "language": i18n.get_current_language(),
+            "voice_subtitle_visible": THREAD_BUS.get_signal(
+                "voice_subtitle_ui.window_visible", False
+            ),
+        }
+
+        try:
+            payload = json.dumps(
+                normalized, sort_keys=True, ensure_ascii=False, default=str
+            ).encode("utf-8")
+            return hashlib.md5(payload).hexdigest()
+        except Exception:
+            return hashlib.md5(str(menu_items).encode("utf-8")).hexdigest()
 
 
 class Win32SystemTrayThread(threading.Thread):

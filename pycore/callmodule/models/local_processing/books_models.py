@@ -155,7 +155,7 @@ class BooksUploadFileB64(BaseModel):
 
 class BooksAnalyzeUploadB64Request(BaseModel):
     """JSON sibling of the multipart /analyze-upload so the drag-drop upload rides
-    the WS bridge (local_http.post) instead of a raw HTTP multipart POST."""
+    the native router RPC instead of a raw HTTP multipart POST."""
     files: List[BooksUploadFileB64] = Field(..., description="Uploaded files as base64.")
     language: Optional[str] = None
     languages: Optional[List[str]] = None

@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, List, Set, Tuple
 
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_fastapi
@@ -35,9 +35,16 @@ from pycore.pyutils.rpc_v2.server.ack_manager import FastAPIAckManager
 from pycore.pyutils.rpc_v2.server.client_registry import ClientRegistry, ClientStatus
 from pycore.pyutils.rpc_v2.server.routes_manager import RoutesManager
 from pycore.pyutils.rpc_v2.server.request_processor import RequestProcessor
+from pycore.pyutils.rpc_v2.server._serialized_bridge import await_serialized
 
 MSG_TYPES = RPC_CONSTANTS.MESSAGE_TYPES
 ERROR_CODES = RPC_CONSTANTS.ERROR_CODES
+CONTROL_MSG_TYPES = frozenset({
+    MSG_TYPES["ACK"],
+    MSG_TYPES["PING"],
+    MSG_TYPES["EVENT"],
+    MSG_TYPES["PONG"],
+})
 
 
 class WebSocketRPCHandler:
@@ -76,6 +83,7 @@ class WebSocketRPCHandler:
         client_id = websocket.query_params.get("client_id") or str(uuid.uuid4())
         remote_addr = websocket.client.host if websocket.client else "unknown"
         user_agent = websocket.headers.get("User-Agent")
+        connection_tasks: Set[asyncio.Task] = set()
 
         await self.client_registry.register_websocket_client(
             client_id=client_id,
@@ -87,49 +95,43 @@ class WebSocketRPCHandler:
 
         ColorPrint.green(f"[WS] connected id={client_id[:8]} addr={remote_addr}")
 
-        await websocket.send_json(
+        # Prefetch reconnect notifications before welcome so welcome means
+        # "server is ready to accept requests" — not "still initializing".
+        pending_events, inventory_items = await self._load_client_notifications(client_id)
+
+        await self.client_registry.send_to_client(
+            client_id,
             {
                 "type": MSG_TYPES["WELCOME"],
                 "client_id": client_id,
                 "timestamp": time.time(),
-            }
+            },
         )
 
-        # Deliver pending events/inventory
-        pending_events = self.request_event_table.get_pending_notifications(client_id)
-        inventory_items = self.inventory_table.get_by_client(client_id)
-
-        for event in pending_events[:10]:
-            self.ack_manager.notify_websocket_with_retry(
-                client_id=client_id,
-                request_id=event.request_id,
-                result=event.result,
-                error=event.error,
-            )
-
-        for item in inventory_items[:10]:
-            await websocket.send_json(
-                {
-                    "type": MSG_TYPES["RESPONSE"],
-                    "route": item.route,
-                    "id": item.request_id,
-                    "result": item.result,
-                    "error": item.error,
-                    "success": item.error is None,
-                    "from_inventory": True,
-                    "requires_ack": True,
-                    "queue": None,
-                }
-            )
-            self.inventory_table.delete(item.request_id)
+        # Historical completions may arrive after welcome; delivery is fire-and-
+        # forget via the ACK manager and must not block the receive loop.
+        self._deliver_client_notifications(client_id, pending_events, inventory_items)
 
         try:
             while True:
                 message = await websocket.receive_json()
-                await self.handle_websocket_message(client_id, websocket, message)
-        except WebSocketDisconnect:
+                msg_type = message.get("type", MSG_TYPES["REQUEST"])
+                if msg_type in CONTROL_MSG_TYPES:
+                    # ACK/PING/EVENT must not wait behind a slow REQUEST.
+                    await self.handle_websocket_message(client_id, websocket, message)
+                    continue
+                task = asyncio.create_task(
+                    self.handle_websocket_message(client_id, websocket, message)
+                )
+                connection_tasks.add(task)
+                task.add_done_callback(connection_tasks.discard)
+        except (WebSocketDisconnect, RuntimeError):
             pass
         finally:
+            for task in list(connection_tasks):
+                task.cancel()
+            if connection_tasks:
+                await asyncio.gather(*connection_tasks, return_exceptions=True)
             # Pass this websocket so a connection already superseded by a newer one
             # for the same client_id doesn't clobber the live session.
             await self.client_registry.unregister_websocket_client(client_id, websocket)
@@ -145,214 +147,34 @@ class WebSocketRPCHandler:
         await self.client_registry.update_client_activity(client_id)
 
         msg_type = data.get("type", MSG_TYPES["REQUEST"])
-        request_id = data.get("id") or self._generate_request_id()
+        request_id = data.get("event_id") or data.get("id") or self._generate_request_id()
 
         if msg_type == MSG_TYPES["REQUEST"]:
-            route = data.get("route")
-            if not route:
-                await websocket.send_json(
-                    {
-                        "type": MSG_TYPES["ERROR"],
-                        "route": None,
-                        "id": request_id,
-                        "error": ERROR_CODES["ROUTE_NOT_FOUND"],
-                        "message": "Route not specified",
-                    }
-                )
-                return
-            if not self.routes_manager.has_route(route):
-                await websocket.send_json(
-                    {
-                        "type": MSG_TYPES["ERROR"],
-                        "route": route,
-                        "id": request_id,
-                        "error": ERROR_CODES["ROUTE_NOT_FOUND"],
-                        "message": f"Route {route} not found",
-                    }
-                )
-                return
-
-            # Support both 'data' (RPC v2 format) and 'params' (legacy) fields
-            params = data.get("data") or data.get("params", {})
-
-            inventory_item = self.inventory_table.get(request_id, remove=True)
-            if inventory_item:
-                await websocket.send_json(
-                    {
-                        "type": MSG_TYPES["RESPONSE"],
-                        "route": inventory_item.route,
-                        "id": request_id,
-                        "result": inventory_item.result,
-                        "error": inventory_item.error,
-                        "success": inventory_item.error is None,
-                        "from_inventory": True,
-                        "requires_ack": True,
-                        "queue": None,
-                    }
-                )
-                return
-
-            existing_event = self.request_event_table.get_event(request_id)
-            if existing_event:
-                if existing_event.status == RequestStatus.COMPLETED:
-                    self.ack_manager.notify_websocket_with_retry(
-                        client_id=client_id,
-                        request_id=request_id,
-                        result=existing_event.result,
-                        error=existing_event.error,
-                    )
-                    return
-                if existing_event.status in (RequestStatus.PROCESSING, RequestStatus.PENDING):
-                    await websocket.send_json(
-                        {
-                            "type": MSG_TYPES["EVENT"],
-                            "route": "request_processing",
-                            "event": "request_processing",
-                            "id": request_id,
-                            "data": {"status": existing_event.status.value},
-                        }
-                    )
-                    return
-
-            # Check if route is synchronous (immediate response)
-            is_sync = self.routes_manager.is_sync_route(route)
-
-            self.request_event_table.create_event(
-                request_id=request_id,
-                route=route,
-                params=params,
-                client_id=client_id,
-                client_type="websocket",
-            )
-
-            if is_sync:
-                # Synchronous route: await processing and return immediately
-                if self.debug:
-                    ColorPrint.blue(f"[WS RPC] Sync route {route}, processing immediately...")
-
-                # Await processing completion
-                await self.request_processor.process_request_async(
-                    request_id=request_id,
-                    route=route,
-                    params=params,
-                    client_id=client_id,
-                    client_type="websocket",
-                    context=RPCRequestContext(
-                        transport="websocket",
-                        client_id=client_id,
-                        websocket=websocket,
-                    ).__dict__,
-                    notify_callback=None  # No callback for sync routes
-                )
-
-                # Get completed event
-                event = self.request_event_table.get_event(request_id)
-                if event and event.status == RequestStatus.COMPLETED:
-                    if self.debug:
-                        ColorPrint.green(f"[WS RPC] Sync route {route} completed, sending result")
-
-                    # Mark sync responses as notified so ACK manager does not retry them
-                    self.request_event_table.mark_notified(request_id)
-
-                    # Send result immediately (no ACK mechanism)
-                    await websocket.send_json(
-                        {
-                            "type": MSG_TYPES["RESPONSE"],
-                            "route": route,
-                            "id": request_id,
-                            "result": event.result,
-                            "error": event.error,
-                            "success": event.error is None,
-                            "sync_response": True,  # Mark as sync response
-                            "requires_ack": False,  # No ACK required
-                            "queue": None,
-                            "timestamp": int(time.time() * 1000),
-                        }
-                    )
-                    return  # Sync route completed, exit handler
-                else:
-                    # Processing failed
-                    await websocket.send_json(
-                        {
-                            "type": MSG_TYPES["ERROR"],
-                            "route": route,
-                            "id": request_id,
-                            "error": event.error if event else "Processing failed",
-                            "success": False,
-                        }
-                    )
-                    return  # Sync route failed, exit handler
-            else:
-                # Asynchronous route: use ACK mechanism (original behavior)
-                if self.debug:
-                    ColorPrint.blue(f"[WS RPC] Async route {route}, using ACK mechanism...")
-
-                asyncio.create_task(
-                    self.request_processor.process_request_async(
-                        request_id=request_id,
-                        route=route,
-                        params=params,
-                        client_id=client_id,
-                        client_type="websocket",
-                        context=RPCRequestContext(
-                            transport="websocket",
-                            client_id=client_id,
-                            websocket=websocket,
-                        ).__dict__,
-                        notify_callback=self.ack_manager.notify_websocket_with_retry,
-                    )
-                )
-
-                # Send accepted event for async routes
-                await websocket.send_json(
-                    {
-                        "type": MSG_TYPES["EVENT"],
-                        "route": "request_accepted",
-                        "event": "request_accepted",
-                        "id": request_id,
-                        "data": {"status": "accepted"},
-                    }
-                )
+            await self._handle_request(client_id, websocket, data, request_id)
 
         elif msg_type == MSG_TYPES["PING"]:
             await self.client_registry.update_client_ping(client_id)
 
-            pending_events = self.request_event_table.get_pending_notifications(client_id)
-            inventory_items = self.inventory_table.get_by_client(client_id)
+            pending_events = await await_serialized(
+                self.request_event_table.get_pending_notifications, client_id
+            )
+            inventory_items = await await_serialized(
+                self.inventory_table.get_by_client, client_id
+            )
 
-            await websocket.send_json(
+            await self.client_registry.send_to_client(
+                client_id,
                 {
                     "type": MSG_TYPES["PONG"],
                     "timestamp": time.time(),
                     "pending_requests": len(pending_events),
                     "inventory_items": len(inventory_items),
-                }
+                },
             )
-
-            for event in pending_events[:5]:
-                self.ack_manager.notify_websocket_with_retry(
-                    client_id=client_id,
-                    request_id=event.request_id,
-                    result=event.result,
-                    error=event.error,
-                )
-
-            for item in inventory_items[:5]:
-                await websocket.send_json(
-                    {
-                        "type": MSG_TYPES["RESPONSE"],
-                        "id": item.request_id,
-                        "result": item.result,
-                        "error": item.error,
-                        "success": item.error is None,
-                        "from_inventory": True,
-                        "requires_ack": True,
-                    }
-                )
-                self.inventory_table.delete(item.request_id)
+            await self._replay_client_notifications(client_id, limit=5)
 
         elif msg_type == MSG_TYPES["ACK"]:
-            self.ack_manager.handle_ack(client_id, request_id)
+            self.ack_manager.handle_ack(client_id, data.get("event_id") or request_id)
 
         elif msg_type == MSG_TYPES["EVENT"]:
             event_name = data.get("event")
@@ -360,9 +182,280 @@ class WebSocketRPCHandler:
                 payload = data.get("data", {})
                 self.routes_manager.emit_event(event_name, payload)
 
+    async def _handle_request(
+        self,
+        client_id: str,
+        websocket: WebSocket,
+        data: Dict[str, Any],
+        request_id: str,
+    ) -> None:
+        """Dispatch a WS REQUEST on the sync or durable-async path."""
+        route = data.get("route")
+        if not route:
+            await self.client_registry.send_to_client(
+                client_id,
+                {
+                    "type": MSG_TYPES["ERROR"],
+                    "route": None,
+                    "id": request_id,
+                    "error": ERROR_CODES["ROUTE_NOT_FOUND"],
+                    "message": "Route not specified",
+                },
+            )
+            return
+        if not self.routes_manager.has_route(route):
+            await self.client_registry.send_to_client(
+                client_id,
+                {
+                    "type": MSG_TYPES["ERROR"],
+                    "route": route,
+                    "id": request_id,
+                    "error": ERROR_CODES["ROUTE_NOT_FOUND"],
+                    "message": f"Route {route} not found",
+                },
+            )
+            return
+
+        # Support both 'data' (RPC v2 format) and 'params' (legacy) fields
+        params = data.get("data") or data.get("params", {})
+        is_sync = self.routes_manager.is_sync_route(route)
+
+        if is_sync:
+            await self._handle_sync_request(
+                client_id=client_id,
+                websocket=websocket,
+                route=route,
+                params=params,
+                request_id=request_id,
+            )
+            return
+
+        # Keep inventory until the client ACKs the replayed completion.
+        # Removing it before delivery would lose the result if the socket
+        # disconnects between send and ACK.
+        inventory_item = await await_serialized(
+            self.inventory_table.get, request_id, remove=False
+        )
+        if inventory_item:
+            await self.client_registry.send_to_client(
+                client_id,
+                {
+                    "type": MSG_TYPES["RESPONSE"],
+                    "route": inventory_item.route,
+                    "id": request_id,
+                    "event_id": request_id,
+                    "client_id": client_id,
+                    "result": inventory_item.result,
+                    "error": inventory_item.error,
+                    "success": inventory_item.error is None,
+                    "from_inventory": True,
+                    "requires_ack": True,
+                    "queue": None,
+                },
+            )
+            return
+
+        existing_event = await await_serialized(
+            self.request_event_table.get_event, request_id
+        )
+        if existing_event:
+            if existing_event.client_id and existing_event.client_id != client_id:
+                await self.client_registry.send_to_client(
+                    client_id,
+                    {
+                        "type": MSG_TYPES["ERROR"],
+                        "route": route,
+                        "id": request_id,
+                        "event_id": request_id,
+                        "client_id": client_id,
+                        "error": "event belongs to another client",
+                        "success": False,
+                    },
+                )
+                return
+            if existing_event.status in (
+                RequestStatus.COMPLETED,
+                RequestStatus.ACK_PENDING,
+                RequestStatus.ACK_RECEIVED,
+                RequestStatus.NOTIFIED,
+                RequestStatus.STORED,
+            ):
+                self.ack_manager.notify_websocket_with_retry(
+                    client_id=client_id,
+                    request_id=request_id,
+                    result=existing_event.result,
+                    error=existing_event.error,
+                )
+                return
+            if existing_event.status in (RequestStatus.PROCESSING, RequestStatus.PENDING):
+                await self.client_registry.send_to_client(
+                    client_id,
+                    {
+                        "type": MSG_TYPES["EVENT"],
+                        "route": "request_processing",
+                        "event": "request_processing",
+                        "id": request_id,
+                        "data": {"status": existing_event.status.value},
+                    },
+                )
+                return
+
+        await await_serialized(
+            self.request_event_table.create_event,
+            request_id=request_id,
+            route=route,
+            params=params,
+            client_id=client_id,
+            client_type="websocket",
+        )
+
+        if self.debug:
+            ColorPrint.blue(f"[WS RPC] Event {request_id[:8]} accepted route={route}")
+
+        asyncio.create_task(
+            self.request_processor.process_request_async(
+                request_id=request_id,
+                route=route,
+                params=params,
+                client_id=client_id,
+                client_type="websocket",
+                context=RPCRequestContext(
+                    transport="websocket",
+                    client_id=client_id,
+                    websocket=websocket,
+                ).__dict__,
+                notify_callback=self.ack_manager.notify_websocket_with_retry,
+            )
+        )
+
+        await self.client_registry.send_to_client(
+            client_id,
+            {
+                "type": MSG_TYPES["EVENT"],
+                "route": "request_accepted",
+                "event": "request_accepted",
+                "id": request_id,
+                "event_id": request_id,
+                "client_id": client_id,
+                "data": {"status": "accepted"},
+            },
+        )
+
+    async def _handle_sync_request(
+        self,
+        client_id: str,
+        websocket: WebSocket,
+        route: str,
+        params: Dict[str, Any],
+        request_id: str,
+    ) -> None:
+        """Execute a sync route immediately — no inventory, RequestEvent, or ACK."""
+        handler = self.routes_manager.get_route(route)
+        if not handler:
+            await self.client_registry.send_to_client(
+                client_id,
+                {
+                    "type": MSG_TYPES["ERROR"],
+                    "route": route,
+                    "id": request_id,
+                    "event_id": request_id,
+                    "client_id": client_id,
+                    "error": ERROR_CODES["ROUTE_NOT_FOUND"],
+                    "message": f"Route {route} not found",
+                    "success": False,
+                    "sync_response": True,
+                    "requires_ack": False,
+                    "queue": None,
+                    "timestamp": int(time.time() * 1000),
+                },
+            )
+            return
+
+        context = RPCRequestContext(
+            transport="websocket",
+            client_id=client_id,
+            websocket=websocket,
+        ).__dict__
+
+        if self.debug:
+            ColorPrint.blue(f"[WS RPC] Sync route {route} id={request_id[:8]}")
+
+        result = None
+        error = None
+        # Handler failures become an in-band error response (network RPC boundary).
+        try:
+            if asyncio.iscoroutinefunction(handler):
+                result = await handler(params, request_id, context)
+            else:
+                result = await asyncio.to_thread(handler, params, request_id, context)
+        except Exception as exc:
+            error = str(exc)
+            ColorPrint.red(f"[WS RPC] Sync route {route} error: {exc}")
+
+        await self.client_registry.send_to_client(
+            client_id,
+            {
+                "type": MSG_TYPES["RESPONSE"],
+                "route": route,
+                "id": request_id,
+                "event_id": request_id,
+                "client_id": client_id,
+                "result": result,
+                "error": error,
+                "success": error is None,
+                "sync_response": True,
+                "requires_ack": False,
+                "queue": None,
+                "timestamp": int(time.time() * 1000),
+            },
+        )
+
     @staticmethod
     def _generate_request_id() -> str:
         return str(uuid.uuid4())
+
+    async def _load_client_notifications(
+        self,
+        client_id: str,
+        limit: int = 10,
+    ) -> Tuple[List[Any], List[Any]]:
+        """Load pending completions / inventory rows for reconnect replay."""
+        pending_events = await await_serialized(
+            self.request_event_table.get_pending_notifications, client_id
+        )
+        inventory_items = await await_serialized(
+            self.inventory_table.get_by_client, client_id
+        )
+        return list(pending_events[:limit]), list(inventory_items[:limit])
+
+    def _deliver_client_notifications(
+        self,
+        client_id: str,
+        pending_events: List[Any],
+        inventory_items: List[Any],
+    ) -> None:
+        """Schedule durable completion delivery (non-blocking)."""
+        for event in pending_events:
+            self.ack_manager.notify_websocket_with_retry(
+                client_id=client_id,
+                request_id=event.request_id,
+                result=event.result,
+                error=event.error,
+            )
+        for item in inventory_items:
+            self.ack_manager.notify_websocket_with_retry(
+                client_id=client_id,
+                request_id=item.request_id,
+                result=item.result,
+                error=item.error,
+            )
+
+    async def _replay_client_notifications(self, client_id: str, limit: int = 10) -> None:
+        """Schedule durable completion delivery for a connected client."""
+        pending_events, inventory_items = await self._load_client_notifications(
+            client_id, limit=limit
+        )
+        self._deliver_client_notifications(client_id, pending_events, inventory_items)
 
 
 __all__ = ["WebSocketRPCHandler"]

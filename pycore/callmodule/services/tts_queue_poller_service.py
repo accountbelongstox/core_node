@@ -84,6 +84,7 @@ from pycore.callmodule.callmodule_config import Config
 # media-sync service (services/sync/laravel_media_sync.py) uses.
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
+    register_endpoint_change_listener,
 )
 # ONE entry point for synthesis; local-first engine priority and edge's
 # process-wide serialization live inside the orchestrator.
@@ -221,9 +222,26 @@ class TTSQueuePollerService:
         self._tmp_dir = os.path.join(tempfile.gettempdir(), "pycore_tts_worker")
 
         self._initialized = True
+        # Register for immediate notification when the user switches endpoint so
+        # the conn-fail warning is cleared and the next tick probes the new host.
+        register_endpoint_change_listener(self.on_endpoint_changed)
         ColorPrint.green(
             f"[TTSWorker] Service initialized (worker_id={self.worker_id}, "
             f"batch={self.batch_size}, enabled_on_start={self.enabled})"
+        )
+
+    def on_endpoint_changed(self, new_url: str) -> None:
+        """Reset conn-fail state when the user switches the Laravel endpoint.
+
+        The TTS worker already resolves its base URL live via
+        get_laravel_endpoint_manager().resolve() on each tick, so all we need is
+        to clear the warn-once gate so any previous unreachable streak does not
+        suppress the first log line on the new host.
+        """
+        self._conn_fail_streak = 0
+        self._conn_unreachable_warned = False
+        ColorPrint.blue(
+            f"[TTSWorker] Endpoint changed \u2192 {new_url!r}; conn-fail state reset"
         )
 
     @serialized_method

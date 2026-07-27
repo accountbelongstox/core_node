@@ -25,6 +25,8 @@ class Worker extends Model
         'current_task_id',
         // Phase 2 — capability tags advertised at registration for remote_fast routing.
         'capabilities',
+        'mcp_chrome_last_attempt_at',
+        'last_marker',
     ];
 
     protected $casts = [
@@ -32,6 +34,7 @@ class Worker extends Model
         'metadata' => 'array',
         'capabilities' => 'array',
         'last_heartbeat_at' => 'datetime',
+        'mcp_chrome_last_attempt_at' => 'datetime',
         'completed_tasks' => 'integer',
         'failed_tasks' => 'integer',
     ];

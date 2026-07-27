@@ -80,6 +80,14 @@ class ServiceLauncher:
             'app_name': self.config.app_name,
             'services': list(self.services.keys())
         })
+        THREAD_BUS.signal(
+            'system.third_party_packages_loaded.completed',
+            {
+                'message': 'All required third-party packages have been loaded',
+                'app_name': self.config.app_name,
+                'services': list(self.services.keys())
+            }
+        )
         ColorPrint.blue("[Launcher] Third-party packages loaded signal sent")
 
         return success_count > 0

@@ -68,6 +68,7 @@ import { WfNewNotificationBell } from './WfNewNotificationBell';
 // Ported dictionary-study experience (recite loop / flashcards / review / stats)
 // for the Default Vocabulary Group deep-dive. See ./study + docs/设计文档.md.
 import { WfNewGroupStudyPanel } from './study/WfNewGroupStudyPanel';
+import { useShelfPriorityBoost } from '../hooks/usePriorityBoost';
 
 interface WfNewShelfTabProps {
   activeTheme: ElementTheme; trans: (k: string, r?: Record<string, string|number>) => string;
@@ -82,6 +83,19 @@ interface WfNewShelfTabProps {
 
 export const WfNewShelfTab: React.FC<WfNewShelfTabProps> = (props) => {
   const { activeTheme, trans, lang, gGroups, selectedCourse, courseWords, favorites, setSelectedCourse, setCourseWords, setSelectedPracticeGroup, selectBookCourse, handleToggleFavorite, playPhoneticSpeech, setSelectedWordDetail } = props;
+  // Shelf courses are vocabulary groups: stack untranslated words when opened.
+  const shelfWords = useMemo(
+    () => courseWords
+      .filter((w) => w.hasTranslation === false || !(w.translation || '').trim())
+      .map((w) => w.text)
+      .filter(Boolean),
+    [courseWords],
+  );
+  const shelfLang = selectedCourse?.language || lang || 'en';
+  useShelfPriorityBoost(selectedCourse?.id ?? null, {
+    words: shelfWords,
+    language: shelfLang,
+  });
   return (
     <>
               {!selectedCourse ? (

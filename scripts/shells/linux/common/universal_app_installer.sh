@@ -133,43 +133,35 @@ install_via_web() {
 install_via_npm() {
     local package_id="$1"
     local app_name="$2"
-    
-    echo -e "${BLUE}$SCRIPT_INDEX Installing $app_name via NPM: $package_id${NC}"
-    
-    # Check if npm is installed
-    if ! command -v npm >/dev/null 2>&1; then
-        echo -e "${YELLOW}$SCRIPT_INDEX Installing Node.js and npm first...${NC}"
-        $USE_SUDO apt update
-        $USE_SUDO apt install -y nodejs npm
+    local pnpm_bin=""
+
+    echo -e "${BLUE}$SCRIPT_INDEX Installing $app_name via PNPM: $package_id${NC}"
+
+    if [ -n "${PNPM_BIN:-}" ] && [ -x "$PNPM_BIN" ]; then
+        pnpm_bin="$PNPM_BIN"
+    elif [ -n "${NODE_BIN_DIR:-}" ] && [ -x "$NODE_BIN_DIR/pnpm" ]; then
+        pnpm_bin="$NODE_BIN_DIR/pnpm"
+    elif command -v pnpm >/dev/null 2>&1; then
+        pnpm_bin="$(command -v pnpm)"
+    else
+        echo -e "${RED}$SCRIPT_INDEX pnpm not found. Run Node install script first.${NC}"
+        return 1
     fi
-    
-    # Install npm package globally
-    if $USE_SUDO npm install -g "$package_id"; then
-        echo -e "${GREEN}$SCRIPT_INDEX Successfully installed $app_name via NPM${NC}"
-        
-        # Fix permissions for npm global binaries
-        echo -e "${BLUE}$SCRIPT_INDEX Setting executable permissions for npm global binaries...${NC}"
-        local npm_global_bin
-        npm_global_bin=$($USE_SUDO npm config get prefix 2>/dev/null)
-        if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
-            # Set executable permissions for all binaries in npm global bin directory
-            $USE_SUDO find "$npm_global_bin/bin" -type f -name "*" -exec chmod +x {} \; 2>/dev/null || true
-            echo -e "${GREEN}$SCRIPT_INDEX Set executable permissions for binaries in: $npm_global_bin/bin${NC}"
-            
-            # Also check for the specific package binary
-            local package_name=$(echo "$package_id" | sed 's/.*\///' | sed 's/@.*//')
-            local binary_path="$npm_global_bin/bin/$package_name"
-            if [ -f "$binary_path" ]; then
-                $USE_SUDO chmod +x "$binary_path"
-                echo -e "${GREEN}$SCRIPT_INDEX Set executable permission for: $binary_path${NC}"
-            fi
-        else
-            echo -e "${YELLOW}$SCRIPT_INDEX Warning: Could not determine npm global bin directory${NC}"
+
+    export npm_config_confirm_modules_purge="${npm_config_confirm_modules_purge:-false}"
+    if "$pnpm_bin" list -g "$package_id" >/dev/null 2>&1; then
+        echo -e "${GREEN}$SCRIPT_INDEX $app_name already installed via pnpm, skipping${NC}"
+        return 0
+    fi
+
+    if "$pnpm_bin" add -g --config.confirm-modules-purge=false "$package_id"; then
+        echo -e "${GREEN}$SCRIPT_INDEX Successfully installed $app_name via PNPM${NC}"
+        if [ -n "${PNPM_GLOBAL_BIN_DIR:-}" ] && [ -d "$PNPM_GLOBAL_BIN_DIR" ]; then
+            find "$PNPM_GLOBAL_BIN_DIR" -type f -exec chmod +x {} \; 2>/dev/null || true
         fi
-        
         return 0
     else
-        echo -e "${RED}$SCRIPT_INDEX Failed to install $app_name via NPM${NC}"
+        echo -e "${RED}$SCRIPT_INDEX Failed to install $app_name via PNPM${NC}"
         return 1
     fi
 }
@@ -272,7 +264,7 @@ install_application() {
         "$METHOD_WEB")
             install_via_web "$package_id" "$app_display_name"
             ;;
-        "$METHOD_NPM")
+        "$METHOD_NPM"|"$METHOD_PNPM")
             install_via_npm "$package_id" "$app_display_name"
             ;;
         "$METHOD_PIPX")

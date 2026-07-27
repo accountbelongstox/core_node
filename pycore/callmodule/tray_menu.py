@@ -14,9 +14,8 @@ from pycore.pyutils.native_ui.step0_i18n import i18n
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
 
-from pycore.pyutils.codesync import get_code_sync_manager
-
 from pycore.callmodule.platform import system_service_manager as ssm
+from pycore.callmodule.tray_codesync_cache import get_tray_codesync_state
 
 
 
@@ -31,43 +30,39 @@ TRAY_TOGGLE_CODE_SYNC_DISTRIBUTE_SIGNAL = "tray_action_toggle_code_sync_distribu
 TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL = "tray_action_toggle_code_sync_skip_update"
 
 
-def _lazy_code_sync_manager():
-    """Lazy import so tray_menu stays import-light at module load."""
-    return get_code_sync_manager()
-
-
 def build_code_sync_submenu() -> List[TrayMenuItem]:
     """
     Code Sync toggles backed by the same CodeSyncManager singleton as the UI API.
 
     Distribute applies only on dev role; skip-update applies only on client role.
-    State getters read the manager directly so tray and UI stay in sync.
+    State getters read the THREAD_BUS cache only (never @serialized_method on the
+    tray message thread). TrayCodeSyncCacheThread keeps the cache fresh.
     """
 
     def get_distribute_state():
         try:
-            mgr = _lazy_code_sync_manager()
-            return "[X]" if mgr.is_distributing() else "[ ]"
+            state = get_tray_codesync_state()
+            return "[X]" if state.get("distributing") else "[ ]"
         except Exception:
             return "[ ]"
 
     def get_skip_update_state():
         try:
-            mgr = _lazy_code_sync_manager()
-            return "[X]" if mgr.is_skip_update() else "[ ]"
+            state = get_tray_codesync_state()
+            return "[X]" if state.get("skip_update") else "[ ]"
         except Exception:
             return "[ ]"
 
     def distribute_enabled():
         try:
-            return _lazy_code_sync_manager().get_role() == "dev"
+            return get_tray_codesync_state().get("role") == "dev"
         except Exception:
             return False
 
     def skip_update_enabled():
         try:
-            mgr = _lazy_code_sync_manager()
-            return mgr.get_role() == "client" and not mgr.light
+            state = get_tray_codesync_state()
+            return state.get("role") == "client" and not state.get("light")
         except Exception:
             return False
 

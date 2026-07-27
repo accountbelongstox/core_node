@@ -27,6 +27,7 @@ class AppQyV1InitializationMarkerManager
     protected $vocabularyMarker;
     protected $vocabularyStartMarker;
     protected $vocabularyFailedMarker;
+    protected $dailySentencesToArticleMarker;
 
     public function __construct()
     {
@@ -42,10 +43,43 @@ class AppQyV1InitializationMarkerManager
         $this->vocabularyMarker = $this->markersPath . '/vocabulary_processed.flag';
         $this->vocabularyStartMarker = $this->markersPath . '/vocabulary_processing_start.flag';
         $this->vocabularyFailedMarker = $this->markersPath . '/vocabulary_processing_failed.flag';
+        // Routes-only (and optional article_type rename) guard for short/daily merge.
+        $this->dailySentencesToArticleMarker = $this->markersPath . '/.migrated_daily_sentences_to_article';
 
         // Ensure markers directory exists
         if (!File::exists($this->markersPath)) {
             File::makeDirectory($this->markersPath, 0755, true);
+        }
+    }
+
+    /** Idempotent guard: daily-sentences → article/list?type=short route merge. */
+    public function hasMigratedDailySentencesToArticle(): bool
+    {
+        return File::exists($this->dailySentencesToArticleMarker);
+    }
+
+    /**
+     * Write the daily-sentences→article merge marker.
+     *
+     * @param array<string,mixed> $extra Optional note fields (e.g. routes_aliased, rows_renamed)
+     */
+    public function setMigratedDailySentencesToArticle(array $extra = []): bool
+    {
+        try {
+            $markerData = array_merge([
+                'timestamp' => now()->toISOString(),
+                'status' => 'migrated_daily_sentences_to_article',
+                'process_id' => getmypid(),
+                'version' => '1.0',
+                'note' => 'Routes aliased: daily-sentences/* → ai_tools/article/*?type=short',
+            ], $extra);
+
+            return File::put(
+                $this->dailySentencesToArticleMarker,
+                json_encode($markerData, JSON_PRETTY_PRINT)
+            ) !== false;
+        } catch (\Exception $e) {
+            return false;
         }
     }
 

@@ -3,34 +3,23 @@
 """
 Global Thread Communication Bus
 
-Global message bus for inter-thread communication.
-Follows project multi-threading standards:
-- No direct parameter passing between threads
-- All communication via global queue/signals
-- Mutable communication state is owned and exchanged through THREAD_BUS
+Global message bus for inter-thread communication. Event-driven — every
+wait path is backed by a threading.Condition owned by the state thread;
+there is no time.sleep polling anywhere on the hot path.
 
 Package layout (split from the former monolithic thread_bus.py):
-- shutdown_stack.py      : ShutdownStack - stack-based shutdown handler registry
+- shutdown_stack.py         : ShutdownStack - stack-based shutdown handler registry
 - event_handler_registry.py : EventHandlerRegistry - priority event handlers
-- __init__.py (this file) : ThreadBus facade + THREAD_BUS singleton
-
-The ThreadBus instance owns all internal state containers. One dedicated state
-thread serializes every registry, signal, state, and queue operation.
+- __init__.py (this file)   : ThreadBus facade + THREAD_BUS singleton
 
 Usage:
     from pycore import THREAD_BUS
 
-    # Thread A - Send signal
     THREAD_BUS.signal('startup_complete', {'status': 'ready'})
-
-    # Thread B - Wait for signal
     data = THREAD_BUS.wait_signal('startup_complete', timeout=5.0)
-
-    # Thread C - Check signal
-    if THREAD_BUS.has_signal('startup_complete'):
-        data = THREAD_BUS.get_signal('startup_complete')
 """
 
+import queue
 import time
 import threading
 from typing import Any, Dict, List, Optional, Callable
@@ -42,77 +31,82 @@ from pycore.pyfoundations.thread_bus.event_handler_registry import EventHandlerR
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
+# Sentinel returned from state-thread work when the state operation wants the
+# CALLER to notify one or more conditions AFTER _call_state returns (so notify
+# never runs while the state thread holds the GIL doing external work).
+class _StatePayload:
+    __slots__ = ("result", "notify_conditions")
+
+    def __init__(self, result: Any, notify_conditions: List[threading.Condition]) -> None:
+        self.result = result
+        self.notify_conditions = notify_conditions
+
+
 class ThreadBusStateThread(threading.Thread):
     """Own ThreadBus containers and execute state operations sequentially."""
 
     def __init__(self) -> None:
         super().__init__(name="ThreadBusStateThread", daemon=True)
-        self._requests: deque = deque()
+        self._requests: "queue.Queue[tuple]" = queue.Queue()
 
     def call(self, callback: Callable, *args: Any, **kwargs: Any) -> Any:
         if threading.current_thread() is self:
             return callback(*args, **kwargs)
 
-        response: deque = deque(maxlen=1)
-        self._requests.append((callback, args, kwargs, response))
-        while not response:
-            time.sleep(0.001)
-        succeeded, result = response.popleft()
-        if succeeded:
-            return result
-        raise result
+        done = threading.Event()
+        holder: List[Any] = [None, None]  # (succeeded, result_or_exc)
+        self._requests.put((callback, args, kwargs, done, holder))
+        done.wait()
+        succeeded, payload = holder[0], holder[1]
+        if not succeeded:
+            raise payload
+        return payload
 
     def run(self) -> None:
         while True:
-            try:
-                callback, args, kwargs, response = self._requests.popleft()
-            except IndexError:
-                time.sleep(0.001)
-                continue
+            callback, args, kwargs, done, holder = self._requests.get()
             try:
                 result = callback(*args, **kwargs)
-                response.append((True, result))
+                holder[0] = True
+                holder[1] = result
             except Exception as exc:
-                response.append((False, exc))
-
+                holder[0] = False
+                holder[1] = exc
+            done.set()
 
 
 class ThreadBus:
     """
-    Global communication bus for inter-thread messaging
+    Global communication bus for inter-thread messaging.
 
-    Features:
-    - Signal queue for event-driven communication
-    - Thread state tracking
-    - Message queue for work distribution
-    - Blocking wait with timeout support
-
-    Owns all internal state dicts/lists. Shutdown and event-handler operations
-    are delegated to composed ShutdownStack / EventHandlerRegistry instances.
+    All internal state is owned by ThreadBusStateThread and mutated only
+    inside `_call_state`. Wakeups for wait_signal / receive_message(block=True)
+    / wait_thread_state are delivered via threading.Condition objects, so
+    hot paths never sleep-poll.
     """
 
     def __init__(self):
-        """Initialize the lock-free thread bus."""
-
         # Signal store: {signal_name: signal_data}
         self._signals: Dict[str, Any] = {}
-
         # Thread state: {thread_name: state_data}
         self._thread_states: Dict[str, Dict[str, Any]] = {}
-
         # Message queues: {queue_name: deque([message, ...])}
         self._queues: Dict[str, deque] = {}
 
         # Event handlers: {event_name: [(priority, handler_func), ...]}
-        # Handlers are called in priority order (lower number = higher priority)
         self._event_handlers: Dict[str, List[tuple]] = {}
 
         # Shutdown handlers: [(priority, name, handler_func), ...]
-        # Stack-based shutdown: lower priority executes first (子进程先关)
-        # Example: RPC(priority=50) -> Heartbeat(priority=100)
         self._shutdown_handlers: List[tuple] = []
         self._shutdown_executed: bool = False
-        self._restart_requested: bool = False  # Flag for restart after shutdown
+        self._restart_requested: bool = False
+
+        # Wakeup conditions - one per named signal / queue, plus one shared
+        # condition for thread-state changes. They are created lazily inside
+        # _call_state so lookups + creates never race.
+        self._signal_conditions: Dict[str, threading.Condition] = {}
+        self._queue_conditions: Dict[str, threading.Condition] = {}
+        self._thread_state_condition: threading.Condition = threading.Condition()
 
         self._state_owner = ThreadBusStateThread()
         self._state_owner.start()
@@ -122,28 +116,59 @@ class ThreadBus:
         self._event_registry = EventHandlerRegistry(self)
 
     def _call_state(self, callback: Callable, *args: Any, **kwargs: Any) -> Any:
-        """Execute one internal state operation on the bus owner thread."""
-        return self._state_owner.call(callback, *args, **kwargs)
+        """Execute one internal state operation on the bus owner thread.
+
+        If the state operation returns a _StatePayload the caller's thread
+        performs the wakeups AFTER _call_state returns — never inside the
+        state thread's critical section.
+        """
+        result = self._state_owner.call(callback, *args, **kwargs)
+        if isinstance(result, _StatePayload):
+            for cond in result.notify_conditions:
+                with cond:
+                    cond.notify_all()
+            return result.result
+        return result
+
+    def _signal_condition(self, name: str) -> threading.Condition:
+        """Get-or-create the condition associated with a signal name.
+
+        MUST be called from inside `_call_state` so the dict access is
+        serialised on the state thread.
+        """
+        cond = self._signal_conditions.get(name)
+        if cond is None:
+            cond = threading.Condition()
+            self._signal_conditions[name] = cond
+        return cond
+
+    def _queue_condition(self, name: str) -> threading.Condition:
+        """Get-or-create the condition associated with a queue name.
+
+        MUST be called from inside `_call_state`.
+        """
+        cond = self._queue_conditions.get(name)
+        if cond is None:
+            cond = threading.Condition()
+            self._queue_conditions[name] = cond
+        return cond
 
     # ============ Signal Operations ============
 
     def signal(self, name: str, data: Any = None) -> None:
-        """
-        Send a signal with optional data
-
-        Args:
-            name: Signal name
-            data: Signal data (any type)
-
-        Example:
-            THREAD_BUS.signal('tk_window_ready', {'window_id': 123})
-        """
-        signal = {
+        """Publish a signal and wake any wait_signal() waiter."""
+        payload = {
             'data': data,
             'timestamp': time.time(),
             'thread_id': threading.get_ident()
         }
-        self._call_state(self._signals.__setitem__, name, signal)
+
+        def publish() -> _StatePayload:
+            self._signals[name] = payload
+            cond = self._signal_condition(name)
+            return _StatePayload(None, [cond])
+
+        self._call_state(publish)
 
     def signal_if_present(
         self,
@@ -152,267 +177,212 @@ class ThreadBus:
         data: Any = None,
     ) -> bool:
         """Publish a response only while its waiter guard still exists."""
-        signal = {
+        payload = {
             'data': data,
             'timestamp': time.time(),
             'thread_id': threading.get_ident(),
         }
 
-        def publish() -> bool:
+        def publish() -> _StatePayload:
             if guard_name not in self._signals:
-                return False
+                return _StatePayload(False, [])
             self._signals.pop(guard_name, None)
-            self._signals[name] = signal
-            return True
+            self._signals[name] = payload
+            cond = self._signal_condition(name)
+            return _StatePayload(True, [cond])
 
         return bool(self._call_state(publish))
 
     def has_signal(self, name: str) -> bool:
-        """
-        Check if signal exists
-
-        Args:
-            name: Signal name
-
-        Returns:
-            True if signal exists
-        """
         return bool(self._call_state(self._signals.__contains__, name))
 
+    def has_event_snapshot(self, event_name: str) -> bool:
+        """Deprecated compatibility shim for legacy snapshot checks."""
+        return False
+
+    def get_event_snapshot(self, event_name: str, default: Any = None) -> Any:
+        """Compatibility shim retained: snapshot mode is no longer used."""
+        return default
+
+    def clear_event_snapshot(self, event_name: str) -> None:
+        """Compatibility shim retained: snapshot mode is no longer used."""
+        return
+
     def get_signal(self, name: str, default: Any = None) -> Any:
-        """
-        Get signal data (non-blocking)
-
-        Args:
-            name: Signal name
-            default: Default value if signal not found
-
-        Returns:
-            Signal data or default
-        """
         signal = self._call_state(self._signals.get, name)
         return signal['data'] if signal else default
 
     def wait_signal(self, name: str, timeout: Optional[float] = None) -> Any:
-        """
-        Wait for signal (blocking with timeout)
-
-        Args:
-            name: Signal name
-            timeout: Timeout in seconds (None = wait forever)
-
-        Returns:
-            Signal data, or None if timeout
-
-        Example:
-            # Wait up to 5 seconds for startup
-            data = THREAD_BUS.wait_signal('startup_complete', timeout=5.0)
-            if data:
-                print("Startup complete:", data)
-        """
+        """Block until `name` is published (or timeout). Condition-driven."""
         missing = object()
-        signal_data = self.get_signal(name, missing)
-        if signal_data is not missing:
-            return signal_data
 
-        started_at = time.monotonic()
-        while timeout is None or time.monotonic() - started_at < timeout:
-            signal_data = self.get_signal(name, missing)
-            if signal_data is not missing:
-                return signal_data
-            time.sleep(0.005)
-        return None
+        def try_take() -> Any:
+            signal = self._signals.get(name)
+            if signal is not None:
+                return signal['data']
+            # Ensure the condition exists so a later signaller wakes us.
+            self._signal_condition(name)
+            return missing
+
+        result = self._call_state(try_take)
+        if result is not missing:
+            return result
+
+        # Fetch the condition (may be freshly created above).
+        cond = self._call_state(self._signal_condition, name)
+
+        deadline = None if timeout is None else time.monotonic() + timeout
+        with cond:
+            while True:
+                # Re-check state under the condition lock; the signaller
+                # notifies AFTER writing to _signals, so a missed wakeup
+                # here means the write is guaranteed visible on next check.
+                result = self._call_state(self._signals.get, name)
+                if result is not None:
+                    return result['data']
+                if deadline is None:
+                    cond.wait()
+                else:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        return None
+                    cond.wait(timeout=remaining)
 
     def clear_signal(self, name: str) -> bool:
-        """
-        Clear a signal
-
-        Args:
-            name: Signal name
-
-        Returns:
-            True if signal was removed
-        """
-        def clear() -> bool:
+        def clear() -> _StatePayload:
             removed = name in self._signals
             self._signals.pop(name, None)
             self._signals.pop(f"{name}.waiting", None)
-            return removed
+            cond = self._signal_condition(name)
+            waiting_cond = self._signal_condition(f"{name}.waiting")
+            return _StatePayload(removed, [cond, waiting_cond])
 
         return bool(self._call_state(clear))
 
     def clear_all_signals(self) -> None:
-        """Clear all signals"""
-        self._call_state(self._signals.clear)
+        def clear_all() -> _StatePayload:
+            names = list(self._signals.keys())
+            self._signals.clear()
+            conds = [self._signal_condition(n) for n in names]
+            return _StatePayload(None, conds)
+
+        self._call_state(clear_all)
 
     # ============ Thread State Operations ============
 
     def set_thread_state(self, thread_name: str, state: str, **kwargs) -> None:
-        """
-        Set thread state with metadata
-
-        Args:
-            thread_name: Thread identifier
-            state: State string (e.g., 'starting', 'running', 'stopping')
-            **kwargs: Additional state data
-
-        Example:
-            THREAD_BUS.set_thread_state('TkinterStartup', 'running',
-                                       window_id=123, visible=True)
-        """
         thread_state = {
             'state': state,
             'timestamp': time.time(),
             'thread_id': threading.get_ident(),
             **kwargs
         }
-        self._call_state(self._thread_states.__setitem__, thread_name, thread_state)
+
+        def publish() -> _StatePayload:
+            self._thread_states[thread_name] = thread_state
+            return _StatePayload(None, [self._thread_state_condition])
+
+        self._call_state(publish)
 
     def get_thread_state(self, thread_name: str) -> Optional[Dict[str, Any]]:
-        """
-        Get thread state
-
-        Args:
-            thread_name: Thread identifier
-
-        Returns:
-            Thread state dict or None
-        """
         state = self._call_state(self._thread_states.get, thread_name)
         return dict(state) if state is not None else None
 
     def wait_thread_state(self, thread_name: str, expected_state: str,
                          timeout: Optional[float] = None) -> bool:
-        """
-        Wait for thread to reach expected state
+        """Block until the named thread reports `expected_state` (or timeout)."""
+        def matches() -> bool:
+            state_data = self._thread_states.get(thread_name)
+            return bool(state_data and state_data.get('state') == expected_state)
 
-        Args:
-            thread_name: Thread identifier
-            expected_state: State to wait for
-            timeout: Timeout in seconds
+        if self._call_state(matches):
+            return True
 
-        Returns:
-            True if state reached, False if timeout
-
-        Example:
-            # Wait for Tkinter to be running
-            if THREAD_BUS.wait_thread_state('TkinterStartup', 'running', timeout=3.0):
-                print("Tkinter ready")
-        """
-        start_time = time.time()
-        while True:
-            state_data = self.get_thread_state(thread_name)
-            if state_data and state_data['state'] == expected_state:
-                return True
-
-            if timeout is not None and (time.time() - start_time) >= timeout:
-                return False
-
-            time.sleep(0.01)  # Short sleep to avoid busy-wait
+        cond = self._thread_state_condition
+        deadline = None if timeout is None else time.monotonic() + timeout
+        with cond:
+            while True:
+                if self._call_state(matches):
+                    return True
+                if deadline is None:
+                    cond.wait()
+                else:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        return False
+                    cond.wait(timeout=remaining)
 
     def list_threads(self) -> List[str]:
-        """
-        Get list of all tracked threads
-
-        Returns:
-            List of thread names
-        """
         return self._call_state(lambda: list(self._thread_states.keys()))
 
     # ============ Message Queue Operations ============
 
     def send_message(self, queue_name: str, message: Any) -> None:
-        """
-        Send message to queue
-
-        Args:
-            queue_name: Queue identifier
-            message: Message data (any type)
-
-        Example:
-            THREAD_BUS.send_message('work_queue', {
-                'action': 'process',
-                'data': {'id': 123}
-            })
-        """
         envelope = {
             'message': message,
             'timestamp': time.time(),
             'sender_thread_id': threading.get_ident()
         }
 
-        def send() -> None:
+        def send() -> _StatePayload:
             self._queues.setdefault(queue_name, deque()).append(envelope)
+            cond = self._queue_condition(queue_name)
+            return _StatePayload(None, [cond])
 
         self._call_state(send)
 
     def receive_message(self, queue_name: str, block: bool = False,
                        timeout: Optional[float] = None) -> Any:
-        """
-        Receive message from queue
+        """Take one message from the named queue.
 
-        Args:
-            queue_name: Queue identifier
-            block: If True, wait for message
-            timeout: Timeout for blocking (None = wait forever)
-
-        Returns:
-            Message data or None
-
-        Example:
-            # Non-blocking
-            msg = THREAD_BUS.receive_message('work_queue')
-
-            # Blocking with timeout
-            msg = THREAD_BUS.receive_message('work_queue', block=True, timeout=1.0)
+        In blocking mode this waits on the queue's condition instead of
+        sleep-polling, so an idle SerializedWorkerThread consumes no CPU.
         """
         missing = object()
 
         def receive() -> Any:
-            queue = self._queues.get(queue_name)
-            if not queue:
+            q = self._queues.get(queue_name)
+            if not q:
+                # Make sure the condition exists so a future send wakes us.
+                self._queue_condition(queue_name)
                 return missing
-            item = queue.popleft()
+            item = q.popleft()
             return item['message']
 
+        result = self._call_state(receive)
         if not block:
-            message = self._call_state(receive)
-            return None if message is missing else message
+            return None if result is missing else result
+        if result is not missing:
+            return result
 
-        # Blocking mode
-        start_time = time.time()
-        while True:
-            message = self._call_state(receive)
-            if message is not missing:
-                return message
+        cond = self._call_state(self._queue_condition, queue_name)
 
-            if timeout is not None and (time.time() - start_time) >= timeout:
-                return None
-
-            time.sleep(0.01)
+        deadline = None if timeout is None else time.monotonic() + timeout
+        with cond:
+            while True:
+                result = self._call_state(receive)
+                if result is not missing:
+                    return result
+                if deadline is None:
+                    cond.wait()
+                else:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        return None
+                    cond.wait(timeout=remaining)
 
     def queue_size(self, queue_name: str) -> int:
-        """
-        Get queue size
-
-        Args:
-            queue_name: Queue identifier
-
-        Returns:
-            Number of messages in queue
-        """
         return int(self._call_state(
             lambda: len(self._queues.get(queue_name, ()))
         ))
 
     def clear_queue(self, queue_name: str) -> None:
-        """
-        Clear all messages in queue
+        def clear() -> _StatePayload:
+            self._queues.pop(queue_name, None)
+            cond = self._queue_condition(queue_name)
+            return _StatePayload(None, [cond])
 
-        Args:
-            queue_name: Queue identifier
-        """
-        self._call_state(self._queues.pop, queue_name, None)
+        self._call_state(clear)
 
     # ============ Event Handler Operations (delegated) ============
 
@@ -422,7 +392,6 @@ class ThreadBus:
         handler: Callable,
         priority: int = 100
     ) -> None:
-        """Register event handler (delegated to EventHandlerRegistry)."""
         self._event_registry.register_event_handler(event_name, handler, priority)
 
     def unregister_event_handler(
@@ -430,7 +399,6 @@ class ThreadBus:
         event_name: str,
         handler: Callable
     ) -> bool:
-        """Unregister event handler (delegated to EventHandlerRegistry)."""
         return self._event_registry.unregister_event_handler(event_name, handler)
 
     def trigger_event(
@@ -439,36 +407,36 @@ class ThreadBus:
         event_data: Any = None,
         async_mode: bool = False
     ) -> bool:
-        """Trigger event (delegated to EventHandlerRegistry)."""
         return self._event_registry.trigger_event(event_name, event_data, async_mode)
 
     def list_event_handlers(self, event_name: Optional[str] = None) -> Dict:
-        """List registered event handlers (delegated to EventHandlerRegistry)."""
         return self._event_registry.list_event_handlers(event_name)
 
     def clear_event_handlers(self, event_name: Optional[str] = None) -> None:
-        """Clear event handlers (delegated to EventHandlerRegistry)."""
         self._event_registry.clear_event_handlers(event_name)
 
     # ============ Utility Operations ============
 
     def reset(self) -> None:
-        """Reset all data (for testing/cleanup)"""
-        def reset_state() -> None:
+        """Reset all data (for testing/cleanup)."""
+        def reset_state() -> _StatePayload:
+            signal_conds = [self._signal_condition(n) for n in self._signals]
+            queue_conds = [self._queue_condition(n) for n in self._queues]
             self._signals.clear()
             self._thread_states.clear()
             self._queues.clear()
             self._event_handlers.clear()
+            self._shutdown_handlers.clear()
+            self._shutdown_executed = False
+            self._restart_requested = False
+            return _StatePayload(
+                None,
+                signal_conds + queue_conds + [self._thread_state_condition],
+            )
 
         self._call_state(reset_state)
 
     def stats(self) -> Dict[str, Any]:
-        """
-        Get bus statistics
-
-        Returns:
-            Statistics dictionary
-        """
         def snapshot() -> Dict[str, Any]:
             return {
                 'signals_count': len(self._signals),
@@ -490,7 +458,6 @@ class ThreadBus:
         return self._call_state(snapshot)
 
     def __repr__(self) -> str:
-        """String representation"""
         stats = self.stats()
         return (f"ThreadBus(signals={stats['signals_count']}, "
                 f"threads={stats['threads_count']}, "
@@ -504,15 +471,12 @@ class ThreadBus:
         priority: int = 100,
         name: Optional[str] = None
     ) -> str:
-        """Register shutdown handler (delegated to ShutdownStack)."""
         return self._shutdown_stack.register_shutdown_handler(handler, priority, name)
 
     def unregister_shutdown_handler(self, name: str) -> bool:
-        """Unregister shutdown handler (delegated to ShutdownStack)."""
         return self._shutdown_stack.unregister_shutdown_handler(name)
 
     def execute_shutdown(self, reason: str = "User requested shutdown") -> None:
-        """Execute shutdown handlers (delegated to ShutdownStack)."""
         self._shutdown_stack.execute_shutdown(reason)
 
     def request_shutdown(
@@ -520,7 +484,6 @@ class ThreadBus:
         reason: str = "User requested shutdown",
         execute_handlers: bool = True
     ) -> None:
-        """Request global shutdown (delegated to ShutdownStack)."""
         self._shutdown_stack.request_shutdown(reason, execute_handlers)
 
     def request_restart(
@@ -528,72 +491,33 @@ class ThreadBus:
         reason: str = "User requested restart",
         execute_handlers: bool = True
     ) -> None:
-        """Request global restart (delegated to ShutdownStack)."""
         self._shutdown_stack.request_restart(reason, execute_handlers)
 
     def is_shutdown_requested(self) -> bool:
-        """Check if shutdown requested (delegated to ShutdownStack)."""
         return self._shutdown_stack.is_shutdown_requested()
 
     def is_restart_requested(self) -> bool:
-        """Check if restart requested (delegated to ShutdownStack)."""
         return self._shutdown_stack.is_restart_requested()
 
     def get_shutdown_reason(self) -> Optional[str]:
-        """Get shutdown reason (delegated to ShutdownStack)."""
         return self._shutdown_stack.get_shutdown_reason()
 
     def clear_shutdown(self) -> None:
-        """Clear shutdown request + reset execution flag (delegated to ShutdownStack)."""
         self._shutdown_stack.clear_shutdown()
 
     def get_shutdown_handlers(self) -> List[tuple]:
-        """Get registered shutdown handlers (delegated to ShutdownStack)."""
         return self._shutdown_stack.get_shutdown_handlers()
 
-    # ============ Application Busy State (for Singleton Shutdown Control) ============
+    # ============ Application Busy State ============
 
     def set_busy(self, busy: bool, reason: str = "") -> None:
-        """
-        Set application busy state
-
-        Any thread can call this to prevent shutdown when processing critical tasks.
-        When busy=True, singleton detector will reject shutdown requests.
-
-        Args:
-            busy: True to mark as busy, False to clear
-            reason: Reason for busy state (optional)
-
-        Example:
-            # Before critical operation
-            THREAD_BUS.set_busy(True, "Processing database transaction")
-
-            # After operation
-            THREAD_BUS.set_busy(False)
-        """
         self.set_thread_state('app', 'busy' if busy else 'idle', reason=reason)
 
     def is_busy(self) -> bool:
-        """
-        Check if application is busy
-
-        Returns:
-            True if any thread marked application as busy
-
-        Example:
-            if THREAD_BUS.is_busy():
-                print("Cannot shutdown: Application is busy")
-        """
         state = self.get_thread_state('app')
         return state is not None and state.get('state') == 'busy'
 
     def get_busy_reason(self) -> Optional[str]:
-        """
-        Get reason for busy state
-
-        Returns:
-            Busy reason string or None
-        """
         state = self.get_thread_state('app')
         if state and state.get('state') == 'busy':
             return state.get('reason', '')
@@ -605,23 +529,20 @@ THREAD_BUS = ThreadBus()
 
 
 def main():
-    """Test ThreadBus"""
+    """Test ThreadBus."""
 
     ColorPrint.blue("=== Testing ThreadBus ===")
 
-    # Test signals
     ColorPrint.blue("\n1. Testing Signals")
     THREAD_BUS.signal('test_signal', {'data': 'hello'})
     ColorPrint.green(f"Has signal: {THREAD_BUS.has_signal('test_signal')}")
     ColorPrint.green(f"Signal data: {THREAD_BUS.get_signal('test_signal')}")
 
-    # Test thread states
     ColorPrint.blue("\n2. Testing Thread States")
     THREAD_BUS.set_thread_state('MainThread', 'running', status='ok')
     state = THREAD_BUS.get_thread_state('MainThread')
     ColorPrint.green(f"Thread state: {state}")
 
-    # Test message queue
     ColorPrint.blue("\n3. Testing Message Queue")
     THREAD_BUS.send_message('test_queue', {'task': 'process'})
     THREAD_BUS.send_message('test_queue', {'task': 'cleanup'})
@@ -631,7 +552,6 @@ def main():
     msg2 = THREAD_BUS.receive_message('test_queue')
     ColorPrint.green(f"Received: {msg2}")
 
-    # Test stats
     ColorPrint.blue("\n4. Bus Statistics")
     stats = THREAD_BUS.stats()
     ColorPrint.green(f"Stats: {stats}")
@@ -643,9 +563,6 @@ if __name__ == "__main__":
     main()
 
 
-# Re-export public API. THREAD_BUS is the singleton; ThreadBus is the class;
-# ShutdownStack / EventHandlerRegistry are the extracted strategy classes
-# (re-exported for the future reuse/consolidation batch).
 __all__ = [
     'THREAD_BUS',
     'ThreadBus',

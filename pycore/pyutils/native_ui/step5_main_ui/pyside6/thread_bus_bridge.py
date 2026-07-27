@@ -26,6 +26,9 @@ Expected on the concrete framework instance (provided at runtime):
     self._publish_window_visible(bool)
 """
 
+import hashlib
+import json
+
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWidgets import QApplication
 
@@ -53,6 +56,7 @@ class ThreadBusBridgeMixin(QObject):
     _thread_bus_maximize_signal = Signal()
     _thread_bus_update_tray_menu_signal = Signal(object)  # menu items (list of dicts)
     _thread_bus_subtitle_mode_signal = Signal(bool)  # subtitle compact mode: True=enter, False=exit
+    _thread_bus_tray_menu_signature = {'value': None}
 
     # ========== THREAD_BUS Integration ==========
 
@@ -103,6 +107,11 @@ class ThreadBusBridgeMixin(QObject):
         # the independent pystray tray registers its own 'tray.update_menu' handler).
         if self.config.enable_tray:
             THREAD_BUS.register_event_handler('tray.update_menu', self._on_thread_bus_update_tray_menu)
+            last_payload = THREAD_BUS.get_signal('tray.menu.payload')
+            if isinstance(last_payload, dict):
+                menu_items = last_payload.get('menu_items')
+                if menu_items is not None:
+                    self._on_thread_bus_update_tray_menu({'menu_items': menu_items})
 
         # Voice-subtitle compact ("Subtitle Mode") window control. Triggered by the
         # web UI via WS RPC -> thread_bus.trigger_event. Handled here (Qt thread)
@@ -241,7 +250,24 @@ class ThreadBusBridgeMixin(QObject):
     def _do_update_tray_menu(self, menu_items):
         """Rebuild the native tray menu (Qt main thread)."""
         if self.system_tray:
+            signature = self._menu_signature(menu_items)
+            if signature == self._thread_bus_tray_menu_signature.get('value'):
+                return
+            self._thread_bus_tray_menu_signature['value'] = signature
             self.system_tray.set_menu_items(build_pyside6_menu_from_dicts(menu_items))
+
+    def _menu_signature(self, menu_items):
+        """Create a stable tray menu signature for dedupe."""
+        try:
+            payload = json.dumps(
+                menu_items,
+                sort_keys=True,
+                ensure_ascii=False,
+                default=str,
+            ).encode("utf-8")
+            return hashlib.md5(payload).hexdigest()
+        except Exception:
+            return hashlib.md5(str(menu_items).encode("utf-8")).hexdigest()
 
     @Slot(bool)
     def _do_subtitle_mode(self, enter: bool):

@@ -224,6 +224,7 @@ function Install-SinglePackageViaManager {
         
         switch ($InstallType) {
             "npm" { $executable = Invoke-PnpmCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
+            "pnpm" { $executable = Invoke-PnpmCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "pip" { $executable = Invoke-PipCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "cargo" { $executable = Invoke-CargoCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
             "go" { $executable = Invoke-GoCommand -PackageName $singlePackage -Keyword $Keyword -AdditionalKeywords $AdditionalKeywords -ForceInstall $ForceInstall }
@@ -581,8 +582,8 @@ function Invoke-StandardPackageInstallation {
         [hashtable]$PackageMeta = @{}
     )
 
-    # Handle npm special case - check for NpmPackageName field
-    if ($InstallType -eq "npm") {
+    # Handle npm/pnpm special case - check for NpmPackageName field
+    if ($InstallType -eq "npm" -or $InstallType -eq "pnpm") {
         $resolvedPackageName = $PackageId
         if ($PackageMeta.ContainsKey("NpmPackageName") -and -not [string]::IsNullOrEmpty($PackageMeta.NpmPackageName)) {
             $resolvedPackageName = $PackageMeta.NpmPackageName
@@ -590,12 +591,12 @@ function Invoke-StandardPackageInstallation {
         }
         elseif ([string]::IsNullOrEmpty($PackageId) -and -not [string]::IsNullOrEmpty($PackageName)) {
             $resolvedPackageName = $PackageName
-            Write-Host "$SCRIPT_INDEX Using PackageName as NPM package: $resolvedPackageName" -ForegroundColor Cyan
+            Write-Host "$SCRIPT_INDEX Using PackageName as pnpm package: $resolvedPackageName" -ForegroundColor Cyan
         }
 
         # Validate that we have a valid package name
         if ([string]::IsNullOrEmpty($resolvedPackageName)) {
-            Write-Host "$SCRIPT_INDEX Error: No valid NPM package name found (checked: PackageId, NpmPackageName, PackageName)" -ForegroundColor Red
+            Write-Host "$SCRIPT_INDEX Error: No valid pnpm package name found (checked: PackageId, NpmPackageName, PackageName)" -ForegroundColor Red
             Write-Host "$SCRIPT_INDEX PackageId: '$PackageId', NpmPackageName: '$($PackageMeta.NpmPackageName)', PackageName: '$PackageName'" -ForegroundColor Yellow
             return $null
         }
@@ -607,7 +608,8 @@ function Invoke-StandardPackageInstallation {
 
     # Add type-specific notes
     switch ($InstallType) {
-        "npm" { Write-Host "$SCRIPT_INDEX Note: PNPM (modern Node.js package manager) installs packages globally or locally" -ForegroundColor Yellow }
+        "npm" { Write-Host "$SCRIPT_INDEX Note: PNPM (via Global:PNPM_EXE_PATH) installs packages globally" -ForegroundColor Yellow }
+        "pnpm" { Write-Host "$SCRIPT_INDEX Note: PNPM (via Global:PNPM_EXE_PATH) installs packages globally" -ForegroundColor Yellow }
         "pip" { Write-Host "$SCRIPT_INDEX Note: PIP installs to Python environment, no custom install directory" -ForegroundColor Yellow }
         "pipx" { Write-Host "$SCRIPT_INDEX Note: PIPX installs isolated Python applications" -ForegroundColor Yellow }
         "uv" { Write-Host "$SCRIPT_INDEX Note: UV provides fast Python package management" -ForegroundColor Yellow }
@@ -708,7 +710,7 @@ function Install-BasePackage {
             $executable = Invoke-PowerShellCommand -PackageName $PackageName -Keyword $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -ForceInstall $false -PowerShellCommand $PowerShellCommand
             $installed = $null -ne $executable
         }
-        { $_ -in @("npm", "pip", "pipx", "uv", "uvx", "poetry", "choco", "scoop", "cargo", "go", "gem", "brew") } {
+        { $_ -in @("npm", "pnpm", "pip", "pipx", "uv", "uvx", "poetry", "choco", "scoop", "cargo", "go", "gem", "brew") } {
             $executable = Invoke-StandardPackageInstallation -InstallType $InstallType -PackageId $PACKAGE_ID -ExecName $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -Description $DESCRIPTION -PackageName $PackageName -PackageMeta $PackageMeta
             $installed = $null -ne $executable
         }
@@ -775,7 +777,11 @@ function Install-BasePackage {
                     if ($installed -and $EXEC_NAME) {
                         $searchPaths = @()
                         if ($PackageMeta.ContainsKey("InstallSearchPaths") -and $PackageMeta.InstallSearchPaths) {
-                            $searchPaths = $PackageMeta.InstallSearchPaths | Where-Object { $_ -and (Test-Path $_ -ErrorAction SilentlyContinue) }
+                            $searchPaths = @(
+                                $PackageMeta.InstallSearchPaths |
+                                    Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                                    Where-Object { Test-Path -LiteralPath $_ -ErrorAction SilentlyContinue }
+                            )
                         }
                         $executable = Find-ExecutableByKeyword -Keywords $EXEC_NAME -AdditionalKeywords $ADDITIONAL_KEYWORDS -AdditionalScanPaths $searchPaths -IncludeSystemPaths $true -Recursive $true
                     }

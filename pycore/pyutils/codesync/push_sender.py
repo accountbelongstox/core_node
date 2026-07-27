@@ -145,12 +145,27 @@ class PushSender:
         )
 
     # ----- retry/backoff bookkeeping -------------------------------------- #
-    @serialized_method
     def _note_failure(self, peer: dict, exc, mid_sync: bool = False) -> None:
         """Schedule the next retry with exponential backoff; log only the FIRST
         failure of a streak to avoid spam, and surface a 'retrying' phase. Applies
         to BOTH connect failures and mid-sync drops so a flapping link backs off
-        instead of hot-looping every supervisor tick."""
+        instead of hot-looping every supervisor tick.
+
+        Manager notify runs AFTER the PushSender state write so a deadlocked
+        Manager cannot pin this owner's worker."""
+        info = self._note_failure_state(peer, exc, mid_sync)
+        if not info:
+            return
+        try:
+            self.m.set_sync_phase(
+                "retrying", info["attempt"], channel=info["pid"],
+                name=info["name"], direction="push",
+            )
+        except Exception:
+            pass
+
+    @serialized_method
+    def _note_failure_state(self, peer: dict, exc, mid_sync: bool = False):
         pid = peer.get("id")
         host = peer.get("host")
         port = int(peer.get("port", 59000))
@@ -164,22 +179,20 @@ class PushSender:
         retry["attempt"] = min(attempt + 1, 16)
         first = not retry["logged"]
         retry["logged"] = True
+        name = peer.get("name") or host
         if first:
             what = "link dropped mid-sync" if mid_sync else "unreachable"
-            name = peer.get("name") or host
             # Be explicit this is a CODE-SYNC PEER (a remote pycore on its :59000 RPC
             # port) — NOT the Laravel backend (:9000). The two share a host in some
             # deployments; naming the service here avoids mistaking one for the other.
             ColorPrint.yellow(f"[CodeSync WsPush] code-sync peer '{name}' "
                               f"(pycore {host}:{port}) {what} ({exc}); "
                               f"retrying with backoff (next in {delay}s)")
-        # Reflect backoff in the UI as a 'retrying' phase for THIS peer's channel
-        # (channel = peer id, matching the UI's per-peer lookup).
-        try:
-            self.m.set_sync_phase("retrying", min(attempt + 1, 16), channel=pid,
-                                  name=(peer.get("name") or host), direction="push")
-        except Exception:
-            pass
+        return {
+            "pid": pid,
+            "name": name,
+            "attempt": min(attempt + 1, 16),
+        }
 
     @serialized_method
     def _note_success(self, peer: dict) -> None:

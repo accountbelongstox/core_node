@@ -1327,9 +1327,11 @@ export interface OpenDirResponse {
 export interface TranslationQueueSummary {
   pending: number;
   processing: number;
+  leased: number;
   completed: number;
   failed: number;
   total: number;
+  missing_dictionary_words?: number;
 }
 
 export interface TranslationQueueItem {
@@ -1352,6 +1354,7 @@ export interface TranslationQueueResponse {
   laravel_reachable: boolean;
   /** Whether pycore's live WS bridge is connected (omitted by older backends). */
   ws_connected?: boolean;
+  ws_event_count?: number;
   age_ms: number;
   error?: string;
 }
@@ -1863,6 +1866,14 @@ export interface PcTaskCenterRemoteQueue {
   age_ms?: number | null;
   /** Age of the cached monitor snapshot (seconds); lets the hub skip triangulation. */
   laravel_snapshot_age_s?: number | null;
+  /** Translation worker subset — api_url lets the UI detect re-registration lag. */
+  worker?: {
+    worker_id?: string | null;
+    api_url?: string | null;
+    registered?: boolean;
+    inflight_tasks?: number;
+    done_words_cached?: number;
+  };
 }
 
 export interface PcTaskCenterResponse {
@@ -1875,13 +1886,82 @@ export interface PcTaskCenterResponse {
   timestamp?: string;
 }
 
-export type QueueCenterControlName = 'assist' | 'translation' | 'word_audio' | 'sentence_audio';
+/*
+ * [gpt-5.3-codex-spark:LEGACY-START]
+ * Old type only exposed legacy control names from one tab.
+ * Add `assist_translation` so FE and BE can call the canonical scope directly
+ * without dropping contract parity.
+ * [gpt-5.3-codex-spark:LEGACY-END]
+ */
+export type QueueCenterControlName =
+  | 'assist_translation'
+  | 'word_audio'
+  | 'sentence_audio';
+
+export type QueueCenterScope = 'heartbeat' | 'assist_translation' | 'word_audio' | 'sentence_audio' | 'media_image';
+
+export type QueueCenterSectionLifecycle = 'off' | 'starting' | 'on' | 'error';
+
+export interface QueueCenterToggleEnvelope {
+  requested_by: string | null;
+  enabled: boolean;
+  reason: string | null;
+  graceful_stop: boolean;
+  paused_by_user: boolean | null;
+}
+
+export interface QueueCenterControlMetrics {
+  pending: number;
+  processing: number;
+  leased: number;
+  total: number;
+}
+
+export interface QueueCenterWorkerMetrics {
+  online: boolean;
+  claimed: number;
+  ok: number | null;
+  fail: number | null;
+  last_heartbeat: string | null;
+}
+
+export interface QueueCenterErrorState {
+  last_error: string | null;
+  error_code: string | null;
+}
 
 export interface QueueCenterControlState {
   configured: boolean;
   requested?: boolean;
   running: boolean;
   owner: string;
+  requested_by?: string;
+  reason?: string | null;
+  graceful_stop?: boolean;
+  error_code?: string | null;
+}
+
+export interface QueueCenterSectionContract {
+  type: QueueCenterScope;
+  category: string;
+  queue: QueueCenterControlMetrics;
+  worker: QueueCenterWorkerMetrics;
+  toggle: QueueCenterToggleEnvelope;
+  lifecycle: QueueCenterSectionLifecycle;
+  error_code?: string | null;
+  last_error?: string | null;
+  updated_at: string | null;
+}
+
+export interface QueueCenterControlResponse {
+  success: boolean;
+  control: QueueCenterControlName;
+  enabled: boolean;
+  operation_id?: string;
+  requested_by?: string | null;
+  graceful_stop?: boolean;
+  error?: string;
+  result?: unknown;
 }
 
 export interface QueueCenterSnapshot {
@@ -1895,7 +1975,16 @@ export interface QueueCenterSnapshot {
     laravel_active_endpoint: string | null;
     laravel_snapshot_age_s: number | null;
   };
-  controls: Record<QueueCenterControlName, QueueCenterControlState>;
+  /*
+   * [gpt-5.3-codex-spark:LEGACY-START]
+   * Legacy snapshot typing required every control key to exist at runtime.
+   * Backend/older snapshots can be partial per-scope, so keep the partial
+   * contract and let callers guard optional access.
+   * [gpt-5.3-codex-spark:LEGACY-END]
+   */
+  controls: Partial<Record<QueueCenterControlName, QueueCenterControlState>>;
+  section_contracts?: Record<QueueCenterScope, QueueCenterSectionContract>;
+  error_code?: string | null;
   data: {
     task_center: PcTaskCenterResponse;
     translation: TranslationQueueResponse | null;
@@ -2276,6 +2365,10 @@ export interface PcTaskRecord {
   capability?: string;
   archive_id?: string | number;
   resources?: PcTaskCachedResource[];
+  is_local?: boolean;
+  source?: string;
+  updated_at?: string;
+  last_error?: string | null;
 }
 
 /** Roll-up stats for the recent-task ring. */

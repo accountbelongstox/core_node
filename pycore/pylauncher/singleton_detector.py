@@ -337,6 +337,22 @@ class SingletonDetector(_SingletonServerMixin):
                 # Found valid instance!
                 self._log("[FOUND] Existing instance detected")
 
+                # A second detector created in this process must never take
+                # over the process's own singleton socket.  The protocol
+                # handshake is valid in that case, but the PID proves it is
+                # not an older external instance.
+                if response.get('pid') == os.getpid():
+                    self._log(
+                        f"[SELF] Singleton port {port} belongs to this process; "
+                        "refusing self-takeover", "WARNING")
+                    return DetectionResult(
+                        is_primary=False,
+                        port=0,
+                        existing_instance=True,
+                        existing_port=port,
+                        message=f"Singleton detector already active in this process on port {port}"
+                    )
+
                 # Takeover ordering: the NEWEST instance wins. If the running
                 # PRIMARY was started more recently than this process, this is
                 # the OLD instance arriving late (slow startup, e.g. boot

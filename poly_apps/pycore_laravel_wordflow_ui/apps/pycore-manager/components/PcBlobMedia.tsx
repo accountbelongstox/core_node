@@ -1,13 +1,12 @@
 /**
  * PcBlobMedia — <img>/<audio> whose bytes come over the WS bus (data: URL via
- * local_http.blob) instead of an HTTP element src to :59000. Falls back to the
- * direct HTTP URL when WS is not connected, so display never regresses.
+ * pycore.router.resource instead of an HTTP element src to :59000. It remains
+ * empty until the native WS request completes.
  */
 import React, { useEffect, useState } from 'react';
 import { fetchPycoreBlobUrl } from '../../../core/api-libs/pycore/PycoreBlob';
 
-/** Resolve a pycore media path (relative or absolute) to a WS-fetched data: URL
- *  (cached), or the direct HTTP URL as fallback. */
+/** Resolve a pycore media path to a WS-fetched data: URL (cached). */
 export function usePycoreBlobUrl(url: string | null | undefined): string | undefined {
   const [src, setSrc] = useState<string | undefined>(undefined);
   useEffect(() => {

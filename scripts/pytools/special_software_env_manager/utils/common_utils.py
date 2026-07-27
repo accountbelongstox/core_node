@@ -308,12 +308,13 @@ def _get_key_input():
         return input().strip().lower()
 
 
-def show_menu(title: str, menu_items: List[Dict[str, Any]]) -> Optional[str]:
+def show_menu(title: str, menu_items: List[Dict[str, Any]], tips: Optional[List[str]] = None) -> Optional[str]:
     """Display an interactive menu with arrow key navigation
     
     Args:
         title: Menu title
         menu_items: List of menu item dictionaries with 'Text', 'Action', and optionally 'HasSubMenu'
+        tips: Optional tip lines shown under the title (redrawn each frame)
         
     Returns:
         Selected action string, or None if cancelled
@@ -335,6 +336,10 @@ def show_menu(title: str, menu_items: List[Dict[str, Any]]) -> Optional[str]:
         ColorMessage.write(title, 'info')
         ColorMessage.write("=" * 60, 'info')
         print()
+        if tips:
+            for tip in tips:
+                ColorMessage.write(tip, 'info')
+            print()
         
         # Display menu items with clear selection indicator
         for i, item in enumerate(menu_items):

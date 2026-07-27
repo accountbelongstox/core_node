@@ -17,7 +17,7 @@
 
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
-import { deepseekSendPromptTool } from '../tools/browser/deepseek';
+import { geminiWebTool } from '../tools/browser/gemini-web';
 import { logger } from '@/utils/logger';
 import { DEFAULT_TARGET_LANG } from '@/utils/task-center-types';
 
@@ -89,11 +89,11 @@ class WebAiTranslateWorkerService extends SimpleWorkerBase {
       targetLanguage,
     );
 
-    // Drive the reused DeepSeek chat tool, waiting for the answer. Any
+    // Drive the reused Gemini chat tool, waiting for the answer. Any
     // failure (no tab, timeout, cancellation) throws and is caught below.
     let assistantText: string;
     try {
-      const toolResult = await deepseekSendPromptTool.execute({
+      const toolResult = await geminiWebTool.execute({
         prompt,
         waitForCompletion: true,
       });
@@ -135,7 +135,7 @@ class WebAiTranslateWorkerService extends SimpleWorkerBase {
   }
 
   /**
-   * The DeepSeek tool returns a ToolResult whose content[0].text is a JSON
+   * The Gemini tool returns a ToolResult whose content[0].text is a JSON
    * string {taskId,status,conversationUrl,result}; the assistant text lives at
    * result.content. Reach it defensively.
    */

@@ -77,6 +77,9 @@ from pycore.pyfoundations.serialized_worker import (
 # Rule §4: all inter-thread data exchange goes through the global bus.
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 # Live enable flag for bump-wake (UI toggle lives on the heartbeat callback).
+# Rule §4: all inter-thread data exchange goes through the global bus.
+from pycore.pyfoundations.thread_bus import THREAD_BUS
+# Live enable flag for bump-wake (UI toggle lives on the heartbeat callback).
 from pycore.pyheartbeat import get_heartbeat_system
 # Env-backed callmodule config (TTS_SENTENCE_WORKER_* knobs live beside the word
 # worker's TTS_WORKER_* in callmodule_config/config.py).
@@ -85,6 +88,7 @@ from pycore.callmodule.callmodule_config import Config
 # word worker and media-sync service use.
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
+    register_endpoint_change_listener,
 )
 # ONE entry point for synthesis; local-first engine priority and edge's
 # process-wide serialization live in the orchestrator.
@@ -214,9 +218,25 @@ class TTSSentenceWorkerService(TTSSentenceWorkerApiMixin):
         self._engine_probe_ts = 0.0
 
         self._initialized = True
+        # Register for immediate notification when the user switches endpoint so
+        # the conn-fail warning is cleared and the next cycle tick probes the new host.
+        register_endpoint_change_listener(self.on_endpoint_changed)
         ColorPrint.green(
             f"[TTSSentenceWorker] Service initialized (worker_id={self.worker_id}, "
             f"batch={self.batch_size}, enabled_on_start={self.enabled})"
+        )
+
+    def on_endpoint_changed(self, new_url: str) -> None:
+        """Reset conn-fail state when the user switches the Laravel endpoint.
+
+        The sentence worker resolves its base URL live on each cycle, so only
+        the warn-once gate needs clearing to let the first request to the new
+        host produce a normal log line (error or success).
+        """
+        self._conn_fail_streak = 0
+        self._conn_unreachable_warned = False
+        ColorPrint.blue(
+            f"[TTSSentenceWorker] Endpoint changed \u2192 {new_url!r}; conn-fail state reset"
         )
 
     # -------------------- identity / plumbing --------------------

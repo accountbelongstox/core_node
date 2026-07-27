@@ -16,3 +16,54 @@
 4：前端同样提供一个路由扩展，比如引用前端的路由访问后，提供一个路由字符和回调，类库会自动使用心跳机制在服务器有了响应后立即回调。
 5：后端提供的路由是一个标准方法，在该方法中扩展时，处理路由的controller会把数据返回，然后由类库中的接收机制负责统一处理，同时类库和前端协议处理一致的数据类型是固定的，controller返回的数据会被附到其中一个字段上，而不能替换通信协议。
 扩展出，1个事件发送后，（比如事件库）将待客户端反馈是否接收成功，之后再进行标记。同样，客户端发送服务器则根据返回值200之类。 扩展出该通知的http/websockt的通信协议，不能使用await待阻塞库。写入开发规范，并全面重构代码。
+
+-------------------
+RPC v2 desktop UI standard
+
+1. ``pycore-manager`` must use the native RPC v2 WebSocket client for every
+   request. UI code must not call FastAPI, fetch, XMLHttpRequest, Axios, or a
+   loopback HTTP endpoint for pycore operations.
+2. Every request carries a client-generated ``event_id`` and the stable
+   ``client_id`` from the WebSocket URL. The server records both before it
+   starts the handler.
+3. Completion is delivered as a WebSocket response containing ``event_id`` and
+   ``client_id``. The client acknowledges the same event only after the result
+   has been accepted by the pending callback.
+4. The server keeps completed results in the request event table and inventory
+   table until the matching client ACK is received. If the client is offline,
+   the result remains pending and is replayed after reconnect or on heartbeat.
+5. RPC calls have no client-side or RPC-bridge timeout. A disconnected client
+   keeps its pending event and reconnects with the same event ID; a completed
+   event is replayed instead of being executed again.
+6. Long-running work must run in a worker or service task so the WebSocket
+   receive loop stays responsive. No route may block the receive loop with a
+   synchronous wait for client notification.
+7. ``pycore-manager`` has no FastAPI compatibility entry. Its operations are
+   registered only as native RPC v2 WebSocket routes. Legacy routers are not a
+   supported UI transport and must not be called by the UI.
+8. Binary data used by the UI must be transferred through an RPC v2 WS route
+   (base64 or a chunked payload). Browser media URLs and external Laravel API
+   URLs are not RPC request channels.
+9. RPC route names are defined once in the frontend route registry and once in
+   the backend route registry. UI components and backend registration modules
+   import those registries; literal ``pycore.xxx.xxx`` strings are forbidden
+   outside the registries.
+
+-------------------
+Route and business-layer boundary
+
+1. ``pycore/callmodule/routers`` and ``pycore/callmodule/rpc_routes`` must not be
+   physically merged. ``rpc_routes`` is the only UI route registration layer;
+   legacy routers are retained only while non-UI callers are migrated and are
+   never an entry point for pycore-manager.
+2. Shared validation, orchestration, persistence, and external service calls
+   belong in ``controllers`` or ``services``. Neither adapter may duplicate
+   business logic.
+3. ``rpc_routes`` registers every UI-facing route through the rpc_v2 server and
+   delegates work to the shared controllers/services. Each handler receives the
+   RPC ``request_id`` and context so event/client ownership is preserved.
+4. No new FastAPI-only endpoint may be added. Every migrated UI operation must
+   have one named frontend/backend RPC registry entry and one native handler.
+5. The RPC adapter must use worker/task dispatch for blocking work. FastAPI
+   request objects, HTTP response classes, and HTTP method semantics must not
+   leak into shared business code.

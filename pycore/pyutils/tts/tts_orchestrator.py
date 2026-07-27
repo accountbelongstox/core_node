@@ -118,7 +118,7 @@ def _apply_sentence_gpu_gate(order: tuple[str, ...]) -> tuple[str, ...]:
 
 def _priority(profile: str = "default") -> tuple[str, ...]:
     order = configured_tts_priority(profile)
-    return _apply_sentence_gpu_gate(order) if profile == "sentence" else order
+    return _apply_sentence_gpu_gate(order) if profile in ("sentence", "agent_history") else order
 
 def _edge_in_cooldown() -> bool:
     return edge_in_cooldown()

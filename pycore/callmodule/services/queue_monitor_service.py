@@ -69,6 +69,7 @@ from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 # Reuse the shared Laravel endpoint resolver (same as the UI laravel_api.* RPCs).
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
+    register_endpoint_change_listener,
     resolve_laravel_base_url,
 )
 from pycore.callmodule.services.queue_bump_hub import get_queue_bump_hub
@@ -128,6 +129,7 @@ class QueueMonitorService:
         # additively in the snapshot as `ws_connected` so the UI can show whether
         # real-time updates are flowing (vs falling back to the 5s HTTP poll).
         self._ws_connected = False
+        self._ws_event_count = 0
 
         self._initialized = True
         init_serialized_owner(
@@ -136,10 +138,46 @@ class QueueMonitorService:
             "TranslationQueueMonitorState",
             timeout=90.0,
         )
+        register_endpoint_change_listener(self.on_endpoint_changed)
+        
+        # Pre-warm on startup
+        self.poll_once()
+        try:
+            from pycore.callmodule.controllers.local_processing.task_center_controller import _fetch_assist_overview
+            from pycore.pyfoundations.serialized_worker import start_bus_task
+            start_bus_task(_fetch_assist_overview, thread_name="assist-overview-prewarm")
+        except ImportError:
+            pass
+            
         ColorPrint.green(
             f"[QueueMonitor] Service initialized "
             f"(base={self._base_url()}, bump_ttl={self._bump_ttl}s)"
         )
+
+    def on_endpoint_changed(self, new_url: str) -> None:
+        """Reset monitor state when the Laravel endpoint changes.
+
+        Called synchronously by LaravelEndpointManager.select(). Clears the
+        cached snapshot and conn-fail warning so the next poll probes the new
+        endpoint from a clean slate.
+        """
+        self._laravel_reachable = False
+        self._unreachable_warned = False
+        self._snapshot = {"summary": {}, "items": []}
+        self._snapshot_ts = 0.0
+        THREAD_BUS.signal(_BUS_SNAPSHOT, self.get_snapshot(refresh=False))
+        ColorPrint.blue(
+            f"[QueueMonitor] Endpoint changed → {new_url!r}; snapshot cleared"
+        )
+        
+        # Pre-warm on endpoint change
+        self.poll_once()
+        try:
+            from pycore.callmodule.controllers.local_processing.task_center_controller import _fetch_assist_overview
+            from pycore.pyfoundations.serialized_worker import start_bus_task
+            start_bus_task(_fetch_assist_overview, thread_name="assist-overview-prewarm")
+        except ImportError:
+            pass
 
     # -------------------- base URL / HTTP helpers --------------------
 
@@ -256,30 +294,58 @@ class QueueMonitorService:
         status: str = "pending",
         limit: int = 100,
     ) -> Optional[Dict[str, Any]]:
+        diagnostics = {
+            "laravel_base_url": base,
+            "resolved_url": f"{base}{_QUEUE_API_PREFIX}/list",
+            "http_status": None,
+            "response_time_ms": None,
+            "success": False,
+        }
+        start_time = time.monotonic()
         try:
             resp = get_laravel_client().get(
                 f"{base}{_QUEUE_API_PREFIX}/list",
                 params={"status": status, "limit": limit},
                 timeout=self._http_timeout,
             )
+            diagnostics["response_time_ms"] = int((time.monotonic() - start_time) * 1000)
+            diagnostics["http_status"] = resp.status_code
+            
             if resp.status_code == 200:
+                diagnostics["success"] = True
                 data = resp.json() or {}
                 body = data.get("data") if isinstance(data.get("data"), dict) else data
                 return body or {}
+            
             if not self._unreachable_warned:
                 self._unreachable_warned = True
                 ColorPrint.yellow(
                     f"[QueueMonitor] queue/list at {base} returned HTTP {resp.status_code} "
-                    "(queue API not available yet?); staying quiet until it recovers."
+                    f"(queue API not available yet?); staying quiet until it recovers. Diagnostics: {diagnostics}"
                 )
             return None
         except Exception as e:
+            diagnostics["response_time_ms"] = int((time.monotonic() - start_time) * 1000)
             if not self._unreachable_warned:
                 self._unreachable_warned = True
                 ColorPrint.yellow(
                     f"[QueueMonitor] No reachable Laravel queue API at {base} "
-                    f"({self._short_err(e)}); will keep polling quietly."
+                    f"({self._short_err(e)}); will keep polling quietly. Diagnostics: {diagnostics}"
                 )
+            return None
+
+    def _fetch_pending_words_at(self, base: str) -> Optional[Dict[str, Any]]:
+        try:
+            resp = get_laravel_client().get(
+                f"{base}{_QUEUE_API_PREFIX}/pending_words",
+                timeout=self._http_timeout,
+            )
+            if resp.status_code == 200:
+                data = resp.json() or {}
+                body = data.get("data") if isinstance(data.get("data"), dict) else data
+                return body or {}
+            return None
+        except Exception:
             return None
 
     def poll_once(self) -> None:
@@ -310,13 +376,19 @@ class QueueMonitorService:
         worker, and the resulting snapshot is published on THREAD_BUS.
         """
         try:
-            body = self._fetch_list_at(self._poll_base_url())
+            base_url = self._poll_base_url()
+            body = self._fetch_list_at(base_url)
             if body is None:
                 self._laravel_reachable = False
                 return
 
             summary = body.get("summary") or {}
             items = body.get("items") or []
+            
+            pending_words_body = self._fetch_pending_words_at(base_url)
+            if pending_words_body:
+                pending_summary = pending_words_body.get("summary") or {}
+                summary["missing_dictionary_words"] = pending_summary.get("pending", 0)
 
             self._apply_bump_detection(items)
             self._snapshot = {"summary": summary, "items": items}
@@ -343,7 +415,13 @@ class QueueMonitorService:
     @serialized_method
     def set_ws_connected(self, connected: bool) -> None:
         """Record live WS connection status (surfaced as snapshot.ws_connected)."""
+        if not connected:
+            self._ws_event_count = 0
         self._ws_connected = bool(connected)
+
+    @serialized_method
+    def increment_ws_event_count(self) -> None:
+        self._ws_event_count += 1
 
     def _find_item(self, items: List[Dict[str, Any]], task_id: Any) -> Optional[Dict[str, Any]]:
         """Locate an item by task_id (string-compared, since ids may be int/str)."""
@@ -464,6 +542,7 @@ class QueueMonitorService:
             # Additive field: whether the real-time Reverb WS is connected. The
             # existing fields above are unchanged (backward-compatible).
             "ws_connected": ws_connected,
+            "ws_event_count": self._ws_event_count,
             "age_ms": age_ms,
         }
 

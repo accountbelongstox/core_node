@@ -287,15 +287,6 @@ class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
         ColorPrint.green(f"[PySide6Framework] Framework is now running")
         ColorPrint.green(f"[PySide6Framework] Window visible: {self.main_window.isVisible() if self.main_window else False}")
 
-        # Auto-close the tk bootstrap window now that PySide6 is fully up.
-        # This is race-free, unlike the 'system.third_party_packages_loaded'
-        # handler which may be registered only after the launcher already fired
-        # that event (this framework is constructed late, in the UI worker thread).
-        # close_startup() is idempotent (it clears self.startup_thread).
-        if self.startup_config.auto_close and self.startup_thread:
-            ColorPrint.blue("[PySide6Framework] auto_close: closing tk bootstrap window (PySide6 ready)")
-            self.close_startup()
-
         # Start Qt event loop (blocking)
         if self._qt_app_created_internally:
             ColorPrint.blue("[PySide6Framework] Starting Qt event loop (blocking)...")

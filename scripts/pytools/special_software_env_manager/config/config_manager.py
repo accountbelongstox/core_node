@@ -118,23 +118,66 @@ class ConfigManager:
                 'Common': 'ark',
                 'DisplayName': 'Ark CLI (Volcano Ark / GLM)',
                 'CommandPrefix': 'ark',
-                'WindowsCommand': 'arkcli',
-                'LinuxCommand': 'arkcli',
+                'WindowsCommand': 'claude',
+                'LinuxCommand': 'claude',
                 'UseV4Launcher': True,
+                # Script-only numbering still uses existing ark*.ps1 / ark*.sh.
+                # Optional vars below may be empty (native arkcli interactive).
+                #
+                # Distinctive opt-in feature — empty-native slot merge/reuse
+                # (ScriptOnlyLauncher, default False):
+                # When True, several arkN with no ARKCLI_* secrets count as one
+                # empty-native capacity; all-empty Create reuses the lowest index
+                # instead of allocating a new one. Leave False to allow multiple
+                # empty ark slots (ark1/ark2/ark3 each with its own user dir).
+                'ScriptOnlyLauncher': False,
                 'Variables': [
                     {
-                        'Name': 'ARK_API_KEY',
-                        'Description': 'Volcano Ark API Key. Reuses the key stored by the Volcano Ark encrypted-constant config. Kept for secret-slot discovery only - the native arkcli launcher authenticates via "arkcli auth login" and does NOT read this key (no ANTHROPIC_* env mapping).',
-                        'Required': True
-                    },
-                    {
-                        'Name': 'ARK_BASE_URL',
-                        'Description': 'Ark endpoint (optional). Shared with claudevolc.ps1 / the Volcano Ark config; NOT read by the native arkcli launcher (arkcli owns its endpoint via auth).',
+                        'Name': 'ARKCLI_PROFILE',
+                        'Description': 'Optional arkcli profile for helper configure (coding-plan / coding-plan-team / agent-plan / agent-plan-team). Empty = interactive arkcli selection.',
                         'Required': False
                     },
                     {
-                        'Name': 'ANTHROPIC_MODEL',
-                        'Description': 'Model id (optional). NOT read by the native arkcli launcher - arkcli selects the model via "arkcli helper" / auth profile.',
+                        'Name': 'ARKCLI_MODEL',
+                        'Description': 'Optional model id (e.g. kimi-k3). After arkcli configure: Use model xxx? [Y/n] (default Y). Empty = Use model kimi-k3? [Y/n]. Any N auto-forces ark-code-latest (tip only).',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'ARKCLI_MCP_PROFILE',
+                        'Description': 'Optional Agent Plan profile for helper mcp. Empty = interactive; Coding Plan only soft-fails and still launches Claude.',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'ARKCLI_OV_RESOURCE',
+                        'Description': 'Optional OpenViking resource for helper mcp --ov-resource. Empty = skip.',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'ARKCLI_API',
+                        'Description': (
+                            'Optional Anthropic-compatible API base URL '
+                            '(trailing / stripped; forces ANTHROPIC_BASE_URL). '
+                            'Hints — Agent Plan: '
+                            'https://gentle-ark-agentplan-b531.cy00000000x.workers.dev ; '
+                            'Coding Plan: '
+                            'https://aged-flower-a0e4.cy00000000x.workers.dev . '
+                            'Empty = keep arkcli provider endpoint.'
+                        ),
+                        'Required': False,
+                        'Hints': [
+                            {
+                                'Label': 'Agent Plan',
+                                'Value': 'https://gentle-ark-agentplan-b531.cy00000000x.workers.dev',
+                            },
+                            {
+                                'Label': 'Coding Plan',
+                                'Value': 'https://aged-flower-a0e4.cy00000000x.workers.dev',
+                            },
+                        ],
+                    },
+                    {
+                        'Name': 'ARKCLI_API_KEY',
+                        'Description': 'Optional API key for plain Claude mode. When set: skip arkcli (no auth login / helper configure / helper mcp); launch Claude with ANTHROPIC_AUTH_TOKEN (+ ARKCLI_API as ANTHROPIC_BASE_URL) under the isolated arkN user dir so Claude data stays in that custom profile.',
                         'Required': False
                     }
                 ],

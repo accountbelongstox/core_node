@@ -83,8 +83,6 @@ $SCRIPT_STEP58_INSTALL_VOXCPM2 = "Step58_InstallVoxcpm2.ps1"
 $SCRIPT_STEP59_INSTALL_BARK = "Step59_InstallBark.ps1"
 $SCRIPT_STEP60_INSTALL_PARLER = "Step60_InstallParler.ps1"
 $SCRIPT_STEP61_INSTALL_QWEN3TTS = "Step61_InstallQwen3Tts.ps1"
-$SCRIPT_STEP128_INSTALL_CURSOR_AGENT = "Step128_InstallCursorAgent.ps1"
-$SCRIPT_STEP129_INSTALL_KIMI_CODE = "Step129_InstallKimiCode.ps1"
 
 $InstallerScriptsMap = @{
     "InitializeBaseDirectories" = $SCRIPT_STEP1_INITIALIZE_BASE_DIRECTORIES
@@ -145,8 +143,6 @@ $InstallerScriptsMap = @{
     "InstallBark" = $SCRIPT_STEP59_INSTALL_BARK
     "InstallParler" = $SCRIPT_STEP60_INSTALL_PARLER
     "InstallQwen3Tts" = $SCRIPT_STEP61_INSTALL_QWEN3TTS
-    "InstallCursorAgent" = $SCRIPT_STEP128_INSTALL_CURSOR_AGENT
-    "InstallKimiCode" = $SCRIPT_STEP129_INSTALL_KIMI_CODE
 }
 
 # DevInstaller sweep order (Step13 offline TTS removed; TTS engines are separate Step5x scripts).
@@ -208,9 +204,7 @@ $InstallerScripts = @(
     $SCRIPT_STEP58_INSTALL_VOXCPM2,
     $SCRIPT_STEP59_INSTALL_BARK,
     $SCRIPT_STEP60_INSTALL_PARLER,
-    $SCRIPT_STEP61_INSTALL_QWEN3TTS,
-    $SCRIPT_STEP128_INSTALL_CURSOR_AGENT,
-    $SCRIPT_STEP129_INSTALL_KIMI_CODE
+    $SCRIPT_STEP61_INSTALL_QWEN3TTS
 )
 
 function Get-DiscoveredInstallerStepScripts {

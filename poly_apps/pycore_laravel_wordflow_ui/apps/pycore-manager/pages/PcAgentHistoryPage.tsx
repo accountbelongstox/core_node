@@ -1,6 +1,6 @@
 /**
  * Agent History — installed Agent/Claude/Codex/Cursor/Gemini/Kimi/Antigravity/Cline/Ark sessions extracted by pycore.
- * Reads /api/local/agent-history/* (no Laravel login). Auto-refreshes every 10s.
+ * Native RPC v2 (ui.agent_history.*) — no Laravel login. Auto-refreshes every 10s.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -51,33 +51,44 @@ const PcAgentHistoryPage: React.FC = () => {
   const loadIndex = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
-    const res = await pycoreApi.getAgentHistoryIndex();
-    if (res.success && res.data) {
-      setIndex(res.data);
-    } else if (!silent) {
-      setError(res.error || t('agentHistory.loadError'));
+    try {
+      const res = await pycoreApi.getAgentHistoryIndex();
+      if (res.success && res.data) {
+        setIndex(res.data);
+      } else if (!silent) {
+        setError(res.error || t('agentHistory.loadError'));
+      }
+    } catch (e) {
+      if (!silent) {
+        setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
+      }
+    } finally {
+      if (!silent) setLoading(false);
     }
-    if (!silent) setLoading(false);
   }, [t]);
 
   const loadPrompts = useCallback(async () => {
     setPromptsLoading(true);
-    const res = await pycoreApi.getAgentHistoryPrompts({
-      tool: filterTool || undefined,
-      user: filterUser || undefined,
-      q: debouncedSearch || undefined,
-      limit: PAGE_SIZE,
-      offset: (promptPage - 1) * PAGE_SIZE,
-    });
-    if (res.success && res.data) {
-      setPrompts(res.data.items || []);
-      setPromptTotal(res.data.total || 0);
-    } else {
-      setPrompts([]);
-      setPromptTotal(0);
+    try {
+      const res = await pycoreApi.getAgentHistoryPrompts({
+        tool: filterTool || undefined,
+        user: filterUser || undefined,
+        q: debouncedSearch || undefined,
+        limit: PAGE_SIZE,
+        offset: (promptPage - 1) * PAGE_SIZE,
+      });
+      if (res.success && res.data) {
+        setPrompts(res.data.items || []);
+        setPromptTotal(res.data.total || 0);
+      } else {
+        setError(res.error || t('agentHistory.loadError'));
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
+    } finally {
+      setPromptsLoading(false);
     }
-    setPromptsLoading(false);
-  }, [filterTool, filterUser, debouncedSearch, promptPage]);
+  }, [filterTool, filterUser, debouncedSearch, promptPage, t]);
 
   useEffect(() => { loadIndex(); }, [loadIndex]);
 
@@ -103,10 +114,19 @@ const PcAgentHistoryPage: React.FC = () => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await pycoreApi.refreshAgentHistory();
-    await loadIndex();
-    if (tab === 'prompts') await loadPrompts();
-    setRefreshing(false);
+    setError(null);
+    try {
+      const res = await pycoreApi.refreshAgentHistory();
+      if (!res.success) {
+        setError(res.error || t('agentHistory.loadError'));
+      }
+      await loadIndex();
+      if (tab === 'prompts') await loadPrompts();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleSelect = async (id: string) => {
@@ -114,13 +134,18 @@ const PcAgentHistoryPage: React.FC = () => {
     setDetail(null);
     setDetailError(null);
     setDetailLoading(true);
-    const res = await pycoreApi.getAgentHistorySession(id);
-    if (res.success && res.data) {
-      setDetail(res.data);
-    } else {
-      setDetailError(res.error || tk('loadError'));
+    try {
+      const res = await pycoreApi.getAgentHistorySession(id);
+      if (res.success && res.data) {
+        setDetail(res.data);
+      } else {
+        setDetailError(res.error || tk('loadError'));
+      }
+    } catch (e) {
+      setDetailError(e instanceof Error ? e.message : tk('loadError'));
+    } finally {
+      setDetailLoading(false);
     }
-    setDetailLoading(false);
   };
 
   const handlePromptSaved = (id: string, text: string) => {

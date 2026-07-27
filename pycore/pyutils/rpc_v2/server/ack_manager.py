@@ -5,11 +5,18 @@ FastAPI-friendly ACK manager.
 
 Handles delivery retries, ACK tracking, and inventory fallback for the
 FastAPI RPC server. This replaces the aiohttp-specific implementation.
+
+Durable-completion invariant: inventory rows are ONLY removed after a
+matching client ACK. On reconnect / replay, `notify_websocket_with_retry`
+constructs a shim event from the inventory row and drives the same retry
++ ACK-wait state machine as a live completion — sending the frame is not
+the same as receiving the ACK.
 """
 
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 from pycore import ColorPrint
@@ -25,9 +32,23 @@ from pycore.pyutils.rpc_v2.common import (
     RequestStatus,
     InventoryTable,
 )
+from pycore.pyutils.rpc_v2.constants import (
+    DEFAULT_ACK_MAX_RETRIES,
+    DEFAULT_ACK_RETRY_INTERVAL,
+)
 from pycore.pyutils.rpc_v2.server.client_registry import ClientRegistry
 
 MSG_TYPES = RPC_CONSTANTS.MESSAGE_TYPES
+
+
+@dataclass
+class _RetryPlan:
+    """Retry policy pulled from either a RequestEvent or the fallback defaults."""
+
+    max_retries: int
+    retry_interval: float
+    route: str
+    client_type: str
 
 
 class FastAPIAckManager:
@@ -45,6 +66,9 @@ class FastAPIAckManager:
         self.client_registry = client_registry
         self.debug = debug
         self.ack_timeout = 5.0
+        # Track inventory-only deliveries awaiting an ACK. Keyed on
+        # (client_id, request_id). Present entry = waiting for ACK.
+        self._pending_inventory_acks: Dict[tuple, _RetryPlan] = {}
         if self.debug:
             ColorPrint.green(f"[FastAPIAckManager] Initialized (ack_timeout={self.ack_timeout}s)")
 
@@ -57,11 +81,46 @@ class FastAPIAckManager:
     ):
         """
         Schedule websocket delivery with retry + ACK tracking without blocking awaits.
+
+        When only an inventory row exists (event has expired but the durable
+        completion is still queued for delivery), the row IS NOT deleted here.
+        We build a shim retry plan and drive the same send + ACK-wait loop
+        as a live completion. Inventory removal happens only in `handle_ack`
+        after the client confirms receipt.
         """
 
         event = self.request_event_table.get_event(request_id)
-        if not event:
-            return
+        inventory_item = None
+        plan: Optional[_RetryPlan] = None
+
+        if event:
+            plan = _RetryPlan(
+                max_retries=event.max_retries,
+                retry_interval=event.retry_interval,
+                route=event.route,
+                client_type=event.client_type,
+            )
+        else:
+            # No event → fall back to inventory-only delivery.
+            inventory_item = self.inventory_table.get(request_id, remove=False)
+            if inventory_item is None:
+                # Nothing to deliver.
+                return
+            if inventory_item.client_id and inventory_item.client_id != client_id:
+                if self.debug:
+                    ColorPrint.yellow(
+                        f"[FastAPIAckManager] Inventory {request_id} belongs to a different client, skipping"
+                    )
+                return
+            plan = _RetryPlan(
+                max_retries=DEFAULT_ACK_MAX_RETRIES,
+                retry_interval=DEFAULT_ACK_RETRY_INTERVAL,
+                route=inventory_item.route,
+                client_type=inventory_item.client_type,
+            )
+            # Record that we're waiting on this ACK; handle_ack will consult
+            # this map to decide whether to delete the inventory row.
+            self._pending_inventory_acks[(client_id, request_id)] = plan
 
         self._schedule_ws_attempt(
             client_id=client_id,
@@ -69,8 +128,7 @@ class FastAPIAckManager:
             result=result,
             error=error,
             attempt=0,
-            max_attempts=event.max_retries,
-            retry_interval=event.retry_interval,
+            plan=plan,
         )
 
     def _schedule_ws_attempt(
@@ -80,8 +138,7 @@ class FastAPIAckManager:
         result: Any,
         error: Optional[str],
         attempt: int,
-        max_attempts: int,
-        retry_interval: float,
+        plan: _RetryPlan,
         delay: float = 0.0,
     ):
         loop = asyncio.get_running_loop()
@@ -94,8 +151,7 @@ class FastAPIAckManager:
                     result=result,
                     error=error,
                     attempt=attempt,
-                    max_attempts=max_attempts,
-                    retry_interval=retry_interval,
+                    plan=plan,
                 )
             )
 
@@ -111,51 +167,73 @@ class FastAPIAckManager:
         result: Any,
         error: Optional[str],
         attempt: int,
-        max_attempts: int,
-        retry_interval: float,
+        plan: _RetryPlan,
     ):
-        """Attempt to deliver a websocket notification."""
+        """Attempt to deliver a websocket notification.
+
+        Never deletes inventory as a side-effect: only a matching client
+        ACK removes it (see `handle_ack`).
+        """
         event = self.request_event_table.get_event(request_id)
-        if not event:
-            return
+        inventory_only = event is None
+
+        if inventory_only:
+            # Re-check inventory still exists — a race where it was removed
+            # via cleanup / concurrent ACK should stop the loop.
+            item = self.inventory_table.get(request_id, remove=False)
+            if item is None:
+                self._pending_inventory_acks.pop((client_id, request_id), None)
+                return
 
         payload = {
             "type": MSG_TYPES["RESPONSE"],
-            "route": event.route if event else None,
+            "route": plan.route,
             "id": request_id,
+            "event_id": request_id,
+            "client_id": client_id,
             "result": result,
             "error": error,
             "success": error is None,
             "requires_ack": True,
             "queue": None,
+            "from_inventory": inventory_only,
         }
 
         success = await self.client_registry.safe_send(client_id, payload)
         if success:
-            self.request_event_table.update_status(request_id, RequestStatus.ACK_PENDING)
-            self.request_event_table.increment_notify_attempt(request_id)
+            if not inventory_only:
+                self.request_event_table.update_status(request_id, RequestStatus.ACK_PENDING)
+                self.request_event_table.increment_notify_attempt(request_id)
             self._schedule_ack_timeout(
                 client_id=client_id,
                 request_id=request_id,
                 attempt=attempt,
-                max_attempts=max_attempts,
-                retry_interval=retry_interval,
+                plan=plan,
                 result=result,
                 error=error,
+                inventory_only=inventory_only,
             )
             if self.debug:
+                origin = "inventory replay" if inventory_only else "live"
                 ColorPrint.green(
-                    f"[FastAPIAckManager] Sent WS result for {request_id} to {client_id[:8]}..., waiting for ACK"
+                    f"[FastAPIAckManager] Sent WS result ({origin}) for {request_id} to {client_id[:8]}..., waiting for ACK"
                 )
             return
 
-        if attempt + 1 >= max_attempts:
-            self._store_in_inventory(client_id, request_id, result, error, event)
+        if attempt + 1 >= plan.max_retries:
+            if not inventory_only:
+                self._store_in_inventory(client_id, request_id, result, error, event)
+            elif self.debug:
+                # Inventory is already the source of truth; keep it and drop the retry.
+                ColorPrint.yellow(
+                    f"[FastAPIAckManager] Gave up inventory-only delivery of {request_id} to {client_id[:8]}..."
+                )
+                self._pending_inventory_acks.pop((client_id, request_id), None)
             return
 
         if self.debug:
             ColorPrint.yellow(
-                f"[FastAPIAckManager] WS send failed for {request_id} (attempt {attempt + 1}/{max_attempts}), retrying..."
+                f"[FastAPIAckManager] WS send failed for {request_id} (attempt {attempt + 1}/{plan.max_retries}), retrying..."
             )
 
         self._schedule_ws_attempt(
@@ -164,9 +242,8 @@ class FastAPIAckManager:
             result=result,
             error=error,
             attempt=attempt + 1,
-            max_attempts=max_attempts,
-            retry_interval=retry_interval,
-            delay=retry_interval,
+            plan=plan,
+            delay=plan.retry_interval,
         )
 
     def _schedule_ack_timeout(
@@ -174,10 +251,10 @@ class FastAPIAckManager:
         client_id: str,
         request_id: str,
         attempt: int,
-        max_attempts: int,
-        retry_interval: float,
+        plan: _RetryPlan,
         result: Any,
         error: Optional[str],
+        inventory_only: bool,
     ):
         loop = asyncio.get_running_loop()
 
@@ -187,10 +264,10 @@ class FastAPIAckManager:
                     client_id=client_id,
                     request_id=request_id,
                     attempt=attempt,
-                    max_attempts=max_attempts,
-                    retry_interval=retry_interval,
+                    plan=plan,
                     result=result,
                     error=error,
+                    inventory_only=inventory_only,
                 )
             )
 
@@ -201,22 +278,37 @@ class FastAPIAckManager:
         client_id: str,
         request_id: str,
         attempt: int,
-        max_attempts: int,
-        retry_interval: float,
+        plan: _RetryPlan,
         result: Any,
         error: Optional[str],
+        inventory_only: bool,
     ):
         """Retry delivery when ACK is not received before the timeout."""
-        event = self.request_event_table.get_event(request_id)
-        if not event or event.status != RequestStatus.ACK_PENDING:
-            return
+        if inventory_only:
+            # If handle_ack already fired, the pending marker is gone.
+            if (client_id, request_id) not in self._pending_inventory_acks:
+                return
+            # Inventory might have been cleaned up externally.
+            if self.inventory_table.get(request_id, remove=False) is None:
+                self._pending_inventory_acks.pop((client_id, request_id), None)
+                return
+        else:
+            event = self.request_event_table.get_event(request_id)
+            if not event or event.status != RequestStatus.ACK_PENDING:
+                return
 
         if self.debug:
             ColorPrint.yellow(f"[FastAPIAckManager] ACK timeout for {request_id}, retrying delivery")
 
-        # Stop retrying after max attempts and fall back to inventory
-        if attempt + 1 >= max_attempts:
-            self._store_in_inventory(client_id, request_id, result, error, event)
+        if attempt + 1 >= plan.max_retries:
+            if not inventory_only:
+                event = self.request_event_table.get_event(request_id)
+                if event:
+                    self._store_in_inventory(client_id, request_id, result, error, event)
+            else:
+                # Give up but keep inventory intact so a future reconnect
+                # can try again.
+                self._pending_inventory_acks.pop((client_id, request_id), None)
             return
 
         self._schedule_ws_attempt(
@@ -225,20 +317,50 @@ class FastAPIAckManager:
             result=result,
             error=error,
             attempt=attempt + 1,
-            max_attempts=max_attempts,
-            retry_interval=retry_interval,
-            delay=retry_interval,
+            plan=plan,
+            delay=plan.retry_interval,
         )
 
     def handle_ack(self, client_id: str, request_id: str):
-        """Mark ACK as received."""
+        """Mark ACK as received.
+
+        Handles two cases:
+          - live event exists → transition ACK_RECEIVED, mark notified, drop inventory.
+          - only inventory exists (event expired) → validate client_id owns
+            the inventory row, then delete it.
+        """
         event = self.request_event_table.get_event(request_id)
-        if not event:
+
+        if event is None:
+            inventory_item = self.inventory_table.get(request_id, remove=False)
+            if inventory_item is None:
+                return
+            if inventory_item.client_id and inventory_item.client_id != client_id:
+                if self.debug:
+                    ColorPrint.yellow(
+                        f"[FastAPIAckManager] Ignored inventory ACK for {request_id} from wrong client {client_id[:8]}..."
+                    )
+                return
+            self.inventory_table.delete(request_id)
+            self._pending_inventory_acks.pop((client_id, request_id), None)
+            if self.debug:
+                ColorPrint.green(
+                    f"[FastAPIAckManager] Inventory ACK received for {request_id} from {client_id[:8]}..."
+                )
+            return
+
+        if event.client_id and event.client_id != client_id:
+            if self.debug:
+                ColorPrint.yellow(
+                    f"[FastAPIAckManager] Ignored ACK for {request_id} from wrong client {client_id[:8]}..."
+                )
             return
 
         if event.status == RequestStatus.ACK_PENDING:
             self.request_event_table.update_status(request_id, RequestStatus.ACK_RECEIVED)
             self.request_event_table.mark_notified(request_id)
+            self.inventory_table.delete(request_id)
+            self._pending_inventory_acks.pop((client_id, request_id), None)
             if self.debug:
                 ColorPrint.green(
                     f"[FastAPIAckManager] ACK received for {request_id} from {client_id[:8]}..."

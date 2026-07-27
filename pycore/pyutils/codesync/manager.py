@@ -127,8 +127,23 @@ class CodeSyncManager:
     def get_role(self) -> str:
         return self.role
 
-    @serialized_method
     def set_role(self, role: str) -> dict:
+        """Switch role; mesh/UI work runs AFTER the manager state write."""
+        applied = self._set_role_state(role)
+        try:
+            self._store_stats(self._compute_code_stats())
+        except Exception:
+            pass
+        # Role changed -> let peers know and push a full self+peers snapshot to the UI.
+        # Must not run on the manager state worker (snapshot -> get_local_peer_status
+        # would AB-BA with this queue).
+        self.mesh.broadcast_config()
+        out = self.get_peers()
+        out["role"] = applied
+        return out
+
+    @serialized_method
+    def _set_role_state(self, role: str) -> str:
         role = role if role in VALID_ROLES else "client"
         with self._state_scope:
             self.role = self.config.set_role(role)
@@ -145,15 +160,7 @@ class CodeSyncManager:
             self._apply_role(self.role)
             with self._sync_scope:
                 self._peer_phases.clear()
-        try:
-            self._stats = self._compute_code_stats()
-        except Exception:
-            pass
-        # Role changed -> let peers know and push a full self+peers snapshot to the UI.
-        self.mesh.broadcast_config()
-        out = self.get_peers()
-        out["role"] = self.role
-        return out
+        return self.role
 
     def _apply_role(self, role: str) -> None:
         """(Re)start the file services to match the role."""
@@ -196,8 +203,15 @@ class CodeSyncManager:
     def is_distributing(self) -> bool:
         return self.role == "dev" and self.distributing
 
-    @serialized_method
     def set_distributing(self, enabled: bool) -> dict:
+        out = self._set_distributing_state(enabled)
+        if out.get("success"):
+            self._persist_runtime_prefs()
+            self._broadcast()
+        return out
+
+    @serialized_method
+    def _set_distributing_state(self, enabled: bool) -> dict:
         with self._state_scope:
             if self.role != "dev":
                 return {"success": False, "distributing": False,
@@ -212,8 +226,6 @@ class CodeSyncManager:
                 self.distributing = False
                 msg = "Code distribution stopped"
             ColorPrint.green(f"[CodeSync Manager] {msg}")
-        self._persist_runtime_prefs()
-        self._broadcast()
         return {"success": True, "distributing": self.distributing, "message": msg}
 
     # ----- skip update (client temporarily rejects code) ------------------ #
@@ -221,8 +233,14 @@ class CodeSyncManager:
     def is_skip_update(self) -> bool:
         return self._skip_update
 
-    @serialized_method
     def set_skip_update(self, enabled: bool) -> dict:
+        out = self._set_skip_update_state(enabled)
+        self._persist_runtime_prefs()
+        self._broadcast()
+        return out
+
+    @serialized_method
+    def _set_skip_update_state(self, enabled: bool) -> dict:
         with self._state_scope:
             self._skip_update = bool(enabled)
             # Enforced at the WS receiver (PushReceiver checks is_skip_update and
@@ -231,8 +249,6 @@ class CodeSyncManager:
             msg = ("Updates skipped (rejecting pushed code)" if self._skip_update
                    else "Updates resumed (receiving pushed code)")
             ColorPrint.yellow(f"[CodeSync Manager] {msg}")
-        self._persist_runtime_prefs()
-        self._broadcast()
         return {"success": True, "skip_update": self._skip_update, "message": msg}
 
     # ----- local code stats (background; non-blocking probes) ------------- #
@@ -414,7 +430,6 @@ class CodeSyncManager:
     _PHASE_PRIORITY = {"pushing": 3, "receiving": 3, "retrying": 2, "idle": 0}
     _PHASE_IDLE_TTL = 60.0  # seconds an idle channel row lingers before pruning
 
-    @serialized_method
     def set_sync_phase(self, phase: str, count: int = 0, channel: Optional[str] = None,
                        name: str = "", direction: str = "") -> None:
         """Record the phase of ONE channel (the other end's id this phase is about).
@@ -422,7 +437,20 @@ class CodeSyncManager:
         `channel` is the target client_id on the dev side, or the source dev_id on
         the client side. None/"" means the legacy global "_local" channel. Setting
         phase "idle" marks the channel idle (the row is kept until it is pruned by
-        TTL), so a finished transfer no longer wipes a sibling channel's phase."""
+        TTL), so a finished transfer no longer wipes a sibling channel's phase.
+
+        UI broadcast runs AFTER the manager state write so mesh.snapshot() never
+        waits on this queue while we wait on the mesh queue."""
+        self._set_sync_phase_state(phase, count, channel, name, direction)
+        try:
+            emit_event("code_sync_update", self.mesh.snapshot())
+        except Exception:
+            pass
+
+    @serialized_method
+    def _set_sync_phase_state(self, phase: str, count: int = 0,
+                              channel: Optional[str] = None,
+                              name: str = "", direction: str = "") -> None:
         ch = channel or "_local"
         now = time.time()
         with self._sync_scope:
@@ -435,10 +463,6 @@ class CodeSyncManager:
                      if row.get("phase") == "idle" and (now - row.get("ts", 0)) > self._PHASE_IDLE_TTL]
             for c in stale:
                 self._peer_phases.pop(c, None)
-        try:
-            emit_event("code_sync_update", self.mesh.snapshot())
-        except Exception:
-            pass
 
     @serialized_method
     def get_sync_phase(self) -> Dict[str, Any]:

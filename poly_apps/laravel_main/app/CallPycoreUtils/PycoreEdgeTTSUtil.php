@@ -7,6 +7,15 @@ use Illuminate\Support\Facades\Log;
 use App\Utils\FileSystemManager;
 use App\Services\UserConfig\UserConfigService;
 
+/**
+ * @deprecated Laravel must not autonomously synthesize TTS for queue/task-center
+ * work. Prefer enqueue (global_tasks / sentence bump) and let pycore workers
+ * (tts_queue_poller / tts_sentence_worker) own synthesis.
+ *
+ * When useServerBinaryAssist is false (default), generate() refuses.
+ * When true (desktop fallback), runs `python -m edge_tts` (cross-platform;
+ * no hardcoded Linux /usr/bin paths).
+ */
 class PycoreEdgeTTSUtil
 {
     public static function generate(
@@ -15,11 +24,27 @@ class PycoreEdgeTTSUtil
         ?string $outputPath = null,
         int $timeout = 300
     ): array {
-        // Binary-assist gate (default OFF): delegate to pycore's tts.synthesize
-        // RPC - this util is named "Pycore", so actually call pycore instead of
-        // the local edge-tts binary. ON = local binary fallback (desktop).
+        // Default OFF: refuse local/pycore-sync synthesis from this util.
+        // Callers must enqueue for pycore instead of forking edge-tts here.
         if (!app(UserConfigService::class)->useServerBinaryAssist()) {
-            return self::generateViaPycore($text, $voice, $outputPath, $timeout);
+            Log::warning('[PycoreEdgeTTS] generate refused (use_server_binary_assist=off)', [
+                'text_length' => strlen($text),
+                'voice' => $voice,
+            ]);
+            return [
+                'success' => false,
+                'error' => 'PycoreEdgeTTSUtil is deprecated; local synthesis disabled (use_server_binary_assist=off). Enqueue for pycore.',
+                'deprecated' => true,
+            ];
+        }
+
+        $python = self::resolvePythonPath();
+        if ($python === null) {
+            return [
+                'success' => false,
+                'error' => 'Python not found on PATH (need python3/python for edge-tts).',
+                'deprecated' => true,
+            ];
         }
 
         $tempFile = $outputPath ?: tempnam(sys_get_temp_dir(), 'edge_tts_') . '.mp3';
@@ -31,7 +56,8 @@ class PycoreEdgeTTSUtil
         }
 
         $command = sprintf(
-            '/usr/bin/python3 /usr/local/bin/edge-tts --text %s --voice %s --write-media %s 2>&1',
+            '%s -m edge_tts --text %s --voice %s --write-media %s',
+            escapeshellarg($python),
             escapeshellarg($text),
             escapeshellarg($voice),
             escapeshellarg($tempFile)
@@ -40,6 +66,7 @@ class PycoreEdgeTTSUtil
         Log::info('[PycoreEdgeTTS] Generating TTS', [
             'text_length' => strlen($text),
             'voice' => $voice,
+            'python' => $python,
         ]);
 
         $result = Process::timeout($timeout)->run($command);
@@ -116,70 +143,26 @@ class PycoreEdgeTTSUtil
         return $response;
     }
 
-    /**
-     * pycore RPC path (default, binary-assist OFF). Delegates synthesis to
-     * pycore's tts.synthesize and returns the same shape generate() does:
-     * audio_path when $outputPath is given, audio_base64 otherwise. Laravel
-     * stays binary-free; pycore's TTS orchestrator does the synthesis.
-     */
-    private static function generateViaPycore(string $text, string $voice, ?string $outputPath, int $timeout): array
-    {
-        $language = explode('-', $voice)[0] ?: 'en';
-
-        $response = PycoreHttpClient::call('tts.synthesize', [
-            'text' => $text,
-            'language' => $language,
-            'voice' => $voice,
-            'provider' => 'edge',
-            'return_base64' => true,
-            'async' => false,
-            'enable_cache' => true,
-        ], min(max($timeout, 35), 120), false);
-
-        if (isset($response['error']) || empty($response['success'])) {
-            $error = $response['error'] ?? ($response['message'] ?? 'pycore tts.synthesize failed');
-            Log::error('[PycoreEdgeTTS] pycore tts.synthesize failed', [
-                'voice' => $voice,
-                'error' => $error,
-            ]);
-            return ['success' => false, 'error' => $error];
-        }
-
-        $result = $response['result'] ?? null;
-        $audioBase64 = is_array($result) ? ($result['audio_base64'] ?? null) : null;
-        if (!is_string($audioBase64) || $audioBase64 === '') {
-            $audioBase64 = $response['audio_base64'] ?? null;
-        }
-        if (!is_string($audioBase64) || $audioBase64 === '') {
-            Log::error('[PycoreEdgeTTS] pycore returned no audio_base64', ['voice' => $voice]);
-            return ['success' => false, 'error' => 'pycore tts.synthesize returned no audio'];
-        }
-
-        $binary = base64_decode($audioBase64, true);
-        if ($binary === false || $binary === '' || strlen($binary) < 100) {
-            Log::error('[PycoreEdgeTTS] pycore audio payload invalid', ['voice' => $voice]);
-            return ['success' => false, 'error' => 'pycore tts.synthesize returned invalid audio'];
-        }
-
-        $responseOut = ['success' => true, 'voice' => $voice];
-        if ($outputPath) {
-            $dir = dirname($outputPath);
-            FileSystemManager::ensureDirectoryExists($dir, 0775);
-            if (@file_put_contents($outputPath, $binary) === false) {
-                Log::error('[PycoreEdgeTTS] failed to write audio', ['output_path' => $outputPath]);
-                return ['success' => false, 'error' => 'Failed to write audio file'];
-            }
-            $responseOut['audio_path'] = $outputPath;
-        } else {
-            $responseOut['audio_base64'] = base64_encode($binary);
-        }
-
-        return $responseOut;
-    }
-
     public static function listVoices(?string $language = null): array
     {
-        $command = '/usr/bin/python3 /usr/local/bin/edge-tts --list-voices 2>&1';
+        if (!app(UserConfigService::class)->useServerBinaryAssist()) {
+            return [
+                'success' => false,
+                'error' => 'PycoreEdgeTTSUtil is deprecated; listVoices disabled (use_server_binary_assist=off).',
+                'deprecated' => true,
+            ];
+        }
+
+        $python = self::resolvePythonPath();
+        if ($python === null) {
+            return [
+                'success' => false,
+                'error' => 'Python not found on PATH (need python3/python for edge-tts).',
+                'deprecated' => true,
+            ];
+        }
+
+        $command = sprintf('%s -m edge_tts --list-voices', escapeshellarg($python));
 
         $result = Process::timeout(30)->run($command);
 
@@ -219,5 +202,31 @@ class PycoreEdgeTTSUtil
                 'error' => 'Exception: ' . $e->getMessage(),
             ];
         }
+    }
+
+    /** Resolve a Python executable that can run `python -m edge_tts` on this OS. */
+    private static function resolvePythonPath(): ?string
+    {
+        $isWindows = PHP_OS_FAMILY === 'Windows';
+        $candidates = $isWindows ? ['python', 'python3'] : ['python3', 'python'];
+
+        foreach ($candidates as $cmd) {
+            $probe = $isWindows
+                ? Process::run('where ' . escapeshellarg($cmd))
+                : Process::run('command -v ' . escapeshellarg($cmd));
+            if (!$probe->successful()) {
+                continue;
+            }
+            $path = trim(explode("\n", str_replace("\r", '', $probe->output()))[0] ?? '');
+            if ($path === '') {
+                continue;
+            }
+            $mod = Process::run(escapeshellarg($path) . ' -m edge_tts --help');
+            if ($mod->successful()) {
+                return $path;
+            }
+        }
+
+        return null;
     }
 }

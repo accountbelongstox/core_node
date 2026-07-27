@@ -102,6 +102,22 @@ class MenuHandler:
             storage_type = config.get('StorageType', 'environment_variable')
             has_command_prefix = bool(command_prefix)
             is_encrypted_constant = (storage_type == 'encrypted_constant')
+            script_only = bool(config.get('ScriptOnlyLauncher', False))
+            menu_tips = None
+            if script_only:
+                menu_tips = [
+                    "ScriptOnlyLauncher is ON: empty-native slots merge/reuse "
+                    "the lowest index (no new empty Create).",
+                    "Generated arkN scripts still idempotently install arkcli "
+                    "(and claude) via pnpm when missing.",
+                ]
+            elif (command_prefix or '').lower() == 'ark':
+                menu_tips = [
+                    "Tip: leave all optional fields empty to use native arkcli "
+                    "interactive profile / model / MCP selection at launch.",
+                    "Generated arkN scripts still idempotently install arkcli "
+                    "(and claude) via pnpm when missing.",
+                ]
 
             menu_items = []
 
@@ -155,7 +171,7 @@ class MenuHandler:
                 {'Text': 'Back to Main Menu', 'Action': 'back', 'HasSubMenu': False}
             ])
 
-            submenu_action = show_menu(f"{display_name} Menu", menu_items)
+            submenu_action = show_menu(f"{display_name} Menu", menu_items, tips=menu_tips)
 
             if submenu_action is None:
                 continue

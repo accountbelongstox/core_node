@@ -4,9 +4,14 @@
  *
  * Both PcVoiceSubtitlePage and PcAiStatusPage read the same store so a refresh
  * on either page updates the other. One poll loop, single-flight fetches.
+ * Each probe patches the store as it settles — a slow/failing probe does not
+ * block the other panels from leaving Loading.
  */
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { pycoreApi } from './PycoreApi';
+import { onWsStatus } from './PycoreWs';
+import { getPycoreHealth } from './PycoreHealth';
+import { isWsConnected } from './PycoreWs';
 import type { AiGatewayStatus, CapabilityStatus, OcrStatus, TtsStatus, SttStatus } from './pycoreTypes';
 
 export const PYCORE_CAPABILITY_EVENT = 'pycore-capability-changed';
@@ -45,6 +50,7 @@ let state: PycoreCapabilityState = {
 let inFlight: Promise<void> | null = null;
 let pollId: ReturnType<typeof setInterval> | null = null;
 let pollRefs = 0;
+let wsStatusOff: (() => void) | null = null;
 
 function notify(): void {
   window.dispatchEvent(new CustomEvent(PYCORE_CAPABILITY_EVENT));
@@ -52,6 +58,19 @@ function notify(): void {
 
 function patch(partial: Partial<PycoreCapabilityState>): void {
   state = { ...state, ...partial };
+  notify();
+}
+
+function patchError(key: CapabilityKey, message: string): void {
+  state = { ...state, errors: { ...state.errors, [key]: message } };
+  notify();
+}
+
+function clearError(key: CapabilityKey): void {
+  if (!(key in state.errors)) return;
+  const next = { ...state.errors };
+  delete next[key];
+  state = { ...state, errors: next };
   notify();
 }
 
@@ -65,71 +84,54 @@ export function subscribePycoreCapability(listener: () => void): () => void {
   return () => window.removeEventListener(PYCORE_CAPABILITY_EVENT, handler);
 }
 
+async function settleProbe<T extends { success?: boolean; error?: string }>(
+  key: CapabilityKey,
+  promise: Promise<T>,
+  apply: (value: T) => Partial<PycoreCapabilityState>,
+): Promise<void> {
+  try {
+    const value = await promise;
+    if (value?.success) {
+      clearError(key);
+      patch(apply(value));
+    } else {
+      patchError(key, value?.error || 'probe failed');
+    }
+  } catch (e: any) {
+    patchError(key, e?.message || 'fetch failed');
+  }
+}
+
 /** Fetch all capability probes. `forceTtsRefresh` bypasses the TTS ~60s cache. */
 export async function refreshPycoreCapabilities(forceTtsRefresh = false): Promise<void> {
+  const health = getPycoreHealth();
+  const isAvailable = isWsConnected() || health.up === true;
+  if (!isAvailable) {
+    patch({
+      loading: false,
+      refreshing: false,
+    });
+    return;
+  }
+
   if (inFlight) return inFlight;
 
   const isFirst = !state.initialized;
   patch({ refreshing: !isFirst, loading: isFirst });
 
   inFlight = (async () => {
-    const errors: Partial<Record<CapabilityKey, string>> = {};
-    const [gw, oc, tt, st, cp] = await Promise.allSettled([
-      pycoreApi.getAiGateway(),
-      pycoreApi.getOcrStatus(),
-      pycoreApi.getTtsStatus(forceTtsRefresh),
-      pycoreApi.getSttStatus(),
-      pycoreApi.getCapabilities(),
+    await Promise.allSettled([
+      settleProbe('aiGateway', pycoreApi.getAiGateway(), (v) => ({ aiGateway: v as AiGatewayStatus })),
+      settleProbe('ocr', pycoreApi.getOcrStatus(), (v) => ({ ocr: v as OcrStatus })),
+      settleProbe('tts', pycoreApi.getTtsStatus(forceTtsRefresh), (v) => ({ tts: v as TtsStatus })),
+      settleProbe('stt', pycoreApi.getSttStatus(), (v) => ({ stt: v as SttStatus })),
+      settleProbe('caps', pycoreApi.getCapabilities(), (v) => ({ caps: v as CapabilityStatus })),
     ]);
 
-    const next: Partial<PycoreCapabilityState> = { errors };
-
-    if (gw.status === 'fulfilled' && gw.value?.success) {
-      next.aiGateway = gw.value;
-    } else if (gw.status === 'fulfilled' || gw.status === 'rejected') {
-      errors.aiGateway = gw.status === 'rejected'
-        ? (gw.reason?.message || 'fetch failed')
-        : (gw.value?.error || 'probe failed');
-    }
-
-    if (oc.status === 'fulfilled' && oc.value?.success) {
-      next.ocr = oc.value;
-    } else if (oc.status === 'fulfilled' || oc.status === 'rejected') {
-      errors.ocr = oc.status === 'rejected'
-        ? (oc.reason?.message || 'fetch failed')
-        : (oc.value?.error || 'probe failed');
-    }
-
-    if (tt.status === 'fulfilled' && tt.value?.success) {
-      next.tts = tt.value;
-    } else if (tt.status === 'fulfilled' || tt.status === 'rejected') {
-      errors.tts = tt.status === 'rejected'
-        ? (tt.reason?.message || 'fetch failed')
-        : (tt.value?.error || 'probe failed');
-    }
-
-    if (st.status === 'fulfilled' && st.value?.success) {
-      next.stt = st.value;
-    } else if (st.status === 'fulfilled' || st.status === 'rejected') {
-      errors.stt = st.status === 'rejected'
-        ? (st.reason?.message || 'fetch failed')
-        : (st.value?.error || 'probe failed');
-    }
-
-    if (cp.status === 'fulfilled' && cp.value?.success) {
-      next.caps = cp.value;
-    } else if (cp.status === 'fulfilled' || cp.status === 'rejected') {
-      errors.caps = cp.status === 'rejected'
-        ? (cp.reason?.message || 'fetch failed')
-        : (cp.value?.error || 'probe failed');
-    }
-
     patch({
-      ...next,
       loading: false,
       refreshing: false,
       initialized: true,
-      errors,
     });
   })().finally(() => {
     inFlight = null;
@@ -142,8 +144,19 @@ export async function refreshPycoreCapabilities(forceTtsRefresh = false): Promis
 export function startPycoreCapabilityPoll(): void {
   pollRefs += 1;
   if (pollRefs === 1) {
-    void refreshPycoreCapabilities();
-    pollId = window.setInterval(() => { void refreshPycoreCapabilities(); }, POLL_MS);
+    wsStatusOff = onWsStatus((connected) => {
+      if (connected) void refreshPycoreCapabilities();
+    });
+    if (isWsConnected() || getPycoreHealth().up === true) {
+      void refreshPycoreCapabilities();
+    } else {
+      patch({ loading: false, refreshing: false });
+    }
+    pollId = window.setInterval(() => {
+      if (isWsConnected() || getPycoreHealth().up === true) {
+        void refreshPycoreCapabilities();
+      }
+    }, POLL_MS);
   }
 }
 
@@ -153,6 +166,10 @@ export function stopPycoreCapabilityPoll(): void {
   if (pollRefs === 0 && pollId != null) {
     window.clearInterval(pollId);
     pollId = null;
+  }
+  if (pollRefs === 0 && wsStatusOff) {
+    wsStatusOff();
+    wsStatusOff = null;
   }
 }
 

@@ -2,7 +2,7 @@
  * PcQueueOverviewPanel — Queue Center Overview tab.
  * GET /api/local/queue/overview + hub task-center reachability.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutGrid, Loader2, AlertTriangle, Wifi, WifiOff, Globe, Cpu, Sparkles, Chrome,
@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import type { PcQueueOverview, PcQueueCategory, PcQueueWorker, PcQueueHandler } from '../../../core/api-libs/pycore';
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
-import { useQueueCenterHub, laravelLiveSyncOffline, laravelEndpointMismatch } from '../hooks/useQueueCenterHub';
+import { useQueueCenterHub, laravelLiveSyncOffline, laravelEndpointMismatch, workerEndpointMismatch } from '../hooks/useQueueCenterHub';
 
 const HANDLER_STYLE: Record<PcQueueHandler, { chip: string; Icon: React.FC<{ className?: string }> }> = {
   chrome: { chip: 'bg-amber-500/15 text-amber-500', Icon: Chrome },
@@ -19,7 +19,7 @@ const HANDLER_STYLE: Record<PcQueueHandler, { chip: string; Icon: React.FC<{ cla
   any: { chip: 'bg-sky-500/15 text-sky-500', Icon: Users },
 };
 
-const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
+const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
   const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -30,13 +30,14 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
   const loading = hub.loading;
   const err = hub.sliceErrors.overview ?? (!hub.pycoreReachable ? hub.error : null);
 
-  // Report the pending-count badge to the tab bar (guarded — never reduce undefined).
-  useEffect(() => {
-    const ov = hub.overview as any;
-    const cats = (ov && Array.isArray(ov.categories)) ? ov.categories : null;
-    const pending = cats ? cats.reduce((s: number, c: any) => s + (c.pending || 0), 0) : null;
-    onMeta?.({ count: pending, loading: hub.loading });
-  }, [hub.overview, hub.loading, onMeta]);
+  /*
+   * [gpt-5.3-codex-spark:LEGACY-START]
+   * Previous implementation reported overview pending summary to the page:
+   * const cats = (ov && Array.isArray(ov.categories)) ? ov.categories : null;
+   * const pending = cats ? cats.reduce((s: number, c: any) => s + (c.pending || 0), 0) : null;
+   * onMeta?.({ count: pending, loading: hub.loading });
+   * [gpt-5.3-codex-spark:LEGACY-END]
+   */
 
   if (!data) {
     return (
@@ -55,6 +56,7 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
   const laravelReachable = hub.laravelReachable === true;
   const liveSyncOffline = laravelLiveSyncOffline(hub);
   const endpointMismatch = laravelEndpointMismatch(hub);
+  const workerMismatch = workerEndpointMismatch(hub);
 
   const num = (n: number, cls: string, label: string) => (
     <span className="inline-flex flex-col items-center px-2 py-1 rounded-lg bg-slate-500/5">
@@ -95,7 +97,16 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = ({ onMeta }) => {
             {hub.laravelStoredEndpoint ? ` Selected endpoint: ${hub.laravelStoredEndpoint}.` : ''}
           </p>
         )}
-        {endpointMismatch && (
+        {workerMismatch && (
+          <p className="text-[11px] text-amber-500 flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3 shrink-0" />
+            {t('queueCenter.endpointMismatch')}
+            <span className="font-mono text-[10px] text-slate-500">
+              ({hub.workerApiUrl} → {hub.laravelActiveEndpoint})
+            </span>
+          </p>
+        )}
+        {endpointMismatch && !workerMismatch && (
           <p className="text-[11px] text-sky-500">
             Active Laravel endpoint: {hub.laravelActiveEndpoint}
             {hub.laravelStoredEndpoint ? ` (Settings selected ${hub.laravelStoredEndpoint})` : ''}

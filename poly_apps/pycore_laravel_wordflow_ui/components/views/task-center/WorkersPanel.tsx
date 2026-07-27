@@ -12,10 +12,9 @@
  * Shares the 'laravel.global-tasks' persistent key/snapshot with QueuePanel
  * (see shared.tsx GlobalTasksSnapshot) so tab switches stay warm.
  */
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Language } from '../../../types';
-import { api } from '../../../core/api';
-import { usePersistentTask } from '../../../core/tasks/usePersistentTask';
+import { useTaskCenterState } from './TaskCenterState';
 import { TRANSLATIONS } from '../../../constants';
 import {
   Activity,
@@ -38,15 +37,10 @@ import {
   StatusBadge,
   formatRelativeTime,
   shortId,
-  type GlobalTasksSnapshot,
 } from './shared';
 
 interface WorkersPanelProps {
   lang: Language;
-  autoRefresh: boolean;
-  refreshIntervalSec: number;
-  /** Bumped by TaskCenter's manual-refresh button → one immediate fetch. */
-  refreshToken: number;
 }
 
 /** Known worker-id prefixes → role hint i18n key + icon. */
@@ -62,97 +56,11 @@ const roleHintFor = (workerId: string): { key: 'pycore_translate' | 'internal_ai
 
 const WorkersPanel: React.FC<WorkersPanelProps> = ({
   lang,
-  autoRefresh,
-  refreshIntervalSec,
-  refreshToken,
 }) => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { globalTasks: snapshot, loading, error, refreshNow } = useTaskCenterState();
 
   const t = TRANSLATIONS[lang].globalTasks;
   const tc = TRANSLATIONS[lang].taskCenter.workers_panel;
-
-  // Same merged snapshot poll as QueuePanel (the two tabs share the session) —
-  // here the WORKER LIST is the gating call; the task list degrades to empty.
-  const fetchSnapshot = (): Promise<GlobalTasksSnapshot | null> =>
-    Promise.all([
-      api.serverManager.getGlobalTaskStats(),
-      api.serverManager.getGlobalTaskList({ limit: 100 }),
-      api.serverManager.getWorkerList(),
-      api.serverManager.getWorkerStats(),
-    ])
-      .then(([statsRes, listRes, workersRes, workerStatsRes]) => {
-        if (!workersRes.success || !workersRes.data) {
-          let msg = workersRes.error || t.load_failed;
-          if ((workersRes as any).isTimeout) {
-            msg = t.timeout_hint;
-          } else if ((workersRes as any).isNetworkError) {
-            msg = t.network_hint;
-          }
-          setError(msg);
-          setLoading(false);
-          return null; // settle (keep last snapshot)
-        }
-        setError(null);
-        setLoading(false);
-        return {
-          stats: statsRes.success && statsRes.data ? statsRes.data.stats : null,
-          tasks:
-            listRes.success && listRes.data && Array.isArray(listRes.data.tasks)
-              ? listRes.data.tasks
-              : [],
-          totalTasks: listRes.success && listRes.data ? (listRes.data.total ?? 0) : 0,
-          workers: Array.isArray(workersRes.data.workers) ? workersRes.data.workers : [],
-          workerStats:
-            workerStatsRes.success && workerStatsRes.data ? workerStatsRes.data.stats : null,
-          timestamp: new Date().toLocaleString(),
-        };
-      })
-      .catch((err: any) => {
-        setError(err?.message || t.load_failed);
-        setLoading(false);
-        return null;
-      });
-
-  const task = usePersistentTask<GlobalTasksSnapshot>('laravel.global-tasks', {
-    intervalMs: refreshIntervalSec * 1000,
-    poll: fetchSnapshot,
-    reattach: fetchSnapshot,
-  });
-  const snapshot = task.data;
-
-  // Initial load (idempotent — reuse a live session's data when present).
-  useEffect(() => {
-    if (snapshot) return;
-    setLoading(true);
-    setError(null);
-    fetchSnapshot().then((s) => { if (s) task.set(s); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Shared header auto-refresh toggle drives the persistent poll loop on/off.
-  useEffect(() => {
-    if (autoRefresh) {
-      if (task.running) task.end();
-      task.begin();
-    } else if (task.running) {
-      task.end();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRefresh, refreshIntervalSec]);
-
-  // Manual refresh from the shared header.
-  useEffect(() => {
-    if (refreshToken === 0) return;
-    loadSnapshot();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshToken]);
-
-  const loadSnapshot = () => {
-    setLoading(true);
-    setError(null);
-    fetchSnapshot().then((s) => { if (s) task.set(s); });
-  };
 
   if (error && !snapshot) {
     return (
@@ -160,7 +68,7 @@ const WorkersPanel: React.FC<WorkersPanelProps> = ({
         <p className="font-semibold">{t.load_failed}</p>
         <p className="text-xs opacity-80 mt-1">{error}</p>
         <button
-          onClick={loadSnapshot}
+          onClick={refreshNow}
           className={`${commonClasses.button} ${commonClasses.buttonPrimary} inline-flex items-center gap-2 mx-auto mt-3`}
         >
           <RefreshCw className="w-4 h-4" />
@@ -261,11 +169,10 @@ const WorkersPanel: React.FC<WorkersPanelProps> = ({
                           </div>
                           {/* Role hint: which physical end this node is */}
                           <div
-                            className={`mt-1 inline-flex items-center gap-1.5 text-xs ${
-                              hint.key === 'generic'
-                                ? 'text-slate-400 dark:text-slate-500'
-                                : 'text-indigo-600 dark:text-indigo-400'
-                            }`}
+                            className={`mt-1 inline-flex items-center gap-1.5 text-xs ${hint.key === 'generic'
+                              ? 'text-slate-400 dark:text-slate-500'
+                              : 'text-indigo-600 dark:text-indigo-400'
+                              }`}
                           >
                             {hint.icon}
                             {(tc.role_hints as Record<string, string>)[hint.key]}

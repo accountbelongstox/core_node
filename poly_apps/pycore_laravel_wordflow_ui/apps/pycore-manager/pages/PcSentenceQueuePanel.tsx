@@ -14,6 +14,7 @@ import type { SentenceAudioQueueSnapshot, SentenceWorkerTask, TtsStatus } from '
 
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
+import { useTaskCenterState } from '../hooks/TaskCenterState';
 import PcSentenceVoiceVariantsPanel from '../components/PcSentenceVoiceVariantsPanel';
 import PcTagFilteredLog from '../components/PcTagFilteredLog';
 
@@ -25,41 +26,32 @@ const preview = (text?: string | null, max = 72): string => {
   return t.length > max ? `${t.slice(0, max)}…` : t;
 };
 
-export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({ onMeta }) => {
+export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
   const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
+  const state = useTaskCenterState();
   // Snapshot from the SHARED hub (one poll for the whole page).
   const raw = hub.sentenceQueue as any;
   const snap: SentenceAudioQueueSnapshot | null =
     raw && raw.success !== false ? (raw as SentenceAudioQueueSnapshot) : null;
   const loading = hub.loading;
-  const [busy, setBusy] = useState(false);
   const [logOpen, setLogOpen] = useState(true);
   const [variantsOpen, setVariantsOpen] = useState(false);
-  const [actionErr, setActionErr] = useState<string | null>(null);
   const [concurrencyInput, setConcurrencyInput] = useState(() => localStorage.getItem('pc_sentence_worker_concurrency') ?? '');
-  const err = actionErr || hub.sliceErrors.sentence_queue || (hub.pycoreReachable ? null : hub.error);
+  const err = state.sentenceActionErr || hub.sliceErrors.sentence_queue || (hub.pycoreReachable ? null : hub.error);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
-  // Report the missing-rows count badge to the tab bar.
-  useEffect(() => {
-    const total = snap ? (snap.queue?.total ?? snap.queue?.items?.length ?? 0) : null;
-    onMeta?.({ count: total, loading: hub.loading });
-  }, [snap, hub.loading, onMeta]);
+  /*
+   * [gpt-5.3-codex-spark:LEGACY-START]
+   * onMeta reporting used to push { count, loading } to the page-level badge:
+   * const total = snap ? (snap.queue?.total ?? snap.queue?.items?.length ?? 0) : null;
+   * onMeta?.({ count: total, loading: hub.loading });
+   * [gpt-5.3-codex-spark:LEGACY-END]
+   */
 
   const runOnce = async () => {
-    setBusy(true);
-    setActionErr(null);
-    try {
-      const result = await pycoreApi.runSentenceAudioOnce();
-      if (!result?.ok) throw new Error(result?.error || 'run-once rejected');
-      await hub.refreshHub();
-    } catch (e: any) {
-      if (mounted.current) setActionErr(e?.message || 'run-once failed');
-    } finally {
-      if (mounted.current) setBusy(false);
-    }
+    await state.runSentenceAudioOnce(hub.refreshHub);
   };
 
   const items = snap?.queue?.items ?? [];
@@ -105,17 +97,12 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({ onMe
   const concurrencyAnn = ttsConcurrencyAnnotation(activeEngine?.concurrency, activeEngineName || '');
   const isSerialEngine = (activeEngine?.concurrency ?? (activeEngineName === 'edge' ? 'serial' : undefined)) === 'serial';
 
-  const workerConcurrency = snap?.worker?.concurrency ?? hub.voiceSentence?.concurrency;
-  const concurrencyRecommended = snap?.worker?.concurrency_recommended ?? hub.voiceSentence?.concurrency_recommended;
-  const onConcurrencyChange = React.useCallback((raw: string) => {
-    setConcurrencyInput(raw);
-    localStorage.setItem('pc_sentence_worker_concurrency', raw);
-    const n = Math.min(8, Math.max(0, parseInt(raw, 10) || 0));
-    setActionErr(null);
-    pycoreApi.setSentenceAudioConcurrency(n, hub.voiceSentence?.auto_start === true)
-      .then(() => hub.refreshHub())
-      .catch((e: any) => setActionErr(e?.message || 'concurrency save failed'));
-  }, [hub]);
+  const workerConcurrency = (snap?.worker as any)?.concurrency ?? hub.voiceSentence?.concurrency;
+  const concurrencyRecommended = (snap?.worker as any)?.concurrency_recommended ?? hub.voiceSentence?.concurrency_recommended;
+  const onConcurrencyChange = React.useCallback((rawStr: string) => {
+    setConcurrencyInput(rawStr);
+    void state.setSentenceAudioConcurrency(rawStr, hub.voiceSentence?.auto_start === true, hub.refreshHub);
+  }, [hub, state]);
 
   return (
     <div className="space-y-3">
@@ -133,9 +120,9 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = ({ onMe
             <AlertTriangle className="w-3 h-3" /> Laravel unreachable
           </span>
         )}
-        <button type="button" onClick={runOnce} disabled={busy}
+        <button type="button" onClick={runOnce} disabled={state.sentenceBusy}
           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold pc-glass text-teal-600 hover:bg-teal-500/10 transition disabled:opacity-50">
-          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+          {state.sentenceBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
           {t('queueCenter.sentenceAudio.runOnce')}
         </button>
         <button type="button" onClick={() => hub.refreshHub()} disabled={loading}

@@ -555,6 +555,10 @@ class InitializeApps extends Command
         }
         $this->newLine();
 
+        $this->info('Migrating daily-sentences → article routes (idempotent)...');
+        $this->migrateDailySentencesToArticle();
+        $this->newLine();
+
         $this->info('Verifying AI providers...');
         $aiRouter = new UnifiedAIRouter();
         $providersStatus = $aiRouter->getProvidersStatus();
@@ -764,6 +768,51 @@ class InitializeApps extends Command
             $this->line("  ✅ {$result['table']}: {$result['created']} created, {$result['updated']} re-aligned, {$result['unchanged']} unchanged");
         } catch (\Throwable $e) {
             $this->error("  ❌ Punctuation marker seed failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Idempotent daily-sentences → article/list?type=short merge guard.
+     *
+     * Routes are code (always aliased). Optional DB: rename article_type
+     * 'daily_short' → 'short' if any such rows exist. Marker
+     * .migrated_daily_sentences_to_article skips on re-run.
+     */
+    private function migrateDailySentencesToArticle(): void
+    {
+        $markers = new \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager();
+        if ($markers->hasMigratedDailySentencesToArticle()) {
+            $this->line('  ⏭️  Already migrated (marker .migrated_daily_sentences_to_article present)');
+            return;
+        }
+
+        $rowsRenamed = 0;
+        try {
+            $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article();
+            $conn = $model->getConnection();
+            $table = $model->getTable();
+            if (\Illuminate\Support\Facades\Schema::connection($conn->getName())->hasTable($table)
+                && \Illuminate\Support\Facades\Schema::connection($conn->getName())->hasColumn($table, 'article_type')) {
+                $rowsRenamed = (int) $conn->table($table)
+                    ->where('article_type', 'daily_short')
+                    ->update(['article_type' => 'short']);
+            }
+        } catch (\Throwable $e) {
+            $this->warn('  ⚠️  article_type rename skipped: ' . $e->getMessage());
+        }
+
+        $ok = $markers->setMigratedDailySentencesToArticle([
+            'routes_aliased' => true,
+            'rows_renamed' => $rowsRenamed,
+            'note' => $rowsRenamed > 0
+                ? "Renamed {$rowsRenamed} article_type daily_short→short; routes aliased"
+                : 'Routes-only: daily-sentences/* aliased to ai_tools/article/*?type=short (no DB rows to migrate)',
+        ]);
+
+        if ($ok) {
+            $this->line("  ✅ Marker written (routes_aliased=true, rows_renamed={$rowsRenamed})");
+        } else {
+            $this->warn('  ⚠️  Failed to write .migrated_daily_sentences_to_article marker');
         }
     }
 

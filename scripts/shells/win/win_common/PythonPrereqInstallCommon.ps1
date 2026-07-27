@@ -237,25 +237,24 @@ function Install-TorchYoloBundle {
     $yoloBundle = @($script:YoloBundle)
     $failedImports = @()
     $failedRequirements = @()
+    $isTorchInstalled = $false
     Write-Host "$LogPrefix Ensuring canonical torch build (CPU/GPU guard)..." -ForegroundColor Yellow
     Ensure-TorchBuild -PythonCmd $PythonCmd -PipExe $PipExe
 
-    if (Test-TorchBundleInstalled -PythonExe $PythonCmd) {
+    $isTorchInstalled = Test-TorchBundleInstalled -PythonExe $PythonCmd
+    if ($isTorchInstalled) {
         Write-Host "$LogPrefix [SKIP] torch/torchvision/torchaudio/ultralytics already installed" -ForegroundColor Green
-        return
+        return $true
     }
 
     Write-Host "$LogPrefix Installing ultralytics (YOLO) with torch bundle..." -ForegroundColor Yellow
     $torchExtra = Get-TorchExtraIndexArgs
     & $PipExe install @torchExtra @yoloBundle
 
-    if (-not (Test-TorchBundleInstalled -PythonExe $PythonCmd)) {
-        Write-Host "$LogPrefix Rechecking the torch package group after dependency installation..." -ForegroundColor Yellow
-        Ensure-TorchBuild -PythonCmd $PythonCmd -PipExe $PipExe
-    }
-
-    if (Test-TorchBundleInstalled -PythonExe $PythonCmd) {
+    $isTorchInstalled = Test-TorchBundleInstalled -PythonExe $PythonCmd
+    if ($isTorchInstalled) {
         Write-Host "$LogPrefix [OK] torch bundle installed" -ForegroundColor Green
+        return $true
     } else {
         $failedImports = @(Get-PythonPrereqFailedImports -PythonExe $PythonCmd -Modules $script:TorchImports)
         $failedRequirements = @(Get-PythonPrereqUnsatisfiedRequirements -PythonExe $PythonCmd -Requirements $script:TorchBundle)
@@ -267,6 +266,7 @@ function Install-TorchYoloBundle {
             Write-Host "$LogPrefix        failed imports: $($failedImports -join ', ')" -ForegroundColor Yellow
         }
         Write-Host "$LogPrefix        incomplete packages will be retried on the next run." -ForegroundColor DarkYellow
+        return $false
     }
 }
 
@@ -279,19 +279,23 @@ function Install-PaddleOcrBundle {
     $packages = @($script:OcrBundle) + @($script:BackendBundle)
     $requirements = @($script:OcrBundle) + @($script:BackendBundle)
     $failedRequirements = @()
+    $isPaddleInstalled = $false
     Write-Host "$LogPrefix Ensuring canonical paddle build (CPU/GPU guard)..." -ForegroundColor Yellow
     Ensure-PaddleBuild -PythonCmd $PythonCmd -PipExe $PipExe
 
-    if (Test-DepsBundleInstalled -PythonExe $PythonCmd) {
+    $isPaddleInstalled = Test-DepsBundleInstalled -PythonExe $PythonCmd
+    if ($isPaddleInstalled) {
         Write-Host "$LogPrefix [SKIP] paddle ecosystem + backend deps already installed" -ForegroundColor Green
-        return
+        return $true
     }
 
     Write-Host "$LogPrefix Installing paddleocr + paddlex + backend deps (single resolver pass from PyPI)..." -ForegroundColor Yellow
     & $PipExe install -i $script:PypiDefaultIndex @packages
 
-    if (Test-DepsBundleInstalled -PythonExe $PythonCmd) {
+    $isPaddleInstalled = Test-DepsBundleInstalled -PythonExe $PythonCmd
+    if ($isPaddleInstalled) {
         Write-Host "$LogPrefix [OK] paddle ecosystem + backend deps installed" -ForegroundColor Green
+        return $true
     } else {
         $failedImports = @(Get-PythonPrereqFailedImports -PythonExe $PythonCmd -Modules $script:PaddleImports)
         $missingModules = @(Get-PythonPrereqMissingModules -PythonExe $PythonCmd -Modules $script:BackendImports)
@@ -310,6 +314,7 @@ function Install-PaddleOcrBundle {
             Write-Host "$LogPrefix        missing backend modules: $($missingModules -join ', ')" -ForegroundColor Yellow
         }
         Write-Host "$LogPrefix        incomplete packages will be retried on the next run." -ForegroundColor DarkYellow
+        return $false
     }
 }
 
@@ -324,6 +329,8 @@ function Invoke-PythonPrereqInstall {
     $cudaPolicy = $null
     $cudaLine = ''
     $failedRequirements = @()
+    $torchBundleVerified = $false
+    $paddleBundleVerified = $false
     $requirements = @()
     $PythonCmd = Resolve-PrereqPythonExe -PreferredPath $PreferredPythonPath
     if (-not $PythonCmd) {
@@ -363,10 +370,10 @@ function Invoke-PythonPrereqInstall {
     }
     Write-Host ''
 
-    Install-TorchYoloBundle -PythonCmd $PythonCmd -PipExe $PipExe -LogPrefix $LogPrefix
+    $torchBundleVerified = Install-TorchYoloBundle -PythonCmd $PythonCmd -PipExe $PipExe -LogPrefix $LogPrefix
     Write-Host ''
 
-    Install-PaddleOcrBundle -PythonCmd $PythonCmd -PipExe $PipExe -LogPrefix $LogPrefix
+    $paddleBundleVerified = Install-PaddleOcrBundle -PythonCmd $PythonCmd -PipExe $PipExe -LogPrefix $LogPrefix
     Write-Host ''
 
     if ($cudaPolicy.Enabled) {
@@ -385,15 +392,22 @@ function Invoke-PythonPrereqInstall {
     Write-Host ''
 
     Write-Host "$LogPrefix Verifying pip package metadata..." -ForegroundColor Cyan
-    if (Test-AllPrereqBundleInstalled -PythonExe $PythonCmd) {
+    if (-not $torchBundleVerified) {
+        $torchBundleVerified = Test-TorchBundleInstalled -PythonExe $PythonCmd
+    }
+    if (-not $paddleBundleVerified) {
+        $paddleBundleVerified = Test-DepsBundleInstalled -PythonExe $PythonCmd
+    }
+
+    if ($torchBundleVerified -and $paddleBundleVerified) {
         Write-Host "$LogPrefix [OK] all prerequisite packages present in $PythonCmd" -ForegroundColor Green
     } else {
         Write-Host "$LogPrefix [ERROR] some prerequisite package metadata is missing." -ForegroundColor Red
-        if (-not (Test-TorchBundleInstalled -PythonExe $PythonCmd)) {
+        if (-not $torchBundleVerified) {
             $failedRequirements = @(Get-PythonPrereqUnsatisfiedRequirements -PythonExe $PythonCmd -Requirements $script:TorchBundle)
             Write-Host "$LogPrefix        torch requirements: $($failedRequirements -join ', ')" -ForegroundColor Yellow
         }
-        if (-not (Test-DepsBundleInstalled -PythonExe $PythonCmd)) {
+        if (-not $paddleBundleVerified) {
             $requirements = @($script:OcrBundle) + @($script:BackendBundle)
             $failedRequirements = @(Get-PythonPrereqUnsatisfiedRequirements -PythonExe $PythonCmd -Requirements $requirements)
             Write-Host "$LogPrefix        dependency requirements: $($failedRequirements -join ', ')" -ForegroundColor Yellow

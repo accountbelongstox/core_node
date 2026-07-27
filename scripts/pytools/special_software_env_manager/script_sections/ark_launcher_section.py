@@ -1,65 +1,84 @@
 """
 Ark CLI v4 launcher template generator.
 
-Generates numbered ``ark${index}.ps1`` / ``ark${index}.sh`` launchers (the v4
-lean-launcher path) that run the NATIVE Volcano Ark CLI (``arkcli`` from the
-``@volcengine/ark-cli`` npm package) - NOT Claude Code.
+Generates numbered ``ark${index}.ps1`` / ``ark${index}.sh`` launchers that:
 
-Each generated script:
+1. Ensure ``arkcli`` and ``claude`` are installed (idempotent, via project pnpm).
+2. Isolate Claude under a per-slot user profile
+   (Windows: ``D:\\programing\\Users\\ark${index}``,
+    Linux: ``/var/_core_node/Users/ark${index}``) so MCP/config do not touch
+   the global Claude home.
+3. Configure Claude model/provider via ``arkcli helper configure`` (Coding Plan
+   or Agent Plan).
+4. Inject Agent Plan built-in MCP via ``arkcli helper mcp`` (soft-fail when
+   only Coding Plan is available).
+5. Idempotently add the public Ark docs MCP (``ark-docs-mcp``).
+6. Ensure slot ``~/.arkcli`` / ``~/.claude`` are real directories (arkcli
+   ByteCloud migrate rejects junctions/symlinks as legacy source).
+7. If optional ``ARKCLI_API`` is set, force ``ANTHROPIC_BASE_URL`` to that URL
+   (before Claude starts).
+8. If optional ``ARKCLI_API_KEY`` is set: skip arkcli entirely (no auth login /
+   helper configure / helper mcp) and run plain Claude with
+   ``ANTHROPIC_AUTH_TOKEN`` under the isolated ``ark${index}`` user directory
+   (purpose: keep Claude data/config in that custom profile).
+9. Model for Claude: if ``ARKCLI_MODEL`` is set, prompt Use model xxx? [Y/n]
+   (default Y = xxx); if empty, prompt Use model kimi-k3? [Y/n]
+   (default Y = kimi-k3). Any N auto-forces ``ark-code-latest`` (tip only).
+10. Launch ``claude`` with ultracode / permission behavior; Agent Teams are
+   OFF by default — pass ``-team`` / ``--team`` to enable
+   (``CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`` + ``--teammate-mode in-process``).
+   Any other CLI args are forwarded to ``claude``.
 
-- Ensures ``arkcli`` is installed and working (idempotent: ``arkcli --version``
-  succeeds -> skip; else ``npm install -g @volcengine/ark-cli@latest``).
-- Optionally runs ``arkcli auth login`` (opt-in prompt, default No) so the user
-  can (re)authenticate on first run or after token expiry; arkcli caches
-  credentials itself.
-- Execs ``arkcli`` natively, forwarding all pass-through args.
-
-It deliberately does NOT set any ``ANTHROPIC_*`` / ``CLAUDE_CODE_*`` env vars
-and does NOT launch ``claude`` - the native arkcli owns endpoint, model and
-auth (configured via ``arkcli auth login`` / ``arkcli helper``).
-
-The config ``Variables`` (``ARK_API_KEY`` / ``ARK_BASE_URL`` /
-``ANTHROPIC_MODEL``) are intentionally NOT read here. They stay in the config
-only so the Special Software Env Manager can discover stored secret file
-numbers (e.g. ``ARK_API_KEY_1``) and reuse the key shared with the
-``'Volcano Ark'`` encrypted-constant config + ``claudevolc.ps1``.
-
-Official Ark CLI facts (verified sources: Volcano Ark docs + repo installer
-``scripts/shells/linux/debian/install_shells/137_install_arkcli.sh``):
-- Install: ``npm install -g @volcengine/ark-cli@latest``
-- Verify: ``arkcli --version``
-- Login: ``arkcli auth login`` (interactive: select login method, project,
-  agent-plan consumption type)
-- Optional ``arkcli helper`` auto-configures Claude Code - NOT used by this
-  launcher, which runs arkcli natively instead.
+Without ``ARKCLI_API_KEY``, ``arkcli`` configures model/provider and Agent Plan
+MCP; the final process is always ``claude``.
 """
 
 from typing import List, Dict, Any
 
 
 class ArkLauncherSectionGenerator:
-    """Generate the ark${index} v4 launcher scripts (ps1 + sh) - native arkcli."""
+    """Generate ark${index} v4 launchers that configure Claude via arkcli."""
 
     ARK_NPM_PACKAGE = "@volcengine/ark-cli@latest"
+    CLAUDE_NPM_PACKAGE = "@anthropic-ai/claude-code"
+    ARK_DOCS_MCP_NAME = "ark-docs-mcp"
+    ARK_DOCS_MCP_URL = (
+        "https://sd6j8o9hu8aldae0o6es0.apigateway-cn-beijing.volceapi.com/mcp"
+    )
+    WIN_USER_BASE = "D:\\programing\\Users"
+    LINUX_USER_BASE = "/var/_core_node/Users"
+    # Prompted when ARKCLI_MODEL is empty ([Y/n], default Y).
+    PROMPT_DEFAULT_MODEL = "kimi-k3"
+    # Auto-forced when any model prompt is declined (N); no second Y/N.
+    FALLBACK_MODEL = "ark-code-latest"
 
     def generate_ps1(self, display_name: str, file_number: int,
                      variables: List[Dict[str, Any]], command_prefix: str) -> str:
-        """Generate the Windows PowerShell native arkcli launcher script content.
-
-        ``variables`` / ``command_prefix`` are accepted for interface parity with
-        ``ScriptManager.generate_v4_launcher_for_config`` but intentionally unused
-        (the native arkcli launcher does not read any secrets - see module docstring).
-        """
+        """Generate the Windows PowerShell ark -> Claude launcher script."""
         ark_package = self.ARK_NPM_PACKAGE
+        claude_package = self.CLAUDE_NPM_PACKAGE
+        docs_name = self.ARK_DOCS_MCP_NAME
+        docs_url = self.ARK_DOCS_MCP_URL
+        win_user_base = self.WIN_USER_BASE
+        prompt_model = self.PROMPT_DEFAULT_MODEL
+        fallback_model = self.FALLBACK_MODEL
         return f'''# =============================================================================
-# {display_name} Launch Script #{file_number} - v4 [native arkcli]
+# {display_name} Launch Script #{file_number} - v4 [arkcli -> Claude]
 # =============================================================================
 # Auto-generated by Special Software Environment Manager.
-# Runs the NATIVE Volcano Ark CLI (arkcli from @volcengine/ark-cli) - NOT Claude.
-# Ensures arkcli is installed (idempotent), optional arkcli auth login, then
-#   execs arkcli natively with pass-through args.
-# No ANTHROPIC_*/CLAUDE_CODE_* env vars, no claude binary - arkcli owns
-#   endpoint/model/auth (configured via arkcli auth login / arkcli helper).
+# Flow: check tools -> arkcli configure model -> arkcli Agent Plan MCP
+#   -> add ark-docs-mcp -> optional API/model force -> launch claude.
+# Isolated user profile: {win_user_base}\\ark{file_number}
+# Optional secrets (if present): ARKCLI_PROFILE / ARKCLI_MODEL /
+#   ARKCLI_MCP_PROFILE / ARKCLI_OV_RESOURCE / ARKCLI_API / ARKCLI_API_KEY
+#   for slot #{file_number}.
+# ARKCLI_API_KEY set: skip arkcli -> plain Claude under ark{file_number} user dir
+#   (Claude data stays in that custom profile); ARKCLI_API -> ANTHROPIC_BASE_URL.
+# Else: arkcli configure/MCP; ARKCLI_API still forces ANTHROPIC_BASE_URL after.
+# Model: ARKCLI_MODEL set -> Use model xxx? [Y/n] (Y=xxx);
+#   empty -> Use model {prompt_model}? [Y/n]; any N -> auto {fallback_model}.
+# Agent Teams: OFF by default. Pass -team / --team to enable.
+# Extra CLI args are forwarded to claude (e.g. ark{file_number}.ps1 -p "hi").
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -68,7 +87,10 @@ $ErrorActionPreference = "Stop"
 # Variables declared at the top of the file (project rule).
 $arkcliCmd = $null
 $arkcliOk = $false
-$npmCmd = $null
+$claudeCmd = $null
+$claudeOk = $false
+$pnpmExe = $null
+$pnpmCmd = $null
 $loginChoice = $null
 $exitCode = 0
 $scriptActualPath = $null
@@ -79,10 +101,77 @@ $projectRootPath = $null
 $shellsWinPath = $null
 $winCommonDirPath = $null
 $windowsPathFunctionScript = $null
+$globalVarsScript = $null
+$secretDir = $null
+$arkUserBase = $null
+$arkUserDir = $null
+$claudeConfigDir = $null
+$arkcliHomeDir = $null
+$arkcliProfile = $null
+$arkcliModel = $null
+$arkcliMcpProfile = $null
+$arkcliOvResource = $null
+$arkcliApi = $null
+$arkcliApiKey = $null
+$usePlainClaude = $false
+$maskedApiKey = $null
+$apiKeyEnvState = $null
+$modelChoice = $null
+$forceModel = $false
+$resolvedModel = $null
+$promptArkModel = "{prompt_model}"
+$fallbackArkModel = "{fallback_model}"
+$configureArgs = $null
+$mcpArgs = $null
+$mcpOutput = $null
+$mcpExit = 0
+$mcpResult = $null
+$docsGetOutput = $null
+$docsGetExit = 0
+$docsGetResult = $null
+$docsUrlFound = $null
+$docsAddResult = $null
+$ultraSettingsJson = $null
+$ultraSettingsFile = $null
+$claudeArgs = $null
+$teammateMode = $null
+$enableTeam = $false
+$enableUltra = $false
+$ultraChoice = $null
+$prevEap = $null
+$hasAgentPlanMcp = $false
+$hasDocsMcp = $false
+$runMcpSetup = $true
+$reconfigMcpChoice = $null
+$detectedMcpNames = $null
+$homeClaudeJson = $null
+$configClaudeJson = $null
+$mcpName = $null
+$userArgs = $null
+$arg = $null
+
+$env:DISABLE_AUTOUPDATER = "1"
+$env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
+
+$ultraSettingsJson = '{{"ultracode":true}}'
+$ultraSettingsFile = Join-Path $env:TEMP "ark{file_number}_ultracode_settings.json"
+# Parse -team/--team (opt-in Agent Teams); remaining args forwarded to claude.
+$userArgs = @()
+foreach ($arg in @($args)) {{
+    if ($arg -eq "-team" -or $arg -eq "--team") {{
+        $enableTeam = $true
+    }} else {{
+        $userArgs += $arg
+    }}
+}}
+if ($enableTeam) {{
+    $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
+    $teammateMode = "in-process"
+}}
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "{display_name} #{file_number} - v4 [native arkcli]" -ForegroundColor Yellow
+Write-Host "{display_name} #{file_number} - v4 [arkcli -> Claude]" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -102,108 +191,660 @@ if (-not $scriptCurrentPath) {{
 $scriptsDirPath = Split-Path $scriptCurrentPath -Parent
 $projectRootPath = Split-Path $scriptsDirPath -Parent
 
-# Ensure PATH is prepared via WindowsPathFunction (makes npm/arkcli resolvable).
+# Ensure PATH + absolute pnpm path (Global:PNPM_EXE_PATH from Step4_InstallNodeJS).
 $shellsWinPath = Join-Path $scriptsDirPath "shells"
 $shellsWinPath = Join-Path $shellsWinPath "win"
 $winCommonDirPath = Join-Path $shellsWinPath "win_common"
 $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+$globalVarsScript = Join-Path $winCommonDirPath "GlobalVars.ps1"
+. $globalVarsScript
 . $windowsPathFunctionScript
 Set-CoreNodePaths
 
-# Ensure arkcli is installed and working (idempotent).
+# Isolated Claude + arkcli user profile (map path: {win_user_base}\\ark{file_number}).
+# arkcli ByteCloud migrate requires ~/.arkcli to be a REAL directory (not a junction
+# or symlink). Path-mapping may have left junctions pointing at the host profile;
+# replace those with real dirs (materialize copy once) before any arkcli call.
+$arkUserBase = "{win_user_base}"
+$arkUserDir = Join-Path $arkUserBase "ark{file_number}"
+if (-not (Test-Path -LiteralPath $arkUserDir)) {{
+    New-Item -ItemType Directory -Path $arkUserDir -Force | Out-Null
+    Write-Host "[INFO] Created Ark user dir: $arkUserDir" -ForegroundColor Cyan
+}}
+
+function Ensure-RealHomeDotDir {{
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+    $item = $null
+    $linkTarget = $null
+    $isReparse = $false
+    if (Test-Path -LiteralPath $Path) {{
+        $item = Get-Item -LiteralPath $Path -Force
+        $isReparse = [bool]($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)
+        if ($isReparse) {{
+            if ($item.Target) {{
+                $linkTarget = [string](@($item.Target)[0])
+            }}
+            # rmdir removes the junction/symlink only; target contents stay.
+            cmd /c rmdir "$Path" | Out-Null
+            New-Item -ItemType Directory -Path $Path -Force | Out-Null
+            if (-not [string]::IsNullOrWhiteSpace($linkTarget) -and (Test-Path -LiteralPath $linkTarget)) {{
+                & robocopy $linkTarget $Path /E /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
+            }}
+            Write-Host "[INFO] Replaced junction/symlink with real directory: $Path" -ForegroundColor Yellow
+            return
+        }}
+        return
+    }}
+    New-Item -ItemType Directory -Path $Path -Force | Out-Null
+}}
+
+$claudeConfigDir = Join-Path $arkUserDir ".claude"
+$arkcliHomeDir = Join-Path $arkUserDir ".arkcli"
+Ensure-RealHomeDotDir -Path $claudeConfigDir
+Ensure-RealHomeDotDir -Path $arkcliHomeDir
+$env:USERPROFILE = $arkUserDir
+$env:HOME = $arkUserDir
+$env:USER_HOME = $arkUserDir
+$env:HOMEPATH = $arkUserDir
+$env:USER_DIR = $arkUserDir
+$env:CLAUDE_CONFIG_DIR = $claudeConfigDir
+Write-Host "[INFO] USERPROFILE       = $env:USERPROFILE" -ForegroundColor Cyan
+Write-Host "[INFO] CLAUDE_CONFIG_DIR = $env:CLAUDE_CONFIG_DIR" -ForegroundColor Cyan
+Write-Host "[INFO] ARKCLI home       = $arkcliHomeDir (real directory)" -ForegroundColor Cyan
+
+function Read-SecretFile {{
+    param([string]$FilePath)
+    $value = ""
+    if (Test-Path -LiteralPath $FilePath) {{
+        try {{
+            $bytes = [System.IO.File]::ReadAllBytes($FilePath)
+            if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {{
+                $bytes = $bytes[3..($bytes.Length - 1)]
+            }}
+            $content = [System.Text.Encoding]::UTF8.GetString($bytes)
+            $lines = $content -split "`r?`n"
+            foreach ($line in $lines) {{
+                $trimmedLine = $line.Trim()
+                if ($trimmedLine) {{
+                    $value = $trimmedLine
+                    break
+                }}
+            }}
+        }}
+        catch {{
+            $value = ""
+        }}
+    }}
+    return $value
+}}
+
+$secretDir = Join-Path $projectRootPath ".secret_keys\\.secret_ignore"
+$arkcliProfile = Read-SecretFile (Join-Path $secretDir "ARKCLI_PROFILE_{file_number}")
+$arkcliModel = Read-SecretFile (Join-Path $secretDir "ARKCLI_MODEL_{file_number}")
+$arkcliMcpProfile = Read-SecretFile (Join-Path $secretDir "ARKCLI_MCP_PROFILE_{file_number}")
+$arkcliOvResource = Read-SecretFile (Join-Path $secretDir "ARKCLI_OV_RESOURCE_{file_number}")
+$arkcliApi = Read-SecretFile (Join-Path $secretDir "ARKCLI_API_{file_number}")
+$arkcliApiKey = Read-SecretFile (Join-Path $secretDir "ARKCLI_API_KEY_{file_number}")
+if ([string]::IsNullOrWhiteSpace($arkcliProfile) -and -not [string]::IsNullOrWhiteSpace($env:ARKCLI_PROFILE)) {{
+    $arkcliProfile = $env:ARKCLI_PROFILE
+}}
+if ([string]::IsNullOrWhiteSpace($arkcliModel) -and -not [string]::IsNullOrWhiteSpace($env:ARKCLI_MODEL)) {{
+    $arkcliModel = $env:ARKCLI_MODEL
+}}
+if ([string]::IsNullOrWhiteSpace($arkcliMcpProfile) -and -not [string]::IsNullOrWhiteSpace($env:ARKCLI_MCP_PROFILE)) {{
+    $arkcliMcpProfile = $env:ARKCLI_MCP_PROFILE
+}}
+if ([string]::IsNullOrWhiteSpace($arkcliOvResource) -and -not [string]::IsNullOrWhiteSpace($env:ARKCLI_OV_RESOURCE)) {{
+    $arkcliOvResource = $env:ARKCLI_OV_RESOURCE
+}}
+if ([string]::IsNullOrWhiteSpace($arkcliApi) -and -not [string]::IsNullOrWhiteSpace($env:ARKCLI_API)) {{
+    $arkcliApi = $env:ARKCLI_API
+}}
+if ([string]::IsNullOrWhiteSpace($arkcliApiKey) -and -not [string]::IsNullOrWhiteSpace($env:ARKCLI_API_KEY)) {{
+    $arkcliApiKey = $env:ARKCLI_API_KEY
+}}
+if (-not [string]::IsNullOrWhiteSpace($arkcliApi)) {{
+    $arkcliApi = $arkcliApi.TrimEnd('/')
+    foreach ($suffix in @('/v1/chat/completions', '/chat/completions', '/v1/messages', '/messages')) {{
+        if ($arkcliApi.ToLower().EndsWith($suffix)) {{
+            $arkcliApi = $arkcliApi.Substring(0, $arkcliApi.Length - $suffix.Length).TrimEnd('/')
+            break
+        }}
+    }}
+}}
+$usePlainClaude = -not [string]::IsNullOrWhiteSpace($arkcliApiKey)
+
+function Get-MaskedSecret {{
+    param([string]$Value)
+    if ([string]::IsNullOrEmpty($Value)) {{ return "[empty]" }}
+    $len = $Value.Length
+    if ($len -le 4) {{
+        return ("*" * $len)
+    }}
+    if ($len -le 8) {{
+        $keep = 1
+    }} else {{
+        $keep = 4
+    }}
+    $middleLen = $len - (2 * $keep)
+    if ($middleLen -lt 1) {{ $middleLen = 1 }}
+    return ($Value.Substring(0, $keep) + ("*" * $middleLen) + $Value.Substring($len - $keep))
+}}
+
+function Resolve-PnpmExe {{
+    $exe = $Global:PNPM_EXE_PATH
+    if (-not $exe -or -not (Test-Path -LiteralPath $exe)) {{
+        $cmd = Get-Command pnpm -ErrorAction SilentlyContinue
+        if ($cmd) {{ $exe = [string]$cmd.Source }}
+    }}
+    if (-not $exe -or -not (Test-Path -LiteralPath $exe)) {{
+        Write-Host "[ERROR] pnpm not found (run Step4_InstallNodeJS.ps1 first)." -ForegroundColor Red
+        exit 1
+    }}
+    return $exe
+}}
+
+# Capture stdout+stderr as text without letting stderr notes become terminating
+# errors under $ErrorActionPreference = Stop (e.g. arkcli OpenViking skip note).
+function Invoke-ExternalCaptured {{
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+        [string[]]$ArgumentList = @()
+    )
+    $capturedLines = @()
+    $capturedExit = 0
+    $savedEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {{
+        $raw = & $FilePath @ArgumentList 2>&1
+        foreach ($entry in @($raw)) {{
+            if ($null -eq $entry) {{ continue }}
+            if ($entry -is [System.Management.Automation.ErrorRecord]) {{
+                $capturedLines += [string]$entry.ToString()
+            }} else {{
+                $capturedLines += [string]$entry
+            }}
+        }}
+        $capturedExit = $LASTEXITCODE
+        if ($null -eq $capturedExit) {{ $capturedExit = 0 }}
+    }} finally {{
+        $ErrorActionPreference = $savedEap
+    }}
+    return [pscustomobject]@{{
+        ExitCode = [int]$capturedExit
+        Output   = ($capturedLines -join [Environment]::NewLine)
+    }}
+}}
+
+# 1) Ensure arkcli is installed (skipped in plain Claude / API KEY mode).
+if (-not $usePlainClaude) {{
 $arkcliCmd = Get-Command arkcli -ErrorAction SilentlyContinue
 if ($arkcliCmd) {{
     & arkcli --version *> $null
     if ($LASTEXITCODE -eq 0) {{ $arkcliOk = $true }}
 }}
 if (-not $arkcliOk) {{
-    Write-Host "arkcli not found; installing {ark_package}..." -ForegroundColor Yellow
-    $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
-    if (-not $npmCmd) {{
-        Write-Host "[ERROR] npm not found on PATH (install Node.js first)." -ForegroundColor Red
-        exit 1
-    }}
-    & npm install -g "{ark_package}"
+    Write-Host "arkcli not found; installing {ark_package} via pnpm..." -ForegroundColor Yellow
+    $pnpmExe = Resolve-PnpmExe
+    & $pnpmExe add -g "{ark_package}"
     if ($LASTEXITCODE -ne 0) {{
-        Write-Host "[ERROR] npm install of @volcengine/ark-cli failed." -ForegroundColor Red
+        Write-Host "[ERROR] pnpm install of @volcengine/ark-cli failed." -ForegroundColor Red
         exit 1
     }}
-    # Re-resolve arkcli (npm global bin should already be on PATH from the Node
-    # installer; if not, the user must restart their shell).
     $arkcliCmd = Get-Command arkcli -ErrorAction SilentlyContinue
     if (-not $arkcliCmd) {{
         Write-Host "[ERROR] arkcli installed but not on PATH. Restart your shell and re-run this script." -ForegroundColor Red
         exit 1
     }}
 }}
+}}
 
-Write-Host "arkcli: $(& arkcli --version 2>$null | Select-Object -First 1)" -ForegroundColor White
+# 2) Ensure claude is installed and working (idempotent).
+$claudeCmd = Get-Command claude -ErrorAction SilentlyContinue
+if ($claudeCmd) {{
+    & claude --version *> $null
+    if ($LASTEXITCODE -eq 0) {{ $claudeOk = $true }}
+}}
+if (-not $claudeOk) {{
+    Write-Host "claude not found; installing {claude_package} via pnpm..." -ForegroundColor Yellow
+    $pnpmExe = Resolve-PnpmExe
+    & $pnpmExe add -g "{claude_package}"
+    if ($LASTEXITCODE -ne 0) {{
+        Write-Host "[ERROR] pnpm install of @anthropic-ai/claude-code failed." -ForegroundColor Red
+        exit 1
+    }}
+    $claudeCmd = Get-Command claude -ErrorAction SilentlyContinue
+    if (-not $claudeCmd) {{
+        Write-Host "[ERROR] claude installed but not on PATH. Restart your shell and re-run this script." -ForegroundColor Red
+        exit 1
+    }}
+}}
+
+Write-Host "claude: $(& claude --version 2>$null | Select-Object -First 1)" -ForegroundColor White
+Write-Host "Isolated user dir: $arkUserDir (Claude data/config for this slot)" -ForegroundColor Cyan
+if ($usePlainClaude) {{
+    Write-Host "Mode: plain Claude (ARKCLI_API_KEY set — skip arkcli)" -ForegroundColor Yellow
+    Write-Host "  Purpose: use Claude under Ark custom user dir without arkcli." -ForegroundColor DarkGray
+    if ([string]::IsNullOrWhiteSpace($arkcliApi)) {{
+        Write-Host "[ERROR] ARKCLI_API_KEY is set but ARKCLI_API (BASE_URL) is empty." -ForegroundColor Red
+        Write-Host "        Plain Claude needs both: ARKCLI_API + ARKCLI_API_KEY." -ForegroundColor Yellow
+        Write-Host "        Example BASE_URL: https://api.example.com (Anthropic-compatible, no /v1/chat/completions)." -ForegroundColor Yellow
+        exit 1
+    }}
+    # Match claudevolc/claudealibaba: AUTH_TOKEN + BASE_URL only.
+    # Do NOT set ANTHROPIC_API_KEY — it can force official Anthropic auth and cause API errors.
+    $env:ANTHROPIC_BASE_URL = $arkcliApi
+    $env:ANTHROPIC_AUTH_TOKEN = $arkcliApiKey
+    Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
+    $maskedApiKey = Get-MaskedSecret $arkcliApiKey
+    Write-Host "ARKCLI_API_KEY: $maskedApiKey -> ANTHROPIC_AUTH_TOKEN" -ForegroundColor White
+    Write-Host "ANTHROPIC_BASE_URL: $env:ANTHROPIC_BASE_URL (set now)" -ForegroundColor White
+}} else {{
+    Write-Host "arkcli: $(& arkcli --version 2>$null | Select-Object -First 1)" -ForegroundColor White
+    Write-Host "Mode: arkcli -> Claude" -ForegroundColor White
+}}
+if (-not [string]::IsNullOrWhiteSpace($arkcliProfile)) {{
+    Write-Host "ARKCLI_PROFILE: $arkcliProfile" -ForegroundColor White
+}}
+if (-not [string]::IsNullOrWhiteSpace($arkcliModel)) {{
+    Write-Host "ARKCLI_MODEL: $arkcliModel (Use model? [Y/n]; N -> auto {fallback_model})" -ForegroundColor White
+}} else {{
+    Write-Host "ARKCLI_MODEL: (empty — Use model {prompt_model}? [Y/n]; N -> auto {fallback_model})" -ForegroundColor DarkGray
+}}
+if (-not [string]::IsNullOrWhiteSpace($arkcliMcpProfile)) {{
+    Write-Host "ARKCLI_MCP_PROFILE: $arkcliMcpProfile" -ForegroundColor White
+}}
+if (-not [string]::IsNullOrWhiteSpace($arkcliApi)) {{
+    Write-Host "ARKCLI_API: $arkcliApi (ANTHROPIC_BASE_URL)" -ForegroundColor White
+}} elseif ($usePlainClaude) {{
+    Write-Host "ARKCLI_API: (empty — set with ARKCLI_API_KEY for Anthropic-compatible BASE_URL)" -ForegroundColor Yellow
+}}
+if ($enableTeam) {{
+    Write-Host "Agent Teams: ON (-team) CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 --teammate-mode in-process" -ForegroundColor Green
+}} else {{
+    Write-Host "Agent Teams: OFF (default). Tip: pass -team to enable Agent Teams." -ForegroundColor DarkGray
+}}
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Optional auth login (opt-in, default No). arkcli caches credentials, so this
-# is only needed on first run or after the token expires.
+if (-not $usePlainClaude) {{
+# Optional auth login (opt-in, default No).
 $loginChoice = Read-Host "Run 'arkcli auth login' now? [y/N]"
 if ($loginChoice -eq 'y' -or $loginChoice -eq 'Y') {{
     & arkcli auth login
+    if ($LASTEXITCODE -ne 0) {{
+        Write-Host "[ERROR] arkcli auth login failed." -ForegroundColor Red
+        exit $LASTEXITCODE
+    }}
+}}
+
+# Stage A: configure Claude model/provider (Coding Plan or Agent Plan).
+Write-Host ""
+Write-Host "[INFO] Stage A: arkcli helper configure claude-code ..." -ForegroundColor Cyan
+$configureArgs = @("helper", "configure", "claude-code")
+if (-not [string]::IsNullOrWhiteSpace($arkcliProfile)) {{
+    $configureArgs += @("--profile", $arkcliProfile)
+}}
+if (-not [string]::IsNullOrWhiteSpace($arkcliModel)) {{
+    $configureArgs += @("--model", $arkcliModel)
+}}
+& arkcli @configureArgs
+if ($LASTEXITCODE -ne 0) {{
+    Write-Host "[ERROR] arkcli helper configure failed. Stopping to avoid a wrong Claude provider." -ForegroundColor Red
+    exit $LASTEXITCODE
+}}
+
+# Detect existing Ark MCP for this isolated slot (file-based; no secrets printed).
+# Agent Plan MCP lives in HOME\\.claude.json; ark-docs-mcp in CLAUDE_CONFIG_DIR\\.claude.json.
+function Get-ClaudeMcpServerNames {{
+    param([string]$JsonPath)
+    $names = @()
+    if (-not $JsonPath -or -not (Test-Path -LiteralPath $JsonPath)) {{
+        return $names
+    }}
+    try {{
+        $json = Get-Content -LiteralPath $JsonPath -Raw -ErrorAction Stop | ConvertFrom-Json
+        if ($null -ne $json.mcpServers) {{
+            $names = @($json.mcpServers.PSObject.Properties.Name)
+        }}
+    }} catch {{
+        $names = @()
+    }}
+    return $names
+}}
+
+$hasAgentPlanMcp = $false
+$hasDocsMcp = $false
+$detectedMcpNames = @()
+$homeClaudeJson = Join-Path $env:HOME ".claude.json"
+$configClaudeJson = Join-Path $env:CLAUDE_CONFIG_DIR ".claude.json"
+foreach ($mcpName in @(Get-ClaudeMcpServerNames $homeClaudeJson) + @(Get-ClaudeMcpServerNames $configClaudeJson)) {{
+    if ([string]::IsNullOrWhiteSpace($mcpName)) {{ continue }}
+    if ($detectedMcpNames -notcontains $mcpName) {{
+        $detectedMcpNames += $mcpName
+    }}
+    if ($mcpName -match '(?i)askecho|datapro|openviking') {{
+        $hasAgentPlanMcp = $true
+    }}
+    if ($mcpName -eq "{docs_name}") {{
+        $hasDocsMcp = $true
+    }}
+}}
+
+$runMcpSetup = $true
+if ($hasAgentPlanMcp -or $hasDocsMcp) {{
+    Write-Host ""
+    Write-Host "[INFO] Existing Ark MCP detected for this slot:" -ForegroundColor Cyan
+    if ($hasAgentPlanMcp) {{
+        Write-Host "  - Agent Plan MCP (askecho / dataPro / openviking)" -ForegroundColor White
+    }}
+    if ($hasDocsMcp) {{
+        Write-Host "  - {docs_name}" -ForegroundColor White
+    }}
+    if ($detectedMcpNames.Count -gt 0) {{
+        Write-Host ("  Names: " + ($detectedMcpNames -join ", ")) -ForegroundColor DarkGray
+    }}
+    $reconfigMcpChoice = Read-Host "Reconfigure MCP (helper mcp + {docs_name})? [y/N]"
+    if ($reconfigMcpChoice -eq 'y' -or $reconfigMcpChoice -eq 'Y') {{
+        $runMcpSetup = $true
+        Write-Host "[INFO] Will reconfigure MCP." -ForegroundColor Yellow
+    }} else {{
+        $runMcpSetup = $false
+        Write-Host "[INFO] Keeping existing MCP; skipping Stages B/C." -ForegroundColor Green
+    }}
+}}
+
+if ($runMcpSetup) {{
+# Stage B: inject Agent Plan built-in MCP (soft-fail when Coding Plan only).
+# OpenViking skip notes on stderr must NOT abort the launcher.
+Write-Host ""
+Write-Host "[INFO] Stage B: arkcli helper mcp claude-code ..." -ForegroundColor Cyan
+$mcpArgs = @("helper", "mcp", "claude-code")
+if (-not [string]::IsNullOrWhiteSpace($arkcliMcpProfile)) {{
+    $mcpArgs += @("--profile", $arkcliMcpProfile)
+}}
+if (-not [string]::IsNullOrWhiteSpace($arkcliOvResource)) {{
+    $mcpArgs += @("--ov-resource", $arkcliOvResource)
+}}
+$mcpResult = Invoke-ExternalCaptured -FilePath "arkcli" -ArgumentList $mcpArgs
+$mcpExit = [int]$mcpResult.ExitCode
+$mcpOutput = [string]$mcpResult.Output
+if ($mcpExit -ne 0) {{
+    if ($mcpOutput -match '(?i)agent[- ]?plan|no agent plan|未找到.*[Aa]gent|[Aa]gent.*not found|not found.*profile|openviking|已跳过') {{
+        Write-Host "[WARN] Agent Plan MCP incomplete or unavailable; continuing so Claude can still start." -ForegroundColor Yellow
+        if (-not [string]::IsNullOrWhiteSpace($mcpOutput)) {{
+            Write-Host $mcpOutput.Trim() -ForegroundColor DarkYellow
+        }}
+    }} else {{
+        Write-Host "[ERROR] arkcli helper mcp failed:" -ForegroundColor Red
+        if (-not [string]::IsNullOrWhiteSpace($mcpOutput)) {{
+            Write-Host $mcpOutput.Trim() -ForegroundColor Red
+        }}
+        exit $mcpExit
+    }}
+}} else {{
+    Write-Host "[OK] Agent Plan MCP configured." -ForegroundColor Green
+    if ($mcpOutput -match '(?i)openviking|已跳过') {{
+        Write-Host "[INFO] arkcli note (non-fatal):" -ForegroundColor DarkYellow
+        Write-Host $mcpOutput.Trim() -ForegroundColor DarkYellow
+    }}
+}}
+
+# Stage C: idempotent public Ark docs MCP.
+Write-Host ""
+Write-Host "[INFO] Stage C: ensure {docs_name} ..." -ForegroundColor Cyan
+$docsGetResult = Invoke-ExternalCaptured -FilePath "claude" -ArgumentList @("mcp", "get", "{docs_name}")
+$docsGetExit = [int]$docsGetResult.ExitCode
+$docsGetOutput = [string]$docsGetResult.Output
+if ($docsGetExit -eq 0) {{
+    $docsUrlFound = $null
+    if ($docsGetOutput -match 'https?://\\S+') {{
+        $docsUrlFound = $Matches[0].TrimEnd('.', ',', ')', ']')
+    }}
+    if ($docsUrlFound -and ($docsUrlFound -ne "{docs_url}")) {{
+        Write-Host "[WARN] {docs_name} already exists with a different URL:" -ForegroundColor Yellow
+        Write-Host "       existing: $docsUrlFound" -ForegroundColor Yellow
+        Write-Host "       expected: {docs_url}" -ForegroundColor Yellow
+        Write-Host "[WARN] Leaving existing MCP entry unchanged." -ForegroundColor Yellow
+    }} else {{
+        Write-Host "[OK] {docs_name} already present; skipping add." -ForegroundColor Green
+    }}
+}} else {{
+    $docsAddResult = Invoke-ExternalCaptured -FilePath "claude" -ArgumentList @(
+        "mcp", "add", "--transport", "http", "--scope", "user", "{docs_name}", "{docs_url}"
+    )
+    if ([int]$docsAddResult.ExitCode -ne 0) {{
+        Write-Host "[ERROR] Failed to add {docs_name}." -ForegroundColor Red
+        if (-not [string]::IsNullOrWhiteSpace([string]$docsAddResult.Output)) {{
+            Write-Host ([string]$docsAddResult.Output).Trim() -ForegroundColor Red
+        }}
+        exit ([int]$docsAddResult.ExitCode)
+    }}
+    Write-Host "[OK] Added {docs_name}." -ForegroundColor Green
+}}
+}} # end if ($runMcpSetup)
+}} # end if (-not $usePlainClaude)
+
+# Force API base before Claude (post-arkcli override, or re-assert plain mode).
+# Isolated arkN HOME/CLAUDE_CONFIG_DIR already set; Claude data stays there.
+if (-not [string]::IsNullOrWhiteSpace($arkcliApi)) {{
+    $env:ANTHROPIC_BASE_URL = $arkcliApi
+    Write-Host ""
+    Write-Host "[INFO] Forced ANTHROPIC_BASE_URL = $env:ANTHROPIC_BASE_URL (from ARKCLI_API)" -ForegroundColor Cyan
+}}
+if ($usePlainClaude) {{
+    $env:ANTHROPIC_AUTH_TOKEN = $arkcliApiKey
+    Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
+}}
+
+# Model (after arkcli configure, before Claude):
+# - ARKCLI_MODEL set -> Use model xxx? [Y/n] (Y/Enter = xxx)
+# - empty -> Use model {prompt_model}? [Y/n] (Y/Enter = {prompt_model})
+# - any N -> auto-force {fallback_model} (tip only, no 2nd Y/N)
+$forceModel = $false
+$resolvedModel = $null
+Write-Host ""
+if (-not [string]::IsNullOrWhiteSpace($arkcliModel)) {{
+    $modelChoice = Read-Host "Use model ${{arkcliModel}}? [Y/n]"
+    if ($modelChoice -eq 'n' -or $modelChoice -eq 'N') {{
+        $resolvedModel = $fallbackArkModel
+        $forceModel = $true
+        Write-Host "[INFO] Declined $arkcliModel; auto-set model = $resolvedModel" -ForegroundColor Green
+    }} else {{
+        $resolvedModel = $arkcliModel
+        $forceModel = $true
+    }}
+}} else {{
+    $modelChoice = Read-Host "Use model {prompt_model}? [Y/n]"
+    if ($modelChoice -eq 'n' -or $modelChoice -eq 'N') {{
+        $resolvedModel = $fallbackArkModel
+        $forceModel = $true
+        Write-Host "[INFO] Declined {prompt_model}; auto-set model = $resolvedModel" -ForegroundColor Green
+    }} else {{
+        $resolvedModel = $promptArkModel
+        $forceModel = $true
+    }}
+}}
+if ($forceModel) {{
+    $env:ANTHROPIC_MODEL = $resolvedModel
+    $env:CLAUDE_CODE_SUBAGENT_MODEL = $resolvedModel
+    $env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $resolvedModel
+    $env:ANTHROPIC_DEFAULT_SONNET_MODEL = $resolvedModel
+    Write-Host "[INFO] Forced model = $resolvedModel (main + subagents + background)" -ForegroundColor Cyan
+}}
+
+# Permission bypass always; Agent Teams only when -team was passed.
+$claudeArgs = @("--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+if ($enableTeam) {{
+    $claudeArgs = @("--teammate-mode", $teammateMode) + $claudeArgs
+}}
+if ($forceModel) {{
+    $claudeArgs = @("--model", $resolvedModel) + $claudeArgs
+}}
+# Ultracode: opt-in prompt (default No).
+$ultraChoice = Read-Host "Enable ultracode? [y/N]"
+if ($ultraChoice -eq 'y' -or $ultraChoice -eq 'Y') {{
+    $enableUltra = $true
+    [System.IO.File]::WriteAllText($ultraSettingsFile, $ultraSettingsJson)
+    $claudeArgs += @("--settings", $ultraSettingsFile)
 }}
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Press Enter to start {display_name} #{file_number} (native arkcli)..." -ForegroundColor Yellow
+if ($usePlainClaude) {{
+    Write-Host "Press Enter to start {display_name} #{file_number} [plain Claude / API KEY]..." -ForegroundColor Yellow
+}} else {{
+    Write-Host "Press Enter to start {display_name} #{file_number} [arkcli -> Claude]..." -ForegroundColor Yellow
+}}
+if (-not $enableTeam) {{
+    Write-Host "Tip: re-run with -team to enable Agent Teams (e.g. ark{file_number}.ps1 -team)" -ForegroundColor DarkGray
+}}
 Write-Host "============================================================" -ForegroundColor Cyan
 $null = Read-Host "Press Enter to continue"
 
+if ($userArgs.Count -gt 0) {{
+    $claudeArgs += $userArgs
+}}
+
+# Re-assert plain-Claude gateway env immediately before exec (avoid stale session vars).
+if ($usePlainClaude) {{
+    $env:ANTHROPIC_BASE_URL = $arkcliApi
+    $env:ANTHROPIC_AUTH_TOKEN = $arkcliApiKey
+    Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
+    if ([string]::IsNullOrWhiteSpace($maskedApiKey)) {{
+        $maskedApiKey = Get-MaskedSecret $arkcliApiKey
+    }}
+}}
+
 Write-Host ""
-Write-Host "Executing: arkcli" -ForegroundColor White
+Write-Host "Executing: claude $($claudeArgs -join ' ')" -ForegroundColor White
+if ($usePlainClaude) {{
+    $apiKeyEnvState = "[cleared]"
+    if (-not [string]::IsNullOrWhiteSpace($env:ANTHROPIC_API_KEY)) {{
+        $apiKeyEnvState = "[set-conflict]"
+    }}
+    Write-Host "Environment: ANTHROPIC_BASE_URL='$($env:ANTHROPIC_BASE_URL)', ANTHROPIC_AUTH_TOKEN='$maskedApiKey', ANTHROPIC_MODEL='$($env:ANTHROPIC_MODEL)', ANTHROPIC_API_KEY=$apiKeyEnvState" -ForegroundColor White
+}}
 Write-Host ""
 
-& arkcli @args
+& claude @claudeArgs
 $exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) {{ $exitCode = 0 }}
+
+if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path -LiteralPath $ultraSettingsFile)) {{
+    Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
+}}
 
 exit $exitCode
 '''
 
     def generate_sh(self, display_name: str, file_number: int,
                     variables: List[Dict[str, Any]], command_prefix: str) -> str:
-        """Generate the Linux bash native arkcli launcher script content.
-
-        ``variables`` / ``command_prefix`` are accepted for interface parity with
-        ``ScriptManager.generate_v4_launcher_for_config`` but intentionally unused
-        (the native arkcli launcher does not read any secrets - see module docstring).
-        """
+        """Generate the Linux bash ark -> Claude launcher script."""
         ark_package = self.ARK_NPM_PACKAGE
+        claude_package = self.CLAUDE_NPM_PACKAGE
+        docs_name = self.ARK_DOCS_MCP_NAME
+        docs_url = self.ARK_DOCS_MCP_URL
+        linux_user_base = self.LINUX_USER_BASE
+        prompt_model = self.PROMPT_DEFAULT_MODEL
+        fallback_model = self.FALLBACK_MODEL
         return f'''#!/bin/bash
 # =============================================================================
-# {display_name} Launch Script #{file_number} - v4 [native arkcli]
+# {display_name} Launch Script #{file_number} - v4 [arkcli -> Claude]
 # =============================================================================
 # Auto-generated by Special Software Environment Manager.
-# Runs the NATIVE Volcano Ark CLI (arkcli from @volcengine/ark-cli) - NOT Claude.
-# Ensures arkcli is installed (idempotent), optional arkcli auth login, then
-#   execs arkcli natively with pass-through args.
-# No ANTHROPIC_*/CLAUDE_CODE_* env vars, no claude binary - arkcli owns
-#   endpoint/model/auth (configured via arkcli auth login / arkcli helper).
+# Flow: check tools -> arkcli configure model -> arkcli Agent Plan MCP
+#   -> add ark-docs-mcp -> optional API/model force -> launch claude.
+# Isolated user profile: {linux_user_base}/ark{file_number}
+# Optional secrets (if present): ARKCLI_PROFILE / ARKCLI_MODEL /
+#   ARKCLI_MCP_PROFILE / ARKCLI_OV_RESOURCE / ARKCLI_API / ARKCLI_API_KEY
+#   for slot #{file_number}.
+# ARKCLI_API_KEY set: skip arkcli -> plain Claude under ark{file_number} user dir
+#   (Claude data stays in that custom profile); ARKCLI_API -> ANTHROPIC_BASE_URL.
+# Else: arkcli configure/MCP; ARKCLI_API still forces ANTHROPIC_BASE_URL after.
+# Model: ARKCLI_MODEL set -> Use model xxx? [Y/n] (Y=xxx);
+#   empty -> Use model {prompt_model}? [Y/n]; any N -> auto {fallback_model}.
+# Agent Teams: OFF by default. Pass -team / --team to enable.
+# Extra CLI args are forwarded to claude (e.g. ark{file_number}.sh -p "hi").
 # =============================================================================
 
 set -e
 
 # Variables declared at the top of the file (project rule).
 arkcliOk=0
+claudeOk=0
 loginChoice=""
 scriptSource=""
 scriptCurrentPath=""
 scriptsDirPath=""
 projectRootPath=""
+pnpmBin=""
+gvarCommon=""
+secret_dir=""
+ark_user_base=""
+ark_user_dir=""
+claude_config_dir=""
+arkcli_home_dir=""
+arkcli_profile=""
+arkcli_model=""
+arkcli_mcp_profile=""
+arkcli_ov_resource=""
+arkcli_api=""
+arkcli_api_key=""
+use_plain_claude=0
+masked_api_key=""
+model_choice=""
+force_model=0
+resolved_model=""
+default_ark_model="{prompt_model}"
+fallback_ark_model="{fallback_model}"
+configure_args=()
+mcp_args=()
+mcp_output=""
+mcp_exit=0
+docs_get_output=""
+docs_get_exit=0
+docs_url_found=""
+ultra_settings_json='{{"ultracode":true}}'
+claude_args=()
+ultra_choice=""
+ultra_enabled=0
+enable_team=0
+has_agent_plan_mcp=0
+has_docs_mcp=0
+run_mcp_setup=1
+reconfig_mcp_choice=""
+detected_mcp_names=""
+home_claude_json=""
+config_claude_json=""
+user_args=()
+arg=""
+
+export DISABLE_AUTOUPDATER="1"
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"
+
+# Parse -team/--team (opt-in Agent Teams); remaining args forwarded to claude.
+for arg in "$@"; do
+    case "$arg" in
+        -team|--team) enable_team=1 ;;
+        *) user_args+=("$arg") ;;
+    esac
+done
+if [ "$enable_team" -eq 1 ]; then
+    export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
+fi
 
 echo ""
 echo "============================================================"
-echo "{display_name} #{file_number} - v4 [native arkcli]"
+echo "{display_name} #{file_number} - v4 [arkcli -> Claude]"
 echo "============================================================"
 echo ""
 
-# Path resolution kept for parity; arkcli/npm are expected on PATH via the
-# 137_install_arkcli.sh installer + /etc/environment.
+# Path resolution; prefer absolute PNPM_BIN from gvar_common (set by Node install).
 scriptSource="${{BASH_SOURCE[0]}}"
 if [ -L "$scriptSource" ]; then
     scriptSource="$(readlink -f "$scriptSource" 2>/dev/null || echo "$scriptSource")"
@@ -211,42 +852,417 @@ fi
 scriptCurrentPath="$(cd "$(dirname "$scriptSource")" && pwd)"
 scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
 projectRootPath="$(cd "$scriptsDirPath/.." && pwd)"
+gvarCommon="$projectRootPath/scripts/shells/linux/common/gvar_common.sh"
+if [ -f "$gvarCommon" ]; then
+    # shellcheck disable=SC1090
+    . "$gvarCommon"
+fi
 
-# Ensure arkcli is installed and working (idempotent).
+# Isolated Claude + arkcli user profile.
+# arkcli ByteCloud migrate requires ~/.arkcli to be a REAL directory (not a symlink).
+ensure_real_home_dot_dir() {{
+    local path="$1"
+    local link_target=""
+    if [ -L "$path" ]; then
+        link_target="$(readlink -f "$path" 2>/dev/null || true)"
+        rm -f "$path"
+        mkdir -p "$path"
+        if [ -n "$link_target" ] && [ -d "$link_target" ]; then
+            cp -a "$link_target"/. "$path"/ 2>/dev/null || true
+        fi
+        echo "[INFO] Replaced symlink with real directory: $path"
+    else
+        mkdir -p "$path"
+    fi
+}}
+
+ark_user_base="{linux_user_base}"
+ark_user_dir="$ark_user_base/ark{file_number}"
+mkdir -p "$ark_user_dir"
+claude_config_dir="$ark_user_dir/.claude"
+arkcli_home_dir="$ark_user_dir/.arkcli"
+ensure_real_home_dot_dir "$claude_config_dir"
+ensure_real_home_dot_dir "$arkcli_home_dir"
+export HOME="$ark_user_dir"
+export USER_HOME="$ark_user_dir"
+export USER_DIR="$ark_user_dir"
+export CLAUDE_CONFIG_DIR="$claude_config_dir"
+echo "[INFO] HOME              = $HOME"
+echo "[INFO] CLAUDE_CONFIG_DIR = $CLAUDE_CONFIG_DIR"
+echo "[INFO] ARKCLI home       = $arkcli_home_dir (real directory)"
+
+read_secret_file() {{
+    local file_path="$1"
+    local value=""
+    if [ -f "$file_path" ]; then
+        local first_bytes
+        first_bytes=$(head -c 3 "$file_path" 2>/dev/null | od -An -tx1 2>/dev/null | tr -d ' \\n' 2>/dev/null || echo "")
+        if [ "$first_bytes" = "efbbbf" ]; then
+            while IFS= read -r line || [ -n "$line" ]; do
+                trimmed_line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                if [ -n "$trimmed_line" ]; then
+                    value="$trimmed_line"
+                    break
+                fi
+            done < <(dd if="$file_path" bs=1 skip=3 2>/dev/null)
+        else
+            while IFS= read -r line || [ -n "$line" ]; do
+                trimmed_line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                if [ -n "$trimmed_line" ]; then
+                    value="$trimmed_line"
+                    break
+                fi
+            done < "$file_path"
+        fi
+    fi
+    echo "$value"
+}}
+
+secret_dir="$projectRootPath/.secret_keys/.secret_ignore"
+arkcli_profile="$(read_secret_file "$secret_dir/ARKCLI_PROFILE_{file_number}")"
+arkcli_model="$(read_secret_file "$secret_dir/ARKCLI_MODEL_{file_number}")"
+arkcli_mcp_profile="$(read_secret_file "$secret_dir/ARKCLI_MCP_PROFILE_{file_number}")"
+arkcli_ov_resource="$(read_secret_file "$secret_dir/ARKCLI_OV_RESOURCE_{file_number}")"
+arkcli_api="$(read_secret_file "$secret_dir/ARKCLI_API_{file_number}")"
+arkcli_api_key="$(read_secret_file "$secret_dir/ARKCLI_API_KEY_{file_number}")"
+[ -z "$arkcli_profile" ] && arkcli_profile="${{ARKCLI_PROFILE:-}}"
+[ -z "$arkcli_model" ] && arkcli_model="${{ARKCLI_MODEL:-}}"
+[ -z "$arkcli_mcp_profile" ] && arkcli_mcp_profile="${{ARKCLI_MCP_PROFILE:-}}"
+[ -z "$arkcli_ov_resource" ] && arkcli_ov_resource="${{ARKCLI_OV_RESOURCE:-}}"
+[ -z "$arkcli_api" ] && arkcli_api="${{ARKCLI_API:-}}"
+[ -z "$arkcli_api_key" ] && arkcli_api_key="${{ARKCLI_API_KEY:-}}"
+# Strip trailing / and OpenAI-style paths so Claude Code gets Anthropic-compatible root.
+arkcli_api="${{arkcli_api%/}}"
+case "$arkcli_api" in
+    */v1/chat/completions) arkcli_api="${{arkcli_api%/v1/chat/completions}}" ;;
+    */chat/completions) arkcli_api="${{arkcli_api%/chat/completions}}" ;;
+    */v1/messages) arkcli_api="${{arkcli_api%/v1/messages}}" ;;
+    */messages) arkcli_api="${{arkcli_api%/messages}}" ;;
+esac
+arkcli_api="${{arkcli_api%/}}"
+[ -n "$arkcli_api_key" ] && use_plain_claude=1
+
+mask_secret() {{
+    local value="$1"
+    local len keep middle
+    if [ -z "$value" ]; then
+        echo "[empty]"
+        return
+    fi
+    len=${{#value}}
+    if [ "$len" -le 4 ]; then
+        printf '%*s' "$len" '' | tr ' ' '*'
+        return
+    fi
+    if [ "$len" -le 8 ]; then
+        keep=1
+    else
+        keep=4
+    fi
+    middle=$((len - 2 * keep))
+    [ "$middle" -lt 1 ] && middle=1
+    printf '%s' "${{value:0:keep}}"
+    printf '%*s' "$middle" '' | tr ' ' '*'
+    printf '%s' "${{value: -keep}}"
+}}
+
+resolve_pnpm() {{
+    if [ -n "${{PNPM_BIN:-}}" ] && [ -x "$PNPM_BIN" ]; then
+        pnpmBin="$PNPM_BIN"
+    elif [ -n "${{NODE_BIN_DIR:-}}" ] && [ -x "$NODE_BIN_DIR/pnpm" ]; then
+        pnpmBin="$NODE_BIN_DIR/pnpm"
+    elif command -v pnpm >/dev/null 2>&1; then
+        pnpmBin="$(command -v pnpm)"
+    else
+        echo "[ERROR] pnpm not found (run 16_install_node_24.sh first)." >&2
+        exit 1
+    fi
+}}
+
+# 1) Ensure arkcli is installed (skipped in plain Claude / API KEY mode).
+if [ "$use_plain_claude" -eq 0 ]; then
 if command -v arkcli >/dev/null 2>&1 && arkcli --version >/dev/null 2>&1; then
     arkcliOk=1
 fi
 if [ "$arkcliOk" -eq 0 ]; then
-    echo "arkcli not found; installing {ark_package}..."
-    if ! command -v npm >/dev/null 2>&1; then
-        echo "[ERROR] npm not found on PATH (install Node.js first)." >&2
+    echo "arkcli not found; installing {ark_package} via pnpm..."
+    resolve_pnpm
+    "$pnpmBin" add -g "{ark_package}" || {{ echo "[ERROR] pnpm install of @volcengine/ark-cli failed." >&2; exit 1; }}
+    if ! command -v arkcli >/dev/null 2>&1; then
+        echo "[ERROR] arkcli installed but not on PATH. Restart your shell and re-run this script." >&2
         exit 1
     fi
-    npm install -g "{ark_package}" || {{ echo "[ERROR] npm install of @volcengine/ark-cli failed." >&2; exit 1; }}
+fi
 fi
 
-echo "arkcli: $(arkcli --version 2>/dev/null | head -1)"
+# 2) Ensure claude is installed and working (idempotent).
+if command -v claude >/dev/null 2>&1 && claude --version >/dev/null 2>&1; then
+    claudeOk=1
+fi
+if [ "$claudeOk" -eq 0 ]; then
+    echo "claude not found; installing {claude_package} via pnpm..."
+    resolve_pnpm
+    "$pnpmBin" add -g "{claude_package}" || {{ echo "[ERROR] pnpm install of @anthropic-ai/claude-code failed." >&2; exit 1; }}
+    if ! command -v claude >/dev/null 2>&1; then
+        echo "[ERROR] claude installed but not on PATH. Restart your shell and re-run this script." >&2
+        exit 1
+    fi
+fi
+
+echo "claude: $(claude --version 2>/dev/null | head -1)"
+echo "Isolated user dir: $ark_user_dir (Claude data/config for this slot)"
+if [ "$use_plain_claude" -eq 1 ]; then
+    echo "Mode: plain Claude (ARKCLI_API_KEY set — skip arkcli)"
+    echo "  Purpose: use Claude under Ark custom user dir without arkcli."
+    if [ -z "$arkcli_api" ]; then
+        echo "[ERROR] ARKCLI_API_KEY is set but ARKCLI_API (BASE_URL) is empty." >&2
+        echo "        Plain Claude needs both: ARKCLI_API + ARKCLI_API_KEY." >&2
+        echo "        Example BASE_URL: https://api.example.com (Anthropic-compatible, no /v1/chat/completions)." >&2
+        exit 1
+    fi
+    # Match claudevolc/claudealibaba: AUTH_TOKEN + BASE_URL only (no ANTHROPIC_API_KEY).
+    export ANTHROPIC_BASE_URL="$arkcli_api"
+    export ANTHROPIC_AUTH_TOKEN="$arkcli_api_key"
+    unset ANTHROPIC_API_KEY
+    masked_api_key="$(mask_secret "$arkcli_api_key")"
+    echo "ARKCLI_API_KEY: $masked_api_key -> ANTHROPIC_AUTH_TOKEN"
+    echo "ANTHROPIC_BASE_URL: $ANTHROPIC_BASE_URL (set now)"
+else
+    echo "arkcli: $(arkcli --version 2>/dev/null | head -1)"
+    echo "Mode: arkcli -> Claude"
+fi
+[ -n "$arkcli_profile" ] && echo "ARKCLI_PROFILE: $arkcli_profile"
+[ -n "$arkcli_model" ] && echo "ARKCLI_MODEL: $arkcli_model (Use model? [Y/n]; N -> auto {fallback_model})"
+[ -z "$arkcli_model" ] && echo "ARKCLI_MODEL: (empty — Use model {prompt_model}? [Y/n]; N -> auto {fallback_model})"
+[ -n "$arkcli_mcp_profile" ] && echo "ARKCLI_MCP_PROFILE: $arkcli_mcp_profile"
+if [ -n "$arkcli_api" ]; then
+    echo "ARKCLI_API: $arkcli_api (ANTHROPIC_BASE_URL)"
+elif [ "$use_plain_claude" -eq 1 ]; then
+    echo "ARKCLI_API: (empty — set with ARKCLI_API_KEY for Anthropic-compatible BASE_URL)"
+fi
+if [ "$enable_team" -eq 1 ]; then
+    echo "Agent Teams: ON (-team) CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 --teammate-mode in-process"
+else
+    echo "Agent Teams: OFF (default). Tip: pass -team to enable Agent Teams."
+fi
 echo "============================================================"
 echo ""
 
-# Optional auth login (opt-in, default No). arkcli caches credentials, so this
-# is only needed on first run or after the token expires.
+if [ "$use_plain_claude" -eq 0 ]; then
+# Optional auth login (opt-in, default No).
 read -r -p "Run 'arkcli auth login' now? [y/N]: " loginChoice || loginChoice=""
 if [ "$loginChoice" = "y" ] || [ "$loginChoice" = "Y" ]; then
     arkcli auth login
 fi
 
+# Stage A: configure Claude model/provider.
+echo ""
+echo "[INFO] Stage A: arkcli helper configure claude-code ..."
+configure_args=(helper configure claude-code)
+[ -n "$arkcli_profile" ] && configure_args+=(--profile "$arkcli_profile")
+[ -n "$arkcli_model" ] && configure_args+=(--model "$arkcli_model")
+arkcli "${{configure_args[@]}}" || {{
+    echo "[ERROR] arkcli helper configure failed. Stopping to avoid a wrong Claude provider." >&2
+    exit 1
+}}
+
+# Detect existing Ark MCP for this isolated slot (file-based; no secrets printed).
+has_agent_plan_mcp=0
+has_docs_mcp=0
+detected_mcp_names=""
+home_claude_json="$HOME/.claude.json"
+config_claude_json="$CLAUDE_CONFIG_DIR/.claude.json"
+for f in "$home_claude_json" "$config_claude_json"; do
+    [ -f "$f" ] || continue
+    if grep -Eiq 'askecho|dataPro-search|openviking' "$f"; then
+        has_agent_plan_mcp=1
+    fi
+    if grep -Eq '"ark-docs-mcp"' "$f"; then
+        has_docs_mcp=1
+    fi
+done
+if [ "$has_agent_plan_mcp" -eq 1 ]; then
+    detected_mcp_names="askecho/dataPro/openviking"
+fi
+if [ "$has_docs_mcp" -eq 1 ]; then
+    if [ -n "$detected_mcp_names" ]; then
+        detected_mcp_names="$detected_mcp_names {docs_name}"
+    else
+        detected_mcp_names="{docs_name}"
+    fi
+fi
+
+run_mcp_setup=1
+if [ "$has_agent_plan_mcp" -eq 1 ] || [ "$has_docs_mcp" -eq 1 ]; then
+    echo ""
+    echo "[INFO] Existing Ark MCP detected for this slot:"
+    [ "$has_agent_plan_mcp" -eq 1 ] && echo "  - Agent Plan MCP (askecho / dataPro / openviking)"
+    [ "$has_docs_mcp" -eq 1 ] && echo "  - {docs_name}"
+    [ -n "$detected_mcp_names" ] && echo "  Names: $detected_mcp_names"
+    read -r -p "Reconfigure MCP (helper mcp + {docs_name})? [y/N]: " reconfig_mcp_choice || reconfig_mcp_choice=""
+    if [ "$reconfig_mcp_choice" = "y" ] || [ "$reconfig_mcp_choice" = "Y" ]; then
+        run_mcp_setup=1
+        echo "[INFO] Will reconfigure MCP."
+    else
+        run_mcp_setup=0
+        echo "[INFO] Keeping existing MCP; skipping Stages B/C."
+    fi
+fi
+
+if [ "$run_mcp_setup" -eq 1 ]; then
+# Stage B: inject Agent Plan built-in MCP (soft-fail when Coding Plan only).
+echo ""
+echo "[INFO] Stage B: arkcli helper mcp claude-code ..."
+mcp_args=(helper mcp claude-code)
+[ -n "$arkcli_mcp_profile" ] && mcp_args+=(--profile "$arkcli_mcp_profile")
+[ -n "$arkcli_ov_resource" ] && mcp_args+=(--ov-resource "$arkcli_ov_resource")
+set +e
+mcp_output="$(arkcli "${{mcp_args[@]}}" 2>&1)"
+mcp_exit=$?
+set -e
+if [ "$mcp_exit" -ne 0 ]; then
+    if echo "$mcp_output" | grep -Eiq 'agent[- ]?plan|no agent plan|未找到.*[Aa]gent|[Aa]gent.*not found|not found.*profile|openviking|已跳过'; then
+        echo "[WARN] Agent Plan MCP incomplete or unavailable; continuing so Claude can still start."
+        [ -n "$mcp_output" ] && echo "$mcp_output"
+    else
+        echo "[ERROR] arkcli helper mcp failed:" >&2
+        [ -n "$mcp_output" ] && echo "$mcp_output" >&2
+        exit "$mcp_exit"
+    fi
+else
+    echo "[OK] Agent Plan MCP configured."
+    if echo "$mcp_output" | grep -Eiq 'openviking|已跳过'; then
+        echo "[INFO] arkcli note (non-fatal):"
+        echo "$mcp_output"
+    fi
+fi
+
+# Stage C: idempotent public Ark docs MCP.
+echo ""
+echo "[INFO] Stage C: ensure {docs_name} ..."
+set +e
+docs_get_output="$(claude mcp get {docs_name} 2>&1)"
+docs_get_exit=$?
+set -e
+if [ "$docs_get_exit" -eq 0 ]; then
+    docs_url_found="$(echo "$docs_get_output" | grep -Eo 'https?://[^[:space:]]+' | head -1 | sed 's/[.,)]*$//')"
+    if [ -n "$docs_url_found" ] && [ "$docs_url_found" != "{docs_url}" ]; then
+        echo "[WARN] {docs_name} already exists with a different URL:"
+        echo "       existing: $docs_url_found"
+        echo "       expected: {docs_url}"
+        echo "[WARN] Leaving existing MCP entry unchanged."
+    else
+        echo "[OK] {docs_name} already present; skipping add."
+    fi
+else
+    claude mcp add --transport http --scope user {docs_name} "{docs_url}" || {{
+        echo "[ERROR] Failed to add {docs_name}." >&2
+        exit 1
+    }}
+    echo "[OK] Added {docs_name}."
+fi
+fi # end run_mcp_setup
+fi # end if use_plain_claude == 0
+
+# Force API base before Claude (post-arkcli override, or re-assert plain mode).
+# Isolated arkN HOME/CLAUDE_CONFIG_DIR already set; Claude data stays there.
+if [ -n "$arkcli_api" ]; then
+    export ANTHROPIC_BASE_URL="$arkcli_api"
+    echo ""
+    echo "[INFO] Forced ANTHROPIC_BASE_URL = $ANTHROPIC_BASE_URL (from ARKCLI_API)"
+fi
+if [ "$use_plain_claude" -eq 1 ]; then
+    export ANTHROPIC_AUTH_TOKEN="$arkcli_api_key"
+    unset ANTHROPIC_API_KEY
+fi
+
+# Model (after arkcli configure, before Claude):
+# - ARKCLI_MODEL set -> Use model xxx? [Y/n] (Y/Enter = xxx)
+# - empty -> Use model {prompt_model}? [Y/n] (Y/Enter = {prompt_model})
+# - any N -> auto-force {fallback_model} (tip only, no 2nd Y/N)
+force_model=0
+resolved_model=""
+echo ""
+if [ -n "$arkcli_model" ]; then
+    read -r -p "Use model $arkcli_model? [Y/n]: " model_choice || model_choice=""
+    if [ "$model_choice" = "n" ] || [ "$model_choice" = "N" ]; then
+        resolved_model="$fallback_ark_model"
+        force_model=1
+        echo "[INFO] Declined $arkcli_model; auto-set model = $resolved_model"
+    else
+        resolved_model="$arkcli_model"
+        force_model=1
+    fi
+else
+    read -r -p "Use model {prompt_model}? [Y/n]: " model_choice || model_choice=""
+    if [ "$model_choice" = "n" ] || [ "$model_choice" = "N" ]; then
+        resolved_model="$fallback_ark_model"
+        force_model=1
+        echo "[INFO] Declined {prompt_model}; auto-set model = $resolved_model"
+    else
+        resolved_model="$default_ark_model"
+        force_model=1
+    fi
+fi
+if [ "$force_model" -eq 1 ]; then
+    export ANTHROPIC_MODEL="$resolved_model"
+    export CLAUDE_CODE_SUBAGENT_MODEL="$resolved_model"
+    export ANTHROPIC_DEFAULT_HAIKU_MODEL="$resolved_model"
+    export ANTHROPIC_DEFAULT_SONNET_MODEL="$resolved_model"
+    echo "[INFO] Forced model = $resolved_model (main + subagents + background)"
+    claude_args+=(--model "$resolved_model")
+fi
+
+# Ultracode: opt-in prompt (default No).
+read -r -p "Enable ultracode? [y/N]: " ultra_choice || ultra_choice=""
+if [ "$ultra_choice" = "y" ] || [ "$ultra_choice" = "Y" ]; then
+    ultra_enabled=1
+    claude_args+=(--settings "$ultra_settings_json")
+fi
+
+if [ "$enable_team" -eq 1 ]; then
+    claude_args+=(--teammate-mode in-process)
+fi
+
+if [ "$EUID" -ne 0 ]; then
+    claude_args+=(--permission-mode bypassPermissions --dangerously-skip-permissions)
+fi
+
 echo ""
 echo "============================================================"
-echo "Press Enter to start {display_name} #{file_number} (native arkcli)..."
+if [ "$use_plain_claude" -eq 1 ]; then
+    echo "Press Enter to start {display_name} #{file_number} [plain Claude / API KEY]..."
+else
+    echo "Press Enter to start {display_name} #{file_number} [arkcli -> Claude]..."
+fi
+if [ "$enable_team" -eq 0 ]; then
+    echo "Tip: re-run with -team to enable Agent Teams (e.g. ark{file_number}.sh -team)"
+fi
 echo "============================================================"
 read -r -p "Press Enter to continue..." _
 
+if [ "${{#user_args[@]}}" -gt 0 ]; then
+    claude_args+=("${{user_args[@]}}")
+fi
+
+# Re-assert plain-Claude gateway env immediately before exec.
+if [ "$use_plain_claude" -eq 1 ]; then
+    export ANTHROPIC_BASE_URL="$arkcli_api"
+    export ANTHROPIC_AUTH_TOKEN="$arkcli_api_key"
+    unset ANTHROPIC_API_KEY
+    [ -z "$masked_api_key" ] && masked_api_key="$(mask_secret "$arkcli_api_key")"
+fi
+
 echo ""
-echo "Executing: arkcli"
+echo "Executing: claude ${{claude_args[*]}}"
+if [ "$use_plain_claude" -eq 1 ]; then
+    api_key_env_state="[cleared]"
+    [ -n "${{ANTHROPIC_API_KEY:-}}" ] && api_key_env_state="[set-conflict]"
+    echo "Environment: ANTHROPIC_BASE_URL='$ANTHROPIC_BASE_URL', ANTHROPIC_AUTH_TOKEN='$masked_api_key', ANTHROPIC_MODEL='${{ANTHROPIC_MODEL:-}}', ANTHROPIC_API_KEY=$api_key_env_state"
+fi
 echo ""
 
-exec arkcli "$@"
+exec claude "${{claude_args[@]}}"
 '''
 
 

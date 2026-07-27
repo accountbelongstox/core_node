@@ -32,10 +32,10 @@ import React, {
 import {
   pycoreApi, callRpc, subscribeWs,
 } from '../../core/api-libs/pycore';
+import { PYCORE_RPC_ROUTES } from '../../core/api-libs/pycore/PycoreRpcRoutes';
 import type { VideoExtractMapping, VideoExtractSegment } from '../../core/api-libs/pycore';
 import { usePersistentTask } from '../../core/tasks/usePersistentTask';
 
-const VE = '/api/local/video-extract';
 const TASK_KEY = 'pycore.video-extract';
 // sentinel entry in `syncing` while a sync-ALL is in flight (not a real path,
 // so it never collides with a source path; the shared 'done'/'error' WS handler
@@ -45,10 +45,6 @@ const SYNC_ALL_KEY = '*all*';
 // works even when pycore is offline). Backend persistence rides the page's
 // existing options effect — see the autoSync comment below.
 const AUTO_SYNC_LS_KEY = 'pycore.video-extract.autoSync';
-// Sync RPCs ingest whole sources (thousands of sentence rows + clip uploads)
-// in one call — far beyond callRpc's 30s default. 10 minutes covers a full
-// library sync; progress still streams live via the video_extract_sync event.
-const SYNC_RPC_TIMEOUT_MS = 600_000;
 
 // run snapshot shape (loose: backend-owned). Kept here as the source of truth;
 // the page imports it from the context.
@@ -240,7 +236,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
       const saved = task.saved;
       const tid = saved?.taskId;
       if (!tid) return Promise.resolve(null);
-      return pycoreApi.pyGet<any>(`${VE}/tasks/${tid}`)
+      return callRpc(PYCORE_RPC_ROUTES.videoExtract, { action: 'task', task_id: tid })
         .then((tr: any) => {
           if (!tr?.success || !tr.task) return null;
           if (isDone(tr.task)) {
@@ -260,7 +256,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     },
     reattach: (saved: VeStored) => {
       if (!saved?.taskId) return Promise.resolve(null);
-      return pycoreApi.pyGet<any>(`${VE}/tasks/${saved.taskId}`)
+      return callRpc(PYCORE_RPC_ROUTES.videoExtract, { action: 'task', task_id: saved.taskId })
         .then((tr: any) => {
           if (!tr?.success || !tr.task) return null;
           // finished while we were away → restore the final task; mark settled so
@@ -443,7 +439,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
 
   // ---- actions ---------------------------------------------------------- #
   const preview = useCallback(async (req: VeStartReq): Promise<string> => {
-    const r: any = await pycoreApi.pyPost(`${VE}/preview`, { ...req, dry_run: true })
+    const r: any = await callRpc(PYCORE_RPC_ROUTES.videoExtract, { action: 'preview', ...req, dry_run: true })
       .catch((e: any) => ({ success: false, error: e?.message || 'pycore unreachable' }));
     if (!r.success) {
       const msg = `Error: ${r.error}`;
@@ -466,7 +462,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     // selected language's subtitle track inline this run (provider chain → AI),
     // not just the primary. Primary is auto-included; this is the multi-select.
     const startReq = { ...req, selected_languages: corrLangsRef.current };
-    const r: any = await pycoreApi.pyPost(`${VE}/start`, startReq)
+    const r: any = await callRpc(PYCORE_RPC_ROUTES.videoExtract, { action: 'start', ...startReq })
       .catch((e: any) => ({ success: false, error: e?.message || 'request failed' }));
     setStarting(false);
     if (!r.success || !r.task_id) {
@@ -506,7 +502,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     if (alreadyInFlight) return;
     setSyncProgress({ stage: 'scan', done: 0, total: 0, detail: '' });
     const langs = (languages && languages.length) ? languages : corrLangsRef.current;
-    callRpc('video_extract.sync_source', { source_path: sourcePath, languages: langs }, SYNC_RPC_TIMEOUT_MS)
+    callRpc(PYCORE_RPC_ROUTES.videoExtractSyncSource, { source_path: sourcePath, languages: langs })
       .catch((e: any) => {
         setNotice(`${L.veSyncFailed}: ${e?.message || 'RPC failed'}`);
         setSyncing((prev) => { const n = new Set(prev); n.delete(sourcePath); return n; });
@@ -529,7 +525,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     const langs = (languages && languages.length) ? languages : corrLangsRef.current;
     const payload: Record<string, unknown> = { languages: langs };
     if (paths && paths.length) payload.paths = paths;
-    await callRpc('video_extract.sync_all', payload, SYNC_RPC_TIMEOUT_MS)
+    await callRpc(PYCORE_RPC_ROUTES.videoExtractSyncAll, payload)
       .catch((e: any) => {
         setNotice(`${L.veSyncFailed}: ${e?.message || 'RPC failed'}`);
         setSyncing(new Set());
@@ -552,7 +548,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     const langs = (languages && languages.length) ? languages : corrLangsRef.current;
     const payload: Record<string, unknown> = { languages: langs, strategy };
     if (paths && paths.length) payload.paths = paths;
-    await callRpc('video_extract.fill_languages', payload, SYNC_RPC_TIMEOUT_MS)
+    await callRpc(PYCORE_RPC_ROUTES.videoExtractFillLanguages, payload)
       .catch((e: any) => {
         setNotice(`${L.veFillFailed}: ${e?.message || 'RPC failed'}`);
         setFilling(false);

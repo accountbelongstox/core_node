@@ -30,6 +30,7 @@ import {
 import {
   pycoreApi, connectPycoreWs, onWsStatus, callRpc, subscribeWs,
 } from '../../../core/api-libs/pycore';
+import { PYCORE_RPC_ROUTES } from '../../../core/api-libs/pycore/PycoreRpcRoutes';
 import type {
   VideoExtractMode, BooksAnalyzeResponse, BookTextStats, BookSourceState,
   BookChapter, BookSlot,
@@ -635,7 +636,7 @@ const PcBooksPage: React.FC = () => {
     setFlowProgress({ stage: 'convert', done: 0, total: 0, detail: '' });
     setNotice(null);
     const r: any = await callRpc(
-      'corebook.autoflow',
+      PYCORE_RPC_ROUTES.corebookAutoflow,
       { path, languages: langs, source_type: 'book' },
       AUTOFLOW_RPC_TIMEOUT_MS,
     ).catch((e: any) => ({ success: false, errors: [e?.message || 'failed'] }));
@@ -656,7 +657,7 @@ const PcBooksPage: React.FC = () => {
   // --- enrichment -------------------------------------------------------- #
   const enrichOnce = useCallback(async (): Promise<EnrichResult | null> => {
     const lim = Math.max(1, Math.floor(limit) || 1);
-    const r: any = await callRpc('media.enrich', { limit: lim })
+    const r: any = await callRpc(PYCORE_RPC_ROUTES.mediaEnrich, { limit: lim })
       .catch((e: any) => ({ error: e?.message || 'RPC failed' }));
     if (!r || r.error || r.success === false) {
       setNotice(`${L.enrichFailed}${r?.error ? ': ' + r.error : ''}`);

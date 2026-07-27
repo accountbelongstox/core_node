@@ -1,4 +1,9 @@
-"""THREAD_BUS-backed serialized function execution."""
+"""THREAD_BUS-backed serialized function execution.
+
+Event-driven: SerializedWorkerThread.run() blocks on THREAD_BUS.receive_message
+without a poll timeout, and await_bus_task uses an asyncio.Future woken via
+loop.call_soon_threadsafe. There is no sleep-poll on any hot path.
+"""
 
 import asyncio
 import copy
@@ -32,7 +37,11 @@ def _publish_response(
 
 
 class SerializedWorkerThread(threading.Thread):
-    """Execute callbacks sequentially after receiving them from THREAD_BUS."""
+    """Execute callbacks sequentially after receiving them from THREAD_BUS.
+
+    Blocks indefinitely on the queue via a condition-based wait; consumes no
+    CPU while idle. Daemon thread — the process exit clears it.
+    """
 
     def __init__(self, queue_name: str, thread_name: str) -> None:
         super().__init__(name=thread_name, daemon=True)
@@ -40,11 +49,7 @@ class SerializedWorkerThread(threading.Thread):
 
     def run(self) -> None:
         while True:
-            request = THREAD_BUS.receive_message(
-                self._queue_name,
-                block=True,
-                timeout=0.1,
-            )
+            request = THREAD_BUS.receive_message(self._queue_name, block=True)
             if not isinstance(request, dict):
                 continue
 
@@ -69,7 +74,7 @@ class BusTaskThread(threading.Thread):
         self._queue_name = queue_name
 
     def run(self) -> None:
-        request = THREAD_BUS.receive_message(self._queue_name)
+        request = THREAD_BUS.receive_message(self._queue_name, block=True)
         if not isinstance(request, dict):
             return
         response_signal = request.get("response_signal", "")
@@ -166,30 +171,41 @@ async def await_bus_task(
     timeout: float | None = None,
     **kwargs: Any,
 ) -> Any:
-    """Await one named Thread-subclass task whose result travels on THREAD_BUS."""
-    response_signal = f"pyfoundations.async_bus_task.{uuid.uuid4().hex}"
-    start_bus_task(
-        callback,
-        *args,
-        thread_name=thread_name,
-        response_signal=response_signal,
-        **kwargs,
-    )
+    """Await one named Thread-subclass task whose result travels on THREAD_BUS.
+
+    Uses an asyncio.Future woken via loop.call_soon_threadsafe — no poll loop.
+    """
     loop = asyncio.get_running_loop()
-    deadline = None if timeout is None else loop.time() + timeout
-    while True:
-        response = THREAD_BUS.get_signal(response_signal)
-        if isinstance(response, dict):
-            THREAD_BUS.clear_signal(_response_guard_name(response_signal))
-            THREAD_BUS.clear_signal(response_signal)
-            if not response.get("success"):
-                raise RuntimeError(response.get("error", "Asynchronous bus task failed"))
-            return response.get("result")
-        if deadline is not None and loop.time() >= deadline:
-            THREAD_BUS.clear_signal(_response_guard_name(response_signal))
-            THREAD_BUS.clear_signal(response_signal)
-            raise TimeoutError(f"Asynchronous bus task timed out: {thread_name}")
-        await asyncio.sleep(0.005)
+    future: asyncio.Future = loop.create_future()
+
+    def worker() -> Any:
+        try:
+            result = callback(*args, **kwargs)
+        except Exception as exc:  # bounce the exception onto the loop thread
+            loop.call_soon_threadsafe(_set_future_exception, future, exc)
+            return None
+        loop.call_soon_threadsafe(_set_future_result, future, result)
+        return None
+
+    # start_bus_task delivers the worker via THREAD_BUS on a fresh BusTaskThread.
+    start_bus_task(worker, thread_name=thread_name)
+
+    if timeout is None:
+        return await future
+    try:
+        return await asyncio.wait_for(future, timeout=timeout)
+    except asyncio.TimeoutError as exc:
+        raise TimeoutError(f"Asynchronous bus task timed out: {thread_name}") from exc
+
+
+def _set_future_result(future: asyncio.Future, result: Any) -> None:
+    if not future.done():
+        future.set_result(result)
+
+
+def _set_future_exception(future: asyncio.Future, exc: BaseException) -> None:
+    if not future.done():
+        future.set_exception(exc)
 
 
 def map_bus_tasks(

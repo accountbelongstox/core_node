@@ -20,13 +20,17 @@ const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk
   const [minRawWords, setMinRawWords] = useState(200);
 
   const loadConfig = useCallback(async () => {
-    const res = await pycoreApi.getAgentHistoryArticleConfig();
-    if (res.success && res.data) {
-      setArticleCfg(res.data);
-      setEnabled(!!res.data.enabled);
-      setMinRawWords(Number(res.data.min_raw_words || 200));
+    try {
+      const res = await pycoreApi.getAgentHistoryArticleConfig();
+      if (res.success && res.data) {
+        setArticleCfg(res.data);
+        setEnabled(!!res.data.enabled);
+        setMinRawWords(Number(res.data.min_raw_words || 200));
+      }
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : tk('loadError'));
     }
-  }, []);
+  }, [tk]);
 
   useEffect(() => { loadConfig(); }, [loadConfig]);
 
@@ -41,21 +45,45 @@ const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk
     setBusy(true);
     setMsg(null);
     const on = enabledOverride ?? enabled;
-    const res = await pycoreApi.saveAgentHistoryArticleConfig({
-      extract_as_article: on,
-      enabled: on,
-      reference_lang: REFERENCE_LANGUAGE,
-      target_lang: TARGET_LANGUAGE,
-      min_raw_words: minRawWords,
-      live_listen: true,
-    });
-    if (res.success && res.data) {
-      setArticleCfg(res.data);
-      setMsg(tk('save'));
-    } else {
-      setMsg(res.error || tk('loadError'));
+    try {
+      const res = await pycoreApi.saveAgentHistoryArticleConfig({
+        extract_as_article: on,
+        enabled: on,
+        reference_lang: REFERENCE_LANGUAGE,
+        target_lang: TARGET_LANGUAGE,
+        min_raw_words: minRawWords,
+        live_listen: true,
+      });
+      if (res.success && res.data) {
+        setArticleCfg(res.data);
+        setMsg(tk('save'));
+      } else {
+        setMsg(res.error || tk('loadError'));
+      }
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : tk('loadError'));
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
+  };
+
+  const restartBackfill = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await pycoreApi.startAgentHistoryArticlePipeline();
+      if (res.success) {
+        setEnabled(true);
+        setMsg(tk('pipelineQueued'));
+        await loadConfig();
+      } else {
+        setMsg(res.error || tk('loadError'));
+      }
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : tk('loadError'));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const inputCls = 'mt-1 w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm';
@@ -117,6 +145,11 @@ const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk
             <button type="button" onClick={() => saveConfig()} disabled={busy}
               className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 dark:border-white/10">
               {tk('save')}
+            </button>
+            <button type="button" onClick={() => void restartBackfill()} disabled={busy}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50"
+              title={tk('startPipeline')}>
+              {tk('startPipeline')}
             </button>
           </div>
         </div>

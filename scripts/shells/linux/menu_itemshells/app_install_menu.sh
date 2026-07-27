@@ -35,7 +35,7 @@ _resolve_app_install_paths
 # Desktop/App: 35 Chrome, 121 Cursor, 122 VSCode, 126 Antigravity, 127 WeChat, 30 Edge
 # Runtime/Toolchain: 13 Python, 14 faster-whisper, 15 Node 24, 19 UV, 42 Rust, 53 Go, 54 Java, 34 Composer, 38 Flutter, 41 Ruby, 37 .NET
 # Server/Service: 25 Nginx, 26 Certbot, 52 Tailscale, 85 Code Server, 123 Gitea, 124 RustDesk Client, 128 RustDesk Server
-# AI: 95 DeepSeek, 96 DeepSeek OCR
+# AI: 95 DeepSeek, 96 DeepSeek OCR (Cline/Ark/Kimi/Cursor Agent via linux_applications_list AI group)
 # Setup: 125 GNOME RDP
 SCRIPT_INSTALL_ENTRIES=(
     "script:49_install_docker.sh|Docker"

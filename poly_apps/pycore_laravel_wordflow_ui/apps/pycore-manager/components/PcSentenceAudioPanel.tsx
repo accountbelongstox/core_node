@@ -41,6 +41,7 @@ import {
   BookOpen, Sparkles,
 } from 'lucide-react';
 import { callRpc, onWsStatus } from '../../../core/api-libs/pycore';
+import { PYCORE_RPC_ROUTES } from '../../../core/api-libs/pycore/PycoreRpcRoutes';
 import type { BookSourceState } from '../../../core/api-libs/pycore';
 
 // ---- persistence ---------------------------------------------------------- #
@@ -162,7 +163,7 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
   const enrichOnce = useCallback(async (limit: number): Promise<{
     processed: number; enriched: number; remaining: number; errors: string[];
   } | null> => {
-    const r: any = await callRpc('media.enrich', { limit })
+    const r: any = await callRpc(PYCORE_RPC_ROUTES.mediaEnrich, { limit })
       .catch((e: any) => ({ error: e?.message || 'RPC failed' }));
     if (!r || r.error || r.success === false) {
       return null;

@@ -10,10 +10,16 @@ use Illuminate\Http\Request;
 /**
  * Daily short-sentence center — read API for the wordnew daily-reading view.
  * Serves pycore-assisted prompt translations (English + variants + audio).
+ *
+ * @deprecated Prefer /api/app_qy_v1/ai_tools/article/list?type=short and
+ *             /api/app_qy_v1/ai_tools/article/recommend?type=short. This
+ *             controller remains as a thin wrapper over the same service.
  */
 class AppQyV1DailySentenceController extends Controller
 {
     use ApiResponse;
+
+    private const DEPRECATED_NOTICE = 'Deprecated: use GET /api/app_qy_v1/ai_tools/article/list?type=short (and /recommend?type=short).';
 
     public function list(Request $request): JsonResponse
     {
@@ -21,13 +27,17 @@ class AppQyV1DailySentenceController extends Controller
         $page = (int) $request->query('page', 0);
         $offset = $page > 0 ? ($page - 1) * max(1, $limit) : (int) $request->query('offset', 0);
         $data = (new AppQyV1DailySentenceService())->list($limit, $offset);
+        $data['deprecated_notice'] = self::DEPRECATED_NOTICE;
         return $this->success($data, 'Daily sentences');
     }
 
     public function recommend(): JsonResponse
     {
         $item = (new AppQyV1DailySentenceService())->recommend();
-        return $this->success(['item' => $item], 'Daily sentence recommendation');
+        return $this->success([
+            'item' => $item,
+            'deprecated_notice' => self::DEPRECATED_NOTICE,
+        ], 'Daily sentence recommendation');
     }
 
     /** Stream the stored TTS audio for a daily sentence. */

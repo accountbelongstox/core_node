@@ -1,0 +1,26 @@
+ ark3 --resume ece9dc61-12a6-4977-a1e3-e895ccdb76f7
+
+ 1:PycoreHealth.ts:141 [pycore-health] ui.ping failed (attempt
+      1/2); keeping probing state. 2: /pycore-manager/queue-center
+      中的assist+translation: RPC timeout after 30000ms:
+      ui.task_center.set_queue_center_control
+       以及pycore和laravel 通信的一直转圈 Loading overview…
+      ，显然 UI通过rpc v2连接到pycore，以及pycore连接到laravel有问题
+      ，同时整个任务中心数据不共享的问题，每个子功能ON/OFF卡住，没有
+      和laravel交互数据。同时，wordnew也就是UI也要在
+      /wordnew#/book-reader  wordnew#/shelf 和/wordnew#/library/
+      中通知laravel调整队首，让pycore优先处理，，3：http://43.163.11
+      2.77:9000/static/app_qy_v1/audio/agent_history/en/article_85c5
+      57d9-a799-4ab5-9501-366275ddcb3e.mp3 404 (Not Found)
+      /pycore-manager/agent-history需要同时将中英文对照和音频传给lar
+      avel，wordnew能实时得到推送。同时，修改路由等为短文，和文章合
+      并。sys:init中幂等修改。 5： te "+0%" --text "Hagaba" --write-media
+    C:\Users\mpc\AppData\Local\Temp\assist_tts_883mep6p.mp3 -> 404 (242ms)
+    [laravel +0.27s] GET /edge-tts --voice en-US-JennyNeural --rate "+0%" --text "UôS" --write-media
+    C:\Users\mpc\AppData\Local\Temp\assist_tts_sugn1xa6.mp3 -> 404 (238ms)
+    [TranslationSSE +0.23s] supervise error: Serialized operation timed out:
+    translation.sse_client.state.89271b693e1748d88d93a11c1e15dd18[TranslationSSE +0.23s] supervise error:
+    Serialized operation timed out: translation.sse_client.state.89271b693e1748d88d93a11c1e15dd18，修复一些BUG
+    ，6：laravel给pycore任务中心的注意，单词使用edge-tts并回退到本地模型，句子默认使用qwen
+    tts，同时回退到本地模型.。以上找出所有问题，并列出详细清单单，我
+      将由另外一个AI修改。

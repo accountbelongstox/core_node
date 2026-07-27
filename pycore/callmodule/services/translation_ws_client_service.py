@@ -74,6 +74,7 @@ callmodule routers (no upward layer import).
 
 import json
 import time
+import threading
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
@@ -305,6 +306,7 @@ class TranslationWsClient:
         event-name SUFFIX so bare ("task.queued") and class-name
         ("App\\Events\\TaskQueued"/"TaskCompleted") forms both work.
         """
+        self._get_monitor().increment_ws_event_count()
         # Canonical token: "task.queued"/"App\\Events\\TaskQueued" -> "taskqueued".
         suffix = self._event_suffix(event_name)
 
@@ -351,7 +353,7 @@ class TranslationWsClient:
                 if md5 and language:
                     worker.prioritize_word(md5, language)
             if get_heartbeat_system().is_callback_enabled("tts_queue_poller"):
-                worker.poll_and_process()
+                threading.Thread(target=worker.poll_and_process, daemon=True, name="sse-word-audio-wake").start()
 
         # word_image.priority / cover.priority are intentionally not woken here:
         # apps/mcp-chrome owns image and cover execution. Pycore only relays

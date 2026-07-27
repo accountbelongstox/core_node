@@ -36,6 +36,7 @@ readonly METHOD_SNAP="snap"
 readonly METHOD_FLATPAK="flatpak"
 readonly METHOD_WEB="web"
 readonly METHOD_NPM="npm"
+readonly METHOD_PNPM="pnpm"
 readonly METHOD_PIPX="pipx"
 readonly METHOD_UV_TOOL="uv_tool"
 readonly METHOD_CURL="curl"
@@ -248,7 +249,7 @@ declare -gA AI_PACKAGES=(
     ["gemini_name"]="Google Gemini CLI"
     ["gemini_exec"]="gemini"
     ["gemini_package_id"]="@google/gemini-cli"
-    ["gemini_install_method"]="$METHOD_NPM"
+    ["gemini_install_method"]="$METHOD_PNPM"
     ["gemini_category"]="$CATEGORY_AI_TOOLS"
     ["gemini_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["gemini_description"]="Google Gemini CLI - Advanced AI assistant with multimodal capabilities"
@@ -258,7 +259,7 @@ declare -gA AI_PACKAGES=(
     ["claude_name"]="Anthropic Claude Code"
     ["claude_exec"]="claude"
     ["claude_package_id"]="@anthropic-ai/claude-code"
-    ["claude_install_method"]="$METHOD_NPM"
+    ["claude_install_method"]="$METHOD_PNPM"
     ["claude_category"]="$CATEGORY_AI_TOOLS"
     ["claude_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["claude_description"]="Anthropic Claude Code - AI-powered coding assistant with advanced reasoning"
@@ -268,7 +269,7 @@ declare -gA AI_PACKAGES=(
     ["codex_name"]="OpenAI Codex"
     ["codex_exec"]="codex"
     ["codex_package_id"]="@openai/codex"
-    ["codex_install_method"]="$METHOD_NPM"
+    ["codex_install_method"]="$METHOD_PNPM"
     ["codex_category"]="$CATEGORY_AI_TOOLS"
     ["codex_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["codex_description"]="OpenAI Codex - AI system that translates natural language to code"
@@ -286,6 +287,7 @@ declare -gA AI_PACKAGES=(
     ["cursor_agent_verify_command"]="--version"
 
     # Kimi Code CLI
+    # Official: https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started
     ["kimi_name"]="Kimi Code CLI"
     ["kimi_exec"]="kimi"
     ["kimi_package_id"]="https://code.kimi.com/kimi-code/install.sh"
@@ -294,6 +296,28 @@ declare -gA AI_PACKAGES=(
     ["kimi_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["kimi_description"]="Kimi Code CLI - AI coding agent for the terminal by Moonshot AI"
     ["kimi_verify_command"]="--version"
+
+    # Cline CLI (formerly 141_install_cline_cli.sh; via desktop applications AI group)
+    # Official: https://docs.cline.bot/getting-started/installing-cline
+    ["cline_name"]="Cline CLI"
+    ["cline_exec"]="cline"
+    ["cline_package_id"]="cline"
+    ["cline_install_method"]="$METHOD_PNPM"
+    ["cline_category"]="$CATEGORY_AI_TOOLS"
+    ["cline_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
+    ["cline_description"]="Cline CLI - AI coding agent for terminal workflows"
+    ["cline_verify_command"]="--version"
+
+    # Volcano Engine Ark CLI (formerly 137_install_arkcli.sh; via desktop applications AI group)
+    # Official: https://github.com/volcengine/ark-cli (npm: @volcengine/ark-cli)
+    ["arkcli_name"]="Volcano Ark CLI"
+    ["arkcli_exec"]="arkcli"
+    ["arkcli_package_id"]="@volcengine/ark-cli"
+    ["arkcli_install_method"]="$METHOD_PNPM"
+    ["arkcli_category"]="$CATEGORY_AI_TOOLS"
+    ["arkcli_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
+    ["arkcli_description"]="Volcano Engine Ark CLI - Ark MaaS toolbox for agents"
+    ["arkcli_verify_command"]="--version"
 
     # SuperClaude
     ["superclaude_name"]="SuperClaude Framework"
@@ -319,7 +343,7 @@ declare -gA AI_PACKAGES=(
     ["auggie_name"]="Augment Code Auggie"
     ["auggie_exec"]="auggie"
     ["auggie_package_id"]="@augmentcode/auggie"
-    ["auggie_install_method"]="$METHOD_NPM"
+    ["auggie_install_method"]="$METHOD_PNPM"
     ["auggie_category"]="$CATEGORY_AI_TOOLS"
     ["auggie_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["auggie_description"]="Augment Code Auggie - AI-powered code enhancement and development assistant"
@@ -359,7 +383,7 @@ APP_PACKAGE_LIST=(
 # the dedicated install_shells/133_install_claude_code.sh step (official native
 # installer), the single source of truth shared with the dd.sh AI workflow.
 AI_PACKAGE_LIST=(
-    "gemini" "codex" "cursor_agent" "kimi" "superclaude" "opencode" "auggie" "droid"
+    "gemini" "codex" "cursor_agent" "kimi" "cline" "arkcli" "superclaude" "opencode" "auggie" "droid"
 )
 
 MCP_PACKAGE_LIST=(
@@ -585,13 +609,17 @@ create_launch_script() {
     local target_path=""
 
     case "$install_method" in
-        "$METHOD_NPM")
-            local npm_bin=$(npm config get prefix 2>/dev/null)/bin
-            if [ -n "$npm_bin" ] && [ -d "$npm_bin" ]; then
-                target_path="$npm_bin/$exec_name"
+        "$METHOD_NPM"|"$METHOD_PNPM")
+            if [ -n "${PNPM_GLOBAL_BIN_DIR:-}" ] && [ -d "$PNPM_GLOBAL_BIN_DIR" ]; then
+                target_path="$PNPM_GLOBAL_BIN_DIR/$exec_name"
             else
-                # Fallback to which if npm bin not available
-                target_path=$(which "$exec_name" 2>/dev/null)
+                local npm_bin
+                npm_bin=$(npm config get prefix 2>/dev/null)/bin
+                if [ -n "$npm_bin" ] && [ -d "$npm_bin" ]; then
+                    target_path="$npm_bin/$exec_name"
+                else
+                    target_path=$(which "$exec_name" 2>/dev/null)
+                fi
             fi
             ;;
         "$METHOD_SNAP")

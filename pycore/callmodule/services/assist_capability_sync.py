@@ -6,14 +6,15 @@ When master ``enabled`` is on and a capability is checked, the matching workers
 run automatically (no separate Word/Sentence auto-start toggles required).
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_user_data_store
 from pycore.pyheartbeat import get_heartbeat_system
 
 
-def _toggle_callback(name: str, want: bool) -> None:
+def _toggle_callback(name: str, want: bool) -> Tuple[bool, Optional[str]]:
+    """Enable/disable a heartbeat callback. Returns (ok, error_or_None)."""
     heartbeat = get_heartbeat_system()
     try:
         ok = (
@@ -22,13 +23,18 @@ def _toggle_callback(name: str, want: bool) -> None:
             else heartbeat.disable_callback(name)
         )
         if not ok:
-            ColorPrint.yellow(
-                f"[AssistSync] {name} is not registered — voice toggle skipped"
-            )
-            return
+            # Not registered while disabling is already "off" — not a failure.
+            if not want:
+                return True, None
+            error = f"{name} is not registered — voice toggle skipped"
+            ColorPrint.yellow(f"[AssistSync] {error}")
+            return False, error
         ColorPrint.blue(f"[AssistSync] {name} {'enabled' if want else 'disabled'}")
+        return True, None
     except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[AssistSync] {name} toggle failed ({exc})")
+        error = f"{name} toggle failed ({exc})"
+        ColorPrint.yellow(f"[AssistSync] {error}")
+        return False, error
 
 
 def _mirror_auto_start(section: str, enabled: bool) -> None:
@@ -42,8 +48,12 @@ def _mirror_auto_start(section: str, enabled: bool) -> None:
         pass
 
 
-def apply_assist_runtime(config: Dict[str, Any]) -> None:
-    """Apply assist config to all related heartbeat callbacks."""
+def apply_assist_runtime(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Apply assist config to all related heartbeat callbacks.
+
+    Returns ``{"ok": bool, "errors": [...]}`` so callers can surface heartbeat
+    registration failures instead of treating a yellow log as success.
+    """
     enabled = bool(config.get("enabled"))
     caps = config.get("capabilities") if isinstance(config.get("capabilities"), dict) else {}
 
@@ -60,19 +70,26 @@ def apply_assist_runtime(config: Dict[str, Any]) -> None:
         want_translation_worker or want_word_audio or want_sentence_audio
     )
 
-    _toggle_callback("translation_worker", want_translation_worker)
-    _toggle_callback("translation_queue_monitor", want_translation or want_ai_translate)
-    _toggle_callback("translation_ws_client", want_realtime)
+    errors: List[str] = []
+    toggles = (
+        ("translation_worker", want_translation_worker),
+        ("translation_queue_monitor", want_translation or want_ai_translate),
+        ("translation_ws_client", want_realtime),
+        ("tts_queue_poller", want_word_audio),
+        ("tts_sentence_worker", want_sentence_audio),
+        ("subtitle_search_worker", want_subtitle),
+    )
+    for name, want in toggles:
+        ok, error = _toggle_callback(name, want)
+        if not ok and error:
+            errors.append(error)
 
-    _toggle_callback("tts_queue_poller", want_word_audio)
-    _toggle_callback("tts_sentence_worker", want_sentence_audio)
     _mirror_auto_start("word_tts_auto", want_word_audio)
     _mirror_auto_start("sentence_audio_auto", want_sentence_audio)
-
-    _toggle_callback("subtitle_search_worker", want_subtitle)
 
     ColorPrint.blue(
         f"[AssistSync] runtime applied master={enabled} "
         f"translation={want_translation} word_audio={want_word_audio} "
         f"sentence_audio={want_sentence_audio} stt={want_stt}"
     )
+    return {"ok": not errors, "errors": errors}

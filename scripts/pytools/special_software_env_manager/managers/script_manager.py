@@ -206,8 +206,8 @@ class ScriptManager:
         variables = config.get('Variables', [])
         script_paths = []
 
-        # Ark CLI has its own v4 template (native arkcli: idempotent install +
-        # opt-in arkcli auth login + exec arkcli - no ANTHROPIC_* env, no claude);
+        # Ark CLI has its own v4 template (arkcli configures Claude model/MCP,
+        # then launches claude under an isolated ark${index} user profile);
         # other v4 configs use the shared team+ultracode template.
         is_ark = (command_prefix or '').lower() == 'ark'
         if is_ark:
@@ -254,7 +254,7 @@ class ScriptManager:
         if not config.get('UseV4Launcher', False):
             return 0
 
-        file_numbers = self._collect_secret_file_numbers(config)
+        file_numbers = self._collect_launcher_file_numbers(config)
         if not file_numbers:
             return 0
 
@@ -272,7 +272,10 @@ class ScriptManager:
         """Regenerate ALL scripts for ONE config (every file number). Used after
         saving env vars so the new values (e.g. CODEX_MODEL) refresh immediately
         in the launch scripts. Works for non-v4 configs (codex/droid/ssh)."""
-        file_numbers = self._collect_secret_file_numbers(config)
+        if config.get('UseV4Launcher', False):
+            return self.regenerate_all_v4_launchers_for_config(config_name, config)
+
+        file_numbers = self._collect_launcher_file_numbers(config)
         if not file_numbers:
             file_numbers = [1]
         total = 0
@@ -645,6 +648,42 @@ exit $exitCode
 
         return sorted(numbers)
 
+    def _collect_script_file_numbers(self, command_prefix: str) -> List[int]:
+        """Collect file numbers from existing winenvs/linuxenvs launcher scripts."""
+        numbers: Set[int] = set()
+        if not command_prefix:
+            return []
+
+        for directory, suffix in (
+            (get_winenvs_dir(), '.ps1'),
+            (get_linuxenvs_dir(), '.sh'),
+        ):
+            if not directory or not directory.exists():
+                continue
+            for entry in directory.iterdir():
+                if not entry.is_file() or entry.suffix.lower() != suffix:
+                    continue
+                name = entry.stem
+                if not name.startswith(command_prefix):
+                    continue
+                number_part = name[len(command_prefix):]
+                if number_part.isdigit():
+                    numbers.add(int(number_part))
+
+        return sorted(numbers)
+
+    def _collect_launcher_file_numbers(self, config: dict) -> List[int]:
+        """Collect launcher numbers from secrets and/or existing scripts.
+
+        Script-only launchers (Ark CLI) must not depend on dummy secret files
+        for numbering — scan ark*.ps1 / ark*.sh instead.
+        """
+        numbers: Set[int] = set(self._collect_secret_file_numbers(config))
+        command_prefix = config.get('CommandPrefix', '') or ''
+        if config.get('ScriptOnlyLauncher', False) or command_prefix.lower() == 'ark':
+            numbers.update(self._collect_script_file_numbers(command_prefix))
+        return sorted(numbers)
+
     def restore_scripts_from_secrets(self, config_manager, secret_manager_available: bool = False):
         """Restore winenvs/linuxenvs scripts based on stored secrets"""
         clear_screen()
@@ -664,7 +703,7 @@ exit $exitCode
 
         total_sets = 0
         for config_name, config in config_manager.get_all_configs().items():
-            file_numbers = self._collect_secret_file_numbers(config)
+            file_numbers = self._collect_launcher_file_numbers(config)
             if not file_numbers:
                 continue
 
@@ -675,17 +714,22 @@ exit $exitCode
 
             for number in file_numbers:
                 ColorMessage.write(f"  Restoring #{number}...", 'info')
-                script_paths = self.generate_scripts_for_config(
-                    config_name, config, number, show_next_steps=False,
-                    secret_manager_available=secret_manager_available
-                )
+                if config.get('UseV4Launcher', False):
+                    script_paths = self.generate_v4_launcher_for_config(
+                        config_name, config, number
+                    )
+                else:
+                    script_paths = self.generate_scripts_for_config(
+                        config_name, config, number, show_next_steps=False,
+                        secret_manager_available=secret_manager_available
+                    )
                 if script_paths:
                     total_sets += 1
 
             print()
 
         if total_sets == 0:
-            ColorMessage.write("No matching secrets were found to restore scripts.", 'warning')
+            ColorMessage.write("No matching secrets/scripts were found to restore.", 'warning')
         else:
             ColorMessage.write(f"Restored {total_sets} script set(s) from secret storage.", 'success')
             self._generate_symlink_script()
@@ -714,7 +758,7 @@ exit $exitCode
         total_sets = 0
         skipped = 0
         for config_name, config in config_manager.get_all_configs().items():
-            file_numbers = self._collect_secret_file_numbers(config)
+            file_numbers = self._collect_launcher_file_numbers(config)
             if not file_numbers:
                 continue
 
@@ -725,10 +769,15 @@ exit $exitCode
             )
 
             for number in file_numbers:
-                script_paths = self.generate_scripts_for_config(
-                    config_name, config, number, show_next_steps=False,
-                    secret_manager_available=secret_manager_available
-                )
+                if config.get('UseV4Launcher', False):
+                    script_paths = self.generate_v4_launcher_for_config(
+                        config_name, config, number
+                    )
+                else:
+                    script_paths = self.generate_scripts_for_config(
+                        config_name, config, number, show_next_steps=False,
+                        secret_manager_available=secret_manager_available
+                    )
                 if script_paths:
                     total_sets += 1
                 else:
@@ -736,7 +785,7 @@ exit $exitCode
 
         print()
         if total_sets == 0:
-            ColorMessage.write("No scripts were regenerated (no secrets found).", 'warning')
+            ColorMessage.write("No scripts were regenerated (no secrets/scripts found).", 'warning')
         else:
             ColorMessage.write(f"Regenerated {total_sets} script set(s).", 'success')
             if skipped:

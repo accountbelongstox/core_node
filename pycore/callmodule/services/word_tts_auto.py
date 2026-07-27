@@ -10,6 +10,7 @@ tts_cache_{lang} tables.
 from typing import Any, Dict, Optional
 
 import time
+import threading
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_user_data_store
@@ -119,7 +120,11 @@ def restore_persisted_auto_start() -> None:
         return
 
     try:
-        get_tts_queue_poller_service().poll_and_process()
+        threading.Thread(
+            target=get_tts_queue_poller_service().poll_and_process,
+            daemon=True,
+            name="word-tts-restore-poll"
+        ).start()
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[WordTtsAuto] restore immediate cycle failed ({exc})")
 
@@ -147,23 +152,36 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
         except Exception as exc:  # noqa: BLE001
             ColorPrint.yellow(f"[WordTtsAuto] live concurrency apply failed ({exc})")
 
+    error: Optional[str] = None
     heartbeat = get_heartbeat_system()
     try:
-        if enabled:
+        ok = (
             heartbeat.enable_callback(_HEARTBEAT_NAME)
-        else:
-            heartbeat.disable_callback(_HEARTBEAT_NAME)
+            if enabled
+            else heartbeat.disable_callback(_HEARTBEAT_NAME)
+        )
+        if not ok:
+            error = f"{_HEARTBEAT_NAME} is not registered"
+            ColorPrint.yellow(f"[WordTtsAuto] {error}")
     except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[WordTtsAuto] heartbeat toggle failed ({exc})")
+        error = f"heartbeat toggle failed ({exc})"
+        ColorPrint.yellow(f"[WordTtsAuto] {error}")
 
     if enabled:
         try:
-            get_tts_queue_poller_service().poll_and_process()
+            threading.Thread(
+                target=get_tts_queue_poller_service().poll_and_process,
+                daemon=True,
+                name="word-tts-auto-poll"
+            ).start()
         except Exception as exc:  # noqa: BLE001
             ColorPrint.yellow(f"[WordTtsAuto] immediate cycle failed ({exc})")
 
     ColorPrint.blue(f"[WordTtsAuto] auto_start set to {bool(enabled)}")
-    return get_status()
+    status = get_status()
+    if error:
+        status["error"] = error
+    return status
 
 
 def get_status() -> Dict[str, Any]:

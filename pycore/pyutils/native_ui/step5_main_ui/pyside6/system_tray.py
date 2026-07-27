@@ -88,6 +88,7 @@ class PySide6SystemTray(QObject):
 
         # Menu items storage
         self.menu_items: List[PySide6TrayMenuItem] = []
+        self._menu_signature = {'value': None}
 
         # Create tray icon
         self._create_tray_icon()
@@ -128,8 +129,31 @@ class PySide6SystemTray(QObject):
         Args:
             items: List of menu item configurations
         """
+        signature = self._menu_signature_value(items)
+        if signature == self._menu_signature.get('value'):
+            return
+        self._menu_signature['value'] = signature
         self.menu_items = items
         self._rebuild_menu()
+
+    @staticmethod
+    def _menu_signature_value(items: List['PySide6TrayMenuItem']) -> str:
+        """Stable menu-signature helper for dedupe."""
+        def normalize(item):
+            if item.separator:
+                return {"separator": True}
+            children = item.submenu
+            data = {
+                "text": item.text,
+                "enabled": bool(item.enabled),
+                "checkable": bool(item.checkable),
+                "checked": bool(item.checked),
+                "submenu": [normalize(child) for child in children] if children else [],
+            }
+            return data
+
+        normalized = [normalize(item) for item in items]
+        return str(normalized)
 
     def _rebuild_menu(self):
         """Rebuild menu from menu items."""

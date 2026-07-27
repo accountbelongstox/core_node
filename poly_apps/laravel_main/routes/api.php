@@ -337,7 +337,8 @@ Route::prefix('dev-history')->middleware('local.only')->group(function () {
     Route::post('assist/scan', [DevHistoryController::class, 'assistScan']);
 });
 
-// Daily short-sentence center (pycore-assisted translations) — read-only for wordnew.
+// Daily short-sentence center (DEPRECATED — prefer ai_tools/article/*?type=short).
+// Kept as thin wrappers over AppQyV1DailySentenceService; both old and new paths work.
 use App\Http\Controllers\AppQyV1DailySentenceController;
 
 Route::prefix('app_qy_v1/daily-sentences')->group(function () {

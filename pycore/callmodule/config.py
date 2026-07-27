@@ -8,6 +8,8 @@ Does NOT start any threads or services.
 
 import asyncio
 import ctypes
+import hashlib
+import json
 import os
 import platform
 from pathlib import Path
@@ -33,15 +35,7 @@ from pycore.callmodule.callmodule_config import Config as CallmoduleConfig
 # Modular per-area WS RPC route registration (speech-routes convention: one file
 # per area, register_<area>_routes(server)). The 11 desktop-UI WS RPC handlers
 # + THREAD_BUS broadcast listeners live there; _init_rpc_routes wires them up.
-from pycore.callmodule.rpc_routes import (
-    register_thread_bus_routes,
-    register_video_extract_routes,
-    register_media_routes,
-    register_corebook_routes,
-    register_laravel_api_routes,
-    register_local_http_routes,
-    register_local_engine_test_routes,
-)
+from pycore.callmodule.rpc_routes import register_rpc_routes
 
 # Structured pycore->Laravel request recorder: every LaravelClient call (and the
 # endpoint-manager health probe) notify it. Wired below into a 'laravel_http' WS
@@ -58,85 +52,33 @@ from pycore.callmodule.services.queue_bump_hub import register_queue_bump_callba
 from pycore.pyctl.ai import generate_text as ai_generate_text, describe_image as ai_describe_image
 from pycore.pyctl.desktop.ai_hooks import set_ai_handlers
 
-# Import management layer routers
-from pycore.callmodule.routers.management import (
-    status_router,
-    config_router,
-    control_router,
-    logs_router,
-    capabilities_router,
-    local_config_router,
-    local_stats_router,
-    local_test_router,
-    heartbeat_router,
-)
-
-# Import local processing layer routers (NEW)
-from pycore.callmodule.routers.local import (
-    screenshot_router,
-    image_router,
-    audio_router,
-    file_router,
-    video_router,
-    video_extract_router,
-    system_resources_router,
-    user_data_router,
-    books_router,
-    corebook_router,
-    ai_probe_router,
-    ai_chat_router,
-    ai_image_router,
-    ai_keys_router,
-    ocr_status_router,
-    tts_status_router,
-    llm_status_router,
-    stt_status_router,
-    engines_load_status_router,
-    speech_history_router,
-    capability_status_router,
-    translation_queue_router,
-    task_center_router,
-    queue_overview_router,
-    queue_bumps_router,
-    task_history_router,
-    assist_router,
-    image_search_router,
-    sentence_audio_router,
-    queue_priority_router,
-    dictionary_router,
-    word_audio_router,
-    word_tts_router,
-    heartbeat_workers_router,
-    agent_history_router,
-    task_settings_router,
-    version_router,
-)
-
-# Import upload layer routers (NEW)
-from pycore.callmodule.routers.upload import router as upload_router
-
-# Import client layer routers (NEW)
-from pycore.callmodule.routers.client import router as client_router
-
-# Import legacy routers (from independent files - still active)
-from pycore.callmodule.routers.mcp_router import mcp_router
-from pycore.callmodule.routers.code_sync_router import router as code_sync_router
-from pycore.callmodule.routers.module_call_router import module_call_router
-from pycore.callmodule.routers.notebooklm_stt_router import router as notebooklm_stt_router
-
-# Web UI routes (homepage, /web, /web/subtitle redirect, favicon)
-from pycore.callmodule.routers.web_router import router as web_router
-
-# Voice subtitle API (queue, add-text/image/voice, audio, categories, tasks,
-# clipboard/screenshot monitors) — consumed by the desktop UI at /voice-subtitle/*
-from pycore.callmodule.routers.voice_subtitle_router import router as voice_subtitle_router
-
 IS_WINDOWS = platform.system() == 'Windows'
 IS_LINUX = platform.system() == 'Linux'
 
 # Desired main-window size for the new desktop-manager UI. Clamped to the screen
 # (minus a margin) when the display is too small to fit it.
 UI_DESIRED_WINDOW_SIZE = (1788, 1159)
+_TRAY_MENU_SIGNATURE = {'value': None}
+
+
+def _menu_signature(menu_items: list) -> str:
+    """Create a stable signature for tray menu payloads."""
+    try:
+        from pycore.callmodule.tray_codesync_cache import get_tray_codesync_state
+
+        payload = {
+            "menu": menu_items,
+            "codesync": get_tray_codesync_state(),
+        }
+        encoded = json.dumps(
+            payload,
+            sort_keys=True,
+            ensure_ascii=False,
+            default=str,
+        ).encode("utf-8")
+        return hashlib.md5(encoded).hexdigest()
+    except Exception:
+        return hashlib.md5(str(menu_items).encode("utf-8")).hexdigest()
 
 
 def _get_screen_size():
@@ -297,13 +239,7 @@ def _init_rpc_routes(server):
     """
     try:
         # Register WS RPC routes by functional area (modular).
-        register_thread_bus_routes(server)
-        register_video_extract_routes(server)
-        register_media_routes(server)
-        register_corebook_routes(server)
-        register_laravel_api_routes(server)
-        register_local_http_routes(server)
-        register_local_engine_test_routes(server)
+        register_rpc_routes(server)
 
         # Boot the Code Sync manager now (the tray no longer instantiates it):
         # this starts the status mesh for every role and the file puller for
@@ -419,75 +355,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
             'port': port,
             'host': host,
             'debug': debug,
-            'fastapi_routers': [
-                # === Management Layer Routers ===
-                status_router,           # System status endpoint
-                config_router,           # System configuration endpoints
-                control_router,          # System control operations
-                logs_router,             # Log management endpoints
-                capabilities_router,     # Local processing capabilities
-                local_config_router,     # Local processing configuration
-                local_stats_router,      # Local processing statistics
-                local_test_router,       # Local processing test endpoint
-                heartbeat_router,        # PyHeartbeat callback enable/disable/stats (translation_worker, tts_queue_poller)
-
-                # === Local Processing Layer Routers (Edge Computing) ===
-                screenshot_router,       # Screenshot capture with auto-OCR
-                image_router,            # Image OCR and processing
-                audio_router,            # Audio transcription and subtitle generation
-                file_router,             # File analysis (PDF/DOCX/XLSX)
-                video_router,            # Video processing (audio extraction, subtitles)
-                video_extract_router,    # Batch/single video -> audio + tiny-mp4 + subtitle (whisper)
-                system_resources_router, # Live CPU/memory/GPU snapshot (/api/local/system/resources)
-                user_data_router,        # Unified user data: system settings + video-extract history
-                books_router,            # Books document analyze/preview (/api/local/books): scan + multi-language stats + preview
-                corebook_router,         # CoreBook portable bundles (/api/local/corebook): convert/enrich/submit
-                ai_probe_router,         # AI provider probe (/api/local/ai/probe): configured/available/models
-                ai_chat_router,          # AI chat confirm (/api/local/ai/chat): send a message, get the reply
-                ai_image_router,         # AI image generation (/api/local/ai/image): prompt -> base64 image via gateway
-                ai_keys_router,          # AI provider key pool (/api/local/ai/keys): set/delete/masked status
-                ocr_status_router,       # OCR engine availability (/api/local/ocr/status): windows/easyocr/cnocr priority
-                tts_status_router,       # TTS live availability + version (/api/local/tts/status) + live /test per engine
-                llm_status_router,       # Local LLM engines (/api/local/llm/status) + live /test + managed ollama server control
-                stt_status_router,       # STT engine availability (/api/local/stt/status) + live /test: faster-whisper/whisper/vosk/azure
-                engines_load_status_router, # Unified model-load progress for ALL engines (/api/local/engines/load-status): class-B models + class-C servers, TTS+STT
-                speech_history_router,   # Speech (TTS/STT) clip history (/api/local/speech/history): list/file/reveal/delete/clear for the Records timeline
-                capability_status_router,# CUDA/GPU readiness + free-library availability (/api/local/capabilities/status)
-                translation_queue_router,# Translation queue monitor + control proxy (/api/local/translation/queue)
-                task_center_router,      # Unified task-center aggregate (/api/local/task-center) — mirrors laravel_main /api/task-center/overview
-                queue_overview_router,   # Unified queue overview — never-blind category catalog incl ai_translate+subtitle_search (/api/local/queue/overview)
-                queue_bumps_router,      # Cross-lane priority bump feed (/api/local/queue/bumps)
-                task_history_router,     # Recent-task cross-end log + clear (/api/local/tasks/recent, /clear)
-                assist_router,           # Assist-Laravel worker control (/api/local/assist): status/config/cycle for non-image queues
-                image_search_router,     # SerpApi Google-Images search + AI compare + history (/api/local/image-search)
-                sentence_audio_router,   # Sentence-library audio auto-start + run-once (/api/local/sentence-audio)
-                queue_priority_router,
-                word_tts_router,         # Word-dictionary TTS auto-start + run-once (/api/local/word-tts)
-                heartbeat_workers_router,# Heartbeat worker status + monitor/WS toggles (/api/local/heartbeat-workers)
-                dictionary_router,       # Offline ECDICT+WordNet word dictionary (/api/local/dictionary): lookup + status
-                word_audio_router,       # Real word pronunciation chain status+test (/api/local/word-audio): free-dict/cambridge/forvo + base64 audio
-                agent_history_router,    # Local AI agent history (/api/local/agent-history): Claude/Codex/Cursor/Gemini txt store
-                task_settings_router,    # Per-task-type capability chains (/api/local/task-settings/chains)
-                version_router,          # Code-version chip: pycore own newest-source mtime + proxied laravel version (/api/local/version)
-
-                # === Upload Layer Routers ===
-                upload_router,           # Upload task management and server config
-
-                # === Client Layer Routers ===
-                client_router,           # Remote server request forwarding
-
-                # === Legacy Routers (Still Active) ===
-                mcp_router,              # MCP backend routes (file, database, codebase tools)
-                code_sync_router,        # Code sync routes
-                module_call_router,      # Module call API routes
-                notebooklm_stt_router,   # NotebookLM STT routes
-
-                # === Web UI Routes ===
-                web_router,              # Homepage, /web, /web/subtitle redirect, favicon
-
-                # === Voice Subtitle API (desktop UI backend) ===
-                voice_subtitle_router,   # /voice-subtitle/* queue, TTS add, audio, monitors
-            ],
+            'fastapi_routers': [],
             'static_mounts': static_mounts,  # Mount static files
             'init_callback': _init_rpc_routes,  # Register WS RPC bridge (thread_bus.trigger_event)
         },
@@ -584,6 +452,22 @@ def update_tray_menu_with_singleton(launcher, port: int, singleton_port: int):
         payload = tray_menu_to_dicts(menu)  # PySide6 Qt tray
     else:
         payload = menu  # native pystray tray (TrayMenuItem objects)
+
+    signature = _menu_signature(payload)
+    THREAD_BUS.signal(
+        'tray.menu.payload',
+        {
+            'menu_items': payload,
+            'signature': signature,
+            'backend_pyside': CallmoduleConfig.UI_ENABLE_TRAY,
+        }
+    )
+
+    if _TRAY_MENU_SIGNATURE['value'] == signature:
+        ColorPrint.blue("[ConfigBuilder] Tray menu unchanged; skip menu update event")
+        return
+
+    _TRAY_MENU_SIGNATURE['value'] = signature
 
     # Use THREAD_BUS event to update menu (thread-safe; framework marshals to Qt thread)
     THREAD_BUS.trigger_event('tray.update_menu', {'menu_items': payload})
