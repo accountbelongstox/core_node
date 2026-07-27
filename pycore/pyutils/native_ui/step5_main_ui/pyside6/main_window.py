@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import time
+
 from pycore import THREAD_BUS, ColorPrint
 from pycore import ColorPrint
 """
@@ -274,10 +276,17 @@ class PySide6MainWindow(QMainWindow):
     def showEvent(self, event):
         """Notify content widgets when the tray window becomes visible."""
         super().showEvent(event)
+        timing = getattr(self, "_tray_timing", None)
+        if isinstance(timing, dict):
+            elapsed_ms = (time.perf_counter() - timing["started_at"]) * 1000
+            ColorPrint.blue(
+                f"[TrayTiming] id={timing.get('trace_id', '?')} main_window_showEvent "
+                f"wall={time.strftime('%Y-%m-%d %H:%M:%S')} elapsed={elapsed_ms:.3f}ms"
+            )
         if self._content is not None:
             on_window_shown = getattr(self._content, "on_window_shown", None)
             if callable(on_window_shown):
-                on_window_shown()
+                on_window_shown(getattr(self, "_tray_timing", None))
 
     # ========== Window State Management ==========
 
@@ -311,8 +320,16 @@ class PySide6MainWindow(QMainWindow):
         """Hide window (for minimize to tray)."""
         self.hide()
 
-    def show_window(self):
+    def show_window(self, event_data=None):
         """Show window."""
+        timing = event_data.get("_tray_timing") if isinstance(event_data, dict) else None
+        self._tray_timing = timing
+        if isinstance(timing, dict):
+            elapsed_ms = (time.perf_counter() - timing["started_at"]) * 1000
+            ColorPrint.blue(
+                f"[TrayTiming] id={timing.get('trace_id', '?')} main_window_show_called "
+                f"wall={time.strftime('%Y-%m-%d %H:%M:%S')} elapsed={elapsed_ms:.3f}ms"
+            )
         self.show()
         self.activateWindow()
         self.raise_()

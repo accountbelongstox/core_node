@@ -119,6 +119,20 @@ class Win32SystemTray:
         self._taskbar_created_msg = None
         self._last_show_menu_at = 0.0
         self._show_menu_guard_seconds = 0.18
+        self._last_right_click_started_at = None
+
+    @staticmethod
+    def _tray_timing_log(node, timing):
+        """Log a tray-to-window timing node without changing dispatch behavior."""
+        if not isinstance(timing, dict):
+            ColorPrint.blue(f"[TrayTiming] {node} wall={time.strftime('%Y-%m-%d %H:%M:%S')} ")
+            return
+        started_at = timing.get("started_at")
+        elapsed_ms = (time.perf_counter() - started_at) * 1000 if started_at else 0.0
+        ColorPrint.blue(
+            f"[TrayTiming] id={timing.get('trace_id', '?')} {node} "
+            f"wall={time.strftime('%Y-%m-%d %H:%M:%S')} elapsed={elapsed_ms:.3f}ms"
+        )
 
     @staticmethod
     def _decode_signed_short(value):
@@ -355,12 +369,20 @@ class Win32SystemTray:
             )
             signal = self._id_to_signal.get(command_id)
             if signal:
+                started_at = self._last_right_click_started_at or time.perf_counter()
+                timing = {
+                    "trace_id": f"{threading.get_ident()}-{time.time_ns()}",
+                    "started_at": started_at,
+                }
+                self._tray_timing_log("menu_selected", timing)
                 self._log_to_cmd(f"Tray menu selected: {signal}")
                 ColorPrint.blue(f"[Win32Tray] Menu item -> signal: {signal}")
-                THREAD_BUS.trigger_event(signal, {"signal": signal})
+                THREAD_BUS.trigger_event(signal, {"signal": signal, "_tray_timing": timing})
+                self._tray_timing_log("thread_bus_trigger_returned", timing)
             win32gui.PostMessage(self.hwnd, win32con.WM_NULL, 0, 0)
         finally:
             win32gui.DestroyMenu(hmenu)
+            self._last_right_click_started_at = None
 
     # ---------- window proc ----------
 
@@ -368,15 +390,33 @@ class Win32SystemTray:
         context_message = getattr(win32con, "WM_CONTEXTMENU", 0x007B)
 
         if msg == context_message:
+            self._last_right_click_started_at = time.perf_counter()
+            ColorPrint.blue(
+                f"[TrayTiming] right_click_received wall={time.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
             self._show_menu(context_message, wparam, lparam)
             return 0
 
         if msg == WM_TRAYICON:
             if lparam in (win32con.WM_RBUTTONUP, context_message):
+                if self._last_right_click_started_at is None:
+                    self._last_right_click_started_at = time.perf_counter()
+                    ColorPrint.blue(
+                        f"[TrayTiming] right_click_received wall={time.strftime('%Y-%m-%d %H:%M:%S')}"
+                    )
                 self._show_menu(msg, wparam, lparam)
             elif lparam in (win32con.WM_LBUTTONUP, win32con.WM_LBUTTONDBLCLK):
                 if self._default_signal:
-                    THREAD_BUS.trigger_event(self._default_signal, {"signal": self._default_signal})
+                    timing = {
+                        "trace_id": f"{threading.get_ident()}-{time.time_ns()}",
+                        "started_at": time.perf_counter(),
+                    }
+                    self._tray_timing_log("left_click_received", timing)
+                    THREAD_BUS.trigger_event(
+                        self._default_signal,
+                        {"signal": self._default_signal, "_tray_timing": timing},
+                    )
+                    self._tray_timing_log("thread_bus_trigger_returned", timing)
             return 0
 
         if msg == win32con.WM_COMMAND:

@@ -407,9 +407,17 @@ class BaseLaravelWorkerService:
                 f"{self._log_prefix} Heartbeat failed ({self._short_err(e)}); will re-discover"
             )
 
-    @serialized_method
     def _pull_tasks(self, base: Optional[str] = None, wait: int = 0) -> List[Dict[str, Any]]:
         """GET pending tasks for this worker. Returns [] on any error.
+
+        NOT a @serialized_method: this performs network I/O (up to
+        ``_http_timeout`` seconds against a dead endpoint). Running it on the
+        serialized state-owner thread used to occupy the owner for the whole
+        HTTP window, so every concurrent status read / heartbeat tick raised
+        'Serialized operation timed out: translation.worker.state.*'. It only
+        mutates plain scalars (_registered, _pending_fast/_pending_urgent via
+        _note_fast_signals), which is safe from the single-flight poll/drain
+        threads.
 
         ``wait`` MUST be sent (0 = immediate return; if omitted Laravel long-polls
         ~20s while the client's 8s HTTP timeout fires first). The fast-drain burst and
@@ -464,7 +472,6 @@ class BaseLaravelWorkerService:
                 )
         return []
 
-    @serialized_method
     def _post_result(
         self,
         task_id: Any,
@@ -476,6 +483,12 @@ class BaseLaravelWorkerService:
     ) -> bool:
         """
         POST a task result (processing/completed/failed) back to Laravel.
+
+        NOT a @serialized_method: the retry loop below can hold for
+        RESULT_POST_ATTEMPTS x _http_timeout + backoff against a dead endpoint
+        (~27s). On the serialized state-owner thread that blocked every status
+        read and heartbeat tick ('Serialized operation timed out'). The breaker
+        bookkeeping it touches is plain scalars, safe from executor threads.
 
         Retries transient failures (connection errors / HTTP 5xx) a few times
         with a short backoff; gives up on 4xx. Returns True when Laravel

@@ -28,6 +28,7 @@ Expected on the concrete framework instance (provided at runtime):
 
 import hashlib
 import json
+import time
 
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWidgets import QApplication
@@ -48,7 +49,7 @@ class ThreadBusBridgeMixin(QObject):
     # These signals ensure GUI operations execute in the Qt main thread.
     _thread_bus_show_signal = Signal()
     _thread_bus_hide_signal = Signal()
-    _thread_bus_toggle_signal = Signal()
+    _thread_bus_toggle_signal = Signal(object)
     _thread_bus_move_signal = Signal(int, int)  # x, y
     _thread_bus_resize_signal = Signal(int, int)  # width, height
     _thread_bus_close_signal = Signal()
@@ -143,7 +144,14 @@ class ThreadBusBridgeMixin(QObject):
         Handle toggle event from THREAD_BUS (may be called from any thread).
         Emits signal to execute in Qt main thread.
         """
-        self._thread_bus_toggle_signal.emit()
+        timing = event_data.get("_tray_timing") if isinstance(event_data, dict) else None
+        if isinstance(timing, dict):
+            elapsed_ms = (time.perf_counter() - timing["started_at"]) * 1000
+            ColorPrint.blue(
+                f"[TrayTiming] id={timing.get('trace_id', '?')} qt_signal_queued "
+                f"wall={time.strftime('%Y-%m-%d %H:%M:%S')} elapsed={elapsed_ms:.3f}ms"
+            )
+        self._thread_bus_toggle_signal.emit(event_data)
 
     def _on_thread_bus_move(self, event_data):
         """

@@ -128,6 +128,36 @@ def _voice_queue(_params: Dict[str, Any]) -> Dict[str, Any]:
             "current_index": queue.get_current_index(), "enabled": queue.is_enabled()}
 
 
+# The voice queue ops below go through call_serialized (up to 30s wait). They
+# must run via asyncio.to_thread — calling them directly in the async handler
+# would freeze the whole uvicorn event loop (every route times out together)
+# whenever the queue's state owner is busy.
+def _voice_clear() -> Dict[str, Any]:
+    get_voice_subtitle_queue().clear_queue()
+    return {"success": True, "message": "Queue cleared"}
+
+
+def _voice_toggle() -> Dict[str, Any]:
+    enabled = get_voice_subtitle_queue().toggle_enabled()
+    return {"success": True, "enabled": enabled}
+
+
+def _voice_set_index(index: int) -> Dict[str, Any]:
+    if not get_voice_subtitle_queue().set_current_index(index):
+        return {"success": False, "error": "Invalid index"}
+    return {"success": True, "current_index": index}
+
+
+def _voice_increment(index: Any) -> Dict[str, Any]:
+    get_voice_subtitle_queue().increment_play_count(index)
+    return {"success": True}
+
+
+def _voice_remove(indices: list) -> Dict[str, Any]:
+    removed = get_voice_subtitle_queue().remove_items(indices)
+    return {"success": True, "removed_count": removed}
+
+
 def register_native_ui_routes(server) -> None:
     """Register controller-backed UI operations on the RPC v2 server."""
     books = BooksController()
@@ -140,27 +170,21 @@ def register_native_ui_routes(server) -> None:
         return await asyncio.to_thread(_voice_queue, params or {})
 
     async def voice_clear(params, request_id, context):
-        get_voice_subtitle_queue().clear_queue()
-        return {"success": True, "message": "Queue cleared"}
+        return await asyncio.to_thread(_voice_clear)
 
     async def voice_toggle(params, request_id, context):
-        enabled = get_voice_subtitle_queue().toggle_enabled()
-        return {"success": True, "enabled": enabled}
+        return await asyncio.to_thread(_voice_toggle)
 
     async def voice_set_index(params, request_id, context):
         index = int((params or {}).get("index", 0))
-        if not get_voice_subtitle_queue().set_current_index(index):
-            return {"success": False, "error": "Invalid index"}
-        return {"success": True, "current_index": index}
+        return await asyncio.to_thread(_voice_set_index, index)
 
     async def voice_increment(params, request_id, context):
-        get_voice_subtitle_queue().increment_play_count((params or {}).get("index"))
-        return {"success": True}
+        return await asyncio.to_thread(_voice_increment, (params or {}).get("index"))
 
     async def voice_remove(params, request_id, context):
         indices = list((params or {}).get("indices") or [])
-        removed = get_voice_subtitle_queue().remove_items(indices)
-        return {"success": True, "removed_count": removed}
+        return await asyncio.to_thread(_voice_remove, indices)
 
     async def voice_add_text(params, request_id, context):
         params = params or {}

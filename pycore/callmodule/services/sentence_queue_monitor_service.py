@@ -160,10 +160,14 @@ class SentenceQueueMonitorService:
             THREAD_BUS.signal(self._poll_running_signal, False)
             ColorPrint.red(f"[SentenceQueueMonitor] poll_once error: {exc}")
 
-    @serialized_method
     def _poll_worker(self) -> None:
         """Background poll: fetch missing rows, detect bumps, cache + publish
-        the snapshot on the state owner and publish it for FastAPI readers."""
+        the snapshot and publish it for FastAPI readers. Runs on the bus task
+        thread started by poll_once — deliberately NOT a @serialized_method:
+        the HTTP fetch can hold for seconds against a dead endpoint, and on
+        the serialized state-owner thread that blocked every get_snapshot
+        caller (task-center RPC) behind it. Single-flight via
+        _poll_running_signal; the state it writes is plain scalars/dicts."""
         try:
             body = self._fetch_missing()
             if body is None:

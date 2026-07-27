@@ -366,12 +366,17 @@ class QueueMonitorService:
             THREAD_BUS.signal(self._poll_running_signal, False)
             ColorPrint.red(f"[QueueMonitor] poll_once error: {e}")
 
-    @serialized_method
     def _do_poll(self) -> None:
         """
         The actual poll: GET the queue list, cache the snapshot, run
-        bump-detection. All mutable state is owned by the service's serialized
-        worker, and the resulting snapshot is published on THREAD_BUS.
+        bump-detection. Runs on the bus task thread started by poll_once —
+        deliberately NOT a @serialized_method: the HTTP fetches below can each
+        hold for _http_timeout seconds against a dead endpoint, and on the
+        serialized state-owner thread that blocked every apply_task_* /
+        get_snapshot caller behind it (cascading 'Serialized operation timed
+        out' into the SSE client owner and the task-center RPC). The state it
+        writes is plain scalars/dicts, safe from this single-flight thread.
+        The resulting snapshot is published on THREAD_BUS.
         """
         try:
             base_url = self._poll_base_url()

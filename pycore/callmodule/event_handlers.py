@@ -191,8 +191,21 @@ def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port
 
     def handle_tray_toggle_voice_subtitle(event_data):
         """Toggle voice subtitle window visibility via THREAD_BUS"""
+        timing = event_data.get("_tray_timing") if isinstance(event_data, dict) else None
+        if isinstance(timing, dict):
+            elapsed_ms = (time.perf_counter() - timing["started_at"]) * 1000
+            ColorPrint.blue(
+                f"[TrayTiming] id={timing.get('trace_id', '?')} handler_entered "
+                f"wall={time.strftime('%Y-%m-%d %H:%M:%S')} elapsed={elapsed_ms:.3f}ms"
+            )
         ColorPrint.blue("[Tray] Toggling voice subtitle window...")
-        THREAD_BUS.trigger_event('voice_subtitle_ui.toggle', {})
+        THREAD_BUS.trigger_event('voice_subtitle_ui.toggle', {"_tray_timing": timing})
+        if isinstance(timing, dict):
+            elapsed_ms = (time.perf_counter() - timing["started_at"]) * 1000
+            ColorPrint.blue(
+                f"[TrayTiming] id={timing.get('trace_id', '?')} toggle_event_sent "
+                f"wall={time.strftime('%Y-%m-%d %H:%M:%S')} elapsed={elapsed_ms:.3f}ms"
+            )
         ColorPrint.green("[Tray] Voice subtitle window toggle event sent")
 
     def handle_tray_toggle_service(event_data):

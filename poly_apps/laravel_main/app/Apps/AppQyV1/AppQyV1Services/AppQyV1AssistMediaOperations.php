@@ -751,5 +751,6 @@ trait AppQyV1AssistMediaOperations
             $model->setAttribute('assist_claimed_by', null);
             $model->save();
         }
+    }
 }
 

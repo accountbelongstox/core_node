@@ -17,16 +17,6 @@ try:
 except ImportError:
     HAS_MSVCRT = False
 
-# termios/tty are Unix-only; on Windows get_key() uses msvcrt instead.
-try:
-    import termios
-    import tty
-    HAS_TERMIOS = True
-except ImportError:
-    HAS_TERMIOS = False
-
-
-
 
 class InteractiveMenu:
     """Interactive menu for launcher configuration with arrow key navigation"""
@@ -69,37 +59,35 @@ class InteractiveMenu:
                         except:
                             pass
         else:
-            if HAS_TERMIOS:
+            try:
+                import termios
+                import tty
+
+                fd = sys.stdin.fileno()
+                old_settings = termios.tcgetattr(fd)
                 try:
-                    fd = sys.stdin.fileno()
-                    old_settings = termios.tcgetattr(fd)
-                    try:
-                        tty.setraw(sys.stdin.fileno())
-                        ch = sys.stdin.read(1)
-                        if ch == '\x1b':  # ESC sequence
-                            ch2 = sys.stdin.read(1)
-                            if ch2 == '[':
-                                ch3 = sys.stdin.read(1)
-                                arrow_map = {
-                                    'A': 'up',
-                                    'B': 'down',
-                                    'D': 'left',
-                                    'C': 'right'
-                                }
-                                return arrow_map.get(ch3, '')
-                            else:
-                                return 'esc'
-                        elif ch == '\r' or ch == '\n':
-                            return 'enter'
-                        elif ch == '\x1b':
-                            return 'esc'
-                        else:
-                            return ch.lower()
-                    finally:
-                        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-                except Exception:
-                    return input().strip().lower()
-            else:
+                    tty.setraw(sys.stdin.fileno())
+                    ch = sys.stdin.read(1)
+                    if ch == '\x1b':  # ESC sequence
+                        ch2 = sys.stdin.read(1)
+                        if ch2 == '[':
+                            ch3 = sys.stdin.read(1)
+                            arrow_map = {
+                                'A': 'up',
+                                'B': 'down',
+                                'D': 'left',
+                                'C': 'right'
+                            }
+                            return arrow_map.get(ch3, '')
+                        return 'esc'
+                    if ch in ('\r', '\n'):
+                        return 'enter'
+                    return ch.lower()
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            except ImportError:
+                return input().strip().lower()
+            except Exception:
                 return input().strip().lower()
         return ''
     

@@ -32,6 +32,7 @@ import sys
 import os
 import signal
 import threading
+import time
 from typing import Optional, TYPE_CHECKING
 from pathlib import Path
 
@@ -526,10 +527,23 @@ class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
         namespace = self.config.thread_bus_namespace or self.config.app_id or "ui"
         THREAD_BUS.signal(f"{namespace}.window_visible", visible)
 
-    def show_window(self):
+    def show_window(self, event_data=None):
         """Show main window."""
         if self.main_window:
-            self.main_window.show_window()
+            timing = event_data.get("_tray_timing") if isinstance(event_data, dict) else None
+            if isinstance(timing, dict):
+                elapsed_ms = (time.perf_counter() - timing["started_at"]) * 1000
+                ColorPrint.blue(
+                    f"[TrayTiming] id={timing.get('trace_id', '?')} qt_show_slot_entered "
+                    f"wall={time.strftime('%Y-%m-%d %H:%M:%S')} elapsed={elapsed_ms:.3f}ms"
+                )
+            self.main_window.show_window(event_data)
+            if isinstance(timing, dict):
+                elapsed_ms = (time.perf_counter() - timing["started_at"]) * 1000
+                ColorPrint.green(
+                    f"[TrayTiming] id={timing.get('trace_id', '?')} FINAL_window_show_returned "
+                    f"wall={time.strftime('%Y-%m-%d %H:%M:%S')} total={elapsed_ms:.3f}ms"
+                )
             self._publish_window_visible(True)
 
     def hide_window(self):
@@ -538,13 +552,13 @@ class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
             self.main_window.hide_window()
             self._publish_window_visible(False)
 
-    def toggle_window(self):
+    def toggle_window(self, event_data=None):
         """Toggle window visibility."""
         if self.main_window:
             if self.main_window.isVisible():
                 self.hide_window()
             else:
-                self.show_window()
+                self.show_window(event_data)
 
     def quit(self):
         """

@@ -23,6 +23,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
@@ -454,8 +455,34 @@ class TranslationWorkerService(BaseLaravelWorkerService):
 
     # -------------------- heartbeat callback --------------------
 
-    @serialized_method
     def poll_once(self) -> None:
+        """PyHeartbeat callback (invoked every ~interval seconds WHEN ENABLED).
+
+        LIGHT: single-flight guard + hand the poll cycle to a THREAD_BUS task
+        thread. The cycle's network I/O (register/heartbeat/pull) used to run
+        on the serialized state-owner thread via @serialized_method; against a
+        dead endpoint one poll occupied the owner for >60s, so every concurrent
+        get_status and the next heartbeat tick raised 'Serialized operation
+        timed out: translation.worker.state.*'. Now neither the heartbeat
+        thread nor the state owner blocks on network.
+        """
+        if THREAD_BUS.get_signal("translation.worker.poll_running", False):
+            return
+        THREAD_BUS.signal("translation.worker.poll_running", True)
+
+        def _guarded_cycle():
+            try:
+                self._poll_cycle()
+            finally:
+                THREAD_BUS.signal("translation.worker.poll_running", False)
+
+        try:
+            start_bus_task(_guarded_cycle, thread_name="translation-worker-poll")
+        except Exception as e:
+            THREAD_BUS.signal("translation.worker.poll_running", False)
+            ColorPrint.red(f"[TranslationWorker] poll_once error: {e}")
+
+    def _poll_cycle(self) -> None:
         """
         PyHeartbeat callback (invoked every ~interval seconds WHEN ENABLED).
 

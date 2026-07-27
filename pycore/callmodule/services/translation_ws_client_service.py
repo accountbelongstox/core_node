@@ -430,9 +430,16 @@ class TranslationWsClient:
         if new_id > self._cursor:
             self._cursor = new_id
 
-    @serialized_method
     def _dispatch_sse(self, event_name: str, data_str: str) -> None:
-        """Parse one SSE event's data and route it (envelope vs channel event)."""
+        """Parse one SSE event's data and route it (envelope vs channel event).
+
+        Deliberately NOT a @serialized_method: it runs ONLY on the SSE read
+        loop thread (single writer for _cursor/_events_received/_last_event_ts),
+        and _route_event calls into OTHER serialized services (queue monitor,
+        workers). Running this on the translation.sse_client.state owner meant
+        any stall in those services occupied the owner, so supervise()'s
+        _start_thread raised 'Serialized operation timed out' every heartbeat.
+        """
         data = self._parse_data(data_str)
         # Envelope events (stream.open/ping/stream.close) only carry the cursor.
         if event_name in self._ENVELOPE_EVENTS:

@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QStackedWidget
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtGui import QColor
+import time
 
 from typing import Optional
 from pathlib import Path
@@ -122,6 +123,7 @@ class PySide6WebView(QWidget):
         self._render_crash_count = 0
         self._load_retry_count = 0
         self._requested_url: Optional[str] = None
+        self._active_tray_timing = None
 
         # Create loading widget
         self._create_loading_widget()
@@ -182,8 +184,15 @@ class PySide6WebView(QWidget):
         else:
             self.web_view.load(QUrl(url))
 
-    def on_window_shown(self):
+    def on_window_shown(self, timing=None):
         """Refresh an abandoned or uninitialized page after the window is shown."""
+        self._active_tray_timing = timing
+        if isinstance(timing, dict):
+            elapsed_ms = (time.perf_counter() - timing["started_at"]) * 1000
+            ColorPrint.blue(
+                f"[TrayTiming] id={timing.get('trace_id', '?')} webview_window_shown "
+                f"wall={time.strftime('%Y-%m-%d %H:%M:%S')} elapsed={elapsed_ms:.3f}ms"
+            )
         current_url = self.get_url()
         if not self._requested_url:
             return
@@ -408,6 +417,16 @@ class PySide6WebView(QWidget):
     @Slot(bool)
     def _on_load_finished(self, success: bool):
         """Handle load finished."""
+        timing = self._active_tray_timing
+        if isinstance(timing, dict):
+            elapsed_ms = (time.perf_counter() - timing["started_at"]) * 1000
+            level = "green" if success else "yellow"
+            log_method = getattr(ColorPrint, level)
+            log_method(
+                f"[TrayTiming] id={timing.get('trace_id', '?')} webview_load_finished "
+                f"success={success} wall={time.strftime('%Y-%m-%d %H:%M:%S')} "
+                f"elapsed={elapsed_ms:.3f}ms"
+            )
         if success:
             # Hide loading page immediately (no delay needed with QStackedWidget)
             self.hide_loading_page()

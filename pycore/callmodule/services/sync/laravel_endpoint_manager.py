@@ -54,6 +54,7 @@ from pycore.pyfoundations.serialized_worker import (
     map_bus_tasks,
     serialized_method,
 )
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.callmodule.callmodule_config.config import Config as CallmoduleConfig
 from pycore.callmodule.services.sync.laravel_http_recorder import notify_laravel_http
@@ -86,6 +87,9 @@ FAILED_SWEEP_TTL = 10.0
 # Hot HTTP paths (assist status, queue overview) — one stored probe, no sweep.
 UI_PROBE_TIMEOUT = 3.0
 UI_NEGATIVE_TTL = 30.0
+# THREAD_BUS single-flight guard for resolve(): only one thread runs the
+# probe cycle; concurrent callers degrade to the stored fallback (see resolve).
+_RESOLVING_SIGNAL = "laravel_endpoint_manager.resolving"
 # Baseline local default — the loopback (local-first so a laravel on the same
 # box as pycore is the fast happy path). `localhost` is merged into 127.0.0.1
 # by _normalize, so only this single loopback entry ever appears.
@@ -273,7 +277,6 @@ class LaravelEndpointManager:
     # ----------------------------------------------------------------- #
     # Probing                                                            #
     # ----------------------------------------------------------------- #
-    @serialized_method
     def probe(self, url: str, timeout: Optional[float] = None) -> Dict[str, Any]:
         """Probe ONE endpoint via GET {url}/api/health.
 
@@ -290,7 +293,6 @@ class LaravelEndpointManager:
             self._probe_results[normalized_url] = dict(result)
         return result
 
-    @serialized_method
     def _probe_many(self, urls: List[str]) -> Dict[str, Dict[str, Any]]:
         """Probe several endpoints in PARALLEL (each capped at PROBE_TIMEOUT).
 
@@ -318,7 +320,6 @@ class LaravelEndpointManager:
     # ----------------------------------------------------------------- #
     # Resolution (stored-first -> sweep -> cache)                        #
     # ----------------------------------------------------------------- #
-    @serialized_method
     def resolve(self) -> str:
         """Resolve the Laravel base URL. STORED-FIRST, then sweep, then cache.
 
@@ -329,6 +330,14 @@ class LaravelEndpointManager:
         4. All down: return the stored current (or first candidate) WITHOUT
            caching, so the next call retries (a short negative TTL prevents
            re-sweeping in a tight loop).
+
+        Deliberately NOT a @serialized_method: the probes below can hold for
+        ~30s (stored-first retry + full sweep) against dead endpoints. On the
+        serialized state-owner thread that queued every RPC-facing call
+        (select/list_endpoints/get_active_base_url) behind the sweep, so the
+        pycore-manager endpoint switch timed out and looked stuck. Probes now
+        run on the CALLING thread, single-flight via a THREAD_BUS guard; a
+        concurrent caller degrades to the stored fallback for that round.
         """
         if self._resolved:
             return self._resolved
@@ -341,40 +350,49 @@ class LaravelEndpointManager:
         if time.monotonic() - self._failed_sweep_at < FAILED_SWEEP_TTL:
             return fallback
 
-        # 1) stored-first: try ONLY the persisted choice, with a forgiving budget
-        #    and one retry so a cold-start first hit (worker warm-up ~4-5s) does
-        #    not needlessly fail the happy path and trigger a full LAN sweep.
-        if current:
-            res = {}
-            for attempt in range(STORED_PROBE_RETRIES + 1):
-                res = self.probe(current, timeout=STORED_PROBE_TIMEOUT)
-                if res.get("healthy"):
-                    self._resolved = current
-                    return current
-                if attempt < STORED_PROBE_RETRIES:
-                    ColorPrint.yellow(
-                        f"[LaravelEndpoints] Stored endpoint {current} probe "
-                        f"failed ({res.get('error')}); retrying once (warm-up)")
+        # Single-flight guard: only one thread runs the probe cycle; any
+        # concurrent caller uses the fallback for this round.
+        if THREAD_BUS.get_signal(_RESOLVING_SIGNAL, False):
+            return fallback
+        THREAD_BUS.signal(_RESOLVING_SIGNAL, True)
+        try:
+            # 1) stored-first: try ONLY the persisted choice, with a forgiving
+            #    budget and one retry so a cold-start first hit (worker warm-up
+            #    ~4-5s) does not needlessly fail the happy path and trigger a
+            #    full LAN sweep.
+            if current:
+                res = {}
+                for attempt in range(STORED_PROBE_RETRIES + 1):
+                    res = self.probe(current, timeout=STORED_PROBE_TIMEOUT)
+                    if res.get("healthy"):
+                        self._resolved = current
+                        return current
+                    if attempt < STORED_PROBE_RETRIES:
+                        ColorPrint.yellow(
+                            f"[LaravelEndpoints] Stored endpoint {current} probe "
+                            f"failed ({res.get('error')}); retrying once (warm-up)")
+                ColorPrint.yellow(
+                    f"[LaravelEndpoints] Stored endpoint {current} unhealthy "
+                    f"({res.get('error')}) — sweeping {len(endpoints)} candidate(s)")
+
+            # 2) full sweep (parallel, ~PROBE_TIMEOUT wall time); first healthy in order wins.
+            sweep = self._probe_many(endpoints)
+            winner = next((u for u in endpoints if sweep.get(u, {}).get("healthy")), None)
+            if winner:
+                self._resolved = winner
+                if winner != current:
+                    self._save(endpoints, winner)
+                    ColorPrint.green(f"[LaravelEndpoints] Switched to {winner} (persisted)")
+                return winner
+
+            # 3) nothing healthy — degrade to the stored/first candidate, uncached.
+            self._failed_sweep_at = time.monotonic()
             ColorPrint.yellow(
-                f"[LaravelEndpoints] Stored endpoint {current} unhealthy "
-                f"({res.get('error')}) — sweeping {len(endpoints)} candidate(s)")
-
-        # 2) full sweep (parallel, ~PROBE_TIMEOUT wall time); first healthy in order wins.
-        sweep = self._probe_many(endpoints)
-        winner = next((u for u in endpoints if sweep.get(u, {}).get("healthy")), None)
-        if winner:
-            self._resolved = winner
-            if winner != current:
-                self._save(endpoints, winner)
-                ColorPrint.green(f"[LaravelEndpoints] Switched to {winner} (persisted)")
-            return winner
-
-        # 3) nothing healthy — degrade to the stored/first candidate, uncached.
-        self._failed_sweep_at = time.monotonic()
-        ColorPrint.yellow(
-            f"[LaravelEndpoints] No healthy Laravel endpoint among "
-            f"{len(endpoints)} candidate(s); falling back to {fallback}")
-        return fallback
+                f"[LaravelEndpoints] No healthy Laravel endpoint among "
+                f"{len(endpoints)} candidate(s); falling back to {fallback}")
+            return fallback
+        finally:
+            THREAD_BUS.clear_signal(_RESOLVING_SIGNAL)
 
     @serialized_method
     def peek_stored_base_url(self) -> str:
@@ -395,13 +413,16 @@ class LaravelEndpointManager:
             return self._resolved
         return self.peek_stored_base_url()
 
-    @serialized_method
     def resolve_for_ui(self, *, skip_probe: bool = False) -> str:
         """Fast resolve for hot HTTP paths — no parallel sweep, no warm-up retry.
 
         When ``skip_probe`` is True (monitor already knows Laravel is down),
         returns the stored URL immediately. Otherwise probes ONLY the stored
         endpoint once with a short timeout.
+
+        Deliberately NOT a @serialized_method (same rationale as resolve): its
+        single bounded probe must never queue behind other work on the state
+        owner. peek_stored_base_url() stays serialized and is network-free.
         """
         if self._resolved:
             return self._resolved
