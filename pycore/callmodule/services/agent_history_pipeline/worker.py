@@ -2,9 +2,9 @@
 import base64
 import time
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.callmodule.services.operation_service import OperationService
 from pycore.callmodule.services.operation_event_service import OperationEventService
@@ -74,6 +74,13 @@ def start_backfill() -> Dict[str, Any]:
             items_data=items,
             initial_message=f"Pipeline restarted: backfill ({pending} fragments pending, {len(items)} batches planned)",
         )
+        OperationEventService().log_event(
+            op.id,
+            "info",
+            "operation.startup",
+            f"Accepted backfill with {len(items)} planned items ({pending} fragments pending)",
+            None,
+        )
         
         return {
             "started": True,
@@ -83,6 +90,25 @@ def start_backfill() -> Dict[str, Any]:
         }
     finally:
         _release_run(token)
+
+def recover_nonterminal_operations() -> Dict[str, Any]:
+    """Mark interrupted agent-history operations for UI recovery after restart."""
+    op_service = OperationService()
+    event_service = OperationEventService()
+    recovered: List[str] = []
+    for op in op_service.repo.list_nonterminal_operations(limit=50):
+        if not str(op.kind).startswith("agent_history"):
+            continue
+        event_service.log_event(
+            op.id,
+            "info",
+            "operation.recovery",
+            f"Recovered non-terminal operation {op.kind} at stage {op.stage}",
+            None,
+        )
+        recovered.append(op.id)
+    return {"recovered": recovered, "count": len(recovered)}
+
 
 def tick_pipeline() -> None:
     """Process one stage of one item per heartbeat."""
@@ -101,10 +127,29 @@ def tick_pipeline() -> None:
     try:
         op_service = OperationService()
         event_service = OperationEventService()
-        
-        # Find active operation
-        # In a real implementation, we'd query the DB for the active operation.
-        # For now, we'll just plan a new batch if needed.
+
+        active_ops = [
+            op for op in op_service.repo.list_nonterminal_operations(limit=10)
+            if str(op.kind).startswith("agent_history")
+        ]
+        if active_ops:
+            op = active_ops[0]
+            items = op_service.get_operation_items(op.id)
+            pending_items = [item for item in items if item.status not in ("succeeded", "failed", "skipped", "cancelled")]
+            if pending_items:
+                item = pending_items[0]
+                try:
+                    _process_item(item, op_service, event_service)
+                except Exception as e:
+                    err = str(e)
+                    op_service.transition_item(
+                        item.id,
+                        status="failed",
+                        stage=item.stage,
+                        error_json={"message": err},
+                        message=f"Item failed: {err}",
+                    )
+                return
         
         items, pending = plan_batches(live=(phase == "live"))
         if not items:
@@ -116,6 +161,13 @@ def tick_pipeline() -> None:
             scope="agent_history",
             items_data=[items[0]],
             initial_message=f"Processing batch: {items[0]['word_count']} words",
+        )
+        event_service.log_event(
+            op.id,
+            "info",
+            "operation.startup",
+            f"Planned 1 item from {pending} pending fragments",
+            None,
         )
         
         item = op_service.get_operation_items(op.id)[0]

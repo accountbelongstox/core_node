@@ -13,7 +13,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import sqlite3
 from glob import glob
 from typing import Any, Dict, List, Optional
 
@@ -207,16 +206,16 @@ class CursorExtractor(BaseExtractor):
     def _read_item_table(self, db_path: str) -> Dict[str, str]:
         rows: Dict[str, str] = {}
         try:
-            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-            conn.execute("PRAGMA query_only = 1")
-            cur = conn.execute(
-                "SELECT key, value FROM ItemTable WHERE key LIKE '%chat%' "
-                "OR key LIKE '%composer%' OR key LIKE '%aiService%' OR key LIKE '%cursor%'"
-            )
-            for key, value in cur.fetchall():
-                rows[str(key)] = str(value)
-            conn.close()
-        except sqlite3.Error:
+            from pycore.database.adapters.sqlite_readonly import open_readonly_db
+
+            with open_readonly_db(db_path) as conn:
+                cur = conn.execute(
+                    "SELECT key, value FROM ItemTable WHERE key LIKE '%chat%' "
+                    "OR key LIKE '%composer%' OR key LIKE '%aiService%' OR key LIKE '%cursor%'"
+                )
+                for key, value in cur.fetchall():
+                    rows[str(key)] = str(value)
+        except Exception:
             return {}
         return rows
 

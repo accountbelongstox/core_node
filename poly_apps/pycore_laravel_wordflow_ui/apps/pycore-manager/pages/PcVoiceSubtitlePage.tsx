@@ -32,6 +32,7 @@ import { usePycoreCapability } from '../../../core/api-libs/pycore';
 import { fetchPycoreBlobUrl } from '../../../core/api-libs/pycore/PycoreBlob';
 import { pycoreEventBus } from '../../../core/api-libs/pycore/PycoreEventBus';
 import { PcPipelineStatusPanels } from '../components/PcPipelineStatusPanels';
+import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
 
 const CATEGORY_CLS: Record<string, string> = {
   Voice: 'bg-blue-500/15 text-blue-500',
@@ -154,11 +155,7 @@ const PcVoiceSubtitlePage: React.FC = () => {
 
   useEffect(() => { fetchQueue(); fetchMonitors(); }, [fetchQueue, fetchMonitors]);
 
-  // Keep monitor switches in sync with the backend.
-  useEffect(() => {
-    const id = window.setInterval(() => { fetchMonitors(); }, 20000);
-    return () => window.clearInterval(id);
-  }, [fetchMonitors]);
+  useTopicDrivenRefresh(['voice_subtitle_queue_update'], fetchMonitors, { fallbackMs: 60_000 });
 
   // Live updates: full snapshot on every queue mutation + per-item playback tick.
   useEffect(() => {

@@ -24,7 +24,6 @@ every lookup returns empty, so callers fall back transparently. Read-only SQLite
 from __future__ import annotations
 
 import os
-import sqlite3
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -34,6 +33,7 @@ from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
 )
+from pycore.database.adapters.sqlite_local import Error as SqliteError, connect_writable
 
 from pathlib import Path
 
@@ -62,7 +62,7 @@ class DictionaryService:
 
     def __init__(self):
         self._db_path = _ecdict_db_path()
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn: Optional[Any] = None
         self._columns: List[str] = []
         self._connect_attempted = False
         # WordNet is optional; resolved on first use.
@@ -78,7 +78,7 @@ class DictionaryService:
     # -------------------- ECDICT --------------------
 
     @serialized_method
-    def _ensure_conn(self) -> Optional[sqlite3.Connection]:
+    def _ensure_conn(self) -> Optional[Any]:
         """Open the read-only ECDICT connection once (None when the DB is absent)."""
         if self._conn is not None:
             return self._conn
@@ -92,7 +92,7 @@ class DictionaryService:
             return None
         try:
             uri = f"file:{self._db_path}?mode=ro"
-            conn = sqlite3.connect(uri, uri=True)
+            conn = connect_writable(uri, timeout=5.0, uri=True)
             cur = conn.execute("PRAGMA table_info(stardict)")
             self._columns = [row[1] for row in cur.fetchall()]
             if "word" not in self._columns:
@@ -101,7 +101,7 @@ class DictionaryService:
                 return None
             self._conn = conn
             ColorPrint.green(f"[dictionary] ECDICT loaded ({self._db_path.name})")
-        except sqlite3.Error as e:
+        except SqliteError as e:
             ColorPrint.yellow(f"[dictionary] ECDICT open failed: {e}")
             return None
         return self._conn
@@ -119,7 +119,7 @@ class DictionaryService:
         try:
             cur = conn.execute(sql, (word.strip(),))
             row = cur.fetchone()
-        except sqlite3.Error as e:
+        except SqliteError as e:
             ColorPrint.yellow(f"[dictionary] ECDICT query failed: {e}")
             return None
         if not row:
@@ -247,7 +247,7 @@ class DictionaryService:
         if conn is not None:
             try:
                 entries = int(conn.execute("SELECT COUNT(*) FROM stardict").fetchone()[0])
-            except sqlite3.Error:
+            except SqliteError:
                 entries = 0
         return {
             "ecdict": {

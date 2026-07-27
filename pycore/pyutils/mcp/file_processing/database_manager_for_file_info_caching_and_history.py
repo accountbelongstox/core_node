@@ -7,13 +7,14 @@ Provides SQLite-based caching and history tracking for processed files
 
 import os
 import json
-import sqlite3
 import hashlib
 import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from contextlib import contextmanager
+
+from pycore.database.adapters.sqlite_local import Row, open_writable_db
 
 from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from pycore.pygvar import PYTOOLS_TMP_DIR
@@ -93,12 +94,8 @@ class DatabaseManagerForFileInfoCachingAndHistory:
     @contextmanager
     def _get_database_connection(self):
         """Context manager for database connections"""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        try:
+        with open_writable_db(self.db_path, row_factory=Row) as conn:
             yield conn
-        finally:
-            conn.close()
 
     async def save_file_info_to_database_with_caching_and_version_tracking(
         self,

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from PIL import Image, ImageDraw
-import pystray as pystray_types
+from __future__ import annotations  # Enable deferred type hint evaluation
+
 from pycore.pyutils.native_ui.step0_i18n import i18n
 """
 Tkinter-based System Tray using pystray
@@ -45,7 +45,6 @@ Usage:
     THREAD_BUS.on('tray_action_open', handle_open)
 """
 
-from __future__ import annotations  # Enable deferred type hint evaluation
 
 import hashlib
 import json
@@ -67,6 +66,8 @@ PYSTRAY_AVAILABLE = pystray is not None
 # Import PIL only if pystray is available
 if PYSTRAY_AVAILABLE:
     try:
+        from PIL import Image, ImageDraw
+        import pystray as pystray_types
     except ImportError:
         PYSTRAY_AVAILABLE = False
         pystray = None
@@ -78,8 +79,7 @@ else:
 
 # Type checking imports (not evaluated at runtime)
 if TYPE_CHECKING and pystray is not None:
-
-
+    pass
 @dataclass
 class TrayMenuItem:
     """

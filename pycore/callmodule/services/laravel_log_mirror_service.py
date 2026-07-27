@@ -6,7 +6,7 @@ import json
 from typing import Any, Dict, Optional
 
 from pycore import ColorPrint
-from pycore.pyfoundations.state_store import StateRepository, RemoteCursor
+from pycore.database import StateRepository, RemoteCursor
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services.sync.laravel_endpoint_manager import resolve_laravel_base_url
 from pycore.pyfoundations.thread_bus import THREAD_BUS
@@ -14,6 +14,8 @@ from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
 )
+from pycore.callmodule.services.operation_service import OperationService
+from pycore.pyutils.rpc_v2.server.rpc_delivery_service import get_rpc_delivery_service
 
 class LaravelLogMirrorService:
     """
@@ -93,12 +95,7 @@ class LaravelLogMirrorService:
                         cursor_obj.snapshot_json["entries"] = all_entries
                         cursor_obj.snapshot_json["source_updated_at"] = data.get("source_updated_at")
                         cursor_obj.revision += 1
-                        
-                        # Notify UI
-                        THREAD_BUS.trigger_event("laravel.logs.changed", {
-                            "source_id": source_id,
-                            "revision": cursor_obj.revision,
-                        })
+                        self._publish_snapshot_updated(source_id, cursor_obj.revision)
 
                     cursor_obj.snapshot_json["stale"] = False
                     cursor_obj.timestamps["last_success_at"] = time.time()
@@ -116,6 +113,42 @@ class LaravelLogMirrorService:
             
         finally:
             self.repo.save_remote_cursor(cursor_obj)
+
+    def _publish_snapshot_updated(self, source_id: str, revision: int) -> None:
+        payload = {"source_id": source_id, "revision": revision, "topic": "laravel.logs.snapshot.updated"}
+        THREAD_BUS.trigger_event("laravel.logs.changed", payload)
+        get_rpc_delivery_service().publish_topic(
+            "laravel.logs.snapshot.updated",
+            payload,
+            audience="*",
+            entity_type="laravel_logs",
+            entity_id=source_id,
+            revision=revision,
+        )
+
+    @serialized_method
+    def refresh_via_operation(self, idempotency_key: Optional[str] = None) -> Dict[str, Any]:
+        """Run a bounded refresh tracked as a V5 operation."""
+        op_svc = OperationService()
+        op = op_svc.create_or_get(
+            kind="laravel_logs_refresh",
+            scope="laravel_logs",
+            idempotency_key=idempotency_key,
+            initial_message="Laravel log refresh accepted",
+        )
+        op_svc.start(op.id, stage="load_cursor", message="Loading cursor")
+        try:
+            self._do_poll()
+            op_svc.complete(op.id, message="Laravel log refresh completed")
+            base_url = resolve_laravel_base_url().rstrip("/")
+            cursor_obj = self.repo.get_remote_cursor("laravel_logs", base_url)
+            revision = cursor_obj.revision if cursor_obj else op.revision
+            if base_url:
+                self._publish_snapshot_updated(base_url, revision)
+            return {"success": True, "operation_id": op.id, "revision": revision}
+        except Exception as exc:
+            op_svc.fail(op.id, {"code": "refresh_failed", "message": str(exc)}, message=str(exc))
+            return {"success": False, "operation_id": op.id, "error": str(exc)}
 
     @serialized_method
     def get_snapshot(self) -> Dict[str, Any]:

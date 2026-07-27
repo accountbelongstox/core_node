@@ -13,6 +13,14 @@ pycore.pyutils.common.hf_local_weights (shared by all neural engines); this
 module binds it to Qwen3-TTS defaults (QWEN3TTS_DIR / "qwen3tts" staging,
 QWEN3TTS_MODEL override, Qwen3-TTS static LFS sizes + docs) and re-exports the
 public API the install scripts already import.
+
+Storage invariant:
+- staging_dir()/weights is the canonical persistent model store.
+- .model_installed records the HF repository stored in that directory.
+- The isolated Python venv contains packages only and may be rebuilt without
+  moving, deleting, or downloading model weights.
+- A QWEN3TTS_MODEL repository id matching the sentinel still resolves to the
+  verified local weights directory, preventing a duplicate HF cache download.
 """
 
 import os
@@ -77,18 +85,32 @@ def local_weights_dir() -> Optional[Path]:
     return _core.local_weights_dir(staging, repo_id or "", _static_sizes(repo_id or ""))
 
 
-def resolve_model_id() -> str:
+def resolve_model_id(allow_remote: bool = True) -> str:
     explicit = (os.environ.get(_QWEN3TTS_MODEL_ENV) or "").strip()
-    if explicit:
-        return explicit
-
     staging = staging_dir()
     repo_id = sentinel_model_id(staging)
     weights = staging / "weights"
+
+    if explicit:
+        try:
+            if Path(explicit).expanduser().is_dir():
+                return explicit
+        except OSError:
+            pass
+        if explicit == (repo_id or "") and local_weights_ready(
+            weights,
+            explicit,
+        ):
+            return str(weights)
+        return explicit if allow_remote else ""
+
     if local_weights_ready(weights, repo_id or ""):
         return str(weights)
     if repo_id:
-        return repo_id
+        return repo_id if allow_remote else ""
+
+    if not allow_remote:
+        return ""
 
     try:
         return runtime_engine_model("qwen3tts")

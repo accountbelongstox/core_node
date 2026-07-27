@@ -75,9 +75,15 @@
             };
             this.ws = null;
             this.connected = false;
+            this._connectResolve = null;
+            this._connectReject = null;
             this.reconnectAttempts = 0;
             this.pending = new Map();
             this.handlers = new Map();
+            this.connectionId = null;
+            this.lastAckedSeq = 0;
+            this.resumeToken = null;
+            this._seenEventIds = new Set();
         }
 
         _urlWithClientId() {
@@ -96,10 +102,17 @@
                 this.ws = socket;
 
                 socket.onopen = () => {
-                    this.connected = true;
                     this.reconnectAttempts = 0;
-                    this._emit(EVENTS.CONNECTION);
-                    resolve();
+                    const hello = {
+                        type: 'hello',
+                        client_id: this.clientId,
+                        last_acked_seq: this.lastAckedSeq,
+                        capabilities: { ack: true, replay: true },
+                    };
+                    if (this.resumeToken) {
+                        hello.resume_token = this.resumeToken;
+                    }
+                    socket.send(JSON.stringify(hello));
                 };
 
                 socket.onmessage = (event) => {
@@ -110,6 +123,9 @@
                         console.error('[FastAPIWsRpcClient] Invalid message', err);
                     }
                 };
+
+                this._connectResolve = resolve;
+                this._connectReject = reject;
 
                 socket.onerror = (err) => {
                     this._emit(EVENTS.ERROR, err);
@@ -133,7 +149,7 @@
                 return Promise.reject(new Error('WebSocket not connected'));
             }
             const requestId = uuid();
-            const payload = { type: 'request', id: requestId, route, params };
+            const payload = { type: 'request', request_id: requestId, id: requestId, route, params };
 
             return new Promise((resolve, reject) => {
                 const timer = setTimeout(() => {
@@ -158,23 +174,87 @@
         }
 
         _handleMessage(message) {
-            if (message.type === 'response' && message.id) {
-                const entry = this.pending.get(message.id);
+            if (message.type === 'welcome') {
+                this.connectionId = message.connection_id || this.connectionId;
+                if (message.resume_token) {
+                    this.resumeToken = message.resume_token;
+                }
+                if (message.highest_contiguous_acked_seq != null) {
+                    this.lastAckedSeq = Math.max(
+                        this.lastAckedSeq,
+                        Number(message.highest_contiguous_acked_seq) || 0
+                    );
+                }
+                this.connected = true;
+                this._emit(EVENTS.CONNECTION);
+                if (this._connectResolve) {
+                    this._connectResolve();
+                    this._connectResolve = null;
+                    this._connectReject = null;
+                }
+                return;
+            }
+            if (message.type === 'ack_confirmation' && message.success) {
+                if (message.highest_contiguous_acked_seq != null) {
+                    this.lastAckedSeq = Math.max(
+                        this.lastAckedSeq,
+                        Number(message.highest_contiguous_acked_seq) || 0
+                    );
+                }
+                return;
+            }
+            if (message.type === 'server_event') {
+                const eventId = message.event_id;
+                if (eventId && this._seenEventIds.has(eventId)) {
+                    if (message.requires_ack) {
+                        this._sendDurableAck(message);
+                    }
+                    return;
+                }
+                if (eventId) {
+                    this._seenEventIds.add(eventId);
+                    if (this._seenEventIds.size > 512) {
+                        this._seenEventIds.clear();
+                        this._seenEventIds.add(eventId);
+                    }
+                }
+                this._emit('server_event', message);
+                this._emit('event', message);
+                if (message.requires_ack) {
+                    this._sendDurableAck(message);
+                }
+                return;
+            }
+            const responseId = message.request_id || message.id;
+            if (message.type === 'response' && responseId) {
+                const entry = this.pending.get(responseId);
                 if (entry) {
                     clearTimeout(entry.timer);
-                    this.pending.delete(message.id);
+                    this.pending.delete(responseId);
                     if (message.error) {
                         entry.reject(new Error(message.error));
                     } else {
                         entry.resolve(message.result);
                     }
                     if (message.requires_ack) {
-                        this._sendAck(message.id);
+                        this._sendAck(responseId);
                     }
                 }
             } else if (message.type === 'event') {
                 this._emit('event', message);
             }
+        }
+
+        _sendDurableAck(msg) {
+            if (!this.ws) return;
+            this.ws.send(JSON.stringify({
+                type: 'ack',
+                client_id: this.clientId,
+                connection_id: this.connectionId || msg.connection_id,
+                event_id: msg.event_id,
+                seq: msg.seq,
+                id: msg.event_id,
+            }));
         }
 
         _sendAck(requestId) {

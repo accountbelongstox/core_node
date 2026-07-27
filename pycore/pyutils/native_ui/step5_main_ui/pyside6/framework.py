@@ -42,6 +42,7 @@ from PySide6.QtGui import QIcon
 from pycore import THREAD_BUS, ColorPrint
 
 if TYPE_CHECKING:
+    pass
 
 # Import PySide6 components
 from .config import PySide6UIConfig, StartupWindowConfig, ActionType
@@ -267,6 +268,11 @@ class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
         else:
             ColorPrint.yellow("[PySide6Framework] show_on_start=False, window will NOT be shown automatically")
             ColorPrint.yellow("[PySide6Framework] Use tray menu 'Toggle Voice Subtitle' to show window")
+            ColorPrint.blue("[PySide6Framework] Pre-warming hidden main window and WebEngine compositor")
+            self.main_window.show()
+            self.qt_app.processEvents()
+            self.main_window.hide()
+            ColorPrint.green("[PySide6Framework] Hidden window pre-warm complete")
 
         # Start tick timer if enabled
         if self.config.enable_tick_timer:

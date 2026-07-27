@@ -17,7 +17,7 @@ from pycore.pyctl.agent_history.agent_history_service import get_agent_history_s
 import pycore.callmodule.services.agent_history_article_records as records
 from pycore.callmodule.services.agent_history_tick_service import get_agent_history_tick_service
 from pycore.callmodule.services.agent_history_pipeline.config import get_config, save_config, get_status as get_pipeline_status, list_articles
-from pycore.callmodule.services.agent_history_pipeline.worker import start_backfill
+from pycore.callmodule.services.agent_history_pipeline.worker import start_backfill, recover_nonterminal_operations
 from pycore.callmodule.services.heartbeat_agent_history import set_agent_history_callbacks_enabled
 from pycore.callmodule.rpc_routes.route_names import (
     UI_AGENT_HISTORY_INDEX,
@@ -49,6 +49,10 @@ async def _run(fn, *args, **kwargs):
 
 def register_local_agent_history_routes(server):
     """Register WS RPC handlers."""
+    try:
+        recover_nonterminal_operations()
+    except Exception as exc:
+        ColorPrint.yellow(f"[AgentHistory] recovery skipped: {exc}")
 
     async def index_handler(params, request_id, context):
         data = await _run(get_agent_history_service().read_index)

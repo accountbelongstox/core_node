@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import tkinter
-from pycore.callmodule.tray_codesync_cache import get_tray_codesync_state
 """
 LauncherConfig Builder for Pycore Module Caller
 
@@ -59,26 +58,7 @@ IS_LINUX = platform.system() == 'Linux'
 # Desired main-window size for the new desktop-manager UI. Clamped to the screen
 # (minus a margin) when the display is too small to fit it.
 UI_DESIRED_WINDOW_SIZE = (1788, 1159)
-_TRAY_MENU_SIGNATURE = {'value': None}
 
-
-def _menu_signature(menu_items: list) -> str:
-    """Create a stable signature for tray menu payloads."""
-    try:
-
-        payload = {
-            "menu": menu_items,
-            "codesync": get_tray_codesync_state(),
-        }
-        encoded = json.dumps(
-            payload,
-            sort_keys=True,
-            ensure_ascii=False,
-            default=str,
-        ).encode("utf-8")
-        return hashlib.md5(encoded).hexdigest()
-    except Exception:
-        return hashlib.md5(str(menu_items).encode("utf-8")).hexdigest()
 
 
 def _get_screen_size():
@@ -427,48 +407,3 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
     return config
 
 
-def update_tray_menu_with_singleton(launcher, port: int, singleton_port: int):
-    """
-    Update tray menu with singleton port info.
-
-    Emits a 'tray.update_menu' event (canonical dict menu) that the native Qt
-    tray (PySide6 framework) listens for and rebuilds in the Qt main thread.
-
-    Args:
-        launcher: ServiceLauncher instance (unused; kept for call-site compatibility)
-        port: RPC v2 server port
-        singleton_port: Singleton port
-    """
-    # All tray backends (Win32, AppIndicator, pystray, PySide6 Qt) listen for
-    # 'tray.update_menu' and rebuild live - including on Linux - so this re-push
-    # refreshes the service-toggle [X]/[ ] state after a toggle and re-translates
-    # the menu after a language change on every platform.
-
-    # Backend-aware payload: the pystray tray consumes TrayMenuItem objects, while
-    # the PySide6 Qt tray consumes canonical dicts. Both listen to 'tray.update_menu'
-    # but only one backend runs at a time (selected by TRAY_BACKEND).
-    menu = build_tray_menu(port=port, singleton_port=singleton_port)
-    if CallmoduleConfig.UI_ENABLE_TRAY:
-        payload = tray_menu_to_dicts(menu)  # PySide6 Qt tray
-    else:
-        payload = menu  # native pystray tray (TrayMenuItem objects)
-
-    signature = _menu_signature(payload)
-    THREAD_BUS.signal(
-        'tray.menu.payload',
-        {
-            'menu_items': payload,
-            'signature': signature,
-            'backend_pyside': CallmoduleConfig.UI_ENABLE_TRAY,
-        }
-    )
-
-    if _TRAY_MENU_SIGNATURE['value'] == signature:
-        ColorPrint.blue("[ConfigBuilder] Tray menu unchanged; skip menu update event")
-        return
-
-    _TRAY_MENU_SIGNATURE['value'] = signature
-
-    # Use THREAD_BUS event to update menu (thread-safe; framework marshals to Qt thread)
-    THREAD_BUS.trigger_event('tray.update_menu', {'menu_items': payload})
-    ColorPrint.blue("[ConfigBuilder] Tray menu update requested via THREAD_BUS")

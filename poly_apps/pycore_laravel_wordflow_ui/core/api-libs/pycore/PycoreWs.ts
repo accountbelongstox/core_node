@@ -112,8 +112,32 @@ function withClientId(base: string): string {
   return base + (base.includes('?') ? '&' : '?') + 'client_id=' + encodeURIComponent(getClientId());
 }
 
+const RESUME_TOKEN_KEY = 'pycore_ws_resume_token';
+
+function getResumeToken(): string | null {
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      return sessionStorage.getItem(RESUME_TOKEN_KEY);
+    }
+  } catch { /* blocked */ }
+  return null;
+}
+
+function setResumeToken(token: string | null | undefined): void {
+  if (!token) return;
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(RESUME_TOKEN_KEY, String(token));
+    }
+  } catch { /* blocked */ }
+}
+
 let socket: WebSocket | null = null;
 let connected = false;
+let connectionId: string | null = null;
+let lastAckedSeq = 0;
+const processedServerEvents = new Set<string>();
+const MAX_PROCESSED_SERVER_EVENTS = 512;
 let started = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
@@ -200,8 +224,8 @@ function rejectAllPending(reason: string): void {
 
 function settlePendingCall(msg: any): boolean {
   // Returns true when the frame belonged to a pending native call.
-  if (!msg.id || (msg.type !== 'response' && msg.type !== 'error')) return false;
-  const eventId = msg.event_id || msg.id;
+  const eventId = msg.request_id || msg.event_id || msg.id;
+  if (!eventId || (msg.type !== 'response' && msg.type !== 'error')) return false;
   const entry = pendingCalls.get(eventId);
   if (!entry) return false;
   pendingCalls.delete(eventId);
@@ -252,6 +276,7 @@ function nativeCall(method: string, params: any, timeoutMs?: number): Promise<an
   const now = Date.now();
   const frame = {
     type: 'request' as const,
+    request_id: id,
     id,
     event_id: id,
     client_id: getClientId(),
@@ -320,14 +345,49 @@ function dispatch(event: string, data: any) {
   });
 }
 
-// When SSE is the broadcast-event source, the WS onmessage path stops
-// dispatching {type:'event'} frames to avoid DUPLICATE delivery. Defaults to
-// false so events still flow over WS as a graceful fallback if SSE never
-// connects. PycoreSse flips this via setSseEventsActive() once its stream opens.
+// Durable topics use WebSocket server_event + ACK; SSE remains compatibility-only
+// for legacy THREAD_BUS broadcast frames (pycore_log, etc.).
+const DURABLE_WS_TOPICS = new Set(['operation.changed', 'queue.overview.changed', 'queue.priority.changed']);
+
+function sendServerEventAck(msg: any): void {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  const eventId = String(msg.event_id || '');
+  const seq = Number(msg.seq || 0);
+  if (!eventId || !seq) return;
+  socket.send(JSON.stringify({
+    type: 'ack',
+    client_id: getClientId(),
+    connection_id: connectionId,
+    event_id: eventId,
+    seq,
+  }));
+}
+
+function handleServerEvent(msg: any): void {
+  const eventId = String(msg.event_id || '');
+  if (eventId) {
+    if (processedServerEvents.has(eventId)) {
+      if (msg.requires_ack) sendServerEventAck(msg);
+      return;
+    }
+    processedServerEvents.add(eventId);
+    if (processedServerEvents.size > MAX_PROCESSED_SERVER_EVENTS) {
+      const drop = processedServerEvents.values().next().value;
+      if (drop) processedServerEvents.delete(drop);
+    }
+  }
+  const topic = String(msg.topic || '');
+  const payload = msg.payload ?? {};
+  if (topic) {
+    dispatch(topic, payload);
+  }
+  if (msg.requires_ack) sendServerEventAck(msg);
+}
+
 let sseEventsActive = false;
 
-/** Called by PycoreSse to take over (true) / release (false) broadcast-event
- *  dispatch from the WS path. RPC request/response on WS is unaffected. */
+/** Called by PycoreSse to take over (true) / release (false) legacy broadcast-event
+ *  dispatch from the WS path. Durable server_event topics always use WS. */
 export function setSseEventsActive(active: boolean): void {
   sseEventsActive = active;
 }
@@ -435,12 +495,19 @@ function openSocket() {
   socket = ws;
 
   ws.onopen = () => {
-    // Transport upgrade only — wait for welcome before setConnected / flush.
     reconnectAttempts = 0;
     reconnectDelayMs = RECONNECT_MIN_MS;
     unreachableHintLogged = false;
-    diag('info', `socket open as client_id=${getClientId()} — awaiting welcome`);
-    if (_wsLogEnabled) console.log(`%c[WS] %cOPEN %cclient_id=${getClientId()} (awaiting welcome)`,
+    diag('info', `socket open as client_id=${getClientId()} — sending hello`);
+    ws.send(JSON.stringify({
+      type: 'hello',
+      protocol_version: 2,
+      client_id: getClientId(),
+      resume_token: getResumeToken(),
+      last_acked_seq: lastAckedSeq,
+      capabilities: { ack: true, replay: true },
+    }));
+    if (_wsLogEnabled) console.log(`%c[WS] %cOPEN %cclient_id=${getClientId()} (hello sent)`,
       'color:#66bb6a', 'color:#4fc3f7;font-weight:bold', 'color:#888');
   };
 
@@ -450,6 +517,11 @@ function openSocket() {
     try { msg = JSON.parse(ev.data); } catch { return; }
     if (!msg || typeof msg !== 'object') return;
     if (msg.type === 'welcome') {
+      connectionId = msg.connection_id ? String(msg.connection_id) : null;
+      setResumeToken(msg.resume_token);
+      if (msg.highest_contiguous_acked_seq != null) {
+        lastAckedSeq = Math.max(lastAckedSeq, Number(msg.highest_contiguous_acked_seq) || 0);
+      }
       diag('info', `welcome received for client_id=${msg.client_id || getClientId()}`);
       setConnected(true);
       pendingCalls.forEach((entry) => {
@@ -457,6 +529,17 @@ function openSocket() {
         entry.sent = false;
         sendPendingCall(entry);
       });
+      return;
+    }
+    if (msg.type === 'ack_confirmation' && msg.success) {
+      if (msg.highest_contiguous_acked_seq != null) {
+        lastAckedSeq = Math.max(lastAckedSeq, Number(msg.highest_contiguous_acked_seq) || 0);
+      }
+      return;
+    }
+    if (msg.type === 'server_event') {
+      wsLog('<<<', `server_event:${msg.topic || '?'}`, msg.payload ?? {}, msg.event_id);
+      handleServerEvent(msg);
       return;
     }
     // Request/response frames for native callRpc (response/error with our id).
@@ -490,9 +573,9 @@ function openSocket() {
     // Broadcast events from server.
     if (msg.type === 'event' && typeof msg.event === 'string') {
       wsLog('<<<', `event:${msg.event}`, msg.data ?? {});
-      // Strict standard: SSE is the ONLY broadcast transport. Ignore WS
-      // broadcast frames entirely to avoid WS/SSE competition and non-replayable
-      // event gaps.
+      if (!sseEventsActive || DURABLE_WS_TOPICS.has(msg.event)) {
+        dispatch(msg.event, msg.data ?? {});
+      }
       return;
     }
     // Unrecognised frame.

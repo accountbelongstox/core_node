@@ -1,126 +1,68 @@
 # -*- coding: utf-8 -*-
-# Documentation: ../py_auto/DEVELOPMENT_GUIDE.md
-"""
-Main package file for pytools.
-"""
+"""Pycore package facade with side-effect-free compatibility exports."""
 
-from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
+from importlib import import_module
+from typing import Dict, Tuple
 
 
-# Convenience function to get GPU info from cache
+__version__ = "1.0.0"
+
+_EXPORTS: Dict[str, Tuple[str, str]] = {
+    "ColorPrint": ("pycore.pyfoundations", "ColorPrint"),
+    "ENCYCLOPEDIA": ("pycore.pyfoundations", "ENCYCLOPEDIA"),
+    "EventBus": ("pycore.pyfoundations", "EventBus"),
+    "EventTypes": ("pycore.pyfoundations", "EventTypes"),
+    "Event": ("pycore.pyfoundations", "Event"),
+    "UserDataStore": ("pycore.pyfoundations", "UserDataStore"),
+    "get_user_data_store": ("pycore.pyfoundations", "get_user_data_store"),
+    "GlobalVarManager": ("pycore.pygvar", "GlobalVarManager"),
+    "THREAD_BUS": ("pycore.pyfoundations", "THREAD_BUS"),
+    "AndroidDevice": ("pycore.pyutils.device", "AndroidDevice"),
+    "ScrcpyDevice": ("pycore.pyutils.device", "ScrcpyDevice"),
+    "DeviceInfo": ("pycore.pyutils.device", "DeviceInfo"),
+    "ServerParams": ("pycore.pyutils.device", "ServerParams"),
+    "VideoCodec": ("pycore.pyutils.device", "VideoCodec"),
+    "ADBManager": ("pycore.pyutils.device", "ADBManager"),
+    "ADBDevice": ("pycore.pyutils.device", "ADBDevice"),
+    "DeviceManager": ("pycore.pyutils", "DeviceManager"),
+    "DeviceState": ("pycore.pyutils", "DeviceState"),
+    "TouchEvent": ("pycore.pyutils", "TouchEvent"),
+    "KeyEvent": ("pycore.pyutils", "KeyEvent"),
+    "MessageBuilder": ("pycore.pyutils", "MessageBuilder"),
+    "GroupController": ("pycore.pyutils", "GroupController"),
+    "AllSyncStrategy": ("pycore.pyutils", "AllSyncStrategy"),
+    "TouchOnlySyncStrategy": ("pycore.pyutils", "TouchOnlySyncStrategy"),
+    "H264Decoder": ("pycore.pyutils", "H264Decoder"),
+    "FMP4Encoder": ("pycore.pyutils", "FMP4Encoder"),
+    "VideoFrame": ("pycore.pyutils", "VideoFrame"),
+    "VideoFormat": ("pycore.pyutils", "VideoFormat"),
+    "VideoStreamHandler": ("pycore.pyutils", "VideoStreamHandler"),
+    "H264Config": ("pycore.pyutils", "H264Config"),
+    "FMP4EncoderComplete": ("pycore.pyutils", "FMP4EncoderComplete"),
+    "H264Frame": ("pycore.pyutils", "H264Frame"),
+    "WebSocketManager": ("pycore.pyutils", "WebSocketManager"),
+}
+
+__all__ = ["get_gpu_info", *_EXPORTS]
+
+
 def get_gpu_info():
-    """
-    Get cached GPU information
-
-    Returns:
-        dict: GPU information or None if not available
-    """
-    return ENCYCLOPEDIA.get("pycore_gpu_info")
+    """Return cached GPU information without initializing unrelated features."""
+    encyclopedia_module = import_module(
+        "pycore.pyfoundations.pybasecommon.encyclopedia"
+    )
+    return encyclopedia_module.ENCYCLOPEDIA.get("pycore_gpu_info")
 
 
-# ============================================================================
-# Convenient Top-Level Exports
-# ============================================================================
+def __getattr__(name: str):
+    export = _EXPORTS.get(name)
+    if export is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attribute_name = export
+    value = getattr(import_module(module_name), attribute_name)
+    globals()[name] = value
+    return value
 
-# Foundation components
-from pycore.pyfoundations import (
-    ColorPrint,
-    ENCYCLOPEDIA,
-    EventBus,
-    EventTypes,
-    Event,
-    UserDataStore,
-    get_user_data_store,
-)
 
-# Global variable manager (now in pygvar)
-from pycore.pygvar import GlobalVarManager
-
-# Thread communication bus
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-
-# Device structures and ADB utilities (unified in pyutils.device)
-from pycore.pyutils.device import (
-    AndroidDevice,
-    ScrcpyDevice,
-    DeviceInfo,
-    ServerParams,
-    VideoCodec,
-    ADBManager,
-    ADBDevice,
-)
-
-# Utility components
-from pycore.pyutils import (
-    DeviceManager,
-    DeviceState,
-    TouchEvent,
-    KeyEvent,
-    MessageBuilder,
-    GroupController,
-    AllSyncStrategy,
-    TouchOnlySyncStrategy,
-    H264Decoder,
-    FMP4Encoder,
-    VideoFrame,
-    VideoFormat,
-    VideoStreamHandler,
-    H264Config,
-    FMP4EncoderComplete,
-    H264Frame,
-    WebSocketManager,
-)
-
-__version__ = '1.0.0'
-
-__all__ = [
-    # Dependency management
-    'get_gpu_info',
-
-    # Foundation
-    'ColorPrint',
-    'ENCYCLOPEDIA',
-    'EventBus',
-    'EventTypes',
-    'Event',
-    'UserDataStore',
-    'get_user_data_store',
-    'GlobalVarManager',
-    'THREAD_BUS',
-
-    # Device structures
-    'AndroidDevice',
-    'ScrcpyDevice',
-    'DeviceInfo',
-    'ServerParams',
-    'VideoCodec',
-
-    # Device management
-    'DeviceManager',
-    'DeviceState',
-
-    # ADB
-    'ADBManager',
-    'ADBDevice',
-
-    # Control
-    'TouchEvent',
-    'KeyEvent',
-    'MessageBuilder',
-
-    # Group control
-    'GroupController',
-    'AllSyncStrategy',
-    'TouchOnlySyncStrategy',
-
-    # Streaming
-    'H264Decoder',
-    'FMP4Encoder',
-    'FMP4EncoderComplete',
-    'H264Frame',
-    'VideoFrame',
-    'VideoFormat',
-    'VideoStreamHandler',
-    'H264Config',
-    'WebSocketManager',
-]
+def __dir__():
+    return sorted(set(globals()) | set(__all__))

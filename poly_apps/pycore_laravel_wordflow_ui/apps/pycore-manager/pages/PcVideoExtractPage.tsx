@@ -29,6 +29,7 @@ import { WF_SUPPORTED_LANGUAGES } from '../../../core/api-libs/wordflow/wordflow
 import { usePcVideoExtract } from '../PcVideoExtractContext';
 import type { SegWithFull, VeFlowStep } from '../PcVideoExtractContext';
 import PcLaravelMediaPanel from '../components/PcLaravelMediaPanel';
+import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
 
 // Flow-step status → badge color + short label for the "处理流程 / Flow" panel.
 const FLOW_STATUS: Record<string, { dot: string; text: string; label: string }> = {
@@ -195,7 +196,16 @@ const PcVideoExtractPage: React.FC = () => {
 
   // --- live system resources --------------------------------------------- #
   const [resources, setResources] = useState<SystemResources | null>(null);
-  const resPollRef = useRef<number | null>(null);
+
+  const refreshResources = useCallback(() => {
+    pycoreApi.getSystemResources()
+      .then((r) => {
+        if (r && typeof r.cpu_percent === 'number' && r.mem) {
+          setResources({ cpu_percent: r.cpu_percent, mem: r.mem, gpus: r.gpus || [] });
+        }
+      })
+      .catch(() => { /* not ready */ });
+  }, []);
 
   // --- ws status (live log lives in the global PcFloatingLog) ------------- #
   const [wsConnected, setWsConnected] = useState(false);
@@ -270,9 +280,12 @@ const PcVideoExtractPage: React.FC = () => {
     return () => { offStatus(); };
   }, []);
 
-  useEffect(() => () => {
-    if (resPollRef.current) clearInterval(resPollRef.current);
-  }, []);
+  useEffect(() => { refreshResources(); }, [refreshResources]);
+  useTopicDrivenRefresh(
+    ['video_extract_sync', 'operation.changed'],
+    refreshResources,
+    { fallbackMs: 30_000 },
+  );
 
   // Reset the click-to-highlight selection whenever the current file (and thus
   // its segments dir) changes. The mapping data itself is fetched/polled by the
@@ -281,22 +294,6 @@ const PcVideoExtractPage: React.FC = () => {
     setSelectedSub(null);
     setSelectedSubSeg(null);
   }, [segmentsDir]);
-
-  // Poll live system resources (~1.5s) while mounted.
-  useEffect(() => {
-    const tick = () => {
-      pycoreApi.getSystemResources()
-        .then((r) => {
-          if (r && typeof r.cpu_percent === 'number' && r.mem) {
-            setResources({ cpu_percent: r.cpu_percent, mem: r.mem, gpus: r.gpus || [] });
-          }
-        })
-        .catch(() => { /* not ready — retry next tick */ });
-    };
-    tick();
-    resPollRef.current = window.setInterval(tick, 1500);
-    return () => { if (resPollRef.current) clearInterval(resPollRef.current); };
-  }, []);
 
   // Resolve 'auto'/uninstalled model → largest installed concrete model.
   useEffect(() => {

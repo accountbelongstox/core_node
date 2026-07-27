@@ -28,7 +28,7 @@ from typing import Any, Deque, Dict, Optional, Set, Tuple
 
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_fastapi
-from pycore.pyfoundations.state_store import StateRepository, SystemEvent
+from pycore.database import StateRepository, SystemEvent
 from datetime import datetime, timezone
 
 fastapi = get_third_package_fastapi()

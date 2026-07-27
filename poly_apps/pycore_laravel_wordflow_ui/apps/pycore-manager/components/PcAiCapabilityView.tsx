@@ -34,6 +34,7 @@ import { PcRecordsPanel } from './PcRecordsPanel';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
 import { PcCollapse, PcImageLightbox } from './PcAiShared';
 import { usePcTestPopup } from './PcTestPopupContext';
+import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
 
 const LOG_SRC = 'pc-ai-capability';
 
@@ -511,11 +512,15 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshSignal]);
 
-  useEffect(() => {
-    const fast = window.setInterval(() => { fetchResources(); }, 3000);
-    const rates = window.setInterval(() => { void refreshRates(); void mergeKeyStatus(); }, 5000);
-    return () => { window.clearInterval(fast); window.clearInterval(rates); };
-  }, [fetchResources, refreshRates, mergeKeyStatus]);
+  useTopicDrivenRefresh(
+    ['operation.changed'],
+    async () => {
+      fetchResources();
+      await refreshRates();
+      await mergeKeyStatus();
+    },
+    { fallbackMs: 30_000 },
+  );
 
   const toggleSort = useCallback((field: Exclude<ProviderSortField, 'original'>) => {
     setSortField((prev) => {

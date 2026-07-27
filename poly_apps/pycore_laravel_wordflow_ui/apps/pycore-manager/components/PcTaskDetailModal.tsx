@@ -6,7 +6,7 @@
  *   - PcGlobalTaskDetailModal — Laravel global_tasks rows (Translation Queue tab)
  *   - PcQueueItemDetailModal  — voice-subtitle queue row (Queue Manager tab)
  */
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { XCircle, Loader2, Info } from 'lucide-react';
 import Portal from '../../../components/shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
@@ -23,6 +23,7 @@ import {
 } from '../utils/pcTaskResult';
 import { extractAudioPath, PcTaskAudioPreview } from './PcTaskAudioPreview';
 import { extractEngine, extractSynthCommand, PcTaskSynthInfo } from './PcTaskSynthInfo';
+import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
 
 const PREVIEW_MAX = 4000;
 
@@ -181,24 +182,22 @@ export const PcLocalTaskDetailModal: React.FC<LocalProps> = ({
     setLiveTask(task);
   }, [task]);
 
-  useEffect(() => {
-    if (!liveTask || liveTask.status !== 'processing') return undefined;
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const r = await pycoreApi.getLocalTaskDetail(liveTask.task_id);
-        if (!cancelled && r?.success && r.task) setLiveTask(r.task);
-      } catch {
-        // keep last snapshot
-      }
-    };
-    void poll();
-    const timer = window.setInterval(poll, 2000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [liveTask?.task_id, liveTask?.status]);
+  const refreshLiveTask = useCallback(async () => {
+    if (!liveTask || liveTask.status !== 'processing') return;
+    try {
+      const r = await pycoreApi.getLocalTaskDetail(liveTask.task_id);
+      if (r?.success && r.task) setLiveTask(r.task);
+    } catch {
+      // keep last snapshot
+    }
+  }, [liveTask]);
+
+  useEffect(() => { void refreshLiveTask(); }, [refreshLiveTask]);
+  useTopicDrivenRefresh(
+    ['operation.changed'],
+    refreshLiveTask,
+    { fallbackMs: liveTask?.status === 'processing' ? 15_000 : 0, enabled: liveTask?.status === 'processing' },
+  );
 
   if (!liveTask) return null;
   const merged = mergeTaskResultSources(

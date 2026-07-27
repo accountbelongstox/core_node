@@ -1,38 +1,48 @@
-"""
-TTS utility package.
+# -*- coding: utf-8 -*-
+"""TTS utility package with lazy orchestrator compatibility exports."""
 
-  - synthesize    : multi-engine orchestrator. Default priority (local AI first,
-                    azure last): chattts -> cosyvoice -> fishspeech -> qwen3tts
-                    -> bark -> parler -> voxcpm2 -> kokoro -> gptsovits -> f5tts
-                    -> melotts -> sherpa -> edge -> streamelements -> gtts_web
-                    -> azure (override via env TTS_ENGINE_PRIORITY).
-  - tts_status    : engine-availability snapshot for the UI.
-  - tts_orchestrator : module exposing ``synthesize`` for legacy callers.
+from importlib import import_module
+from typing import Dict, Tuple
 
-Library registry + GPU/CPU model tiers: pycore/pyutils/common/capabilities.py
-and pycore/tts_install_assets/tts_model_tiers.py (surfaced in UI Libraries panel).
-"""
 
-from . import tts_orchestrator
-from .tts_orchestrator import (
-    TTS_ENGINE_PRIORITY,
-    best_engine,
-    engine_available,
-    report_tts_engine_startup,
-    synthesize,
-    synthesize_engine,
-    tts_status,
-    tts_test,
-)
+_EXPORTS: Dict[str, Tuple[str, str]] = {
+    "TTS_ENGINE_PRIORITY": (
+        "pycore.pyutils.tts.tts_orchestrator",
+        "TTS_ENGINE_PRIORITY",
+    ),
+    "best_engine": ("pycore.pyutils.tts.tts_orchestrator", "best_engine"),
+    "engine_available": (
+        "pycore.pyutils.tts.tts_orchestrator",
+        "engine_available",
+    ),
+    "report_tts_engine_startup": (
+        "pycore.pyutils.tts.tts_orchestrator",
+        "report_tts_engine_startup",
+    ),
+    "synthesize": ("pycore.pyutils.tts.tts_orchestrator", "synthesize"),
+    "synthesize_engine": (
+        "pycore.pyutils.tts.tts_orchestrator",
+        "synthesize_engine",
+    ),
+    "tts_status": ("pycore.pyutils.tts.tts_orchestrator", "tts_status"),
+    "tts_test": ("pycore.pyutils.tts.tts_orchestrator", "tts_test"),
+}
 
-__all__ = [
-    "TTS_ENGINE_PRIORITY",
-    "best_engine",
-    "engine_available",
-    "report_tts_engine_startup",
-    "synthesize",
-    "synthesize_engine",
-    "tts_status",
-    "tts_test",
-    "tts_orchestrator",
-]
+__all__ = [*_EXPORTS, "tts_orchestrator"]
+
+
+def __getattr__(name: str):
+    if name == "tts_orchestrator":
+        value = import_module("pycore.pyutils.tts.tts_orchestrator")
+    else:
+        export = _EXPORTS.get(name)
+        if export is None:
+            raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+        module_name, attribute_name = export
+        value = getattr(import_module(module_name), attribute_name)
+    globals()[name] = value
+    return value
+
+
+def __dir__():
+    return sorted(set(globals()) | set(__all__))

@@ -19,7 +19,7 @@ Pitfalls encountered during development:
 import os
 import sys
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
-from pycore.pyfoundations.ai_runtime_policy import PADDLE_CPU_PACKAGE
+from pycore.pyfoundations.runtime_abi import PADDLE_CPU_PACKAGE
 import time
 import json
 from pathlib import Path

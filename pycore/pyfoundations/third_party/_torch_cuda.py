@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import torch
 """
 Torch CUDA wheel resolution + CPU/GPU build guards.
 
@@ -20,7 +19,7 @@ from typing import Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
-from pycore.pyfoundations.ai_runtime_policy import (
+from pycore.pyfoundations.runtime_abi import (
     TORCH_INDEX_BASE,
     cuda_tier_by_tag,
     cuda_tier_for_driver,
@@ -37,6 +36,7 @@ from ._pip_runner import (
 )
 
 try:
+    import torch
 except Exception:  # The installed binary may fail to load; startup must not reinstall it.
     torch = None
 

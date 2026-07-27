@@ -6,7 +6,7 @@ import os
 import platform
 from typing import Optional
 
-from pycore.pyfoundations.ai_runtime_policy import CUDA_TIERS, TORCH_CPU_INDEX
+from pycore.pyfoundations.runtime_abi import CUDA_TIERS, TORCH_CPU_INDEX
 from pycore.pyfoundations.python_package_policy import (
     DEPENDENCY_MAP,
     GUI_ONLY_IMPORTS,

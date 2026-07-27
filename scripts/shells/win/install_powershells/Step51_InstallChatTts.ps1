@@ -89,6 +89,10 @@ if (-not $resolvedPython) {
 }
 $chatPolicy = Get-TtsEngineInstallPolicy -PythonExe $resolvedPython -Engine 'chattts'
 if ($chatPolicy) { $chatPackages = @($chatPolicy.packages) }
+if (-not $chatPolicy -or $chatPackages.Count -eq 0) {
+    Write-Host "$SCRIPT_INDEX [!] ChatTTS runtime policy is unavailable or has no dependency plan; pip was not invoked." -ForegroundColor DarkYellow
+    return
+}
 
 New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 if (Test-Path $apiServerSrc) {

@@ -18,7 +18,7 @@ from pycore.pyfoundations.serialized_worker import (
 from pycore.pyfoundations.system_paths import (
     get_edge_tts_voice_cache_dir,
 )
-from pycore.pyfoundations.tts_engine_policy import (
+from pycore.pyutils.tts.engine_policy import (
     TTS_ENGINE_PRIORITY,
     TTS_SENTENCE_PRIORITY,
     TTS_WORD_PRIORITY,

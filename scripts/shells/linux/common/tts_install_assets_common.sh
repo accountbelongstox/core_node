@@ -49,7 +49,7 @@ tts_idempotent_msg() {
 tts_runtime_policy_path() {
     local repo_root
     repo_root="$(_core_node_repo_root_from_tts_common)"
-    printf '%s' "$repo_root/pycore/pyfoundations/ai_runtime_policy.py"
+    printf '%s' "$repo_root/pycore/pyutils/python_env/runtime_policy.py"
 }
 
 tts_engine_compatible() {
@@ -57,7 +57,10 @@ tts_engine_compatible() {
     local policy_path python_version result override_name override_python
     policy_path="$(tts_runtime_policy_path)"
     python_version="$("$py" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)"
-    result="$("$py" "$policy_path" compatibility "$engine" --python-version "$python_version" 2>/dev/null)" || return 1
+    if ! result="$("$py" "$policy_path" compatibility "$engine" --python-version "$python_version")"; then
+        echo "$prefix[SKIP] $engine runtime policy failed." >&2
+        return 1
+    fi
     if printf '%s' "$result" | grep -q '"compatible": true'; then
         return 0
     fi
@@ -65,7 +68,10 @@ tts_engine_compatible() {
     override_python="${!override_name:-}"
     if [[ -n "$override_python" && -x "$override_python" ]]; then
         python_version="$("$override_python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)"
-        result="$("$py" "$policy_path" compatibility "$engine" --python-version "$python_version" 2>/dev/null)" || return 1
+        if ! result="$("$py" "$policy_path" compatibility "$engine" --python-version "$python_version")"; then
+            echo "$prefix[SKIP] $engine runtime policy failed for override interpreter." >&2
+            return 1
+        fi
         if printf '%s' "$result" | grep -q '"compatible": true'; then
             return 0
         fi
@@ -77,7 +83,7 @@ tts_engine_compatible() {
 tts_dependency_fingerprint() {
     local py="$1" engine="$2" policy_path
     policy_path="$(tts_runtime_policy_path)"
-    "$py" "$policy_path" fingerprint "$engine" 2>/dev/null
+    "$py" "$policy_path" fingerprint "$engine"
 }
 
 tts_dependency_stamp_matches() {
@@ -92,7 +98,7 @@ tts_dependency_stamp_matches() {
 tts_engine_health_ok() {
     local py="$1" engine="$2" policy_path output
     policy_path="$(tts_runtime_policy_path)"
-    output="$("$py" "$policy_path" health-probe "$engine" 2>/dev/null)"
+    output="$("$py" "$policy_path" health-probe "$engine")"
     [[ "$output" == *"__HEALTH_READY__"* ]]
 }
 
@@ -123,14 +129,14 @@ tts_provision_isolated_venv() {
     PYCORE_ISOLATED_FORCE="$force_value" \
     "$py" -c 'import os, sys
 sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
-from pycore.pyfoundations import isolated_venv
+from pycore.pyutils.python_env import isolated_venv
 isolated_venv.ensure_venv(
     os.environ["PYCORE_ISOLATED_ENGINE"],
     force=os.environ.get("PYCORE_ISOLATED_FORCE") == "1",
 )'
     probe_output="$(PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" "$py" -c 'import os, sys
 sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
-from pycore.pyfoundations import isolated_venv
+from pycore.pyutils.python_env import isolated_venv
 print("__VENV_READY__" if isolated_venv.venv_healthy(os.environ["PYCORE_ISOLATED_ENGINE"]) else "__VENV_NOT_READY__")' 2>/dev/null)"
     [[ "$probe_output" == *"__VENV_READY__"* ]] && TTS_ISOLATED_VENV_READY=1
     :
@@ -143,7 +149,7 @@ tts_resolve_isolated_python() {
     PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" \
     "$py" -c 'import os, sys
 sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
-from pycore.pyfoundations import isolated_venv
+from pycore.pyutils.python_env import isolated_venv
 print(isolated_venv.resolve_python(os.environ["PYCORE_ISOLATED_ENGINE"]) or "")' 2>/dev/null
 }
 

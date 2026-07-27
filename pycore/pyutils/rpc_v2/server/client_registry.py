@@ -53,7 +53,7 @@ class ClientSession:
     user_agent: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-    pending_messages: List[Dict[str, Any]] = field(default_factory=list)
+    pending_messages: List[Dict[str, Any]] = field(default_factory=list)  # connection-local only; durable events use SQLite
 
     # Per-connection send lock: serialises websocket.send_json for this
     # client so concurrent broadcasts + RPC responses never interleave

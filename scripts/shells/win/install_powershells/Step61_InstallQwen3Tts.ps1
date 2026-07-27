@@ -6,8 +6,9 @@
     Bucket B (isolated). qwen-tts owns transformer dependencies that may conflict with the
     main system Python 3.13 shared stack. Therefore qwen-tts
     is NEVER installed into the main interpreter. Instead this step builds the DEDICATED venv
-    via pycore/pyfoundations/isolated_venv.ensure_venv() (created --system-site-packages so it
-    reuses the system CUDA torch while qwen-tts and its pinned dependencies stay isolated).
+    via pycore/pyutils/python_env/isolated_venv.ensure_venv(). The environment is a
+    dedicated dependency overlay: --system-site-packages exposes the managed Python runtime
+    so the CUDA torch group is reused, while qwen-tts owns its local dependency overrides.
     Production runs qwen3tts as a class-C HTTP server under that venv; the main interpreter only
     talks to it over HTTP. Contract:
     development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5.
@@ -47,6 +48,7 @@ $apiServerDst   = $null
 $venvReady      = $false
 $cudaPolicy     = $null
 $soxReady       = $false
+$pythonCommand  = $null
 
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
@@ -59,13 +61,32 @@ $weightsDir = Join-Path $targetDir 'weights'
 $depsSentinel = Join-Path $targetDir '.deps_done'
 $modelSentinel = Join-Path $targetDir '.model_installed'
 
+# Storage ownership invariant:
+# - $targetDir\weights is the only installer-managed Qwen model store.
+# - .model_installed identifies the HF repository stored in weights.
+# - .deps_done describes the package plan only.
+# - D:\.dev_win10\py_venv_qwen3tts_* contains Python packages only.
+# Rebuilding or changing the venv must never delete, move, or redownload
+# complete files under $weightsDir. Install-HfRepoFlat skips verified files and
+# resumes incomplete files in place.
+
 . (Join-Path $winCommonDir 'CudaIndex.ps1')
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
-$resolvedPython = $Global:PYTHON_EXE_PATH
+if ($PSBoundParameters.ContainsKey('Python')) {
+    if ([System.IO.Path]::IsPathRooted($Python)) {
+        $resolvedPython = (Resolve-Path -LiteralPath $Python).Path
+    } else {
+        $pythonCommand = Get-Command -Name $Python -CommandType Application -ErrorAction Stop
+        $resolvedPython = $pythonCommand.Source
+    }
+} else {
+    $resolvedPython = $Global:PYTHON_EXE_PATH
+}
 
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host " $SCRIPT_INDEX Qwen3-TTS (Alibaba qwen-tts)" -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
+Write-Host ("$SCRIPT_INDEX  base python: {0}" -f $resolvedPython) -ForegroundColor DarkGray
 
 if ($env:QWEN3TTS_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] QWEN3TTS_SKIP=1 -> skipping." -ForegroundColor DarkGray
@@ -135,8 +156,9 @@ if (Test-Path $apiServerSrc) {
 
 # --- Isolated venv (Bucket B): qwen-tts owns its transformer dependency set, which is
 #     potentially incompatible with the main interpreter's shared stack, so it is never
-#     installed here. Build the DEDICATED venv (ensure_venv, --system-site-packages
-#     reuses the system CUDA torch) instead. Self-repairing: ensure_venv re-imports
+#     installed here. Build the dedicated dependency overlay (ensure_venv;
+#     --system-site-packages exposes the managed CUDA torch group) instead.
+#     Self-repairing: ensure_venv re-imports
 #     qwen_tts and repairs a broken venv in place. See lifecycle doc §5. --- #
 Write-Host "$SCRIPT_INDEX [..] building/verifying isolated qwen-tts venv (ensure_venv; first build takes minutes) ..." -ForegroundColor Yellow
 $venvReady = Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'qwen3tts' -Force:$Force
@@ -147,7 +169,7 @@ if ($venvReady) {
     if (Test-Path -LiteralPath $depsSentinel) {
         Remove-Item -LiteralPath $depsSentinel -Force -ErrorAction SilentlyContinue
     }
-    Write-Host "$SCRIPT_INDEX [!] venv build incomplete; will retry next run (main interpreter untouched)." -ForegroundColor DarkYellow
+    Write-Host "$SCRIPT_INDEX [!] venv build incomplete; full probe diagnostics were emitted above. Retry once, then use -Force if the same failure repeats (main interpreter untouched)." -ForegroundColor DarkYellow
 }
 
 # --- HF weights (IDEMPOTENT: sentinel + curl resume + HF size verification) --- #

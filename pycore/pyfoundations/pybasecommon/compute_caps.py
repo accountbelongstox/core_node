@@ -36,23 +36,20 @@ from typing import Any, Callable, Dict, Optional, Tuple
 # Intra-pybasecommon imports (allowed: same stdlib-only kernel package).
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
-from pycore.pyfoundations.ai_runtime_policy import ONNXRUNTIME_CUDA_MAJOR
-from pycore.pyfoundations.serialized_worker import SerializedValue
+from pycore.pyfoundations.runtime_abi import ONNXRUNTIME_CUDA_MAJOR
 
-_TORCH_GETTER_STATE = SerializedValue(
-    None,
-    "ComputeTorchGetterStateThread",
-)
+_TORCH_GETTER_STATE: Optional[Callable[[], Any]] = None
 
 
 def register_compute_torch_getter(getter: Callable[[], Any]) -> None:
     """Register the third-party layer's lazy Torch getter."""
-    _TORCH_GETTER_STATE.set(getter)
+    global _TORCH_GETTER_STATE
+    _TORCH_GETTER_STATE = getter
 
 
 def _get_torch():
     """Resolve Torch through the injected upper-layer getter."""
-    getter = _TORCH_GETTER_STATE.get()
+    getter = _TORCH_GETTER_STATE
     return getter() if callable(getter) else None
 
 
@@ -334,10 +331,7 @@ def get_paddle_install_package() -> str:
 # ===========================================================================
 # ONNX Runtime capability: "system has GPU" vs "ONNX Runtime can use CUDA"
 # ===========================================================================
-_ORT_CUDA_USABLE_STATE = SerializedValue(
-    None,
-    "ONNXRuntimeCUDAStateThread",
-)
+_ORT_CUDA_USABLE_STATE: Optional[bool] = None
 
 
 def _get_torch_cuda_major() -> Optional[int]:
@@ -383,7 +377,8 @@ def _prepare_onnx_cuda_dlls() -> None:
 
 def clear_onnx_cuda_usable_cache() -> None:
     """Clear cached ORT CUDA result so next is_onnx_cuda_usable() will probe again (e.g. after preload_dlls or pip install)."""
-    _ORT_CUDA_USABLE_STATE.set(None)
+    global _ORT_CUDA_USABLE_STATE
+    _ORT_CUDA_USABLE_STATE = None
 
 
 def _make_minimal_onnx_bytes() -> Optional[bytes]:
@@ -432,14 +427,15 @@ def is_onnx_cuda_usable() -> bool:
     Return True only if ONNX Runtime can create an inference session with CUDAExecutionProvider.
     Cached per process. When False, OCR uses context='cpu' (after ensure_onnx_cuda_usable() has been tried).
     """
+    global _ORT_CUDA_USABLE_STATE
     if not is_onnx_cuda_policy_compatible():
-        _ORT_CUDA_USABLE_STATE.set(False)
+        _ORT_CUDA_USABLE_STATE = False
         return False
-    cached = _ORT_CUDA_USABLE_STATE.get()
+    cached = _ORT_CUDA_USABLE_STATE
     if cached is not None:
         return bool(cached)
     probed = _probe_ort_cuda()
-    _ORT_CUDA_USABLE_STATE.set(probed)
+    _ORT_CUDA_USABLE_STATE = probed
     return probed
 
 
@@ -448,15 +444,12 @@ _ORT_GPU_REQUIRED = (f"nvidia-cublas-cu{ONNXRUNTIME_CUDA_MAJOR}",)
 
 
 # Set when the ORT GPU dependency installer actually mutated packages.
-_ORT_INSTALL_RAN_STATE = SerializedValue(
-    False,
-    "ONNXRuntimeInstallStateThread",
-)
+_ORT_INSTALL_RAN_STATE: bool = False
 
 
 def last_ort_install_ran() -> bool:
     """True if this process ran ORT GPU install (did not skip); used to run dependency fix only when pip may have shown conflicts."""
-    return bool(_ORT_INSTALL_RAN_STATE.get())
+    return bool(_ORT_INSTALL_RAN_STATE)
 
 
 def _run_ensure_ort_gpu_packages(
@@ -468,7 +461,8 @@ def _run_ensure_ort_gpu_packages(
     Install the stable ORT GPU package and matching CUDA-major base libraries.
     When is_pip_package_installed is provided, skip pip install if ORT GPU and all _ORT_GPU_REQUIRED are already installed.
     """
-    _ORT_INSTALL_RAN_STATE.set(False)
+    global _ORT_INSTALL_RAN_STATE
+    _ORT_INSTALL_RAN_STATE = False
     if run_pip_install is None:
         return
     if is_pip_package_installed is not None:
@@ -483,7 +477,7 @@ def _run_ensure_ort_gpu_packages(
         run_pip_install(ort_pkg)
         for pkg in _ORT_GPU_REQUIRED:
             run_pip_install(pkg)
-        _ORT_INSTALL_RAN_STATE.set(True)
+        _ORT_INSTALL_RAN_STATE = True
     except Exception:
         pass
 
@@ -499,8 +493,9 @@ def ensure_onnx_cuda_usable(
     Only then fall back to CPU. log(msg) optional for [HF] messages.
     """
     _log = log if log is not None else lambda _: None
+    global _ORT_CUDA_USABLE_STATE
     if not is_onnx_cuda_policy_compatible():
-        _ORT_CUDA_USABLE_STATE.set(False)
+        _ORT_CUDA_USABLE_STATE = False
         _log(
             "[HF] Stable ORT GPU requires CUDA %s but canonical torch uses CUDA %s; using CPU ORT."
             % (ONNXRUNTIME_CUDA_MAJOR, _get_torch_cuda_major() or "none")
@@ -525,7 +520,7 @@ def ensure_onnx_cuda_usable(
         if ort_module is not None and getattr(ort_module, "preload_dlls", None) is not None:
             ort_module.preload_dlls()
             if _probe_ort_cuda():
-                _ORT_CUDA_USABLE_STATE.set(True)
+                _ORT_CUDA_USABLE_STATE = True
                 _log("[HF] ORT CUDA usable after preload_dlls().")
                 return True
     except Exception:
@@ -538,7 +533,7 @@ def ensure_onnx_cuda_usable(
         torch = _get_torch()
         if getattr(torch, "cuda", None) is not None and torch.cuda.is_available():
             if _probe_ort_cuda():
-                _ORT_CUDA_USABLE_STATE.set(True)
+                _ORT_CUDA_USABLE_STATE = True
                 _log("[HF] ORT CUDA usable after torch preload.")
                 return True
     except Exception:

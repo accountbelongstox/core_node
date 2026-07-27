@@ -10,8 +10,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Cpu, Loader2, Power, PowerOff } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { LlmEngine, LlmStatus } from '../../../core/api-libs/pycore';
+import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
 
-const LLM_POLL_MS = 10_000;
+const LLM_POLL_MS = 30_000;
 
 type PillState = 'up' | 'down' | 'setup';
 
@@ -52,9 +53,9 @@ const PcLlmEnginesStrip: React.FC<{ tk: (k: string) => string }> = ({ tk }) => {
   useEffect(() => {
     mounted.current = true;
     void load();
-    const id = setInterval(() => void load(), LLM_POLL_MS);
-    return () => { mounted.current = false; clearInterval(id); };
+    return () => { mounted.current = false; };
   }, [load]);
+  useTopicDrivenRefresh(['operation.changed'], load, { fallbackMs: LLM_POLL_MS });
 
   const runTest = async (engine: string) => {
     setBusy(`test-${engine}`);

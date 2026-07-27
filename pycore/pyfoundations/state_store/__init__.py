@@ -1,21 +1,30 @@
 # -*- coding: utf-8 -*-
 """
-SQLite State Store
+SQLite State Store — DEPRECATED shim.
 
-A robust SQLite-based state store for tracking high-frequency task progress,
-operations, and events. This replaces the legacy user_data.json approach for
-volatile state.
+.. deprecated::
+    ``pycore.pyfoundations.state_store`` is a legacy location.
+    Import from ``pycore.database`` instead::
+
+        from pycore.database import (
+            Operation, OperationItem, OperationEvent,
+            UiSnapshot, ConsumerOffset, RemoteCursor, StateRepository,
+        )
+
+    This shim re-exports from the canonical database layer for backward
+    compatibility. It will be removed once all callers are migrated (FIX V4).
 """
 
-from pycore.pyfoundations.state_store.models import (
-    Operation,
-    OperationItem,
-    OperationEvent,
-    UiSnapshot,
+from pycore.database import (  # noqa: F401 — re-export shim
     ConsumerOffset,
+    Operation,
+    OperationEvent,
+    OperationItem,
     RemoteCursor,
+    StateRepository,
+    SystemEvent,
+    UiSnapshot,
 )
-from pycore.pyfoundations.state_store.repository import StateRepository
 
 __all__ = [
     "Operation",
@@ -25,4 +34,5 @@ __all__ = [
     "ConsumerOffset",
     "RemoteCursor",
     "StateRepository",
+    "SystemEvent",
 ]

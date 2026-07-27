@@ -4,7 +4,8 @@
 from pathlib import Path
 from typing import Optional
 
-from pycore.pyfoundations.isolated_venv import (
+from pycore.pyutils.python_env.isolated_venv import (
+    QWEN3TTS_INTERPRETER,
     ensure_venv as _ensure_venv,
     resolve_python as _resolve_python,
     venv_dir as _venv_dir,
@@ -36,4 +37,11 @@ def ensure_packages(venv_python: Optional[str] = None, force: bool = False) -> b
     return ensure_venv(force=force) is not None
 
 
-__all__ = ["ensure_packages", "ensure_venv", "resolve_python", "venv_dir", "venv_ready"]
+__all__ = [
+    "QWEN3TTS_INTERPRETER",
+    "ensure_packages",
+    "ensure_venv",
+    "resolve_python",
+    "venv_dir",
+    "venv_ready",
+]

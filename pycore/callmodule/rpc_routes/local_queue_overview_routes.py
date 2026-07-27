@@ -4,10 +4,8 @@
 import asyncio
 
 from pycore import ColorPrint
-from pycore.callmodule.rpc_routes.route_names import (
-    UI_QUEUE_OVERVIEW_GET_QUEUE_OVERVIEW,
-)
-from pycore.callmodule.routers_bak.local.queue_overview_router import get_queue_overview
+from pycore.callmodule.rpc_routes.route_names import UI_QUEUE_OVERVIEW_GET_QUEUE_OVERVIEW
+from pycore.callmodule.services.queue_overview_service import get_queue_overview
 
 
 def register_local_queue_overview_routes(server):

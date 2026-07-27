@@ -26,6 +26,7 @@ import {
 import {
   pycoreApi, connectPycoreWs, onWsStatus, PYCORE_PORT,
 } from '../../../core/api-libs/pycore';
+import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
 import type {
   CodeSyncRole, SelfStatus, PeerStatus, CodeSyncCandidate, CodeStats,
   SyncSettings, SyncLogEntry, FileTreeNode, FileTreeResponse, PeerFileTreeResponse,
@@ -293,12 +294,8 @@ const PcCodeSyncPage: React.FC = () => {
       if (r?.success && Array.isArray(r.logs)) setSyncLogs(r.logs);
     } catch { /* offline */ }
   }, []);
-  useEffect(() => {
-    loadFilters(); loadLogs();
-    const id = window.setInterval(loadLogs, 5000);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { loadFilters(); loadLogs(); }, [loadFilters, loadLogs]);
+  useTopicDrivenRefresh(['code_sync_update', 'operation.changed'], loadLogs, { fallbackMs: 30_000 });
 
   // --- synced file tree: lazy-load + poll only while the panel is open ----- #
   const loadTree = useCallback(async () => {
@@ -323,9 +320,12 @@ const PcCodeSyncPage: React.FC = () => {
     try { localStorage.setItem('pc.codesync.tree.open', treeOpen ? '1' : '0'); } catch { /* ignore */ }
     if (!treeOpen) return undefined;
     loadTree();
-    const id = window.setInterval(loadTree, 5000);
-    return () => clearInterval(id);
   }, [treeOpen, loadTree]);
+  useTopicDrivenRefresh(
+    ['code_sync_update', 'operation.changed'],
+    loadTree,
+    { fallbackMs: treeOpen ? 60_000 : 0, enabled: treeOpen },
+  );
 
   // --- dev-side drift: fetch a client's received tree + diff -------------- #
   const openDrift = useCallback(async (peer: { id: string; name?: string; host: string; port: number }) => {

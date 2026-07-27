@@ -1,183 +1,48 @@
 # -*- coding: utf-8 -*-
-"""
-RPC Routes for vocabulary
-"""
+"""RPC Routes for vocabulary."""
+
+import asyncio
 
 from pycore import ColorPrint
-from pycore.callmodule.rpc_routes.route_names import (
-    UI_VOCABULARY_VOCAB_TRANSLATION_LANGUAGES,
-    UI_VOCABULARY_VOCAB_TRANSLATION_TRANSLATE,
-    UI_VOCABULARY_VOCAB_TRANSLATION_QUEUE_BATCH_ADD,
-    UI_VOCABULARY_VOCAB_TTS_GENERATE,
-    UI_VOCABULARY_VOCAB_TTS_QUEUE_BATCH_QUERY,
-    UI_VOCABULARY_VOCAB_TTS_SENTENCE_AUDIO,
-    UI_VOCABULARY_VOCAB_TTS_QUEUE_STATS,
-    UI_VOCABULARY_VOCAB_TTS_QUEUE_ITEMS,
-    UI_VOCABULARY_VOCAB_ASSIST_OVERVIEW,
-    UI_VOCABULARY_VOCAB_ASSIST_OVERVIEW_ITEMS,
-    UI_VOCABULARY_VOCAB_COVER_RETRY,
-    UI_VOCABULARY_VOCAB_LIBRARIES,
-    UI_VOCABULARY_VOCAB_LIBRARY_WORDS,
-    UI_VOCABULARY_VOCAB_DELETE_LIBRARY,
-    UI_VOCABULARY_VOCAB_STATISTICS,
-    UI_VOCABULARY_VOCAB_LANGUAGE_BREAKDOWN,
-    UI_VOCABULARY_VOCAB_DICTIONARY_WORDS,
-    UI_VOCABULARY_VOCAB_CREATE_DICTIONARY_WORD,
-    UI_VOCABULARY_VOCAB_UPDATE_DICTIONARY_WORD,
-    UI_VOCABULARY_VOCAB_DELETE_DICTIONARY_WORD,
-    UI_VOCABULARY_VOCAB_BATCH_DICTIONARY_WORDS,
-    UI_VOCABULARY_VOCAB_DICTIONARY_SENTENCES,
-    UI_VOCABULARY_VOCAB_VALIDITY_REPORT,
-    UI_VOCABULARY_VOCAB_STORAGE_SUMMARY
-)
+from pycore.callmodule.rpc_routes import route_names as rn
+from pycore.callmodule.services import vocabulary_service as vocab
+
 
 def register_local_vocabulary_routes(server):
-    """Register WS RPC handlers."""
-    
-    async def vocab_translation_languages_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_translation_languages
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_TRANSLATION_LANGUAGES, handler=vocab_translation_languages_handler, sync=False)
+    pairs = [
+        (rn.UI_VOCABULARY_VOCAB_TRANSLATION_LANGUAGES, lambda p: vocab.vocab_translation_languages()),
+        (rn.UI_VOCABULARY_VOCAB_TRANSLATION_TRANSLATE, lambda p: vocab.vocab_translation_translate(p or {})),
+        (rn.UI_VOCABULARY_VOCAB_TRANSLATION_QUEUE_BATCH_ADD, lambda p: vocab.vocab_translation_queue_batch_add(p or {})),
+        (rn.UI_VOCABULARY_VOCAB_TTS_GENERATE, lambda p: vocab.vocab_tts_generate(p or {})),
+        (rn.UI_VOCABULARY_VOCAB_TTS_QUEUE_BATCH_QUERY, lambda p: vocab.vocab_tts_queue_batch_query(p or [])),
+        (rn.UI_VOCABULARY_VOCAB_TTS_SENTENCE_AUDIO, lambda p: vocab.vocab_tts_sentence_audio(p)),
+        (rn.UI_VOCABULARY_VOCAB_TTS_QUEUE_STATS, lambda p: vocab.vocab_tts_queue_stats()),
+        (rn.UI_VOCABULARY_VOCAB_TTS_QUEUE_ITEMS, lambda p: vocab.vocab_tts_queue_items(p)),
+        (rn.UI_VOCABULARY_VOCAB_ASSIST_OVERVIEW, lambda p: vocab.vocab_assist_overview()),
+        (rn.UI_VOCABULARY_VOCAB_ASSIST_OVERVIEW_ITEMS, lambda p: vocab.vocab_assist_overview_items(p)),
+        (rn.UI_VOCABULARY_VOCAB_COVER_RETRY, lambda p: vocab.vocab_cover_retry(p or {})),
+        (rn.UI_VOCABULARY_VOCAB_LIBRARIES, lambda p: vocab.vocab_libraries(p)),
+        (rn.UI_VOCABULARY_VOCAB_LIBRARY_WORDS, lambda p: vocab.vocab_library_words(int(p.get("library_id")), p)),
+        (rn.UI_VOCABULARY_VOCAB_DELETE_LIBRARY, lambda p: vocab.vocab_delete_library(int(p.get("library_id")))),
+        (rn.UI_VOCABULARY_VOCAB_STATISTICS, lambda p: vocab.vocab_statistics(p)),
+        (rn.UI_VOCABULARY_VOCAB_LANGUAGE_BREAKDOWN, lambda p: vocab.vocab_language_breakdown(p)),
+        (rn.UI_VOCABULARY_VOCAB_DICTIONARY_WORDS, lambda p: vocab.vocab_dictionary_words(p)),
+        (rn.UI_VOCABULARY_VOCAB_CREATE_DICTIONARY_WORD, lambda p: vocab.vocab_create_dictionary_word(p or {})),
+        (rn.UI_VOCABULARY_VOCAB_UPDATE_DICTIONARY_WORD, lambda p: vocab.vocab_update_dictionary_word(str(p.get("md5") or ""), p or {})),
+        (rn.UI_VOCABULARY_VOCAB_DELETE_DICTIONARY_WORD, lambda p: vocab.vocab_delete_dictionary_word(str(p.get("md5") or ""), p)),
+        (rn.UI_VOCABULARY_VOCAB_BATCH_DICTIONARY_WORDS, lambda p: vocab.vocab_batch_dictionary_words(p or {})),
+        (rn.UI_VOCABULARY_VOCAB_DICTIONARY_SENTENCES, lambda p: vocab.vocab_dictionary_sentences(p)),
+        (rn.UI_VOCABULARY_VOCAB_VALIDITY_REPORT, lambda p: vocab.vocab_validity_report(p or {})),
+        (rn.UI_VOCABULARY_VOCAB_STORAGE_SUMMARY, lambda p: vocab.vocab_storage_summary()),
+    ]
 
-    async def vocab_translation_translate_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_translation_translate
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_TRANSLATION_TRANSLATE, handler=vocab_translation_translate_handler, sync=False)
+    for route_name, fn in pairs:
+        async def handler(params, request_id, context, _fn=fn):
+            return await asyncio.to_thread(_fn, params)
 
-    async def vocab_translation_queue_batch_add_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_translation_queue_batch_add
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_TRANSLATION_QUEUE_BATCH_ADD, handler=vocab_translation_queue_batch_add_handler, sync=False)
-
-    async def vocab_tts_generate_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_tts_generate
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_TTS_GENERATE, handler=vocab_tts_generate_handler, sync=False)
-
-    async def vocab_tts_queue_batch_query_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_tts_queue_batch_query
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_TTS_QUEUE_BATCH_QUERY, handler=vocab_tts_queue_batch_query_handler, sync=False)
-
-    async def vocab_tts_sentence_audio_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_tts_sentence_audio
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_TTS_SENTENCE_AUDIO, handler=vocab_tts_sentence_audio_handler, sync=False)
-
-    async def vocab_tts_queue_stats_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_tts_queue_stats
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_TTS_QUEUE_STATS, handler=vocab_tts_queue_stats_handler, sync=False)
-
-    async def vocab_tts_queue_items_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_tts_queue_items
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_TTS_QUEUE_ITEMS, handler=vocab_tts_queue_items_handler, sync=False)
-
-    async def vocab_assist_overview_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_assist_overview
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_ASSIST_OVERVIEW, handler=vocab_assist_overview_handler, sync=False)
-
-    async def vocab_assist_overview_items_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_assist_overview_items
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_ASSIST_OVERVIEW_ITEMS, handler=vocab_assist_overview_items_handler, sync=False)
-
-    async def vocab_cover_retry_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_cover_retry
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_COVER_RETRY, handler=vocab_cover_retry_handler, sync=False)
-
-    async def vocab_libraries_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_libraries
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_LIBRARIES, handler=vocab_libraries_handler, sync=False)
-
-    async def vocab_library_words_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_library_words
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_LIBRARY_WORDS, handler=vocab_library_words_handler, sync=False)
-
-    async def vocab_delete_library_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_delete_library
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_DELETE_LIBRARY, handler=vocab_delete_library_handler, sync=False)
-
-    async def vocab_statistics_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_statistics
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_STATISTICS, handler=vocab_statistics_handler, sync=False)
-
-    async def vocab_language_breakdown_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_language_breakdown
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_LANGUAGE_BREAKDOWN, handler=vocab_language_breakdown_handler, sync=False)
-
-    async def vocab_dictionary_words_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_dictionary_words
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_DICTIONARY_WORDS, handler=vocab_dictionary_words_handler, sync=False)
-
-    async def vocab_create_dictionary_word_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_create_dictionary_word
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_CREATE_DICTIONARY_WORD, handler=vocab_create_dictionary_word_handler, sync=False)
-
-    async def vocab_update_dictionary_word_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_update_dictionary_word
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_UPDATE_DICTIONARY_WORD, handler=vocab_update_dictionary_word_handler, sync=False)
-
-    async def vocab_delete_dictionary_word_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_delete_dictionary_word
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_DELETE_DICTIONARY_WORD, handler=vocab_delete_dictionary_word_handler, sync=False)
-
-    async def vocab_batch_dictionary_words_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_batch_dictionary_words
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_BATCH_DICTIONARY_WORDS, handler=vocab_batch_dictionary_words_handler, sync=False)
-
-    async def vocab_dictionary_sentences_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_dictionary_sentences
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_DICTIONARY_SENTENCES, handler=vocab_dictionary_sentences_handler, sync=False)
-
-    async def vocab_validity_report_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_validity_report
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_VALIDITY_REPORT, handler=vocab_validity_report_handler, sync=False)
-
-    async def vocab_storage_summary_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for vocab_storage_summary
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_VOCABULARY_VOCAB_STORAGE_SUMMARY, handler=vocab_storage_summary_handler, sync=False)
+        server.route(name=route_name, handler=handler, sync=False)
 
     ColorPrint.green("[ConfigBuilder] Registered vocabulary RPC routes")
+
 
 __all__ = ["register_local_vocabulary_routes"]

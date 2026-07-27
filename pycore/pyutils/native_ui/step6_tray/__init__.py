@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from .win32_system_tray import (
-from .appindicator_system_tray import (
-from .appindicator_thread import (
+
 """
 System Tray Package
 
@@ -25,6 +23,7 @@ from .tray_thread import TkinterSystemTrayThread
 
 # Windows native tray (pywin32 Shell_NotifyIcon)
 try:
+    from .win32_system_tray import (
         Win32SystemTray,
         Win32SystemTrayThread,
         WIN32_AVAILABLE,
@@ -36,12 +35,14 @@ except ImportError:
 
 # AppIndicator support (Linux only)
 try:
+    from .appindicator_system_tray import (
         AppIndicatorSystemTray,
         AppIndicatorMenuItem,
         APPINDICATOR_AVAILABLE,
         check_appindicator_available,
         print_appindicator_status
     )
+    from .appindicator_thread import (
         AppIndicatorSystemTrayThread,
         is_appindicator_recommended
     )

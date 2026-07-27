@@ -1,22 +1,24 @@
 # -*- coding: utf-8 -*-
-"""
-RPC Routes for config
-"""
+"""RPC Routes for management config."""
+
+import asyncio
 
 from pycore import ColorPrint
-from pycore.callmodule.rpc_routes.route_names import (
-    UI_CONFIG_UPDATE_CONFIG
-)
+from pycore.callmodule.controllers.management.system_controller import SystemController
+from pycore.callmodule.models.management.system_models import SystemConfig
+from pycore.callmodule.rpc_routes.route_names import UI_CONFIG_UPDATE_CONFIG
+
 
 def register_management_config_routes(server):
-    """Register WS RPC handlers."""
-    
-    async def update_config_handler(params, request_id, context):
-        # TODO: Implement native RPC handler for update_config
-        return {"success": False, "error": "Not implemented yet"}
-        
-    server.route(name=UI_CONFIG_UPDATE_CONFIG, handler=update_config_handler, sync=False)
+    controller = SystemController()
 
-    ColorPrint.green("[ConfigBuilder] Registered config RPC routes")
+    async def update_config_handler(params, request_id, context):
+        params = params or {}
+        config = SystemConfig(**params)
+        return await asyncio.to_thread(controller.update_config, config)
+
+    server.route(name=UI_CONFIG_UPDATE_CONFIG, handler=update_config_handler, sync=False)
+    ColorPrint.green("[ConfigBuilder] Registered management config RPC routes")
+
 
 __all__ = ["register_management_config_routes"]

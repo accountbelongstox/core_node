@@ -324,6 +324,20 @@ UI_LOGS_CLEAR_LOGS = "ui.logs.clear_logs"
 UI_LOGS_GET_LOG_STATS = "ui.logs.get_log_stats"
 UI_LARAVEL_LOGS_SNAPSHOT = "ui.laravel.logs_snapshot"
 UI_LARAVEL_LOGS_REFRESH = "ui.laravel.logs_refresh"
+UI_LARAVEL_LOGS_STATUS = "ui.laravel.logs_status"
+UI_LARAVEL_LOGS_RECORDS = "ui.laravel.logs_records"
+UI_LARAVEL_LOGS_CANCEL = "ui.laravel.logs_cancel"
+
+# Qwen3TTS RPC v2 routes (FIX V3)
+UI_QWEN_HEALTH = "ui.qwen.health"
+UI_QWEN_CAPABILITIES = "ui.qwen.capabilities"
+UI_QWEN_MODEL_LOAD = "ui.qwen.model.load"
+UI_QWEN_MODEL_STATUS = "ui.qwen.model.status"
+UI_QWEN_SYNTHESIS_SUBMIT = "ui.qwen.synthesis.submit"
+UI_QWEN_SYNTHESIS_STATUS = "ui.qwen.synthesis.status"
+UI_QWEN_SYNTHESIS_CANCEL = "ui.qwen.synthesis.cancel"
+UI_QWEN_OPERATION_SNAPSHOT = "ui.qwen.operation.snapshot"
+UI_QWEN_OPERATION_EVENTS = "ui.qwen.operation.events"
 
 __all__ = [
     "UI_CODE_SYNC_PING",
@@ -554,6 +568,19 @@ __all__ = [
     "UI_LOGS_GET_LOG_STATS",
     "UI_LARAVEL_LOGS_SNAPSHOT",
     "UI_LARAVEL_LOGS_REFRESH",
+    "UI_LARAVEL_LOGS_STATUS",
+    "UI_LARAVEL_LOGS_RECORDS",
+    "UI_LARAVEL_LOGS_CANCEL",
+    # Qwen3TTS routes
+    "UI_QWEN_HEALTH",
+    "UI_QWEN_CAPABILITIES",
+    "UI_QWEN_MODEL_LOAD",
+    "UI_QWEN_MODEL_STATUS",
+    "UI_QWEN_SYNTHESIS_SUBMIT",
+    "UI_QWEN_SYNTHESIS_STATUS",
+    "UI_QWEN_SYNTHESIS_CANCEL",
+    "UI_QWEN_OPERATION_SNAPSHOT",
+    "UI_QWEN_OPERATION_EVENTS",
 
     "PYCORE_ROUTER_INVOKE",
     "PYCORE_ROUTER_RESOURCE",

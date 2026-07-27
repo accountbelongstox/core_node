@@ -1,439 +1,231 @@
-"""
-pyutils - Utility modules for device management, streaming, control, etc.
+# -*- coding: utf-8 -*-
+"""Pycore utility facade with lazy, side-effect-free compatibility exports."""
 
-This module provides comprehensive utilities for callmodule and all applications.
-All utilities are safely imported with availability flags for graceful degradation.
+import os
+from importlib import import_module
+from typing import Dict, Tuple
 
-Quick Imports:
-    from pycore.pyutils import ocr_manager, OCR_AVAILABLE
-    from pycore.pyutils import edge_tts_manager, EDGE_TTS_AVAILABLE
-    from pycore.pyutils import ADBManager, DEVICE_CONTROL_AVAILABLE
-    from pycore.pyutils import get_available_utilities
-    from pycore.pyutils.security import encrypt_password, decrypt_password, is_likely_ciphertext
-    from pycore.pyutils.input.field_input import type_into_field, FieldInputSimulator, CLEAR_MODE_REPLACE, CLEAR_MODE_APPEND, CLEAR_MODE_NONE
-    from pycore.pyutils.input.ime_switch import save_and_switch_ime_to_english, restore_ime, is_ime_switch_available
-"""
 
-# ============================================================================
-# OCR Utilities
-# ============================================================================
-try:
-    from pycore.pyutils.ocr_cluster import ocr_manager
-    OCR_AVAILABLE = True
-except Exception as e:
-    ocr_manager = None
-    OCR_AVAILABLE = False
+__version__ = "2.0.0"
 
-# ============================================================================
-# Device Manager (Legacy compatibility)
-# ============================================================================
-try:
-    from pycore.pyutils.device.device_manager import DeviceManager, DeviceState
-    DEVICE_MANAGER_AVAILABLE = True
-except Exception:
-    DeviceManager = None
-    DeviceState = None
-    DEVICE_MANAGER_AVAILABLE = False
+_EXPORTS: Dict[str, Tuple[str, str]] = {
+    "ocr_manager": ("pycore.pyutils.ocr_cluster", "ocr_manager"),
+    "DeviceManager": ("pycore.pyutils.device.device_manager", "DeviceManager"),
+    "DeviceState": ("pycore.pyutils.device.device_manager", "DeviceState"),
+    "edge_tts_manager": ("pycore.pyutils.edge_tts", "edge_tts_manager"),
+    "azure_speech_manager": (
+        "pycore.pyutils.azure_speech",
+        "azure_speech_manager",
+    ),
+    "ADBManager": ("pycore.pyutils.device", "ADBManager"),
+    "ADBDevice": ("pycore.pyutils.device", "ADBDevice"),
+    "TouchEvent": ("pycore.pyutils.control", "TouchEvent"),
+    "KeyEvent": ("pycore.pyutils.control", "KeyEvent"),
+    "MessageBuilder": ("pycore.pyutils.control", "MessageBuilder"),
+    "GroupController": ("pycore.pyutils.group", "GroupController"),
+    "SyncStrategy": ("pycore.pyutils.group", "SyncStrategy"),
+    "AllSyncStrategy": ("pycore.pyutils.group", "AllSyncStrategy"),
+    "TouchOnlySyncStrategy": ("pycore.pyutils.group", "TouchOnlySyncStrategy"),
+    "SyncEvent": ("pycore.pyutils.group", "SyncEvent"),
+    "type_into_field": ("pycore.pyutils.input.field_input", "type_into_field"),
+    "fill_field_with_fallback": (
+        "pycore.pyutils.input.field_input",
+        "fill_field_with_fallback",
+    ),
+    "FieldInputSimulator": (
+        "pycore.pyutils.input.field_input",
+        "FieldInputSimulator",
+    ),
+    "CLEAR_MODE_REPLACE": (
+        "pycore.pyutils.input.field_input",
+        "CLEAR_MODE_REPLACE",
+    ),
+    "CLEAR_MODE_APPEND": (
+        "pycore.pyutils.input.field_input",
+        "CLEAR_MODE_APPEND",
+    ),
+    "CLEAR_MODE_NONE": ("pycore.pyutils.input.field_input", "CLEAR_MODE_NONE"),
+    "VideoDecoder": ("pycore.pyutils.video_stream", "VideoDecoder"),
+    "H264Decoder": ("pycore.pyutils.video_stream", "H264Decoder"),
+    "FMP4Encoder": ("pycore.pyutils.video_stream", "FMP4Encoder"),
+    "VideoFrame": ("pycore.pyutils.video_stream", "VideoFrame"),
+    "VideoFormat": ("pycore.pyutils.video_stream", "VideoFormat"),
+    "VideoStreamHandler": (
+        "pycore.pyutils.video_stream",
+        "VideoStreamHandler",
+    ),
+    "H264Config": ("pycore.pyutils.video_stream", "H264Config"),
+    "FMP4EncoderComplete": (
+        "pycore.pyutils.video_stream",
+        "FMP4EncoderComplete",
+    ),
+    "H264Frame": ("pycore.pyutils.video_stream", "H264Frame"),
+    "MediaCompressor": (
+        "pycore.pyutils.image_tools.media_compressor",
+        "MediaCompressor",
+    ),
+    "get_media_compressor": (
+        "pycore.pyutils.image_tools.media_compressor",
+        "get_media_compressor",
+    ),
+    "CompressionStats": (
+        "pycore.pyutils.image_tools.media_compressor",
+        "CompressionStats",
+    ),
+    "CompressionTask": (
+        "pycore.pyutils.image_tools.media_compressor",
+        "CompressionTask",
+    ),
+    "QueueStats": (
+        "pycore.pyutils.image_tools.media_compressor",
+        "QueueStats",
+    ),
+    "SimplePrimaryServer": (
+        "pycore.pyutils.launcher.device_sync",
+        "SimplePrimaryServer",
+    ),
+    "SimpleClient": ("pycore.pyutils.launcher.device_sync", "SimpleClient"),
+    "SimpleDeviceScanner": (
+        "pycore.pyutils.launcher.device_sync",
+        "SimpleDeviceScanner",
+    ),
+    "get_device_sync_config": (
+        "pycore.pyutils.launcher.device_sync",
+        "get_global_config",
+    ),
+    "browser_manager": ("pycore.pyutils.pybrowser", "browser_manager"),
+    "web_server_manager": ("pycore.pyutils.web", "web_server_manager"),
+    "yolo_manager": ("pycore.pyutils.ultralytics", "yolo_manager"),
+    "mcp_server_manager": ("pycore.pyutils.mcp", "mcp_server_manager"),
+    "rpc_manager": ("pycore.pyutils.rpc_v2", "rpc_manager"),
+    "wsrpc_manager": ("pycore.pyutils.wsrpc", "wsrpc_manager"),
+    "WebSocketManager": ("pycore.pyutils.wsrpc", "WebSocketManager"),
+    "ensure_tk_root_in_taskbar": (
+        "pycore.pyutils.desktop.tk_taskbar",
+        "ensure_tk_root_in_taskbar",
+    ),
+    "set_windows_app_user_model_id": (
+        "pycore.pyutils.desktop.tk_taskbar",
+        "set_windows_app_user_model_id",
+    ),
+    "UIConfig": ("pycore.pyutils.native_ui", "UIConfig"),
+    "SignalType": ("pycore.pyutils.native_ui", "SignalType"),
+    "Signal": ("pycore.pyutils.native_ui", "Signal"),
+    "WindowState": ("pycore.pyutils.native_ui", "WindowState"),
+    "SignalManager": ("pycore.pyutils.native_ui", "SignalManager"),
+    "TaskTimer": ("pycore.pyutils.native_ui", "TaskTimer"),
+    "TimerTask": ("pycore.pyutils.native_ui", "TimerTask"),
+    "MainThreadExecutor": (
+        "pycore.pyutils.native_ui",
+        "MainThreadExecutor",
+    ),
+    "TkinterStartupThread": (
+        "pycore.pyutils.native_ui",
+        "TkinterStartupThread",
+    ),
+    "ColorPrintCapture": (
+        "pycore.pyutils.native_ui",
+        "ColorPrintCapture",
+    ),
+    "launch_app_with_startup": (
+        "pycore.pyutils.native_ui",
+        "launch_app_with_startup",
+    ),
+}
 
-# ============================================================================
-# TTS Utilities
-# ============================================================================
-try:
-    from pycore.pyutils.edge_tts import edge_tts_manager
-    EDGE_TTS_AVAILABLE = True
-except Exception:
-    edge_tts_manager = None
-    EDGE_TTS_AVAILABLE = False
+_AVAILABILITY = {
+    "OCR_AVAILABLE": "ocr_manager",
+    "EDGE_TTS_AVAILABLE": "edge_tts_manager",
+    "AZURE_SPEECH_AVAILABLE": "azure_speech_manager",
+    "DEVICE_MANAGER_AVAILABLE": "DeviceManager",
+    "DEVICE_CONTROL_AVAILABLE": "ADBManager",
+    "GROUP_CONTROL_AVAILABLE": "GroupController",
+    "VIDEO_STREAM_AVAILABLE": "VideoDecoder",
+    "MEDIA_COMPRESSOR_AVAILABLE": "MediaCompressor",
+    "DEVICE_SYNC_AVAILABLE": "SimplePrimaryServer",
+    "BROWSER_AVAILABLE": "browser_manager",
+    "WEB_SERVER_AVAILABLE": "web_server_manager",
+    "YOLO_AVAILABLE": "yolo_manager",
+    "MCP_AVAILABLE": "mcp_server_manager",
+    "RPC_AVAILABLE": "rpc_manager",
+    "WSRPC_AVAILABLE": "wsrpc_manager",
+    "NATIVE_UI_AVAILABLE": "UIConfig",
+}
 
-try:
-    from pycore.pyutils.azure_speech import azure_speech_manager
-    AZURE_SPEECH_AVAILABLE = True
-except Exception:
-    azure_speech_manager = None
-    AZURE_SPEECH_AVAILABLE = False
+_NATIVE_EXPORTS = {
+    "UIConfig",
+    "SignalType",
+    "Signal",
+    "WindowState",
+    "SignalManager",
+    "TaskTimer",
+    "TimerTask",
+    "MainThreadExecutor",
+    "TkinterStartupThread",
+    "ColorPrintCapture",
+    "launch_app_with_startup",
+}
 
-# ============================================================================
-# Device Control Utilities
-# ============================================================================
-try:
-    from pycore.pyutils.device import ADBManager, ADBDevice
-    from pycore.pyutils.control import TouchEvent, KeyEvent, MessageBuilder
-    DEVICE_CONTROL_AVAILABLE = True
-except Exception:
-    ADBManager = None
-    ADBDevice = None
-    TouchEvent = None
-    KeyEvent = None
-    MessageBuilder = None
-    DEVICE_CONTROL_AVAILABLE = False
+__all__ = [
+    "get_available_utilities",
+    *_EXPORTS,
+    *_AVAILABILITY,
+]
 
-# ============================================================================
-# Group Control
-# ============================================================================
-try:
-    from pycore.pyutils.group import (
-        GroupController,
-        SyncStrategy,
-        AllSyncStrategy,
-        TouchOnlySyncStrategy,
-        SyncEvent
-    )
-    GROUP_CONTROL_AVAILABLE = True
-except Exception:
-    GroupController = None
-    SyncStrategy = None
-    AllSyncStrategy = None
-    TouchOnlySyncStrategy = None
-    SyncEvent = None
-    GROUP_CONTROL_AVAILABLE = False
 
-# ============================================================================
-# Field Input Simulator (focus, clear, type into input fields)
-# ============================================================================
-try:
-    from pycore.pyutils.input.field_input import (
-        type_into_field,
-        fill_field_with_fallback,
-        FieldInputSimulator,
-        CLEAR_MODE_REPLACE,
-        CLEAR_MODE_APPEND,
-        CLEAR_MODE_NONE,
-    )
-except Exception:
-    type_into_field = None
-    fill_field_with_fallback = None
-    FieldInputSimulator = None
-    CLEAR_MODE_REPLACE = "replace"
-    CLEAR_MODE_APPEND = "append"
-    CLEAR_MODE_NONE = "none"
+def _load_export(name: str):
+    module_name, attribute_name = _EXPORTS[name]
+    return getattr(import_module(module_name), attribute_name)
 
-# ============================================================================
-# Tkinter taskbar (Windows: show overrideredirect window in taskbar)
-# ============================================================================
-try:
-    from pycore.pyutils.desktop.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
-except Exception:
-    ensure_tk_root_in_taskbar = None
-    set_windows_app_user_model_id = None
 
-# ============================================================================
-# Video Stream Utilities
-# ============================================================================
-try:
-    from pycore.pyutils.video_stream import (
-        VideoDecoder,
-        H264Decoder,
-        FMP4Encoder,
-        VideoFrame,
-        VideoFormat,
-        VideoStreamHandler,
-        H264Config,
-        FMP4EncoderComplete,
-        H264Frame
-    )
-    VIDEO_STREAM_AVAILABLE = True
-except Exception:
-    VideoDecoder = None
-    H264Decoder = None
-    FMP4Encoder = None
-    VideoFrame = None
-    VideoFormat = None
-    VideoStreamHandler = None
-    H264Config = None
-    FMP4EncoderComplete = None
-    H264Frame = None
-    VIDEO_STREAM_AVAILABLE = False
+def __getattr__(name: str):
+    if name in _AVAILABILITY:
+        export_name = _AVAILABILITY[name]
+        if export_name in _NATIVE_EXPORTS and os.getenv("PYUTILS_LOAD_GUI", "0") != "1":
+            value = False
+        else:
+            try:
+                value = _load_export(export_name) is not None
+            except Exception:
+                value = False
+        globals()[name] = value
+        return value
 
-# ============================================================================
-# Media Compression Utilities
-# ============================================================================
-try:
-    from pycore.pyutils.image_tools.media_compressor import (
-        MediaCompressor,
-        get_media_compressor,
-        CompressionStats,
-        CompressionTask,
-        QueueStats,
-    )
-    MEDIA_COMPRESSOR_AVAILABLE = True
-except Exception:
-    MediaCompressor = None
-    get_media_compressor = None
-    CompressionStats = None
-    CompressionTask = None
-    QueueStats = None
-    MEDIA_COMPRESSOR_AVAILABLE = False
-
-# ============================================================================
-# Device Sync Utilities
-# ============================================================================
-try:
-    from pycore.pyutils.launcher.device_sync import (
-        SimplePrimaryServer,
-        SimpleClient,
-        SimpleDeviceScanner,
-        get_global_config as get_device_sync_config
-    )
-    DEVICE_SYNC_AVAILABLE = True
-except Exception:
-    SimplePrimaryServer = None
-    SimpleClient = None
-    SimpleDeviceScanner = None
-    get_device_sync_config = None
-    DEVICE_SYNC_AVAILABLE = False
-
-# ============================================================================
-# Browser Utilities
-# ============================================================================
-try:
-    from pycore.pyutils.pybrowser import browser_manager
-    BROWSER_AVAILABLE = True
-except Exception:
-    browser_manager = None
-    BROWSER_AVAILABLE = False
-
-# ============================================================================
-# Web Server Utilities
-# ============================================================================
-try:
-    from pycore.pyutils.web import web_server_manager
-    WEB_SERVER_AVAILABLE = True
-except Exception:
-    web_server_manager = None
-    WEB_SERVER_AVAILABLE = False
-
-# ============================================================================
-# YOLO (Ultralytics) Utilities
-# ============================================================================
-try:
-    from pycore.pyutils.ultralytics import yolo_manager
-    YOLO_AVAILABLE = True
-except Exception:
-    yolo_manager = None
-    YOLO_AVAILABLE = False
-
-# ============================================================================
-# MCP (Model Context Protocol) Utilities
-# ============================================================================
-try:
-    from pycore.pyutils.mcp import mcp_server_manager
-    MCP_AVAILABLE = True
-except Exception:
-    mcp_server_manager = None
-    MCP_AVAILABLE = False
-
-# ============================================================================
-# RPC Utilities
-# ============================================================================
-try:
-    from pycore.pyutils.rpc_v2 import rpc_manager
-    RPC_AVAILABLE = True
-except Exception:
-    rpc_manager = None
-    RPC_AVAILABLE = False
-
-try:
-    from pycore.pyutils.wsrpc import wsrpc_manager
-    WSRPC_AVAILABLE = True
-except Exception:
-    wsrpc_manager = None
-    WSRPC_AVAILABLE = False
-
-# ============================================================================
-# Native UI Framework (Conditional - avoid loading GUI dependencies by default)
-# ============================================================================
-NATIVE_UI_AVAILABLE = False
-try:
-    # Only import if explicitly requested via environment variable
-    import os
-    if os.getenv('PYUTILS_LOAD_GUI', '0') == '1':
-        from pycore.pyutils.native_ui import (
-            UIConfig,
-            SignalType,
-            Signal,
-            WindowState,
-            SignalManager,
-            TaskTimer,
-            TimerTask,
-            MainThreadExecutor,
-            TkinterStartupThread,
-            ColorPrintCapture,
-            launch_app_with_startup,
-        )
-        NATIVE_UI_AVAILABLE = True
+    export = _EXPORTS.get(name)
+    if export is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    if name in _NATIVE_EXPORTS and os.getenv("PYUTILS_LOAD_GUI", "0") != "1":
+        value = None
     else:
-        # Stub out GUI components
-        UIConfig = None
-        SignalType = None
-        Signal = None
-        WindowState = None
-        SignalManager = None
-        TaskTimer = None
-        TimerTask = None
-        MainThreadExecutor = None
-        TkinterStartupThread = None
-        ColorPrintCapture = None
-        launch_app_with_startup = None
-except Exception:
-    UIConfig = None
-    SignalType = None
-    Signal = None
-    WindowState = None
-    SignalManager = None
-    TaskTimer = None
-    TimerTask = None
-    MainThreadExecutor = None
-    TkinterStartupThread = None
-    ColorPrintCapture = None
-    launch_app_with_startup = None
-    NATIVE_UI_AVAILABLE = False
+        try:
+            value = _load_export(name)
+        except Exception:
+            value = None
+    globals()[name] = value
+    return value
 
-# ============================================================================
-# Utility Functions
-# ============================================================================
 
 def get_available_utilities():
-    """
-    Get a dictionary of all available utilities and their status.
-    
-    Returns:
-        dict: Utility names mapped to availability status (True/False)
-    
-    Example:
-        >>> from pycore.pyutils import get_available_utilities
-        >>> utils = get_available_utilities()
-        >>> if utils['ocr']:
-        ...     from pycore.pyutils import ocr_manager
-    """
+    """Return feature availability without importing unrelated utility domains."""
     return {
-        'ocr': OCR_AVAILABLE,
-        'edge_tts': EDGE_TTS_AVAILABLE,
-        'azure_speech': AZURE_SPEECH_AVAILABLE,
-        'device_manager': DEVICE_MANAGER_AVAILABLE,
-        'device_control': DEVICE_CONTROL_AVAILABLE,
-        'group_control': GROUP_CONTROL_AVAILABLE,
-        'video_stream': VIDEO_STREAM_AVAILABLE,
-        'media_compressor': MEDIA_COMPRESSOR_AVAILABLE,
-        'device_sync': DEVICE_SYNC_AVAILABLE,
-        'browser': BROWSER_AVAILABLE,
-        'web_server': WEB_SERVER_AVAILABLE,
-        'yolo': YOLO_AVAILABLE,
-        'mcp': MCP_AVAILABLE,
-        'rpc': RPC_AVAILABLE,
-        'wsrpc': WSRPC_AVAILABLE,
-        'native_ui': NATIVE_UI_AVAILABLE,
+        "ocr": __getattr__("OCR_AVAILABLE"),
+        "edge_tts": __getattr__("EDGE_TTS_AVAILABLE"),
+        "azure_speech": __getattr__("AZURE_SPEECH_AVAILABLE"),
+        "device_manager": __getattr__("DEVICE_MANAGER_AVAILABLE"),
+        "device_control": __getattr__("DEVICE_CONTROL_AVAILABLE"),
+        "group_control": __getattr__("GROUP_CONTROL_AVAILABLE"),
+        "video_stream": __getattr__("VIDEO_STREAM_AVAILABLE"),
+        "media_compressor": __getattr__("MEDIA_COMPRESSOR_AVAILABLE"),
+        "device_sync": __getattr__("DEVICE_SYNC_AVAILABLE"),
+        "browser": __getattr__("BROWSER_AVAILABLE"),
+        "web_server": __getattr__("WEB_SERVER_AVAILABLE"),
+        "yolo": __getattr__("YOLO_AVAILABLE"),
+        "mcp": __getattr__("MCP_AVAILABLE"),
+        "rpc": __getattr__("RPC_AVAILABLE"),
+        "wsrpc": __getattr__("WSRPC_AVAILABLE"),
+        "native_ui": __getattr__("NATIVE_UI_AVAILABLE"),
     }
 
 
-# ============================================================================
-# Exports
-# ============================================================================
-
-__all__ = [
-    # Utility functions
-    'get_available_utilities',
-    
-    # OCR
-    'ocr_manager',
-    'OCR_AVAILABLE',
-    
-    # TTS
-    'edge_tts_manager',
-    'EDGE_TTS_AVAILABLE',
-    'azure_speech_manager',
-    'AZURE_SPEECH_AVAILABLE',
-    
-    # Device Manager (Legacy)
-    'DeviceManager',
-    'DeviceState',
-    'DEVICE_MANAGER_AVAILABLE',
-    
-    # Device Control
-    'ADBManager',
-    'ADBDevice',
-    'TouchEvent',
-    'KeyEvent',
-    'MessageBuilder',
-    'DEVICE_CONTROL_AVAILABLE',
-    
-    # Group Control
-    'GroupController',
-    'SyncStrategy',
-    'AllSyncStrategy',
-    'TouchOnlySyncStrategy',
-    'SyncEvent',
-    'GROUP_CONTROL_AVAILABLE',
-    
-    # Video Stream
-    'VideoDecoder',
-    'H264Decoder',
-    'FMP4Encoder',
-    'VideoFrame',
-    'VideoFormat',
-    'VideoStreamHandler',
-    'H264Config',
-    'FMP4EncoderComplete',
-    'H264Frame',
-    'VIDEO_STREAM_AVAILABLE',
-    
-    # Media Compression
-    'MediaCompressor',
-    'get_media_compressor',
-    'CompressionStats',
-    'CompressionTask',
-    'QueueStats',
-    'MEDIA_COMPRESSOR_AVAILABLE',
-    
-    # Device Sync
-    'SimplePrimaryServer',
-    'SimpleClient',
-    'SimpleDeviceScanner',
-    'get_device_sync_config',
-    'DEVICE_SYNC_AVAILABLE',
-    
-    # Browser
-    'browser_manager',
-    'BROWSER_AVAILABLE',
-    
-    # Web Server
-    'web_server_manager',
-    'WEB_SERVER_AVAILABLE',
-    
-    # YOLO
-    'yolo_manager',
-    'YOLO_AVAILABLE',
-    
-    # MCP
-    'mcp_server_manager',
-    'MCP_AVAILABLE',
-    
-    # RPC
-    'rpc_manager',
-    'RPC_AVAILABLE',
-    'wsrpc_manager',
-    'WSRPC_AVAILABLE',
-    
-    # Native UI (conditional)
-    'UIConfig',
-    'SignalType',
-    'Signal',
-    'WindowState',
-    'SignalManager',
-    'TaskTimer',
-    'TimerTask',
-    'MainThreadExecutor',
-    'TkinterStartupThread',
-    'ColorPrintCapture',
-    'launch_app_with_startup',
-    'NATIVE_UI_AVAILABLE',
-
-    # Field input
-    'type_into_field',
-    'fill_field_with_fallback',
-    'FieldInputSimulator',
-    'CLEAR_MODE_REPLACE',
-    'CLEAR_MODE_APPEND',
-    'CLEAR_MODE_NONE',
-]
-
-__version__ = '2.0.0'
+def __dir__():
+    return sorted(set(globals()) | set(__all__))

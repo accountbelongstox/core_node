@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from pycore.callmodule.controllers.local_processing.task_center_controller import _fetch_assist_overview
+from pycore.callmodule.controllers.local_processing.task_center_assist import _fetch_assist_overview
 from pycore.pyfoundations.serialized_worker import start_bus_task
 """
 Translation Queue Monitor Service

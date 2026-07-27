@@ -1,0 +1,77 @@
+﻿python : [94m[INFO +0.00s] Checking for required Python packages...[0m
+At line:1 char:1
++ python -c "import pycore.callmodule" 2>&1 | Out-File -FilePath traceb ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([94m[INFO +0.0...packages...[0m 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[94m[INFO +0.00s] Optional packages are not auto-installed[0m
+[94m[INFO +0.33s] Found installed packages: Pillow, PyQt5>=5,<6, PySide6, 
+Werkzeug>=3,<4, absl-py>=2,<3, adb-shell, aiohttp, av, 
+azure-cognitiveservices-speech, beautifulsoup4, certifi, chardet>=5,<6, 
+cryptography, eng-to-ipa, fastapi, fastmcp, google-genai, googletrans, grpcio, 
+h5py>=3,<4, httpx, huggingface_hub, idna>=3,<4, labelImg, labelme, loguru, 
+matplotlib, msgpack>=1,<2, mss, numpy, openai, opencv-python, openpyxl, 
+pdfplumber, protobuf, psutil, pyaudio, pyaudiowpatch, pyautogui, pygame, 
+pygetwindow, pynput, pypdf, pyperclip, pystray, pytesseract, python-docx, 
+python-okx, python-pptx, pywin32, pywinauto, pyyaml, pyzmq, redis, 
+requests>=2,<3, scikit-learn, selenium, six>=1,<2, sqlalchemy, tkhtmlview, 
+tkinterweb, torch, typing_extensions>=4,<5, uiautomation, ultralytics>=8,<9, 
+urllib3>=2,<3, uvicorn[standard], vosk, webdriver-manager, websockets[0m
+[94m[TableRegistry +0.11s] Initialized[0m
+[94m[DatabaseManager +0.00s] Initialized[0m
+[92m[database +0.00s] Database module loaded successfully[0m
+[92m[DatabaseManager +0.02s] Registered database: common[0m
+[94m[+0.00s]   Connection: sqlite:///D:\www\wwwroot\pycore_db\common.db[0m
+[92m[DatabaseManager +0.01s] Created engine for database: common[0m
+[94m[DatabaseManager +0.00s] Loading 1 table(s) for database: common[0m
+[92m[BaseModel +0.00s] Table initialized: common_config (version: 1)[0m
+[92m[TableRegistry +0.00s] Registered table: common.config -> 
+CommonConfigModel[0m
+[92m[DatabaseManager +0.00s] Loaded 1 table(s). Total loaded: 1[0m
+[94m[GlobalConfig +0.00s] Initialized with SQLite database: common[0m
+[92m[DatabaseManager +0.00s] Registered database: speech[0m
+[94m[+0.00s]   Connection: sqlite:///D:\www\wwwroot\pycore_db\speech.db[0m
+[92m[DatabaseManager +0.00s] Created engine for database: speech[0m
+[94m[DatabaseManager +0.00s] Loading 1 table(s) for database: speech[0m
+[92m[BaseModel +0.00s] Table initialized: util_speech_config (version: 1)[0m
+[92m[TableRegistry +0.00s] Registered table: util_speech.config -> 
+SpeechConfigModel[0m
+[92m[DatabaseManager +0.00s] Loaded 1 table(s). Total loaded: 2[0m
+[94m[SpeechConfig +0.01s] Initialized with SQLite database: speech[0m
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import pycore.callmodule
+  File "D:\programing\core_node\pycore\callmodule\__init__.py", line 15, in 
+<module>
+    from .config import build_launcher_config
+  File "D:\programing\core_node\pycore\callmodule\config.py", line 29, in 
+<module>
+    from pycore.pylauncher import LauncherConfig
+  File "D:\programing\core_node\pycore\pylauncher\__init__.py", line 30, in 
+<module>
+    from pycore.pylauncher.launcher import (
+    ...<5 lines>...
+    )
+  File "D:\programing\core_node\pycore\pylauncher\launcher.py", line 7, in 
+<module>
+    from pycore.pythreadpool import get_global_thread_pool, SERVICE_STARTERS
+  File "D:\programing\core_node\pycore\pythreadpool\__init__.py", line 39, in 
+<module>
+    from .starters import (
+    ...<4 lines>...
+    )
+  File "D:\programing\core_node\pycore\pythreadpool\starters.py", line 3, in 
+<module>
+    from pycore.pyctl.speech.speech_thread import SpeechTranscriptionThread
+  File "D:\programing\core_node\pycore\pyctl\speech\__init__.py", line 3, in 
+<module>
+    from pycore.pyctl.speech.launch_speech_rpc import launch_speech_rpc_service
+  File "D:\programing\core_node\pycore\pyctl\speech\launch_speech_rpc.py", 
+line 23, in <module>
+    from pycore.pylauncher import launch_services, LauncherConfig, 
+ServiceLauncher
+ImportError: cannot import name 'launch_services' from partially initialized 
+module 'pycore.pylauncher' (most likely due to a circular import) 
+(D:\programing\core_node\pycore\pylauncher\__init__.py)

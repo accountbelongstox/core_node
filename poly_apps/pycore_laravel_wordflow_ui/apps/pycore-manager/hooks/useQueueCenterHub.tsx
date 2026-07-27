@@ -37,8 +37,9 @@ import {
   buildDefaultSectionContracts,
 } from '../utils/pcQueueCenterTypes';
 import { taskCenterState } from './TaskCenterState';
+import { useTopicDrivenRefresh } from './useTopicDrivenRefresh';
 
-const HUB_POLL_MS = 5000;
+const HUB_FALLBACK_POLL_MS = 30_000;
 
 /*
  * [gpt-5.3-codex-spark:LEGACY-START]
@@ -798,13 +799,11 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
     void poll(false);
   }, [poll]);
 
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const id = window.setInterval(() => {
-      void poll(true);
-    }, HUB_POLL_MS);
-    return () => window.clearInterval(id);
-  }, [autoRefresh, poll]);
+  useTopicDrivenRefresh(
+    ['operation.changed'],
+    () => { void poll(true); },
+    { fallbackMs: autoRefresh ? HUB_FALLBACK_POLL_MS : 0, enabled: autoRefresh },
+  );
 
   const refreshHub = useCallback(async () => {
     await poll(false);

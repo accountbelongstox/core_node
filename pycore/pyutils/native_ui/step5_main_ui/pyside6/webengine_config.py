@@ -166,6 +166,13 @@ def _build_chromium_flags(
     disabled_features: List[str] = []
     flags: List[str] = []
 
+    # Keep the hidden tray-resident webview active so it is ready when shown.
+    flags.extend([
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
+        '--disable-backgrounding-occluded-windows',
+    ])
+
     # Check if running as root (Linux/macOS only) -> needs --no-sandbox
     is_root = False
     if not is_windows and disable_sandbox_for_root:

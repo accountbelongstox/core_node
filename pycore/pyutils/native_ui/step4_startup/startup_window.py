@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import time
 from pycore import THREAD_BUS
-from pycore.pyutils.native_ui.startup_window_thread import TkinterStartupThread
+from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
 """
 Startup Window Helpers - ColorPrintCapture only
 

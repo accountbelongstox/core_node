@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Qwen3-TTS engine - HTTP client to the isolated-venv api server (class C).
+Qwen3-TTS engine - WebSocket client to the isolated-venv api server (class C).
 
 qwen-tts owns transformer dependencies that may not coexist with the main
 interpreter's pin (parler/bark -> 4.46.x). Therefore qwen-tts is NEVER imported
 in this (main) interpreter. Instead it runs as
 pycore/tts_install_assets/qwen3tts_api_server.py inside a DEDICATED venv (see
 qwen3tts_venv.py); that server is launched + lifecycle-managed as a class-C
-service by tts_service_manager.py / managed_service.py. This module only POSTs to
-it over stdlib HTTP (urllib), keeping the same public API the orchestrator,
-capabilities probe and engine probe already call.
+service by tts_service_manager.py / managed_service.py. This module talks to it over
+WebSocket for synthesis (HTTP retained for lightweight health/capability probes).
 
 See development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5.
 
@@ -29,7 +28,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pycore.pyfoundations.isolated_venv import venv_ready as isolated_venv_ready
+from pycore.pyutils.python_env.isolated_venv import venv_ready as isolated_venv_ready
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
 
@@ -143,6 +142,12 @@ def _http_error_detail(exc: urllib.error.HTTPError) -> str:
 
 
 def _post_bytes(path: str, payload: Dict[str, Any]) -> "tuple[bool, bytes, Optional[str]]":
+    if path == "/synthesize":
+        try:
+            from pycore.pyutils.tts.qwen3tts_ws_client import ws_synthesize
+            return ws_synthesize(payload)
+        except Exception as exc:  # noqa: BLE001
+            return False, b"", str(exc)
     try:
         _status, data = _post(path, payload)
         return True, data, None
@@ -153,6 +158,12 @@ def _post_bytes(path: str, payload: Dict[str, Any]) -> "tuple[bool, bytes, Optio
 
 
 def _post_json(path: str, payload: Dict[str, Any]) -> "tuple[bool, Any, Optional[str]]":
+    if path == "/synthesize_batch":
+        try:
+            from pycore.pyutils.tts.qwen3tts_ws_client import ws_synthesize_batch
+            return ws_synthesize_batch(payload)
+        except Exception as exc:  # noqa: BLE001
+            return False, None, str(exc)
     try:
         _status, data = _post(path, payload)
         return True, json.loads(data.decode("utf-8")), None

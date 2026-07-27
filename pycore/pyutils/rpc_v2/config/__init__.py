@@ -43,6 +43,9 @@ class RPC_CONSTANTS:
         "BROADCAST": ExtendedMessageType.BROADCAST,
         "CANCEL": ExtendedMessageType.CANCEL,
         "ACK": MessageType.ACK,
+        "HELLO": MessageType.HELLO,
+        "SERVER_EVENT": MessageType.SERVER_EVENT,
+        "ACK_CONFIRMATION": MessageType.ACK_CONFIRMATION,
         "ACK_REQUEST": ExtendedMessageType.ACK_REQUEST,
     }
 

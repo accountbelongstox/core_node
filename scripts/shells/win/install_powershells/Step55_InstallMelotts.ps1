@@ -141,6 +141,10 @@ if ($meloPolicy) {
     $meloPackages = @($meloPolicy.packages)
     $meloHealth = [string]$meloPolicy.health_imports
 }
+if (-not $meloPolicy -or $meloPackages.Count -eq 0) {
+    Write-Host "$SCRIPT_INDEX [!] MeloTTS runtime policy is unavailable or has no dependency plan; pip was not invoked." -ForegroundColor DarkYellow
+    return
+}
 $hasCuda = (Get-CudaRuntimePolicy).Enabled
 if ($hasCuda) {
     $device = 'cuda:0'

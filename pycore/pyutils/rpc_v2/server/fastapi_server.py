@@ -53,6 +53,7 @@ from pycore.pyutils.rpc_v2.server.http_handler import HttpRPCHandler
 from pycore.pyutils.rpc_v2.server.websocket_handler import WebSocketRPCHandler
 from pycore.pyutils.rpc_v2.server.sse_broadcaster import SSEBroadcaster
 from pycore.pyutils.rpc_v2.server._serialized_bridge import await_serialized
+from pycore.pyutils.rpc_v2.server.rpc_delivery_service import get_rpc_delivery_service
 from pycore.pyutils.rpc_v2.protocol import RPCProtocolServer
 
 WS_PATH = RPC_CONSTANTS.WS_PATH
@@ -120,6 +121,7 @@ class FastAPIRPCServer:
 
         self.routes_manager = RoutesManager(debug=self.debug)
         self.client_registry = ClientRegistry(debug=self.debug)
+        get_rpc_delivery_service().set_client_registry(self.client_registry)
         self.request_processor = RequestProcessor(
             request_event_table=self.request_event_table,
             routes=self.routes_manager.routes,
@@ -411,6 +413,7 @@ class FastAPIRPCServer:
             if self._broadcast_loop is None:
                 self._broadcast_loop = asyncio.get_running_loop()
                 ColorPrint.blue("[WS] Captured event loop for broadcast")
+            get_rpc_delivery_service().set_event_loop(asyncio.get_running_loop())
             await self.websocket_handler.handle_websocket(websocket)
 
         @self.app.get(f"{HTTP_PATH_PREFIX}/sse")

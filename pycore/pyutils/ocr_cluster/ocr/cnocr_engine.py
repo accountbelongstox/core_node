@@ -3,7 +3,6 @@ CnOCR Engine for local OCR processing with scene-specific models
 Supports different model types: scene, doc, number, general, english, chinese_traditional
 """
 
-from pycore.pyfoundations.third_party import REC_MORE_CONFIGS_CNOCR as _REC_MORE_CONFIGS
 import os
 import time
 from pathlib import Path
@@ -12,11 +11,8 @@ from typing import Dict, Any, Optional, List
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.ocr_cluster.ocr.ocr_result import OCRResult
 
-# Several CnOCR recognizers (en_PP-OCRv3, chinese_cht_PP-OCRv3, …) require a
-# `font_path` via rec_more_configs or they raise "Error recognizing image:
-# font_path". The canonical config used by the prewarm path supplies it; reuse
-# it so EVERY model type works (the bare-CnOcr path errored on font_path).
 try:
+    from pycore.pyfoundations.third_party import REC_MORE_CONFIGS_CNOCR as _REC_MORE_CONFIGS
 except Exception:  # noqa: BLE001 — degrade to no extra config rather than break import
     _REC_MORE_CONFIGS = {}
 
@@ -81,7 +77,7 @@ class CnOCREngine:
 
         # Check if CnOCR is available
         try:
-            pass
+            from cnocr import CnOcr
         except ImportError as e:
             self.initialization_error = f"CnOCR not installed: {str(e)}"
             ColorPrint.red(f"[ERROR] {self.initialization_error}")

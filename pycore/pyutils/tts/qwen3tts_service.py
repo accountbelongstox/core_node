@@ -24,11 +24,12 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from pycore.pyfoundations.isolated_venv import resolve_python as resolve_isolated_python
-from pycore.pyfoundations.isolated_venv import venv_ready as isolated_venv_ready
+from pycore.pyutils.python_env.isolated_venv import resolve_python as resolve_isolated_python
+from pycore.pyutils.python_env.isolated_venv import venv_ready as isolated_venv_ready
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.tts import qwen3tts_weights
 from pycore.pyfoundations.serialized_worker import (
@@ -36,6 +37,7 @@ from pycore.pyfoundations.serialized_worker import (
     call_serialized,
     start_bus_task,
 )
+from pycore.callmodule.services.operation_service import OperationService
 
 _API_SERVER_ASSET = "qwen3tts_api_server.py"
 _HEALTH_TIMEOUT_S = 3.0
@@ -70,9 +72,16 @@ class Qwen3TtsService:
         on_output: Optional[Callable[[str], None]] = None,
         log: Optional[Callable[[str], None]] = None,
     ) -> None:
+        resolved_model_id = (
+            (model_id or "").strip()
+            or qwen3tts_weights.resolve_model_id(allow_remote=False)
+        )
         self.host = host or "127.0.0.1"
         self.port = port
-        self.model_id = (model_id or "").strip() or None
+        # Always pass the canonical local weights path when the installer has
+        # verified it. Falling back to the server's HF default would download
+        # a second model copy into the isolated environment's HF cache.
+        self.model_id = resolved_model_id or None
         self.device = (device or "").strip() or None
         self.request_timeout = request_timeout
         self._on_output = on_output or (lambda line: ColorPrint.blue(f"[qwen3tts-server] {line}"))
@@ -155,6 +164,11 @@ class Qwen3TtsService:
         env["QWEN3TTS_PORT"] = str(self.port)
         if self.model_id:
             env["QWEN3TTS_MODEL"] = self.model_id
+            if Path(self.model_id).is_dir():
+                # Step61 owns downloads. Runtime consumes the verified local
+                # store and must not create a second Hugging Face cache.
+                env["HF_HUB_OFFLINE"] = "1"
+                env["TRANSFORMERS_OFFLINE"] = "1"
         if self.device:
             env["QWEN3TTS_DEVICE"] = self.device
         env["PYTHONUNBUFFERED"] = "1"
@@ -304,14 +318,130 @@ class Qwen3TtsService:
     def get_capabilities(self) -> Optional[Dict[str, Any]]:
         return self._get_json("/capabilities", _HEALTH_TIMEOUT_S)
 
-    def load_model(self, timeout: float = 1200.0) -> Dict[str, Any]:
+    def load_model(self, force_reload: bool = False, timeout: float = 1200.0) -> Dict[str, Any]:
         """Trigger model load (GET /load) so the loading process streams to console."""
+        if force_reload:
+            self.stop()
+            self._external = False
+            if not self.start(wait_healthy=False):
+                return {"ok": False, "error": "failed to restart api server for reload"}
         self._log("[service] warming model via /load (first load can take minutes) ...")
         info = self._get_json("/load", timeout)
         if info is None:
             return {"ok": False, "error": "load request failed or timed out"}
         self._log(f"[service] /load result: {info}")
         return info
+
+    def model_status(self) -> Dict[str, Any]:
+        """Return process health and capability summary without side effects."""
+        health = self.health() or {}
+        capabilities = self.get_capabilities() or {}
+        return {
+            "running": self.is_running(),
+            "base_url": self.base_url() if self.port is not None else None,
+            "health": health,
+            "capabilities": capabilities,
+        }
+
+    def submit_synthesis(self, scope: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Accept a synthesis command, persist an operation, and run work in background."""
+        op_svc = OperationService()
+        idempotency_key = str(params.get("idempotency_key") or "").strip() or None
+        op = op_svc.create_or_get(
+            kind="qwen_synthesis",
+            scope=scope,
+            idempotency_key=idempotency_key,
+            initial_message="Qwen synthesis accepted",
+        )
+        item_key = str(params.get("item_key") or f"syn_{uuid.uuid4().hex[:12]}")
+        existing_items = op_svc.repo.get_operation_items(op.id)
+        if not existing_items:
+            op_svc.start(op.id, stage="queued", message="Synthesis queued")
+            op_svc.declare_items(
+                op.id,
+                [{"item_key": item_key, "input_json": dict(params)}],
+            )
+        else:
+            item_key = existing_items[0].item_key
+
+        start_bus_task(
+            self._run_synthesis_operation,
+            op.id,
+            item_key,
+            dict(params),
+            thread_name="QwenSynthesisWorker",
+        )
+        refreshed = op_svc.get_operation(op.id)
+        return {
+            "operation_id": op.id,
+            "scope": scope,
+            "item_key": item_key,
+            "status": refreshed.status if refreshed else op.status,
+            "revision": refreshed.revision if refreshed else op.revision,
+        }
+
+    def _run_synthesis_operation(
+        self,
+        operation_id: str,
+        item_key: str,
+        params: Dict[str, Any],
+    ) -> None:
+        op_svc = OperationService()
+        items = op_svc.repo.get_operation_items(operation_id)
+        item = next((row for row in items if row.item_key == item_key), None)
+        if item is None:
+            return
+
+        op_svc.start_item(item.id, stage="synthesizing", message="Synthesizing audio")
+        text = str(params.get("text") or "")
+        language = str(params.get("language") or "en")
+        speaker = params.get("speaker")
+        instruct = params.get("instruct")
+        fmt = str(params.get("format") or "wav")
+        ok, data, meta = self.synthesize(
+            text=text,
+            language=language,
+            speaker=speaker,
+            instruct=instruct,
+            fmt=fmt,
+        )
+        if ok:
+            result_json = {
+                "meta": meta,
+                "bytes": len(data),
+                "format": fmt,
+                "speaker": speaker,
+                "language": language,
+            }
+            op_svc.complete_item(
+                item.id,
+                result_json=result_json,
+                message="Synthesis completed",
+            )
+            op_svc.complete(operation_id, message="Qwen synthesis operation completed")
+            return
+
+        error_json = {"code": "synthesis_failed", "message": meta.get("error", "synthesis failed")}
+        op_svc.fail_item(item.id, error_json=error_json, message=str(error_json["message"]))
+        op_svc.fail(operation_id, error_json, message=str(error_json["message"]))
+
+    def get_synthesis_status(
+        self,
+        operation_id: Optional[str] = None,
+        scope: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Return the authoritative operation snapshot for a synthesis job."""
+        snapshot = OperationService().get_snapshot(op_id=operation_id, scope=scope)
+        return snapshot or {}
+
+    def cancel_synthesis(self, operation_id: str) -> Dict[str, Any]:
+        """Request cooperative cancellation for a synthesis operation."""
+        op = OperationService().request_cancel(operation_id)
+        return {
+            "operation_id": operation_id,
+            "status": op.status,
+            "revision": op.revision,
+        }
 
     def synthesize(
         self,
@@ -362,11 +492,27 @@ class Qwen3TtsService:
 
 
 def resolved_model_id() -> str:
-    return qwen3tts_weights.resolve_model_id()
+    return qwen3tts_weights.resolve_model_id(allow_remote=False)
 
 
 def venv_ready() -> bool:
     return isolated_venv_ready("qwen3tts")
 
 
-__all__ = ["Qwen3TtsService", "resolved_model_id", "venv_ready"]
+_SERVICE_SINGLETON: Optional[Qwen3TtsService] = None
+
+
+def get_qwen3tts_service() -> Qwen3TtsService:
+    """Return the process-wide Qwen3TTS service instance."""
+    global _SERVICE_SINGLETON
+    if _SERVICE_SINGLETON is None:
+        _SERVICE_SINGLETON = Qwen3TtsService()
+    return _SERVICE_SINGLETON
+
+
+__all__ = [
+    "Qwen3TtsService",
+    "get_qwen3tts_service",
+    "resolved_model_id",
+    "venv_ready",
+]

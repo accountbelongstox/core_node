@@ -5,7 +5,7 @@
 import threading
 import time
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyutils.common.tts_models import ItemType
 from pycore.pyutils.common.tts_queue_ops import TTSQueueOps

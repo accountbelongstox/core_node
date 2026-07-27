@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_fastapi
@@ -36,15 +36,22 @@ from pycore.pyutils.rpc_v2.server.client_registry import ClientRegistry, ClientS
 from pycore.pyutils.rpc_v2.server.routes_manager import RoutesManager
 from pycore.pyutils.rpc_v2.server.request_processor import RequestProcessor
 from pycore.pyutils.rpc_v2.server._serialized_bridge import await_serialized
+from pycore.pyutils.rpc_v2.server.rpc_delivery_service import get_rpc_delivery_service
+from pycore.database import StateRepository
 
 MSG_TYPES = RPC_CONSTANTS.MESSAGE_TYPES
 ERROR_CODES = RPC_CONSTANTS.ERROR_CODES
+_STATE_REPO = StateRepository()
 CONTROL_MSG_TYPES = frozenset({
     MSG_TYPES["ACK"],
     MSG_TYPES["PING"],
     MSG_TYPES["EVENT"],
     MSG_TYPES["PONG"],
 })
+
+_HANDSHAKE_TIMEOUT_S = 10.0
+_SERVER_INSTANCE_ID = uuid.uuid4().hex
+HELLO_TYPE = MSG_TYPES.get("HELLO", "hello")
 
 
 class WebSocketRPCHandler:
@@ -70,9 +77,6 @@ class WebSocketRPCHandler:
 
     async def handle_websocket(self, websocket: WebSocket):
         """Accept WebSocket connections and dispatch messages."""
-        # Logged unconditionally (not behind debug): this is THE signal that a WS
-        # upgrade actually reached the backend. If you see this in the terminal, the
-        # /rpc/ws path/proxy works; if you never see it, the upgrade never arrived.
         ColorPrint.cyan(
             f"[WS] upgrade reached backend: path={websocket.url.path} "
             f"client={websocket.client.host if websocket.client else '?'} "
@@ -80,10 +84,43 @@ class WebSocketRPCHandler:
         )
         await websocket.accept()
 
-        client_id = websocket.query_params.get("client_id") or str(uuid.uuid4())
+        connection_id = uuid.uuid4().hex
         remote_addr = websocket.client.host if websocket.client else "unknown"
         user_agent = websocket.headers.get("User-Agent")
         connection_tasks: Set[asyncio.Task] = set()
+        pending_first_message: Optional[Dict[str, Any]] = None
+
+        client_id = websocket.query_params.get("client_id")
+        resume_seq = 0
+        resume_token_in: Optional[str] = None
+        got_hello = False
+
+        try:
+            first = await asyncio.wait_for(websocket.receive_json(), timeout=_HANDSHAKE_TIMEOUT_S)
+            if str(first.get("type", "")).lower() == HELLO_TYPE:
+                client_id = str(first.get("client_id") or client_id or uuid.uuid4())
+                resume_seq = int(first.get("last_acked_seq") or 0)
+                resume_token_in = first.get("resume_token")
+                if resume_token_in is not None:
+                    resume_token_in = str(resume_token_in)
+                got_hello = True
+            else:
+                pending_first_message = first
+                client_id = str(client_id or uuid.uuid4())
+        except asyncio.TimeoutError:
+            client_id = str(client_id or uuid.uuid4())
+        except (WebSocketDisconnect, RuntimeError):
+            return
+
+        auth_ok, resume_token = await asyncio.to_thread(
+            _STATE_REPO.authenticate_client_session,
+            client_id,
+            resume_token_in if got_hello else None,
+        )
+        if not auth_ok:
+            ColorPrint.red(f"[WS] rejected client_id={client_id[:8]} invalid resume token")
+            await websocket.close(code=4001, reason="invalid resume token")
+            return
 
         await self.client_registry.register_websocket_client(
             client_id=client_id,
@@ -95,29 +132,36 @@ class WebSocketRPCHandler:
 
         ColorPrint.green(f"[WS] connected id={client_id[:8]} addr={remote_addr}")
 
-        # Prefetch reconnect notifications before welcome so welcome means
-        # "server is ready to accept requests" — not "still initializing".
         pending_events, inventory_items = await self._load_client_notifications(client_id)
+        delivery = get_rpc_delivery_service()
+        offset = delivery.get_client_offset(client_id)
+        if resume_seq > offset:
+            offset = resume_seq
 
         await self.client_registry.send_to_client(
             client_id,
             {
                 "type": MSG_TYPES["WELCOME"],
                 "client_id": client_id,
+                "connection_id": connection_id,
+                "resume_token": resume_token,
+                "server_instance_id": _SERVER_INSTANCE_ID,
+                "highest_contiguous_acked_seq": offset,
                 "timestamp": time.time(),
             },
         )
 
-        # Historical completions may arrive after welcome; delivery is fire-and-
-        # forget via the ACK manager and must not block the receive loop.
         self._deliver_client_notifications(client_id, pending_events, inventory_items)
+        self._deliver_durable_events(client_id, after_seq=offset)
+
+        if pending_first_message is not None:
+            await self.handle_websocket_message(client_id, websocket, pending_first_message)
 
         try:
             while True:
                 message = await websocket.receive_json()
                 msg_type = message.get("type", MSG_TYPES["REQUEST"])
                 if msg_type in CONTROL_MSG_TYPES:
-                    # ACK/PING/EVENT must not wait behind a slow REQUEST.
                     await self.handle_websocket_message(client_id, websocket, message)
                     continue
                 task = asyncio.create_task(
@@ -132,8 +176,6 @@ class WebSocketRPCHandler:
                 task.cancel()
             if connection_tasks:
                 await asyncio.gather(*connection_tasks, return_exceptions=True)
-            # Pass this websocket so a connection already superseded by a newer one
-            # for the same client_id doesn't clobber the live session.
             await self.client_registry.unregister_websocket_client(client_id, websocket)
             ColorPrint.yellow(f"[WS] disconnected id={client_id[:8]}")
 
@@ -147,7 +189,12 @@ class WebSocketRPCHandler:
         await self.client_registry.update_client_activity(client_id)
 
         msg_type = data.get("type", MSG_TYPES["REQUEST"])
-        request_id = data.get("event_id") or data.get("id") or self._generate_request_id()
+        request_id = (
+            data.get("request_id")
+            or data.get("event_id")
+            or data.get("id")
+            or self._generate_request_id()
+        )
 
         if msg_type == MSG_TYPES["REQUEST"]:
             await self._handle_request(client_id, websocket, data, request_id)
@@ -174,7 +221,28 @@ class WebSocketRPCHandler:
             await self._replay_client_notifications(client_id, limit=5)
 
         elif msg_type == MSG_TYPES["ACK"]:
-            self.ack_manager.handle_ack(client_id, data.get("event_id") or request_id)
+            event_id = str(data.get("event_id") or "")
+            seq = int(data.get("seq") or 0)
+            connection_id = data.get("connection_id")
+            if event_id and seq:
+                delivery = get_rpc_delivery_service()
+                ok = delivery.ack_event(client_id, event_id, seq)
+                await self.client_registry.send_to_client(
+                    client_id,
+                    {
+                        "type": MSG_TYPES.get("ACK_CONFIRMATION", "ack_confirmation"),
+                        "client_id": client_id,
+                        "connection_id": connection_id,
+                        "event_id": event_id,
+                        "seq": seq,
+                        "success": ok,
+                        "highest_contiguous_acked_seq": delivery.get_client_offset(client_id),
+                    },
+                )
+            else:
+                legacy_id = data.get("request_id") or data.get("id") or event_id
+                if legacy_id:
+                    self.ack_manager.handle_ack(client_id, str(legacy_id))
 
         elif msg_type == MSG_TYPES["EVENT"]:
             event_name = data.get("event")
@@ -218,6 +286,58 @@ class WebSocketRPCHandler:
 
         # Support both 'data' (RPC v2 format) and 'params' (legacy) fields
         params = data.get("data") or data.get("params", {})
+        idempotency_key = data.get("idempotency_key")
+        if idempotency_key is not None:
+            idempotency_key = str(idempotency_key).strip() or None
+
+        deadline_at = data.get("deadline_at")
+        if deadline_at is not None:
+            try:
+                if time.time() > float(deadline_at):
+                    await self._send_request_error(
+                        client_id,
+                        route,
+                        request_id,
+                        ERROR_CODES["TIMEOUT"],
+                        "Request deadline exceeded",
+                    )
+                    return
+            except (TypeError, ValueError):
+                pass
+
+        if idempotency_key:
+            cached = await asyncio.to_thread(
+                _STATE_REPO.get_command_idempotency,
+                client_id,
+                route,
+                idempotency_key,
+            )
+            if cached and cached.get("status") == "completed" and cached.get("response_json"):
+                await self.client_registry.send_to_client(
+                    client_id, cached["response_json"]
+                )
+                return
+            if cached and cached.get("status") == "pending":
+                await self.client_registry.send_to_client(
+                    client_id,
+                    {
+                        "type": MSG_TYPES["EVENT"],
+                        "route": "request_processing",
+                        "event": "request_processing",
+                        "id": request_id,
+                        "request_id": request_id,
+                        "data": {"status": "pending", "idempotent": True},
+                    },
+                )
+                return
+            await asyncio.to_thread(
+                _STATE_REPO.save_command_idempotency_pending,
+                client_id,
+                route,
+                idempotency_key,
+                request_id,
+            )
+
         is_sync = self.routes_manager.is_sync_route(route)
 
         if is_sync:
@@ -227,6 +347,7 @@ class WebSocketRPCHandler:
                 route=route,
                 params=params,
                 request_id=request_id,
+                idempotency_key=idempotency_key,
             )
             return
 
@@ -242,6 +363,7 @@ class WebSocketRPCHandler:
                 {
                     "type": MSG_TYPES["RESPONSE"],
                     "route": inventory_item.route,
+                    "request_id": request_id,
                     "id": request_id,
                     "event_id": request_id,
                     "client_id": client_id,
@@ -324,7 +446,9 @@ class WebSocketRPCHandler:
                     client_id=client_id,
                     websocket=websocket,
                 ).__dict__,
-                notify_callback=self.ack_manager.notify_websocket_with_retry,
+                notify_callback=self._wrap_idempotent_notify(
+                    client_id, route, idempotency_key, request_id
+                ),
             )
         )
 
@@ -348,6 +472,7 @@ class WebSocketRPCHandler:
         route: str,
         params: Dict[str, Any],
         request_id: str,
+        idempotency_key: Optional[str] = None,
     ) -> None:
         """Execute a sync route immediately — no inventory, RequestEvent, or ACK."""
         handler = self.routes_manager.get_route(route)
@@ -397,6 +522,7 @@ class WebSocketRPCHandler:
             {
                 "type": MSG_TYPES["RESPONSE"],
                 "route": route,
+                "request_id": request_id,
                 "id": request_id,
                 "event_id": request_id,
                 "client_id": client_id,
@@ -407,6 +533,89 @@ class WebSocketRPCHandler:
                 "requires_ack": False,
                 "queue": None,
                 "timestamp": int(time.time() * 1000),
+            },
+        )
+        if idempotency_key:
+            response_envelope = {
+                "type": MSG_TYPES["RESPONSE"],
+                "route": route,
+                "request_id": request_id,
+                "id": request_id,
+                "result": result,
+                "error": error,
+                "success": error is None,
+                "sync_response": True,
+            }
+            await asyncio.to_thread(
+                _STATE_REPO.save_command_idempotency_response,
+                client_id,
+                route,
+                idempotency_key,
+                response_envelope,
+                "completed" if error is None else "failed",
+                {"message": error} if error else None,
+            )
+
+    def _wrap_idempotent_notify(
+        self,
+        client_id: str,
+        route: str,
+        idempotency_key: Optional[str],
+        request_id: str,
+    ):
+        base_notify = self.ack_manager.notify_websocket_with_retry
+
+        async def _notify(
+            notify_client_id: str,
+            notify_request_id: str,
+            result: Any,
+            error: Optional[str],
+        ) -> None:
+            if idempotency_key:
+                envelope = {
+                    "type": MSG_TYPES["RESPONSE"],
+                    "route": route,
+                    "request_id": notify_request_id,
+                    "id": notify_request_id,
+                    "result": result,
+                    "error": error,
+                    "success": error is None,
+                    "requires_ack": True,
+                }
+                await asyncio.to_thread(
+                    _STATE_REPO.save_command_idempotency_response,
+                    client_id,
+                    route,
+                    idempotency_key,
+                    envelope,
+                    "completed" if error is None else "failed",
+                    {"message": error} if error else None,
+                )
+            if asyncio.iscoroutinefunction(base_notify):
+                await base_notify(notify_client_id, notify_request_id, result, error)
+            else:
+                base_notify(notify_client_id, notify_request_id, result, error)
+
+        return _notify
+
+    async def _send_request_error(
+        self,
+        client_id: str,
+        route: Optional[str],
+        request_id: str,
+        error_code: str,
+        message: str,
+    ) -> None:
+        await self.client_registry.send_to_client(
+            client_id,
+            {
+                "type": MSG_TYPES["ERROR"],
+                "route": route,
+                "request_id": request_id,
+                "id": request_id,
+                "error": error_code,
+                "message": message,
+                "success": False,
             },
         )
 
@@ -449,6 +658,20 @@ class WebSocketRPCHandler:
                 result=item.result,
                 error=item.error,
             )
+
+    def _deliver_durable_events(self, client_id: str, after_seq: int = 0) -> None:
+        """Replay durable server_event deliveries after reconnect (paged)."""
+        delivery = get_rpc_delivery_service()
+        offset = max(int(after_seq or 0), delivery.get_client_offset(client_id))
+        while True:
+            frames = delivery.replay_unacked(client_id, after_seq=offset, limit=100)
+            if not frames:
+                break
+            for frame in frames:
+                asyncio.create_task(self.client_registry.send_to_client(client_id, frame))
+            if len(frames) < 100:
+                break
+            offset = int(frames[-1].get("seq") or offset)
 
     async def _replay_client_notifications(self, client_id: str, limit: int = 10) -> None:
         """Schedule durable completion delivery for a connected client."""

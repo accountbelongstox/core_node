@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore.pyctl.speech.launch_speech_rpc import launch_speech_rpc_service
 """
 Speech Module - Unified Speech Processing System
 
@@ -49,5 +48,6 @@ __all__ = [
 
 def __getattr__(name: str):
     if name == 'launch_speech_rpc_service':
+        from pycore.pyctl.speech.launch_speech_rpc import launch_speech_rpc_service
         return launch_speech_rpc_service
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

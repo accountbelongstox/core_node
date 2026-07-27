@@ -19,8 +19,7 @@ from pycore.pyutils.native_ui.step5_main_ui.pyside6.framework import PySide6Fram
 
 
 if TYPE_CHECKING:
-
-
+    pass
 class PySide6UIThread(threading.Thread):
     """
     PySide6 UI Thread

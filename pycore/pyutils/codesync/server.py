@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from .sync_settings import (
 r"""
 Code Sync Server - Push code changes to connected clients
 
@@ -89,6 +88,7 @@ class CodeSyncServer:
     # (single source of truth), overlaid at runtime by the per-machine .data
     # override. These class attrs mirror the presets for back-compat with any code
     # that still reads them directly; live scans use sync_settings.build_excluder().
+    from .sync_settings import (
         PRESET_EXCLUDED_DIRS as _PD,
         PRESET_EXCLUDED_FILES as _PF,
         PRESET_EXCLUDED_EXTENSIONS as _PE,

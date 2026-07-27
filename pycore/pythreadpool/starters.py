@@ -7,6 +7,9 @@ from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
 from pycore.pyutils.native_ui.step6_tray.tray_thread import TkinterSystemTrayThread
 from pycore.pyutils.native_ui.step6_tray.win32_system_tray import Win32SystemTrayThread, WIN32_AVAILABLE
 from pycore.pyutils.native_ui.step6_tray.appindicator_thread import (
+    AppIndicatorSystemTrayThread,
+    APPINDICATOR_AVAILABLE,
+)
 from pycore.pyutils.native_ui.step6_tray._types import build_appindicator_menu_items
 """
 Service Starter Functions
@@ -400,9 +403,7 @@ def start_tray(config: Dict[str, Any]) -> Any:
     """
     ColorPrint.blue("[tray] Starting System Tray...")
 
-        AppIndicatorSystemTrayThread,
-        APPINDICATOR_AVAILABLE,
-    )
+
 
     # Get configuration
     app_name = config.get('app_name', 'Application')

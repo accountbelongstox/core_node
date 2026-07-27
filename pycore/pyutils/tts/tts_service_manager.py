@@ -45,8 +45,11 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.isolated_venv import resolve_python as resolve_isolated_python
-from pycore.pyfoundations.isolated_venv import venv_ready as isolated_venv_ready
+from pycore.pyutils.python_env.isolated_venv import (
+    MAIN_INTERPRETER,
+    resolve_python as resolve_isolated_python,
+)
+from pycore.pyutils.python_env.isolated_venv import venv_ready as isolated_venv_ready
 from pycore.pyfoundations.third_party import get_third_package_psutil, get_third_package_requests
 from pycore.pyutils.common.managed_service import CategorySettings, ServiceSpec, managed_services
 from pycore.pyutils.common.model_tiers import runtime_engine_model
@@ -142,7 +145,7 @@ def _needs_local_server(engine: str) -> bool:
 
 
 def _python_exe() -> str:
-    return sys.executable
+    return str(MAIN_INTERPRETER)
 
 
 def _sync_server_script(staging: Path, filename: str) -> None:
@@ -260,12 +263,17 @@ def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Di
     Mirrors Qwen3TtsService.start's env; PYTHONPATH/PYTHONHOME are stripped so the
     venv's pinned transformers is not shadowed by the main interpreter.
 
+    qwen3tts_weights.resolve_model_id() converts a matching verified HF repo id
+    to staging/weights. The venv is package-only and must never own or download
+    another managed model copy.
+
     RUNTIME only RESOLVES the pre-built venv (resolve_python) - it never builds/pips
     at start time. Provisioning is done idempotently by the install scripts
     (Step61_InstallQwen3Tts.ps1 / 140_install_qwen3tts.sh) that pyservice runs; a
     missing venv -> no start + disabled_reason points at the installer."""
     venv_python = resolve_isolated_python("qwen3tts")
-    if not venv_python:
+    model_id = qwen3tts_weights.resolve_model_id(allow_remote=False)
+    if not venv_python or not model_id:
         return None
     api_server = Path(__file__).resolve().parents[2] / "tts_install_assets" / _QWEN3TTS_API_SERVER
     if not api_server.is_file():
@@ -277,7 +285,9 @@ def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Di
     extra: Dict[str, str] = {
         "QWEN3TTS_HOST": host,
         "QWEN3TTS_PORT": str(port),
-        "QWEN3TTS_MODEL": qwen3tts_weights.resolve_model_id(),
+        "QWEN3TTS_MODEL": model_id,
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1",
     }
     device = (os.environ.get("QWEN3TTS_DEVICE") or "").strip()
     if device:

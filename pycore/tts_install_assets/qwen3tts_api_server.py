@@ -14,7 +14,10 @@ Official: https://github.com/QwenLM/Qwen3-TTS  pip install -U qwen-tts
 
 Env:
   QWEN3TTS_HOST / QWEN3TTS_PORT  - bind (default 127.0.0.1:57210)
-  QWEN3TTS_MODEL                 - HF id or local path
+  QWEN3TTS_MODEL                 - HF id or local path. Managed Pycore startup
+                                   always supplies the verified persistent
+                                   staging/weights path when available; the HF
+                                   id fallback is for standalone use only.
   QWEN3TTS_DEVICE                - cpu | cuda:0 | auto (default auto)
   QWEN3TTS_SPEAKER               - preset speaker override
   QWEN3TTS_INSTRUCT              - optional style/emotion instruction
@@ -30,6 +33,7 @@ Endpoints:
 
 import base64
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -39,7 +43,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -670,6 +674,138 @@ def synthesize_batch(req: BatchSynthRequest):
         return {"results": results}
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+async def _ws_handle_message(data: Dict[str, Any]) -> Dict[str, Any]:
+    op = str(data.get("op") or "")
+    req_id = str(data.get("id") or "")
+    params = data.get("params") if isinstance(data.get("params"), dict) else {}
+
+    if op == "health":
+        ready = _model_ready(_model)
+        return {
+            "id": req_id,
+            "ok": True,
+            "data": {
+                "ok": True,
+                "device": _device or _resolve_device(),
+                "model_loaded": ready,
+                "load_error": None if ready else _load_error,
+            },
+        }
+
+    if op == "synthesize":
+        req = SynthRequest(**params)
+        text = (req.text or "").strip()
+        if not text:
+            return {"id": req_id, "ok": False, "error": "empty text"}
+        fmt = (req.format or "mp3").strip().lower()
+        try:
+            model = _get_model()
+            qwen_lang = _qwen_language(req.language)
+            resolved = _resolve_speaker(req.language, requested=(req.speaker or "").strip())
+            if not resolved.get("ok"):
+                return {"id": req_id, "ok": False, "error": resolved}
+            speaker = str(resolved["resolved_speaker"])
+            gen_kwargs: Dict[str, Any] = {"text": text, "language": qwen_lang, "speaker": speaker}
+            instruct = (req.instruct or os.environ.get("QWEN3TTS_INSTRUCT") or "").strip()
+            if instruct:
+                gen_kwargs["instruct"] = instruct
+            with _model_lock:
+                wavs, sr = model.generate_custom_voice(**gen_kwargs)
+            audio, _media = _encode_audio(wavs[0], sr, fmt)
+            return {
+                "id": req_id,
+                "ok": True,
+                "audio_base64": base64.b64encode(audio).decode("ascii"),
+                "format": fmt,
+            }
+        except Exception as exc:  # noqa: BLE001
+            return {"id": req_id, "ok": False, "error": str(exc)}
+
+    if op == "synthesize_batch":
+        req = BatchSynthRequest(**params)
+        text = (req.text or "").strip()
+        variants = req.variants or []
+        if not text or not variants:
+            return {"id": req_id, "ok": False, "error": "empty text or no variants"}
+        fmt = (req.format or "mp3").strip().lower()
+        try:
+            model = _get_model()
+            qwen_lang = _qwen_language(req.language)
+            resolved_rows: List[Dict[str, Any]] = []
+            speakers: List[str] = []
+            for i, variant in enumerate(variants):
+                resolved = _speaker_for_variant(req.language, variant.dict(), i)
+                if not resolved.get("ok"):
+                    resolved_rows.append({
+                        "key": variant.key,
+                        "ok": False,
+                        "error": resolved,
+                    })
+                    speakers.append("")
+                    continue
+                resolved_rows.append(resolved)
+                speakers.append(str(resolved["resolved_speaker"]))
+            results: List[Dict[str, Any]] = []
+            for i, variant in enumerate(variants):
+                row = resolved_rows[i] if i < len(resolved_rows) else None
+                if not isinstance(row, dict) or not row.get("ok"):
+                    results.append({
+                        "key": variant.key,
+                        "ok": False,
+                        "audio_base64": None,
+                        "error": row.get("error") if isinstance(row, dict) else "speaker resolve failed",
+                    })
+                    continue
+                speaker = speakers[i]
+                try:
+                    with _model_lock:
+                        wavs, sr = model.generate_custom_voice(
+                            text=text, language=qwen_lang, speaker=speaker
+                        )
+                    audio_bytes, _ = _encode_audio(wavs[0], sr, fmt)
+                    results.append({
+                        "key": variant.key,
+                        "ok": True,
+                        "requested_speaker": row.get("requested_speaker"),
+                        "resolved_speaker": row.get("resolved_speaker"),
+                        "fallback_applied": bool(row.get("fallback_applied")),
+                        "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
+                        "error": None,
+                    })
+                except Exception as item_exc:
+                    results.append({
+                        "key": variant.key,
+                        "ok": False,
+                        "audio_base64": None,
+                        "error": str(item_exc),
+                    })
+            return {"id": req_id, "ok": True, "data": {"results": results}}
+        except Exception as exc:  # noqa: BLE001
+            return {"id": req_id, "ok": False, "error": str(exc)}
+
+    return {"id": req_id, "ok": False, "error": f"unknown op: {op}"}
+
+
+@app.websocket("/ws")
+async def websocket_rpc(ws: WebSocket):
+    await ws.accept()
+    try:
+        while True:
+            raw = await ws.receive_text()
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                await ws.send_json({"ok": False, "error": "invalid json"})
+                continue
+            if not isinstance(data, dict):
+                await ws.send_json({"ok": False, "error": "message must be an object"})
+                continue
+            response = await _ws_handle_message(data)
+            await ws.send_text(json.dumps(response, ensure_ascii=False))
+    except WebSocketDisconnect:
+        return
 
 
 def main():

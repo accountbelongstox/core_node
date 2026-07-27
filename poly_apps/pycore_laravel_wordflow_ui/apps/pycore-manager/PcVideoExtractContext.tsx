@@ -35,6 +35,7 @@ import {
 import { PYCORE_RPC_ROUTES } from '../../core/api-libs/pycore/PycoreRpcRoutes';
 import type { VideoExtractMapping, VideoExtractSegment } from '../../core/api-libs/pycore';
 import { usePersistentTask } from '../../core/tasks/usePersistentTask';
+import { useTopicDrivenRefresh } from './hooks/useTopicDrivenRefresh';
 
 const TASK_KEY = 'pycore.video-extract';
 // sentinel entry in `syncing` while a sync-ALL is in flight (not a real path,
@@ -303,7 +304,6 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
   const [localOutput, setLocalOutput] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
-  const segMapPollRef = useRef<number | null>(null);
   const finishedRef = useRef<string | null>(null);
   // task id whose terminal task has already been delivered to `data` (so the
   // poll loop returns null thereafter and the session settles).
@@ -327,6 +327,27 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
   const progress: VeProgress | null = polled ? progressOf(polled) : (starting ? { pct: 0, text: 'starting' } : null);
   const output = polled && done ? doneOutput(polled) : localOutput;
   const segmentsDir = snapshot?.current?.segments_dir ?? null;
+
+  const fetchSegmentMap = useCallback(() => {
+    if (!segmentsDir) return;
+    pycoreApi.getVideoExtractSegments(segmentsDir, corrLangsRef.current)
+      .then((r) => { if (r?.success && r.mapping) setMapping(r.mapping as MappingWithFiles); })
+      .catch(() => { /* keep last mapping */ });
+  }, [segmentsDir]);
+
+  useEffect(() => {
+    if (!segmentsDir) {
+      setMapping(null);
+      return;
+    }
+    fetchSegmentMap();
+  }, [segmentsDir, corrLanguages, fetchSegmentMap]);
+
+  useTopicDrivenRefresh(
+    ['video_extract_sync', 'operation.changed'],
+    fetchSegmentMap,
+    { fallbackMs: busy ? 15_000 : 0, enabled: Boolean(segmentsDir && busy) },
+  );
 
   // When the backend task terminates, surface the completion notice once per task
   // id. The poll loop itself "settles" the session (stops the timer but keeps the
@@ -352,30 +373,6 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
   useEffect(() => {
     if (polled && !done) setPaused(polled.status === 'paused');
   }, [polled, done]);
-
-  // ---- cleanup the segment-map interval on unmount --------------------- #
-  useEffect(() => () => {
-    if (segMapPollRef.current) clearInterval(segMapPollRef.current);
-  }, []);
-
-  // ---- live segment ↔ subtitle map for the CURRENT file ---------------- #
-  useEffect(() => {
-    if (segMapPollRef.current) { clearInterval(segMapPollRef.current); segMapPollRef.current = null; }
-    if (!segmentsDir) { setMapping(null); return; }
-    const fetchMap = () => {
-      // Pass the checked correspondence languages so the backend returns the
-      // per-cue multi-language slots (langs{}); legacy backends ignore it and
-      // return single-language cues (text only).
-      pycoreApi.getVideoExtractSegments(segmentsDir, corrLangsRef.current)
-        .then((r) => { if (r?.success && r.mapping) setMapping(r.mapping as MappingWithFiles); })
-        .catch(() => { /* keep last mapping */ });
-    };
-    fetchMap();
-    if (busy) segMapPollRef.current = window.setInterval(fetchMap, 3000);
-    return () => { if (segMapPollRef.current) { clearInterval(segMapPollRef.current); segMapPollRef.current = null; } };
-    // Re-fetch when the language selection changes so the correspondence columns
-    // update immediately (even when not actively extracting).
-  }, [segmentsDir, busy, corrLanguages]);
 
   // ---- live Laravel-sync progress events ------------------------------- #
   // Shared by syncSource AND syncAll: both emit the same `video_extract_sync`

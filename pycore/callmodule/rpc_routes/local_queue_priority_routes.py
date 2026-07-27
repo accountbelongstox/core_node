@@ -12,20 +12,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_QUEUE_PRIORITY_PRIORITIZE_COVERS,
     UI_QUEUE_PRIORITY_PRIORITIZE_POSTERS,
 )
-from pycore.callmodule.routers_bak.local.queue_priority_router import (
-    prioritize_word_images,
-    prioritize_sentence_audio,
-    prioritize_sentence_audio_item,
-    prioritize_word_audio_words,
-    prioritize_covers,
-    prioritize_posters,
-    WordImagePriorityRequest,
-    SentencePriorityRequest,
-    SentenceItemPriorityRequest,
-    WordAudioWordsPriorityRequest,
-    CoverPriorityRequest,
-    PosterPriorityRequest,
-)
+from pycore.callmodule.services import queue_priority_service as qp
 
 
 def register_local_queue_priority_routes(server):
@@ -33,8 +20,7 @@ def register_local_queue_priority_routes(server):
 
     async def prioritize_word_images_handler(params, request_id, context):
         params = params or {}
-        req = WordImagePriorityRequest(items=params.get("items") or [])
-        return await asyncio.to_thread(prioritize_word_images, req)
+        return await asyncio.to_thread(qp.prioritize_word_images, params.get("items") or [])
 
     server.route(
         name=UI_QUEUE_PRIORITY_PRIORITIZE_WORD_IMAGES,
@@ -44,8 +30,7 @@ def register_local_queue_priority_routes(server):
 
     async def prioritize_sentence_audio_handler(params, request_id, context):
         params = params or {}
-        req = SentencePriorityRequest(items=params.get("items") or [])
-        return await asyncio.to_thread(prioritize_sentence_audio, req)
+        return await asyncio.to_thread(qp.prioritize_sentence_audio, params.get("items") or [])
 
     server.route(
         name=UI_QUEUE_PRIORITY_PRIORITIZE_SENTENCE_AUDIO,
@@ -55,11 +40,11 @@ def register_local_queue_priority_routes(server):
 
     async def prioritize_sentence_audio_item_handler(params, request_id, context):
         params = params or {}
-        req = SentenceItemPriorityRequest(
-            content_id=str(params.get("content_id") or ""),
-            language=str(params.get("language") or ""),
+        return await asyncio.to_thread(
+            qp.prioritize_sentence_audio_item,
+            str(params.get("content_id") or ""),
+            str(params.get("language") or ""),
         )
-        return await asyncio.to_thread(prioritize_sentence_audio_item, req)
 
     server.route(
         name=UI_QUEUE_PRIORITY_PRIORITIZE_SENTENCE_AUDIO_ITEM,
@@ -69,11 +54,11 @@ def register_local_queue_priority_routes(server):
 
     async def prioritize_word_audio_words_handler(params, request_id, context):
         params = params or {}
-        req = WordAudioWordsPriorityRequest(
-            words=list(params.get("words") or []),
-            language=str(params.get("language") or ""),
+        return await asyncio.to_thread(
+            qp.prioritize_word_audio_words,
+            list(params.get("words") or []),
+            str(params.get("language") or ""),
         )
-        return await asyncio.to_thread(prioritize_word_audio_words, req)
 
     server.route(
         name=UI_QUEUE_PRIORITY_PRIORITIZE_WORD_AUDIO_WORDS,
@@ -83,11 +68,11 @@ def register_local_queue_priority_routes(server):
 
     async def prioritize_covers_handler(params, request_id, context):
         params = params or {}
-        req = CoverPriorityRequest(
-            ids=list(params.get("ids") or []),
-            all=bool(params.get("all") or False),
+        return await asyncio.to_thread(
+            qp.prioritize_covers,
+            list(params.get("ids") or []),
+            bool(params.get("all") or False),
         )
-        return await asyncio.to_thread(prioritize_covers, req)
 
     server.route(
         name=UI_QUEUE_PRIORITY_PRIORITIZE_COVERS,
@@ -97,8 +82,7 @@ def register_local_queue_priority_routes(server):
 
     async def prioritize_posters_handler(params, request_id, context):
         params = params or {}
-        req = PosterPriorityRequest(items=params.get("items") or [])
-        return await asyncio.to_thread(prioritize_posters, req)
+        return await asyncio.to_thread(qp.prioritize_posters, params.get("items") or [])
 
     server.route(
         name=UI_QUEUE_PRIORITY_PRIORITIZE_POSTERS,

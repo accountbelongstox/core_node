@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-
-from pycore.pyfoundations.third_party import (
 """
 Romanization Module
 
@@ -16,24 +14,25 @@ pronunciation. For example:
 - Arabic: مرحبا → marhaban
 """
 
+from pycore.pyfoundations.third_party import (
+        get_third_package_googletrans_Translator,
+    )
+
 import asyncio
 import hashlib
+import json
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Optional, List, Dict
-from dataclasses import dataclass, asdict
+from typing import Dict, List, Optional
 
 from pycore.pyfoundations.system_paths import map_web_path
 
 try:
-        get_third_package_googletrans_Translator,
-    )
     Translator = get_third_package_googletrans_Translator()
     GOOGLETRANS_AVAILABLE = True
 except ImportError:
     GOOGLETRANS_AVAILABLE = False
     Translator = None
-
-import json
 
 
 

@@ -20,7 +20,7 @@ import argparse
 from typing import Optional
 
 from pycore.pyfoundations import ColorPrint
-from pycore.pylauncher import launch_services, create_speech_service_config, ServiceInstances
+from pycore.pylauncher import launch_services, LauncherConfig, ServiceLauncher
 from pycore.pyctl.speech.rpc import start_rpc_service
 
 from pycore.pyutils.common import speech_config
@@ -59,7 +59,7 @@ def launch_speech_rpc_service(
     tts_provider: str = "edge",
     tts_queue_size: int = 50,
     debug: bool = True
-) -> ServiceInstances:
+) -> ServiceLauncher:
     """
     Launch Speech RPC Service
 
@@ -85,15 +85,20 @@ def launch_speech_rpc_service(
     initialize_speech_config()
 
     # Step 1: Create service configuration
-    config = create_speech_service_config(
-        rpc_port=port,
-        rpc_host=host,
-        tts_provider=tts_provider
+    config = LauncherConfig(
+        app_id="speech_rpc",
+        app_name="Speech RPC Service",
+        singleton=False,
+        services={
+            'heartbeat': {},
+            'speech': {
+                'mode': 'single',
+                'daemon': True,
+                'tts_provider': tts_provider,
+                'tts_max_queue_size': tts_queue_size,
+            }
+        }
     )
-
-    # Override settings
-    config.tts_max_queue_size = tts_queue_size
-    config.rpc_debug = debug
 
     ColorPrint.blue(f"[SpeechRPC] Port: {port}")
     ColorPrint.blue(f"[SpeechRPC] Host: {host}")
@@ -105,8 +110,8 @@ def launch_speech_rpc_service(
 
     # Step 3: Create RPC server and configure static directories BEFORE starting
     rpc_server = UnifiedRpcServerRunner(
-        host=config.rpc_host,
-        port=config.rpc_port,
+        host=host,
+        port=port,
         debug=debug
     )
 
@@ -116,14 +121,13 @@ def launch_speech_rpc_service(
         ColorPrint.blue(f"[SpeechRPC] Configured static web directory: / -> {web_dir}")
 
     # Step 4: Launch other services (Heartbeat, SpeechSwitch) WITHOUT RPC server
-    config.enable_rpc = False  # We'll manage RPC server manually
     instances = launch_services(config)
 
     # Step 5: Start RPC server (static directories already configured)
     rpc_server.start()
-    instances.rpc_server = rpc_server  # Store in instances
+    instances.services['rpc_server'] = rpc_server  # Store in instances
 
-    if not instances.rpc_server:
+    if not instances.services.get('rpc_server'):
         ColorPrint.red("[SpeechRPC] Failed to start RPC server thread")
         return instances
 
@@ -134,8 +138,8 @@ def launch_speech_rpc_service(
     ColorPrint.blue("[SpeechRPC] Registering speech routes...")
 
     rpc_service = start_rpc_service(
-        rpc_server=instances.rpc_server,
-        tts_switch=instances.tts_switch
+        rpc_server=instances.services['rpc_server'],
+        tts_switch=getattr(instances.get_service('speech'), 'tts_switch', None)
     )
 
     ColorPrint.green("=== Speech RPC Service Started ===")
@@ -179,8 +183,8 @@ def main():
             time.sleep(10)
 
             # Print stats every 10 seconds
-            if instances.heartbeat_system:
-                stats = instances.heartbeat_system.get_stats()
+            if instances.get_service('heartbeat'):
+                stats = instances.get_service('heartbeat').get_stats()
                 ColorPrint.blue(
                     f"[Stats] Queue: {stats['task_queue']['size']}, "
                     f"Pushed: {stats['heartbeat_pusher']['tasks_pushed']}"

@@ -12,7 +12,8 @@ Architecture:
 """
 
 from .global_config import get_global_config, init_global_config
-from .config import build_launcher_config, update_tray_menu_with_singleton
+from .config import build_launcher_config
+from .tray_menu import update_tray_menu_with_singleton
 from .tray_menu import build_tray_menu
 from .event_handlers import register_event_handlers
 

@@ -13,12 +13,13 @@ Features:
 Storage: ~/.core_node/.cache/device_sync/sync_history.db
 """
 
-import sqlite3
 import json
 from contextlib import nullcontext
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Optional
+
+from pycore.database.adapters.sqlite_local import Row, open_writable_db
 from .logging_config import setup_logging
 from pycore.pyfoundations.system_paths import get_system_cache_dir
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
@@ -80,7 +81,7 @@ class SyncHistoryTracker:
     def _init_database(self):
         """Initialize SQLite database and create tables."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with open_writable_db(self.db_path) as conn:
                 cursor = conn.cursor()
 
                 # Create sync_history table
@@ -142,7 +143,7 @@ class SyncHistoryTracker:
                 timestamp = datetime.now()
                 details_json = json.dumps(details) if details else None
 
-                with sqlite3.connect(self.db_path) as conn:
+                with open_writable_db(self.db_path) as conn:
                     cursor = conn.cursor()
                     cursor.execute('''
                         INSERT INTO sync_history
@@ -184,8 +185,8 @@ class SyncHistoryTracker:
         """
         with self._database_scope:
             try:
-                with sqlite3.connect(self.db_path) as conn:
-                    conn.row_factory = sqlite3.Row
+                with open_writable_db(self.db_path) as conn:
+                    conn.row_factory = Row
                     cursor = conn.cursor()
 
                     # Build query
@@ -234,7 +235,7 @@ class SyncHistoryTracker:
         """
         with self._database_scope:
             try:
-                with sqlite3.connect(self.db_path) as conn:
+                with open_writable_db(self.db_path) as conn:
                     cursor = conn.cursor()
 
                     # Total events
@@ -302,7 +303,7 @@ class SyncHistoryTracker:
             try:
                 cutoff_date = datetime.now() - timedelta(days=self.retention_days)
 
-                with sqlite3.connect(self.db_path) as conn:
+                with open_writable_db(self.db_path) as conn:
                     cursor = conn.cursor()
 
                     # Count records to delete

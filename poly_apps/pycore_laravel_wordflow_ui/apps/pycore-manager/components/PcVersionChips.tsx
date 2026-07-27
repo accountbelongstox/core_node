@@ -6,17 +6,17 @@
  * chain UI -> pycore -> laravel: it calls ONLY pycore (pycoreApi.getVersion,
  * which rides the WS bus) and pycore proxies the laravel version internally.
  *
- * Polls every 10s; a 1s tick refreshes the "N ago" label between polls. Fully
- * self-contained (local state), guarded against an offline backend (shows a
- * muted em-dash chip rather than crashing the top bar).
+ * Refreshes on operation.changed with a slow fallback; a 1s tick updates the
+ * "N ago" label between fetches. Fully self-contained (local state), guarded
+ * against an offline backend (shows a muted em-dash chip rather than crashing
+ * the top bar).
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GitCommitHorizontal } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { PcVersionInfo } from '../../../core/api-libs/pycore';
 import { relativeAgo, absoluteTime } from '../utils/pcFormat';
-
-const POLL_MS = 10000;
+import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
 
 const PcVersionChips: React.FC = () => {
   const [info, setInfo] = useState<PcVersionInfo | null>(null);
@@ -24,37 +24,40 @@ const PcVersionChips: React.FC = () => {
   const [, setTick] = useState(0);
   const mounted = useRef(true);
 
+  const refreshVersion = useCallback(async () => {
+    try {
+      const r = await pycoreApi.getVersion() as PcVersionInfo & { error?: string; detail?: string };
+      if (!mounted.current) return;
+      if (r && r.success && r.pycore) {
+        setInfo(r);
+        setErr(null);
+      } else {
+        setInfo(null);
+        setErr(r?.error || r?.detail || 'no version payload — restart pycore to load /api/local/version');
+      }
+    } catch (e) {
+      if (!mounted.current) return;
+      setInfo(null);
+      const msg = e instanceof Error ? e.message : 'pycore unreachable';
+      setErr(/404|not found/i.test(msg)
+        ? 'restart pycore to load the new /api/local/version route'
+        : msg);
+    }
+  }, []);
+
   useEffect(() => {
     mounted.current = true;
-    const poll = async () => {
-      try {
-        const r = await pycoreApi.getVersion() as PcVersionInfo & { error?: string; detail?: string };
-        if (!mounted.current) return;
-        if (r && r.success && r.pycore) {
-          setInfo(r); setErr(null);
-        } else {
-          // Endpoint answered but carried no version payload — almost always a
-          // stale pycore that predates /api/local/version (needs a restart).
-          setInfo(null);
-          setErr(r?.error || r?.detail || 'no version payload — restart pycore to load /api/local/version');
-        }
-      } catch (e) {
-        if (!mounted.current) return;
-        setInfo(null);
-        const msg = e instanceof Error ? e.message : 'pycore unreachable';
-        // A 404 here means the running pycore predates the /api/local/version
-        // route — surface a restart hint rather than a raw "HTTP 404".
-        setErr(/404|not found/i.test(msg)
-          ? 'restart pycore to load the new /api/local/version route'
-          : msg);
-      }
+    void refreshVersion();
+    const tickId = window.setInterval(() => {
+      if (mounted.current) setTick((n) => n + 1);
+    }, 1000);
+    return () => {
+      mounted.current = false;
+      window.clearInterval(tickId);
     };
-    void poll();
-    const pollId = window.setInterval(() => { void poll(); }, POLL_MS);
-    // Re-render each second so the "N ago" label stays fresh without re-fetching.
-    const tickId = window.setInterval(() => { if (mounted.current) setTick((n) => n + 1); }, 1000);
-    return () => { mounted.current = false; window.clearInterval(pollId); window.clearInterval(tickId); };
-  }, []);
+  }, [refreshVersion]);
+
+  useTopicDrivenRefresh(['operation.changed'], refreshVersion, { fallbackMs: 60_000 });
 
   const chip = (label: string, unix: number, file: string, ok: boolean, reason: string | null) => {
     const has = ok && unix > 0;

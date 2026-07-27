@@ -2,8 +2,8 @@
  * PcLaravelLogsPage — mirrored Laravel application logs from pycore's
  * LaravelLogMirrorService (ui.laravel.logs_snapshot / logs_refresh).
  *
- * Initial open hydrates via snapshot; laravel.logs.changed triggers a refresh
- * command then re-pulls the snapshot. Shows stale/error state inline.
+ * Initial open hydrates via snapshot; laravel.logs.snapshot.updated / legacy
+ * laravel.logs.changed trigger a lightweight re-pull. Shows stale/error inline.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollText, RefreshCw, AlertTriangle } from 'lucide-react';
@@ -102,12 +102,15 @@ const PcLaravelLogsPage: React.FC = () => {
     mounted.current = true;
     connectPycoreWs();
     void loadSnapshot(false);
-    const off = pycoreEventBus.subscribe('laravel.logs.changed', () => {
+    const onLogsChanged = () => {
       void loadSnapshot(true);
-    });
+    };
+    const offLegacy = pycoreEventBus.subscribe('laravel.logs.changed', onLogsChanged);
+    const offDurable = pycoreEventBus.subscribe('laravel.logs.snapshot.updated', onLogsChanged);
     return () => {
       mounted.current = false;
-      off();
+      offLegacy();
+      offDurable();
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
     };
   }, [loadSnapshot]);

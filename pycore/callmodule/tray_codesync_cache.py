@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from pycore.callmodule.config import update_tray_menu_with_singleton
 """
 Tray CodeSync state cache.
 
@@ -79,7 +78,7 @@ def _push_tray_menu_if_context(previous: dict, current: dict) -> None:
     if _state_signature(previous) == _state_signature(current):
         return
     try:
-
+        from pycore.callmodule.tray_menu import update_tray_menu_with_singleton
         update_tray_menu_with_singleton(
             launcher,
             port=port,

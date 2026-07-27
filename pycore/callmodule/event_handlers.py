@@ -41,7 +41,8 @@ from pycore.callmodule.tray_menu import (
     TRAY_TOGGLE_CODE_SYNC_DISTRIBUTE_SIGNAL,
     TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL,
 )
-from pycore.callmodule.config import build_tray_service_config, update_tray_menu_with_singleton
+from pycore.callmodule.config import build_tray_service_config
+from pycore.callmodule.tray_menu import update_tray_menu_with_singleton
 from pycore.callmodule.tray_codesync_cache import (
     apply_tray_codesync_cache_refresh,
     on_code_sync_update,

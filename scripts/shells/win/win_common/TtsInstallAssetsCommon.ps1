@@ -471,6 +471,12 @@ function Invoke-HfFileDownloadResumable {
     return $true
 }
 
+# Persistent model download contract:
+# - DestDir is independent from every Python venv and is never recreated here.
+# - Complete files are skipped by size/integrity checks.
+# - Partial files are resumed in place.
+# - A failed pass removes only the model sentinel so the next run revalidates;
+#   already downloaded model files and their directory remain untouched.
 function Install-HfRepoFlat {
     param(
         [Parameter(Mandatory = $true)][string]$RepoId,
@@ -673,7 +679,7 @@ function Test-IsolatedTtsVenvProvisioned {
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
-from pycore.pyfoundations import isolated_venv
+from pycore.pyutils.python_env import isolated_venv
 probe = getattr(isolated_venv, $methodLit)
 sys.stdout.write('__VENV_READY__' if probe($engineLit) else '__VENV_NOTREADY__')
 "@
@@ -716,7 +722,7 @@ function Resolve-IsolatedTtsVenvPython {
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
-from pycore.pyfoundations import isolated_venv
+from pycore.pyutils.python_env import isolated_venv
 sys.stdout.write(isolated_venv.resolve_python($engineLit) or '')
 "@
     try {
@@ -736,6 +742,11 @@ function Invoke-IsolatedTtsVenvEnsure {
     # Build/verify an engine's isolated venv via isolated_venv.ensure_venv(). Runs the
     # system Python LIVE (pip output streams to console; first build takes minutes) and
     # probes the resulting venv directly after provisioning.
+    # AI remediation plan: if Qwen3TTS repeatedly fails health checks, rebuild only its
+    # canonical venv with `python -m venv --clear --system-site-packages`. Do not copy
+    # the main interpreter's site-packages or delete the model cache/weights. Reinstall
+    # the Qwen requirements into the fresh venv, then report the exact failed probe if
+    # health is still false so an AI operator can perform the next repair.
     # ensure_venv() is self-repairing: it re-runs the import-health probe and repairs a
     # broken venv in place. Mirrors Step61's helper, generalised to any engine.
     param(
@@ -759,7 +770,7 @@ function Invoke-IsolatedTtsVenvEnsure {
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
-from pycore.pyfoundations import isolated_venv
+from pycore.pyutils.python_env import isolated_venv
 isolated_venv.ensure_venv($engineLit, pip_packages=$pkgLit, pins=$pinLit, ${healthArg}force=$forceLiteral)
 "@
     # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time

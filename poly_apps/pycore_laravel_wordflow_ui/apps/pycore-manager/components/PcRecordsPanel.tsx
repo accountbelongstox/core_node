@@ -22,9 +22,10 @@ import { fetchPycoreBlobUrl } from '../../../core/api-libs/pycore/PycoreBlob';
 import { PcBlobImage } from './PcBlobMedia';
 import { PcImageLightbox } from './PcAiShared';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
+import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
 
 const LOG_SRC = 'pc-records';
-const POLL_MS = 10_000;
+const FALLBACK_POLL_MS = 60_000;
 
 type UnifiedKind = 'text' | 'vision' | 'probe' | 'image' | 'tts' | 'stt';
 
@@ -111,11 +112,8 @@ export const PcRecordsPanel: React.FC = () => {
     setRefreshing(false);
   }, []);
 
-  useEffect(() => {
-    void load();
-    const id = window.setInterval(() => { void load(); }, POLL_MS);
-    return () => window.clearInterval(id);
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
+  useTopicDrivenRefresh(['operation.changed'], () => load(), { fallbackMs: FALLBACK_POLL_MS });
 
   const togglePlay = useCallback((rec: UnifiedRecord) => {
     if (!rec.audioId) return;

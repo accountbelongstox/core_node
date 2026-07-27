@@ -65,6 +65,7 @@ _ROUTE_MODULES = [
     ("pycore.callmodule.rpc_routes.local_local_config_routes", "register_local_local_config_routes"),
     ("pycore.callmodule.rpc_routes.management_logs_routes", "register_management_logs_routes"),
     ("pycore.callmodule.rpc_routes.operation_routes", "register_operation_routes"),
+    ("pycore.callmodule.rpc_routes.qwen_rpc_routes", "register_qwen_rpc_routes"),
 ]
 
 def register_rpc_routes(server):

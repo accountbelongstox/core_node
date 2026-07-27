@@ -145,7 +145,6 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
         TrayMenuItem(
             text=I18nKeys.TRAY_MENU_OPEN_WEB,
             action_signal="tray_action_open",
-            default=True
         ),
         TrayMenuItem.SEPARATOR,
         TrayMenuItem(
@@ -175,7 +174,8 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
             # pycore-manager UI).
             text=I18nKeys.TRAY_MENU_PYCORE_UI,
             action_signal="tray_action_toggle_voice_subtitle",
-            state_getter=get_voice_subtitle_state
+            state_getter=get_voice_subtitle_state,
+            default=True,
         ),
         TrayMenuItem(
             text=I18nKeys.TRAY_MENU_CODE_SYNC,
@@ -252,3 +252,68 @@ def tray_menu_to_dicts(items: List[TrayMenuItem]) -> List[Dict[str, Any]]:
             entry['children'] = tray_menu_to_dicts(item.submenu)
         dicts.append(entry)
     return dicts
+
+import json
+import hashlib
+from pycore.callmodule.callmodule_config import Config as CallmoduleConfig
+
+_TRAY_MENU_SIGNATURE = {'value': None}
+
+def _menu_signature(menu_items: list) -> str:
+    """Create a stable signature for tray menu payloads."""
+    try:
+        from pycore import THREAD_BUS
+        state = THREAD_BUS.get_signal("tray.codesync.state")
+        if not isinstance(state, dict):
+            state = {}
+        payload = {
+            "menu": menu_items,
+            "codesync": state,
+        }
+        encoded = json.dumps(
+            payload,
+            sort_keys=True,
+            ensure_ascii=False,
+            default=str,
+        ).encode("utf-8")
+        return hashlib.md5(encoded).hexdigest()
+    except Exception:
+        return hashlib.md5(str(menu_items).encode("utf-8")).hexdigest()
+
+def update_tray_menu_with_singleton(launcher, port: int, singleton_port: int):
+    """
+    Update tray menu with singleton port info.
+
+    Emits a 'tray.update_menu' event (canonical dict menu) that the native Qt
+    tray (PySide6 framework) listens for and rebuilds in the Qt main thread.
+
+    Args:
+        launcher: ServiceLauncher instance (unused; kept for call-site compatibility)
+        port: RPC v2 server port
+        singleton_port: Singleton port
+    """
+    from pycore import THREAD_BUS, ColorPrint
+    menu = build_tray_menu(port=port, singleton_port=singleton_port)
+    if CallmoduleConfig.UI_ENABLE_TRAY:
+        payload = tray_menu_to_dicts(menu)
+    else:
+        payload = menu
+
+    signature = _menu_signature(payload)
+    THREAD_BUS.signal(
+        'tray.menu.payload',
+        {
+            'menu_items': payload,
+            'signature': signature,
+            'backend_pyside': CallmoduleConfig.UI_ENABLE_TRAY,
+        }
+    )
+
+    if _TRAY_MENU_SIGNATURE['value'] == signature:
+        ColorPrint.blue("[ConfigBuilder] Tray menu unchanged; skip menu update event")
+        return
+
+    _TRAY_MENU_SIGNATURE['value'] = signature
+
+    THREAD_BUS.trigger_event('tray.update_menu', {'menu_items': payload})
+    ColorPrint.blue("[ConfigBuilder] Tray menu update requested via THREAD_BUS")

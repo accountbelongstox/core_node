@@ -52,8 +52,7 @@ from pycore.pyutils.native_ui.step6_tray import TrayMenuItem
 
 
 if TYPE_CHECKING:
-
-
+    pass
 def make_busy_state_checker():
     """
     Build a busy-state state_checker callback for SingletonDetector.

@@ -83,6 +83,12 @@
             this.routeHandlers = new Map();
             this.pendingMetadata = new Map();
             this.pendingStorageKey = options.pendingStorageKey || 'fastapi_rpc_pending';
+            this.connectionId = null;
+            this.lastAckedSeq = 0;
+            this.resumeToken = null;
+            this._seenEventIds = new Set();
+            this._connectResolve = null;
+            this._connectReject = null;
             this._restorePendingMetadata();
         }
 
@@ -128,16 +134,21 @@
 
                 const socket = new WebSocketImpl(wsUrl);
                 this.ws = socket;
+                this._connectResolve = resolve;
+                this._connectReject = reject;
 
                 socket.onopen = () => {
-                    this.connected = true;
                     this.reconnectAttempts = 0;
-                    if (this.options.debug) {
-                        console.info('[FastAPIRpcClient] WebSocket connected');
+                    const hello = {
+                        type: 'hello',
+                        client_id: this.options.clientId,
+                        last_acked_seq: this.lastAckedSeq,
+                        capabilities: { ack: true, replay: true },
+                    };
+                    if (this.resumeToken) {
+                        hello.resume_token = this.resumeToken;
                     }
-                    this._persistLog(`connected:${this.options.clientId}`);
-                    this._startHeartbeat(true);
-                    resolve();
+                    socket.send(encodeJSON(hello));
                 };
 
                 socket.onmessage = (event) => {
@@ -174,6 +185,7 @@
             const requestId = uuid();
             const payload = {
                 type: 'request',
+                request_id: requestId,
                 id: requestId,
                 route,
                 params,
@@ -190,11 +202,75 @@
             if (this.options.debug) {
                 console.info('[FastAPIRpcClient] Message', message);
             }
-            if (message.type === 'response' && message.id) {
-                const entry = this.pending.get(message.id);
+            if (message.type === 'welcome') {
+                this.connectionId = message.connection_id || this.connectionId;
+                if (message.resume_token) {
+                    this.resumeToken = message.resume_token;
+                }
+                if (message.highest_contiguous_acked_seq != null) {
+                    this.lastAckedSeq = Math.max(
+                        this.lastAckedSeq,
+                        Number(message.highest_contiguous_acked_seq) || 0
+                    );
+                }
+                if (!this.connected) {
+                    this.connected = true;
+                    if (this.options.debug) {
+                        console.info('[FastAPIRpcClient] WebSocket connected');
+                    }
+                    this._persistLog(`connected:${this.options.clientId}`);
+                    this._startHeartbeat(true);
+                    if (this._connectResolve) {
+                        this._connectResolve();
+                        this._connectResolve = null;
+                        this._connectReject = null;
+                    }
+                }
+                return;
+            }
+            if (message.type === 'ack_confirmation' && message.success) {
+                if (message.highest_contiguous_acked_seq != null) {
+                    this.lastAckedSeq = Math.max(
+                        this.lastAckedSeq,
+                        Number(message.highest_contiguous_acked_seq) || 0
+                    );
+                }
+                return;
+            }
+            if (message.type === 'server_event') {
+                const eventId = message.event_id;
+                if (eventId && this._seenEventIds.has(eventId)) {
+                    if (message.requires_ack) {
+                        this._sendDurableAck(message);
+                    }
+                    return;
+                }
+                if (eventId) {
+                    this._seenEventIds.add(eventId);
+                    if (this._seenEventIds.size > 512) {
+                        this._seenEventIds.clear();
+                        this._seenEventIds.add(eventId);
+                    }
+                }
+                const topic = message.topic || message.route || message.event;
+                if (topic && this.routeHandlers.has(topic)) {
+                    try {
+                        this.routeHandlers.get(topic)(message.payload || message);
+                    } catch (err) {
+                        console.error('[FastAPIRpcClient] server_event handler error', err);
+                    }
+                }
+                if (message.requires_ack) {
+                    this._sendDurableAck(message);
+                }
+                return;
+            }
+            const responseId = message.request_id || message.id;
+            if (message.type === 'response' && responseId) {
+                const entry = this.pending.get(responseId);
                 if (entry) {
-                    this.pending.delete(message.id);
-                    this._removePendingMetadata(message.id);
+                    this.pending.delete(responseId);
+                    this._removePendingMetadata(responseId);
                     this._updateHeartbeatInterval();
                     if (message.error) {
                         entry.reject(new Error(message.error));
@@ -202,17 +278,13 @@
                         entry.resolve(message.result);
                     }
                     if (message.requires_ack) {
-                        this._sendAck(message.id);
+                        this._sendAck(responseId);
                     }
-                } else if (this.pendingMetadata.has(message.id)) {
+                } else if (this.pendingMetadata.has(responseId)) {
                     this._handleRestoredMessage(message);
                 }
-            } else if (message.type === 'welcome') {
-                if (this.options.debug) {
-                    console.info('[FastAPIRpcClient] Welcome payload received');
-                }
             } else if (message.type === 'event') {
-                const eventName = message.route || message.event;
+                const eventName = message.route || message.event || message.topic;
                 if (eventName && this.routeHandlers.has(eventName)) {
                     try {
                         this.routeHandlers.get(eventName)(message.data || message);
@@ -221,6 +293,19 @@
                     }
                 }
             }
+        }
+
+        _sendDurableAck(msg) {
+            if (!this.ws) return;
+            const payload = {
+                type: 'ack',
+                client_id: this.options.clientId,
+                connection_id: this.connectionId || msg.connection_id,
+                event_id: msg.event_id,
+                seq: msg.seq,
+                id: msg.event_id,
+            };
+            this.ws.send(JSON.stringify(payload));
         }
 
         _sendAck(requestId) {

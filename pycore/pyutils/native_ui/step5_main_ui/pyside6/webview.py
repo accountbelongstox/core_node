@@ -121,6 +121,7 @@ class PySide6WebView(QWidget):
         self.web_view.renderProcessTerminated.connect(self._on_render_process_terminated)
         self._render_crash_count = 0
         self._load_retry_count = 0
+        self._requested_url: Optional[str] = None
 
         # Create loading widget
         self._create_loading_widget()
@@ -164,6 +165,9 @@ class PySide6WebView(QWidget):
             show_loading: Show loading animation while loading (default: True)
             loading_style: Loading animation style (1-14, default: 1)
         """
+        self._requested_url = url
+        self._load_retry_count = 0
+
         # Show loading page first
         if show_loading:
             self._show_default_loading_page(loading_style)
@@ -177,6 +181,20 @@ class PySide6WebView(QWidget):
             self.web_view.load(file_url)
         else:
             self.web_view.load(QUrl(url))
+
+    def on_window_shown(self):
+        """Refresh an abandoned or uninitialized page after the window is shown."""
+        current_url = self.get_url()
+        if not self._requested_url:
+            return
+        if not current_url or self._load_retry_count > 5:
+            ColorPrint.yellow(
+                "[PySide6WebView] Window shown with an unavailable page; "
+                "resetting load retries and reloading the requested URL"
+            )
+            self.load_url(self._requested_url)
+            return
+        self._load_retry_count = 0
 
     def load_html(self, html: str, base_url: Optional[str] = None, show_loading: bool = True, loading_style: int = 1):
         """

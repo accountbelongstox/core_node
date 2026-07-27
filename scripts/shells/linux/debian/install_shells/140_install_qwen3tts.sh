@@ -6,7 +6,7 @@
 # qwen-tts owns transformer dependencies that may conflict with the main interpreter
 # pin (Bucket A: deepseek/qwen25/nllb/bark). So qwen-tts is NEVER installed into the main
 # interpreter. It lives in a DEDICATED per-engine venv built + verified by
-# pycore.pyfoundations.isolated_venv.ensure_venv() (created --system-site-packages so it
+# pycore.pyutils.python_env.isolated_venv.ensure_venv() (created --system-site-packages so it
 # REUSES the system CUDA torch while qwen-tts and its pinned dependencies stay isolated,
 # shadowing only incompatible main copies). The qwen3tts_api_server.py runs under that venv and pycore
 # (tts_service_manager / qwen3tts_engine) talks to it over HTTP as a managed class-C server.
@@ -16,6 +16,12 @@
 # Idempotent + self-repairing: ensure_venv() is a cheap import probe when healthy and
 # repairs the venv in place when qwen_tts fails to import; HF weights download/repair via curl
 # resume + size verification (.deps_done = venv provisioned, .model_installed = repo id).
+# AI remediation plan (comments only): if the same Qwen health path fails repeatedly,
+# rebuild only the canonical venv with `base_python -m venv --clear --system-site-packages`.
+# Do not copy the main interpreter's site-packages and do not remove TARGET_DIR/weights.
+# Reinstall Qwen requirements into the fresh venv; if it still fails, print the failing
+# probe and this plan for the AI operator. The Windows Step61 and Python helper use the
+# same policy.
 # Skip with QWEN3TTS_SKIP=1. --force rebuilds the venv and re-validates every weight file.
 set -uo pipefail
 

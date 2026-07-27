@@ -23,7 +23,7 @@ from pycore.pyfoundations.third_party import (
     get_third_package_PIL_ImageDraw,
     get_third_package_PIL_ImageFont,
 )
-from pycore.pyfoundations.ai_runtime_policy import PADDLE_CPU_PACKAGE
+from pycore.pyfoundations.runtime_abi import PADDLE_CPU_PACKAGE
 
 
 # Check for optional dependencies at module level

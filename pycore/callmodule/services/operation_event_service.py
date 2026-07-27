@@ -5,11 +5,14 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from pycore.pyfoundations.state_store import (
+from pycore.database import (
     OperationEvent,
     StateRepository,
 )
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.callmodule.services.operation_service import (
+    _notify_after_commit,
+    _outbox_spec,
+)
 
 
 def _now_iso() -> str:
@@ -51,42 +54,11 @@ class OperationEventService:
             created_at=_now_iso(),
         )
 
+        outbox = _outbox_spec(event, op.scope, op.owner_client_id)
         with self.repo.transaction() as cursor:
-            self.repo._insert_event(cursor, event)
+            self.repo._insert_event(cursor, event, outbox)
 
-        # Broadcast operation changes so SSE clients can resume via ?since=
-        # without relying on UI-side polling.
-        status: str = str(event.event_type)
-        if status.startswith("item."):
-            status = status.split(".", 1)[1]
-
-        stage = None
-        msg = str(event.message or "")
-        # OperationService transition message often includes: "... (stage)"
-        if "(" in msg and ")" in msg:
-            try:
-                stage = msg[msg.index("(") + 1: msg.rindex(")")]
-            except Exception:
-                stage = None
-
-        payload: Dict[str, Any] = {
-            "schema_version": 1,
-            "topic": "operation.changed",
-            "event_id": event.event_id,
-            "operation_id": event.operation_id,
-            "operation_scope": op.scope,
-            "operation_revision": event.revision,
-            "operation_item_id": event.item_id,
-            "operation_event_seq": event.seq,
-            "event_type": event.event_type,
-            "status": status,
-            "stage": stage,
-            "level": event.level,
-            "message": event.message,
-            "created_at": event.created_at,
-        }
-        THREAD_BUS.trigger_event("operation.changed", payload, async_mode=True)
-        
+        _notify_after_commit(event, op.scope)
         return event
 
     def get_events(

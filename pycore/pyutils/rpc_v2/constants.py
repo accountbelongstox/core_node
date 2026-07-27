@@ -92,6 +92,9 @@ class MessageType:
     PONG = "pong"
     ACK = "ack"
     INVENTORY = "inventory"
+    HELLO = "hello"
+    SERVER_EVENT = "server_event"
+    ACK_CONFIRMATION = "ack_confirmation"
 
 class TaskStatus:
     """Task lifecycle states"""

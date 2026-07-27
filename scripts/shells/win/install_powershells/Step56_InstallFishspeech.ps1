@@ -95,6 +95,10 @@ if (-not (Test-TtsEngineCompatible -PythonExe $resolvedPython -Engine 'fishspeec
 }
 $fishPolicy = Get-TtsEngineInstallPolicy -PythonExe $resolvedPython -Engine 'fishspeech'
 if ($fishPolicy) { $fishPackages = @($fishPolicy.packages) }
+if (-not $fishPolicy -or $fishPackages.Count -eq 0) {
+    Write-Host "$SCRIPT_INDEX [!] Fish Speech runtime policy is unavailable or has no dependency plan; pip was not invoked." -ForegroundColor DarkYellow
+    return
+}
 
 $hasCuda = (Get-CudaRuntimePolicy).Enabled
 Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine fishspeech -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX

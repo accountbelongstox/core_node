@@ -1,7 +1,8 @@
 # Central TTS compatibility, dependency-plan, and policy-stamp helpers.
 
 $script:TtsPolicyRepoRoot = Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent
-$script:TtsPolicyPythonFile = Join-Path $script:TtsPolicyRepoRoot 'pycore\pyfoundations\ai_runtime_policy.py'
+$script:TtsPolicyPythonFile = Join-Path $script:TtsPolicyRepoRoot 'pycore\pyutils\python_env\runtime_policy.py'
+$script:TtsPolicyLastError = ''
 
 function Get-TtsPolicyPythonVersion {
     param([Parameter(Mandatory = $true)][string]$PythonExe)
@@ -19,12 +20,31 @@ function Invoke-TtsPolicyCommand {
         [Parameter(Mandatory = $true)][string]$PythonExe,
         [Parameter(Mandatory = $true)][string[]]$Arguments
     )
-    if (-not (Test-Path -LiteralPath $PythonExe)) { return '' }
-    if (-not (Test-Path -LiteralPath $script:TtsPolicyPythonFile)) { return '' }
     $previous = $ErrorActionPreference
+    $outputItems = @()
+    $output = ''
+    $exitCode = 0
+    $script:TtsPolicyLastError = ''
+    if (-not (Test-Path -LiteralPath $PythonExe)) {
+        $script:TtsPolicyLastError = "Python executable is unavailable: $PythonExe"
+        return ''
+    }
+    if (-not (Test-Path -LiteralPath $script:TtsPolicyPythonFile)) {
+        $script:TtsPolicyLastError = "TTS runtime policy is unavailable: $script:TtsPolicyPythonFile"
+        return ''
+    }
     $ErrorActionPreference = 'Continue'
-    $output = (& $PythonExe $script:TtsPolicyPythonFile @Arguments 2>$null) -join ''
-    $ErrorActionPreference = $previous
+    try {
+        $outputItems = @(& $PythonExe $script:TtsPolicyPythonFile @Arguments 2>&1)
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previous
+    }
+    $output = ([string]::Join([Environment]::NewLine, @($outputItems))).Trim()
+    if ($exitCode -ne 0) {
+        $script:TtsPolicyLastError = if ($output) { $output } else { "TTS runtime policy exited with code $exitCode" }
+        return ''
+    }
     return ([string]$output).Trim()
 }
 
@@ -35,7 +55,12 @@ function Get-TtsEngineInstallPolicy {
     )
     $json = Invoke-TtsPolicyCommand -PythonExe $PythonExe -Arguments @('engine-spec', $Engine)
     if (-not $json) { return $null }
-    try { return $json | ConvertFrom-Json } catch { return $null }
+    try {
+        return $json | ConvertFrom-Json
+    } catch {
+        $script:TtsPolicyLastError = "Invalid TTS runtime policy JSON for $Engine"
+        return $null
+    }
 }
 
 function Test-TtsEngineCompatible {
@@ -50,8 +75,16 @@ function Test-TtsEngineCompatible {
         return $false
     }
     $json = Invoke-TtsPolicyCommand -PythonExe $PythonExe -Arguments @('compatibility', $Engine, '--python-version', $version)
-    if (-not $json) { return $true }
-    try { $result = $json | ConvertFrom-Json } catch { return $true }
+    if (-not $json) {
+        Write-Host ("{0}[skip] {1}: runtime policy unavailable: {2}" -f $Prefix, $Engine, $script:TtsPolicyLastError) -ForegroundColor DarkYellow
+        return $false
+    }
+    try {
+        $result = $json | ConvertFrom-Json
+    } catch {
+        Write-Host ("{0}[skip] {1}: runtime policy returned invalid JSON." -f $Prefix, $Engine) -ForegroundColor DarkYellow
+        return $false
+    }
     if ($result.compatible) { return $true }
     if ($result.isolated) {
         $overrideName = "{0}_PYTHON" -f $Engine.ToUpperInvariant()
@@ -82,14 +115,7 @@ function Test-TtsEngineHealth {
         [Parameter(Mandatory = $true)][string]$PythonExe,
         [Parameter(Mandatory = $true)][string]$Engine
     )
-    $output = ''
-    $previous = $ErrorActionPreference
-    if (-not (Test-Path -LiteralPath $PythonExe) -or -not (Test-Path -LiteralPath $script:TtsPolicyPythonFile)) {
-        return $false
-    }
-    $ErrorActionPreference = 'Continue'
-    $output = (& $PythonExe $script:TtsPolicyPythonFile health-probe $Engine 2>$null) -join ''
-    $ErrorActionPreference = $previous
+    $output = Invoke-TtsPolicyCommand -PythonExe $PythonExe -Arguments @('health-probe', $Engine)
     return ($output -match '__HEALTH_READY__')
 }
 

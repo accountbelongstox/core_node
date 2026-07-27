@@ -114,6 +114,7 @@ class PySide6MainWindow(QMainWindow):
         # Close handling - prevent multiple shutdown triggers
         self._close_requested = False  # Tracks if app.close event was triggered
         self._force_close = False  # Allows forced close after shutdown complete
+        self._content: Optional[QWidget] = None
 
         # Setup window (will load cached state if available)
         self._setup_window(width, height)
@@ -267,7 +268,16 @@ class PySide6MainWindow(QMainWindow):
         Args:
             content: Content widget (typically WebView)
         """
+        self._content = content
         self.main_layout.addWidget(content)
+
+    def showEvent(self, event):
+        """Notify content widgets when the tray window becomes visible."""
+        super().showEvent(event)
+        if self._content is not None:
+            on_window_shown = getattr(self._content, "on_window_shown", None)
+            if callable(on_window_shown):
+                on_window_shown()
 
     # ========== Window State Management ==========
 

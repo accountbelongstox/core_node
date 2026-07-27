@@ -31,6 +31,8 @@ from pycore.pylauncher.launcher import (
     LauncherConfig,
     ServiceLauncher,
     on_singleton_superseded,
+    launch_services,
+    stop_services,
 )
 from pycore.pylauncher.app_executable_launcher import (
     AppExecutableLauncher,
@@ -56,6 +58,8 @@ __all__ = [
     'on_singleton_superseded',  # Old-instance hook: notified when a newer instance takes over
     'AppExecutableLauncher',  # App executable launcher
     'get_app_executable_launcher',  # Get singleton instance
+    'launch_services',
+    'stop_services',
 ]
 
 __version__ = '3.0.0'
