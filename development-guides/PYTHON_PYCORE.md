@@ -21,10 +21,10 @@ pyapps
   pyutils / database / pylauncher / pyheartbeat / pygvar   second-layer primitives
   pyfoundations        lowest layer — leaf modules (stdlib + internal pybasecommon)
 ```
-- **pyfoundations**（最底层）: only stdlib + its own modules (incl. `pyfoundations/pybasecommon`); **never import any other top-level directory** (`pyutils/pyctl/callmodule/database/pylauncher/pyheartbeat/pygvar`).
-- **pyutils / database / pylauncher / pyheartbeat / pygvar**（第二底层）: must not depend on `pyctl` or `callmodule`; `pyutils` cannot reference other `pyutils/*` siblings and only depends on `pyfoundations` (and `pygvar` as a public base).
-- **pyctl**（第三底层）: may import anything below `pyctl` (including `pyutils/database/pylauncher/pyheartbeat/pygvar/pyfoundations`); use it for orchestration/composition, not for implementing low-level public capabilities.
-- **callmodule**（第四底层）: no business logic; only RPC v2 routing/controller wiring, and it may import all deeper directories.
+- **pyfoundations** (lowest layer): only stdlib + its own modules (incl. `pyfoundations/pybasecommon`); **never import any other top-level directory** (`pyutils/pyctl/callmodule/database/pylauncher/pyheartbeat/pygvar`).
+- **pyutils / database / pylauncher / pyheartbeat / pygvar** (second layer): must not depend on `pyctl` or `callmodule`; `pyutils` cannot reference other `pyutils/*` siblings and only depends on `pyfoundations` (and `pygvar` as a public base).
+- **pyctl** (third layer): may import anything below `pyctl` (including `pyutils/database/pylauncher/pyheartbeat/pygvar/pyfoundations`); use it for orchestration/composition, not for implementing low-level public capabilities.
+- **callmodule** (fourth layer): no business logic; only RPC v2 routing/controller wiring, and it may import all deeper directories.
 - Shared code moves DOWN to a common layer, never sideways; cross-group coordination lives in `pyctl` or via dependency injection.
 - **Sole upward exception**: `ColorPrint`→`pyutils.rpc_v2` live log stream — lazy, flag-gated at rpc_v2 startup, through a no-pycore-import leaf, never raises.
 
