@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import torch
+from melo.api import TTS
+import numpy as np
+import soundfile as sf
+from pydub import AudioSegment
 """
 MeloTTS HTTP API for pycore (subprocess in the DEDICATED isolated venv).
 
@@ -57,7 +62,6 @@ def _resolve_device() -> str:
     if want != "auto":
         return want
     try:
-        import torch
         return "cuda:0" if torch.cuda.is_available() else "cpu"
     except ImportError:
         return "cpu"
@@ -73,7 +77,6 @@ def _melo_lang(lang: str) -> Tuple[str, str]:
 
 def _load_model(melo_lang: str):
     global _device, _load_error
-    from melo.api import TTS
 
     _device = _resolve_device()
     print(f"[api] loading MeloTTS model: language={melo_lang} device={_device}", flush=True)
@@ -108,8 +111,6 @@ def _speaker_id(model, spk_want: str) -> int:
 
 def _wav_bytes(samples, sample_rate: int) -> bytes:
     """PCM16 WAV via soundfile - no ffmpeg dependency (unlike the mp3 path)."""
-    import numpy as np
-    import soundfile as sf
     arr = np.asarray(samples, dtype=np.float32)
     arr = np.clip(arr, -1.0, 1.0)
     buf = io.BytesIO()
@@ -119,8 +120,6 @@ def _wav_bytes(samples, sample_rate: int) -> bytes:
 
 
 def _mp3_bytes(samples, sample_rate: int) -> bytes:
-    import numpy as np
-    from pydub import AudioSegment
     arr = np.asarray(samples, dtype=np.float32)
     arr = np.clip(arr, -1.0, 1.0)
     pcm16 = (arr * 32767.0).astype(np.int16)

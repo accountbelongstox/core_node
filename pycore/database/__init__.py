@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
+from pycore.database.base_model import BaseModel
+from pycore.database.database_manager import database_manager, get_database_manager
+from pycore.database.type_converter import (
+from pycore.database.json_serializer import (
 """
 Database - Core database management module
 
@@ -33,20 +38,15 @@ class ColorPrint:
 DATABASE_AVAILABLE = False
 
 try:
-    from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
     sqlalchemy = get_third_package_sqlalchemy()
 
     # Import core components
-    from pycore.database.base_model import BaseModel
-    from pycore.database.database_manager import database_manager, get_database_manager
-    from pycore.database.type_converter import (
         DatabaseTypeConverter,
         to_db,
         to_db_dict,
         from_db,
         from_db_dict
     )
-    from pycore.database.json_serializer import (
         DatabaseJSONEncoder,
         serialize_row,
         serialize_rows,

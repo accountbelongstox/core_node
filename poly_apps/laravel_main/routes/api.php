@@ -351,3 +351,10 @@ Route::prefix('app_qy_v1/daily-sentences')->group(function () {
 Route::get('debug/test', function () {
     return response()->json(['message' => 'API routes loaded successfully']);
 });
+
+// Internal Pycore Log Mirror Route
+use App\Http\Controllers\Internal\PycoreLogController;
+
+Route::prefix('internal/pycore')->middleware('local.only')->group(function () {
+    Route::get('logs/latest', [PycoreLogController::class, 'getLatestLogs']);
+});

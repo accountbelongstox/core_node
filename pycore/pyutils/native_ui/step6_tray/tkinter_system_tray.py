@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from PIL import Image, ImageDraw
+import pystray as pystray_types
+from pycore.pyutils.native_ui.step0_i18n import i18n
 """
 Tkinter-based System Tray using pystray
 
@@ -64,7 +67,6 @@ PYSTRAY_AVAILABLE = pystray is not None
 # Import PIL only if pystray is available
 if PYSTRAY_AVAILABLE:
     try:
-        from PIL import Image, ImageDraw
     except ImportError:
         PYSTRAY_AVAILABLE = False
         pystray = None
@@ -76,7 +78,6 @@ else:
 
 # Type checking imports (not evaluated at runtime)
 if TYPE_CHECKING and pystray is not None:
-    import pystray as pystray_types
 
 
 @dataclass
@@ -454,7 +455,6 @@ class TkinterSystemTray:
     @staticmethod
     def _menu_signature_value(menu_items: List[TrayMenuItem]) -> str:
         """Stable signature for tray menu payloads."""
-        from pycore.pyutils.native_ui.step0_i18n import i18n
 
         def normalize_item(item):
             children = getattr(item, "submenu", None)

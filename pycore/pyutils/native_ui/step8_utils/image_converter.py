@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from PIL import Image, ImageDraw, ImageFont
 """
 Image Converter Module
 
@@ -149,7 +150,6 @@ def _convert_svg_to_png(
 
     # Method 3: Create a placeholder PNG (last resort)
     try:
-        from PIL import Image, ImageDraw, ImageFont
 
         # Create blank image
         img_size = size or (64, 64)

@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from faster_whisper import WhisperModel
+from faster_whisper.tokenizer import _LANGUAGE_CODES
+from faster_whisper.utils import _MODELS
+from huggingface_hub import scan_cache_dir
+from whisper.tokenizer import LANGUAGES
 """Standalone faster-whisper transcribe runner.
 
 Runs under the caller-selected interpreter. The central CUDA policy selects GPU
@@ -26,19 +31,14 @@ from typing import Any, Dict, Optional, Tuple
 import importlib.util as _u
 
 try:
-    from faster_whisper import WhisperModel
-    from faster_whisper.tokenizer import _LANGUAGE_CODES
-    from faster_whisper.utils import _MODELS
 except ImportError:
     WhisperModel = None
     _LANGUAGE_CODES = {"en"}
     _MODELS = {}
 try:
-    from huggingface_hub import scan_cache_dir
 except ImportError:
     scan_cache_dir = None
 try:
-    from whisper.tokenizer import LANGUAGES
 except ImportError:
     LANGUAGES = {}
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import win32process
 """
 Browser Window Detector - Auxiliary detection by process exe
 
@@ -17,7 +18,6 @@ win32gui = get_third_package_win32gui()
 psutil = get_third_package_psutil()
 
 try:
-    import win32process
 except ImportError:
     win32process = None
 

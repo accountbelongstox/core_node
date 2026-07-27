@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from pyfoundations.system_paths import map_web_path as _map_web_path, _is_wsl as _is_wsl_util
 """
 PostgreSQL cross-environment sync adapter.
 
@@ -65,7 +66,6 @@ PG_WAIT_TIMEOUT = 30
 try:
     if str(_PYCORE_ROOT) not in sys.path:
         sys.path.insert(0, str(_PYCORE_ROOT))
-    from pyfoundations.system_paths import map_web_path as _map_web_path, _is_wsl as _is_wsl_util
     _HAS_MAP = True
 except Exception:
     _HAS_MAP = False

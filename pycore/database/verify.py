@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+from pycore.database import database_manager, BaseModel, DATABASE_AVAILABLE
+from pycore.database.models import TableKeys, TableNamespaces
+from pycore.database.models import (
+import traceback
 """
 Database System Verification Script
 Checks file structure, imports, and functionality
@@ -60,13 +64,10 @@ print('2. IMPORT & FUNCTIONALITY CHECK')
 print('-' * 70)
 
 try:
-    from pycore.database import database_manager, BaseModel, DATABASE_AVAILABLE
     print('[OK]       Core imports (database_manager, BaseModel, DATABASE_AVAILABLE)')
 
-    from pycore.database.models import TableKeys, TableNamespaces
     print('[OK]       Constants (TableKeys, TableNamespaces)')
 
-    from pycore.database.models import (
         CommonConfigModel, CommonLogModel,
         ExampleUserModel, ExampleTaskModel,
         UtilCacheModel,
@@ -99,7 +100,6 @@ try:
 
 except Exception as e:
     print(f'[FAIL]     Import error: {e}')
-    import traceback
     traceback.print_exc()
     imports_ok = False
 

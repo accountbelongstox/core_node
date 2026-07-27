@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from pycore.pyutils.launcher.app_finder import AppFinder
+from pycore.pyutils.common.process_manager import ProcessManager
 """
 Idempotent launch guards for the window launcher.
 
@@ -30,8 +32,6 @@ _PYTHON_PROC_NAMES = frozenset({
 })
 
 if TYPE_CHECKING:
-    from pycore.pyutils.launcher.app_finder import AppFinder
-    from pycore.pyutils.common.process_manager import ProcessManager
 
 # Linux terminal emulators counted by 152_install_terminal_grid_shortcut.sh.
 _LINUX_TERM_CLASS_PATTERN = re.compile(

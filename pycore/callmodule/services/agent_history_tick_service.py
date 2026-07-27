@@ -10,7 +10,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.pyctl.agent_history.agent_history_service import get_agent_history_service
-from pycore.callmodule.services.agent_history_article_service import get_agent_history_article_service
+from pycore.callmodule.services.agent_history_pipeline.worker import tick_pipeline as pipeline_tick
 
 DEFAULT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
 EXTRACT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_EXTRACT_INTERVAL", "60"))
@@ -131,14 +131,7 @@ class AgentHistoryTickService:
     def _run_pipeline(self) -> None:
         self._pipeline_count += 1
         try:
-            published = get_agent_history_article_service().tick_pipeline()
-            if published:
-                mode = "live" if published.get("live") else "backfill"
-                THREAD_BUS.trigger_event("article.published", published)
-                ColorPrint.gray(
-                    f"[AgentHistoryArticle] {mode} article published: "
-                    f"{published.get('title_en') or published.get('article_id')}"
-                )
+            pipeline_tick()
         except Exception as art_err:  # noqa: BLE001
             ColorPrint.yellow(f"[AgentHistoryArticle] pipeline tick error: {art_err}")
         finally:

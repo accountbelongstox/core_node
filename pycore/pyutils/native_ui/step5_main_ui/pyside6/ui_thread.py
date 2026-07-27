@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from .framework import PySide6Framework
 """
 PySide6 UI Thread
 
@@ -18,7 +19,6 @@ from pycore.pyutils.native_ui.step5_main_ui.pyside6.framework import PySide6Fram
 
 
 if TYPE_CHECKING:
-    from .framework import PySide6Framework
 
 
 class PySide6UIThread(threading.Thread):

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import tkinter
+from pycore.callmodule.tray_codesync_cache import get_tray_codesync_state
 """
 LauncherConfig Builder for Pycore Module Caller
 
@@ -17,7 +19,6 @@ from pathlib import Path
 # Optional environment-dependent stdlib module (absent on some headless Linux
 # builds): top-of-file try + availability flag, never imported inside functions.
 try:
-    import tkinter
     TKINTER_AVAILABLE = True
 except ImportError:
     tkinter = None
@@ -64,7 +65,6 @@ _TRAY_MENU_SIGNATURE = {'value': None}
 def _menu_signature(menu_items: list) -> str:
     """Create a stable signature for tray menu payloads."""
     try:
-        from pycore.callmodule.tray_codesync_cache import get_tray_codesync_state
 
         payload = {
             "menu": menu_items,

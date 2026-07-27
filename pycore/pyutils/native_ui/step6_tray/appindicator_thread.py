@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import print_appindicator_status
 """
 AppIndicator System Tray Thread
 
@@ -170,7 +171,6 @@ def is_appindicator_recommended() -> bool:
 
 
 if __name__ == "__main__":
-    from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import print_appindicator_status
 
     print_appindicator_status()
 

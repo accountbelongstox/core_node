@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+from faster_whisper.tokenizer import _LANGUAGE_CODES
+from faster_whisper.utils import _MODELS
+from huggingface_hub import scan_cache_dir
+from whisper.tokenizer import LANGUAGES
 """
 Whisper runtime - GPU detection + faster-whisper model/runtime resolution +
 UI capability surface for the Video Extract feature.
@@ -30,17 +34,13 @@ from pycore.pyutils.common.model_tiers import (
 from .ffmpeg_ops import resolve_ffmpeg
 
 try:
-    from faster_whisper.tokenizer import _LANGUAGE_CODES
-    from faster_whisper.utils import _MODELS
 except ImportError:
     _LANGUAGE_CODES = {"en"}
     _MODELS = {}
 try:
-    from huggingface_hub import scan_cache_dir
 except ImportError:
     scan_cache_dir = None
 try:
-    from whisper.tokenizer import LANGUAGES
 except ImportError:
     LANGUAGES = {}
 

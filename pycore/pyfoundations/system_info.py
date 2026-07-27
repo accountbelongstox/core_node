@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from ctypes import windll, c_ulonglong, c_wchar_p, byref
+import pwd
+from ctypes import windll
+from ctypes import Structure, c_uint32, c_uint64, sizeof, windll, byref
 """
 System Information Module
 
@@ -32,11 +36,9 @@ c_ulonglong = None
 c_wchar_p = None
 byref = None
 if sys.platform == 'win32':
-    from ctypes import windll, c_ulonglong, c_wchar_p, byref
 
 pwd = None
 if sys.platform != 'win32':
-    import pwd
 
 
 
@@ -93,7 +95,6 @@ def get_screen_resolution() -> Optional[ScreenInfo]:
 
     if system == 'Windows':
         # Windows: Use ctypes
-        from ctypes import windll
         width = windll.user32.GetSystemMetrics(0)
         height = windll.user32.GetSystemMetrics(1)
         if width > 0 and height > 0:
@@ -144,7 +145,6 @@ def get_memory_info() -> Optional[MemoryInfo]:
 
     if system == 'Windows':
         # Use ctypes to call GlobalMemoryStatusEx (more reliable than wmic)
-        from ctypes import Structure, c_uint32, c_uint64, sizeof, windll, byref
 
         class MEMORYSTATUSEX(Structure):
             _fields_ = [

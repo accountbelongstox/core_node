@@ -82,6 +82,15 @@ def is_model_loaded() -> bool:
     except Exception:  # noqa: BLE001
         return False
 
+def get_capabilities() -> Optional[Dict[str, Any]]:
+    """GET /capabilities -> {languages, speakers, default_speakers}"""
+    try:
+        with urllib.request.urlopen(base_url() + "/capabilities", timeout=_HEALTH_TIMEOUT_S) as resp:
+            info = json.loads(resp.read().decode("utf-8"))
+        return info if isinstance(info, dict) and info.get("ok") else None
+    except Exception:  # noqa: BLE001
+        return None
+
 
 def model_loaded() -> bool:
     return is_model_loaded()
@@ -263,6 +272,7 @@ __all__ = [
     "base_url",
     "model_loaded",
     "is_model_loaded",
+    "get_capabilities",
     "unload_model",
     "last_synth_error",
     "synthesize",

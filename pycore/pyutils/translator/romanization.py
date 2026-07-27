@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from pycore.pyfoundations.third_party import (
 """
 Romanization Module
 
@@ -24,7 +25,6 @@ from dataclasses import dataclass, asdict
 from pycore.pyfoundations.system_paths import map_web_path
 
 try:
-    from pycore.pyfoundations.third_party import (
         get_third_package_googletrans_Translator,
     )
     Translator = get_third_package_googletrans_Translator()

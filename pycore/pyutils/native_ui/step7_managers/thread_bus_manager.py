@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore import ColorPrint
 """
 THREAD_BUS Manager for Native UI
 
@@ -413,7 +414,6 @@ def get_native_ui_bus_manager() -> NativeUIBusManager:
 # ============================================================
 
 if __name__ == "__main__":
-    from pycore import ColorPrint
 
     ColorPrint.print_info("=" * 70)
     ColorPrint.print_info(" THREAD_BUS MANAGER TEST")

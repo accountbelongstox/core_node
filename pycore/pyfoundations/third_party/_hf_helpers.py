@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+import huggingface_hub
+import onnxruntime
+import cnocr
+import shutil
+from huggingface_hub import HfApi
 """
 Hugging Face Hub helpers + cnocr loader.
 
@@ -30,7 +35,6 @@ def get_third_package_huggingface_hub():
     """
     if 'huggingface_hub' not in _PACKAGE_CACHE:
         try:
-            import huggingface_hub
             _PACKAGE_CACHE['huggingface_hub'] = huggingface_hub
         except (ImportError, ModuleNotFoundError):
             pip_package = DEPENDENCY_MAP.get('huggingface_hub', 'huggingface_hub')
@@ -39,7 +43,6 @@ def get_third_package_huggingface_hub():
             run_pip_install_with_realtime_output(pip_cmd, pip_package)
             importlib.invalidate_caches()
             try:
-                import huggingface_hub
                 _PACKAGE_CACHE['huggingface_hub'] = huggingface_hub
             except (ImportError, ModuleNotFoundError):
                 _PACKAGE_CACHE['huggingface_hub'] = None
@@ -52,7 +55,6 @@ def _print_cnocr_init_info(cnocr_module):
     cnocr_ver = getattr(cnocr_module, '__version__', 'unknown')
     onnx_ver = 'N/A'
     try:
-        import onnxruntime
         onnx_ver = getattr(onnxruntime, '__version__', 'unknown')
     except Exception:
         pass
@@ -70,7 +72,6 @@ def get_third_package_cnocr():
     """
     if 'cnocr' not in _PACKAGE_CACHE:
         try:
-            import cnocr
             _PACKAGE_CACHE['cnocr'] = cnocr
             _print_cnocr_init_info(cnocr)
         except (ImportError, ModuleNotFoundError):
@@ -81,7 +82,6 @@ def get_third_package_cnocr():
                 run_pip_install_with_realtime_output(pip_cmd, pip_package)
                 importlib.invalidate_caches()
                 try:
-                    import cnocr
                     _PACKAGE_CACHE['cnocr'] = cnocr
                     _print_cnocr_init_info(cnocr)
                 except (ImportError, ModuleNotFoundError):
@@ -112,7 +112,6 @@ def ensure_huggingface_cli_prerequisite() -> bool:
     if hub is None:
         return False
     try:
-        import shutil
         exe_dir = os.path.dirname(os.path.abspath(sys.executable))
         scripts = os.path.join(exe_dir, "Scripts")
         if os.path.isdir(scripts):
@@ -253,7 +252,6 @@ def hf_list_repo_files(repo_id: str, path_in_repo: str = "", revision: Optional[
     rev = revision or "main"
     path_prefix = (path_in_repo or "").strip().rstrip("/")
     try:
-        from huggingface_hub import HfApi
         api = HfApi()
         try:
             items = api.list_repo_files(repo_id=repo_id, path_in_repo=path_in_repo or None, revision=rev)

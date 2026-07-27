@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pyside6 import PySide6Framework, PySide6UIConfig
 """
 PySide6 Framework Example
 
@@ -70,7 +71,6 @@ def example_simple():
     """
     Simple example without startup window.
     """
-    from pyside6 import PySide6Framework, PySide6UIConfig
 
     # Create configuration
     config = PySide6UIConfig(

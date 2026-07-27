@@ -6,4 +6,5 @@ export { default as OfflineBanner } from './OfflineBanner';
 export { default as LoadingSpinner } from './LoadingSpinner';
 export type { LoadingSpinnerProps } from './LoadingSpinner';
 export { default as GlobalLogPanel } from './GlobalLogPanel';
+export { default as LaravelLogPanel } from './LaravelLogPanel';
 export { default as Portal } from './Portal';

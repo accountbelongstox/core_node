@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import argparse, os, sys
 """
 Window Launcher Main Module
 Main entry point for launching multiple windows in grid layout
@@ -89,7 +90,6 @@ def _parse_launch_args():
 
     Headless when --mode or PYLAUNCHER_MODE is set, or when stdin is not a TTY.
     """
-    import argparse, os, sys
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--mode", choices=["windows", "module", "both"], default=None)
     parser.add_argument("--no-pause", action="store_true")

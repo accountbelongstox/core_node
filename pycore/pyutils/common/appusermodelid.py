@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from win32com.propsys import propsys, pscon
 """
 Windows AppUserModelID Manager
 
@@ -131,7 +132,6 @@ class AppUserModelIDManager:
 
         try:
             pythoncom = get_third_package_pythoncom()
-            from win32com.propsys import propsys, pscon
 
             # Initialize COM
             pythoncom.CoInitialize()

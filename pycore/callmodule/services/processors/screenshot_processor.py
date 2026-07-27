@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import mss
+from PIL import Image
 """
 Screenshot Processor - Core logic for screenshot capture
 """
@@ -11,13 +13,11 @@ from typing import Optional, Dict, Any
 from pycore.pyfoundations.system_paths import get_app_temp_dir
 
 try:
-    import mss
     MSS_AVAILABLE = True
 except ImportError:
     MSS_AVAILABLE = False
 
 try:
-    from PIL import Image
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False

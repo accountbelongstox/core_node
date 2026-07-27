@@ -322,6 +322,8 @@ UI_HEARTBEAT_GET_CALLBACK_STATUS = "ui.heartbeat.get_callback_status"
 UI_LOCAL_CONFIG_UPDATE_CONFIG = "ui.local_config.update_config"
 UI_LOGS_CLEAR_LOGS = "ui.logs.clear_logs"
 UI_LOGS_GET_LOG_STATS = "ui.logs.get_log_stats"
+UI_LARAVEL_LOGS_SNAPSHOT = "ui.laravel.logs_snapshot"
+UI_LARAVEL_LOGS_REFRESH = "ui.laravel.logs_refresh"
 
 __all__ = [
     "UI_CODE_SYNC_PING",
@@ -550,6 +552,8 @@ __all__ = [
     "UI_LOCAL_CONFIG_UPDATE_CONFIG",
     "UI_LOGS_CLEAR_LOGS",
     "UI_LOGS_GET_LOG_STATS",
+    "UI_LARAVEL_LOGS_SNAPSHOT",
+    "UI_LARAVEL_LOGS_REFRESH",
 
     "PYCORE_ROUTER_INVOKE",
     "PYCORE_ROUTER_RESOURCE",

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import torch
+from f5_tts.api import F5TTS
 """
 Minimal F5-TTS HTTP wrapper for pycore (POST /process, GET /health).
 
@@ -29,7 +31,6 @@ def _resolve_device():
     if want != "auto":
         return want
     try:
-        import torch
         return "cuda:0" if torch.cuda.is_available() else "cpu"
     except ImportError:
         return "cpu"
@@ -39,7 +40,6 @@ def _get_f5():
     global _f5, _device
     if _f5 is not None:
         return _f5
-    from f5_tts.api import F5TTS
     _device = _resolve_device()
     _f5 = F5TTS(device=_device)
     return _f5

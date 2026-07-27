@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import azure.cognitiveservices.speech as _speechsdk
 """
 Azure Speech cloud TTS engine — the orchestrator's API fallback.
 
@@ -26,7 +27,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.api_secrets import azure_speech_key, azure_speech_region
 
 try:  # optional third-party (already in pycore requirements)
-    import azure.cognitiveservices.speech as _speechsdk
     _AZURE_SDK_AVAILABLE = True
 except Exception:  # noqa: BLE001 — SDK absent / import error -> engine simply unavailable
     _speechsdk = None

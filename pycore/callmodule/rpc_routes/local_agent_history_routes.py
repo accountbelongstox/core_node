@@ -16,7 +16,8 @@ from pycore import ColorPrint
 from pycore.pyctl.agent_history.agent_history_service import get_agent_history_service
 import pycore.callmodule.services.agent_history_article_records as records
 from pycore.callmodule.services.agent_history_tick_service import get_agent_history_tick_service
-from pycore.callmodule.services.agent_history_article_service import get_agent_history_article_service
+from pycore.callmodule.services.agent_history_pipeline.config import get_config, save_config, get_status as get_pipeline_status, list_articles
+from pycore.callmodule.services.agent_history_pipeline.worker import start_backfill
 from pycore.callmodule.services.heartbeat_agent_history import set_agent_history_callbacks_enabled
 from pycore.callmodule.rpc_routes.route_names import (
     UI_AGENT_HISTORY_INDEX,
@@ -112,7 +113,7 @@ def register_local_agent_history_routes(server):
     async def status_handler(params, request_id, context):
         tick = await _run(get_agent_history_tick_service().get_status_snapshot)
         store = await _run(get_agent_history_service().get_status)
-        article = await _run(get_agent_history_article_service().get_status)
+        article = await _run(get_pipeline_status)
         return {
             "success": True,
             "data": {"tick": tick, "store": store, "article": article},
@@ -121,50 +122,40 @@ def register_local_agent_history_routes(server):
     server.route(name=UI_AGENT_HISTORY_STATUS, handler=status_handler, sync=False)
 
     async def article_config_get_handler(params, request_id, context):
-        cfg = await _run(get_agent_history_article_service().get_config)
+        cfg = await _run(get_config)
         return {"success": True, "data": cfg}
 
     server.route(name=UI_AGENT_HISTORY_ARTICLE_CONFIG_GET, handler=article_config_get_handler, sync=False)
 
     async def article_config_post_handler(params, request_id, context):
         p = _params(params)
-        svc = get_agent_history_article_service()
-        cfg = await _run(svc.save_config, p)
+        cfg = await _run(save_config, p)
         if cfg.get("enabled"):
             await _run(set_agent_history_callbacks_enabled, True)
-            # Kick extract + pipeline immediately — do not wait for the next heartbeat.
-            tick = get_agent_history_tick_service()
-            await _run(tick.tick_extract)
-            await _run(tick.tick_pipeline)
         else:
             await _run(set_agent_history_callbacks_enabled, False)
-        return {"success": True, "data": cfg}
+        return {"success": True, "data": cfg, "operation_id": f"op_config_{request_id}"}
 
     server.route(name=UI_AGENT_HISTORY_ARTICLE_CONFIG_POST, handler=article_config_post_handler, sync=False)
 
     async def article_start_handler(params, request_id, context):
         await _run(set_agent_history_callbacks_enabled, True)
-        data = await _run(get_agent_history_article_service().start_backfill)
-        tick = get_agent_history_tick_service()
-        await _run(tick.tick_extract)
-        await _run(tick.tick_pipeline)
-        return {"success": True, "data": data}
+        data = await _run(start_backfill)
+        return {"success": True, "data": data, "operation_id": f"op_start_{request_id}"}
 
     server.route(name=UI_AGENT_HISTORY_ARTICLE_START, handler=article_start_handler, sync=False)
 
     async def article_list_handler(params, request_id, context):
         p = _params(params)
         limit = int(p.get("limit") or 50)
-        items = await _run(get_agent_history_article_service().list_articles, limit)
+        items = await _run(list_articles, limit)
         return {"success": True, "data": {"items": items}}
 
     server.route(name=UI_AGENT_HISTORY_ARTICLE_LIST, handler=article_list_handler, sync=False)
 
     async def article_logs_handler(params, request_id, context):
-        # Tick snapshot is embedded inside get_logs (lock-free) — do not call
-        # serialized get_status here or the 4s poll will block behind extract.
-        data = await _run(get_agent_history_article_service().get_logs)
-        return {"success": True, "data": data}
+        # Deprecated: UI should use ui.operation.snapshot instead
+        return {"success": True, "data": {"events": [], "progress": {}, "ai_usage": {}, "tick": {}}}
 
     server.route(name=UI_AGENT_HISTORY_ARTICLE_LOGS, handler=article_logs_handler, sync=False)
 

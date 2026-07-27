@@ -301,6 +301,9 @@ class Qwen3TtsService:
     def health(self) -> Optional[Dict[str, Any]]:
         return self._get_json("/health", _HEALTH_TIMEOUT_S)
 
+    def get_capabilities(self) -> Optional[Dict[str, Any]]:
+        return self._get_json("/capabilities", _HEALTH_TIMEOUT_S)
+
     def load_model(self, timeout: float = 1200.0) -> Dict[str, Any]:
         """Trigger model load (GET /load) so the loading process streams to console."""
         self._log("[service] warming model via /load (first load can take minutes) ...")

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from fastapi import FastAPI
 """
 Homepage Routes - Display available routes and parameters
 
@@ -16,7 +17,6 @@ from fastapi.responses import RedirectResponse
 from .module_registry import SUPPORTED_MODULES, get_all_modules
 
 if TYPE_CHECKING:
-    from fastapi import FastAPI
 
 
 def register_homepage_routes(app: 'FastAPI'):

@@ -10,6 +10,7 @@ This module handles video streaming from Android devices:
 Apps can use this or extend it for custom streaming logic.
 """
 
+from pycore.pyutils.video_stream.fmp4_encoder_complete import FMP4Encoder as FMP4EncoderComplete
 import asyncio
 import struct
 from typing import Optional, Callable, AsyncGenerator
@@ -21,7 +22,6 @@ from pycore.pyfoundations.serialized_worker import await_bus_task
 # Import FMP4Encoder at module level
 FMP4EncoderComplete = None
 try:
-    from pycore.pyutils.video_stream.fmp4_encoder_complete import FMP4Encoder as FMP4EncoderComplete
 except ImportError:
     pass
 

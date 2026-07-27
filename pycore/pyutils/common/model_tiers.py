@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import ctranslate2
+from pycore.pyfoundations.third_party import get_third_package_torch
 """
 Runtime bridge to pycore/tts_install_assets/tts_model_tiers.py.
 
@@ -16,7 +18,6 @@ from pycore.pyfoundations.ai_runtime_policy import CTRANSLATE2_CUDA_MAJOR
 from pycore.pyfoundations.system_paths import get_user_data_store
 
 try:
-    import ctranslate2
 except ImportError:
     ctranslate2 = None
 
@@ -53,7 +54,6 @@ def gpu_present() -> bool:
 
 def _runtime_torch_cuda_major() -> Optional[int]:
     try:
-        from pycore.pyfoundations.third_party import get_third_package_torch
 
         torch = get_third_package_torch()
         version = str(getattr(getattr(torch, "version", None), "cuda", "") or "")

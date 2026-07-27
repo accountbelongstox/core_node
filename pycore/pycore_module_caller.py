@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import argparse
 """
 Pycore Module Caller - Entry Point
 
@@ -177,7 +178,6 @@ def main(host='0.0.0.0', port=59000, debug=False, reload=True):
 
 
 if __name__ == '__main__':
-    import argparse
 
     parser = argparse.ArgumentParser(description="Pycore Module Caller")
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind (default: 0.0.0.0)')

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from pydantic import BaseModel
 """
 Heartbeat Router - PyHeartbeat callback control endpoints
 
@@ -18,7 +19,6 @@ HTTPException = fastapi.HTTPException
 
 # Response models
 try:
-    from pydantic import BaseModel
 except ImportError:
     BaseModel = object
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import torch
+from qwen_tts import Qwen3TTSModel
 """
 Qwen3-TTS HTTP API for pycore (subprocess in the DEDICATED isolated venv).
 
@@ -95,7 +97,6 @@ def _resolve_device() -> str:
     if want != "auto":
         return want
     try:
-        import torch
         return "cuda:0" if torch.cuda.is_available() else "cpu"
     except ImportError:
         return "cpu"
@@ -111,8 +112,6 @@ def _model_ready(model) -> bool:
 
 def _load_model():
     global _device, _load_error
-    import torch
-    from qwen_tts import Qwen3TTSModel
 
     _device = _resolve_device()
     model_id = _model_id()
@@ -340,6 +339,16 @@ def health():
         "load_error": None if ready else _load_error,
     }
 
+@app.get("/capabilities")
+def capabilities():
+    """Return supported languages and speakers."""
+    return {
+        "ok": True,
+        "languages": _LANG_MAP,
+        "speakers": _SPEAKER_PRESETS,
+        "default_speakers": _SPEAKER_BY_LANG,
+    }
+
 
 @app.get("/")
 def root():
@@ -429,18 +438,46 @@ def synthesize_batch(req: BatchSynthRequest):
             for start in range(0, n, max_parallel):
                 chunk_speakers = speakers[start:start + max_parallel]
                 chunk_n = len(chunk_speakers)
-                wavs, sr = model.generate_custom_voice(
-                    text=[text] * chunk_n, language=[qwen_lang] * chunk_n,
-                    speaker=chunk_speakers, non_streaming_mode=True,
-                )
-                for offset, wav in enumerate(wavs):
-                    idx = start + offset
-                    audio_bytes, _ = _encode_audio(wav, sr, fmt)
-                    audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
-                    results[idx] = {
-                        "key": variants[idx].key, "ok": True,
-                        "audio_base64": audio_b64, "error": None,
-                    }
+                try:
+                    wavs, sr = model.generate_custom_voice(
+                        text=[text] * chunk_n, language=[qwen_lang] * chunk_n,
+                        speaker=chunk_speakers, non_streaming_mode=True,
+                    )
+                    for offset, wav in enumerate(wavs):
+                        idx = start + offset
+                        try:
+                            audio_bytes, _ = _encode_audio(wav, sr, fmt)
+                            audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+                            results[idx] = {
+                                "key": variants[idx].key, "ok": True,
+                                "audio_base64": audio_b64, "error": None,
+                            }
+                        except Exception as e:
+                            results[idx] = {
+                                "key": variants[idx].key, "ok": False,
+                                "audio_base64": None, "error": f"encode failed: {e}",
+                            }
+                except Exception as chunk_exc:
+                    _log(f"[api] chunk failed, falling back to item-by-item: {chunk_exc}")
+                    # Fallback to item-by-item for this chunk
+                    for offset in range(chunk_n):
+                        idx = start + offset
+                        try:
+                            wavs, sr = model.generate_custom_voice(
+                                text=[text], language=[qwen_lang],
+                                speaker=[chunk_speakers[offset]], non_streaming_mode=True,
+                            )
+                            audio_bytes, _ = _encode_audio(wavs[0], sr, fmt)
+                            audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+                            results[idx] = {
+                                "key": variants[idx].key, "ok": True,
+                                "audio_base64": audio_b64, "error": None,
+                            }
+                        except Exception as item_exc:
+                            results[idx] = {
+                                "key": variants[idx].key, "ok": False,
+                                "audio_base64": None, "error": str(item_exc),
+                            }
         return {"results": results}
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": str(exc)}, status_code=500)

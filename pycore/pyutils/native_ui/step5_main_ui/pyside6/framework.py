@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
 """
 PySide6 Native UI Framework - Main Application Framework
 
@@ -41,7 +42,6 @@ from PySide6.QtGui import QIcon
 from pycore import THREAD_BUS, ColorPrint
 
 if TYPE_CHECKING:
-    from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
 
 # Import PySide6 components
 from .config import PySide6UIConfig, StartupWindowConfig, ActionType

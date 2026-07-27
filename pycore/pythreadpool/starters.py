@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore.pyctl.speech.speech_thread import SpeechTranscriptionThread
+from pycore.pyutils.native_ui.step5_main_ui.pyside6 import PySide6UIThread, PySide6UIConfig, StartupWindowConfig
+from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
+from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem, PYSTRAY_AVAILABLE
+from pycore.pyutils.native_ui.step6_tray.tray_thread import TkinterSystemTrayThread
+from pycore.pyutils.native_ui.step6_tray.win32_system_tray import Win32SystemTrayThread, WIN32_AVAILABLE
+from pycore.pyutils.native_ui.step6_tray.appindicator_thread import (
+from pycore.pyutils.native_ui.step6_tray._types import build_appindicator_menu_items
 """
 Service Starter Functions
 
@@ -168,7 +176,6 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
 
 def start_speech(config: Dict[str, Any]) -> Any:
     """Start speech service (original class)"""
-    from pycore.pyctl.speech.speech_thread import SpeechTranscriptionThread
 
     mode = config.get('mode', 'single')
     mic_language = config.get('mic_language', 'zh-CN')
@@ -227,7 +234,6 @@ def start_ui(config: Dict[str, Any]) -> Any:
     Returns:
         PySide6Framework instance
     """
-    from pycore.pyutils.native_ui.step5_main_ui.pyside6 import PySide6UIThread, PySide6UIConfig, StartupWindowConfig
 
     ColorPrint.blue("[ui] ========== STARTING PYSIDE6 UI SERVICE ==========")
     ColorPrint.blue(f"[ui] Received config keys: {list(config.keys())}")
@@ -394,15 +400,9 @@ def start_tray(config: Dict[str, Any]) -> Any:
     """
     ColorPrint.blue("[tray] Starting System Tray...")
 
-    from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
-    from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem, PYSTRAY_AVAILABLE
-    from pycore.pyutils.native_ui.step6_tray.tray_thread import TkinterSystemTrayThread
-    from pycore.pyutils.native_ui.step6_tray.win32_system_tray import Win32SystemTrayThread, WIN32_AVAILABLE
-    from pycore.pyutils.native_ui.step6_tray.appindicator_thread import (
         AppIndicatorSystemTrayThread,
         APPINDICATOR_AVAILABLE,
     )
-    from pycore.pyutils.native_ui.step6_tray._types import build_appindicator_menu_items
 
     # Get configuration
     app_name = config.get('app_name', 'Application')

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import keyboard
+import mouse
 """
 Global Hotkey Listener
 Provides system-wide hotkey monitoring with high priority and conflict resolution
@@ -96,8 +98,6 @@ KEYBOARD_AVAILABLE = _check_and_install_dependencies()
 # Import modules after auto-installation
 if KEYBOARD_AVAILABLE:
     try:
-        import keyboard
-        import mouse
     except ImportError:
         KEYBOARD_AVAILABLE = False
 

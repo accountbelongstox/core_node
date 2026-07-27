@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from pycore.pyfoundations.third_party import get_third_package_eng_to_ipa
 """
 Phonetic Transcription Module
 
@@ -22,7 +23,6 @@ from dataclasses import dataclass, asdict
 from pycore.pyfoundations.system_paths import map_web_path
 
 try:
-    from pycore.pyfoundations.third_party import get_third_package_eng_to_ipa
     eng_to_ipa_module = get_third_package_eng_to_ipa()
     IPA_AVAILABLE = True
 except ImportError:

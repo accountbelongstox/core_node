@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from PIL import Image
+from pycore.pyutils.ocr_cluster import ocr_manager
+import sys
 """
 Image Analyzer - Color Analysis + OCR Integration
 
@@ -16,7 +19,6 @@ import json
 
 # Try importing PIL for color analysis
 try:
-    from PIL import Image
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
@@ -24,7 +26,6 @@ except ImportError:
 
 # Import OCR manager from pycore
 try:
-    from pycore.pyutils.ocr_cluster import ocr_manager
     OCR_AVAILABLE = True
 except ImportError:
     OCR_AVAILABLE = False
@@ -317,7 +318,6 @@ def analyze_directory_images(
 # ============================================================
 
 if __name__ == "__main__":
-    import sys
 
     if len(sys.argv) < 2:
         print("Usage:")

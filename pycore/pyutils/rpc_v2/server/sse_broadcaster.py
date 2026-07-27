@@ -22,10 +22,15 @@ from typing import Any, Deque, Dict, Optional, Set, Tuple
 
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_fastapi
+from pycore.pyfoundations.state_store import StateRepository, SystemEvent
+from datetime import datetime, timezone
 
 fastapi = get_third_package_fastapi()
 Request = fastapi.Request
 StreamingResponse = fastapi.responses.StreamingResponse
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 class SSEBroadcaster:
@@ -33,11 +38,18 @@ class SSEBroadcaster:
 
     def __init__(self, debug: bool = False, sse_ring_size: int = 500):
         self.debug = debug
-        # Process-wide monotonic seq + bounded ring buffer (for ?since= resume).
-        self._sse_seq: int = 0
         self._sse_ring_max: int = sse_ring_size
         self._sse_ring: Deque[Tuple[int, str, Dict[str, Any]]] = deque(maxlen=self._sse_ring_max)
         self._sse_subscribers: Set["asyncio.Queue"] = set()
+        self._repo = StateRepository()
+        
+        # Initialize seq from DB
+        self._sse_seq: int = self._repo.get_latest_system_event_seq()
+        
+        # Pre-fill ring buffer from DB
+        events = self._repo.get_system_events(since_seq=max(0, self._sse_seq - self._sse_ring_max), limit=self._sse_ring_max)
+        for e in events:
+            self._sse_ring.append((e.seq, e.topic, e.payload_json or {}))
 
     def publish(self, event_name: str, data: Dict[str, Any]):
         """
@@ -49,9 +61,25 @@ class SSEBroadcaster:
         mutation of these structures is safe; SSE generators consume on the same
         loop. Never blocks the WS delivery path.
         """
-        self._sse_seq += 1
-        seq = self._sse_seq
+        # 1. Persist event to DB
+        sys_event = SystemEvent(
+            seq=0,
+            event_id=uuid.uuid4().hex,
+            topic=event_name,
+            entity_type=data.get("entity_type"),
+            entity_id=data.get("entity_id"),
+            revision=data.get("revision", 0),
+            trace_id=data.get("trace_id"),
+            payload_json=data,
+            created_at=_now_iso(),
+        )
+        self._repo.insert_system_event(sys_event)
+        
+        # 2. Update in-memory state
+        seq = sys_event.seq
+        self._sse_seq = seq
         self._sse_ring.append((seq, event_name, data))
+        
         if self._sse_subscribers:
             sse_item = (seq, event_name, data)
             for queue in list(self._sse_subscribers):
@@ -111,6 +139,18 @@ class SSEBroadcaster:
             # --- Replay backlog from the ring buffer (seq > since), oldest first. ---
             # since absent / <= 0 -> start from current tail (only new events).
             replay_from = since if isinstance(since, int) and since > 0 else None
+            
+            # Check if since is too old (not in ring buffer)
+            if replay_from is not None and self._sse_ring:
+                oldest_seq = self._sse_ring[0][0]
+                if replay_from < oldest_seq - 1:
+                    # Client is too far behind, send reset_required
+                    yield self._sse_format("stream.reset_required", {
+                        "oldest_seq": oldest_seq,
+                        "current_seq": self._sse_seq,
+                    })
+                    return
+
             # Snapshot the ring before subscribing so we don't miss or double-send
             # events that land between replay and subscription.
             backlog = list(self._sse_ring) if replay_from is not None else []

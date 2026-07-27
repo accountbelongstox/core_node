@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from .placeholder_generator import (
 """
 Design Structure Auto Expand - 设计文档结构自动扩展
 
@@ -23,7 +24,6 @@ from typing import Dict, List, Optional
 
 # Import placeholder generator
 try:
-    from .placeholder_generator import (
         manage_placeholder,
         ensure_images_readme,
         get_markdown_placeholder_comment

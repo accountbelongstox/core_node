@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import win32gui
+import win32con
+import win32api
+from PIL import Image
+from pycore.pyutils.native_ui.step0_i18n import i18n
 """
 Windows Native System Tray (pywin32 / Shell_NotifyIcon)
 
@@ -39,9 +44,6 @@ from pycore import THREAD_BUS, ColorPrint
 from .tkinter_system_tray import TrayMenuItem
 
 try:
-    import win32gui
-    import win32con
-    import win32api
     WIN32_AVAILABLE = True
 except ImportError:
     win32gui = None
@@ -51,7 +53,6 @@ except ImportError:
 
 # Optional third-party (PNG -> ICO conversion only): top-of-file try + flag
 try:
-    from PIL import Image
     PIL_AVAILABLE = True
 except ImportError:
     Image = None
@@ -477,7 +478,6 @@ class Win32SystemTray:
     @staticmethod
     def _menu_signature_value(menu_items: List[TrayMenuItem]) -> str:
         """Stable signature for tray menu payloads (object/list payload)."""
-        from pycore.pyutils.native_ui.step0_i18n import i18n
 
         def normalize_item(item):
             children = getattr(item, "submenu", None)

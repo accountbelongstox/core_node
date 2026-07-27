@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from pycore.callmodule.controllers.local_processing.task_center_controller import _fetch_assist_overview
+from pycore.pyfoundations.serialized_worker import start_bus_task
 """
 Translation Queue Monitor Service
 
@@ -143,8 +145,6 @@ class QueueMonitorService:
         # Pre-warm on startup
         self.poll_once()
         try:
-            from pycore.callmodule.controllers.local_processing.task_center_controller import _fetch_assist_overview
-            from pycore.pyfoundations.serialized_worker import start_bus_task
             start_bus_task(_fetch_assist_overview, thread_name="assist-overview-prewarm")
         except ImportError:
             pass
@@ -173,8 +173,6 @@ class QueueMonitorService:
         # Pre-warm on endpoint change
         self.poll_once()
         try:
-            from pycore.callmodule.controllers.local_processing.task_center_controller import _fetch_assist_overview
-            from pycore.pyfoundations.serialized_worker import start_bus_task
             start_bus_task(_fetch_assist_overview, thread_name="assist-overview-prewarm")
         except ImportError:
             pass

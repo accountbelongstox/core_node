@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore import THREAD_BUS, ColorPrint
 """
 Unified System Tray Configuration
 
@@ -275,7 +276,6 @@ class TrayBusKeys:
 
 # Example usage
 if __name__ == "__main__":
-    from pycore import THREAD_BUS, ColorPrint
 
     ColorPrint.blue("=" * 70)
     ColorPrint.blue(" TRAY CONFIG TEST")

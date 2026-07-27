@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from sklearn.cluster import KMeans
 """
 Color Palette Extractor with Dominant Colors and Histogram
 Extracts color information from images including dominant colors, palettes, and histograms
@@ -13,7 +14,6 @@ from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_numpy
 
 try:
-    from sklearn.cluster import KMeans
     _KMEANS_AVAILABLE = True
 except ImportError:
     KMeans = None

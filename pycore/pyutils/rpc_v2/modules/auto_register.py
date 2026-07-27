@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore.pyutils.rpc_v2.server.fastapi_server import FastAPIRPCServer
 """
 Auto Register - Automatically register module routes to RPC server
 
@@ -17,7 +18,6 @@ from .module_loader import get_module_loader
 from .module_call_handler import ModuleCallHandler
 
 if TYPE_CHECKING:
-    from pycore.pyutils.rpc_v2.server.fastapi_server import FastAPIRPCServer
 
 
 def register_module_routes(rpc_server: 'FastAPIRPCServer', debug: bool = False):

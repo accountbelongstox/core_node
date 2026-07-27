@@ -5,6 +5,7 @@ This module safely kills old instances of the design documentation server
 without affecting other processes.
 """
 
+import urllib.request
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import sys
 import platform
@@ -31,7 +32,6 @@ def shutdown_via_http(host: str = "127.0.0.1", port: int = 5757, timeout: int = 
         True if shutdown request succeeded
     """
     try:
-        import urllib.request
 
         url = f"http://{host}:{port}/api/shutdown"
         req = urllib.request.Request(url, method='POST')

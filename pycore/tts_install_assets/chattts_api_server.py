@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+import torch
+import ChatTTS
+import numpy as np
+from pydub import AudioSegment
 """
 ChatTTS HTTP API for pycore (OpenAI-compatible /v1/audio/speech).
 
@@ -38,7 +42,6 @@ def _resolve_device() -> str:
     if want in ("cpu", "cuda"):
         return want
     try:
-        import torch
         return "cuda" if torch.cuda.is_available() else "cpu"
     except ImportError:
         return "cpu"
@@ -59,7 +62,6 @@ def _model_ready(chat) -> bool:
 
 def _load_chat_model():
     global _device, _load_error
-    import ChatTTS
 
     _device = _resolve_device()
     model = ChatTTS.Chat()
@@ -114,8 +116,6 @@ def root():
 
 
 def _mp3_bytes(wav_samples) -> bytes:
-    import numpy as np
-    from pydub import AudioSegment
     arr = np.asarray(wav_samples, dtype=np.float32)
     arr = np.clip(arr, -1.0, 1.0)
     pcm16 = (arr * 32767.0).astype(np.int16)
@@ -140,7 +140,6 @@ def audio_speech(req: SpeechRequest):
     payload = f"{prompt}{text}" if prompt else text
     try:
         chat = _get_chat()
-        import ChatTTS
         speed_tag = max(1, min(10, int(round(float(req.speed) * 5))))
         params_infer = ChatTTS.Chat.InferCodeParams(
             prompt=f"[speed_{speed_tag}]",

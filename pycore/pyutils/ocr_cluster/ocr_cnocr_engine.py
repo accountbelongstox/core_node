@@ -3,6 +3,7 @@ OCR CnOCR Engine Module (pycore generic).
 Uses pycore third_party: get_third_package_cnocr, get_third_package_PIL_Image, get_third_package_numpy.
 Supports context (GPU/CPU) with CPU fallback, rec_model fallbacks (e.g. free doc model first), cand_alphabet for number-only.
 """
+import torch
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -22,7 +23,6 @@ from pycore.pyfoundations.third_party import (
 )
 
 try:
-    import torch
 except ImportError:
     torch = None
 

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import win32com.client
 """
 Ubuntu Shortcut Finder
 Finds Ubuntu shortcuts in Windows Start Menu
@@ -10,7 +11,6 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 try:
-    import win32com.client
     HAS_WIN32COM = True
 except ImportError:
     HAS_WIN32COM = False

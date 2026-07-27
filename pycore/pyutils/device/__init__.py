@@ -34,6 +34,8 @@ Usage:
 """
 
 # Device abstractions
+from .adb_types import (
+from .adb_commands import ADBCommands
 from .device_info import DeviceInfo, Resolution
 from .server_params import ServerParams, VideoCodec
 from .android_device import AndroidDevice
@@ -62,7 +64,6 @@ from .adb_exceptions import (
 
 # Optional: Enhanced ADB types
 try:
-    from .adb_types import (
         ADBDeviceState,
         ADBConnectionType,
         ADBDeviceBasic,
@@ -77,7 +78,6 @@ except ImportError:
 
 # Optional: ADB commands
 try:
-    from .adb_commands import ADBCommands
     _HAS_ADB_COMMANDS = True
 except ImportError:
     _HAS_ADB_COMMANDS = False

@@ -15,16 +15,16 @@ Spec for `pycore`; for pycore code it takes precedence. **REQUIRED** / **FORBIDD
 
 ## 2. Architecture — strict one-way layering
 ```
-pyapps / callmodule     apps — may import anything below
-  pyctl                 high-level wrappers (orchestrate, don't re-implement)
-  pyutils               independent utility group packages
-  pyfoundations         leaf modules — import ONLY pybasecommon + stdlib
-  pybasecommon + pygvar kernel — stdlib only, imports nothing else
+pyapps
+  callmodule           routing/controllers only (no business logic)
+  pyctl                high-level orchestration (composition, don't re-implement)
+  pyutils / database / pylauncher / pyheartbeat / pygvar   second-layer primitives
+  pyfoundations        lowest layer — leaf modules (stdlib + internal pybasecommon)
 ```
-- **pyfoundations**: stdlib + own modules only; never import other `pycore/*`. A top-level module imports ONLY `pybasecommon`, never a sibling (`__init__.py` facade re-export excepted).
-- **pybasecommon**: stdlib-only self-contained kernel (color_print, commander, safe_subprocess, encyclopedia, compute_caps); whatever it needs is built inside it.
-- **pyutils**: imports pyfoundations/pygvar, never pyctl. Shared base = `pyutils/common` ONLY; FORBIDDEN group↔group or `common`→group sideways imports; no loose root modules.
-- **pyctl**: imports anything lower; never imported by a lower layer, never sibling pyctl→pyctl.
+- **pyfoundations**（最底层）: only stdlib + its own modules (incl. `pyfoundations/pybasecommon`); **never import any other top-level directory** (`pyutils/pyctl/callmodule/database/pylauncher/pyheartbeat/pygvar`).
+- **pyutils / database / pylauncher / pyheartbeat / pygvar**（第二底层）: must not depend on `pyctl` or `callmodule`; `pyutils` cannot reference other `pyutils/*` siblings and only depends on `pyfoundations` (and `pygvar` as a public base).
+- **pyctl**（第三底层）: may import anything below `pyctl` (including `pyutils/database/pylauncher/pyheartbeat/pygvar/pyfoundations`); use it for orchestration/composition, not for implementing low-level public capabilities.
+- **callmodule**（第四底层）: no business logic; only RPC v2 routing/controller wiring, and it may import all deeper directories.
 - Shared code moves DOWN to a common layer, never sideways; cross-group coordination lives in `pyctl` or via dependency injection.
 - **Sole upward exception**: `ColorPrint`→`pyutils.rpc_v2` live log stream — lazy, flag-gated at rpc_v2 startup, through a no-pycore-import leaf, never raises.
 
@@ -46,7 +46,6 @@ pyapps/{appname}/
 - Lazy loading REQUIRED: obtain packages via `get_third_package_{name}()`, never bare `import`.
 
 ## 6. Subsystem constraints
-- MCP (`pyutils/mcp/`): no ColorPrint (breaks JSON-RPC) — stdlib `logging`, STDOUT=JSON-RPC only, tools `async def`→`Dict{success}`; STDIO mode via `PYCORE_MCP_MODE=1`.
 - Heartbeat (`pyfoundations/heartbeat/`): Thread subclasses with THREAD_BUS-backed state; registrations HARD-CODED in `registry.py`, each lib provides TaskModel + TaskHandler.
-- Database (`pycore/database/`): table names only via `TableKeys` (`{namespace}.{table}`), never hardcoded.
+- Database (`pycore/database/`): table names only via `TableKeys` (`{namespace}.{table}`), never hardcoded; database-specific logic must live in `pycore/database`, higher layers only organize workflows.
 - Services: rpc_v2 / callmodule on `:59000`; pyutils re-exported from `pycore.pyutils` with `*_AVAILABLE` flags (GUI needs `PYUTILS_LOAD_GUI=1`); UI shell `poly_apps/pycore_laravel_wordflow_ui`.

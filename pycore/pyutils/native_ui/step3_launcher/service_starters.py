@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore.pyutils.native_ui.step9_frontend import FrontendLauncherThread
 """
 Service starters for the native UI launcher.
 
@@ -51,7 +52,6 @@ from pycore.pyutils.native_ui.step6_tray import TrayMenuItem
 
 
 if TYPE_CHECKING:
-    from pycore.pyutils.native_ui.step9_frontend import FrontendLauncherThread
 
 
 def make_busy_state_checker():

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore.pyutils.flutter_dev_tools.utils.comparison_manager import (
 """
 Comparison API - Handle comparison image creation, listing, and downloading
 """
@@ -10,7 +11,6 @@ import base64
 
 # Import comparison manager
 try:
-    from pycore.pyutils.flutter_dev_tools.utils.comparison_manager import (
         get_comparison_base_dir,
         save_comparison_for_page,
         list_comparison_images

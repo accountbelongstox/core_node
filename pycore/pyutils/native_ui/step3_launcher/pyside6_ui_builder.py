@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
+from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QGuiApplication
 """
 PySide6 UI builder for the native UI launcher.
 
@@ -27,11 +30,8 @@ from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import StartupWindowC
 from pycore.pyutils.native_ui.step3_launcher._restart import restart_process
 
 if TYPE_CHECKING:
-    from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
 
 try:
-    from PySide6.QtWidgets import QApplication
-    from PySide6.QtGui import QGuiApplication
 except ImportError:
     # PySide6 will be installed on demand
     QApplication = None

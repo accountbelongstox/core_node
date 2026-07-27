@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+import msvcrt
+import termios
+import tty
 """
 Interactive Menu
 Provides menu interface for configuration with arrow key navigation
@@ -11,7 +14,6 @@ from pycore.pyutils.launcher.app_finder import AppFinder
 
 # Try to import msvcrt for Windows keyboard input
 try:
-    import msvcrt
     HAS_MSVCRT = True
 except ImportError:
     HAS_MSVCRT = False
@@ -22,8 +24,6 @@ import json
 # used instead). Guarded so the module imports on Windows; the non-Windows
 # branch of get_key() falls back to input() if these are unavailable.
 try:
-    import termios
-    import tty
     HAS_TERMIOS = True
 except ImportError:
     HAS_TERMIOS = False

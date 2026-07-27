@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 # Documentation: ../py_auto/DEVELOPMENT_GUIDE.md
+from pycore.pyutils import FMP4EncoderComplete, H264Frame
+from pycore.pyutils import WebSocketManager
 """
 Main package file for pytools.
 """
@@ -70,12 +72,10 @@ from pycore.pyutils import (
 
 # Optional imports
 try:
-    from pycore.pyutils import FMP4EncoderComplete, H264Frame
 except ImportError:
     pass
 
 try:
-    from pycore.pyutils import WebSocketManager
 except ImportError:
     pass
 

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore.pyutils.native_ui.step5_main_ui.tkinter import ThemeSystem, StyledWidgets
+from pycore.pyutils.native_ui.step1_config.config import UIConfig, WindowState
+from pycore.pyutils.native_ui.step8_utils.signals import SignalManager, SignalType, Signal, TaskTimer, MainThreadExecutor
 """
 Native UI Utilities Package
 
@@ -117,7 +120,6 @@ from pycore.pyutils.native_ui.step2_port_url.server_manager import ServerManager
 
 # Tkinter UI Components (if available)
 try:
-    from pycore.pyutils.native_ui.step5_main_ui.tkinter import ThemeSystem, StyledWidgets
     _TKINTER_AVAILABLE = True
 except ImportError:
     _TKINTER_AVAILABLE = False
@@ -125,8 +127,6 @@ except ImportError:
 # Base components (always available)
 try:
     # DEPRECATED: UIConfig is deprecated, use NativeUIConfig instead
-    from pycore.pyutils.native_ui.step1_config.config import UIConfig, WindowState
-    from pycore.pyutils.native_ui.step8_utils.signals import SignalManager, SignalType, Signal, TaskTimer, MainThreadExecutor
     _BASE_AVAILABLE = True
 except ImportError:
     _BASE_AVAILABLE = False

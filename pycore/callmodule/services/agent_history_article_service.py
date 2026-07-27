@@ -1,7 +1,8 @@
-# -*- coding: utf-8 -*-
 """Agent History -> raw batches -> OpenRouter CN + EN -> local TTS -> cache + Laravel."""
 
 from __future__ import annotations
+
+from pycore.callmodule.services.agent_history_tick_service import get_agent_history_tick_service
 
 import base64
 import json
@@ -188,13 +189,9 @@ class AgentHistoryArticleService:
 
     def get_status(self) -> Dict[str, Any]:
         cfg = self.get_config()
-        frags = collect_fragments(
-            after_ts=int(cfg["cursor"].get("after_ts") or 0),
-            after_fragment_id=str(cfg["cursor"].get("after_fragment_id") or ""),
-        )
         return {
             "config": cfg,
-            "pending_fragments": len(frags),
+            "pending_fragments": int(self._pending_cache),
             "published_count": len(cfg.get("published") or []),
         }
 
@@ -233,10 +230,6 @@ class AgentHistoryArticleService:
         Pure in-memory (events ring + config JSON + cached pending count + rate
         status + tick snapshot) so the 4s poll never waits on extract/pipeline locks.
         """
-        from pycore.callmodule.services.agent_history_tick_service import (
-            get_agent_history_tick_service,
-        )
-
         cfg = self.get_config()
         cursor = cfg.get("cursor") or {}
         published = list(cfg.get("published") or [])

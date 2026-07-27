@@ -41,6 +41,7 @@ from pycore.pyctl.assist import (
     load_assist_settings,
     save_assist_settings,
 )
+from pycore import ColorPrint
 from pycore.pyctl.desktop.task_manager import get_task_manager
 from pycore.pyfoundations.system_paths import get_user_data_store
 from pycore.pyfoundations.thread_bus import THREAD_BUS
@@ -257,7 +258,6 @@ def _fetch_assist_overview() -> Dict[str, Any]:
         fallback_data["error"] = f"Connection failed: {e}"
 
     # Log diagnostics on failure
-    from pycore import ColorPrint
     ColorPrint.yellow(f"[AssistOverview] Diagnostics: {diagnostics}")
     
     fallback_data["diagnostics"] = diagnostics
@@ -587,7 +587,6 @@ def _capture_slice(
         elapsed_ms = int((time.monotonic() - start_time) * 1000)
         
         # Log slice timing and source
-        from pycore import ColorPrint
         source = "unknown"
         cache_age_ms = None
         laravel_url = None
@@ -616,7 +615,6 @@ def _capture_slice(
     except Exception as exc:  # noqa: BLE001
         elapsed_ms = int((time.monotonic() - start_time) * 1000)
         errors[name] = str(exc)
-        from pycore import ColorPrint
         ColorPrint.red(f"[QueueCenter] Slice '{name}' failed in {elapsed_ms}ms (request_id: {request_id}): {exc}")
         return None
 

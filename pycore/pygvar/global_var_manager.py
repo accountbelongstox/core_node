@@ -1,5 +1,6 @@
 """Global variable management utilities for Core Node Python components."""
 
+import tempfile
 import json
 import platform
 from pathlib import Path
@@ -19,7 +20,6 @@ try:
     PYTOOLS_TMP_DIR.mkdir(parents=True, exist_ok=True)
 except (OSError, PermissionError):
     # Fallback to /tmp if home directory is read-only or inaccessible
-    import tempfile
     _tmp_base = Path(tempfile.gettempdir()) / ".core_node"
     GLOBAL_VARS_DIR = _tmp_base / ".global_vars"
     PYTOOLS_TMP_DIR = _tmp_base / "pytools" / "tmp"

@@ -1,4 +1,30 @@
 # -*- coding: utf-8 -*-
+import azure.cognitiveservices.speech
+import edge_tts
+import azure.cognitiveservices.speech as speechsdk
+import vosk
+import whisper
+import easyocr
+import watchdog
+import pyaudio
+import tkinter as _tkinter_module
+import tkinter.ttk  # noqa: F401
+import tkinter.font  # noqa: F401
+import tkinter.messagebox  # noqa: F401
+import tkinter.filedialog  # noqa: F401
+import tkinter.scrolledtext  # noqa: F401
+import sys
+from winrt.windows.media.ocr import OcrEngine, OcrResult, OcrLine, OcrWord
+from winrt.windows.graphics.imaging import (
+from winrt.windows.storage.streams import Buffer
+from winrt.windows.globalization import Language
+from winrt.windows.foundation import IAsyncOperation
+import sherpa_onnx
+import melo
+import pywinauto
+import pygetwindow
+import uiautomation
+import pyaudiowpatch
 """
 Optional / special getters (azure, edge_tts, vosk, whisper, watchdog, tkinter,
 pyside6, pyaudio, win32* family, windows_ocr, sherpa_onnx, melo, pywinauto,
@@ -34,7 +60,6 @@ def install_and_reimport_azure():
     """
     # Try direct hard import first
     try:
-        import azure.cognitiveservices.speech
         return azure.cognitiveservices.speech
     except ImportError:
         pass
@@ -45,7 +70,6 @@ def install_and_reimport_azure():
     run_pip_install_with_realtime_output(pip_cmd, "azure-cognitiveservices-speech")
     importlib.invalidate_caches()
     try:
-        import azure.cognitiveservices.speech
         ColorPrint.green("[SUCCESS] Successfully installed and imported Azure Speech SDK")
         return azure.cognitiveservices.speech
     except ImportError as e:
@@ -57,7 +81,6 @@ def install_and_reimport_azure():
 def install_and_reimport_edge_tts():
     """Import Edge TTS, installing it once only when pip metadata is absent."""
     try:
-        import edge_tts
         ColorPrint.green("[SUCCESS] Edge TTS is available")
         return edge_tts
     except ImportError:
@@ -73,7 +96,6 @@ def install_and_reimport_edge_tts():
 
     importlib.invalidate_caches()
     try:
-        import edge_tts
         ColorPrint.green("[SUCCESS] Successfully installed Edge TTS")
         return edge_tts
     except ImportError as e:
@@ -89,7 +111,6 @@ def get_third_package_speechsdk():
     if 'speechsdk' not in _PACKAGE_CACHE:
         if skip_install:
             try:
-                import azure.cognitiveservices.speech as speechsdk
                 _PACKAGE_CACHE['speechsdk'] = speechsdk
             except ImportError:
                 ColorPrint.yellow("[WARNING] Azure Speech SDK not available (install skipped)")
@@ -110,7 +131,6 @@ def get_third_package_vosk():
     """Get Vosk package (lazy load, optional)"""
     if 'vosk' not in _PACKAGE_CACHE:
         try:
-            import vosk
             _PACKAGE_CACHE['vosk'] = vosk
         except ImportError:
             ColorPrint.yellow("[WARNING] Vosk not available")
@@ -122,7 +142,6 @@ def get_third_package_whisper():
     """Get OpenAI Whisper package (lazy load, optional)"""
     if 'whisper' not in _PACKAGE_CACHE:
         try:
-            import whisper
             _PACKAGE_CACHE['whisper'] = whisper
         except ImportError:
             ColorPrint.yellow("[WARNING] Whisper not available")
@@ -135,7 +154,6 @@ def get_third_package_easyocr():
     """Get EasyOCR package (lazy load, optional)."""
     if 'easyocr' not in _PACKAGE_CACHE:
         try:
-            import easyocr
             _PACKAGE_CACHE['easyocr'] = easyocr
         except ImportError:
             ColorPrint.yellow("[WARNING] EasyOCR not available")
@@ -156,7 +174,6 @@ def get_third_package_watchdog():
     Ensures observers/events submodules are loaded so .observers.Observer and .events.FileSystemEventHandler exist."""
     if 'watchdog' not in _PACKAGE_CACHE:
         try:
-            import watchdog
             _PACKAGE_CACHE['watchdog'] = watchdog
             _ensure_watchdog_submodules()
         except ImportError:
@@ -167,7 +184,6 @@ def get_third_package_watchdog():
                 run_pip_install_with_realtime_output(pip_cmd, pip_package)
                 importlib.invalidate_caches()
                 try:
-                    import watchdog
                     _PACKAGE_CACHE['watchdog'] = watchdog
                     _ensure_watchdog_submodules()
                 except ImportError:
@@ -182,7 +198,6 @@ def get_third_package_pyaudio():
     """Get pyaudio package (lazy load, may be None if not installed)"""
     if 'pyaudio' not in _PACKAGE_CACHE:
         try:
-            import pyaudio
             _PACKAGE_CACHE['pyaudio'] = pyaudio
         except ImportError:
             ColorPrint.yellow("[WARNING] pyaudio not available")
@@ -195,18 +210,11 @@ def get_third_package_tkinter():
     """Get tkinter module (lazy load, requires system packages on Linux)"""
     if 'tkinter' not in _PACKAGE_CACHE:
         try:
-            import tkinter as _tkinter_module
             # IMPORTANT: Import tkinter.ttk to ensure ttk becomes an attribute of tkinter
             # This is required because tkinter.ttk is a submodule and not automatically imported
-            import tkinter.ttk  # noqa: F401
-            import tkinter.font  # noqa: F401
-            import tkinter.messagebox  # noqa: F401
-            import tkinter.filedialog  # noqa: F401
-            import tkinter.scrolledtext  # noqa: F401
             _PACKAGE_CACHE['tkinter'] = _tkinter_module
         except ImportError as e:
             # tkinter import failed - guide user to run installation script
-            import sys
             ColorPrint.red("[ERROR] Failed to import tkinter")
             ColorPrint.yellow(f"[INFO] Python: {sys.executable} (version {sys.version_info.major}.{sys.version_info.minor})")
             ColorPrint.yellow("")
@@ -282,15 +290,10 @@ def get_third_package_windows_ocr():
     cache_key = 'windows_ocr'
     if cache_key not in _PACKAGE_CACHE:
         try:
-            from winrt.windows.media.ocr import OcrEngine, OcrResult, OcrLine, OcrWord
-            from winrt.windows.graphics.imaging import (
                 SoftwareBitmap,
                 BitmapPixelFormat,
                 BitmapAlphaMode,
             )
-            from winrt.windows.storage.streams import Buffer
-            from winrt.windows.globalization import Language
-            from winrt.windows.foundation import IAsyncOperation
             _PACKAGE_CACHE[cache_key] = type('WindowsOcrNamespace', (), {
                 'OcrEngine': OcrEngine,
                 'OcrResult': OcrResult,
@@ -313,15 +316,10 @@ def get_third_package_windows_ocr():
                     run_pip_install_with_realtime_output(pip_cmd, pkg)
             importlib.invalidate_caches()
             try:
-                from winrt.windows.media.ocr import OcrEngine, OcrResult, OcrLine, OcrWord
-                from winrt.windows.graphics.imaging import (
                     SoftwareBitmap,
                     BitmapPixelFormat,
                     BitmapAlphaMode,
                 )
-                from winrt.windows.storage.streams import Buffer
-                from winrt.windows.globalization import Language
-                from winrt.windows.foundation import IAsyncOperation
                 _PACKAGE_CACHE[cache_key] = type('WindowsOcrNamespace', (), {
                     'OcrEngine': OcrEngine,
                     'OcrResult': OcrResult,
@@ -352,7 +350,6 @@ def get_third_package_sherpa_onnx():
         # back to CPU before import (runs once; no-op when already CPU / GPU present).
         _ensure_sherpa_onnx_cpu_build_when_no_gpu()
         try:
-            import sherpa_onnx
             _PACKAGE_CACHE['sherpa_onnx'] = sherpa_onnx
         except (ImportError, ModuleNotFoundError):
             _PACKAGE_CACHE['sherpa_onnx'] = None
@@ -369,7 +366,6 @@ def get_third_package_melo():
     """
     if 'melo' not in _PACKAGE_CACHE:
         try:
-            import melo
             _PACKAGE_CACHE['melo'] = melo
         except (ImportError, ModuleNotFoundError):
             _PACKAGE_CACHE['melo'] = None
@@ -384,7 +380,6 @@ def get_third_package_pywinauto():
     if 'pywinauto' not in _PACKAGE_CACHE:
         current_platform = platform.system()
         if current_platform == 'Windows':
-            import pywinauto
             _PACKAGE_CACHE['pywinauto'] = pywinauto
         else:
             _PACKAGE_CACHE['pywinauto'] = None
@@ -396,7 +391,6 @@ def get_third_package_pygetwindow():
     if 'pygetwindow' not in _PACKAGE_CACHE:
         current_platform = platform.system()
         if current_platform == 'Windows':
-            import pygetwindow
             _PACKAGE_CACHE['pygetwindow'] = pygetwindow
         else:
             _PACKAGE_CACHE['pygetwindow'] = None
@@ -408,7 +402,6 @@ def get_third_package_uiautomation():
     if 'uiautomation' not in _PACKAGE_CACHE:
         current_platform = platform.system()
         if current_platform == 'Windows':
-            import uiautomation
             _PACKAGE_CACHE['uiautomation'] = uiautomation
         else:
             _PACKAGE_CACHE['uiautomation'] = None
@@ -421,7 +414,6 @@ def get_third_package_pyaudiowpatch():
         current_platform = platform.system()
         if current_platform == 'Windows':
             try:
-                import pyaudiowpatch
                 _PACKAGE_CACHE['pyaudiowpatch'] = pyaudiowpatch
             except ImportError:
                 ColorPrint.yellow("[WARNING] pyaudiowpatch not available (Windows loopback may not work)")

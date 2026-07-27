@@ -20,7 +20,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from .. import lane_gating
 from . import audio as _h_audio
 
-from pycore.pyutils.translator import prompt_translate
+from pycore.pyctl.ai import prompt_translate
 
 
 

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore import THREAD_BUS
+from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 """
 PySide6 System Tray - System Tray Icon with Menu
 
@@ -16,7 +19,6 @@ from dataclasses import dataclass
 
 # Import THREAD_BUS for event-driven architecture
 try:
-    from pycore import THREAD_BUS
     HAS_THREAD_BUS = True
 except ImportError:
     THREAD_BUS = None
@@ -24,8 +26,6 @@ except ImportError:
 
 # Import i18n for multi-language support
 try:
-    from pycore.pyutils.native_ui.step0_i18n import i18n
-    from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
     HAS_I18N = True
 except ImportError:
     i18n = None

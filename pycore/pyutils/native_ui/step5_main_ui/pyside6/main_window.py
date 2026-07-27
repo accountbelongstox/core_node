@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore import THREAD_BUS, ColorPrint
+from pycore import ColorPrint
 """
 PySide6 Main Window - Frameless Window with Custom Title Bar
 
@@ -20,12 +22,10 @@ from enum import Enum
 
 # Import THREAD_BUS for event-driven architecture
 try:
-    from pycore import THREAD_BUS, ColorPrint
     HAS_THREAD_BUS = True
 except ImportError:
     THREAD_BUS = None
     HAS_THREAD_BUS = False
-    from pycore import ColorPrint
 
 # Import window state manager
 from .window_state import WindowStateManager

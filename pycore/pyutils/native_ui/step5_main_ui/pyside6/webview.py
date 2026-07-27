@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from PySide6.QtCore import QUrlQuery
 """
 PySide6 WebView - Web Content Display Widget
 
@@ -19,7 +20,6 @@ from pycore import ColorPrint
 from .webengine_config import configure_webengine_tier3_settings, mark_gpu_fallback
 
 try:
-    from PySide6.QtCore import QUrlQuery
     _QURLQUERY_AVAILABLE = True
 except ImportError:
     QUrlQuery = None

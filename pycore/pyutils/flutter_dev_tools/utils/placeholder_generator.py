@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from PIL import Image, ImageDraw, ImageFont
 """
 Placeholder Image Generator - 占位图生成器
 
@@ -46,7 +47,6 @@ def generate_placeholder(
         True if generated successfully
     """
     try:
-        from PIL import Image, ImageDraw, ImageFont
     except ImportError:
         # 如果没有 PIL，生成一个简单的文本文件作为占位符
         print("[PlaceholderGen] PIL not available, creating text placeholder")

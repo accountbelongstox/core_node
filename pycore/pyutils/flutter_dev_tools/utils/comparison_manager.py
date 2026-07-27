@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from PIL import Image, ImageDraw, ImageFont
+from pycore.pyfoundations.system_paths import map_web_path
 """
 Comparison Image Manager - Generate side-by-side comparison images
 
@@ -16,7 +18,6 @@ from datetime import datetime
 
 # Import PIL for image manipulation
 try:
-    from PIL import Image, ImageDraw, ImageFont
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
@@ -24,7 +25,6 @@ except ImportError:
 
 # Import system paths
 try:
-    from pycore.pyfoundations.system_paths import map_web_path
     SYSTEM_PATHS_AVAILABLE = True
 except ImportError:
     SYSTEM_PATHS_AVAILABLE = False

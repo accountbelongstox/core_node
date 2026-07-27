@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import sys
 """
 PageView Map Updater - Auto-update pageview_map.json with image analysis
 
@@ -459,7 +460,6 @@ def cleanup_orphaned_entries(
 # ============================================================
 
 if __name__ == "__main__":
-    import sys
 
     if len(sys.argv) < 2:
         print("Usage:")

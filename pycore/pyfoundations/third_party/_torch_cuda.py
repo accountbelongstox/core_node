@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import torch
 """
 Torch CUDA wheel resolution + CPU/GPU build guards.
 
@@ -36,7 +37,6 @@ from ._pip_runner import (
 )
 
 try:
-    import torch
 except Exception:  # The installed binary may fail to load; startup must not reinstall it.
     torch = None
 

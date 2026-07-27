@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import tkinter as tk
+from tkinter import filedialog
 """User Data Controller - bridges HTTP requests to the unified user-data store.
 
 Thin layer over pycore.get_user_data_store(): persists system settings and the
@@ -32,8 +34,6 @@ from pycore.callmodule.services.system_settings_boot import apply_system_setting
 _PICK_DIALOG_SCRIPT = r"""
 import sys
 try:
-    import tkinter as tk
-    from tkinter import filedialog
     mode = sys.argv[1] if len(sys.argv) > 1 else 'folder'
     initial = sys.argv[2] if len(sys.argv) > 2 else ''
     root = tk.Tk()

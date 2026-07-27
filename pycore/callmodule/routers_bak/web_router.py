@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from fastapi import HTTPException
 """
 Web UI Routes
 
@@ -15,7 +16,6 @@ from pycore import ColorPrint
 import platform
 import sys
 try:
-    from fastapi import HTTPException
     _HTTPEXCEPTION_AVAILABLE = True
 except ImportError:
     HTTPException = None

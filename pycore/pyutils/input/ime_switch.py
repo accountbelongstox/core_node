@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import ctypes
 """
 IME (Input Method Editor) switch and restore for Windows.
 
@@ -12,7 +13,6 @@ if sys.platform != "win32":
     _imm32 = None
 else:
     try:
-        import ctypes
         _imm32 = ctypes.windll.Imm32  # type: ignore[attr-defined]
     except Exception:
         _imm32 = None

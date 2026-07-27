@@ -12,7 +12,7 @@ const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string }> = ({ tk })
 
   const load = useCallback(async () => {
     try {
-      const res = await pycoreApi.getAgentHistoryArticleLogs();
+      const res = await pycoreApi.callRpc('ui.operation.snapshot', { scope: 'agent_history' });
       if (!mounted.current) return;
       if (res.success && res.data) {
         setData(res.data as Record<string, any>);
@@ -39,10 +39,10 @@ const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string }> = ({ tk })
     return () => { mounted.current = false; clearInterval(id); };
   }, [load]);
 
-  const events: any[] = Array.isArray((data as any)?.events) ? (data as any).events : [];
-  const progress = (data as any)?.progress || {};
-  const ai = (data as any)?.ai_usage || {};
-  const tick = (data as any)?.tick || {};
+  const events: any[] = Array.isArray((data as any)?.recent_events) ? (data as any).recent_events : [];
+  const progress = (data as any)?.operation || {};
+  const ai = {}; // AI usage is no longer tracked here
+  const tick = {}; // Tick is no longer tracked here
   const limits = ai.limits || {};
   const usage = ai.usage || {};
   const rpmLimit = typeof limits.rpm === 'number' ? limits.rpm : Infinity;
@@ -108,66 +108,29 @@ const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string }> = ({ tk })
 
       {/* Progress row */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono text-slate-500">
-        <span className={`px-2 py-0.5 rounded border ${phaseColor[String(progress.phase || 'idle')] || phaseColor.idle}`}>
-          {tk('phase')}: {String(progress.phase || 'idle')}
+        <span className={`px-2 py-0.5 rounded border ${phaseColor[String(progress.status || 'idle')] || phaseColor.idle}`}>
+          {tk('phase')}: {String(progress.status || 'idle')}
         </span>
-        <span>{tk('pending')}: {Number(progress.pending_fragments ?? 0)}</span>
-        <span>{tk('published')}: {Number(progress.published_count ?? 0)}</span>
-        <span>{tk('heartbeatTicks')}: {Number(tick.tick_count ?? 0)}</span>
-        <span>{tk('cursor')}: f#{Number(progress.cursor?.fragment_index ?? 0)} r#{Number(progress.cursor?.raw_index ?? 0)}</span>
-        {progress.last_run_at && <span>{tk('lastRun')}: {String(progress.last_run_at).slice(11, 19)}</span>}
-        {progress.last_error && (
+        <span>{tk('pending')}: {Number(progress.totals?.queued ?? 0)}</span>
+        <span>{tk('published')}: {Number(progress.totals?.succeeded ?? 0)}</span>
+        {progress.timestamps?.updated_at && <span>{tk('lastRun')}: {String(progress.timestamps.updated_at).slice(11, 19)}</span>}
+        {progress.error && (
           <span className={errStale ? 'text-slate-400' : 'text-rose-500'}>
-            {tk('lastError')}: {String(progress.last_error)}
+            {tk('lastError')}: {String(progress.error)}
             {errAt ? ` @ ${errAt.slice(11, 19)}` : ''}
             {errStale ? ` (${tk('stale')})` : ''}
           </span>
         )}
       </div>
 
-      {/* AI usage row — daily REQUESTS (CN + EN = 2 per article), not article count */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono">
-        <span className="text-slate-400">{tk('aiUsageTitle')}</span>
-        {ai.enforced ? (
-          <>
-            <span className={throttled ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-300'}>
-              {tk('rpm')}: {Number(usage.minute ?? 0)}/{rpmLimit === Infinity ? '?' : rpmLimit} {tk('requests')}
-            </span>
-            <span className={throttled ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-300'}>
-              {tk('rpd')}: {used}/{limit == null ? '?' : limit} {tk('requests')}
-            </span>
-            {remaining != null && (
-              <span className="text-slate-500">{tk('remaining')}: {remaining} {tk('requests')}</span>
-            )}
-            {resetLabel && (
-              <span className="text-slate-500">{tk('resetsIn')}: {resetLabel}</span>
-            )}
-            <span className={throttled || String(progress.phase) === 'paused_quota' ? 'text-amber-500' : 'text-emerald-600 dark:text-emerald-300'}>
-              {String(progress.phase) === 'paused_quota'
-                ? tk('quotaPaused')
-                : (throttled ? `${tk('throttled')} · ${tk('cooldown')}` : tk('ok'))}
-            </span>
-            {ai.as_of && (
-              <span className="text-slate-400 ml-2">
-                {tk('asOf') || 'As of'}: {new Date(ai.as_of * 1000).toTimeString().slice(0, 8)}
-              </span>
-            )}
-          </>
-        ) : loadError ? (
-          <span className="text-amber-500">{loadError}</span>
-        ) : loading ? (
-          <span className="text-slate-400">{tk('loading') || 'Loading'}…</span>
-        ) : (
-          <span className="text-slate-400">{tk('noData')}</span>
-        )}
-      </div>
+
 
       {/* Event log (newest first) */}
       <ul className="space-y-1 max-h-[280px] overflow-y-auto pr-1 font-mono text-[11px]">
         {events.length === 0 ? (
           <li className="text-slate-400">{tk('logEmpty')}</li>
         ) : events.map((ev, i) => {
-          const ts = new Date((Number(ev.at) || 0) * 1000).toTimeString().slice(0, 8);
+          const ts = new Date(ev.created_at).toTimeString().slice(0, 8);
           return (
             <li key={i} className="flex items-start gap-2 text-slate-600 dark:text-slate-300">
               <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${levelDot[String(ev.level || 'info')] || levelDot.info}`} />

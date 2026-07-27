@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+import requests
+from fishaudio import FishAudio
+from fishaudio.utils import save
+import tempfile
 """
 Fish Speech / Fish Audio HTTP bridge for pycore.
 
@@ -50,7 +54,6 @@ def tts(req: TtsRequest):
     if not text:
         return JSONResponse({"error": "empty text"}, status_code=400)
     if _upstream:
-        import requests
         body = {"text": text}
         if req.reference_id:
             body["reference_id"] = req.reference_id
@@ -66,13 +69,10 @@ def tts(req: TtsRequest):
             status_code=503,
         )
     try:
-        from fishaudio import FishAudio
         client = FishAudio(api_key=api_key)
         audio = client.tts.convert(text=text)
         if hasattr(audio, "read"):
             return Response(content=audio.read(), media_type="audio/mpeg")
-        from fishaudio.utils import save
-        import tempfile
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
             path = tmp.name
         save(audio, path)

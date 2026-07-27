@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from .window_manager import VoiceSubtitleWindowManager, get_window_manager
 """
 Voice Subtitle Controller
 
@@ -9,7 +10,6 @@ from .queue_manager import VoiceSubtitleQueue, get_voice_subtitle_queue
 from .player import VoiceSubtitlePlayer, get_voice_subtitle_player
 
 try:
-    from .window_manager import VoiceSubtitleWindowManager, get_window_manager
     HAS_WINDOW_MANAGER = True
 except ImportError:
     VoiceSubtitleWindowManager = None

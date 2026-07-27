@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from google.oauth2 import service_account as _gcp_service_account
+from google.auth.transport.requests import Request as _GcpAuthRequest
 """
 ai_image_signers - pure crypto / auth signers for the image-generation providers.
 
@@ -29,8 +31,6 @@ from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_
 
 # Optional: google-auth for Vertex AI service-account OAuth (RS256 JWT -> token).
 try:
-    from google.oauth2 import service_account as _gcp_service_account
-    from google.auth.transport.requests import Request as _GcpAuthRequest
     _GCP_AUTH_AVAILABLE = True
 except Exception:  # noqa: BLE001 - optional dep; Vertex helper guards on this flag
     _gcp_service_account = None

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 """
 Universal model-load progress registry — the ONE status contract every speech
 engine reports to, surfaced to the UI for BOTH class-B in-process models and
@@ -42,7 +43,6 @@ from pycore.pyfoundations.serialized_worker import (
 # Broadcast is best-effort: on a standalone/headless run THREAD_BUS may have no
 # listener, and that is fine (the polled endpoint still works).
 try:
-    from pycore.pyfoundations.thread_bus import THREAD_BUS
     _THREAD_BUS_AVAILABLE = True
 except Exception:  # noqa: BLE001
     THREAD_BUS = None  # type: ignore[assignment]

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import time
+from pycore import THREAD_BUS
+from pycore.pyutils.native_ui.startup_window_thread import TkinterStartupThread
 """
 Startup Window Helpers - ColorPrintCapture only
 
@@ -73,9 +76,6 @@ class ColorPrintCapture:
 
 
 if __name__ == "__main__":
-    import time
-    from pycore import THREAD_BUS
-    from pycore.pyutils.native_ui.startup_window_thread import TkinterStartupThread
 
     def test():
         startup = TkinterStartupThread(app_name="Test Application")

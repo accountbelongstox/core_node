@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import time
+from pycore import THREAD_BUS
+from pycore.pyutils.native_ui.step0_i18n import i18n, I18nKeys
 """
 TkinterStartupThread - Thread-Safe Startup Window (orchestrator)
 
@@ -425,9 +428,6 @@ class TkinterStartupThread(threading.Thread):
 
 # Test
 if __name__ == "__main__":
-    import time
-    from pycore import THREAD_BUS
-    from pycore.pyutils.native_ui.step0_i18n import i18n, I18nKeys
 
     ColorPrint.print_info("=== Testing TkinterStartupThread ===")
 

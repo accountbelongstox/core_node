@@ -1,4 +1,23 @@
 # -*- coding: utf-8 -*-
+from aiohttp import web as aiohttp_web
+from PIL import Image as PIL_Image
+from PIL import ImageDraw as PIL_ImageDraw
+from PIL import ImageFont as PIL_ImageFont
+from PIL import ImageTk as PIL_ImageTk
+from PIL import ImageGrab as PIL_ImageGrab
+from PIL import ImageEnhance as PIL_ImageEnhance
+from PIL import ImageFilter as PIL_ImageFilter
+from PIL import ImageOps as PIL_ImageOps
+from PIL import ImageStat as PIL_ImageStat
+import pystray
+import pythoncom as _pythoncom
+from googletrans import Translator as googletrans_Translator
+from docx import Document as docx_Document
+from bs4 import BeautifulSoup
+from striprtf.striprtf import rtf_to_text as striprtf_rtf_to_text
+from fastmcp import FastMCP
+from fastmcp import Context
+from google import genai as google_genai
 """
 Core required-package getters (lazy load with auto-install).
 
@@ -36,7 +55,6 @@ def get_third_package_aiohttp():
 def get_third_package_aiohttp_web():
     """Get aiohttp.web (lazy load)"""
     if 'aiohttp_web' not in _PACKAGE_CACHE:
-        from aiohttp import web as aiohttp_web
         _PACKAGE_CACHE['aiohttp_web'] = aiohttp_web
     return _PACKAGE_CACHE['aiohttp_web']
 
@@ -60,7 +78,6 @@ def get_third_package_PIL():
 def get_third_package_PIL_Image():
     """Get PIL.Image module (lazy load)"""
     if 'PIL_Image' not in _PACKAGE_CACHE:
-        from PIL import Image as PIL_Image
         _PACKAGE_CACHE['PIL_Image'] = PIL_Image
     return _PACKAGE_CACHE['PIL_Image']
 
@@ -68,7 +85,6 @@ def get_third_package_PIL_Image():
 def get_third_package_PIL_ImageDraw():
     """Get PIL.ImageDraw module (lazy load)"""
     if 'PIL_ImageDraw' not in _PACKAGE_CACHE:
-        from PIL import ImageDraw as PIL_ImageDraw
         _PACKAGE_CACHE['PIL_ImageDraw'] = PIL_ImageDraw
     return _PACKAGE_CACHE['PIL_ImageDraw']
 
@@ -76,7 +92,6 @@ def get_third_package_PIL_ImageDraw():
 def get_third_package_PIL_ImageFont():
     """Get PIL.ImageFont module (lazy load)"""
     if 'PIL_ImageFont' not in _PACKAGE_CACHE:
-        from PIL import ImageFont as PIL_ImageFont
         _PACKAGE_CACHE['PIL_ImageFont'] = PIL_ImageFont
     return _PACKAGE_CACHE['PIL_ImageFont']
 
@@ -84,7 +99,6 @@ def get_third_package_PIL_ImageFont():
 def get_third_package_PIL_ImageTk():
     """Get PIL.ImageTk module (lazy load) - requires tkinter"""
     if 'PIL_ImageTk' not in _PACKAGE_CACHE:
-        from PIL import ImageTk as PIL_ImageTk
         _PACKAGE_CACHE['PIL_ImageTk'] = PIL_ImageTk
     return _PACKAGE_CACHE['PIL_ImageTk']
 
@@ -92,7 +106,6 @@ def get_third_package_PIL_ImageTk():
 def get_third_package_PIL_ImageGrab():
     """Get PIL.ImageGrab module (lazy load)"""
     if 'PIL_ImageGrab' not in _PACKAGE_CACHE:
-        from PIL import ImageGrab as PIL_ImageGrab
         _PACKAGE_CACHE['PIL_ImageGrab'] = PIL_ImageGrab
     return _PACKAGE_CACHE['PIL_ImageGrab']
 
@@ -100,7 +113,6 @@ def get_third_package_PIL_ImageGrab():
 def get_third_package_PIL_ImageEnhance():
     """Get PIL.ImageEnhance module (lazy load)"""
     if 'PIL_ImageEnhance' not in _PACKAGE_CACHE:
-        from PIL import ImageEnhance as PIL_ImageEnhance
         _PACKAGE_CACHE['PIL_ImageEnhance'] = PIL_ImageEnhance
     return _PACKAGE_CACHE['PIL_ImageEnhance']
 
@@ -108,7 +120,6 @@ def get_third_package_PIL_ImageEnhance():
 def get_third_package_PIL_ImageFilter():
     """Get PIL.ImageFilter module (lazy load)"""
     if 'PIL_ImageFilter' not in _PACKAGE_CACHE:
-        from PIL import ImageFilter as PIL_ImageFilter
         _PACKAGE_CACHE['PIL_ImageFilter'] = PIL_ImageFilter
     return _PACKAGE_CACHE['PIL_ImageFilter']
 
@@ -116,7 +127,6 @@ def get_third_package_PIL_ImageFilter():
 def get_third_package_PIL_ImageOps():
     """Get PIL.ImageOps module (lazy load)"""
     if 'PIL_ImageOps' not in _PACKAGE_CACHE:
-        from PIL import ImageOps as PIL_ImageOps
         _PACKAGE_CACHE['PIL_ImageOps'] = PIL_ImageOps
     return _PACKAGE_CACHE['PIL_ImageOps']
 
@@ -124,7 +134,6 @@ def get_third_package_PIL_ImageOps():
 def get_third_package_PIL_ImageStat():
     """Get PIL.ImageStat module (lazy load)"""
     if 'PIL_ImageStat' not in _PACKAGE_CACHE:
-        from PIL import ImageStat as PIL_ImageStat
         _PACKAGE_CACHE['PIL_ImageStat'] = PIL_ImageStat
     return _PACKAGE_CACHE['PIL_ImageStat']
 
@@ -345,7 +354,6 @@ def get_third_package_pystray():
     """
     if 'pystray' not in _PACKAGE_CACHE:
         try:
-            import pystray
             _PACKAGE_CACHE['pystray'] = pystray
             return pystray
         except Exception as e:
@@ -379,7 +387,6 @@ def get_third_package_pythoncom():
             _PACKAGE_CACHE['pythoncom'] = None
         else:
             try:
-                import pythoncom as _pythoncom
                 _PACKAGE_CACHE['pythoncom'] = _pythoncom
             except Exception:
                 _PACKAGE_CACHE['pythoncom'] = None
@@ -403,7 +410,6 @@ def get_third_package_PIL_Image_optional():
     """Get PIL.Image module or None on failure. For optional use (e.g. tray icon); callers must check for None."""
     if 'PIL_Image_optional' not in _PACKAGE_CACHE:
         try:
-            from PIL import Image as PIL_Image
             _PACKAGE_CACHE['PIL_Image_optional'] = PIL_Image
         except Exception:
             _PACKAGE_CACHE['PIL_Image_optional'] = None
@@ -414,7 +420,6 @@ def get_third_package_PIL_ImageDraw_optional():
     """Get PIL.ImageDraw module or None on failure. For optional use; callers must check for None."""
     if 'PIL_ImageDraw_optional' not in _PACKAGE_CACHE:
         try:
-            from PIL import ImageDraw as PIL_ImageDraw
             _PACKAGE_CACHE['PIL_ImageDraw_optional'] = PIL_ImageDraw
         except Exception:
             _PACKAGE_CACHE['PIL_ImageDraw_optional'] = None
@@ -440,7 +445,6 @@ def get_third_package_googletrans():
 def get_third_package_googletrans_Translator():
     """Get googletrans.Translator class (lazy load)"""
     if 'googletrans_Translator' not in _PACKAGE_CACHE:
-        from googletrans import Translator as googletrans_Translator
         _PACKAGE_CACHE['googletrans_Translator'] = googletrans_Translator
     return _PACKAGE_CACHE['googletrans_Translator']
 
@@ -482,7 +486,6 @@ def get_third_package_Document():
     instead. Use this getter when you need the Document class directly.
     """
     if 'docx_Document' not in _PACKAGE_CACHE:
-        from docx import Document as docx_Document
         _PACKAGE_CACHE['docx_Document'] = docx_Document
     return _PACKAGE_CACHE['docx_Document']
 
@@ -522,7 +525,6 @@ def get_third_package_bs4():
 def get_third_package_BeautifulSoup():
     """Get BeautifulSoup class from bs4 (lazy load)"""
     if 'BeautifulSoup' not in _PACKAGE_CACHE:
-        from bs4 import BeautifulSoup
         _PACKAGE_CACHE['BeautifulSoup'] = BeautifulSoup
     return _PACKAGE_CACHE['BeautifulSoup']
 
@@ -538,7 +540,6 @@ def get_third_package_ebooklib():
 def get_third_package_striprtf():
     """Get striprtf's rtf_to_text function (lazy load) for .rtf (optional)."""
     if 'striprtf_rtf_to_text' not in _PACKAGE_CACHE:
-        from striprtf.striprtf import rtf_to_text as striprtf_rtf_to_text
         _PACKAGE_CACHE['striprtf_rtf_to_text'] = striprtf_rtf_to_text
     return _PACKAGE_CACHE['striprtf_rtf_to_text']
 
@@ -564,7 +565,6 @@ def get_third_package_fastmcp():
 def get_third_package_FastMCP():
     """Get FastMCP class (lazy load)"""
     if 'FastMCP' not in _PACKAGE_CACHE:
-        from fastmcp import FastMCP
         _PACKAGE_CACHE['FastMCP'] = FastMCP
     return _PACKAGE_CACHE['FastMCP']
 
@@ -572,7 +572,6 @@ def get_third_package_FastMCP():
 def get_third_package_Context():
     """Get MCP Context class (lazy load)"""
     if 'Context' not in _PACKAGE_CACHE:
-        from fastmcp import Context
         _PACKAGE_CACHE['Context'] = Context
     return _PACKAGE_CACHE['Context']
 
@@ -593,7 +592,6 @@ def get_third_package_redis():
 def get_third_package_google_genai():
     """Get google.genai package (lazy load)"""
     if 'google_genai' not in _PACKAGE_CACHE:
-        from google import genai as google_genai
         _PACKAGE_CACHE['google_genai'] = google_genai
     return _PACKAGE_CACHE['google_genai']
 

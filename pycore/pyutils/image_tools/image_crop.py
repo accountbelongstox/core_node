@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 """
 Image Crop Utility
 Provides image cropping and region extraction functionality
@@ -639,7 +640,6 @@ class ImageCrop:
 
 # Example usage
 if __name__ == "__main__":
-    from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
     # Example: Load and crop image
     try:

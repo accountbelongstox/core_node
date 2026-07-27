@@ -16,6 +16,7 @@ Config:
   BARK_VOICE_PRESET   - voice preset string (default v2/en_speaker_6)
 """
 
+from transformers import AutoProcessor, BarkModel
 import os
 from pathlib import Path
 from typing import Any, Optional
@@ -80,7 +81,6 @@ def _load_model() -> tuple[Any, Any]:
     global _processor, _model
     if _model is not None and _processor is not None:
         return _processor, _model
-    from transformers import AutoProcessor, BarkModel
     model_id = _model_id()
     dev = _device()
     _processor = AutoProcessor.from_pretrained(model_id)

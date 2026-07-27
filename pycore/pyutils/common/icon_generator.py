@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import win32com.client
 """
 Desktop Icon Generator
 Powerful Windows desktop shortcut generator with support for grouping and organization
@@ -13,7 +14,6 @@ from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pycore.pyutils.common.appusermodelid import set_shortcut_app_user_model_id
 
 try:
-    import win32com.client
     HAS_WIN32COM = True
 except ImportError:
     HAS_WIN32COM = False

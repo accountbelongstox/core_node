@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 """
 Image Comparison Utility
 Provides image similarity comparison functionality
@@ -220,7 +221,6 @@ class ImageComparator:
 
 # Example usage
 if __name__ == "__main__":
-    from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
     try:
         # Load two images

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import argparse
 """
 Pycore Callmodule - Native UI Integration
 
@@ -39,6 +40,7 @@ from pycore.callmodule.services.heartbeat_agent_history import (
 from pycore.callmodule.services import get_queue_monitor_service
 from pycore.pyheartbeat import get_heartbeat_system
 from pycore.callmodule.services import get_translation_ws_client
+from pycore.callmodule.services.laravel_log_mirror_service import get_laravel_log_mirror_service
 
 
 # Add project root to path
@@ -166,10 +168,27 @@ def callmodule_main_entry():
     # Register local AI agent history extractor (idempotent)
     _register_agent_history_extraction()
 
+    # Register Laravel log mirror (idempotent)
+    _register_laravel_log_mirror()
+
     restore_persisted_heartbeat_prefs()
     apply_persisted_system_settings()
     # Migrate legacy TTS order + warn when STREAMELEMENTS_API_KEY is missing.
     report_tts_engine_startup()
+
+
+def _register_laravel_log_mirror():
+    """Register the Laravel log mirror callback to PyHeartbeat (Idempotent)."""
+    heartbeat = get_heartbeat_system()
+    service = get_laravel_log_mirror_service()
+    
+    heartbeat.register_callback(
+        name='laravel_log_mirror',
+        callback=service.poll_once,
+        interval=5,  # Poll every 5 seconds
+        enabled=True,
+    )
+    ColorPrint.green("[Callmodule] Registered Laravel log mirror callback")
 
 
 def _ensure_heartbeat_running():
@@ -624,7 +643,6 @@ def main():
 
 
 if __name__ == '__main__':
-    import argparse
 
     parser = argparse.ArgumentParser(description="Pycore Callmodule with Native UI")
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind (default: 0.0.0.0)')

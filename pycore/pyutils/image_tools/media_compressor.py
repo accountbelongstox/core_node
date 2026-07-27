@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import sys
 """
 Media Compressor (facade)
 Provides video and image compression functionality with GPU acceleration support
@@ -687,7 +688,6 @@ def get_media_compressor(verbose: bool = False) -> MediaCompressor:
 
 if __name__ == "__main__":
     # Test media compressor
-    import sys
 
     compressor = MediaCompressor(verbose=True)
 
