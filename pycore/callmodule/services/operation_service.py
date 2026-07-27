@@ -12,6 +12,40 @@ from pycore.pyfoundations.state_store import (
     OperationItem,
     StateRepository,
 )
+from pycore.pyfoundations.thread_bus import THREAD_BUS
+
+
+def _broadcast_operation_changed(event: OperationEvent, operation_scope: Optional[str] = None) -> None:
+    status: str = str(event.event_type)
+    if status.startswith("item."):
+        status = status.split(".", 1)[1]
+
+    stage = None
+    msg = str(event.message or "")
+    # OperationService transition message often includes: "... (stage)"
+    if "(" in msg and ")" in msg:
+        try:
+            stage = msg[msg.index("(") + 1: msg.rindex(")")]
+        except Exception:
+            stage = None
+
+    payload: Dict[str, Any] = {
+        "schema_version": 1,
+        "topic": "operation.changed",
+        "event_id": event.event_id,
+        "operation_id": event.operation_id,
+        "operation_scope": operation_scope,
+        "operation_revision": event.revision,
+        "operation_item_id": event.item_id,
+        "operation_event_seq": event.seq,
+        "event_type": event.event_type,
+        "status": status,
+        "stage": stage,
+        "level": event.level,
+        "message": event.message,
+        "created_at": event.created_at,
+    }
+    THREAD_BUS.trigger_event("operation.changed", payload, async_mode=True)
 
 
 def _now_iso() -> str:
@@ -83,6 +117,7 @@ class OperationService:
         )
 
         self.repo.create_operation(op, items, event)
+        _broadcast_operation_changed(event, op.scope)
         return op
 
     def get_operation(self, op_id: str) -> Optional[Operation]:
@@ -143,6 +178,7 @@ class OperationService:
             error_json=error_json,
             event=event,
         )
+        _broadcast_operation_changed(event, op.scope)
 
         # Update operation totals
         self._recalculate_totals(op.id)
@@ -213,6 +249,7 @@ class OperationService:
             revision=op.revision + 1,
             event=event,
         )
+        _broadcast_operation_changed(event, op.scope)
 
     def get_snapshot(self, op_id: Optional[str] = None, scope: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get a full snapshot of the operation, items, and recent events."""

@@ -1,19 +1,22 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { pycoreApi } from '../../../../core/api-libs/pycore/PycoreApi';
+import { callRpc, connectPycoreWs } from '../../../../core/api-libs/pycore/PycoreWs';
+import { pycoreEventBus } from '../../../../core/api-libs/pycore/PycoreEventBus';
 import PcAgentHistoryLogPanel from './PcAgentHistoryLogPanel';
 import PcLlmEnginesStrip from '../../components/PcLlmEnginesStrip';
 
-const CONFIG_POLL_MS = 10_000;
-
 const REFERENCE_LANGUAGE = 'CN';
 const TARGET_LANGUAGE = 'EN';
+const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
 
 /**
  * Article config panel — master ON/OFF toggle bound to config.enabled (backend
  * auto-processes history while on; no start call), plus language/word/LLM options.
+ * Display-side phase/pending/last_error come from the operation store.
  */
 const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk }) => {
   const [articleCfg, setArticleCfg] = useState<Record<string, unknown> | null>(null);
+  const [opStatus, setOpStatus] = useState<Record<string, any> | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(false);
@@ -32,14 +35,32 @@ const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk
     }
   }, [tk]);
 
-  useEffect(() => { loadConfig(); }, [loadConfig]);
+  const loadOpStatus = useCallback(async () => {
+    try {
+      const res = await callRpc('ui.operation.snapshot', { scope: 'agent_history' });
+      if (res?.success && res.data?.operation) {
+        setOpStatus(res.data.operation as Record<string, any>);
+      }
+    } catch {
+      /* offline — keep last known operation status */
+    }
+  }, []);
 
-  // Keep the phase hint fresh while the pipeline is on.
   useEffect(() => {
-    if (!enabled) return undefined;
-    const id = setInterval(() => void loadConfig(), CONFIG_POLL_MS);
-    return () => clearInterval(id);
-  }, [enabled, loadConfig]);
+    connectPycoreWs();
+    void loadConfig();
+    void loadOpStatus();
+  }, [loadConfig, loadOpStatus]);
+
+  // Refresh display-side operation status when the pipeline store changes.
+  useEffect(() => {
+    const off = pycoreEventBus.subscribe('operation.changed', (payload: any) => {
+      const scope = String(payload?.operation_scope || '');
+      if (scope && !PIPELINE_SCOPES.has(scope)) return;
+      void loadOpStatus();
+    });
+    return () => { off(); };
+  }, [loadOpStatus]);
 
   const saveConfig = async (enabledOverride?: boolean) => {
     setBusy(true);
@@ -119,8 +140,12 @@ const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk
           <span className="text-sm text-slate-700 dark:text-slate-200">{tk('autoProcess')}</span>
           {articleCfg && (
             <span className="text-[11px] font-mono text-slate-500">
-              {tk('phase')}: {String((articleCfg as any).phase || 'idle')}
-              {(articleCfg as any).last_error ? (
+              {tk('phase')}: {String(opStatus?.status || (articleCfg as any).phase || 'idle')}
+              {opStatus?.error ? (
+                <span className="text-rose-500 ml-2">
+                  {tk('lastError')}: {typeof opStatus.error === 'string' ? opStatus.error : JSON.stringify(opStatus.error)}
+                </span>
+              ) : (articleCfg as any).last_error ? (
                 <span className="text-rose-500 ml-2">{tk('lastError')}: {String((articleCfg as any).last_error)}</span>
               ) : null}
             </span>

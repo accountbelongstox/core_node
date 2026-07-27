@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Radio } from 'lucide-react';
-import { pycoreApi } from '../../../../core/api-libs/pycore/PycoreApi';
+import { callRpc, connectPycoreWs } from '../../../../core/api-libs/pycore/PycoreWs';
+import { pycoreEventBus } from '../../../../core/api-libs/pycore/PycoreEventBus';
 
-/** Live pipeline log panel - polls article logs every 4s while extraction is on. */
+const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
+
+/** Live pipeline log panel — hydrates from ui.operation.snapshot; refreshes on operation.changed. */
 const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string }> = ({ tk }) => {
   const [data, setData] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -12,14 +15,14 @@ const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string }> = ({ tk })
 
   const load = useCallback(async () => {
     try {
-      const res = await pycoreApi.callRpc('ui.operation.snapshot', { scope: 'agent_history' });
+      const res = await callRpc('ui.operation.snapshot', { scope: 'agent_history' });
       if (!mounted.current) return;
-      if (res.success && res.data) {
+      if (res?.success && res.data) {
         setData(res.data as Record<string, any>);
         setLoadError(null);
         setStale(false);
       } else {
-        setLoadError(res.error || 'Failed to load agent history logs.');
+        setLoadError(res?.error || 'Failed to load agent history logs.');
         setStale(true);
       }
     } catch (e) {
@@ -34,26 +37,27 @@ const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string }> = ({ tk })
 
   useEffect(() => {
     mounted.current = true;
+    connectPycoreWs();
     void load();
-    const id = setInterval(() => void load(), 4_000);
-    return () => { mounted.current = false; clearInterval(id); };
+    const off = pycoreEventBus.subscribe('operation.changed', (payload: any) => {
+      const scope = String(payload?.operation_scope || '');
+      if (scope && !PIPELINE_SCOPES.has(scope)) return;
+      void load();
+    });
+    return () => {
+      mounted.current = false;
+      off();
+    };
   }, [load]);
 
   const events: any[] = Array.isArray((data as any)?.recent_events) ? (data as any).recent_events : [];
   const progress = (data as any)?.operation || {};
-  const ai = {}; // AI usage is no longer tracked here
-  const tick = {}; // Tick is no longer tracked here
-  const limits = ai.limits || {};
-  const usage = ai.usage || {};
-  const rpmLimit = typeof limits.rpm === 'number' ? limits.rpm : Infinity;
-  const rpdLimit = typeof limits.rpd === 'number' ? limits.rpd : Infinity;
-  const throttled = !!ai.enforced && (Number(usage.minute ?? 0) >= rpmLimit || Number(usage.day ?? 0) >= rpdLimit);
 
   const phaseColor: Record<string, string> = {
-    backfill: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300',
-    live: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
-    done: 'border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-300',
-    paused_quota: 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-300',
+    running: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
+    completed: 'border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-300',
+    cancel_requested: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300',
+    failed: 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-300',
     idle: 'border-slate-300 dark:border-white/10 text-slate-500',
   };
   const levelDot: Record<string, string> = {
@@ -63,28 +67,10 @@ const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string }> = ({ tk })
     error: 'bg-rose-500',
   };
 
-  const req = ai.requests || {};
-  const used = Number(req.used ?? usage.day ?? 0);
-  const limit = typeof req.limit === 'number' ? req.limit : (typeof rpdLimit === 'number' ? rpdLimit : null);
-  const remaining = typeof req.remaining === 'number'
-    ? req.remaining
-    : (limit != null ? Math.max(0, limit - used) : null);
-  const resetS = req.resets_in_s ?? ai.resets_in?.day;
-  const resetLabel = typeof resetS === 'number'
-    ? `${Math.max(0, Math.round(resetS / 3600))}h`
-    : null;
-
-  const errAt = progress.last_error_at ? String(progress.last_error_at) : '';
-  const errStale = (() => {
-    if (!progress.last_error || !errAt) return false;
-    try {
-      const ts = Date.parse(errAt);
-      if (!Number.isFinite(ts)) return false;
-      return Date.now() - ts > 60 * 60 * 1000;
-    } catch {
-      return false;
-    }
-  })();
+  const errRaw = progress.error;
+  const errText = errRaw
+    ? (typeof errRaw === 'string' ? errRaw : JSON.stringify(errRaw))
+    : '';
 
   return (
     <section className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white/60 dark:bg-white/[0.02] p-4 space-y-3">
@@ -114,16 +100,12 @@ const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string }> = ({ tk })
         <span>{tk('pending')}: {Number(progress.totals?.queued ?? 0)}</span>
         <span>{tk('published')}: {Number(progress.totals?.succeeded ?? 0)}</span>
         {progress.timestamps?.updated_at && <span>{tk('lastRun')}: {String(progress.timestamps.updated_at).slice(11, 19)}</span>}
-        {progress.error && (
-          <span className={errStale ? 'text-slate-400' : 'text-rose-500'}>
-            {tk('lastError')}: {String(progress.error)}
-            {errAt ? ` @ ${errAt.slice(11, 19)}` : ''}
-            {errStale ? ` (${tk('stale')})` : ''}
+        {errText && (
+          <span className="text-rose-500">
+            {tk('lastError')}: {errText}
           </span>
         )}
       </div>
-
-
 
       {/* Event log (newest first) */}
       <ul className="space-y-1 max-h-[280px] overflow-y-auto pr-1 font-mono text-[11px]">
@@ -132,7 +114,7 @@ const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string }> = ({ tk })
         ) : events.map((ev, i) => {
           const ts = new Date(ev.created_at).toTimeString().slice(0, 8);
           return (
-            <li key={i} className="flex items-start gap-2 text-slate-600 dark:text-slate-300">
+            <li key={`${ev.seq ?? i}-${ts}`} className="flex items-start gap-2 text-slate-600 dark:text-slate-300">
               <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${levelDot[String(ev.level || 'info')] || levelDot.info}`} />
               <span className="text-slate-400 shrink-0">{ts}</span>
               <span className="break-all">{String(ev.message || '')}</span>

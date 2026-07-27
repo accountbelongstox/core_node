@@ -17,27 +17,8 @@ Quick Imports:
 # ============================================================================
 # OCR Utilities
 # ============================================================================
-from pycore.pyutils.ocr_cluster import ocr_manager
-from pycore.pyutils.device.device_manager import DeviceManager, DeviceState
-from pycore.pyutils.edge_tts import edge_tts_manager
-from pycore.pyutils.azure_speech import azure_speech_manager
-from pycore.pyutils.device import ADBManager, ADBDevice
-from pycore.pyutils.control import TouchEvent, KeyEvent, MessageBuilder
-from pycore.pyutils.group import (
-from pycore.pyutils.input.field_input import (
-from pycore.pyutils.desktop.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
-from pycore.pyutils.video_stream import (
-from pycore.pyutils.image_tools.media_compressor import (
-from pycore.pyutils.launcher.device_sync import (
-from pycore.pyutils.pybrowser import browser_manager
-from pycore.pyutils.web import web_server_manager
-from pycore.pyutils.ultralytics import yolo_manager
-from pycore.pyutils.mcp import mcp_server_manager
-from pycore.pyutils.rpc_v2 import rpc_manager
-from pycore.pyutils.wsrpc import wsrpc_manager
-import os
-from pycore.pyutils.native_ui import (
 try:
+    from pycore.pyutils.ocr_cluster import ocr_manager
     OCR_AVAILABLE = True
 except Exception as e:
     ocr_manager = None
@@ -47,6 +28,7 @@ except Exception as e:
 # Device Manager (Legacy compatibility)
 # ============================================================================
 try:
+    from pycore.pyutils.device.device_manager import DeviceManager, DeviceState
     DEVICE_MANAGER_AVAILABLE = True
 except Exception:
     DeviceManager = None
@@ -57,12 +39,14 @@ except Exception:
 # TTS Utilities
 # ============================================================================
 try:
+    from pycore.pyutils.edge_tts import edge_tts_manager
     EDGE_TTS_AVAILABLE = True
 except Exception:
     edge_tts_manager = None
     EDGE_TTS_AVAILABLE = False
 
 try:
+    from pycore.pyutils.azure_speech import azure_speech_manager
     AZURE_SPEECH_AVAILABLE = True
 except Exception:
     azure_speech_manager = None
@@ -72,6 +56,8 @@ except Exception:
 # Device Control Utilities
 # ============================================================================
 try:
+    from pycore.pyutils.device import ADBManager, ADBDevice
+    from pycore.pyutils.control import TouchEvent, KeyEvent, MessageBuilder
     DEVICE_CONTROL_AVAILABLE = True
 except Exception:
     ADBManager = None
@@ -85,6 +71,7 @@ except Exception:
 # Group Control
 # ============================================================================
 try:
+    from pycore.pyutils.group import (
         GroupController,
         SyncStrategy,
         AllSyncStrategy,
@@ -104,6 +91,7 @@ except Exception:
 # Field Input Simulator (focus, clear, type into input fields)
 # ============================================================================
 try:
+    from pycore.pyutils.input.field_input import (
         type_into_field,
         fill_field_with_fallback,
         FieldInputSimulator,
@@ -123,6 +111,7 @@ except Exception:
 # Tkinter taskbar (Windows: show overrideredirect window in taskbar)
 # ============================================================================
 try:
+    from pycore.pyutils.desktop.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
 except Exception:
     ensure_tk_root_in_taskbar = None
     set_windows_app_user_model_id = None
@@ -131,6 +120,7 @@ except Exception:
 # Video Stream Utilities
 # ============================================================================
 try:
+    from pycore.pyutils.video_stream import (
         VideoDecoder,
         H264Decoder,
         FMP4Encoder,
@@ -158,6 +148,7 @@ except Exception:
 # Media Compression Utilities
 # ============================================================================
 try:
+    from pycore.pyutils.image_tools.media_compressor import (
         MediaCompressor,
         get_media_compressor,
         CompressionStats,
@@ -177,6 +168,7 @@ except Exception:
 # Device Sync Utilities
 # ============================================================================
 try:
+    from pycore.pyutils.launcher.device_sync import (
         SimplePrimaryServer,
         SimpleClient,
         SimpleDeviceScanner,
@@ -194,6 +186,7 @@ except Exception:
 # Browser Utilities
 # ============================================================================
 try:
+    from pycore.pyutils.pybrowser import browser_manager
     BROWSER_AVAILABLE = True
 except Exception:
     browser_manager = None
@@ -203,6 +196,7 @@ except Exception:
 # Web Server Utilities
 # ============================================================================
 try:
+    from pycore.pyutils.web import web_server_manager
     WEB_SERVER_AVAILABLE = True
 except Exception:
     web_server_manager = None
@@ -212,6 +206,7 @@ except Exception:
 # YOLO (Ultralytics) Utilities
 # ============================================================================
 try:
+    from pycore.pyutils.ultralytics import yolo_manager
     YOLO_AVAILABLE = True
 except Exception:
     yolo_manager = None
@@ -221,6 +216,7 @@ except Exception:
 # MCP (Model Context Protocol) Utilities
 # ============================================================================
 try:
+    from pycore.pyutils.mcp import mcp_server_manager
     MCP_AVAILABLE = True
 except Exception:
     mcp_server_manager = None
@@ -230,12 +226,14 @@ except Exception:
 # RPC Utilities
 # ============================================================================
 try:
+    from pycore.pyutils.rpc_v2 import rpc_manager
     RPC_AVAILABLE = True
 except Exception:
     rpc_manager = None
     RPC_AVAILABLE = False
 
 try:
+    from pycore.pyutils.wsrpc import wsrpc_manager
     WSRPC_AVAILABLE = True
 except Exception:
     wsrpc_manager = None
@@ -247,7 +245,9 @@ except Exception:
 NATIVE_UI_AVAILABLE = False
 try:
     # Only import if explicitly requested via environment variable
+    import os
     if os.getenv('PYUTILS_LOAD_GUI', '0') == '1':
+        from pycore.pyutils.native_ui import (
             UIConfig,
             SignalType,
             Signal,

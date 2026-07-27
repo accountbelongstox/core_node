@@ -14,6 +14,7 @@ export const pcEn = {
     vocabulary: 'Vocabulary',
     ai: 'AI & Pycore Capabilities',
     agentHistory: 'Agent History',
+    laravelLogs: 'Laravel Logs',
     taskLog: 'Task Log',
     aiStatus: 'Capability Status',
     aiImage: 'AI Image',

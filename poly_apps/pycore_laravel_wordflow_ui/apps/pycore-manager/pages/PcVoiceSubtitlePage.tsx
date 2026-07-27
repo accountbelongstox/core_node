@@ -25,11 +25,12 @@ import {
   Image as ImageIcon, FileText, ListChecks, Video, AppWindow, Languages,
 } from 'lucide-react';
 import {
-  pycoreApi, mapQueueSnapshot, subscribe, connectPycoreWs, loadQueueCache, saveQueueCache,
+  pycoreApi, mapQueueSnapshot, connectPycoreWs, loadQueueCache, saveQueueCache,
 } from '../../../core/api-libs/pycore';
 import type { QueueItem } from '../../../core/api-libs/pycore';
 import { usePycoreCapability } from '../../../core/api-libs/pycore';
 import { fetchPycoreBlobUrl } from '../../../core/api-libs/pycore/PycoreBlob';
+import { pycoreEventBus } from '../../../core/api-libs/pycore/PycoreEventBus';
 import { PcPipelineStatusPanels } from '../components/PcPipelineStatusPanels';
 
 const CATEGORY_CLS: Record<string, string> = {
@@ -162,11 +163,11 @@ const PcVoiceSubtitlePage: React.FC = () => {
   // Live updates: full snapshot on every queue mutation + per-item playback tick.
   useEffect(() => {
     connectPycoreWs();
-    const offQueue = subscribe('voice_subtitle_queue_update', (data: any) => {
+    const offQueue = pycoreEventBus.subscribe('voice_subtitle_queue_update', (data: any) => {
       applySnapshot(mapQueueSnapshot(data));
       setUnreachable(false);
     });
-    const offPlay = subscribe('voice_subtitle_update', (data: any) => {
+    const offPlay = pycoreEventBus.subscribe('voice_subtitle_update', (data: any) => {
       if (typeof data?.text === 'string') setPlayingText(data.text);
     });
     return () => { offQueue(); offPlay(); };

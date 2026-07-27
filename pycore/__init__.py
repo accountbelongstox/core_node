@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 # Documentation: ../py_auto/DEVELOPMENT_GUIDE.md
-from pycore.pyutils import FMP4EncoderComplete, H264Frame
-from pycore.pyutils import WebSocketManager
 """
 Main package file for pytools.
 """
@@ -68,16 +66,10 @@ from pycore.pyutils import (
     VideoFormat,
     VideoStreamHandler,
     H264Config,
+    FMP4EncoderComplete,
+    H264Frame,
+    WebSocketManager,
 )
-
-# Optional imports
-try:
-except ImportError:
-    pass
-
-try:
-except ImportError:
-    pass
 
 __version__ = '1.0.0'
 
@@ -124,8 +116,11 @@ __all__ = [
     # Streaming
     'H264Decoder',
     'FMP4Encoder',
+    'FMP4EncoderComplete',
+    'H264Frame',
     'VideoFrame',
     'VideoFormat',
     'VideoStreamHandler',
     'H264Config',
+    'WebSocketManager',
 ]

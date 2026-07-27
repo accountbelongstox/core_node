@@ -9,6 +9,7 @@ from pycore.pyfoundations.state_store import (
     OperationEvent,
     StateRepository,
 )
+from pycore.pyfoundations.thread_bus import THREAD_BUS
 
 
 def _now_iso() -> str:
@@ -52,10 +53,39 @@ class OperationEventService:
 
         with self.repo.transaction() as cursor:
             self.repo._insert_event(cursor, event)
-            
-        # Trigger THREAD_BUS event here if needed
-        # from pycore.callmodule.services.thread_bus import THREAD_BUS
-        # THREAD_BUS.trigger_event("operation.event", {"event": event.__dict__})
+
+        # Broadcast operation changes so SSE clients can resume via ?since=
+        # without relying on UI-side polling.
+        status: str = str(event.event_type)
+        if status.startswith("item."):
+            status = status.split(".", 1)[1]
+
+        stage = None
+        msg = str(event.message or "")
+        # OperationService transition message often includes: "... (stage)"
+        if "(" in msg and ")" in msg:
+            try:
+                stage = msg[msg.index("(") + 1: msg.rindex(")")]
+            except Exception:
+                stage = None
+
+        payload: Dict[str, Any] = {
+            "schema_version": 1,
+            "topic": "operation.changed",
+            "event_id": event.event_id,
+            "operation_id": event.operation_id,
+            "operation_scope": op.scope,
+            "operation_revision": event.revision,
+            "operation_item_id": event.item_id,
+            "operation_event_seq": event.seq,
+            "event_type": event.event_type,
+            "status": status,
+            "stage": stage,
+            "level": event.level,
+            "message": event.message,
+            "created_at": event.created_at,
+        }
+        THREAD_BUS.trigger_event("operation.changed", payload, async_mode=True)
         
         return event
 

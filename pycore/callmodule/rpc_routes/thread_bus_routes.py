@@ -66,6 +66,11 @@ def register_thread_bus_routes(server):
     server.register_thread_bus_listener('engine_load_status_update')
     # Agent-history pipeline and Laravel SSE relay -> Wordnew Daily Reading.
     server.register_thread_bus_listener('article.published')
+    # Operation store changes (OperationService / OperationEventService).
+    # Delivered over the same SSE ring with ?since resume semantics.
+    server.register_thread_bus_listener('operation.changed')
+    # Laravel log mirror updates -> live UI refresh for PcLaravelLogsPage.
+    server.register_thread_bus_listener('laravel.logs.changed')
 
     ColorPrint.green("[ConfigBuilder] Registered thread_bus.trigger_event + broadcast listeners")
 

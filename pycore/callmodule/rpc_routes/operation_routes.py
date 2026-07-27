@@ -38,7 +38,29 @@ def register_operation_routes(server):
         snapshot = await _run(op_service.get_snapshot, op_id=op_id, scope=scope)
         if not snapshot:
             return {"success": False, "error": "operation not found"}
-            
+
+        # Agent-history pipeline UI expects a durable records list alongside the
+        # latest operation. Attach it here so the frontend can drop polling.
+        effective_scope = scope
+        if not effective_scope:
+            try:
+                op = await _run(
+                    op_service.get_operation,
+                    snapshot.get("operation", {}).get("id") or "",
+                )
+                effective_scope = getattr(op, "scope", "") if op else ""
+            except Exception:
+                effective_scope = ""
+        if effective_scope in ("agent_history", "agent_history_pipeline"):
+            try:
+                import pycore.callmodule.services.agent_history_article_records as records
+
+                snapshot = dict(snapshot)
+                snapshot["records"] = await _run(records.list_records, 100)
+            except Exception:
+                snapshot = dict(snapshot)
+                snapshot["records"] = []
+
         return {"success": True, "data": snapshot}
 
     server.route(name=UI_OPERATION_SNAPSHOT, handler=snapshot_handler, sync=False)

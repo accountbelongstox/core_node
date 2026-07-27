@@ -74,16 +74,14 @@ _LANG_MAP = {
     "es": "Spanish", "it": "Italian",
 }
 _SPEAKER_BY_LANG = {"en": "Ryan", "zh": "Vivian", "ja": "Ono_Anna", "ko": "Sohee"}
-_VARIANT_SPEAKER_EN = {
-    ("us", "female"): "Emma", ("uk", "female"): "Sophia",
-    ("us", "male"): "Ryan", ("uk", "male"): "Aiden",
-}
+# Preference order only — every name must exist in the loaded model capability set.
 _SPEAKER_PRESETS = {
-    "en": {"female": ["Emma", "Sophia"], "male": ["Ryan", "Aiden"]},
+    "en": {"female": ["Serena", "Vivian"], "male": ["Ryan", "Aiden"]},
     "zh": {"female": ["Vivian", "Serena"], "male": ["Uncle_Fu", "Dylan"]},
-    "ja": {"female": ["Ono_Anna", "Hina"], "male": ["Ono_Anna"]},
-    "ko": {"female": ["Sohee"], "male": ["Hyunwoo"]},
+    "ja": {"female": ["Ono_Anna"], "male": ["Ono_Anna"]},
+    "ko": {"female": ["Sohee"], "male": ["Sohee"]},
 }
+_CAPABILITY_CACHE: Optional[Dict[str, Any]] = None
 _BATCH_VRAM_MB: Dict[str, Dict[int, int]] = {
     "0.6B": {1: 4096, 4: 6144, 8: 9216, 16: 14336, 32: 24576},
     "1.7B": {1: 8192, 4: 12288, 8: 18432, 16: 28672, 32: 49152},
@@ -126,6 +124,7 @@ def _load_model():
         except TypeError:
             model = Qwen3TTSModel.from_pretrained(model_id, device_map=_device)
         _log(f"[api] model loaded in {time.time() - t0:.1f}s")
+        _refresh_capabilities(model)
         return model
     except Exception as exc:  # noqa: BLE001
         _load_error = str(exc)
@@ -142,35 +141,162 @@ def _get_model():
         return _model
 
 
+def _default_capability_snapshot() -> Dict[str, Any]:
+    speakers = sorted({
+        speaker
+        for presets in _SPEAKER_PRESETS.values()
+        for group in presets.values()
+        for speaker in group
+    } | set(_SPEAKER_BY_LANG.values()))
+    return {
+        "model_id": _model_id(),
+        "model_kind": "custom_voice",
+        "speakers": speakers,
+        "languages": sorted(set(_LANG_MAP.values())),
+        "speaker_map": {speaker.lower(): speaker for speaker in speakers},
+        "loaded_at": None,
+        "revision": "fallback",
+    }
+
+
+def _refresh_capabilities(model) -> Dict[str, Any]:
+    """Read speaker/language support from the loaded model when available."""
+    global _CAPABILITY_CACHE
+    snapshot = _default_capability_snapshot()
+    speakers_raw: List[str] = []
+    languages_raw: List[str] = []
+    if hasattr(model, "get_supported_speakers"):
+        try:
+            speakers_raw = list(model.get_supported_speakers() or [])
+        except Exception as exc:  # noqa: BLE001
+            _log(f"[api] get_supported_speakers failed: {exc}")
+    if hasattr(model, "get_supported_languages"):
+        try:
+            languages_raw = list(model.get_supported_languages() or [])
+        except Exception as exc:  # noqa: BLE001
+            _log(f"[api] get_supported_languages failed: {exc}")
+    if speakers_raw:
+        snapshot["speakers"] = [str(speaker) for speaker in speakers_raw]
+        snapshot["speaker_map"] = {
+            str(speaker).lower(): str(speaker) for speaker in speakers_raw
+        }
+    if languages_raw:
+        snapshot["languages"] = [str(language) for language in languages_raw]
+    snapshot["loaded_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    snapshot["revision"] = f"{snapshot['model_id']}:{len(snapshot['speakers'])}"
+    _CAPABILITY_CACHE = snapshot
+    return snapshot
+
+
+def _get_capabilities() -> Dict[str, Any]:
+    global _CAPABILITY_CACHE
+    if _CAPABILITY_CACHE is not None:
+        return _CAPABILITY_CACHE
+    try:
+        return _refresh_capabilities(_get_model())
+    except Exception:
+        return _default_capability_snapshot()
+
+
+def _resolve_speaker(
+    lang: str,
+    *,
+    requested: str = "",
+    accent: str = "",
+    gender: str = "female",
+    index: int = 0,
+) -> Dict[str, Any]:
+    """Resolve a model speaker id; preferences may apply fallback within capability."""
+    caps = _get_capabilities()
+    speaker_map: Dict[str, str] = dict(caps.get("speaker_map") or {})
+    supported = list(caps.get("speakers") or [])
+    explicit_env = (os.environ.get("QWEN3TTS_SPEAKER") or "").strip()
+    requested_speaker = (requested or explicit_env or "").strip()
+    if requested_speaker:
+        canonical = speaker_map.get(requested_speaker.lower())
+        if not canonical:
+            return {
+                "ok": False,
+                "code": "unknown_speaker",
+                "message": f"speaker not supported: {requested_speaker}",
+                "retryable": False,
+                "supported_speakers": supported,
+            }
+        return {
+            "ok": True,
+            "requested_speaker": requested_speaker,
+            "resolved_speaker": canonical,
+            "fallback_applied": canonical != requested_speaker,
+        }
+
+    code = (lang or "en").strip().lower()[:2]
+    gender_key = (gender or "female").strip().lower()
+    if gender_key not in ("female", "male"):
+        gender_key = "female"
+    accent_key = (accent or "").strip().lower()
+    presets = _SPEAKER_PRESETS.get(code) or _SPEAKER_PRESETS["en"]
+    candidates = list(presets.get(gender_key) or presets.get("female") or [])
+    if code == "en" and accent_key in ("us", "uk"):
+        candidates = list(candidates)
+    if not candidates:
+        candidates = [str(caps.get("speakers") or ["Ryan"])[0]]
+    preferred = candidates[index % len(candidates)]
+    canonical = speaker_map.get(preferred.lower())
+    if canonical:
+        return {
+            "ok": True,
+            "requested_speaker": preferred,
+            "resolved_speaker": canonical,
+            "fallback_applied": False,
+        }
+    for candidate in candidates:
+        canonical = speaker_map.get(candidate.lower())
+        if canonical:
+            return {
+                "ok": True,
+                "requested_speaker": preferred,
+                "resolved_speaker": canonical,
+                "fallback_applied": True,
+            }
+    if supported:
+        fallback = supported[0]
+        return {
+            "ok": True,
+            "requested_speaker": preferred,
+            "resolved_speaker": fallback,
+            "fallback_applied": True,
+        }
+    return {
+        "ok": False,
+        "code": "no_speakers",
+        "message": "model reported no supported speakers",
+        "retryable": False,
+        "supported_speakers": [],
+    }
+
+
 def _qwen_language(lang: str) -> str:
     code = (lang or "en").strip().lower()[:2]
     return _LANG_MAP.get(code, "Auto")
 
 
 def _speaker(lang: str) -> str:
-    explicit = (os.environ.get("QWEN3TTS_SPEAKER") or "").strip()
-    if explicit:
-        return explicit
-    code = (lang or "en").strip().lower()[:2]
-    return _SPEAKER_BY_LANG.get(code, "Ryan")
+    resolved = _resolve_speaker(lang)
+    if not resolved.get("ok"):
+        raise ValueError(str(resolved.get("message") or "speaker resolution failed"))
+    return str(resolved["resolved_speaker"])
 
 
-def _speaker_for_variant(lang: str, variant: Dict[str, Any], index: int) -> str:
-    explicit = (os.environ.get("QWEN3TTS_SPEAKER") or "").strip()
-    if explicit:
-        return explicit
-    code = (lang or "en").strip().lower()[:2]
-    accent = (variant.get("accent") or "").strip().lower()
-    gender = (variant.get("gender") or "female").strip().lower()
-    if gender not in ("female", "male"):
-        gender = "female"
-    if code == "en" and accent in ("us", "uk"):
-        mapped = _VARIANT_SPEAKER_EN.get((accent, gender))
-        if mapped:
-            return mapped
-    presets = _SPEAKER_PRESETS.get(code) or _SPEAKER_PRESETS["en"]
-    options = presets.get(gender) or presets.get("female") or ["Ryan"]
-    return options[index % len(options)]
+def _speaker_for_variant(lang: str, variant: Dict[str, Any], index: int) -> Dict[str, Any]:
+    explicit = (variant.get("speaker_id") or variant.get("speaker") or "").strip()
+    resolved = _resolve_speaker(
+        lang,
+        requested=explicit,
+        accent=str(variant.get("accent") or ""),
+        gender=str(variant.get("gender") or "female"),
+        index=index,
+    )
+    return resolved
 
 
 def _nvidia_smi_cmd() -> str:
@@ -341,12 +467,17 @@ def health():
 
 @app.get("/capabilities")
 def capabilities():
-    """Return supported languages and speakers."""
+    """Return runtime speaker/language support from the loaded model."""
+    caps = _get_capabilities()
     return {
         "ok": True,
-        "languages": _LANG_MAP,
-        "speakers": _SPEAKER_PRESETS,
+        "model_id": caps.get("model_id"),
+        "model_kind": caps.get("model_kind"),
+        "languages": caps.get("languages"),
+        "speakers": caps.get("speakers"),
         "default_speakers": _SPEAKER_BY_LANG,
+        "loaded_at": caps.get("loaded_at"),
+        "revision": caps.get("revision"),
     }
 
 
@@ -387,7 +518,17 @@ def synthesize(req: SynthRequest):
     try:
         model = _get_model()
         qwen_lang = _qwen_language(req.language)
-        speaker = (req.speaker or "").strip() or _speaker(req.language)
+        resolved = _resolve_speaker(req.language, requested=(req.speaker or "").strip())
+        if not resolved.get("ok"):
+            return JSONResponse(
+                {
+                    "error": resolved,
+                    "code": resolved.get("code"),
+                    "supported_speakers": resolved.get("supported_speakers") or [],
+                },
+                status_code=422,
+            )
+        speaker = str(resolved["resolved_speaker"])
         gen_kwargs: Dict[str, Any] = {"text": text, "language": qwen_lang, "speaker": speaker}
         instruct = (req.instruct or os.environ.get("QWEN3TTS_INSTRUCT") or "").strip()
         if instruct:
@@ -416,9 +557,29 @@ def synthesize_batch(req: BatchSynthRequest):
     try:
         model = _get_model()
         qwen_lang = _qwen_language(req.language)
-        speakers = [
-            _speaker_for_variant(req.language, v.dict(), i) for i, v in enumerate(variants)
-        ]
+        resolved_rows: List[Dict[str, Any]] = []
+        speakers: List[str] = []
+        for i, variant in enumerate(variants):
+            resolved = _speaker_for_variant(req.language, variant.dict(), i)
+            if not resolved.get("ok"):
+                resolved_rows.append({
+                    "key": variant.key,
+                    "ok": False,
+                    "requested_speaker": variant.dict().get("speaker_id") or variant.dict().get("speaker"),
+                    "resolved_speaker": None,
+                    "fallback_applied": False,
+                    "audio_base64": None,
+                    "error": resolved,
+                })
+                speakers.append("")
+                continue
+            speakers.append(str(resolved["resolved_speaker"]))
+            resolved_rows.append(resolved)
+        if all(not speaker for speaker in speakers):
+            return JSONResponse(
+                {"error": "no valid speakers in batch", "results": resolved_rows},
+                status_code=422,
+            )
         gpu_idx = 0
         dev = _device or _resolve_device()
         if ":" in dev:
@@ -434,9 +595,23 @@ def synthesize_batch(req: BatchSynthRequest):
         )
         max_parallel = max(1, min(max_parallel, n))
         results: List[Dict[str, Any]] = [None] * n  # type: ignore[list-item]
+        for idx, row in enumerate(resolved_rows):
+            if not row.get("ok"):
+                results[idx] = {
+                    "key": variants[idx].key,
+                    "ok": False,
+                    "requested_speaker": row.get("requested_speaker"),
+                    "resolved_speaker": None,
+                    "fallback_applied": False,
+                    "audio_base64": None,
+                    "error": row.get("error") or row,
+                }
         with _model_lock:
             for start in range(0, n, max_parallel):
-                chunk_speakers = speakers[start:start + max_parallel]
+                chunk_speakers = [speaker for speaker in speakers[start:start + max_parallel] if speaker]
+                if not chunk_speakers:
+                    continue
+                chunk_indices = [start + offset for offset, speaker in enumerate(speakers[start:start + max_parallel]) if speaker]
                 chunk_n = len(chunk_speakers)
                 try:
                     wavs, sr = model.generate_custom_voice(
@@ -444,24 +619,31 @@ def synthesize_batch(req: BatchSynthRequest):
                         speaker=chunk_speakers, non_streaming_mode=True,
                     )
                     for offset, wav in enumerate(wavs):
-                        idx = start + offset
+                        idx = chunk_indices[offset]
                         try:
                             audio_bytes, _ = _encode_audio(wav, sr, fmt)
                             audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+                            row = resolved_rows[idx]
                             results[idx] = {
                                 "key": variants[idx].key, "ok": True,
+                                "requested_speaker": row.get("requested_speaker"),
+                                "resolved_speaker": row.get("resolved_speaker"),
+                                "fallback_applied": bool(row.get("fallback_applied")),
                                 "audio_base64": audio_b64, "error": None,
                             }
                         except Exception as e:
                             results[idx] = {
                                 "key": variants[idx].key, "ok": False,
+                                "requested_speaker": resolved_rows[idx].get("requested_speaker"),
+                                "resolved_speaker": resolved_rows[idx].get("resolved_speaker"),
+                                "fallback_applied": bool(resolved_rows[idx].get("fallback_applied")),
                                 "audio_base64": None, "error": f"encode failed: {e}",
                             }
                 except Exception as chunk_exc:
                     _log(f"[api] chunk failed, falling back to item-by-item: {chunk_exc}")
                     # Fallback to item-by-item for this chunk
                     for offset in range(chunk_n):
-                        idx = start + offset
+                        idx = chunk_indices[offset]
                         try:
                             wavs, sr = model.generate_custom_voice(
                                 text=[text], language=[qwen_lang],
@@ -469,13 +651,20 @@ def synthesize_batch(req: BatchSynthRequest):
                             )
                             audio_bytes, _ = _encode_audio(wavs[0], sr, fmt)
                             audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+                            row = resolved_rows[idx]
                             results[idx] = {
                                 "key": variants[idx].key, "ok": True,
+                                "requested_speaker": row.get("requested_speaker"),
+                                "resolved_speaker": row.get("resolved_speaker"),
+                                "fallback_applied": bool(row.get("fallback_applied")),
                                 "audio_base64": audio_b64, "error": None,
                             }
                         except Exception as item_exc:
                             results[idx] = {
                                 "key": variants[idx].key, "ok": False,
+                                "requested_speaker": resolved_rows[idx].get("requested_speaker"),
+                                "resolved_speaker": resolved_rows[idx].get("resolved_speaker"),
+                                "fallback_applied": bool(resolved_rows[idx].get("fallback_applied")),
                                 "audio_base64": None, "error": str(item_exc),
                             }
         return {"results": results}

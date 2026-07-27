@@ -6,7 +6,7 @@
 import React, { lazy } from 'react';
 import {
   Volume2, ListOrdered, AppWindow, FolderSync,
-  Settings, Library, Sparkles, History, BookOpen, type LucideIcon,
+  Settings, Library, Sparkles, History, BookOpen, ScrollText, type LucideIcon,
 } from 'lucide-react';
 
 export const PcVoiceSubtitlePage = lazy(() => import('./pages/PcVoiceSubtitlePage'));
@@ -28,6 +28,7 @@ export const PcContentPage = lazy(() => import('./pages/PcContentPage'));
 // no longer have their own sidebar entry or route here.
 export const PcAiPage = lazy(() => import('./pages/PcAiPage'));
 export const PcAgentHistoryPage = lazy(() => import('./pages/PcAgentHistoryPage'));
+export const PcLaravelLogsPage = lazy(() => import('./pages/PcLaravelLogsPage'));
 export const PcTaskLogPage = lazy(() => import('./pages/PcTaskLogPage'));
 // Vocabulary - the laravel-manager #/vocabulary surface, proxied through pycore
 // (UI -> pycore -> laravel). Self-contained page; does not reuse the shared
@@ -67,6 +68,7 @@ export const PC_PAGES: PcPageDef[] = [
   // sidebar entries; their old routes redirect to /ai?tab=… (see PcApp.tsx).
   { id: 'ai', labelKey: 'nav.ai', Icon: Sparkles, Component: PcAiPage },
   { id: 'agent-history', labelKey: 'nav.agentHistory', Icon: History, Component: PcAgentHistoryPage },
+  { id: 'laravel-logs', labelKey: 'nav.laravelLogs', Icon: ScrollText, Component: PcLaravelLogsPage },
   { id: 'task-log', labelKey: 'nav.taskLog', Icon: History, Component: PcTaskLogPage },
   // NOTE: no OKX entry here — OKX market/backtest lives only in /vortex (see comment above).
   { id: 'settings', labelKey: 'nav.settings', Icon: Settings, Component: PcSettingsPage, bottom: true },

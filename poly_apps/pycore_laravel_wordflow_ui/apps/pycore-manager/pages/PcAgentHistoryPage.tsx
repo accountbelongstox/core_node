@@ -1,11 +1,13 @@
 /**
  * Agent History — installed Agent/Claude/Codex/Cursor/Gemini/Kimi/Antigravity/Cline/Ark sessions extracted by pycore.
- * Native RPC v2 (ui.agent_history.*) — no Laravel login. Auto-refreshes every 10s.
+ * Sessions/prompts hydrate from ui.operation.snapshot (scope=agent_history_sessions) and refresh on operation.changed.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search, Radio } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore/PycoreApi';
+import { callRpc, connectPycoreWs } from '../../../core/api-libs/pycore/PycoreWs';
+import { pycoreEventBus } from '../../../core/api-libs/pycore/PycoreEventBus';
 import type {
   AgentHistoryIndex,
   AgentHistoryPrompt,
@@ -20,13 +22,36 @@ import PcAgentHistoryPromptItem from './agent-history/PcAgentHistoryPromptItem';
 
 type TabId = 'sessions' | 'prompts';
 
-const POLL_MS = 10_000;
+const SESSIONS_SCOPE = 'agent_history_sessions';
+
+function pickIndexFromSnapshot(data: any): AgentHistoryIndex | null {
+  const items = Array.isArray(data?.items) ? data.items : [];
+  for (const item of items) {
+    const result = item?.result;
+    if (result && typeof result === 'object' && result.index && typeof result.index === 'object') {
+      return result.index as AgentHistoryIndex;
+    }
+  }
+  return null;
+}
+
+function pickPromptsFromSnapshot(data: any): AgentHistoryPrompt[] {
+  const items = Array.isArray(data?.items) ? data.items : [];
+  for (const item of items) {
+    const result = item?.result;
+    if (result && typeof result === 'object' && Array.isArray(result.prompts)) {
+      return result.prompts as AgentHistoryPrompt[];
+    }
+  }
+  return [];
+}
 
 const PcAgentHistoryPage: React.FC = () => {
   const { t } = useTranslation('pc');
   const tk = (k: string): string => t(`agentHistory.${k}`);
 
   const [index, setIndex] = useState<AgentHistoryIndex | null>(null);
+  const [allPrompts, setAllPrompts] = useState<AgentHistoryPrompt[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,13 +67,36 @@ const PcAgentHistoryPage: React.FC = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
-  const [prompts, setPrompts] = useState<AgentHistoryPrompt[]>([]);
-  const [promptsLoading, setPromptsLoading] = useState(false);
-  const [promptTotal, setPromptTotal] = useState(0);
   const [promptPage, setPromptPage] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const eventSeqRef = useRef(0);
 
-  const loadIndex = useCallback(async (silent = false) => {
+  const applySnapshotData = useCallback((data: any) => {
+    const nextIndex = pickIndexFromSnapshot(data);
+    const nextPrompts = pickPromptsFromSnapshot(data);
+    if (nextIndex) setIndex(nextIndex);
+    if (nextPrompts.length || nextIndex) setAllPrompts(nextPrompts);
+    if (typeof data?.event_seq === 'number') eventSeqRef.current = data.event_seq;
+  }, []);
+
+  const hydrateFromOperation = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    setError(null);
+    try {
+      const res = await callRpc('ui.operation.snapshot', { scope: SESSIONS_SCOPE });
+      if (res?.success && res.data) {
+        applySnapshotData(res.data);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [applySnapshotData]);
+
+  const hydrateLegacyFallback = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
     try {
@@ -57,6 +105,10 @@ const PcAgentHistoryPage: React.FC = () => {
         setIndex(res.data);
       } else if (!silent) {
         setError(res.error || t('agentHistory.loadError'));
+      }
+      const promptsRes = await pycoreApi.getAgentHistoryPrompts({ limit: 5000, offset: 0 });
+      if (promptsRes.success && promptsRes.data) {
+        setAllPrompts(promptsRes.data.items || []);
       }
     } catch (e) {
       if (!silent) {
@@ -67,34 +119,25 @@ const PcAgentHistoryPage: React.FC = () => {
     }
   }, [t]);
 
-  const loadPrompts = useCallback(async () => {
-    setPromptsLoading(true);
-    try {
-      const res = await pycoreApi.getAgentHistoryPrompts({
-        tool: filterTool || undefined,
-        user: filterUser || undefined,
-        q: debouncedSearch || undefined,
-        limit: PAGE_SIZE,
-        offset: (promptPage - 1) * PAGE_SIZE,
-      });
-      if (res.success && res.data) {
-        setPrompts(res.data.items || []);
-        setPromptTotal(res.data.total || 0);
-      } else {
-        setError(res.error || t('agentHistory.loadError'));
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
-    } finally {
-      setPromptsLoading(false);
-    }
-  }, [filterTool, filterUser, debouncedSearch, promptPage, t]);
-
-  useEffect(() => { loadIndex(); }, [loadIndex]);
+  const hydrate = useCallback(async (silent = false) => {
+    const ok = await hydrateFromOperation(silent);
+    if (!ok) await hydrateLegacyFallback(silent);
+  }, [hydrateFromOperation, hydrateLegacyFallback]);
 
   useEffect(() => {
-    if (tab === 'prompts') loadPrompts();
-  }, [tab, loadPrompts]);
+    connectPycoreWs();
+    void hydrate(false);
+  }, [hydrate]);
+
+  useEffect(() => {
+    if (!live) return undefined;
+    const off = pycoreEventBus.subscribe('operation.changed', (payload: any) => {
+      const scope = String(payload?.operation_scope || '');
+      if (scope && scope !== SESSIONS_SCOPE) return;
+      void hydrateFromOperation(true);
+    });
+    return () => { off(); };
+  }, [live, hydrateFromOperation]);
 
   useEffect(() => {
     const h = setTimeout(() => setDebouncedSearch(search.trim()), 350);
@@ -102,15 +145,6 @@ const PcAgentHistoryPage: React.FC = () => {
   }, [search]);
 
   useEffect(() => { setPromptPage(1); }, [debouncedSearch, filterTool, filterUser]);
-
-  useEffect(() => {
-    if (!live) return undefined;
-    const id = setInterval(() => {
-      loadIndex(true);
-      if (tab === 'prompts') loadPrompts();
-    }, POLL_MS);
-    return () => clearInterval(id);
-  }, [live, tab, loadIndex, loadPrompts]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -120,8 +154,9 @@ const PcAgentHistoryPage: React.FC = () => {
       if (!res.success) {
         setError(res.error || t('agentHistory.loadError'));
       }
-      await loadIndex();
-      if (tab === 'prompts') await loadPrompts();
+      // Extract persists a new operation; prefer that, fall back to legacy reads.
+      const ok = await hydrateFromOperation(false);
+      if (!ok) await hydrateLegacyFallback(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
     } finally {
@@ -149,7 +184,7 @@ const PcAgentHistoryPage: React.FC = () => {
   };
 
   const handlePromptSaved = (id: string, text: string) => {
-    setPrompts((prev) => prev.map((p) => (p.id === id ? { ...p, text, edited: true } : p)));
+    setAllPrompts((prev) => prev.map((p) => (p.id === id ? { ...p, text, edited: true } : p)));
     if (detail) {
       setDetail({
         ...detail,
@@ -170,6 +205,20 @@ const PcAgentHistoryPage: React.FC = () => {
     });
   }, [index, filterTool, filterUser, search]);
 
+  const filteredPrompts = useMemo(() => {
+    const needle = debouncedSearch.toLowerCase();
+    return allPrompts.filter((p) => {
+      if (filterTool && p.tool !== filterTool) return false;
+      if (filterUser && p.os_user !== filterUser) return false;
+      if (needle && !(p.text || '').toLowerCase().includes(needle)) return false;
+      return true;
+    });
+  }, [allPrompts, filterTool, filterUser, debouncedSearch]);
+
+  const promptTotal = filteredPrompts.length;
+  const totalPages = Math.max(1, Math.ceil(promptTotal / PAGE_SIZE));
+  const prompts = filteredPrompts.slice((promptPage - 1) * PAGE_SIZE, promptPage * PAGE_SIZE);
+
   const promptLabels = {
     copy: tk('copy'),
     copied: tk('copied'),
@@ -178,8 +227,6 @@ const PcAgentHistoryPage: React.FC = () => {
     cancel: tk('cancel'),
     edited: tk('edited'),
   };
-
-  const totalPages = Math.max(1, Math.ceil(promptTotal / PAGE_SIZE));
 
   return (
     <div className="h-full flex flex-col gap-4 p-4 sm:p-6">
@@ -219,7 +266,7 @@ const PcAgentHistoryPage: React.FC = () => {
           <span className="ml-3">
             {index.counts?.sessions ?? index.sessions?.length ?? 0} {tk('sessionCount')}
             {' · '}
-            {index.counts?.prompts ?? 0} {tk('promptCount')}
+            {index.counts?.prompts ?? allPrompts.length} {tk('promptCount')}
           </span>
         </div>
       )}
@@ -317,9 +364,7 @@ const PcAgentHistoryPage: React.FC = () => {
       ) : (
         <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
           <div className="flex-1 overflow-auto space-y-3 pr-1">
-            {promptsLoading ? (
-              <div className="text-sm text-slate-500 py-8 text-center">{tk('loading')}</div>
-            ) : prompts.length === 0 ? (
+            {prompts.length === 0 ? (
               <div className="text-sm text-slate-500 py-8 text-center">{tk('empty')}</div>
             ) : (
               prompts.map((p) => (

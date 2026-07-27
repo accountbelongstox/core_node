@@ -16,9 +16,10 @@ import React, {
   createContext, useContext, useEffect, useRef, useState, useCallback,
 } from 'react';
 import {
-  connectPycoreWs, subscribe, onWsStatus, onWsDiag,
+  connectPycoreWs, onWsStatus, onWsDiag,
 } from '../../core/api-libs/pycore';
 import { appendHttpDebug } from '../../core/api-libs/pycore/pycoreHttpLog';
+import { pycoreEventBus } from '../../core/api-libs/pycore/PycoreEventBus';
 
 const LOG_CAP = 1000;
 
@@ -71,7 +72,7 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
 
     connectPycoreWs();
 
-    const offLog = subscribe('pycore_log', (data: any) => {
+    const offLog = pycoreEventBus.subscribe('pycore_log', (data: any) => {
       const line: PcLogLine = {
         message: typeof data?.message === 'string' ? data.message : String(data?.message ?? ''),
         level: typeof data?.level === 'string' ? data.level : 'info',
@@ -85,7 +86,7 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
       });
     });
 
-    const offSettings = subscribe('system_settings_update', (data: any) => {
+    const offSettings = pycoreEventBus.subscribe('system_settings_update', (data: any) => {
       const s = (data && typeof data.settings === 'object' && data.settings)
         ? data.settings as Record<string, unknown>
         : null;
@@ -96,7 +97,7 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
 
     // pycore -> Laravel request records (LaravelClient -> LaravelHttpRecorder ->
     // rpc_v2 broadcast) feed the HTTP debugger's 'laravel' direction rows.
-    const offLaravelHttp = subscribe('laravel_http', (data: any) => {
+    const offLaravelHttp = pycoreEventBus.subscribe('laravel_http', (data: any) => {
       appendHttpDebug({
         direction: 'laravel',
         method: typeof data?.method === 'string' ? data.method : '',

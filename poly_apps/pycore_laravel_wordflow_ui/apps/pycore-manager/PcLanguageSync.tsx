@@ -7,7 +7,8 @@
  */
 import { useEffect, useRef } from 'react';
 import { useShell } from '../../shell/ShellContext';
-import { pycoreApi, subscribe } from '../../core/api-libs/pycore';
+import { pycoreApi } from '../../core/api-libs/pycore';
+import { pycoreEventBus } from '../../core/api-libs/pycore/PycoreEventBus';
 
 function pickLang(raw: unknown): string | null {
   if (typeof raw !== 'string' || !raw.trim()) return null;
@@ -49,14 +50,14 @@ export function PcLanguageSync() {
 
   // Live pushes from tray or other backend writers (subscribe directly — no PcLiveContext).
   useEffect(() => {
-    const offSettings = subscribe('system_settings_update', (data: unknown) => {
+    const offSettings = pycoreEventBus.subscribe('system_settings_update', (data: unknown) => {
       const payload = (data && typeof data === 'object') ? data as Record<string, unknown> : {};
       const settings = (payload.settings && typeof payload.settings === 'object')
         ? payload.settings as Record<string, unknown>
         : null;
       if (settings) applyBackendLang(pickLang(settings.lang));
     });
-    const offI18n = subscribe('ui.i18n.language_changed', (data: unknown) => {
+    const offI18n = pycoreEventBus.subscribe('ui.i18n.language_changed', (data: unknown) => {
       const payload = (data && typeof data === 'object') ? data as Record<string, unknown> : {};
       applyBackendLang(pickLang(payload.language));
     });

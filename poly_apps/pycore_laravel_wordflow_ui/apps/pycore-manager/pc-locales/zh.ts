@@ -16,6 +16,7 @@ export const pcZh: PcTranslationDict = {
     vocabulary: '词汇',
     ai: 'AI 及 Pycore 能力',
     agentHistory: 'Agent 历史',
+    laravelLogs: 'Laravel 日志',
     taskLog: '任务日志',
     aiStatus: '功能状态',
     aiImage: 'AI 图像',

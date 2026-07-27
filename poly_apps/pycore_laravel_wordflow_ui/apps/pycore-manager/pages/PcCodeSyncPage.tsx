@@ -24,13 +24,14 @@ import {
   GitCompare, FileMinus, FilePlus, FileWarning, Feather,
 } from 'lucide-react';
 import {
-  pycoreApi, subscribe, connectPycoreWs, onWsStatus, PYCORE_PORT,
+  pycoreApi, connectPycoreWs, onWsStatus, PYCORE_PORT,
 } from '../../../core/api-libs/pycore';
 import type {
   CodeSyncRole, SelfStatus, PeerStatus, CodeSyncCandidate, CodeStats,
   SyncSettings, SyncLogEntry, FileTreeNode, FileTreeResponse, PeerFileTreeResponse,
 } from '../../../core/api-libs/pycore';
 import { usePersistentTask } from '../../../core/tasks/usePersistentTask';
+import { pycoreEventBus } from '../../../core/api-libs/pycore/PycoreEventBus';
 
 const DEFAULT_PORT = PYCORE_PORT;
 
@@ -265,7 +266,7 @@ const PcCodeSyncPage: React.FC = () => {
   useEffect(() => {
     connectPycoreWs();
     const offStatus = onWsStatus(setWsConnected);
-    const offSync = subscribe('code_sync_update', (data: any) => {
+    const offSync = pycoreEventBus.subscribe('code_sync_update', (data: any) => {
       const cur = mesh.data ?? { self: null, peers: [] };
       mesh.set({
         self: data?.self ? data.self : cur.self,

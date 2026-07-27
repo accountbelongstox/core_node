@@ -16,6 +16,7 @@
 | V8 | docs_fix/FIX_V8.md | Laravel 最后更新日志持久镜像并返回 UI。 | V5、V7 |
 | V9 | docs_fix/FIX_V9.md | 所有剩余 UI 使用统一持久状态架构。 | V3、V6、V8 |
 | V10 | docs_fix/FIX_V10.md | pyfoundations 中较高层模块全部归位。 | V9 |
+| S1 | docs_fix/FIX_20260727_1635.md | 规范横向合规扫描：>800行拆分、`__init__`重活、127处局部import、database外直接驱动、SSE收敛、deprecated删除。 | 按节并入 V4/V7/V10 |
 
 ## 3. 顺序
 
@@ -30,7 +31,7 @@ V4
             └─ V10
 ~~~
 
-V3、V6、V8 可并行。V10 不与行为修复混做；仅 state_store 按 V4 提前移出。
+V3、V6、V8 可并行。V10 不与行为修复混做；仅 state_store 按 V4 提前移出。S1 不单独执行：B1/C 节并入 V4，F 节并入 V7，`database_base.py` 迁出并入 V10，E 节（`__init__` 重活）可随时先做。
 
 ## 4. 已有实现处理规则
 

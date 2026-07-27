@@ -1,21 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Disc3 } from 'lucide-react';
 import { pycoreApi } from '../../../../core/api-libs/pycore/PycoreApi';
+import { callRpc, connectPycoreWs } from '../../../../core/api-libs/pycore/PycoreWs';
+import { pycoreEventBus } from '../../../../core/api-libs/pycore/PycoreEventBus';
 import type { AgentHistoryArticleRecord } from '../../../../core/api-libs/pycore/pycoreTypes';
 
-const RECORDS_POLL_MS = 8_000;
-const LS_CACHE_KEY = 'pc_agent_history_records_cache';
-
-/** Last successful records payload, so the list renders instantly on mount. */
-function readCachedRecords(): AgentHistoryArticleRecord[] {
-  try {
-    const raw = localStorage.getItem(LS_CACHE_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
+const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
 
 /** Lazy-load article audio via RPC base64 → data URL (no HTTP audio route). */
 const RecordAudio: React.FC<{ recordId: string }> = ({ recordId }) => {
@@ -75,26 +65,68 @@ const RecordAudio: React.FC<{ recordId: string }> = ({ recordId }) => {
   return <audio controls preload="metadata" src={src} className="w-full h-8 mt-2" />;
 };
 
-/** Generation records — polls article/records every 8s, stale-while-revalidate via localStorage. */
+function recordsFromSnapshot(data: any): AgentHistoryArticleRecord[] | null {
+  if (Array.isArray(data?.records)) {
+    return data.records as AgentHistoryArticleRecord[];
+  }
+  // Fallback: derive from completed/uploading operation items.
+  const items = Array.isArray(data?.items) ? data.items : [];
+  const out: AgentHistoryArticleRecord[] = [];
+  for (const item of items) {
+    const stage = String(item?.stage || '');
+    const result = item?.result;
+    if (!result || typeof result !== 'object') continue;
+    if (!(stage === 'completed' || stage === 'uploading_laravel' || stage === 'saving_local_result')) {
+      continue;
+    }
+    const recordId = result.record_id || result.id;
+    if (!recordId) continue;
+    out.push({
+      id: String(recordId),
+      created_at: String(result.created_at || ''),
+      title_cn: String(result.article_cn?.title_cn || result.title_cn || ''),
+      title_en: String(result.article_en?.title_en || result.title_en || ''),
+      reference_cn: result.article_cn?.reference_cn || result.reference_cn,
+      article_en: result.article_en?.article_en || result.article_en,
+      word_count: Number(result.word_count || 0),
+      openrouter_model: result.article_cn?.used_model || result.openrouter_model,
+      translation_engine: result.translation_engine,
+      audio_available: !!(result.audio || result.audio_available),
+      uploaded: !!result.laravel_data || !!result.uploaded,
+      uploaded_at: result.uploaded_at || null,
+    });
+  }
+  return out.length ? out : null;
+}
+
+/** Generation records — hydrate from operation snapshot; refresh on operation.changed. */
 const PcAgentHistoryRecords: React.FC<{ tk: (k: string) => string }> = ({ tk }) => {
-  const [records, setRecords] = useState<AgentHistoryArticleRecord[]>(readCachedRecords);
-  const [loading, setLoading] = useState(records.length === 0);
+  const [records, setRecords] = useState<AgentHistoryArticleRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const mounted = useRef(true);
 
   const load = useCallback(async () => {
     try {
-      const res = await pycoreApi.getAgentHistoryArticleRecords();
-      const list = res?.records ?? res?.data?.records;
+      const res = await callRpc('ui.operation.snapshot', { scope: 'agent_history' });
       if (!mounted.current) return;
+      if (res?.success && res.data) {
+        const list = recordsFromSnapshot(res.data);
+        if (list) {
+          setRecords(list);
+          setLoadError(null);
+          return;
+        }
+      }
+      // Fallback when no pipeline operation exists yet.
+      const legacy = await pycoreApi.getAgentHistoryArticleRecords();
+      if (!mounted.current) return;
+      const list = legacy?.records ?? legacy?.data?.records;
       if (Array.isArray(list)) {
         setRecords(list);
         setLoadError(null);
-        try {
-          localStorage.setItem(LS_CACHE_KEY, JSON.stringify(list));
-        } catch { /* storage full / unavailable */ }
-      } else if ((res as { success?: boolean; error?: string })?.success === false) {
-        setLoadError((res as { error?: string }).error || 'Failed to load records');
+      } else if ((legacy as { success?: boolean; error?: string })?.success === false) {
+        setLoadError((legacy as { error?: string }).error || 'Failed to load records');
       }
     } catch (e) {
       if (mounted.current) {
@@ -107,9 +139,17 @@ const PcAgentHistoryRecords: React.FC<{ tk: (k: string) => string }> = ({ tk }) 
 
   useEffect(() => {
     mounted.current = true;
+    connectPycoreWs();
     void load();
-    const id = setInterval(() => void load(), RECORDS_POLL_MS);
-    return () => { mounted.current = false; clearInterval(id); };
+    const off = pycoreEventBus.subscribe('operation.changed', (payload: any) => {
+      const scope = String(payload?.operation_scope || '');
+      if (scope && !PIPELINE_SCOPES.has(scope)) return;
+      void load();
+    });
+    return () => {
+      mounted.current = false;
+      off();
+    };
   }, [load]);
 
   return (

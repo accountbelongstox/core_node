@@ -128,13 +128,13 @@ class Qwen3TtsService:
             self._log(f"[service] attaching to existing api server at {self.base_url()}")
             return True
 
-            self._log("[service] resolving the pre-built isolated venv...")
-            venv_python = resolve_isolated_python("qwen3tts")
-            if not venv_python:
-                self._log(
-                    "[service] isolated venv is not provisioned. Run "
-                    "Step61_InstallQwen3Tts.ps1 / 140_install_qwen3tts.sh first."
-                )
+        self._log("[service] resolving the pre-built isolated venv...")
+        venv_python = resolve_isolated_python("qwen3tts")
+        if not venv_python:
+            self._log(
+                "[service] isolated venv is not provisioned. Run "
+                "Step61_InstallQwen3Tts.ps1 / 140_install_qwen3tts.sh first."
+            )
             return False
 
         script = self.api_server_path()
@@ -146,9 +146,9 @@ class Qwen3TtsService:
             self.port = _pick_free_port(self.host)
 
         env = dict(os.environ)
-            # The api server is standalone (no pycore imports). Drop any inherited
-            # PYTHONPATH/PYTHONHOME so a leaked main-interpreter site-packages entry
-            # cannot shadow the venv's transformer dependencies with the system stack.
+        # The api server is standalone (no pycore imports). Drop any inherited
+        # PYTHONPATH/PYTHONHOME so a leaked main-interpreter site-packages entry
+        # cannot shadow the venv's transformer dependencies with the system stack.
         env.pop("PYTHONPATH", None)
         env.pop("PYTHONHOME", None)
         env["QWEN3TTS_HOST"] = self.host

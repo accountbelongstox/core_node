@@ -12,6 +12,14 @@ Package layout (split from the former monolithic thread_bus.py):
 - event_handler_registry.py : EventHandlerRegistry - priority event handlers
 - __init__.py (this file)   : ThreadBus facade + THREAD_BUS singleton
 
+.. note:: Import-time side effect (intentional):
+    ``THREAD_BUS = ThreadBus()`` at module bottom starts one daemon
+    ``ThreadBusStateThread`` on first import. This is the controlled
+    infrastructure singleton shared by ~50 modules; the thread is daemon-safe
+    and does not start user-visible work. No new global singletons that start
+    threads at import time should follow this pattern (L2 exception for core
+    infrastructure only).
+
 Usage:
     from pycore import THREAD_BUS
 

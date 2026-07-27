@@ -28,6 +28,7 @@ from pycore.pyctl.agent_history.gemini_extractor import GeminiExtractor
 from pycore.pyctl.agent_history.generic_agent_extractor import GenericAgentExtractor
 from pycore.pyctl.agent_history.kimi_extractor import KimiExtractor
 from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.callmodule.services.operation_service import OperationService
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     SerializedWorkerThread,
@@ -278,6 +279,42 @@ class AgentHistoryService:
                 "sources": new_sources,
                 "counts": counts,
             })
+
+            # Persist a UI-friendly snapshot into the operation store so the
+            # manager can switch from polling to `ui.operation.snapshot/events`
+            # without relying on the file store directly.
+            try:
+                op_service = OperationService()
+                op = op_service.create_operation(
+                    kind="agent_history_sessions_extract",
+                    scope="agent_history_sessions",
+                    items_data=[{"item_key": "sessions_prompts"}],
+                    initial_message="Agent history sessions/prompts updated",
+                )
+                items = op_service.get_operation_items(op.id)
+                if items:
+                    index = {
+                        "is_dev_machine": is_dev,
+                        "generated_at": generated_at,
+                        "tools": tools,
+                        "users": users,
+                        "langs": langs,
+                        "sessions": sessions,
+                        "counts": counts,
+                    }
+                    payload = {"index": index, "prompts": prompts}
+                    op_service.transition_item(
+                        items[0].id,
+                        status="succeeded",
+                        stage="completed",
+                        progress=1.0,
+                        result_json=payload,
+                        message="Agent history snapshot persisted",
+                    )
+            except Exception:
+                # Snapshot persistence is best-effort; extraction results stay
+                # correct because index/prompts are still written to disk above.
+                pass
 
             summary = {"is_dev_machine": is_dev, "changed": len(changed_paths), "removed": len(removed_paths)}
             summary.update(counts)

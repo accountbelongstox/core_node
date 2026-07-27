@@ -3,6 +3,12 @@
 """
 Server-Sent-Events broadcaster for the FastAPI RPC server.
 
+.. deprecated::
+    COMPAT-ONLY — SSE is a legacy compatibility path (L4).
+    New features MUST NOT reference this module; use WebSocket RPC v2 instead.
+    Durable server events must use the database outbox + WebSocket path.
+    This module is retained only for existing SSE clients until they migrate.
+
 Owns the additive SSE fan-out state (monotonic seq + bounded ring buffer +
 subscriber queues) that shares the SAME event source as the WebSocket path.
 `publish()` is the SSE half extracted from `FastAPIRPCServer.broadcast_event`;

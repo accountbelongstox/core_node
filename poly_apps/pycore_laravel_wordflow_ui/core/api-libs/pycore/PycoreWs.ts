@@ -145,6 +145,8 @@ type PendingCall = {
   sent: boolean;
   timer: ReturnType<typeof setTimeout> | null;
   timeoutMs: number;
+  createdAt: number;
+  deadlineAt: number;
 };
 const pendingCalls = new Map<string, PendingCall>();
 
@@ -163,14 +165,20 @@ function clearPendingTimer(entry: PendingCall): void {
 function armPendingTimer(entry: PendingCall): void {
   clearPendingTimer(entry);
   const id = entry.frame.id;
-  const waitMs = entry.timeoutMs;
   const method = entry.frame.route;
+  const remaining = entry.deadlineAt - Date.now();
+  if (remaining <= 0) {
+    if (!pendingCalls.has(id)) return;
+    pendingCalls.delete(id);
+    entry.reject(new Error(`RPC timeout after ${entry.timeoutMs}ms: ${method}`));
+    return;
+  }
   entry.timer = setTimeout(() => {
     if (!pendingCalls.has(id)) return;
     pendingCalls.delete(id);
     entry.timer = null;
-    entry.reject(new Error(`RPC timeout after ${waitMs}ms: ${method}`));
-  }, waitMs);
+    entry.reject(new Error(`RPC timeout after ${entry.timeoutMs}ms: ${method}`));
+  }, remaining);
 }
 
 function rejectPendingCall(id: string, error: Error): void {
@@ -234,15 +242,14 @@ function sendPendingCall(entry: PendingCall): void {
   entry.frame.client_id = getClientId();
   socket.send(JSON.stringify(entry.frame));
   entry.sent = true;
-  // Timeout starts at actual send — not at enqueue — so startup queue wait
-  // does not consume the caller's budget. Re-send after reconnect re-arms a
-  // full timeout (armPendingTimer clears any prior timer first).
+  // Re-send after reconnect only re-arms the remaining budget; deadline is fixed at enqueue.
   armPendingTimer(entry);
 }
 
 function nativeCall(method: string, params: any, timeoutMs?: number): Promise<any> {
   const id = newRequestId();
   const waitMs = typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : DEFAULT_RPC_TIMEOUT_MS;
+  const now = Date.now();
   const frame = {
     type: 'request' as const,
     id,
@@ -260,6 +267,8 @@ function nativeCall(method: string, params: any, timeoutMs?: number): Promise<an
       sent: false,
       timer: null,
       timeoutMs: waitMs,
+      createdAt: now,
+      deadlineAt: now + waitMs,
     };
     pendingCalls.set(id, entry);
     // Arm timer immediately so requests don't hang forever if WS is disconnected.
@@ -300,7 +309,15 @@ export function subscribe(event: string, handler: EventHandler): () => void {
 function dispatch(event: string, data: any) {
   const set = eventHandlers.get(event);
   if (!set) return;
-  set.forEach((h) => { h(data); });
+  // Isolate each handler so a single subscriber error never blocks others.
+  // Also prevents unhandled exceptions from breaking the live bus.
+  set.forEach((h) => {
+    try { h(data); } catch (err) {
+      // Best-effort diagnostics only.
+      // eslint-disable-next-line no-console
+      console.error(`[pycore-ws] handler for "${event}" failed`, err);
+    }
+  });
 }
 
 // When SSE is the broadcast-event source, the WS onmessage path stops
@@ -473,11 +490,9 @@ function openSocket() {
     // Broadcast events from server.
     if (msg.type === 'event' && typeof msg.event === 'string') {
       wsLog('<<<', `event:${msg.event}`, msg.data ?? {});
-      // SSE owns broadcast-event delivery when connected; skip here to avoid
-      // duplicates. Falls back to WS dispatch when SSE is not active.
-      if (!sseEventsActive) {
-        dispatch(msg.event, msg.data ?? {});
-      }
+      // Strict standard: SSE is the ONLY broadcast transport. Ignore WS
+      // broadcast frames entirely to avoid WS/SSE competition and non-replayable
+      // event gaps.
       return;
     }
     // Unrecognised frame.
@@ -557,6 +572,17 @@ export function callRpc(method: string, params: any = {}, timeoutMs?: number): P
     .catch((e: any) => { record(0, e?.message || String(e)); throw e; });
 }
 
+function ensureSseConnected(): void {
+  // Strict standard: SSE is the ONLY broadcast transport.
+  try {
+    void import('./PycoreSse')
+      .then((m) => { if (typeof m.connectPycoreSse === 'function') m.connectPycoreSse(); })
+      .catch(() => { /* ignore: SSE remains best-effort */ });
+  } catch {
+    /* sandboxed */
+  }
+}
+
 /** Open the singleton connection (idempotent). Auto-reconnects on close/error.
  *  When the route gate is suspended (a non-pycore end is active) this records the
  *  intent (started=true) but defers the actual open until setPycoreActive(true). */
@@ -584,6 +610,7 @@ export function connectPycoreWs(): void {
     reconnectDelayMs = RECONNECT_MIN_MS;
     return;
   }
+  ensureSseConnected();
   diag('info', 'using native WebSocket RPC v2 client');
   openSocket();
 }
@@ -599,11 +626,20 @@ export function connectPycoreWs(): void {
 export function setPycoreActive(active: boolean): void {
   if (active === !suspended) return;      // already in the requested state
   suspended = !active;
+  // Keep SSE on the same route gate as WS (SSE-only broadcast transport).
+  try {
+    void import('./PycoreSse')
+      .then((m) => { if (typeof m.setPycoreSseActive === 'function') m.setPycoreSseActive(active); })
+      .catch(() => { /* ignore */ });
+  } catch {
+    /* sandboxed */
+  }
   if (active) {
     diag('info', 'route active — resuming pycore bus');
     reconnectAttempts = 0;
     reconnectDelayMs = RECONNECT_MIN_MS;
     if (started) {
+      ensureSseConnected();
       openSocket();
     }
   } else {
