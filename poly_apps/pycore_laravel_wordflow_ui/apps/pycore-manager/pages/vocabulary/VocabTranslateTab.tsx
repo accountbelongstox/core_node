@@ -5,8 +5,8 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Languages, Volume2, Loader2, ArrowRightLeft, Copy, Check } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { VocabLanguageInfo } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '../../../../core/api-libs/pycore';
+import type { VocabLanguageInfo } from '../../../../core/api-libs/pycore';
 import { VL, VocabBanner, VocabLoading, vp, toArray } from './vocabShared';
 
 const L = {

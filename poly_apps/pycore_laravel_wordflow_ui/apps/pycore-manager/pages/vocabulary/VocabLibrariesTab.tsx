@@ -7,8 +7,8 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2, Trash2, RefreshCw, BookOpen, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { VocabLibrary, VocabLibraryWordRow, VocabLibraryWordsResponse } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '../../../../core/api-libs/pycore';
+import type { VocabLibrary, VocabLibraryWordRow, VocabLibraryWordsResponse } from '../../../../core/api-libs/pycore';
 import { VL, VocabBanner, VocabLoading, PresenceBadge, humanInt, vp, toArray } from './vocabShared';
 
 const L = {

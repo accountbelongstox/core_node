@@ -1,57 +1,84 @@
-# FIX_V6 — Agent History 迁到 operation（首个业务迁移者）
+# FIX V6：Agent History 迁到 operation
 
-来源：`docs/PYCORE_MANAGER_BUG_LIST-2.md` §17、§20 步骤 4/6。日期：2026-07-27。
-依赖：FIX_V4、FIX_V5。前置：§14.1 基线已完成（import 头、handler 去 sync tick、`get_status` 去全量扫描、`feature_unavailable`）——见原文档第三轮报告；本批不要重做。
+## 1. 目标
 
-## 目标
+完成已有 Agent History pipeline 对 V5 operation 和 V7 event stream 的迁移。展示详细启动、每 item 双语短文、音频生成、终态结果；UI 断开、新启动和 Pycore 重启均可恢复。
 
-把 Agent History 从内存 `_events` / `_pending_cache` 迁到通用 operation；按 checkpoint stage 驱动；UI 改为 snapshot-first。
+## 2. 勿重做
 
-## 文件拆分（扫描复用后再建，单文件 ≤800 行）
+保留 import/cycle、handler 去重活、get_status 去全扫描、pipeline/checkpoint、feature_unavailable 修复。禁止把工作塞回 RPC handler。
 
-| 组件 | 职责 |
-|---|---|
-| `agent_history_pipeline/config.py` | 低频配置与兼容迁移 |
-| `agent_history_pipeline/planner.py` | 收集 fragments、确定性 batch/item_key |
-| `agent_history_pipeline/worker.py` | claim item、按 checkpoint 驱动 stage |
-| `agent_history_pipeline/article_stages.py` | CN 生成、EN 翻译、结构校验 |
-| `agent_history_pipeline/audio_stage.py` | TTS capability、合成、音频 metadata |
-| `agent_history_pipeline/laravel_stage.py` | 幂等上传与重试 |
+## 3. operation 模型
 
-禁止在 `agent_history_article_service.py` 继续堆字段；可薄封装委托 pipeline。
+一次 Auto process history 是一个 operation；每个 source/history record 是稳定 item_key。建议 stage：
 
-## item 阶段（固定）
+1. initialize
+2. discover
+3. extract
+4. normalize
+5. generate_bilingual_text
+6. synthesize_audio
+7. persist_result
+8. finalize
 
-```text
-queued → preparing_source → generating_reference_cn → validating_reference_cn
-→ translating_target_en → validating_bilingual → resolving_tts_capability
-→ synthesizing_audio → saving_local_result → uploading_laravel → completed
-```
+item 记录当前 stage/progress、中文/英文结果状态、audio 状态、artifact、warning、error。
 
-必须 checkpoint：raw fragment ids/hash；CN/EN 文本与 model metadata；TTS speaker/engine/path；本地 record id；Laravel idempotency key/article id/audio URL。
+## 4. 详细启动日志
 
-重启规则：CN 成功 EN 未完 → 只从 EN；音频已原子落盘 → 禁止重合成；Laravel 上传用 record/item key 幂等。
+开工前持久化并发布：
 
-## RPC / UI
+- request accepted、idempotency；
+- 脱敏配置；
+- source scope/filter；
+- discovered count；
+- text model、TTS engine/capability revision；
+- cache hit/miss plan；
+- worker/queue allocation；
+- resume/recovery decision；
+- operation started。
 
-1. start/config command 只受理并返回 `operation_id`；返回前持久化第一条 event。
-2. 页面加载一次 operation snapshot；删除分散的 4/8/10s logs/records/config 轮询。
-3. ON/OFF 只改 scheduler policy；Restart 创建新 operation，并确认是否复用已完成 checkpoint。
-4. 失败 item 单独 retry；成功 item 不重生。
-5. `pc_agent_history_records_cache` 不再当事实源；历史来自 operation/result query。
-6. event 只触发 store refresh，组件不直接拼接 event 为最终列表。
+仅一行 Started 不合格。日志带 operation_id/stage/count，不含 secret、完整敏感 prompt、binary。
 
-## 兼容迁移
+## 5. 每 item 进度
 
-读取旧 `agent_history_article.cursor/published` 与 JSONL records → 写入 completed operation/items；写 migration marker 后切换读取路径；幂等，重复启动不重复导入。任何阶段不得先删旧数据。
+UI 必须看到：
 
-## 完成标准（对照源文档 §21.3）
+- queue position；
+- extract start/complete；
+- text start 和真实/indeterminate progress；
+- 中英文完成及结果引用；
+- audio queued；
+- voice/capability；
+- synthesis start/progress；
+- audio metadata；
+- completed/failed/skipped/cancelled；
+- elapsed 和结构化 error。
 
-- 点 Auto process/Restart 立即出现 operation 与 planned item 数。
-- 每 item 可见 CN/EN/音频/保存/上传的起止/错误/结果。
-- 刷新、关开、浏览器新启后仍能看到同一 operation 进度。
-- 单 item 失败可单独 retry。
+引擎无百分比就报告 stage + indeterminate，不伪造。
 
-## 明确不做
+## 6. checkpoint/recovery
 
-Queue Center / Video Extract 等其它页迁移（§18 后续批）；Qwen capability（FIX_V3）；SSE 底层（FIX_V7）。
+checkpoint 是 database 中 operation/item 状态，不是浏览器或临时扫描。
+
+Pycore 重启：查询 nonterminal；校准 artifact/checkpoint；resume 或显式 interrupted；重建 aggregate；发布 recovery event；只按原 idempotency/cancel policy 继续。
+
+UI 启动：取 snapshot 并重放，按 revision/seq merge，不触发重跑。
+
+## 7. routes 与 UI
+
+薄 route 支持 start、get snapshot、分页 recent operations/events、cancel、显式 retry failed items、artifact metadata。get_status 中不得 extract、扫描、模型或同步 synthesis。
+
+页面显示 overall、item counts、逐 item timeline、双语状态、音频和播放引用、offline/recovered、cancel/retry、server revision/time。浏览器只保存展示偏好。
+
+## 8. 失败语义
+
+单 item 失败不隐藏成功；Qwen speaker 使用 V3 结构化错误；model/synthesis/storage/cancel 分 code；retry 形成新 attempt，不覆盖原历史；summary 显示 partial success；callback failure 不影响 worker。
+
+## 9. 验收
+
+- 启动 timeline 有完整初始化事实。
+- 每 item 有双语和音频全过程及结果。
+- 断线/新 UI 可恢复。
+- Pycore 重启可恢复或明确终止，不静默丢失。
+- handler/get_status 无重活和全目录扫描。
+- 所有状态来自 V5。

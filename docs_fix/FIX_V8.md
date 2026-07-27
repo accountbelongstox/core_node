@@ -1,70 +1,64 @@
-# FIX_V8 — Laravel 日志镜像链（Laravel → pycore → UI）
+# FIX V8：Laravel 最后更新日志镜像
 
-来源：`docs/PYCORE_MANAGER_BUG_LIST-2.md` §15。日期：2026-07-27。
-依赖：FIX_V4（`remote_cursors` / snapshot）；建议 FIX_V7 事件总线可用后再接 `laravel.logs.changed`。
+## 1. 目标
 
-## 目标
+Pycore 从 Laravel 获取最后更新日志，持久镜像并返回 UI。Laravel 或 UI 暂时断开时保留最后成功数据、cursor、刷新进度和错误。
 
-UI 不直连 Laravel 日志。完整链路：
+## 2. 前置
 
-```text
-Laravel bounded log API
-  → pycore LaravelLogMirrorService
-  → pycore persistent snapshot/event
-  → ui.laravel.logs_snapshot RPC
-  → pycore-manager global log panel
-```
+使用 V4 repository、V5 operation、V7 WS events。禁止页面 SQLite 或浏览器 cursor。
 
-## A. Laravel
+## 3. Laravel 契约
 
-新建（先扫描复用现有 internal controller / auth / DTO）：
+版本化 endpoint 返回有界 page：
 
-```text
-poly_apps/laravel_main/app/Services/Pycore/LaravelLogTailService.php
-poly_apps/laravel_main/app/Http/Controllers/Internal/PycoreLogController.php
-```
+- source/stream；
+- opaque next_cursor；
+- source revision/monotonic identity；
+- UTC source timestamp；
+- ordered records；
+- has_more、server_time、contract_version。
 
-路由建议：`GET /api/internal/pycore/logs/latest`。
+record 有 stable source_record_id、level/type、summary、安全 details、occurred_at、可选 entity reference。cursor 对 Pycore 不透明；若暂时无 cursor，用文档化稳定复合键，不能只用 timestamp。
 
-要求：
+## 4. 镜像数据
 
-1. 只读配置确定的 active log 文件；客户端不能传任意 path。
-2. 支持 `cursor/limit/max_bytes/levels`；服务端强制上限（如 200 entries / 256 KiB）。
-3. 从文件尾部向前读；识别 daily rotation；cursor 含 `file_id, byte_offset, mtime`。
-4. 多行 exception 合成一个 entry。
-5. 返回 `id, timestamp, level, channel, message, context, trace_id`。
-6. 对 token/Authorization/cookie/API key/DB 密码/本机绝对路径脱敏。
-7. 使用现有 pycore worker/internal auth；禁止 no-auth 暴露日志。
-8. 响应含 `next_cursor, source_file_id, source_updated_at, truncated, has_more`。
-9. 日志 channel 增加 pycore `trace_id/operation_id/item_id` context。
+持久化 last successful cursor/revision、mirrored records 或 latest summary、last attempt/success、fetch status/operation_id、structured error、contract version。records 和新 cursor 同事务；持久化前不前进 cursor。
 
-## B. pycore
+## 5. refresh operation
 
-新建：`laravel_log_mirror_service.py` + `laravel_log_routes.py`。
+stage：initialize、load_cursor、request_page、validate_contract、persist_page、continue_or_finalize、publish_snapshot。
 
-1. 后台按当前 active Laravel endpoint 拉增量；不在 UI RPC 内等远程网络。
-2. 每 endpoint 独立 cursor / last_success / error / bounded entries。
-3. 拉成功后原子写 snapshot，再发 `laravel.logs.changed` 失效通知。
-4. 失败保留上次成功数据，返回 `stale=true`。
-5. `ui.laravel.logs_snapshot` 只读本地快照，必须快速返回。
-6. `ui.laravel.logs_refresh` 只受理 command 并返回 operation id。
-7. retention 按条数+时间；不得写入 `user_data.json`。
-8. pycore 自身 `laravel_http` 摘要与 Laravel application log 分开展示，可用 trace id 关联。
+事件：laravel.logs.refresh.started、page.received、page.persisted、refresh.progress/completed/failed、snapshot.updated。只放安全摘要/cursor hash，不放 token、cookie、敏感正文。
 
-## C. UI
+## 6. RPC routes
 
-1. 日志状态放 pycore-manager 顶层 provider；页面切换不销毁。
-2. 初次进入读缓存 snapshot，显示 endpoint / source_updated_at / fetched_at / stale。
-3. 收到 `laravel.logs.changed` 按 revision 拉新 snapshot；不用 event payload 当完整日志。
-4. 支持 level / trace id / operation id 过滤。
-5. Laravel 离线时继续显示最后快照并标 stale；禁止清空面板制造“没有错误”假象。
+- laravel.logs.snapshot：立即返回最后持久快照和 freshness/error。
+- laravel.logs.refresh：幂等启动/加入刷新。
+- laravel.logs.status：operation snapshot。
+- laravel.logs.records：有界 cursor 分页。
+- laravel.logs.cancel：按能力取消。
 
-## 完成标准（对照 §21.5）
+初次加载不能无限等待 Laravel；旧快照立即返回，active refresh 单独显示。
 
-- UI 只通过 pycore 获取 Laravel 日志。
-- Laravel 不可达时显示最后成功快照 + stale + 错误。
-- API 有认证、大小上限、cursor、rotation、脱敏。
+## 7. Laravel client
 
-## 明确不做
+集中 base URL/auth/TLS/timeout/retry/error mapping；使用 connect/read/overall 绝对 deadline；仅幂等 page read 有界退避+jitter；检测 cursor 不前进；校验 size/version/id/order/time；区分 401/403、contract mismatch、timeout、invalid JSON、5xx；脱敏 credential/headers/stack/sensitive fields。
 
-删除旧 `laravel_http` 事件；改 Agent History 业务。
+## 8. freshness
+
+snapshot 明确 fresh/stale/refreshing/unavailable、source revision/cursor、last success/attempt、age、last_error、active operation。Laravel 宕机时返回 stale last success，不用空成功覆盖。Pycore 重启从 durable cursor 继续。
+
+## 9. UI
+
+显示 last success、source update、freshness、count、refresh progress、failure。V7 snapshot.updated 按 revision 刷新。manual refresh 使用 idempotency，明确 join/reject/supersede，不能堆积 job。
+
+## 10. 验收
+
+- Pycore 重启后仍返回最后成功日志。
+- Laravel 宕机返回 stale + error，不返回假空数据。
+- cursor 与 records 原子前进。
+- 重复 page 不重复记录。
+- UI 看到 page/record progress 和终态。
+- 重连重放 snapshot update。
+- event 无 Laravel secret/敏感正文。

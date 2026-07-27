@@ -30,7 +30,7 @@ import i18n from './core/i18n';
 import { htmlErrorManager, HtmlErrorEvent } from './services/HtmlErrorManager';
 import { apiManager } from './services/ApiManager';
 import { syncOfflineRecheckLoop, stopOfflineRecheckLoop } from './services/ApiHealthRecheck';
-import { OfflineBanner, GlobalLogPanel } from './components/shared';
+import { OfflineBanner, GlobalLogPanel, LaravelLogPanel } from './components/shared';
 
 /**
  * AppContent – main layout and view routing.
@@ -352,6 +352,7 @@ const AppContent: React.FC = () => {
               collapsed to a pill by default; the store keeps the last 1000
               entries). Mounted here once for the whole laravel-manager end. */}
           <GlobalLogPanel />
+          <LaravelLogPanel />
 
           {/* Scrollable view content */}
           <div className="flex-1 min-h-0 relative overflow-y-auto overflow-x-hidden">

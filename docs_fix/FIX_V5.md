@@ -1,58 +1,83 @@
-# FIX_V5 — 通用 operation service
+# FIX V5：通用 operation service
 
-来源：`docs/PYCORE_MANAGER_BUG_LIST-2.md` §16.3–16.4、§19.2（operation 部分）。日期：2026-07-27。
-依赖：FIX_V4（SQLite store 已可用）。
+## 1. 目标
 
-## 目标
+完成唯一通用 operation service。保留第三轮已有类和 routes，换用 V4 仓储，统一任务、item、event、snapshot 语义。禁止 operation_v2 或页面私有 job store。
 
-在 `callmodule/services` 提供通用 operation 生命周期，禁止各 feature 私自再造内存 deque / published 数组。
+## 2. 所有权
 
-## 范围
+service 负责：
 
-新建：
+- create 和幂等查找；
+- stable item_key；
+- 合法状态转换；
+- progress/stage/message；
+- cancellation；
+- terminal result/error；
+- snapshot；
+- 同事务 operation event + RPC outbox；
+- retention/cleanup。
 
-```text
-pycore/callmodule/services/operation_service.py
-pycore/callmodule/services/operation_event_service.py
-pycore/callmodule/rpc_routes/operation_routes.py
-```
+worker 只做工作，所有状态通过 service 更新。
 
-只做通用 API + 最小 snapshot RPC；不拆 Agent History 业务文件。
+## 3. 状态机
 
-## 必须实现的 API
+~~~text
+operation: pending → running → completed | failed | cancelled
+           pending → cancelled
+item:      pending → running → completed | failed | skipped | cancelled
+           pending → skipped | cancelled
+~~~
 
-1. `create_operation()` — 先持久化 operation + 全部可确定 items，再允许 worker 执行。
-2. `claim_next_item()` — lease owner / lease expiry，避免 heartbeat 重入。
-3. `transition_item()` — 合法状态转换 + 乐观 revision。
-4. `checkpoint_item()` — 阶段产物引用，重启从最近阶段恢复。
-5. `append_event()` — 结构化 event；日志文字只作补充。
-6. `complete_operation_if_terminal()` — 从 items 聚合总状态。
-7. `recover_interrupted()` — 启动时恢复过期 lease。
-8. `cancel_operation()` — 只写 `cancel_requested`。
-9. `retry_item()` — 增加 attempt，保留历史 error。
-10. retention 后台清理已完成 operation/event；运行中永不清理。
+终态不可变；管理修复另走显式路径。允许 partial success 时，operation summary 必须给出成功/失败/跳过/取消计数和 outcome。
 
-## 写入粒度
+## 4. revision/progress
 
-- stage 开始/完成/error/result 立即持久化。
-- 连续百分比最多每 250–1000ms 合并一次。
-- 大文本和音频写 app cache/data；DB 只存 hash/size/mime/路径/metadata。
-- 文件：temp + atomic replace；DB checkpoint 仅在文件落盘成功后提交。
+- 每个成功 mutation 只增一次 revision。
+- stale expected_revision 返回 revision_conflict。
+- item discovery 后 total 固定。
+- 同一 stage current 不回退；总体 percent 单调。
+- 未知 total 显式 indeterminate，不伪造 100。
+- 终态都有 finished_at/final summary。
+- message 不是唯一诊断日志。
 
-## RPC（最小）
+## 5. 事件
 
-| 类型 | 路由建议 | 行为 |
-|---|---|---|
-| Query | `ui.operation.snapshot` | 读本地 snapshot，快速返回 |
-| Command | `ui.operation.cancel` / `retry_item` | 只持久化受理，返回 operation_id |
+至少包括 operation.created/started/progress/cancellation_requested/completed/failed/cancelled 和 operation.item.created/started/progress/completed/failed/skipped/cancelled。
 
-禁止在这些 handler 内跑 AI/TTS/HTTP。
+事件有 event_id 和 operation sequence。状态、event、V7 outbox 同事务；浏览器或 commit 后裸 publish 禁止。
 
-## 完成标准
+## 6. 公共 API
 
-- 可用一个假 kind（如 `noop_demo`）创建 operation → claim → checkpoint → succeed，进程重启后状态仍在。
-- snapshot RPC 不碰网络、不扫盘。
+提供等价方法：create_or_get、start、declare_items、update_progress、start_item、update_item_progress、complete_item、fail_item、skip_item、request_cancel、complete、fail、cancel、get_snapshot、list_operations、list_events。
 
-## 明确不做
+传入 actor/client、causation_id、expected_revision，写命令按需传 idempotency。
 
-Agent History 拆分（FIX_V6）、事件 SSE 重构（FIX_V7）、Laravel logs（FIX_V8）。
+snapshot 包含有界的 operation、排序 items、aggregate counts、stage、artifact/result references、last seq、revision、available actions。大日志/二进制另分页或引用。
+
+## 7. 恢复和安全
+
+- worker exception 转结构化失败。
+- cancellation cooperative 且定期检查。
+- 重启按 operation kind 判 resumable/retryable/interrupted。
+- 相同 idempotency 不盲目重跑。
+- callback failure 不回滚已提交业务状态。
+- 并发使用 revision/数据库锁，不用内存 last-write-wins。
+
+## 8. 集成
+
+- 替换 preliminary state-store import。
+- 无循环地连接 V7 outbox。
+- 为 Agent History、Qwen、Laravel 定义 operation kind adapter。
+- route 只 validate、service call、serialize。
+- 兼容 adapter 只暂留在旧调用点，由对应批次删除。
+
+## 9. 验收
+
+- 一个 service 支持三类功能和后续 UI。
+- 重启快照一致。
+- 重复 idempotency 不重复工作。
+- 非法 transition 有稳定错误。
+- item/aggregate progress 一致。
+- state 与 durable event 不分叉。
+- 无页面私有 operation schema。

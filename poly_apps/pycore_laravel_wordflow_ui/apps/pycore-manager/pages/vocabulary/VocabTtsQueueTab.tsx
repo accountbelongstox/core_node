@@ -6,7 +6,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '../../../../core/api-libs/pycore';
 import { VL, VocabBanner, VocabLoading, humanInt, vp, toArray } from './vocabShared';
 
 const STATUSES = ['pending', 'processing', 'completed', 'failed', 'leased'] as const;
