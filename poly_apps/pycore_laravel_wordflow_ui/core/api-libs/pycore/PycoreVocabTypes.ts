@@ -1,12 +1,14 @@
 /**
  * Vocabulary types for the pycore-manager Vocabulary page.
  *
- * The pycore /api/local/vocabulary/* routes are a pure passthrough proxy to
- * laravel_main, so these shapes mirror laravel's native responses (the
+ * Pycore RPC v2 vocabulary routes proxy Laravel server-side, so these shapes
+ * mirror Laravel's native responses (the
  * agent-confirmed shapes from the laravel-manager #/vocabulary page). Every
  * response carries a `success` flag; when laravel is unreachable pycore returns
- * {success:false, error} and getJSON/postJSON surface it (the page try/catches).
+ * {success:false, error} and the RPC client surfaces it (the page try/catches).
  */
+
+import type { PcQueueCategory } from './QueueCenterContract';
 
 /** Base envelope every proxied response shares. */
 export interface VocabProxyEnvelope {
@@ -180,34 +182,11 @@ export type VocabTtsQueueItemsResponse = VocabProxyEnvelope & {
   data?: Array<Record<string, unknown>>;
 };
 
-export interface VocabAssistCategory {
-  key?: string;
-  label?: string;
-  handler?: string;
-  pending?: number;
-  processing?: number;
-  leased?: number;
-  total?: number;
-  by_language?: Array<Record<string, unknown>>;
-  by_status?: Array<Record<string, unknown>>;
-  sample?: Array<Record<string, unknown>>;
-  [k: string]: unknown;
-}
+export type VocabAssistCategory = PcQueueCategory;
 export interface VocabAssistOverviewResponse {
   success: boolean;
   generated_at?: string;
   categories?: VocabAssistCategory[];
   workers?: Array<Record<string, unknown>>;
   error?: string;
-}
-
-/** Build a GET query string from a params object (skips blank values). */
-export function buildVocabQuery(base: string, params: Record<string, unknown>): string {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === null || v === '') continue;
-    qs.set(k, String(v));
-  }
-  const tail = qs.toString();
-  return tail ? `${base}?${tail}` : base;
 }

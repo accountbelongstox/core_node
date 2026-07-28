@@ -13,6 +13,9 @@ import {
   getCachedGroups, putCachedGroups, getCachedWords, putCachedWords, dedupGroups,
 } from '../cache/WfNewContentCache';
 import { wfNewSettings } from '../WfNewSettingsStore';
+import { wfProgressCenter } from '../services/WfProgressCenter';
+import { wfNewStudyProgress } from '../components/study/WfNewStudyProgress';
+import { DEFAULT_VOCAB_GROUP_NAME } from '../api';
 import { wfNewPageHeader, type WfTab } from './useWfNewAppState';
 
 export function useWfNewContentHandlers(deps: Record<string, any>) {
@@ -110,6 +113,20 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
       ]);
       setBentoGroups(Array.isArray(bento) ? bento : []);
       setGGroups(Array.isArray(groups) ? groups : []);
+      // Ingest the backend progress blob of the Default Vocabulary Group on
+      // every content load (app start / shelf), not just inside the study
+      // panel, so the shelf card reads synced target/read/memorized state.
+      // Best-effort: offline or logged-out keeps local-only progress.
+      if (Array.isArray(groups) && wfNewApi.isAuthenticated()) {
+        const defaultGroup = groups.find((g) => g.name === DEFAULT_VOCAB_GROUP_NAME) ?? groups[0];
+        if (defaultGroup?.id) {
+          const gid = String(defaultGroup.id);
+          wfProgressCenter
+            .getBlob(gid)
+            .then((blob) => wfNewStudyProgress.ingestBlob(gid, blob))
+            .catch(() => undefined);
+        }
+      }
       setStatistics(stats ?? null);
       if (Array.isArray(langs) && langs.length) setLanguageOptions(langs);
 

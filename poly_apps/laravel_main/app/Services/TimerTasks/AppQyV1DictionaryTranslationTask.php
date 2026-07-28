@@ -157,7 +157,7 @@ class AppQyV1DictionaryTranslationTask extends OctaneTimerTaskAbstract
         return GlobalTask::query()
             ->where('app_name', 'AppQyV1')
             ->whereIn('task_type', ['dictionary_explanation', 'dictionary_explanation_demo'])
-            ->where('status', GlobalTask::STATUS_PENDING)
+            ->where('status', GlobalTask::status('pending'))
             ->where('payload->language', $languageName)
             ->count();
     }

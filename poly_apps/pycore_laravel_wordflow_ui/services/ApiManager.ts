@@ -15,6 +15,7 @@ import {
 } from '../config/api-endpoints';
 import { clampRecheckInterval } from '../core/health/OfflineRecheckScheduler';
 import { setSharedBaseURL } from '../core/api/base/BaseAPI';
+import { pycoreLaravelApi } from '../core/api-libs/pycore/PycoreLaravelApi';
 
 /** Fired whenever a full health pass settles (startup, interval retry, manual re-detect). */
 export const API_HEALTH_EVENT = 'api-health-initialized';
@@ -462,6 +463,10 @@ class ApiManager {
     const persistId = isCurrentUrlId(endpointId) ? CURRENT_URL_TYPE : endpointId;
     this.setUserModifiedEndpoint(persistId);
     setSharedBaseURL(buildApiUrl(endpoint));
+    // Persist the same choice pycore-side so its sync engine targets this
+    // backend too (fire-and-forget: pycore may be offline; the UI switch
+    // already succeeded and must not fail because of it).
+    void pycoreLaravelApi.select(buildApiUrl(endpoint)).catch(() => {});
     return { ok: true, endpoint, result };
   }
 

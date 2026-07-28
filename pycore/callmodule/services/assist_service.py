@@ -117,9 +117,20 @@ def assist_config(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         if caps:
             patch["capabilities"] = caps
     config = save_assist_settings(patch)
-    apply_assist_runtime(config)
+    runtime = apply_assist_runtime(config)
+    errors = list(runtime.get("errors") or []) if isinstance(runtime, dict) else []
+    success = bool(runtime.get("ok", True)) if isinstance(runtime, dict) else True
     ColorPrint.green(f"[AssistRouter] Config applied: {config}")
-    return {"ok": True, "config": config}
+    result: Dict[str, Any] = {
+        "success": success,
+        "ok": success,
+        "config": config,
+        **config,
+    }
+    if errors:
+        result["errors"] = errors
+        result["error"] = "; ".join(errors)
+    return result
 
 
 def assist_cycle() -> Dict[str, Any]:

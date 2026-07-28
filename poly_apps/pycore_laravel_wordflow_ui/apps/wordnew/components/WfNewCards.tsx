@@ -2,6 +2,8 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { BookOpen, Star, Volume2, ShieldCheck, Tag } from 'lucide-react';
 import { Word, WordGroup, ElementTheme } from '../WfNewTypes';
+import { DEFAULT_VOCAB_GROUP_NAME } from '../api';
+import { wfNewStudyProgress } from './study/WfNewStudyProgress';
 
 interface CourseBlockCardProps {
   group: WordGroup;
@@ -18,7 +20,21 @@ export const CourseBlockCard: React.FC<CourseBlockCardProps> = ({
   lang,
   trans
 }) => {
-  const percentage = Math.round(group.progress || 0);
+  // The Default Vocabulary Group derives its % live from the study-progress
+  // store (synced with the backend blob on content load); every other group
+  // keeps the API-provided value (which getAllGroup never returns — stays 0).
+  const isDefault = group.name === DEFAULT_VOCAB_GROUP_NAME;
+  const [version, setVersion] = React.useState(0);
+  React.useEffect(() => {
+    if (!isDefault) return undefined;
+    return wfNewStudyProgress.subscribe(() => setVersion((v) => v + 1));
+  }, [isDefault]);
+  const percentage = React.useMemo(() => {
+    if (!isDefault) return Math.round(group.progress || 0);
+    const lib = wfNewStudyProgress.computeLibraryStats(String(group.id), group.count);
+    return lib.total > 0 ? Math.min(100, Math.round((lib.readWords / lib.total) * 100)) : 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDefault, group.id, group.count, group.progress, version]);
 
   return (
     <motion.div

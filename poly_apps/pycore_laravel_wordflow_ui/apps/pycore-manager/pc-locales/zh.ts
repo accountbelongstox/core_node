@@ -531,7 +531,7 @@ export const pcZh: PcTranslationDict = {
       loading: '正在加载心跳 Worker…',
       unavailable: '心跳 Worker 不可用 — pycore (:59000) 可能已离线。',
       translation_queue_monitor: '队列监控',
-      translation_ws_client: '实时 SSE',
+      translation_ws_client: '实时 RPC v2',
     },
     recent: {
       title: '最近任务',

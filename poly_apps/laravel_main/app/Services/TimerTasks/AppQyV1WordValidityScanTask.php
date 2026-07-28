@@ -117,9 +117,9 @@ class AppQyV1WordValidityScanTask extends OctaneTimerTaskAbstract
             ->where('app_name', 'AppQyV1')
             ->where('task_type', 'word_validity')
             ->whereIn('status', [
-                GlobalTask::STATUS_PENDING,
-                GlobalTask::STATUS_ASSIGNED,
-                GlobalTask::STATUS_PROCESSING,
+                GlobalTask::status('pending'),
+                GlobalTask::status('assigned'),
+                GlobalTask::status('processing'),
             ])
             ->where('payload->language', $langCode)
             ->count();
@@ -140,7 +140,7 @@ class AppQyV1WordValidityScanTask extends OctaneTimerTaskAbstract
         $this->taskManager->createTask(
             'AppQyV1',
             'word_validity',
-            GlobalTask::EXECUTION_REMOTE_VALIDITY,
+            GlobalTask::executionType('remote_validity'),
             $payload,
             600,
             self::PRIORITY_LOW,

@@ -1,0 +1,48 @@
+1:TTS
+engine test
+qwen3tts
+up Pycore / Pycore UI rpc v2 BUG和qwen tts的BUG。注意使用rpc v2 的ID回调。对于qwentts由pycore访问qwentts的线程。
+RPC timeout after 30000ms: local.tts.test — server engines (e.g. qwen3tts) build an isolated venv and load the model on first start, which can take minutes; wait or retry.
+qwen3tts +4.58s]
+[qwen3tts +0.23s] ********
+[qwen3tts +0.35s] Warning: flash-attn is not installed. Will only run the manual PyTorch version. Please install flash-attn for faster inference.
+[qwen3tts +0.40s] ********
+[Heartbeat +0.18s] Tick #90, Time: 2026-07-27 23:27:47
+[qwen3tts +0.13s]
+[qwen3tts +0.33s] [api] Qwen3-TTS API server starting on 127.0.0.1:57210 (model=D:\www\cache\pycore\qwen3tts\weights, device=cuda:0)[managed +0.00s] qwen3tts ready
+
+[qwen3tts +0.36s] INFO:     Started server process [18908]
+[qwen3tts +0.21s] INFO:     Waiting for application startup.
+[qwen3tts +0.28s] INFO:     Application startup complete.
+[qwen3tts +0.19s] INFO:     Uvicorn running on http://127.0.0.1:57210 (Press CTRL+C to quit)
+[qwen3tts +0.33s] INFO:     127.0.0.1:58009 - "GET /health HTTP/1.1" 200 OK
+[laravel +5.77s] GET /api/app_qy_v1/ai_tools/tts/se
+
+2：[RequestProcessor +1.57s] Processing error for 832187f6-8d1c-4b70-8ad3-50e432cd0d86: database is locked
+
+3：Pycore UI顶部的 Laravel endpoint 切换的，为什么没有调用PYCORE的类库保存端点到用户数据，并在下次启动时直接载入
+4：http://127.0.0.1:13054/pycore-manager/agent-history 生成的要传给 poly apps/laravel main，并最终凡 pycore ui 中的wordnew Quantum Dossiers
+ 显示，http://127.0.0.1:13054/wordnew#/home
+ 目前：（1）点击后显示 Failed to load content.
+[wordnew] Failed to load verses. Error: HTTP 404 for /api/app_qy_v1/media/books/article_402a9355-9982-4520-beaa-4cec374ea7d6?page=1&per_page=200
+（2）缺少音频接口，/pycore-manager/agent-history中是否上传到laravel，
+/static/app_qy_v1/audio/agent_history/en/article_402a9355-9982-4520-beaa-4cec374ea7d6.mp3  404
+（3）play from this article / Open read-along reader都不正常。
+
+5：http://127.0.0.1:13054/wordnew#/home 对于没有封面的图书，现在修改为由apps/mcp-chrome中的task在开启状态下的google搜索查找图片并回传，骊地没有封面的Vocabulary Libraries 则由 gemini图片生成生成，但目前两端的逻辑都不对齐。
+6：http://127.0.0.1:13054/wordnew#/shelf Default Vocabulary Group   中的进度，包括目标，怩读，已背等，查看开发文档，根本没有和后端保存和同步。也没有载入用户名下的进度数据。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -9,12 +9,27 @@ import {
 
 export type DailyReadingPlaybackMode = 'sequential' | 'repeat-all' | 'repeat-one' | 'shuffle';
 export type DailyReadingWordMode = 'off' | 'new' | 'all';
+/** When the article's words play relative to the sentence pattern. */
+export type DailyReadingWordTiming = 'before' | 'during';
+/** Word playback order within one article. */
+export type DailyReadingWordOrder = 'sentence' | 'shuffle' | 'alpha';
+
+/** One editable sentence-pattern step: play the article N times in one lang
+ *  (en = the stored TTS audio, cn = reference_cn via speech synthesis). */
+export interface DailyReadingPatternStep {
+  lang: 'en' | 'cn';
+  times: number;
+}
 
 export interface DailyReadingPlaybackSettings {
   playbackMode: DailyReadingPlaybackMode;
   wordMode: DailyReadingWordMode;
   wordRepeats: number;
-  sentenceFirst: boolean;
+  wordTiming: DailyReadingWordTiming;
+  wordOrder: DailyReadingWordOrder;
+  sentencePattern: DailyReadingPatternStep[];
+  /** @deprecated migrated to wordTiming — kept only to read old stored settings. */
+  sentenceFirst?: boolean;
 }
 
 export interface DailyReadingPlayer extends DailyReadingPlaybackSettings {
@@ -38,21 +53,55 @@ const DEFAULT_SETTINGS: DailyReadingPlaybackSettings = {
   playbackMode: 'sequential',
   wordMode: 'new',
   wordRepeats: 1,
-  sentenceFirst: false,
+  wordTiming: 'before',
+  wordOrder: 'sentence',
+  sentencePattern: [{ lang: 'en', times: 1 }],
 };
+
+/** Fresh pattern copy — the default array must never be shared into state
+ *  (a mutation would corrupt every future default). */
+function defaultPattern(): DailyReadingPatternStep[] {
+  return DEFAULT_SETTINGS.sentencePattern.map((step) => ({ ...step }));
+}
 
 interface DailyReadingSequenceItem {
   url?: string;
   word?: string;
+  /** Speak text (TTS) instead of playing a url; lang overrides the voice. */
+  speakLang?: string;
+}
+
+function sanitizePattern(value: unknown): DailyReadingPatternStep[] {
+  if (!Array.isArray(value)) return defaultPattern();
+  const steps = value
+    .map((step): DailyReadingPatternStep | null => {
+      if (!step || typeof step !== 'object') return null;
+      const lang = (step as any).lang === 'cn' ? 'cn' : 'en';
+      const times = Math.max(1, Math.min(10, Number((step as any).times) || 1));
+      return { lang, times };
+    })
+    .filter((step): step is DailyReadingPatternStep => step !== null);
+  return steps.length > 0 ? steps.slice(0, 8) : defaultPattern();
 }
 
 function initialSettings(): DailyReadingPlaybackSettings {
-  if (typeof localStorage === 'undefined') return DEFAULT_SETTINGS;
+  if (typeof localStorage === 'undefined') {
+    return { ...DEFAULT_SETTINGS, sentencePattern: defaultPattern() };
+  }
   try {
     const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
-    return { ...DEFAULT_SETTINGS, ...stored };
+    const merged = { ...DEFAULT_SETTINGS, ...stored };
+    // Migrate the old sentenceFirst checkbox: sentence-before-words == 'during'
+    // (words inside the sentence sequence), words-first == 'before'.
+    if (typeof stored.sentenceFirst === 'boolean' && typeof stored.wordTiming !== 'string') {
+      merged.wordTiming = stored.sentenceFirst ? 'during' : 'before';
+    }
+    if (merged.wordTiming !== 'during') merged.wordTiming = 'before';
+    if (!['sentence', 'shuffle', 'alpha'].includes(merged.wordOrder)) merged.wordOrder = 'sentence';
+    merged.sentencePattern = sanitizePattern(stored.sentencePattern);
+    return merged;
   } catch {
-    return DEFAULT_SETTINGS;
+    return { ...DEFAULT_SETTINGS, sentencePattern: defaultPattern() };
   }
 }
 
@@ -86,6 +135,9 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
       ...settingsRef.current,
       ...patch,
       wordRepeats: Math.max(1, Math.min(10, Number(patch.wordRepeats ?? settingsRef.current.wordRepeats))),
+      sentencePattern: patch.sentencePattern
+        ? sanitizePattern(patch.sentencePattern)
+        : settingsRef.current.sentencePattern,
     };
     settingsRef.current = nextSettings;
     setSettings(nextSettings);
@@ -104,7 +156,7 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
       audio.removeAttribute('src');
       const requestId = requestIdRef.current;
       const utterance = new SpeechSynthesisUtterance(item.word);
-      utterance.lang = 'en-US';
+      utterance.lang = item.speakLang ?? 'en-US';
       utterance.rate = 0.9;
       utterance.onend = () => {
         if (requestId === requestIdRef.current && utteranceRef.current === utterance) {
@@ -138,28 +190,53 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
   }> => {
     const sentenceUrl = sentenceAudioUrl(row);
     if (!sentenceUrl) return { items: [], words: [] };
-    const sentenceItem = { url: sentenceUrl };
     const currentSettings = settingsRef.current;
+
+    // Sentence pattern: editable steps (en audio / cn reference via TTS), each
+    // with its own repeat count — e.g. en×N → cn×N → en×N.
+    const pattern = currentSettings.sentencePattern.length > 0
+      ? currentSettings.sentencePattern
+      : [{ lang: 'en' as const, times: 1 }];
+    const sentenceItems: DailyReadingSequenceItem[] = [];
+    for (const step of pattern) {
+      for (let i = 0; i < step.times; i += 1) {
+        if (step.lang === 'cn') {
+          if (row.reference_cn) sentenceItems.push({ word: row.reference_cn, speakLang: 'zh-CN' });
+        } else {
+          sentenceItems.push({ url: sentenceUrl });
+        }
+      }
+    }
+    if (sentenceItems.length === 0) sentenceItems.push({ url: sentenceUrl });
+
     if (currentSettings.wordMode === 'off' || !row.article_en) {
-      return { items: [sentenceItem], words: [] };
+      return { items: sentenceItems, words: [] };
     }
 
     let table: WfSentenceWordRow[] = [];
     try {
       table = await getSentenceWordTable(row.article_en, 'en', 'zh');
     } catch {
-      return { items: [sentenceItem], words: [] };
+      return { items: sentenceItems, words: [] };
     }
-    const selected = table.filter((word) => (
+    let selected = table.filter((word) => (
       currentSettings.wordMode === 'all' || !word.played
     ));
+    // Dynamic word playback order: original sentence order, shuffled, or A→Z.
+    if (currentSettings.wordOrder === 'shuffle') {
+      selected = [...selected].sort(() => Math.random() - 0.5);
+    } else if (currentSettings.wordOrder === 'alpha') {
+      selected = [...selected].sort((a, b) => a.word.localeCompare(b.word));
+    }
     const wordItems = selected.flatMap((word) => Array.from(
       { length: currentSettings.wordRepeats },
       () => word.audio_url ? { url: word.audio_url } : { word: word.word },
     ));
-    const items = currentSettings.sentenceFirst
-      ? [sentenceItem, ...wordItems, sentenceItem]
-      : [...wordItems, sentenceItem];
+    // Word timing: 'before' plays all words ahead of the sentence pattern;
+    // 'during' inserts them into the pattern after the first sentence pass.
+    const items = currentSettings.wordTiming === 'during' && sentenceItems.length > 0
+      ? [sentenceItems[0], ...wordItems, ...sentenceItems.slice(1)]
+      : [...wordItems, ...sentenceItems];
     preloadAudio(items.flatMap((item) => item.url ? [item.url] : []));
     return { items, words: selected.map((word) => word.word) };
   }, []);

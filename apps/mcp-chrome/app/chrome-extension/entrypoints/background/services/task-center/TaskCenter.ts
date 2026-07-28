@@ -198,6 +198,13 @@ class TaskCenterService {
     // inspection below (no separate unhandled .then() derived promise).
     const startEntries: { processorType: string; promise: Promise<void> }[] = [];
     const failedProcessors: string[] = [];
+    const failureReasons: Record<string, string> = {};
+
+    const describeStartError = (error: any): string => {
+      const message = error?.message || String(error ?? 'unknown error');
+      const status = error?.statusCode ?? error?.status;
+      return status ? `${message} (HTTP ${status})` : message;
+    };
 
     for (const [processorType, entry] of this.registry.entries()) {
       if (!entry.enabled) {
@@ -216,6 +223,7 @@ class TaskCenterService {
         // allSettled below, but guard anyway).
         console.error(`[TaskCenter] ❌ Failed to activate processor ${processorType}:`, error);
         failedProcessors.push(processorType);
+        failureReasons[processorType] = describeStartError(error);
         this.emitEvent({
           type: 'processor_failed',
           processorType,
@@ -241,6 +249,7 @@ class TaskCenterService {
           result.reason,
         );
         failedProcessors.push(processorType);
+        failureReasons[processorType] = describeStartError(result.reason);
         this.emitEvent({
           type: 'processor_failed',
           processorType,
@@ -266,7 +275,11 @@ class TaskCenterService {
       });
       throw new Error(
         failedProcessors.length > 0
-          ? `Failed to start processors: ${failedProcessors.join(', ')}`
+          ? `Failed to start processors: ${
+              failedProcessors
+                .map((type) => (failureReasons[type] ? `${type} — ${failureReasons[type]}` : type))
+                .join('; ')
+            }`
           : 'No processors were selected for startup',
       );
     }

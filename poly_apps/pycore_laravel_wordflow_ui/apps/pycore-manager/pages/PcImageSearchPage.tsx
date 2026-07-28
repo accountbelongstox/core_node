@@ -7,15 +7,15 @@
  *
  *  1. Status — is the SerpApi key configured, the engine, the service URL and
  *     how many searches are in the shared history.
- *     Driven by `pycoreApi.getImageSearchStatus()` (GET /api/local/image-search/status).
+ *     Driven by `pycoreApi.getImageSearchStatus()` over RPC v2.
  *
  *  2. Search + AI compare (the "evaluate alongside AI" requirement) — one query
  *     feeds BOTH paths:
- *       - "Search (SerpApi)" -> POST /api/local/image-search — a real Google-Images
+ *       - "Search (SerpApi)" -> the image-search RPC — a real Google-Images
  *         result grid (each links back to its source page).
- *       - "AI render" -> POST /api/local/image-search/ai — one AI-generated image
+ *       - "AI render" -> the AI image RPC — one AI-generated image
  *         for the same query (unified IMAGE contract), shown beside the grid.
- *       - "Search + AI" -> POST /api/local/image-search/compare — does both in one
+ *       - "Search + AI" -> the comparison RPC — does both in one
  *         call and records a single combined evaluation entry.
  *     This is the SAME SerpApi capability the movie-poster pipeline now prefers
  *     as its first source, so the records also explain where a poster came from.
@@ -27,7 +27,7 @@
  * the backend (:59000) is offline. Hardcoded-English copy is centralized in `L`,
  * with zh values kept as comments (the pycore-manager pages have no `t` object).
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ScanSearch, RefreshCw, CheckCircle2, MinusCircle, WifiOff, Sparkles,
   Search, Bot, Trash2, ExternalLink, History, ImageOff, Layers,
@@ -94,6 +94,46 @@ function Badge({ ok, okLabel, offLabel }: { ok: boolean; okLabel: string; offLab
 function aiSrc(ai: AiImageResponse | null): string | null {
   if (!ai || !ai.success || !ai.image_base64) return null;
   return `data:${ai.mime || 'image/png'};base64,${ai.image_base64}`;
+}
+
+const imageResourceCache = new Map<string, Promise<string>>();
+
+function loadImageResource(url: string): Promise<string> {
+  const cached = imageResourceCache.get(url);
+  if (cached) return cached;
+  const pending = pycoreApi.getImageSearchResourceDataUrl(url).then((value) => {
+    if (!value) imageResourceCache.delete(url);
+    return value;
+  });
+  imageResourceCache.set(url, pending);
+  return pending;
+}
+
+function RpcSearchImage({ url, alt, className }: { url: string; alt: string; className: string }) {
+  const [src, setSrc] = useState('');
+  const [visible, setVisible] = useState(false);
+  const targetRef = useRef<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    const target = targetRef.current;
+    if (!target || visible) return undefined;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) {
+        setVisible(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '120px' });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [visible]);
+  useEffect(() => {
+    if (!visible) return undefined;
+    let active = true;
+    void loadImageResource(url).then((value) => { if (active) setSrc(value); });
+    return () => { active = false; };
+  }, [url, visible]);
+  return src
+    ? <img src={src} alt={alt} className={className} />
+    : <span ref={targetRef} className={`${className} flex items-center justify-center`}><ImageOff className="w-4 h-4 text-slate-400" /></span>;
 }
 
 export default function PcImageSearchPage() {
@@ -320,7 +360,7 @@ export default function PcImageSearchPage() {
                     <a key={`${r.url}-${i}`} href={r.link || r.url} target="_blank" rel="noreferrer"
                       title={r.title || r.source || L.open}
                       className="group relative aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-black/30">
-                      <img src={r.thumbnail || r.url} alt={r.title || ''} loading="lazy"
+                      <RpcSearchImage url={r.thumbnail || r.url} alt={r.title || ''}
                         className="w-full h-full object-cover transition group-hover:scale-105" />
                       <span className="absolute inset-x-0 bottom-0 px-1.5 py-1 text-[9px] font-mono text-white bg-black/55 truncate flex items-center gap-1">
                         <ExternalLink className="w-2.5 h-2.5 shrink-0" /> {r.source || r.title || ''}
@@ -384,7 +424,7 @@ export default function PcImageSearchPage() {
                 {/* thumbnails strip */}
                 <div className="flex -space-x-2 shrink-0">
                   {(e.results || []).slice(0, 4).map((r, i) => (
-                    <img key={i} src={r.thumbnail || r.url} alt=""
+                    <RpcSearchImage key={i} url={r.thumbnail || r.url} alt=""
                       className="w-9 h-9 rounded-lg object-cover border-2 border-white dark:border-slate-900 bg-slate-100" />
                   ))}
                   {(!e.results || e.results.length === 0) && (

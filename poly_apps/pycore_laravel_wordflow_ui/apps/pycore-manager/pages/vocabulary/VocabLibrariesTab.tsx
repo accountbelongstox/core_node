@@ -5,7 +5,7 @@
  * Params mirror AppQyV1.getLibraries (language/page/per_page) and
  * getLibraryWords (page/per_page).
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Trash2, RefreshCw, BookOpen, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { pycoreApi } from '../../../../core/api-libs/pycore';
 import type { VocabLibrary, VocabLibraryWordRow, VocabLibraryWordsResponse } from '../../../../core/api-libs/pycore';
@@ -20,6 +20,43 @@ const L = {
   detailTitle: 'Library words',
   empty: 'No libraries.',
 };
+
+const coverResourceCache = new Map<string, Promise<string>>();
+
+function VocabCoverImage({ url, alt }: { url: string; alt: string }) {
+  const [src, setSrc] = useState('');
+  const [visible, setVisible] = useState(false);
+  const targetRef = useRef<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    const target = targetRef.current;
+    if (!target || visible) return undefined;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) {
+        setVisible(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '120px' });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [visible]);
+  useEffect(() => {
+    if (!visible) return undefined;
+    let active = true;
+    let pending = coverResourceCache.get(url);
+    if (!pending) {
+      pending = pycoreApi.getVocabResourceDataUrl(url).then((value) => {
+        if (!value) coverResourceCache.delete(url);
+        return value;
+      });
+      coverResourceCache.set(url, pending);
+    }
+    void pending.then((value) => { if (active) setSrc(value); });
+    return () => { active = false; };
+  }, [url, visible]);
+  return src
+    ? <img src={src} alt={alt} className="w-full h-full object-cover" />
+    : <span ref={targetRef} className="w-full h-full flex items-center justify-center text-slate-600"><BookOpen className="w-8 h-8" /></span>;
+}
 
 export default function VocabLibrariesTab() {
   const [language, setLanguage] = useState('english');
@@ -96,7 +133,7 @@ export default function VocabLibrariesTab() {
             <div key={lib.id} className="rounded-lg border border-slate-700 bg-slate-800/40 overflow-hidden">
               <button onClick={() => setDetail(lib)} className="block w-full aspect-[3/4] bg-slate-900 relative">
                 {lib.cover_url ? (
-                  <img src={lib.cover_url} alt={lib.name} className="w-full h-full object-cover" />
+                  <VocabCoverImage url={lib.cover_url} alt={lib.name} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-slate-600">
                     <BookOpen className="w-8 h-8" />

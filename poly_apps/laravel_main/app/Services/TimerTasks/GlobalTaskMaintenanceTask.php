@@ -128,14 +128,14 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
         $batches = [
             [
                 'statuses' => [
-                    GlobalTask::STATUS_COMPLETED,
-                    GlobalTask::STATUS_COMPLETED_DEMO,
-                    GlobalTask::STATUS_CANCELLED,
+                    GlobalTask::status('completed'),
+                    GlobalTask::status('completed_demo'),
+                    GlobalTask::status('cancelled'),
                 ],
                 'before' => now()->subDays(self::RETAIN_COMPLETED_DAYS),
             ],
             [
-                'statuses' => [GlobalTask::STATUS_FAILED],
+                'statuses' => [GlobalTask::status('failed')],
                 'before' => now()->subDays(self::RETAIN_FAILED_DAYS),
             ],
         ];
@@ -172,9 +172,9 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
     {
         return GlobalTask::query()
             ->whereIn('task_type', ['dictionary_explanation', 'dictionary_explanation_demo'])
-            ->where('execution_type', GlobalTask::EXECUTION_REMOTE_TRANSLATION)
-            ->where('status', GlobalTask::STATUS_PENDING)
-            ->update(['execution_type' => GlobalTask::EXECUTION_REMOTE_CLIENT]);
+            ->where('execution_type', GlobalTask::executionType('remote_translation'))
+            ->where('status', GlobalTask::status('pending'))
+            ->update(['execution_type' => GlobalTask::executionType('remote_client')]);
     }
 
     /** Move legacy word_media rows onto the image-capability fast lane. */
@@ -183,13 +183,13 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
         return GlobalTask::query()
             ->where('task_type', 'word_media')
             ->whereIn('execution_type', [
-                GlobalTask::EXECUTION_REMOTE_CLIENT,
-                GlobalTask::EXECUTION_REMOTE_TRANSLATION,
+                GlobalTask::executionType('remote_client'),
+                GlobalTask::executionType('remote_translation'),
             ])
-            ->where('status', GlobalTask::STATUS_PENDING)
+            ->where('status', GlobalTask::status('pending'))
             ->update([
-                'execution_type' => GlobalTask::EXECUTION_REMOTE_FAST,
-                'capability' => GlobalTask::CAPABILITY_IMAGE,
+                'execution_type' => GlobalTask::executionType('remote_fast'),
+                'capability' => GlobalTask::capability('image'),
             ]);
     }
 
@@ -210,7 +210,7 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
 
         // Fetch id + execution_type together (no per-row subquery in the loop).
         $rows = GlobalTask::query()
-            ->where('status', GlobalTask::STATUS_PENDING)
+            ->where('status', GlobalTask::status('pending'))
             ->whereNull('assigned_to')
             ->whereNull('assigned_at')
             ->where('created_at', '<', $cutoff)
@@ -225,9 +225,9 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
         $expired = 0;
         foreach ($rows as $task) {
             $updated = GlobalTask::where('id', $task->id)
-                ->where('status', GlobalTask::STATUS_PENDING)
+                ->where('status', GlobalTask::status('pending'))
                 ->update([
-                    'status' => GlobalTask::STATUS_FAILED,
+                    'status' => GlobalTask::status('failed'),
                     'error' => 'expired: no worker registered for lane ' . $task->execution_type,
                     'updated_at' => now(),
                 ]);

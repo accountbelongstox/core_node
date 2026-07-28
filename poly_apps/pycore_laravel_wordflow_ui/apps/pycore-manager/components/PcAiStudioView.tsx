@@ -22,6 +22,7 @@ import {
   Download, RotateCcw, Wand2, Sparkles, User, Bot, Eraser,
 } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
+import { fetchPycoreBlobUrl } from '../../../core/api-libs/pycore/PycoreBlob';
 import type { AiProvider, ImageHistoryEntry } from '../../../core/api-libs/pycore';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
 import { PcImageLightbox } from './PcAiShared';
@@ -105,29 +106,30 @@ const PcAiStudioView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal })
     try {
       const r = await pycoreApi.getImageHistory(50);
       const entries: ImageHistoryEntry[] = Array.isArray(r?.entries) ? r.entries : [];
-      const seeded: StudioMsg[] = [];
-      // history is newest-first → reverse into chat order (oldest → newest).
-      for (const e of [...entries].reverse()) {
-        seeded.push({
+      // Resolve history files to data URLs over RPC v2 before any image,
+      // lightbox, or download element receives them.
+      const groups = await Promise.all([...entries].reverse().map(async (e): Promise<StudioMsg[]> => {
+        const imageSrc = await fetchPycoreBlobUrl(pycoreApi.imageHistoryFileUrl(e.id));
+        return [{
           id: `hist-prompt-${e.id}`,
           role: 'user',
           kind: 'text',
           text: e.prompt || '—',
           fromHistory: true,
-        });
-        seeded.push({
+        }, {
           id: `hist-img-${e.id}`,
           role: 'assistant',
           kind: 'image',
           text: e.prompt || '',
-          imageSrc: pycoreApi.imageHistoryFileUrl(e.id),
+          imageSrc,
           historyId: e.id,
           provider: e.provider,
           model: e.model,
           latency_ms: e.latency_ms,
           fromHistory: true,
-        });
-      }
+        }];
+      }));
+      const seeded = groups.flat();
       // Keep any in-session (non-history) messages appended after the backlog.
       setMessages((prev) => {
         const live = prev.filter((m) => !m.fromHistory);

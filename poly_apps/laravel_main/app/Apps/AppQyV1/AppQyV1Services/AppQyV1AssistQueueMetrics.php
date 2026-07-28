@@ -63,10 +63,11 @@ trait AppQyV1AssistQueueMetrics
         }
 
         return [
-            'pending' => $sumOf([\App\Models\GlobalTask::STATUS_PENDING]),
-            'processing' => $sumOf([\App\Models\GlobalTask::STATUS_ASSIGNED, \App\Models\GlobalTask::STATUS_PROCESSING]),
-            'completed' => $sumOf([\App\Models\GlobalTask::STATUS_COMPLETED, \App\Models\GlobalTask::STATUS_COMPLETED_DEMO]),
-            'failed' => $sumOf([\App\Models\GlobalTask::STATUS_FAILED]),
+            'pending' => $sumOf([\App\Models\GlobalTask::status('pending')]),
+            'leased' => $sumOf([\App\Models\GlobalTask::status('assigned')]),
+            'processing' => $sumOf([\App\Models\GlobalTask::status('processing')]),
+            'completed' => $sumOf([\App\Models\GlobalTask::status('completed'), \App\Models\GlobalTask::status('completed_demo')]),
+            'failed' => $sumOf([\App\Models\GlobalTask::status('failed')]),
             'total' => $total,
         ];
     }
@@ -88,7 +89,7 @@ trait AppQyV1AssistQueueMetrics
      */
     public function wordTranslationCounts(): array
     {
-        $task = $this->globalTaskStatusCounts('word_translation');
+        $task = $this->globalTaskStatusCounts('word_translation', null, GlobalTask::capability('ai_translate'));
         $byLanguage = $this->dictionaryByLanguage(static function ($query) {
             $query->where('has_translation', false);
         });
@@ -96,10 +97,10 @@ trait AppQyV1AssistQueueMetrics
         return [
             'pending' => $task['pending'],
             'processing' => $task['processing'],
-            'leased' => $task['processing'], // global tasks: an assigned/processing task IS the lease
+            'leased' => $task['leased'],
             'total' => $task['total'],
             'by_language' => $byLanguage,
-            'sample' => $this->wordTaskSample('word_translation'),
+            'sample' => $this->wordTaskSample('word_translation', null, GlobalTask::capability('ai_translate')),
         ];
     }
 
@@ -123,7 +124,7 @@ trait AppQyV1AssistQueueMetrics
         return [
             'pending' => $task['pending'],
             'processing' => $task['processing'],
-            'leased' => $task['processing'],
+            'leased' => $task['leased'],
             'total' => $task['total'],
             'by_language' => $byLanguage,
             'sample' => $this->wordTaskSample('word_media'),
@@ -151,7 +152,7 @@ trait AppQyV1AssistQueueMetrics
         return [
             'pending' => $task['pending'],
             'processing' => $task['processing'],
-            'leased' => $task['processing'],
+            'leased' => $task['leased'],
             'total' => $task['total'],
             'by_language' => $byLanguage,
             'sample' => $this->wordTaskSample('word_audio'),
@@ -173,7 +174,7 @@ trait AppQyV1AssistQueueMetrics
         return [
             'pending' => $task['pending'],
             'processing' => $task['processing'],
-            'leased' => $task['processing'],
+            'leased' => $task['leased'],
             'total' => $task['total'],
             'sample' => $this->wordTaskSample('notebooklm'),
         ];
@@ -194,7 +195,7 @@ trait AppQyV1AssistQueueMetrics
         return [
             'pending' => $task['pending'],
             'processing' => $task['processing'],
-            'leased' => $task['processing'],
+            'leased' => $task['leased'],
             'total' => $task['total'],
             'sample' => $this->wordTaskSample('gemini_image'),
         ];
@@ -215,7 +216,7 @@ trait AppQyV1AssistQueueMetrics
         return [
             'pending' => $task['pending'],
             'processing' => $task['processing'],
-            'leased' => $task['processing'],
+            'leased' => $task['leased'],
             'total' => $task['total'],
             'sample' => $this->wordTaskSample('gemini_chat'),
         ];
@@ -225,20 +226,33 @@ trait AppQyV1AssistQueueMetrics
      * Grouped status counts for one AppQyV1 global_tasks task_type. One grouped
      * query; pending/processing/total in the shared assist-status shape.
      *
-     * @return array{pending:int,processing:int,total:int}
+     * @return array{pending:int,leased:int,processing:int,total:int}
      */
-    private function globalTaskStatusCounts(string $taskType): array
+    private function globalTaskStatusCounts(
+        string $taskType,
+        ?string $capability = null,
+        ?string $excludedCapability = null
+    ): array
     {
-        $grouped = GlobalTask::query()
+        $query = GlobalTask::query()
             ->where('app_name', 'AppQyV1')
-            ->where('task_type', $taskType)
+            ->where('task_type', $taskType);
+        if ($capability !== null) {
+            $query->where('capability', $capability);
+        }
+        if ($excludedCapability !== null) {
+            $query->where(function ($builder) use ($excludedCapability) {
+                $builder->whereNull('capability')->orWhere('capability', '!=', $excludedCapability);
+            });
+        }
+        $grouped = $query
             ->groupBy('status')
             ->select('status', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
             ->pluck('total', 'status');
 
-        $pending = (int) ($grouped->get(GlobalTask::STATUS_PENDING) ?? 0);
-        $processing = (int) ($grouped->get(GlobalTask::STATUS_ASSIGNED) ?? 0)
-            + (int) ($grouped->get(GlobalTask::STATUS_PROCESSING) ?? 0);
+        $pending = (int) ($grouped->get(GlobalTask::status('pending')) ?? 0);
+        $leased = (int) ($grouped->get(GlobalTask::status('assigned')) ?? 0);
+        $processing = (int) ($grouped->get(GlobalTask::status('processing')) ?? 0);
 
         $total = 0;
         foreach ($grouped as $value) {
@@ -247,8 +261,33 @@ trait AppQyV1AssistQueueMetrics
 
         return [
             'pending' => $pending,
+            'leased' => $leased,
             'processing' => $processing,
             'total' => $total,
+        ];
+    }
+
+    public function aiTranslateCounts(): array
+    {
+        $task = $this->globalTaskStatusCounts('word_translation', GlobalTask::capability('ai_translate'));
+        return [
+            'pending' => $task['pending'],
+            'processing' => $task['processing'],
+            'leased' => $task['leased'],
+            'total' => $task['total'],
+            'sample' => $this->wordTaskSample('word_translation', GlobalTask::capability('ai_translate')),
+        ];
+    }
+
+    public function subtitleSearchCounts(): array
+    {
+        $task = $this->globalTaskStatusCounts('subtitle_search');
+        return [
+            'pending' => $task['pending'],
+            'processing' => $task['processing'],
+            'leased' => $task['leased'],
+            'total' => $task['total'],
+            'sample' => $this->wordTaskSample('subtitle_search'),
         ];
     }
 
@@ -258,13 +297,26 @@ trait AppQyV1AssistQueueMetrics
      *
      * @return array<int,array{word:?string,language:?string}>
      */
-    private function wordTaskSample(string $taskType): array
+    private function wordTaskSample(
+        string $taskType,
+        ?string $capability = null,
+        ?string $excludedCapability = null
+    ): array
     {
-        $rows = GlobalTask::query()
+        $query = GlobalTask::query()
             ->where('app_name', 'AppQyV1')
             ->where('task_type', $taskType)
-            ->whereIn('status', [GlobalTask::STATUS_PENDING, GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING])
-            ->orderByDesc('priority')
+            ->whereIn('status', [GlobalTask::status('pending'), GlobalTask::status('assigned'), GlobalTask::status('processing')])
+            ->orderByDesc('priority');
+        if ($capability !== null) {
+            $query->where('capability', $capability);
+        }
+        if ($excludedCapability !== null) {
+            $query->where(function ($builder) use ($excludedCapability) {
+                $builder->whereNull('capability')->orWhere('capability', '!=', $excludedCapability);
+            });
+        }
+        $rows = $query
             ->limit(self::OVERVIEW_SAMPLE_LIMIT)
             ->get(['payload']);
 
@@ -370,14 +422,14 @@ trait AppQyV1AssistQueueMetrics
             }
         }
 
-        $pending = array_sum($byLanguage);
+        $population = array_sum($byLanguage);
         $leased = $service->leasedCount(null);
 
         return [
-            'pending' => $pending,
-            'processing' => $leased,
+            'pending' => max(0, $population - $leased),
+            'processing' => 0,
             'leased' => $leased,
-            'total' => $pending,
+            'total' => $population,
             'by_language' => $byLanguage,
             'sample' => $sample,
             // Declared engine for this lane (qwen3tts-first, GPU-gated by pycore).
@@ -444,12 +496,6 @@ trait AppQyV1AssistQueueMetrics
                 $total += (int) $value;
             }
 
-            $leaseFloor = now()->subMinutes(\App\Models\AppQyV1AssistRequest::LEASE_MINUTES);
-            $leased = (int) $base()
-                ->whereNotNull('claimed_at')
-                ->where('claimed_at', '>=', $leaseFloor)
-                ->count();
-
             $sample = $base()
                 ->whereIn('status', [
                     \App\Models\AppQyV1AssistRequest::STATUS_PENDING,
@@ -468,9 +514,8 @@ trait AppQyV1AssistQueueMetrics
 
             return [
                 'pending' => (int) ($statusMap[\App\Models\AppQyV1AssistRequest::STATUS_PENDING] ?? 0),
-                'processing' => (int) ($statusMap[\App\Models\AppQyV1AssistRequest::STATUS_CLAIMED] ?? 0)
-                    + (int) ($statusMap[\App\Models\AppQyV1AssistRequest::STATUS_PROCESSING] ?? 0),
-                'leased' => $leased,
+                'processing' => (int) ($statusMap[\App\Models\AppQyV1AssistRequest::STATUS_PROCESSING] ?? 0),
+                'leased' => (int) ($statusMap[\App\Models\AppQyV1AssistRequest::STATUS_CLAIMED] ?? 0),
                 'total' => $total,
                 'by_language' => $byLanguage,
                 'by_status' => $statusMap,
@@ -529,7 +574,7 @@ trait AppQyV1AssistQueueMetrics
             // One grouped query for claimed (assigned/processing) global tasks per
             // worker, instead of a COUNT per worker row.
             $claimedByWorker = GlobalTask::query()
-                ->whereIn('status', [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING])
+                ->whereIn('status', [GlobalTask::status('assigned'), GlobalTask::status('processing')])
                 ->whereNotNull('assigned_to')
                 ->groupBy('assigned_to')
                 ->select('assigned_to', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
@@ -549,7 +594,7 @@ trait AppQyV1AssistQueueMetrics
                 $nameLower = strtolower($name);
                 if (str_contains($nameLower, 'chrome')) {
                     $kind = 'chrome';
-                } elseif (str_contains($nameLower, 'pycore') || in_array(GlobalTask::EXECUTION_REMOTE_AUDIO, $types, true)) {
+                } elseif (str_contains($nameLower, 'pycore') || in_array(GlobalTask::executionType('remote_audio'), $types, true)) {
                     $kind = 'pycore';
                 } else {
                     $kind = $types[0] ?? 'worker';

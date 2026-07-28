@@ -154,6 +154,138 @@ class MoviePosterStore
     }
 
     /**
+     * Max covers one media row may hold (primary + additional).
+     */
+    public const MAX_COVERS = 5;
+
+    /**
+     * Additional-cover entries stored in poster_meta['cover_files']:
+     * [{filename, provider, source_id, md5, fetched_at}].
+     *
+     * @return array<int, array{filename:string,provider:?string,source_id:?string,md5:string,fetched_at:?string}>
+     */
+    public function additionalCovers(Model $model): array
+    {
+        $meta = $model->getAttribute('poster_meta');
+        if (!is_array($meta)) {
+            return [];
+        }
+        $files = $meta['cover_files'] ?? [];
+        return is_array($files) ? array_values(array_filter($files, 'is_array')) : [];
+    }
+
+    /**
+     * All cover URLs for a media row — primary poster first, then additional
+     * covers newest-first, capped at MAX_COVERS (the "latest 5 covers" feed).
+     *
+     * @return string[]
+     */
+    public function allCoverUrls(Model $model): array
+    {
+        $urls = [];
+        $primary = $this->imageUrlFor($model);
+        if ($primary !== null) {
+            $urls[] = $primary;
+        }
+        $additional = $this->additionalCovers($model);
+        usort($additional, static fn ($a, $b) => strcmp((string) ($b['fetched_at'] ?? ''), (string) ($a['fetched_at'] ?? '')));
+        foreach ($additional as $cover) {
+            $filename = (string) ($cover['filename'] ?? '');
+            if ($filename === '') {
+                continue;
+            }
+            $urls[] = $this->buildPosterUrl($filename);
+            if (count($urls) >= self::MAX_COVERS) {
+                break;
+            }
+        }
+        return array_slice($urls, 0, self::MAX_COVERS);
+    }
+
+    /**
+     * Ingest an ADDITIONAL cover for a media row that already has a primary
+     * poster (multi-cover, max MAX_COVERS per row). Byte-identical duplicates
+     * (md5) are acknowledged as already_done so idempotent outbox retries do
+     * not append the same image twice. Oldest additional cover is evicted when
+     * the cap is reached.
+     *
+     * @param array $posterResult ['provider','source_id','binary','mime']
+     * @return array{ok:bool,status:string,already_done?:bool,error?:string,image_url?:string}
+     */
+    public function applyAdditionalCover(Model $model, array $posterResult): array
+    {
+        $sourceKey = (string) $model->getAttribute('source_key');
+        if ($sourceKey === '') {
+            return ['ok' => false, 'status' => 'failed', 'error' => 'model has no source_key'];
+        }
+
+        $binary = (string) ($posterResult['binary'] ?? '');
+        if ($binary === '' || !self::looksLikeImage($binary)) {
+            return ['ok' => false, 'status' => 'failed', 'error' => 'poster bytes failed image validation'];
+        }
+        $md5 = md5($binary);
+
+        $covers = $this->additionalCovers($model);
+        foreach ($covers as $cover) {
+            if (($cover['md5'] ?? null) === $md5) {
+                return [
+                    'ok' => true,
+                    'status' => 'ready',
+                    'already_done' => true,
+                    'image_url' => $this->buildPosterUrl((string) $cover['filename']),
+                ];
+            }
+        }
+
+        $mime = (string) ($posterResult['mime'] ?? 'image/jpeg');
+        $ext = $this->extForMime($mime, $binary);
+        $filename = $sourceKey . '__c' . substr($md5, 0, 8) . '.' . $ext;
+        try {
+            $written = File::put($this->posterPath($filename), $binary);
+        } catch (\Throwable $e) {
+            $written = false;
+            Log::warning('[MoviePoster] Failed to write additional cover', ['path' => $filename, 'error' => $e->getMessage()]);
+        }
+        if ($written === false) {
+            return ['ok' => false, 'status' => 'failed', 'error' => 'failed to write cover file'];
+        }
+
+        // Cap: primary + (MAX_COVERS-1) additional — evict the oldest additional.
+        while (count($covers) >= self::MAX_COVERS - 1) {
+            $evicted = array_shift($covers);
+            $evictedFile = (string) ($evicted['filename'] ?? '');
+            if ($evictedFile !== '') {
+                try {
+                    File::delete($this->posterPath($evictedFile));
+                } catch (\Throwable $e) {
+                    /* best-effort */
+                }
+            }
+        }
+        $covers[] = [
+            'filename' => $filename,
+            'provider' => ($posterResult['provider'] ?? null) ?: null,
+            'source_id' => ($posterResult['source_id'] ?? null) ?: null,
+            'md5' => $md5,
+            'fetched_at' => now()->toDateTimeString(),
+        ];
+
+        $meta = $model->getAttribute('poster_meta');
+        if (!is_array($meta)) {
+            $meta = [];
+        }
+        $meta['cover_files'] = $covers;
+        $model->setAttribute('poster_meta', $meta);
+        $model->save();
+
+        return [
+            'ok' => true,
+            'status' => 'ready',
+            'image_url' => $this->buildPosterUrl($filename),
+        ];
+    }
+
+    /**
      * Absolute path for a poster filename (dir ensured).
      */
     private function posterPath(string $filename): string

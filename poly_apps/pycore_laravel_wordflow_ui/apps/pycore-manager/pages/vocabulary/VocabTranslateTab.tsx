@@ -6,6 +6,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Languages, Volume2, Loader2, ArrowRightLeft, Copy, Check } from 'lucide-react';
 import { pycoreApi } from '../../../../core/api-libs/pycore';
+import { fetchPycoreBlobUrl } from '../../../../core/api-libs/pycore/PycoreBlob';
 import type { VocabLanguageInfo } from '../../../../core/api-libs/pycore';
 import { VL, VocabBanner, VocabLoading, vp, toArray } from './vocabShared';
 
@@ -106,9 +107,10 @@ export default function VocabTranslateTab() {
       const r = await pycoreApi.generateVocabTts({ text, language: target });
       const p = vp<any>(r);
       if (p && (p.audio_url || p.audio_base64)) {
-        const url = p.audio_url
-          ? p.audio_url
-          : `data:${p.mime || 'audio/mpeg'};base64,${p.audio_base64}`;
+        const url = p.audio_base64
+          ? `data:${p.mime || 'audio/mpeg'};base64,${p.audio_base64}`
+          : await fetchPycoreBlobUrl(String(p.audio_url || ''));
+        if (!url) throw new Error('TTS audio bytes are unavailable over RPC v2');
         setAudioUrl(url);
         setOffline(false);
         const audio = new Audio(url);

@@ -22,8 +22,9 @@ function toPycorePath(url: string): string {
 }
 
 /**
- * Resolve a pycore media path to a usable `src`: a `data:` URL fetched over WS
- * when connected (cached), else the direct HTTP URL. Never rejects.
+ * Resolve a pycore media path to a cached `data:` URL fetched over RPC v2.
+ * It returns an empty string while RPC is unavailable and never falls back to
+ * browser HTTP.
  */
 export async function fetchPycoreBlobUrl(url: string): Promise<string> {
   if (!url) return '';

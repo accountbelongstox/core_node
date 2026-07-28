@@ -23,7 +23,7 @@ from pycore.pyutils.ocr import ocr_manager
 from pycore.pyutils.window.ops import WindowOps
 from pycore.pyutils.image_comparator import ImageComparator
 from pycore.pyutils.window.analyzer import WindowAnalyzer
-from pycore.pygvar import PYTOOLS_TMP_DIR
+from pycore.pyfoundations.pygvar import PYTOOLS_TMP_DIR
 
 mss = get_third_package_mss()
 PIL_Image = get_third_package_PIL_Image()

@@ -2,13 +2,9 @@
  * Shared Queue Center section + panel contracts (used by PcQueueCenterPage and
  * the section body panels).
  *
- * FE ↔ BE endpoint map (pycore-manager Queue Center):
- *   hub          GET /api/local/task-center/snapshot → QueueCenterSnapshot
- *   overview     GET /api/local/queue/overview       → PcQueueOverview
- *   translation  GET /api/local/translation/queue    → cached monitor snapshot
- *   sentence     GET /api/local/sentence-audio/queue → SentenceAudioQueueSnapshot
- *   recent       GET /api/local/tasks/recent         → PcTaskRecentResponse
- *   assist strip GET /api/local/assist/status         → AssistStatus
+ * All UI traffic uses RPC v2. The canonical structure and runtime defaults are
+ * in core/api-libs/pycore/QueueCenterContract.ts, backed by
+ * config/queue_center_contract.json.
  */
 import type React from 'react';
 import { LayoutGrid, Languages, AudioLines, MessageSquareText, History } from 'lucide-react';
@@ -32,104 +28,6 @@ export type QcWorkerMetrics = QueueCenterWorkerMetrics;
 export type QcSectionContract = QueueCenterSectionContract;
 
 export type QcSectionContracts = Record<QcSectionScope, QcSectionContract>;
-
-export const QUEUE_SECTION_SCOPE_MAP: Record<string, QcSectionScope> = {
-  assist: 'assist_translation',
-  translation: 'assist_translation',
-  heartbeat: 'heartbeat',
-  heartbeat_workers: 'heartbeat',
-  word_audio: 'word_audio',
-  wordTts: 'word_audio',
-  sentence_audio: 'sentence_audio',
-  sentenceAudio: 'sentence_audio',
-  media_image: 'media_image',
-  image: 'media_image',
-  cover: 'media_image',
-};
-
-export const QC_SCOPE_LABELS: Record<QcSectionScope, string> = {
-  heartbeat: 'heartbeat',
-  assist_translation: 'assist_translation',
-  word_audio: 'word_audio',
-  sentence_audio: 'sentence_audio',
-  media_image: 'media_image',
-};
-
-export function buildEmptyQueueContract(updatedAt: string | null): QcSectionContract {
-  return {
-    type: 'media_image',
-    category: 'fallback',
-    queue: { pending: 0, processing: 0, leased: 0, total: 0 },
-    worker: { online: false, claimed: 0, ok: 0, fail: 0, last_heartbeat: null },
-    toggle: { requested_by: null, paused_by_user: null, enabled: false, reason: null, graceful_stop: false },
-    error_code: null,
-    last_error: null,
-    updated_at: updatedAt,
-    lifecycle: 'off',
-  };
-}
-
-export function buildDefaultSectionContracts(updatedAt: string | null = null): QcSectionContracts {
-  const contract: QcSectionContracts = {
-    heartbeat: {
-      ...buildEmptyQueueContract(updatedAt),
-      type: 'heartbeat',
-      category: 'heartbeat_workers',
-      worker: { ...buildEmptyQueueContract(updatedAt).worker, online: false },
-      toggle: {
-        ...buildEmptyQueueContract(updatedAt).toggle,
-        enabled: false,
-        requested_by: 'system',
-      },
-      lifecycle: 'off',
-    },
-    assist_translation: {
-      ...buildEmptyQueueContract(updatedAt),
-      type: 'assist_translation',
-      category: 'assist_translation',
-      toggle: {
-        ...buildEmptyQueueContract(updatedAt).toggle,
-        enabled: false,
-        requested_by: 'system',
-      },
-      lifecycle: 'off',
-    },
-    word_audio: {
-      ...buildEmptyQueueContract(updatedAt),
-      type: 'word_audio',
-      category: 'word_audio',
-      toggle: {
-        ...buildEmptyQueueContract(updatedAt).toggle,
-        enabled: false,
-        requested_by: 'system',
-      },
-      lifecycle: 'off',
-    },
-    sentence_audio: {
-      ...buildEmptyQueueContract(updatedAt),
-      type: 'sentence_audio',
-      category: 'sentence_audio',
-      toggle: {
-        ...buildEmptyQueueContract(updatedAt).toggle,
-        enabled: false,
-        requested_by: 'system',
-      },
-      lifecycle: 'off',
-    },
-    media_image: {
-      ...buildEmptyQueueContract(updatedAt),
-      type: 'media_image',
-      category: 'media_image',
-      toggle: {
-        ...buildEmptyQueueContract(updatedAt).toggle,
-        enabled: false,
-        requested_by: 'system',
-      },
-      lifecycle: 'off',
-    },
-  };
-  return contract;
-}
 
 /** Props shared by every Queue Center section body panel. */
 export interface QueueCenterPanelProps {

@@ -7,6 +7,7 @@ use App\Models\AppQyV1AiPrompt;
 use App\Models\AppQyV1AiPromptRequest;
 use App\Models\AppQyV1AiPromptRequestTask;
 use App\Services\TaskManagerService;
+use App\Support\QueueCenterContract;
 
 /**
  * AI Prompt Request Fan-Out.
@@ -22,8 +23,9 @@ use App\Services\TaskManagerService;
  * on a later tick (because another of its prompts is still unresolved) can
  * never re-enqueue a prompt it already dispatched.
  *
- * Extending to a new prompt-driven task_type is two steps: (1) add a case to
- * executionTypeFor() below, (2) register a TaskProcessorInterface writeback
+ * Task type to lane routing comes from config/queue_center_contract.json via
+ * QueueCenterContract. Extending a prompt-driven task requires a central task
+ * definition plus its TaskProcessorInterface writeback
  * for that task_type in TaskManagerService::getProcessorRegistry() — no
  * changes needed here or to the inbox/ledger tables.
  */
@@ -226,16 +228,9 @@ class AppQyV1AiPromptFanoutTask extends OctaneTimerTaskAbstract
         return is_array($errorInfo) && ($errorInfo[0] ?? null) === '23505';
     }
 
-    /**
-     * Map a prompt's task_type to its dedicated execution_type lane. Add a
-     * case here to support a new prompt-driven task_type.
-     */
+    /** Resolve the prompt task lane from the shared four-end task contract. */
     private function executionTypeFor(string $taskType): ?string
     {
-        return match ($taskType) {
-            'notebooklm' => GlobalTask::EXECUTION_REMOTE_NOTEBOOKLM,
-            'gemini_chat' => GlobalTask::EXECUTION_REMOTE_GEMINI_TEXT,
-            default => null,
-        };
+        return QueueCenterContract::taskTypeExecution($taskType);
     }
 }

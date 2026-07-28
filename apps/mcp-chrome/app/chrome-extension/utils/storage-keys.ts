@@ -26,6 +26,7 @@ export const STORAGE_KEYS = {
 
   AI_WEB_PROVIDER: 'aiWebProvider',
   AI_VALIDITY_PROVIDER: 'aiValidityProvider',
+  VALIDITY_LANGUAGE: 'validityLanguage',
   LARAVEL_API_BASE: 'laravelApiBase',
   API_BASE_URL: 'apiBaseUrl',
   MCP_SERVER_URL: 'mcpServerUrl',

@@ -92,7 +92,9 @@ export default function VocabLearningTasksPanel() {
                       <tr key={c.key || i} className="border-t border-slate-800 hover:bg-slate-800/30 cursor-pointer"
                         onClick={() => setActiveCat(c)}>
                         <td className="px-3 py-2 text-slate-100">{c.label || c.key}</td>
-                        <td className="px-3 py-2 text-slate-400">{c.handler || '-'}</td>
+                        <td className="px-3 py-2 text-slate-400" title={`Eligible: ${c.claimants.join(', ')}`}>
+                          {c.primary_handler || '-'}
+                        </td>
                         <td className="px-3 py-2 text-right text-amber-300">{humanInt(c.pending)}</td>
                         <td className="px-3 py-2 text-right text-sky-300">{humanInt(c.processing)}</td>
                         <td className="px-3 py-2 text-right text-slate-300">{humanInt(c.leased)}</td>

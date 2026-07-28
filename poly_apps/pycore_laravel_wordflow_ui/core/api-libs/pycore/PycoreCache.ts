@@ -9,14 +9,12 @@
  * The cache key prefix is `pycore_` (was `desktop_manager_`) to avoid collisions
  * with the other ends sharing this shell's localStorage.
  */
-import type { AppSettings, PcQueueOverview, QueueItem } from './pycoreTypes';
+import type { AppSettings, QueueItem } from './pycoreTypes';
 
 const PREFIX = 'pycore_';
 const K_SETTINGS = PREFIX + 'settings';
 const K_QUEUE = PREFIX + 'queue_cache';
 const K_QUEUE_TS = PREFIX + 'queue_cache_ts';
-const K_OVERVIEW = PREFIX + 'queue_overview_cache';
-const K_OVERVIEW_TS = PREFIX + 'queue_overview_cache_ts';
 
 function safeGet(key: string): string | null {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -61,21 +59,3 @@ export function queueCacheAgeMs(): number | null {
   return ts ? Date.now() - parseInt(ts, 10) : null;
 }
 
-export function loadOverviewCache(): PcQueueOverview | null {
-  const raw = safeGet(K_OVERVIEW);
-  if (!raw) return null;
-  try {
-    const data = JSON.parse(raw) as PcQueueOverview;
-    return data && Array.isArray(data.categories) ? data : null;
-  } catch { return null; }
-}
-
-export function saveOverviewCache(data: PcQueueOverview): void {
-  safeSet(K_OVERVIEW, JSON.stringify(data));
-  safeSet(K_OVERVIEW_TS, String(Date.now()));
-}
-
-export function overviewCacheAgeMs(): number | null {
-  const ts = safeGet(K_OVERVIEW_TS);
-  return ts ? Date.now() - parseInt(ts, 10) : null;
-}

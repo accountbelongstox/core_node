@@ -1,6 +1,6 @@
 /**
  * PcCapabilityDrawer — Queue Center capability priority/options drawer.
- * GET/POST /api/local/capabilities/settings
+ * RPC v2 capability settings read/write routes.
  *
  * The TTS server-idle option defaults to 180s (3-min idle-unload) to match the
  * canonical default; this drawer only reads/edits the persisted settings.

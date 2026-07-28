@@ -156,6 +156,24 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
       setActiveTabRaw('daily-reading');
       return;
     }
+    // Deep-link to the Daily Reading player: #/read-daily/<articleId> — the
+    // section reads the id from the hash and auto-starts that article.
+    if (fromHash === 'read-daily' || fromHash.startsWith('read-daily/')) {
+      setActiveTabRaw('daily-reading');
+      return;
+    }
+    // Deep-link to the read-along reader: #/book-reader/<sourceKey> restores
+    // the reader from the URL alone (no in-app state needed).
+    if (fromHash.startsWith('book-reader/')) {
+      const key = decodeURIComponent(fromHash.slice('book-reader/'.length)).trim();
+      if (!key) {
+        setActiveTabRaw('home');
+        return;
+      }
+      setBookReader({ sourceKey: key, title: '' });
+      setActiveTabRaw('book-reader');
+      return;
+    }
     // Deep-link to a vocabulary library: #/library/<id>?page=N&view=dash|table
     if (fromHash.startsWith('library/')) {
       const [path, query = ''] = fromHash.split('?');
@@ -195,7 +213,10 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     }
     if (activeTab === 'daily-reading') {
       const current = window.location.hash;
-      next = /^#\/article(\/(latest|oldest|source|unread|random))?$/.test(current) ? current : '#/article/latest';
+      next = /^#\/article(\/(latest|oldest|source|unread|random))?$/.test(current)
+        || /^#\/read-daily(\/.+)?$/.test(current)
+        ? current
+        : '#/article/latest';
     }
     if (window.location.hash !== next) {
       window.history.replaceState(null, '', next);
@@ -510,6 +531,19 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   const homeCountRef = useRef<Record<WfNewCachedKind, number>>({ word: 0, book: 0, subtitle: 0, library: 0 });
   // The book currently open in the reader (book -> chapter -> verses surface).
   const [bookReader, setBookReader] = useState<{ sourceKey: string; title: string } | null>(null);
+
+  // The read-along reader carries its source_key in the URL so refresh /
+  // deep-link restores the exact book (#/book-reader/<sourceKey>). Kept as a
+  // SEPARATE effect below the bookReader declaration — the shared hash effect
+  // above cannot reference it (temporal dead zone).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (activeTab !== 'book-reader' || !bookReader?.sourceKey) return;
+    const next = `#/book-reader/${encodeURIComponent(bookReader.sourceKey)}`;
+    if (window.location.hash !== next) {
+      window.history.replaceState(null, '', next);
+    }
+  }, [activeTab, bookReader]);
 
   // The subtitle source pre-selected from the home hub (drives WfNewSubtitles).
   const [selectedSubtitleKey, setSelectedSubtitleKey] = useState<string | undefined>(undefined);

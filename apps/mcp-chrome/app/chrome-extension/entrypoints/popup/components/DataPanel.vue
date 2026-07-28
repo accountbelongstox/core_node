@@ -1,4 +1,7 @@
 <template>
+  <!-- Single root: v-show on this component must map to ONE element — a
+       fragment root silently disables v-show and leaks the Data tab's content
+       onto every other tab. -->
   <section class="panel-stack">
     <div class="metric-grid">
       <article class="metric-card"><span>Indexed pages</span><strong>{{ storageStats.indexedPages }}</strong></article>
@@ -17,22 +20,22 @@
         <ModelCacheManagement :cache-stats="cacheStats" :is-managing-cache="isManagingCache" @cleanup-cache="cleanupCache" @clear-all-cache="clearAllCache" />
       </article>
     </div>
-  </section>
 
-  <ConfirmDialog
-    :visible="showClearConfirmation"
-    :title="getMessage('confirmClearDataTitle')"
-    :message="getMessage('clearDataWarningMessage')"
-    :items="[getMessage('clearDataList1'), getMessage('clearDataList2'), getMessage('clearDataList3')]"
-    :warning="getMessage('clearDataIrreversibleWarning')"
-    icon="[!]"
-    :confirm-text="getMessage('confirmClearButton')"
-    :cancel-text="getMessage('cancelButton')"
-    :confirming-text="getMessage('clearingStatus')"
-    :is-confirming="isClearingData"
-    @confirm="clearAllData"
-    @cancel="hideClearDataConfirmation"
-  />
+    <ConfirmDialog
+      :visible="showClearConfirmation"
+      :title="getMessage('confirmClearDataTitle')"
+      :message="getMessage('clearDataWarningMessage')"
+      :items="[getMessage('clearDataList1'), getMessage('clearDataList2'), getMessage('clearDataList3')]"
+      :warning="getMessage('clearDataIrreversibleWarning')"
+      icon="[!]"
+      :confirm-text="getMessage('confirmClearButton')"
+      :cancel-text="getMessage('cancelButton')"
+      :confirming-text="getMessage('clearingStatus')"
+      :is-confirming="isClearingData"
+      @confirm="clearAllData"
+      @cancel="hideClearDataConfirmation"
+    />
+  </section>
 </template>
 
 <script lang="ts" setup>

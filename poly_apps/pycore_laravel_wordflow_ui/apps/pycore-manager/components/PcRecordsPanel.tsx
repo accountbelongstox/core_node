@@ -145,6 +145,19 @@ export const PcRecordsPanel: React.FC = () => {
     }
   }, []);
 
+  const openImage = useCallback(async (rec: UnifiedRecord) => {
+    if (!rec.imageId) return;
+    const src = await fetchPycoreBlobUrl(pycoreApi.imageHistoryFileUrl(rec.imageId));
+    if (!src) {
+      logError(LOG_SRC, 'image bytes are unavailable over RPC v2');
+      return;
+    }
+    setLightbox({
+      src,
+      caption: <span className="font-mono">{rec.who}{rec.model ? ` · ${rec.model}` : ''} — {rec.detail}</span>,
+    });
+  }, []);
+
   const remove = useCallback(async (rec: UnifiedRecord) => {
     try {
       if (rec.audioId) await pycoreApi.deleteSpeechHistory(rec.audioId);
@@ -244,10 +257,7 @@ export const PcRecordsPanel: React.FC = () => {
                 {rec.imageId && (
                   <button
                     type="button"
-                    onClick={() => setLightbox({
-                      src: pycoreApi.imageHistoryFileUrl(rec.imageId!),
-                      caption: <span className="font-mono">{rec.who}{rec.model ? ` · ${rec.model}` : ''} — {rec.detail}</span>,
-                    })}
+                    onClick={() => { void openImage(rec); }}
                     title="Open image"
                     className="shrink-0 w-8 h-8 rounded overflow-hidden border border-slate-400/20 hover:border-indigo-500/50">
                     <PcBlobImage path={pycoreApi.imageHistoryFileUrl(rec.imageId)} alt="" loading="lazy" className="w-full h-full object-cover" />

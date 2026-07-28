@@ -16,6 +16,8 @@ export const PYCORE_RPC_ROUTES = {
   videoExtractSyncAll: 'video_extract.sync_all',
   videoExtractFillLanguages: 'video_extract.fill_languages',
   videoExtractBackendStatus: 'video_extract.backend_status',
+  videoExtractBackendMediaList: 'video_extract.backend_media_list',
+  videoExtractBackendMediaDetail: 'video_extract.backend_media_detail',
   bookSyncSource: 'book.sync_source',
   mediaEnrich: 'media.enrich',
   corebookAutoflow: 'corebook.autoflow',

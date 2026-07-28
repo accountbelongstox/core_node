@@ -214,7 +214,7 @@ class AppQyV1WordTranslationFillerTask extends OctaneTimerTaskAbstract
         $this->workerManager->register(
             self::WORKER_ID,
             self::WORKER_NAME,
-            [GlobalTask::EXECUTION_REMOTE_TRANSLATION],
+            [GlobalTask::executionType('remote_translation')],
             gethostname() ?: 'laravel',
             'laravel-octane',
             ['internal' => true, 'role' => 'word_translation_ai_filler']

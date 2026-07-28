@@ -256,6 +256,28 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick }) =>
   );
 };
 
+/** Cached archive audio transferred through its dedicated RPC v2 route. */
+const PcCompletedArchiveAudio: React.FC<{ cacheKey: string }> = ({ cacheKey }) => {
+  const [source, setSource] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setSource(null);
+    setError(null);
+    void pycoreApi.getCompletedTaskResourceDataUrl(cacheKey)
+      .then((value) => { if (active) setSource(value); })
+      .catch((reason: unknown) => {
+        if (active) setError(reason instanceof Error ? reason.message : 'Audio load failed');
+      });
+    return () => { active = false; };
+  }, [cacheKey]);
+
+  if (error) return <p className="text-[10px] text-rose-500">{error}</p>;
+  if (!source) return <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />;
+  return <audio controls preload="none" className="w-full max-w-md" src={source} />;
+};
+
 /** Expanded detail for one recent-task row. */
 const PcRecentTaskDetail: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
   const { t } = useTranslation('pc');
@@ -263,6 +285,20 @@ const PcRecentTaskDetail: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
   const merged = mergeTaskResultSources(undefined, d);
   const cachedAudio = rec.resources?.find((resource) => resource.cached && resource.cache_key && resource.mime?.startsWith('audio/'));
   const audioPath = cachedAudio ? null : extractAudioPath(merged);
+  const [resourceError, setResourceError] = useState<string | null>(null);
+  const downloadResource = useCallback(async (cacheKey: string, mime?: string) => {
+    setResourceError(null);
+    try {
+      const source = await pycoreApi.getCompletedTaskResourceDataUrl(cacheKey);
+      const link = document.createElement('a');
+      const extension = mime?.split('/')[1]?.replace(/[^a-z0-9]+/gi, '') || 'bin';
+      link.href = source;
+      link.download = `queue-center-resource.${extension}`;
+      link.click();
+    } catch (reason: unknown) {
+      setResourceError(reason instanceof Error ? reason.message : 'Resource download failed');
+    }
+  }, []);
   const field = (label: string, value: React.ReactNode) => (
     <div key={label} className="min-w-0">
       <div className="text-[9px] uppercase tracking-wide text-slate-400">{label}</div>
@@ -314,8 +350,7 @@ const PcRecentTaskDetail: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
   return (
     <div className="space-y-3">
       {cachedAudio?.cache_key && (
-        <audio controls preload="none" className="w-full max-w-md"
-          src={pycoreApi.completedTaskResourceUrl(cachedAudio.cache_key)} />
+        <PcCompletedArchiveAudio cacheKey={cachedAudio.cache_key} />
       )}
       {audioPath && (
         <PcTaskAudioPreview
@@ -337,20 +372,20 @@ const PcRecentTaskDetail: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
           <div className="text-[9px] uppercase tracking-wide text-slate-400 mb-1">Locally cached resources</div>
           <div className="flex flex-wrap gap-1.5">
             {rec.resources.map((resource, index) => resource.cached && resource.cache_key ? (
-              <a key={`${resource.cache_key}:${index}`}
-                href={pycoreApi.completedTaskResourceUrl(resource.cache_key)}
-                target="_blank" rel="noreferrer"
+              <button type="button" key={`${resource.cache_key}:${index}`}
+                onClick={() => { void downloadResource(resource.cache_key as string, resource.mime); }}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-sky-500/10 text-[10px] font-mono text-sky-600 hover:bg-sky-500/20"
                 title={resource.source}>
                 <Download className="w-3 h-3" />
                 {resource.mime || 'resource'}{typeof resource.size === 'number' ? ` · ${humanBytes(resource.size)}` : ''}
-              </a>
+              </button>
             ) : (
               <span key={`${resource.source}:${index}`}
                 className="px-2 py-1 rounded-lg bg-rose-500/10 text-[10px] font-mono text-rose-500"
                 title={resource.error || resource.source}>cache failed</span>
             ))}
           </div>
+          {resourceError && <p className="mt-1 text-[10px] text-rose-500">{resourceError}</p>}
         </div>
       )}
 

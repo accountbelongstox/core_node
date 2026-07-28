@@ -46,11 +46,13 @@ class StateRepository:
         if not hasattr(self._local, "conn"):
             self._local.conn = sqlite3.connect(
                 str(self._db_path),
+                timeout=30.0,  # Survive transient cross-instance lock contention
                 isolation_level=None,  # We manage transactions manually
                 check_same_thread=False,
             )
             # Enable WAL mode for better concurrency
             self._local.conn.execute("PRAGMA journal_mode=WAL")
+            self._local.conn.execute("PRAGMA busy_timeout=30000")
             self._local.conn.execute("PRAGMA foreign_keys=ON")
         return self._local.conn
 

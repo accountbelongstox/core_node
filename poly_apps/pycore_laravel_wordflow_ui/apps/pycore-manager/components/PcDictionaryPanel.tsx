@@ -2,7 +2,7 @@
  * PcDictionaryPanel — offline word lookup (ECDICT + WordNet).
  *
  * pycore serves a FREE, offline word dictionary alongside Google/AI translation.
- * This panel hits GET /api/local/dictionary/{status,lookup}: it shows whether the
+ * This panel uses the dictionary status/lookup RPC v2 routes: it shows whether the
  * data is installed (entry count) with an install hint when absent, and renders a
  * rich entry for a looked-up word — Chinese translation, IPA, English definition,
  * exam tags, frequency, Collins/Oxford ratings, word forms and WordNet synonyms.

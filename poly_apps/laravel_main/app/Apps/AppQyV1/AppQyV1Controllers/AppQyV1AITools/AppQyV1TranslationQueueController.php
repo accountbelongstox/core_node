@@ -111,7 +111,7 @@ class AppQyV1TranslationQueueController extends Controller
             $validated['words'],
             $validated['language'],
             $validated['target_language'],
-            $interactive ? max(self::PRIORITY_HIGH, GlobalTask::PRIORITY_FAST) : self::PRIORITY_HIGH,
+            $interactive ? max(self::PRIORITY_HIGH, GlobalTask::priority('fast')) : self::PRIORITY_HIGH,
             $interactive,
             $engine
         );
@@ -378,11 +378,11 @@ class AppQyV1TranslationQueueController extends Controller
                 return $sum;
             };
 
-            $pending = $countFor([GlobalTask::STATUS_PENDING]);
-            $processing = $countFor([GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING]);
-            $leased = $countFor([GlobalTask::STATUS_ASSIGNED]);
-            $completed = $countFor([GlobalTask::STATUS_COMPLETED, GlobalTask::STATUS_COMPLETED_DEMO]);
-            $failed = $countFor([GlobalTask::STATUS_FAILED]);
+            $pending = $countFor([GlobalTask::status('pending')]);
+            $processing = $countFor([GlobalTask::status('processing')]);
+            $leased = $countFor([GlobalTask::status('assigned')]);
+            $completed = $countFor([GlobalTask::status('completed'), GlobalTask::status('completed_demo')]);
+            $failed = $countFor([GlobalTask::status('failed')]);
 
             $total = 0;
             foreach ($grouped as $value) {
@@ -399,17 +399,17 @@ class AppQyV1TranslationQueueController extends Controller
             ];
         });
 
-        // Page query. "processing" is treated as the live set (assigned+processing)
-        // to mirror the summary; unknown/empty status returns all. The status
+        // Page query uses the same mutually exclusive status buckets as the
+        // Queue Center contract; unknown/empty status returns all. The status
         // filter is applied to a base BEFORE counting so the pagination total
         // matches exactly what the (status-filtered) page draws from.
         $pageQuery = (clone $base);
         if (isset($validated['status']) && $validated['status'] !== '') {
             $status = $validated['status'];
             if ($status === 'processing') {
-                $pageQuery->whereIn('status', [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING]);
+                $pageQuery->where('status', GlobalTask::status('processing'));
             } elseif ($status === 'completed') {
-                $pageQuery->whereIn('status', [GlobalTask::STATUS_COMPLETED, GlobalTask::STATUS_COMPLETED_DEMO]);
+                $pageQuery->whereIn('status', [GlobalTask::status('completed'), GlobalTask::status('completed_demo')]);
             } else {
                 $pageQuery->where('status', $status);
             }
@@ -597,7 +597,7 @@ class AppQyV1TranslationQueueController extends Controller
         $processing = GlobalTask::query()
             ->where('app_name', 'AppQyV1')
             ->where('task_type', 'word_translation')
-            ->whereIn('status', [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING])
+            ->whereIn('status', [GlobalTask::status('assigned'), GlobalTask::status('processing')])
             ->where('payload->language', $langCode)
             ->where('payload->target_language', $targetCode)
             ->count();
@@ -605,7 +605,7 @@ class AppQyV1TranslationQueueController extends Controller
         $leased = GlobalTask::query()
             ->where('app_name', 'AppQyV1')
             ->where('task_type', 'word_translation')
-            ->where('status', GlobalTask::STATUS_ASSIGNED)
+            ->where('status', GlobalTask::status('assigned'))
             ->where('payload->language', $langCode)
             ->where('payload->target_language', $targetCode)
             ->count();
@@ -776,15 +776,15 @@ class AppQyV1TranslationQueueController extends Controller
         // Terminal-only by default (completed + failed); a status filter narrows it.
         if (isset($validated['status']) && $validated['status'] !== '') {
             if ($validated['status'] === 'completed') {
-                $base->whereIn('status', [GlobalTask::STATUS_COMPLETED, GlobalTask::STATUS_COMPLETED_DEMO]);
+                $base->whereIn('status', [GlobalTask::status('completed'), GlobalTask::status('completed_demo')]);
             } else {
                 $base->where('status', $validated['status']);
             }
         } else {
             $base->whereIn('status', [
-                GlobalTask::STATUS_COMPLETED,
-                GlobalTask::STATUS_COMPLETED_DEMO,
-                GlobalTask::STATUS_FAILED,
+                GlobalTask::status('completed'),
+                GlobalTask::status('completed_demo'),
+                GlobalTask::status('failed'),
             ]);
         }
 
@@ -1004,7 +1004,7 @@ class AppQyV1TranslationQueueController extends Controller
         $tasks = GlobalTask::query()
             ->where('app_name', 'AppQyV1')
             ->where('task_type', 'word_translation')
-            ->where('status', GlobalTask::STATUS_PENDING)
+            ->where('status', GlobalTask::status('pending'))
             ->where('payload->language', $langCode)
             ->where('payload->target_language', $targetCode)
             ->get(['task_id', 'payload']);
@@ -1035,7 +1035,7 @@ class AppQyV1TranslationQueueController extends Controller
     {
         $updated = GlobalTask::query()
             ->where('task_id', $taskId)
-            ->where('status', GlobalTask::STATUS_PENDING)
+            ->where('status', GlobalTask::status('pending'))
             ->where('priority', '<', $priority)
             ->update(['priority' => $priority]);
 
@@ -1089,13 +1089,13 @@ class AppQyV1TranslationQueueController extends Controller
         $capability = null;
         if ($interactive) {
             $capability = $engine === 'ai'
-                ? GlobalTask::CAPABILITY_AI_TRANSLATE
-                : GlobalTask::CAPABILITY_TRANSLATE;
+                ? GlobalTask::capability('ai_translate')
+                : GlobalTask::capability('translate');
         }
         $task = $this->taskManager->createTask(
             'AppQyV1',
             'word_translation',
-            GlobalTask::EXECUTION_REMOTE_TRANSLATION,
+            GlobalTask::executionType('remote_translation'),
             $payload,
             $timeoutSeconds,
             $priority,

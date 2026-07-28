@@ -1,12 +1,11 @@
 /**
- * PcQueueOverviewPanel — Queue Center Overview tab.
- * GET /api/local/queue/overview + hub task-center reachability.
+ * PcQueueOverviewPanel — canonical Queue Center overview from the hub RPC v2 snapshot.
  */
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  LayoutGrid, Loader2, AlertTriangle, Wifi, WifiOff, Globe, Cpu, Sparkles, Chrome,
-  Users, ChevronDown, ChevronRight,
+  LayoutGrid, Loader2, AlertTriangle, Wifi, WifiOff, Globe, Cpu, Chrome,
+  ChevronDown, ChevronRight,
 } from 'lucide-react';
 import type { PcQueueOverview, PcQueueCategory, PcQueueWorker, PcQueueHandler } from '../../../core/api-libs/pycore';
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
@@ -15,8 +14,6 @@ import { useQueueCenterHub, laravelLiveSyncOffline, laravelEndpointMismatch, wor
 const HANDLER_STYLE: Record<PcQueueHandler, { chip: string; Icon: React.FC<{ className?: string }> }> = {
   chrome: { chip: 'bg-amber-500/15 text-amber-500', Icon: Chrome },
   pycore: { chip: 'bg-indigo-500/15 text-indigo-500', Icon: Cpu },
-  ai: { chip: 'bg-violet-500/15 text-violet-500', Icon: Sparkles },
-  any: { chip: 'bg-sky-500/15 text-sky-500', Icon: Users },
 };
 
 const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
@@ -24,9 +21,9 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
   const hub = useQueueCenterHub();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   // Data and errors come from the same generated Queue Center snapshot.
-  const raw = hub.overview as any;
+  const raw = hub.overview;
   const data: PcQueueOverview | null =
-    (raw && raw.success !== false && Array.isArray(raw.categories)) ? (raw as PcQueueOverview) : null;
+    (raw && raw.success !== false && Array.isArray(raw.categories)) ? raw : null;
   const loading = hub.loading;
   const err = hub.sliceErrors.overview ?? (!hub.pycoreReachable ? hub.error : null);
 
@@ -83,9 +80,10 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
             {laravelReachable ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
             {laravelReachable ? t('queueCenter.overview.reachable') : t('queueCenter.overview.backendOffline')}
           </span>
-          {hub.timestamp && (
-            <span className="ml-auto text-[10px] font-mono text-slate-400" title={hub.timestamp}>
-              {t('queueCenter.overview.generatedAt', { time: new Date(hub.timestamp).toLocaleTimeString() })}
+          {data.observed_at && (
+            <span className="ml-auto text-[10px] font-mono text-slate-400" title={data.observed_at}>
+              {t('queueCenter.overview.generatedAt', { time: new Date(data.observed_at).toLocaleTimeString() })}
+              {data.stale && data.age_s != null ? ` · stale ${Math.round(data.age_s)}s` : ''}
             </span>
           )}
         </div>
@@ -120,7 +118,7 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {categories.map((c: PcQueueCategory) => {
-            const hs = HANDLER_STYLE[c.handler] ?? HANDLER_STYLE.pycore;
+            const hs = HANDLER_STYLE[c.primary_handler] ?? HANDLER_STYLE.pycore;
             const HIcon = hs.Icon;
             const langs = c.by_language ? Object.entries(c.by_language).filter(([, n]) => n > 0) : [];
             const samples = c.sample ?? [];
@@ -130,9 +128,13 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate" title={c.label}>{c.label}</span>
                   <span className={`ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide shrink-0 ${hs.chip}`}
-                    title={t(`queueCenter.overview.handlerTitle.${c.handler}` as const)}>
-                    <HIcon className="w-3 h-3" /> {t(`queueCenter.overview.handler.${c.handler}` as const)}
+                    title={`Eligible: ${c.claimants.join(', ') || 'none'}`}>
+                    <HIcon className="w-3 h-3" /> {c.primary_handler}
                   </span>
+                </div>
+                <div className="text-[9px] text-slate-400">
+                  eligible {c.claimants.join(' · ') || 'none'}
+                  {c.active_handlers.length > 0 ? ` · active ${c.active_handlers.join(' · ')}` : ''}
                 </div>
                 <div className="grid grid-cols-4 gap-1">
                   {num(c.pending, 'text-sky-500', t('queueCenter.overview.pending'))}

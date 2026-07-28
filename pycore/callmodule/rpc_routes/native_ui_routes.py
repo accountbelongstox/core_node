@@ -32,9 +32,8 @@ from pycore.pyutils.common import system_launcher
 from pycore.pyutils.common.capabilities import capabilities_status, system_info, resolve_static_dir
 from pycore.pyutils.translator.dictionary import get_dictionary_service
 from pycore.pyutils.common import model_load_status
-from pycore.callmodule.services.sync.laravel_endpoint_manager import get_laravel_endpoint_manager
-from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services import get_queue_monitor_service, get_translation_worker_service
+from pycore.callmodule.services import vocabulary_service
 from pycore.pyheartbeat import get_heartbeat_system
 from pycore.pyutils.edge_tts.edge_tts_client import get_synth_timeout, set_synth_timeout
 from pycore.pyutils.tts.tts_orchestrator import get_edge_cooldown_seconds, set_edge_cooldown_seconds
@@ -62,8 +61,11 @@ from pycore.callmodule.services.tts_sentence_worker_service import get_tts_sente
 from pycore.callmodule.services.sentence_queue_monitor_service import get_sentence_queue_monitor_service
 from pycore.callmodule.services.heartbeat_worker_prefs import apply_callback_enabled, get_auxiliary_status
 from pycore.callmodule.services.queue_center_contract import CALLBACK_QUEUE_ROLES
-from pycore.pyctl.assist import load_assist_settings, save_assist_settings
-from pycore.callmodule.services.assist_capability_sync import apply_assist_runtime
+from pycore.callmodule.services.assist_service import (
+    assist_config,
+    assist_cycle,
+    assist_status,
+)
 from pycore.callmodule.models.local_processing.video_extract_models import (
     VideoExtractRequest, VideoExtractOpenRequest, VideoExtractSegmentsRequest,
 )
@@ -581,50 +583,7 @@ def register_native_ui_routes(server) -> None:
         return {"success": True, "status": "ok", "service": "pycore", "ts": time.time()}
 
     async def vocabulary_route(params, request_id, context):
-        params = params or {}
-        action = params.get("action")
-        paths = {
-            "translation_languages": ("GET", "/api/app_qy_v1/ai_tools/translation/languages"),
-            "translation_translate": ("POST", "/api/app_qy_v1/ai_tools/translation/translate"),
-            "translation_queue_add": ("POST", "/api/app_qy_v1/ai_tools/translation/queue/batch/add"),
-            "tts_generate": ("POST", "/api/app_qy_v1/ai_tools/tts/generate"),
-            "tts_queue_query": ("POST", "/api/app_qy_v1/ai_tools/tts/queue/batch/query"),
-            "tts_sentence_audio": ("GET", "/api/app_qy_v1/ai_tools/tts/sentence/audio"),
-            "tts_queue_stats": ("GET", "/api/app_qy_v1/ai_tools/tts/queue/stats"),
-            "tts_queue_items": ("GET", "/api/app_qy_v1/tts/queue/items"),
-            "assist_overview": ("GET", "/api/app_qy_v1/assist/overview"),
-            "assist_overview_items": ("GET", "/api/app_qy_v1/assist/overview/items"),
-            "cover_retry": ("POST", "/api/app_qy_v1/assist/cover/retry"),
-            "libraries": ("GET", "/api/app_qy_v1/vocabulary/libraries"),
-            "library_words": ("GET", f"/api/app_qy_v1/vocabulary/libraries/{params.get('library_id')}/words"),
-            "library_delete": ("DELETE", f"/api/app_qy_v1/learning/libraries/{params.get('library_id')}"),
-            "statistics": ("GET", "/api/app_qy_v1/vocabulary/statistics"),
-            "language_breakdown": ("GET", "/api/app_qy_v1/vocabulary/language-breakdown"),
-            "dictionary_words": ("GET", "/api/app_qy_v1/dictionary/words"),
-            "dictionary_words_add": ("POST", "/api/app_qy_v1/dictionary/words"),
-            "dictionary_word_update": ("POST", f"/api/app_qy_v1/dictionary/words/{params.get('md5')}"),
-            "dictionary_word_delete": ("DELETE", f"/api/app_qy_v1/dictionary/words/{params.get('md5')}"),
-            "dictionary_words_batch": ("POST", "/api/app_qy_v1/dictionary/words/batch"),
-            "dictionary_sentences": ("GET", "/api/app_qy_v1/dictionary/sentences"),
-            "validity_report": ("POST", "/api/app_qy_v1/vocabulary/validity/report"),
-            "storage_summary": ("GET", "/api/servermanager/v1/system/static-resources"),
-        }
-        method, path = paths.get(action, (None, None))
-        if not method:
-            raise ValueError(f"Unsupported vocabulary operation: {action}")
-        base = get_laravel_endpoint_manager().resolve() or ""
-        if not base:
-            return {"success": False, "error": "laravel endpoint not configured"}
-        body = params.get("body")
-        query = params.get("query")
-        try:
-            response = await asyncio.to_thread(get_laravel_client().request, method, path,
-                                               base_url=base, params=query, json=body, timeout=600)
-            if response.status_code >= 400:
-                return {"success": False, "error": f"HTTP {response.status_code}: {response.text[:200]}"}
-            return response.json()
-        except Exception as exc:
-            return {"success": False, "error": f"proxy error: {exc}"}
+        return await asyncio.to_thread(vocabulary_service.dispatch_vocabulary_action, params)
 
     async def image_search_route(params, request_id, context):
         params = params or {}
@@ -648,6 +607,8 @@ def register_native_ui_routes(server) -> None:
             return await asyncio.to_thread(image_search.delete_history, params.get("id"))
         if action == "clear":
             return await asyncio.to_thread(image_search.clear_history)
+        if action == "resource":
+            return await asyncio.to_thread(image_search.resource, params.get("url") or "")
         raise ValueError(f"Unsupported image-search operation: {action}")
 
     async def version_route(params, request_id, context):
@@ -697,36 +658,11 @@ def register_native_ui_routes(server) -> None:
         params = params or {}
         action = params.get("action")
         if action == "status":
-            settings = load_assist_settings()
-            return {"enabled": settings.get("enabled", False), "capabilities": settings.get("capabilities", {}),
-                    "endpoint": None, "laravel_reachable": False, "running": False,
-                    "circuit": {"open": False, "cooldown_s": 0}, "counters": {},
-                    "last_error": None, "last_cycle_at": None, "claimer": None, "laravel_status": None}
+            return await asyncio.to_thread(assist_status, bool(params.get("include_laravel", True)))
         if action == "config":
-            patch = {}
-            if "enabled" in params:
-                patch["enabled"] = bool(params.get("enabled"))
-            if params.get("capabilities") is not None:
-                patch["capabilities"] = params.get("capabilities")
-            config = save_assist_settings(patch)
-            apply_assist_runtime(config)
-            return {"ok": True, "config": config}
+            return await asyncio.to_thread(assist_config, params)
         if action == "cycle":
-            settings = load_assist_settings()
-            if not settings.get("enabled"):
-                return {"success": False, "error": "queue processing is disabled — enable it first"}
-            result = {"success": True, "triggered": 0, "errors": []}
-            try:
-                await asyncio.to_thread(get_translation_worker_service().poll_once)
-                result["triggered"] += 1
-            except Exception as exc:
-                result["errors"].append(f"translation: {exc}")
-            try:
-                await asyncio.to_thread(get_tts_queue_poller_service().poll_and_process)
-                result["triggered"] += 1
-            except Exception as exc:
-                result["errors"].append(f"word_audio: {exc}")
-            return result
+            return await asyncio.to_thread(assist_cycle)
         raise ValueError(f"Unsupported assist operation: {action}")
 
     handlers = {

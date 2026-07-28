@@ -134,7 +134,7 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = () => {
             </div>
             <div className="text-[10px] text-slate-500 font-mono">
               {wsConnected && (snap?.ws_event_count ?? 0) === 0
-                ? 'SSE Online / Queue snapshot: waiting for first successful poll'
+                ? 'RPC v2 Online / Queue snapshot: waiting for first successful poll'
                 : `Queue Count: ${summary.total} | Event Count: ${snap?.ws_event_count ?? 0}`}
             </div>
           </div>

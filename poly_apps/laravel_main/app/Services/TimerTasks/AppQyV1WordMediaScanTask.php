@@ -222,7 +222,7 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
         return GlobalTask::query()
             ->where('app_name', 'AppQyV1')
             ->where('task_type', 'word_media')
-            ->where('status', GlobalTask::STATUS_PENDING)
+            ->where('status', GlobalTask::status('pending'))
             ->where('payload->language', $langCode)
             ->count();
     }
@@ -233,7 +233,7 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
         $tasks = GlobalTask::query()
             ->where('app_name', 'AppQyV1')
             ->where('task_type', 'word_media')
-            ->where('status', GlobalTask::STATUS_PENDING)
+            ->where('status', GlobalTask::status('pending'))
             ->where('payload->language', $langCode)
             ->get(['payload']);
         foreach ($tasks as $task) {
@@ -272,13 +272,13 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
         $this->taskManager->createTask(
             'AppQyV1',
             'word_media',
-            GlobalTask::EXECUTION_REMOTE_FAST,
+            GlobalTask::executionType('remote_fast'),
             $payload,
             $timeoutSeconds,
             self::PRIORITY_LOW,
             3,
             false,
-            GlobalTask::CAPABILITY_IMAGE
+            GlobalTask::capability('image')
         );
     }
 }

@@ -10,7 +10,7 @@ import platform
 from pathlib import Path
 from typing import Optional
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pygvar import GlobalVarManager
+from pycore.pyfoundations.pygvar import GlobalVarManager
 
 
 def get_script_dir() -> Path:

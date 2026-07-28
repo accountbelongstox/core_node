@@ -976,10 +976,14 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             $cover = [];
         }
 
-        $imageUrl = $this->coverService->getDefaultCoverUrl();
-        if (isset($cover['url'])) {
-            $imageUrl = $cover['url'];
-        }
+        // Align with book/poster behavior: image_url is null until the cover is
+        // actually READY, so the UI cover-generation trigger (`!group.imageUrl`)
+        // fires for pending libraries. Previously this fell back to the default
+        // cover URL, which made every library look covered and stalled the whole
+        // vocabulary-cover pipeline. The deterministic (future) URL and the
+        // placeholder stay available in separate fields.
+        $coverStatus = $cover['status'] ?? 'pending';
+        $imageUrl = ($coverStatus === 'ready' && isset($cover['url'])) ? $cover['url'] : null;
 
         return [
             'id' => (int) $library->id,
@@ -990,7 +994,9 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             'difficulty' => $library->difficulty_level ?? 'intermediate',
             'category' => $library->category ?? 'general',
             'image_url' => $imageUrl,
-            'cover_status' => $cover['status'] ?? 'pending',
+            'cover_url' => $cover['url'] ?? null,
+            'default_cover_url' => $this->coverService->getDefaultCoverUrl(),
+            'cover_status' => $coverStatus,
             'cover_error' => $cover['error'] ?? null,
             'cover_error_message' => $cover['error_message'] ?? ($cover['error'] ?? null),
             'cover_attempts' => (int) ($cover['attempts'] ?? 0),

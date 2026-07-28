@@ -10,7 +10,7 @@
  * the architecture (which end a file implements) is visible in its name.
  */
 
-export type EndId = 'home' | 'laravel-manager' | 'pycore-manager' | 'wordflow' | 'vortex' | 'pdd-manager';
+export type EndId = 'home' | 'laravel-manager' | 'pycore-manager' | 'wordflow' | 'vortex';
 
 export type ThemeId = 'nexus' | 'pycore' | 'iris';
 
@@ -21,7 +21,6 @@ export const END_THEME: Record<EndId, ThemeId> = {
   'pycore-manager': 'pycore',
   'wordflow': 'iris',
   'vortex': 'pycore',
-  'pdd-manager': 'nexus',
 };
 
 export const END_META: Record<Exclude<EndId, 'home'>, { label: string; path: string; theme: ThemeId }> = {
@@ -31,24 +30,24 @@ export const END_META: Record<Exclude<EndId, 'home'>, { label: string; path: str
   // the old wordflow app was removed, so this end now opens wordnew at /wordnew.
   'wordflow': { label: 'WordNew', path: '/wordnew', theme: 'iris' },
   'vortex': { label: 'Vortex Sandbox', path: '/vortex', theme: 'pycore' },
-  'pdd-manager': { label: 'PDD Manager', path: '/pdd-manager', theme: 'nexus' },
 };
 
 /**
- * Per-app live-service gate: which ends keep the pycore live bus (WS + SSE on
- * :59000) CONNECTED. Every other end SUSPENDS it — the connection is closed and
- * stops reconnecting. Wordnew stays connected because queue priority and Daily
- * Reading publication events are owned by pycore. The shell applies this on
- * every route change (ShellContext) via setPycoreActive(). Background services run
+ * Per-app live-service gate: which ends keep the pycore live bus (WS :59000)
+ * CONNECTED. Every other end SUSPENDS it — the connection is closed and stops
+ * reconnecting, but its state (client id, resume token, subscribe() handlers,
+ * started intent) is preserved and resumes when a pycore end becomes active
+ * again. The shell applies this on every route change (ShellContext) via
+ * setPycoreActive(). Background services run
  * ONLY under their owning route; everything else is paused, not torn down.
  */
 export const END_USES_PYCORE: Record<EndId, boolean> = {
   'home': false,
   'laravel-manager': false,
   'pycore-manager': true,
-  'wordflow': true,    // queue priority + Daily Reading publication events
+  'wordflow': false,   // pycore bus connects ONLY under pycore routes (paused, state kept)
   'vortex': true,      // OKX panels drive the pycore RPC bus
-  'pdd-manager': false, // admin console talks only to laravel_main :9000, no pycore bus
+  // 'pdd-manager': false, // Archived: admin console talks only to laravel_main :9000, no pycore bus.
 };
 
 /** Languages supported across the union of the three ends. */

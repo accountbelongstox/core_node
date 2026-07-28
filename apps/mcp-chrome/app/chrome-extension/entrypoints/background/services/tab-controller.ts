@@ -201,7 +201,7 @@ class TabController {
   }
 
   // --- listeners ------------------------------------------------------------
-  private onActivated(info: chrome.tabs.OnActivatedInfo): void {
+  private onActivated(info: chrome.tabs.TabActiveInfo): void {
     const now = Date.now();
     // Prune expired self-activation records first.
     for (const [tid, ts] of this.pendingSelfActivations) {
@@ -222,7 +222,7 @@ class TabController {
     }
   }
 
-  private onRemoved(tabId: number, removeInfo: chrome.tabs.OnRemovedInfo): void {
+  private onRemoved(tabId: number, removeInfo: chrome.tabs.TabRemoveInfo): void {
     this.pendingSelfActivations.delete(tabId);
     if (!this.managedTabs.has(tabId)) return;
     this.managedTabs.delete(tabId);

@@ -39,9 +39,26 @@ export const PcTestPopupProvider: React.FC<{ children: React.ReactNode }> = ({ c
   );
 };
 
+const NOOP_CONTEXT: PcTestPopupContextValue = {
+  openTest: () => { /* provider missing — degrade to no-op instead of crashing the tree */ },
+  closeTest: () => { /* provider missing */ },
+};
+
+let missingProviderWarned = false;
+
 export function usePcTestPopup(): PcTestPopupContextValue {
   const ctx = useContext(PcTestPopupContext);
-  if (!ctx) throw new Error('usePcTestPopup must be used within a PcTestPopupProvider');
+  if (!ctx) {
+    // A missing provider must not crash the whole panel tree (a render throw
+    // here previously took down PcPipelineStatusPanels and left every section
+    // stuck on "Loading …"). Degrade to a no-op and warn ONCE — every TestChip
+    // re-render would otherwise spam the console.
+    if (!missingProviderWarned && typeof console !== 'undefined') {
+      missingProviderWarned = true;
+      console.warn('[PcTestPopup] used outside PcTestPopupProvider — test popup disabled');
+    }
+    return NOOP_CONTEXT;
+  }
   return ctx;
 }
 

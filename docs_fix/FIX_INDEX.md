@@ -13,6 +13,8 @@
 | S1 | FIX_20260727_1635.md | ✅ 100%（FIX 阻塞项） |
 | V11 | FIX_V11.md | ✅ 100% |
 | V12 | FIX_V12.md | ⬜ 待执行（托盘点击后窗口慢） |
+| S2 | FIX_20260727_2343.md | ✅ 100%（b.txt：tts超时/db locked/端点持久化/agent-history链路/封面/进度同步） |
+| S3 | FIX_20260728_LEGACY.md | 📄 文档化不修复（c.txt 批次遗留：mcp-chrome 60 + wordflow UI 255 tsc 错误清单、>800行拆分候选） |
 
 依赖：`V4 → V5 → V7 → {V3,V6,V8} → V9 → V10 → V11`；V12 独立。
 

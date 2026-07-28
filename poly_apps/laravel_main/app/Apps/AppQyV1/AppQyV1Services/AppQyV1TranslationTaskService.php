@@ -74,7 +74,7 @@ class AppQyV1TranslationTaskService
         $task = $this->taskManager->createTask(
             'AppQyV1',
             $taskType,
-            GlobalTask::EXECUTION_REMOTE_CLIENT,
+            GlobalTask::executionType('remote_client'),
             $payload,
             $timeoutSeconds,
             50,

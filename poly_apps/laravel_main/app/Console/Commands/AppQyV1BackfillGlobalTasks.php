@@ -77,11 +77,11 @@ class AppQyV1BackfillGlobalTasks extends Command
                     ->chunkById($chunk, function ($rows) use ($lang, $wordTable, $connName, $hasTts, $hasImg, $dryRun, &$totals) {
                         foreach ($rows as $row) {
                             if ($hasTts && ($row->tts_status !== null || !empty($row->has_audio))) {
-                                $this->upsertBackfillTask($connName, $wordTable, $row, $lang, 'audio', 'word_audio', GlobalTask::EXECUTION_REMOTE_AUDIO, GlobalTask::CAPABILITY_AUDIO, $dryRun);
+                                $this->upsertBackfillTask($connName, $wordTable, $row, $lang, 'audio', 'word_audio', GlobalTask::executionType('remote_audio'), GlobalTask::capability('audio'), $dryRun);
                                 $totals['audio']++;
                             }
                             if ($hasImg && ($row->image_status !== null || !empty($row->has_image))) {
-                                $this->upsertBackfillTask($connName, $wordTable, $row, $lang, 'image', 'word_media', GlobalTask::EXECUTION_REMOTE_FAST, GlobalTask::CAPABILITY_IMAGE, $dryRun);
+                                $this->upsertBackfillTask($connName, $wordTable, $row, $lang, 'image', 'word_media', GlobalTask::executionType('remote_fast'), GlobalTask::capability('image'), $dryRun);
                                 $totals['image']++;
                             }
                         }
@@ -102,7 +102,7 @@ class AppQyV1BackfillGlobalTasks extends Command
                     ->orderBy('id')
                     ->chunkById($chunk, function ($rows) use ($lang, $articleTable, $connName, $dryRun, &$totals) {
                         foreach ($rows as $row) {
-                            $this->upsertBackfillTask($connName, $articleTable, $row, $lang, 'audio', 'article_audio', GlobalTask::EXECUTION_REMOTE_AUDIO, GlobalTask::CAPABILITY_AUDIO, $dryRun);
+                            $this->upsertBackfillTask($connName, $articleTable, $row, $lang, 'audio', 'article_audio', GlobalTask::executionType('remote_audio'), GlobalTask::capability('audio'), $dryRun);
                             $totals['article_audio']++;
                         }
                     });
@@ -162,7 +162,7 @@ class AppQyV1BackfillGlobalTasks extends Command
                 'priority' => $priority,
                 'capability' => $capability,
                 'is_fast_tier' => false,
-                'progress' => $status === GlobalTask::STATUS_COMPLETED ? 100.0 : 0.0,
+                'progress' => $status === GlobalTask::status('completed') ? 100.0 : 0.0,
                 'payload' => [
                     'language' => $language,
                     'content' => $row->content ?? null,
@@ -175,8 +175,8 @@ class AppQyV1BackfillGlobalTasks extends Command
                 'dict_language' => $language,
                 'dict_row_table' => $table,
                 'group_key' => $row->md5 ?? null,
-                'sync_to_dict_at' => $status === GlobalTask::STATUS_COMPLETED ? now() : null,
-                'completed_at' => $status === GlobalTask::STATUS_COMPLETED ? now() : null,
+                'sync_to_dict_at' => $status === GlobalTask::status('completed') ? now() : null,
+                'completed_at' => $status === GlobalTask::status('completed') ? now() : null,
             ]
         );
 
@@ -192,15 +192,15 @@ class AppQyV1BackfillGlobalTasks extends Command
     private function mapStatus(?string $dictStatus, bool $hasMedia): string
     {
         if ($hasMedia) {
-            return GlobalTask::STATUS_COMPLETED;
+            return GlobalTask::status('completed');
         }
 
         return match ($dictStatus) {
-            'pending' => GlobalTask::STATUS_PENDING,
-            'processing' => GlobalTask::STATUS_PROCESSING,
-            'completed' => GlobalTask::STATUS_COMPLETED,
-            'failed' => GlobalTask::STATUS_FAILED,
-            default => GlobalTask::STATUS_PENDING,
+            'pending' => GlobalTask::status('pending'),
+            'processing' => GlobalTask::status('processing'),
+            'completed' => GlobalTask::status('completed'),
+            'failed' => GlobalTask::status('failed'),
+            default => GlobalTask::status('pending'),
         };
     }
 }

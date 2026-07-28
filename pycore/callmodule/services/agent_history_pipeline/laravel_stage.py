@@ -19,17 +19,24 @@ def upload_to_laravel(
         
     client = get_laravel_client()
     
+    # Mirror agent_history_article_service._upload_laravel field names so the
+    # Laravel validator for worker/submit accepts the payload (article_text
+    # min:10, title, lowercase language).
     payload = {
+        "title": article.get("title_en") or article.get("title_cn") or "Agent history article",
         "title_cn": article.get("title_cn"),
         "reference_cn": article.get("reference_cn"),
-        "title_en": article.get("title_en"),
-        "article_en": article.get("article_en"),
-        "word_count": article.get("word_count"),
-        "audio_base64": audio.get("audio_base64"),
-        "raw_text": raw_text,
+        "article_text": article.get("article_en"),
+        "reference_lang": cfg.get("reference_lang") or "CN",
+        "target_lang": cfg.get("target_lang") or "EN",
+        "language": "en",
         "source": "agent_history",
-        "article_type": "agent_history",
-        "language": str(cfg.get("target_lang") or "EN").upper(),
+        "raw_preview": raw_text[:2000],
+        "raw_word_count": len([w for w in raw_text.split() if w.strip()]),
+        "audio_base64": audio.get("audio_base64"),
+        "tts_engine": audio.get("engine"),
+        "tts_accent": audio.get("accent"),
+        "openrouter_model": article.get("model"),
     }
     
     resp = client.post(

@@ -599,9 +599,9 @@ class AppQyV1UnifiedTTSQueueService
             if (!empty($row->tts_global_task_id)) {
                 $active = \App\Models\GlobalTask::where('task_id', $row->tts_global_task_id)
                     ->whereIn('status', [
-                        \App\Models\GlobalTask::STATUS_PENDING,
-                        \App\Models\GlobalTask::STATUS_ASSIGNED,
-                        \App\Models\GlobalTask::STATUS_PROCESSING,
+                        \App\Models\GlobalTask::status('pending'),
+                        \App\Models\GlobalTask::status('assigned'),
+                        \App\Models\GlobalTask::status('processing'),
                     ])
                     ->exists();
                 if ($active) {
@@ -612,7 +612,7 @@ class AppQyV1UnifiedTTSQueueService
             $task = app(\App\Services\TaskManagerService::class)->createTask(
                 'AppQyV1',
                 $taskType,
-                \App\Models\GlobalTask::EXECUTION_REMOTE_AUDIO,
+                \App\Models\GlobalTask::executionType('remote_audio'),
                 [
                     'language' => $language,
                     'content' => $row->content ?? null,
@@ -625,7 +625,7 @@ class AppQyV1UnifiedTTSQueueService
                 // createTask rewrites it onto remote_fast + PRIORITY_FAST. The
                 // capability=audio routes it only to workers that advertise audio.
                 $interactive,
-                \App\Models\GlobalTask::CAPABILITY_AUDIO,
+                \App\Models\GlobalTask::capability('audio'),
                 [
                     'dict_row_id' => (int) $row->id,
                     'dict_language' => $language,

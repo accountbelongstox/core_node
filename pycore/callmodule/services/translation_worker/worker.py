@@ -45,6 +45,11 @@ from .handlers import (
 )
 
 from pycore.callmodule.callmodule_config import Config as _Cfg
+from pycore.callmodule.services.queue_center_contract import (
+    task_execution_type,
+    task_local_label,
+    task_types_for_execution,
+)
 
 
 class TranslationWorkerService(BaseLaravelWorkerService):
@@ -60,21 +65,15 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         actual translation + result POST never blocks the heartbeat thread.
     """
 
-    # ---- Execution-type lanes (must equal GlobalTask::EXECUTION_TYPES) ----
-    # The shared interactive fast lane both pycore and chrome register for.
-    TRANSLATION_FAST_PROCESSOR_TYPE = "remote_fast"
-    # The legacy dedicated translation lane (still advertised for back-compat).
-    TRANSLATION_PROCESSOR_TYPE = "remote_translation"
-    # Dedicated pycore-only retrieval/generation lanes (knob-gated, see config).
-    SUBTITLE_EXECUTION_TYPE = "remote_subtitle"
-    # Speech-to-text lane (remote_stt). Laravel defines EXECUTION_REMOTE_STT +
-    # CAPABILITY_STT and routes stt=>pycore; advertised only while the assist
-    # 'stt' toggle is on (off by default - see lane_gating.stt_enabled).
-    STT_EXECUTION_TYPE = "remote_stt"
-
-    # task_type tags carried in payloads on these lanes.
-    # STT task_type tags accepted on the remote_stt lane.
-    STT_TASK_TYPES = ("stt", "audio_transcribe")
+    # These values come from config/queue_center_contract.json through the
+    # Python adapter. The aligned Laravel, Pycore UI/Laravel-manager, and
+    # mcp-chrome adapters are named in queue_center_contract.py; change the JSON,
+    # never this worker, when a shared task lane changes.
+    TRANSLATION_FAST_PROCESSOR_TYPE = task_execution_type("word_media")
+    TRANSLATION_PROCESSOR_TYPE = task_execution_type("word_translation")
+    SUBTITLE_EXECUTION_TYPE = task_execution_type("subtitle_search")
+    STT_EXECUTION_TYPE = task_execution_type("stt")
+    STT_TASK_TYPES = task_types_for_execution(STT_EXECUTION_TYPE)
 
     # Base processor types always advertised (fast + legacy translation). The
     # dedicated lanes are appended live by _effective_processor_types() when their
@@ -332,15 +331,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         distinguish them; ai_translate keeps the translation lane (task_type stays
         word_translation).
         """
-        if task.get("capability") == "ai_translate":
-            return "remote_ai_translate"
-        return {
-            "word_audio": "remote_audio",
-            "word_media": "remote_image",
-            "subtitle_search": "remote_subtitle",
-            "poster": "remote_poster",
-            "sentence_audio": "remote_sentence_audio",
-        }.get(task.get("task_type"), "remote_translation")
+        return task_local_label(task.get("task_type"), task.get("capability"))
 
     def _purge_inflight_locked(self, now: float) -> None:
         """Drop inflight entries whose deadline has passed.

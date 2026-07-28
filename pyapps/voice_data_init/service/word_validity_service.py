@@ -14,7 +14,7 @@ from pycore.pyfoundations.third_party import get_third_package_requests
 requests = get_third_package_requests()
 from pycore.database import database_manager
 from pycore.database.models import VoiceDictionariesModel
-from pycore.pygvar import CACHE_DIR
+from pycore.pyfoundations.pygvar import CACHE_DIR
 
 
 class WordValidityService:

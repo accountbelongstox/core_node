@@ -58,12 +58,20 @@ class AppQyV1VocabularyValidityController extends Controller
             ]);
         }
 
-        // Give-data idempotency: never hand back a word that already carries a
-        // translation. Mirrors getWordsNeedingTranslation's where('has_translation',
-        // false) predicate, so a word already filled by any lane is skipped here in
-        // addition to words a third-party check has already touched (validityUnchecked).
-        $words = $dictModel->validityUnchecked()
-            ->where('has_translation', false)
+        // Give-data idempotency + full coverage: hand out a word while EITHER
+        // side of the merged task is unfinished — never validity-checked OR
+        // (valid but missing a translation) (8.0/8.3: 没有翻译的单词和没有有效
+        // 性的单词都由 AI 处理一遍). A checked INVALID word without translation
+        // is terminal (nothing to translate) and never comes back; a checked
+        // AND translated word likewise.
+        $words = $dictModel->query()
+            ->where(function ($query) {
+                $query->whereNull('validity_checked_at')
+                    ->orWhere(function ($untranslated) {
+                        $untranslated->where('has_translation', false)
+                            ->where('is_valid', true);
+                    });
+            })
             ->orderByDesc('query_count')
             ->orderBy('id')
             ->limit($limit)

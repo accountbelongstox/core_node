@@ -27,7 +27,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pylauncher import LauncherConfig, ServiceLauncher
-from pycore.pygvar import MCP_BACKEND_RPC_PORT
+from pycore.pyfoundations.pygvar import MCP_BACKEND_RPC_PORT
 from pycore.pyctl.mcpctl.backend.config import BACKEND_INFO_TEMPLATE
 from pycore.pyctl.mcpctl.backend.handlers.context import set_handler_context
 from pycore.pyctl.mcpctl.backend.rpc_routes import register_mcp_routes

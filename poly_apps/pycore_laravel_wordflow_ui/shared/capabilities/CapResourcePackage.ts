@@ -94,9 +94,39 @@ export class CapResourceAssetCache {
   private cachePromise: Promise<CapLargeCache> | null = null;
   private configuredBudgetBytes = 0;
   private budgetResolvedAt = 0;
+  /** Route-scoped gate: when true, no NEW fetches start (queue state is kept). */
+  private paused = false;
+  private readonly resumeWaiters: Array<() => void> = [];
 
   constructor(options: CapResourceAssetCacheOptions) {
     this.options = options;
+  }
+
+  /**
+   * Pause/resume background network activity (route-scoped lifecycle). Pausing
+   * keeps all state — resolved urls, the in-flight map, and any preload queue
+   * position; workers simply wait until resumed. In-flight fetches finish
+   * naturally (fetch has no abort here), so at most `concurrency` requests
+   * complete after pausing.
+   */
+  setPaused(paused: boolean): void {
+    if (this.paused === paused) return;
+    this.paused = paused;
+    if (!paused) {
+      const waiters = this.resumeWaiters.splice(0);
+      waiters.forEach((wake) => wake());
+    }
+  }
+
+  isPaused(): boolean {
+    return this.paused;
+  }
+
+  private waitResumed(): Promise<void> {
+    if (!this.paused) return Promise.resolve();
+    return new Promise((resolve) => {
+      this.resumeWaiters.push(resolve);
+    });
   }
 
   private async cache(): Promise<CapLargeCache> {
@@ -123,6 +153,9 @@ export class CapResourceAssetCache {
 
     const operation = (async (): Promise<string | null> => {
       try {
+        // Route gate: no NEW fetch while the owning route is inactive; the
+        // promise settles when resumed (state preserved, never rejected).
+        await this.waitResumed();
         const cache = await this.cache();
         const key = (this.options.keyFor ?? defaultAssetKey)(url);
         const mime = this.options.mimeFor?.(url);
@@ -153,6 +186,7 @@ export class CapResourceAssetCache {
     let cursor = 0;
     const worker = async (): Promise<void> => {
       while (cursor < queue.length) {
+        await this.waitResumed();
         const url = queue[cursor];
         cursor += 1;
         await this.ensure(url);

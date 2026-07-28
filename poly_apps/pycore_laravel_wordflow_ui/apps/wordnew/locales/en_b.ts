@@ -345,6 +345,7 @@ export const enLocaleB: Record<string, string> = {
     'home.dailyReading.play': 'Play',
     'home.dailyReading.pause': 'Pause',
     'home.dailyReading.close': 'Stop and close player',
+    'home.dailyReading.backHome': 'Back to home',
     'content.section.word': 'Word Groups',
     'content.section.book': 'Books',
     'content.section.subtitle': 'Subtitles',

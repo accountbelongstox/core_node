@@ -1,5 +1,10 @@
 import { BaseAPI } from '../base/BaseAPI';
 import { APIResponse } from '../../types';
+import type {
+  PcQueueCategory,
+  PcQueueHandler,
+  PcQueueWorker,
+} from '../../api-libs/pycore/QueueCenterContract';
 
 /**
  * BooksAPI — laravel-manager "Books / Add source" client + stat drill-down lists.
@@ -277,30 +282,9 @@ export interface TtsQueueItemsResponse {
 
 // ========== Assist / worker queue overview (GET /assist/overview) ==========
 
-export type AssistQueueHandler = 'chrome' | 'pycore' | 'ai';
-
-export interface AssistQueueCategory {
-  key: string;
-  label: string;
-  handler: AssistQueueHandler | string;
-  pending: number;
-  processing: number;
-  leased: number;
-  total: number;
-  by_language?: Record<string, number>;
-  by_status?: Record<string, number>;
-  sample?: Array<{ word?: string; language?: string; title?: string; source_key?: string; id?: string | number }>;
-}
-
-export interface AssistQueueWorker {
-  id: string;
-  kind: 'chrome' | 'pycore' | string;
-  name?: string;
-  processor_types: string[];
-  online: boolean;
-  last_seen: string | null;
-  claimed: number;
-}
+export type AssistQueueHandler = PcQueueHandler;
+export type AssistQueueCategory = PcQueueCategory;
+export type AssistQueueWorker = PcQueueWorker;
 
 export interface AssistOverviewResponse {
   success: boolean;

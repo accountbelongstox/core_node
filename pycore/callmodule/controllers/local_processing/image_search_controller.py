@@ -12,12 +12,27 @@ from pycore.pyutils.external_apis.image_search_client import (
     _KEY_NAME,
     _MAX_NUM,
     _SERPAPI_URL,
+    download_image_b64,
     search_images,
     serpapi_configured,
 )
 
 
 class ImageSearchController:
+    def __init__(self) -> None:
+        self._resource_urls: set[str] = set()
+
+    def _remember_resources(self, rows: Any) -> None:
+        if not isinstance(rows, list):
+            return
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            for key in ("url", "thumbnail"):
+                value = row.get(key)
+                if isinstance(value, str) and value.startswith(("http://", "https://")):
+                    self._resource_urls.add(value)
+
     def status(self) -> Dict[str, Any]:
         return {
             "available": serpapi_configured(),
@@ -38,6 +53,7 @@ class ImageSearchController:
         record: bool = True,
     ) -> Dict[str, Any]:
         result = search_images(query, num=num, country=country)
+        self._remember_resources(result.get("results"))
         history_id = None
         if record and (result.get("results") or result.get("error")):
             try:
@@ -113,10 +129,26 @@ class ImageSearchController:
         }
 
     def history(self, limit: int = 50) -> Dict[str, Any]:
-        return {"success": True, "entries": image_search_history.list_history(limit)}
+        entries = image_search_history.list_history(limit)
+        for entry in entries:
+            if isinstance(entry, dict):
+                self._remember_resources(entry.get("results"))
+        return {"success": True, "entries": entries}
 
     def delete_history(self, entry_id: str) -> Dict[str, Any]:
         return {"success": image_search_history.delete_entry(entry_id)}
 
     def clear_history(self) -> Dict[str, Any]:
         return {"success": True, "removed": image_search_history.clear_history()}
+
+    def resource(self, url: str) -> Dict[str, Any]:
+        """Download one search-result image for RPC v2 display."""
+        normalized_url = str(url or "")
+        if normalized_url not in self._resource_urls:
+            self.history(200)
+        if normalized_url not in self._resource_urls:
+            return {"success": False, "error": "image resource URL was not returned by image search"}
+        image_base64, mime = download_image_b64(normalized_url)
+        if not image_base64:
+            return {"success": False, "error": "image resource is unavailable"}
+        return {"success": True, "image_base64": image_base64, "mime": mime}

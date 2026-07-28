@@ -14,12 +14,10 @@
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { LANES } from '@/utils/task-center-lanes';
-import { geminiImageTool } from '../tools/browser/gemini-image';
+import { generateViaGemini } from './gemini-image-generate';
 import { logger } from '@/utils/logger';
 
 const LOG = 'Gemini Image';
-const GENERATION_TIMEOUT_MS = 110000;
-const POLL_INTERVAL_MS = 3000;
 
 class GeminiImageWorkerService extends SimpleWorkerBase {
   protected get processorKey(): string {
@@ -55,39 +53,19 @@ class GeminiImageWorkerService extends SimpleWorkerBase {
       return;
     }
 
-    const started: Awaited<ReturnType<typeof geminiImageTool.start>> = await geminiImageTool
-      .start(prompt, false, GENERATION_TIMEOUT_MS)
-      .catch((error: any) => ({ ok: false, error: error?.message || 'gemini image tab unavailable' }));
-
-    if (!started?.ok || !started.jobId) {
-      logger.warn(LOG, `Failed to start generation for ${task.task_id}`, started);
+    // Start -> poll lives in the shared helper (also used by the media-image
+    // cover lane); null collapses start-refused / generation-failed / timeout.
+    const image = await generateViaGemini(prompt);
+    if (!image) {
       await this.submitResult(task.task_id, 'failed', undefined, {
-        error: started?.error || 'failed to start gemini image generation',
+        error: 'gemini image generation failed or timed out',
       });
       return;
     }
 
-    const deadline = Date.now() + GENERATION_TIMEOUT_MS;
-    let last: Awaited<ReturnType<typeof geminiImageTool.status>> | null = null;
-    while (Date.now() < deadline) {
-      await this.delay(POLL_INTERVAL_MS);
-      last = await geminiImageTool
-        .status(started.jobId!)
-        .catch((error: any) => ({ ok: false, status: 'failed' as const, error: error?.message }));
-      if (last.status === 'done' || last.status === 'failed' || last.status === 'unknown') break;
-    }
-
-    if (!last || last.status !== 'done' || !last.dataUrl) {
-      await this.submitResult(task.task_id, 'failed', undefined, {
-        error: last?.error || 'timed out waiting for the generated image',
-      });
-      return;
-    }
-
-    const base64 = last.dataUrl.replace(/^data:[^;]+;base64,/, '');
     await this.submitResult(task.task_id, 'completed', {
-      image_base64: base64,
-      mime: last.mime || 'image/png',
+      image_base64: image.imageBase64,
+      mime: image.mime,
       provider: 'gemini',
     });
     logger.info(LOG, `Task ${task.task_id} completed`);

@@ -14,6 +14,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsEngineConfigModel;
 use App\Http\Controllers\Controller;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
+use App\Support\QueueCenterContract;
 use App\Traits\ApiResponse;
 use App\Models\LangSentence;
 use App\Models\Book;
@@ -64,52 +65,6 @@ class AppQyV1TaskEnqueueController extends Controller
     use ApiResponse;
 
     /**
-     * Allowed task_type -> fixed execution_type. The execution_type is NOT taken
-     * from the request: each task type has exactly one lane in the v3 contract.
-     */
-    private const TASK_TYPE_EXECUTION = [
-        'notebooklm' => GlobalTask::EXECUTION_REMOTE_NOTEBOOKLM,
-        'gemini_image' => GlobalTask::EXECUTION_REMOTE_GEMINI,
-        'gemini_chat' => GlobalTask::EXECUTION_REMOTE_GEMINI_TEXT,
-        'word_media' => GlobalTask::EXECUTION_REMOTE_FAST,
-        'word_audio' => GlobalTask::EXECUTION_REMOTE_AUDIO,
-        'word_translation' => GlobalTask::EXECUTION_REMOTE_TRANSLATION,
-        // New dedicated pycore-only retrieval/generation lanes (each gets its own
-        // execution_type so a dedicated per-processor_type worker claims it).
-        'subtitle_search' => GlobalTask::EXECUTION_REMOTE_SUBTITLE,
-        'poster' => GlobalTask::EXECUTION_REMOTE_POSTER,
-        'sentence_audio' => GlobalTask::EXECUTION_REMOTE_SENTENCE_AUDIO,
-    ];
-
-    /** Fixed capability tags for task shapes with a single eligible worker. */
-    private const TASK_TYPE_FIXED_CAPABILITY = [
-        'subtitle_search' => GlobalTask::CAPABILITY_SUBTITLE,
-        'poster' => GlobalTask::CAPABILITY_POSTER,
-        'sentence_audio' => GlobalTask::CAPABILITY_SENTENCE_AUDIO,
-        'word_media' => GlobalTask::CAPABILITY_IMAGE,
-        // Pin audio so an interactive promotion keeps its capability filter.
-        // word_translation stays null and may be claimed by either client.
-        'word_audio' => GlobalTask::CAPABILITY_AUDIO,
-    ];
-
-    /**
-     * task_types allowed to "jump to task-top" via interactive=true. Restricted to
-     * the translate + audio categories: each has a confirmed claimant AND a result
-     * write-back (WordTranslationTaskProcessor handles word_audio by task_type).
-     * Image and poster work is owned by mcp-chrome and promoted through the
-     * dedicated media priority surfaces. Other non-interactive types never jump.
-     */
-    private const INTERACTIVE_ALLOWED_TYPES = [
-        'word_translation',
-        'word_audio',
-        'sentence_audio',
-    ];
-
-    /** Default priority for a manually enqueued task (front-of-queue is 100). */
-    private const DEFAULT_PRIORITY = 50;
-    private const MAX_PRIORITY = 1000;
-
-    /**
      * POST /api/app_qy_v1/ai_tools/task/enqueue
      * Body: { task_type, payload?, priority?, timeout_seconds?, max_retries?, capability? }
      */
@@ -118,25 +73,26 @@ class AppQyV1TaskEnqueueController extends Controller
         $validated = $request->validate([
             'task_type' => 'required|string',
             'payload' => 'nullable|array',
-            'priority' => 'nullable|integer|min:0|max:' . self::MAX_PRIORITY,
+            'priority' => 'nullable|integer|min:0|max:' . GlobalTask::priority('maximum'),
             'timeout_seconds' => 'nullable|integer|min:10|max:3600',
             'max_retries' => 'nullable|integer|min:0|max:10',
             // Optional capability tag for task types without a fixed capability.
-            'capability' => ['nullable', 'string', Rule::in(GlobalTask::CAPABILITIES)],
+            'capability' => ['nullable', 'string', Rule::in(GlobalTask::capabilities())],
             // "Jump to task-top": honored ONLY for the translate/audio privileged
             // types (see INTERACTIVE_ALLOWED_TYPES); ignored for everything else.
             'interactive' => 'nullable|boolean',
         ]);
 
         $taskType = $validated['task_type'];
-        if (!array_key_exists($taskType, self::TASK_TYPE_EXECUTION)) {
+        $taskDefinition = QueueCenterContract::taskTypeDefinition($taskType);
+        if ($taskDefinition === null) {
             return $this->error(
-                'Unsupported task_type. Allowed: ' . implode(', ', array_keys(self::TASK_TYPE_EXECUTION)),
+                'Unsupported task_type. Allowed: ' . implode(', ', array_column(QueueCenterContract::taskTypes(), 'key')),
                 422
             );
         }
 
-        $executionType = self::TASK_TYPE_EXECUTION[$taskType];
+        $executionType = (string) $taskDefinition['execution_type'];
         $payload = $validated['payload'] ?? [];
 
         // Per-type minimal payload guard so a worker never pulls an unworkable task.
@@ -155,20 +111,19 @@ class AppQyV1TaskEnqueueController extends Controller
             return $this->error($enrichError, 422);
         }
 
-        $priority = $validated['priority'] ?? self::DEFAULT_PRIORITY;
+        $priority = $validated['priority'] ?? GlobalTask::priority('manual');
         $timeout = $validated['timeout_seconds'] ?? 120;
         $maxRetries = $validated['max_retries'] ?? 3;
 
         // Capability-routed task types are pinned so a caller cannot place work
         // on a fast lane whose worker cannot execute that task shape.
-        $capability = self::TASK_TYPE_FIXED_CAPABILITY[$taskType]
-            ?? ($validated['capability'] ?? null);
+        $capability = $taskDefinition['capability'] ?? ($validated['capability'] ?? null);
 
         // Honor "jump to task-top" only for the privileged translate/audio types;
         // for everything else interactive is ignored so they keep their natural
         // lane/priority. createTask performs the remote_fast + PRIORITY_FAST rewrite.
         $interactive = ($validated['interactive'] ?? false)
-            && in_array($taskType, self::INTERACTIVE_ALLOWED_TYPES, true);
+            && in_array($taskType, QueueCenterContract::interactiveTaskTypes(), true);
 
         $task = $taskManager->createTask(
             'AppQyV1',

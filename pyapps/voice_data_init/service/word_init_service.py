@@ -10,7 +10,7 @@ from typing import List, Set, Dict, Any
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.database import database_manager
 from pycore.database.models import TableKeys, VoiceDictionariesModel
-from pycore.pygvar import CACHE_DIR
+from pycore.pyfoundations.pygvar import CACHE_DIR
 
 
 class WordInitService:

@@ -326,7 +326,8 @@ class LaravelEndpointManager:
         1. Return the in-process cached winner when present.
         2. Probe ONLY the stored ``current`` endpoint; healthy -> cache+return.
         3. Full parallel sweep of every candidate; first healthy in candidate
-           order wins, is PERSISTED as ``current`` and cached.
+           order wins and is cached in-process only (only select() may persist
+           ``current``, so a transient outage never overwrites the user's choice).
         4. All down: return the stored current (or first candidate) WITHOUT
            caching, so the next call retries (a short negative TTL prevents
            re-sweeping in a tight loop).
@@ -381,8 +382,8 @@ class LaravelEndpointManager:
             if winner:
                 self._resolved = winner
                 if winner != current:
-                    self._save(endpoints, winner)
-                    ColorPrint.green(f"[LaravelEndpoints] Switched to {winner} (persisted)")
+                    # Cache in-process only; only select() may persist ``current``.
+                    ColorPrint.green(f"[LaravelEndpoints] Switched to {winner} (cached)")
                 return winner
 
             # 3) nothing healthy — degrade to the stored/first candidate, uncached.

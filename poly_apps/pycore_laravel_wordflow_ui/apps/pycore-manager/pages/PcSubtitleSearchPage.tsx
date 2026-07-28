@@ -11,7 +11,7 @@
  *     Driven by `pycoreApi.getSubtitleSearchStatus()` / `probeSubtitleSearch()`.
  *
  *  2. Search — a title + languages (+ optional year/season/episode) feed
- *     `pycoreApi.searchSubtitles()` (POST /api/local/subtitle-search). Results
+ *     `pycoreApi.searchSubtitles()` over RPC v2. Results
  *     render as a list; each row can be downloaded via
  *     `pycoreApi.downloadSubtitle(file_id)` — on success the returned `content`
  *     is offered as a .srt Blob, else the `saved_path` is shown.

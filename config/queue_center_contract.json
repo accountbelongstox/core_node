@@ -1,0 +1,388 @@
+{
+  "schema_version": 3,
+  "contract": "queue_center",
+  "source_path": "config/queue_center_contract.json",
+  "metric_semantics": {
+    "pending": "Ready work that has not been claimed.",
+    "leased": "Claimed or assigned work that has not started processing.",
+    "processing": "Work actively being processed.",
+    "total": "All records in the category source population, including terminal records when the source retains them."
+  },
+  "control_names": [
+    "assist_translation",
+    "word_audio",
+    "sentence_audio"
+  ],
+  "section_contract_defaults": {
+    "queue": {"pending": 0, "leased": 0, "processing": 0, "total": 0},
+    "worker": {"online": false, "claimed": 0, "ok": null, "fail": null, "last_heartbeat": null},
+    "toggle": {"requested_by": null, "enabled": false, "reason": null, "graceful_stop": false, "paused_by_user": null},
+    "lifecycle": "off",
+    "error_code": null,
+    "last_error": null,
+    "age_s": null,
+    "stale": false
+  },
+  "capability_claimants": {
+    "translate": ["pycore", "chrome"],
+    "ai_translate": ["pycore", "chrome"],
+    "puter_translate": ["chrome"],
+    "audio": ["pycore", "chrome"],
+    "image": ["chrome"],
+    "sentence_audio": ["pycore"],
+    "subtitle": ["pycore"],
+    "poster": ["chrome"],
+    "stt": ["pycore"]
+  },
+  "section_scopes": {
+    "heartbeat": {
+      "category": "heartbeat_workers",
+      "category_keys": [],
+      "queue_metrics": false
+    },
+    "assist_translation": {
+      "category": "assist_translation",
+      "category_keys": [
+        "word_translation",
+        "ai_translate",
+        "subtitle_search",
+        "subtitle_lang",
+        "book_lang"
+      ],
+      "queue_metrics": true
+    },
+    "word_audio": {
+      "category": "word_audio",
+      "category_keys": ["word_audio"],
+      "queue_metrics": true
+    },
+    "sentence_audio": {
+      "category": "sentence_audio",
+      "category_keys": ["sentence_audio"],
+      "queue_metrics": true
+    },
+    "media_image": {
+      "category": "media_image",
+      "category_keys": ["word_media", "cover", "poster", "gemini_image"],
+      "queue_metrics": true
+    }
+  },
+  "task_contract": {
+    "statuses": {
+      "all": ["pending", "assigned", "processing", "completed", "completed_demo", "failed", "cancelled"],
+      "live": ["pending", "assigned", "processing"],
+      "terminal": ["completed", "completed_demo", "failed", "cancelled"],
+      "worker_reportable": ["processing", "completed", "failed"]
+    },
+    "execution_types": [
+      "local_timer",
+      "remote_client",
+      "remote_compute",
+      "remote_ocr",
+      "remote_translation",
+      "remote_video",
+      "remote_io",
+      "remote_audio",
+      "remote_notebooklm",
+      "remote_gemini",
+      "remote_gemini_text",
+      "remote_validity",
+      "remote_fast",
+      "remote_subtitle",
+      "remote_poster",
+      "remote_sentence_audio",
+      "remote_stt"
+    ],
+    "priorities": {
+      "default": 0,
+      "manual": 50,
+      "fast": 100,
+      "maximum": 1000
+    },
+    "capability_labels": {
+      "audio": "Audio",
+      "image": "Image",
+      "translate": "Translate",
+      "sentence_audio": "Sentence Audio",
+      "ai_translate": "AI Translate",
+      "puter_translate": "Puter Translate",
+      "subtitle": "Subtitle",
+      "poster": "Poster",
+      "stt": "Speech to Text"
+    },
+    "capability_single_lanes": {
+      "translate": "remote_translation",
+      "audio": "remote_audio",
+      "image": "remote_gemini",
+      "subtitle": "remote_subtitle",
+      "poster": "remote_poster",
+      "sentence_audio": "remote_sentence_audio",
+      "stt": "remote_stt"
+    },
+    "wire_shapes": {
+      "summary": [
+        "task_id", "app_name", "task_type", "execution_type", "status", "progress",
+        "assigned_to", "created_at", "capability", "priority", "is_fast_tier"
+      ],
+      "worker_pull": [
+        "task_id", "app_name", "task_type", "execution_type", "status", "payload",
+        "timeout_seconds", "priority", "capability", "is_fast_tier", "created_at"
+      ],
+      "detail": [
+        "task_id", "app_name", "task_type", "execution_type", "capability", "is_fast_tier",
+        "status", "priority", "progress", "payload", "result", "error", "assigned_to",
+        "assigned_at", "timeout_at", "completed_at", "created_at", "updated_at"
+      ],
+      "event": ["id", "task_id", "event", "worker_id", "attempt", "detail", "created_at"],
+      "worker_registration": [
+        "worker_id", "worker_name", "processor_types", "capabilities", "hostname", "platform", "metadata"
+      ],
+      "worker_result": ["task_id", "worker_id", "status", "progress", "result", "error"]
+    },
+    "task_types": [
+      {
+        "key": "word_translation",
+        "label": "Word Translation",
+        "execution_type": "remote_translation",
+        "capability": "translate",
+        "interactive": true,
+        "fast_promotable": true,
+        "pycore_local_label": "remote_translation",
+        "ui": {"icon": "🔤", "badge": "TRANSLATE", "summary_label": "待翻译任务", "color": "#818cf8"}
+      },
+      {
+        "key": "prompt_translation",
+        "label": "Prompt Translation",
+        "execution_type": "remote_translation",
+        "capability": null,
+        "interactive": false,
+        "pycore_local_label": "remote_translation",
+        "ui": {"icon": "🌐", "badge": "PROMPT", "summary_label": "待提示词翻译", "color": "#06b6d4"}
+      },
+      {
+        "key": "word_media",
+        "label": "Word Image",
+        "execution_type": "remote_fast",
+        "capability": "image",
+        "interactive": false,
+        "fast_promotable": true,
+        "pycore_local_label": "remote_image",
+        "ui": {"icon": "🖼️", "badge": "WORD IMAGE", "summary_label": "待搜索单词图片", "color": "#a78bfa"}
+      },
+      {
+        "key": "word_audio",
+        "label": "Word Audio",
+        "execution_type": "remote_audio",
+        "capability": "audio",
+        "interactive": true,
+        "fast_promotable": true,
+        "pycore_local_label": "remote_audio",
+        "ui": {"icon": "🔊", "badge": "AUDIO", "summary_label": "待生成语音", "color": "#2dd4bf"}
+      },
+      {
+        "key": "article_audio",
+        "label": "Article Audio",
+        "execution_type": "remote_audio",
+        "capability": "audio",
+        "interactive": false,
+        "pycore_local_label": "remote_audio",
+        "ui": {"icon": "🔊", "badge": "ARTICLE AUDIO", "summary_label": "待文章语音", "color": "#14b8a6"}
+      },
+      {
+        "key": "sentence_audio",
+        "label": "Sentence Audio",
+        "execution_type": "remote_sentence_audio",
+        "capability": "sentence_audio",
+        "interactive": true,
+        "fast_promotable": true,
+        "pycore_local_label": "remote_sentence_audio",
+        "ui": {"icon": "🎧", "badge": "SENTENCE", "summary_label": "待句子音频", "color": "#34d399"}
+      },
+      {
+        "key": "subtitle_search",
+        "label": "Subtitle Search",
+        "execution_type": "remote_subtitle",
+        "capability": "subtitle",
+        "interactive": false,
+        "pycore_local_label": "remote_subtitle",
+        "ui": {"icon": "💬", "badge": "SUBTITLE", "summary_label": "待字幕搜索", "color": "#60a5fa"}
+      },
+      {
+        "key": "poster",
+        "label": "Book / Media Cover",
+        "execution_type": "remote_poster",
+        "capability": "poster",
+        "interactive": false,
+        "pycore_local_label": "remote_poster",
+        "ui": {"icon": "🎬", "badge": "COVER", "summary_label": "待搜索图书封面", "color": "#fb7185"}
+      },
+      {
+        "key": "notebooklm",
+        "label": "NotebookLM",
+        "execution_type": "remote_notebooklm",
+        "capability": null,
+        "interactive": false,
+        "pycore_local_label": "remote_notebooklm",
+        "ui": {"icon": "📓", "badge": "NOTEBOOK", "summary_label": "待 NLM 处理", "color": "#fbbf24"}
+      },
+      {
+        "key": "gemini_image",
+        "label": "Gemini Image",
+        "execution_type": "remote_gemini",
+        "capability": "image",
+        "interactive": false,
+        "pycore_local_label": "remote_image",
+        "ui": {"icon": "🎨", "badge": "IMAGE", "summary_label": "待 AI 生图", "color": "#c084fc"}
+      },
+      {
+        "key": "gemini_chat",
+        "label": "Gemini Chat",
+        "execution_type": "remote_gemini_text",
+        "capability": null,
+        "interactive": false,
+        "pycore_local_label": "remote_gemini_text",
+        "ui": {"icon": "💬", "badge": "CHAT", "summary_label": "待 AI 对话", "color": "#f472b6"}
+      },
+      {
+        "key": "word_validity",
+        "label": "Word Validity",
+        "execution_type": "remote_validity",
+        "capability": null,
+        "interactive": false,
+        "pycore_local_label": "remote_validity",
+        "ui": {"icon": "✅", "badge": "VALIDITY", "summary_label": "待有效检测", "color": "#22c55e"}
+      },
+      {
+        "key": "stt",
+        "label": "Speech to Text",
+        "execution_type": "remote_stt",
+        "capability": "stt",
+        "interactive": false,
+        "pycore_local_label": "remote_stt",
+        "ui": {"icon": "🎙️", "badge": "STT", "summary_label": "待语音识别", "color": "#38bdf8"}
+      },
+      {
+        "key": "audio_transcribe",
+        "label": "Audio Transcription",
+        "execution_type": "remote_stt",
+        "capability": "stt",
+        "interactive": false,
+        "pycore_local_label": "remote_stt",
+        "ui": {"icon": "🎙️", "badge": "STT", "summary_label": "待音频转写", "color": "#38bdf8"}
+      }
+    ],
+    "history_buckets": {
+      "all": ["word_audio", "sentence_audio", "translation", "assist", "media_image"],
+      "exact_aliases": {
+        "word_translation": "translation",
+        "prompt_translation": "translation",
+        "google_translate": "translation",
+        "word-translation": "translation",
+        "ai_translate": "translation",
+        "word_media": "media_image",
+        "gemini_image": "media_image",
+        "poster": "media_image"
+      },
+      "token_rules": [
+        {"bucket": "word_audio", "all": ["word"], "any": ["tts", "audio"]},
+        {"bucket": "sentence_audio", "all": ["sentence"], "any": ["tts", "audio", "prompt"]},
+        {"bucket": "translation", "all": [], "any": ["translate", "translation"]},
+        {"bucket": "media_image", "all": [], "any": ["media", "image", "cover", "poster", "screenshot", "book"]}
+      ],
+      "fallback": "assist"
+    }
+  },
+  "categories": [
+    {
+      "key": "word_translation",
+      "label": "Word Translation",
+      "laravel_task_type": "word_translation",
+      "capability": "translate",
+      "primary_handler": "pycore"
+    },
+    {
+      "key": "ai_translate",
+      "label": "AI Translate",
+      "laravel_task_type": "word_translation",
+      "capability": "ai_translate",
+      "primary_handler": "pycore"
+    },
+    {
+      "key": "word_media",
+      "label": "Word Media",
+      "laravel_task_type": "word_media",
+      "capability": "image",
+      "primary_handler": "chrome"
+    },
+    {
+      "key": "word_audio",
+      "label": "Word Audio",
+      "laravel_task_type": "word_audio",
+      "capability": "audio",
+      "primary_handler": "pycore"
+    },
+    {
+      "key": "sentence_audio",
+      "label": "Sentence Audio",
+      "laravel_task_type": "sentence_audio",
+      "capability": "sentence_audio",
+      "primary_handler": "pycore"
+    },
+    {
+      "key": "subtitle_search",
+      "label": "Subtitle Search",
+      "laravel_task_type": "subtitle_search",
+      "capability": "subtitle",
+      "primary_handler": "pycore"
+    },
+    {
+      "key": "subtitle_lang",
+      "label": "Subtitle Add-Language",
+      "laravel_task_type": null,
+      "capability": "ai_translate",
+      "primary_handler": "pycore"
+    },
+    {
+      "key": "book_lang",
+      "label": "Book Add-Language",
+      "laravel_task_type": null,
+      "capability": "ai_translate",
+      "primary_handler": "pycore"
+    },
+    {
+      "key": "cover",
+      "label": "Vocabulary Cover",
+      "laravel_task_type": null,
+      "capability": "image",
+      "primary_handler": "chrome"
+    },
+    {
+      "key": "poster",
+      "label": "Media Poster",
+      "laravel_task_type": "poster",
+      "capability": "poster",
+      "primary_handler": "chrome"
+    },
+    {
+      "key": "notebooklm",
+      "label": "NotebookLM",
+      "laravel_task_type": "notebooklm",
+      "capability": null,
+      "primary_handler": "chrome"
+    },
+    {
+      "key": "gemini_image",
+      "label": "Gemini Image",
+      "laravel_task_type": "gemini_image",
+      "capability": "image",
+      "primary_handler": "chrome"
+    },
+    {
+      "key": "gemini_chat",
+      "label": "Gemini Chat",
+      "laravel_task_type": "gemini_chat",
+      "capability": null,
+      "primary_handler": "chrome"
+    }
+  ]
+}

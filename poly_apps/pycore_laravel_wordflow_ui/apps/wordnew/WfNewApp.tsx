@@ -69,6 +69,7 @@ import { WfNewOnboarding } from './pages/WfNewOnboarding';
 import { WfNewNavLogo } from './components/WfNewNavLogo';
 import { WfNewNotificationBell } from './components/WfNewNotificationBell';
 import { WfDailyReadingSection } from './components/daily-reading/WfDailyReadingSection';
+import { setAudioCachePaused } from './cache/WfNewAudioCache';
 
 import { useWfNewAppState, type WfTab } from './hooks/useWfNewAppState';
 
@@ -213,6 +214,15 @@ export const WfNewApp: React.FC = () => {
     closeAddLibraryConfirm,
     pageHeader,
   } = useWfNewAppState({ shellLang, dark });
+
+  // Route-scoped network gate: while WfNewApp is mounted (the /wordnew route
+  // is active) background audio caching runs; on unmount it PAUSES with its
+  // queue/state preserved, so wordnew network activity never continues under
+  // another end's route. Resuming picks the queue up where it left off.
+  useEffect(() => {
+    setAudioCachePaused(false);
+    return () => setAudioCachePaused(true);
+  }, []);
 
   return (
     <div className={dark ? 'dark' : ''}>
@@ -610,6 +620,7 @@ export const WfNewApp: React.FC = () => {
                 theme={activeTheme}
                 trans={trans}
                 routeMode
+                onGoHome={goHome}
                 onOpenBook={(sourceKey, title) => openHomeGroup({
                   id: sourceKey,
                   kind: 'book',

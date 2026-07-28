@@ -54,7 +54,6 @@ export {
 export {
   loadSettings, saveSettings,
   loadQueueCache, saveQueueCache, queueCacheAgeMs,
-  loadOverviewCache, saveOverviewCache, overviewCacheAgeMs,
 } from './PycoreCache';
 
 export {
@@ -85,5 +84,6 @@ export {
 export type { PycoreEngineLoadState, PycoreEngineLoadHook } from './PycoreEngineLoadStore';
 
 export * from './pycoreTypes';
+export * from './QueueCenterContract';
 export * from './ttsEngineState';
 export * from './PycoreVocabTypes';

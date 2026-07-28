@@ -345,6 +345,7 @@ export const zhLocaleB: Record<string, string> = {
     'home.dailyReading.play': '播放',
     'home.dailyReading.pause': '暂停',
     'home.dailyReading.close': '停止并关闭播放器',
+    'home.dailyReading.backHome': '返回首页',
     'content.section.word': '词组',
     'content.section.book': '书组',
     'content.section.subtitle': '字幕组',

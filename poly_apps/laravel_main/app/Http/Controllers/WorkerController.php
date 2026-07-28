@@ -43,12 +43,12 @@ class WorkerController extends Controller
             // Derive the allowed lane set from the model's canonical EXECUTION_TYPES
             // so new lanes (remote_subtitle / remote_poster / remote_sentence_audio,
             // etc.) are accepted automatically and this rule can never drift.
-            'processor_types.*' => ['string', Rule::in(GlobalTask::EXECUTION_TYPES)],
+            'processor_types.*' => ['string', Rule::in(GlobalTask::executionTypes())],
             // Capability tags for the shared remote_fast lane (NULL = legacy
             // worker, only claims NULL-capability fast tasks). Derived from the
             // model's canonical CAPABILITIES vocabulary (drift-proof).
             'capabilities' => 'nullable|array',
-            'capabilities.*' => ['string', Rule::in(GlobalTask::CAPABILITIES)],
+            'capabilities.*' => ['string', Rule::in(GlobalTask::capabilities())],
             'hostname' => 'nullable|string',
             'platform' => 'nullable|string',
             'metadata' => 'nullable|array',

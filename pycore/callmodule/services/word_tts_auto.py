@@ -9,18 +9,18 @@ tts_cache_{lang} tables.
 
 from typing import Any, Dict, Optional
 
-import time
 import threading
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_user_data_store
-from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 from pycore.pyheartbeat import get_heartbeat_system
-from pycore.pyctl.assist import load_assist_settings, save_assist_settings
+from pycore.pyctl.assist import assist_settings_exist, load_assist_settings, save_assist_settings
 
 from pycore.callmodule.services.tts_queue_poller_service import (
     get_tts_queue_poller_service,
 )
+from pycore.callmodule.services.endpoint_scoped_cache import EndpointScopedCache
+from pycore.callmodule.services.sync.laravel_endpoint_manager import get_laravel_endpoint_manager
 
 
 _SECTION = "word_tts_auto"
@@ -28,55 +28,45 @@ _AUTO_KEY = "auto_start"
 _CONCURRENCY_KEY = "concurrency"
 _HEARTBEAT_NAME = "tts_queue_poller"
 _LARAVEL_SUMMARY_TTL_S = 30.0
-_SUMMARY_STATE_QUEUE = "word_tts_auto.summary"
-_laravel_summary_cache: Dict[str, Any] = {}
-_laravel_summary_ts: float = 0.0
-_SUMMARY_STATE_WORKER = SerializedWorkerThread(
-    _SUMMARY_STATE_QUEUE,
-    "WordTTSSummaryStateThread",
+_LARAVEL_SUMMARY_STALE_MAX_S = 300.0
+_LARAVEL_SUMMARY_CACHE = EndpointScopedCache(
+    ttl_s=_LARAVEL_SUMMARY_TTL_S,
+    stale_max_s=_LARAVEL_SUMMARY_STALE_MAX_S,
 )
-_SUMMARY_STATE_WORKER.start()
 
 
-def _read_summary_cache(now: float) -> Dict[str, Any]:
-    if _laravel_summary_cache and (now - _laravel_summary_ts) < _LARAVEL_SUMMARY_TTL_S:
-        return dict(_laravel_summary_cache)
-    return {}
-
-
-def _store_summary_cache(summary: Dict[str, Any], now: float) -> Dict[str, Any]:
-    global _laravel_summary_cache, _laravel_summary_ts
-    if summary:
-        _laravel_summary_cache = dict(summary)
-        _laravel_summary_ts = now
-        result = dict(summary)
-        result["cached_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
-        return result
-    return dict(_laravel_summary_cache)
+def _summary_endpoint() -> str:
+    try:
+        value = get_laravel_endpoint_manager().get_active_base_url()
+        return str(value or "").strip().rstrip("/")
+    except Exception:
+        return ""
 
 
 def _laravel_queue_summary() -> Dict[str, Any]:
     """Cached Laravel pending/leased counts (limit=0 claim)."""
-    now = time.time()
-    cached = call_serialized(_SUMMARY_STATE_QUEUE, _read_summary_cache, now)
-    if cached:
-        return cached
-    summary: Dict[str, Any] = {}
-    try:
-        summary = get_tts_queue_poller_service().fetch_queue_summary() or {}
-    except Exception:
-        pass
-    return call_serialized(_SUMMARY_STATE_QUEUE, _store_summary_cache, summary, now)
+    endpoint = _summary_endpoint()
+    if not endpoint:
+        return {}
+    return _LARAVEL_SUMMARY_CACHE.get_or_fetch(
+        endpoint,
+        lambda: get_tts_queue_poller_service().fetch_queue_summary() or {},
+    )
 
 
 def get_config() -> Dict[str, Any]:
     section = get_user_data_store().get_section(_SECTION) or {}
+    assist = load_assist_settings()
     try:
         concurrency = int(section.get(_CONCURRENCY_KEY, 0) or 0)
     except (TypeError, ValueError):
         concurrency = 0
     return {
-        "auto_start": bool(section.get(_AUTO_KEY, False)),
+        "auto_start": (
+            bool(assist.get("enabled") and (assist.get("capabilities") or {}).get("tts", True))
+            if assist_settings_exist()
+            else bool(section.get(_AUTO_KEY, False))
+        ),
         # 0 = use the per-engine recommended value.
         "concurrency": concurrency,
     }
@@ -89,11 +79,8 @@ def restore_persisted_auto_start() -> None:
     Assist → Voice (TTS); skip legacy per-strip toggles here.
     """
     store = get_user_data_store()
-    if store.get_section("assist_laravel") is not None:
-        ColorPrint.blue("[WordTtsAuto] Skipping restore — assist_laravel owns voice workers")
-        return
     section = store.get_section(_SECTION)
-    if section is None:
+    if not assist_settings_exist() and section is None:
         # No persisted toggle: land deterministically OFF.
         try:
             get_heartbeat_system().disable_callback(_HEARTBEAT_NAME)
@@ -101,7 +88,7 @@ def restore_persisted_auto_start() -> None:
             ColorPrint.yellow(f"[WordTtsAuto] default-off disable failed ({exc})")
         return
 
-    enabled = bool(section.get(_AUTO_KEY, False))
+    enabled = get_config()["auto_start"]
     heartbeat = get_heartbeat_system()
     try:
         if enabled:
@@ -135,16 +122,20 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
     ``concurrency`` None leaves the persisted value untouched; 0 means "use the
     per-engine recommended value". The live value is pushed straight onto the
     worker service instance."""
-    updates: Dict[str, Any] = {_AUTO_KEY: bool(enabled)}
+    updates: Dict[str, Any] = {}
     if concurrency is not None:
         updates[_CONCURRENCY_KEY] = max(0, int(concurrency))
     store = get_user_data_store()
-    store.update_section(_SECTION, updates)
+    if updates:
+        store.update_section(_SECTION, updates)
 
     assist = load_assist_settings()
     caps = dict(assist.get("capabilities") or {})
     caps["tts"] = bool(enabled)
-    save_assist_settings({**assist, "capabilities": caps})
+    save_assist_settings({
+        "enabled": True if enabled else assist.get("enabled", False),
+        "capabilities": caps,
+    })
 
     if concurrency is not None:
         try:

@@ -86,7 +86,7 @@ const CategoryCard: React.FC<{
   onToggle: () => void;
   onDrill: (label: string, status?: DrillStatus) => void;
 }> = ({ category: c, expanded, onToggle, onDrill }) => {
-  const hs = handlerStyle(String(c.handler));
+  const hs = handlerStyle(String(c.primary_handler));
   const HIcon = hs.Icon;
   const langs = c.by_language ? Object.entries(c.by_language).filter(([, n]) => n > 0) : [];
   const samples = c.sample ?? [];
@@ -97,9 +97,10 @@ const CategoryCard: React.FC<{
         <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate" title={c.label}>
           {c.label}
         </span>
-        <span className={`ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase shrink-0 ${hs.chip}`}>
+        <span title={`Eligible: ${c.claimants.join(', ')}`} className={`ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase shrink-0 ${hs.chip}`}>
           <HIcon className="w-3 h-3" />
-          {c.handler}
+          {c.primary_handler}
+          {c.claimants.length > 1 && <Users className="w-3 h-3" />}
         </span>
       </div>
       <div className="flex flex-wrap gap-1.5">

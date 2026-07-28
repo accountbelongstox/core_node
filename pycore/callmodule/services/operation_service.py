@@ -228,14 +228,26 @@ class OperationService:
         """
         op = self._require_op(op_id)
         existing_items = self.repo.get_operation_items(op_id)
+        existing_keys = {i.item_key for i in existing_items}
         items: List[OperationItem] = []
         for i, data in enumerate(items_data):
-            item_key = data.get("item_key", f"item_{i}")
+            ordinal = len(existing_items) + i
+            item_key = data.get("item_key") or f"item_{ordinal}"
+            if item_key in existing_keys:
+                # Collision with a previously declared item: fall back to the
+                # ordinal-based key, then suffix until free.
+                base = f"item_{ordinal}"
+                item_key = base
+                suffix = 0
+                while item_key in existing_keys:
+                    suffix += 1
+                    item_key = f"{base}_{suffix}"
+            existing_keys.add(item_key)
             items.append(OperationItem(
                 id=f"item_{uuid.uuid4().hex}",
                 operation_id=op_id,
                 item_key=item_key,
-                ordinal=len(existing_items) + i,
+                ordinal=ordinal,
                 status="queued",
                 stage="queued",
                 progress=0.0,

@@ -68,7 +68,7 @@ class DevHistoryAssistService
                 $task = $taskManager->createTask(
                     'AppQyV1',
                     'prompt_translation',
-                    GlobalTask::EXECUTION_REMOTE_TRANSLATION,
+                    GlobalTask::executionType('remote_translation'),
                     [
                         'prompt_id' => $id,
                         'text' => $text,

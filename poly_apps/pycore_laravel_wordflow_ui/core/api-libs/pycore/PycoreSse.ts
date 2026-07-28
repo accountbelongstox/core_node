@@ -21,7 +21,8 @@
  * First connect (no since) starts at the tail (new events only). After that we
  * resume from lastSeq so the ~50s server-side close never drops events.
  *
- * Usage: connectPycoreSse();  (PycoreWs.connectPycoreWs() calls this for you.)
+ * Usage: connectPycoreSse();  (manual/legacy only — PycoreWs no longer
+ * auto-starts this; RPC v2 WS 'event' frames are the broadcast transport.)
  */
 
 import { getClientId, dispatchEvent, setSseEventsActive, isPycoreSuspended } from './PycoreWs';

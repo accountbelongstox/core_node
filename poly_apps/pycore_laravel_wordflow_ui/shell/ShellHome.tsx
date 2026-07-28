@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Server, Cpu, GraduationCap, ArrowRight, Coins, ShoppingBag } from 'lucide-react';
+import { Server, Cpu, GraduationCap, ArrowRight, Coins } from 'lucide-react';
 import { isWsConnected } from '../core/api-libs/pycore/PycoreWs';
 import { END_META } from './shellTypes';
 
@@ -56,13 +56,7 @@ const CARDS = [
     desc: 'Vortex crypto trading arena with 200+ real-time simulated asset pairs & high-frequency ledgers.',
     accent: 'from-amber-500 to-orange-500',
   },
-  {
-    id: 'pdd-manager' as const,
-    icon: ShoppingBag,
-    title: END_META['pdd-manager'].label,
-    desc: 'Admin console for the 订多多 (Pinduoduo) SaaS: members, recharge, membership expiry & payment gateways.',
-    accent: 'from-rose-500 to-pink-500',
-  },
+  // PDD Manager card archived; keep the PDD app source available without exposing it in the shell.
 ];
 
 export const ShellHome: React.FC = () => {

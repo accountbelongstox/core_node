@@ -23,6 +23,7 @@
 
 import { BaseApiClient, type ApiResponse } from '../../api/BaseApiClient';
 import { apiManager } from '@/services/ApiManager';
+import { getValidityProvider, getValidityLanguage, type AiWebProvider } from '@/services/AiProviderSettings';
 import type { ClassifierWord } from './word-validity-classifier';
 import { runWordValidityClassification } from './word-validity-web-runtime';
 import { logger } from '@/utils/logger';
@@ -40,8 +41,12 @@ const MAX_CONSECUTIVE_EMPTY = 2;
 export interface ValidityRunnerConfig {
   /** Laravel base URL; falls back to apiManager.getCurrentBaseUrl() when absent. */
   apiUrl?: string;
-  /** Language whose unchecked words to drain. */
+  /** Language whose unchecked words to drain (default: the persisted Settings
+   *  selection, EN unless the user opted into another language). */
   language?: string;
+  /** Web-AI provider driving the classification (default: the persisted
+   *  Settings selection, DeepSeek web unless changed). */
+  provider?: AiWebProvider;
   /** Target language for valid-word translations (default DEFAULT_TARGET_LANG). */
   targetLanguage?: string;
   /** Words per round (clamped 1..200). */
@@ -127,7 +132,8 @@ class WordValidityRunnerService {
       throw new Error(this.status.lastError);
     }
 
-    const language = config.language || 'en';
+    const language = config.language || await getValidityLanguage();
+    const provider = config.provider || await getValidityProvider();
     const targetLanguage = config.targetLanguage || DEFAULT_TARGET_LANG;
     const limit = Math.max(1, Math.min(DEFAULT_LIMIT, Math.floor(config.limit ?? DEFAULT_LIMIT)));
 
@@ -143,9 +149,9 @@ class WordValidityRunnerService {
       language,
     };
 
-    logger.info(LOG, `Started (language=${language}, target=${targetLanguage}, base=${apiBase})`);
+    logger.info(LOG, `Started (language=${language}, provider=${provider}, target=${targetLanguage}, base=${apiBase})`);
     // Fire and forget: don't block the message handler on the whole drain.
-    void this.runLoop(new ValidityApiClient(apiBase), language, targetLanguage, limit);
+    void this.runLoop(new ValidityApiClient(apiBase), language, provider, targetLanguage, limit);
   }
 
   /** Request a graceful stop; the loop halts before its next round. */
@@ -162,6 +168,7 @@ class WordValidityRunnerService {
   private async runLoop(
     client: ValidityApiClient,
     language: string,
+    provider: AiWebProvider,
     targetLanguage: string,
     limit: number,
   ): Promise<void> {
@@ -179,16 +186,16 @@ class WordValidityRunnerService {
           break;
         }
 
-        // 2. Classify via DeepSeek web tab.
+        // 2. Classify via the configured web-AI tab (DeepSeek by default).
         let classification;
         try {
           classification = await runWordValidityClassification(
             words,
-            'deepseek',
+            provider,
             targetLanguage,
           );
         } catch (error: any) {
-          this.status.lastError = error?.message || 'DeepSeek tab drive failed';
+          this.status.lastError = error?.message || 'Web-AI tab drive failed';
           logger.error(LOG, `Round ${this.status.rounds}: ${this.status.lastError}`);
           break;
         }
@@ -214,7 +221,7 @@ class WordValidityRunnerService {
 
         // 4. Report valid + invalid together, md5-keyed.
         const results = this.buildResults(valid, invalid);
-        const reportBody = { language, target_language: targetLanguage, source: 'deepseek-web', results };
+        const reportBody = { language, target_language: targetLanguage, source: `${provider}-web`, results };
         try {
           await client.report(reportBody);
         } catch (error: any) {
@@ -242,11 +249,11 @@ class WordValidityRunnerService {
 
       if (this.status.rounds >= MAX_ROUNDS && !this.status.done) {
         this.status.lastError = this.status.lastError || `Stopped at max rounds (${MAX_ROUNDS})`;
-        logger.warn(LOG, this.status.lastError);
+        logger.warn(LOG, this.status.lastError ?? 'Stopped at max rounds');
       }
     } catch (error: any) {
       this.status.lastError = error?.message || 'Runner loop crashed';
-      logger.error(LOG, this.status.lastError);
+      logger.error(LOG, this.status.lastError ?? 'Runner loop crashed');
     } finally {
       this.running = false;
       this.status.running = false;

@@ -539,7 +539,7 @@ export const pcEn = {
       loading: 'Loading heartbeat workers…',
       unavailable: 'Heartbeat workers unavailable — pycore (:59000) may be offline.',
       translation_queue_monitor: 'Queue monitor',
-      translation_ws_client: 'Live SSE',
+      translation_ws_client: 'Live RPC v2',
     },
     // Recent Tasks tab — unified cross-end task history (pycore + chrome).
     recent: {

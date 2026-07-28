@@ -3,8 +3,8 @@
  *
  * Every section is a card with a header row (icon, title, live count, and an
  * idempotent toggle switch where applicable) plus the existing panel component
- * as its body. Shared hub: GET /api/local/task-center/snapshot (useQueueCenterHub);
- * toggles mutate via PycoreApi then hub.refreshHub(). Legacy ?tab= links
+ * as its body. One RPC v2 snapshot drives the page; control mutations also use
+ * RPC v2, followed by hub.refreshHub(). Legacy ?tab= links
  * scroll to the matching section anchor instead of switching tabs.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -148,8 +148,8 @@ const QueueCenterBody: React.FC = () => {
    * The page now reads all counters from shared sectionContracts only.
    * [gpt-5.3-codex-spark:LEGACY-END]
    */
-  const overviewCount = Object.values(sectionContracts).reduce(
-    (sum, contract) => sum + (contract.queue.pending ?? 0),
+  const overviewCount = (hub.overview?.categories ?? []).reduce(
+    (sum, category) => sum + (category.pending ?? 0),
     0,
   );
   const translationCount = sectionContracts.assist_translation.queue.pending;

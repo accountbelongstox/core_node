@@ -15,7 +15,8 @@ import type {
   AgentHistoryIndexResponse, AgentHistoryPromptsResponse, AgentHistorySessionResponse,
   AgentHistoryArticleRecordsResponse,
   PcQueueOverview, PcCapabilitySettings, PcCapabilityKey,
-  PcTaskCenterResponse, QueueCenterControlName,
+  PcTaskCenterResponse, QueueCenterControlName, QueueCenterControlResponse,
+  QueueCenterSnapshot,
   PcCapabilitySaveResponse, PcCapabilityOptions,
   PcTaskRecentResponse, PcTaskClearResponse, PcCompletedTaskArchiveResponse,
   PcCompletedTaskSyncResponse,
@@ -27,7 +28,7 @@ import type {
   VocabTtsGenerateRequest,
 } from './PycoreVocabTypes';
 import {
-  callRpc, PYCORE_RPC_ROUTES, rewritePycoreEndpoint,
+  callRpc, PYCORE_RPC_ROUTES,
 } from './PycoreApiTransport';
 
 export const pycoreApiLocal = {
@@ -86,8 +87,15 @@ export const pycoreApiLocal = {
     }) as Promise<PcCompletedTaskArchiveResponse>,
   syncCompletedTasks: () =>
     callRpc(PYCORE_RPC_ROUTES.taskHistorySyncCompletedArchive, {}) as Promise<PcCompletedTaskSyncResponse>,
-  completedTaskResourceUrl: (cacheKey: string) =>
-    rewritePycoreEndpoint(`/api/local/tasks/completed/resources/${encodeURIComponent(cacheKey)}`),
+  getCompletedTaskResourceDataUrl: async (cacheKey: string): Promise<string> => {
+    const response = await callRpc(PYCORE_RPC_ROUTES.taskHistoryCompletedArchiveResource, {
+      cache_key: cacheKey,
+    }) as { success?: boolean; mime?: string; content_base64?: string; error?: string };
+    if (!response?.success || !response.content_base64) {
+      throw new Error(response?.error || 'Cached resource not found');
+    }
+    return `data:${response.mime || 'application/octet-stream'};base64,${response.content_base64}`;
+  },
 
   // --- Google Translate (free googletrans + AI comparison on one input) --- #
   // status: googletrans availability/version + cache info. translate: the free
@@ -115,6 +123,14 @@ export const pycoreApiLocal = {
     callRpc(PYCORE_RPC_ROUTES.imageSearch, { action: 'ai', query, size, model }),
   compareImages: (query: string, num = 12, country?: string, size?: string, model?: string) =>
     callRpc(PYCORE_RPC_ROUTES.imageSearch, { action: 'compare', query, num, country, size, model }),
+  getImageSearchResourceDataUrl: async (url: string): Promise<string> => {
+    const response = await callRpc(PYCORE_RPC_ROUTES.imageSearch, { action: 'resource', url }) as {
+      success?: boolean; image_base64?: string; mime?: string;
+    };
+    return response?.success && response.image_base64
+      ? `data:${response.mime || 'image/jpeg'};base64,${response.image_base64}`
+      : '';
+  },
   getImageSearchHistory: (limit = 50) =>
     callRpc(PYCORE_RPC_ROUTES.imageSearch, { action: 'history', limit }),
   deleteImageSearchHistory: (id: string) =>
@@ -266,7 +282,8 @@ export const pycoreApiLocal = {
   // --- Queue Center: unified overview (contract A) ------------------------ #
   // pycore is the hub: it fans out to the selected Laravel endpoint for the
   // per-category counts + worker registry and merges its own engine status. All
-  // 8 categories are always present (zeros when empty); laravel_reachable:false
+  // Every category in config/queue_center_contract.json is always present;
+  // laravel_reachable:false
   // means the counts are zeroed but the categories + local engines still report.
   getQueueOverview: () =>
     callRpc(PYCORE_RPC_ROUTES.queueOverviewGetQueueOverview, {}) as Promise<PcQueueOverview>,
@@ -285,8 +302,8 @@ export const pycoreApiLocal = {
     callRpc(PYCORE_RPC_ROUTES.workers, { action: 'sentence_queue' }),
 
   // --- Sentence-audio voice variants (per-language accent/gender specs) ----- #
-  // pycore proxies laravel: GET returns the variant specs for a language; POST
-  // replaces the full spec list for that language; DELETE removes one variant.
+  // The UI calls pycore through RPC v2. Pycore may use Laravel HTTP internally
+  // to read, replace, or remove variant specs.
   getSentenceVoiceVariants: async (lang: string): Promise<SentenceVoiceVariant[]> => {
     const r = await callRpc(PYCORE_RPC_ROUTES.sentenceAudioVariantsIndex, { lang }) as {
       success: boolean; specs: SentenceVoiceVariant[];
@@ -342,7 +359,7 @@ export const pycoreApiLocal = {
   getTaskCenter: () =>
     callRpc(PYCORE_RPC_ROUTES.taskCenterGet, {}) as Promise<PcTaskCenterResponse>,
   getQueueCenterSnapshot: () =>
-    callRpc(PYCORE_RPC_ROUTES.taskCenterGetQueueCenterSnapshot, {}),
+    callRpc(PYCORE_RPC_ROUTES.taskCenterGetQueueCenterSnapshot, {}) as Promise<QueueCenterSnapshot>,
   setQueueCenterControl: (
     control: QueueCenterControlName,
     enabled: boolean,
@@ -353,16 +370,24 @@ export const pycoreApiLocal = {
       /** Dedicated short timeout for toggles (default 8s). */
       timeoutMs?: number;
     },
-  ) =>
+  ): Promise<QueueCenterControlResponse> =>
     callRpc(PYCORE_RPC_ROUTES.taskCenterSetQueueCenterControl, {
       control_name: control,
       enabled,
       requested_by: options?.requested_by ?? null,
       reason: options?.reason ?? null,
       graceful_stop: options?.graceful_stop ?? false,
-    }, options?.timeoutMs ?? 8_000),
-  wordAudioMediaUrl: (word: string, language = 'en') =>
-    rewritePycoreEndpoint(`/api/local/word-audio/media?word=${encodeURIComponent(word)}&language=${encodeURIComponent(language)}`),
+    }, options?.timeoutMs ?? 8_000) as Promise<QueueCenterControlResponse>,
+  getWordAudioMediaDataUrl: async (word: string, language = 'en'): Promise<string> => {
+    const response = await callRpc(PYCORE_RPC_ROUTES.wordAudioWordAudioMedia, {
+      word,
+      language,
+    }) as { success?: boolean; media_type?: string; content_base64?: string; error?: string };
+    if (!response?.success || !response.content_base64) {
+      throw new Error(response?.error || 'Word audio not found');
+    }
+    return `data:${response.media_type || 'audio/mpeg'};base64,${response.content_base64}`;
+  },
 
   // --- Queue Center: capability settings (contract B) --------------------- #
   // Read all four capability blocks (priority + availability + options).
@@ -425,6 +450,14 @@ export const pycoreApiLocal = {
     callRpc(PYCORE_RPC_ROUTES.vocabulary, { action: 'cover_retry', body: payload }),
   getVocabLibraries: (params: Record<string, unknown>) =>
     callRpc(PYCORE_RPC_ROUTES.vocabulary, { action: 'libraries', query: params }),
+  getVocabResourceDataUrl: async (url: string): Promise<string> => {
+    const response = await callRpc(PYCORE_RPC_ROUTES.vocabulary, { action: 'resource', url }) as {
+      success?: boolean; content_base64?: string; mime?: string;
+    };
+    return response?.success && response.content_base64
+      ? `data:${response.mime || 'application/octet-stream'};base64,${response.content_base64}`
+      : '';
+  },
   getVocabLibraryWords: (libraryId: number, params: Record<string, unknown>) =>
     callRpc(PYCORE_RPC_ROUTES.vocabulary, { action: 'library_words', library_id: libraryId, query: params }),
   deleteVocabLibrary: (libraryId: number) =>
@@ -437,8 +470,7 @@ export const pycoreApiLocal = {
     callRpc(PYCORE_RPC_ROUTES.vocabulary, { action: 'dictionary_words', query: params }),
   createVocabDictionaryWord: (payload: Record<string, unknown>) =>
     callRpc(PYCORE_RPC_ROUTES.vocabulary, { action: 'dictionary_words_add', body: payload }),
-  // Update is POST here (proxied as PUT to laravel) so the FE keeps the WS
-  // Resource reads use the native pycore.router.resource RPC route.
+  // Updates remain RPC v2; pycore chooses the required Laravel HTTP verb.
   updateVocabDictionaryWord: (md5: string, payload: Record<string, unknown>) =>
     callRpc(PYCORE_RPC_ROUTES.vocabulary, { action: 'dictionary_word_update', md5, body: payload }),
   deleteVocabDictionaryWord: (md5: string, params: Record<string, unknown>) =>

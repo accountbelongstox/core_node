@@ -12,7 +12,7 @@ import threading
 
 from pycore.pyutils.device import AndroidDevice, ScrcpyDevice, DeviceInfo, ServerParams, VideoCodec, ADBManager, ADBDevice
 from pycore.pyfoundations.serialized_worker import await_bus_task
-from pycore.pygvar import GlobalVarManager
+from pycore.pyfoundations.pygvar import GlobalVarManager
 
 
 @dataclass

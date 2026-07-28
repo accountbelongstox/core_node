@@ -481,8 +481,8 @@ class AppQyV1BooksController extends Controller
                 'task_id' => (string) Str::uuid(),
                 'app_name' => 'app_qy_v1',
                 'task_type' => 'books_ingest',
-                'execution_type' => GlobalTask::EXECUTION_LOCAL_TIMER,
-                'status' => GlobalTask::STATUS_PROCESSING,
+                'execution_type' => GlobalTask::executionType('local_timer'),
+                'status' => GlobalTask::status('processing'),
                 'progress' => 0.0,
                 'payload' => [
                     'upload_id' => $uploadId,
@@ -500,7 +500,7 @@ class AppQyV1BooksController extends Controller
                 try {
                     $this->runIngest($fileCaches, $languageOverride, $languagesOverride, $task);
                 } catch (\Throwable $e) {
-                    $task->status = GlobalTask::STATUS_FAILED;
+                    $task->status = GlobalTask::status('failed');
                     $task->error = $e->getMessage();
                     $task->save();
                     Log::error('[AppQyV1Books] async book ingest failed', [
@@ -663,7 +663,7 @@ class AppQyV1BooksController extends Controller
         }
 
         if ($task !== null) {
-            $task->status = GlobalTask::STATUS_COMPLETED;
+            $task->status = GlobalTask::status('completed');
             $task->progress = 100.0;
             $task->result = ['books' => $books];
             $task->completed_at = now();

@@ -153,6 +153,22 @@ resolve_python() {
     return 1
 }
 
+# CodeSync is a standalone stdlib daemon. Do not source gvar_common.sh or run
+# the full Pycore environment setup just to locate Python; those helpers may
+# probe root-owned global files and invoke sudo on locked-down Debian/Ubuntu
+# service users. Any Python 3 interpreter is sufficient for CodeSync.
+resolve_codesync_python() {
+    local name candidate
+    for name in python3 python; do
+        candidate="$(command -v "$name" 2>/dev/null || true)"
+        if [ -n "$candidate" ] && "$candidate" -c 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # --- usage --------------------------------------------------------------- #
 print_usage() {
     cat <<EOF
@@ -247,6 +263,10 @@ _pyservice_maybe_elevate() {
 }
 _pyservice_maybe_elevate
 
+# AI SAFETY: Do not modify the `./pyservice.sh codesync` dispatch chain unless
+# the user explicitly requests that specific change. This is a compatibility
+# entry point for Debian/Ubuntu and Windows CodeSync service management.
+#
 # codesync -> STANDALONE, stdlib-only Code Sync. Dispatched HERE, before the
 # prerequisite-install step and without importing the pycore package.
 #   * no subcommand          -> offer to add Code Sync to the systemd service
@@ -279,7 +299,7 @@ if [[ "$CMD" == "codesync" ]]; then
             if [[ "$CS_RC" -ne 10 ]]; then
                 exit "$CS_RC"   # installed as a service (or install error)
             fi
-            if ! PY="$(resolve_python)"; then
+            if ! PY="$(resolve_codesync_python)"; then
                 echo "[X] Python 3 was NOT found; cannot run 'codesync'." >&2
                 exit 1
             fi
@@ -288,7 +308,7 @@ if [[ "$CMD" == "codesync" ]]; then
             ;;
         *)
             # show | role | peers | distribute | skip-update -> stdlib CLI.
-            if ! PY="$(resolve_python)"; then
+            if ! PY="$(resolve_codesync_python)"; then
                 echo "[X] Python 3 was NOT found; cannot run 'codesync'." >&2
                 exit 1
             fi

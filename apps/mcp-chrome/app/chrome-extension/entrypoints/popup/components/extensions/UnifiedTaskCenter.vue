@@ -171,7 +171,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { apiManager, getApiBase } from '@/services/ApiManager';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { LANES } from '@/utils/task-center-lanes';
-import { TASK_LIST_PATH } from '@/utils/api-paths';
+import { TASK_LIST_PATH, TASK_CENTER_OVERVIEW_PATH } from '@/utils/api-paths';
 import type { TaskRow } from '@/utils/task-center-types';
 import TaskDetailModal from './TaskDetailModal.vue';
 import {
@@ -229,6 +229,12 @@ const error = ref('');
 const loadAllBusy = ref(false);
 const loadAllMsg = ref('');
 
+// Server-side live aggregates (task_center/overview.queue.by_type). When
+// present, the summary strip uses these EXACT counts instead of recomputing
+// from the truncated 50-row list window (which diverged from laravel's Task
+// Center — the "data doesn't match" bug).
+const serverByType = ref<Record<string, { pending: number; processing: number }> | null>(null);
+
 const sortKey = usePersistedRef<'created_desc' | 'created_asc' | 'priority_desc' | 'status'>('utcSort', 'created_desc');
 const statusFilter = usePersistedRef<'' | 'live' | 'history' | 'failed'>('utcStatusFilter', '');
 const historyTypeFilter = usePersistedRef<string>('historyTypeFilter', '');
@@ -241,6 +247,13 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 const apiBase = getApiBase;
 
 const pendingByType = computed(() => {
+  if (serverByType.value) {
+    const m: Record<string, number> = {};
+    for (const [type, counts] of Object.entries(serverByType.value)) {
+      if (counts.pending > 0) m[type] = counts.pending;
+    }
+    return m;
+  }
   const m: Record<string, number> = {};
   for (const r of rows.value) {
     const s = (r.status || '').toLowerCase();
@@ -250,6 +263,13 @@ const pendingByType = computed(() => {
 });
 
 const processingByType = computed(() => {
+  if (serverByType.value) {
+    const m: Record<string, number> = {};
+    for (const [type, counts] of Object.entries(serverByType.value)) {
+      if (counts.processing > 0) m[type] = counts.processing;
+    }
+    return m;
+  }
   const m: Record<string, number> = {};
   for (const r of rows.value) {
     const s = (r.status || '').toLowerCase();
@@ -258,9 +278,12 @@ const processingByType = computed(() => {
   return m;
 });
 
-const totalPending = computed(() =>
-  rows.value.filter((r) => (r.status || '').toLowerCase() === 'pending').length,
-);
+const totalPending = computed(() => {
+  if (serverByType.value) {
+    return Object.values(serverByType.value).reduce((sum, counts) => sum + counts.pending, 0);
+  }
+  return rows.value.filter((r) => (r.status || '').toLowerCase() === 'pending').length;
+});
 
 const rowIsFast = (row: TaskRow): boolean =>
   isFastTier({ is_fast_tier: row.is_fast_tier, priority: row.priority, execution_type: row.execution_type });
@@ -337,13 +360,30 @@ const refresh = async (): Promise<void> => {
   loading.value = true;
   error.value = '';
   try {
-    const res = await fetch(`${apiBase()}${TASK_LIST_PATH}?limit=50`, {
-      headers: { 'Cache-Control': 'no-cache' },
-    });
-    if (!res.ok) { error.value = `Failed to load tasks (${res.status})`; return; }
-    const json = await res.json();
+    const [listRes, overviewRes] = await Promise.all([
+      fetch(`${apiBase()}${TASK_LIST_PATH}?limit=50`, {
+        headers: { 'Cache-Control': 'no-cache' },
+      }),
+      // Best-effort aggregate fetch — a failure leaves the local fallback on.
+      fetch(`${apiBase()}${TASK_CENTER_OVERVIEW_PATH}`, {
+        headers: { 'Cache-Control': 'no-cache' },
+      }).catch(() => null),
+    ]);
+    if (!listRes.ok) { error.value = `Failed to load tasks (${listRes.status})`; return; }
+    const json = await listRes.json();
     const data = json?.data ?? json;
     rows.value = Array.isArray(data?.tasks) ? (data.tasks as TaskRow[]) : [];
+
+    if (overviewRes && overviewRes.ok) {
+      try {
+        const overviewJson = await overviewRes.json();
+        const overviewData = overviewJson?.data ?? overviewJson;
+        const byType = overviewData?.queue?.by_type;
+        serverByType.value = byType && typeof byType === 'object' ? byType : null;
+      } catch {
+        serverByType.value = null;
+      }
+    }
   } catch (e: any) {
     error.value = e?.message || 'Failed to load tasks';
   } finally {

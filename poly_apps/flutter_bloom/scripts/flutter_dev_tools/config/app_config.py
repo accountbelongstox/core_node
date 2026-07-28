@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional
 
 # Import from pycore following PYTHON_PYCORE.md standards
 from pycore.pyfoundations import ColorPrint, ENCYCLOPEDIA
-from pycore.pygvar import (
+from pycore.pyfoundations.pygvar import (
     IS_WINDOWS,
     PROJECT_ROOT,
     CACHE_DIR,

@@ -25,6 +25,9 @@ export const WORKER_PATHS = {
 /** Task list route (callers append their own query string). */
 export const TASK_LIST_PATH = '/api/task/list';
 
+/** Unified Task Center aggregate (scheduler + queue + workers) — laravel_main. */
+export const TASK_CENTER_OVERVIEW_PATH = '/api/task-center/overview';
+
 /** Id-parameterized task sub-routes. */
 export type TaskSubPath = 'detail' | 'bump' | 'stream';
 

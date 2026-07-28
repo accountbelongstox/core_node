@@ -10,15 +10,14 @@ missing sentence audio from Laravel's priority queue.
 from typing import Any, Dict, Optional
 
 import threading
-import time
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_user_data_store
-from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 from pycore.pyheartbeat import get_heartbeat_system
 from pycore.pyutils.tts import tts_service_manager
 from pycore.pyctl.assist import (
     assist_capability_enabled,
+    assist_settings_exist,
     load_assist_settings,
     save_assist_settings,
 )
@@ -26,6 +25,8 @@ from pycore.pyctl.assist import (
 from pycore.callmodule.services.tts_sentence_worker_service import (
     get_tts_sentence_worker_service,
 )
+from pycore.callmodule.services.endpoint_scoped_cache import EndpointScopedCache
+from pycore.callmodule.services.sync.laravel_endpoint_manager import get_laravel_endpoint_manager
 
 
 _SECTION = "sentence_audio_auto"
@@ -33,55 +34,45 @@ _AUTO_KEY = "auto_start"
 _CONCURRENCY_KEY = "concurrency"
 _HEARTBEAT_NAME = "tts_sentence_worker"
 _LARAVEL_SUMMARY_TTL_S = 30.0
-_SUMMARY_STATE_QUEUE = "sentence_audio_auto.summary"
-_laravel_summary_cache: Dict[str, Any] = {}
-_laravel_summary_ts: float = 0.0
-_SUMMARY_STATE_WORKER = SerializedWorkerThread(
-    _SUMMARY_STATE_QUEUE,
-    "SentenceAudioSummaryStateThread",
+_LARAVEL_SUMMARY_STALE_MAX_S = 300.0
+_LARAVEL_SUMMARY_CACHE = EndpointScopedCache(
+    ttl_s=_LARAVEL_SUMMARY_TTL_S,
+    stale_max_s=_LARAVEL_SUMMARY_STALE_MAX_S,
 )
-_SUMMARY_STATE_WORKER.start()
 
 
-def _read_summary_cache(now: float) -> Dict[str, Any]:
-    if _laravel_summary_cache and (now - _laravel_summary_ts) < _LARAVEL_SUMMARY_TTL_S:
-        return dict(_laravel_summary_cache)
-    return {}
-
-
-def _store_summary_cache(summary: Dict[str, Any], now: float) -> Dict[str, Any]:
-    global _laravel_summary_cache, _laravel_summary_ts
-    if summary:
-        _laravel_summary_cache = dict(summary)
-        _laravel_summary_ts = now
-        result = dict(summary)
-        result["cached_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))
-        return result
-    return dict(_laravel_summary_cache)
+def _summary_endpoint() -> str:
+    try:
+        value = get_laravel_endpoint_manager().get_active_base_url()
+        return str(value or "").strip().rstrip("/")
+    except Exception:
+        return ""
 
 
 def _laravel_queue_summary() -> Dict[str, Any]:
     """Cached Laravel pending/leased counts (limit=0 claim)."""
-    now = time.time()
-    cached = call_serialized(_SUMMARY_STATE_QUEUE, _read_summary_cache, now)
-    if cached:
-        return cached
-    summary: Dict[str, Any] = {}
-    try:
-        summary = get_tts_sentence_worker_service().fetch_queue_summary() or {}
-    except Exception:
-        pass
-    return call_serialized(_SUMMARY_STATE_QUEUE, _store_summary_cache, summary, now)
+    endpoint = _summary_endpoint()
+    if not endpoint:
+        return {}
+    return _LARAVEL_SUMMARY_CACHE.get_or_fetch(
+        endpoint,
+        lambda: get_tts_sentence_worker_service().fetch_queue_summary() or {},
+    )
 
 
 def get_config() -> Dict[str, Any]:
     section = get_user_data_store().get_section(_SECTION) or {}
+    assist = load_assist_settings()
     try:
         concurrency = int(section.get(_CONCURRENCY_KEY, 0) or 0)
     except (TypeError, ValueError):
         concurrency = 0
     return {
-        "auto_start": bool(section.get(_AUTO_KEY, False)),
+        "auto_start": (
+            bool(assist.get("enabled") and (assist.get("capabilities") or {}).get("sentence_audio", True))
+            if assist_settings_exist()
+            else bool(section.get(_AUTO_KEY, False))
+        ),
         # 0 = use the per-engine recommended value.
         "concurrency": concurrency,
     }
@@ -99,7 +90,7 @@ def sentence_audio_auto_enabled_on_start(legacy_default: bool) -> bool:
     ``restore_persisted_auto_start`` corrects it.
     """
     section = get_user_data_store().get_section(_SECTION)
-    if section is not None:
+    if not assist_settings_exist() and section is not None:
         return bool(section.get(_AUTO_KEY, False))
     return assist_capability_enabled("sentence_audio", legacy_default)
 
@@ -111,11 +102,8 @@ def restore_persisted_auto_start() -> None:
     Assist → Voice (TTS); skip legacy per-strip toggles here.
     """
     store = get_user_data_store()
-    if store.get_section("assist_laravel") is not None:
-        ColorPrint.blue("[SentenceAudioAuto] Skipping restore — assist_laravel owns voice workers")
-        return
     section = store.get_section(_SECTION)
-    if section is None:
+    if not assist_settings_exist() and section is None:
         # No persisted toggle: land deterministically OFF rather than inheriting
         # whatever the register-time value happened to be.
         try:
@@ -124,7 +112,7 @@ def restore_persisted_auto_start() -> None:
             ColorPrint.yellow(f"[SentenceAudioAuto] default-off disable failed ({exc})")
         return
 
-    enabled = bool(section.get(_AUTO_KEY, False))
+    enabled = get_config()["auto_start"]
     heartbeat = get_heartbeat_system()
     try:
         if enabled:
@@ -187,11 +175,12 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
     """Persist toggle (+ optional concurrency override) and apply live: heartbeat
     + assist capability. ``concurrency`` None leaves the persisted value
     untouched; 0 means "use the per-engine recommended value"."""
-    updates: Dict[str, Any] = {_AUTO_KEY: bool(enabled)}
+    updates: Dict[str, Any] = {}
     if concurrency is not None:
         updates[_CONCURRENCY_KEY] = max(0, int(concurrency))
     store = get_user_data_store()
-    store.update_section(_SECTION, updates)
+    if updates:
+        store.update_section(_SECTION, updates)
 
     if concurrency is not None:
         try:
@@ -217,7 +206,10 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
     settings = load_assist_settings()
     caps = dict(settings.get("capabilities") or {})
     caps["sentence_audio"] = bool(enabled)
-    save_assist_settings({**settings, "capabilities": caps})
+    save_assist_settings({
+        "enabled": True if enabled else settings.get("enabled", False),
+        "capabilities": caps,
+    })
 
     if enabled:
         try:

@@ -37,7 +37,8 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
         // the Octane cover timer — third parties + dashboard poll this freely.
         Route::get('/pending', [AppQyV1AssistController::class, 'pending']);
         // Rich aggregate snapshot for pycore's Queue Center overview (SHARED
-        // CONTRACT v2): all 8 assist categories + worker roster, cache-backed
+        // Contract v2: every category from config/queue_center_contract.json
+        // plus the worker roster, cache-backed.
         // (30s), ?fresh=1 bypass.
         Route::get('/overview', [AppQyV1AssistController::class, 'overview']);
         Route::get('/overview/items', [AppQyV1AssistController::class, 'overviewItems']);

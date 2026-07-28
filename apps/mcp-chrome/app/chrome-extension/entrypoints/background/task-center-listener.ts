@@ -560,7 +560,7 @@ async function handleSetCapability(
   const apiUrl = (effectiveConfig?.apiUrl || '').trim();
 
   if (enabled) {
-    if (def.processors.length > 0 && !apiUrl) {
+    if ((def.processors.length > 0 || def.usesValidityRunner) && !apiUrl) {
       sendResponse({
         success: false,
         error: 'apiUrl required to start a capability (start Task Center first or pass config.apiUrl)',
@@ -570,12 +570,18 @@ async function handleSetCapability(
     const startedProcessors: string[] = [];
     try {
       if (!taskCenter.isTaskCenterRunning()) {
-        await taskCenter.startAll({
-          ...(effectiveConfig || { apiUrl }),
-          apiUrl,
-          activeCapabilities,
-          enabledProcessors: processorsForCapabilities(activeCapabilities),
-        });
+        // Runner-only selection (e.g. validity): an EMPTY lane allowlist must
+        // NOT hit startAll — startAll treats absent/empty as "keep current
+        // per-processor state" and would light up every default-enabled lane.
+        const laneAllow = processorsForCapabilities(activeCapabilities);
+        if (laneAllow.length > 0) {
+          await taskCenter.startAll({
+            ...(effectiveConfig || { apiUrl }),
+            apiUrl,
+            activeCapabilities,
+            enabledProcessors: laneAllow,
+          });
+        }
       } else {
         for (const p of def.processors) {
           const processorConfig = effectiveConfig?.processors?.[p] || { apiUrl };

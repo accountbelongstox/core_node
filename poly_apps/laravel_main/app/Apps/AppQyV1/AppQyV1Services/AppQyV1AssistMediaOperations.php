@@ -430,6 +430,7 @@ trait AppQyV1AssistMediaOperations
         ];
         $counts['total'] = array_sum($counts);
         $counts['leased'] = (int) $base()
+            ->whereIn('cover_status', ['pending', 'retry'])
             ->where('assist_claimed_at', '>=', now()->subMinutes(self::LEASE_MINUTES))
             ->count();
 
@@ -443,6 +444,24 @@ trait AppQyV1AssistMediaOperations
     // Re-queue 'failed' posters older than this backoff (mirrors the cover
     // FAILED_COOLDOWN; shared with AppQyV1PosterCollectionTask).
     public const POSTER_FAILED_BACKOFF_MINUTES = 10;
+
+    /**
+     * Cover provenance allowlist (7.2 contract): a ready cover is ACCEPTED only
+     * when it came from the mcp-chrome assist pipeline (poster_mcp_submitted_at
+     * set) or from a search-engine / mcp-chrome generation provider below.
+     * Anything else (tmdb/omdb/legacy scraper/null) is re-queued so mcp-chrome
+     * re-uploads a compliant cover.
+     */
+    public const POSTER_COMPLIANT_PROVIDERS = [
+        'mcp-chrome-google-images',
+        'mcp-chrome-search',
+        'google-images',
+        'bing-images',
+        'google',
+        'bing',
+        'gemini',
+        'gemini-web',
+    ];
 
     /**
      * Atomically claim up to $limit poster jobs spanning BOTH media tables
@@ -493,7 +512,17 @@ trait AppQyV1AssistMediaOperations
                                         ->orWhere('poster_fetched_at', '<=', $failedFloor);
                                 });
                         });
-                    $query->orWhereNull('poster_mcp_submitted_at');
+                    // Provenance rule (7.2): a READY cover is re-claimed for
+                    // mcp-chrome re-upload only when it was never mcp-submitted
+                    // AND its provider is outside the search-engine allowlist.
+                    $query->orWhere(function ($provenance) {
+                        $provenance->where('poster_status', 'ready')
+                            ->whereNull('poster_mcp_submitted_at')
+                            ->where(function ($provider) {
+                                $provider->whereNull('poster_provider')
+                                    ->orWhereNotIn('poster_provider', self::POSTER_COMPLIANT_PROVIDERS);
+                            });
+                    });
                 })
                 ->where(function ($query) use ($leaseFloor) {
                     $query->whereNull('assist_claimed_at')
@@ -555,16 +584,6 @@ trait AppQyV1AssistMediaOperations
             return ['ok' => false, 'status' => 'not_found', 'error' => ucfirst($mediaType) . ' not found', 'http_status' => 404];
         }
 
-        // Fill-missing, never clobber: already ready with a file -> ack only.
-        if ($model->getAttribute('poster_mcp_submitted_at') !== null
-            && $model->getAttribute('poster_status') === 'ready') {
-            $existingUrl = $this->posterStore->imageUrlFor($model);
-            if ($existingUrl !== null) {
-                $this->clearPosterLease($model);
-                return ['ok' => true, 'status' => 'ready', 'already_done' => true, 'image_url' => $existingUrl, 'http_status' => 200];
-            }
-        }
-
         $binary = base64_decode($imageBase64, true);
         if ($binary === false || $binary === '') {
             return ['ok' => false, 'status' => 'invalid', 'error' => 'image_base64 is not valid base64', 'http_status' => 422];
@@ -573,11 +592,27 @@ trait AppQyV1AssistMediaOperations
             return ['ok' => false, 'status' => 'invalid', 'error' => 'Payload failed image validation (png/jpeg/webp/gif magic expected)', 'http_status' => 422];
         }
 
+        // Already ready with a file -> two paths by provenance (7.2):
+        //   - compliant primary (mcp-submitted or search-engine provider):
+        //     append as an ADDITIONAL cover (multi-cover);
+        //   - non-compliant primary: reset to pending so the mcp-chrome
+        //     re-upload REPLACES it below (non-compliant covers are not kept).
+        if ($model->getAttribute('poster_status') === 'ready'
+            && $this->posterStore->imageUrlFor($model) !== null) {
+            if ($this->isPosterProvenanceCompliant($model)) {
+                return $this->submitAdditionalPosterCover($model, $binary, $mime, $provider, $sourceId);
+            }
+            $model->setAttribute('poster_status', 'pending');
+            $model->save();
+        }
+
         // MoviePosterStore handles file write + the poster_* columns (status,
         // filename = source_key.ext, provider, source_id, fetched_at).
+        // poster_source_id is varchar(64); assist workers may pass a long source
+        // URL (validated up to 512), so truncate to the column length here.
         $applied = $this->posterStore->applyToModel($model, [
             'provider' => $provider,
-            'source_id' => $sourceId,
+            'source_id' => $sourceId !== null ? mb_substr($sourceId, 0, 64) : null,
             'binary' => $binary,
             'mime' => $mime ?: 'image/jpeg',
             'meta' => [],
@@ -616,6 +651,60 @@ trait AppQyV1AssistMediaOperations
             'ok' => true,
             'status' => 'ready',
             'image_url' => $applied['image_url'] ?? $this->posterStore->imageUrlFor($model),
+            'http_status' => 200,
+        ];
+    }
+
+    /**
+     * Provenance check (7.2): a ready primary cover is compliant when it came
+     * from the mcp-chrome assist pipeline or a search-engine provider.
+     */
+    private function isPosterProvenanceCompliant(Model $model): bool
+    {
+        if ($model->getAttribute('poster_mcp_submitted_at') !== null) {
+            return true;
+        }
+        return in_array((string) $model->getAttribute('poster_provider'), self::POSTER_COMPLIANT_PROVIDERS, true);
+    }
+
+    /**
+     * Append a submitted image as an ADDITIONAL cover on a ready media row
+     * (max MoviePosterStore::MAX_COVERS, md5-deduped so idempotent retries ack
+     * without duplicating), then mark the mcp submission + clear the lease.
+     *
+     * @return array{ok:bool,status:string,already_done?:bool,error?:string,image_url?:string,http_status:int}
+     */
+    private function submitAdditionalPosterCover(
+        Model $model,
+        string $binary,
+        ?string $mime,
+        ?string $provider,
+        ?string $sourceId
+    ): array {
+        $applied = $this->posterStore->applyAdditionalCover($model, [
+            'provider' => $provider,
+            'source_id' => $sourceId !== null ? mb_substr($sourceId, 0, 64) : null,
+            'binary' => $binary,
+            'mime' => $mime ?: 'image/jpeg',
+        ]);
+        if (!($applied['ok'] ?? false)) {
+            return [
+                'ok' => false,
+                'status' => $applied['status'] ?? 'error',
+                'error' => $applied['error'] ?? 'Failed to persist cover file',
+                'http_status' => 500,
+            ];
+        }
+        $model = $model->refresh();
+        $model->setAttribute('poster_mcp_submitted_at', now());
+        $model->save();
+        $this->clearPosterLease($model);
+
+        return [
+            'ok' => true,
+            'status' => 'ready',
+            'already_done' => $applied['already_done'] ?? false,
+            'image_url' => $applied['image_url'] ?? null,
             'http_status' => 200,
         ];
     }
@@ -713,6 +802,7 @@ trait AppQyV1AssistMediaOperations
             $counts['none'] += (int) ($grouped->get('none') ?? 0);
 
             $counts['leased'] += (int) $modelClass::query()
+                ->where('poster_status', 'pending')
                 ->where('assist_claimed_at', '>=', $leaseFloor)
                 ->count();
         }
@@ -753,4 +843,3 @@ trait AppQyV1AssistMediaOperations
         }
     }
 }
-

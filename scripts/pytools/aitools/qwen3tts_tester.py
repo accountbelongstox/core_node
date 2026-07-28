@@ -145,7 +145,7 @@ def _output_root() -> Path:
     if _output_dir is None:
         _bootstrap_cache_env()
         _ensure_project_paths()
-        from pycore.pygvar import PYTOOLS_TMP_DIR
+        from pycore.pyfoundations.pygvar import PYTOOLS_TMP_DIR
         root = Path(PYTOOLS_TMP_DIR) / "qwen3tts_tester"
         root.mkdir(parents=True, exist_ok=True)
         _output_dir = root

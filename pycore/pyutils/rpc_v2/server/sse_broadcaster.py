@@ -139,7 +139,7 @@ class SSEBroadcaster:
         # Wake at most every `tick` to emit a heartbeat / honour disconnects.
         tick = 1.0
 
-        ColorPrint.green(f"[SSE] connected id={conn_id[:8]} since={since}")
+        ColorPrint.green(f"[SSE] connected id={conn_id} since={since}")
 
         async def event_generator():
             # --- Replay backlog from the ring buffer (seq > since), oldest first. ---
@@ -207,7 +207,7 @@ class SSEBroadcaster:
                 yield self._sse_format("stream.close", {"seq": current_seq})
             finally:
                 self._sse_subscribers.discard(queue)
-                ColorPrint.yellow(f"[SSE] disconnected id={conn_id[:8]}")
+                ColorPrint.yellow(f"[SSE] disconnected id={conn_id}")
 
         headers = {
             "Cache-Control": "no-cache, no-transform",

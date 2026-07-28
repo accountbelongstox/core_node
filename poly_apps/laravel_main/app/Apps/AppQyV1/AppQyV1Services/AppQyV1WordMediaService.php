@@ -358,7 +358,7 @@ class AppQyV1WordMediaService
         if ($needsImage) {
             $this->ensureWordTask(
                 'word_media',
-                GlobalTask::EXECUTION_REMOTE_FAST,
+                GlobalTask::executionType('remote_fast'),
                 $word,
                 $md5,
                 $langCode,
@@ -370,7 +370,7 @@ class AppQyV1WordMediaService
         if ($needsTranslation) {
             $this->ensureWordTask(
                 'word_translation',
-                GlobalTask::EXECUTION_REMOTE_TRANSLATION,
+                GlobalTask::executionType('remote_translation'),
                 $word,
                 $md5,
                 $langCode,
@@ -404,7 +404,7 @@ class AppQyV1WordMediaService
         $existing = GlobalTask::query()
             ->where('app_name', 'AppQyV1')
             ->where('task_type', $taskType)
-            ->where('status', GlobalTask::STATUS_PENDING)
+            ->where('status', GlobalTask::status('pending'))
             ->where('payload->language', $langCode)
             ->get(['task_id', 'payload', 'priority']);
 
@@ -435,7 +435,7 @@ class AppQyV1WordMediaService
                 // update; pending_urgent (priority >= 100) is unaffected.
                 GlobalTask::query()
                     ->where('task_id', $ownerTaskId)
-                    ->where('status', GlobalTask::STATUS_PENDING)
+                    ->where('status', GlobalTask::status('pending'))
                     ->update([
                         'priority' => \DB::raw(
                             'CASE '
@@ -477,16 +477,16 @@ class AppQyV1WordMediaService
         $interactive = false;
         $capability = null;
         if ($taskType === 'word_media') {
-            $capability = GlobalTask::CAPABILITY_IMAGE;
+            $capability = GlobalTask::capability('image');
             if ($bumpFront) {
                 $interactive = true;
             } else {
                 // Non-interactive backfill keeps its normal default priority.
-                $executionType = GlobalTask::EXECUTION_REMOTE_FAST;
+                $executionType = GlobalTask::executionType('remote_fast');
             }
         } elseif ($taskType === 'word_translation') {
-            $capability = GlobalTask::CAPABILITY_TRANSLATE;
-            $executionType = GlobalTask::EXECUTION_REMOTE_TRANSLATION;
+            $capability = GlobalTask::capability('translate');
+            $executionType = GlobalTask::executionType('remote_translation');
         }
 
         $this->taskManager->createTask(

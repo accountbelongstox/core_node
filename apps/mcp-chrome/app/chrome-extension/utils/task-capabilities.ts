@@ -41,30 +41,37 @@ export const CAPABILITIES: CapabilityDef[] = [
     processors: [LANES.REMOTE_GEMINI, LANES.MEDIA_IMAGE],
     usesValidityRunner: false,
   },
-  {
-    key: 'audio',
-    storageKey: 'tkCapAudio',
-    zhLabel: '执行语音生成任务',
-    hint: 'Laravel audio queue → shared Qwen3-TTS runtime → write-back',
-    processors: [LANES.QWEN_TTS],
-    usesValidityRunner: false,
-  },
+  // 8.4: 语音生成任务现在由 pycore 辅助（Qwen3-TTS via RPC v2），面板不再提供
+  // 该选项；代码保留以便将来恢复。
+  // {
+  //   key: 'audio',
+  //   storageKey: 'tkCapAudio',
+  //   zhLabel: '执行语音生成任务',
+  //   hint: 'Laravel audio queue → shared Qwen3-TTS runtime → write-back',
+  //   processors: [LANES.QWEN_TTS],
+  //   usesValidityRunner: false,
+  // },
   {
     key: 'validity',
     storageKey: 'tkCapValidity',
     zhLabel: '执行单词有效性检测',
-    hint: 'Laravel validity queue → shared web classifier → write-back',
-    processors: [LANES.WORD_VALIDITY_WEB],
-    usesValidityRunner: false,
+    hint: 'Drains the Laravel unchecked-word backlog (EN by default) via the shared web classifier — validity + translation in one pass',
+    // Runner-driven: pulls /vocabulary/validity/pending directly and loops
+    // until the backlog is empty (not the global-task lane, which only works
+    // when the backend enqueues word_validity tasks).
+    processors: [],
+    usesValidityRunner: true,
   },
-  {
-    key: 'article',
-    storageKey: 'tkCapArticle',
-    zhLabel: '执行短文生成任务',
-    hint: 'Gemini short-article and text generation',
-    processors: [LANES.REMOTE_GEMINI_TEXT],
-    usesValidityRunner: false,
-  },
+  // 8.5: 短文生成任务现在由 pycore 辅助（agent_history pipeline），面板不再
+  // 提供该选项；代码保留以便将来恢复。
+  // {
+  //   key: 'article',
+  //   storageKey: 'tkCapArticle',
+  //   zhLabel: '执行短文生成任务',
+  //   hint: 'Gemini short-article and text generation',
+  //   processors: [LANES.REMOTE_GEMINI_TEXT],
+  //   usesValidityRunner: false,
+  // },
   {
     key: 'notebooklm',
     storageKey: 'tkCapNotebooklm',

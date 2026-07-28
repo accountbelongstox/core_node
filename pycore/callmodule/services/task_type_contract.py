@@ -1,16 +1,20 @@
 # -*- coding: utf-8 -*-
-"""Shared task-type normalization helpers for queue-center and task-history contracts."""
+"""Compatibility facade for the central distributed-task history contract.
+
+The values and matching rules live only in ``config/queue_center_contract.json``.
+Keep callers importing this module; it delegates to ``queue_center_contract.py``
+so Pycore, Laravel, Laravel-manager, Pycore UI, and mcp-chrome change together.
+"""
 
 from typing import Dict
 
-
-CANONICAL_TASK_TYPES = (
-    "word_audio",
-    "sentence_audio",
-    "translation",
-    "assist",
-    "media_image",
+from pycore.callmodule.services.queue_center_contract import (
+    GLOBAL_TASK_HISTORY_BUCKETS,
+    normalize_task_history_type,
 )
+
+
+CANONICAL_TASK_TYPES = GLOBAL_TASK_HISTORY_BUCKETS
 
 
 def normalize_task_type(raw_task_type: object) -> str:
@@ -24,31 +28,7 @@ def normalize_task_type(raw_task_type: object) -> str:
       - media_image
       - assist (fallback for all non-mapped legacy labels)
     """
-    if raw_task_type is None:
-        return "assist"
-    task_type = str(raw_task_type).strip().lower()
-    if not task_type:
-        return "assist"
-    if task_type in CANONICAL_TASK_TYPES:
-        return task_type
-
-    if task_type in {"word_translation", "prompt_translation", "google_translate", "word-translation"}:
-        return "translation"
-    if "word_audio" in task_type or ("word" in task_type and ("tts" in task_type or "audio" in task_type)):
-        return "word_audio"
-    if "sentence_audio" in task_type or (
-        "sentence" in task_type
-        and ("tts" in task_type or "audio" in task_type or "prompt" in task_type)
-    ):
-        return "sentence_audio"
-    if "word_translation" in task_type or "ai_translate" in task_type or "translation" in task_type or "prompt_translation" in task_type:
-        return "translation"
-    if any(token in task_type for token in ("media", "image", "cover", "poster", "screenshot", "book")):
-        return "media_image"
-    if "word_media" in task_type:
-        return "media_image"
-
-    return "assist"
+    return normalize_task_history_type(raw_task_type)
 
 
 def match_task_type(raw_task_type: object, requested_task_type: object) -> bool:

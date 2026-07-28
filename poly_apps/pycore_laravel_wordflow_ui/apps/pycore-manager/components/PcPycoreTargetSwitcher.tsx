@@ -7,7 +7,7 @@
  *   - Local (this machine): same as Current URL - <page-host>:59000 direct.
  *   - Remote: an explicit host/IP on :59000 (e.g. 127.0.0.1 when the browser is
  *     on the pycore machine, or the machine's LAN/Tailscale/public IP).
- * Picking any re-points every pycore transport (HTTP / RPC WS / SSE / health) and
+ * Picking any target re-points the canonical RPC v2 WebSocket and health view and
  * reloads the page so the entire UI manages the chosen node. Fixed quick-connect
  * presets (Localhost / Public IP / Tailscale LAN) plus Recent history and a custom
  * add input are offered. This is pure UI.

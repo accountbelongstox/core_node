@@ -10,7 +10,7 @@ import os
 import platform
 from pathlib import Path
 
-from pycore.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT
+from pycore.pyfoundations.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT
 
 
 class Config:
@@ -111,18 +111,10 @@ class Config:
         os.getenv("TRANSLATION_WORKER_ENABLED_ON_START", "1") in ("1", "true", "True")
     )
 
-    # ---- Unified-task client (2026-06-21) — capabilities + fast lane ----
-    # Base capability vocabulary the worker ADVERTISES to Laravel on register +
-    # status (must be a subset of GlobalTask::CAPABILITIES). 'ai_translate' is
-    # added dynamically by the worker when AI_TRANSLATE_ENABLED (see below) — it
-    # is intentionally NOT baked into this default so the kill-switch wins.
-    TRANSLATION_WORKER_CAPABILITIES = os.getenv(
-        "TRANSLATION_WORKER_CAPABILITIES", "audio,translate"
-    )
-    # The shared interactive fast-lane execution_type (GlobalTask::EXECUTION_REMOTE_FAST).
-    # BOTH pycore and chrome register for it; the per-task `capability` tag narrows
-    # who actually claims a given fast task.
-    TRANSLATION_FAST_PROCESSOR_TYPE = "remote_fast"
+    # Task lanes and capability values are loaded from
+    # config/queue_center_contract.json by queue_center_contract.py. They are not
+    # configurable here because Pycore, Laravel, both UIs, and mcp-chrome must
+    # always advertise the same routing vocabulary.
     # Fast-drain re-poll cadence (seconds): while pending_fast>0 the worker bursts a
     # short jittered loop of wait=0 pulls at this interval so interactive requests are
     # claimed near-instantly instead of waiting for the ~12s heartbeat tick.

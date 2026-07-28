@@ -23,8 +23,12 @@ import {
   releaseAssistItem,
   submitAssistCover,
   submitAssistPoster,
+  looksLikeImageBase64,
   type AssistClaimItem,
+  type AssistSubmitResult,
 } from '@/services/assist-image-api';
+import type { AssistSubmitPayload } from './outbox/submit-outbox';
+import { generateViaGemini } from './gemini-image-generate';
 import { submitOutbox } from './outbox/submit-outbox';
 
 const LOG = 'Media Image';
@@ -136,43 +140,53 @@ class MediaImageWorkerService extends SimpleWorkerBase {
     if (item.type === 'cover') {
       const name = String(payload.name || '').trim();
       const prompt = String(payload.prompt || '').trim();
-      const query = buildVocabCoverQuery(name, prompt);
-      const image = await resolvePosterImageFromSearch(query, { waitForVerification: false });
-      if (!image) {
+      // Laravel issues vocabulary-library covers as a GENERATION prompt
+      // (AppQyV1CoverPromptBuilder, incl. size) — fulfil it via Gemini first;
+      // fall back to Google/Bing search when the Gemini tab is unavailable or
+      // the generation fails. Book covers carry no prompt and go straight to
+      // search.
+      let imageBase64: string | null = null;
+      let mime: string | undefined;
+      let provider = 'gemini';
+      let model: string | undefined = 'gemini-web';
+      if (prompt) {
+        const generated = await generateViaGemini(prompt);
+        if (generated) {
+          imageBase64 = generated.imageBase64;
+          mime = generated.mime;
+        }
+      }
+      if (!imageBase64) {
+        const query = buildVocabCoverQuery(name, prompt);
+        const image = await resolvePosterImageFromSearch(query, { waitForVerification: false });
+        if (!image) {
+          this.assistStats.assistFailed += 1;
+          await releaseAssistItem(baseUrl, 'cover', item.id, 'mcp-chrome: no cover image found');
+          return;
+        }
+        imageBase64 = image.imageBase64;
+        mime = image.mime;
+        provider = image.provider;
+        model = image.engine;
+      }
+      if (!imageBase64 || !looksLikeImageBase64(imageBase64)) {
+        // Bad bytes (SVG/HTML error page/…) would be rejected server-side as
+        // 'invalid' forever — release the claim instead of poisoning the outbox.
         this.assistStats.assistFailed += 1;
-        await releaseAssistItem(baseUrl, 'cover', item.id, 'mcp-chrome: no cover image found');
+        await releaseAssistItem(baseUrl, 'cover', item.id, 'mcp-chrome: cover image failed magic validation');
         return;
       }
-      const result = await submitAssistCover(baseUrl, item.id, image.imageBase64, ASSIST_CLAIMER, {
-        mime: image.mime,
-        provider: image.provider,
-        model: image.engine,
-        latencyMs: Date.now() - started,
+      const extras = { mime, provider, model, latencyMs: Date.now() - started };
+      const result = await submitAssistCover(baseUrl, item.id, imageBase64, ASSIST_CLAIMER, extras);
+      await this.finalizeAssistSubmit(result, {
+        onOk: () => {
+          this.assistStats.coversSubmitted += 1;
+          logger.info(LOG, `Assist cover#${item.id} submitted${result.already_done ? ' (already done)' : ''}`);
+        },
+        release: () => releaseAssistItem(baseUrl, 'cover', item.id,
+          `mcp-chrome: submit ${result.status}: ${result.error || 'rejected'}`),
+        outboxPayload: { type: 'cover', id: item.id, imageBase64, claimer: ASSIST_CLAIMER, extras },
       });
-      if (result.ok) {
-        this.assistStats.coversSubmitted += 1;
-        logger.info(LOG, `Assist cover#${item.id} submitted${result.already_done ? ' (already done)' : ''}`);
-      } else {
-        this.assistStats.assistFailed += 1;
-        // Idempotent (fill-missing) submit failed: queue the fetched cover for
-        // infinite retry instead of only releasing, so it is never lost.
-        await submitOutbox.enqueue({
-          kind: 'assist_submit',
-          baseUrl,
-          payload: {
-            type: 'cover',
-            id: item.id,
-            imageBase64: image.imageBase64,
-            claimer: ASSIST_CLAIMER,
-            extras: {
-              mime: image.mime,
-              provider: image.provider,
-              model: image.engine,
-              latencyMs: Date.now() - started,
-            },
-          },
-        });
-      }
       return;
     }
 
@@ -191,45 +205,65 @@ class MediaImageWorkerService extends SimpleWorkerBase {
         });
         return;
       }
-      const result = await submitAssistPoster(
-        baseUrl,
-        mediaType,
-        item.id,
-        image.imageBase64,
-        ASSIST_CLAIMER,
-        {
-          mime: image.mime,
-          provider: image.provider,
-          sourceId: image.sourceUrl.slice(0, 512),
-          latencyMs: Date.now() - started,
-        },
-      );
-      if (result.ok) {
-        this.assistStats.postersSubmitted += 1;
-        logger.info(LOG, `Assist poster#${item.id} (${mediaType}) submitted${result.already_done ? ' (already done)' : ''}`);
-      } else {
+      if (!looksLikeImageBase64(image.imageBase64)) {
+        // Same terminal-bytes guard as the cover path (see above).
         this.assistStats.assistFailed += 1;
-        // Idempotent (fill-missing) submit failed: queue the fetched poster for
-        // infinite retry instead of only releasing, so it is never lost.
-        await submitOutbox.enqueue({
-          kind: 'assist_submit',
-          baseUrl,
-          payload: {
-            type: 'poster',
-            media_type: mediaType,
-            id: item.id,
-            imageBase64: image.imageBase64,
-            claimer: ASSIST_CLAIMER,
-            extras: {
-              mime: image.mime,
-              provider: image.provider,
-              sourceId: image.sourceUrl.slice(0, 512),
-              latencyMs: Date.now() - started,
-            },
-          },
+        await releaseAssistItem(baseUrl, 'poster', item.id, 'mcp-chrome: poster image failed magic validation', {
+          media_type: mediaType,
         });
+        return;
       }
+      const extras = {
+        mime: image.mime,
+        provider: image.provider,
+        sourceId: image.sourceUrl.slice(0, 512),
+        latencyMs: Date.now() - started,
+      };
+      const result = await submitAssistPoster(baseUrl, mediaType, item.id, image.imageBase64, ASSIST_CLAIMER, extras);
+      await this.finalizeAssistSubmit(result, {
+        onOk: () => {
+          this.assistStats.postersSubmitted += 1;
+          logger.info(LOG, `Assist poster#${item.id} (${mediaType}) submitted${result.already_done ? ' (already done)' : ''}`);
+        },
+        release: () => releaseAssistItem(baseUrl, 'poster', item.id,
+          `mcp-chrome: submit ${result.status}: ${result.error || 'rejected'}`, { media_type: mediaType }),
+        outboxPayload: {
+          type: 'poster', media_type: mediaType, id: item.id,
+          imageBase64: image.imageBase64, claimer: ASSIST_CLAIMER, extras,
+        },
+      });
     }
+  }
+
+  /**
+   * Shared outcome handling for an assist cover/poster submit:
+   *   ok/already_done -> onOk();
+   *   'invalid'/'not_found' -> TERMINAL (the bytes can never pass) -> release();
+   *   anything else (transient) -> durable outbox retry (never lost).
+   */
+  private async finalizeAssistSubmit(
+    result: AssistSubmitResult,
+    actions: {
+      onOk: () => void;
+      release: () => Promise<void>;
+      outboxPayload: AssistSubmitPayload;
+    },
+  ): Promise<void> {
+    if (result.ok) {
+      actions.onOk();
+      return;
+    }
+    this.assistStats.assistFailed += 1;
+    if (result.status === 'invalid' || result.status === 'not_found') {
+      await actions.release();
+      return;
+    }
+    if (!this.config?.apiUrl) return;
+    await submitOutbox.enqueue({
+      kind: 'assist_submit',
+      baseUrl: this.config.apiUrl,
+      payload: actions.outboxPayload,
+    });
   }
 
   protected async executeTask(task: Task): Promise<void> {

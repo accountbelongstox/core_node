@@ -112,9 +112,15 @@ export function PcWordAudioPanel(): JSX.Element {
     .sort((left, right) => right.at - left.at)
     .slice(0, LOG_LIMIT), [logClearedAt, worker?.events]);
 
-  const playRow = useCallback((row: PcWordAudioLogRow) => {
+  const playRow = useCallback(async (row: PcWordAudioLogRow) => {
     if (!row.text || !row.lang) return;
-    void new Audio(pycoreApi.wordAudioMediaUrl(row.text, row.lang)).play();
+    setActionError(null);
+    try {
+      const source = await pycoreApi.getWordAudioMediaDataUrl(row.text, row.lang);
+      await new Audio(source).play();
+    } catch (error: unknown) {
+      setActionError(error instanceof Error ? error.message : 'Word audio playback failed');
+    }
   }, []);
 
   return (

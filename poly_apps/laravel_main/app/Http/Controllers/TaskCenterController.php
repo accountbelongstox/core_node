@@ -7,6 +7,7 @@ use App\Models\Worker;
 use App\Services\OctaneTimerService;
 use App\Services\TaskManagerService;
 use App\Services\UserConfig\UserConfigService;
+use App\Support\QueueCenterContract;
 use App\Services\WorkerManagerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -183,12 +184,15 @@ class TaskCenterController extends Controller
                 // the eligible claimant client(s) — so a client can see the
                 // intended dual-client race without opening per-task detail.
                 'categories' => $this->buildCategories(),
+                // Additive: live per-task_type counts (pending/processing) over
+                // ALL rows — clients must not recompute aggregates from a
+                // truncated task-list window (the "counts don't match" bug).
+                'by_type' => $this->buildLiveTypeCounts(),
             ],
             'workers' => [
                 'stats' => $this->workerManager->getWorkerStats(),
             ],
             'relations' => $relations,
-            'section_contracts' => $this->buildSectionContracts(),
             'timestamp' => now()->toISOString(),
         ], 'Task center overview retrieved successfully');
     }
@@ -203,10 +207,10 @@ class TaskCenterController extends Controller
         $cursorId = max(0, (int) $request->input('cursor_id', 0));
         $taskType = trim((string) $request->input('task_type', ''));
         $terminal = [
-            GlobalTask::STATUS_COMPLETED,
-            GlobalTask::STATUS_COMPLETED_DEMO,
-            GlobalTask::STATUS_FAILED,
-            GlobalTask::STATUS_CANCELLED,
+            GlobalTask::status('completed'),
+            GlobalTask::status('completed_demo'),
+            GlobalTask::status('failed'),
+            GlobalTask::status('cancelled'),
         ];
         $query = GlobalTask::query()->whereIn('status', $terminal);
         if ($cursorId > 0) {
@@ -291,6 +295,40 @@ class TaskCenterController extends Controller
     }
 
     /**
+     * Live per-task_type counts over the FULL table (no list window):
+     * { task_type: { pending, processing } }. Powers client summary strips so
+     * they match the server-side Task Center exactly.
+     *
+     * @return array<string,array{pending:int,processing:int}>
+     */
+    private function buildLiveTypeCounts(): array
+    {
+        $live = [GlobalTask::status('pending'), GlobalTask::status('processing')];
+        $rows = GlobalTask::query()
+            ->whereIn('status', $live)
+            ->groupBy('task_type', 'status')
+            ->selectRaw('task_type, status, count(*) as total')
+            ->get();
+
+        $out = [];
+        foreach ($rows as $row) {
+            $type = (string) ($row->task_type ?? '');
+            if ($type === '') {
+                continue;
+            }
+            if (!isset($out[$type])) {
+                $out[$type] = ['pending' => 0, 'processing' => 0];
+            }
+            if ($row->status === GlobalTask::status('pending')) {
+                $out[$type]['pending'] = (int) $row->total;
+            } elseif ($row->status === GlobalTask::status('processing')) {
+                $out[$type]['processing'] = (int) $row->total;
+            }
+        }
+        return $out;
+    }
+
+    /**
      * Build the per-capability category breakdown.
      *
      * For each capability we report, in TWO orthogonal lanes:
@@ -299,7 +337,7 @@ class TaskCenterController extends Controller
      *   - single_lane: pending/processing on every NON-fast execution_type lane
      *     for the same capability (the background / dedicated-worker lane).
      * Plus claimants[] — which client(s) may actually claim this capability,
-     * derived from CAPABILITY_CLAIMANTS (the canonical downgrade), so the FE
+     * derived from config/queue_center_contract.json, so the FE
      * never hardcodes routing.
      *
      * Counts come from one grouped query over the live rows, keyed by
@@ -310,7 +348,7 @@ class TaskCenterController extends Controller
      */
     private function buildCategories(): array
     {
-        $live = [GlobalTask::STATUS_PENDING, GlobalTask::STATUS_PROCESSING];
+        $live = [GlobalTask::status('pending'), GlobalTask::status('processing')];
 
         // (capability, execution_type, status) -> count over live rows only.
         $rows = GlobalTask::query()
@@ -322,7 +360,7 @@ class TaskCenterController extends Controller
         $tally = [];
         foreach ($rows as $row) {
             $cap = $row->capability ?? '_null';
-            $fastKey = $row->execution_type === GlobalTask::EXECUTION_REMOTE_FAST
+            $fastKey = $row->execution_type === GlobalTask::executionType('remote_fast')
                 ? 'fast'
                 : 'single';
             $tally[$cap][$fastKey][$row->status] = (int) $row->total;
@@ -345,7 +383,7 @@ class TaskCenterController extends Controller
         foreach ($onlineWorkers as $w) {
             $pt = is_array($w->processor_types) ? $w->processor_types : [];
             $caps = $w->capabilityList();
-            if (in_array(GlobalTask::EXECUTION_REMOTE_FAST, $pt, true)) {
+            if (in_array(GlobalTask::executionType('remote_fast'), $pt, true)) {
                 foreach ($caps as $c) {
                     $onlineFastCaps[$c] = true;
                 }
@@ -358,8 +396,8 @@ class TaskCenterController extends Controller
         $lane = static function (array $tally, string $cap, string $fastKey, bool $hasOnline): array {
             $bucket = $tally[$cap][$fastKey] ?? [];
             return [
-                'pending' => (int) ($bucket[GlobalTask::STATUS_PENDING] ?? 0),
-                'processing' => (int) ($bucket[GlobalTask::STATUS_PROCESSING] ?? 0),
+                'pending' => (int) ($bucket[GlobalTask::status('pending')] ?? 0),
+                'processing' => (int) ($bucket[GlobalTask::status('processing')] ?? 0),
                 // True when at least one online worker can claim this category's
                 // tasks on this lane. False with pending>0 = stuck: no worker
                 // registers the lane/capability - the UI can show the cause.
@@ -368,13 +406,13 @@ class TaskCenterController extends Controller
         };
 
         $categories = [];
-        foreach (GlobalTask::CAPABILITIES as $cap) {
+        foreach (GlobalTask::capabilities() as $cap) {
             $fastHasOnline = isset($onlineFastCaps[$cap]);
-            $singleExec = GlobalTask::CAPABILITY_SINGLE_LANE[$cap] ?? null;
+            $singleExec = GlobalTask::capabilitySingleLanes()[$cap] ?? null;
             $singleHasOnline = $singleExec !== null && isset($onlineSingleExec[$singleExec]);
             $categories[] = [
                 'capability' => $cap,
-                'claimants' => GlobalTask::CAPABILITY_CLAIMANTS[$cap] ?? [],
+                'claimants' => QueueCenterContract::claimantsForCapability($cap),
                 'fast_lane' => $lane($tally, $cap, 'fast', $fastHasOnline),
                 'single_lane' => $lane($tally, $cap, 'single', $singleHasOnline),
             ];
@@ -384,7 +422,7 @@ class TaskCenterController extends Controller
         // category so its counts are never silently dropped from the overview.
         $categories[] = [
             'capability' => null,
-            'claimants' => ['pycore', 'chrome'],
+            'claimants' => QueueCenterContract::claimantsForCapability(null),
             'fast_lane' => $lane($tally, '_null', 'fast', $anyOnline),
             'single_lane' => $lane($tally, '_null', 'single', $anyOnline),
         ];
@@ -392,53 +430,4 @@ class TaskCenterController extends Controller
         return $categories;
     }
 
-    /**
-     * Build the unified section contracts for Laravel-owned scopes.
-     */
-    private function buildSectionContracts(): array
-    {
-        $config = app(UserConfigService::class);
-        $toggleState = [
-            'requested_by' => null,
-            'enabled' => (bool) $config->get('laravel_translation_enabled', false),
-            'reason' => null,
-            'paused_by_user' => $config->get('laravel_translation_paused') !== null ? (bool) $config->get('laravel_translation_paused') : null,
-            'graceful_stop' => (bool) $config->get('laravel_translation_graceful_stop', false),
-        ];
-        
-        $categories = $this->buildCategories();
-        $aiTranslateStats = ['pending' => 0, 'processing' => 0, 'leased' => 0, 'total' => 0];
-        foreach ($categories as $cat) {
-            if ($cat['capability'] === 'ai_translate' || $cat['capability'] === 'word_translation') {
-                $aiTranslateStats['pending'] += $cat['single_lane']['pending'] + $cat['fast_lane']['pending'];
-                $aiTranslateStats['processing'] += $cat['single_lane']['processing'] + $cat['fast_lane']['processing'];
-            }
-        }
-        $aiTranslateStats['total'] = $aiTranslateStats['pending'] + $aiTranslateStats['processing'];
-        
-        $workerStats = $this->workerManager->getWorkerStats();
-        $online = ($workerStats['online'] ?? 0) > 0;
-        
-        $lifecycle = $toggleState['enabled'] ? 'on' : 'off';
-        
-        return [
-            [
-                'type' => 'laravel_translation',
-                'category' => 'ai_translate',
-                'queue' => $aiTranslateStats,
-                'worker' => [
-                    'online' => $online,
-                    'claimed' => $workerStats['processing'] ?? 0,
-                    'ok' => $workerStats['completed'] ?? 0,
-                    'fail' => $workerStats['failed'] ?? 0,
-                    'last_heartbeat' => null,
-                ],
-                'toggle' => $toggleState,
-                'lifecycle' => $lifecycle,
-                'error_code' => null,
-                'last_error' => null,
-                'updated_at' => now()->toISOString(),
-            ]
-        ];
-    }
 }

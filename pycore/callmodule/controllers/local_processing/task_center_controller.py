@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Task Center router — ONE aggregate view over pycore's task layers.
+Task Center controller — one aggregate view over pycore's task layers.
 
-pycore mirrors laravel_main's GET /api/task-center/overview (which aggregates
+Pycore mirrors Laravel's task-center overview data (which aggregates
 its Octane-timer SCHEDULER layer + global_tasks/workers QUEUE layer). pycore
 has the SAME two-layer structure:
 
@@ -14,20 +14,18 @@ has the SAME two-layer structure:
     translation queue (QueueMonitorService snapshot) + the translation
     worker's registration/inflight status.
 
-Endpoint (prefix /api/local/task-center):
+RPC v2 routes:
 
-  GET /api/local/task-center
+  ui.task_center.get_task_center
       -> { scheduler, local_tasks, remote_queue, timestamp }
 
-  GET /api/local/task-center/tasks/{task_id}
+  ui.task_center.get_local_task_detail
       -> { success:true, task:{ task_id, task_type, status, progress,
              input_data, result, error, created_at, updated_at, ... } }
 
-All data comes from in-process singletons (heartbeat system, TaskManager,
-QueueMonitorService cached snapshot, TranslationWorkerService status) — this
-router does NO network I/O. Detail/control endpoints stay where they are
-(/api/heartbeat/*, /voice-subtitle/*, /api/local/translation/queue/*) — this
-is the composition layer, not a replacement.
+Local runtime data comes from in-process singletons. The canonical overview
+service may call Laravel through pycore's server-side HTTP client; UI callers
+always use the RPC v2 routes above.
 """
 
 import time
@@ -39,30 +37,36 @@ from pydantic import BaseModel
 from pycore.pyheartbeat import get_heartbeat_system
 from pycore import ColorPrint
 from pycore.pyctl.desktop.task_manager import get_task_manager
-from pycore.pyfoundations.system_paths import get_user_data_store
-from pycore.pyfoundations.thread_bus import THREAD_BUS
 from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
 from pycore.callmodule.services.translation_worker.worker import (
     get_translation_worker_service,
 )
 from pycore.callmodule.callmodule_config import Config
 from pycore.callmodule.controllers.local_processing.task_center_assist import (
-    ConfigRequest,
-    assist_config,
-    assist_status,
-    get_queue_overview,
-    get_recent_tasks,
     queue_snapshot,
     tts_status,
     workers_status,
-    _fetch_assist_overview,
 )
+from pycore.callmodule.controllers.local_processing.task_history_controller import (
+    get_recent_tasks,
+)
+from pycore.callmodule.services.assist_service import assist_config, assist_status
 from pycore.callmodule.services.queue_center_contract import (
     CALLBACK_QUEUE_ROLES,
     QUEUE_CATEGORY_CATALOG,
-    QueueCenterSectionContract,
-    QueueCenterToggleEnvelope,
+    QUEUE_CENTER_SCHEMA_VERSION,
+)
+from pycore.callmodule.services.queue_center_control_service import (
+    get_control_intent,
+    normalize_control_name,
+    record_control_intent,
+)
+from pycore.callmodule.services.queue_overview_service import (
     build_fast_lane,
+    get_queue_overview,
+)
+from pycore.callmodule.services.sync.laravel_endpoint_manager import (
+    get_laravel_endpoint_manager,
 )
 from pycore.callmodule.services.sentence_audio_auto import (
     apply_auto_start as apply_sentence_auto_start,
@@ -86,27 +90,6 @@ _LOCAL_TASK_STATUSES = ("pending", "processing", "completed", "failed")
 # How many recent local task records the aggregate includes.
 _RECENT_TASK_LIMIT = 20
 _SNAPSHOT_HISTORY_LIMIT = 200
-_CONTROL_SCOPE_BY_NAME = {
-    "assist": "assist_translation",
-    "translation": "assist_translation",
-    "assist_translation": "assist_translation",
-    "word_audio": "word_audio",
-    "sentence_audio": "sentence_audio",
-}
-
-_CONTROL_INTENTS_SECTION = "queue_center_control_intents"
-_CONTROL_INTENTS: Dict[str, Dict[str, Any]] = {}
-_SECTION_SCOPE_ORDER = (
-    "heartbeat",
-    "assist_translation",
-    "word_audio",
-    "sentence_audio",
-    "media_image",
-)
-_MEDIA_CATEGORY_HINTS = ("image", "cover", "poster", "screenshot", "book", "media")
-_MEDIA_WORKER_HINTS = _MEDIA_CATEGORY_HINTS
-
-
 class QueueCenterControlRequest(BaseModel):
     enabled: bool
     requested_by: Optional[str] = None
@@ -123,153 +106,6 @@ def _to_bool(value: Any, default: bool = False) -> bool:
         v = value.strip().lower()
         return v in {"1", "true", "yes", "on"}
     return default
-
-
-def _to_int(value: Any, default: int = 0) -> int:
-    if isinstance(value, bool):
-        return 1 if value else 0
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return int(value)
-    if isinstance(value, str):
-        v = value.strip()
-        return int(v) if v and v.isdigit() else default
-    return default
-
-
-def _to_last_seen(value: Any) -> str | None:
-    if not value:
-        return None
-    if isinstance(value, str):
-        text = value.strip()
-        return text or None
-    if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
-    return None
-
-
-def _normalize_error_code(value: Any) -> str | None:
-    if not isinstance(value, str):
-        return None
-    parts = value.strip().split(":")
-    if not parts:
-        return None
-    code = parts[0].strip()
-    return code.lower().replace(" ", "_") if code else None
-
-
-def _hydrate_control_intents() -> None:
-    """Load persisted Queue Center intents into the in-memory cache once empty."""
-    if _CONTROL_INTENTS:
-        return
-    section = get_user_data_store().get_section(_CONTROL_INTENTS_SECTION)
-    if not isinstance(section, dict):
-        return
-    for key, value in section.items():
-        if isinstance(key, str) and isinstance(value, dict):
-            _CONTROL_INTENTS[key] = dict(value)
-
-
-def _persist_control_intents() -> None:
-    """Write the in-memory intent cache to user_data.json."""
-    get_user_data_store().set_section(
-        _CONTROL_INTENTS_SECTION,
-        {key: dict(value) for key, value in _CONTROL_INTENTS.items()},
-    )
-
-
-def _extract_control_intent(name: str) -> Dict[str, Any]:
-    _hydrate_control_intents()
-    return _CONTROL_INTENTS.get(name, {}).copy()
-
-
-def _normalize_control_intent(control_name: str) -> Dict[str, Any]:
-    scope_name = _CONTROL_SCOPE_BY_NAME.get(control_name, control_name)
-    intent = _extract_control_intent(scope_name)
-    if not intent:
-        intent = _extract_control_intent(control_name)
-    normalized_request = intent.get("requested")
-    if normalized_request is not None:
-        normalized_request = _to_bool(normalized_request)
-    return {
-        "requested_by": intent.get("requested_by"),
-        "requested": normalized_request,
-        "reason": intent.get("reason"),
-        "graceful_stop": _to_bool(intent.get("graceful_stop"), False),
-    }
-
-
-def _record_control_intent(control_name: str, req: QueueCenterControlRequest) -> None:
-    # [gpt-5.3-codex-spark:LEGACY-START]
-    # Old behavior did not persist UI intent, making requested/on/off state
-    # appear derived from callbacks and prone to race conditions.
-    # New behavior stores explicit requested intent for idempotent UI/backend
-    # reconciliation and scoped behavior alignment (assist + translation).
-    # [gpt-5.3-codex-spark:LEGACY-END]
-    _hydrate_control_intents()
-    scope_name = _CONTROL_SCOPE_BY_NAME.get(control_name, control_name)
-    payload = {
-        "requested_by": (req.requested_by or "user"),
-        "requested": _to_bool(req.enabled),
-        "reason": req.reason,
-        "graceful_stop": _to_bool(req.graceful_stop),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-    _CONTROL_INTENTS[scope_name] = payload
-    if scope_name != control_name:
-        _CONTROL_INTENTS[control_name] = payload
-    _persist_control_intents()
-
-
-def _resolve_lifecycle(
-    configured: bool,
-    requested: Optional[bool],
-    has_signal: bool,
-    error_code: str | None,
-) -> str:
-    if error_code:
-        return "error"
-    if requested is True:
-        return "on" if has_signal else "starting"
-    if requested is False:
-        return "starting" if has_signal else "off"
-    if configured:
-        return "on" if has_signal else "starting"
-    return "on" if has_signal else "off"
-
-
-def _section_lifecycle(
-    raw: Dict[str, Any],
-    configured: bool,
-    has_signal: bool,
-    requested_by: str | None,
-) -> str:
-    requested = raw.get("requested")
-    if isinstance(requested, bool):
-        return _resolve_lifecycle(configured, requested, has_signal, raw.get("error_code"))
-    if requested is not None:
-        return _resolve_lifecycle(configured, _to_bool(requested), has_signal, raw.get("error_code"))
-    if raw.get("requested_by") or requested_by == "user":
-        return _resolve_lifecycle(configured, raw.get("requested"), has_signal, raw.get("error_code"))
-    return _resolve_lifecycle(configured, None, has_signal, raw.get("error_code"))
-
-
-def _is_media_category(value: Dict[str, Any]) -> bool:
-    key = str(value.get("key", "")).lower()
-    label = str(value.get("label", "")).lower()
-    merged = f"{key} {label}"
-    return any(token in merged for token in _MEDIA_CATEGORY_HINTS)
-
-
-def _worker_is_media(raw: Dict[str, Any]) -> bool:
-    for processor in (raw.get("processor_types") or []):
-        text = str(processor).lower()
-        if any(token in text for token in _MEDIA_WORKER_HINTS):
-            return True
-    return False
-
-
-def _sum_numbers(rows: List[Dict[str, Any]], field: str) -> int:
-    return sum(_to_int(row.get(field)) for row in rows if isinstance(row, dict))
 
 
 def _monitor():
@@ -431,13 +267,12 @@ def _control_state(
     word_audio: Optional[Dict[str, Any]],
     sentence_audio: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    """Expose configured intent separately from effective callback state."""
+    """Return only canonical controls from config/queue_center_contract.json."""
     assist = assist or {}
     workers = workers or {}
-    assist_intent = _normalize_control_intent("assist")
-    translation_intent = _normalize_control_intent("translation")
-    word_audio_intent = _normalize_control_intent("word_audio")
-    sentence_intent = _normalize_control_intent("sentence_audio")
+    translation_intent = get_control_intent("assist_translation")
+    word_audio_intent = get_control_intent("word_audio")
+    sentence_intent = get_control_intent("sentence_audio")
     callbacks = {
         row.get("name"): bool(row.get("enabled"))
         for row in workers.get("callbacks", [])
@@ -445,73 +280,42 @@ def _control_state(
     }
     capabilities = assist.get("capabilities") or {}
     master = bool(assist.get("enabled"))
-    word_audio_requested = (
-        word_audio_intent["requested"]
-        if isinstance(word_audio_intent.get("requested"), bool)
-        else bool((word_audio or {}).get("auto_start"))
-    )
-    sentence_audio_requested = (
-        sentence_intent["requested"]
-        if isinstance(sentence_intent.get("requested"), bool)
-        else bool((sentence_audio or {}).get("auto_start"))
-    )
-    word_audio_configured = (
-        master and bool(capabilities.get("tts", True)) and word_audio_requested
-    )
-    sentence_audio_configured = (
-        master
-        and bool(capabilities.get("sentence_audio", True))
-        and sentence_audio_requested
-    )
+    word_audio_configured = master and bool(capabilities.get("tts", True))
+    sentence_audio_configured = master and bool(capabilities.get("sentence_audio", True))
     translation_configured = master and (
         bool(capabilities.get("translation", True))
         or bool(capabilities.get("ai_translate", True))
     )
     return {
-        "assist": {
-            "configured": master,
-            "running": bool(assist.get("running")),
-            "owner": "assist",
-            "requested_by": assist_intent["requested_by"] or translation_intent["requested_by"] or "system",
-            "requested": (
-                assist_intent["requested"]
-                if isinstance(assist_intent.get("requested"), bool)
-                else translation_intent["requested"]
-                if isinstance(translation_intent.get("requested"), bool)
-                else None
-            ),
-            "reason": assist_intent["reason"] or translation_intent["reason"],
-            "graceful_stop": _to_bool(assist_intent["graceful_stop"]) or _to_bool(translation_intent["graceful_stop"]),
-        },
-        "translation": {
+        "assist_translation": {
             "configured": translation_configured,
             "running": translation_configured
             and bool(callbacks.get("translation_worker")),
-            "owner": "pycore.google_translation_worker",
-            "requested_by": translation_intent["requested_by"] or "system",
-            "requested": translation_intent["requested"] if isinstance(translation_intent.get("requested"), bool) else None,
-            "reason": translation_intent["reason"],
-            "graceful_stop": _to_bool(translation_intent["graceful_stop"]),
+            "owner": "pycore.assist_service",
+            "requested_by": translation_intent.get("requested_by") or "system",
+            "requested": translation_intent.get("requested") if isinstance(translation_intent.get("requested"), bool) else None,
+            "reason": translation_intent.get("reason"),
+            "graceful_stop": _to_bool(translation_intent.get("graceful_stop")),
         },
         "word_audio": {
             "configured": word_audio_configured,
-            "requested": word_audio_requested,
+            "requested": word_audio_intent.get("requested") if isinstance(word_audio_intent.get("requested"), bool) else None,
             "running": word_audio_configured
             and bool((word_audio or {}).get("heartbeat_enabled")),
             "owner": "pycore.word_tts_auto",
-            "requested_by": word_audio_intent["requested_by"] or "system",
-            "reason": word_audio_intent["reason"],
-            "graceful_stop": _to_bool(word_audio_intent["graceful_stop"]),
+            "requested_by": word_audio_intent.get("requested_by") or "system",
+            "reason": word_audio_intent.get("reason"),
+            "graceful_stop": _to_bool(word_audio_intent.get("graceful_stop")),
         },
         "sentence_audio": {
             "configured": sentence_audio_configured,
-            "requested": sentence_audio_requested,
+            "requested": sentence_intent.get("requested") if isinstance(sentence_intent.get("requested"), bool) else None,
             "running": sentence_audio_configured
             and bool((sentence_audio or {}).get("heartbeat_enabled")),
             "owner": "pycore.sentence_audio_auto",
-            "requested_by": sentence_intent["requested_by"] or "system",
-            "reason": sentence_intent["reason"],
-            "graceful_stop": _to_bool(sentence_intent["graceful_stop"]),
+            "requested_by": sentence_intent.get("requested_by") or "system",
+            "reason": sentence_intent.get("reason"),
+            "graceful_stop": _to_bool(sentence_intent.get("graceful_stop")),
         },
     }
 
@@ -524,7 +328,7 @@ def get_task_center():
     scheduler (PyHeartbeat + queue-role annotations), local_tasks (pyctl
     TaskManager recent + counts), and remote_queue (cached Laravel queue
     snapshot + worker status). Symmetric with laravel_main's
-    GET /api/task-center/overview.
+    Laravel task-center overview.
     """
     return {
         "scheduler": _scheduler_section(),
@@ -590,20 +394,16 @@ def get_queue_center_snapshot():
         generated_at=generated_at,
         overview=overview,
         task_center_snapshot=task_center,
-        translation=translation,
-        word_audio=word_audio,
-        sentence_audio=sentence_audio,
-        sentence_queue=sentence_queue,
-        assist=assist,
     )
 
     return {
         "success": not errors,
-        "schema_version": 1,
+        "schema_version": QUEUE_CENTER_SCHEMA_VERSION,
         "generated_at": generated_at,
         "source": {
             "pycore_reachable": True,
-            "laravel_reachable": bool((remote or {}).get("laravel_reachable")),
+            "laravel_reachable": bool((remote or {}).get("laravel_reachable"))
+            or bool((overview or {}).get("laravel_reachable")),
             "laravel_stored_endpoint": (remote or {}).get("laravel_endpoint"),
             "laravel_active_endpoint": (remote or {}).get("laravel_active_endpoint"),
             "laravel_snapshot_age_s": (remote or {}).get("laravel_snapshot_age_s"),
@@ -629,38 +429,32 @@ def get_queue_center_snapshot():
 def set_queue_center_control(control_name: str, req: QueueCenterControlRequest):
     """Apply one named, persistent Queue Center control and return fresh state."""
     enabled = bool(req.enabled)
-    if control_name not in {"assist", "assist_translation", "translation", "word_audio", "sentence_audio"}:
-        raise ValueError(f"Unknown Queue Center control: {control_name}")
-
+    canonical_name = normalize_control_name(control_name)
     requested_by = (
         req.requested_by.strip()
         if isinstance(req.requested_by, str) and req.requested_by.strip()
         else "user"
     )
-    _record_control_intent(
-        control_name,
-        QueueCenterControlRequest(
-            enabled=req.enabled,
-            requested_by=requested_by,
-            reason=req.reason,
-            graceful_stop=req.graceful_stop,
-        ),
+    record_control_intent(
+        canonical_name,
+        enabled,
+        requested_by=requested_by,
+        reason=req.reason,
+        graceful_stop=req.graceful_stop,
     )
     errors: List[str] = []
     result: Dict[str, Any] = {}
 
-    if control_name == "assist" or control_name == "assist_translation":
-        result = assist_config(ConfigRequest(enabled=enabled))
-    elif control_name == "translation":
-        result = assist_config(ConfigRequest(
-            enabled=True if enabled else None,
-            capabilities={"translation": enabled, "ai_translate": enabled},
-        ))
-    elif control_name == "word_audio":
-        assist_result = assist_config(ConfigRequest(
-            enabled=True if enabled else None,
-            capabilities={"tts": enabled},
-        ))
+    if canonical_name == "assist_translation":
+        result = assist_config({
+            "enabled": True if enabled else None,
+            "capabilities": {"translation": enabled, "ai_translate": enabled},
+        })
+    elif canonical_name == "word_audio":
+        assist_result = assist_config({
+            "enabled": True if enabled else None,
+            "capabilities": {"tts": enabled},
+        })
         status = apply_word_auto_start(enabled)
         result = {"ok": True, "status": status, "assist": assist_result}
         if isinstance(assist_result, dict):
@@ -671,11 +465,11 @@ def set_queue_center_control(control_name: str, req: QueueCenterControlRequest):
         if isinstance(status, dict) and status.get("error"):
             errors.append(str(status["error"]))
             result["ok"] = False
-    elif control_name == "sentence_audio":
-        assist_result = assist_config(ConfigRequest(
-            enabled=True if enabled else None,
-            capabilities={"sentence_audio": enabled},
-        ))
+    elif canonical_name == "sentence_audio":
+        assist_result = assist_config({
+            "enabled": True if enabled else None,
+            "capabilities": {"sentence_audio": enabled},
+        })
         status = apply_sentence_auto_start(enabled)
         result = {"ok": True, "status": status, "assist": assist_result}
         if isinstance(assist_result, dict):
@@ -687,7 +481,7 @@ def set_queue_center_control(control_name: str, req: QueueCenterControlRequest):
             errors.append(str(status["error"]))
             result["ok"] = False
 
-    if control_name in {"assist", "assist_translation", "translation"}:
+    if canonical_name == "assist_translation":
         if isinstance(result, dict):
             if result.get("success") is False:
                 errors.extend(list(result.get("errors") or []))
@@ -697,7 +491,7 @@ def set_queue_center_control(control_name: str, req: QueueCenterControlRequest):
     success = not errors
     payload: Dict[str, Any] = {
         "success": success,
-        "control": control_name,
+        "control": canonical_name,
         "enabled": enabled,
         "requested_by": requested_by,
         "graceful_stop": req.graceful_stop,

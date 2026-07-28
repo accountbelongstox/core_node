@@ -15,7 +15,7 @@ sqlalchemy = get_third_package_sqlalchemy()
 requests = get_third_package_requests()
 from pycore.database import database_manager
 from pycore.database.models import TableKeys, VoiceDictionariesModel, VoiceCacheDbDoneModel
-from pycore.pygvar import CACHE_DIR, DEFAULT_TEMP_DIR
+from pycore.pyfoundations.pygvar import CACHE_DIR, DEFAULT_TEMP_DIR
 
 
 class OldDbImportService:

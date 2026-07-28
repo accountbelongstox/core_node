@@ -28,7 +28,7 @@ class PriorityAgeService
     public function ageTasksPriority(int $maxCount = 100, int $ageThresholdMinutes = 5, int $incrementValue = 1): int
     {
         // Never let an aged background task reach the interactive fast tier.
-        $cap = GlobalTask::PRIORITY_FAST - 1;
+        $cap = GlobalTask::priority('fast') - 1;
         $increment = max(1, $incrementValue);
         $cutoff = now()->subMinutes(max(1, $ageThresholdMinutes));
 

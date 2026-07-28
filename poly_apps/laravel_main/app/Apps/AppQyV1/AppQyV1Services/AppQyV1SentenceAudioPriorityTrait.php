@@ -72,8 +72,8 @@ trait AppQyV1SentenceAudioPriorityTrait
                     ->first();
                 if ($existing) {
                     if ($interactive && !$existing->is_fast_tier) {
-                        $existing->execution_type = GlobalTask::EXECUTION_REMOTE_FAST;
-                        $existing->priority = max((int) $existing->priority, GlobalTask::PRIORITY_FAST);
+                        $existing->execution_type = GlobalTask::executionType('remote_fast');
+                        $existing->priority = max((int) $existing->priority, GlobalTask::priority('fast'));
                         $existing->is_fast_tier = true;
                         $existing->save();
                     }
@@ -84,7 +84,7 @@ trait AppQyV1SentenceAudioPriorityTrait
                     $task = $taskManager->createTask(
                         'AppQyV1',
                         'sentence_audio',
-                        GlobalTask::EXECUTION_REMOTE_SENTENCE_AUDIO,
+                        GlobalTask::executionType('remote_sentence_audio'),
                         [
                             'content_id' => $contentId,
                             'language' => $language,
@@ -96,7 +96,7 @@ trait AppQyV1SentenceAudioPriorityTrait
                         self::PRIORITY_FRONT,
                         3,
                         $interactive,
-                        GlobalTask::CAPABILITY_SENTENCE_AUDIO
+                        GlobalTask::capability('sentence_audio')
                     );
                     $taskId = (string) $task->task_id;
                 }

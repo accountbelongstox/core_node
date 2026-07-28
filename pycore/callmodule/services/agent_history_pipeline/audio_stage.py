@@ -56,6 +56,11 @@ def synthesize_audio(text: str) -> Dict[str, Any]:
             raise RuntimeError(err if err else _NO_LOCAL_TTS)
             
         data = out.read_bytes()
+        if len(data) < 1024:
+            # A few-hundred-byte "mp3" is an engine error page / truncated
+            # stream — uploading it would publish a daily-reading article with
+            # broken audio. Fail the stage so the item retries instead.
+            raise RuntimeError(f"TTS produced suspiciously small audio ({len(data)} bytes)")
         
         return {
             "audio_base64": base64.b64encode(data).decode("ascii"),

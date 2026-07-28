@@ -111,7 +111,7 @@ class AppQyV1WordTranslationScanTask extends OctaneTimerTaskAbstract
         return GlobalTask::query()
             ->where('app_name', 'AppQyV1')
             ->where('task_type', 'word_translation')
-            ->where('status', GlobalTask::STATUS_PENDING)
+            ->where('status', GlobalTask::status('pending'))
             ->where('payload->language', $langCode)
             ->where('payload->target_language', $targetCode)
             ->count();
@@ -136,7 +136,7 @@ class AppQyV1WordTranslationScanTask extends OctaneTimerTaskAbstract
         $this->taskManager->createTask(
             'AppQyV1',
             'word_translation',
-            GlobalTask::EXECUTION_REMOTE_TRANSLATION,
+            GlobalTask::executionType('remote_translation'),
             $payload,
             $timeoutSeconds,
             self::PRIORITY_LOW,

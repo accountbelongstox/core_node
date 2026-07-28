@@ -4,8 +4,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { DEFAULT_FRONTEND_PORT } from './config/constants';
 
-// Unified shell: laravel-manager, pycore-manager, wordnew. Pycore HTTP/WS/SSE
-// connects directly to :59000 from the browser (no Vite reverse proxy).
+// Unified shell: laravel-manager, pycore-manager, wordnew. Pycore-manager uses
+// the direct RPC v2 WebSocket transport (no Vite reverse proxy).
 export default defineConfig(() => {
     const capacitorShim = (name: string) =>
       path.resolve(__dirname, 'shared/capacitor-web-shims', name + '.ts');

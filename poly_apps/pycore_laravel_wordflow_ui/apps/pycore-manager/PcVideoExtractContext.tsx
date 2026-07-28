@@ -17,7 +17,7 @@
  *  2. Survives a FULL reload — `begin(saved)` persists the minimal re-attach
  *     record (`{ taskId, output, source }`) under the `task_pycore_video-extract`
  *     namespace. On provider INIT the hook's `reattach(saved)` fetches the
- *     BACKEND task (`GET /api/local/video-extract/tasks/{id}`) and restores it:
+ *     backend task through RPC v2 and restores it:
  *       - still running  → restore busy + snapshot + resume polling
  *       - finished       → restore the final snapshot/output (no polling)
  *       - unknown (404)  → clears the stored id

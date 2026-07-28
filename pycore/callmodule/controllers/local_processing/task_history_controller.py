@@ -3,7 +3,10 @@
 Task History Controller — the cross-end "Recent Tasks" log.
 """
 
+import base64
+import mimetypes
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyctl.desktop.task_manager import get_task_manager
@@ -40,7 +43,18 @@ def completed_archive_resource(cache_key: str) -> Dict[str, Any]:
     path = get_completed_task_archive().resource_path(cache_key)
     if path is None:
         return {"success": False, "error": "Cached resource not found"}
-    return {"success": True, "path": path}
+    resource_path = Path(path)
+    if not resource_path.is_file():
+        return {"success": False, "error": "Cached resource is not a file"}
+    content = resource_path.read_bytes()
+    mime, _encoding = mimetypes.guess_type(resource_path.name)
+    return {
+        "success": True,
+        "mime": mime or "application/octet-stream",
+        "content_base64": base64.b64encode(content).decode("ascii"),
+        "bytes": len(content),
+        "filename": resource_path.name,
+    }
 
 
 def _iso(value: Optional[str]) -> str:

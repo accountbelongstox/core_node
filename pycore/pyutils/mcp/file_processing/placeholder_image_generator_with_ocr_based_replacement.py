@@ -17,7 +17,7 @@ PIL_Image = get_third_package_PIL_Image()
 PIL_ImageDraw = get_third_package_PIL_ImageDraw()
 PIL_ImageFont = get_third_package_PIL_ImageFont()
 numpy = get_third_package_numpy()
-from pycore.pygvar import PYTOOLS_TMP_DIR
+from pycore.pyfoundations.pygvar import PYTOOLS_TMP_DIR
 from pycore.pyutils.ocr_cluster import ocr_manager
 
 logger = logging.getLogger(__name__)

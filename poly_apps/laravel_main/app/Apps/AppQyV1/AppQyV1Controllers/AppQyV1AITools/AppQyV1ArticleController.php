@@ -192,7 +192,7 @@ class AppQyV1ArticleController
                 $task = $this->taskManager->createTask(
                     'AppQyV1',
                     'article_tts_generation',
-                    GlobalTask::EXECUTION_LOCAL_TIMER,
+                    GlobalTask::executionType('local_timer'),
                     [
                         'article_id' => $articleId,
                         'language' => $language,
@@ -317,7 +317,7 @@ class AppQyV1ArticleController
             $responseData['error'] = $task->error;
         }
 
-        if ($task->status === GlobalTask::STATUS_COMPLETED) {
+        if ($task->status === GlobalTask::status('completed')) {
             if ($articleData) {
                 $responseData['sentences'] = array_map(function($item) {
                     return [

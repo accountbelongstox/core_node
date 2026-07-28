@@ -6,6 +6,33 @@
  * Kept here so the lib never imports from the original app directory.
  */
 
+import type {
+  PcQueueOverview,
+  QueueCenterControlName,
+  QueueCenterControlState,
+  QueueCenterSectionContract,
+  QueueCenterScope,
+} from './QueueCenterContract';
+
+export type {
+  PcQueueCategory,
+  PcQueueEngines,
+  PcQueueHandler,
+  PcQueueOverview,
+  PcQueueSample,
+  PcQueueWorker,
+  QueueCenterControlMetrics,
+  QueueCenterControlName,
+  QueueCenterControlResponse,
+  QueueCenterControlState,
+  QueueCenterErrorState,
+  QueueCenterScope,
+  QueueCenterSectionContract,
+  QueueCenterSectionLifecycle,
+  QueueCenterToggleEnvelope,
+  QueueCenterWorkerMetrics,
+} from './QueueCenterContract';
+
 export interface QueueItem {
   id: string;
   index: number;
@@ -1795,59 +1822,11 @@ export interface WordAudioTestResponse {
   message?: string;
 }
 
-// --- Queue Center: unified overview (contract A) --------------------------- #
-// GET /api/local/queue/overview. pycore is the hub: it fans out to Laravel for
-// the per-category counts + worker registry, and merges its own local engine
-// status. Eight categories are ALWAYS present (zeros when empty), even when
-// laravel_reachable is false.
+// Queue Center category, worker, control, and section types are defined in
+// QueueCenterContract.ts, which reads the shared JSON contract used by Python
+// and Laravel. Raw Task Center slice types remain below.
 
-/** Who actually processes a queue category's work. */
-export type PcQueueHandler = 'chrome' | 'pycore' | 'ai' | 'any';
-
-/** One sample row for a category (loose — only a few fields are present). */
-export interface PcQueueSample {
-  word?: string;
-  language?: string;
-  source_key?: string;
-  title?: string;
-  id?: string | number;
-  [k: string]: unknown;
-}
-
-/** One queue category card. `by_language` / `sample` are optional. */
-export interface PcQueueCategory {
-  key: string;
-  label: string;
-  handler: PcQueueHandler;
-  pending: number;
-  processing: number;
-  leased: number;
-  total: number;
-  /** Per-language pending breakdown (lang code -> count), when reported. */
-  by_language?: Record<string, number>;
-  /** A few sample rows (preview of what is waiting), when reported. */
-  sample?: PcQueueSample[];
-}
-
-/** A registered worker (chrome/pycore) draining one or more categories. */
-export interface PcQueueWorker {
-  id: string;
-  kind: 'chrome' | 'pycore' | string;
-  processor_types: string[];
-  online: boolean;
-  last_seen: string | null;
-  claimed: number;
-}
-
-/** pycore-local engine status per capability (always reported). */
-export interface PcQueueEngines {
-  tts?: { active?: string | null; priority: string[] };
-  stt?: { priority: string[] };
-  image?: { priority: string[] };
-  translation?: { priority: string[] };
-}
-
-/** GET /api/local/task-center — hub aggregate (no Laravel I/O on request path). */
+/** RPC v2 task-center aggregate; pycore owns any Laravel enrichment. */
 export interface PcTaskCenterLocalCounts {
   pending?: number;
   processing?: number;
@@ -1886,87 +1865,9 @@ export interface PcTaskCenterResponse {
   timestamp?: string;
 }
 
-/*
- * [gpt-5.3-codex-spark:LEGACY-START]
- * Old type only exposed legacy control names from one tab.
- * Add `assist_translation` so FE and BE can call the canonical scope directly
- * without dropping contract parity.
- * [gpt-5.3-codex-spark:LEGACY-END]
- */
-export type QueueCenterControlName =
-  | 'assist_translation'
-  | 'word_audio'
-  | 'sentence_audio';
-
-export type QueueCenterScope = 'heartbeat' | 'assist_translation' | 'word_audio' | 'sentence_audio' | 'media_image';
-
-export type QueueCenterSectionLifecycle = 'off' | 'starting' | 'on' | 'error';
-
-export interface QueueCenterToggleEnvelope {
-  requested_by: string | null;
-  enabled: boolean;
-  reason: string | null;
-  graceful_stop: boolean;
-  paused_by_user: boolean | null;
-}
-
-export interface QueueCenterControlMetrics {
-  pending: number;
-  processing: number;
-  leased: number;
-  total: number;
-}
-
-export interface QueueCenterWorkerMetrics {
-  online: boolean;
-  claimed: number;
-  ok: number | null;
-  fail: number | null;
-  last_heartbeat: string | null;
-}
-
-export interface QueueCenterErrorState {
-  last_error: string | null;
-  error_code: string | null;
-}
-
-export interface QueueCenterControlState {
-  configured: boolean;
-  requested?: boolean;
-  running: boolean;
-  owner: string;
-  requested_by?: string;
-  reason?: string | null;
-  graceful_stop?: boolean;
-  error_code?: string | null;
-}
-
-export interface QueueCenterSectionContract {
-  type: QueueCenterScope;
-  category: string;
-  queue: QueueCenterControlMetrics;
-  worker: QueueCenterWorkerMetrics;
-  toggle: QueueCenterToggleEnvelope;
-  lifecycle: QueueCenterSectionLifecycle;
-  error_code?: string | null;
-  last_error?: string | null;
-  updated_at: string | null;
-}
-
-export interface QueueCenterControlResponse {
-  success: boolean;
-  control: QueueCenterControlName;
-  enabled: boolean;
-  operation_id?: string;
-  requested_by?: string | null;
-  graceful_stop?: boolean;
-  error?: string;
-  result?: unknown;
-}
-
 export interface QueueCenterSnapshot {
   success: boolean;
-  schema_version: number;
+  schema_version: 2;
   generated_at: string;
   source: {
     pycore_reachable: boolean;
@@ -1975,15 +1876,8 @@ export interface QueueCenterSnapshot {
     laravel_active_endpoint: string | null;
     laravel_snapshot_age_s: number | null;
   };
-  /*
-   * [gpt-5.3-codex-spark:LEGACY-START]
-   * Legacy snapshot typing required every control key to exist at runtime.
-   * Backend/older snapshots can be partial per-scope, so keep the partial
-   * contract and let callers guard optional access.
-   * [gpt-5.3-codex-spark:LEGACY-END]
-   */
-  controls: Partial<Record<QueueCenterControlName, QueueCenterControlState>>;
-  section_contracts?: Record<QueueCenterScope, QueueCenterSectionContract>;
+  controls: Record<QueueCenterControlName, QueueCenterControlState>;
+  section_contracts: Record<QueueCenterScope, QueueCenterSectionContract>;
   error_code?: string | null;
   data: {
     task_center: PcTaskCenterResponse;
@@ -2000,17 +1894,6 @@ export interface QueueCenterSnapshot {
   errors: Record<string, string>;
 }
 
-export interface PcQueueOverview {
-  success: boolean;
-  generated_at?: string;
-  laravel_reachable: boolean;
-  laravel_snapshot_age_s?: number | null;
-  categories: PcQueueCategory[];
-  workers: PcQueueWorker[];
-  engines: PcQueueEngines;
-  error?: string;
-}
-
 /** One in-flight sentence-audio task (sentence worker get_status). */
 export interface SentenceWorkerTask {
   task_id?: number;
@@ -2024,7 +1907,7 @@ export interface SentenceWorkerTask {
   current_provider?: string;
 }
 
-/** GET /api/local/sentence-audio/status — auto-start toggle + worker + Laravel counts. */
+/** RPC v2 sentence-audio status — auto-start, worker, and Laravel counts. */
 export interface SentenceAudioAutoStatus {
   auto_start: boolean;
   /** Effective worker concurrency + recommended value for the current engine. */
@@ -2035,7 +1918,9 @@ export interface SentenceAudioAutoStatus {
   laravel?: {
     pending?: number;
     leased?: number;
-    cached_at?: string;
+    observed_at?: string | null;
+    age_s?: number | null;
+    stale?: boolean;
   };
   worker?: {
     queued?: number;
@@ -2130,7 +2015,9 @@ export interface WordTtsAutoStatus {
   laravel?: {
     pending?: number;
     leased?: number;
-    cached_at?: string;
+    observed_at?: string | null;
+    age_s?: number | null;
+    stale?: boolean;
   };
   worker?: {
     batch_running?: boolean;

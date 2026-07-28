@@ -130,7 +130,7 @@ class WebSocketRPCHandler:
         )
         await self.client_registry.set_client_status(client_id, ClientStatus.CONNECTED)
 
-        ColorPrint.green(f"[WS] connected id={client_id[:8]} addr={remote_addr}")
+        ColorPrint.green(f"[WS] connected id={client_id} addr={remote_addr}")
 
         pending_events, inventory_items = await self._load_client_notifications(client_id)
         delivery = get_rpc_delivery_service()
@@ -177,7 +177,7 @@ class WebSocketRPCHandler:
             if connection_tasks:
                 await asyncio.gather(*connection_tasks, return_exceptions=True)
             await self.client_registry.unregister_websocket_client(client_id, websocket)
-            ColorPrint.yellow(f"[WS] disconnected id={client_id[:8]}")
+            ColorPrint.yellow(f"[WS] disconnected id={client_id}")
 
     async def handle_websocket_message(
         self,

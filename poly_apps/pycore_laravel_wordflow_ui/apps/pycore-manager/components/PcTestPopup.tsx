@@ -22,7 +22,6 @@ import {
 import Portal from '../../../components/shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
 import { pycoreApi, usePcEngineLoadStatus } from '../../../core/api-libs/pycore';
-import { rewritePycoreEndpoint } from '../../../core/api-libs/pycore/pycoreTarget';
 import { PcBlobAudio } from './PcBlobMedia';
 import type {
   TtsTestResponse, SttTestResponse, OcrTestResponse, AiChatResponse,
@@ -330,7 +329,7 @@ export const PcTestPopup: React.FC<PcTestPopupProps> = ({ state, onClose }) => {
 
   const audioUrl = useCallback((recordId?: string): string => {
     if (!recordId) return '';
-    return rewritePycoreEndpoint(pycoreApi.speechHistoryFileUrl(recordId));
+    return pycoreApi.speechHistoryFileUrl(recordId);
   }, []);
 
   // Build WS params from formValues + extra OCR data.

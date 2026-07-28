@@ -150,7 +150,7 @@ def search_images(
     }
 
 
-def _download_image_b64(url: str) -> Tuple[str, str]:
+def download_image_b64(url: str) -> Tuple[str, str]:
     """Download image URL -> (base64, mime). ('', '') on failure."""
     if not url:
         return "", ""
@@ -201,7 +201,7 @@ def find_first_image_poster(
     if not url:
         return None
 
-    b64, mime = _download_image_b64(url)
+    b64, mime = download_image_b64(url)
     if not b64:
         return None
 

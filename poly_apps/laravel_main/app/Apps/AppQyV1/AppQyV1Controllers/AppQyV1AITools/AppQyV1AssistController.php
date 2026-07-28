@@ -135,8 +135,12 @@ class AppQyV1AssistController extends Controller
             'provider' => 'nullable|string|max:64',
             'model' => 'nullable|string|max:128',
             'latency_ms' => 'nullable|integer|min:0',
-            // Poster provenance: the movie-DB / generator result id.
-            'source_id' => 'nullable|string|max:64',
+            // Poster provenance: the movie-DB / generator result id. mcp-chrome
+            // media_image workers send the source IMAGE URL here (sliced to 512
+            // chars), so accept up to 512 and let submitPoster truncate to the
+            // poster_source_id column length (64) — a 422 here stalls the whole
+            // book cover pipeline in an infinite outbox retry.
+            'source_id' => 'nullable|string|max:512',
         ]);
 
         if ($validator->fails()) {
@@ -514,7 +518,7 @@ class AppQyV1AssistController extends Controller
     public function overviewItems(Request $request): JsonResponse
     {
         $validated = Validator::make($request->all(), [
-            'category' => 'required|string|in:' . implode(',', AppQyV1AssistService::OVERVIEW_CATEGORY_KEYS),
+            'category' => 'required|string|in:' . implode(',', \App\Support\QueueCenterContract::categoryKeys()),
             'status' => 'nullable|string|in:pending,processing,completed,failed,leased',
             'start' => 'nullable|integer|min:0',
             'limit' => 'nullable|integer|min:1|max:500',

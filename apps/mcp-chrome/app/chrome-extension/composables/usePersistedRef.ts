@@ -7,10 +7,10 @@
  * creation and writes every change back, so reopening the popup lands exactly
  * where the user left off (e.g. the Extensions › Bing Dictionary view).
  *
- * Keys are namespaced under "ui:" so UI navigation state never collides with the
- * extension's other storage keys (selectedModel, extensionConfigs, …). Restore is
- * async (storage.local has no sync API); for v-show driven tabs the at-most-one
- * frame before the stored value lands is imperceptible.
+ * SHARED UNDERLYING STATE (8.10): every call with the same key returns the ONE
+ * module-level ref — two components never hold duplicate copies that could
+ * drift apart between async storage round-trips. One storage read, one write
+ * watcher, and one shared onChanged listener per page for the whole registry.
  *
  * Cross-view sync: a storage.onChanged listener keeps multiple open surfaces
  * (popup + options page) in agreement without extra wiring.
@@ -18,34 +18,69 @@
  * Usage (drop-in for `ref`):
  *   const activeTab = usePersistedRef('activeTab', 'server');
  */
-import { ref, watch, onScopeDispose, type Ref } from 'vue';
+import { ref, watch, type Ref } from 'vue';
 import { UI_STORAGE_PREFIX } from '@/utils/storage-keys';
+
+/** One live ref per UI storage key, shared by every caller on this page. */
+const registry = new Map<string, Ref<unknown>>();
+/** Keys whose initial storage load has completed (any consumer). */
+const loadedKeys = new Set<string>();
+/** Keys with a local change that arrived before the first load resolved. */
+const dirtyBeforeLoad = new Set<string>();
+/** Monotonic per-key revision so a stale load never clobbers a newer value. */
+const revisions = new Map<string, number>();
+/** Keys currently applying a storage-originated value (no write echo). */
+const applyingExternal = new Set<string>();
+
+function bumpRevision(storageKey: string): void {
+  revisions.set(storageKey, (revisions.get(storageKey) ?? 0) + 1);
+}
+
+/** Single storage.onChanged listener for the whole registry (per page). */
+let globalListenerAttached = false;
+function attachGlobalListener(): void {
+  if (globalListenerAttached) return;
+  globalListenerAttached = true;
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    for (const storageKey of Object.keys(changes)) {
+      const state = registry.get(storageKey);
+      if (!state) continue;
+      const next = changes[storageKey].newValue;
+      if (next === undefined || JSON.stringify(next) === JSON.stringify(state.value)) continue;
+      bumpRevision(storageKey);
+      applyingExternal.add(storageKey);
+      state.value = next;
+      applyingExternal.delete(storageKey);
+    }
+  });
+}
 
 export function usePersistedRef<T>(key: string, defaultValue: T): Ref<T> {
   const storageKey = UI_STORAGE_PREFIX + key;
-  const state = ref(defaultValue) as Ref<T>;
-  // Guards: don't persist the default before the stored value has loaded (that
-  // would clobber it); don't echo a value we just received from storage back out.
-  let loaded = false;
-  let applyingExternal = false;
-  let revision = 0;
-  let locallyChangedBeforeLoad = false;
+  const existing = registry.get(storageKey);
+  if (existing) return existing as Ref<T>;
 
-  // Restore the stored value (if any) on creation.
+  const state = ref(defaultValue) as Ref<unknown>;
+  registry.set(storageKey, state);
+  attachGlobalListener();
+
+  // Restore the stored value (if any) on first creation.
   void (async () => {
-    const loadRevision = revision;
+    const loadRevision = revisions.get(storageKey) ?? 0;
     try {
       const got = await chrome.storage.local.get([storageKey]);
-      if (revision === loadRevision && got && got[storageKey] !== undefined) {
-        applyingExternal = true;
-        state.value = got[storageKey] as T;
-        applyingExternal = false;
+      if ((revisions.get(storageKey) ?? 0) === loadRevision && got && got[storageKey] !== undefined) {
+        applyingExternal.add(storageKey);
+        state.value = got[storageKey];
+        applyingExternal.delete(storageKey);
       }
     } catch (error) {
       console.debug('[usePersistedRef] load failed:', key, error);
     } finally {
-      loaded = true;
-      if (locallyChangedBeforeLoad) {
+      loadedKeys.add(storageKey);
+      if (dirtyBeforeLoad.has(storageKey)) {
+        dirtyBeforeLoad.delete(storageKey);
         chrome.storage.local
           .set({ [storageKey]: state.value })
           .catch((error) => console.debug('[usePersistedRef] save failed:', key, error));
@@ -53,14 +88,14 @@ export function usePersistedRef<T>(key: string, defaultValue: T): Ref<T> {
     }
   })();
 
-  // Persist every local change.
+  // Persist every local change (one watcher for the shared ref).
   watch(
     state,
     (value) => {
-      if (applyingExternal) return;
-      revision++;
-      if (!loaded) {
-        locallyChangedBeforeLoad = true;
+      if (applyingExternal.has(storageKey)) return;
+      bumpRevision(storageKey);
+      if (!loadedKeys.has(storageKey)) {
+        dirtyBeforeLoad.add(storageKey);
         return;
       }
       chrome.storage.local
@@ -70,23 +105,5 @@ export function usePersistedRef<T>(key: string, defaultValue: T): Ref<T> {
     { deep: true, flush: 'sync' },
   );
 
-  // Keep other open surfaces (e.g. the options page) in sync.
-  const onChanged = (
-    changes: Record<string, chrome.storage.StorageChange>,
-    area: string,
-  ) => {
-    if (area !== 'local' || !(storageKey in changes)) return;
-    const next = changes[storageKey].newValue;
-    if (next === undefined || JSON.stringify(next) === JSON.stringify(state.value)) return;
-    revision++;
-    applyingExternal = true;
-    state.value = next as T;
-    applyingExternal = false;
-  };
-  chrome.storage.onChanged.addListener(onChanged);
-  // Remove the listener when the owning component/scope is torn down (matters on
-  // the long-lived options page; the popup is destroyed wholesale on close).
-  onScopeDispose(() => chrome.storage.onChanged.removeListener(onChanged));
-
-  return state;
+  return state as Ref<T>;
 }

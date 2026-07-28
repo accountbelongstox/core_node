@@ -40,7 +40,7 @@ class TaskController extends Controller
             'task_type' => 'required|string',
             // Derived from the model's canonical EXECUTION_TYPES so new lanes are
             // accepted automatically and this rule can never drift from the model.
-            'execution_type' => ['required', 'string', Rule::in(GlobalTask::EXECUTION_TYPES)],
+            'execution_type' => ['required', 'string', Rule::in(GlobalTask::executionTypes())],
             'payload' => 'nullable|array',
             'timeout_seconds' => 'nullable|integer|min:10|max:3600',
             'priority' => 'nullable|integer|min:0|max:100',
@@ -48,7 +48,7 @@ class TaskController extends Controller
             // Fast lane: capability narrows which client may claim an interactive
             // task (NULL = either); interactive=true promotes it onto remote_fast
             // at the FAST priority tier.
-            'capability' => ['nullable', 'string', Rule::in(GlobalTask::CAPABILITIES)],
+            'capability' => ['nullable', 'string', Rule::in(GlobalTask::capabilities())],
             'interactive' => 'nullable|boolean',
         ]);
 
@@ -173,7 +173,7 @@ class TaskController extends Controller
             'priority' => 'nullable|integer|min:0|max:1000',
         ]);
 
-        $priority = (int) ($validated['priority'] ?? GlobalTask::PRIORITY_FAST);
+        $priority = (int) ($validated['priority'] ?? GlobalTask::priority('fast'));
 
         $outcome = $this->taskManager->bumpTaskPriority($taskId, $priority);
 
@@ -251,14 +251,14 @@ class TaskController extends Controller
         // Derived current phase: for an in-flight task, how long it has been in
         // the hands of its assigned worker.
         $elapsed = null;
-        if ($task->assigned_at && in_array($task->status, [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING], true)) {
+        if ($task->assigned_at && in_array($task->status, [GlobalTask::status('assigned'), GlobalTask::status('processing')], true)) {
             // Carbon 3 diffInSeconds returns a float — cast to int so the wire
             // shape stays an integer second count.
             $elapsed = (int) max(0, now()->diffInSeconds($task->assigned_at, false) * -1);
         }
 
         $timeoutIn = null;
-        if ($task->timeout_at && in_array($task->status, [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING], true)) {
+        if ($task->timeout_at && in_array($task->status, [GlobalTask::status('assigned'), GlobalTask::status('processing')], true)) {
             $timeoutIn = (int) max(0, now()->diffInSeconds($task->timeout_at, false));
         }
 
@@ -358,10 +358,10 @@ class TaskController extends Controller
 
         $initial = $this->taskDetailData($task);
         $terminal = [
-            GlobalTask::STATUS_COMPLETED,
-            GlobalTask::STATUS_COMPLETED_DEMO,
-            GlobalTask::STATUS_FAILED,
-            GlobalTask::STATUS_CANCELLED,
+            GlobalTask::status('completed'),
+            GlobalTask::status('completed_demo'),
+            GlobalTask::status('failed'),
+            GlobalTask::status('cancelled'),
         ];
 
         // Status captured from the initial snapshot so the generator can
@@ -564,7 +564,7 @@ class TaskController extends Controller
 
         return $this->success([
             'task_id' => $taskId,
-            'status' => GlobalTask::STATUS_CANCELLED,
+            'status' => GlobalTask::status('cancelled'),
         ], 'Task cancelled');
     }
 
@@ -608,14 +608,14 @@ class TaskController extends Controller
     public function resetAssigned(Request $request): JsonResponse
     {
         $includeProcessing = (bool) $request->input('include_processing', false);
-        $statuses = [GlobalTask::STATUS_ASSIGNED];
+        $statuses = [GlobalTask::status('assigned')];
         if ($includeProcessing) {
-            $statuses[] = GlobalTask::STATUS_PROCESSING;
+            $statuses[] = GlobalTask::status('processing');
         }
 
         $updatedCount = GlobalTask::whereIn('status', $statuses)
             ->update([
-                'status' => GlobalTask::STATUS_PENDING,
+                'status' => GlobalTask::status('pending'),
                 'assigned_to' => null,
                 'assigned_at' => null,
                 'timeout_at' => null,

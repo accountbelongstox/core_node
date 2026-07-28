@@ -16,7 +16,7 @@ from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
 )
-from pycore.pygvar import (
+from pycore.pyfoundations.pygvar import (
     IS_WINDOWS,
     PROJECT_ROOT,
     CACHE_DIR,

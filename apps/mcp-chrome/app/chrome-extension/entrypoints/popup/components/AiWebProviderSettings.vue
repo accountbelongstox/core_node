@@ -22,6 +22,54 @@
       </button>
     </div>
     <p v-if="saved" class="text-[8px] mt-1.5 text-emerald-400">Saved</p>
+
+    <!-- Word-validity task: which web AI classifies words (DeepSeek default). -->
+    <h4 class="text-[9px] font-bold uppercase tracking-tight mt-3 mb-1.5" style="color: var(--text-muted)">
+      Validity AI Provider
+    </h4>
+    <p class="text-[8px] mb-2" style="color: var(--text-faint)">
+      Which web AI the word-validity check drives (validity + translation in one pass).
+    </p>
+    <div class="flex gap-1.5">
+      <button
+        v-for="opt in validityOptions"
+        :key="opt.id"
+        @click="selectValidity(opt.id)"
+        :class="[
+          'flex-1 px-2 py-1.5 rounded text-[9px] font-bold transition-all border',
+          validityProvider === opt.id
+            ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40'
+            : 'text-slate-400 border-slate-700 hover:bg-slate-800/50',
+        ]"
+      >
+        {{ opt.label }}
+      </button>
+    </div>
+    <p v-if="validitySaved" class="text-[8px] mt-1.5 text-emerald-400">Saved</p>
+
+    <!-- Word-validity task: which word language to drain (EN only by default). -->
+    <h4 class="text-[9px] font-bold uppercase tracking-tight mt-3 mb-1.5" style="color: var(--text-muted)">
+      Validity Word Language
+    </h4>
+    <p class="text-[8px] mb-2" style="color: var(--text-faint)">
+      Only EN words are processed by default; pick another language to drain its backlog instead.
+    </p>
+    <div class="flex gap-1.5 flex-wrap">
+      <button
+        v-for="opt in languageOptions"
+        :key="opt.id"
+        @click="selectLanguage(opt.id)"
+        :class="[
+          'px-2 py-1.5 rounded text-[9px] font-bold transition-all border',
+          validityLanguage === opt.id
+            ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40'
+            : 'text-slate-400 border-slate-700 hover:bg-slate-800/50',
+        ]"
+      >
+        {{ opt.label }}
+      </button>
+    </div>
+    <p v-if="languageSaved" class="text-[8px] mt-1.5 text-emerald-400">Saved</p>
   </div>
 </template>
 
@@ -30,6 +78,10 @@ import { ref, onMounted } from 'vue';
 import {
   getPreferredProvider,
   setPreferredProvider,
+  getValidityProvider,
+  setValidityProvider,
+  getValidityLanguage,
+  setValidityLanguage,
   type AiWebProvider,
 } from '@/services/AiProviderSettings';
 
@@ -40,13 +92,51 @@ const options: { id: SelectableProvider; label: string }[] = [
   { id: 'gemini', label: 'Gemini' },
 ];
 
+const validityOptions: { id: AiWebProvider; label: string }[] = [
+  { id: 'deepseek', label: 'DeepSeek' },
+  { id: 'gemini', label: 'Gemini' },
+  { id: 'chatgpt', label: 'ChatGPT' },
+  { id: 'zai', label: 'Z.AI' },
+];
+
+const languageOptions: { id: string; label: string }[] = [
+  { id: 'en', label: 'EN' },
+  { id: 'zh', label: 'ZH' },
+  { id: 'ja', label: 'JA' },
+  { id: 'ko', label: 'KO' },
+  { id: 'es', label: 'ES' },
+  { id: 'fr', label: 'FR' },
+  { id: 'de', label: 'DE' },
+];
+
 const provider = ref<SelectableProvider>('chatgpt');
+const validityProvider = ref<AiWebProvider>('deepseek');
+const validityLanguage = ref<string>('en');
 const saved = ref(false);
+const validitySaved = ref(false);
+const languageSaved = ref(false);
+
+function flash(flag: typeof saved): void {
+  flag.value = true;
+  setTimeout(() => {
+    flag.value = false;
+  }, 1500);
+}
 
 onMounted(async () => {
   try {
     const stored = await getPreferredProvider();
     if (stored === 'chatgpt' || stored === 'gemini') provider.value = stored;
+  } catch {
+    // keep default
+  }
+  try {
+    validityProvider.value = await getValidityProvider();
+  } catch {
+    // keep default
+  }
+  try {
+    validityLanguage.value = await getValidityLanguage();
   } catch {
     // keep default
   }
@@ -56,10 +146,27 @@ const select = async (id: SelectableProvider) => {
   provider.value = id;
   try {
     await setPreferredProvider(id);
-    saved.value = true;
-    setTimeout(() => {
-      saved.value = false;
-    }, 1500);
+    flash(saved);
+  } catch {
+    // ignore persist failure
+  }
+};
+
+const selectValidity = async (id: AiWebProvider) => {
+  validityProvider.value = id;
+  try {
+    await setValidityProvider(id);
+    flash(validitySaved);
+  } catch {
+    // ignore persist failure
+  }
+};
+
+const selectLanguage = async (id: string) => {
+  validityLanguage.value = id;
+  try {
+    await setValidityLanguage(id);
+    flash(languageSaved);
   } catch {
     // ignore persist failure
   }

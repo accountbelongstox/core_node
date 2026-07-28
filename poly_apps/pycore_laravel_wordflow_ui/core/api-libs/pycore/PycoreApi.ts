@@ -1,8 +1,8 @@
 /**
  * PycoreApi — pycore service API client for the dashboard's pycore-manager end.
  *
- * Talks DIRECTLY to the pycore backend on `<host>:59000`. Paths are rewritten
- * by rewritePycoreEndpoint() for the selected pycore target (local or remote).
+ * Talks to the selected pycore target through the shared RPC v2 WebSocket.
+ * Binary assets are also requested over RPC and returned as data URLs.
  *
  * Domain methods live in PycoreApiAi / PycoreApiSpeech / PycoreApiLocal;
  * transport helpers in PycoreApiTransport; book types in PycoreApiBooksTypes.

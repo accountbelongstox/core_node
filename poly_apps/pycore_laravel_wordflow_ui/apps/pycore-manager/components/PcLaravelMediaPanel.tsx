@@ -8,12 +8,9 @@
  * for "what did my sync land"). It shows the resolved base_url + reachability
  * and a per-source local↔backend comparison with a sync-state badge.
  *
- * FALLBACK: if pycore (:59000) is offline, the panel falls back to the
- * previous behavior — querying the laravel_main media library directly through
- * the dashboard's shared laravelApi singleton (probe/failover base URL, which
- * MAY fail over to a different host than the sync targets; the fallback is
- * labeled accordingly). Books remain a secondary laravelApi block in both
- * modes.
+ * Books and detail peeks use video_extract.backend_media_* RPC v2 routes.
+ * Only pycore performs the selected-endpoint HTTP calls to Laravel; this UI
+ * never falls back to a browser Laravel client.
  *
  * Deliberately NOT part of the page's main flow: collapsed by default, lazy
  * fetch on first expand, and it never blocks or crashes the page when either
@@ -26,9 +23,6 @@ import {
 } from 'lucide-react';
 import { callRpc, PYCORE_LARAVEL_API_CHANGED_EVENT } from '../../../core/api-libs/pycore';
 import { PYCORE_RPC_ROUTES } from '../../../core/api-libs/pycore/PycoreRpcRoutes';
-import { laravelApi } from '../../../core/api-libs/laravel/LaravelApi';
-import { getSharedBaseURL } from '../../../core/api/base/BaseAPI';
-import { getDefaultBaseURL } from '../../../config/constants';
 import type {
   MediaSourceListItem, MediaListResponse, MediaSentence,
 } from '../../../core/api/modules/MediaQueryAPI';
@@ -37,7 +31,6 @@ import type {
 const L = {
   title: 'Laravel backend data',                       // Laravel 后端数据
   hint: 'Per-source sync status against the SAME Laravel backend the sync engine targets.',
-  hintFallback: 'What the Laravel media library (:9000) actually holds after syncing — movies (subtitle sources) and books.',
   refresh: 'Refresh',                                  // 刷新
   movies: 'Movies',                                    // 影片
   books: 'Books',                                      // 书籍
@@ -62,7 +55,6 @@ const L = {
   empty: 'Nothing ingested yet — run a sync above, then refresh.',
   noSources: 'No extracted sources known to pycore yet — run an extraction, then refresh.',
   unreachable: 'Laravel backend unreachable — laravel_main (:9000) may be offline.',
-  fallbackNote: 'pycore offline — showing dashboard view (may target a different backend).', // pycore 离线——显示仪表盘视图(可能指向不同后端)
   peek: 'Peek',                                        // 速览
   peekFirst: 'First sentences',                        // 前几句
   noSentences: 'No sentences stored for this source.',
@@ -89,6 +81,17 @@ interface BackendStatus {
   reachable: boolean;
   total_backend_subtitles?: number | null;
   sources: BackendStatusSource[];
+}
+
+interface MediaRpcEnvelope<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+interface MediaDetailPayload {
+  sentences?: MediaSentence[] | { items?: MediaSentence[] };
+  segments?: unknown[];
 }
 
 // badge styling per sync state (synced=emerald, partial=amber, missing=rose,
@@ -128,61 +131,32 @@ const PcLaravelMediaPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fetchedOnce, setFetchedOnce] = useState(false);
-  // 'pycore' = backend_status RPC (sync-engine truth); 'dashboard' = direct
-  // laravelApi fallback (pycore offline). null = not loaded yet.
-  const [mode, setMode] = useState<'pycore' | 'dashboard' | null>(null);
   const [status, setStatus] = useState<BackendStatus | null>(null);
-  const [subs, setSubs] = useState<MediaListResponse | null>(null);
   const [books, setBooks] = useState<MediaListResponse | null>(null);
   const [peek, setPeek] = useState<PeekState | null>(null);
 
-  // dashboard-probed base (only authoritative in fallback mode; in pycore mode
-  // the header shows status.base_url instead — the sync engine's resolution).
-  const dashboardBaseUrl = getSharedBaseURL() || getDefaultBaseURL();
-
-  // dashboard fallback fetch (the original code path, kept verbatim in spirit).
-  const refreshDashboard = useCallback(async () => {
-    try {
-      const [s, b] = await Promise.all([
-        laravelApi.mediaQuery.listSubtitles({ per_page: PER_PAGE }),
-        laravelApi.mediaQuery.listBooks({ per_page: PER_PAGE }),
-      ]);
-      if (s.success && s.data) setSubs(s.data);
-      else throw new Error((s as any).error || L.loadError);
-      if (b.success && b.data) setBooks(b.data);
-      else throw new Error((b as any).error || L.loadError);
-      setError(null);
-    } catch (e: any) {
-      setSubs(null);
-      setBooks(null);
-      setError(e?.message || L.unreachable);
-    }
-  }, []);
-
-  // Refresh "whichever mode is active": always try the pycore RPC first (so we
-  // recover to the authoritative view as soon as pycore is back), fall back to
-  // the direct dashboard query when pycore is offline.
+  // Both reads travel UI -> pycore RPC v2 -> Laravel HTTP.
   const refresh = useCallback(async () => {
     setLoading(true);
-  const r: BackendStatus | null = await callRpc(PYCORE_RPC_ROUTES.videoExtractBackendStatus, {})
-      .then((res: any) => (res?.success ? (res as BackendStatus) : null))
-      .catch(() => null);
-    if (r) {
-      setMode('pycore');
-      setStatus(r);
-      setError(null);
-      // Books stay a secondary laravelApi block; never let it fail the panel.
-      const b = await laravelApi.mediaQuery.listBooks({ per_page: PER_PAGE })
-        .catch(() => null);
-      setBooks(b && b.success && b.data ? b.data : null);
-    } else {
-      setMode('dashboard');
+    try {
+      const [statusResult, booksResult] = await Promise.all([
+        callRpc(PYCORE_RPC_ROUTES.videoExtractBackendStatus, {}) as Promise<BackendStatus>,
+        callRpc(PYCORE_RPC_ROUTES.videoExtractBackendMediaList, {
+          kind: 'book', per_page: PER_PAGE,
+        }) as Promise<MediaRpcEnvelope<MediaListResponse>>,
+      ]);
+      if (!statusResult?.success) throw new Error(L.unreachable);
+      setStatus(statusResult);
+      setBooks(booksResult?.success && booksResult.data ? booksResult.data : null);
+      setError(booksResult?.success ? null : booksResult?.error || L.loadError);
+    } catch (e: unknown) {
       setStatus(null);
-      await refreshDashboard();
+      setBooks(null);
+      setError(e instanceof Error ? e.message : L.unreachable);
     }
     setLoading(false);
     setFetchedOnce(true);
-  }, [refreshDashboard]);
+  }, []);
 
   // When the sync engine's Laravel target changes (endpoint switcher above),
   // re-fetch backend_status against the NEW backend — but only if this panel
@@ -203,46 +177,41 @@ const PcLaravelMediaPanel: React.FC = () => {
   };
 
   // Inline per-source peek: first sentences (+ segment count for movies).
-  // Uses laravelApi (dashboard base) — exact in fallback mode; in pycore mode
-  // it is only a content spot-check (books block).
+  // The content spot-check uses the same selected Laravel endpoint as sync.
   const togglePeek = useCallback(async (item: MediaSourceListItem, kind: 'movie' | 'book') => {
     if (peek?.key === item.source_key) { setPeek(null); return; }
     setPeek({ key: item.source_key, kind, loading: true, sentences: [], segments: 0 });
     try {
-      if (kind === 'movie') {
-        const res = await laravelApi.mediaQuery.getSubtitle(item.source_key, 'sentence');
-        if (res.success && res.data) {
-          setPeek({
-            key: item.source_key, kind, loading: false,
-            sentences: (res.data.sentences || []).slice(0, PEEK_COUNT),
-            segments: (res.data.segments || []).length,
-          });
-        } else throw new Error((res as any).error || L.loadError);
-      } else {
-        const res = await laravelApi.mediaQuery.getBook(item.source_key);
-        if (res.success && res.data) {
-          setPeek({
-            key: item.source_key, kind, loading: false,
-            sentences: (res.data.sentences || []).slice(0, PEEK_COUNT),
-            segments: 0,
-          });
-        } else throw new Error((res as any).error || L.loadError);
-      }
-    } catch (e: any) {
+      const res = await callRpc(PYCORE_RPC_ROUTES.videoExtractBackendMediaDetail, {
+        kind,
+        source_key: item.source_key,
+        grain: 'sentence',
+      }) as MediaRpcEnvelope<MediaDetailPayload>;
+      if (!res.success || !res.data) throw new Error(res.error || L.loadError);
+      const sentenceValue = res.data.sentences;
+      const sentences = Array.isArray(sentenceValue)
+        ? sentenceValue
+        : Array.isArray(sentenceValue?.items) ? sentenceValue.items : [];
+      setPeek({
+        key: item.source_key,
+        kind,
+        loading: false,
+        sentences: sentences.slice(0, PEEK_COUNT),
+        segments: Array.isArray(res.data.segments) ? res.data.segments.length : 0,
+      });
+    } catch (e: unknown) {
       setPeek({
         key: item.source_key, kind, loading: false,
-        error: e?.message || L.loadError, sentences: [], segments: 0,
+        error: e instanceof Error ? e.message : L.loadError, sentences: [], segments: 0,
       });
     }
   }, [peek?.key]);
 
   const totalSummary = !fetchedOnce
     ? ''
-    : mode === 'pycore' && status
+    : status
       ? `${status.sources.length} ${L.sources.toLowerCase()} · ${status.sources.filter((s) => s.state === 'synced').length} ${L.stateSynced}`
-      : mode === 'dashboard' && !error
-        ? `${subs?.total ?? 0} ${L.movies.toLowerCase()} · ${books?.total ?? 0} ${L.books.toLowerCase()}`
-        : '';
+      : '';
 
   // ---- pycore mode: per-source local↔backend comparison ------------------ #
   const renderStatusRow = (src: BackendStatusSource) => (
@@ -366,33 +335,21 @@ const PcLaravelMediaPanel: React.FC = () => {
         <div className="mt-3 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <p className="flex-1 min-w-[12rem] text-[11px] text-slate-400">
-              {mode === 'pycore' ? L.hint : L.hintFallback}
+              {L.hint}
             </p>
-            {mode === 'pycore' && status ? (
+            {status && (
               <span className={`text-[10px] font-mono truncate max-w-[16rem] flex items-center gap-1 ${
                 status.reachable ? 'text-emerald-500' : 'text-rose-500'}`}
                 title={`${L.syncTarget}: ${status.base_url} (${status.reachable ? L.reachable : L.notReachable})`}>
                 {status.reachable ? <Wifi className="w-3 h-3 shrink-0" /> : <WifiOff className="w-3 h-3 shrink-0" />}
                 {status.base_url}
               </span>
-            ) : (
-              <span className="text-[10px] font-mono text-slate-400 truncate max-w-[14rem]"
-                title={dashboardBaseUrl}>{dashboardBaseUrl}</span>
             )}
             <button type="button" onClick={refresh} disabled={loading}
               className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-slate-200/60 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-300/60 dark:hover:bg-white/10 transition flex items-center gap-1 shrink-0 disabled:opacity-50">
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> {L.refresh}
             </button>
           </div>
-
-          {/* fallback mode is clearly labeled: the dashboard's probed base may
-              have failed over to a DIFFERENT host than the sync targets. */}
-          {mode === 'dashboard' && (
-            <div className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
-              <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="break-words">{L.fallbackNote}</span>
-            </div>
-          )}
 
           {error && (
             <div className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
@@ -401,7 +358,7 @@ const PcLaravelMediaPanel: React.FC = () => {
             </div>
           )}
 
-          {mode === 'pycore' && status && (
+          {status && (
             <div className="space-y-3">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
@@ -424,14 +381,7 @@ const PcLaravelMediaPanel: React.FC = () => {
                   </ul>
                 )}
               </div>
-              {/* secondary block: books, still via laravelApi (as before) */}
-              {renderList(books, 'book', L.books, BookOpen)}
-            </div>
-          )}
-
-          {mode === 'dashboard' && !error && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {renderList(subs, 'movie', L.movies, Film)}
+              {/* Secondary block uses the same pycore-selected Laravel endpoint. */}
               {renderList(books, 'book', L.books, BookOpen)}
             </div>
           )}

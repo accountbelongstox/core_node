@@ -9,6 +9,7 @@ use App\Models\SourceSentence;
 use App\Models\LangSentence;
 use App\Models\LangChapter;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UploadedDocumentModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioFiles;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
@@ -279,19 +280,32 @@ class MediaBrowseController extends Controller
         ]);
 
         $book = Book::where('source_key', $source_key)->first();
-        if (!$book) {
+        // Agent-history articles live in app_qy_v1_articles (keyed 'article_<uuid>'),
+        // never in books — MediaIngestService deliberately skips source rows for
+        // them. Resolve them as source_type='article' so the read-along reader
+        // (WfNewBookReader) can open them through this same endpoint.
+        $sourceType = 'book';
+        $source = $book;
+        if (!$source && str_starts_with($source_key, 'article_')) {
+            $article = AppQyV1Article::where('article_id', $source_key)->first();
+            if ($article) {
+                $sourceType = 'article';
+                $source = $this->articleAsSource($article);
+            }
+        }
+        if (!$source) {
             return $this->error('Book not found', 404);
         }
 
         $grain = $validated['grain'] ?? 'sentence';
         $perPage = isset($validated['per_page']) ? (int) $validated['per_page'] : 500;
         $chapterIndex = isset($validated['chapter_index']) ? (int) $validated['chapter_index'] : null;
-        $languages = $this->sourceLanguages('book', $book);
-        $adaptation = $this->resolveChapterIndex('book', $source_key, $languages, $chapterIndex, $grain);
+        $languages = $this->sourceLanguages($sourceType, $source);
+        $adaptation = $this->resolveChapterIndex($sourceType, $source_key, $languages, $chapterIndex, $grain);
         $sentences = $this->buildSentencesPaginator($source_key, $grain, $perPage, $adaptation['slot_index']);
 
         $payload = [
-            'source' => $book,
+            'source' => $source,
             'chapter_index' => $chapterIndex,
             'sentences' => $sentences,
         ];
@@ -319,12 +333,23 @@ class MediaBrowseController extends Controller
         }
 
         $book = Book::where('source_key', $source_key)->first();
-        if (!$book) {
+        // Same article fallback as bookDetail (see there): agent-history
+        // articles carry their chapter rows under source_type='article'.
+        $sourceType = 'book';
+        $source = $book;
+        if (!$source && str_starts_with($source_key, 'article_')) {
+            $article = AppQyV1Article::where('article_id', $source_key)->first();
+            if ($article) {
+                $sourceType = 'article';
+                $source = $this->articleAsSource($article);
+            }
+        }
+        if (!$source) {
             return $this->error('Book not found', 404);
         }
 
-        $languages = $this->sourceLanguages('book', $book);
-        $chapters = $this->buildChaptersList('book', $source_key, $languages);
+        $languages = $this->sourceLanguages($sourceType, $source);
+        $chapters = $this->buildChaptersList($sourceType, $source_key, $languages);
 
         return $this->success([
             'source_key' => $source_key,
@@ -802,6 +827,26 @@ class MediaBrowseController extends Controller
     }
 
     /**
+     * Synthesize the `source` payload of bookDetail/bookChapters from an
+     * app_qy_v1_articles row (agent-history articles have no Book row). The
+     * object must expose `source_key` + `metadata` for sourceLanguages() and
+     * the display fields the reader shows (title / original_name / language).
+     */
+    private function articleAsSource(AppQyV1Article $article): object
+    {
+        return (object) [
+            'source_key' => $article->article_id,
+            'source_type' => 'article',
+            'title' => $article->title,
+            'original_name' => $article->title,
+            'language' => $article->language,
+            'word_count' => $article->word_count,
+            'sentence_count' => $article->sentence_count,
+            'metadata' => is_array($article->metadata) ? $article->metadata : [],
+        ];
+    }
+
+    /**
      * Validate that source_key is a sane token.
      */
     private function isValidSourceKey(string $sourceKey): bool
@@ -810,7 +855,10 @@ class MediaBrowseController extends Controller
     }
 
     /**
-     * Merge stored poster URL with metadata cover_url / cover_urls (string or array).
+     * Merge stored poster URL with additional covers (poster_meta.cover_files,
+     * newest first) and metadata cover_url / cover_urls (string or array).
+     * The multi-cover set is capped at MoviePosterStore::MAX_COVERS so the FE
+     * carousel gets the latest 5 covers per book.
      *
      * @param Book|Subtitle $model
      */
@@ -819,6 +867,19 @@ class MediaBrowseController extends Controller
         $urls = [];
         if (is_string($posterUrl) && $posterUrl !== '') {
             $urls[] = $posterUrl;
+        }
+
+        // Additional covers from the multi-cover store (newest first).
+        if ($posterUrl !== null) {
+            $store = new MoviePosterStore();
+            $additional = $store->additionalCovers($model);
+            usort($additional, static fn ($a, $b) => strcmp((string) ($b['fetched_at'] ?? ''), (string) ($a['fetched_at'] ?? '')));
+            foreach ($additional as $cover) {
+                $filename = (string) ($cover['filename'] ?? '');
+                if ($filename !== '') {
+                    $urls[] = $store->buildPosterUrl($filename);
+                }
+            }
         }
 
         $meta = is_array($model->metadata ?? null) ? $model->metadata : [];

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\QueueCenterContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -60,174 +61,62 @@ class GlobalTask extends Model
         'sync_to_dict_at' => 'datetime',
     ];
 
-    // Task status constants
-    const STATUS_PENDING = 'pending';
-    const STATUS_ASSIGNED = 'assigned';
-    const STATUS_PROCESSING = 'processing';
-    const STATUS_COMPLETED = 'completed';
-    const STATUS_COMPLETED_DEMO = 'completed_demo';
-    const STATUS_FAILED = 'failed';
-    const STATUS_CANCELLED = 'cancelled';
-
-    // Execution type constants
-    const EXECUTION_LOCAL_TIMER = 'local_timer';
-    const EXECUTION_REMOTE_CLIENT = 'remote_client';
-    const EXECUTION_REMOTE_COMPUTE = 'remote_compute';
-    const EXECUTION_REMOTE_OCR = 'remote_ocr';
-    const EXECUTION_REMOTE_TRANSLATION = 'remote_translation';
-    const EXECUTION_REMOTE_VIDEO = 'remote_video';
-    const EXECUTION_REMOTE_IO = 'remote_io';
-    // Local-TTS audio assist lane (pycore). word_audio tasks ride this so the
-    // pycore audio worker can register/pull a dedicated audio queue, separate
-    // from the chrome Bing assist (remote_client) lane.
-    const EXECUTION_REMOTE_AUDIO = 'remote_audio';
-    // Dedicated chrome Task Center lanes. The chrome side runs a SEPARATE worker
-    // per processor type, and pull assigns by execution_type with an atomic
-    // claim — so notebooklm / gemini_image MUST NOT share remote_client with
-    // word_media, or the NotebookLM/Gemini workers would claim word_media tasks
-    // (and each other's) and starve them until timeout. Each gets its own lane.
-    const EXECUTION_REMOTE_NOTEBOOKLM = 'remote_notebooklm';
-    const EXECUTION_REMOTE_GEMINI = 'remote_gemini';
-    // Text-only Gemini completion lane (gemini_chat task_type), separate from
-    // EXECUTION_REMOTE_GEMINI (gemini_image) for the same reason: pull assigns
-    // by execution_type with an atomic claim, so a shared lane would let one
-    // feature's worker claim and starve the other's tasks.
-    const EXECUTION_REMOTE_GEMINI_TEXT = 'remote_gemini_text';
-    // Dedicated chrome web-LLM "is this a real word?" validity-detection lane. A
-    // batch of untranslated+unchecked words is classified valid/invalid by a web
-    // LLM (Gemini/DeepSeek/ChatGPT) so the translation enqueue skips the junk.
-    // MUST be its own lane (not remote_translation): pull assigns by
-    // execution_type with no task_type filter, so co-mingling word_validity with
-    // word_translation/prompt_translation would let each worker fail-release the
-    // other's tasks (retry_count++ -> permanent failure within max_retries).
-    const EXECUTION_REMOTE_VALIDITY = 'remote_validity';
-
-    // Dedicated retrieval/generation lanes. Kept off remote_fast so
-    // they never starve the interactive fast lane; claimed via the normal
-    // per-processor_type pull loop (a dedicated worker registers each lane).
-    const EXECUTION_REMOTE_SUBTITLE = 'remote_subtitle';
-    const EXECUTION_REMOTE_POSTER = 'remote_poster';
-    const EXECUTION_REMOTE_SENTENCE_AUDIO = 'remote_sentence_audio';
-    // Pycore-only speech-to-text (STT) transcription lane.
-    const EXECUTION_REMOTE_STT = 'remote_stt';
-
-    // Shared interactive fast lane. BOTH pycore and chrome-mcp register for this
-    // single lane; the existing atomic pull (lockForUpdate + assignTo) already
-    // guarantees first-idle-wins / runs-exactly-once. Which of the two actually
-    // claims a given fast task is narrowed by the task's `capability` tag
-    // (see capabilityMatches()).
-    const EXECUTION_REMOTE_FAST = 'remote_fast';
-
-    // The ONE canonical list of every execution_type lane. Validators derive
-    // their allowed-value set from this array (Rule::in(EXECUTION_TYPES)) so a
-    // newly-added lane const is automatically accepted everywhere and the two
-    // request validators can never silently drift from the model.
-    const EXECUTION_TYPES = [
-        self::EXECUTION_LOCAL_TIMER,
-        self::EXECUTION_REMOTE_CLIENT,
-        self::EXECUTION_REMOTE_COMPUTE,
-        self::EXECUTION_REMOTE_OCR,
-        self::EXECUTION_REMOTE_TRANSLATION,
-        self::EXECUTION_REMOTE_VIDEO,
-        self::EXECUTION_REMOTE_IO,
-        self::EXECUTION_REMOTE_AUDIO,
-        self::EXECUTION_REMOTE_NOTEBOOKLM,
-        self::EXECUTION_REMOTE_GEMINI,
-        self::EXECUTION_REMOTE_GEMINI_TEXT,
-        self::EXECUTION_REMOTE_VALIDITY,
-        self::EXECUTION_REMOTE_FAST,
-        self::EXECUTION_REMOTE_SUBTITLE,
-        self::EXECUTION_REMOTE_POSTER,
-        self::EXECUTION_REMOTE_SENTENCE_AUDIO,
-        self::EXECUTION_REMOTE_STT,
-    ];
-
-    // Priority tiers (single integer `priority` column, ordered DESC on pull).
-    // FAST == the existing "front of queue" value (resolve / library-words bumps
-    // already use 100 and pending_urgent already counts it), so an interactive
-    // request deterministically outranks background scans (0) and normal
-    // enqueues without inventing a new range.
-    const PRIORITY_FAST = 100;
-
-    // Capability vocabulary (the ONE canonical set). A task's `capability` is one
-    // of these or NULL (any). A worker advertises a subset via workers.capabilities.
-    const CAPABILITY_AUDIO = 'audio';            // TTS / word_audio / article_audio — pycore or Chrome
-    const CAPABILITY_IMAGE = 'image';            // word_media / gemini_image — chrome
-    const CAPABILITY_TRANSLATE = 'translate';    // word_translation — either client
-    const CAPABILITY_SENTENCE_AUDIO = 'sentence_audio'; // chrome web-audio assist
-    // BOTH pycore + chrome advertise ai_translate -> intelligent first-idle-wins
-    // race on the shared fast lane (task_type stays word_translation).
-    const CAPABILITY_AI_TRANSLATE = 'ai_translate';
-    const CAPABILITY_PUTER_TRANSLATE = 'puter_translate'; // chrome Puter REST translator
-    const CAPABILITY_SUBTITLE = 'subtitle';      // pycore-only subtitle retrieval
-    const CAPABILITY_POSTER = 'poster';          // mcp-chrome movie poster (distinct from word art)
-    const CAPABILITY_STT = 'stt';                // pycore-only speech-to-text transcription
-
-    const CAPABILITIES = [
-        self::CAPABILITY_AUDIO,
-        self::CAPABILITY_IMAGE,
-        self::CAPABILITY_TRANSLATE,
-        self::CAPABILITY_SENTENCE_AUDIO,
-        self::CAPABILITY_AI_TRANSLATE,
-        self::CAPABILITY_PUTER_TRANSLATE,
-        self::CAPABILITY_SUBTITLE,
-        self::CAPABILITY_POSTER,
-        self::CAPABILITY_STT,
-    ];
-
     /**
-     * ALL eligible claimants per capability (canonical single source of truth).
-     * Consumed by TaskCenterController (categories.claimants) and
-     * AppQyV1AssistService (overview handler labels) so the two surfaces never
-     * contradict each other (the old bug where one said 'image=chrome' and the
-     * other said 'image=pycore', both incomplete).
+     * Global-task vocabulary facade.
      *
-     * Pycore and chrome can both handle audio and AI translation. Pycore owns
-     * subtitle/STT; mcp-chrome owns word images and posters.
+     * All values are loaded from config/queue_center_contract.json through
+     * App\Support\QueueCenterContract. Pycore, both React managers, and
+     * mcp-chrome use sibling adapters documented there. A contract change is
+     * therefore made once in JSON and never copied into this Eloquent model.
      */
-    const CAPABILITY_CLAIMANTS = [
-        self::CAPABILITY_TRANSLATE => ['pycore', 'chrome'],
-        self::CAPABILITY_AI_TRANSLATE => ['pycore', 'chrome'],
-        self::CAPABILITY_PUTER_TRANSLATE => ['chrome'],
-        self::CAPABILITY_AUDIO => ['pycore', 'chrome'],
-        self::CAPABILITY_IMAGE => ['chrome'],
-        self::CAPABILITY_SENTENCE_AUDIO => ['pycore', 'chrome'],
-        self::CAPABILITY_SUBTITLE => ['pycore'],
-        self::CAPABILITY_POSTER => ['chrome'],
-        self::CAPABILITY_STT => ['pycore'],
-    ];
+    public static function status(string $name): string
+    {
+        if (!in_array($name, QueueCenterContract::taskStatuses(), true)) {
+            throw new \InvalidArgumentException("Unknown global-task status: {$name}");
+        }
+        return $name;
+    }
 
-    /**
-     * PRIMARY handler per capability (single string) — the canonical label for
-     * the Queue Center 'handler' column (AppQyV1AssistService::overviewSnapshot).
-     * When multiple claimants exist, this picks the one the user is most likely
-     * to see produce the result (the dedicated-lane owner).
-     */
-    const CAPABILITY_PRIMARY_HANDLER = [
-        self::CAPABILITY_TRANSLATE => 'pycore',
-        self::CAPABILITY_AI_TRANSLATE => 'pycore',
-        self::CAPABILITY_PUTER_TRANSLATE => 'chrome',
-        self::CAPABILITY_AUDIO => 'pycore',
-        self::CAPABILITY_IMAGE => 'chrome',
-        self::CAPABILITY_SENTENCE_AUDIO => 'pycore',
-        self::CAPABILITY_SUBTITLE => 'pycore',
-        self::CAPABILITY_POSTER => 'chrome',
-        self::CAPABILITY_STT => 'pycore',
-    ];
+    public static function statuses(string $group = 'all'): array
+    {
+        return QueueCenterContract::taskStatuses($group);
+    }
 
-    /**
-     * Dedicated (non-fast) execution_type per capability. Image has both a fast
-     * word-media path and a dedicated Gemini-image path; ai_translate is fast-only.
-     */
-    const CAPABILITY_SINGLE_LANE = [
-        self::CAPABILITY_TRANSLATE => self::EXECUTION_REMOTE_TRANSLATION,
-        self::CAPABILITY_AUDIO => self::EXECUTION_REMOTE_AUDIO,
-        self::CAPABILITY_IMAGE => self::EXECUTION_REMOTE_GEMINI,
-        self::CAPABILITY_SUBTITLE => self::EXECUTION_REMOTE_SUBTITLE,
-        self::CAPABILITY_POSTER => self::EXECUTION_REMOTE_POSTER,
-        self::CAPABILITY_SENTENCE_AUDIO => self::EXECUTION_REMOTE_SENTENCE_AUDIO,
-        self::CAPABILITY_STT => self::EXECUTION_REMOTE_STT,
-    ];
+    public static function executionType(string $name): string
+    {
+        if (!in_array($name, QueueCenterContract::taskExecutionTypes(), true)) {
+            throw new \InvalidArgumentException("Unknown global-task execution type: {$name}");
+        }
+        return $name;
+    }
+
+    public static function executionTypes(): array
+    {
+        return QueueCenterContract::taskExecutionTypes();
+    }
+
+    public static function capability(string $name): string
+    {
+        if (!in_array($name, QueueCenterContract::taskCapabilities(), true)) {
+            throw new \InvalidArgumentException("Unknown global-task capability: {$name}");
+        }
+        return $name;
+    }
+
+    public static function capabilities(): array
+    {
+        return QueueCenterContract::taskCapabilities();
+    }
+
+    public static function priority(string $name): int
+    {
+        return QueueCenterContract::taskPriority($name);
+    }
+
+    public static function capabilitySingleLanes(): array
+    {
+        return QueueCenterContract::capabilitySingleLanes();
+    }
 
     /**
      * Whether a worker advertising $workerCapabilities is eligible to claim this
@@ -251,7 +140,7 @@ class GlobalTask extends Model
      */
     public function scopeFastLane($query)
     {
-        return $query->where('execution_type', self::EXECUTION_REMOTE_FAST);
+        return $query->where('execution_type', self::executionType('remote_fast'));
     }
 
     /**
@@ -296,9 +185,9 @@ class GlobalTask extends Model
             }
 
             $update = [];
-            $isAudio = $this->capability === self::CAPABILITY_AUDIO
+            $isAudio = $this->capability === self::capability('audio')
                 || in_array($this->task_type, ['word_audio', 'article_audio'], true);
-            $isImage = $this->capability === self::CAPABILITY_IMAGE
+            $isImage = $this->capability === self::capability('image')
                 || in_array($this->task_type, ['word_media', 'gemini_image'], true);
 
             if ($isAudio && $schema->hasColumn($table, 'tts_status')) {
@@ -347,7 +236,7 @@ class GlobalTask extends Model
     {
         $this->assigned_to = $workerId;
         $this->assigned_at = now();
-        $this->status = self::STATUS_ASSIGNED;
+        $this->status = self::status('assigned');
 
         if ($timeoutSeconds) {
             $this->timeout_at = now()->addSeconds($timeoutSeconds);
@@ -365,7 +254,7 @@ class GlobalTask extends Model
         $this->assigned_to = null;
         $this->assigned_at = null;
         $this->timeout_at = null;
-        $this->status = self::STATUS_PENDING;
+        $this->status = self::status('pending');
         $this->save();
     }
 
@@ -374,7 +263,7 @@ class GlobalTask extends Model
      */
     public function startProcessing()
     {
-        $this->status = self::STATUS_PROCESSING;
+        $this->status = self::status('processing');
         $this->save();
     }
 
@@ -383,7 +272,7 @@ class GlobalTask extends Model
      */
     public function complete(array $result)
     {
-        $this->status = self::STATUS_COMPLETED;
+        $this->status = self::status('completed');
         $this->progress = 100.0;
         $this->result = $result;
         $this->save();
@@ -394,7 +283,7 @@ class GlobalTask extends Model
      */
     public function fail(string $error)
     {
-        $this->status = self::STATUS_FAILED;
+        $this->status = self::status('failed');
         $this->error = $error;
         $this->retry_count++;
         $this->save();
@@ -413,7 +302,7 @@ class GlobalTask extends Model
      */
     public function scopePending($query)
     {
-        return $query->where('status', self::STATUS_PENDING);
+        return $query->where('status', self::status('pending'));
     }
 
     /**
@@ -421,7 +310,7 @@ class GlobalTask extends Model
      */
     public function scopeAssigned($query)
     {
-        return $query->where('status', self::STATUS_ASSIGNED);
+        return $query->where('status', self::status('assigned'));
     }
 
     /**
@@ -434,7 +323,7 @@ class GlobalTask extends Model
      */
     public function scopeTimedOut($query)
     {
-        return $query->whereIn('status', [self::STATUS_ASSIGNED, self::STATUS_PROCESSING])
+        return $query->whereIn('status', [self::status('assigned'), self::status('processing')])
             ->where(function ($q) {
                 // Standard path: a set timeout_at that has passed.
                 $q->where(function ($q2) {

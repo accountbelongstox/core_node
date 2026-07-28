@@ -7,6 +7,13 @@ import type {
 } from './pycoreTypes';
 import { callRpc, isWsConnected, PYCORE_RPC_ROUTES, rewritePycoreEndpoint } from './PycoreApiTransport';
 
+/**
+ * Engine tests cold-start isolated venvs and load multi-GB models (qwen3tts
+ * health wait alone allows 180s server-side), so the default 30s RPC deadline
+ * is guaranteed to fire. Give live engine tests a 10-minute budget.
+ */
+const ENGINE_TEST_TIMEOUT_MS = 10 * 60_000;
+
 export const pycoreApiSpeech = {
   // --- Speech (TTS/STT) clip history — audio side of the Records timeline --- #
   getSpeechHistory: (limit = 50) =>
@@ -62,7 +69,7 @@ export const pycoreApiSpeech = {
     if (!isWsConnected()) throw new Error('pycore WebSocket not connected — test requires WS');
     const params: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(req)) { if (v !== undefined && v !== '') params[k] = v; }
-    return callRpc(PYCORE_RPC_ROUTES.localTtsTest, params) as Promise<TtsTestResponse>;
+    return callRpc(PYCORE_RPC_ROUTES.localTtsTest, params, ENGINE_TEST_TIMEOUT_MS) as Promise<TtsTestResponse>;
   },
 
   // --- STT engine availability + live recognition test --------------------- #
@@ -71,7 +78,7 @@ export const pycoreApiSpeech = {
     if (!isWsConnected()) throw new Error('pycore WebSocket not connected — test requires WS');
     const params: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(req)) { if (v !== undefined && v !== '') params[k] = v; }
-    return callRpc(PYCORE_RPC_ROUTES.localSttTest, params) as Promise<SttTestResponse>;
+    return callRpc(PYCORE_RPC_ROUTES.localSttTest, params, ENGINE_TEST_TIMEOUT_MS) as Promise<SttTestResponse>;
   },
 
   // --- OCR live per-engine recognition test -------------------------------- #
@@ -79,7 +86,7 @@ export const pycoreApiSpeech = {
     if (!isWsConnected()) throw new Error('pycore WebSocket not connected — test requires WS');
     const params: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(req)) { if (v !== undefined && v !== '' && v !== null) params[k] = v; }
-    return callRpc(PYCORE_RPC_ROUTES.localOcrTest, params) as Promise<OcrTestResponse>;
+    return callRpc(PYCORE_RPC_ROUTES.localOcrTest, params, ENGINE_TEST_TIMEOUT_MS) as Promise<OcrTestResponse>;
   },
 
   // --- AI chat test (one turn through gateway or explicit provider) --------- #
@@ -87,7 +94,7 @@ export const pycoreApiSpeech = {
     if (!isWsConnected()) throw new Error('pycore WebSocket not connected — test requires WS');
     const params: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(req)) { if (v !== undefined && v !== '') params[k] = v; }
-    return callRpc(PYCORE_RPC_ROUTES.localAiChat, params) as Promise<AiChatResponse>;
+    return callRpc(PYCORE_RPC_ROUTES.localAiChat, params, ENGINE_TEST_TIMEOUT_MS) as Promise<AiChatResponse>;
   },
 
   // --- AI image test (one provider, inline base64 result) ------------------- #

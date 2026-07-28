@@ -7,7 +7,7 @@ Unified module for all global variables, constants, and cross-session storage:
 - Global variable manager (cross-session key-value storage)
 
 Usage:
-    from pycore.pygvar import (
+    from pycore.pyfoundations.pygvar import (
         # Constants
         IS_WINDOWS, PROJECT_ROOT, CPU_COUNT,
         # Manager
@@ -27,14 +27,14 @@ Usage:
 """
 
 # Import all constants (includes MACHINE_ID, get_machine_id)
-from pycore.pygvar.constants import *  # noqa: F401,F403
-from pycore.pygvar.constants import __all__ as _CONSTANTS_ALL
+from pycore.pyfoundations.pygvar.constants import *  # noqa: F401,F403
+from pycore.pyfoundations.pygvar.constants import __all__ as _CONSTANTS_ALL
 
 # Import WebSocket RPC constants
-from pycore.pygvar.ws_rpc_constants import WS_RPC_CONSTANTS
+from pycore.pyfoundations.pygvar.ws_rpc_constants import WS_RPC_CONSTANTS
 
 # Import global variable manager
-from pycore.pygvar.global_var_manager import (
+from pycore.pyfoundations.pygvar.global_var_manager import (
     GlobalVarManager,
     GLOBAL_VARS_DIR,
     PYTOOLS_TMP_DIR

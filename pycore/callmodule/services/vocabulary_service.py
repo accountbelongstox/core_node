@@ -3,11 +3,10 @@
 Vocabulary router - pycore proxy for the laravel_main vocabulary surface.
 
 The laravel-manager `#/vocabulary` page talks to laravel directly. pycore-manager
-must instead talk to pycore (UI -> pycore -> laravel). This router re-exposes the
-vocabulary endpoints under /api/local/vocabulary/* as a pure passthrough proxy to
-laravel_main, so the pycore-manager Vocabulary page only ever hits pycore.
+must instead talk to pycore (UI -> pycore RPC v2 -> laravel). This service is the
+single implementation behind both native and compatibility RPC routes.
 
-Endpoints (prefix /api/local/vocabulary):
+Laravel operations owned by this service:
   Translation:  GET  /translation/languages, POST /translation/translate,
                 POST /translation/queue/batch/add
   TTS:          POST /tts/generate, POST /tts/queue/batch/query,
@@ -33,8 +32,10 @@ pycore rules honored: imports at file top (PYTHON_PYCORE.md §1.4), logging only
 via ColorPrint, English-only strings, secrets/HTTP only via the shared helpers.
 """
 
+import base64
 import traceback
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 # Stored-first Laravel endpoint resolution - same plumbing word_audio_router and
@@ -118,6 +119,90 @@ def _proxy(
         return {"success": False, "error": f"proxy error: {exc}"}
 
 
+def vocab_resource(url: str) -> Dict[str, Any]:
+    """Fetch one selected-Laravel binary resource for an RPC v2 data URL."""
+    parsed = urlsplit(str(url or ""))
+    path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+    if not path.startswith("/"):
+        return {"success": False, "error": "invalid Laravel resource path"}
+    base = _laravel_base()
+    if not base:
+        return {"success": False, "error": "laravel endpoint not configured"}
+    try:
+        response = get_laravel_client().get(path, base_url=base, timeout=_VOCAB_TIMEOUT)
+        if response.status_code != 200:
+            return {"success": False, "error": f"HTTP {response.status_code}"}
+        return {
+            "success": True,
+            "content_base64": base64.b64encode(response.content).decode("ascii"),
+            "mime": response.headers.get("Content-Type") or "application/octet-stream",
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"success": False, "error": str(exc)}
+
+
+def dispatch_vocabulary_action(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Compatibility dispatcher backed only by this canonical service."""
+    request = params or {}
+    action = str(request.get("action") or "")
+    body = request.get("body")
+    query = request.get("query")
+    try:
+        if action == "translation_languages":
+            return vocab_translation_languages()
+        if action == "translation_translate":
+            return vocab_translation_translate(body or {})
+        if action == "translation_queue_add":
+            return vocab_translation_queue_batch_add(body or {})
+        if action == "tts_generate":
+            return vocab_tts_generate(body or {})
+        if action == "tts_queue_query":
+            return vocab_tts_queue_batch_query(body or [])
+        if action == "tts_sentence_audio":
+            return vocab_tts_sentence_audio(query)
+        if action == "tts_queue_stats":
+            return vocab_tts_queue_stats()
+        if action == "tts_queue_items":
+            return vocab_tts_queue_items(query)
+        if action == "assist_overview":
+            return vocab_assist_overview()
+        if action == "assist_overview_items":
+            return vocab_assist_overview_items(query)
+        if action == "cover_retry":
+            return vocab_cover_retry(body or {})
+        if action == "libraries":
+            return vocab_libraries(query)
+        if action == "library_words":
+            return vocab_library_words(int(request.get("library_id")), query)
+        if action == "library_delete":
+            return vocab_delete_library(int(request.get("library_id")))
+        if action == "statistics":
+            return vocab_statistics(query)
+        if action == "language_breakdown":
+            return vocab_language_breakdown(query)
+        if action == "dictionary_words":
+            return vocab_dictionary_words(query)
+        if action == "dictionary_words_add":
+            return vocab_create_dictionary_word(body or {})
+        if action == "dictionary_word_update":
+            return vocab_update_dictionary_word(str(request.get("md5") or ""), body or {})
+        if action == "dictionary_word_delete":
+            return vocab_delete_dictionary_word(str(request.get("md5") or ""), query)
+        if action == "dictionary_words_batch":
+            return vocab_batch_dictionary_words(body or {})
+        if action == "dictionary_sentences":
+            return vocab_dictionary_sentences(query)
+        if action == "validity_report":
+            return vocab_validity_report(body or {})
+        if action == "storage_summary":
+            return vocab_storage_summary()
+        if action == "resource":
+            return vocab_resource(str(request.get("url") or ""))
+    except Exception as exc:  # noqa: BLE001
+        return {"success": False, "error": str(exc)}
+    return {"success": False, "error": f"Unsupported vocabulary operation: {action}"}
+
+
 # --------------------------------------------------------------------------- #
 # Translation                                                                  #
 # --------------------------------------------------------------------------- #
@@ -140,8 +225,30 @@ def vocab_translation_queue_batch_add(payload: Dict[str, Any]):
 # TTS                                                                          #
 # --------------------------------------------------------------------------- #
 def vocab_tts_generate(payload: Dict[str, Any]):
-    """POST { text, language, ... } -> laravel TTS generate."""
-    return _proxy("POST", _L_TTS_GENERATE, json_body=payload)
+    """Generate TTS and inline Laravel audio bytes for the RPC v2 UI."""
+    result = _proxy("POST", _L_TTS_GENERATE, json_body=payload)
+    data = result.get("data") if isinstance(result.get("data"), dict) else result
+    audio_url = data.get("audio_url") if isinstance(data, dict) else None
+    if not audio_url or data.get("audio_base64"):
+        return result
+    parsed = urlsplit(str(audio_url))
+    audio_path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+    try:
+        response = get_laravel_client().get(
+            audio_path,
+            base_url=_laravel_base(),
+            timeout=_VOCAB_TIMEOUT,
+        )
+        if response.status_code == 200:
+            data["audio_base64"] = base64.b64encode(response.content).decode("ascii")
+            data["mime"] = response.headers.get("Content-Type") or "audio/mpeg"
+        else:
+            result["success"] = False
+            result["error"] = f"Laravel TTS audio returned HTTP {response.status_code}"
+    except Exception as exc:  # noqa: BLE001
+        result["success"] = False
+        result["error"] = f"Laravel TTS audio fetch failed: {exc}"
+    return result
 
 
 def vocab_tts_queue_batch_query(payload: List[Dict[str, Any]]):

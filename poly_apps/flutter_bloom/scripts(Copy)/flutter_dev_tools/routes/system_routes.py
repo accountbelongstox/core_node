@@ -8,7 +8,7 @@ import threading
 from http import HTTPStatus
 
 # Import from pycore following standards
-from pycore.pygvar import (
+from pycore.pyfoundations.pygvar import (
     SYSTEM_SCREEN_RESOLUTION,
     SYSTEM_MEMORY_INFO,
     SYSTEM_DISK_INFO,

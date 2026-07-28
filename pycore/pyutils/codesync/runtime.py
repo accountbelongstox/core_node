@@ -35,7 +35,10 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-import winreg
+try:
+    import winreg
+except ImportError:  # Windows-only standard-library module.
+    winreg = None
 
 
 class CodeSyncBusStateThread(threading.Thread):

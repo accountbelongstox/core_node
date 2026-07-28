@@ -656,14 +656,11 @@ export function callRpc(method: string, params: any = {}, timeoutMs?: number): P
 }
 
 function ensureSseConnected(): void {
-  // Strict standard: SSE is the ONLY broadcast transport.
-  try {
-    void import('./PycoreSse')
-      .then((m) => { if (typeof m.connectPycoreSse === 'function') m.connectPycoreSse(); })
-      .catch(() => { /* ignore: SSE remains best-effort */ });
-  } catch {
-    /* sandboxed */
-  }
+  // RPC v2 standard: WebSocket is the canonical broadcast transport; SSE is
+  // compatibility-only (legacy clients). The UI no longer auto-starts the SSE
+  // stream — broadcast events arrive on the WS 'event' frames, so the connect/
+  // disconnect churn that produced idle "[SSE] disconnected" backend noise is
+  // gone. PycoreSse remains importable for manual/legacy use.
 }
 
 /** Open the singleton connection (idempotent). Auto-reconnects on close/error.
@@ -709,7 +706,7 @@ export function connectPycoreWs(): void {
 export function setPycoreActive(active: boolean): void {
   if (active === !suspended) return;      // already in the requested state
   suspended = !active;
-  // Keep SSE on the same route gate as WS (SSE-only broadcast transport).
+  // Keep SSE on the same route gate as WS (SSE is compat-only; not auto-started).
   try {
     void import('./PycoreSse')
       .then((m) => { if (typeof m.setPycoreSseActive === 'function') m.setPycoreSseActive(active); })

@@ -322,6 +322,12 @@ class SubmitOutbox {
       }
       // Fill-missing/idempotent — already_done counts as success.
       if (result?.ok || result?.already_done) return this.remove(record.id);
+      // A server-side VALIDATION rejection (bad magic bytes, bad base64) can
+      // never succeed on retry — the payload bytes are fixed. Dropping it
+      // prevents the infinite assist_submit retry loop (attempt=600+).
+      if (result?.status === 'invalid' || result?.status === 'not_found') {
+        return this.dropTerminal(record, result?.error || `assist submit ${result.status}`);
+      }
       return this.scheduleRetry(record, result?.error || 'assist submit rejected');
     } catch (error) {
       return this.scheduleRetry(record, describeError(error));

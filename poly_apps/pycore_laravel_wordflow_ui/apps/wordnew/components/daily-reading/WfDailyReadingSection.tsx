@@ -4,7 +4,7 @@
  * all, per row = start from that article) opens the fullscreen sequential
  * player overlay; the book button opens the read-along reader. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronDown, Headphones, ListMusic, Loader2, Newspaper } from 'lucide-react';
+import { BookOpen, ChevronDown, Headphones, Home, ListMusic, Loader2, Newspaper } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewTypes';
 import { fetchDailyReadings, type DailyReadingRow } from './dailyReadingApi';
 import { useDailyReadingPlayer } from './useDailyReadingPlayer';
@@ -16,6 +16,8 @@ interface Props {
   trans: (k: string, r?: Record<string, string | number>) => string;
   onOpenBook: (sourceKey: string, title: string) => void;
   routeMode?: boolean;
+  /** Navigate back to the wordnew home tab (player overlay Home button). */
+  onGoHome?: () => void;
 }
 
 const POLL_MS = 12_000;
@@ -27,13 +29,21 @@ function initialArticleSort(): ArticleSort {
   return (match?.[2] as ArticleSort | undefined) ?? 'latest';
 }
 
-export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBook, routeMode = false }) => {
+/** Article id carried by a #/read-daily/<id> deep link (null when absent). */
+function readDailyHashId(): string | null {
+  if (typeof window === 'undefined') return null;
+  const match = window.location.hash.match(/^#\/read-daily\/(.+)$/);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
+
+export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBook, routeMode = false, onGoHome }) => {
   const [rows, setRows] = useState<DailyReadingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [articleSort, setArticleSort] = useState<ArticleSort>(initialArticleSort);
   const mounted = useRef(true);
+  const deepLinkHandled = useRef(false);
   const player = useDailyReadingPlayer();
   const visibleRows = useMemo(() => {
     const sorted = [...rows];
@@ -43,6 +53,38 @@ export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBoo
     // unread and latest default to the original order for now
     return sorted;
   }, [articleSort, rows]);
+
+  /** Start the player and reflect the playing article in the URL hash. */
+  const startPlayer = useCallback((startId?: string) => {
+    player.start(visibleRows, startId);
+    if (routeMode && startId && typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `#/read-daily/${encodeURIComponent(startId)}`);
+    }
+  }, [player, visibleRows, routeMode]);
+
+  // Player closed → drop the #/read-daily/<id> hash back to the article list hash.
+  useEffect(() => {
+    if (player.open || !routeMode || typeof window === 'undefined') return;
+    if (/^#\/read-daily\//.test(window.location.hash)) {
+      window.history.replaceState(null, '', `#/article/${articleSort}`);
+    }
+  }, [player.open, routeMode, articleSort]);
+
+  // Deep link: #/read-daily/<id> auto-starts that article once rows arrive.
+  useEffect(() => {
+    if (deepLinkHandled.current || rows.length === 0) return;
+    const id = readDailyHashId();
+    if (!id) return;
+    const target = rows.find((row) => row.id === id);
+    if (!target) return;
+    deepLinkHandled.current = true;
+    if (target.audio_url) {
+      player.start(rows, target.id);
+    } else {
+      setExpandedId(target.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   const changeSort = useCallback((next: ArticleSort) => {
     setArticleSort(next);
@@ -110,10 +152,20 @@ export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBoo
             </select>
           )}
           {loading && <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />}
+          {routeMode && onGoHome && (
+            <button
+              type="button"
+              onClick={onGoHome}
+              className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 hover:border-indigo-500/30 transition-colors"
+              title={trans('home.dailyReading.backHome')}
+            >
+              <Home className="w-4 h-4" />
+            </button>
+          )}
           {playableCount > 0 && (
             <button
               type="button"
-              onClick={() => player.start(visibleRows)}
+              onClick={() => startPlayer()}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-gradient-to-tr from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-transform"
               title={trans('home.dailyReading.playAll')}
             >
@@ -163,7 +215,7 @@ export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBoo
                     {row.audio_url && (
                       <button
                         type="button"
-                        onClick={() => player.start(visibleRows, row.id)}
+                        onClick={() => startPlayer(row.id)}
                         className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 transition-colors"
                         title={trans('home.dailyReading.playFrom')}
                       >
@@ -202,7 +254,7 @@ export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBoo
         </ul>
       )}
 
-      <WfDailyReadingPlayerOverlay player={player} trans={trans} />
+      <WfDailyReadingPlayerOverlay player={player} trans={trans} onGoHome={onGoHome} />
     </section>
   );
 };

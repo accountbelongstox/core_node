@@ -14,7 +14,7 @@ from scripts.pytools.pybackup.dev_env.incremental_backup_manager import Incremen
 from scripts.pytools.pybackup.dev_env.user_config_backup import get_user_config_for_backup
 from scripts.pytools.pybackup.dev_env.applications_backup import get_applications_for_backup
 from pycore.pyutils.common.zip_task_queue import ZipTaskQueue
-from pycore.pygvar import (
+from pycore.pyfoundations.pygvar import (
     BACKUP_DIR_NAME,
     APPLICATIONS_DIR,
     IS_WINDOWS

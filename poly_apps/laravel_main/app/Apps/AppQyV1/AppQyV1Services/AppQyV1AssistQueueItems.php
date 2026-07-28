@@ -15,6 +15,7 @@ use App\Models\GlobalTask;
 use App\Models\Subtitle;
 use App\Services\MoviePoster\MoviePosterStore;
 use App\Services\TimerTasks\AppQyV1CoverGenerationTask;
+use App\Support\QueueCenterContract;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -32,7 +33,7 @@ trait AppQyV1AssistQueueItems
     public function categoryItems(string $category, ?string $status, int $start, int $limit): array
     {
         $category = strtolower(trim($category));
-        if (!in_array($category, self::OVERVIEW_CATEGORY_KEYS, true)) {
+        if (!in_array($category, QueueCenterContract::categoryKeys(), true)) {
             return [
                 'category' => $category,
                 'status' => $status,
@@ -50,10 +51,11 @@ trait AppQyV1AssistQueueItems
             return $this->categoryItemsFromWordAudio($status, $start, $limit);
         }
 
-        if (isset(self::CATEGORY_GLOBAL_TASK_TYPE[$category])) {
+        $globalTaskType = QueueCenterContract::globalTaskTypeForCategory($category);
+        if ($globalTaskType !== null) {
             return $this->categoryItemsFromGlobalTasks(
                 $category,
-                self::CATEGORY_GLOBAL_TASK_TYPE[$category],
+                $globalTaskType,
                 $status,
                 $start,
                 $limit
@@ -99,10 +101,18 @@ trait AppQyV1AssistQueueItems
         $query = GlobalTask::query()
             ->where('app_name', 'AppQyV1')
             ->where('task_type', $taskType);
+        if ($category === 'ai_translate') {
+            $query->where('capability', GlobalTask::capability('ai_translate'));
+        } elseif ($category === 'word_translation') {
+            $query->where(function ($builder) {
+                $builder->whereNull('capability')
+                    ->orWhere('capability', '!=', GlobalTask::capability('ai_translate'));
+            });
+        }
 
         if ($status !== null && $status !== '') {
             if ($status === 'leased') {
-                $query->whereIn('status', [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING])
+                $query->where('status', GlobalTask::status('assigned'))
                     ->whereNotNull('assigned_to');
             } else {
                 $statuses = $this->mapOverviewStatusToGlobal($status);
@@ -296,10 +306,10 @@ trait AppQyV1AssistQueueItems
     private function mapOverviewStatusToGlobal(string $status): array
     {
         return match ($status) {
-            'pending' => [GlobalTask::STATUS_PENDING],
-            'processing' => [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING],
-            'completed' => [GlobalTask::STATUS_COMPLETED, GlobalTask::STATUS_COMPLETED_DEMO],
-            'failed' => [GlobalTask::STATUS_FAILED],
+            'pending' => [GlobalTask::status('pending')],
+            'processing' => [GlobalTask::status('processing')],
+            'completed' => [GlobalTask::status('completed'), GlobalTask::status('completed_demo')],
+            'failed' => [GlobalTask::status('failed')],
             default => [],
         };
     }
@@ -610,4 +620,3 @@ trait AppQyV1AssistQueueItems
         ];
     }
 }
-

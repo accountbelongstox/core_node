@@ -18,7 +18,13 @@ from pycore.callmodule.services.sync.laravel_media_sync import (
     sync_all,
     sync_source,
 )
+from pycore.callmodule.services.sync.laravel_media_query_service import (
+    get_media_detail,
+    list_media,
+)
 from pycore.callmodule.rpc_routes.route_names import (
+    VIDEO_EXTRACT_BACKEND_MEDIA_DETAIL,
+    VIDEO_EXTRACT_BACKEND_MEDIA_LIST,
     VIDEO_EXTRACT_BACKEND_STATUS,
     VIDEO_EXTRACT_SYNC_ALL,
     VIDEO_EXTRACT_SYNC_SOURCE,
@@ -105,6 +111,26 @@ def register_video_extract_routes(server):
             ColorPrint.red(f"[ConfigBuilder] video_extract.sync_all failed: {e}")
             return {'success': False, 'error': str(e)}
 
+    async def video_extract_backend_media_list(params, request_id, context):
+        """Read one Laravel media list through the pycore HTTP boundary."""
+        params = params or {}
+        return await await_bus_task(
+            list_media,
+            params.get('kind') or '',
+            params.get('page') or 1,
+            params.get('per_page') or 8,
+        )
+
+    async def video_extract_backend_media_detail(params, request_id, context):
+        """Read Laravel media detail through the pycore HTTP boundary."""
+        params = params or {}
+        return await await_bus_task(
+            get_media_detail,
+            params.get('kind') or '',
+            params.get('source_key') or '',
+            params.get('grain') or 'sentence',
+        )
+
     server.route(
         name=VIDEO_EXTRACT_SYNC_SOURCE,
         handler=video_extract_sync_source,
@@ -116,6 +142,18 @@ def register_video_extract_routes(server):
         handler=video_extract_backend_status,
         sync=False,
         description='Compare local extract outputs against laravel_main holdings',
+    )
+    server.route(
+        name=VIDEO_EXTRACT_BACKEND_MEDIA_LIST,
+        handler=video_extract_backend_media_list,
+        sync=False,
+        description='Read a Laravel media list through pycore',
+    )
+    server.route(
+        name=VIDEO_EXTRACT_BACKEND_MEDIA_DETAIL,
+        handler=video_extract_backend_media_detail,
+        sync=False,
+        description='Read Laravel media detail through pycore',
     )
     server.route(
         name=VIDEO_EXTRACT_SYNC_ALL,

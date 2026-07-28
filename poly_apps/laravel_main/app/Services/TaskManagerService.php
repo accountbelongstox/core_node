@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\GlobalTask;
 use App\Models\GlobalTaskEvent;
 use App\Models\Worker;
+use App\Support\QueueCenterContract;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -35,14 +36,6 @@ class TaskManagerService
      * an HTTP 500 that loses a worker's result POST.
      */
     private const TRANSACTION_ATTEMPTS = 3;
-
-    /** Task types with a matching capability worker on the shared fast lane. */
-    private const FAST_PROMOTABLE_TASK_TYPES = [
-        'word_translation',
-        'word_audio',
-        'sentence_audio',
-        'word_media',
-    ];
 
     /**
      * Short-TTL cache for the hot, unbounded status tally (getTaskStats). The
@@ -183,8 +176,8 @@ class TaskManagerService
         $interactive = $interactive
             && in_array($taskType, self::FAST_PROMOTABLE_TASK_TYPES, true);
         if ($interactive) {
-            $executionType = GlobalTask::EXECUTION_REMOTE_FAST;
-            $priority = max($priority, GlobalTask::PRIORITY_FAST);
+            $executionType = GlobalTask::executionType('remote_fast');
+            $priority = max($priority, GlobalTask::priority('fast'));
         }
 
         // Phase 5 substrate link fields (dict_row_id / dict_language /
@@ -200,7 +193,7 @@ class TaskManagerService
             'app_name' => $appName,
             'task_type' => $taskType,
             'execution_type' => $executionType,
-            'status' => GlobalTask::STATUS_PENDING,
+            'status' => GlobalTask::status('pending'),
             'payload' => $payload,
             'timeout_seconds' => $timeoutSeconds,
             'priority' => $priority,
@@ -270,7 +263,7 @@ class TaskManagerService
                 // the capability filter and let e.g. a chrome worker grab a
                 // bumped word_audio/audio task, adding fail-repend latency to
                 // exactly the hottest tasks.
-                if ($processorType === GlobalTask::EXECUTION_REMOTE_FAST) {
+                if ($processorType === GlobalTask::executionType('remote_fast')) {
                     continue;
                 }
 
@@ -323,14 +316,14 @@ class TaskManagerService
             // pgsql/sqlite (no JSON_CONTAINS in the WHERE clause). We over-fetch a
             // little because some locked candidates may be filtered out by capability.
             if (count($assignedTasks) < $limit
-                && in_array(GlobalTask::EXECUTION_REMOTE_FAST, $worker->processor_types, true)) {
+                && in_array(GlobalTask::executionType('remote_fast'), $worker->processor_types, true)) {
 
                 $workerCaps = $worker->capabilityList();
                 $need = $limit - count($assignedTasks);
                 $fetch = min(32, $need + 8);
 
                 $fastCandidates = GlobalTask::pending()
-                    ->where('execution_type', GlobalTask::EXECUTION_REMOTE_FAST)
+                    ->where('execution_type', GlobalTask::executionType('remote_fast'))
                     ->orderBy('priority', 'desc')
                     ->orderBy('created_at', 'asc')
                     ->limit($fetch)
@@ -533,14 +526,14 @@ class TaskManagerService
      */
     public function countFastPending(array $processorTypes, array $capabilities): int
     {
-        if (!in_array(GlobalTask::EXECUTION_REMOTE_FAST, $processorTypes, true)) {
+        if (!in_array(GlobalTask::executionType('remote_fast'), $processorTypes, true)) {
             return 0;
         }
 
         $capabilities = array_values(array_filter($capabilities, 'is_string'));
 
         return (int) GlobalTask::pending()
-            ->where('execution_type', GlobalTask::EXECUTION_REMOTE_FAST)
+            ->where('execution_type', GlobalTask::executionType('remote_fast'))
             ->where(function ($q) use ($capabilities) {
                 // NULL capability = any worker eligible; otherwise the worker must
                 // advertise the tag. whereIn on a string column is cross-DB safe.
@@ -563,8 +556,9 @@ class TaskManagerService
      *
      * @return string One of 'bumped', 'not_found', 'not_pending'
      */
-    public function bumpTaskPriority(string $taskId, int $newPriority = GlobalTask::PRIORITY_FAST): string
+    public function bumpTaskPriority(string $taskId, ?int $newPriority = null): string
     {
+        $newPriority = $newPriority ?? GlobalTask::priority('fast');
         return $this->db()->transaction(function () use ($taskId, $newPriority) {
             $task = GlobalTask::where('task_id', $taskId)
                 ->lockForUpdate()
@@ -574,7 +568,7 @@ class TaskManagerService
                 return 'not_found';
             }
 
-            if ($task->status !== GlobalTask::STATUS_PENDING) {
+            if ($task->status !== GlobalTask::status('pending')) {
                 return 'not_pending';
             }
 
@@ -583,14 +577,14 @@ class TaskManagerService
             // A still-pending, fast-capable task bumped to the FAST tier is also
             // moved onto remote_fast. Dedicated-lane task types only receive the
             // numeric priority increase and remain claimable by their worker.
-            $promoteToFast = $target >= GlobalTask::PRIORITY_FAST
-                && $task->execution_type !== GlobalTask::EXECUTION_REMOTE_FAST
-                && in_array($task->task_type, self::FAST_PROMOTABLE_TASK_TYPES, true);
+            $promoteToFast = $target >= GlobalTask::priority('fast')
+                && $task->execution_type !== GlobalTask::executionType('remote_fast')
+                && in_array($task->task_type, QueueCenterContract::fastPromotableTaskTypes(), true);
 
             if ($target !== (int) $task->priority || $promoteToFast) {
                 $task->priority = $target;
                 if ($promoteToFast) {
-                    $task->execution_type = GlobalTask::EXECUTION_REMOTE_FAST;
+                    $task->execution_type = GlobalTask::executionType('remote_fast');
                     $task->is_fast_tier = true;
                 }
                 $task->save();
@@ -639,7 +633,7 @@ class TaskManagerService
             }
 
             // Check if task is already assigned
-            if ($task->status !== GlobalTask::STATUS_PENDING) {
+            if ($task->status !== GlobalTask::status('pending')) {
                 Log::warning('Task already assigned or not pending', [
                     'task_id' => $taskId,
                     'status' => $task->status,
@@ -713,12 +707,12 @@ class TaskManagerService
 
             // Already ours (the normal case after an atomic pull) — idempotent.
             if ($task->assigned_to === $workerId
-                && in_array($task->status, [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING], true)) {
+                && in_array($task->status, [GlobalTask::status('assigned'), GlobalTask::status('processing')], true)) {
                 return 'accepted';
             }
 
             // Legacy pull-without-assign flow: claim a still-pending task now.
-            if ($task->status === GlobalTask::STATUS_PENDING) {
+            if ($task->status === GlobalTask::status('pending')) {
                 $task->assignTo($workerId, $task->timeout_seconds);
                 $worker->assignTask($taskId);
                 GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_ASSIGNED, $workerId, (int) $task->retry_count, [
@@ -760,16 +754,16 @@ class TaskManagerService
             }
 
             $cancellable = [
-                GlobalTask::STATUS_PENDING,
-                GlobalTask::STATUS_ASSIGNED,
-                GlobalTask::STATUS_PROCESSING,
+                GlobalTask::status('pending'),
+                GlobalTask::status('assigned'),
+                GlobalTask::status('processing'),
             ];
             if (!in_array($task->status, $cancellable, true)) {
                 return 'not_cancellable';
             }
 
             $workerId = $task->assigned_to;
-            $task->status = GlobalTask::STATUS_CANCELLED;
+            $task->status = GlobalTask::status('cancelled');
             $task->assigned_to = null;
             $task->assigned_at = null;
             $task->timeout_at = null;
@@ -880,10 +874,10 @@ class TaskManagerService
             // the task processors (write-back) a second time and double-count
             // worker stats.
             $terminalStatuses = [
-                GlobalTask::STATUS_COMPLETED,
-                GlobalTask::STATUS_COMPLETED_DEMO,
-                GlobalTask::STATUS_FAILED,
-                GlobalTask::STATUS_CANCELLED,
+                GlobalTask::status('completed'),
+                GlobalTask::status('completed_demo'),
+                GlobalTask::status('failed'),
+                GlobalTask::status('cancelled'),
             ];
             if (in_array($task->status, $terminalStatuses, true)) {
                 $outcome['status'] = $task->status;
@@ -919,9 +913,9 @@ class TaskManagerService
 
                 // Use consistent completion method for both modes
                 if ($isDemoMode) {
-                    $task->status = GlobalTask::STATUS_COMPLETED_DEMO;
+                    $task->status = GlobalTask::status('completed_demo');
                 } else {
-                    $task->status = GlobalTask::STATUS_COMPLETED;
+                    $task->status = GlobalTask::status('completed');
                 }
                 $task->progress = 100.0;
                 $task->result = $result ?? [];
@@ -946,7 +940,7 @@ class TaskManagerService
                         . ' (execution_type=' . $task->execution_type . ')';
                     // Re-fetch a clean failure transition: reset the completion
                     // fields the success branch set, then fail.
-                    $task->status = GlobalTask::STATUS_PROCESSING; // transient — fail() overwrites
+                    $task->status = GlobalTask::status('processing'); // transient — fail() overwrites
                     $task->completed_at = null;
                     $this->failTaskInTransaction($task, $worker, $emptyError, $workerId, $outcome, 'empty_store');
                     return true;
@@ -1019,7 +1013,7 @@ class TaskManagerService
                     ]);
                 }
             } elseif ($status === 'processing') {
-                $task->status = GlobalTask::STATUS_PROCESSING;
+                $task->status = GlobalTask::status('processing');
                 $task->progress = $progress;
                 if ($result) {
                     $task->result = $result;
@@ -1095,7 +1089,7 @@ class TaskManagerService
                 // already past. A result/progress POST that won the race will
                 // have moved the task on (terminal, or extended timeout_at), so
                 // we skip it here.
-                $stillLive = in_array($task->status, [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING], true)
+                $stillLive = in_array($task->status, [GlobalTask::status('assigned'), GlobalTask::status('processing')], true)
                     && $task->timeout_at !== null
                     && $task->timeout_at <= now();
                 if (!$stillLive) {
@@ -1126,7 +1120,7 @@ class TaskManagerService
                         'max_retries' => $task->max_retries,
                     ]);
                 } else {
-                    $task->status = GlobalTask::STATUS_FAILED;
+                    $task->status = GlobalTask::status('failed');
                     $task->error = 'Timed out '
                         . ($task->retry_count + 1)
                         . ' time(s) without a worker result (last worker: '
@@ -1205,7 +1199,7 @@ class TaskManagerService
                 // immediately. When the worker holds 0/1 tasks this behaves
                 // identically to the old single-task release.
                 $heldTasks = GlobalTask::where('assigned_to', $worker->worker_id)
-                    ->whereIn('status', [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING])
+                    ->whereIn('status', [GlobalTask::status('assigned'), GlobalTask::status('processing')])
                     ->lockForUpdate()
                     ->get();
 
@@ -1214,7 +1208,7 @@ class TaskManagerService
                         $task->retry_count++;
                         $task->releaseAssignment();
                     } else {
-                        $task->status = GlobalTask::STATUS_FAILED;
+                        $task->status = GlobalTask::status('failed');
                         $task->error = 'Worker went offline '
                             . ($task->retry_count + 1)
                             . ' time(s) without a result (last worker: '
@@ -1282,13 +1276,13 @@ class TaskManagerService
 
             return [
                 'total' => (int) $grouped->sum(),
-                'pending' => $count(GlobalTask::STATUS_PENDING),
-                'assigned' => $count(GlobalTask::STATUS_ASSIGNED),
-                'processing' => $count(GlobalTask::STATUS_PROCESSING),
-                'completed' => $count(GlobalTask::STATUS_COMPLETED),
-                'completed_demo' => $count(GlobalTask::STATUS_COMPLETED_DEMO),
-                'failed' => $count(GlobalTask::STATUS_FAILED),
-                'cancelled' => $count(GlobalTask::STATUS_CANCELLED),
+                'pending' => $count(GlobalTask::status('pending')),
+                'assigned' => $count(GlobalTask::status('assigned')),
+                'processing' => $count(GlobalTask::status('processing')),
+                'completed' => $count(GlobalTask::status('completed')),
+                'completed_demo' => $count(GlobalTask::status('completed_demo')),
+                'failed' => $count(GlobalTask::status('failed')),
+                'cancelled' => $count(GlobalTask::status('cancelled')),
             ];
         });
     }

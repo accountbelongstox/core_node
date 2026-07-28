@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pycore.pygvar import PROJECT_ROOT
+from pycore.pyfoundations.pygvar import PROJECT_ROOT
 
 
 def get_project_root() -> Path:

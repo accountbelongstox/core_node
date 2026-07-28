@@ -1,0 +1,131 @@
+必要的地方查看官方文档，修正    │
+ │   所有BUG。找到问题就修复，不要最后总结时才修复。最后   │
+ │   演算一遍，不要使用多AGENTS       
+ 代码不合理的地方要重构。
+
+1:查看BUG PYCORE
+Heartbeat +0.96s] Tick #100, Time: 2026-07-28 18:42:47
+[AgentHistoryArticle +0.52s] pipeline tick error: UNIQUE constraint failed: operation_items.operation_id, operation_items.item_key
+
+2： Pycore / pycore UI,在没有任何操作的时候为什么会出现BUG
+[SSE +5.49s] disconnected id=browser-
+
+3：PYCORE为什么载入慢。重构rpc v2，修正pycore / pycore UI的通信。使用rpc v2 ws
+Auto-Subtitle Pipeline
+screenshot OCR → AI translate · every 60s
+
+OCR engines
+ai-vision
+fallback
+Loading OCR…
+AI providers
+Loading AI gateway…
+Loading Libraries…
+TTS engine
+Loading TTS…
+STT engines
+同时有BUG
+PcTestPopupContext.tsx:44 Uncaught Error: usePcTestPopup must be used within a PcTestPopupProvider
+    at usePcTestPopup (PcTestPopupContext.tsx:44:19)
+    at TestChip (PcPipelineStatusPanels.tsx:28:24)
+
+PcPipelineStatusPanels.tsx:212 An error occurred in the <TestChip> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundari
+
+4：修复bug,PYCORE的连接只能在pycore的路由下连接，如果在laravel manager 或 wordnew其他路由都暂停，但保留状态。
+同时确保几个子APP的网络连接不会在其他路由下活动，只能暂停并保存状态。
+···Laravel Manager
+Pycore Manager
+Vortex Sandbox
+PDD Manager
+WordNew
+···
+BUG比如 
+CapFilesystem.ts:754 
+ GET http://43.163.112.77:9000/static/app_qy_v1/audio/agent_history/en/article_344ab279-8cb8-4e61-998c-93b5bab1ee5f.mp3 net::ERR_CONNECTION_RESET
+
+WfNewApiTransport.ts:110 
+ GET http://43.163.112.77:9000/api/app_qy_v1/media/books/article_402a9355-9982-4520-beaa-4cec374ea7d6/chapters net::ERR_CONNECTION_RESET
+CapFilesystem.ts:754 
+ GET http://43.163.112.77:9000/static/app_qy_v1/audio/agent_history/en/article_e06aad0c-6ad6-4987-8adc-2c4a4ca0131e.mp3 net::ERR_CONNECTION_RESET
+CapFilesystem.ts:754 
+ GET http://43.163.112.77:9000/static/app_qy_v1/audio/agent_history/en/article_402a9355-9982-4520-beaa-4cec374ea7d6.mp3 net::ERR_CONNECTION_RESET
+CapFilesystem.ts:754 
+ GET http://43.163.112.77:9000/static/app_qy_v1/audio/agent_history/en/article_7d8195a9-844b-4400-b51f-ef7ea034b05e.mp3 net::ERR_CONNECTION_RESET
+PycoreWs.ts:257 [WS <<<] event:pycore_log  
+{message: "[laravel] POST /api/app_qy_v1/assist/poster/priori…y closed by the remote host', None, 10054, None))", color: 'red', level: 'ERROR'}
+
+5:
+查看 pycore UI -> pycore -> laravel -> wordnew 中的：
+http://127.0.0.1:13054/pycore-manager/agent-history 提交双语短文到laravel，laravel生成每日短文，但为什么还有下面的BUT，没有音频。
+同时Daily Reading 下面的点击·Play from this article· 或者 `Open read-along reader` 点击时，都在路由上体现，比如 /read-daily/${id}等等
+同时增加功能：点开以后，···
+Playback order
+
+Sequential
+Words
+
+All words
+Word repeats
+1
+Play sentence before words
+修改为 是否在句子播放前或播放中播放短文包含的单词（只有新单词[与后端的 Word Groups 中的已读关联]只显示其中没有读过的，同时读了将立即更新 Word Groups
+下的所有组，包括 Default Vocabulary Group|所有单词|，动态调整播放顺序，可编辑揪放N次英文、N次中文、又N次英文）动态调整播放顺序，可编辑揪放N次英文、N次中文、又N次英文 还能动态调整播放单词时是在那个顺序。
+···
+ GET http://43.163.112.77:9000/static/app_qy_v1/audio/agent_history/en/article_402a9355-9982-4520-beaa-4cec374ea7d6.mp3 net::ERR_CONNECTION_RESET
+CapFilesystem.ts:754 
+
+CapFilesystem.ts:754  GET http://43.163.112.77:9000/static/app_qy_v1/audio/agent_history/en/article_e3ba9cfd-fdf0-4d66-a9da-6742946ddf13.mp3 404 (Not Found)
+并添加一个返回首页的按钮
+
+6：`Open read-along reader`点击时， Failed to load content.
+WfNewApiTransport.ts:110 
+ GET http://43.163.112.77:9000/api/app_qy_v1/media/books/article_256edb7c-dd0a-4492-83c5-c982e0946e4e/chapters 404 (Not Found)
+
+WfNewApiTransport.ts:110 
+ GET http://43.163.112.77:9000/api/app_qy_v1/media/books/article_256edb7c-dd0a-4492-83c5-c982e0946e4e?page=1&per_page=200 404 (Not Found)
+WfNewBookReader.tsx:237 [wordnew] Failed to load verses. Error: HTTP 404 for /api/app_qy_v1/media/books/article_256edb7c-dd0a-4492-83c5-c982e0946e4e?page=1&per_page=200
+    at Object.fetchRemote (WfNewApiTransport.ts:116:13)
+    at async CapResourcePackage.ts:279:23
+    at async Object.getBookVerses (WfNewApiHttp.ts:352:17)
+    at async WfNewBookReader.tsx:227:19
+
+
+7：在.apps/mcp-chrome中，Task TAB,当我勾选 ···执行图片与封面任务···Failed to start processors: media_image 并点击开始时，并没有向laravel请求需要封面的辅助，
+7.1 http://127.0.0.1:13054/wordnew#/book-reader 加上似入 http://127.0.0.1:13054/wordnew#/book-reader/${bookId}的路由。
+7。2，在laravel 端要标注图书封面的来源，如果不是来源于mcp-chrome的辅助同时不是来自于搜索引擎，均需要mcp-chrome重新上传。同时每个书允许有5张封面。
+7.3。同时在 wordnew的home页显示的书的时候，会拉取每个书的最新的5个封面图，使用不同的轮揪方式，扩展多个轮播组件，比下左右，上下，圆角展开等等，同时每个书的轮揪时间都不一样。防止统一刷新。
+
+
+8：.apps/mcp-chrome中，Task TAB,当我勾选 ···当我在 执行单词有效性检测···并没有看到向laravel后端拉取所有单词来进行演算，注意默认使用deepseek的web版进行，在设置中增加其他几个可用的AI选项，也要扩展库。
+调用库中的模拟用户操作和WEB数据读取来取的。沿用代码，保证逻辑可用。laravel main中的单词要在sys:init中扩展出对应字段，并确保所有单词最终演算。
+同时，有效性时同时会上传翻译结果 ，如果单词库中的单词没有翻译的更新。执行Web-AI 翻译任务（执行Bing翻译功能）合并到同一个任务中。也就是没有翻译的单词和没有有效性的单词都由AI处理一遍。
+8。2增加一个默认选项，只处理EN单词，也可以选项处理其他。
+8。3执行Web-AI 翻译任务的逻辑合并。
+8。4执行语音生成任务现在由pycore辅助。面板中去掉选项，但保留 代码并注释。
+8。5执行短文生成任务现在由pycore辅助。面板中去掉选项，但保留 代码并注释。
+8.6执行Bing翻译功能 的逻辑合并。
+8.7🗂️ Unified Task Center的数据和larabel中的也对不上。
+8.8修正很多TAB上面都显示Data TAB的内容。···
+dexed pages
+Index size 0.0 MB
+Active tabs 0
+Vector store
+Index data
+Clear All Data
+Model Cache Management
+Cache Size 0 MB
+Cache Entries 0 No cache data
+Clean Expired Cache
+Clear All Cache	··· 只由Data显示。
+8.9 mcp-chrome的其他BUG···
+[Submit Outbox] Retry assist_submit (assist_submit:poster:book:2) attempt=600: Payload failed image validation (png/jpeg/webp/gif magic expected)
+···
+8.10 修正mcp-chrome中的所有数据必须 底层共享。
+
+9：必要的地方查看官方文档，修正    │
+ │   所有BUG。找到问题就修复，不要最后总结时才修复。最后   │
+ │   演算一遍，不要使用多AGENTS       
+  代码不合理的地方要重构。

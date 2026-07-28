@@ -1,15 +1,14 @@
 /**
  * Local cached-audio preview for pycore TaskManager / recent-task records.
  *
- * Playback uses GET /voice-subtitle/audio?path=… on the pycore :59000 backend.
+ * Playback bytes are fetched through the shared RPC v2 resource route.
  */
 import React from 'react';
-import { rewritePycoreEndpoint } from '../../../core/api-libs/pycore/pycoreTarget';
 import { PcBlobAudio } from './PcBlobMedia';
 
-/** Build a browser-playable URL for a local disk audio path served by pycore. */
+/** Keep the local path opaque; PcBlobAudio transfers its bytes over RPC v2. */
 export function buildLocalAudioUrl(audioPath: string): string {
-  return rewritePycoreEndpoint(`/voice-subtitle/audio?path=${encodeURIComponent(audioPath)}`);
+  return audioPath;
 }
 
 /** Pull audio_path from a task result or detail object (incl. words[0].audio_path). */

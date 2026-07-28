@@ -35,6 +35,10 @@ class _RunGate:
 
 _run_gate = _RunGate()
 
+# A failed pipeline item is retried until this many attempts, then stays failed
+# (transient TTS / network errors must not silently drop the whole article).
+MAX_ITEM_ATTEMPTS = 3
+
 def _try_acquire_run() -> Optional[object]:
     return _run_gate.acquire()
 
@@ -135,21 +139,26 @@ def tick_pipeline() -> None:
         if active_ops:
             op = active_ops[0]
             items = op_service.get_operation_items(op.id)
-            pending_items = [item for item in items if item.status not in ("succeeded", "failed", "skipped", "cancelled")]
+            # Failed items below the retry cap stay pending — a transient TTS /
+            # network error must not silently lose the whole article (the "no
+            # audio" reports). Terminal = succeeded/skipped/cancelled, or failed
+            # after MAX_ITEM_ATTEMPTS attempts.
+            pending_items = [item for item in items if not _is_item_terminal(item)]
             if pending_items:
                 item = pending_items[0]
                 try:
                     _process_item(item, op_service, event_service)
                 except Exception as e:
-                    err = str(e)
-                    op_service.transition_item(
-                        item.id,
-                        status="failed",
-                        stage=item.stage,
-                        error_json={"message": err},
-                        message=f"Item failed: {err}",
-                    )
+                    _fail_item(item, e, op_service)
                 return
+            # All items terminal but the operation itself was never closed.
+            # Close it so create_or_get stops reusing it (avoids repeated
+            # UNIQUE constraint failures on (operation_id, item_key)).
+            any_failed = any(item.status == "failed" for item in items)
+            if any_failed:
+                op_service.fail(op.id, {"message": "one or more items failed"}, "Operation failed")
+            else:
+                op_service.complete(op.id, "All items finished")
         
         items, pending = plan_batches(live=(phase == "live"))
         if not items:
@@ -186,13 +195,7 @@ def tick_pipeline() -> None:
             
         except Exception as e:
             err = str(e)
-            op_service.transition_item(
-                item.id,
-                status="failed",
-                stage=item.stage,
-                error_json={"message": err},
-                message=f"Item failed: {err}",
-            )
+            _fail_item(item, e, op_service)
             
             cfg = get_config()
             attempts = int(cfg["cursor"].get("attempts") or 0) + 1
@@ -203,6 +206,26 @@ def tick_pipeline() -> None:
             
     finally:
         _release_run(token)
+
+def _fail_item(item, error: Exception, op_service: OperationService) -> None:
+    """Mark an item failed, KEEPING its checkpoint so a retry resumes the stage."""
+    err = str(error)
+    op_service.transition_item(
+        item.id,
+        status="failed",
+        stage=item.stage,
+        checkpoint_json=item.checkpoint_json,
+        error_json={"message": err},
+        message=f"Item failed: {err}",
+    )
+
+def _is_item_terminal(item) -> bool:
+    """Terminal = done/skipped/cancelled, or failed past the retry cap."""
+    if item.status in ("succeeded", "skipped", "cancelled"):
+        return True
+    if item.status == "failed":
+        return int(item.attempts or 0) >= MAX_ITEM_ATTEMPTS
+    return False
 
 def _process_item(item, op_service: OperationService, event_service: OperationEventService) -> None:
     """Drive an item through its stages."""

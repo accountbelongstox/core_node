@@ -31,7 +31,7 @@ function endFromPath(pathname: string): EndId {
   if (pathname.startsWith('/pycore-manager')) return 'pycore-manager';
   if (pathname.startsWith('/wordnew')) return 'wordflow';
   if (pathname.startsWith('/vortex')) return 'vortex';
-  if (pathname.startsWith('/pdd-manager')) return 'pdd-manager';
+  // if (pathname.startsWith('/pdd-manager')) return 'pdd-manager'; // Archived PDD Manager route.
   return 'home';
 }
 

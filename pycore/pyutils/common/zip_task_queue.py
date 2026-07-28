@@ -18,7 +18,7 @@ import subprocess
 
 psutil = get_third_package_psutil()
 
-from pycore.pygvar import (
+from pycore.pyfoundations.pygvar import (
     SEVEN_ZIP_EXECUTABLE,
     MAX_CONCURRENT_ZIP_TASKS,
 )
