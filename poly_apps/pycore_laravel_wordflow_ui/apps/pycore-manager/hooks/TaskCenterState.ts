@@ -1,28 +1,22 @@
 import { useEffect, useState } from 'react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { PcTaskRecord, PycoreGlobalTaskDetail } from '../../../core/api-libs/pycore';
+import {
+    GLOBAL_TASK_HISTORY_BUCKETS,
+    normalizeGlobalTaskHistoryType,
+} from '../../../core/api-libs/pycore/QueueCenterContract';
 
-export type CompletedTaskType = 'all' | 'word_audio' | 'sentence_audio' | 'translation' | 'assist' | 'media_image';
-export type CanonicalCompletedTaskType = Exclude<CompletedTaskType, 'all'>;
+export type CanonicalCompletedTaskType = (typeof GLOBAL_TASK_HISTORY_BUCKETS)[number];
+export type CompletedTaskType = 'all' | CanonicalCompletedTaskType;
 
 const normalizeCompletedTaskType = (rawType: string): CanonicalCompletedTaskType => {
-    const type = rawType.toLowerCase();
-    if (type.includes('word') && (type.includes('audio') || type.includes('tts'))) return 'word_audio';
-    if (type.includes('sentence') && (type.includes('audio') || type.includes('tts'))) return 'sentence_audio';
-    if (type.includes('media') || type.includes('image') || type.includes('cover') || type.includes('poster')) return 'media_image';
-    if (type.includes('assist')) return 'assist';
-    if (type.includes('translate') || type.includes('translation')) return 'translation';
-    return 'assist';
+    return normalizeGlobalTaskHistoryType(rawType);
 };
 
 const toCanonicalCounts = (raw: Record<string, number> | undefined): Record<CanonicalCompletedTaskType, number> => {
-    const out: Record<CanonicalCompletedTaskType, number> = {
-        word_audio: 0,
-        sentence_audio: 0,
-        translation: 0,
-        assist: 0,
-        media_image: 0,
-    };
+    const out = Object.fromEntries(
+        GLOBAL_TASK_HISTORY_BUCKETS.map((bucket) => [bucket, 0]),
+    ) as Record<CanonicalCompletedTaskType, number>;
     if (!raw) return out;
     Object.entries(raw).forEach(([taskType, count]) => {
         const n = typeof count === 'number' && Number.isFinite(count) ? count : 0;
@@ -70,13 +64,7 @@ export class TaskCenterStateService {
 
     // --- Recent Tasks State ---
     public recentRecords: PcTaskRecord[] = [];
-    public recentTypes: Record<CanonicalCompletedTaskType, number> = {
-        word_audio: 0,
-        sentence_audio: 0,
-        translation: 0,
-        assist: 0,
-        media_image: 0,
-    };
+    public recentTypes: Record<CanonicalCompletedTaskType, number> = toCanonicalCounts(undefined);
     public recentResourceCount = 0;
     public recentLastSyncAt: string | null = null;
     public recentNextOffset: number | null = null;

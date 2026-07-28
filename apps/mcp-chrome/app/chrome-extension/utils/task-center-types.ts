@@ -10,6 +10,7 @@
  */
 
 import type { CapabilityKey } from './task-capabilities';
+export type { TaskRow } from './queue-center-contract';
 
 // ─────────────────────────── Message envelope ───────────────────────────
 // Centralized message-type + action string constants. Popup senders and the
@@ -78,27 +79,6 @@ export interface ProcessorStats {
 export interface ProcessorStatus {
   isRunning: boolean;
   stats: ProcessorStats;
-}
-
-// ─────────────────────────── Task list-row summary ───────────────────────────
-// Canonical shape of one row in the popup task list (GET /api/task/list → tasks[]).
-// The popup UnifiedTaskCenter references THIS instead of a local copy so the
-// summary shape can't drift from the worker-pull `Task` (WorkerApiClient.ts) or
-// the SSE detail `TaskStreamTask` (useTaskCenter.ts). This is the summary view;
-// the SSE stream keeps its own richer detail types (own field names).
-
-export interface TaskRow {
-  task_id: string;
-  app_name: string;
-  task_type: string;
-  execution_type: string;
-  status: string;
-  progress: number;
-  assigned_to: string | null;
-  created_at: string | null;
-  capability?: string | null;
-  priority?: number | null;
-  is_fast_tier?: boolean | null;
 }
 
 // ─────────────────────────── Task Center config ───────────────────────────

@@ -7,6 +7,7 @@
  */
 
 import type {
+  GlobalTaskStatusRecord,
   PcQueueOverview,
   QueueCenterControlName,
   QueueCenterControlState,
@@ -15,6 +16,17 @@ import type {
 } from './QueueCenterContract';
 
 export type {
+  GlobalTaskCapability,
+  GlobalTaskDetailRecord,
+  GlobalTaskEventRecord,
+  GlobalTaskExecutionType,
+  GlobalTaskPayload,
+  GlobalTaskResult,
+  GlobalTaskStatus,
+  GlobalTaskStatusRecord,
+  GlobalTaskSummary,
+  GlobalTaskTypeDefinition,
+  GlobalTaskWorkerRecord,
   PcQueueCategory,
   PcQueueEngines,
   PcQueueHandler,
@@ -1406,28 +1418,21 @@ export interface LocalTaskDetail {
   estimated_time?: number | null;
 }
 
-/** Laravel global_tasks row proxied via pycore translation queue detail. */
-export interface PycoreGlobalTaskDetail {
-  task_id: string;
-  app_name: string;
-  task_type: string;
-  execution_type: string;
-  status: string;
-  progress: number;
-  assigned_to: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-  payload?: unknown;
-  result?: unknown;
-  error?: string | null;
-  priority?: number;
-  retry_count?: number;
-  max_retries?: number;
-  timeout_seconds?: number;
-  assigned_at?: string | null;
-  timeout_at?: string | null;
-  completed_at?: string | null;
-}
+/**
+ * Laravel global_tasks row proxied through Pycore RPC v2.
+ *
+ * Field types come from the central task model. The list-row fallback used by
+ * PcTranslationQueuePage can omit detail-only fields until the RPC response
+ * arrives, hence the partial tail rather than a second hand-written interface.
+ */
+export type PycoreGlobalTaskDetail = Pick<
+  GlobalTaskStatusRecord,
+  'task_id' | 'app_name' | 'task_type' | 'execution_type' | 'status' | 'progress' |
+  'assigned_to' | 'created_at' | 'updated_at'
+> & Partial<Omit<GlobalTaskStatusRecord,
+  'task_id' | 'app_name' | 'task_type' | 'execution_type' | 'status' | 'progress' |
+  'assigned_to' | 'created_at' | 'updated_at'
+>>;
 
 export interface LocalTaskDetailResponse {
   success: boolean;

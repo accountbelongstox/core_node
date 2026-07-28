@@ -13,6 +13,11 @@ import type { CapabilityKey } from '@/utils/task-capabilities';
 import { taskPath } from '@/utils/api-paths';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { LANES } from '@/utils/task-center-lanes';
+import type {
+  TaskDetail,
+  TaskDetailBundle,
+  TaskEvent,
+} from '@/utils/queue-center-contract';
 // Canonical control-protocol types + message constants (shared with background).
 import {
   TASK_CENTER_MSG,
@@ -37,57 +42,11 @@ import {
 //   ping                → keep-alive ({cursor})
 //   stream.close        → server close ({cursor, done}); done!==true => reconnect from cursor
 
-/** One status-transition row in a task's event timeline (TaskController detail/stream). */
-export interface TaskStreamEvent {
-  id: number | string;
-  /** Present on streamed `task.event` frames (the resume cursor); absent in the snapshot. */
-  _id?: number | string;
-  task_id?: string;
-  event: string;
-  worker_id: string | null;
-  attempt: number | null;
-  detail: any;
-  created_at: string | null;
-}
-
-/** The richer task object inside the detail bundle (data.task). */
-export interface TaskStreamTask {
-  task_id: string;
-  app_name: string;
-  task_type: string;
-  execution_type: string;
-  capability: string | null;
-  is_fast_tier: boolean;
-  status: string;
-  priority: number;
-  progress: any;
-  payload: any;
-  result: any;
-  error: string | null;
-  assigned_to: string | null;
-  assigned_at: string | null;
-  timeout_at: string | null;
-  completed_at: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-/** Full `task.detail-initial` payload (same shape as GET …/detail data). */
-export interface TaskStreamBundle {
-  task: TaskStreamTask;
-  events: TaskStreamEvent[];
-  current_phase: {
-    phase: string | null;
-    worker_id: string | null;
-    elapsed_seconds: number | null;
-  };
-  metadata: {
-    total_attempts: number;
-    max_retries: number;
-    will_retry: boolean;
-    estimated_timeout_in_seconds: number | null;
-  };
-}
+// Compatibility names retained for existing modal imports. Their definitions
+// now come from the shared Laravel/Pycore/mcp-chrome task contract.
+export type TaskStreamEvent = TaskEvent;
+export type TaskStreamTask = TaskDetail;
+export type TaskStreamBundle = TaskDetailBundle;
 
 /** Callbacks for subscribeToTaskStream()'s EventSource lifecycle. */
 export interface TaskStreamHandlers {

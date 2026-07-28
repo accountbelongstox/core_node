@@ -17,12 +17,11 @@ No third-party deps; no pycore import.
 import json
 import sys
 import threading
-from pycore.pyfoundations.serialized_worker import start_bus_task
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .runtime import log as ColorPrint
+from .runtime import log as ColorPrint, start_bus_task
 from .manager import get_manager
 from . import ws_proto
 from .panel import PANEL_HTML

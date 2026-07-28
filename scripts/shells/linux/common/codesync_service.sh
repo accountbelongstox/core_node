@@ -58,30 +58,33 @@ CODESYNC_SVC_EXEC_START="/bin/bash $CODESYNC_REPO_ROOT/pyservice.sh codesync run
 CODESYNC_SVC_USER=""
 CODESYNC_DEBIAN_MGR="$CODESYNC_SVC_SCRIPT_DIR/debian_service_manager.sh"
 CODESYNC_GVAR_COMMON="$CODESYNC_SVC_SCRIPT_DIR/gvar_common.sh"
+CODESYNC_SERVICE_DEPS_LOADED=0
 
-# --- Source reusable infrastructure -------------------------------------- #
-if ! type detect_system_user >/dev/null 2>&1; then
-    if [ -f "$CODESYNC_GVAR_COMMON" ]; then
+# --- Load service-management infrastructure only when needed ------------- #
+# The run-prompt path is executed by the resident systemd service itself.
+# Do not source gvar_common.sh there: it performs root-owned global-variable
+# initialization and can invoke sudo before the daemon has even started.
+codesync_load_service_dependencies() {
+    if [ "$CODESYNC_SERVICE_DEPS_LOADED" -eq 1 ]; then
+        return 0
+    fi
+    if ! type detect_system_user >/dev/null 2>&1 && [ -f "$CODESYNC_GVAR_COMMON" ]; then
         # shellcheck source=/dev/null
         source "$CODESYNC_GVAR_COMMON"
     fi
-fi
-
-if ! type create_systemd_service >/dev/null 2>&1; then
-    if [ -f "$CODESYNC_DEBIAN_MGR" ]; then
+    if ! type create_systemd_service >/dev/null 2>&1 && [ -f "$CODESYNC_DEBIAN_MGR" ]; then
         # shellcheck source=/dev/null
         source "$CODESYNC_DEBIAN_MGR"
     fi
-fi
-
-# USE_SUDO may not be set if gvar_common.sh was unavailable; default it safely.
-if [ -z "${USE_SUDO+x}" ]; then
-    if command -v sudo >/dev/null 2>&1; then
-        USE_SUDO="sudo"
-    else
-        USE_SUDO=""
+    if [ -z "${USE_SUDO+x}" ]; then
+        if command -v sudo >/dev/null 2>&1; then
+            USE_SUDO="sudo"
+        else
+            USE_SUDO=""
+        fi
     fi
-fi
+    CODESYNC_SERVICE_DEPS_LOADED=1
+}
 
 # --- Resolve the real (desktop) user the unit should run as -------------- #
 codesync_resolve_user() {
@@ -150,6 +153,7 @@ codesync_print_unit() {
 # --- install: (optional prompt) create + enable + start + log help ------- #
 codesync_service_install() {
     local do_prompt=0
+    codesync_load_service_dependencies
     if [ "${1:-}" = "--prompt" ]; then
         do_prompt=1
         shift || true
@@ -229,6 +233,7 @@ codesync_service_run_prompt() {
 
 # --- start / stop / restart ---------------------------------------------- #
 codesync_service_start() {
+    codesync_load_service_dependencies
     echo "[codesync-service] Starting '$CODESYNC_SERVICE_NAME' ..."
     if ! command -v systemctl >/dev/null 2>&1; then
         echo "[codesync-service] systemctl not found; nothing to start here."
@@ -239,6 +244,7 @@ codesync_service_start() {
 }
 
 codesync_service_stop() {
+    codesync_load_service_dependencies
     echo "[codesync-service] Stopping '$CODESYNC_SERVICE_NAME' ..."
     if ! command -v systemctl >/dev/null 2>&1; then
         echo "[codesync-service] systemctl not found; nothing to stop here."
@@ -249,6 +255,7 @@ codesync_service_stop() {
 }
 
 codesync_service_restart() {
+    codesync_load_service_dependencies
     echo "[codesync-service] Restarting '$CODESYNC_SERVICE_NAME' ..."
     if ! command -v systemctl >/dev/null 2>&1; then
         echo "[codesync-service] systemctl not found; nothing to restart here."
@@ -260,6 +267,7 @@ codesync_service_restart() {
 
 # --- status -------------------------------------------------------------- #
 codesync_service_status() {
+    codesync_load_service_dependencies
     if ! command -v systemctl >/dev/null 2>&1; then
         echo "[codesync-service] systemctl not found; cannot report status here."
         return 1
@@ -270,6 +278,7 @@ codesync_service_status() {
 
 # --- uninstall: stop + disable + remove unit ----------------------------- #
 codesync_service_uninstall() {
+    codesync_load_service_dependencies
     echo "[codesync-service] Uninstalling systemd service '$CODESYNC_SERVICE_NAME' ..."
     if ! command -v systemctl >/dev/null 2>&1; then
         echo "[codesync-service] systemctl not found; nothing to uninstall here."

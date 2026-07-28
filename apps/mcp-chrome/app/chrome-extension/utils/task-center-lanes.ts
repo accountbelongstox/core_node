@@ -1,7 +1,5 @@
 /**
- * Task Center lane / processorType string catalog — the SINGLE value-level
- * source of truth for the exact strings shared across the worker API union,
- * processor classes, worker services, the capability catalog and the popup.
+ * Task Center lane / processor identifier facade.
  *
  * The `ProcessorType` TYPE union still lives in WorkerApiClient.ts (the type
  * source); this module owns the VALUE literals so every call site references the
@@ -12,20 +10,27 @@
  *   - processor / worker identifier keys (a processor's own `processorType`),
  *     e.g. MEDIA_IMAGE / BING_DICTIONARY — internal names, not execution lanes.
  *
- * NEVER change a value here without changing the backend it mirrors.
+ * Execution values come from config/queue_center_contract.json through
+ * queue-center-contract.ts. Only extension-local processor identifiers remain
+ * in this file. The aligned Laravel/Pycore/manager adapters are documented in
+ * that central adapter.
  */
+import { EXECUTION_TYPES_BY_ROLE } from './queue-center-contract';
+
 export const LANES = {
   // ── Execution-type lanes (GlobalTask::EXECUTION_TYPES) ──
-  REMOTE_CLIENT: 'remote_client',
-  REMOTE_TRANSLATION: 'remote_translation',
-  REMOTE_AUDIO: 'remote_audio',
-  REMOTE_FAST: 'remote_fast',
-  REMOTE_POSTER: 'remote_poster',
-  REMOTE_VALIDITY: 'remote_validity',
-  REMOTE_NOTEBOOKLM: 'remote_notebooklm',
-  REMOTE_GEMINI: 'remote_gemini',
-  REMOTE_GEMINI_TEXT: 'remote_gemini_text',
-  REMOTE_STT: 'remote_stt',
+  REMOTE_CLIENT: EXECUTION_TYPES_BY_ROLE.remote_client,
+  REMOTE_TRANSLATION: EXECUTION_TYPES_BY_ROLE.remote_translation,
+  REMOTE_AUDIO: EXECUTION_TYPES_BY_ROLE.remote_audio,
+  REMOTE_FAST: EXECUTION_TYPES_BY_ROLE.remote_fast,
+  REMOTE_POSTER: EXECUTION_TYPES_BY_ROLE.remote_poster,
+  REMOTE_VALIDITY: EXECUTION_TYPES_BY_ROLE.remote_validity,
+  REMOTE_NOTEBOOKLM: EXECUTION_TYPES_BY_ROLE.remote_notebooklm,
+  REMOTE_GEMINI: EXECUTION_TYPES_BY_ROLE.remote_gemini,
+  REMOTE_GEMINI_TEXT: EXECUTION_TYPES_BY_ROLE.remote_gemini_text,
+  REMOTE_SUBTITLE: EXECUTION_TYPES_BY_ROLE.remote_subtitle,
+  REMOTE_SENTENCE_AUDIO: EXECUTION_TYPES_BY_ROLE.remote_sentence_audio,
+  REMOTE_STT: EXECUTION_TYPES_BY_ROLE.remote_stt,
   // ── Processor / worker identifier keys (a processor's own processorType) ──
   MEDIA_IMAGE: 'media_image',
   QWEN_TTS: 'qwen_tts',

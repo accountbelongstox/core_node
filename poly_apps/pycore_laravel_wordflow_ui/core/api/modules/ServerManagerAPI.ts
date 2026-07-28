@@ -1,5 +1,12 @@
 import { BaseAPI, DEFAULT_REQUEST_TIMEOUT_MS } from '../base/BaseAPI';
 import { APIResponse } from '../../types';
+import type {
+  GlobalTaskCapability,
+  GlobalTaskDetailRecord,
+  GlobalTaskEventRecord,
+  GlobalTaskStatusRecord,
+  GlobalTaskSummary,
+} from '../../api-libs/pycore/QueueCenterContract';
 
 // ==================== Global Task / Worker substrate types ====================
 // laravel_main's distributed worker queue (`global_tasks` + `workers` tables).
@@ -7,33 +14,12 @@ import { APIResponse } from '../../types';
 // trait) — NOT the Octane timer web routes below. BaseAPI unwraps the trait's
 // `{ success, data, message }` envelope, so `response.data` is the inner shape.
 
-/** Row shape returned by GET /api/task/list. */
-export interface GlobalTaskItem {
-  task_id: string;
-  app_name: string;
-  task_type: string;
-  execution_type: string;
-  status: string;
-  progress: number;
-  assigned_to: string | null;
-  created_at: string | null;
-}
-
-/** Full task returned by GET /api/task/{taskId}/status. */
-export interface GlobalTaskDetail extends GlobalTaskItem {
-  result: any;
-  error: string | null;
-  updated_at: string | null;
-  // Lifecycle metadata (optional so an older backend that omits them still renders).
-  payload?: any;
-  priority?: number;
-  retry_count?: number;
-  max_retries?: number;
-  timeout_seconds?: number;
-  assigned_at?: string | null;
-  timeout_at?: string | null;
-  completed_at?: string | null;
-}
+/**
+ * Laravel-manager aliases for the same central records used by Pycore UI.
+ * Source and cross-end adapter paths are documented in QueueCenterContract.ts.
+ */
+export type GlobalTaskItem = GlobalTaskSummary;
+export type GlobalTaskDetail = GlobalTaskStatusRecord;
 
 // ==================== Live task drilldown (detail / events / SSE stream) ====================
 // laravel_main control-plane routes (no-auth), NOT under /api/app_qy_v1:
@@ -42,43 +28,10 @@ export interface GlobalTaskDetail extends GlobalTaskItem {
 //   GET  /api/task/{id}/stream        — SSE: task.detail-initial / task.event / ping / stream.close
 // These power the QueuePanel live drilldown modal + "Bump to top".
 
-/** Interactive fast-lane capability tag (EXACT, fixed vocabulary). null = either client may serve. */
-export type FastCapability = 'audio' | 'image' | 'translate' | 'sentence_audio' | null;
-
-/** The richer task object returned by GET /api/task/{id}/detail (data.task). */
-export interface GlobalTaskDetailFull {
-  task_id: string;
-  app_name: string;
-  task_type: string;
-  execution_type: string;
-  capability: FastCapability;
-  is_fast_tier: boolean;
-  status: string;
-  priority: number;
-  progress: number;
-  payload: any;
-  result: any;
-  error: string | null;
-  assigned_to: string | null;
-  assigned_at: string | null;
-  timeout_at: string | null;
-  completed_at: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-/** One status-transition row in a task's event timeline. */
-export interface GlobalTaskEvent {
-  id: number | string;
-  /** Present on streamed `task.event` frames (the resume cursor); absent in the initial snapshot. */
-  _id?: number | string;
-  task_id?: string;
-  event: string;
-  worker_id: string | null;
-  attempt: number | null;
-  detail: any;
-  created_at: string | null;
-}
+/** null means lane-only routing; non-null values come from the central capability catalog. */
+export type FastCapability = GlobalTaskCapability | null;
+export type GlobalTaskDetailFull = GlobalTaskDetailRecord;
+export type GlobalTaskEvent = GlobalTaskEventRecord;
 
 /** What the worker is doing right now (phase + elapsed). */
 export interface GlobalTaskPhase {

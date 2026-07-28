@@ -1,7 +1,9 @@
 /**
- * Worker API Client
- * Implements Worker Task System API according to BACKEND_WORKER_API.md
- * Under 300 lines
+ * Laravel worker API transport for the shared distributed-task model.
+ *
+ * Task values and record types come from config/queue_center_contract.json via
+ * utils/queue-center-contract.ts. Laravel and Pycore use the aligned adapters
+ * listed there. This class owns HTTP only; it must not redefine the model.
  */
 
 import { BaseApiClient, ApiResponse } from './BaseApiClient';
@@ -11,181 +13,30 @@ import {
   TRANSLATION_QUEUE_PATHS,
   taskPath,
 } from '@/utils/api-paths';
+import {
+  PRIORITY_FAST,
+  type ProcessorType,
+  type Task,
+  type TaskResult,
+  type WorkerCapability,
+  type WorkerInfo,
+  type WorkerRegistration,
+  type WorkerSubmitOutcome,
+} from '@/utils/queue-center-contract';
 
-// ========== Type Definitions ==========
-
-export type ProcessorType =
-  | 'remote_client'
-  | 'remote_compute'
-  | 'remote_ocr'
-  | 'remote_translation'
-  | 'remote_video'
-  | 'remote_io'
-  | 'remote_audio'
-  // Unified-task fast lane: a worker that advertises >=1 capability also
-  // subscribes to `remote_fast` so the dispatcher can hand it any fast-tier
-  // task that matches one of its capabilities (see SimpleWorkerBase.withFastLane).
-  | 'remote_fast'
-  // Dedicated lanes Chrome may advertise in the future; minimally the fast lane
-  // above is required today. Kept here so the union mirrors the Laravel
-  // GlobalTask::EXECUTION_TYPES vocabulary exactly.
-  | 'remote_subtitle'
-  | 'remote_poster'
-  | 'remote_sentence_audio'
-  | 'remote_stt'
-  // Dedicated chrome web-LLM invalid-word detection lane (word_validity tasks).
-  // Own lane so it never co-mingles with word_translation/prompt_translation on
-  // remote_translation (pull assigns by execution_type with no task_type filter).
-  | 'remote_validity'
-  // Dedicated Task Center v3 lanes (own execution_type each — pull assigns by
-  // execution_type with an atomic claim, so a shared lane would let one
-  // feature's worker claim and starve another's tasks):
-  //   remote_notebooklm -> notebooklm task_type, remote_gemini -> gemini_image,
-  //   remote_gemini_text -> gemini_chat (text-only completion).
-  | 'remote_notebooklm'
-  | 'remote_gemini'
-  | 'remote_gemini_text';
-
-/**
- * Capability vocabulary — mirrors Laravel GlobalTask::CAPABILITIES. A worker
- * advertises the kinds of work it can actually do; the dispatcher matches a
- * fast-tier task's `capability` against this set before assigning it.
- */
-export type WorkerCapability =
-  | 'audio'
-  | 'image'
-  | 'translate'
-  | 'sentence_audio'
-  | 'ai_translate'
-  | 'puter_translate'
-  | 'subtitle'
-  | 'poster';
-
-/**
- * Value-level counterpart of the WorkerCapability union — the SINGLE source of
- * the capability strings. Consumers that need the vocabulary at runtime (e.g.
- * SimpleWorkerBase's allow-set) build from this instead of re-listing literals.
- * `satisfies` keeps it in lockstep with the union above.
- */
-export const WORKER_CAPABILITIES = [
-  'audio',
-  'image',
-  'translate',
-  'sentence_audio',
-  'ai_translate',
-  'puter_translate',
-  'subtitle',
-  'poster',
-] as const satisfies readonly WorkerCapability[];
-
-export type TaskStatus =
-  | 'pending'
-  | 'assigned'
-  | 'processing'
-  | 'completed'
-  | 'completed_demo'
-  | 'failed'
-  | 'cancelled';
-
-export interface WorkerRegistration {
-  worker_id: string;
-  worker_name: string;
-  processor_types: ProcessorType[];
-  // The capability set advertised to the dispatcher. Optional for legacy
-  // single-lane workers; unified workers always send it.
-  capabilities?: WorkerCapability[];
-  hostname?: string;
-  platform?: string;
-  metadata?: Record<string, any>;
-}
-
-export interface Task {
-  task_id: string;
-  app_name: string;
-  task_type: string;
-  execution_type: string;
-  status: TaskStatus;
-  payload: {
-    words?: Array<{
-      word: string;
-      md5: string;
-      query_count: number;
-    }>;
-    language?: string;
-    is_demo_mode?: boolean;
-    word_count?: number;
-    [key: string]: any;
-  };
-  timeout_seconds: number;
-  priority: number;
-  // Capability the task requires (unified-task routing). null/undefined => any
-  // worker on the lane may take it.
-  capability?: WorkerCapability | null;
-  // True when the task was dispatched on the fast tier (priority>=PRIORITY_FAST).
-  is_fast_tier?: boolean;
-  created_at: string;
-}
-
-export interface TaskResult {
-  task_id: string;
-  worker_id: string;
-  status: 'processing' | 'completed' | 'failed';
-  progress?: number;
-  result?: {
-    explanations?: Array<{
-      word: string;
-      md5: string;
-      explanation: string;
-      phonetic?: string;
-      us_phonetic?: string;
-      uk_phonetic?: string;
-      provider: string;
-    }>;
-    [key: string]: any;
-  };
-  error?: string;
-}
-
-/**
- * Backend reception summary returned by POST /api/worker/tasks/result (the
- * $outcome surfaced by TaskManagerService::submitResult). Lets a worker log
- * exactly what the server stored. All fields optional — only the
- * word-translation write-back reports the granular saved/invalid/audio/images
- * breakdown; other task types return just status/stored_count/failed_count.
- */
-export interface WorkerSubmitOutcome {
-  status: string;
-  stored_count: number;
-  failed_count: number;
-  synced_to_dict?: boolean;
-  saved?: number;
-  invalid?: number;
-  audio_saved?: number;
-  images_saved?: number;
-}
-
-export interface WorkerInfo {
-  worker_id: string;
-  worker_name: string;
-  processor_types: ProcessorType[];
-  status: 'online' | 'offline';
-  hostname?: string;
-  platform?: string;
-  completed_tasks: number;
-  failed_tasks: number;
-  current_task_id: string | null;
-  last_heartbeat_at: string;
-  created_at: string;
-}
+export { PRIORITY_FAST, WORKER_CAPABILITIES } from '@/utils/queue-center-contract';
+export type {
+  ProcessorType,
+  Task,
+  TaskResult,
+  TaskStatus,
+  WorkerCapability,
+  WorkerInfo,
+  WorkerRegistration,
+  WorkerSubmitOutcome,
+} from '@/utils/queue-center-contract';
 
 // ========== Worker API Client ==========
-
-/**
- * Default priority a fast-tier bump uses. Mirrors Laravel
- * GlobalTask::PRIORITY_FAST. A task at or above this priority is treated as
- * fast-tier (is_fast_tier=true) by the dispatcher.
- */
-export const PRIORITY_FAST = 100;
 
 // Fail-fast control-plane budget for the SHORT worker RPCs (register / heartbeat
 // / accept). A dead or slow Laravel must fail ONCE, fast — never retry 3x against

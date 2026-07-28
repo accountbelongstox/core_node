@@ -169,6 +169,17 @@ export default defineConfig({
     };
   },
   vite: (env) => ({
+    // The TASK tab imports config/queue_center_contract.json directly from the
+    // repository root. This keeps mcp-chrome, Laravel, Pycore, Pycore UI, and
+    // Laravel-manager on one task model. WXT build already resolves outside the
+    // extension package; this allowlist gives the Vite dev server the same
+    // boundary, so scripts/start.ps1 and scripts/start.sh must not copy a second
+    // contract file that could drift.
+    server: {
+      fs: {
+        allow: [resolve(__dirname, '../../../..')],
+      },
+    },
     plugins: [
       tailwindcss(),
       viteStaticCopy({

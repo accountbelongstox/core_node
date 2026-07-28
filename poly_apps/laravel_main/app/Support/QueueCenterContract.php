@@ -71,12 +71,35 @@ final class QueueCenterContract
 
     public static function taskStatuses(string $group = 'all'): array
     {
-        return array_values(self::taskContract()['statuses'][$group] ?? []);
+        $statusContract = self::taskContract()['statuses'] ?? [];
+        $values = $statusContract['values'] ?? [];
+        return array_values(array_map(
+            static fn (string $role): string => (string) ($values[$role] ?? $role),
+            $statusContract[$group] ?? []
+        ));
+    }
+
+    public static function taskStatus(string $role): string
+    {
+        $values = self::taskContract()['statuses']['values'] ?? [];
+        if (!array_key_exists($role, $values)) {
+            throw new RuntimeException("Unknown global-task status role: {$role}");
+        }
+        return (string) $values[$role];
     }
 
     public static function taskExecutionTypes(): array
     {
         return array_values(self::taskContract()['execution_types'] ?? []);
+    }
+
+    public static function taskExecutionType(string $role): string
+    {
+        $types = self::taskContract()['execution_types'] ?? [];
+        if (!array_key_exists($role, $types)) {
+            throw new RuntimeException("Unknown global-task execution role: {$role}");
+        }
+        return (string) $types[$role];
     }
 
     public static function taskCapabilities(): array

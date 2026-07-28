@@ -71,10 +71,7 @@ class GlobalTask extends Model
      */
     public static function status(string $name): string
     {
-        if (!in_array($name, QueueCenterContract::taskStatuses(), true)) {
-            throw new \InvalidArgumentException("Unknown global-task status: {$name}");
-        }
-        return $name;
+        return QueueCenterContract::taskStatus($name);
     }
 
     public static function statuses(string $group = 'all'): array
@@ -84,10 +81,7 @@ class GlobalTask extends Model
 
     public static function executionType(string $name): string
     {
-        if (!in_array($name, QueueCenterContract::taskExecutionTypes(), true)) {
-            throw new \InvalidArgumentException("Unknown global-task execution type: {$name}");
-        }
-        return $name;
+        return QueueCenterContract::taskExecutionType($name);
     }
 
     public static function executionTypes(): array

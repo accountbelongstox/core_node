@@ -90,6 +90,7 @@ set -uo pipefail
 
 # Resolve this script's directory (repo root), following symlinks.
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
+PY_SERVICE_COMMAND="${1:-}"
 
 # Shared Python runtime env (user-base + PIP flags) is exported AFTER resolve_python picks
 # the interpreter, because the policy is VENV-AWARE (single source of truth:
@@ -100,12 +101,16 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || ec
 # worker import a stale /usr/local torch -> ~5GB reinstall every launch. Source the helper
 # now (lightweight, no gvar dependency); call it once $PY is resolved.
 # shellcheck source=/dev/null
-source "$SCRIPT_DIR/scripts/shells/linux/common/venv_python_common.sh"
+if [[ "$PY_SERVICE_COMMAND" != "codesync" ]]; then
+    source "$SCRIPT_DIR/scripts/shells/linux/common/venv_python_common.sh"
+fi
 
 # Wire the ONE shared, all-users cache location (CORE_NODE_CACHE_DIR + HF_HOME /
 # TORCH_HOME / PIP_CACHE_DIR / XDG_CACHE_HOME ...) for the running service so every
 # model download lands in /var/_core_node/cache, shared across all users.
-source "$SCRIPT_DIR/scripts/shells/linux/common/shared_cache_env.sh"
+if [[ "$PY_SERVICE_COMMAND" != "codesync" ]]; then
+    source "$SCRIPT_DIR/scripts/shells/linux/common/shared_cache_env.sh"
+fi
 
 BIND_HOST="0.0.0.0"
 PORT="59000"

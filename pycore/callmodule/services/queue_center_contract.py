@@ -115,13 +115,28 @@ for _category_definition in _CONTRACT_DOCUMENT["categories"]:
     QUEUE_CATEGORY_CATALOG.append(_category)
 QUEUE_COUNT_KEYS: Tuple[str, ...] = tuple(_CONTRACT_DOCUMENT["metric_semantics"].keys())
 
-GLOBAL_TASK_STATUSES: Tuple[str, ...] = tuple(_TASK_CONTRACT["statuses"]["all"])
-GLOBAL_TASK_LIVE_STATUSES: Tuple[str, ...] = tuple(_TASK_CONTRACT["statuses"]["live"])
-GLOBAL_TASK_TERMINAL_STATUSES: Tuple[str, ...] = tuple(_TASK_CONTRACT["statuses"]["terminal"])
-GLOBAL_TASK_WORKER_RESULT_STATUSES: Tuple[str, ...] = tuple(
-    _TASK_CONTRACT["statuses"]["worker_reportable"]
+GLOBAL_TASK_STATUSES_BY_ROLE: Dict[str, str] = {
+    str(key): str(value) for key, value in _TASK_CONTRACT["statuses"]["values"].items()
+}
+GLOBAL_TASK_STATUSES: Tuple[str, ...] = tuple(
+    GLOBAL_TASK_STATUSES_BY_ROLE[role] for role in _TASK_CONTRACT["statuses"]["all"]
 )
-GLOBAL_TASK_EXECUTION_TYPES: Tuple[str, ...] = tuple(_TASK_CONTRACT["execution_types"])
+GLOBAL_TASK_LIVE_STATUSES: Tuple[str, ...] = tuple(
+    GLOBAL_TASK_STATUSES_BY_ROLE[role] for role in _TASK_CONTRACT["statuses"]["live"]
+)
+GLOBAL_TASK_TERMINAL_STATUSES: Tuple[str, ...] = tuple(
+    GLOBAL_TASK_STATUSES_BY_ROLE[role] for role in _TASK_CONTRACT["statuses"]["terminal"]
+)
+GLOBAL_TASK_WORKER_RESULT_STATUSES: Tuple[str, ...] = tuple(
+    GLOBAL_TASK_STATUSES_BY_ROLE[role]
+    for role in _TASK_CONTRACT["statuses"]["worker_reportable"]
+)
+GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE: Dict[str, str] = {
+    str(key): str(value) for key, value in _TASK_CONTRACT["execution_types"].items()
+}
+GLOBAL_TASK_EXECUTION_TYPES: Tuple[str, ...] = tuple(
+    GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE.values()
+)
 GLOBAL_TASK_CAPABILITIES: Tuple[str, ...] = tuple(
     _CONTRACT_DOCUMENT["capability_claimants"].keys()
 )
@@ -263,10 +278,12 @@ __all__ = [
     "GLOBAL_TASK_CAPABILITIES",
     "GLOBAL_TASK_CAPABILITY_SINGLE_LANES",
     "GLOBAL_TASK_EXECUTION_TYPES",
+    "GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE",
     "GLOBAL_TASK_HISTORY_BUCKETS",
     "GLOBAL_TASK_LIVE_STATUSES",
     "GLOBAL_TASK_PRIORITIES",
     "GLOBAL_TASK_STATUSES",
+    "GLOBAL_TASK_STATUSES_BY_ROLE",
     "GLOBAL_TASK_TERMINAL_STATUSES",
     "GLOBAL_TASK_TYPE_CATALOG",
     "GLOBAL_TASK_TYPES_BY_KEY",

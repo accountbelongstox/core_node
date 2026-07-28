@@ -17,8 +17,8 @@ from typing import Optional, List, Dict, Tuple
 from .runtime import (
     log as ColorPrint,
     http as requests,
+    start_bus_task,
 )
-from pycore.pyfoundations.serialized_worker import start_bus_task
 
 
 class ServerConnection:
