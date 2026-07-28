@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Services\WorkerManagerService;
+use App\Support\QueueCenterContract;
 use App\Support\ServerRuntime;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -40,13 +41,12 @@ class WorkerController extends Controller
             'worker_id' => 'required|string',
             'worker_name' => 'required|string',
             'processor_types' => 'required|array',
-            // Derive the allowed lane set from the model's canonical EXECUTION_TYPES
-            // so new lanes (remote_subtitle / remote_poster / remote_sentence_audio,
-            // etc.) are accepted automatically and this rule can never drift.
+            // The model delegates to config/queue_center_contract.json. Pycore,
+            // both manager UIs, and mcp-chrome read that same task vocabulary.
             'processor_types.*' => ['string', Rule::in(GlobalTask::executionTypes())],
             // Capability tags for the shared remote_fast lane (NULL = legacy
             // worker, only claims NULL-capability fast tasks). Derived from the
-            // model's canonical CAPABILITIES vocabulary (drift-proof).
+            // same central capability vocabulary.
             'capabilities' => 'nullable|array',
             'capabilities.*' => ['string', Rule::in(GlobalTask::capabilities())],
             'hostname' => 'nullable|string',
@@ -171,28 +171,12 @@ class WorkerController extends Controller
             'count' => count($tasks),
             'pending_urgent' => $pendingUrgent,
             'pending_fast' => $pendingFast,
-            'tasks' => array_map(function ($task) {
-                $createdAt = null;
-                if ($task->created_at) {
-                    $createdAt = $task->created_at->toISOString();
-                }
-
-                return [
-                    'task_id' => $task->task_id,
-                    'app_name' => $task->app_name,
-                    'task_type' => $task->task_type,
-                    'execution_type' => $task->execution_type,
-                    'status' => $task->status,
-                    'payload' => $task->payload,
-                    'timeout_seconds' => $task->timeout_seconds,
-                    'priority' => $task->priority,
-                    // Fast-lane routing fields so the worker can sort by priority
-                    // and recognise capability-typed interactive work.
-                    'capability' => $task->capability,
-                    'is_fast_tier' => (bool) $task->is_fast_tier,
-                    'created_at' => $createdAt,
-                ];
-            }, $tasks),
+            // The worker_pull field list is shared with the Pycore and
+            // mcp-chrome worker models through the central JSON contract.
+            'tasks' => array_map(
+                static fn ($task): array => QueueCenterContract::projectTask($task, 'worker_pull'),
+                $tasks
+            ),
         ], 'Tasks pulled and assigned successfully');
     }
 
@@ -242,7 +226,7 @@ class WorkerController extends Controller
         $validated = $request->validate([
             'task_id' => 'required|string',
             'worker_id' => 'required|string',
-            'status' => 'required|string|in:processing,completed,failed',
+            'status' => ['required', 'string', Rule::in(GlobalTask::statuses('worker_reportable'))],
             'progress' => 'nullable|numeric|min:0|max:100',
             'result' => 'nullable|array',
             'error' => 'nullable|string',

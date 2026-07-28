@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\GlobalTask;
 use App\Models\GlobalTaskEvent;
 use App\Services\TaskManagerService;
+use App\Support\QueueCenterContract;
 use App\Support\ServerRuntime;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -37,13 +38,13 @@ class TaskController extends Controller
     {
         $validated = $request->validate([
             'app_name' => 'required|string',
-            'task_type' => 'required|string',
-            // Derived from the model's canonical EXECUTION_TYPES so new lanes are
-            // accepted automatically and this rule can never drift from the model.
+            // Task type, lane, capability, and priority are all read from the
+            // shared JSON task model used by Pycore, both UIs, and mcp-chrome.
+            'task_type' => ['required', 'string', Rule::in(array_column(QueueCenterContract::taskTypes(), 'key'))],
             'execution_type' => ['required', 'string', Rule::in(GlobalTask::executionTypes())],
             'payload' => 'nullable|array',
             'timeout_seconds' => 'nullable|integer|min:10|max:3600',
-            'priority' => 'nullable|integer|min:0|max:100',
+            'priority' => 'nullable|integer|min:0|max:' . GlobalTask::priority('maximum'),
             'max_retries' => 'nullable|integer|min:0|max:10',
             // Fast lane: capability narrows which client may claim an interactive
             // task (NULL = either); interactive=true promotes it onto remote_fast
@@ -62,7 +63,7 @@ class TaskController extends Controller
             $timeoutSeconds = $validated['timeout_seconds'];
         }
 
-        $priority = 0;
+        $priority = GlobalTask::priority('default');
         if (isset($validated['priority'])) {
             $priority = $validated['priority'];
         }
@@ -108,53 +109,8 @@ class TaskController extends Controller
             return $this->notFound('Task not found');
         }
 
-        $createdAt = null;
-        if ($task->created_at) {
-            $createdAt = $task->created_at->toISOString();
-        }
-
-        $updatedAt = null;
-        if ($task->updated_at) {
-            $updatedAt = $task->updated_at->toISOString();
-        }
-
-        $assignedAt = null;
-        if ($task->assigned_at) {
-            $assignedAt = $task->assigned_at->toISOString();
-        }
-
-        $completedAt = null;
-        if ($task->completed_at) {
-            $completedAt = $task->completed_at->toISOString();
-        }
-
-        $timeoutAt = null;
-        if ($task->timeout_at) {
-            $timeoutAt = $task->timeout_at->toISOString();
-        }
-
         return $this->success([
-            'task' => [
-                'task_id' => $task->task_id,
-                'app_name' => $task->app_name,
-                'task_type' => $task->task_type,
-                'execution_type' => $task->execution_type,
-                'status' => $task->status,
-                'progress' => $task->progress,
-                'priority' => $task->priority,
-                'retry_count' => $task->retry_count,
-                'max_retries' => $task->max_retries,
-                'timeout_seconds' => $task->timeout_seconds,
-                'assigned_to' => $task->assigned_to,
-                'payload' => $task->payload,
-                'result' => $task->result,
-                'error' => $task->error,
-                'created_at' => $createdAt,
-                'updated_at' => $updatedAt,
-                'assigned_at' => $assignedAt,
-                'timeout_at' => $timeoutAt,
-                'completed_at' => $completedAt,
-            ],
+            'task' => QueueCenterContract::projectTask($task, 'status'),
         ], 'Task status retrieved successfully');
     }
 
@@ -170,7 +126,7 @@ class TaskController extends Controller
     public function bump(string $taskId, Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'priority' => 'nullable|integer|min:0|max:1000',
+            'priority' => 'nullable|integer|min:0|max:' . GlobalTask::priority('maximum'),
         ]);
 
         $priority = (int) ($validated['priority'] ?? GlobalTask::priority('fast'));
@@ -223,10 +179,6 @@ class TaskController extends Controller
      */
     protected function taskDetailData(GlobalTask $task): array
     {
-        $iso = static function ($dt) {
-            return $dt ? $dt->toISOString() : null;
-        };
-
         // Bound the snapshot to the most-recent STREAM_BATCH_LIMIT events (the
         // stream tail is capped at the same limit) so a long-lived task with a
         // huge timeline cannot load an unbounded set on open. Fetch newest-first,
@@ -237,16 +189,8 @@ class TaskController extends Controller
             ->get()
             ->reverse()
             ->values()
-            ->map(function ($e) use ($iso) {
-                return [
-                    'id' => $e->id,
-                    'event' => $e->event,
-                    'worker_id' => $e->worker_id,
-                    'attempt' => $e->attempt,
-                    'detail' => $e->detail,
-                    'created_at' => $iso($e->created_at),
-                ];
-            })->all();
+            ->map(static fn ($event): array => QueueCenterContract::projectTask($event, 'event'))
+            ->all();
 
         // Derived current phase: for an in-flight task, how long it has been in
         // the hands of its assigned worker.
@@ -263,26 +207,7 @@ class TaskController extends Controller
         }
 
         return [
-            'task' => [
-                'task_id' => $task->task_id,
-                'app_name' => $task->app_name,
-                'task_type' => $task->task_type,
-                'execution_type' => $task->execution_type,
-                'capability' => $task->capability,
-                'is_fast_tier' => (bool) $task->is_fast_tier,
-                'status' => $task->status,
-                'priority' => (int) $task->priority,
-                'progress' => $task->progress,
-                'payload' => $task->payload,
-                'result' => $task->result,
-                'error' => $task->error,
-                'assigned_to' => $task->assigned_to,
-                'assigned_at' => $iso($task->assigned_at),
-                'timeout_at' => $iso($task->timeout_at),
-                'completed_at' => $iso($task->completed_at),
-                'created_at' => $iso($task->created_at),
-                'updated_at' => $iso($task->updated_at),
-            ],
+            'task' => QueueCenterContract::projectTask($task, 'detail'),
             'events' => $events,
             'current_phase' => [
                 'phase' => $task->status,
@@ -357,12 +282,7 @@ class TaskController extends Controller
         }
 
         $initial = $this->taskDetailData($task);
-        $terminal = [
-            GlobalTask::status('completed'),
-            GlobalTask::status('completed_demo'),
-            GlobalTask::status('failed'),
-            GlobalTask::status('cancelled'),
-        ];
+        $terminal = GlobalTask::statuses('terminal');
 
         // Status captured from the initial snapshot so the generator can
         // short-circuit when the stream OPENS on an already-terminal task.
@@ -393,18 +313,13 @@ class TaskController extends Controller
 
                 if ($events->isNotEmpty()) {
                     foreach ($events as $evt) {
+                        $eventPayload = QueueCenterContract::projectTask($evt, 'event');
+                        // SSE adds only the transport resume cursor; the event
+                        // record itself is the central event wire shape.
+                        $eventPayload['_id'] = $evt->id;
                         yield new StreamedEvent(
                             event: 'task.event',
-                            data: json_encode([
-                                'id' => $evt->id,
-                                '_id' => $evt->id,
-                                'task_id' => $taskId,
-                                'event' => $evt->event,
-                                'worker_id' => $evt->worker_id,
-                                'attempt' => $evt->attempt,
-                                'detail' => $evt->detail,
-                                'created_at' => $evt->created_at ? $evt->created_at->toISOString() : null,
-                            ], JSON_UNESCAPED_UNICODE)
+                            data: json_encode($eventPayload, JSON_UNESCAPED_UNICODE)
                         );
                         $current = $evt->id;
                     }
@@ -515,29 +430,11 @@ class TaskController extends Controller
         return $this->success([
             'total' => $total,
             'count' => $tasks->count(),
-            'tasks' => $tasks->map(function ($task) {
-                $createdAt = null;
-                if ($task->created_at) {
-                    $createdAt = $task->created_at->toISOString();
-                }
-
-                return [
-                    'task_id' => $task->task_id,
-                    'app_name' => $task->app_name,
-                    'task_type' => $task->task_type,
-                    'execution_type' => $task->execution_type,
-                    'status' => $task->status,
-                    'progress' => $task->progress,
-                    'assigned_to' => $task->assigned_to,
-                    'created_at' => $createdAt,
-                    // Additive routing fields (B11): let clients badge/sort a task
-                    // row by its fast-lane / capability placement without opening
-                    // per-task detail.
-                    'capability' => $task->capability,
-                    'priority' => (int) $task->priority,
-                    'is_fast_tier' => (bool) $task->is_fast_tier,
-                ];
-            }),
+            // The summary projection is also the TaskRow/GlobalTaskItem model in
+            // mcp-chrome and both manager UIs.
+            'tasks' => $tasks->map(
+                static fn ($task): array => QueueCenterContract::projectTask($task, 'summary')
+            ),
         ], 'Tasks list retrieved successfully');
     }
 

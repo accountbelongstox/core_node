@@ -174,7 +174,7 @@ final class QueueCenterContract
             }
             if ($field === 'is_fast_tier') {
                 $value = (bool) $value;
-            } elseif (in_array($field, ['priority', 'timeout_seconds'], true)) {
+            } elseif (in_array($field, ['priority', 'retry_count', 'max_retries', 'timeout_seconds'], true)) {
                 $value = (int) $value;
             } elseif ($field === 'progress') {
                 $value = (float) $value;

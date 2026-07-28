@@ -128,6 +128,12 @@
         "task_id", "app_name", "task_type", "execution_type", "status", "payload",
         "timeout_seconds", "priority", "capability", "is_fast_tier", "created_at"
       ],
+      "status": [
+        "task_id", "app_name", "task_type", "execution_type", "capability", "is_fast_tier",
+        "status", "priority", "progress", "retry_count", "max_retries", "timeout_seconds",
+        "payload", "result", "error", "assigned_to", "assigned_at", "timeout_at",
+        "completed_at", "created_at", "updated_at"
+      ],
       "detail": [
         "task_id", "app_name", "task_type", "execution_type", "capability", "is_fast_tier",
         "status", "priority", "progress", "payload", "result", "error", "assigned_to",
@@ -187,6 +193,15 @@
         "interactive": false,
         "pycore_local_label": "remote_audio",
         "ui": {"icon": "🔊", "badge": "ARTICLE AUDIO", "summary_label": "待文章语音", "color": "#14b8a6"}
+      },
+      {
+        "key": "article_tts_generation",
+        "label": "Article TTS Generation",
+        "execution_type": "local_timer",
+        "capability": null,
+        "interactive": false,
+        "pycore_local_label": "local_timer",
+        "ui": {"icon": "📄", "badge": "ARTICLE TTS", "summary_label": "待文章音频生成", "color": "#0f766e"}
       },
       {
         "key": "sentence_audio",
