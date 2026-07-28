@@ -184,7 +184,7 @@ class TaskCenterController extends Controller
                 // the eligible claimant client(s) — so a client can see the
                 // intended dual-client race without opening per-task detail.
                 'categories' => $this->buildCategories(),
-                // Additive: live per-task_type counts (pending/processing) over
+                // Additive: live per-task_type counts (pending/leased/processing) over
                 // ALL rows — clients must not recompute aggregates from a
                 // truncated task-list window (the "counts don't match" bug).
                 'by_type' => $this->buildLiveTypeCounts(),
