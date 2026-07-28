@@ -19,6 +19,7 @@ import { chatgptWebTool } from '../tools/browser/chatgpt-web';
 import { geminiWebTool } from '../tools/browser/gemini-web';
 import { getPreferredProvider } from '../tools/browser/ai-web-common';
 import { logger } from '@/utils/logger';
+import { TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
 
 const LOG = 'Prompt-Translate Web';
 
@@ -53,7 +54,7 @@ class PromptTranslateWebWorkerService extends SimpleWorkerBase {
   }
 
   protected handlesTaskType(taskType: string): boolean {
-    return taskType === 'prompt_translation';
+    return taskType === TASK_TYPE_KEYS.prompt_translation;
   }
 
   protected async executeTask(task: Task): Promise<void> {

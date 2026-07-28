@@ -30,7 +30,7 @@ import { ApiError } from '../../api/BaseApiClient';
 import { logger } from '@/utils/logger';
 import { tabController } from '../tab-controller';
 import { LANES } from '@/utils/task-center-lanes';
-import { FAST_LANE_CAPABILITIES } from '@/utils/queue-center-contract';
+import { FAST_LANE_CAPABILITIES, TASK_STATUS_BY_ROLE } from '@/utils/queue-center-contract';
 import type { ProcessorStats } from '@/utils/task-center-types';
 import { submitOutbox, isTerminalWorkerResultError } from '../outbox/submit-outbox';
 
@@ -72,6 +72,8 @@ export interface SimpleWorkerStats extends ProcessorStats {
   lastErrorAt: number | null;
   lastRequestAt: number | null;
 }
+
+type WorkerResultStatusRole = 'processing' | 'completed' | 'failed';
 
 // Once this many worker HTTP calls fail in a row the poll loop backs off to a
 // slow cadence instead of the 1s hot-loop — a down backend must not be hammered.
@@ -144,6 +146,11 @@ export abstract class SimpleWorkerBase {
 
   /** True if this worker handles the given backend task_type. */
   protected abstract handlesTaskType(taskType: string): boolean;
+
+  /** Shared processor adapters delegate here instead of duplicating task rules. */
+  public canHandleTaskType(taskType: string): boolean {
+    return this.handlesTaskType(taskType);
+  }
 
   /**
    * Do one task. Implementations should submit their own completed/failed
@@ -610,11 +617,12 @@ export abstract class SimpleWorkerBase {
    */
   protected async submitResult(
     taskId: string,
-    status: TaskResult['status'],
+    statusRole: WorkerResultStatusRole,
     result?: TaskResult['result'],
     extra?: { error?: string; progress?: number },
   ): Promise<void> {
     if (!this.workerClient) return;
+    const status = TASK_STATUS_BY_ROLE[statusRole];
     const payload: TaskResult = {
       task_id: taskId,
       worker_id: this.stats.workerId || '',
@@ -649,11 +657,11 @@ export abstract class SimpleWorkerBase {
     }
     // The result is now delivered OR durably owned by the outbox (or terminal):
     // mark terminal + bump stats so dispatchOne's safety-net does not re-submit.
-    if (status === 'completed' || status === 'failed') {
+    if (statusRole === 'completed' || statusRole === 'failed') {
       this.terminalPosted = true;
     }
-    if (status === 'completed') this.stats.translated++;
-    if (status === 'failed') this.stats.failed++;
+    if (statusRole === 'completed') this.stats.translated++;
+    if (statusRole === 'failed') this.stats.failed++;
   }
 
   protected delay(ms: number): Promise<void> {

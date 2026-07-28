@@ -14,6 +14,7 @@
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { LANES } from '@/utils/task-center-lanes';
+import { TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
 import { generateViaGemini } from './gemini-image-generate';
 import { logger } from '@/utils/logger';
 
@@ -42,7 +43,7 @@ class GeminiImageWorkerService extends SimpleWorkerBase {
   }
 
   protected handlesTaskType(taskType: string): boolean {
-    return taskType === 'gemini_image';
+    return taskType === TASK_TYPE_KEYS.gemini_image;
   }
 
   protected async executeTask(task: Task): Promise<void> {

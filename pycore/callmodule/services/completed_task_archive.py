@@ -24,10 +24,14 @@ from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
 )
+from pycore.callmodule.services.queue_center_contract import (
+    GLOBAL_TASK_LIMITS,
+    GLOBAL_TASK_STATUSES_BY_ROLE,
+)
 
 
 _HISTORY_PATH = "/api/task-center/completed"
-_PAGE_LIMIT = 500
+_PAGE_LIMIT = GLOBAL_TASK_LIMITS["completed"]
 _RESOURCE_MAX_BYTES = 256 * 1024 * 1024
 _RESOURCE_KEY_HINTS = (
     "audio", "image", "video", "subtitle", "poster", "cover", "file",
@@ -251,7 +255,11 @@ class CompletedTaskArchive:
         return str(record.get("task_id") or "")
 
     def _normalize(self, raw: Dict[str, Any], base_url: str) -> Dict[str, Any]:
-        status = str(raw.get("status") or "completed")
+        status = str(raw.get("status") or GLOBAL_TASK_STATUSES_BY_ROLE["completed"])
+        successful_statuses = {
+            GLOBAL_TASK_STATUSES_BY_ROLE["completed"],
+            GLOBAL_TASK_STATUSES_BY_ROLE["completed_demo"],
+        }
         payload = raw.get("payload") if isinstance(raw.get("payload"), dict) else {}
         result = raw.get("result") if isinstance(raw.get("result"), dict) else {}
         resources = self._cache_resources(raw, base_url)
@@ -270,8 +278,8 @@ class CompletedTaskArchive:
             "content": self._title(raw),
             "language": payload.get("language") or payload.get("target_language") or "",
             "status": status,
-            "success": status in ("completed", "completed_demo"),
-            "posted_back": status in ("completed", "completed_demo"),
+            "success": status in successful_statuses,
+            "posted_back": status in successful_statuses,
             "latency_ms": None,
             "error": raw.get("error"),
             "detail": detail,

@@ -293,6 +293,10 @@ export const GLOBAL_TASK_EXECUTION_TYPES = Object.values(GLOBAL_TASK_EXECUTION_T
 export const GLOBAL_TASK_CAPABILITIES = Object.keys(
   QUEUE_CENTER_CONTRACT.capability_claimants,
 ) as GlobalTaskCapability[];
+export const GLOBAL_TASK_CAPABILITIES_BY_ROLE = Object.fromEntries(
+  GLOBAL_TASK_CAPABILITIES.map((capability) => [capability, capability]),
+) as Record<string, GlobalTaskCapability>;
+export const GLOBAL_TASK_CAPABILITY_LABELS = QUEUE_CENTER_CONTRACT.task_contract.capability_labels;
 export const GLOBAL_TASK_PRIORITIES = QUEUE_CENTER_CONTRACT.task_contract.priorities;
 export const GLOBAL_TASK_LIMITS = QUEUE_CENTER_CONTRACT.task_contract.limits;
 export const GLOBAL_TASK_CAPABILITY_SINGLE_LANES = QUEUE_CENTER_CONTRACT.task_contract.capability_single_lanes;

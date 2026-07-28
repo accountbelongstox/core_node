@@ -7,6 +7,7 @@
 import type { ITaskProcessor, ProcessorConfig, ProcessorStatus } from '../ITaskProcessor';
 import { bingDictionaryWorkerService } from '../../bing-dictionary-worker-service';
 import { LANES } from '@/utils/task-center-lanes';
+import { TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
 
 /**
  * Bing Dictionary Task Processor
@@ -72,12 +73,7 @@ class BingDictionaryProcessor implements ITaskProcessor {
    * Check if this processor can handle a specific task type
    */
   canHandle(taskType: string): boolean {
-    return (
-      taskType === 'bing_dictionary' ||
-      taskType === 'dictionary_translation' ||
-      taskType === 'word_translation' ||
-      taskType === 'word_audio'
-    );
+    return taskType === TASK_TYPE_KEYS.word_translation;
   }
 }
 

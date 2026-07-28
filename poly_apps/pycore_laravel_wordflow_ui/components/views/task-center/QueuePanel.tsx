@@ -59,6 +59,11 @@ import {
   type GlobalTasksSnapshot,
 } from './shared';
 import MissingSentenceAudioPanel from './MissingSentenceAudioPanel';
+import {
+  GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE,
+  GLOBAL_TASK_PRIORITIES,
+  GLOBAL_TASK_STATUSES_BY_ROLE,
+} from '../../../core/api-libs/pycore/QueueCenterContract';
 
 interface QueuePanelProps {
   lang: Language;
@@ -270,8 +275,8 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
     typeof (row as any).priority === 'number' ? (row as any).priority : 0;
   const rowIsFast = (row: GlobalTaskItem): boolean =>
     (row as any).is_fast_tier === true ||
-    (row as any).execution_type === 'remote_fast' ||
-    rowPriority(row) >= 100;
+    (row as any).execution_type === GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE.remote_fast ||
+    rowPriority(row) >= GLOBAL_TASK_PRIORITIES.fast;
 
   const getFilteredTasks = (): GlobalTaskItem[] => {
     if (!snapshot) return [];
@@ -607,7 +612,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
             const capability = taskData?.capability ?? null;
             const executionType = taskData?.execution_type ?? selectedTask.execution_type;
             const isFastTier = taskData?.is_fast_tier ?? rowIsFast(selectedTask);
-            const canBump = status === 'pending';
+            const canBump = status === GLOBAL_TASK_STATUSES_BY_ROLE.pending;
 
             return (
               <Portal>

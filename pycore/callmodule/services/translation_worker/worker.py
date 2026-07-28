@@ -46,6 +46,7 @@ from .handlers import (
 
 from pycore.callmodule.callmodule_config import Config as _Cfg
 from pycore.callmodule.services.queue_center_contract import (
+    GLOBAL_TASK_TYPES_BY_KEY,
     task_execution_type,
     task_local_label,
     task_types_for_execution,
@@ -69,9 +70,12 @@ class TranslationWorkerService(BaseLaravelWorkerService):
     # Python adapter. The aligned Laravel, Pycore UI/Laravel-manager, and
     # mcp-chrome adapters are named in queue_center_contract.py; change the JSON,
     # never this worker, when a shared task lane changes.
+    WORD_TRANSLATION_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["word_translation"]["key"]
+    PROMPT_TRANSLATION_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["prompt_translation"]["key"]
+    SUBTITLE_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["subtitle_search"]["key"]
     TRANSLATION_FAST_PROCESSOR_TYPE = task_execution_type("word_media")
-    TRANSLATION_PROCESSOR_TYPE = task_execution_type("word_translation")
-    SUBTITLE_EXECUTION_TYPE = task_execution_type("subtitle_search")
+    TRANSLATION_PROCESSOR_TYPE = task_execution_type(WORD_TRANSLATION_TASK_TYPE)
+    SUBTITLE_EXECUTION_TYPE = task_execution_type(SUBTITLE_TASK_TYPE)
     STT_EXECUTION_TYPE = task_execution_type("stt")
     STT_TASK_TYPES = task_types_for_execution(STT_EXECUTION_TYPE)
 
@@ -243,10 +247,10 @@ class TranslationWorkerService(BaseLaravelWorkerService):
                 h_ai_translate.ai_translate_words(self, task)
                 return
 
-            if task_type == "subtitle_search":
+            if task_type == self.SUBTITLE_TASK_TYPE:
                 h_media.process_subtitle_search_task(self, task)
                 return
-            if task_type == "prompt_translation":
+            if task_type == self.PROMPT_TRANSLATION_TASK_TYPE:
                 h_prompt_translate.process_prompt_translation_task(self, task)
                 return
             if task_type in self.STT_TASK_TYPES:
@@ -257,7 +261,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
             # task_type can land here. Translating it would post a result shape
             # its real processor does not understand - report failed instead so
             # Laravel retries it toward the right consumer.
-            if task_type not in (None, "", "word_translation"):
+            if task_type not in (None, "", self.WORD_TRANSLATION_TASK_TYPE):
                 ColorPrint.yellow(
                     f"[TranslationWorker] Task {task_id} has unsupported "
                     f"task_type '{task_type}' - reporting failed so it can be re-routed"

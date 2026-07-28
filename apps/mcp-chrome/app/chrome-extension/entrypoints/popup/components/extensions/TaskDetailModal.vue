@@ -114,7 +114,6 @@ import { taskPath } from '@/utils/api-paths';
 import { WorkerApiClient, PRIORITY_FAST } from '@/entrypoints/background/api/WorkerApiClient';
 import {
   FAST_PROMOTABLE_TASK_TYPES,
-  LIVE_TASK_STATUSES,
   TASK_STATUS_BY_ROLE,
 } from '@/utils/queue-center-contract';
 import {
@@ -166,7 +165,6 @@ const isFast = computed(() =>
 // Laravel validates these same central values before moving a live task to the
 // fast lane. Changing the JSON updates the backend and both direct task UIs.
 const PRIVILEGED_TASK_TYPES = new Set(FAST_PROMOTABLE_TASK_TYPES);
-const LIVE_STATUSES = new Set(LIVE_TASK_STATUSES);
 
 const bumping = ref(false);
 const bumped = ref(false);
@@ -180,7 +178,7 @@ const isPrivileged = computed(() => {
 const canBump = computed(
   () =>
     isPrivileged.value &&
-    LIVE_STATUSES.has((task.value.status || '').toLowerCase()) &&
+    (task.value.status || '').toLowerCase() === TASK_STATUS_BY_ROLE.pending &&
     !isFast.value,
 );
 

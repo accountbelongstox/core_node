@@ -13,6 +13,7 @@
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { LANES } from '@/utils/task-center-lanes';
+import { TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
 import { geminiWebTool } from '../tools/browser/gemini-web';
 import { logger } from '@/utils/logger';
 import { parseWebChatToolResult, extractAudioParams } from './web-chat-worker-common';
@@ -41,7 +42,7 @@ class GeminiWorkerService extends SimpleWorkerBase {
   }
 
   protected handlesTaskType(taskType: string): boolean {
-    return taskType === 'gemini_chat';
+    return taskType === TASK_TYPE_KEYS.gemini_chat;
   }
 
   protected async executeTask(task: Task): Promise<void> {

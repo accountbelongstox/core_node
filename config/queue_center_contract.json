@@ -100,7 +100,8 @@
       "remote_subtitle": "remote_subtitle",
       "remote_poster": "remote_poster",
       "remote_sentence_audio": "remote_sentence_audio",
-      "remote_stt": "remote_stt"
+      "remote_stt": "remote_stt",
+      "remote_chatgpt": "remote_chatgpt"
     },
     "priorities": {
       "default": 0,
@@ -279,6 +280,16 @@
         "interactive": false,
         "pycore_local_label": "remote_gemini_text",
         "ui": {"icon": "💬", "badge": "CHAT", "summary_label": "待 AI 对话", "color": "#f472b6"}
+      },
+      {
+        "key": "chatgpt_chat",
+        "label": "ChatGPT Chat",
+        "execution_type": "remote_chatgpt",
+        "capability": null,
+        "claimants": ["chrome"],
+        "interactive": false,
+        "pycore_local_label": "remote_chatgpt",
+        "ui": {"icon": "💭", "badge": "CHATGPT", "summary_label": "待 ChatGPT 对话", "color": "#10a37f"}
       },
       {
         "key": "word_validity",

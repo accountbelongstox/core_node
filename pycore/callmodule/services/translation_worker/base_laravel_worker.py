@@ -45,6 +45,10 @@ from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     register_endpoint_change_listener,
 )
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
+from pycore.callmodule.services.queue_center_contract import (
+    GLOBAL_TASK_STATUSES_BY_ROLE,
+    GLOBAL_TASK_WORKER_RESULT_STATUSES,
+)
 
 
 class BaseLaravelWorkerService:
@@ -475,7 +479,7 @@ class BaseLaravelWorkerService:
     def _post_result(
         self,
         task_id: Any,
-        status: str,
+        status_role: str,
         result: Optional[Dict[str, Any]] = None,
         error: Optional[str] = None,
         progress: Optional[int] = None,
@@ -500,6 +504,9 @@ class BaseLaravelWorkerService:
         pass 1 (a lost ping costs nothing; the next report or the final result
         carries the same information).
         """
+        status = GLOBAL_TASK_STATUSES_BY_ROLE.get(status_role, status_role)
+        if status not in GLOBAL_TASK_WORKER_RESULT_STATUSES:
+            raise ValueError(f"Unsupported Laravel worker result status: {status_role}")
         body: Dict[str, Any] = {
             "task_id": task_id,
             "worker_id": self.worker_id,

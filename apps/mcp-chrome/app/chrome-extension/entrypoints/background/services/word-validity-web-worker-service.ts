@@ -24,6 +24,7 @@
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { LANES } from '@/utils/task-center-lanes';
+import { TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
 import type { ClassifierWord } from './word-validity/word-validity-classifier';
 import { runWordValidityClassification } from './word-validity/word-validity-web-runtime';
 import { logger } from '@/utils/logger';
@@ -56,7 +57,7 @@ class WordValidityWebWorkerService extends SimpleWorkerBase {
   }
 
   protected handlesTaskType(taskType: string): boolean {
-    return taskType === 'word_validity';
+    return taskType === TASK_TYPE_KEYS.word_validity;
   }
 
   protected async executeTask(task: Task): Promise<void> {

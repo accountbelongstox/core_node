@@ -207,6 +207,9 @@ export const TASK_TYPE_CATALOG = QUEUE_CENTER_CONTRACT.task_contract.task_types;
 export const TASK_TYPE_BY_KEY = Object.fromEntries(
   TASK_TYPE_CATALOG.map((definition) => [definition.key, definition]),
 ) as Record<string, TaskTypeDefinition>;
+export const TASK_TYPE_KEYS = Object.fromEntries(
+  TASK_TYPE_CATALOG.map((definition) => [definition.key, definition.key]),
+) as Record<string, string>;
 export const FAST_PROMOTABLE_TASK_TYPES = TASK_TYPE_CATALOG
   .filter((definition) => definition.fast_promotable === true)
   .map((definition) => definition.key);

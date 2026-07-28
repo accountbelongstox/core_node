@@ -21,6 +21,7 @@ import { commonClasses } from '../../../styles/theme';
 import { AlertBox, Field, InlineSpinner } from '../../common';
 import Portal from '../../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
+import { GLOBAL_TASK_PRIORITIES } from '../../../core/api-libs/pycore/QueueCenterContract';
 
 interface AssistRequestModalProps {
   lang: Language;
@@ -53,14 +54,14 @@ const RECORD_TYPES = ['book', 'subtitle'] as const;
 
 /** Priority presets. 100 = the shared interactive fast lane (remote_fast). */
 const PRIORITY_OPTIONS: Array<{ value: number; label: string }> = [
-  { value: 0, label: 'Normal (0)' },
+  { value: GLOBAL_TASK_PRIORITIES.default, label: `Normal (${GLOBAL_TASK_PRIORITIES.default})` },
   { value: 10, label: 'High (10)' },
-  { value: 50, label: 'Urgent (50)' },
-  { value: 100, label: 'Fast lane (100)' },
+  { value: GLOBAL_TASK_PRIORITIES.manual, label: `Urgent (${GLOBAL_TASK_PRIORITIES.manual})` },
+  { value: GLOBAL_TASK_PRIORITIES.fast, label: `Fast lane (${GLOBAL_TASK_PRIORITIES.fast})` },
 ];
 
 /** Priority that lands a request on the interactive fast lane. */
-const FAST_PRIORITY = 100;
+const FAST_PRIORITY = GLOBAL_TASK_PRIORITIES.fast;
 
 const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose, onSubmitted }) => {
   const [recordType, setRecordType] = useState<string>(record?.record_type || 'book');

@@ -58,6 +58,7 @@ CODESYNC_SVC_EXEC_START="/bin/bash $CODESYNC_REPO_ROOT/pyservice.sh codesync run
 CODESYNC_SVC_USER=""
 CODESYNC_DEBIAN_MGR="$CODESYNC_SVC_SCRIPT_DIR/debian_service_manager.sh"
 CODESYNC_GVAR_COMMON="$CODESYNC_SVC_SCRIPT_DIR/gvar_common.sh"
+CODESYNC_UNIT_FILE="/etc/systemd/system/${CODESYNC_SERVICE_NAME}.service"
 CODESYNC_SERVICE_DEPS_LOADED=0
 
 # --- Load service-management infrastructure only when needed ------------- #
@@ -119,6 +120,70 @@ codesync_prompt_yes() {
     esac
 }
 
+codesync_service_exists() {
+    [ -f "$CODESYNC_UNIT_FILE" ]
+}
+
+codesync_confirm_force_git_alignment() {
+    local answer=""
+    local remote_answer=""
+    local sync_answer=""
+    local git_sync_status=0
+
+    echo "[codesync-service] The local CodeSync chain can be damaged by receiving its own code."
+    echo "[codesync-service] Force-aligning the working tree from Git can restore the service code."
+    printf '%s [y/N] ' "[codesync-service] Force-align local code from origin/main now?"
+    read -r answer < /dev/tty || answer=""
+    case "$answer" in
+        [Yy]) ;;
+        *)
+            echo "[codesync-service] Git alignment skipped."
+            return 0
+            ;;
+    esac
+
+    printf '%s ' "[codesync-service] Type 'yes' to confirm the force-alignment prompt:"
+    read -r answer < /dev/tty || answer=""
+    if [ "$answer" != "yes" ]; then
+        echo "[codesync-service] Force-alignment cancelled."
+        return 0
+    fi
+
+    echo "[codesync-service] The next command will be executed in $CODESYNC_REPO_ROOT:"
+    echo "git remote -v"
+    printf '%s ' "[codesync-service] Type 'yes' to run this command:"
+    read -r remote_answer < /dev/tty || remote_answer=""
+    if [ "$remote_answer" != "yes" ]; then
+        echo "[codesync-service] Remote inspection cancelled."
+        return 0
+    fi
+    (
+        cd "$CODESYNC_REPO_ROOT" && git remote -v
+    ) || {
+        echo "[codesync-service] Failed to inspect Git remotes." >&2
+        return 1
+    }
+
+    echo "[codesync-service] The next command will discard local tracked and untracked changes:"
+    echo "git fetch origin && git reset --hard origin/main && git clean -fd"
+    printf '%s ' "[codesync-service] Type 'yes' to execute this destructive command:"
+    read -r sync_answer < /dev/tty || sync_answer=""
+    if [ "$sync_answer" != "yes" ]; then
+        echo "[codesync-service] Force-alignment cancelled."
+        return 0
+    fi
+
+    (
+        cd "$CODESYNC_REPO_ROOT" && git fetch origin && git reset --hard origin/main && git clean -fd
+    ) || git_sync_status=$?
+    if [ "$git_sync_status" -ne 0 ]; then
+        echo "[codesync-service] Git force-alignment failed with exit code $git_sync_status." >&2
+        return "$git_sync_status"
+    fi
+    echo "[codesync-service] Local code is aligned with origin/main."
+    return 0
+}
+
 # --- Print how to view the service logs ---------------------------------- #
 codesync_print_logs_help() {
     echo "------------------------------------------------------------"
@@ -150,28 +215,23 @@ codesync_print_unit() {
     echo "------------------------------------------------------------"
 }
 
-# --- install: (optional prompt) create + enable + start + log help ------- #
+# --- install: optional Git alignment, then service refresh/start --------- #
 codesync_service_install() {
     local do_prompt=0
+    local service_exists=0
+    local alignment_status=0
+    local add_prompt=""
+    local systemd_ready=0
     codesync_load_service_dependencies
     if [ "${1:-}" = "--prompt" ]; then
         do_prompt=1
         shift || true
     fi
 
-    if [ "$do_prompt" -eq 1 ]; then
-        if ! codesync_prompt_yes "[codesync-service] Add Code Sync to the system service (systemd) and start it now?"; then
-            echo "[codesync-service] Not installed. Run it in the foreground anytime with:"
-            echo "    bash $CODESYNC_REPO_ROOT/pyservice.sh codesync run"
-            echo "[codesync-service] Or install the system service later with:"
-            echo "    bash $CODESYNC_REPO_ROOT/pyservice.sh codesync install"
-            return 0
-        fi
+    if codesync_service_exists; then
+        service_exists=1
+        echo "[codesync-service] Existing systemd service detected; it will be refreshed without restart."
     fi
-
-    codesync_resolve_user >/dev/null
-    echo "[codesync-service] Installing systemd service '$CODESYNC_SERVICE_NAME' ..."
-    codesync_print_unit
 
     if ! command -v systemctl >/dev/null 2>&1; then
         echo "[codesync-service] systemctl not found; cannot install a systemd service here."
@@ -180,6 +240,35 @@ codesync_service_install() {
         echo "    bash $CODESYNC_REPO_ROOT/pyservice.sh codesync run"
         return 1
     fi
+    systemd_ready=1
+
+    # This is intentionally the third-to-last step. A default-N answer skips
+    # the entire Git alignment flow and continues to the service prompt.
+    if [ "$systemd_ready" -eq 1 ]; then
+        echo "[codesync-service] Git alignment is the third-to-last step."
+        codesync_confirm_force_git_alignment || alignment_status=$?
+        if [ "$alignment_status" -ne 0 ]; then
+            echo "[codesync-service] Code alignment reported an error; continuing to the service step." >&2
+        fi
+    fi
+
+    # This is intentionally the second-to-last step. Existing services are
+    # refreshed in place and are not restarted by this flow.
+    if [ "$service_exists" -eq 1 ]; then
+        add_prompt="[codesync-service] Refresh the existing Code Sync system service now?"
+    else
+        add_prompt="[codesync-service] Add Code Sync to the system service (systemd) now?"
+    fi
+    if [ "$do_prompt" -eq 1 ] && ! codesync_prompt_yes "$add_prompt"; then
+        echo "[codesync-service] Service refresh/install skipped."
+        echo "[codesync-service] Run it in the foreground anytime with:"
+        echo "    bash $CODESYNC_REPO_ROOT/pyservice.sh codesync run"
+        return 0
+    fi
+
+    codesync_resolve_user >/dev/null
+    echo "[codesync-service] Installing systemd service '$CODESYNC_SERVICE_NAME' ..."
+    codesync_print_unit
 
     if type create_systemd_service >/dev/null 2>&1; then
         # create_systemd_service(name, description, exec_command, working_dir, user, [restart])
@@ -195,11 +284,15 @@ codesync_service_install() {
         return 1
     fi
 
-    echo "[codesync-service] Enabling and (re)starting '$CODESYNC_SERVICE_NAME' ..."
+    echo "[codesync-service] Refreshing systemd enablement ..."
     $USE_SUDO systemctl enable "$CODESYNC_SERVICE_NAME" 2>/dev/null || true
-    # restart (not start): idempotent — starts if stopped, picks up the freshly
-    # written unit if already running, so re-answering Y always applies changes.
-    $USE_SUDO systemctl restart "$CODESYNC_SERVICE_NAME"
+    if [ "$service_exists" -eq 1 ]; then
+        echo "[codesync-service] Final step: restarting the refreshed '$CODESYNC_SERVICE_NAME' service ..."
+        $USE_SUDO systemctl restart "$CODESYNC_SERVICE_NAME"
+    else
+        echo "[codesync-service] Final step: starting '$CODESYNC_SERVICE_NAME' ..."
+        $USE_SUDO systemctl start "$CODESYNC_SERVICE_NAME"
+    fi
     codesync_service_status
     codesync_print_logs_help
 }

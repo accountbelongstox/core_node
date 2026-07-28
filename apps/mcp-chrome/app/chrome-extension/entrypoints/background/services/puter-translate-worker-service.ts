@@ -17,6 +17,7 @@ import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { puterAiTranslate } from './puter-ai-client';
 import { logger } from '@/utils/logger';
 import { DEFAULT_TARGET_LANG } from '@/utils/task-center-types';
+import { TASK_CAPABILITY_BY_ROLE, TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
 
 const LOG = 'Puter Translate';
 
@@ -35,7 +36,7 @@ class PuterTranslateWorkerService extends SimpleWorkerBase {
   }
 
   protected get capabilities(): WorkerCapability[] {
-    return ['puter_translate'];
+    return [TASK_CAPABILITY_BY_ROLE.puter_translate];
   }
 
   protected get baseProcessorTypes(): ProcessorType[] {
@@ -47,7 +48,7 @@ class PuterTranslateWorkerService extends SimpleWorkerBase {
   }
 
   protected handlesTaskType(taskType: string): boolean {
-    return taskType === 'word_translation';
+    return taskType === TASK_TYPE_KEYS.word_translation;
   }
 
   protected async executeTask(task: Task): Promise<void> {

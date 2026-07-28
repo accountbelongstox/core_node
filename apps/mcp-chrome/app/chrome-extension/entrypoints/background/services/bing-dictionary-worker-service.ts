@@ -15,7 +15,11 @@ import { WorkerApiClient, Task, ProcessorType } from '../api/WorkerApiClient';
 import { bingDictionaryTool, BingDictionaryResult } from '../tools/browser/bing-dictionary';
 import { logger } from '@/utils/logger';
 import { BingTabPool, MAX_BING_TABS, isRecoverableTabError } from './bing-tab-pool';
-import { TASK_CAPABILITY_BY_ROLE } from '@/utils/queue-center-contract';
+import {
+  TASK_CAPABILITY_BY_ROLE,
+  TASK_STATUS_BY_ROLE,
+  TASK_TYPE_KEYS,
+} from '@/utils/queue-center-contract';
 import { tabController } from './tab-controller';
 import {
   classify,
@@ -151,12 +155,7 @@ const IDLE_DISCARD_MS = 60_000;
 // lookups; any other task_type (e.g. image generation) is released as 'failed'
 // so the dispatcher re-pends it for a capable worker. Module-level so it is
 // created once, not on every processTask call.
-const HANDLED_TASK_TYPES = new Set([
-  'word_translation',
-  'word_audio',
-  'bing_dictionary',
-  'dictionary_translation',
-]);
+const HANDLED_TASK_TYPES = new Set([TASK_TYPE_KEYS.word_translation]);
 
 interface PersistedRuntime {
   running: boolean;
@@ -977,14 +976,14 @@ class BingDictionaryWorkerService {
     // do NOT mis-scrape it as a dictionary lookup. Submit 'failed' to cleanly
     // release it (release-by-failure, mirroring SimpleWorkerBase.dispatchOne)
     // so it re-pends and reaches a worker that can actually handle it.
-    if (task.capability === 'image' || !HANDLED_TASK_TYPES.has(task.task_type)) {
+    if (task.capability === TASK_CAPABILITY_BY_ROLE.image || !HANDLED_TASK_TYPES.has(task.task_type)) {
       const reason = `unhandled task_type/capability: task_type=${task.task_type} capability=${task.capability ?? 'none'}`;
       logger.warn(LOG, `Releasing task ${task.task_id} — ${reason}`);
       try {
         await this.workerClient.submitResult({
           task_id: task.task_id,
           worker_id: workerId,
-          status: 'failed',
+          status: TASK_STATUS_BY_ROLE.failed,
           error: reason,
         });
       } catch (submitError) {
@@ -1006,7 +1005,7 @@ class BingDictionaryWorkerService {
       await this.workerClient.submitResult({
         task_id: task.task_id,
         worker_id: workerId,
-        status: 'processing',
+        status: TASK_STATUS_BY_ROLE.processing,
         progress: 0,
       });
 
@@ -1201,7 +1200,7 @@ class BingDictionaryWorkerService {
               .submitResult({
                 task_id: task.task_id,
                 worker_id: workerId,
-                status: 'processing',
+                status: TASK_STATUS_BY_ROLE.processing,
                 progress,
               })
               .catch(() => undefined);
@@ -1224,11 +1223,6 @@ class BingDictionaryWorkerService {
       // An audio-only task is complete only when real MP3 bytes were captured.
       // Do not let a translation-only Bing result mark a still-missing audio
       // row complete; retain invalid-word verdicts, but re-pend valid misses.
-      if (task.task_type === 'word_audio') {
-        const audioEntries = translations.filter((entry) => !!entry.audio_base64);
-        translations.splice(0, translations.length, ...audioEntries);
-      }
-
       // Sustained anti-scrape: enter a cooldown so the next polls back off (no tab
       // churn) until Bing relaxes. Whatever WAS scraped is still submitted below;
       // the unprocessed words stay needing-translation and re-enqueue later.
@@ -1260,7 +1254,7 @@ class BingDictionaryWorkerService {
           await this.workerClient.submitResult({
             task_id: task.task_id,
             worker_id: workerId,
-            status: 'completed',
+            status: TASK_STATUS_BY_ROLE.completed,
             progress: 100,
             result: {
               target_language: targetLanguage,
@@ -1274,7 +1268,7 @@ class BingDictionaryWorkerService {
           await this.workerClient.submitResult({
             task_id: task.task_id,
             worker_id: workerId,
-            status: 'failed',
+            status: TASK_STATUS_BY_ROLE.failed,
             error: 'Bing outage / service unavailable',
           });
         }
@@ -1298,7 +1292,7 @@ class BingDictionaryWorkerService {
         await this.workerClient.submitResult({
           task_id: task.task_id,
           worker_id: workerId,
-          status: 'failed',
+          status: TASK_STATUS_BY_ROLE.failed,
           error: 'no translations or invalid words produced (transient miss)',
         });
         this.taskCache.delete(task.task_id);
@@ -1320,7 +1314,7 @@ class BingDictionaryWorkerService {
       const submitResp = await this.workerClient.submitResult({
         task_id: task.task_id,
         worker_id: workerId,
-        status: 'completed',
+        status: TASK_STATUS_BY_ROLE.completed,
         progress: 100,
         result: {
           target_language: targetLanguage,
@@ -1352,7 +1346,7 @@ class BingDictionaryWorkerService {
         await this.workerClient.submitResult({
           task_id: task.task_id,
           worker_id: workerId,
-          status: 'failed',
+          status: TASK_STATUS_BY_ROLE.failed,
           error: error?.message || 'Unknown error',
         });
       } catch (submitError) {

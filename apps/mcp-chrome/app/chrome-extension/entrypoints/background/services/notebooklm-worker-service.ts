@@ -12,6 +12,7 @@
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { LANES } from '@/utils/task-center-lanes';
+import { TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
 import { notebookLmTool } from '../tools/browser/notebooklm';
 import { logger } from '@/utils/logger';
 import { parseWebChatToolResult } from './web-chat-worker-common';
@@ -41,7 +42,7 @@ class NotebookLmWorkerService extends SimpleWorkerBase {
   }
 
   protected handlesTaskType(taskType: string): boolean {
-    return taskType === 'notebooklm';
+    return taskType === TASK_TYPE_KEYS.notebooklm;
   }
 
   protected async executeTask(task: Task): Promise<void> {

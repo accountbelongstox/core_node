@@ -11,52 +11,42 @@
 import React from 'react';
 import {
   LucideIcon,
-  Languages,
   Sparkles,
-  Image as ImageIcon,
-  Volume2,
-  AudioLines,
-  BookOpen,
-  Captions,
-  ImagePlus,
-  Cpu,
-  MessageCircle,
 } from 'lucide-react';
 import { Language } from '../../../types';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
 import type { TaskCenterQueueRole } from '../../../core/api/modules/ServerManagerAPI';
+import {
+  GLOBAL_TASK_CAPABILITIES,
+  GLOBAL_TASK_CAPABILITIES_BY_ROLE,
+  GLOBAL_TASK_CAPABILITY_LABELS,
+  GLOBAL_TASK_LIVE_STATUSES,
+  GLOBAL_TASK_STATUSES,
+  GLOBAL_TASK_STATUSES_BY_ROLE,
+  GLOBAL_TASK_TYPE_CATALOG,
+} from '../../../core/api-libs/pycore/QueueCenterContract';
 
 // ==================== Status vocabularies ====================
 
 /** Full status vocabulary of the `global_tasks` substrate (incl. cancelled). */
-export const QUEUE_TASK_STATUSES = [
-  'pending',
-  'assigned',
-  'processing',
-  'completed',
-  'completed_demo',
-  'failed',
-  'cancelled',
-] as const;
+export const QUEUE_TASK_STATUSES = GLOBAL_TASK_STATUSES;
 
 export type QueueTaskStatus = (typeof QUEUE_TASK_STATUSES)[number];
 
-export const CANCELLABLE_STATUSES: string[] = ['pending', 'assigned', 'processing'];
+export const CANCELLABLE_STATUSES: string[] = GLOBAL_TASK_LIVE_STATUSES;
 
 /** Queue statuses: pending=blue, assigned=indigo, processing=amber,
  *  completed=green, completed_demo=teal, failed=red, cancelled=gray,
  *  timeout=orange, reclaimed=yellow. */
 const QUEUE_STATUS_BADGE: Record<string, string> = {
-  pending: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
-  assigned: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400',
-  processing: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
-  completed: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-  completed_demo: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400',
-  failed: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
-  cancelled: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400',
-  timeout: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
-  reclaimed: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
+  [GLOBAL_TASK_STATUSES_BY_ROLE.pending]: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+  [GLOBAL_TASK_STATUSES_BY_ROLE.assigned]: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400',
+  [GLOBAL_TASK_STATUSES_BY_ROLE.processing]: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+  [GLOBAL_TASK_STATUSES_BY_ROLE.completed]: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+  [GLOBAL_TASK_STATUSES_BY_ROLE.completed_demo]: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400',
+  [GLOBAL_TASK_STATUSES_BY_ROLE.failed]: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
+  [GLOBAL_TASK_STATUSES_BY_ROLE.cancelled]: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400',
 };
 
 /** Octane scheduler timer-task statuses. */
@@ -127,70 +117,28 @@ export const RoleBadge: React.FC<{ role: TaskCenterQueueRole; lang: Language }> 
  *  light/dark pill style the status badges use), and a Lucide icon. */
 interface TaskTypeMeta {
   label: string;
-  badge: string;
-  icon: LucideIcon;
+  color: string;
+  icon: string;
 }
 
-export const TASK_TYPE_META: Record<string, TaskTypeMeta> = {
-  word_translation: {
-    label: 'Word Translation',
-    badge: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
-    icon: Languages,
-  },
-  word_media: {
-    label: 'Word Media',
-    badge: 'bg-fuchsia-100 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-400',
-    icon: ImageIcon,
-  },
-  word_audio: {
-    label: 'Word Audio',
-    badge: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400',
-    icon: Volume2,
-  },
-  gemini_image: {
-    label: 'Gemini Image',
-    badge: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400',
-    icon: ImagePlus,
-  },
-  gemini_chat: {
-    label: 'Gemini Chat',
-    badge: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400',
-    icon: MessageCircle,
-  },
-  notebooklm: {
-    label: 'NotebookLM',
-    badge: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
-    icon: BookOpen,
-  },
-  sentence_audio: {
-    label: 'Sentence Audio',
-    badge: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400',
-    icon: AudioLines,
-  },
-  poster: {
-    label: 'Poster',
-    badge: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400',
-    icon: ImageIcon,
-  },
-  subtitle_search: {
-    label: 'Subtitle Search',
-    badge: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
-    icon: Captions,
-  },
-};
+export const TASK_TYPE_META: Record<string, TaskTypeMeta> = Object.fromEntries(
+  GLOBAL_TASK_TYPE_CATALOG.map((definition) => [definition.key, {
+    label: definition.label,
+    color: definition.ui.color,
+    icon: definition.ui.icon,
+  }]),
+);
 
 /** The canonical task types in catalog order (for filter chip sets). */
 export const TASK_TYPE_KEYS = Object.keys(TASK_TYPE_META);
-
-const TASK_TYPE_FALLBACK_ICON: LucideIcon = Cpu;
 
 export const taskTypeMeta = (taskType: string | null | undefined): TaskTypeMeta => {
   const key = (taskType || '').trim();
   return (
     TASK_TYPE_META[key] || {
       label: key || 'Unknown',
-      badge: FALLBACK_BADGE,
-      icon: TASK_TYPE_FALLBACK_ICON,
+      color: '#64748b',
+      icon: '📦',
     }
   );
 };
@@ -201,15 +149,15 @@ export const TaskTypeBadge: React.FC<{ taskType: string | null | undefined; size
   size = 'xs',
 }) => {
   const meta = taskTypeMeta(taskType);
-  const Icon = meta.icon;
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded font-medium whitespace-nowrap ${
+      className={`inline-flex items-center gap-1 rounded border font-medium whitespace-nowrap ${
         size === 'sm' ? 'px-2.5 py-1 text-sm' : 'px-2 py-0.5 text-xs'
-      } ${meta.badge}`}
+      }`}
+      style={{ color: meta.color, borderColor: `${meta.color}66`, backgroundColor: `${meta.color}18` }}
       title={taskType || undefined}
     >
-      <Icon className={size === 'sm' ? 'w-4 h-4' : 'w-3 h-3'} />
+      <span aria-hidden="true">{meta.icon}</span>
       {meta.label}
     </span>
   );
@@ -222,50 +170,29 @@ export const TaskTypeBadge: React.FC<{ taskType: string | null | undefined; size
  *  plain 'translate' (google) capability. */
 interface CapabilityMeta {
   label: string;
-  badge: string;
+  color: string;
 }
 
-export const CAPABILITY_META: Record<string, CapabilityMeta> = {
-  audio: {
-    label: 'Audio',
-    badge: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400',
-  },
-  image: {
-    label: 'Image',
-    badge: 'bg-fuchsia-100 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-400',
-  },
-  translate: {
-    label: 'Translate',
-    badge: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
-  },
-  ai_translate: {
-    label: 'AI Translate',
-    badge: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400',
-  },
-  sentence_audio: {
-    label: 'Sentence Audio',
-    badge: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400',
-  },
-  subtitle: {
-    label: 'Subtitle',
-    badge: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
-  },
-  poster: {
-    label: 'Poster',
-    badge: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400',
-  },
-};
+export const CAPABILITY_META: Record<string, CapabilityMeta> = Object.fromEntries(
+  GLOBAL_TASK_CAPABILITIES.map((capability) => {
+    const taskType = GLOBAL_TASK_TYPE_CATALOG.find((definition) => definition.capability === capability);
+    return [capability, {
+      label: GLOBAL_TASK_CAPABILITY_LABELS[capability] || capability,
+      color: taskType?.ui.color || '#64748b',
+    }];
+  }),
+);
 
 /** NULL / unset capability = first-idle-wins across all advertising workers. */
 const CAPABILITY_ANY: CapabilityMeta = {
   label: 'any',
-  badge: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400',
+  color: '#64748b',
 };
 
 export const capabilityMeta = (cap: string | null | undefined): CapabilityMeta => {
   const key = (cap || '').trim();
   if (!key) return CAPABILITY_ANY;
-  return CAPABILITY_META[key] || { label: key, badge: FALLBACK_BADGE };
+  return CAPABILITY_META[key] || { label: key, color: '#64748b' };
 };
 
 /** Pill badge for a fast-lane capability (or 'any' when null/unset). */
@@ -274,12 +201,13 @@ export const CapabilityBadge: React.FC<{ capability: string | null | undefined; 
   size = 'xs',
 }) => {
   const meta = capabilityMeta(capability);
-  const isAiTranslate = (capability || '').trim() === 'ai_translate';
+  const isAiTranslate = (capability || '').trim() === GLOBAL_TASK_CAPABILITIES_BY_ROLE.ai_translate;
   return (
     <span
       className={`inline-flex items-center gap-1 rounded font-medium whitespace-nowrap ${
         size === 'sm' ? 'px-2.5 py-1 text-sm' : 'px-2 py-0.5 text-xs'
-      } ${meta.badge}`}
+      } border`}
+      style={{ color: meta.color, borderColor: `${meta.color}66`, backgroundColor: `${meta.color}18` }}
       title={`capability: ${capability || 'any'}`}
     >
       {isAiTranslate && <Sparkles className={size === 'sm' ? 'w-4 h-4' : 'w-3 h-3'} />}
@@ -319,9 +247,10 @@ export const clampProgress = (progress: number): number => {
 export const ProgressBar: React.FC<{ progress: number; status: string }> = ({ progress, status }) => {
   const pct = clampProgress(progress);
   const barColor =
-    status === 'failed'
+    status === GLOBAL_TASK_STATUSES_BY_ROLE.failed
       ? 'bg-red-500'
-      : status === 'completed' || status === 'completed_demo'
+      : status === GLOBAL_TASK_STATUSES_BY_ROLE.completed
+          || status === GLOBAL_TASK_STATUSES_BY_ROLE.completed_demo
         ? 'bg-green-500'
         : 'bg-indigo-500';
   return (

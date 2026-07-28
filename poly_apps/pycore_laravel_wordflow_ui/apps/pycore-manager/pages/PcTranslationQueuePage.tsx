@@ -9,6 +9,10 @@ import {
 } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { TranslationQueueItem, TranslationQueueSummary, PycoreGlobalTaskDetail } from '../../../core/api-libs/pycore/pycoreTypes';
+import {
+  GLOBAL_TASK_STATUSES_BY_ROLE,
+  GLOBAL_TASK_TYPE_BY_KEY,
+} from '../../../core/api-libs/pycore/QueueCenterContract';
 import { PcGlobalTaskDetailModal } from '../components/PcTaskDetailModal';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 import { useTaskCenterState } from '../hooks/TaskCenterState';
@@ -80,10 +84,10 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = () => {
     await state.openTranslationTaskDetail(it.task_id, {
       task_id: it.task_id,
       app_name: '—',
-      task_type: 'word_translation',
-      execution_type: 'remote_translation',
+      task_type: GLOBAL_TASK_TYPE_BY_KEY.word_translation.key,
+      execution_type: GLOBAL_TASK_TYPE_BY_KEY.word_translation.execution_type,
       status: it.status,
-      progress: it.status === 'completed' ? 100 : 0,
+      progress: it.status === GLOBAL_TASK_STATUSES_BY_ROLE.completed ? 100 : 0,
       assigned_to: it.assigned_to,
       created_at: it.created_at,
       updated_at: null,

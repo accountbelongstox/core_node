@@ -51,6 +51,8 @@ use Illuminate\Validation\Rule;
  *                      { question|source_text, title? }. Text-only Gemini
  *                      completion — sibling of gemini_image, kept off its lane
  *                      because gemini_image's contract is image-only.
+ *   - chatgpt_chat  -> remote_chatgpt (chrome, dedicated lane). payload
+ *                      { prompt, with_audio?, language? }.
  *
  * NOTE: notebooklm / gemini_image / gemini_chat get their OWN execution_types
  * (not remote_client) because the chrome side runs a separate worker per
@@ -172,6 +174,14 @@ class AppQyV1TaskEnqueueController extends Controller
                 || (isset($payload['source_text']) && is_string($payload['source_text']) && $payload['source_text'] !== '');
             if (!$hasQuestion) {
                 return 'gemini_chat payload requires a non-empty question or source_text';
+            }
+            return null;
+        }
+
+        if ($taskType === 'chatgpt_chat') {
+            $hasPrompt = isset($payload['prompt']) && is_string($payload['prompt']) && $payload['prompt'] !== '';
+            if (!$hasPrompt) {
+                return 'chatgpt_chat payload requires a non-empty prompt';
             }
             return null;
         }

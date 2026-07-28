@@ -20,6 +20,7 @@ import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { geminiWebTool } from '../tools/browser/gemini-web';
 import { logger } from '@/utils/logger';
 import { DEFAULT_TARGET_LANG } from '@/utils/task-center-types';
+import { TASK_CAPABILITY_BY_ROLE, TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
 
 const LOG = 'Web-AI Translate';
 
@@ -44,7 +45,7 @@ class WebAiTranslateWorkerService extends SimpleWorkerBase {
 
   // Advertise ONLY ai_translate; the base adds remote_fast via withFastLane.
   protected get capabilities(): WorkerCapability[] {
-    return ['ai_translate'];
+    return [TASK_CAPABILITY_BY_ROLE.ai_translate];
   }
 
   // No dedicated lane — fast lane only (added by the base when caps non-empty).
@@ -57,7 +58,7 @@ class WebAiTranslateWorkerService extends SimpleWorkerBase {
   }
 
   protected handlesTaskType(taskType: string): boolean {
-    return taskType === 'word_translation';
+    return taskType === TASK_TYPE_KEYS.word_translation;
   }
 
   protected async executeTask(task: Task): Promise<void> {

@@ -11,6 +11,7 @@ import {
 } from '@/utils/qwen-tts-core';
 import { UI_STORAGE_PREFIX } from '@/utils/storage-keys';
 import { LANES } from '@/utils/task-center-lanes';
+import { TASK_CAPABILITY_BY_ROLE, TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
 
 const LOG = 'Qwen TTS Worker';
 
@@ -29,7 +30,7 @@ class QwenTtsWorkerService extends SimpleWorkerBase {
   }
 
   protected get capabilities(): WorkerCapability[] {
-    return ['audio'];
+    return [TASK_CAPABILITY_BY_ROLE.audio];
   }
 
   protected get baseProcessorTypes(): ProcessorType[] {
@@ -41,14 +42,14 @@ class QwenTtsWorkerService extends SimpleWorkerBase {
   }
 
   protected handlesTaskType(taskType: string): boolean {
-    return taskType === 'word_audio' || taskType === 'article_audio';
+    return taskType === TASK_TYPE_KEYS.word_audio || taskType === TASK_TYPE_KEYS.article_audio;
   }
 
   protected async executeTask(task: Task): Promise<void> {
     const payload = task.payload || {};
     const settings = await this.loadSettings();
 
-    if (task.task_type === 'article_audio') {
+    if (task.task_type === TASK_TYPE_KEYS.article_audio) {
       await this.executeArticleAudio(task, settings);
       return;
     }

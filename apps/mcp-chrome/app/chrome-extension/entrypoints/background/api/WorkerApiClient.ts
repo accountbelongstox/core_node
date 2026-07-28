@@ -15,6 +15,7 @@ import {
 } from '@/utils/api-paths';
 import {
   PRIORITY_FAST,
+  TASK_LIMITS,
   type ProcessorType,
   type Task,
   type TaskResult,
@@ -115,9 +116,9 @@ export class WorkerApiClient extends BaseApiClient {
     }
 
     const { limit = 5, wait = 0 } = options;
-    // Clamp: wait 0..30s, limit 1..50.
-    const safeWait = Math.max(0, Math.min(30, Math.floor(wait)));
-    const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
+    // Clamp with the same limits Laravel validates from the central contract.
+    const safeWait = Math.max(0, Math.min(TASK_LIMITS.long_poll_seconds, Math.floor(wait)));
+    const safeLimit = Math.max(1, Math.min(TASK_LIMITS.worker_pull, Math.floor(limit)));
 
     return this.get<{ count: number; pending_urgent: number; pending_fast: number; tasks: Task[] }>(
       WORKER_PATHS.TASKS_PULL,

@@ -8,7 +8,9 @@
 
 import {
   CAPABILITY_LABELS,
+  EXECUTION_TYPES_BY_ROLE,
   PRIORITY_FAST,
+  TASK_CAPABILITY_BY_ROLE,
   TASK_TYPE_CATALOG,
   type WorkerCapability,
 } from '@/utils/queue-center-contract';
@@ -75,7 +77,7 @@ export function capabilityLabel(capability?: string | null): string {
 
 /** True when the capability is the AI Translate fast-lane subset. */
 export function isAiTranslate(capability?: string | null): boolean {
-  return capability === 'ai_translate';
+  return capability === TASK_CAPABILITY_BY_ROLE.ai_translate;
 }
 
 /** Fast-tier when explicitly flagged, on remote_fast, or at/above the FAST priority tier. */
@@ -85,6 +87,6 @@ export function isFastTier(opts: {
   execution_type?: string | null;
 }): boolean {
   if (opts.is_fast_tier) return true;
-  if (opts.execution_type === 'remote_fast') return true;
+  if (opts.execution_type === EXECUTION_TYPES_BY_ROLE.remote_fast) return true;
   return typeof opts.priority === 'number' && opts.priority >= PRIORITY_FAST;
 }

@@ -307,7 +307,7 @@ class TranslationController extends Controller
         $taskId = $this->taskManager->createTask($params);
         $task = $this->taskManager->getTask($taskId);
         
-        if ($task['status'] === TranslationTaskManager::STATUS_COMPLETED) {
+        if ($task['status'] === TranslationTaskManager::status('completed')) {
             return $this->success([
                 'task_id' => $taskId,
                 'status' => 'completed',
@@ -348,14 +348,14 @@ class TranslationController extends Controller
             'created_at' => $task['created_at'],
         ];
         
-        if ($task['status'] === TranslationTaskManager::STATUS_PROCESSING) {
+        if ($task['status'] === TranslationTaskManager::status('processing')) {
             $response['message'] = 'Task is being processed...';
             $startedAt = $task['created_at'];
             if (isset($task['started_at'])) {
                 $startedAt = $task['started_at'];
             }
             $response['elapsed_time'] = time() - $startedAt;
-        } elseif ($task['status'] === TranslationTaskManager::STATUS_COMPLETED) {
+        } elseif ($task['status'] === TranslationTaskManager::status('completed')) {
             $response['result'] = $task['result'];
             $response['processing_time'] = $task['processing_time'];
             $cached = false;
@@ -363,10 +363,10 @@ class TranslationController extends Controller
                 $cached = $task['cached'];
             }
             $response['cached'] = $cached;
-        } elseif ($task['status'] === TranslationTaskManager::STATUS_FAILED) {
+        } elseif ($task['status'] === TranslationTaskManager::status('failed')) {
             $response['error'] = $task['error'];
             $response['processing_time'] = $task['processing_time'];
-        } elseif ($task['status'] === TranslationTaskManager::STATUS_PENDING) {
+        } elseif ($task['status'] === TranslationTaskManager::status('pending')) {
             $response['message'] = 'Task is waiting to be processed...';
             $response['queue_time'] = time() - $task['created_at'];
         }
@@ -397,7 +397,7 @@ class TranslationController extends Controller
         }
         
         foreach ($tasksData as $taskId => $task) {
-            if ($task['status'] === TranslationTaskManager::STATUS_PENDING) {
+            if ($task['status'] === TranslationTaskManager::status('pending')) {
                 $tasks[] = ['id' => $taskId, 'created_at' => $task['created_at']];
             }
         }
@@ -417,7 +417,7 @@ class TranslationController extends Controller
             return $this->error('Failed to acquire lock', 400);
         }
 
-        $this->taskManager->updateTaskStatus($taskId, TranslationTaskManager::STATUS_PROCESSING);
+        $this->taskManager->updateTaskStatus($taskId, TranslationTaskManager::status('processing'));
 
         $options = [];
         if (isset($task['params']['options'])) {
@@ -461,7 +461,7 @@ class TranslationController extends Controller
         );
 
         if ($result['success']) {
-            $this->taskManager->updateTaskStatus($taskId, TranslationTaskManager::STATUS_COMPLETED, $result);
+            $this->taskManager->updateTaskStatus($taskId, TranslationTaskManager::status('completed'), $result);
         } else {
             $error = 'Unknown error';
             if (isset($result['error'])) {
@@ -469,7 +469,7 @@ class TranslationController extends Controller
             }
             $this->taskManager->updateTaskStatus(
                 $taskId,
-                TranslationTaskManager::STATUS_FAILED,
+                TranslationTaskManager::status('failed'),
                 null,
                 $error
             );

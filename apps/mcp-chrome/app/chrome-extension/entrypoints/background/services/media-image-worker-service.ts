@@ -13,6 +13,7 @@ import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase, SimpleWorkerConfig } from './task-center/SimpleWorkerBase';
 import { LANES } from '@/utils/task-center-lanes';
 import { logger } from '@/utils/logger';
+import { TASK_CAPABILITY_BY_ROLE, TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
 import {
   buildPosterQuery,
   buildVocabCoverQuery,
@@ -54,7 +55,7 @@ class MediaImageWorkerService extends SimpleWorkerBase {
   }
 
   protected get capabilities(): WorkerCapability[] {
-    return ['poster', 'image'];
+    return [TASK_CAPABILITY_BY_ROLE.poster, TASK_CAPABILITY_BY_ROLE.image];
   }
 
   protected get baseProcessorTypes(): ProcessorType[] {
@@ -66,7 +67,7 @@ class MediaImageWorkerService extends SimpleWorkerBase {
   }
 
   protected handlesTaskType(taskType: string): boolean {
-    return taskType === 'poster' || taskType === 'word_media';
+    return taskType === TASK_TYPE_KEYS.poster || taskType === TASK_TYPE_KEYS.word_media;
   }
 
   async start(config: SimpleWorkerConfig): Promise<void> {
@@ -268,7 +269,7 @@ class MediaImageWorkerService extends SimpleWorkerBase {
 
   protected async executeTask(task: Task): Promise<void> {
     const payload = (task.payload as Record<string, unknown>) || {};
-    if (task.task_type === 'word_media') {
+    if (task.task_type === TASK_TYPE_KEYS.word_media) {
       await this.executeWordMediaTask(task, payload);
       return;
     }

@@ -38,6 +38,8 @@ export const LANES = {
   WEB_AI_TRANSLATE: 'web_ai_translate',
   WORD_VALIDITY_WEB: 'word_validity_web',
   PROMPT_TRANSLATE_WEB: 'prompt_translate_web',
+  CHATGPT_WEB: 'chatgpt_web',
+  PUTER_TRANSLATE: 'puter_translate',
 } as const;
 
 export type LaneKey = keyof typeof LANES;
