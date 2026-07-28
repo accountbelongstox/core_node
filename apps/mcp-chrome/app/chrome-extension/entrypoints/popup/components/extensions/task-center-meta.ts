@@ -1,18 +1,17 @@
 /**
- * Shared task-type / capability presentation maps for the unified Task Center.
+ * Presentation adapter for the central distributed-task catalog.
  *
- * Keys mirror the EXACT `task_type` values the laravel TaskController emits and
- * the worker contract uses (GlobalTask::EXECUTION_TYPES drives lanes; task_type
- * is the work kind). CAPABILITY_LABEL keys mirror GlobalTask::CAPABILITIES, with
- * ai_translate surfaced as "AI Translate" and a NULL → "any" fallback.
- *
- * Used by BOTH UnifiedTaskCenter.vue (row label/badge/icon) and
- * TaskDetailModal.vue (header label/icon) so the two views never drift.
+ * Labels/icons/colors and capability labels live in
+ * config/queue_center_contract.json. Laravel, Pycore, both manager UIs, and the
+ * worker model read sibling adapters listed in queue-center-contract.ts.
  */
 
-// PRIORITY_FAST (value) + WorkerCapability (type) come from the worker API client
-// — the single source for the fast-tier threshold and the capability vocabulary.
-import { PRIORITY_FAST, type WorkerCapability } from '@/entrypoints/background/api/WorkerApiClient';
+import {
+  CAPABILITY_LABELS,
+  PRIORITY_FAST,
+  TASK_TYPE_CATALOG,
+  type WorkerCapability,
+} from '@/utils/queue-center-contract';
 
 export interface TaskTypeMeta {
   /** Friendly label shown in rows + modal header. */
@@ -27,21 +26,17 @@ export interface TaskTypeMeta {
   color?: string;
 }
 
-/** Covers the unified task types plus the local bing_dictionary worker kind. */
-export const TASK_TYPE_META: Record<string, TaskTypeMeta> = {
-  word_translation: { label: 'Word Translation', icon: '🔤', badge: 'TRANSLATE', zhLabel: '待翻译任务', color: '#818cf8' },
-  word_media: { label: 'Word Image', icon: '🖼️', badge: 'WORD IMAGE', zhLabel: '待搜索单词图片', color: '#a78bfa' },
-  word_audio: { label: 'Word Audio', icon: '🔊', badge: 'AUDIO', zhLabel: '待生成语音', color: '#2dd4bf' },
-  gemini_image: { label: 'Gemini Image', icon: '🎨', badge: 'IMAGE', zhLabel: '待 AI 生图', color: '#c084fc' },
-  gemini_chat: { label: 'Gemini Chat', icon: '💬', badge: 'CHAT', zhLabel: '待 AI 对话', color: '#f472b6' },
-  notebooklm: { label: 'NotebookLM', icon: '📓', badge: 'NOTEBOOK', zhLabel: '待 NLM 处理', color: '#fbbf24' },
-  word_validity: { label: 'Word Validity', icon: '✅', badge: 'VALIDITY', zhLabel: '待有效检测', color: '#22c55e' },
-  prompt_translation: { label: 'Prompt Translation', icon: '🌐', badge: 'PROMPT', zhLabel: '待提示词翻译', color: '#06b6d4' },
-  sentence_audio: { label: 'Sentence Audio', icon: '🎧', badge: 'SENTENCE', zhLabel: '待句子音频', color: '#34d399' },
-  poster: { label: 'Book / Media Cover', icon: '🎬', badge: 'COVER', zhLabel: '待搜索图书封面', color: '#fb7185' },
-  subtitle_search: { label: 'Subtitle Search', icon: '💬', badge: 'SUBTITLE', zhLabel: '待字幕搜索', color: '#60a5fa' },
-  bing_dictionary: { label: 'Bing Dictionary', icon: '📖', badge: 'DICT' },
-};
+export const TASK_TYPE_META: Record<string, TaskTypeMeta> = Object.fromEntries(
+  TASK_TYPE_CATALOG.map((definition) => [definition.key, {
+    label: definition.label,
+    icon: definition.ui.icon,
+    badge: definition.ui.badge,
+    zhLabel: definition.ui.summary_label,
+    color: definition.ui.color,
+  }]),
+);
+// Extension-local processor fallback, not a Laravel global task_type.
+TASK_TYPE_META.bing_dictionary = { label: 'Bing Dictionary', icon: '📖', badge: 'DICT' };
 
 /** Fallback meta for an unknown / future task_type so the UI never blanks out. */
 export const UNKNOWN_TASK_META: TaskTypeMeta = { label: 'Task', icon: '📦', badge: 'TASK' };
@@ -54,16 +49,7 @@ export const UNKNOWN_TASK_META: TaskTypeMeta = { label: 'Task', icon: '📦', ba
 // Typed by WorkerCapability so an unknown capability key can't be added; Partial
 // because not every capability needs a bespoke label (unknowns fall back to the
 // raw key in capabilityLabel).
-export const CAPABILITY_LABEL: Partial<Record<WorkerCapability, string>> = {
-  audio: 'Audio',
-  image: 'Image',
-  translate: 'Translate',
-  sentence_audio: 'Sentence Audio',
-  ai_translate: 'AI Translate',
-  puter_translate: 'Puter Translate',
-  subtitle: 'Subtitle',
-  poster: 'Poster',
-};
+export const CAPABILITY_LABEL: Partial<Record<WorkerCapability, string>> = CAPABILITY_LABELS;
 
 /** Resolve meta for a task_type, preferring task_type then a processorType fallback. */
 export function taskMeta(taskType?: string | null, fallbackType?: string | null): TaskTypeMeta {

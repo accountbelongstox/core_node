@@ -116,9 +116,23 @@ final class QueueCenterContract
         return (int) $priorities[$name];
     }
 
+    public static function taskLimit(string $name): int
+    {
+        $limits = self::taskContract()['limits'] ?? [];
+        if (!array_key_exists($name, $limits)) {
+            throw new RuntimeException("Unknown global-task limit: {$name}");
+        }
+        return (int) $limits[$name];
+    }
+
     public static function capabilitySingleLanes(): array
     {
         return self::taskContract()['capability_single_lanes'] ?? [];
+    }
+
+    public static function fastLaneCapabilities(): array
+    {
+        return array_values(self::taskContract()['fast_lane_capabilities'] ?? []);
     }
 
     public static function taskTypes(): array

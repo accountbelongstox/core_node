@@ -145,6 +145,26 @@ export interface TaskCenterRelation {
   registered: boolean;
 }
 
+export interface TaskCenterCategoryLane {
+  pending: number;
+  leased: number;
+  processing: number;
+  has_online_worker: boolean;
+}
+
+export interface TaskCenterCategory {
+  capability: GlobalTaskCapability | null;
+  claimants: Array<'pycore' | 'chrome' | 'laravel'>;
+  fast_lane: TaskCenterCategoryLane;
+  single_lane: TaskCenterCategoryLane;
+}
+
+export interface TaskCenterLiveTypeCounts {
+  pending: number;
+  leased: number;
+  processing: number;
+}
+
 /** Full GET /api/task-center/overview payload (envelope already unwrapped). */
 export interface TaskCenterOverview {
   scheduler: {
@@ -155,6 +175,8 @@ export interface TaskCenterOverview {
   };
   queue: {
     stats: GlobalTaskStats;
+    categories: TaskCenterCategory[];
+    by_type: Record<string, TaskCenterLiveTypeCounts>;
   };
   workers: {
     stats: GlobalWorkerStats;

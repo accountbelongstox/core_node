@@ -170,9 +170,15 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { apiManager, getApiBase } from '@/services/ApiManager';
 import { usePersistedRef } from '@/composables/usePersistedRef';
-import { LANES } from '@/utils/task-center-lanes';
 import { TASK_LIST_PATH, TASK_CENTER_OVERVIEW_PATH } from '@/utils/api-paths';
 import type { TaskRow } from '@/utils/task-center-types';
+import {
+  CHROME_TASK_TYPES,
+  LIVE_TASK_STATUSES,
+  TASK_LIMITS,
+  TASK_STATUS_BY_ROLE,
+  TASK_TYPE_CATALOG,
+} from '@/utils/queue-center-contract';
 import TaskDetailModal from './TaskDetailModal.vue';
 import {
   taskIcon,
@@ -180,7 +186,6 @@ import {
   capabilityLabel,
   isAiTranslate,
   isFastTier,
-  TASK_TYPE_META,
 } from './task-center-meta';
 
 // TaskRow is the canonical task-summary shape from utils/task-center-types.ts.
@@ -193,35 +198,20 @@ interface SummaryCat {
   color: string;
 }
 
-// Ordered summary categories. label/zhLabel/color come from the shared
-// TASK_TYPE_META single source; gemini_chat keeps a distinct summary glyph
-// (🗨️) to differentiate it from subtitle_search (💬) in the strip, so it
-// carries an explicit icon override — the only one that diverges from meta.
-const SUMMARY_ORDER: Array<{ type: string; iconOverride?: string }> = [
-  { type: 'word_translation' },
-  { type: 'word_audio' },
-  { type: 'word_media' },
-  { type: 'gemini_image' },
-  { type: 'gemini_chat', iconOverride: '🗨️' },
-  { type: 'poster' },
-  { type: 'subtitle_search' },
-  { type: 'notebooklm' },
-  { type: 'word_validity' },
-  { type: 'sentence_audio' },
-];
+// The popup renders the central Laravel task catalog in contract order. Adding
+// or changing a task type starts in config/queue_center_contract.json and is
+// immediately reflected by Laravel, Pycore, mcp-chrome, and both task UIs.
+const SUMMARY_CATS: SummaryCat[] = TASK_TYPE_CATALOG
+  .filter((definition) => Boolean(definition.ui.summary_label))
+  .map((definition) => ({
+    type: definition.key,
+    icon: definition.ui.icon,
+    label: definition.label,
+    zhLabel: definition.ui.summary_label,
+    color: definition.ui.color,
+  }));
 
-const SUMMARY_CATS: SummaryCat[] = SUMMARY_ORDER.map(({ type, iconOverride }) => {
-  const meta = TASK_TYPE_META[type];
-  return {
-    type,
-    icon: iconOverride || meta.icon,
-    label: meta.label,
-    zhLabel: meta.zhLabel ?? '',
-    color: meta.color ?? '',
-  };
-});
-
-const LIVE_STATUSES = new Set(['pending', 'assigned', 'processing']);
+const LIVE_STATUSES = new Set(LIVE_TASK_STATUSES);
 
 const rows = ref<TaskRow[]>([]);
 const loading = ref(false);
@@ -233,7 +223,7 @@ const loadAllMsg = ref('');
 // present, the summary strip uses these EXACT counts instead of recomputing
 // from the truncated 50-row list window (which diverged from laravel's Task
 // Center — the "data doesn't match" bug).
-const serverByType = ref<Record<string, { pending: number; processing: number }> | null>(null);
+const serverByType = ref<Record<string, { pending: number; leased: number; processing: number }> | null>(null);
 
 const sortKey = usePersistedRef<'created_desc' | 'created_asc' | 'priority_desc' | 'status'>('utcSort', 'created_desc');
 const statusFilter = usePersistedRef<'' | 'live' | 'history' | 'failed'>('utcStatusFilter', '');
@@ -257,7 +247,7 @@ const pendingByType = computed(() => {
   const m: Record<string, number> = {};
   for (const r of rows.value) {
     const s = (r.status || '').toLowerCase();
-    if (s === 'pending') m[r.task_type] = (m[r.task_type] || 0) + 1;
+    if (s === TASK_STATUS_BY_ROLE.pending) m[r.task_type] = (m[r.task_type] || 0) + 1;
   }
   return m;
 });
@@ -266,14 +256,17 @@ const processingByType = computed(() => {
   if (serverByType.value) {
     const m: Record<string, number> = {};
     for (const [type, counts] of Object.entries(serverByType.value)) {
-      if (counts.processing > 0) m[type] = counts.processing;
+      const active = (counts.leased || 0) + (counts.processing || 0);
+      if (active > 0) m[type] = active;
     }
     return m;
   }
   const m: Record<string, number> = {};
   for (const r of rows.value) {
     const s = (r.status || '').toLowerCase();
-    if (s === 'processing' || s === 'assigned') m[r.task_type] = (m[r.task_type] || 0) + 1;
+    if (s === TASK_STATUS_BY_ROLE.processing || s === TASK_STATUS_BY_ROLE.assigned) {
+      m[r.task_type] = (m[r.task_type] || 0) + 1;
+    }
   }
   return m;
 });
@@ -282,7 +275,9 @@ const totalPending = computed(() => {
   if (serverByType.value) {
     return Object.values(serverByType.value).reduce((sum, counts) => sum + counts.pending, 0);
   }
-  return rows.value.filter((r) => (r.status || '').toLowerCase() === 'pending').length;
+  return rows.value.filter(
+    (r) => (r.status || '').toLowerCase() === TASK_STATUS_BY_ROLE.pending,
+  ).length;
 });
 
 const rowIsFast = (row: TaskRow): boolean =>
@@ -292,15 +287,13 @@ const rowIsAi = (row: TaskRow): boolean => isAiTranslate(row.capability);
 
 const statusStyle = (status: string): Record<string, string> => {
   const s = (status || '').toLowerCase();
-  if (s === 'completed' || s === 'completed_demo')
+  if (s === TASK_STATUS_BY_ROLE.completed || s === TASK_STATUS_BY_ROLE.completed_demo)
     return { '--dot': '#10b981', '--pill-bg': 'rgba(16,185,129,.12)', '--pill-fg': '#10b981' };
-  if (s === 'failed' || s === 'cancelled')
+  if (s === TASK_STATUS_BY_ROLE.failed || s === TASK_STATUS_BY_ROLE.cancelled)
     return { '--dot': '#f43f5e', '--pill-bg': 'rgba(244,63,94,.12)', '--pill-fg': '#f43f5e' };
-  if (s === 'timeout' || s === 'reclaimed')
-    return { '--dot': '#f59e0b', '--pill-bg': 'rgba(245,158,11,.12)', '--pill-fg': '#f59e0b' };
-  if (s === 'processing')
+  if (s === TASK_STATUS_BY_ROLE.processing)
     return { '--dot': '#38bdf8', '--pill-bg': 'rgba(56,189,248,.12)', '--pill-fg': '#38bdf8' };
-  if (s === 'assigned')
+  if (s === TASK_STATUS_BY_ROLE.assigned)
     return { '--dot': '#818cf8', '--pill-bg': 'rgba(129,140,248,.12)', '--pill-fg': '#818cf8' };
   return { '--dot': 'var(--text-muted)', '--pill-bg': 'rgba(148,163,184,.1)', '--pill-fg': 'var(--text-muted)' };
 };
@@ -333,7 +326,9 @@ const historyRows = computed(() => {
   return sortRows(filtered.value.filter((r) => {
     const s = (r.status || '').toLowerCase();
     if (LIVE_STATUSES.has(s)) return false;
-    if (statusFilter.value === 'failed') return s === 'failed' || s === 'cancelled' || s === 'timeout';
+    if (statusFilter.value === 'failed') {
+      return s === TASK_STATUS_BY_ROLE.failed || s === TASK_STATUS_BY_ROLE.cancelled;
+    }
     return true;
   }));
 });
@@ -391,11 +386,7 @@ const refresh = async (): Promise<void> => {
   }
 };
 
-const CHROME_EXECUTION_TYPES = new Set<string>([
-  LANES.REMOTE_CLIENT, LANES.REMOTE_TRANSLATION, LANES.REMOTE_GEMINI,
-  LANES.REMOTE_NOTEBOOKLM, LANES.REMOTE_GEMINI_TEXT, LANES.REMOTE_FAST,
-  LANES.REMOTE_POSTER,
-]);
+const CHROME_TASK_TYPE_KEYS = new Set(CHROME_TASK_TYPES.map((definition) => definition.key));
 
 const loadAll = async (): Promise<void> => {
   if (loadAllBusy.value) return;
@@ -403,13 +394,13 @@ const loadAll = async (): Promise<void> => {
   loadAllMsg.value = '';
   error.value = '';
   try {
-    const url = `${apiBase()}${TASK_LIST_PATH}?limit=500&status=pending`;
+    const url = `${apiBase()}${TASK_LIST_PATH}?limit=${TASK_LIMITS.list}&status=${TASK_STATUS_BY_ROLE.pending}`;
     const res = await fetch(url, { headers: { 'Cache-Control': 'no-cache' } });
     if (!res.ok) { error.value = `Load failed (${res.status})`; return; }
     const json = await res.json();
     const data = json?.data ?? json;
     const all: TaskRow[] = Array.isArray(data?.tasks) ? (data.tasks as TaskRow[]) : [];
-    const chromeHandled = all.filter((t) => CHROME_EXECUTION_TYPES.has(t.execution_type));
+    const chromeHandled = all.filter((task) => CHROME_TASK_TYPE_KEYS.has(task.task_type));
     const existing = new Map(rows.value.map((r) => [r.task_id, r]));
     for (const t of all) existing.set(t.task_id, t);
     rows.value = [...existing.values()];

@@ -143,6 +143,7 @@ export interface TaskTypeDefinition {
   label: string;
   execution_type: ProcessorType;
   capability: WorkerCapability | null;
+  claimants?: Array<'pycore' | 'chrome' | 'laravel'>;
   interactive: boolean;
   fast_promotable?: boolean;
   pycore_local_label: string;
@@ -167,8 +168,10 @@ interface ContractDocument {
     };
     execution_types: Record<string, ProcessorType>;
     priorities: Record<'default' | 'manual' | 'fast' | 'maximum', number>;
+    limits: Record<'list' | 'worker_pull' | 'completed' | 'long_poll_seconds', number>;
     capability_labels: Record<string, string>;
     capability_single_lanes: Record<string, ProcessorType>;
+    fast_lane_capabilities: WorkerCapability[];
     wire_shapes: Record<string, string[]>;
     task_types: TaskTypeDefinition[];
   };
@@ -190,14 +193,23 @@ export const EXECUTION_TYPES = Object.values(EXECUTION_TYPES_BY_ROLE);
 export const WORKER_CAPABILITIES = Object.keys(
   QUEUE_CENTER_CONTRACT.capability_claimants,
 ) as WorkerCapability[];
+export const TASK_CAPABILITY_BY_ROLE = Object.fromEntries(
+  WORKER_CAPABILITIES.map((capability) => [capability, capability]),
+) as Record<string, WorkerCapability>;
 export const TASK_PRIORITIES = QUEUE_CENTER_CONTRACT.task_contract.priorities;
 export const PRIORITY_FAST = TASK_PRIORITIES.fast;
+export const TASK_LIMITS = QUEUE_CENTER_CONTRACT.task_contract.limits;
+export const CAPABILITY_LABELS = QUEUE_CENTER_CONTRACT.task_contract.capability_labels;
 export const CAPABILITY_SINGLE_LANES = QUEUE_CENTER_CONTRACT.task_contract.capability_single_lanes;
+export const FAST_LANE_CAPABILITIES = QUEUE_CENTER_CONTRACT.task_contract.fast_lane_capabilities;
 export const TASK_WIRE_SHAPES = QUEUE_CENTER_CONTRACT.task_contract.wire_shapes;
 export const TASK_TYPE_CATALOG = QUEUE_CENTER_CONTRACT.task_contract.task_types;
 export const TASK_TYPE_BY_KEY = Object.fromEntries(
   TASK_TYPE_CATALOG.map((definition) => [definition.key, definition]),
 ) as Record<string, TaskTypeDefinition>;
+export const FAST_PROMOTABLE_TASK_TYPES = TASK_TYPE_CATALOG
+  .filter((definition) => definition.fast_promotable === true)
+  .map((definition) => definition.key);
 export const CHROME_TASK_TYPES = TASK_TYPE_CATALOG.filter((definition) => {
   const claimants = definition.capability
     ? QUEUE_CENTER_CONTRACT.capability_claimants[definition.capability] ?? []

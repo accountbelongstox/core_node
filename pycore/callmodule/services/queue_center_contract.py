@@ -143,10 +143,16 @@ GLOBAL_TASK_CAPABILITIES: Tuple[str, ...] = tuple(
 GLOBAL_TASK_PRIORITIES: Dict[str, int] = {
     str(key): int(value) for key, value in _TASK_CONTRACT["priorities"].items()
 }
+GLOBAL_TASK_LIMITS: Dict[str, int] = {
+    str(key): int(value) for key, value in _TASK_CONTRACT["limits"].items()
+}
 GLOBAL_TASK_CAPABILITY_SINGLE_LANES: Dict[str, str] = {
     str(key): str(value)
     for key, value in _TASK_CONTRACT["capability_single_lanes"].items()
 }
+GLOBAL_TASK_FAST_LANE_CAPABILITIES: Tuple[str, ...] = tuple(
+    str(value) for value in _TASK_CONTRACT["fast_lane_capabilities"]
+)
 GLOBAL_TASK_WIRE_SHAPES: Dict[str, Tuple[str, ...]] = {
     str(key): tuple(str(field) for field in value)
     for key, value in _TASK_CONTRACT["wire_shapes"].items()
@@ -280,6 +286,8 @@ __all__ = [
     "GLOBAL_TASK_EXECUTION_TYPES",
     "GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE",
     "GLOBAL_TASK_HISTORY_BUCKETS",
+    "GLOBAL_TASK_FAST_LANE_CAPABILITIES",
+    "GLOBAL_TASK_LIMITS",
     "GLOBAL_TASK_LIVE_STATUSES",
     "GLOBAL_TASK_PRIORITIES",
     "GLOBAL_TASK_STATUSES",

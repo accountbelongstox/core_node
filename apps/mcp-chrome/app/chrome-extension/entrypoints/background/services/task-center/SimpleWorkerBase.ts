@@ -30,20 +30,16 @@ import { ApiError } from '../../api/BaseApiClient';
 import { logger } from '@/utils/logger';
 import { tabController } from '../tab-controller';
 import { LANES } from '@/utils/task-center-lanes';
+import { FAST_LANE_CAPABILITIES } from '@/utils/queue-center-contract';
 import type { ProcessorStats } from '@/utils/task-center-types';
 import { submitOutbox, isTerminalWorkerResultError } from '../outbox/submit-outbox';
 
 /**
- * Capabilities the Chrome-side fast workers may advertise on the fast lane.
- *
- * NOTE: `sentence_audio` is intentionally NOT here — sentence audio is
- * generated inline server-side (edge-tts in the pycore worker), never by a
- * browser tab, so Chrome must not claim it. `ai_translate` is also NOT here:
- * it belongs ONLY to the web-AI translate worker, which advertises it
- * explicitly via its own `capabilities`. Image-search workers likewise declare
- * `image` explicitly; this default remains limited to dictionary translation.
+ * Fast-lane eligibility comes from config/queue_center_contract.json. Worker
+ * subclasses still advertise only capabilities they can actually execute; the
+ * shared base merely decides whether those capabilities need remote_fast.
  */
-export const CHROME_FAST_CAPABILITIES: WorkerCapability[] = ['translate'];
+const FAST_CAPABILITY_SET = new Set<WorkerCapability>(FAST_LANE_CAPABILITIES);
 
 // The full allowed capability vocabulary (mirrors GlobalTask::CAPABILITIES
 // minus the lanes Chrome can never serve from a tab). Anything outside this
@@ -183,7 +179,7 @@ export abstract class SimpleWorkerBase {
   }
 
   /**
-   * The processor lanes to register. A worker with >=1 capability also
+   * The processor lanes to register. A worker with a fast-eligible capability
    * subscribes to the shared `remote_fast` lane so the dispatcher can route
    * matching fast-tier tasks to it; a capability-less worker gets just its
    * explicit lanes (none, by default).
@@ -193,7 +189,8 @@ export abstract class SimpleWorkerBase {
     caps: WorkerCapability[],
   ): ProcessorType[] {
     const lanes = [...baseLanes];
-    if (caps.length > 0 && !lanes.includes(LANES.REMOTE_FAST)) {
+    if (caps.some((capability) => FAST_CAPABILITY_SET.has(capability))
+      && !lanes.includes(LANES.REMOTE_FAST)) {
       lanes.push(LANES.REMOTE_FAST);
     }
     return lanes;

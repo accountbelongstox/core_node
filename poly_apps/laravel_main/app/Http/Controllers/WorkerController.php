@@ -128,12 +128,14 @@ class WorkerController extends Controller
      */
     public function pullTasks(Request $request): JsonResponse
     {
+        $pullLimit = QueueCenterContract::taskLimit('worker_pull');
+        $longPollLimit = QueueCenterContract::taskLimit('long_poll_seconds');
         $validated = $request->validate([
             'worker_id' => 'required|string',
-            'limit' => 'nullable|integer|min:1|max:50',
+            'limit' => "nullable|integer|min:1|max:{$pullLimit}",
             // Long-poll wait budget (seconds). 0 = legacy immediate return.
             // Clamped server-side to MAX_LONG_POLL_SECONDS in the manager.
-            'wait' => 'nullable|integer|min:0|max:30',
+            'wait' => "nullable|integer|min:0|max:{$longPollLimit}",
         ]);
 
         $workerId = $validated['worker_id'];

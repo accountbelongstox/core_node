@@ -203,7 +203,9 @@ class TaskCenterController extends Controller
      */
     public function completed(Request $request): JsonResponse
     {
-        $limit = max(1, min((int) $request->input('limit', 200), 500));
+        $completedLimit = QueueCenterContract::taskLimit('completed');
+        $defaultLimit = QueueCenterContract::taskLimit('list');
+        $limit = max(1, min((int) $request->input('limit', $defaultLimit), $completedLimit));
         $cursorId = max(0, (int) $request->input('cursor_id', 0));
         $taskType = trim((string) $request->input('task_type', ''));
         $terminal = GlobalTask::statuses('terminal');

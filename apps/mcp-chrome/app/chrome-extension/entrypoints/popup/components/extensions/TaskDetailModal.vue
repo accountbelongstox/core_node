@@ -21,7 +21,7 @@
             class="tdm-badge tdm-badge-bump"
             :disabled="bumping"
             @click="bumpToTop"
-            title="Bump this task to the front of the fast lane (priority 100)"
+            :title="`Bump this task to the front of the fast lane (priority ${PRIORITY_FAST})`"
           >
             {{ bumpLabel }}
           </button>
@@ -113,6 +113,11 @@ import { getApiBase } from '@/services/ApiManager';
 import { taskPath } from '@/utils/api-paths';
 import { WorkerApiClient, PRIORITY_FAST } from '@/entrypoints/background/api/WorkerApiClient';
 import {
+  FAST_PROMOTABLE_TASK_TYPES,
+  LIVE_TASK_STATUSES,
+  TASK_STATUS_BY_ROLE,
+} from '@/utils/queue-center-contract';
+import {
   taskIcon,
   taskTypeLabel,
   capabilityLabel,
@@ -158,24 +163,15 @@ const isFast = computed(() =>
 );
 
 // ---- Jump-to-task-top (bump) ----------------------------------------------
-// Privileged categories that have a matching worker on the shared fast lane.
-// Dedicated Gemini-image, NotebookLM and text lanes must retain their lane even
-// when their numeric priority is raised.
-const PRIVILEGED_CAPS = new Set(['translate', 'ai_translate', 'audio', 'sentence_audio']);
-const PRIVILEGED_TASK_TYPES = new Set([
-  'word_translation',
-  'word_audio',
-  'sentence_audio',
-  'word_media',
-]);
-const LIVE_STATUSES = new Set(['pending', 'assigned', 'processing']);
+// Laravel validates these same central values before moving a live task to the
+// fast lane. Changing the JSON updates the backend and both direct task UIs.
+const PRIVILEGED_TASK_TYPES = new Set(FAST_PROMOTABLE_TASK_TYPES);
+const LIVE_STATUSES = new Set(LIVE_TASK_STATUSES);
 
 const bumping = ref(false);
 const bumped = ref(false);
 
 const isPrivileged = computed(() => {
-  const cap = (task.value.capability || '').toString();
-  if (cap && PRIVILEGED_CAPS.has(cap)) return true;
   const tt = (task.value.task_type || '').toString();
   return PRIVILEGED_TASK_TYPES.has(tt);
 });
@@ -243,10 +239,12 @@ const fmtTime = (iso: string | null): string => {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleTimeString();
 };
 
-/** dotColor(): warn (timeout / reclaimed) BEFORE the default accent. */
+/** Use the central terminal failure values; timeout/reclaimed are events, not statuses. */
 const dotColor = (): string => {
   const s = (task.value.status || '').toLowerCase();
-  if (s === 'timeout' || s === 'reclaimed') return 'var(--warning)';
+  if (s === TASK_STATUS_BY_ROLE.failed || s === TASK_STATUS_BY_ROLE.cancelled) {
+    return 'var(--warning)';
+  }
   return 'var(--accent)';
 };
 

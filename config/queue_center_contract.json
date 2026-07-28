@@ -108,6 +108,12 @@
       "fast": 100,
       "maximum": 1000
     },
+    "limits": {
+      "list": 200,
+      "worker_pull": 50,
+      "completed": 500,
+      "long_poll_seconds": 30
+    },
     "capability_labels": {
       "audio": "Audio",
       "image": "Image",
@@ -128,6 +134,9 @@
       "sentence_audio": "remote_sentence_audio",
       "stt": "remote_stt"
     },
+    "fast_lane_capabilities": [
+      "translate", "ai_translate", "puter_translate", "audio", "image", "sentence_audio"
+    ],
     "wire_shapes": {
       "summary": [
         "task_id", "app_name", "task_type", "execution_type", "status", "progress",

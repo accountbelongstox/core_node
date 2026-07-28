@@ -86,6 +86,7 @@ export interface GlobalTaskTypeDefinition {
   label: string;
   execution_type: GlobalTaskExecutionType;
   capability: GlobalTaskCapability | null;
+  claimants?: Array<'pycore' | 'chrome' | 'laravel'>;
   interactive: boolean;
   fast_promotable?: boolean;
   pycore_local_label: string;
@@ -244,8 +245,10 @@ interface ContractDocument {
     };
     execution_types: Record<string, GlobalTaskExecutionType>;
     priorities: Record<'default' | 'manual' | 'fast' | 'maximum', number>;
+    limits: Record<'list' | 'worker_pull' | 'completed' | 'long_poll_seconds', number>;
     capability_labels: Record<GlobalTaskCapability, string>;
     capability_single_lanes: Record<GlobalTaskCapability, GlobalTaskExecutionType>;
+    fast_lane_capabilities: GlobalTaskCapability[];
     wire_shapes: Record<string, string[]>;
     task_types: GlobalTaskTypeDefinition[];
     history_buckets: {
@@ -291,12 +294,17 @@ export const GLOBAL_TASK_CAPABILITIES = Object.keys(
   QUEUE_CENTER_CONTRACT.capability_claimants,
 ) as GlobalTaskCapability[];
 export const GLOBAL_TASK_PRIORITIES = QUEUE_CENTER_CONTRACT.task_contract.priorities;
+export const GLOBAL_TASK_LIMITS = QUEUE_CENTER_CONTRACT.task_contract.limits;
 export const GLOBAL_TASK_CAPABILITY_SINGLE_LANES = QUEUE_CENTER_CONTRACT.task_contract.capability_single_lanes;
+export const GLOBAL_TASK_FAST_LANE_CAPABILITIES = QUEUE_CENTER_CONTRACT.task_contract.fast_lane_capabilities;
 export const GLOBAL_TASK_WIRE_SHAPES = QUEUE_CENTER_CONTRACT.task_contract.wire_shapes;
 export const GLOBAL_TASK_TYPE_CATALOG = QUEUE_CENTER_CONTRACT.task_contract.task_types;
 export const GLOBAL_TASK_TYPE_BY_KEY = Object.fromEntries(
   GLOBAL_TASK_TYPE_CATALOG.map((definition) => [definition.key, definition]),
 ) as Record<string, GlobalTaskTypeDefinition>;
+export const GLOBAL_TASK_FAST_PROMOTABLE_TYPES = GLOBAL_TASK_TYPE_CATALOG
+  .filter((definition) => definition.fast_promotable === true)
+  .map((definition) => definition.key);
 export const GLOBAL_TASK_HISTORY_BUCKETS = QUEUE_CENTER_CONTRACT.task_contract.history_buckets.all;
 
 export function getGlobalTaskTypeDefinition(taskType: unknown): GlobalTaskTypeDefinition | null {

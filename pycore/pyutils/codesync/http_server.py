@@ -17,7 +17,7 @@ No third-party deps; no pycore import.
 import json
 import sys
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -323,7 +323,7 @@ class _Handler(BaseHTTPRequestHandler):
         return self._send_json({"detail": "Not found"}, status=404)
 
 
-class _QuietHTTPServer(HTTPServer):
+class _QuietHTTPServer(ThreadingHTTPServer):
     """HTTPServer that swallows client-disconnect errors instead of
     dumping a traceback per dropped request (frequent with health probes / the WS
     push link). Real server errors are still surfaced."""
@@ -345,7 +345,7 @@ class CodeSyncHTTPServer:
         # When False (light mode), GET / returns a tiny JSON blob instead of the
         # full control panel. Stashed on the httpd so _Handler can read it.
         self.serve_panel = serve_panel
-        self._httpd: Optional[HTTPServer] = None
+        self._httpd: Optional[ThreadingHTTPServer] = None
         self._thread: Optional[threading.Thread] = None
 
     def start(self) -> None:

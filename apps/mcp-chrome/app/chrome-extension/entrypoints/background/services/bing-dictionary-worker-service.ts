@@ -15,7 +15,7 @@ import { WorkerApiClient, Task, ProcessorType } from '../api/WorkerApiClient';
 import { bingDictionaryTool, BingDictionaryResult } from '../tools/browser/bing-dictionary';
 import { logger } from '@/utils/logger';
 import { BingTabPool, MAX_BING_TABS, isRecoverableTabError } from './bing-tab-pool';
-import { CHROME_FAST_CAPABILITIES } from './task-center/SimpleWorkerBase';
+import { TASK_CAPABILITY_BY_ROLE } from '@/utils/queue-center-contract';
 import { tabController } from './tab-controller';
 import {
   classify,
@@ -721,7 +721,7 @@ class BingDictionaryWorkerService {
       // that somehow slips through. (sentence_audio is generated inline
       // server-side, never by a Bing tab; ai_translate belongs only to the web-AI
       // worker.)
-      capabilities: CHROME_FAST_CAPABILITIES,
+      capabilities: [TASK_CAPABILITY_BY_ROLE.translate],
       hostname: 'chrome-extension',
       platform: navigator.userAgent,
       metadata: {

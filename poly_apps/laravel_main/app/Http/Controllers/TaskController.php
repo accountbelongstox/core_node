@@ -380,15 +380,16 @@ class TaskController extends Controller
             $query->where('execution_type', $request->execution_type);
         }
 
+        $listLimit = QueueCenterContract::taskLimit('list');
         $limit = 20;
         if ($request->has('limit')) {
             // Validate + clamp: an unclamped limit could dump the whole table on a
-            // single request (limit=1000000). Coerce to int, floor at 1, cap at 200.
+            // single request. The cap is shared with both direct task UIs.
             $limit = (int) $request->input('limit');
             if ($limit < 1) {
                 $limit = 1;
-            } elseif ($limit > 200) {
-                $limit = 200;
+            } elseif ($limit > $listLimit) {
+                $limit = $listLimit;
             }
         }
 
