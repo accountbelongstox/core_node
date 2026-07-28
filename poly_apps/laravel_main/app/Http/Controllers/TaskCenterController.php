@@ -206,12 +206,7 @@ class TaskCenterController extends Controller
         $limit = max(1, min((int) $request->input('limit', 200), 500));
         $cursorId = max(0, (int) $request->input('cursor_id', 0));
         $taskType = trim((string) $request->input('task_type', ''));
-        $terminal = [
-            GlobalTask::status('completed'),
-            GlobalTask::status('completed_demo'),
-            GlobalTask::status('failed'),
-            GlobalTask::status('cancelled'),
-        ];
+        $terminal = GlobalTask::statuses('terminal');
         $query = GlobalTask::query()->whereIn('status', $terminal);
         if ($cursorId > 0) {
             $query->where('id', '<', $cursorId);
@@ -296,14 +291,14 @@ class TaskCenterController extends Controller
 
     /**
      * Live per-task_type counts over the FULL table (no list window):
-     * { task_type: { pending, processing } }. Powers client summary strips so
+     * { task_type: { pending, leased, processing } }. Powers client summary strips so
      * they match the server-side Task Center exactly.
      *
-     * @return array<string,array{pending:int,processing:int}>
+     * @return array<string,array{pending:int,leased:int,processing:int}>
      */
     private function buildLiveTypeCounts(): array
     {
-        $live = [GlobalTask::status('pending'), GlobalTask::status('processing')];
+        $live = GlobalTask::statuses('live');
         $rows = GlobalTask::query()
             ->whereIn('status', $live)
             ->groupBy('task_type', 'status')
@@ -317,10 +312,12 @@ class TaskCenterController extends Controller
                 continue;
             }
             if (!isset($out[$type])) {
-                $out[$type] = ['pending' => 0, 'processing' => 0];
+                $out[$type] = ['pending' => 0, 'leased' => 0, 'processing' => 0];
             }
             if ($row->status === GlobalTask::status('pending')) {
                 $out[$type]['pending'] = (int) $row->total;
+            } elseif ($row->status === GlobalTask::status('assigned')) {
+                $out[$type]['leased'] = (int) $row->total;
             } elseif ($row->status === GlobalTask::status('processing')) {
                 $out[$type]['processing'] = (int) $row->total;
             }
@@ -348,7 +345,7 @@ class TaskCenterController extends Controller
      */
     private function buildCategories(): array
     {
-        $live = [GlobalTask::status('pending'), GlobalTask::status('processing')];
+        $live = GlobalTask::statuses('live');
 
         // (capability, execution_type, status) -> count over live rows only.
         $rows = GlobalTask::query()
@@ -397,6 +394,7 @@ class TaskCenterController extends Controller
             $bucket = $tally[$cap][$fastKey] ?? [];
             return [
                 'pending' => (int) ($bucket[GlobalTask::status('pending')] ?? 0),
+                'leased' => (int) ($bucket[GlobalTask::status('assigned')] ?? 0),
                 'processing' => (int) ($bucket[GlobalTask::status('processing')] ?? 0),
                 // True when at least one online worker can claim this category's
                 // tasks on this lane. False with pending>0 = stuck: no worker
