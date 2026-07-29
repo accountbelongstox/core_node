@@ -11,16 +11,18 @@ import os
 import time
 from typing import Any, Dict
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import await_bus_task
-from pycore.pyctl.desktop import get_voice_subtitle_queue
+from pycore.pyctl.desktop.queue_manager import get_voice_subtitle_queue
 from pycore.pyctl.desktop.task_manager import get_task_manager
 from pycore.pyctl.desktop.processor import process_text_input
 from pycore.pyctl.desktop.background_services import get_background_services
-from pycore.pyctl.ai import probe_all, probe_one, catalog, balance_all, balance_one
+from pycore.pyctl.ai.ai_probe import probe_all, probe_one, catalog
+from pycore.pyctl.ai.ai_balance import balance_all, balance_one
 from pycore.pyctl.ai.ai_rate_limits import rate_status
 from pycore.pyctl.ai.ai_usage_log import usage_log
-from pycore.pyctl.ai import ai_image_history, speech_history
+import pycore.pyctl.ai.ai_image_history as ai_image_history
+import pycore.pyctl.ai.speech_history as speech_history
 from pycore.pyctl.ai.ai_keys import (
     PROVIDERS, PROVIDER_ORDER, key_count, key_status, image_key_status,
     is_configured, is_image_only, has_image_key, reset_text_key_cooldown,
@@ -28,13 +30,14 @@ from pycore.pyctl.ai.ai_keys import (
 )
 from pycore.pyfoundations.secret_manager import set_secret_key_indexed, delete_secret_key, list_secret_key_names
 from pycore.pyctl.ai.ai_gateway import invalidate_probe_cache
-from pycore.pyutils.common import system_launcher
+import pycore.pyutils.common.system_launcher as system_launcher
 from pycore.pyutils.common.capabilities import capabilities_status, system_info, resolve_static_dir
 from pycore.pyutils.translator.dictionary import get_dictionary_service
-from pycore.pyutils.common import model_load_status
-from pycore.callmodule.services import get_queue_monitor_service, get_translation_worker_service
-from pycore.callmodule.services import vocabulary_service
-from pycore.pyheartbeat import get_heartbeat_system
+import pycore.pyutils.common.model_load_status as model_load_status
+from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
+from pycore.callmodule.services.translation_worker_service import get_translation_worker_service
+import pycore.callmodule.services.vocabulary_service as vocabulary_service
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 from pycore.pyutils.edge_tts.edge_tts_client import get_synth_timeout, set_synth_timeout
 from pycore.pyutils.tts.tts_orchestrator import get_edge_cooldown_seconds, set_edge_cooldown_seconds
 from pycore.pyutils.tts.tts_service_manager import (

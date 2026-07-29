@@ -32,7 +32,7 @@ from functools import partial
 from typing import Dict, Any, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyctl.ai.ai_keys import PROVIDERS, first_secret, default_model, OPENAI_COMPAT_PROVIDERS, is_configured
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit, record_request, chat_nickname
 from pycore.pyctl.ai.ai_compat_helpers import chat_openai_compat, chat_cloudflare, chat_spark
@@ -40,7 +40,7 @@ from pycore.pyctl.ai.ai_usage_log import record_usage
 
 from pycore.pyutils.ai_cluster.openrouter.openrouter_client import OpenRouterClient
 from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient
-from pycore.pyutils.ai_cluster.deepseek import get_deepseek_client
+from pycore.pyutils.ai_cluster.deepseek.deepseek_client import get_deepseek_client
 from pycore.pyutils.ai_cluster.groq.groq_client import GroqClient
 from pycore.pyutils.ai_cluster.mistral.mistral_client import MistralClient
 from pycore.pyutils.ai_cluster.cohere.cohere_client import CohereClient

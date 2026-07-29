@@ -13,7 +13,7 @@ from datetime import datetime
 import copy
 import re
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageTk
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageTk
 
 Image = get_third_package_PIL_Image()
 ImageTk = get_third_package_PIL_ImageTk()
@@ -21,7 +21,7 @@ ImageTk = get_third_package_PIL_ImageTk()
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.i18n_manager import i18n_manager
 from ..unified_styles import UnifiedStyles
 from ..widgets import ThemedCombobox

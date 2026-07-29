@@ -24,6 +24,24 @@ export type GlobalTaskCapability = string;
 export type GlobalTaskPayload = Record<string, unknown>;
 export type GlobalTaskResult = Record<string, unknown>;
 
+export interface GlobalTaskCreateResult {
+  task_id: string;
+  execution_type: GlobalTaskExecutionType;
+  priority: number;
+  is_fast_tier: boolean;
+}
+
+export interface GlobalTaskStatsRecord {
+  total: number;
+  pending: number;
+  assigned: number;
+  processing: number;
+  completed: number;
+  completed_demo: number;
+  failed: number;
+  cancelled: number;
+}
+
 export interface GlobalTaskSummary {
   task_id: string;
   app_name: string;
@@ -81,14 +99,57 @@ export interface GlobalTaskEventRecord {
   _id?: number | string;
 }
 
+export interface GlobalTaskCurrentPhase {
+  phase: string | null;
+  worker_id: string | null;
+  elapsed_seconds: number | null;
+}
+
+export interface GlobalTaskDetailMetadata {
+  total_attempts: number;
+  max_retries: number;
+  will_retry: boolean;
+  estimated_timeout_in_seconds: number | null;
+}
+
+export interface GlobalTaskDetailBundle {
+  task: GlobalTaskDetailRecord;
+  events: GlobalTaskEventRecord[];
+  current_phase: GlobalTaskCurrentPhase;
+  metadata: GlobalTaskDetailMetadata;
+}
+
+export interface GlobalTaskWorkerRegistration {
+  worker_id: string;
+  worker_name: string;
+  processor_types: GlobalTaskExecutionType[];
+  capabilities?: GlobalTaskCapability[];
+  hostname?: string;
+  platform?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface GlobalTaskWorkerResult {
+  task_id: string;
+  worker_id: string;
+  status: GlobalTaskStatus;
+  progress?: number;
+  result?: GlobalTaskResult;
+  error?: string;
+}
+
 export interface GlobalTaskTypeDefinition {
   key: string;
   label: string;
   execution_type: GlobalTaskExecutionType;
   capability: GlobalTaskCapability | null;
+  capability_mode?: 'fixed' | 'selectable';
+  capabilities?: GlobalTaskCapability[];
   claimants?: Array<'pycore' | 'chrome' | 'laravel'>;
   interactive: boolean;
   fast_promotable?: boolean;
+  /** Payload key consumed by prompt-driven workers; defaults to `question`. */
+  prompt_payload_field?: string;
   pycore_local_label: string;
   ui: {
     icon: string;
@@ -228,6 +289,7 @@ export interface PcQueueOverview {
 interface ContractDocument {
   schema_version: number;
   control_names: QueueCenterControlName[];
+  callback_queue_roles: Record<string, 'transport' | 'consumer' | 'monitor' | 'signal' | 'maintainer'>;
   section_contract_defaults: Omit<QueueCenterSectionContract, 'type' | 'category' | 'observed_at'>;
   capability_claimants: Record<string, PcQueueHandler[]>;
   section_scopes: Record<QueueCenterScope, {
@@ -243,9 +305,17 @@ interface ContractDocument {
       terminal: GlobalTaskStatus[];
       worker_reportable: GlobalTaskStatus[];
     };
+    events: {
+      values: Record<string, string>;
+      terminal: string[];
+    };
+    stream_events: Record<'initial' | 'transition' | 'ping' | 'close', string>;
     execution_types: Record<string, GlobalTaskExecutionType>;
     priorities: Record<'default' | 'manual' | 'fast' | 'maximum', number>;
-    limits: Record<'list' | 'worker_pull' | 'completed' | 'long_poll_seconds', number>;
+    limits: Record<
+      'list_default' | 'list' | 'worker_pull_default' | 'worker_pull' | 'completed' | 'long_poll_seconds' | 'history_records' | 'history_timeline' | 'event_batch',
+      number
+    >;
     capability_labels: Record<GlobalTaskCapability, string>;
     capability_single_lanes: Record<GlobalTaskCapability, GlobalTaskExecutionType>;
     fast_lane_capabilities: GlobalTaskCapability[];
@@ -267,9 +337,58 @@ interface ContractDocument {
   }>;
 }
 
+const GLOBAL_TASK_WIRE_DTO_FIELDS = {
+  create_result: [
+    'task_id', 'execution_type', 'priority', 'is_fast_tier',
+  ] as const satisfies readonly (keyof GlobalTaskCreateResult)[],
+  summary: [
+    'task_id', 'app_name', 'task_type', 'execution_type', 'status', 'progress',
+    'assigned_to', 'created_at', 'capability', 'priority', 'is_fast_tier',
+  ] as const satisfies readonly (keyof GlobalTaskSummary)[],
+  worker_pull: [
+    'task_id', 'app_name', 'task_type', 'execution_type', 'status', 'payload',
+    'timeout_seconds', 'priority', 'capability', 'is_fast_tier', 'created_at',
+  ] as const satisfies readonly (keyof GlobalTaskWorkerRecord)[],
+  status: [
+    'task_id', 'app_name', 'task_type', 'execution_type', 'capability', 'is_fast_tier',
+    'status', 'priority', 'progress', 'retry_count', 'max_retries', 'timeout_seconds',
+    'payload', 'result', 'error', 'assigned_to', 'assigned_at', 'timeout_at',
+    'completed_at', 'created_at', 'updated_at',
+  ] as const satisfies readonly (keyof GlobalTaskStatusRecord)[],
+  detail: [
+    'task_id', 'app_name', 'task_type', 'execution_type', 'capability', 'is_fast_tier',
+    'status', 'priority', 'progress', 'payload', 'result', 'error', 'assigned_to',
+    'assigned_at', 'timeout_at', 'completed_at', 'created_at', 'updated_at',
+  ] as const satisfies readonly (keyof GlobalTaskDetailRecord)[],
+  event: [
+    'id', 'task_id', 'event', 'worker_id', 'attempt', 'detail', 'created_at',
+  ] as const satisfies readonly (keyof GlobalTaskEventRecord)[],
+  detail_bundle: [
+    'task', 'events', 'current_phase', 'metadata',
+  ] as const satisfies readonly (keyof GlobalTaskDetailBundle)[],
+  current_phase: [
+    'phase', 'worker_id', 'elapsed_seconds',
+  ] as const satisfies readonly (keyof GlobalTaskCurrentPhase)[],
+  detail_metadata: [
+    'total_attempts', 'max_retries', 'will_retry', 'estimated_timeout_in_seconds',
+  ] as const satisfies readonly (keyof GlobalTaskDetailMetadata)[],
+  stats: [
+    'total', 'pending', 'assigned', 'processing', 'completed', 'completed_demo',
+    'failed', 'cancelled',
+  ] as const satisfies readonly (keyof GlobalTaskStatsRecord)[],
+  worker_registration: [
+    'worker_id', 'worker_name', 'processor_types', 'capabilities', 'hostname',
+    'platform', 'metadata',
+  ] as const satisfies readonly (keyof GlobalTaskWorkerRegistration)[],
+  worker_result: [
+    'task_id', 'worker_id', 'status', 'progress', 'result', 'error',
+  ] as const satisfies readonly (keyof GlobalTaskWorkerResult)[],
+} as const;
+
 export const QUEUE_CENTER_CONTRACT = contractDocument as unknown as ContractDocument;
 export const QUEUE_CENTER_SCHEMA_VERSION = QUEUE_CENTER_CONTRACT.schema_version;
 export const QUEUE_CENTER_CONTROL_NAMES = QUEUE_CENTER_CONTRACT.control_names;
+export const QUEUE_CENTER_CALLBACK_ROLES = QUEUE_CENTER_CONTRACT.callback_queue_roles;
 export const QUEUE_CENTER_SCOPES = Object.keys(QUEUE_CENTER_CONTRACT.section_scopes) as QueueCenterScope[];
 export const QUEUE_CENTER_CATEGORY_KEYS = QUEUE_CENTER_CONTRACT.categories.map((category) => category.key);
 export const QUEUE_CENTER_CATEGORY_CATALOG = QUEUE_CENTER_CONTRACT.categories.map((category) => ({
@@ -288,6 +407,11 @@ export const GLOBAL_TASK_TERMINAL_STATUSES = taskStatusesForRoles(QUEUE_CENTER_C
 export const GLOBAL_TASK_WORKER_RESULT_STATUSES = taskStatusesForRoles(
   QUEUE_CENTER_CONTRACT.task_contract.statuses.worker_reportable,
 );
+export const GLOBAL_TASK_EVENTS_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.events.values;
+export const GLOBAL_TASK_TERMINAL_EVENTS = QUEUE_CENTER_CONTRACT.task_contract.events.terminal.map(
+  (role) => GLOBAL_TASK_EVENTS_BY_ROLE[role] ?? role,
+);
+export const GLOBAL_TASK_STREAM_EVENTS_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.stream_events;
 export const GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.execution_types;
 export const GLOBAL_TASK_EXECUTION_TYPES = Object.values(GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE);
 export const GLOBAL_TASK_CAPABILITIES = Object.keys(
@@ -311,9 +435,45 @@ export const GLOBAL_TASK_FAST_PROMOTABLE_TYPES = GLOBAL_TASK_TYPE_CATALOG
   .map((definition) => definition.key);
 export const GLOBAL_TASK_HISTORY_BUCKETS = QUEUE_CENTER_CONTRACT.task_contract.history_buckets.all;
 
+function assertGlobalTaskWireDtoCoverage(): void {
+  for (const [shape, dtoFields] of Object.entries(GLOBAL_TASK_WIRE_DTO_FIELDS)) {
+    const contractFields = GLOBAL_TASK_WIRE_SHAPES[shape] ?? [];
+    const matches = contractFields.length === dtoFields.length
+      && contractFields.every((field, index) => field === dtoFields[index]);
+    if (!matches) {
+      throw new Error(`Queue Center DTO drift detected for wire shape: ${shape}`);
+    }
+  }
+}
+
+assertGlobalTaskWireDtoCoverage();
+
 export function getGlobalTaskTypeDefinition(taskType: unknown): GlobalTaskTypeDefinition | null {
   const key = typeof taskType === 'string' ? taskType.trim().toLowerCase() : '';
   return GLOBAL_TASK_TYPE_BY_KEY[key] ?? null;
+}
+
+export function getGlobalTaskPromptPayloadField(taskType: unknown): string {
+  return getGlobalTaskTypeDefinition(taskType)?.prompt_payload_field ?? 'question';
+}
+
+/** Read prompt text by the central primary field with legacy payload fallbacks. */
+export function getGlobalTaskPromptText(
+  taskType: unknown,
+  payload: GlobalTaskPayload,
+): string {
+  const fields = Array.from(new Set([
+    getGlobalTaskPromptPayloadField(taskType),
+    'text',
+    'source_text',
+    'question',
+    'prompt',
+  ]));
+  for (const field of fields) {
+    const value = payload[field];
+    if (typeof value === 'string' && value.trim() !== '') return value;
+  }
+  return '';
 }
 
 export function normalizeGlobalTaskHistoryType(rawTaskType: unknown): string {

@@ -3,15 +3,16 @@
 
 import asyncio
 
-from pycore import ColorPrint
-from pycore.callmodule.callmodule_config import Config
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.callmodule.callmodule_config.config import Config
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TRANSLATION_QUEUE_SET_PRIORITY,
     UI_TRANSLATION_QUEUE_STACK,
     UI_TRANSLATION_QUEUE_GET_TASK_DETAIL,
 )
-from pycore.callmodule.services import get_queue_monitor_service, get_translation_worker_service
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
+from pycore.callmodule.services.translation_worker_service import get_translation_worker_service
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 
 
 def _monitor():

@@ -13,7 +13,7 @@ from collections import deque
 from functools import wraps
 from typing import Any, Callable
 
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 
 DEFAULT_SERIALIZED_TIMEOUT = 30.0

@@ -26,7 +26,8 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.pyctl.ai import prune_expired, clear_expired_cooldowns
+from pycore.pyctl.ai.ai_rate_limits import prune_expired
+from pycore.pyctl.ai.ai_gateway import clear_expired_cooldowns
 
 
 class AiRateResetService:

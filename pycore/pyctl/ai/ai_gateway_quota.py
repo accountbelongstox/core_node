@@ -18,8 +18,8 @@ import time
 from typing import Any, Dict, List
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_requests
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_requests
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyctl.ai.ai_keys import PROVIDERS, PROVIDER_ORDER, first_secret, limits_note, is_configured
 from pycore.pyctl.ai.ai_probe import (
     _PROBE_BY_NAME,

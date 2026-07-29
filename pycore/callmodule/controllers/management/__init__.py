@@ -1,14 +1,2 @@
-# -*- coding: utf-8 -*-
-"""
-Management Controllers Package
-"""
-
-from .system_controller import SystemController
-from .local_processing_controller import LocalProcessingController
-from .logs_controller import LogsController
-
-__all__ = [
-    "SystemController",
-    "LocalProcessingController",
-    "LogsController",
-]
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

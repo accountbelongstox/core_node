@@ -8,7 +8,7 @@ import os
 import sys
 import time
 import platform
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -19,7 +19,7 @@ from .output_capturer import OutputCapturer
 import subprocess
 
 import traceback
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 
 import platform as plat
 

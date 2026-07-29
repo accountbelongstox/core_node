@@ -3,12 +3,12 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_HEARTBEAT_WORKERS_STATUS,
     UI_HEARTBEAT_WORKERS_CONFIG,
 )
-from pycore.callmodule.services import heartbeat_workers_service as hb
+import pycore.callmodule.services.heartbeat_workers_service as hb
 
 
 def register_local_heartbeat_workers_routes(server):

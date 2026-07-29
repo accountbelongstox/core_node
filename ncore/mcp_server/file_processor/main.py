@@ -76,7 +76,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 try:
-    from pycore.pyfoundations.third_party import get_third_package_pypdf  # type: ignore
+    from pycore.pyfoundations.third_party.api import get_third_package_pypdf  # type: ignore
 except Exception:
     get_third_package_pypdf = None
 

@@ -6,8 +6,8 @@ import re
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common import result_cache
-from pycore.pyctl.ai import generate_text
+import pycore.pyutils.common.result_cache as result_cache
+from pycore.pyctl.ai.ai_gateway import generate_text
 
 _JSON_ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
 _DEFAULT_CHUNK = 120

@@ -12,7 +12,7 @@ from pathlib import Path
 current_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(current_dir))
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from share.game_interface_data import get_d4_interface_data
 from d4utils.d4_black_screen_detector import d4_is_black_screen
 

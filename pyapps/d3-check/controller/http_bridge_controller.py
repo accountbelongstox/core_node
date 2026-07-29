@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Tuple, Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from providor.providor_index import CONFIG, queue_config_save, load_config
 from pycore.pyutils.web.http_bridge import HTTPBridgeServer

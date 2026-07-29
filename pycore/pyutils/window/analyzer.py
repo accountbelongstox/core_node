@@ -13,15 +13,17 @@ from datetime import datetime
 from typing import List, Dict, Optional
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import (
+from pycore.pyfoundations.third_party.api import (
     get_third_package_win32gui,
     get_third_package_win32con,
     get_third_package_win32api,
+    get_third_package_uiautomation,
+)
+from pycore.pyfoundations.third_party.api import (
     get_third_package_PIL_Image,
     get_third_package_PIL_ImageDraw,
     get_third_package_PIL_ImageFont,
     get_third_package_pyautogui,
-    get_third_package_uiautomation
 )
 
 win32gui = get_third_package_win32gui()
@@ -41,7 +43,7 @@ auto = uiautomation
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
-from pycore.pyfoundations.pygvar import PYTOOLS_TMP_DIR
+from pycore.pyfoundations.pygvar.global_var_manager import PYTOOLS_TMP_DIR
 
 
 class WindowAnalyzer:

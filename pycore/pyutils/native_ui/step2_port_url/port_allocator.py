@@ -12,7 +12,7 @@ and internal services.
 
 from typing import Dict, Tuple
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 
 # Built-in port range mappings (app_id -> (port_start, port_range))

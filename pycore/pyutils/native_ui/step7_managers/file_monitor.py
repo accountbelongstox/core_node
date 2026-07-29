@@ -14,7 +14,7 @@ Features:
 - Configurable check intervals
 
 Usage:
-    from pycore.pyutils.native_ui import FileMonitor
+    from pycore.pyutils.native_ui.step7_managers.file_monitor import FileMonitor
 
     # Create monitor
     monitor = FileMonitor()
@@ -48,12 +48,12 @@ from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
 )
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 import time
 from pathlib import Path
 from typing import Optional, Callable, List
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class FileMonitor:

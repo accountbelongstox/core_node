@@ -7,14 +7,9 @@ All translator features use MD5-based caching with namespace isolation.
 """
 
 import asyncio
-from pycore.pyutils.translator import (
-    GoogleTranslator,
-    romanize_text,
-    text_to_ipa,
-    GoogleTranslatorCache,
-    RomanizationCache,
-    PhoneticCache,
-)
+from pycore.pyutils.translator.google_translator import GoogleTranslator, GoogleTranslatorCache
+from pycore.pyutils.translator.romanization import romanize_text, RomanizationCache
+from pycore.pyutils.translator.phonetic import text_to_ipa, PhoneticCache
 
 import time
 

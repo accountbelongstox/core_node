@@ -16,9 +16,9 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import Dict, Optional
 
-from pycore import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyfoundations.third_party import get_third_package_fastapi
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyutils.rpc_v2.server.server_runner import FastAPIRPCServerRunner
 
 fastapi = get_third_package_fastapi()
@@ -28,13 +28,11 @@ Response = fastapi.responses.Response
 PACKAGE_ROOT = Path(__file__).resolve().parent
 STATIC_DIR = PACKAGE_ROOT / "static"
 
-from pycore.pyutils.flutter_dev_tools.api import app_checker
-from pycore.pyutils.flutter_dev_tools.utils import (
-    design_structure_auto_expand,
-    path_utils,
-    port_manager,
-)
-from pycore.pyutils.flutter_dev_tools.config import get_app_config
+import pycore.pyutils.flutter_dev_tools.api.app_checker as app_checker
+import pycore.pyutils.flutter_dev_tools.utils.design_structure_auto_expand as design_structure_auto_expand
+import pycore.pyutils.flutter_dev_tools.utils.path_utils as path_utils
+import pycore.pyutils.flutter_dev_tools.utils.port_manager as port_manager
+from pycore.pyutils.flutter_dev_tools.config.app_config import get_app_config
 from pycore.pyutils.flutter_dev_tools.routes.router import Router
 
 

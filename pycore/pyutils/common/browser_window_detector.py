@@ -10,8 +10,8 @@ No app-specific hardcoding; only browser exe names are used.
 
 from typing import Optional, Callable
 
-from pycore.pyfoundations.third_party import get_third_package_win32gui
-from pycore.pyfoundations.third_party import get_third_package_psutil
+from pycore.pyfoundations.third_party.api import get_third_package_win32gui
+from pycore.pyfoundations.third_party.api import get_third_package_psutil
 
 win32gui = get_third_package_win32gui()
 psutil = get_third_package_psutil()

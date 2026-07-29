@@ -6,7 +6,7 @@ Screenshot Handler for D4 Controller. Singleton via get_screenshot_handler(); do
 
 from datetime import datetime
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.providor_index import DIABLO_IV_WINDOW_TITLES
 from d3utils.screenshot_provider import get_screenshot_provider
 from share.game_interface_data import get_d4_interface_data

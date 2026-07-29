@@ -29,8 +29,9 @@ Laravel contract (laravel_main, app_qy_v1 — the laravel side is DONE)
 ------------------------------------------------------------------------------
 Architecture (mirrors translation_worker_service.py conventions)
 ------------------------------------------------------------------------------
-  * Singleton service registered as a PyHeartbeat callback (interval 60s),
-    toggled at runtime via POST /api/heartbeat/enable|disable/tts_queue_poller.
+  * Singleton service registered as a PyHeartbeat callback (interval 60s).
+    Pycore UI toggles it only through RPC v2 `ui.heartbeat_workers.config`;
+    Pycore owns the callback and the Laravel claim/report HTTP calls.
     ENABLED ON START by default (Config.TTS_WORKER_ENABLED_ON_START, env
     PYCORE_TTS_WORKER=1|0); batch size via Config.TTS_WORKER_BATCH (env
     PYCORE_TTS_WORKER_BATCH, default 10, server cap 50).
@@ -71,15 +72,15 @@ from pycore.pyfoundations.serialized_worker import (
     start_bus_task,
 )
 # Rule §4: all inter-thread data exchange goes through the global bus.
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 # Live enable flag (the UI toggle lives on the heartbeat callback).
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 # requests is a third-party dep — always obtained through the lazy accessor.
 # Unified pycore->Laravel HTTP gateway (times + logs + records every request).
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 # Env-backed callmodule config (TTS_WORKER_* knobs live beside the translation
 # worker's in callmodule_config/config.py).
-from pycore.callmodule.callmodule_config import Config
+from pycore.callmodule.callmodule_config.config import Config
 # Stored-first multi-endpoint manager — the SAME base-URL resolution the
 # media-sync service (services/sync/laravel_media_sync.py) uses.
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
@@ -88,7 +89,7 @@ from pycore.callmodule.services.sync.laravel_endpoint_manager import (
 )
 # ONE entry point for synthesis; local-first engine priority and edge's
 # process-wide serialization live inside the orchestrator.
-from pycore.pyutils.tts import tts_orchestrator
+import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 # Per-engine-class worker fan-out recommendation + clamping.
 from pycore.callmodule.services.tts_concurrency import (
     effective_concurrency,
@@ -738,7 +739,7 @@ class TTSQueuePollerService:
         the previous batch is still running. The batch uses serial or bounded
         parallel lanes according to the selected engine. Enable/disable is governed by the PyHeartbeat callback
         flag (start-state from Config.TTS_WORKER_ENABLED_ON_START, runtime via
-        /api/heartbeat/enable|disable/tts_queue_poller) — no second gate here.
+        RPC v2 ui.heartbeat_workers.config) — no second gate here.
         Exception-safe — it must never raise into the heartbeat loop.
         """
         try:

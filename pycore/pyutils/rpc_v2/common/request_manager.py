@@ -8,7 +8,7 @@ import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.rpc_v2.constants import (
     DEFAULT_ACK_MAX_RETRIES,
     DEFAULT_ACK_RETRY_INTERVAL,

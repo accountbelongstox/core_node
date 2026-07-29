@@ -6,7 +6,7 @@ Enumerate controls, find by automation_id/name, click at rect or Invoke. No D3/D
 import time
 from typing import Optional, List, Dict, Any, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_pythoncom, get_third_package_uiautomation
+from pycore.pyfoundations.third_party.api import get_third_package_pythoncom, get_third_package_uiautomation
 from pycore.pyutils.input.click_handler import ClickHandler
 
 pythoncom = get_third_package_pythoncom()

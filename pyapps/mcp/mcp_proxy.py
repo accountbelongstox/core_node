@@ -106,7 +106,7 @@ async def call_backend_tool(tool_name: str, **kwargs) -> Dict[str, Any]:
 
 def start_mcp_proxy():
     """Start MCP proxy server"""
-    from pycore.pyfoundations.third_party import get_third_package_FastMCP
+    from pycore.pyfoundations.third_party.api import get_third_package_FastMCP
     FastMCP = get_third_package_FastMCP()
 
     # Get backend info and display ID

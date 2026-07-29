@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\QueueCenterContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -44,15 +45,11 @@ class GlobalTaskEvent extends Model
         'created_at' => 'datetime',
     ];
 
-    // Event vocabulary (shared contract). These mirror the task transitions in
-    // TaskManagerService — keep them in lock-step with the writes there.
-    const EVENT_ASSIGNED = 'assigned';
-    const EVENT_PROCESSING = 'processing';
-    const EVENT_COMPLETED = 'completed';
-    const EVENT_FAILED = 'failed';
-    const EVENT_TIMEOUT = 'timeout';
-    const EVENT_RECLAIMED = 'reclaimed';
-    const EVENT_CANCELLED = 'cancelled';
+    /** Resolve the event wire value from config/queue_center_contract.json. */
+    public static function event(string $role): string
+    {
+        return QueueCenterContract::taskEvent($role);
+    }
 
     /**
      * Append one event row for a task transition. Best-effort by design — the

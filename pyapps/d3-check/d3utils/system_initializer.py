@@ -17,7 +17,7 @@ from typing import Optional
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.hotkey.global_hotkey_listener import HotkeyListener, get_global_hotkey_listener
 from providor.providor_index import CONFIG, get_config_section, initialize_config, LOGS_FILE_PATH
 
@@ -217,7 +217,7 @@ class SystemInitializer:
             # Windows: report native OCR (WinRT) availability (optional; app uses CnOCR for recognition)
             if platform.system() == "win32":
                 try:
-                    from pycore.pyfoundations.third_party import get_third_package_windows_ocr
+                    from pycore.pyfoundations.third_party.api import get_third_package_windows_ocr
                     if get_third_package_windows_ocr() is not None:
                         ColorPrint.blue("[INIT] Windows OCR (WinRT) available (optional)")
                     else:

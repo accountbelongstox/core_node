@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Audio Controller"""
-from ...services.processors import AudioProcessor
+from pycore.callmodule.services.processors.audio_processor import AudioProcessor
 from ...models.local_processing.audio_models import AudioTranscribeRequest, AudioTranscribeResponse
 
 class AudioController:

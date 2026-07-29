@@ -13,7 +13,8 @@ from dataclasses import dataclass, asdict
 from datetime import datetime
 
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     SerializedWorkerThread,

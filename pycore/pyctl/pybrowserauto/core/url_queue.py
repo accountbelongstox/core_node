@@ -11,7 +11,7 @@ from typing import Optional, Tuple
 from urllib.parse import urlparse, urlunparse
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 
 class URLQueue:

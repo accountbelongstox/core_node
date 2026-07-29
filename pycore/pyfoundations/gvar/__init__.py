@@ -1,5 +1,2 @@
-"""PyGVar package exports for Core Node global variable helpers."""
-
-from .global_var_manager import GlobalVarManager
-
-__all__ = ["GlobalVarManager"]
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

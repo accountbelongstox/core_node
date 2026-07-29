@@ -25,7 +25,7 @@ import os
 import subprocess
 from typing import Any, Dict, List, Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 # Module-level (hot path): transcribe_to_srt_faster + cut_segments call these per
 # video/per segment - keep import overhead out of the per-call path.
 from .srt_utils import _srt_timestamp, _parse_srt_resume, _clip_label

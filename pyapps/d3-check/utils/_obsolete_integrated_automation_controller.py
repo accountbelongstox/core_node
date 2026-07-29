@@ -17,7 +17,7 @@ sys.path.insert(0, current_dir)
 
 # Add ncore path
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from base.error_handler import ErrorHandler, with_error_handling, with_retry
 from base.performance_cache import UI_ELEMENT_CACHE, cached_function
 from providor.providor_second import CONFIG

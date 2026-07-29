@@ -9,7 +9,7 @@ Provides Edge TTS integration with Windows/Linux compatibility.
 import os
 import sys
 import platform
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import shutil
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -17,8 +17,9 @@ from typing import Optional, List, Dict, Any
 import time
 import asyncio
 
-from pycore import ColorPrint, THREAD_BUS
-from pycore.pyfoundations.third_party import get_third_package_edge_tts
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_edge_tts
 
 import tempfile
 

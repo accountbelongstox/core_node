@@ -8,12 +8,9 @@ import json
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple, Set
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d3utils.click_handler_singleton import get_click_handler
-from pycore.pyfoundations.third_party import (
-    get_third_package_pythoncom,
-    get_third_package_uiautomation,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_pythoncom, get_third_package_uiautomation
 from providor.providor_index import get_config_value_safe
 from d3utils.battlenet_manager import get_battlenet_manager
 from d3utils.battlenet_ui_inspector import (

@@ -29,13 +29,13 @@ if os.path.exists(os.path.join(__ai_sdk_path, 'bin')):
 # Ensure PyQt5 from pycore third_party when run from core_node (before any PyQt5-using import)
 _pyqt5_getter = None
 try:
-    from pycore.pyfoundations.third_party import get_third_package_PyQt5 as _pyqt5_getter
+    from pycore.pyfoundations.third_party.api import get_third_package_PyQt5 as _pyqt5_getter
 except ImportError:
     pass
 if _pyqt5_getter is not None:
     _pyqt5_getter()
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from src.ui.main_window.tool_main_window import SDKMainWindow
 from src.ui.main_window.tool_window import ui, tool_app

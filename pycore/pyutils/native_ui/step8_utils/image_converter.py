@@ -15,7 +15,7 @@ Features:
 - Automatic format detection
 
 Usage:
-    from pycore.pyutils.native_ui.image_converter import convert_image_for_pil
+    from pycore.pyutils.native_ui.step8_utils.image_converter import convert_image_for_pil
 
     # Convert SVG to PNG (cached)
     png_path = convert_image_for_pil("logo.svg", size=(32, 32))
@@ -27,14 +27,15 @@ import hashlib
 from pathlib import Path
 from typing import Optional, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
 
 import time
 
 
 Image = get_third_package_PIL_Image()
 
-from pycore.pyfoundations import APP_CACHE_DIR, ColorPrint
+from pycore.pyfoundations.system_paths import APP_CACHE_DIR
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 # Image conversion cache directory

@@ -7,8 +7,8 @@ Uses the FastAPIRPCServer (HTTP + WebSocket + CORS) with PyHeartbeat + SpeechSwi
 Routes are organized in separate modules for better maintainability.
 
 Usage:
-    from pycore.pylauncher import launch_services, create_speech_service_config
-    from pycore.pyctl.speech.rpc import start_rpc_service
+    from pycore.pylauncher.launcher import launch_services, create_speech_service_config
+    from pycore.pyctl.speech.rpc.rpc_service import start_rpc_service
 
     # Launch services (starts UnifiedRpcServer with WebSocket support)
     config = create_speech_service_config(rpc_port=59000)
@@ -20,18 +20,16 @@ Usage:
 
 from typing import Optional, Dict, Any
 
-from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
 # Import all route registration functions
-from pycore.pyctl.speech.rpc.routes import (
-    register_tts_routes,
-    register_stt_routes,
-    register_config_routes,
-    register_status_routes,
-    register_queue_routes,
-    register_clipboard_routes
-)
+from pycore.pyctl.speech.rpc.routes.tts_routes import register_tts_routes
+from pycore.pyctl.speech.rpc.routes.stt_routes import register_stt_routes
+from pycore.pyctl.speech.rpc.routes.config_routes import register_config_routes
+from pycore.pyctl.speech.rpc.routes.status_routes import register_status_routes
+from pycore.pyctl.speech.rpc.routes.queue_routes import register_queue_routes
+from pycore.pyctl.speech.rpc.routes.clipboard_routes import register_clipboard_routes
 
 
 class RPCService:

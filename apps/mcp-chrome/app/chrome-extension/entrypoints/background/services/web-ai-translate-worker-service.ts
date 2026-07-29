@@ -2,7 +2,7 @@
  * Web-AI Translate Worker Service
  *
  * A SimpleWorkerBase subclass that fulfils `word_translation` tasks tagged with
- * the `ai_translate` capability by driving a real web-AI chat tab (DeepSeek)
+ * the `ai_translate` capability by driving the configured web-AI chat tab
  * rather than scraping a dictionary. It is the browser counterpart of the
  * pycore ai_translate path: the dispatcher routes a fast-tier word_translation
  * task here only when its capability is `ai_translate`.
@@ -17,21 +17,19 @@
 
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
-import { geminiWebTool } from '../tools/browser/gemini-web';
 import { logger } from '@/utils/logger';
 import { DEFAULT_TARGET_LANG } from '@/utils/task-center-types';
 import { TASK_CAPABILITY_BY_ROLE, TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
+import {
+  runWordValidityClassification,
+  type WordValidityRuntimeResult,
+} from './word-validity/word-validity-web-runtime';
 
 const LOG = 'Web-AI Translate';
 
 interface NormalizedWord {
   word: string;
   md5?: string;
-}
-
-interface TranslationPair {
-  word: string;
-  translation: string;
 }
 
 class WebAiTranslateWorkerService extends SimpleWorkerBase {
@@ -85,20 +83,9 @@ class WebAiTranslateWorkerService extends SimpleWorkerBase {
     const targetLanguage =
       (task.payload as any)?.target_language || (task.payload as any)?.language || DEFAULT_TARGET_LANG;
 
-    const prompt = this.buildPrompt(
-      words.map((w) => w.word),
-      targetLanguage,
-    );
-
-    // Drive the reused Gemini chat tool, waiting for the answer. Any
-    // failure (no tab, timeout, cancellation) throws and is caught below.
-    let assistantText: string;
+    let classification: WordValidityRuntimeResult;
     try {
-      const toolResult = await geminiWebTool.execute({
-        prompt,
-        waitForCompletion: true,
-      });
-      assistantText = this.extractAssistantText(toolResult);
+      classification = await runWordValidityClassification(words, undefined, targetLanguage);
     } catch (error: any) {
       logger.warn(LOG, 'Web-AI tab drive failed; re-routing', error);
       await this.submitResult(task.task_id, 'failed', undefined, {
@@ -107,102 +94,30 @@ class WebAiTranslateWorkerService extends SimpleWorkerBase {
       return;
     }
 
-    const pairs = this.parsePairs(assistantText, words);
-    if (pairs.length === 0) {
+    const pairs = classification.valid
+      .filter((item) => typeof item.translation === 'string' && item.translation !== '')
+      .map((item) => ({ word: item.word, translation: item.translation as string }));
+    const invalidWords = classification.invalid.map((item) => ({
+      word: item.word,
+      md5: item.md5,
+    }));
+    if (pairs.length === 0 && invalidWords.length === 0) {
       await this.submitResult(task.task_id, 'failed', undefined, {
-        error: 'web-ai produced no parseable translations',
+        error: 'web-ai produced no parseable validity or translation results',
       });
       return;
     }
 
     await this.submitResult(task.task_id, 'completed', {
       translations: pairs,
+      invalid_words: invalidWords,
       target_language: targetLanguage,
-      provider: 'web-ai',
+      provider: `${classification.provider}-web`,
     });
-    logger.info(LOG, `Task ${task.task_id} completed (${pairs.length} translations)`);
-  }
-
-  /** Build a strict-JSON translation prompt the model can answer mechanically. */
-  private buildPrompt(words: string[], targetLanguage: string): string {
-    const list = words.map((w) => `- ${w}`).join('\n');
-    return [
-      `Translate each of the following words/phrases into ${targetLanguage}.`,
-      'Respond with ONLY a JSON array, no prose, no code fence, of the form:',
-      '[{"word":"<original>","translation":"<translated>"}]',
-      'Use the exact original text for each "word". Words:',
-      list,
-    ].join('\n');
-  }
-
-  /**
-   * The Gemini tool returns a ToolResult whose content[0].text is a JSON
-   * string {taskId,status,conversationUrl,result}; the assistant text lives at
-   * result.content. Reach it defensively.
-   */
-  private extractAssistantText(toolResult: any): string {
-    if (toolResult?.isError) {
-      const errText = toolResult?.content?.[0]?.text;
-      throw new Error(typeof errText === 'string' ? errText : 'web-ai tool error');
-    }
-    const text = toolResult?.content?.[0]?.text;
-    if (typeof text !== 'string' || !text) {
-      throw new Error('web-ai tool returned no content');
-    }
-    let outer: any;
-    try {
-      outer = JSON.parse(text);
-    } catch {
-      // Some tool variants may put the answer directly in text.
-      return text;
-    }
-    const content = outer?.result?.content;
-    if (typeof content === 'string' && content) return content;
-    // Fall back to the raw outer text if the result bundle had no content.
-    if (typeof outer?.result === 'string') return outer.result;
-    throw new Error('web-ai tool result carried no assistant content');
-  }
-
-  /**
-   * Parse a [{word,translation}] array out of the assistant answer, tolerating
-   * a surrounding code fence or leading prose. Keeps only pairs whose word
-   * matches a requested word (case-insensitive) so a chatty model can't inject
-   * spurious entries.
-   */
-  private parsePairs(answer: string, requested: NormalizedWord[]): TranslationPair[] {
-    const json = this.sliceJsonArray(answer);
-    if (!json) return [];
-    let parsed: any;
-    try {
-      parsed = JSON.parse(json);
-    } catch {
-      return [];
-    }
-    if (!Array.isArray(parsed)) return [];
-
-    const wanted = new Set(requested.map((w) => w.word.toLowerCase()));
-    const out: TranslationPair[] = [];
-    const seen = new Set<string>();
-    for (const item of parsed) {
-      if (!item || typeof item !== 'object') continue;
-      const word = typeof item.word === 'string' ? item.word.trim() : '';
-      const translation =
-        typeof item.translation === 'string' ? item.translation.trim() : '';
-      if (!word || !translation) continue;
-      const key = word.toLowerCase();
-      if (!wanted.has(key) || seen.has(key)) continue;
-      seen.add(key);
-      out.push({ word, translation });
-    }
-    return out;
-  }
-
-  /** Extract the first [...] JSON array substring from a (possibly fenced) answer. */
-  private sliceJsonArray(text: string): string | null {
-    const start = text.indexOf('[');
-    const end = text.lastIndexOf(']');
-    if (start === -1 || end === -1 || end <= start) return null;
-    return text.slice(start, end + 1);
+    logger.info(
+      LOG,
+      `Task ${task.task_id} completed (${pairs.length} translated, ${invalidWords.length} invalid)`,
+    );
   }
 
   /** Payload words may be plain strings or {word, md5, ...} objects. */

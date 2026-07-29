@@ -18,6 +18,10 @@ interface Props {
   routeMode?: boolean;
   /** Navigate back to the wordnew home tab (player overlay Home button). */
   onGoHome?: () => void;
+  /** "Play from this article" opens the routed player page (#/read-daily/<id>)
+   *  instead of the in-place overlay — used on the home tab so the player is
+   *  a real page, not a modal over home. */
+  onPlayArticle?: (articleId: string) => void;
 }
 
 const POLL_MS = 12_000;
@@ -36,7 +40,7 @@ function readDailyHashId(): string | null {
   return match?.[1] ? decodeURIComponent(match[1]) : null;
 }
 
-export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBook, routeMode = false, onGoHome }) => {
+export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBook, routeMode = false, onGoHome, onPlayArticle }) => {
   const [rows, setRows] = useState<DailyReadingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -215,7 +219,7 @@ export const WfDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBoo
                     {row.audio_url && (
                       <button
                         type="button"
-                        onClick={() => startPlayer(row.id)}
+                        onClick={() => (onPlayArticle ? onPlayArticle(row.id) : startPlayer(row.id))}
                         className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 transition-colors"
                         title={trans('home.dailyReading.playFrom')}
                       >

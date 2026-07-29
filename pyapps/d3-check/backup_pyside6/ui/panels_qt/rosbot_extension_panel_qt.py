@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QAction
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.providor_index import get_config_value_safe, LOGS_FILE_PATH
 from providor.i18n_manager import i18n_manager
 from share.game_interface_data import get_game_interface_data

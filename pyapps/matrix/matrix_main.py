@@ -20,10 +20,12 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore import ColorPrint, THREAD_BUS
-from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app
-from pycore.pyutils.native_ui.step0_i18n import i18n
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
+from pycore.pyutils.native_ui.step3_launcher.launch_native_app import launch_native_app
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 from pycore.pyutils.desktop.universal_shortcut import ShortcutManager
 from pycore.pyutils.common.appusermodelid import set_app_user_model_id, get_recommended_app_id
 from pyapps.matrix.matrix_config import Config

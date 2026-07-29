@@ -8,7 +8,8 @@ import time
 from collections import OrderedDict
 from typing import Any, Dict, Optional
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.rpc_v2.constants import (
     EVENT_CACHE_TTL,
     EVENT_CACHE_MAX_SIZE,

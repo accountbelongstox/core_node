@@ -195,26 +195,20 @@ const PcAgentHistoryRecords: React.FC<{ tk: (k: string) => string }> = ({ tk }) 
               {r.audio_available && <RecordAudio recordId={String(r.id)} />}
 
               {(r.reference_cn || r.article_en) && (
-                <details className="group mt-2 text-sm">
-                  <summary className="cursor-pointer text-xs text-indigo-500 font-medium select-none list-none flex items-center gap-1">
-                    <span className="group-open:hidden">▶ Show full text</span>
-                    <span className="hidden group-open:inline">▼ Hide full text</span>
-                  </summary>
-                  <div className="mt-2 space-y-3 pl-2 border-l-2 border-indigo-200 dark:border-indigo-900 max-h-[300px] overflow-y-auto pr-2">
-                    {r.article_en && (
-                      <div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">English</div>
-                        <div className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{r.article_en}</div>
-                      </div>
-                    )}
-                    {r.reference_cn && (
-                      <div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Chinese (Reference)</div>
-                        <div className="text-slate-600 dark:text-slate-400 whitespace-pre-wrap text-[13px]">{r.reference_cn}</div>
-                      </div>
-                    )}
-                  </div>
-                </details>
+                <div className="mt-2 space-y-3 pl-2 border-l-2 border-indigo-200 dark:border-indigo-900 max-h-[300px] overflow-y-auto pr-2 text-sm">
+                  {r.article_en && (
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">English</div>
+                      <div className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{r.article_en}</div>
+                    </div>
+                  )}
+                  {r.reference_cn && (
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Chinese (Reference)</div>
+                      <div className="text-slate-600 dark:text-slate-400 whitespace-pre-wrap text-[13px]">{r.reference_cn}</div>
+                    </div>
+                  )}
+                </div>
               )}
             </li>
           ))}

@@ -7,7 +7,7 @@ Manages the complete EXP farming process
 
 import time
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.constants.d4 import D4_SCREENSHOT_DIR, D4_ANNOTATED_DIR
 from share.game_interface_data import get_d4_interface_data
 # D4State functionality now integrated into D4InterfaceData

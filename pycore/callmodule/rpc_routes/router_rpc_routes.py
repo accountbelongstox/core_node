@@ -18,7 +18,7 @@ import json
 from typing import Any, Dict, List, Tuple
 from urllib.parse import urlparse
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     PYCORE_ROUTER_INVOKE,
     PYCORE_ROUTER_RESOURCE,

@@ -6,7 +6,7 @@ Used by F3 history timeout; log_monitor_thread reads logs.txt only and does not 
 """
 import time
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 _f3_history_started_at: float = 0.0
 

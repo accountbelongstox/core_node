@@ -22,9 +22,10 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import submit_coroutine_via_bus
-from pycore.pyfoundations.third_party import get_third_package_fastapi
+from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 
 fastapi = get_third_package_fastapi()
 FastAPI = fastapi.FastAPI
@@ -36,15 +37,11 @@ JSONResponse = fastapi.responses.JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from pycore.pyutils.rpc_v2.config import RPC_CONSTANTS
-from pycore.pyutils.rpc_v2.common import (
-    EventCache,
-    RequestManager,
-    InventoryTable,
-    RequestEventTable,
-    default_event_cache,
-    default_request_manager,
-)
+from pycore.pyutils.rpc_v2.config.rpc_constants import RPC_CONSTANTS
+from pycore.pyutils.rpc_v2.common.event_cache import EventCache, default_event_cache
+from pycore.pyutils.rpc_v2.common.request_manager import RequestManager, default_request_manager
+from pycore.pyutils.rpc_v2.common.inventory_table import InventoryTable
+from pycore.pyutils.rpc_v2.common.request_event_table import RequestEventTable
 from pycore.pyutils.rpc_v2.server.ack_manager import FastAPIAckManager
 from pycore.pyutils.rpc_v2.server.client_registry import ClientRegistry
 from pycore.pyutils.rpc_v2.server.routes_manager import RoutesManager
@@ -54,7 +51,7 @@ from pycore.pyutils.rpc_v2.server.websocket_handler import WebSocketRPCHandler
 from pycore.pyutils.rpc_v2.server.sse_broadcaster import SSEBroadcaster
 from pycore.pyutils.rpc_v2.server._serialized_bridge import await_serialized
 from pycore.pyutils.rpc_v2.server.rpc_delivery_service import get_rpc_delivery_service
-from pycore.pyutils.rpc_v2.protocol import RPCProtocolServer
+from pycore.pyutils.rpc_v2.protocol.rpc_protocol import RPCProtocolServer
 
 WS_PATH = RPC_CONSTANTS.WS_PATH
 HTTP_PATH_PREFIX = RPC_CONSTANTS.HTTP_PATH_PREFIX
@@ -304,8 +301,9 @@ class FastAPIRPCServer:
             data: Event data to send to clients
         """
         # SSE fan-out FIRST so it shares the SAME event source as WS and is NOT
-        # skipped when no WS client is connected.
-        self.sse_broadcaster.publish(event_name, data)
+        # skipped when no WS client is connected. publish() is a coroutine (its
+        # system-event DB insert is offloaded off the loop).
+        await self.sse_broadcaster.publish(event_name, data)
 
         clients = self.client_registry.ws_clients
         if not clients:

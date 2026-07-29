@@ -50,7 +50,7 @@ from pycore.pyutils.tts.engine_policy import (
     tts_rate_to_speed as _rate_to_speed,
     tts_variant_result as _variant_result,
 )
-from . import sentence_audio_cache
+import pycore.pyutils.tts.sentence_audio_cache as sentence_audio_cache
 from pycore.pyutils.edge_tts.config import TTSConfig
 from pycore.pyutils.edge_tts.edge_tts_client import get_edge_tts_client
 from pycore.pyutils.common.model_tiers import runtime_engine_model
@@ -63,24 +63,22 @@ from .tts_service_manager import (
     record_server_use,
 )
 from pycore.pyutils.common.managed_service import managed_services
-from pycore.pyutils.common import model_load_status
-from . import (
-    azure_engine,
-    bark_engine,
-    chattts_engine,
-    cosyvoice_engine,
-    f5tts_engine,
-    fishspeech_engine,
-    gptsovits_engine,
-    gtts_web_engine,
-    kokoro_engine,
-    melotts_engine,
-    parler_engine,
-    qwen3tts_engine,
-    sherpa_engine,
-    streamelements_engine,
-    voxcpm2_engine,
-)
+import pycore.pyutils.common.model_load_status as model_load_status
+import pycore.pyutils.tts.azure_engine as azure_engine
+import pycore.pyutils.tts.bark_engine as bark_engine
+import pycore.pyutils.tts.chattts_engine as chattts_engine
+import pycore.pyutils.tts.cosyvoice_engine as cosyvoice_engine
+import pycore.pyutils.tts.f5tts_engine as f5tts_engine
+import pycore.pyutils.tts.fishspeech_engine as fishspeech_engine
+import pycore.pyutils.tts.gptsovits_engine as gptsovits_engine
+import pycore.pyutils.tts.gtts_web_engine as gtts_web_engine
+import pycore.pyutils.tts.kokoro_engine as kokoro_engine
+import pycore.pyutils.tts.melotts_engine as melotts_engine
+import pycore.pyutils.tts.parler_engine as parler_engine
+import pycore.pyutils.tts.qwen3tts_engine as qwen3tts_engine
+import pycore.pyutils.tts.sherpa_engine as sherpa_engine
+import pycore.pyutils.tts.streamelements_engine as streamelements_engine
+import pycore.pyutils.tts.voxcpm2_engine as voxcpm2_engine
 
 # Version shown in tts_status(). qwen3tts + melotts are intentionally ABSENT: their
 # packages (qwen-tts / melo) live in their isolated venvs, not the main interpreter,

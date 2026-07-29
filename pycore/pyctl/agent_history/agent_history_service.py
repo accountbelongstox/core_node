@@ -27,7 +27,7 @@ from pycore.pyctl.agent_history.cursor_extractor import CursorExtractor
 from pycore.pyctl.agent_history.gemini_extractor import GeminiExtractor
 from pycore.pyctl.agent_history.generic_agent_extractor import GenericAgentExtractor
 from pycore.pyctl.agent_history.kimi_extractor import KimiExtractor
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.callmodule.services.operation_service import OperationService
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
@@ -414,6 +414,59 @@ class AgentHistoryService:
 
     def get_status(self) -> Dict[str, Any]:
         return {"last": THREAD_BUS.get_signal(_SUMMARY_SIGNAL, {}) or {}}
+
+    def test_extract(self, tool: str) -> Dict[str, Any]:
+        """Parse the newest source of one tool and return its latest prompt.
+
+        Read-only probe for the UI checkbox flow — never writes the txt
+        store, never touches extract state.
+        """
+        key = str(tool or "").strip().lower()
+        extractor = next(
+            (e for e in self._extractors if str(e.tool()).lower() == key),
+            None,
+        )
+        if extractor is None:
+            return {"ok": False, "tool": key, "error": "unknown tool", "sources": 0}
+
+        sources: List[Dict[str, Any]] = []
+        for home, user in user_homes().items():
+            for d in extractor.discover(home, user):
+                sources.append({**d, "user": user})
+        if not sources:
+            return {"ok": False, "tool": key, "error": "no history source found", "sources": 0}
+
+        sources.sort(key=lambda d: float(d.get("mtime") or 0), reverse=True)
+        last_error = ""
+        for src in sources[:5]:
+            try:
+                sessions = extractor.parse_source(src["path"], src["user"])
+            except Exception as exc:  # noqa: BLE001 — try the next source
+                last_error = str(exc)
+                continue
+            prompts: List[Dict[str, Any]] = []
+            for sess in sessions or []:
+                for p in sess.get("prompts") or []:
+                    if p.get("text"):
+                        prompts.append(p)
+            if prompts:
+                prompts.sort(key=lambda p: p.get("ts") or 0, reverse=True)
+                latest = prompts[0]
+                return {
+                    "ok": True,
+                    "tool": key,
+                    "sources": len(sources),
+                    "prompt": {
+                        "ts": int(latest.get("ts") or 0),
+                        "text": str(latest.get("text") or "")[:500],
+                    },
+                }
+        return {
+            "ok": False,
+            "tool": key,
+            "error": last_error or "sources found but no prompts parsed",
+            "sources": len(sources),
+        }
 
     @staticmethod
     def _assign_prompt_ids(detail: Dict[str, Any], session_id: str) -> None:

@@ -18,12 +18,12 @@ ensure_d3_check_in_sys_path()
 
 # Third-party imports
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_cv2, get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_cv2, get_third_package_numpy
 
 Image = get_third_package_PIL_Image()
 cv2 = get_third_package_cv2()
 np = get_third_package_numpy()
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 # Local imports
 from d3utils.d3u_common.image_annotator_helper import create_annotator, get_tmp_dir, generate_timestamp
 from d3utils.screenshot_provider import get_screenshot_provider

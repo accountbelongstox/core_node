@@ -25,7 +25,7 @@ import argparse
 sys.path.insert(0, 'pyIOService')
 sys.path.append('pyIOService/protocol')
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from IOService import IOService
 from util.config_path_mgr import SYS_CONFIG_DIR, DEFAULT_USER_CONFIG_DIR
 

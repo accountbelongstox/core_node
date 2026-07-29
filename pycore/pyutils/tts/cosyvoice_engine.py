@@ -32,8 +32,8 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
 _AVAIL_SIGNAL = 'pyutils.tts.cosyvoice.available'

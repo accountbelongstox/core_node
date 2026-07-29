@@ -1,3 +1,4 @@
+import pycore.pylauncher.register_providers  # noqa: F401 — provider registration
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import argparse
@@ -30,100 +31,38 @@ from pathlib import Path
 from pycore.callmodule.services.heartbeat_worker_prefs import restore_persisted_heartbeat_prefs
 from pycore.callmodule.services.system_settings_boot import apply_persisted_system_settings
 from pycore.pyutils.tts.tts_orchestrator import report_tts_engine_startup
-from pycore.callmodule.services import get_translation_worker_service
-from pycore.pyctl.assist import translation_worker_enabled_on_start
+from pycore.callmodule.services.translation_worker_service import get_translation_worker_service
+from pycore.pyctl.assist.assist_settings import translation_worker_enabled_on_start
 from pycore.callmodule.services.assist_wiring import register_assist_runtime
-from pycore.callmodule.services import get_ai_rate_reset_service
+from pycore.callmodule.services.ai_rate_reset_service import get_ai_rate_reset_service
 from pycore.callmodule.services.heartbeat_agent_history import (
     register_agent_history_extraction,
 )
-from pycore.callmodule.services import get_queue_monitor_service
-from pycore.pyheartbeat import get_heartbeat_system
-from pycore.callmodule.services import get_translation_ws_client
+from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+from pycore.callmodule.services.translation_ws_client_service import get_translation_ws_client
 from pycore.callmodule.services.laravel_log_mirror_service import get_laravel_log_mirror_service
+from pycore.callmodule.rpc_routes.route_names import UI_HEARTBEAT_WORKERS_CONFIG
 
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore import ColorPrint
-from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app, get_platform_adapter
-from pycore.pyutils.native_ui.step2_port_url import register_port_range
-from pycore.callmodule.callmodule_config import Config
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
+from pycore.pyutils.native_ui.step3_launcher.launch_native_app import launch_native_app
+from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
+from pycore.pyutils.native_ui.step2_port_url.port_allocator import register_port_range
+from pycore.callmodule.callmodule_config.config import Config
 from pycore.callmodule.services.heartbeat_tts_workers import (
     register_sentence_queue_monitor as _register_sentence_queue_monitor,
     register_tts_queue_poller as _register_tts_queue_poller,
     register_tts_sentence_worker as _register_tts_sentence_worker,
 )
 
-# Import all routers
-# Management Layer (9 routers)
-from pycore.callmodule.routers.management import (
-    status_router,
-    config_router,
-    control_router,
-    logs_router,
-    capabilities_router,
-    local_config_router,
-    local_stats_router,
-    local_test_router,
-    heartbeat_router,
-)
-
-# Local Processing Layer
-from pycore.callmodule.routers.local import (
-    screenshot_router,
-    image_router,
-    audio_router,
-    file_router,
-    video_router,
-    video_extract_router,
-    system_resources_router,
-    user_data_router,
-    books_router,
-    corebook_router,
-    ai_probe_router,
-    ai_chat_router,
-    ai_image_router,
-    ai_keys_router,
-    ocr_status_router,
-    tts_status_router,
-    stt_status_router,
-    engines_load_status_router,
-    speech_history_router,
-    capability_status_router,
-    translation_queue_router,
-    task_center_router,
-    queue_overview_router,
-    task_history_router,
-    assist_router,
-    image_search_router,
-    sentence_audio_router,
-    queue_priority_router,
-    queue_bumps_router,
-    dictionary_router,
-    word_audio_router,
-    word_tts_router,
-    heartbeat_workers_router,
-    agent_history_router,
-    task_settings_router,
-    version_router,
-)
-
-# Upload Layer (1 router)
-from pycore.callmodule.routers.upload import router as upload_router
-
-# Client Layer (1 router)
-from pycore.callmodule.routers.client import router as client_router
-
-# Legacy Routers (4 routers)
-from pycore.callmodule.routers.mcp_router import mcp_router
-from pycore.callmodule.routers.code_sync_router import router as code_sync_router
-from pycore.callmodule.routers.module_call_router import module_call_router
-from pycore.callmodule.routers.notebooklm_stt_router import router as notebooklm_stt_router
-from pycore.callmodule.routers.web_router import router as web_router
-from pycore.callmodule.routers.voice_subtitle_router import router as voice_subtitle_router
+# FastAPI HTTP routers package was removed; WS/RPC v2 routes register via
+# pycore.callmodule.rpc_routes.register_rpc_routes (see build_launcher_config).
 
 
 def callmodule_main_entry():
@@ -223,7 +162,7 @@ def _register_translation_worker():
     - Initial state: ENABLED by default (Config.TRANSLATION_WORKER_ENABLED_ON_START)
                      so the Laravel translation pipeline runs out of the box.
     - Laravel base URL: Config.LARAVEL_WORKER_API_URL (env LARAVEL_WORKER_API_URL)
-    - Control: POST /api/heartbeat/enable|disable/translation_worker
+    - UI control: RPC v2 ui.heartbeat_workers.config
 
     The callback only ensures registration, sends a heartbeat, pulls tasks and
     dispatches each to a background TaskManager thread — it never blocks the
@@ -237,7 +176,7 @@ def _register_translation_worker():
     # Master-toggle gate (assist_laravel): while the assist_laravel section is
     # absent from user_data.json the legacy Config default applies unchanged;
     # once it exists, enabled && capabilities.translation rules. Runtime
-    # changes are applied live by POST /api/local/assist/config.
+    # changes are applied live through the RPC v2 assist route.
     enabled_on_start = translation_worker_enabled_on_start(
         Config.TRANSLATION_WORKER_ENABLED_ON_START)
 
@@ -247,25 +186,35 @@ def _register_translation_worker():
         interval=Config.TRANSLATION_WORKER_INTERVAL,
         enabled=enabled_on_start,
     )
+    # One always-on transport callback owns Laravel register/pull/submit for all
+    # Pycore GlobalTask lanes. Per-feature callbacks remain the lane gates in
+    # lane_gating.py, so disabling translation does not strand enabled audio or
+    # sentence-audio work. poll_once is single-flight, making the legacy
+    # translation callback and this transport trigger safe to co-exist.
+    heartbeat.register_callback(
+        name='global_task_worker',
+        callback=worker.poll_once,
+        interval=Config.TRANSLATION_WORKER_INTERVAL,
+        enabled=True,
+    )
 
     ColorPrint.green("[Callmodule] Registered translation worker callback")
-    ColorPrint.blue("  - Callback name: translation_worker")
+    ColorPrint.blue("  - Callback names: global_task_worker (transport), translation_worker (lane gate)")
     ColorPrint.blue(f"  - Interval: {Config.TRANSLATION_WORKER_INTERVAL} seconds")
     ColorPrint.blue(f"  - Initial state: {'enabled' if enabled_on_start else 'disabled'} "
                     f"(assist_laravel gate)")
     ColorPrint.blue(f"  - Laravel API: {Config.LARAVEL_WORKER_API_URL}")
-    # Translation owns only translation, optional subtitle and STT lanes.
+    # Lane/capability names resolve through the JSON contract consumed by
+    # Laravel, both UIs, and mcp-chrome; this startup log is not a second list.
     ColorPrint.blue(
-        f"  - Lanes: remote_fast, remote_translation"
-        f"{', remote_subtitle' if Config.SUBTITLE_SEARCH_WORKER_ENABLED else ''}"
-        f" (knob-gated; advertised live per tick)")
+        f"  - Lanes: {', '.join(worker._effective_processor_types()) or '(none enabled)'} "
+        "(advertised live per tick)")
     ColorPrint.blue(
-        f"  - Capabilities: translate"
-        f"{', ai_translate' if Config.AI_TRANSLATE_ENABLED else ''}")
+        f"  - Capabilities: {', '.join(worker._effective_capabilities()) or '(none enabled)'}")
     ColorPrint.blue(
         f"  - Fast lane: poll {Config.TRANSLATION_FAST_POLL_INTERVAL}s on pending_fast "
         f"(wait=0 burst-drain, priority heap)")
-    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/translation_worker")
+    ColorPrint.blue(f"  - UI control: RPC v2 {UI_HEARTBEAT_WORKERS_CONFIG}")
 
 
 def _register_assist_runtime():
@@ -288,7 +237,7 @@ def _register_ai_rate_reset():
     - Interval: PYCORE_AI_RATE_RESET_INTERVAL seconds (default 30; the per-minute
       window is 60s, so a 30s prune keeps minute budgets fresh)
     - Initial state: ENABLED (env PYCORE_AI_RATE_RESET=0 to disable)
-    - Control: POST /api/heartbeat/enable|disable/ai_rate_reset
+    - UI control: RPC v2 `ui.heartbeat_workers.config`
     """
 
     heartbeat = get_heartbeat_system()
@@ -311,7 +260,7 @@ def _register_ai_rate_reset():
     ColorPrint.blue("  - Callback name: ai_rate_reset")
     ColorPrint.blue(f"  - Interval: {interval} seconds")
     ColorPrint.blue(f"  - Initial state: {'enabled' if enabled else 'disabled'}")
-    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/ai_rate_reset")
+    ColorPrint.blue("  - UI control: RPC v2 ui.heartbeat_workers.config")
 
 
 def _register_agent_history_extraction():
@@ -339,7 +288,7 @@ def _register_queue_monitor():
                      so the UI sees the live queue out of the box.
     - Laravel base URL: SHARED with the worker via Config.LARAVEL_WORKER_API_URL
                         (the monitor reuses the worker's candidate discovery).
-    - Control: POST /api/heartbeat/enable|disable/translation_queue_monitor
+    - UI control: RPC v2 `ui.heartbeat_workers.config`
 
     The callback GETs the queue list, caches the snapshot, and detects priority
     bumps (flagging tasks `recently_bumped`) — it never blocks the heartbeat loop.
@@ -364,7 +313,7 @@ def _register_queue_monitor():
     ColorPrint.blue(f"  - Interval: {Config.TRANSLATION_QUEUE_MONITOR_INTERVAL} seconds")
     ColorPrint.blue(f"  - Initial state: {'enabled' if Config.TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START else 'disabled'}")
     ColorPrint.blue(f"  - Bump TTL: {Config.TRANSLATION_QUEUE_BUMP_TTL_SECONDS} seconds")
-    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/translation_queue_monitor")
+    ColorPrint.blue("  - UI control: RPC v2 ui.heartbeat_workers.config")
 
 
 def _register_translation_ws_client():
@@ -390,7 +339,7 @@ def _register_translation_ws_client():
     - Reverb conn: Config.TRANSLATION_REVERB_{HOST,PORT,SCHEME,APP_KEY,CHANNEL}
                    (env-overridable; REVERB_* derived). NOTE: REVERB_APP_KEY rotates
                    on reverb restart — keep TRANSLATION_REVERB_APP_KEY in sync.
-    - Control: POST /api/heartbeat/enable|disable/translation_ws_client
+    - UI control: RPC v2 `ui.heartbeat_workers.config`
     """
 
     heartbeat = get_heartbeat_system()
@@ -421,7 +370,7 @@ def _register_translation_ws_client():
         f"{Config.TRANSLATION_REVERB_PORT}{Config.TRANSLATION_SSE_PATH}"
     )
     ColorPrint.blue("  - WS library: websockets (rpc_v2's WS lib; sync client)")
-    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/translation_ws_client")
+    ColorPrint.blue("  - UI control: RPC v2 ui.heartbeat_workers.config")
 
 
 def start(host='0.0.0.0', port=59000, debug=False):
@@ -441,7 +390,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
     Config.RPC_HOST = host
     Config.RPC_PORT = port
 
-    ColorPrint.green("[Callmodule] 20 routers available")
+    ColorPrint.green("[Callmodule] RPC v2 routes via register_rpc_routes")
 
     # Register singleton port range (callmodule_config/config.py)
     # Same as pylauncher so only one instance runs via pycore_module_caller.py or callmodule_main.
@@ -522,67 +471,8 @@ def start(host='0.0.0.0', port=59000, debug=False):
         rpc_port=port,
         rpc_host=host,
         rpc_debug=debug,
-        rpc_routers=[
-            # === Management Layer ===
-            status_router,
-            config_router,
-            control_router,
-            logs_router,
-            capabilities_router,
-            local_config_router,
-            local_stats_router,
-            local_test_router,
-            heartbeat_router,
-            # === Local Processing Layer ===
-            screenshot_router,
-            image_router,
-            audio_router,
-            file_router,
-            video_router,
-            video_extract_router,
-            system_resources_router,
-            user_data_router,
-            books_router,
-            corebook_router,
-            ai_probe_router,
-            ai_chat_router,
-            ai_image_router,
-            ai_keys_router,
-            ocr_status_router,
-            tts_status_router,
-            stt_status_router,
-            engines_load_status_router,
-            speech_history_router,
-            capability_status_router,
-            translation_queue_router,
-            task_center_router,
-            queue_overview_router,
-            task_history_router,
-            assist_router,
-            image_search_router,
-            sentence_audio_router,
-            queue_priority_router,
-            queue_bumps_router,
-            dictionary_router,
-            word_audio_router,
-            word_tts_router,
-            heartbeat_workers_router,
-            agent_history_router,
-            task_settings_router,
-            version_router,
-            # === Upload Layer ===
-            upload_router,
-            # === Client Layer ===
-            client_router,
-            # === Legacy Routers ===
-            mcp_router,
-            code_sync_router,
-            module_call_router,
-            notebooklm_stt_router,
-            # === Web UI + Voice Subtitle ===
-            web_router,
-            voice_subtitle_router,
-        ],
+        # HTTP FastAPI routers retired; RPC v2 WS routes register in config.
+        rpc_routers=[],
         rpc_allow_origins=Config.CORS_ALLOW_ORIGINS,
         rpc_auto_mount_frontend=True,  # Auto-coordinate static file mounting
 
@@ -628,7 +518,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
     if IS_WINDOWS:
         native_tray_type = "tk" if adapter.get_recommended_tray_backend().value == "pystray" else "pyside6"
         ColorPrint.blue(f"  - Tray backend: {native_tray_type} (recommended: {adapter.get_recommended_tray_backend().value})")
-    ColorPrint.blue(f"  - Total routers: 20")
+    ColorPrint.blue(f"  - RPC routes: register_rpc_routes (WS)")
 
     # One-click launch (native_ui handles everything)
     ColorPrint.green("[Callmodule] Launching application...")

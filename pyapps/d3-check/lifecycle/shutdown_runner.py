@@ -4,7 +4,7 @@ Shutdown runner: joins extension threads and stops task manager.
 All thread references live here; only main and event bus may import lifecycle.
 """
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from threads.main_function_thread import get_main_function_thread
 from threads.auxiliary_function_thread import get_auxiliary_function_thread
 from threads.d3_extension_thread import get_d3_extension_thread

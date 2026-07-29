@@ -12,10 +12,10 @@ import time
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple, Callable
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.providor_index import get_config_section
 
-from pycore.pyfoundations.third_party import (
+from pycore.pyfoundations.third_party.api import (
     get_third_package_psutil,
     get_third_package_win32api,
     get_third_package_win32con,

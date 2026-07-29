@@ -5,8 +5,9 @@ AI Chat RPC Routes
 WebSocket RPC handlers for the unified AI gateway.
 """
 
-from pycore import ColorPrint
-from pycore.pyctl.ai import chat_once, generate_text, gateway_status
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyctl.ai.ai_chat import chat_once
+from pycore.pyctl.ai.ai_gateway import generate_text, gateway_status
 from pycore.pyctl.ai.ai_rate_limits import rate_status
 from pycore.pyctl.ai.ai_usage_log import usage_log
 from pycore.callmodule.rpc_routes.route_names import (

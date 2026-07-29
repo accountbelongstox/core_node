@@ -7,10 +7,11 @@ Handles local vocabulary file loading and synchronization
 from pathlib import Path
 from typing import List, Set, Dict, Any
 
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.database import database_manager
-from pycore.database.models import TableKeys, VoiceDictionariesModel
-from pycore.pyfoundations.pygvar import CACHE_DIR
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.database.exports import database_manager
+from pycore.database.models.table_keys import TableKeys
+from pycore.database.models.app_voice.dictionaries_model import VoiceDictionariesModel
+from pycore.pyfoundations.pygvar.constants import CACHE_DIR
 
 
 class WordInitService:
@@ -153,7 +154,7 @@ class WordInitService:
 
         ColorPrint.blue(f"Checking missing entries with server: {find_url}")
 
-        from pycore.pyfoundations.third_party import requests
+        from pycore.pyfoundations.third_party.api import requests
 
         response = requests.post(
             find_url,

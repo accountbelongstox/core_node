@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.database.adapters.sqlite_local import Row, connect_writable
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 
 class DatabaseWorkerThread(threading.Thread):

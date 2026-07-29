@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_user_data_store
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 
 _MONITOR_SECTION = "translation_monitor_auto"
 _WS_SECTION = "translation_ws_auto"

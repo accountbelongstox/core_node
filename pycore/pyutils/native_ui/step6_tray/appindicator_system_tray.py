@@ -23,7 +23,7 @@ Requirements:
         sudo apt-get install gir1.2-appindicator3-0.1
 
 Usage:
-    from pycore.pyutils.native_ui.step6_tray import AppIndicatorSystemTray
+    from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import AppIndicatorSystemTray
 
     tray = AppIndicatorSystemTray(
         app_id="my-app",
@@ -84,7 +84,8 @@ except (ImportError, ValueError) as e:
     AppIndicator3 = None
     GLib = None
 
-from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class AppIndicatorSystemTray:

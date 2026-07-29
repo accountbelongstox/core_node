@@ -10,9 +10,14 @@ from dataclasses import dataclass
 import asyncio
 import threading
 
-from pycore.pyutils.device import AndroidDevice, ScrcpyDevice, DeviceInfo, ServerParams, VideoCodec, ADBManager, ADBDevice
+from pycore.pyutils.device.android_device import AndroidDevice
+from pycore.pyutils.device.scrcpy_device import ScrcpyDevice
+from pycore.pyutils.device.device_info import DeviceInfo
+from pycore.pyutils.device.server_params import ServerParams, VideoCodec
+from pycore.pyutils.device.adb_manager import ADBManager
+from pycore.pyutils.device.adb_device import ADBDevice
 from pycore.pyfoundations.serialized_worker import await_bus_task
-from pycore.pyfoundations.pygvar import GlobalVarManager
+from pycore.pyfoundations.pygvar.global_var_manager import GlobalVarManager
 
 
 @dataclass

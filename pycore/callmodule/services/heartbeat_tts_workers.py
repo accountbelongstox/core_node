@@ -7,12 +7,10 @@ Shared by callmodule_main_entry (native_ui path) and event_handlers
 """
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyheartbeat import get_heartbeat_system
-from pycore.callmodule.callmodule_config import Config
-from pycore.callmodule.services import (
-    get_tts_queue_poller_service,
-    get_tts_sentence_worker_service,
-)
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+from pycore.callmodule.callmodule_config.config import Config
+from pycore.callmodule.services.tts_queue_poller_service import get_tts_queue_poller_service
+from pycore.callmodule.services.tts_sentence_worker_service import get_tts_sentence_worker_service
 from pycore.callmodule.services.sentence_audio_auto import (
     restore_persisted_auto_start as restore_sentence_audio_auto_start,
     sentence_audio_auto_enabled_on_start,
@@ -43,7 +41,7 @@ def register_tts_queue_poller() -> None:
         f"{'enabled' if Config.TTS_WORKER_ENABLED_ON_START else 'disabled'}"
     )
     ColorPrint.blue(f"  - Batch size: {Config.TTS_WORKER_BATCH}")
-    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/tts_queue_poller")
+    ColorPrint.blue("  - UI control: RPC v2 ui.heartbeat_workers.config")
     restore_word_tts_auto_start()
 
 
@@ -71,7 +69,7 @@ def register_tts_sentence_worker() -> None:
         f"{'enabled' if enabled_on_start else 'disabled'}"
     )
     ColorPrint.blue(f"  - Batch size: {Config.TTS_SENTENCE_WORKER_BATCH}")
-    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/tts_sentence_worker")
+    ColorPrint.blue("  - UI control: RPC v2 ui.heartbeat_workers.config")
     restore_sentence_audio_auto_start()
 
 

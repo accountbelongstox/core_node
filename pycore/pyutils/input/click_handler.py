@@ -22,10 +22,8 @@ import time
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 
-from pycore.pyfoundations.third_party import (
-    get_third_package_pyautogui,
-    get_third_package_uiautomation,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_pyautogui
+from pycore.pyfoundations.third_party.api import get_third_package_uiautomation
 
 from pycore.pyutils.input.tray_clicker import TrayIconClicker
 

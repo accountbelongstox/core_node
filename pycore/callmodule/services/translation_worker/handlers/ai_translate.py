@@ -15,10 +15,10 @@ from typing import Any, Dict
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from . import translation as _h_translation
+import pycore.callmodule.services.translation_worker.handlers.translation as _h_translation
 
-from pycore.pyctl.ai import available_providers
-from pycore.callmodule.services import ai_batch_translate
+from pycore.pyctl.ai.ai_gateway import available_providers
+import pycore.callmodule.services.ai_batch_translate as ai_batch_translate
 
 
 

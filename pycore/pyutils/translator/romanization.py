@@ -14,9 +14,7 @@ pronunciation. For example:
 - Arabic: مرحبا → marhaban
 """
 
-from pycore.pyfoundations.third_party import (
-        get_third_package_googletrans_Translator,
-    )
+from pycore.pyfoundations.third_party.api import get_third_package_googletrans_Translator
 
 import asyncio
 import hashlib

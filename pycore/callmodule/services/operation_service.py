@@ -17,14 +17,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from pycore.database import (
-    Operation,
-    OperationEvent,
-    OperationItem,
-    StateRepository,
-)
+from pycore.database.models.state_models import Operation, OperationEvent, OperationItem
+from pycore.database.repositories.state_repository import StateRepository
 from pycore.database.repositories.state_repository import RevisionConflictError
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.rpc_v2.server.rpc_delivery_service import get_rpc_delivery_service
 
 

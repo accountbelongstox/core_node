@@ -261,7 +261,7 @@ async def call_ncore_tool(endpoint: str, **kwargs) -> Dict[str, Any]:
 
 def start_mcp_proxy():
     """Start unified MCP proxy server"""
-    from pycore.pyfoundations.third_party import get_third_package_FastMCP
+    from pycore.pyfoundations.third_party.api import get_third_package_FastMCP
     FastMCP = get_third_package_FastMCP()
 
     # Check backends availability

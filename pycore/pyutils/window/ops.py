@@ -4,7 +4,7 @@
 import ctypes
 import ctypes.wintypes
 import time
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import sys
 from datetime import datetime
 from typing import Optional, List, Tuple, Dict, Any, Union
@@ -15,7 +15,7 @@ from ctypes import windll, byref, c_int, c_uint, c_char_p, c_wchar_p, c_void_p, 
 wintypes = ctypes.wintypes
 POINT = wintypes.POINT
 
-from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con, get_third_package_win32api
+from pycore.pyfoundations.third_party.api import get_third_package_win32gui, get_third_package_win32con, get_third_package_win32api
 
 win32gui = get_third_package_win32gui()
 win32con = get_third_package_win32con()

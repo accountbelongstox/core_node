@@ -18,12 +18,8 @@ pyutils/whisper_stt/audio_capture.py (deferred to a later reuse batch).
 import platform
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import (
-    get_third_package_speechsdk,
-    get_third_package_numpy,
-    get_third_package_pyaudio,
-    get_third_package_pyaudiowpatch,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_speechsdk, get_third_package_pyaudio, get_third_package_pyaudiowpatch
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
 
 # Backend globals - initialized once at import time (single source of truth).
 # Other modules MUST import these names from here; never re-declare them.

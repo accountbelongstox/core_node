@@ -8,8 +8,9 @@ Plays audio from queue and displays subtitles in UI.
 import threading
 import time
 from pathlib import Path
-from pycore import ColorPrint, THREAD_BUS
-from pycore.pyfoundations.third_party import get_third_package_pygame
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_pygame
 from pycore.pyctl.desktop.queue_manager import get_voice_subtitle_queue
 
 

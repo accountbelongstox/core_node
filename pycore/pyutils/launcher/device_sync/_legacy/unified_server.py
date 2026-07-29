@@ -19,9 +19,9 @@ from pathlib import Path
 from typing import Any, Optional, Dict, Set
 
 from pycore.pyfoundations.serialized_worker import start_bus_task, submit_coroutine_via_bus
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
-from pycore.pyfoundations.third_party import get_third_package_aiohttp
+from pycore.pyfoundations.third_party.api import get_third_package_aiohttp
 
 aiohttp = get_third_package_aiohttp()
 

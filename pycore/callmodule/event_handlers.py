@@ -11,20 +11,20 @@ import threading
 import time
 import webbrowser
 
-from pycore import ColorPrint, THREAD_BUS, get_user_data_store
-from pycore.pyheartbeat import get_heartbeat_system
-from pycore.pylauncher import ServiceLauncher
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.database.repositories.user_data_store import get_user_data_store
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+from pycore.pylauncher.launcher import ServiceLauncher
 from pycore.pythreadpool.starters import start_tray
-from pycore.pyutils.native_ui.step0_i18n import i18n
-from pycore.pyutils.codesync import get_code_sync_manager
-from pycore.callmodule.callmodule_config import Config
-from pycore.callmodule.platform import system_service_manager as ssm
-from pycore.pyctl.assist import translation_worker_enabled_on_start
-from pycore.callmodule.services import (
-    get_translation_worker_service,
-    get_queue_monitor_service,
-    get_translation_ws_client,
-)
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
+from pycore.pyutils.codesync.manager import get_code_sync_manager
+from pycore.callmodule.callmodule_config.config import Config
+import pycore.callmodule.platform.system_service_manager as ssm
+from pycore.pyctl.assist.assist_settings import translation_worker_enabled_on_start
+from pycore.callmodule.services.translation_worker_service import get_translation_worker_service
+from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
+from pycore.callmodule.services.translation_ws_client_service import get_translation_ws_client
 from pycore.callmodule.services.assist_wiring import register_assist_runtime
 from pycore.callmodule.services.heartbeat_tts_workers import (
     register_sentence_queue_monitor,

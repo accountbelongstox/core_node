@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from typing import Dict, List
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import map_web_path
 
 class TTSConfig:

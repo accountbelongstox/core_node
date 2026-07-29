@@ -4,7 +4,7 @@ Verify Voice Data Init Installation
 Checks if all components are properly installed and importable
 """
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def verify_imports():
@@ -14,14 +14,16 @@ def verify_imports():
     ColorPrint.blue("=== Verifying Imports ===")
 
     try:
-        from pycore.database.models import TableKeys, TableNamespaces
+        from pycore.database.models.table_keys import TableKeys
+        from pycore.database.models.namespaces import TableNamespaces
         ColorPrint.green("[OK] Database core imports")
     except ImportError as e:
         ColorPrint.red(f"[FAIL] Database core imports: {e}")
         return False
 
     try:
-        from pycore.database.models import VoiceDictionariesModel, VoiceCacheDbDoneModel
+        from pycore.database.models.app_voice.dictionaries_model import VoiceDictionariesModel
+        from pycore.database.models.app_voice.cache_db_done_model import VoiceCacheDbDoneModel
         ColorPrint.green("[OK] Voice database models")
     except ImportError as e:
         ColorPrint.red(f"[FAIL] Voice database models: {e}")
@@ -66,7 +68,8 @@ def verify_table_keys():
     """
     ColorPrint.blue("\n=== Verifying Table Keys ===")
 
-    from pycore.database.models import TableKeys, TableNamespaces
+    from pycore.database.models.table_keys import TableKeys
+    from pycore.database.models.namespaces import TableNamespaces
 
     try:
         assert hasattr(TableNamespaces, 'APP_VOICE'), "APP_VOICE namespace not found"
@@ -98,7 +101,7 @@ def verify_database_available():
     """
     ColorPrint.blue("\n=== Verifying Database System ===")
 
-    from pycore.database import DATABASE_AVAILABLE, database_manager
+    from pycore.database.exports import DATABASE_AVAILABLE, database_manager
 
     if not DATABASE_AVAILABLE:
         ColorPrint.yellow("[WARNING] Database system not available")

@@ -7,7 +7,7 @@ Battle.net window capture and save to category directory (with cleanup).
 from pathlib import Path
 from typing import Optional, Tuple, Any
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from providor.constants.common import LOGIN_TRY_SCREENSHOT_PREFIX
 from config.screenshot_categories import get_screenshot_category_manager

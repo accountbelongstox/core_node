@@ -16,9 +16,9 @@ if str(PROJECT_ROOT) not in sys.path:
 from typing import List, Dict, Optional
 
 # Use pycore centralized services
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.device.device_manager import device_manager
-from pycore.pyutils.device import ADBManager, ADBDevice, AndroidDevice, DeviceInfo, ServerParams, VideoCodec
+from pycore.pyutils.device.adb_manager import ADBManager, ADBDevice, AndroidDevice, DeviceInfo, ServerParams, VideoCodec
 from pycore.pyfoundations.event_bus import EventBus, EventTypes
 
 from pyapps.matrix.matrix_config import Config

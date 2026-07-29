@@ -88,6 +88,34 @@ final class QueueCenterContract
         return (string) $values[$role];
     }
 
+    public static function taskEvent(string $role): string
+    {
+        $values = self::taskContract()['events']['values'] ?? [];
+        if (!array_key_exists($role, $values)) {
+            throw new RuntimeException("Unknown global-task event role: {$role}");
+        }
+        return (string) $values[$role];
+    }
+
+    public static function taskEvents(string $group = 'terminal'): array
+    {
+        $events = self::taskContract()['events'] ?? [];
+        $values = $events['values'] ?? [];
+        return array_values(array_map(
+            static fn (string $role): string => (string) ($values[$role] ?? $role),
+            $events[$group] ?? []
+        ));
+    }
+
+    public static function taskStreamEvent(string $role): string
+    {
+        $events = self::taskContract()['stream_events'] ?? [];
+        if (!array_key_exists($role, $events)) {
+            throw new RuntimeException("Unknown global-task stream event role: {$role}");
+        }
+        return (string) $events[$role];
+    }
+
     public static function taskExecutionTypes(): array
     {
         return array_values(self::taskContract()['execution_types'] ?? []);
@@ -150,6 +178,13 @@ final class QueueCenterContract
         return null;
     }
 
+    public static function taskTypeKey(string $role): ?string
+    {
+        $definition = self::taskTypeDefinition($role);
+        $value = is_array($definition) ? ($definition['key'] ?? null) : null;
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
     public static function taskTypeExecution(string $taskType): ?string
     {
         $value = self::taskTypeDefinition($taskType)['execution_type'] ?? null;
@@ -160,6 +195,30 @@ final class QueueCenterContract
     {
         $value = self::taskTypeDefinition($taskType)['capability'] ?? null;
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    public static function taskTypePromptPayloadField(string $taskType): string
+    {
+        $value = self::taskTypeDefinition($taskType)['prompt_payload_field'] ?? 'question';
+        return is_string($value) && $value !== '' ? $value : 'question';
+    }
+
+    public static function taskPromptPayloadText(string $taskType, array $payload): ?string
+    {
+        $fields = array_values(array_unique([
+            self::taskTypePromptPayloadField($taskType),
+            'text',
+            'source_text',
+            'question',
+            'prompt',
+        ]));
+        foreach ($fields as $field) {
+            $value = $payload[$field] ?? null;
+            if (is_string($value) && trim($value) !== '') {
+                return $value;
+            }
+        }
+        return null;
     }
 
     public static function interactiveTaskTypes(): array
@@ -211,9 +270,19 @@ final class QueueCenterContract
             }
             if ($field === 'is_fast_tier') {
                 $value = (bool) $value;
-            } elseif (in_array($field, ['priority', 'retry_count', 'max_retries', 'timeout_seconds'], true)) {
+            } elseif (in_array($field, [
+                'priority',
+                'retry_count',
+                'max_retries',
+                'timeout_seconds',
+                'elapsed_seconds',
+                'total_attempts',
+                'estimated_timeout_in_seconds',
+            ], true) && $value !== null) {
                 $value = (int) $value;
-            } elseif ($field === 'progress') {
+            } elseif ($field === 'will_retry') {
+                $value = (bool) $value;
+            } elseif ($field === 'progress' && $value !== null) {
                 $value = (float) $value;
             }
             $record[$field] = $value;
@@ -247,6 +316,12 @@ final class QueueCenterContract
             foreach (self::document()['capability_claimants'] ?? [] as $claimants) {
                 if (is_array($claimants)) {
                     $all = array_merge($all, $claimants);
+                }
+            }
+            foreach (self::taskTypes() as $definition) {
+                if (($definition['capability'] ?? null) === null
+                    && is_array($definition['claimants'] ?? null)) {
+                    $all = array_merge($all, $definition['claimants']);
                 }
             }
             return array_values(array_unique($all));

@@ -6,7 +6,7 @@ Uses line and dot detection; no dependency on controller.
 
 from typing import Tuple, Optional, List
 
-from pycore.pyfoundations.third_party import get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
 
 numpy = get_third_package_numpy()
 np = numpy

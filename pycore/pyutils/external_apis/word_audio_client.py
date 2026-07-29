@@ -60,10 +60,7 @@ from urllib.parse import quote, urljoin
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.text_parsing import normalize_language_codes
-from pycore.pyfoundations.third_party import (
-    get_third_package_BeautifulSoup,
-    get_third_package_requests,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_BeautifulSoup, get_third_package_requests
 
 
 # --------------------------------------------------------------------------- #

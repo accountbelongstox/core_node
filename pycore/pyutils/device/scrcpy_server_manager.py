@@ -19,7 +19,7 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.robust_downloader import RobustDownloader
 from pycore.pyutils.device.scrcpy_init import get_initializer
 from pycore.pyfoundations.serialized_worker import (

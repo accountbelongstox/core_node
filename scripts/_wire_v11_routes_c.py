@@ -13,9 +13,9 @@ def write_vocab_routes() -> None:
 
 import asyncio
 
-from pycore import ColorPrint
-from pycore.callmodule.rpc_routes import route_names as rn
-from pycore.callmodule.services import vocabulary_service as vocab
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+import pycore.callmodule.rpc_routes.route_names as rn
+import pycore.callmodule.services.vocabulary_service as vocab
 
 
 def register_local_vocabulary_routes(server):
@@ -64,9 +64,9 @@ def write_code_sync_routes() -> None:
     content = '''# -*- coding: utf-8 -*-
 """RPC Routes for code_sync."""
 
-from pycore import ColorPrint
-from pycore.callmodule.rpc_routes import route_names as rn
-from pycore.callmodule.services import code_sync_service as cs
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+import pycore.callmodule.rpc_routes.route_names as rn
+import pycore.callmodule.services.code_sync_service as cs
 from pycore.callmodule.services.code_sync_service import (
     ChangesRequest,
     DistributeRequest,
@@ -133,7 +133,7 @@ def write_web_routes() -> None:
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_WEB_HOMEPAGE,
     UI_WEB_GET_API_INFO,
@@ -142,7 +142,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_WEB_GET_SUBTITLE_UI,
     UI_WEB_GET_FAVICON,
 )
-from pycore.callmodule.services import web_service as web
+import pycore.callmodule.services.web_service as web
 
 
 def register_web_routes(server):

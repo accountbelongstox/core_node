@@ -33,7 +33,7 @@ use Illuminate\Support\Facades\Log;
  * Returns 1 on a stored (or already-stored) poster, 0 when empty/unstorable —
  * so the result-trust layer downgrades an empty-store "completed" to 'failed'.
  */
-class PosterTaskProcessor implements TaskProcessorInterface
+class PosterTaskProcessor extends AbstractTaskProcessor
 {
     protected TaskManagerService $taskManager;
 
@@ -45,10 +45,9 @@ class PosterTaskProcessor implements TaskProcessorInterface
         $this->assistService = $assistService ?: new AppQyV1AssistService();
     }
 
-    public function canProcess(GlobalTask $task): bool
+    protected function taskTypeRoles(): array
     {
-        return $task->app_name === 'AppQyV1'
-            && $task->task_type === 'poster';
+        return ['poster'];
     }
 
     public function processResult(GlobalTask $task, array $result, bool $isDemoMode): int
@@ -130,8 +129,4 @@ class PosterTaskProcessor implements TaskProcessorInterface
         return 1;
     }
 
-    public function getPriority(): int
-    {
-        return 10;
-    }
 }

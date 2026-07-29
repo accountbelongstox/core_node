@@ -14,7 +14,7 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
     start_bus_task,
 )
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from typing import List, Dict, Any, Optional, Tuple, Union
 from dataclasses import dataclass, field
 from enum import Enum
@@ -27,7 +27,7 @@ from pdf_processor import PDFProcessor
 
 import socket
 
-from pycore.pyutils.ocr_engines import OCRManager
+from pycore.pyutils.ocr_cluster.ocr.ocr_manager import OCRManager
 
 
 

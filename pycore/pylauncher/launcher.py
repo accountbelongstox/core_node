@@ -3,8 +3,10 @@
 
 from typing import Dict, Any, Optional
 
-from pycore import ColorPrint, THREAD_BUS
-from pycore.pythreadpool import get_global_thread_pool, SERVICE_STARTERS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pythreadpool.pool import get_global_thread_pool
+from pycore.pythreadpool.registry import SERVICE_STARTERS
 from pycore.pylauncher.singleton_detector import SingletonDetector, on_singleton_superseded
 from pycore.pyfoundations.launcher_config import LauncherConfig  # noqa: F401 — re-export
 

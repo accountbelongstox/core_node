@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 import argparse
 
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_yaml
+from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy, get_third_package_yaml
 
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
@@ -23,7 +23,7 @@ yaml = get_third_package_yaml()
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d3utils.collectors.ui_region_collector_ultralytics import get_yolo_model
 
 

@@ -21,13 +21,13 @@ from typing import Optional, Tuple, Dict
 from pathlib import Path
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import (
+from pycore.pyfoundations.third_party.api import (
     get_third_package_numpy,
     get_third_package_cv2,
     get_third_package_PIL_Image,
     get_third_package_win32gui,
 )
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from pycore.pyutils.window.screenshot import WindowScreenshot
 from pycore.pyutils.common.window_finder import WindowFinder

@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Any
 
-from pycore.pyfoundations.pygvar import PYTOOLS_TMP_DIR
+from pycore.pyfoundations.pygvar.global_var_manager import PYTOOLS_TMP_DIR
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     init_serialized_owner,

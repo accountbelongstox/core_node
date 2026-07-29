@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.rpc_v2.constants import INVENTORY_TTL, INVENTORY_MAX_SIZE
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,

@@ -10,7 +10,7 @@ import math
 import os
 import colorsys
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw
 
 Image = get_third_package_PIL_Image()
 ImageDraw = get_third_package_PIL_ImageDraw()

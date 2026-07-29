@@ -12,7 +12,7 @@ from typing import Optional, Tuple
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d3utils.click_handler_singleton import get_click_handler
 from providor.providor_index import should_stop_assistant
 

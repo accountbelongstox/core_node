@@ -6,7 +6,7 @@ SpeechSTTCacheModel - Speech STT cache lookup table.
 import hashlib
 from typing import Optional, Dict, Any
 
-from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
+from pycore.pyfoundations.third_party.api import get_third_package_sqlalchemy
 
 sqlalchemy = get_third_package_sqlalchemy()
 from pycore.database.models.table_keys import TableKeys

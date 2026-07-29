@@ -9,8 +9,8 @@ window automation instead of direct mouse-only clicks.
 """
 from typing import Optional, Any
 
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_uiautomation
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_uiautomation
 from pycore.pyutils.input.click_handler import ClickHandler
 from d3utils.click_handler_singleton import get_click_handler
 

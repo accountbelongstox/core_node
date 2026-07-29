@@ -16,7 +16,7 @@ from typing import Optional, Dict
 current_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(current_dir))
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.input.click_handler import ClickHandler
 from d3utils.click_handler_singleton import get_click_handler
 from providor.constants.common import (

@@ -83,8 +83,8 @@ export class ValidityApiClient extends BaseApiClient {
   async fetchPending(
     language: string,
     limit: number,
-  ): Promise<ApiResponse<{ items?: PendingWord[] }>> {
-    return this.get<{ items?: PendingWord[] }>(
+  ): Promise<ApiResponse<{ words?: PendingWord[] }>> {
+    return this.get<{ words?: PendingWord[] }>(
       VALIDITY_PATHS.PENDING,
       { language, limit },
     );
@@ -225,18 +225,21 @@ class WordValidityRunnerService {
         try {
           await client.report(reportBody);
         } catch (error: any) {
-          // Backend interrupted: don't abort the drain. Hand the md5-keyed report
-          // (idempotent upsert — safe to retry forever) to the persistent outbox
-          // and keep draining the backlog.
+          // Hand the md5-keyed report to the persistent outbox, then stop this
+          // round. Continuing would immediately pull and re-run the same batch
+          // because Laravel has not committed its report yet. The Task Center
+          // watchdog restarts the runner after the outbox has time to drain.
           await submitOutbox.enqueue({
             kind: 'validity_report',
             baseUrl: client.getBaseUrl(),
             payload: reportBody,
           });
+          this.status.lastError = error?.message || 'Validity report deferred to outbox';
           logger.warn(
             LOG,
             `Round ${this.status.rounds}: report deferred to outbox (${error?.message || 'failed'})`,
           );
+          break;
         }
 
         this.status.totalValid += valid.length;
@@ -262,7 +265,7 @@ class WordValidityRunnerService {
   }
 
   /** Tolerantly pull the words array out of the {success,data:{items}} envelope. */
-  private extractPending(resp: ApiResponse<{ items?: PendingWord[] }>): PendingWord[] {
+  private extractPending(resp: ApiResponse<{ words?: PendingWord[] }>): PendingWord[] {
     const data: any = resp?.data;
     const raw: any = Array.isArray(data)
       ? data

@@ -28,13 +28,10 @@ import time
 from pathlib import Path
 from typing import Optional, Callable, Any
 
-from pycore.pyfoundations import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyfoundations.third_party import (
-    get_third_package_pyaudio,
-    get_third_package_pyaudiowpatch,
-    get_third_package_numpy,
-)
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_pyaudio, get_third_package_pyaudiowpatch
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
 from pycore.pyutils.whisper_stt.audio_utils import (
     get_whisper_cache_dir,
     WHISPER_SAMPLE_RATE,

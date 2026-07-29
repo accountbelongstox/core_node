@@ -10,7 +10,7 @@ Handles:
 - Process cleanup on shutdown
 """
 
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import threading
 from contextlib import nullcontext
 from pycore.pyfoundations.serialized_worker import (
@@ -23,7 +23,7 @@ import socket
 from typing import Optional, Dict, List
 from pathlib import Path
 from dataclasses import dataclass
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 import subprocess
 
 import traceback

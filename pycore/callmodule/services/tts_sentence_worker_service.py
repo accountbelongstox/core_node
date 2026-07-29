@@ -32,7 +32,7 @@ Architecture (mirrors tts_queue_poller_service.py conventions)
 ------------------------------------------------------------------------------
   * Singleton service registered as a PyHeartbeat callback (interval
     Config.TTS_SENTENCE_WORKER_INTERVAL), toggled at runtime via
-    POST /api/heartbeat/enable|disable/tts_sentence_worker. ENABLED ON START by
+    RPC v2 ui.heartbeat_workers.config. ENABLED ON START by
     default (Config.TTS_SENTENCE_WORKER_ENABLED_ON_START, env
     PYCORE_TTS_SENTENCE_WORKER=1|0); batch size via
     Config.TTS_SENTENCE_WORKER_BATCH (env PYCORE_TTS_SENTENCE_WORKER_BATCH).
@@ -75,15 +75,12 @@ from pycore.pyfoundations.serialized_worker import (
     start_bus_task,
 )
 # Rule §4: all inter-thread data exchange goes through the global bus.
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 # Live enable flag for bump-wake (UI toggle lives on the heartbeat callback).
-# Rule §4: all inter-thread data exchange goes through the global bus.
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-# Live enable flag for bump-wake (UI toggle lives on the heartbeat callback).
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 # Env-backed callmodule config (TTS_SENTENCE_WORKER_* knobs live beside the word
 # worker's TTS_WORKER_* in callmodule_config/config.py).
-from pycore.callmodule.callmodule_config import Config
+from pycore.callmodule.callmodule_config.config import Config
 # Stored-first multi-endpoint manager — the SAME base-URL resolution the
 # word worker and media-sync service use.
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
@@ -92,9 +89,10 @@ from pycore.callmodule.services.sync.laravel_endpoint_manager import (
 )
 # ONE entry point for synthesis; local-first engine priority and edge's
 # process-wide serialization live in the orchestrator.
-from pycore.pyutils.tts import tts_orchestrator
+import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 from pycore.callmodule.services.tts_queue_poller_service import _validate_mp3
 from pycore.callmodule.services.task_history_store import append_record
+from pycore.callmodule.services.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY
 from pycore.callmodule.services.tts_sentence_worker_support import (
     SentencePriorityQueue,
     TTSSentenceWorkerApiMixin,
@@ -106,6 +104,7 @@ from pycore.callmodule.services.tts_sentence_worker_support import (
 # --------------------------------------------------------------------------- #
 # Server hard cap on the claim batch (contract: limit <= 50).
 _MAX_BATCH = 50
+_SENTENCE_AUDIO_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
 
 # THREAD_BUS signal with the latest cycle summary (FE/diagnostics).
 _BUS_CYCLE_SUMMARY = "tts_sentence_worker.cycle_summary"
@@ -487,7 +486,9 @@ class TTSSentenceWorkerService(TTSSentenceWorkerApiMixin):
                         self._log_event("synth_done", f"via {provider}", task)
                         try:
                             append_record({
-                                "task_type": "sentence_audio",
+                                # History uses the same task key as Laravel and
+                                # both UIs; the JSON contract owns the value.
+                                "task_type": _SENTENCE_AUDIO_TASK_TYPE,
                                 "worker": "tts_sentence_worker",
                                 "title": (task.get("content") or "")[:120],
                                 "content": task.get("content"),
@@ -654,7 +655,7 @@ class TTSSentenceWorkerService(TTSSentenceWorkerApiMixin):
         sequential and the single priority queue coherent). Enable/disable is
         governed by the PyHeartbeat callback flag (start-state from
         Config.TTS_SENTENCE_WORKER_ENABLED_ON_START, runtime via
-        /api/heartbeat/enable|disable/tts_sentence_worker). Exception-safe — it
+        RPC v2 ui.heartbeat_workers.config). Exception-safe — it
         must never raise into the heartbeat loop.
         """
         try:

@@ -12,7 +12,7 @@ Handles different types of URLs for native UI applications:
 
 from typing import Literal, Tuple, Optional, Dict
 from pathlib import Path
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from pycore.pyutils.native_ui.step2_port_url.server_manager import get_server_manager
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.services.operation_service import OperationService
 from pycore.callmodule.services.operation_event_service import OperationEventService
 

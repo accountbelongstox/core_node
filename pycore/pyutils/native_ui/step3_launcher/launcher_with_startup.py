@@ -20,7 +20,7 @@ Workflow:
 8. Main thread calls main_entry() to start PySide6 application
 
 Usage:
-    from pycore.pyutils.native_ui.launcher_with_startup import launch_app_with_startup
+    from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import launch_app_with_startup
 
     def main_app_entry():
         # Your PySide6 application code
@@ -37,7 +37,8 @@ import time
 from pathlib import Path
 from typing import Callable, Optional, Any
 
-from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
 from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals, get_bus_manager

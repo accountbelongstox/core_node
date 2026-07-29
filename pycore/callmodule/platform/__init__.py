@@ -1,9 +1,2 @@
-# -*- coding: utf-8 -*-
-"""
-Platform-Specific Utilities
-
-Contains platform-specific utilities (e.g., Windows startup manager).
-The main launcher has been moved to pycore/callmodule/config.py
-"""
-
-# This module now only contains utilities, not the main launcher
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

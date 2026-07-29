@@ -7,8 +7,8 @@ Inventory cleanup heartbeat task for rpc_v2.
 import time
 from typing import Any, Dict
 
-from pycore import ColorPrint
-from pycore.pyfoundations.heartbeat.heartbeat_thread import TaskModel, TaskHandler
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.heartbeat.thread import TaskModel, TaskHandler
 
 
 class RpcInventoryCleanupModel(TaskModel):

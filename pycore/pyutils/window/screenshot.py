@@ -27,13 +27,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict
 
-from pycore.pyfoundations.third_party import (
-    get_third_package_win32gui,
-    get_third_package_win32con,
-    get_third_package_PIL_Image,
-    get_third_package_PIL_ImageGrab,
-    get_third_package_pyautogui,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_win32gui, get_third_package_win32con
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageGrab, get_third_package_pyautogui
 
 import traceback
 
@@ -49,7 +44,8 @@ from pycore.pyutils.window.activator import WindowActivator
 from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.common.browser_window_detector import get_default_skip_browser_callable
 from pycore.pyfoundations.pygvar.global_var_manager import PYTOOLS_TMP_DIR
-from pycore.pyutils.window import screen_capture, grid_capture
+import pycore.pyutils.window.grid_capture as grid_capture
+import pycore.pyutils.window.screen_capture as screen_capture
 from pycore.pyutils.window.grid_capture import is_rect_minimized_or_offscreen
 
 # Exe-based browser skip filter for WindowFinder (no app-specific logic in core)

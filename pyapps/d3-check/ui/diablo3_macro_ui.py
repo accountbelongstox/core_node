@@ -16,7 +16,7 @@ from typing import Optional, Callable
 from pathlib import Path
 
 # Direct pycore imports (no secondary encapsulation)
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.providor_index import CONFIG, set_config_value_async, CONFIG_USER_PATH, get_config_value_safe, get_config_section
 from providor.constants.common import (
     ROOT_DIR,
@@ -64,7 +64,7 @@ from share.ui_registry import register_ui
 from runtime import register_main_thread_handlers, trigger_window_show, trigger_app_exit
 from pycore.pyutils.desktop.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
 from pycore.pyutils.icon_utils import get_icon_path_for_windows
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageTk
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageTk
 
 _PIL_Image = get_third_package_PIL_Image()
 _PIL_ImageDraw = get_third_package_PIL_ImageDraw()

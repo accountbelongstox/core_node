@@ -34,7 +34,7 @@ from pycore.pyfoundations.serialized_worker import (
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_easyocr
+from pycore.pyfoundations.third_party.api import get_third_package_easyocr
 
 from pycore.pyutils.ocr_cluster.ocr_windows_engine import create_windows_ocr
 from pycore.pyutils.ocr_cluster.ocr.ocr_manager import ocr_manager

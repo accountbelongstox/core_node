@@ -9,7 +9,8 @@ that previously lived inline in launch_native_app / _create_pyside6_ui.
 
 import time
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 import os
 import sys

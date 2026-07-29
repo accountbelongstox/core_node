@@ -94,13 +94,22 @@ def collect_fragments(
     *,
     after_ts: int = 0,
     after_fragment_id: str = "",
+    tool: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Return chronological fragments from all sessions (oldest first)."""
+    """Return chronological fragments from all sessions (oldest first).
+
+    Each fragment carries the session's ``tool`` key so the planner can filter
+    and rotate per tool. When ``tool`` is given only that tool's sessions are
+    collected.
+    """
     index = txt.read_index()
     sessions = list(index.get("sessions") or [])
     sessions.sort(key=lambda s: int(s.get("started_ts") or 0))
     out: List[Dict[str, Any]] = []
     for summary in sessions:
+        session_tool = str(summary.get("tool") or "").lower()
+        if tool and session_tool != str(tool).lower():
+            continue
         sid = str(summary.get("id") or "")
         if not sid:
             continue
@@ -114,6 +123,7 @@ def collect_fragments(
                 continue
             if ts == after_ts and after_fragment_id and fid <= after_fragment_id:
                 continue
+            ev["tool"] = session_tool
             out.append(ev)
     out.sort(key=lambda e: (int(e.get("ts") or 0), str(e.get("fragment_id") or "")))
     return out

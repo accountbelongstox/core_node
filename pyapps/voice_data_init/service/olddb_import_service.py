@@ -8,14 +8,16 @@ from pathlib import Path
 from typing import List, Dict, Any
 import hashlib
 
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_sqlalchemy, get_third_package_requests
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_sqlalchemy, get_third_package_requests
 
 sqlalchemy = get_third_package_sqlalchemy()
 requests = get_third_package_requests()
-from pycore.database import database_manager
-from pycore.database.models import TableKeys, VoiceDictionariesModel, VoiceCacheDbDoneModel
-from pycore.pyfoundations.pygvar import CACHE_DIR, DEFAULT_TEMP_DIR
+from pycore.database.exports import database_manager
+from pycore.database.models.table_keys import TableKeys
+from pycore.database.models.app_voice.dictionaries_model import VoiceDictionariesModel
+from pycore.database.models.app_voice.cache_db_done_model import VoiceCacheDbDoneModel
+from pycore.pyfoundations.pygvar.constants import CACHE_DIR, DEFAULT_TEMP_DIR
 
 
 class OldDbImportService:

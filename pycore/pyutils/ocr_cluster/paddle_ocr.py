@@ -18,7 +18,7 @@ Pitfalls encountered during development:
 
 import os
 import sys
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 from pycore.pyfoundations.runtime_abi import PADDLE_CPU_PACKAGE
 import time
 import json
@@ -26,8 +26,8 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 import subprocess
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
-from pycore.pyfoundations.third_party import get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
 
 import logging
 

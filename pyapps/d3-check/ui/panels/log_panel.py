@@ -14,7 +14,7 @@ import os
 from typing import Optional, Callable
 
 # Direct pycore imports (no secondary encapsulation)
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from runtime import is_shutdown_requested
 
 # Import unified styles

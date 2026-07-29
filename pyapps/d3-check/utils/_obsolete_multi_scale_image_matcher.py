@@ -8,7 +8,7 @@ from datetime import datetime
 import json
 from typing import List, Tuple, Dict, Optional
 
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy
 from d3utils.image_matcher_registry import get_image_matcher_for_method
 
 cv2 = get_third_package_cv2()

@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 from pycore.pyutils.common.system_launcher import open_dir
 
 # Log directory

@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict, List, Optional
 
-from pycore.database import StateRepository
+from pycore.database.repositories.state_repository import StateRepository
 from pycore.pyutils.rpc_v2.server.client_registry import ClientRegistry
 
 
@@ -149,7 +149,10 @@ class RpcDeliveryService:
             return False
         sent = await self._registry.send_to_client(client_id, frame, track_stats=True)
         if sent:
-            self.repo.mark_delivery_sent(client_id, str(frame.get("event_id") or ""))
+            # SQLite write — never on the uvicorn loop (busy_timeout is 30s).
+            await asyncio.to_thread(
+                self.repo.mark_delivery_sent, client_id, str(frame.get("event_id") or "")
+            )
         return sent
 
 

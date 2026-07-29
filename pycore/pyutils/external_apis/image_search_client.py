@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 
 _HTTP_TIMEOUT: Tuple[int, int] = (8, 25)
 _SERPAPI_URL = "https://serpapi.com/search"

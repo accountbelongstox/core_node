@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_IMAGE_SEARCH_CLEAR_HISTORY,
     UI_IMAGE_SEARCH_COMPARE,
@@ -12,7 +12,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_IMAGE_SEARCH_SEARCH_AI,
     UI_IMAGE_SEARCH_STATUS,
 )
-from pycore.callmodule.services import image_search_service as img
+import pycore.callmodule.services.image_search_service as img
 
 
 def register_local_image_search_routes(server):

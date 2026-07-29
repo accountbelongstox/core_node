@@ -17,7 +17,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 import json
 
-from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
+from pycore.pyfoundations.third_party.api import get_third_package_sqlalchemy
 
 sqlalchemy = get_third_package_sqlalchemy()
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint

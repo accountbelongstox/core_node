@@ -13,14 +13,20 @@ from datetime import datetime
 from pathlib import Path
 
 from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
-from pycore.pyfoundations.third_party import get_third_package_pypdf, get_third_package_pdfplumber, get_third_package_python_docx, get_third_package_openpyxl, get_third_package_python_pptx
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_pypdf,
+    get_third_package_pdfplumber,
+    get_third_package_python_docx,
+    get_third_package_openpyxl,
+    get_third_package_python_pptx,
+)
 
 pypdf = get_third_package_pypdf()
 pdfplumber = get_third_package_pdfplumber()
 python_docx = get_third_package_python_docx()
 openpyxl = get_third_package_openpyxl()
 python_pptx = get_third_package_python_pptx()
-from pycore.pyfoundations.pygvar import PYTOOLS_TMP_DIR
+from pycore.pyfoundations.pygvar.global_var_manager import PYTOOLS_TMP_DIR
 
 logger = logging.getLogger(__name__)
 

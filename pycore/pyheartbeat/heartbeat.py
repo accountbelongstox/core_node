@@ -27,10 +27,12 @@ import time
 from typing import Dict, Callable, Optional, Any
 
 # Core imports
-from pycore import THREAD_BUS, ColorPrint
-from pycore.pyfoundations import get_global_task_queue, TaskState
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.tasks import TaskState
+from pycore.pyutils.common.tasks import get_global_task_queue
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.pythreadpool import GlobalThreadPool, get_global_thread_pool, ThreadStatus
+from pycore.pythreadpool.pool import GlobalThreadPool, get_global_thread_pool, ThreadStatus
 
 
 _CALLBACKS_SIGNAL = 'heartbeat.callbacks'

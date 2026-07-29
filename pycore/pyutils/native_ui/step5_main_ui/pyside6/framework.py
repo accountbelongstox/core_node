@@ -40,7 +40,8 @@ from PySide6.QtCore import QObject, Signal, Slot, QTimer
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 from PySide6.QtGui import QIcon
 
-from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 if TYPE_CHECKING:
     pass

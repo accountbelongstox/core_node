@@ -36,7 +36,7 @@ from pycore.pyfoundations.punctuation_markers import (
     strip_punctuation,
     segment_with_markers,
 )
-from pycore.pyutils.text_stats import compute_text_stats
+from pycore.pyutils.text_stats.text_statistics import compute_text_stats
 
 # Sentence segmentation (BOTH grains) lives in book_processor; reuse it so the
 # v3 slot builder produces the SAME cue/sentence rows the rest of the pipeline

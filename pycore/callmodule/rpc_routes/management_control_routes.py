@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.platform.startup_manager import get_startup_manager
 from pycore.callmodule.platform.autostart_target import VALID_TARGETS, VALID_MECHANISMS
 from pycore.callmodule.rpc_routes.route_names import (

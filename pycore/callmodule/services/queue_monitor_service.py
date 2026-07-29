@@ -29,9 +29,8 @@ without restart.
 Architecture (mirrors translation_worker_service.py / tts_queue_poller_service.py)
 ------------------------------------------------------------------------------
   - Singleton service registered as a PyHeartbeat callback (interval ~5s, ENABLED
-    by default). Toggle at runtime via the heartbeat management router:
-      POST /api/heartbeat/enable/translation_queue_monitor
-      POST /api/heartbeat/disable/translation_queue_monitor
+    by default). Pycore UI toggles it only through RPC v2
+    `ui.heartbeat_workers.config`; Pycore owns the Laravel HTTP proxy calls.
   - poll_once() is LIGHT and EXCEPTION-SAFE: it GETs the queue list, caches the
     latest snapshot, and diffs priorities against the previous snapshot to detect
     PRIORITY BUMPS. It never raises into the heartbeat thread.
@@ -65,7 +64,7 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
     start_bus_task,
 )
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 # requests is a third-party dep — always obtained through the lazy accessor.
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 # Reuse the shared Laravel endpoint resolver (same as the UI laravel_api.* RPCs).

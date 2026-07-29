@@ -20,7 +20,7 @@ import shutil
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon import Commander
+from pycore.pyfoundations.pybasecommon.commander import Commander
 from pycore.pyfoundations.system_paths import map_web_path
 from pycore.pyutils.common.robust_downloader import RobustDownloader
 

@@ -5,9 +5,9 @@ import base64
 import os
 from typing import Any, Dict, Optional
 
-from pycore.pyctl.ai import generate_image
-from pycore.pyctl.ai import ai_image_history
-from pycore.pyutils.common import system_launcher
+from pycore.pyctl.ai.ai_gateway import generate_image
+import pycore.pyctl.ai.ai_image_history as ai_image_history
+import pycore.pyutils.common.system_launcher as system_launcher
 
 _PROMPT_MAX_CHARS = 2000
 

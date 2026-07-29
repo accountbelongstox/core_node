@@ -35,7 +35,7 @@ from typing import Optional, List
 from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtWebEngineCore import QWebEngineSettings, qWebEngineVersion
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.system_paths import get_system_cache_dir
 

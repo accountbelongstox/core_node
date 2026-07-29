@@ -14,7 +14,7 @@ Features:
 - Minimum window size constraints
 
 Usage:
-    from pycore.pyutils.native_ui.resize_handles import ResizeHandles
+    from pycore.pyutils.native_ui.step8_utils.resize_handles import ResizeHandles
 
     # In your window setup
     resize_handles = ResizeHandles(root_window, min_width=400, min_height=300)
@@ -22,8 +22,8 @@ Usage:
 """
 
 from typing import Optional, Tuple
-from pycore import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_tkinter
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_tkinter
 
 # Get tkinter via third_party manager (auto-installs python3-tk on Linux)
 tk = get_third_package_tkinter()

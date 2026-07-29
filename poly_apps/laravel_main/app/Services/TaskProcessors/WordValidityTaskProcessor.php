@@ -30,7 +30,7 @@ use Illuminate\Support\Facades\Log;
  * translation enqueue (AppQyV1MultiLangDictionaryModel::getWordsNeedingTranslation
  * filters is_valid=true), so the dictionary stops wasting lookups on junk.
  */
-class WordValidityTaskProcessor implements TaskProcessorInterface
+class WordValidityTaskProcessor extends AbstractTaskProcessor
 {
     protected TaskManagerService $taskManager;
 
@@ -50,9 +50,9 @@ class WordValidityTaskProcessor implements TaskProcessorInterface
         return $this->lastOutcome;
     }
 
-    public function canProcess(GlobalTask $task): bool
+    protected function taskTypeRoles(): array
     {
-        return $task->app_name === 'AppQyV1' && $task->task_type === 'word_validity';
+        return ['word_validity'];
     }
 
     public function processResult(GlobalTask $task, array $result, bool $isDemoMode): int
@@ -140,8 +140,4 @@ class WordValidityTaskProcessor implements TaskProcessorInterface
         return $n;
     }
 
-    public function getPriority(): int
-    {
-        return 10;
-    }
 }

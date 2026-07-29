@@ -41,7 +41,9 @@ class TaskController extends Controller
             // Task type, lane, capability, and priority are all read from the
             // shared JSON task model used by Pycore, both UIs, and mcp-chrome.
             'task_type' => ['required', 'string', Rule::in(array_column(QueueCenterContract::taskTypes(), 'key'))],
-            'execution_type' => ['required', 'string', Rule::in(GlobalTask::executionTypes())],
+            // Accepted only for old callers; TaskManagerService persists the
+            // lane from task_type's central definition and ignores this hint.
+            'execution_type' => ['nullable', 'string', Rule::in(GlobalTask::executionTypes())],
             'payload' => 'nullable|array',
             'timeout_seconds' => 'nullable|integer|min:10|max:3600',
             'priority' => 'nullable|integer|min:0|max:' . GlobalTask::priority('maximum'),
@@ -75,11 +77,12 @@ class TaskController extends Controller
 
         $interactive = (bool) ($validated['interactive'] ?? false);
         $capability = $validated['capability'] ?? null;
+        $executionType = QueueCenterContract::taskTypeExecution($validated['task_type']);
 
         $task = $this->taskManager->createTask(
             $validated['app_name'],
             $validated['task_type'],
-            $validated['execution_type'],
+            (string) $executionType,
             $payload,
             $timeoutSeconds,
             $priority,
@@ -88,12 +91,10 @@ class TaskController extends Controller
             $capability
         );
 
-        return $this->success([
-            'task_id' => $task->task_id,
-            'execution_type' => $task->execution_type,
-            'priority' => $task->priority,
-            'is_fast_tier' => (bool) $task->is_fast_tier,
-        ], 'Task created successfully');
+        return $this->success(
+            QueueCenterContract::projectTask($task, 'create_result'),
+            'Task created successfully'
+        );
     }
 
     /**
@@ -179,13 +180,12 @@ class TaskController extends Controller
      */
     protected function taskDetailData(GlobalTask $task): array
     {
-        // Bound the snapshot to the most-recent STREAM_BATCH_LIMIT events (the
-        // stream tail is capped at the same limit) so a long-lived task with a
-        // huge timeline cannot load an unbounded set on open. Fetch newest-first,
-        // then reverse to chronological order for the UI.
+        // Bound the snapshot to the central event_batch limit (the stream tail
+        // uses the same value) so a long-lived task cannot load an unbounded
+        // timeline. Fetch newest-first, then reverse for chronological UI order.
         $events = GlobalTaskEvent::forTask($task->task_id)
             ->reorder('id', 'desc')
-            ->limit(self::STREAM_BATCH_LIMIT)
+            ->limit(QueueCenterContract::taskLimit('event_batch'))
             ->get()
             ->reverse()
             ->values()
@@ -206,21 +206,24 @@ class TaskController extends Controller
             $timeoutIn = (int) max(0, now()->diffInSeconds($task->timeout_at, false));
         }
 
-        return [
+        $currentPhase = QueueCenterContract::projectTask([
+            'phase' => $task->status,
+            'worker_id' => $task->assigned_to,
+            'elapsed_seconds' => $elapsed,
+        ], 'current_phase');
+        $metadata = QueueCenterContract::projectTask([
+            'total_attempts' => (int) $task->retry_count,
+            'max_retries' => (int) $task->max_retries,
+            'will_retry' => $task->canRetry(),
+            'estimated_timeout_in_seconds' => $timeoutIn,
+        ], 'detail_metadata');
+
+        return QueueCenterContract::projectTask([
             'task' => QueueCenterContract::projectTask($task, 'detail'),
             'events' => $events,
-            'current_phase' => [
-                'phase' => $task->status,
-                'worker_id' => $task->assigned_to,
-                'elapsed_seconds' => $elapsed,
-            ],
-            'metadata' => [
-                'total_attempts' => (int) $task->retry_count,
-                'max_retries' => (int) $task->max_retries,
-                'will_retry' => $task->canRetry(),
-                'estimated_timeout_in_seconds' => $timeoutIn,
-            ],
-        ];
+            'current_phase' => $currentPhase,
+            'metadata' => $metadata,
+        ], 'detail_bundle');
     }
 
     // Bounded SSE connection lifetime — see stream(). Kept under Octane's
@@ -228,7 +231,6 @@ class TaskController extends Controller
     // reconnects by cursor and resumes with zero gap.
     private const STREAM_MAX_LIFETIME_SECONDS = 50;
     private const STREAM_POLL_INTERVAL_MS = 800;
-    private const STREAM_BATCH_LIMIT = 200;
     private const STREAM_HEARTBEAT_SECONDS = 15;
     // On the single-worker php -S runtime the SSE generator occupies the ONE
     // worker for its whole lifetime, starving all other requests. Cap the
@@ -295,20 +297,20 @@ class TaskController extends Controller
 
             // Full snapshot on open so the modal renders instantly without a
             // separate /detail round-trip.
-            yield new StreamedEvent(event: 'task.detail-initial', data: json_encode($initial, JSON_UNESCAPED_UNICODE));
+            yield new StreamedEvent(event: QueueCenterContract::taskStreamEvent('initial'), data: json_encode($initial, JSON_UNESCAPED_UNICODE));
 
             // Already terminal at open: there will never be more transitions, so
             // do not idle the full lifetime — emit a terminal close immediately.
             // done=true tells the consumer NOT to reconnect (SSE close contract).
             if (in_array($initialStatus, $terminal, true)) {
-                yield new StreamedEvent(event: 'stream.close', data: json_encode(['cursor' => $current, 'done' => true]));
+                yield new StreamedEvent(event: QueueCenterContract::taskStreamEvent('close'), data: json_encode(['cursor' => $current, 'done' => true]));
                 return;
             }
 
             while ((microtime(true) - $start) < $maxLifetime) {
                 $events = GlobalTaskEvent::forTask($taskId)
                     ->where('id', '>', $current)
-                    ->limit(self::STREAM_BATCH_LIMIT)
+                    ->limit(QueueCenterContract::taskLimit('event_batch'))
                     ->get();
 
                 if ($events->isNotEmpty()) {
@@ -318,7 +320,7 @@ class TaskController extends Controller
                         // record itself is the central event wire shape.
                         $eventPayload['_id'] = $evt->id;
                         yield new StreamedEvent(
-                            event: 'task.event',
+                            event: QueueCenterContract::taskStreamEvent('transition'),
                             data: json_encode($eventPayload, JSON_UNESCAPED_UNICODE)
                         );
                         $current = $evt->id;
@@ -332,11 +334,11 @@ class TaskController extends Controller
                         break;
                     }
 
-                    if ($events->count() >= self::STREAM_BATCH_LIMIT) {
+                    if ($events->count() >= QueueCenterContract::taskLimit('event_batch')) {
                         continue;
                     }
                 } elseif ((microtime(true) - $lastBeat) >= self::STREAM_HEARTBEAT_SECONDS) {
-                    yield new StreamedEvent(event: 'ping', data: json_encode(['cursor' => $current]));
+                    yield new StreamedEvent(event: QueueCenterContract::taskStreamEvent('ping'), data: json_encode(['cursor' => $current]));
                     $lastBeat = microtime(true);
                 }
 
@@ -349,7 +351,7 @@ class TaskController extends Controller
             // task's current status and test it against the terminal set.
             $closingStatus = GlobalTask::where('task_id', $taskId)->value('status');
             $done = in_array($closingStatus, $terminal, true);
-            yield new StreamedEvent(event: 'stream.close', data: json_encode(['cursor' => $current, 'done' => $done]));
+            yield new StreamedEvent(event: QueueCenterContract::taskStreamEvent('close'), data: json_encode(['cursor' => $current, 'done' => $done]));
         });
 
         $response->headers->set('X-Accel-Buffering', 'no');
@@ -381,7 +383,7 @@ class TaskController extends Controller
         }
 
         $listLimit = QueueCenterContract::taskLimit('list');
-        $limit = 20;
+        $limit = QueueCenterContract::taskLimit('list_default');
         if ($request->has('limit')) {
             // Validate + clamp: an unclamped limit could dump the whole table on a
             // single request. The cap is shared with both direct task UIs.

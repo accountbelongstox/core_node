@@ -1,247 +1,247 @@
-# Queue Center 数据契约整改报告
+# Queue Center / GlobalTask 数据契约代码对照审计
 
-日期：2026-07-28  
-范围：`/pycore-manager/queue-center`、Pycore RPC v2 聚合层、`poly_apps/laravel_main` Queue Center 读模型，以及 Pycore Manager 内相关媒体资源调用  
-状态：代码整改已完成；按项目约束未运行测试、构建或服务
+> 初始审计日期：2026-07-28  
+> 代码复核日期：2026-07-29  
+> 复核范围：config、poly_apps/laravel_main、pycore、poly_apps/pycore_laravel_wordflow_ui、apps/mcp-chrome  
+> 本文只判断当前代码是否已经落地，不把“已写入代码”等同于“已通过编译、测试或端到端运行”。
 
-## 1. 整改结论
+## 1. 结论
 
-原审查确认的 QCD-001～QCD-015 已落实到代码：
+当前状态应表述为：
 
-- Queue Center 的 category、control、section、默认 section DTO、claimant 和 queue metric 语义只有一个语言无关来源：`config/queue_center_contract.json`。
-- Python、PHP、TypeScript 只保留各自的薄适配器，并在文件注释中互相指明对齐文件。
-- Pycore Manager 的业务调用统一为 RPC v2 WebSocket；浏览器不再直接调用 Pycore/Laravel GET、POST，也不再把 Pycore/Laravel 资源 URL 直接放入 `img`、`audio` 或下载链接。
-- Pycore 是唯一 Queue Center 聚合与控制面；只有 Pycore 后端可通过共享 `LaravelClient` 对 Laravel 使用 HTTP。
-- Assist、overview、section builder、endpoint cache 和 vocabulary proxy 的重复实现已收敛到单一服务或基类。
-- Laravel live overview 与 Pycore fallback 始终输出相同的 13 个 category，不再因 Laravel 在线/离线改变卡片集合。
+**Queue Center 的中央契约、Laravel 状态机、Pycore Worker 主链路、两套 Manager UI 边界、Chrome Worker 基础设施及 c.txt 第 8 部分的合并功能均已在代码中落地；当前剩余项是编译、测试和真实端到端运行验证。**
 
-## 2. 唯一中心契约
+### 1.1 完成状态总表
 
-### 2.1 文件和适配器
-
-| 角色 | 文件 | 数据结构/职责 |
+| 项目 | 状态 | 代码对照结论 |
 |---|---|---|
-| 唯一语言无关来源 | `config/queue_center_contract.json:2` | `schema_version=2`、metric 语义、control 名称、section 默认 DTO、capability claimant、section scope、13 个 category |
-| Python 适配器 | `pycore/callmodule/services/queue_center_contract.py:65` | 加载中心 JSON，导出 Python 常量/TypedDict；不得拥有第二份目录 |
-| Laravel 适配器 | `poly_apps/laravel_main/app/Support/QueueCenterContract.php:15` | 加载同一 JSON，规范化 Laravel metrics，派生 claimant/category |
-| TypeScript 适配器 | `poly_apps/pycore_laravel_wordflow_ui/core/api-libs/pycore/QueueCenterContract.ts:25` | Queue Center 前端类型、runtime catalog、默认 section 和仅显示层 normalization |
+| 中央 JSON 契约 | 已完成 | config/queue_center_contract.json 是当前唯一中央定义源，schema_version 为 3 |
+| Python、Laravel、共享前端、mcp-chrome 适配器 | 已完成 | 四端均直接读取或导入中央 JSON，没有发现正在使用的第二份 shared_contracts 副本 |
+| Laravel GlobalTask 状态机与 Worker API | 已完成 | 创建、领取、接受、结果回传、取消、提权、详情、列表、统计和事件流已接入中央契约 |
+| Laravel Processor 入口收敛 | 已完成 | 现有 Processor 统一继承 AbstractTaskProcessor，没有发现业务 Processor 自行保留 canProcess/getPriority 实现 |
+| Pycore 通用 Worker 主链路 | 已完成 | 注册、心跳、领取、结果回传、重试、熔断和 in-flight 控制已集中在 BaseLaravelWorker |
+| Pycore 音频任务合流 | 已完成 | word_audio、article_audio、sentence_audio 进入共享音频处理路径 |
+| Pycore Manager UI 的 RPC v2 边界 | 已完成 | UI 通过 PycoreApiLocal 和 ui.* RPC 路由访问后端；未发现任务中心页面直接发起 HTTP/SSE |
+| Laravel Manager UI 的访问边界 | 已完成 | ServerManagerAPI 直接访问 Laravel，并复用共享 Queue Center 类型 |
+| mcp-chrome Worker 生命周期 | 已完成 | 通用 Worker 与 Processor 基类已统一注册、心跳、拉取、处理、结果回传和 outbox |
+| mcp-chrome Task Center 元数据 | 已完成 | 任务类型、状态、事件、限制、lane 和用户能力开关均由中央契约派生 |
+| 契约类型防漂移 | 已完成 | Python 和两套 TypeScript 适配器均对 12 个 wire_shapes 执行 DTO 字段覆盖断言 |
+| WXT 直接导入中央 JSON | 已完成 | 只保留一个 vite 配置和一个仓库根 fs.allow；无效 env 配置已移除 |
+| 遗留 QueueCenterPanel | 已完成 | 已改为复用 UnifiedTaskCenter，不再引用不存在的组件 |
+| c.txt 第 8 部分功能合并 | 已完成 | 有效性、Web-AI 翻译和 Bing 翻译由一个中央开关控制，并复用统一写回 |
+| TaskResult 同名导入 | 已完成 | DeepSeek 本地结果已改名为 DeepSeekTaskResult，中央 TaskResult 保持唯一 |
+| 编译、测试、真实 Worker 联调 | 未验证 | 本次按项目规则只做代码对照，没有运行构建、测试、服务或端到端任务 |
 
-三个适配器的文件头均指向另两个适配器及 `config/queue_center_contract.json`。`poly_apps/shared_contracts` 下不再保留 Queue Center 契约副本。
+## 2. 已完成：中央契约
 
-### 2.2 中心结构
+中央定义文件：
 
-`config/queue_center_contract.json` 当前拥有以下结构：
+- config/queue_center_contract.json
 
-| JSON 字段 | 唯一含义 |
+当前中央契约包含：
+
+| 内容 | 数量或值 |
 |---|---|
-| `schema_version` | RPC snapshot 契约版本；前端拒绝不支持的版本 |
-| `metric_semantics` | `pending`、`leased`、`processing`、`total` 的唯一语义 |
-| `control_names` | 只允许 `assist_translation`、`word_audio`、`sentence_audio` |
-| `section_contract_defaults` | `queue`、`worker`、`toggle`、`lifecycle`、error、freshness 的默认 DTO |
-| `capability_claimants` | capability 到可处理 runtime 的唯一映射 |
-| `section_scopes` | 五个 section 的显式 `category_keys[]` 和 `queue_metrics` 属性 |
-| `categories` | category key、label、Laravel task type、capability、primary handler |
+| schema_version | 3 |
+| task_types | 18 |
+| wire_shapes | 12 |
+| callback roles | 9 |
+| categories | 13 |
+| section_scopes | 5 |
+| live statuses | pending、assigned、processing |
+| terminal statuses | completed、completed_demo、failed、cancelled |
+| worker reportable statuses | processing、completed、failed |
+| priorities | default=0、manual=50、fast=100、maximum=1000 |
 
-category 不再重复保存 claimant。Python、PHP、TypeScript 都用 `category.capability -> capability_claimants` 派生 `claimants[]`；capability 为空时用 `primary_handler` 派生。
+18 个登记任务类型为：
 
-固定 category 集合为：
+1. word_translation
+2. dictionary_explanation
+3. dictionary_explanation_demo
+4. prompt_translation
+5. word_media
+6. word_audio
+7. article_audio
+8. article_tts_generation
+9. sentence_audio
+10. subtitle_search
+11. poster
+12. notebooklm
+13. gemini_image
+14. gemini_chat
+15. chatgpt_chat
+16. word_validity
+17. stt
+18. audio_transcribe
 
-`word_translation`、`ai_translate`、`word_media`、`word_audio`、`sentence_audio`、`subtitle_search`、`subtitle_lang`、`book_lang`、`cover`、`poster`、`notebooklm`、`gemini_image`、`gemini_chat`。
+这里的“18 个任务类型已登记”只表示契约定义完成，不表示每种任务都已经进行过真实运行或完成过任务实例。
 
-固定 section scope 为：
+### 2.1 四端适配器
 
-| scope | category_keys | queue_metrics |
-|---|---|---|
-| `heartbeat` | 空 | `false` |
-| `assist_translation` | `word_translation`、`ai_translate`、`subtitle_search`、`subtitle_lang`、`book_lang` | `true` |
-| `word_audio` | `word_audio` | `true` |
-| `sentence_audio` | `sentence_audio` | `true` |
-| `media_image` | `word_media`、`cover`、`poster`、`gemini_image` | `true` |
+以下适配器已经指向同一中央 JSON：
 
-category 输出结构统一为：
+- Python：pycore/callmodule/services/queue_center_contract.py
+- Laravel：poly_apps/laravel_main/app/Support/QueueCenterContract.php
+- 共享 TypeScript：poly_apps/pycore_laravel_wordflow_ui/core/api-libs/pycore/QueueCenterContract.ts
+- mcp-chrome：apps/mcp-chrome/app/chrome-extension/utils/queue-center-contract.ts
 
-```text
-PcQueueCategory {
-  key, label, capability,
-  primary_handler,
-  claimants[],
-  active_handlers[],
-  pending, leased, processing, total,
-  by_language?, by_status?, sample?, engine?
-}
-```
+代码搜索未发现有效的 poly_apps/shared_contracts/queue_center_contract.json，也未发现 schema_version=2 的在用副本。
 
-旧单值 `handler` 已从 Laravel、Pycore 和前端类型中删除。
+## 3. 已完成：Laravel 服务端主链路
 
-section 输出结构统一为：
+### 3.1 状态和事件
 
-```text
-QueueCenterSectionContract {
-  type, category,
-  queue { pending, leased, processing, total },
-  worker { online, claimed, ok, fail, last_heartbeat },
-  toggle { requested_by, enabled, reason, graceful_stop, paused_by_user },
-  lifecycle, error_code, last_error,
-  observed_at, age_s, stale
-}
-```
+GlobalTask 与 GlobalTaskEvent 已通过 QueueCenterContract 读取状态、事件和相关枚举。相关业务范围内没有发现继续使用 GlobalTask::STATUS_*、GlobalTaskEvent::EVENT_* 或旧 TranslationTaskManager 常量的调用。
 
-`lifecycle/error` 只存在于 section 顶层，不再重复塞入 `toggle`。
+### 3.2 创建、领取和结果回传
 
-## 3. 当前唯一数据链路
+TaskManagerService 已负责：
 
-| 顺序 | 文件/路由 | 责任 |
-|---|---|---|
-| 1 | `apps/pycore-manager/hooks/useQueueCenterHub.tsx:129` | 发起一次 RPC v2 snapshot；只做 schema 校验和显示安全的 scalar normalization |
-| 2 | `core/api-libs/pycore/PycoreApiLocal.ts` | 调用 `ui.task_center.get_queue_center_snapshot` / control RPC；无 GET/POST fallback |
-| 3 | `pycore/callmodule/rpc_routes/local_task_center_routes.py` | RPC v2 薄路由 |
-| 4 | `task_center_controller.py:341` | 唯一 snapshot composer；输出 canonical controls、sections、slice data 和 errors |
-| 5 | `queue_overview_service.py:150` | 唯一 Queue overview；合并 Laravel metrics、local worker、engine、fast-lane |
-| 6 | `task_center_assist.py` | 只负责 Laravel overview fetch/cache、worker/queue/TTS slice，不再拥有 Assist 或 overview 业务实现 |
-| 7 | `AppQyV1AssistOverview.php:20` | Laravel 只生产各 category metrics，再由 PHP 中心适配器补齐目录/handler/claimant 元数据 |
-| 8 | `QueueCenterContract.php:98` | 保证 13 个 category 总是存在并规范化计数字段 |
+- 按 task_types 解析任务定义、lane、capability 和 claimant
+- 创建任务并应用中央优先级
+- 在数据库事务和 lockForUpdate 下领取任务
+- 处理 capability 匹配和状态迁移
+- 接收 Worker 处理结果并写入终态
 
-独立 `ui.queue_overview.get_queue_overview` RPC 与 Queue Center snapshot 都调用 `queue_overview_service.get_queue_overview()`，不再存在两套输出。
+TaskController 与 WorkerController 已使用中央 limits、wire_shapes、状态和事件定义，覆盖任务详情、列表、统计、事件流以及 Worker 注册、心跳、拉取、接受和结果回传。
 
-## 4. QCD-001～QCD-015 修复明细
+### 3.3 Processor 收敛
 
-| ID | 状态 | 精确文件与数据结构 | 修复结果 |
-|---|---|---|---|
-| QCD-001 | 已修复 | `assist_service.py:67` 的 `AssistStatus`；`native_ui_routes.py`、`local_assist_routes.py` | `assist_status/config/cycle` 只在 `assist_service.py` 实现；两组 RPC 路由均为兼容薄入口 |
-| QCD-002 | 已修复 | `task_center_controller.py:264` 的 `QueueCenterSnapshot.controls` | 输出只含中心定义的三个 canonical key；`assist`/`translation` 只保留输入 alias |
-| QCD-003 | 已修复 | `assist_laravel` effective settings；`queue_center_controls` intent audit；`word_tts_auto`/`sentence_audio_auto` concurrency | 生效配置只读 Assist master/capability；intent 不再覆盖配置；旧 `auto_start` 仅在 Assist 文档不存在时用于迁移兼容 |
-| QCD-004 | 已修复 | `config/queue_center_contract.json:70`、`AppQyV1AssistOverview.php:26`、`queue_overview_service.py:59` | 在线/离线统一 13 个 category；Laravel/Pycore 不再各有 catalog |
-| QCD-005 | 已修复 | `queue_overview_service.py:150` | 只保留一个 `get_queue_overview()`；snapshot 与独立 RPC 共用 |
-| QCD-006 | 已修复 | `AppQyV1AssistQueueMetrics.php:231`、`:388`、`:453`；`AppQyV1AssistMediaOperations.php` | GlobalTask：pending=`pending`、leased=`assigned`、processing=`processing`；Sentence/Cover/Poster 将活跃 lease 从 pending 扣除；`total` 按中心定义表示完整 source population |
-| QCD-007 | 已修复 | `PcQueueCenterPage.tsx:151` | Overview badge 只对 canonical `overview.categories[].pending` 求和；不再相加五个 section，不重复 cover/poster，不混入 heartbeat |
-| QCD-008 | 已修复 | `task_center_sections.py:167` 的 `heartbeat` section | heartbeat 的 queue 四个计数固定为 0；运行健康只进入 `worker/toggle/lifecycle/error` |
-| QCD-009 | 已修复 | `useQueueCenterHub.tsx:193`、`QueueCenterContract.ts:226` | 删除前端 280+ 行业务 fallback builder；前端只解析后端 section，并从中心 JSON 构造空显示值 |
-| QCD-010 | 已修复 | `QueueCenterContract.ts:98`、`task_center_sections.py:137` | toggle 只含声明字段；lifecycle/error 只在 section 顶层 |
-| QCD-011 | 已修复 | `EndpointScopedCache`、`task_center_assist.py`、`PcQueueOverviewPanel.tsx:83` | slice 保留源 `observed_at/age_s/stale`；UI 显示 overview 源时间，不用 envelope 组装时间冒充 |
-| QCD-012 | 已修复 | `endpoint_scoped_cache.py:12`、`word_tts_auto.py:32`、`sentence_audio_auto.py:38`、`task_center_assist.py` | 三类 Laravel-backed cache 均先解析 endpoint，再按 normalized endpoint 分区；stale 最长 300 秒，不无限回退 |
-| QCD-013 | 已修复 | `poly_apps/laravel_main/app/Http/Controllers/TaskCenterController.php` | 删除不兼容的 Laravel `section_contracts`；Laravel legacy translation setting 只保留 soft-deprecated no-op，不再作为控制真值 |
-| QCD-014 | 已修复 | `QueueCenterContract.php:80`、`QueueCenterContract.ts:25`、`PcQueueOverviewPanel.tsx:121` | 使用 `primary_handler/claimants/active_handlers`；Laravel manager 与 Pycore manager UI 均已对齐 |
-| QCD-015 | 已修复 | `QueueCenterContract.ts`、`pycoreTypes.ts`、`BooksAPI.ts`、`PycoreVocabTypes.ts` | 补齐 freshness/runtime/category/worker 字段；Queue Center 路径移除 `as any` 协议绕过和“8 categories”漂移注释 |
+现有 11 个业务 Processor 均继承 AbstractTaskProcessor：
 
-## 5. 控制面合并
+- DictionaryTaskProcessor
+- GeminiTextTaskProcessor
+- SentenceAudioTaskProcessor
+- WordValidityTaskProcessor
+- NotebookLmTaskProcessor
+- PromptTranslationTaskProcessor
+- ArticleAudioTaskProcessor
+- WordGeminiImageTaskProcessor
+- WordTranslationTaskProcessor
+- SubtitleSearchTaskProcessor
+- PosterTaskProcessor
 
-### 5.1 生效配置
+canProcess 和 getPriority 的实现只保留在接口与抽象基类范围，业务 Processor 不再各自维护一套判定入口。
 
-`pycore/pyctl/assist/assist_settings.py` 的 `assist_laravel` 文档是唯一 effective worker 配置：
+## 4. 已完成：Pycore Worker 与 Manager UI
 
-- master：`enabled`
-- translation：`capabilities.translation` / `capabilities.ai_translate`
-- word audio：`capabilities.tts`
-- sentence audio：`capabilities.sentence_audio`
+### 4.1 Worker
 
-`queue_center_control_service.py` 的 `queue_center_controls` 只保存 `requested/requested_by/reason/graceful_stop/timestamp` 审计意图。
+pycore/callmodule/workers/base_laravel_worker.py 已集中处理：
 
-`word_tts_auto.py:57` 和 `sentence_audio_auto.py:63`：
+- Worker 注册与心跳
+- 任务拉取与结果回传
+- 重试、熔断和 in-flight 控制
+- Worker 可上报状态校验
 
-- Assist 文档存在时，`auto_start` 从 Assist master+capability 派生。
-- 原 `word_tts_auto.auto_start`、`sentence_audio_auto.auto_start` 只在旧安装尚无 Assist 文档时读取。
-- 两个 worker 自有 section 只继续保存 worker-specific `concurrency`，不再拥有 enable 真值。
+worker.py 使用中央任务类型分发任务。word_audio、article_audio、sentence_audio 进入 handlers/audio.py 的共享音频处理路径。
 
-### 5.2 控制执行
+lane_gating.py 已按中央 lane/capability 计算有效 Worker 能力，并把翻译、音频和句子音频接入对应调度回调。
 
-`task_center_controller.py:429` 的 `set_queue_center_control()` 是唯一 Queue Center control base：
+callmodule_main.py 同时注册 translation_worker 和 always-on global_task_worker；两者调用同一 worker.poll_once，并依赖 single-flight 防止并发重复拉取。代码结构已经统一，但双触发在真实运行下是否完全符合预期，本次没有联调证据。
 
-- `assist_translation` 更新 translation/ai_translate capability。
-- `word_audio` 更新 TTS capability 并调用 word worker runtime adapter。
-- `sentence_audio` 更新 sentence capability 并调用 sentence worker runtime adapter。
-- 开启子 capability 时可开启 Assist master；关闭单一 capability 不会误关 master 并连带停止其他 worker。
+### 4.2 Manager UI
 
-## 6. Laravel 读模型对齐
+Pycore Manager UI 通过 PycoreApiLocal.callRpc 调用 ui.* 路由。实际路由已拆分到：
 
-### 6.1 Category 生成
+- local_task_center_routes.py
+- local_task_history_routes.py
+- local_heartbeat_workers_routes.py
+- local_queue_overview_routes.py
 
-`AppQyV1AssistOverview.php:26` 只维护 `metricsByKey`；label、capability、primary handler、claimants 由 `QueueCenterContract::normalizeCategories()` 从中心 JSON 合并。
+这些模块由 rpc_routes/__init__.py 注册。旧结论中把任务中心路由全部归到 native_ui_routes.py 不准确，本次已纠正。
 
-`AppQyV1AssistQueueItems.php:33` 使用中心 `categoryKeys()` 验证 drill-down category，使用中心 `laravel_task_type` 路由 GlobalTask 类别；`ai_translate` 与普通 `word_translation` 按 capability 分开。
+任务中心相关 UI 范围内没有发现 fetch、axios、EventSource、XMLHttpRequest 或直接 WebSocket 构造调用，因此 Pycore UI 的 RPC v2 边界在代码上已经成立。
 
-### 6.2 计数语义
+## 5. 已完成：Laravel Manager UI
 
-中心语义为：
+Laravel Manager UI 的 ServerManagerAPI 直接访问 Laravel API，符合该 UI 的部署边界。它复用共享 Queue Center DTO，并使用中央任务流事件名称监听 assigned、processing、completed、failed、timeout、reclaimed 和 cancelled。
 
-- `pending`：尚未 claim 的 ready work。
-- `leased`：已 assigned/claimed、尚未进入 processing。
-- `processing`：正在处理。
-- `total`：该 category source population 的全部记录，可包含 terminal records，因此不要求等于三个 active bucket 之和。
+## 6. 已完成：mcp-chrome
 
-实现位置：
+以下部分已经接入中央契约：
 
-- GlobalTask：`AppQyV1AssistQueueMetrics.php:231`
-- AI translation split：同文件 `:270`
-- Sentence Audio：同文件 `:388`
-- Assist requests：同文件 `:453`
-- Cover/Poster lease：`AppQyV1AssistMediaOperations.php`
-- Drill-down status 映射：`AppQyV1AssistQueueItems.php:94`
+- WorkerApiClient 使用中央 Worker 拉取限制
+- SimpleWorkerBase 统一注册、心跳、拉取、处理、回传和 outbox
+- WorkerServiceProcessorBase 统一 Processor 启停和状态
+- 11 个具体 Processor 通过 init-processors 注册
+- task-center-lanes 从中央 task catalog 派生 distributed lanes
+- task-center-meta 从中央任务目录派生任务类型和 capability 展示信息
+- UnifiedTaskCenter 使用中央任务类型、live statuses、status roles 和 limits
+- TaskDetailModal 使用中央状态与事件
+- history store 使用中央终态、事件、限制和流事件名称
+- useTaskCenter 与 ServerManagerAPI 使用中央流事件常量
 
-## 7. RPC v2 与资源边界
+task-capabilities.ts 现在只把中央 chrome_capability_switches 的 snake_case 字段转换为既有弹窗 API，不再维护第二份 key、标签或 processor 映射。Task Center 的 batchSize 默认值和最大值也分别来自 worker_pull_default 与 worker_pull。
 
-### 7.1 Queue Center
+wxt.config.ts 只保留一个 vite 配置，中央 JSON 的仓库根读取边界只声明一次。QueueCenterPanel.vue 改为 UnifiedTaskCenter 的兼容包装。
 
-Pycore Manager Queue Center 只使用：
+DeepSeek 队列的本地 TaskResult 已改名为 DeepSeekTaskResult，避免 WXT 自动导入扫描与中央 Worker TaskResult 冲突。
 
-- `ui.task_center.get_queue_center_snapshot`
-- `ui.task_center.set_queue_center_control`
-- `ui.queue_overview.get_queue_overview`（兼容独立消费者，仍复用同一 service）
+## 7. 已完成：c.txt 第 8 部分功能合并
 
-前端没有 GET/POST fallback，也没有前端直接 Laravel API client。
+| 要求 | 代码状态 |
+|---|---|
+| 有效性检测拉取 Laravel 全量待处理单词 | WordValidityRunnerService 递归拉取 validity/pending，直到队列清空 |
+| 默认 DeepSeek，可切换其他可用 Web AI | 默认 DeepSeek；Settings 提供 DeepSeek、Gemini、ChatGPT，均有实际页面驱动 |
+| 有效性与缺失翻译合并 | 同一提示一次返回 valid、invalid 和目标语言翻译；Laravel 同一报告写回有效性和缺失翻译 |
+| 只补缺失翻译 | AppQyV1WordTranslationWriteback 按目标语言 fill-missing，不覆盖现有翻译 |
+| 8.2 默认只处理 EN，也可处理其他语言 | 默认 en；保留常用语言按钮并支持输入两至三字母语言码 |
+| 8.3 Web-AI 翻译逻辑合并 | WebAiTranslateWorkerService 复用 word-validity-web-runtime，不再维护独立提示和解析器 |
+| 8.4 音频由 Pycore 辅助 | Task 页不显示音频开关；Qwen TTS Processor 代码仍保留 |
+| 8.5 短文由 Pycore 辅助 | Task 页不显示短文开关；Pycore agent-history 路径仍保留 |
+| 8.6 Bing 翻译逻辑合并 | 中央 validity 开关同时拥有 web_ai_translate 和 bing_dictionary；Bing watchdog 按 processor run-intent 判断 |
+| 8.7 Unified Task Center 与 Laravel 数据一致 | 汇总数字使用 Laravel task-center/overview.queue.by_type，不再从截断列表推算；失败时清除旧快照 |
+| 8.8 Data 内容只显示在 Data Tab | DataPanel 使用单根节点，App.vue 对各 Panel 分别执行 v-show |
+| 8.9 无效图片无限重试 | 客户端提交前校验 magic bytes；invalid/not_found 作为 outbox 终态丢弃 |
+| 8.10 底层数据共享 | capability、lane、limits、状态和事件来自中央契约；popup/background 状态使用共享 composable、message type 和 storage key |
 
-### 7.2 媒体与二进制资源
+Task 页当前只显示三个中央能力开关：图片与封面、单词有效性与翻译、NotebookLM。有效性与翻译开关启动三个协作部分：有效性全量 Runner、Web-AI 翻译 Worker、Bing 翻译 Worker。
 
-为消除浏览器通过元素 `src` 或下载 URL 发起 HTTP，以下资源改为 RPC base64/data URL：
+有效性报告提交失败时先进入持久 outbox，然后结束当前轮次，避免立即重复演算同一批；Task Center watchdog 会继续恢复运行。
 
-| 数据 | Pycore 后端 | 前端 |
-|---|---|---|
-| completed archive | `task_history_controller.py:42` 返回 `content_base64/mime/filename` | `PycoreApiLocal.ts:90`、`PcRecentTasksPanel.tsx` |
-| word audio | dedicated word-audio RPC 返回 base64 | `PycoreApiLocal.ts:381`、`PcWordAudioPanel.tsx` |
-| speech/image history | `pycore.router.resource` RPC | `PcBlobMedia.tsx`、`PcRecordsPanel.tsx`、`PcAiStudioView.tsx` |
-| image-search thumbnails | `ImageSearchController.resource()` 在 Pycore 下载外部图片并返回 base64 | `PcImageSearchPage.tsx` lazy RPC image component |
-| vocabulary cover/TTS | `vocabulary_service.py:122` / `:227` 在 Pycore 读取 Laravel bytes | `PycoreApiLocal.ts:453`、`VocabLibrariesTab.tsx`、`VocabTranslateTab.tsx` |
-| Laravel media lists/detail | `laravel_media_query_service.py:36` / `:49` | `PcLaravelMediaPanel.tsx:139` / `:181` |
+## 8. 已完成：DTO、WXT 与静态引用收敛
 
-`PcLaravelMediaPanel` 已删除原来的 browser `laravelApi` fallback。当前链路严格为：
+- Python TypedDict、共享 TypeScript DTO 和 mcp-chrome DTO 均覆盖中央 12 个 wire_shapes
+- TypeScript 在编译期检查断言字段确实属于对应 DTO，并在模块加载时核对中央字段顺序
+- Python 在适配器加载时检查每个中央 wire shape 均有 TypedDict 且没有缺失字段
+- WXT 中重复 vite 属性和无效 env 配置已移除
+- QueueCenterPanel 不再引用缺失的 LocalTaskQueue.vue 与 LogViewerPanel.vue
+- DeepSeekTaskResult 与中央 TaskResult 已消除同名导入
 
-```text
-Pycore Manager UI
-  -> RPC v2 WebSocket
-  -> Pycore service
-  -> shared LaravelClient HTTP
-  -> selected Laravel endpoint
-```
+## 9. 尚未验证：运行状态
 
-外部图片结果的“打开来源页面”仍是显式用户导航，不属于后台数据/API transport；自动加载的缩略图字节已经改走 RPC。
+本次没有运行：
 
-### 7.3 重复 proxy 合并
+- Laravel 或前端构建
+- Python、PHP、TypeScript 测试
+- Pycore、Laravel、mcp-chrome 服务
+- Worker 注册、心跳、拉取、ACK、结果回传
+- SSE/WebSocket 断线重连与回放
+- 18 个任务类型的真实端到端任务
 
-`native_ui_routes.py` 原内联 vocabulary HTTP path/method map 已删除。它现在只调用 `vocabulary_service.dispatch_vocabulary_action()`；dedicated vocabulary RPC 也调用同一 service。HTTP verb 和 Laravel path 只由 `vocabulary_service.py` 决定。
+因此本文不能给出“全部可运行”“所有任务均完成”或“零回归”的结论。
 
-## 8. UI 对齐
+## 10. 最终判定
 
-- `useQueueCenterHub.tsx`：单 snapshot、单状态源、schema v2 gate；默认 auto refresh 在未保存 preference 时为开启。
-- `PcQueueCenterPage.tsx`：Overview count 使用去重 category pending。
-- `PcQueueOverviewPanel.tsx`：展示 primary/eligible/active handlers 和真实 freshness。
-- `VocabAssistQueuesPanel.tsx`、`VocabLearningTasksPanel.tsx`：不再读取已删除的 `handler`，改用中心 `primary_handler/claimants`。
-- `PcTaskAudioPreview.tsx`、`PcRecentTasksPanel.tsx`、`PcWordAudioPanel.tsx`：音频/下载资源走 RPC data URL。
-- `PcAiStudioView.tsx`、`PcRecordsPanel.tsx`、`PcImageSearchPage.tsx`、`VocabLibrariesTab.tsx`：图片字节走 RPC data URL。
-- Pycore Manager 内已移除 runtime `fetch`、`axios`、`laravelApi`、`getSharedBaseURL` 和 `rewritePycoreEndpoint` 业务调用。
+### 可以标记为代码实现完成
 
-## 9. 兼容边界
+- 中央 Queue Center JSON 契约
+- 四端中央契约适配器
+- Laravel GlobalTask 状态机和 Worker API
+- Laravel Processor 判定入口收敛
+- Pycore 通用 Worker 主链路
+- Pycore 音频任务共享处理
+- Pycore Manager UI 的 RPC v2 访问边界
+- Laravel Manager UI 的直接 Laravel 访问边界
+- mcp-chrome Worker 生命周期基础设施
+- 主 Task Center 对中央任务类型、状态、事件和限制的消费
+- c.txt 第 8 部分的有效性、Web-AI 与 Bing 合并链路
+- WXT 配置、遗留面板和 TaskResult 同名问题修复
+- DTO wire-shape 防漂移断言
 
-- `assist`、`translation` control alias 仅用于旧输入，snapshot 永远输出 `assist_translation`。
-- 旧 word/sentence `auto_start` 只用于首次迁移；Assist 文档一旦存在即不再作为生效真值。
-- Laravel `task-center/settings` GET/POST 路由仍为非 Pycore 旧客户端保留，但 translation 写入是 no-op，Queue Center 前端不调用。
-- core API 库仍保留 SSE/HTTP compatibility 工具供其他应用使用；Pycore Manager 的 canonical live/event transport 是 RPC v2 WebSocket，SSE 不自动启动。
+### 仍不能标记为运行验证完成
 
-## 10. 本次未执行的验证
+- 编译、测试及真实端到端联调
 
-根据项目 `AGENTS.md`，本次没有运行测试、构建、服务或运行态验证，也没有执行 git 操作。已完成的检查仅包括静态文件追踪和只读搜索：
-
-- Queue Center 中心契约只存在于 `config/queue_center_contract.json`。
-- Pycore 只剩一个 `assist_status/config`、一个 `get_queue_overview` 和一个 endpoint cache 基类。
-- Pycore Manager runtime 代码中未发现 `fetch`、`axios`、直接 `laravelApi` 或 endpoint rewrite 业务调用。
-- Laravel 不再输出与 Pycore 同名但不同 shape 的 `section_contracts`。
-
-后续如明确授权运行验证，应至少检查：RPC schema version、13 个 category、三组 control、endpoint 切换后的 cache isolation、resource data URL、Laravel online/offline freshness 和 Queue Center 五个 section 的实际渲染。
+后续报告应分别使用“代码已落地”“静态检查通过”“编译通过”“端到端验证通过”四种表述，不能再用一个“已完成”覆盖不同验证层级。

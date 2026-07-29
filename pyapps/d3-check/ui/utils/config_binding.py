@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Any, Callable, Optional, Union, Dict, List
 from providor.providor_index import CONFIG, get_config_value_safe, set_config_value_async
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from share.values.config_change_hub import get_config_change_hub
 from .tk_variables import var_str, var_bool
 from ..widgets import ThemedEntry, ThemedCombobox, ThemedSpinbox

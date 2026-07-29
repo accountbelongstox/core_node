@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional, Union
 
 from package_manager import PackageManager
 
-from pycore.pyfoundations.third_party import get_third_package_openpyxl
+from pycore.pyfoundations.third_party.api import get_third_package_openpyxl
 
 
 logger = logging.getLogger(__name__)

@@ -15,11 +15,9 @@ import shutil
 import sys
 from typing import Optional
 
-from pycore.pyfoundations.pybasecommon import exec_silent
-from pycore.pyfoundations.third_party import (
-    get_third_package_pyperclip,
-    get_third_package_tkinter,
-)
+from pycore.pyfoundations.pybasecommon.commander import exec_silent
+from pycore.pyfoundations.third_party.api import get_third_package_pyperclip
+from pycore.pyfoundations.third_party.api import get_third_package_tkinter
 
 pyperclip = get_third_package_pyperclip()
 tk = get_third_package_tkinter()

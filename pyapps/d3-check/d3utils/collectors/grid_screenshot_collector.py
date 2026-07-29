@@ -12,7 +12,7 @@ import sys
 from typing import Optional, Tuple
 
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
 
 Image = get_third_package_PIL_Image()
 
@@ -20,7 +20,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 # Third-party imports
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d3utils.screenshot_provider import get_window_screenshot
 
 # Local imports

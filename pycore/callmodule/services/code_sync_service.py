@@ -7,7 +7,7 @@ import base64
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from pycore.pyutils.codesync import get_code_sync_manager
+from pycore.pyutils.codesync.manager import get_code_sync_manager
 
 
 def _p(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:

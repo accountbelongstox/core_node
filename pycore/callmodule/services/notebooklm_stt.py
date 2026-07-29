@@ -6,9 +6,10 @@ import json
 from pathlib import Path
 from typing import Dict, List
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.system_paths import map_web_path
-from pycore.pyutils.whisper_stt import whisper_stt_provider
+from pycore.pyutils.whisper_stt.whisper_provider import whisper_stt_provider
 
 
 NOTEBOOKLM_AUDIO_DIR = map_web_path("www") / "notebooklm"

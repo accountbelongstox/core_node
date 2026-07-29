@@ -7,6 +7,7 @@ import tailwindcss from '@tailwindcss/vite';
 const configPath = resolve(__dirname, 'config.cjs');
 const config = require(configPath);
 const CHROME_EXTENSION_KEY = config.CHROME_EXTENSION_KEY;
+const REPOSITORY_ROOT = resolve(__dirname, '../../../..');
 
 // Detect the target browser from the wxt CLI args (this file is plain TS run by
 // the wxt CLI, so process.argv is the only reliable pre-config signal). Used to
@@ -68,8 +69,6 @@ export default defineConfig({
   outDir: resolve(__dirname, '../../.output'),
   outDirTemplate: IS_FIREFOX_TARGET ? 'build_extension_firefox' : 'build_extension',
   modules: ['@wxt-dev/module-vue'],
-  // Disable automatic .env loading since we use config.js
-  env: {},
   webExt: {
     // 方案1: 禁用自动启动（推荐）
     disabled: true,
@@ -177,7 +176,7 @@ export default defineConfig({
     // contract file that could drift.
     server: {
       fs: {
-        allow: [resolve(__dirname, '../../../..')],
+        allow: [REPOSITORY_ROOT],
       },
     },
     plugins: [

@@ -12,7 +12,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Services\TaskManagerService;
-use App\Models\GlobalTask;
+use App\Support\QueueCenterContract;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use Illuminate\Support\Facades\Log;
 
@@ -49,7 +49,8 @@ class AppQyV1TranslationTaskService
         }
 
         // Always use real task type - backend never creates demo tasks
-        $taskType = 'dictionary_explanation';
+        $taskType = (string) QueueCenterContract::taskTypeKey('dictionary_explanation');
+        $executionType = (string) QueueCenterContract::taskTypeExecution($taskType);
         $timeoutSeconds = 60 + (count($untranslatedWords) * 3);
 
         if ($timeoutSeconds > 600) {
@@ -74,10 +75,10 @@ class AppQyV1TranslationTaskService
         $task = $this->taskManager->createTask(
             'AppQyV1',
             $taskType,
-            GlobalTask::executionType('remote_client'),
+            $executionType,
             $payload,
             $timeoutSeconds,
-            50,
+            QueueCenterContract::taskPriority('manual'),
             3
         );
 
@@ -91,7 +92,7 @@ class AppQyV1TranslationTaskService
             'task_id' => $task->task_id,
             'word_count' => count($untranslatedWords),
             'timeout_seconds' => $timeoutSeconds,
-            'status' => 'pending',
+            'status' => QueueCenterContract::taskStatus('pending'),
         ];
     }
 

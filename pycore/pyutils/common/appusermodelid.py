@@ -21,7 +21,7 @@ from pathlib import Path
 
 import traceback
 
-from pycore.pyfoundations.third_party import get_third_package_pythoncom
+from pycore.pyfoundations.third_party.api import get_third_package_pythoncom
 import ctypes
 
 

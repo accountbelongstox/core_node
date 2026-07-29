@@ -18,7 +18,7 @@ from contextlib import contextmanager
 from pycore.pyfoundations.system_paths import map_web_path
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint as _OriginalColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
+from pycore.pyfoundations.third_party.api import get_third_package_sqlalchemy
 
 # Suppress ColorPrint output in MCP mode
 class ColorPrint:

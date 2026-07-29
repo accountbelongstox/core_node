@@ -20,7 +20,7 @@ for _ in range(12):
 import configparser
 import tbus
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from common.Define import RUN_TYPE_UI_AI, RUN_TYPE_AI, RUN_TYPE_UI
 
 

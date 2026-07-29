@@ -130,6 +130,7 @@ class AppQyV1AiPromptFanoutTask extends OctaneTimerTaskAbstract
     private function dispatchPrompt(AppQyV1AiPromptRequest $request, AppQyV1AiPrompt $prompt): bool
     {
         $executionType = $this->executionTypeFor($prompt->task_type);
+        $payloadField = QueueCenterContract::taskTypePromptPayloadField($prompt->task_type);
         if ($executionType === null) {
             $this->logWarning('Unsupported prompt task_type, skipping', [
                 'prompt_key' => $prompt->prompt_key,
@@ -175,7 +176,11 @@ class AppQyV1AiPromptFanoutTask extends OctaneTimerTaskAbstract
                 $prompt->task_type,
                 $executionType,
                 [
-                    'question' => $rendered,
+                    // The shared contract names the field consumed by each web
+                    // worker (for example Gemini text uses question while image
+                    // and ChatGPT use prompt). Change it in the JSON first so
+                    // Laravel and mcp-chrome update from the same definition.
+                    $payloadField => $rendered,
                     'title' => $prompt->title,
                 ],
                 120,

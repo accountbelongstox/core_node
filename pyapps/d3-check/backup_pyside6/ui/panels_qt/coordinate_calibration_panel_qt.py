@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 from pycore.pyutils.system_launcher import open_dir
 from pycore.pyutils.window_activator import WindowActivator
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.window_finder import WindowFinder
 from d3utils.screenshot_provider import get_window_screenshot
 from providor.providor_index import (
@@ -122,7 +122,7 @@ except ImportError:
     flow3_open_label_tool = None
 
 try:
-    from pycore.pyutils.voc_annotator import patch_data
+import pycore.pyutils.voc_annotator.patch_data as patch_data
     from pycore.pyutils.voc_annotator.project_config import save_project_config
 except ImportError:
     patch_data = None

@@ -19,14 +19,10 @@ The concrete subclass (TranslationWorkerService) supplies:
   - _effective_processor_types() / _effective_capabilities() (lane gating)
   - the lane-specific task processing
 
-REUSE-FIRST TODO: tts_queue_poller_service.py + tts_sentence_worker_service.py
-duplicate this exact scaffold (_build_worker_id, candidate
-discovery, _short_err, register/heartbeat/pull/_post_result, circuit breaker).
-They should be retrofitted to inherit BaseLaravelWorkerService in a LATER reuse
-batch - NOT in this split (their contracts differ slightly: dedicated claim/report
-endpoints vs the generic /api/worker/* path, and they use LaravelEndpointManager
-for base-URL resolution). This base is intentionally generic enough to absorb
-them once their endpoint paths are parameterized.
+The word/sentence source-queue workers are intentionally outside this base:
+they claim domain rows through dedicated claim/report contracts rather than the
+GlobalTask worker wire model. Shared Laravel transport still goes through
+LaravelClient; every generic /api/worker/* consumer belongs in this base.
 """
 
 import os
@@ -39,7 +35,7 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 # requests is a third-party dep - always obtained through the lazy accessor.
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
     register_endpoint_change_listener,

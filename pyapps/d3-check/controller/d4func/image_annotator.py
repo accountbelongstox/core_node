@@ -4,7 +4,7 @@
 Image Annotator for D4 Controller. Singleton via get_image_annotator(); do not instantiate elsewhere.
 """
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.constants.d4 import D4_ANNOTATED_DIR
 from share.game_interface_data import (
     D4_STANDARD_COORDS,

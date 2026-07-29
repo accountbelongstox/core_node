@@ -6,7 +6,7 @@ Keeps existing API for callers that use get_kanai_cube_handler().
 """
 from typing import Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from share.game_interface_data import get_game_interface_data
 from d3utils.kanai import run_upgrade_operation, run_reforge_operation
 

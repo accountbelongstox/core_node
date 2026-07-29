@@ -16,7 +16,7 @@ from typing import Dict, Callable, Any
 current_dir = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(current_dir))
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 # D4State functionality now integrated into D4InterfaceData
 from share.game_interface_data import get_d4_interface_data, D4_EVENT_KEYS
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Video Controller"""
-from ...services.processors import VideoProcessor
+from pycore.callmodule.services.processors.video_processor import VideoProcessor
 from ...models.local_processing.video_models import VideoProcessRequest, VideoProcessResponse
 
 class VideoController:

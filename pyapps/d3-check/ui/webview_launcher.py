@@ -7,11 +7,11 @@ Single creator of D3MacroWebViewAPI / WebViewFramework per window.
 """
 
 # Check and install dependencies before importing
-from pycore import check_and_install_dependencies
+from pycore.pyfoundations.third_party.api import check_and_install_dependencies
 check_and_install_dependencies()
 
 # Import ColorPrint for logging
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 import os
 import sys
@@ -19,11 +19,9 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 # Import WebView UI Framework
-from pycore.pyutils.native_ui import (
-    WebViewFramework,
-    UIConfig,
-    SignalType
-)
+from pycore.pyutils.native_ui.step1_config.config import UIConfig
+from pycore.pyutils.native_ui.step8_utils.signals import SignalType
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.framework import PySide6Framework as WebViewFramework
 
 # Import d3-check components
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA

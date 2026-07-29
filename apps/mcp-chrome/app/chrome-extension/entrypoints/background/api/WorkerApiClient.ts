@@ -115,7 +115,7 @@ export class WorkerApiClient extends BaseApiClient {
       throw new Error('Worker ID not set. Call register() first or provide workerId');
     }
 
-    const { limit = 5, wait = 0 } = options;
+    const { limit = TASK_LIMITS.worker_pull_default, wait = 0 } = options;
     // Clamp with the same limits Laravel validates from the central contract.
     const safeWait = Math.max(0, Math.min(TASK_LIMITS.long_poll_seconds, Math.floor(wait)));
     const safeLimit = Math.max(1, Math.min(TASK_LIMITS.worker_pull, Math.floor(limit)));
@@ -124,7 +124,7 @@ export class WorkerApiClient extends BaseApiClient {
       WORKER_PATHS.TASKS_PULL,
       {
         worker_id: id,
-        // Always send wait; a missing wait makes Laravel long-poll 20s.
+        // Always send wait; a missing wait uses Laravel's central long-poll limit.
         wait: safeWait,
         limit: safeLimit,
       },

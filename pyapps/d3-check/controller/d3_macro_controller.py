@@ -18,7 +18,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 from providor.providor_index import CONFIG, load_config, queue_config_save, CONFIG_USER_PATH, get_config_value_safe, get_config_section
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from ui.diablo3_macro_ui import Diablo3MacroUI
 from controller.game_interface_controller import GameInterfaceController, get_game_interface_controller
 from providor.i18n_manager import i18n_manager

@@ -23,7 +23,7 @@ from typing import Dict, Callable, Optional, Any
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.providor_index import CONFIG, get_assistant_state, set_assistant_should_stop, can_start_assistant
 from d3utils.global_hotkey_manager import register_hotkey, unregister_hotkey
 

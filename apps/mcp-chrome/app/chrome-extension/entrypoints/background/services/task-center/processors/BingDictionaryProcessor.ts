@@ -1,81 +1,22 @@
-/**
- * Bing Dictionary Processor
- * Wraps BingDictionaryWorkerService to implement ITaskProcessor interface
- * Under 150 lines
- */
-
-import type { ITaskProcessor, ProcessorConfig, ProcessorStatus } from '../ITaskProcessor';
 import { bingDictionaryWorkerService } from '../../bing-dictionary-worker-service';
 import { LANES } from '@/utils/task-center-lanes';
-import { TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
+import { WorkerServiceProcessorBase } from '../WorkerServiceProcessorBase';
+import { TASK_LIMITS } from '@/utils/queue-center-contract';
 
-/**
- * Bing Dictionary Task Processor
- * Handles dictionary translation tasks from backend
- */
-class BingDictionaryProcessor implements ITaskProcessor {
-  readonly processorType = LANES.BING_DICTIONARY;
-  readonly processorName = 'Bing Dictionary Translation';
-
-  /**
-   * Start the processor
-   */
-  async start(config: ProcessorConfig): Promise<void> {
-    console.log('[BingProcessor] Starting Bing Dictionary Processor');
-
+export const bingDictionaryProcessor = new WorkerServiceProcessorBase({
+  processorType: LANES.BING_DICTIONARY,
+  processorName: 'Bing Dictionary Translation',
+  workerName: 'MCP Chrome Bing Translation Worker',
+  service: bingDictionaryWorkerService,
+  start: async (config) => {
     await bingDictionaryWorkerService.start({
       apiUrl: config.apiUrl,
       workerName: config.workerName || 'MCP Chrome Bing Translation Worker',
       pollInterval: config.pollInterval || 5,
       heartbeatInterval: config.heartbeatInterval || 60,
-      batchSize: config.batchSize || 5,
+      batchSize: config.batchSize || TASK_LIMITS.worker_pull_default,
       tabCount: config.tabCount || 3,
       targetLanguage: config.targetLanguage || 'zh',
     }, config.surface !== false);
-
-    console.log('[BingProcessor] Bing Dictionary Processor started');
-  }
-
-  /**
-   * Stop the processor
-   */
-  stop(): void {
-    console.log('[BingProcessor] Stopping Bing Dictionary Processor');
-    bingDictionaryWorkerService.stop();
-    console.log('[BingProcessor] Bing Dictionary Processor stopped');
-  }
-
-  /**
-   * Get processor status
-   */
-  getStatus(): ProcessorStatus {
-    const serviceStatus = bingDictionaryWorkerService.getStatus();
-
-    return {
-      isRunning: serviceStatus.isRunning,
-      stats: {
-        pending: serviceStatus.stats.pending,
-        translated: serviceStatus.stats.translated,
-        failed: serviceStatus.stats.failed,
-        invalid: serviceStatus.stats.invalid,
-        lastRun: serviceStatus.stats.lastRun,
-        workerId: serviceStatus.stats.workerId,
-        isOnline: serviceStatus.stats.isOnline,
-        queueTotal: serviceStatus.stats.queueTotal,
-        newTasks: serviceStatus.stats.newTasks,
-        duplicateTasks: serviceStatus.stats.duplicateTasks,
-        activeTabs: serviceStatus.stats.activeTabs,
-      },
-    };
-  }
-
-  /**
-   * Check if this processor can handle a specific task type
-   */
-  canHandle(taskType: string): boolean {
-    return taskType === TASK_TYPE_KEYS.word_translation;
-  }
-}
-
-// Singleton instance
-export const bingDictionaryProcessor = new BingDictionaryProcessor();
+  },
+});

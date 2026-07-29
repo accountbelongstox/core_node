@@ -9,8 +9,8 @@ import re
 from http import HTTPStatus
 
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
-from pycore.pyutils.flutter_dev_tools.api import pageview_updater_api
-from pycore.pyutils.flutter_dev_tools.utils import path_utils
+import pycore.pyutils.flutter_dev_tools.api.pageview_updater_api as pageview_updater_api
+import pycore.pyutils.flutter_dev_tools.utils.path_utils as path_utils
 
 import json
 import traceback

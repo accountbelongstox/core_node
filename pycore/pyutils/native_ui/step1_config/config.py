@@ -8,11 +8,11 @@ Use NativeUIConfig from step1_config/app_config.py instead.
 
 Migration guide:
     # Old (deprecated)
-    from pycore.pyutils.native_ui import UIConfig
+    from pycore.pyutils.native_ui.step1_config.config import UIConfig
     config = UIConfig(app_name="My App")
 
     # New (recommended)
-    from pycore.pyutils.native_ui import NativeUIConfig
+    from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
     config = NativeUIConfig(app_id="my_app", app_name="My App")
 """
 

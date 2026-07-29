@@ -9,7 +9,9 @@ from pycore.pyctl.agent_history.base_extractor import BaseExtractor
 
 class GenericAgentExtractor(BaseExtractor):
     def tool(self) -> str:
-        return "Agent"
+        # Lowercase like every other extractor — config enabled_tools,
+        # planner filtering, and UI checkboxes all key on lowercase ids.
+        return "agent"
 
     def discover(self, home: str, user: str) -> List[Dict[str, Any]]:
         patterns = (

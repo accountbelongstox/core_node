@@ -13,7 +13,7 @@ import random
 import time
 from typing import Optional, Tuple, Callable
 
-from pycore.pyfoundations.third_party import get_third_package_pyautogui
+from pycore.pyfoundations.third_party.api import get_third_package_pyautogui
 from pycore.pyutils.common.clipboard_text import get_clipboard_text, set_clipboard_text
 from pycore.pyutils.input.ime_switch import save_and_switch_ime_to_english, restore_ime
 

@@ -8,7 +8,7 @@ into a single source of truth.
 """
 
 from typing import Dict, Any, Callable
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 # ============================================================

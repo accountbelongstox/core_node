@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Log;
  * (app_qy_v1_notebooklm_results); the authoritative task completion is still the
  * global_tasks row status set by submitResult — this only stores the artifact.
  */
-class NotebookLmTaskProcessor implements TaskProcessorInterface
+class NotebookLmTaskProcessor extends AbstractTaskProcessor
 {
     protected TaskManagerService $taskManager;
 
@@ -31,10 +31,9 @@ class NotebookLmTaskProcessor implements TaskProcessorInterface
         $this->taskManager = $taskManager;
     }
 
-    public function canProcess(GlobalTask $task): bool
+    protected function taskTypeRoles(): array
     {
-        return $task->app_name === 'AppQyV1'
-            && $task->task_type === 'notebooklm';
+        return ['notebooklm'];
     }
 
     public function processResult(GlobalTask $task, array $result, bool $isDemoMode): int
@@ -93,8 +92,4 @@ class NotebookLmTaskProcessor implements TaskProcessorInterface
         }
     }
 
-    public function getPriority(): int
-    {
-        return 10;
-    }
 }

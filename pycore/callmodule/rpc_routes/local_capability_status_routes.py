@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_CAPABILITY_STATUS_STATUS,
     UI_CAPABILITY_STATUS_INFO,
@@ -11,7 +11,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_CAPABILITY_STATUS_GET_CAPABILITY_SETTINGS,
     UI_CAPABILITY_STATUS_POST_CAPABILITY_SETTINGS,
 )
-from pycore.callmodule.services import capability_service as cap
+import pycore.callmodule.services.capability_service as cap
 
 
 def register_local_capability_status_routes(server):

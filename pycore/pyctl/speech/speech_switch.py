@@ -20,7 +20,8 @@ import time
 from typing import Optional, Dict, Callable, Any
 from pathlib import Path
 
-from pycore.pyfoundations import ColorPrint, Task
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.tasks import Task
 from pycore.pyctl.speech.provider_status import get_provider_status
 from pycore.pyutils.common.speech_task_models import (
     SpeechTaskType,
@@ -31,9 +32,9 @@ from pycore.pyutils.common.speech_task_models import (
 )
 
 from pycore.pyutils.edge_tts.edge_tts_client import EdgeTTSClient
-from pycore.pyutils.whisper_stt import WhisperSTTProvider
-from pycore.pyutils.azure_speech import AzureSpeechRecognitionProvider
-from pycore.pyheartbeat import get_global_thread_pool
+from pycore.pyutils.whisper_stt.whisper_provider import WhisperSTTProvider
+from pycore.pyutils.azure_speech.stt_provider import AzureSpeechRecognitionProvider
+from pycore.pythreadpool.pool import get_global_thread_pool
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     SerializedWorkerThread,

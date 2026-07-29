@@ -17,7 +17,7 @@ from typing import Optional, Callable
 from ..unified_styles import UnifiedStyles
 
 # Direct pycore imports (no secondary encapsulation)
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from ..utils.tk_variables import var_str, var_bool
 
 # Import CONFIG from providor (path set by main.py / app entry)

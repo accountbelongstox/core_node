@@ -23,19 +23,22 @@ except ImportError:
     tkinter = None
     TKINTER_AVAILABLE = False
 
-from pycore import ColorPrint, THREAD_BUS, get_user_data_store
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.database.repositories.user_data_store import get_user_data_store
 from pycore.pyfoundations.serialized_worker import await_bus_task, submit_coroutine_via_bus
-from pycore.pyfoundations.third_party import get_third_package_fastapi
-from pycore.pylauncher import LauncherConfig
-from pycore.pyutils.codesync import get_code_sync_manager, configure as configure_codesync
-from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyfoundations.third_party.api import get_third_package_fastapi
+from pycore.pylauncher.launcher import LauncherConfig
+from pycore.pyutils.codesync.manager import get_code_sync_manager
+from pycore.pyutils.codesync.runtime import configure as configure_codesync
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.callmodule.tray_menu import build_tray_menu, tray_menu_to_dicts
-from pycore.callmodule.callmodule_config import Config as CallmoduleConfig
+from pycore.callmodule.callmodule_config.config import Config as CallmoduleConfig
 
 # Modular per-area WS RPC route registration (speech-routes convention: one file
 # per area, register_<area>_routes(server)). The 11 desktop-UI WS RPC handlers
 # + THREAD_BUS broadcast listeners live there; _init_rpc_routes wires them up.
-from pycore.callmodule.rpc_routes import register_rpc_routes
+from pycore.callmodule.rpc_routes.register_rpc_routes import register_rpc_routes
 
 # Structured pycore->Laravel request recorder: every LaravelClient call (and the
 # endpoint-manager health probe) notify it. Wired below into a 'laravel_http' WS
@@ -49,7 +52,7 @@ from pycore.callmodule.services.queue_bump_hub import register_queue_bump_callba
 
 # Unified AI gateway -> desktop pipeline composition (pyctl/* packages must not
 # import each other, so the APP layer wires the gateway into the desktop hooks).
-from pycore.pyctl.ai import generate_text as ai_generate_text, describe_image as ai_describe_image
+from pycore.pyctl.ai.ai_gateway import generate_text as ai_generate_text, describe_image as ai_describe_image
 from pycore.pyctl.desktop.ai_hooks import set_ai_handlers
 
 IS_WINDOWS = platform.system() == 'Windows'

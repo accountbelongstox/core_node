@@ -14,7 +14,7 @@ from typing import Optional, Callable
 
 import d3utils.smart_echo as _smart
 from d3utils.signal_utils import _reapply_sigint_sigbreak_ignore
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 _global_tick_count: int = 0
 _inactive_refresh_callback: Optional[Callable[[], None]] = None

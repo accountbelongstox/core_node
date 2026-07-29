@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.controllers.management.system_controller import SystemController
 from pycore.callmodule.controllers.management.local_processing_controller import LocalProcessingController
 from pycore.callmodule.controllers.management.logs_controller import LogsController

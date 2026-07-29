@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional, Tuple, List, Union, Dict, Any
 from abc import ABC, abstractmethod
 
-from pycore.pyfoundations.third_party import (
+from pycore.pyfoundations.third_party.api import (
     get_third_package_cv2,
     get_third_package_numpy,
     get_third_package_PIL_Image,

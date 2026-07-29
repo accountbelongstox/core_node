@@ -8,7 +8,7 @@ from pycore.callmodule.services.sync.laravel_endpoint_manager import get_laravel
 from pycore.callmodule.services.tts_sentence_worker_service import get_tts_sentence_worker_service
 from pycore.callmodule.services.tts_queue_poller_service import get_tts_queue_poller_service
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 
 _IMAGE_PATH = "/api/app_qy_v1/ai_tools/word_image/queue/add"
 _SENTENCE_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/bump-batch"

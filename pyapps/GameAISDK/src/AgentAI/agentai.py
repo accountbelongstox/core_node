@@ -24,7 +24,7 @@ import logging
 import logging.config
 import traceback
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 sys.path.append('AgentAI')
 sys.path.append('AgentAI/protocol')

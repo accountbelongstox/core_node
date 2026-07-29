@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Optional, Sequence, Union, List, Dict, Any, Tuple
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # CnOCR engine initialized by d3-check at app startup (single shared instance)
 def _get_default_engine():

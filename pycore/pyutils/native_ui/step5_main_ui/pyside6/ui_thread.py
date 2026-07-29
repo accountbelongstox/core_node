@@ -10,11 +10,12 @@ Bootstrap order: show tk window first (no PySide6), wait ready, then load PySide
 import threading
 from typing import Optional, Dict, Any, TYPE_CHECKING
 
-from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from .config import PySide6UIConfig, StartupWindowConfig
 
 from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
-from pycore.pyfoundations.third_party import get_third_package_pyside6
+from pycore.pyfoundations.third_party.api import get_third_package_pyside6
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.framework import PySide6Framework
 
 

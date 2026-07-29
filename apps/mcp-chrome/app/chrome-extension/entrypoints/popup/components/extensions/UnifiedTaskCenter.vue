@@ -221,7 +221,7 @@ const loadAllMsg = ref('');
 
 // Server-side live aggregates (task_center/overview.queue.by_type). When
 // present, the summary strip uses these EXACT counts instead of recomputing
-// from the truncated 50-row list window (which diverged from laravel's Task
+// from the centrally limited list window (which diverged from Laravel's Task
 // Center — the "data doesn't match" bug).
 const serverByType = ref<Record<string, { pending: number; leased: number; processing: number }> | null>(null);
 
@@ -356,7 +356,7 @@ const refresh = async (): Promise<void> => {
   error.value = '';
   try {
     const [listRes, overviewRes] = await Promise.all([
-      fetch(`${apiBase()}${TASK_LIST_PATH}?limit=50`, {
+      fetch(`${apiBase()}${TASK_LIST_PATH}?limit=${TASK_LIMITS.list}`, {
         headers: { 'Cache-Control': 'no-cache' },
       }),
       // Best-effort aggregate fetch — a failure leaves the local fallback on.
@@ -378,6 +378,8 @@ const refresh = async (): Promise<void> => {
       } catch {
         serverByType.value = null;
       }
+    } else {
+      serverByType.value = null;
     }
   } catch (e: any) {
     error.value = e?.message || 'Failed to load tasks';

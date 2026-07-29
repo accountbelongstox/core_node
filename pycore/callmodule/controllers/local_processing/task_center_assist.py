@@ -10,8 +10,8 @@ from __future__ import annotations
 import time
 from typing import Any, Dict, Optional
 
-from pycore import ColorPrint
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 from pycore.callmodule.services.endpoint_scoped_cache import EndpointScopedCache
 from pycore.callmodule.services.sync.laravel_endpoint_manager import get_laravel_endpoint_manager
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client

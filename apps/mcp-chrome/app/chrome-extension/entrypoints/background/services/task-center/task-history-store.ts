@@ -14,18 +14,18 @@
  * rendering runtime.
  */
 
-import type { WorkerCapability } from '../../api/WorkerApiClient';
+import {
+  TERMINAL_TASK_EVENTS,
+  TERMINAL_TASK_STATUSES,
+  TASK_LIMITS,
+  TASK_STATUS_BY_ROLE,
+  TASK_STREAM_EVENT_BY_ROLE,
+  type TaskStatus,
+  type WorkerCapability,
+} from '@/utils/queue-center-contract';
 
-/** Canonical lifecycle states a task transitions through. */
-export type TaskTimelineEvent =
-  | 'pending'
-  | 'assigned'
-  | 'processing'
-  | 'completed'
-  | 'failed'
-  | 'timeout'
-  | 'reclaimed'
-  | 'cancelled';
+/** Status/event names are owned by config/queue_center_contract.json. */
+export type TaskTimelineEvent = TaskStatus;
 
 export interface TaskTimelineEntry {
   event: TaskTimelineEvent | string;
@@ -73,12 +73,16 @@ export interface TaskSSEFrame {
   [k: string]: any;
 }
 
-// Status values that count as terminal — used to cap timeline noise.
-const TERMINAL = new Set<string>(['completed', 'failed', 'timeout', 'cancelled']);
+// Initial snapshots carry statuses while incremental SSE frames carry events.
+// Both terminal groups come from the same central JSON used by Laravel/Pycore.
+const TERMINAL = new Set<string>([
+  ...TERMINAL_TASK_STATUSES,
+  ...TERMINAL_TASK_EVENTS,
+]);
 
 // Bound the store so a long-running popup never grows without limit.
-const MAX_RECORDS = 200;
-const MAX_TIMELINE = 50;
+const MAX_RECORDS = TASK_LIMITS.history_records;
+const MAX_TIMELINE = TASK_LIMITS.history_timeline;
 
 type Listener = (records: TaskHistoryRecord[]) => void;
 
@@ -117,7 +121,7 @@ class TaskHistoryStore {
   updateFromSSE(frame: TaskSSEFrame): void {
     if (!frame) return;
     const name = frame.event;
-    if (name === 'ping' || name === 'stream.close') return;
+    if (name === TASK_STREAM_EVENT_BY_ROLE.ping || name === TASK_STREAM_EVENT_BY_ROLE.close) return;
 
     const data = frame.data ?? {};
     const taskId = data.task_id ?? frame.task_id;
@@ -140,7 +144,7 @@ class TaskHistoryStore {
       task_type: null,
       capability: null,
       priority: null,
-      status: 'pending',
+      status: TASK_STATUS_BY_ROLE.pending,
       is_fast_tier: false,
       updated_at: now,
       timeline: [],

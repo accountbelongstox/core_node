@@ -9,8 +9,8 @@ Syncs speech recognition results to clipboard database for real-time sharing.
 from typing import Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from pycore.database import database_manager
-from pycore.database.models import ClipboardHistoryModel
+from pycore.database.exports import database_manager
+from pycore.database.models.util_clipboard.clipboard_history_model import ClipboardHistoryModel
 
 
 

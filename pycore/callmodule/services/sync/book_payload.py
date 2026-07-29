@@ -40,7 +40,7 @@ from pycore.callmodule.services.processors.book_structure import (
 # Canonical supported language set + the checked-set normalizer.
 from pycore.pyfoundations.text_parsing import normalize_language_codes
 # Multi-language statistics engine (primary-language detection + meta for v3).
-from pycore.pyutils.text_stats import compute_text_stats
+from pycore.pyutils.text_stats.text_statistics import compute_text_stats
 # Shared constants + pure helpers (cycle-free bottom seam).
 from pycore.callmodule.services.sync._media_sync_helpers import (
     _TERMINAL_RE,

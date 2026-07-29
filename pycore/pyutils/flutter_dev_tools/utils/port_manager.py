@@ -6,7 +6,7 @@ without affecting other processes.
 """
 
 import urllib.request
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import sys
 import platform
 from pathlib import Path

@@ -9,8 +9,8 @@ from pathlib import Path
 
 from pycore.pyfoundations.system_paths import get_app_temp_dir
 
-from pycore.pyfoundations.third_party import get_third_package_pdfplumber
-from pycore.pyfoundations.third_party import get_third_package_openpyxl
+from pycore.pyfoundations.third_party.api import get_third_package_pdfplumber
+from pycore.pyfoundations.third_party.api import get_third_package_openpyxl
 
 
 

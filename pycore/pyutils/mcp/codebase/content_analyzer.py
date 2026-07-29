@@ -10,9 +10,7 @@ from pathlib import Path
 from typing import Dict, Optional, Any
 from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
-from pycore.pyutils.mcp.file_processing import (
-    get_file_comprehensive_info_with_ocr_text_positions_color_palette_document_metadata_pixel_analysis_and_processing_stats
-)
+from pycore.pyutils.mcp.file_info_extractor_with_ocr_text_positions_color_palette_and_metadata import get_file_comprehensive_info_with_ocr_text_positions_color_palette_document_metadata_pixel_analysis_and_processing_stats
 
 logger = logging.getLogger(__name__)
 

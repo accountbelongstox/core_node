@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_WEB_HOMEPAGE,
     UI_WEB_GET_API_INFO,
@@ -12,7 +12,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_WEB_GET_SUBTITLE_UI,
     UI_WEB_GET_FAVICON,
 )
-from pycore.callmodule.services import web_service as web
+import pycore.callmodule.services.web_service as web
 
 
 def register_web_routes(server):

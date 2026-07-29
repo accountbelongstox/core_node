@@ -28,9 +28,9 @@ from pathlib import Path
 from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedValue
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
 _AVAIL_SIGNAL = 'pyutils.tts.chattts.available'

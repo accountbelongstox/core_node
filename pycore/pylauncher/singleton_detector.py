@@ -59,7 +59,8 @@ import time
 from typing import Optional, Callable, Dict, Any
 
 # THREAD_BUS Integration
-from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Protocol/data layer (sibling) + PRIMARY-side TCP server mixin (sibling)
 from pycore.pylauncher.singleton_protocol import (
@@ -609,7 +610,7 @@ def on_singleton_superseded(callback: Callable[[Dict[str, Any]], None]) -> None:
     persist state; the graceful shutdown then proceeds automatically.
 
     Example:
-        from pycore.pylauncher import on_singleton_superseded
+        from pycore.pylauncher.launcher import on_singleton_superseded
         on_singleton_superseded(lambda e: ColorPrint.yellow(
             f"A newer instance (PID {e['new_pid']}) took over; exiting."))
     """

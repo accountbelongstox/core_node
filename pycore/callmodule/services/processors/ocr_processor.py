@@ -7,8 +7,8 @@ import time
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
-from pycore.pyutils.ocr_cluster import ocr_manager
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+import pycore.pyutils.ocr_cluster.ocr.ocr_manager as ocr_manager
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
 
 
 

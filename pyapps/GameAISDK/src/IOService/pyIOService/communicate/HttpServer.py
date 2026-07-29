@@ -23,7 +23,7 @@ import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 SEND_QUEUE = queue.Queue()
 RECV_QUEUE = queue.Queue()

@@ -5,7 +5,7 @@ import os
 import time
 from typing import Any, Dict
 
-from pycore import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.system_paths import get_core_node_root
 from pycore.callmodule.services.sync.laravel_endpoint_manager import get_laravel_endpoint_manager
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client

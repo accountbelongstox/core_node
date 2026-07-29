@@ -7,7 +7,7 @@ Finds browser windows by title (e.g. Battle.net login). Prefers the frontmost br
 
 from typing import List, Dict, Any, Optional, Sequence
 
-from pycore.pyfoundations.third_party import get_third_package_win32gui
+from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 from pycore.pyutils.common.browser_window_detector import (
     get_process_exe_path,
     is_browser_process_by_path,

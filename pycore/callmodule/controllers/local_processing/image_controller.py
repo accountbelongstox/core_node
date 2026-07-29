@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Image Controller"""
-from ...services.processors import OCRProcessor
+from pycore.callmodule.services.processors.ocr_processor import OCRProcessor
 from ...models.local_processing.image_models import ImageOCRRequest, ImageOCRResponse, ImageProcessRequest, ImageProcessResponse
 
 class ImageController:

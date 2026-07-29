@@ -62,7 +62,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from pycore import get_user_data_store
+from pycore.database.repositories.user_data_store import get_user_data_store
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_logs_dir
 from pycore.pyfoundations.serialized_worker import (
@@ -71,8 +71,8 @@ from pycore.pyfoundations.serialized_worker import (
     start_bus_task,
 )
 
-from pycore.pyfoundations.third_party import get_third_package_torch
-from pycore.pyutils.common import model_load_status
+from pycore.pyfoundations.third_party.api import get_third_package_torch
+import pycore.pyutils.common.model_load_status as model_load_status
 
 
 DEFAULT_IDLE_S = 180

@@ -13,8 +13,9 @@ This module keeps a THREAD_BUS-backed snapshot refreshed from a background threa
 import threading
 import time
 
-from pycore import THREAD_BUS, ColorPrint
-from pycore.pyutils.codesync import get_code_sync_manager
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.codesync.manager import get_code_sync_manager
 
 TRAY_CODESYNC_STATE_SIGNAL = "tray.codesync.state"
 

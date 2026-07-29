@@ -7,7 +7,7 @@ Stores word/phrase entries with translations, phonetics, and voice files
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
+from pycore.pyfoundations.third_party.api import get_third_package_sqlalchemy
 
 import hashlib
 

@@ -4,7 +4,7 @@ F1c / F1d (ROSBOT_FLOW_MERMAID.md). Used when C4 detects game disconnect.
 F1d: Detect disconnect -> set state, reset BN flow, then F1c.
 F1c: End D3 process -> then F_Entry (next tick).
 """
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from share.game_interface_data import get_game_interface_data
 from d3utils.d3_manager import get_d3_manager

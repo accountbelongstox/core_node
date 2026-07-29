@@ -7,7 +7,7 @@ All thread instances are created and held only here; no dynamic thread creation.
 from typing import Any, Callable, Optional
 
 import timers.timer_manager as timer_manager
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from threads.log_monitor_thread import LogMonitorThread, register_log_monitor_init_handler
 from threads.main_function_thread import MainFunctionThread, set_main_function_thread

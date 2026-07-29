@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 """
 Universal model-load progress registry — the ONE status contract every speech
 engine reports to, surfaced to the UI for BOTH class-B in-process models and

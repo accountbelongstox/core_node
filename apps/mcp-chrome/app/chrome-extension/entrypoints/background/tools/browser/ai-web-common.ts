@@ -31,10 +31,8 @@ const DEFAULT_BACKEND_BASE = 'http://127.0.0.1:9000';
 /**
  * Which web AI a worker drives. User-configurable via settings.
  *
- * chatgpt/gemini have full page-driver tools today; deepseek is driven by the
- * web-AI translate path (deepseekSendPromptTool). zai is a recognized option
- * (validity lane) but has NO page-driver tool yet — callers must guard it and
- * fall back (see the validity worker), so a stored 'zai' never throws.
+ * chatgpt/gemini have full page-driver tools; deepseek is driven by the shared
+ * DeepSeek prompt tool. Only providers with a working page driver are exposed.
  */
 /** Resolve the Laravel backend base URL from the shared endpoint manager. */
 export async function resolveBackendBase(override?: string): Promise<string> {

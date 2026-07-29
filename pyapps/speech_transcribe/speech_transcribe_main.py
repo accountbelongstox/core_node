@@ -20,8 +20,8 @@ sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure'
 os.environ['PYTHONUNBUFFERED'] = '1'
 
 from pycore.pylauncher.launcher import launch_speech_only
-from pycore.pyutils.common import speech_config
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyutils.common.speech_config import speech_config
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def _print_cache_details() -> None:

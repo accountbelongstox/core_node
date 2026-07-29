@@ -254,3 +254,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def get_gpu_info():
+    """Return cached GPU information without initializing unrelated features."""
+    return ENCYCLOPEDIA.get("pycore_gpu_info")
+

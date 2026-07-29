@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QFrame, QFileDialog,
 )
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.i18n_manager import i18n_manager
 from providor.providor_index import CONFIG
 from share.ui_registry import get_ui

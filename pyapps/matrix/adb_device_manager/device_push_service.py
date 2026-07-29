@@ -15,7 +15,7 @@ FIXED: Now complies with pycore threading standards:
 import time
 import threading
 from typing import Optional, TYPE_CHECKING
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pyapps.matrix.services.device_id_manager import DeviceIDManager
 
 if TYPE_CHECKING:

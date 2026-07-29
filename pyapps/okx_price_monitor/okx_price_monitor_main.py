@@ -17,9 +17,10 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore import ColorPrint
-from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app
-from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
+from pycore.pyutils.native_ui.step3_launcher.launch_native_app import launch_native_app
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pyapps.okx_price_monitor.core.monitor_config import monitor_config
 from pyapps.okx_price_monitor.okx_frontend_config import frontend_config
 

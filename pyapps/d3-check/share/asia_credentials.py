@@ -10,8 +10,8 @@ from typing import Optional, Tuple
 from providor.constants.common import ASIA_LOGIN_DEBUG_INPUT
 from providor.i18n_manager import i18n_manager
 from providor.providor_index import get_config_value_safe, set_config_value_safe
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.security import (
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.security.password_cipher import (
     decrypt_password,
     encrypt_password,
     is_likely_ciphertext,

@@ -11,9 +11,12 @@ Endpoints:
 
 from typing import Dict, Any
 
-from pycore.pyfoundations import ColorPrint, ENCYCLOPEDIA, get_global_task_queue
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
+from pycore.pyutils.common.tasks import get_global_task_queue
 
-from pycore.pyheartbeat import THREAD_POOL_THREADS_KEY, get_heartbeat_system
+from pycore.pythreadpool.pool import THREAD_POOL_THREADS_KEY
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 
 
 

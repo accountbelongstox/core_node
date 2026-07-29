@@ -17,27 +17,24 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from pycore import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_fastapi
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 
 fastapi = get_third_package_fastapi()
 WebSocket = fastapi.WebSocket
 WebSocketDisconnect = fastapi.WebSocketDisconnect
 
-from pycore.pyutils.rpc_v2.config import RPC_CONSTANTS
-from pycore.pyutils.rpc_v2.common import (
-    InventoryTable,
-    RequestEventTable,
-    RequestStatus,
-    RPCRequestContext,
-)
+from pycore.pyutils.rpc_v2.config.rpc_constants import RPC_CONSTANTS
+from pycore.pyutils.rpc_v2.common.inventory_table import InventoryTable
+from pycore.pyutils.rpc_v2.common.request_event_table import RequestEventTable, RequestStatus
+from pycore.pyutils.rpc_v2.common.typing import RPCRequestContext
 from pycore.pyutils.rpc_v2.server.ack_manager import FastAPIAckManager
 from pycore.pyutils.rpc_v2.server.client_registry import ClientRegistry, ClientStatus
 from pycore.pyutils.rpc_v2.server.routes_manager import RoutesManager
 from pycore.pyutils.rpc_v2.server.request_processor import RequestProcessor
 from pycore.pyutils.rpc_v2.server._serialized_bridge import await_serialized
 from pycore.pyutils.rpc_v2.server.rpc_delivery_service import get_rpc_delivery_service
-from pycore.database import StateRepository
+from pycore.database.repositories.state_repository import StateRepository
 
 MSG_TYPES = RPC_CONSTANTS.MESSAGE_TYPES
 ERROR_CODES = RPC_CONSTANTS.ERROR_CODES
@@ -134,7 +131,10 @@ class WebSocketRPCHandler:
 
         pending_events, inventory_items = await self._load_client_notifications(client_id)
         delivery = get_rpc_delivery_service()
-        offset = delivery.get_client_offset(client_id)
+        # SQLite reads/writes MUST NOT run on the uvicorn loop (busy_timeout is
+        # 30s — a contended write would freeze every route). Offload like the
+        # session-authentication call above.
+        offset = await asyncio.to_thread(delivery.get_client_offset, client_id)
         if resume_seq > offset:
             offset = resume_seq
 
@@ -152,7 +152,7 @@ class WebSocketRPCHandler:
         )
 
         self._deliver_client_notifications(client_id, pending_events, inventory_items)
-        self._deliver_durable_events(client_id, after_seq=offset)
+        await self._deliver_durable_events(client_id, after_seq=offset)
 
         if pending_first_message is not None:
             await self.handle_websocket_message(client_id, websocket, pending_first_message)
@@ -226,7 +226,7 @@ class WebSocketRPCHandler:
             connection_id = data.get("connection_id")
             if event_id and seq:
                 delivery = get_rpc_delivery_service()
-                ok = delivery.ack_event(client_id, event_id, seq)
+                ok = await asyncio.to_thread(delivery.ack_event, client_id, event_id, seq)
                 await self.client_registry.send_to_client(
                     client_id,
                     {
@@ -236,13 +236,15 @@ class WebSocketRPCHandler:
                         "event_id": event_id,
                         "seq": seq,
                         "success": ok,
-                        "highest_contiguous_acked_seq": delivery.get_client_offset(client_id),
+                        "highest_contiguous_acked_seq": await asyncio.to_thread(
+                            delivery.get_client_offset, client_id
+                        ),
                     },
                 )
             else:
                 legacy_id = data.get("request_id") or data.get("id") or event_id
                 if legacy_id:
-                    self.ack_manager.handle_ack(client_id, str(legacy_id))
+                    await self.ack_manager.handle_ack(client_id, str(legacy_id))
 
         elif msg_type == MSG_TYPES["EVENT"]:
             event_name = data.get("event")
@@ -402,11 +404,13 @@ class WebSocketRPCHandler:
                 RequestStatus.NOTIFIED,
                 RequestStatus.STORED,
             ):
-                self.ack_manager.notify_websocket_with_retry(
-                    client_id=client_id,
-                    request_id=request_id,
-                    result=existing_event.result,
-                    error=existing_event.error,
+                asyncio.create_task(
+                    self.ack_manager.notify_websocket_with_retry(
+                        client_id=client_id,
+                        request_id=request_id,
+                        result=existing_event.result,
+                        error=existing_event.error,
+                    )
                 )
                 return
             if existing_event.status in (RequestStatus.PROCESSING, RequestStatus.PENDING):
@@ -645,26 +649,35 @@ class WebSocketRPCHandler:
     ) -> None:
         """Schedule durable completion delivery (non-blocking)."""
         for event in pending_events:
-            self.ack_manager.notify_websocket_with_retry(
-                client_id=client_id,
-                request_id=event.request_id,
-                result=event.result,
-                error=event.error,
+            asyncio.create_task(
+                self.ack_manager.notify_websocket_with_retry(
+                    client_id=client_id,
+                    request_id=event.request_id,
+                    result=event.result,
+                    error=event.error,
+                )
             )
         for item in inventory_items:
-            self.ack_manager.notify_websocket_with_retry(
-                client_id=client_id,
-                request_id=item.request_id,
-                result=item.result,
-                error=item.error,
+            asyncio.create_task(
+                self.ack_manager.notify_websocket_with_retry(
+                    client_id=client_id,
+                    request_id=item.request_id,
+                    result=item.result,
+                    error=item.error,
+                )
             )
 
-    def _deliver_durable_events(self, client_id: str, after_seq: int = 0) -> None:
+    async def _deliver_durable_events(self, client_id: str, after_seq: int = 0) -> None:
         """Replay durable server_event deliveries after reconnect (paged)."""
         delivery = get_rpc_delivery_service()
-        offset = max(int(after_seq or 0), delivery.get_client_offset(client_id))
+        offset = max(
+            int(after_seq or 0),
+            await asyncio.to_thread(delivery.get_client_offset, client_id),
+        )
         while True:
-            frames = delivery.replay_unacked(client_id, after_seq=offset, limit=100)
+            frames = await asyncio.to_thread(
+                delivery.replay_unacked, client_id, after_seq=offset, limit=100
+            )
             if not frames:
                 break
             for frame in frames:

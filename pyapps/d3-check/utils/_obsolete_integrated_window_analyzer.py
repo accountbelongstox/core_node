@@ -18,7 +18,7 @@ sys.path.insert(0, current_dir)
 
 # Add ncore path
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.window_mapping_provider import WINDOW_MAPPING_PROVIDER, UIElementMapping
 from utils.window_analyzer import WindowAnalyzer
 import uiautomation as auto

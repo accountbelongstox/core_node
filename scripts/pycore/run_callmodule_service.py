@@ -22,7 +22,8 @@ sys.path.insert(0, str(CORE_NODE_ROOT))
 os.environ.setdefault('PYCORE_SKIP_DEP_CHECK', '1')
 
 from pycore.pyutils.rpc_v2.server.fastapi_server import FastAPIRPCServer
-from pycore.pyutils.rpc_v2.modules import register_module_routes, register_homepage_routes
+from pycore.pyutils.rpc_v2.modules.auto_register import register_module_routes
+from pycore.pyutils.rpc_v2.modules.homepage_routes import register_homepage_routes
 
 
 def main():

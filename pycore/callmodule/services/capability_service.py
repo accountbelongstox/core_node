@@ -29,7 +29,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.database.repositories.user_data_store import get_user_data_store
 from pycore.pyutils.common.capabilities import (
     capabilities_status,
@@ -37,8 +37,8 @@ from pycore.pyutils.common.capabilities import (
     system_info,
 )
 from pycore.pyutils.common.system_launcher import open_dir
-from pycore.pyutils.tts import tts_status
-from pycore.pyutils.stt import stt_status
+from pycore.pyutils.tts.tts_orchestrator import tts_status
+from pycore.pyutils.stt.stt_orchestrator import stt_status
 from pycore.pyutils.edge_tts.edge_tts_client import get_synth_timeout, set_synth_timeout
 from pycore.pyutils.tts.tts_orchestrator import (
     default_tts_engine_priority,
@@ -51,7 +51,7 @@ from pycore.pyutils.tts.tts_orchestrator import (
 from pycore.pyutils.stt.stt_orchestrator import default_stt_engine_priority
 from pycore.pyctl.ai.ai_keys import PROVIDERS, is_configured
 from pycore.pyutils.translator.dictionary import get_dictionary_service
-from pycore.callmodule.services import get_tts_queue_poller_service
+from pycore.callmodule.services.tts_queue_poller_service import get_tts_queue_poller_service
 
 from pycore.pyutils.tts.tts_service_manager import apply_server_settings
 

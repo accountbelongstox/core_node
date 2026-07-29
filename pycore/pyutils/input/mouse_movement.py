@@ -14,7 +14,7 @@ import random
 import time
 from typing import Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_pyautogui
+from pycore.pyfoundations.third_party.api import get_third_package_pyautogui
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 pyautogui = get_third_package_pyautogui()

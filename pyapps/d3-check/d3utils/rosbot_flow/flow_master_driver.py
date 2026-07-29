@@ -14,7 +14,7 @@ Architecture (ROSBOT_FLOW_MERMAID): after teleport enter ROSBOT startup env, the
 from enum import Enum
 from typing import Callable, Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from share.game_interface_data import get_game_interface_data
 from d3utils.rosbot_flow_state import get_flow_master_enabled

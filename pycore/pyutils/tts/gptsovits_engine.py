@@ -26,8 +26,8 @@ from pathlib import Path
 from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
 _LANG_MAP = {"en": "en", "zh": "zh", "ja": "ja", "ko": "ko", "yue": "yue"}

@@ -19,8 +19,8 @@ for _ in range(12):
 
 import configparser
 
-from pycore.pyfoundations.third_party import get_third_package_numpy
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 np = get_third_package_numpy()
 

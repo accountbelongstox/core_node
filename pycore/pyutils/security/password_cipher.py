@@ -15,7 +15,7 @@ from typing import Optional
 
 from pycore.pyutils.security.machine_id import get_machine_id
 
-from pycore.pyfoundations.third_party import get_third_package_cryptography
+from pycore.pyfoundations.third_party.api import get_third_package_cryptography
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 

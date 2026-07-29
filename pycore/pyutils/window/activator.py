@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con
+from pycore.pyfoundations.third_party.api import get_third_package_win32gui, get_third_package_win32con
 
 import traceback
 

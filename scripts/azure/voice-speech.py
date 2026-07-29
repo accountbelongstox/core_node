@@ -21,8 +21,8 @@ from pathlib import Path
 pycore_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(pycore_dir))
 
-from pycore import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_speechsdk
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_speechsdk
 
 speechsdk = get_third_package_speechsdk()
 

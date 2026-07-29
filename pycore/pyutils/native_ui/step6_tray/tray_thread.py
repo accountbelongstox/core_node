@@ -12,7 +12,8 @@ Thread-safe system tray wrapper following project threading standards:
 import threading
 from typing import Optional, List
 
-from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from .tkinter_system_tray import TkinterSystemTray, TrayMenuItem, PYSTRAY_AVAILABLE
 

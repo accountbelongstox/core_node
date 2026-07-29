@@ -14,8 +14,8 @@ from collections import deque
 # Payload for EXTENSION_ROSBOT_STARTED: always (success, error, ran_e_block) from event_signals
 RosbotStartedPayload = Tuple[bool, Optional[Exception], bool]
 
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from share.ui_registry import get_ui, get_panel
 from providor.constants.ui import PANEL_KEY_ROSBOT
 

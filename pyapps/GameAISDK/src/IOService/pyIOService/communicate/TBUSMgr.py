@@ -20,7 +20,7 @@ for _ in range(12):
 import configparser
 import tbus
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class TBUSMgr(object):

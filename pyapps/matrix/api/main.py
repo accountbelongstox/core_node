@@ -32,9 +32,9 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore import ColorPrint
-from pycore.pyheartbeat import get_heartbeat_system
-from pycore.pyutils.device import ADBManager
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+from pycore.pyutils.device.adb_manager import ADBManager
 from pyapps.matrix.matrix_config import Config
 
 # Import all services
@@ -425,7 +425,7 @@ def _register_device_routes(rpc_server):
     async def adb_device_stats(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get ADB device manager statistics"""
         from pyapps.matrix.matrix_main import get_adb_service
-        from pycore.pyheartbeat import get_heartbeat_system
+        from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 
         adb_service = get_adb_service()
         if not adb_service:

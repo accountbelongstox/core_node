@@ -11,9 +11,9 @@ from pathlib import Path
 from urllib.parse import urljoin
 from typing import List, Dict, Tuple, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 
-from pycore.pyfoundations.third_party import get_third_package_BeautifulSoup
+from pycore.pyfoundations.third_party.api import get_third_package_BeautifulSoup
 
 
 

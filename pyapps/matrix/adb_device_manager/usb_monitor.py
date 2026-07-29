@@ -10,7 +10,7 @@ Implements the workflow: USB detection → Get IP → Enable tcpip 5555 → Conn
 import time
 import threading
 from typing import List, Set, Optional, Dict
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pyapps.matrix.adb_device_manager.adb_executor import ADBExecutor
 from pyapps.matrix.adb_device_manager.device_table import DeviceTable, DeviceInfo, DeviceState, DeviceType
 

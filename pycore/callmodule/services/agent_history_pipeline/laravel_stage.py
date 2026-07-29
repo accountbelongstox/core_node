@@ -22,11 +22,22 @@ def upload_to_laravel(
     # Mirror agent_history_article_service._upload_laravel field names so the
     # Laravel validator for worker/submit accepts the payload (article_text
     # min:10, title, lowercase language).
+    # Laravel validator limits: reference_cn max 5000 chars, article_text max
+    # 50000. Truncate instead of failing the whole upload with a silent 422.
+    reference_cn = str(article.get("reference_cn") or "")[:4800]
+    article_text = str(article.get("article_en") or "")[:49000]
+    title_en = str(article.get("title_en") or "").strip()
+    if not title_en:
+        # Never fall back to the Chinese title — wordnew Daily Reading shows
+        # the English version and must not receive a CN title as title_en.
+        title_en = " ".join(article_text.split()[:8]).strip() or "Agent history article"
+
     payload = {
-        "title": article.get("title_en") or article.get("title_cn") or "Agent history article",
+        "title": title_en,
+        "title_en": title_en,
         "title_cn": article.get("title_cn"),
-        "reference_cn": article.get("reference_cn"),
-        "article_text": article.get("article_en"),
+        "reference_cn": reference_cn,
+        "article_text": article_text,
         "reference_lang": cfg.get("reference_lang") or "CN",
         "target_lang": cfg.get("target_lang") or "EN",
         "language": "en",

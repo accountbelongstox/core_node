@@ -4,7 +4,7 @@ Explorer Executor
 Executes batch files via explorer to ensure independent processes
 """
 
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import os
 import shutil
 import platform

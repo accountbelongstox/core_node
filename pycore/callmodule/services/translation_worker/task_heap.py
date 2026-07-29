@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method, start_bus_task
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.callmodule.services.tts_sentence_worker_support import SentencePriorityQueue
 
 

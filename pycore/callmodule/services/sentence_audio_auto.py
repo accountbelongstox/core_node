@@ -13,9 +13,9 @@ import threading
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_user_data_store
-from pycore.pyheartbeat import get_heartbeat_system
-from pycore.pyutils.tts import tts_service_manager
-from pycore.pyctl.assist import (
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+import pycore.pyutils.tts.tts_service_manager as tts_service_manager
+from pycore.pyctl.assist.assist_settings import (
     assist_capability_enabled,
     assist_settings_exist,
     load_assist_settings,
@@ -85,7 +85,7 @@ def sentence_audio_auto_enabled_on_start(legacy_default: bool) -> bool:
     Config default (mirrors translation_worker_enabled_on_start). Precedence:
       1. Explicit per-strip toggle present -> its ``auto_start``.
       2. Else the assist plane owns voice -> ``assist_capability_enabled`` (which
-         returns ``legacy_default`` when assist was never configured).
+         returns False when assist was never configured — no UI enable, no run).
     This closes the boot tick-window where the worker could run before
     ``restore_persisted_auto_start`` corrects it.
     """

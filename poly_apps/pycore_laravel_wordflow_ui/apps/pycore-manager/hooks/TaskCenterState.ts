@@ -3,6 +3,7 @@ import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { PcTaskRecord, PycoreGlobalTaskDetail } from '../../../core/api-libs/pycore';
 import {
     GLOBAL_TASK_HISTORY_BUCKETS,
+    GLOBAL_TASK_LIMITS,
     normalizeGlobalTaskHistoryType,
 } from '../../../core/api-libs/pycore/QueueCenterContract';
 
@@ -158,7 +159,7 @@ export class TaskCenterStateService {
         this.emit();
         try {
             const data = await pycoreApi.getCompletedTasks({
-                limit: 200,
+                limit: GLOBAL_TASK_LIMITS.completed,
                 offset: this.recentNextOffset,
             });
             const fetched = data.records ?? [];

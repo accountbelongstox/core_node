@@ -7,7 +7,7 @@ running = process exists, zero visible windows. paused = any visible window (mai
 
 from typing import Optional, Dict, Any
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from share.game_interface_data import get_game_interface_data
 
 from d3utils.rosbot_flow_rosbot_exit_state import mark_rosbot_exit_reason_when_process_gone

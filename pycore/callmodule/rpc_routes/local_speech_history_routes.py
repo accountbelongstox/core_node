@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_SPEECH_HISTORY_HISTORY,
     UI_SPEECH_HISTORY_HISTORY_FILE,
@@ -11,7 +11,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_SPEECH_HISTORY_HISTORY_DELETE,
     UI_SPEECH_HISTORY_HISTORY_CLEAR,
 )
-from pycore.callmodule.services import speech_history_service as hist
+import pycore.callmodule.services.speech_history_service as hist
 
 
 def register_local_speech_history_routes(server):

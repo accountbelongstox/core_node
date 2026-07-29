@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Screenshot Controller"""
-from ...services.processors import ScreenshotProcessor
+from pycore.callmodule.services.processors.screenshot_processor import ScreenshotProcessor
 from ...models.local_processing.screenshot_models import ScreenshotRequest, ScreenshotResponse
 
 class ScreenshotController:

@@ -12,7 +12,7 @@ from pycore.pyutils.ultralytics.annotation_to_yolo_dataset import (
     generate_yolo_dataset,
     build_train_command,
 )
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.constants.common import YOLO_DATASET_BASE_DIR
 
 try:

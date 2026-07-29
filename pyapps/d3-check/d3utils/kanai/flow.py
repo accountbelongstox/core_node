@@ -3,7 +3,7 @@
 AUTO_USE_INTERFACE_KANAI_FLOW entry. Caller must have run capture + collect_bag_info and shared_data.interface_type == "kanai_cube".
 Separate from AUTO_USE_INTERFACE_BLACKSMITH_FLOW.
 """
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from share.game_interface_data import get_game_interface_data
 
 from .operations import run_upgrade_operation, run_reforge_operation

@@ -11,7 +11,7 @@ from typing import Optional, Callable, List, Dict, Tuple, Any
 from pathlib import Path
 import sys
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageTk
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageTk
 
 Image = get_third_package_PIL_Image()
 ImageDraw = get_third_package_PIL_ImageDraw()
@@ -20,7 +20,7 @@ ImageTk = get_third_package_PIL_ImageTk()
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.image_annotator import ImageAnnotator
 from providor.providor_index import (
     CLIENT_TYPE_BATTLENET,

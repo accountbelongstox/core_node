@@ -9,17 +9,18 @@ as module functions rather than methods. The worker and the handlers call them
 directly (e.g. ``lane_gating.audio_enabled()``).
 
 CIRCULAR-IMPORT SAFE: this module imports nothing from the translation_worker
-package (only lazy pyctl/callmodule_config/pyfoundations lookups inside the
-functions), so handlers may import it freely at module top.
+package, so handlers may import it freely at module top.
 """
 
 from typing import List
 
-from pycore.callmodule.callmodule_config import Config
-
-from pycore.pyctl.assist import assist_capability_enabled
-
-
+from pycore.callmodule.callmodule_config.config import Config
+from pycore.pyctl.assist.assist_settings import assist_capability_enabled
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+from pycore.callmodule.services.queue_center_contract import (
+    GLOBAL_TASK_CAPABILITIES_BY_ROLE,
+    GLOBAL_TASK_FAST_LANE_CAPABILITIES,
+)
 
 
 def _cfg():
@@ -29,6 +30,8 @@ def _cfg():
 
 def ai_translate_enabled() -> bool:
     """ai_translate capability: hard knob AND the assist ai_translate toggle."""
+    if not translation_enabled():
+        return False
     try:
         if not bool(getattr(_cfg(), "AI_TRANSLATE_ENABLED", True)):
             return False
@@ -38,6 +41,14 @@ def ai_translate_enabled() -> bool:
         return assist_capability_enabled("ai_translate", True)
     except Exception:
         return True
+
+
+def translation_enabled() -> bool:
+    """Translation lanes follow the existing translation-worker UI toggle."""
+    try:
+        return get_heartbeat_system().is_callback_enabled("translation_worker")
+    except Exception:
+        return bool(getattr(_cfg(), "TRANSLATION_WORKER_ENABLED_ON_START", True))
 
 
 def subtitle_enabled() -> bool:
@@ -71,29 +82,60 @@ def stt_enabled() -> bool:
         return False
 
 
+def audio_enabled() -> bool:
+    """Global remote_audio follows the existing word-TTS worker toggle."""
+    try:
+        return get_heartbeat_system().is_callback_enabled("tts_queue_poller")
+    except Exception:
+        return False
+
+
+def sentence_audio_enabled() -> bool:
+    """Global sentence-audio follows the existing sentence worker toggle."""
+    try:
+        return get_heartbeat_system().is_callback_enabled("tts_sentence_worker")
+    except Exception:
+        return False
+
+
 def effective_capabilities() -> List[str]:
     """Capabilities advertised on register and status."""
-    caps = ["translate"]
+    caps: List[str] = []
+    if translation_enabled():
+        caps.append(GLOBAL_TASK_CAPABILITIES_BY_ROLE["translate"])
     if ai_translate_enabled():
-        caps.append("ai_translate")
+        caps.append(GLOBAL_TASK_CAPABILITIES_BY_ROLE["ai_translate"])
     if stt_enabled():
-        caps.append("stt")
+        caps.append(GLOBAL_TASK_CAPABILITIES_BY_ROLE["stt"])
+    if audio_enabled():
+        caps.append(GLOBAL_TASK_CAPABILITIES_BY_ROLE["audio"])
+    if sentence_audio_enabled():
+        caps.append(GLOBAL_TASK_CAPABILITIES_BY_ROLE["sentence_audio"])
     return caps
 
 
 def effective_processor_types(worker) -> List[str]:
     """The lane set advertised this tick.
 
-    Always include the fast lane + legacy translation lane; append each
-    dedicated lane only while its enable gate is live-on. Re-register fires when
-    this set changes (handled in poll_once). ``worker`` supplies the
-    execution-type class constants.
+    Include only lanes whose existing Queue Center/heartbeat toggle is live.
+    The shared fast lane is advertised when at least one advertised capability
+    belongs to the central fast-capability set. Re-register fires when this set
+    changes; ``worker`` supplies contract-derived execution-type constants.
     """
-    types = [worker.TRANSLATION_FAST_PROCESSOR_TYPE, worker.TRANSLATION_PROCESSOR_TYPE]
+    types: List[str] = []
+    if translation_enabled():
+        types.append(worker.TRANSLATION_PROCESSOR_TYPE)
     if subtitle_enabled():
         types.append(worker.SUBTITLE_EXECUTION_TYPE)
     if stt_enabled():
         types.append(worker.STT_EXECUTION_TYPE)
+    if audio_enabled():
+        types.append(worker.AUDIO_EXECUTION_TYPE)
+    if sentence_audio_enabled():
+        types.append(worker.SENTENCE_AUDIO_EXECUTION_TYPE)
+    capabilities = effective_capabilities()
+    if any(capability in GLOBAL_TASK_FAST_LANE_CAPABILITIES for capability in capabilities):
+        types.insert(0, worker.TRANSLATION_FAST_PROCESSOR_TYPE)
     # De-dup preserving order.
     seen: set = set()
     ordered: List[str] = []

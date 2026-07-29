@@ -5,10 +5,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from pycore.database import (
-    OperationEvent,
-    StateRepository,
-)
+from pycore.database.models.state_models import OperationEvent
+from pycore.database.repositories.state_repository import StateRepository
 from pycore.callmodule.services.operation_service import (
     _notify_after_commit,
     _outbox_spec,

@@ -5,6 +5,7 @@ Spec for `pycore`; for pycore code it takes precedence. **REQUIRED** / **FORBIDD
 ## 1. Code Standards
 - **FORBIDDEN**: any AI must not modify this document unless the user explicitly requests it.
 - English only, ASCII only, Python 3.10+, absolute imports from `pycore`.
+- **FORBIDDEN**: use `__init__.py` to organize or re-export a package; import the concrete module directly (e.g. `from pycore.foo.bar import X`, not via `pycore.foo`).
 - Constants in `pygvar`; never re-implement pyfoundations/pyutils (logging, file, network).
 - Static files in `public/`; cache/tmp from pygvar (`CACHE_DIR`, `TMP_DIR`).
 - Output via `ColorPrint` (auto-streams to UI), not bare `print()`; report errors with ColorPrint, not raise.

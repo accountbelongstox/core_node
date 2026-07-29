@@ -1,6 +1,6 @@
 """ADB 管理器 - 无状态工具类"""
 
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import re
 from pathlib import Path
 from typing import List, Optional

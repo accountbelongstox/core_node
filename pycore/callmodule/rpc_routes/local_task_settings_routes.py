@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TASK_SETTINGS_CHAINS,
     UI_TASK_SETTINGS_UPDATE_CHAIN,

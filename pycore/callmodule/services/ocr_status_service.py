@@ -4,7 +4,7 @@
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.ocr_cluster import ocr_status, ocr_test
+from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import ocr_status, ocr_test
 
 
 def status():

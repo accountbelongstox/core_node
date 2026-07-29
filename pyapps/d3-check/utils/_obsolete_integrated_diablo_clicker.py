@@ -16,7 +16,7 @@ sys.path.insert(0, current_dir)
 
 # Add ncore path
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from utils.integrated_automation_controller import IntegratedAutomationController
 from providor.providor_second import CONFIG
 

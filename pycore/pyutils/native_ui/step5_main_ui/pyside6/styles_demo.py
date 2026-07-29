@@ -13,8 +13,8 @@ from PySide6.QtGui import QFont
 # 添加路径
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from pycore.pyutils.native_ui.pyside6.title_bar import PySide6TitleBar
-from pycore.pyutils.native_ui.pyside6.title_bar_styles import (
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.title_bar import PySide6TitleBar
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.title_bar_styles import (
     get_default_style,
     get_dark_style,
     get_light_style,

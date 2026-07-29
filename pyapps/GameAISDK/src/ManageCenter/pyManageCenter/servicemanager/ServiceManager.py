@@ -19,7 +19,7 @@ for _ in range(12):
 
 import subprocess
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from common.Define import *
 from actionstrategy.EmptyActionStrategy import EmptyActionStrategy
 

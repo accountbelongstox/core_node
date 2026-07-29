@@ -11,7 +11,7 @@ Routes:
 - video_extract.sync_all: one-click idempotent sync of every known source
 """
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.callmodule.services.sync.laravel_media_sync import (
     backend_status,

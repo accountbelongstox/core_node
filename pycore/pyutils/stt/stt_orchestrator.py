@@ -30,17 +30,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.managed_service import CategorySettings, ServiceSpec, managed_services
-from pycore.pyutils.common import model_load_status
+import pycore.pyutils.common.model_load_status as model_load_status
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
 )
-from pycore.pyfoundations.third_party import (
-    get_third_package_vosk,
-    get_third_package_whisper,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_vosk, get_third_package_whisper
 from pycore.pyutils.common.api_secrets import azure_speech_key, azure_speech_region
 from pycore.pyutils.common.model_tiers import (
     runtime_faster_whisper_compute_type,
@@ -53,9 +50,9 @@ import json as _json
 
 from pycore.pyutils.azure_speech.quota_state import is_stt_quota_blocked
 from pycore.pyfoundations.system_paths import APP_CACHE_DIR
-from pycore.pyutils.tts import sherpa_engine
-from pycore.pyfoundations.third_party import get_third_package_sherpa_onnx
-from pycore.pyutils.tts import synthesize as tts_synth
+import pycore.pyutils.tts.sherpa_engine as sherpa_engine
+from pycore.pyfoundations.third_party.api import get_third_package_sherpa_onnx
+from pycore.pyutils.tts.tts_orchestrator import synthesize as tts_synth
 
 import array
 

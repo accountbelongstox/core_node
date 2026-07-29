@@ -12,7 +12,7 @@ import threading
 import time
 from typing import Callable, Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.providor_index import get_config_value_safe
 from providor.constants.common import CMD_START_MACRO, CMD_STOP_MACRO, CMD_SHUTDOWN
 from share.game_interface_data import get_game_interface_data

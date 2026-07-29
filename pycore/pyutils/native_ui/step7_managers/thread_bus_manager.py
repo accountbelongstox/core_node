@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 """
 THREAD_BUS Manager for Native UI
 
@@ -14,7 +14,7 @@ Architecture:
     - Type-safe access methods
 
 Usage:
-    from pycore.pyutils.native_ui.thread_bus_manager import NativeUIBusManager
+    from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import NativeUIBusManager
 
     # Get singleton instance
     bus_mgr = NativeUIBusManager.get_instance()
@@ -34,7 +34,7 @@ Usage:
 
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from pycore.pyfoundations.thread_bus_constants import (
@@ -43,7 +43,7 @@ from pycore.pyfoundations.thread_bus_constants import (
     BusSignals,
     DependencyInfo,
 )
-from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 
 
 # ============================================================

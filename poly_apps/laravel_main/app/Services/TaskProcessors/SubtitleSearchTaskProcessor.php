@@ -32,7 +32,7 @@ use Illuminate\Support\Facades\Log;
  * layer downgrade an empty-store "completed" to 'failed' (a search that found
  * nothing is not a real success for this lane).
  */
-class SubtitleSearchTaskProcessor implements TaskProcessorInterface
+class SubtitleSearchTaskProcessor extends AbstractTaskProcessor
 {
     protected TaskManagerService $taskManager;
 
@@ -41,10 +41,9 @@ class SubtitleSearchTaskProcessor implements TaskProcessorInterface
         $this->taskManager = $taskManager;
     }
 
-    public function canProcess(GlobalTask $task): bool
+    protected function taskTypeRoles(): array
     {
-        return $task->app_name === 'AppQyV1'
-            && $task->task_type === 'subtitle_search';
+        return ['subtitle_search'];
     }
 
     public function processResult(GlobalTask $task, array $result, bool $isDemoMode): int
@@ -79,8 +78,4 @@ class SubtitleSearchTaskProcessor implements TaskProcessorInterface
         return $count;
     }
 
-    public function getPriority(): int
-    {
-        return 10;
-    }
 }

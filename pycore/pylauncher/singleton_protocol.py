@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
-from pycore.pyfoundations.third_party import get_third_package_psutil
+from pycore.pyfoundations.third_party.api import get_third_package_psutil
 
 
 # Fallback "process start" stamp when psutil is unavailable: module import time

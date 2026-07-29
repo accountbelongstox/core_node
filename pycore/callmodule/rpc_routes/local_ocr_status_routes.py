@@ -3,9 +3,9 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import UI_OCR_STATUS_STATUS, UI_OCR_STATUS_TEST
-from pycore.callmodule.services import ocr_status_service as ocr
+import pycore.callmodule.services.ocr_status_service as ocr
 
 
 def register_local_ocr_status_routes(server):

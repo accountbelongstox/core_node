@@ -20,7 +20,7 @@ for _ in range(12):
 from __future__ import division
 import os
 
-from pycore.pyfoundations.third_party import get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
 
 import torch
 

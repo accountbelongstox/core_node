@@ -15,7 +15,7 @@ Features:
 - Shutdown timeout handling
 
 Usage:
-    from pycore.pyutils.native_ui import get_shutdown_manager
+    from pycore.pyutils.native_ui.step7_managers.shutdown_manager import get_shutdown_manager
 
     # Get singleton instance
     shutdown_mgr = get_shutdown_manager()
@@ -52,7 +52,8 @@ import time
 from typing import List, Callable, Optional, Tuple
 from dataclasses import dataclass, field
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 
 @dataclass

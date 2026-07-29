@@ -17,7 +17,7 @@ See https://docs.github.com/en/github-models/use-github-models/prototyping-with-
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.secret_manager import get_secret_key
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 
 _DEFAULT_INFERENCE_BASE = "https://models.github.ai/inference"
 _DEFAULT_CATALOG_URL = "https://models.github.ai/catalog/models"

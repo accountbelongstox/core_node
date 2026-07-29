@@ -36,7 +36,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import platform
 import os
 import tempfile
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime, run_background
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime, run_background
 
 from pycore.pyutils.launcher.screen_manager import ScreenManager
 from pycore.pyutils.launcher.ratio_calculator import RatioCalculator

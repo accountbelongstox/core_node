@@ -22,7 +22,7 @@ import stat
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
-from pycore.pyfoundations.pybasecommon import exec_silent
+from pycore.pyfoundations.pybasecommon.commander import exec_silent
 
 import string
 import sys

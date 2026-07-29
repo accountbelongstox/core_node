@@ -14,16 +14,16 @@ Dependencies:
 """
 
 import os
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import tempfile
 import platform
 from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
-from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_CACHE_DIR
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 
 import time
 

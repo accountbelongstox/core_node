@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TTS_STATUS_GET_SETTINGS,
     UI_TTS_STATUS_POST_SERVER_ACTION,
@@ -11,7 +11,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TTS_STATUS_STATUS,
     UI_TTS_STATUS_TEST,
 )
-from pycore.callmodule.services import tts_status_service as tts
+import pycore.callmodule.services.tts_status_service as tts
 
 
 def register_local_tts_status_routes(server):

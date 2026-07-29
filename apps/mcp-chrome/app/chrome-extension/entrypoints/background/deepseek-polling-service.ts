@@ -3,7 +3,12 @@
  * Monitors DeepSeek tasks and detects completion
  */
 
-import { getTaskQueueManager, TaskStatus, type DeepSeekTask, type TaskResult } from '@/utils/deepseek-task-queue';
+import {
+  getTaskQueueManager,
+  TaskStatus,
+  type DeepSeekTask,
+  type DeepSeekTaskResult,
+} from '@/utils/deepseek-task-queue';
 
 /**
  * DeepSeek UI selectors
@@ -299,7 +304,7 @@ export class DeepSeekPollingService {
     isCompleted: boolean;
     isGenerating: boolean;
     isError: boolean;
-    result?: TaskResult;
+    result?: DeepSeekTaskResult;
     error?: string;
   }> {
     if (!task.tabId) {
@@ -397,7 +402,7 @@ export class DeepSeekPollingService {
   /**
    * Handle task completion
    */
-  private async handleCompletion(taskId: string, result: TaskResult): Promise<void> {
+  private async handleCompletion(taskId: string, result: DeepSeekTaskResult): Promise<void> {
     console.log(`Task ${taskId} completed`);
 
     await this.taskQueueManager.updateTask(taskId, {

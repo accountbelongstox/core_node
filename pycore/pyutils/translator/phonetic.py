@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from pycore.pyfoundations.third_party import get_third_package_eng_to_ipa
+from pycore.pyfoundations.third_party.api import get_third_package_eng_to_ipa
 """
 Phonetic Transcription Module
 

@@ -53,7 +53,7 @@ class AutomationController:
             True if successful, False otherwise
 
         Example:
-            from pycore.pyutils.pybrowser.implementations.browsers import ChromeBrowser
+            from pycore.pyutils.pybrowser.implementations.browsers.chrome_browser import ChromeBrowser
 
             controller = AutomationController()
             chrome = ChromeBrowser()

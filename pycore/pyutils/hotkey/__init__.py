@@ -1,11 +1,2 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Global Hotkey Listener
-
-Provides global keyboard and mouse hotkey detection.
-"""
-
-from pycore.pyutils.hotkey.hotkey_listener import HotkeyListener
-
-__all__ = ['HotkeyListener']
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

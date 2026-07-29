@@ -7,7 +7,7 @@ Share layer only: queue, push, clear. Annotated image building lives in d3utils.
 import queue
 from typing import Optional, List, Dict, Any
 
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_PIL_Image
 
 cv2 = get_third_package_cv2()
 Image = get_third_package_PIL_Image()

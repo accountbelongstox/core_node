@@ -19,11 +19,11 @@ ensure_d3_check_in_sys_path()
 pycore_path = get_project_root().parent / "pycore"
 sys.path.insert(0, str(pycore_path))
 
-from pycore.pyfoundations.third_party import get_third_package_pyautogui
+from pycore.pyfoundations.third_party.api import get_third_package_pyautogui
 from d3utils.click_handler_singleton import get_click_handler
 
 pyautogui = get_third_package_pyautogui()
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from share.game_interface_data import get_d4_interface_data
 from share.coordinate_helper import (
     calculate_screen_coordinate,

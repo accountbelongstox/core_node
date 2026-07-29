@@ -17,7 +17,8 @@ import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { chatgptWebTool } from '../tools/browser/chatgpt-web';
 import { logger } from '@/utils/logger';
 import { parseWebChatToolResult, extractAudioParams } from './web-chat-worker-common';
-import { EXECUTION_TYPES_BY_ROLE, TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
+import { TASK_TYPE_KEYS, taskPromptText } from '@/utils/queue-center-contract';
+import { LANES } from '@/utils/task-center-lanes';
 
 const LOG = 'ChatGPT Web';
 
@@ -38,7 +39,7 @@ class ChatGptWorkerService extends SimpleWorkerBase {
   // Dedicated processor type so a Laravel-dispatched chatgpt_chat task can be
   // routed here. Cast like the bing worker (open string lane).
   protected get baseProcessorTypes(): ProcessorType[] {
-    return [EXECUTION_TYPES_BY_ROLE.remote_chatgpt];
+    return [LANES.REMOTE_CHATGPT];
   }
 
   protected get workerLabel(): string {
@@ -51,7 +52,7 @@ class ChatGptWorkerService extends SimpleWorkerBase {
 
   protected async executeTask(task: Task): Promise<void> {
     const payload = (task.payload as any) || {};
-    const prompt = typeof payload.prompt === 'string' ? payload.prompt : '';
+    const prompt = taskPromptText(task.task_type, payload);
     if (!prompt.trim()) {
       await this.submitResult(task.task_id, 'failed', undefined, { error: 'no prompt in payload' });
       return;

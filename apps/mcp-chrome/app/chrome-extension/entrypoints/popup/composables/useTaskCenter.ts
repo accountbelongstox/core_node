@@ -18,6 +18,7 @@ import type {
   TaskDetailBundle,
   TaskEvent,
 } from '@/utils/queue-center-contract';
+import { TASK_EVENT_BY_ROLE, TASK_STREAM_EVENT_BY_ROLE } from '@/utils/queue-center-contract';
 // Canonical control-protocol types + message constants (shared with background).
 import {
   TASK_CENTER_MSG,
@@ -109,29 +110,31 @@ export function subscribeToTaskStream(taskId: string, handlers: TaskStreamHandle
     const es = new EventSource(buildUrl());
     source = es;
 
-    es.addEventListener('task.detail-initial', (ev) => {
+    es.addEventListener(TASK_STREAM_EVENT_BY_ROLE.initial, (ev) => {
       const data = parse((ev as MessageEvent).data) as TaskStreamBundle | null;
       if (data) handlers.onInitial?.(data);
     });
 
-    es.addEventListener('task.event', (ev) => {
+    es.addEventListener(TASK_STREAM_EVENT_BY_ROLE.transition, (ev) => {
       const data = parse((ev as MessageEvent).data) as TaskStreamEvent | null;
       if (!data) return;
       const id = data._id ?? data.id;
       if (id !== undefined && id !== null) cursor = String(id);
       // Belt-and-suspenders for the close contract: completed/cancelled are
       // unambiguously terminal. failed/timeout may be retried (re-pended).
-      if (data.event === 'completed' || data.event === 'cancelled') terminal = true;
+      if (data.event === TASK_EVENT_BY_ROLE.completed || data.event === TASK_EVENT_BY_ROLE.cancelled) {
+        terminal = true;
+      }
       handlers.onEvent?.(data);
     });
 
-    es.addEventListener('ping', (ev) => {
+    es.addEventListener(TASK_STREAM_EVENT_BY_ROLE.ping, (ev) => {
       const data = parse((ev as MessageEvent).data);
       if (data && data.cursor != null) cursor = String(data.cursor);
       handlers.onPing?.(cursor);
     });
 
-    es.addEventListener('stream.close', (ev) => {
+    es.addEventListener(TASK_STREAM_EVENT_BY_ROLE.close, (ev) => {
       const data = parse((ev as MessageEvent).data);
       if (data && data.cursor != null) cursor = String(data.cursor);
       const done = data?.done === true;
@@ -283,7 +286,10 @@ export function useTaskCenter() {
         ),
         batchSize: Math.max(
           1,
-          Math.min(50, Math.round(Number(stored.batchSize) || TASK_CENTER_DEFAULTS.batchSize)),
+          Math.min(
+            TASK_LIMITS.worker_pull,
+            Math.round(Number(stored.batchSize) || TASK_CENTER_DEFAULTS.batchSize),
+          ),
         ),
         tabCount: Math.max(1, Math.min(8, Math.round(Number(stored.tabCount) || 3))),
         sourceLanguage: String(stored.sourceLanguage || 'en').trim().toLowerCase(),

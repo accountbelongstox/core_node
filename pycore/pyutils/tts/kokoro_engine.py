@@ -22,8 +22,8 @@ from typing import Any
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
-from pycore.pyfoundations.third_party import get_third_package_sherpa_onnx
-from pycore.pyutils.tts import sherpa_engine
+from pycore.pyfoundations.third_party.api import get_third_package_sherpa_onnx
+import pycore.pyutils.tts.sherpa_engine as sherpa_engine
 from pycore.pyutils.tts.audio_utils import samples_to_mp3
 
 _MODEL_QUEUE = "tts.kokoro.model"

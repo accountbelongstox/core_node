@@ -15,9 +15,9 @@ Endpoints:
 
 from typing import Dict, Any
 
-from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from pycore.pyutils.common import global_config
+from pycore.pyutils.common.global_config import global_config
 
 
 

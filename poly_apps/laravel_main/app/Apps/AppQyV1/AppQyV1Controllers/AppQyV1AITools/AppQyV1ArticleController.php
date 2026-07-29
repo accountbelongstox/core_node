@@ -642,6 +642,7 @@ class AppQyV1ArticleController
             'article_text' => 'required|string|min:10|max:50000',
             'language' => 'nullable|string|max:20',
             'title' => 'nullable|string|max:255',
+            'title_en' => 'nullable|string|max:255',
             'title_cn' => 'nullable|string|max:255',
             'reference_cn' => 'nullable|string|max:5000',
             'reference_lang' => 'nullable|string|max:10',
@@ -665,6 +666,13 @@ class AppQyV1ArticleController
             $language = 'en';
         }
 
+        // The title column is the ENGLISH title — wordnew Daily Reading shows
+        // the English version. Never fall back to the Chinese title here.
+        $titleEn = trim((string) ($request->input('title_en') ?: $request->input('title') ?: ''));
+        if ($titleEn === '') {
+            $titleEn = 'Agent history article';
+        }
+
         $parsedResult = AppQyV1ArticleTextParser::parseArticle($articleText, $language);
         $articleId = 'article_' . Str::uuid();
 
@@ -672,7 +680,7 @@ class AppQyV1ArticleController
             $article = AppQyV1Article::create([
                 'article_id' => $articleId,
                 'user_id' => 0,
-                'title' => $request->input('title') ?: $request->input('title_cn') ?: 'Agent history article',
+                'title' => $titleEn,
                 'content' => $articleText,
                 'language' => $language,
                 'article_type' => 'agent_history',
@@ -684,6 +692,7 @@ class AppQyV1ArticleController
                 'reading_date' => now()->toDateString(),
                 'tts_generated' => false,
                 'metadata' => [
+                    'title_en' => $titleEn,
                     'title_cn' => $request->input('title_cn'),
                     'reference_cn' => $request->input('reference_cn'),
                     'reference_lang' => $request->input('reference_lang', 'CN'),
@@ -785,7 +794,7 @@ class AppQyV1ArticleController
                 'article_id' => $row->article_id,
                 'source_key' => $row->article_id,
                 'title' => $row->title,
-                'title_en' => $row->title,
+                'title_en' => $meta['title_en'] ?? $row->title,
                 'title_cn' => $meta['title_cn'] ?? null,
                 'article_en' => $row->content,
                 'reference_cn' => $meta['reference_cn'] ?? null,

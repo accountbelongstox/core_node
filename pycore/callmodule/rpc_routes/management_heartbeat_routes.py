@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """RPC Routes for management heartbeat."""
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import UI_HEARTBEAT_GET_CALLBACK_STATUS
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 
 
 def register_management_heartbeat_routes(server):

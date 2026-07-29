@@ -8,7 +8,7 @@ WebSocket RPC handler for the Books page one-click pipeline:
 
 import os
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.text_parsing import normalize_language_codes
 from pycore.callmodule.controllers.local_processing.corebook_controller import CoreBookController

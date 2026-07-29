@@ -13,7 +13,7 @@ This application handles:
 import sys
 from pathlib import Path
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from pyapps.voice_data_init.controller.init_controller import InitController
 

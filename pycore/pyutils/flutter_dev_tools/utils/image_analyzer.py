@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from PIL import Image
-from pycore.pyutils.ocr_cluster import ocr_manager
+import pycore.pyutils.ocr_cluster.ocr.ocr_manager as ocr_manager
 import sys
 """
 Image Analyzer - Color Analysis + OCR Integration

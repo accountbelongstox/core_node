@@ -23,7 +23,7 @@ from typing import Any, Dict, Optional
 
 from .runtime import log as ColorPrint, start_bus_task
 from .manager import get_manager
-from . import ws_proto
+import pycore.pyutils.codesync.ws_proto as ws_proto
 from .panel import PANEL_HTML
 from .service_ops import (
     SERVICE_NAME,

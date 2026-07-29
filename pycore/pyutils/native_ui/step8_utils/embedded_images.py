@@ -7,7 +7,7 @@ import base64
 import io
 from typing import Optional
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
 
 Image = get_third_package_PIL_Image()
 

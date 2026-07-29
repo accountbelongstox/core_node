@@ -63,8 +63,10 @@ from pycore.pyfoundations.system_paths import apply_shared_cache_env
 
 apply_shared_cache_env()
 
-from pycore import ColorPrint, THREAD_BUS
-from pycore.pylauncher import ServiceLauncher, on_singleton_superseded
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+import pycore.pylauncher.register_providers  # noqa: F401 — provider registration
+from pycore.pylauncher.launcher import ServiceLauncher, on_singleton_superseded
 from pycore.callmodule.config import build_launcher_config
 from pycore.callmodule.tray_menu import update_tray_menu_with_singleton
 from pycore.callmodule.event_handlers import register_event_handlers

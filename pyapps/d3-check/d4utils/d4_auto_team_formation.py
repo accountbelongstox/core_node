@@ -9,7 +9,7 @@ import random
 import time
 from typing import Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d4utils.d4_operation_base import D4OperationBase
 
 

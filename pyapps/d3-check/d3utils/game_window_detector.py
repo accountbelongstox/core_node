@@ -11,13 +11,13 @@ import sys
 from typing import Optional, Tuple, Dict
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy
 cv2 = get_third_package_cv2()
 np = get_third_package_numpy()
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher
 from providor.providor_index import (
     get_template_path,

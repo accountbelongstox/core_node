@@ -13,7 +13,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QObject, QEvent
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QApplication, QMessageBox
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.providor_index import CONFIG, set_config_value_async, get_config_value_safe
 from providor.constants.common import (
     UI_SETTINGS_WINDOW_GEOMETRY,

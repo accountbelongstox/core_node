@@ -3,7 +3,7 @@
 [F4] F4a close D3, F4b send F7 to system to close ROSBOT (ROSBOT_FLOW_MERMAID.md F block).
 After this step flow goes to B2_HasWin.
 """
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d3utils.d3_manager import get_d3_manager
 from d3utils.key_send import send_f7_to_system
 from d3utils.rosbot_manager import get_rosbot_manager

@@ -30,7 +30,7 @@ sys.path.insert(0, _repo_root)
 import lifecycle  # noqa: E402
 
 # Create QApplication before any Qt UI (required for PySide6)
-from pycore.pyfoundations.third_party import get_third_package_pyside6
+from pycore.pyfoundations.third_party.api import get_third_package_pyside6
 get_third_package_pyside6()
 from PySide6.QtWidgets import QApplication as QtApplication
 if QtApplication.instance() is None:
@@ -40,7 +40,7 @@ from controller.d3_macro_controller import D3MacroController
 from controller.http_bridge_controller import HTTPBridgeController
 from runtime import get_system_initializer
 from providor.i18n_manager import i18n_manager
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def main():

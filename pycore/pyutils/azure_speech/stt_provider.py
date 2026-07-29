@@ -11,10 +11,8 @@ from typing import Any, Callable, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.api_secrets import azure_speech_key, azure_speech_region
-from pycore.pyfoundations.third_party import (
-    get_third_package_speechsdk,
-    get_third_package_numpy,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_speechsdk
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
 
 from pycore.pyutils.common.stt_base_provider import BaseSpeechRecognitionProvider
 from pycore.pyutils.azure_speech.quota_state import (

@@ -25,7 +25,7 @@ import platform
 import os
 import tempfile
 
-from pycore.pyfoundations.pybasecommon import run_background
+from pycore.pyfoundations.pybasecommon.commander import run_background
 from pycore.pyutils.launcher.launch_guard import is_pycore_module_running
 
 

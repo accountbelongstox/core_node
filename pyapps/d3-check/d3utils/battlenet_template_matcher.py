@@ -9,7 +9,7 @@ Uses share.scaled_template_matcher_base.load_template_and_scale_by_resolution.
 from typing import Optional, Dict, Any, Tuple
 
 from share.scaled_template_matcher_base import load_template_and_scale_by_resolution, format_match_schematic
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d3utils.image_matcher_registry import get_image_matcher_for_resolution, get_image_matcher_for_method
 from providor.constants.d3 import D3_BATTLENET_STANDARD_RESOLUTION_WIDTH, D3_BATTLENET_STANDARD_RESOLUTION_HEIGHT
 from providor.providor_index import BATTLENET_TEMPLATE_CONFIGS

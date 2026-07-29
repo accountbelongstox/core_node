@@ -6,7 +6,7 @@ WebSocket RPC handlers for the Books page.
 """
 
 import base64
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.callmodule.controllers.local_processing.books_controller import BooksController
 from pycore.callmodule.rpc_routes.route_names import (

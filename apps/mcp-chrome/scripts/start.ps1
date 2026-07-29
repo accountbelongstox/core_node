@@ -28,6 +28,9 @@ $PythonScript = Join-Path $PSScriptRoot "build_orchestrator.py"
 $PythonExe = $null
 $InitialDir = Get-Location
 
+# WXT imports config/queue_center_contract.json from the repository root
+# directly. Do not copy the task contract here; wxt.config.ts explicitly allows
+# that root so Laravel, Pycore, both UIs, and mcp-chrome read one source.
 Set-Location $ProjectRoot
 . $VarKeysPath
 Import-Module $VarManagerPath -Force

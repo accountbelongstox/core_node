@@ -11,7 +11,7 @@ from typing import Dict, Any, List, Tuple
 from collections import Counter
 
 from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_numpy
 
 try:
     _KMEANS_AVAILABLE = True

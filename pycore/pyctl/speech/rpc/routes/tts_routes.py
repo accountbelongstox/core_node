@@ -14,9 +14,11 @@ Endpoints:
 import uuid
 from typing import Dict, Any
 
-from pycore.pyfoundations import ColorPrint, Task, TaskPriority, get_global_task_queue
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyutils.common import TTSTaskData, create_tts_task
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.tasks import Task, TaskPriority
+from pycore.pyutils.common.tasks import get_global_task_queue
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.common.speech_task_models import TTSTaskData, create_tts_task
 
 
 def register_tts_routes(rpc_server, service_instances: Dict[str, Any]):

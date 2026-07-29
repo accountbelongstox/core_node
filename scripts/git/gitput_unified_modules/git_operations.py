@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
 from gitput_unified_modules.utils import write_color_text, get_core_node_dir
-from pycore.pyfoundations.pybasecommon import Commander
+from pycore.pyfoundations.pybasecommon.commander import Commander
 
 
 def run_git_command(command: str, cwd: Optional[Path] = None, capture_output: bool = False) -> str:

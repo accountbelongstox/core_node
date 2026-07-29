@@ -50,20 +50,20 @@ from pycore.pyutils.python_env.isolated_venv import (
     resolve_python as resolve_isolated_python,
 )
 from pycore.pyutils.python_env.isolated_venv import venv_ready as isolated_venv_ready
-from pycore.pyfoundations.third_party import get_third_package_psutil, get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_psutil, get_third_package_requests
 from pycore.pyutils.common.managed_service import CategorySettings, ServiceSpec, managed_services
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.tts.tts_engine_probe import engine_installed, staging_dir
 
-from pycore.pyutils.tts import chattts_engine
-from pycore.pyutils.tts import cosyvoice_engine
-from pycore.pyutils.tts import gptsovits_engine
-from pycore.pyutils.tts import f5tts_engine
+import pycore.pyutils.tts.chattts_engine as chattts_engine
+import pycore.pyutils.tts.cosyvoice_engine as cosyvoice_engine
+import pycore.pyutils.tts.gptsovits_engine as gptsovits_engine
+import pycore.pyutils.tts.f5tts_engine as f5tts_engine
 
-from pycore.pyutils.tts import fishspeech_engine
-from pycore.pyutils.tts import melotts_engine
-from pycore.pyutils.tts import qwen3tts_engine
-from pycore.pyutils.tts import qwen3tts_weights
+import pycore.pyutils.tts.fishspeech_engine as fishspeech_engine
+import pycore.pyutils.tts.melotts_engine as melotts_engine
+import pycore.pyutils.tts.qwen3tts_engine as qwen3tts_engine
+import pycore.pyutils.tts.qwen3tts_weights as qwen3tts_weights
 
 
 _TTS_SECTION = "tts"

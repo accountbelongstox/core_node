@@ -21,7 +21,7 @@ import traceback
 from collections import OrderedDict
 import os
 
-from pycore.pyfoundations.third_party import get_third_package_cv2
+from pycore.pyfoundations.third_party.api import get_third_package_cv2
 
 cv2 = get_third_package_cv2()
 

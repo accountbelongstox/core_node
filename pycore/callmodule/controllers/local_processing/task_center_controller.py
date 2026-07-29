@@ -34,14 +34,14 @@ from typing import Any, Callable, Dict, List, Optional
 
 from pydantic import BaseModel
 
-from pycore.pyheartbeat import get_heartbeat_system
-from pycore import ColorPrint
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyctl.desktop.task_manager import get_task_manager
 from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
 from pycore.callmodule.services.translation_worker.worker import (
     get_translation_worker_service,
 )
-from pycore.callmodule.callmodule_config import Config
+from pycore.callmodule.callmodule_config.config import Config
 from pycore.callmodule.controllers.local_processing.task_center_assist import (
     queue_snapshot,
     tts_status,

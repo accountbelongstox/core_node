@@ -9,9 +9,9 @@ All business logic uses the shared RPC v2 service.
 
 from pathlib import Path
 
-from pycore import ColorPrint
-from pycore.pylauncher import LauncherConfig
-from pycore.pyutils.native_ui import get_i18n_manager
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pylauncher.launcher import LauncherConfig
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import get_i18n_manager
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
 
 
@@ -82,7 +82,8 @@ def build_matrix_launcher_config(
     # Prepare static mounts for production mode
     static_mounts = []
     if frontend_mode == 'production':
-        from pycore.pyutils.frontend_launcher import NuxtLauncher, FrontendConfig
+        from pycore.pyutils.frontend_launcher.frontend_config import FrontendConfig
+from pycore.pyutils.frontend_launcher.nuxt_launcher import NuxtLauncher
 
         # Create temp config to get static directory
         temp_config = FrontendConfig(

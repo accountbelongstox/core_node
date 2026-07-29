@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_QUEUE_PRIORITY_PRIORITIZE_WORD_IMAGES,
     UI_QUEUE_PRIORITY_PRIORITIZE_SENTENCE_AUDIO,
@@ -12,7 +12,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_QUEUE_PRIORITY_PRIORITIZE_COVERS,
     UI_QUEUE_PRIORITY_PRIORITIZE_POSTERS,
 )
-from pycore.callmodule.services import queue_priority_service as qp
+import pycore.callmodule.services.queue_priority_service as qp
 
 
 def register_local_queue_priority_routes(server):

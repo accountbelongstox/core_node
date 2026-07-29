@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Optional, Dict, List
 
 from pycore.pyfoundations.serialized_worker import start_bus_task
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 from .global_config import get_global_config, DEFAULT_SYNC_INTERVAL
 from .simple_device_scanner import SimpleDeviceScanner

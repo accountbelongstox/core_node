@@ -170,12 +170,40 @@ class TaskManagerService
         ?string $capability = null,
         array $linkAttributes = []
     ): GlobalTask {
+        // config/queue_center_contract.json is the only task vocabulary source.
+        // Callers may retain the executionType parameter for API compatibility,
+        // but the persisted lane and fixed/selectable capability rules always
+        // come from the central definition consumed by every runtime and UI.
+        $taskDefinition = QueueCenterContract::taskTypeDefinition($taskType);
+        if ($taskDefinition === null) {
+            throw new \InvalidArgumentException("Unknown global-task type: {$taskType}");
+        }
+
+        $executionType = (string) $taskDefinition['execution_type'];
+        $fixedCapability = $taskDefinition['capability'] ?? null;
+        $selectableCapabilities = array_values($taskDefinition['capabilities'] ?? []);
+        if (($taskDefinition['capability_mode'] ?? 'fixed') === 'selectable') {
+            if ($capability !== null && !in_array($capability, $selectableCapabilities, true)) {
+                throw new \InvalidArgumentException("Capability {$capability} is not valid for {$taskType}");
+            }
+        } else {
+            $capability = is_string($fixedCapability) && $fixedCapability !== ''
+                ? $fixedCapability
+                : null;
+        }
+        if ($capability !== null && !in_array($capability, QueueCenterContract::taskCapabilities(), true)) {
+            throw new \InvalidArgumentException("Unknown global-task capability: {$capability}");
+        }
+
         // Eligible interactive requests jump onto the shared fast lane at the
         // FAST priority tier. Dedicated-lane tasks retain their execution type;
         // otherwise no matching worker could claim them.
         $interactive = $interactive
-            && in_array($taskType, self::FAST_PROMOTABLE_TASK_TYPES, true);
+            && in_array($taskType, QueueCenterContract::fastPromotableTaskTypes(), true);
         if ($interactive) {
+            if ($capability === null && is_string($fixedCapability) && $fixedCapability !== '') {
+                $capability = $fixedCapability;
+            }
             $executionType = GlobalTask::executionType('remote_fast');
             $priority = max($priority, GlobalTask::priority('fast'));
         }
@@ -229,7 +257,7 @@ class TaskManagerService
      * @param int $limit Maximum number of tasks to return
      * @return array Array of assigned tasks
      */
-    public function pullAndAssignTasksForWorker(string $workerId, int $limit = 5): array
+    public function pullAndAssignTasksForWorker(string $workerId, int $limit): array
     {
         // Use single transaction for all operations. LOCK ORDER: worker row
         // first, then task rows — submitResult() acquires its locks in the SAME
@@ -289,7 +317,7 @@ class TaskManagerService
                     $worker->assignTask($task->task_id);
                     $assignedTasks[] = $task;
 
-                    GlobalTaskEvent::record($task->task_id, GlobalTaskEvent::EVENT_ASSIGNED, $workerId, (int) $task->retry_count, [
+                    GlobalTaskEvent::record($task->task_id, GlobalTaskEvent::event('assigned'), $workerId, (int) $task->retry_count, [
                         'worker_id' => $workerId,
                         'execution_type' => $task->execution_type,
                         'reason' => 'pull',
@@ -380,7 +408,7 @@ class TaskManagerService
                     $worker->assignTask($task->task_id);
                     $assignedTasks[] = $task;
 
-                    GlobalTaskEvent::record($task->task_id, GlobalTaskEvent::EVENT_ASSIGNED, $workerId, (int) $task->retry_count, [
+                    GlobalTaskEvent::record($task->task_id, GlobalTaskEvent::event('assigned'), $workerId, (int) $task->retry_count, [
                         'worker_id' => $workerId,
                         'execution_type' => $task->execution_type,
                         'capability' => $task->capability,
@@ -410,24 +438,24 @@ class TaskManagerService
      * Long-poll wait threshold (seconds) and granularity (microseconds) used by
      * the pull endpoint when the queue is momentarily empty. The worker channel
      * is documented as long-poll; rather than return an empty 200 immediately
-     * (forcing a tight reconnect loop), pull waits up to MAX_LONG_POLL_SECONDS
+     * (forcing a tight reconnect loop), pull waits up to the central
+     * `long_poll_seconds` limit
      * for a task to appear, re-checking every POLL_INTERVAL_US. The first
      * iteration always runs, so a non-empty queue returns instantly.
      */
-    private const MAX_LONG_POLL_SECONDS = 20;
     private const POLL_INTERVAL_US = 500000; // 0.5s
 
     /**
      * Long-poll variant of the pull: assign tasks immediately if any exist,
      * otherwise wait (cheap COUNT polling, not a held DB lock) up to
-     * MAX_LONG_POLL_SECONDS for work to arrive, then assign and return. Returns
+     * the central long-poll limit for work to arrive, then assign and return. Returns
      * promptly the instant a (high-priority) task is created.
      *
      * @return array Array of assigned tasks (possibly empty after the wait).
      */
-    public function pullAndAssignTasksLongPoll(string $workerId, int $limit = 5, ?int $maxWaitSeconds = null): array
+    public function pullAndAssignTasksLongPoll(string $workerId, int $limit, ?int $maxWaitSeconds = null): array
     {
-        $deadline = microtime(true) + ($maxWaitSeconds ?? self::MAX_LONG_POLL_SECONDS);
+        $deadline = microtime(true) + ($maxWaitSeconds ?? QueueCenterContract::taskLimit('long_poll_seconds'));
 
         // Resolve the worker's processor types once for the cheap availability
         // probe between assignment attempts.
@@ -467,13 +495,14 @@ class TaskManagerService
      * Count PENDING tasks with priority >= $minPriority for the given processor
      * types — the "urgent backlog" signal surfaced as `pending_urgent` in the
      * pull and heartbeat responses so a worker knows to poll faster. A resolve /
-     * library-words query bumps missing-media tasks to priority 100, so this
+     * library-words query bumps missing-media tasks to the central fast priority, so this
      * count > 0 means user-visible work is waiting.
      *
      * @param array<int,string> $processorTypes
      */
-    public function countUrgentPending(array $processorTypes, int $minPriority = 100): int
+    public function countUrgentPending(array $processorTypes, ?int $minPriority = null): int
     {
+        $minPriority = $minPriority ?? QueueCenterContract::taskPriority('fast');
         $processorTypes = array_values(array_filter($processorTypes, 'is_string'));
         if (empty($processorTypes)) {
             return 0;
@@ -646,7 +675,7 @@ class TaskManagerService
             $task->assignTo($workerId, $task->timeout_seconds);
             $worker->assignTask($taskId);
 
-            GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_ASSIGNED, $workerId, (int) $task->retry_count, [
+            GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('assigned'), $workerId, (int) $task->retry_count, [
                 'worker_id' => $workerId,
                 'execution_type' => $task->execution_type,
                 'reason' => 'assign',
@@ -715,7 +744,7 @@ class TaskManagerService
             if ($task->status === GlobalTask::status('pending')) {
                 $task->assignTo($workerId, $task->timeout_seconds);
                 $worker->assignTask($taskId);
-                GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_ASSIGNED, $workerId, (int) $task->retry_count, [
+                GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('assigned'), $workerId, (int) $task->retry_count, [
                     'worker_id' => $workerId,
                     'execution_type' => $task->execution_type,
                     'reason' => 'accept',
@@ -779,7 +808,7 @@ class TaskManagerService
                 }
             }
 
-            GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_CANCELLED, $workerId, (int) $task->retry_count, [
+            GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('cancelled'), $workerId, (int) $task->retry_count, [
                 'worker_id' => $workerId,
                 'execution_type' => $task->execution_type,
                 'reason' => 'cancelled by control plane',
@@ -815,7 +844,7 @@ class TaskManagerService
         string $taskId,
         string $workerId,
         string $status,
-        float $progress = 0,
+        ?float $progress = null,
         ?array $result = null,
         ?string $error = null,
         ?array &$outcome = null
@@ -873,12 +902,7 @@ class TaskManagerService
             // WITHOUT reprocessing — re-running the completed branch would run
             // the task processors (write-back) a second time and double-count
             // worker stats.
-            $terminalStatuses = [
-                GlobalTask::status('completed'),
-                GlobalTask::status('completed_demo'),
-                GlobalTask::status('failed'),
-                GlobalTask::status('cancelled'),
-            ];
+            $terminalStatuses = QueueCenterContract::taskStatuses('terminal');
             if (in_array($task->status, $terminalStatuses, true)) {
                 $outcome['status'] = $task->status;
                 Log::info('Result re-delivered for terminal task — acknowledged without reprocessing', [
@@ -891,7 +915,7 @@ class TaskManagerService
             }
 
             // Update task based on status
-            if ($status === 'completed') {
+            if ($status === GlobalTask::status('completed')) {
                 // Check demo mode: priority to frontend-submitted flag
                 $isDemoMode = $result['is_demo_mode'] ?? $task->payload['is_demo_mode'] ?? false;
 
@@ -963,7 +987,7 @@ class TaskManagerService
                 $worker->incrementCompleted();
                 $worker->releaseTask();
 
-                GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_COMPLETED, $workerId, (int) $task->retry_count, [
+                GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('completed'), $workerId, (int) $task->retry_count, [
                     'worker_id' => $workerId,
                     'execution_type' => $task->execution_type,
                     'stored_count' => $outcome['stored_count'],
@@ -985,7 +1009,7 @@ class TaskManagerService
                     $synced = $task->syncToDictRow();
                     $outcome['synced_to_dict'] = $synced;
                 }
-            } elseif ($status === 'failed') {
+            } elseif ($status === GlobalTask::status('failed')) {
                 $failError = $error ?? 'Unknown error';
 
                 // Check if will retry BEFORE incrementing failed count
@@ -1012,9 +1036,13 @@ class TaskManagerService
                         'error' => $error,
                     ]);
                 }
-            } elseif ($status === 'processing') {
+            } elseif ($status === GlobalTask::status('processing')) {
                 $task->status = GlobalTask::status('processing');
-                $task->progress = $progress;
+                // A NULL progress is a lease keep-alive ping (d.txt 7): extend
+                // the lease without clobbering the stored progress with 0.
+                if ($progress !== null) {
+                    $task->progress = $progress;
+                }
                 if ($result) {
                     $task->result = $result;
                 }
@@ -1102,12 +1130,12 @@ class TaskManagerService
                     $task->retry_count++;
                     $task->releaseAssignment();
 
-                    GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_TIMEOUT, $workerId, (int) $task->retry_count, [
+                    GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('timeout'), $workerId, (int) $task->retry_count, [
                         'worker_id' => $workerId,
                         'execution_type' => $task->execution_type,
                         'reason' => 'timeout',
                     ]);
-                    GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_RECLAIMED, $workerId, (int) $task->retry_count, [
+                    GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('reclaimed'), $workerId, (int) $task->retry_count, [
                         'worker_id' => $workerId,
                         'execution_type' => $task->execution_type,
                         'reason' => 'release',
@@ -1130,7 +1158,7 @@ class TaskManagerService
                     $task->timeout_at = null;
                     $task->save();
 
-                    GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_FAILED, $workerId, (int) $task->retry_count, [
+                    GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('failed'), $workerId, (int) $task->retry_count, [
                         'worker_id' => $workerId,
                         'execution_type' => $task->execution_type,
                         'reason' => 'timeout',
@@ -1219,7 +1247,7 @@ class TaskManagerService
                         $task->save();
                     }
 
-                    GlobalTaskEvent::record($task->task_id, GlobalTaskEvent::EVENT_RECLAIMED, $worker->worker_id, (int) $task->retry_count, [
+                    GlobalTaskEvent::record($task->task_id, GlobalTaskEvent::event('reclaimed'), $worker->worker_id, (int) $task->retry_count, [
                         'worker_id' => $worker->worker_id,
                         'execution_type' => $task->execution_type,
                         'reason' => 'worker_offline',
@@ -1274,16 +1302,11 @@ class TaskManagerService
                 return (int) ($grouped[$status] ?? 0);
             };
 
-            return [
-                'total' => (int) $grouped->sum(),
-                'pending' => $count(GlobalTask::status('pending')),
-                'assigned' => $count(GlobalTask::status('assigned')),
-                'processing' => $count(GlobalTask::status('processing')),
-                'completed' => $count(GlobalTask::status('completed')),
-                'completed_demo' => $count(GlobalTask::status('completed_demo')),
-                'failed' => $count(GlobalTask::status('failed')),
-                'cancelled' => $count(GlobalTask::status('cancelled')),
-            ];
+            $stats = ['total' => (int) $grouped->sum()];
+            foreach (QueueCenterContract::taskStatuses('all') as $status) {
+                $stats[$status] = $count($status);
+            }
+            return QueueCenterContract::projectTask($stats, 'stats');
         });
     }
 
@@ -1366,7 +1389,7 @@ class TaskManagerService
         // switch on it first and fall through to the execution_type switch as a
         // fallback for non-fast lanes. Do NOT key on capability (NULL = any).
         switch ($task->task_type) {
-            case 'word_translation':
+            case QueueCenterContract::taskTypeKey('word_translation'):
                 // Check both the flat (pycore) and the {result:{...}} enveloped
                 // (chrome web-AI) shapes — $inner already unwrapped above.
                 $hasAny = !empty($inner['translations'])
@@ -1381,7 +1404,7 @@ class TaskManagerService
                 }
                 return null;
 
-            case 'prompt_translation':
+            case QueueCenterContract::taskTypeKey('prompt_translation'):
                 // A prompt-translation completion must carry the English text.
                 $hasEnglish = trim((string) ($inner['english'] ?? ($result['english'] ?? ''))) !== '';
                 if (!$hasEnglish) {
@@ -1389,7 +1412,7 @@ class TaskManagerService
                 }
                 return null;
 
-            case 'word_validity':
+            case QueueCenterContract::taskTypeKey('word_validity'):
                 // A validity-detection completion must carry at least one verdict
                 // (an all-invalid or all-valid batch is still a real result). The
                 // empty_store gate downgrades to failed if nothing actually stored.
@@ -1403,7 +1426,7 @@ class TaskManagerService
                 }
                 return null;
 
-            case 'gemini_image':
+            case QueueCenterContract::taskTypeKey('gemini_image'):
                 $hasImage = !empty($inner['image_base64'])
                     || !empty($result['image_base64'])
                     || !empty($inner['image_url'])
@@ -1414,7 +1437,7 @@ class TaskManagerService
                 }
                 return null;
 
-            case 'subtitle_search':
+            case QueueCenterContract::taskTypeKey('subtitle_search'):
                 // A subtitle search completion must carry at least one hit.
                 $hasResults = (!empty($inner['results']) && is_array($inner['results']))
                     || (!empty($result['results']) && is_array($result['results']));
@@ -1424,7 +1447,7 @@ class TaskManagerService
                 }
                 return null;
 
-            case 'poster':
+            case QueueCenterContract::taskTypeKey('poster'):
                 // A poster completion must carry poster bytes or a URL.
                 $hasPoster = !empty($inner['image_base64'])
                     || !empty($result['image_base64'])
@@ -1442,7 +1465,7 @@ class TaskManagerService
                 }
                 return null;
 
-            case 'sentence_audio':
+            case QueueCenterContract::taskTypeKey('sentence_audio'):
                 // A sentence-audio completion must carry audio BYTES the server can
                 // store. saved_path alone points at the worker's own filesystem and
                 // carries nothing the server-side writeback (SentenceAudioTaskProcessor::
@@ -1459,17 +1482,26 @@ class TaskManagerService
                 }
                 return null;
 
-            case 'article_audio':
+            case QueueCenterContract::taskTypeKey('article_audio'):
                 $hasAudio = !empty($inner['audio_base64'])
                     || !empty($result['audio_base64']);
 
                 return $hasAudio
                     ? null
                     : 'Article-audio result carried no audio_base64';
+
+            case QueueCenterContract::taskTypeKey('stt'):
+            case QueueCenterContract::taskTypeKey('audio_transcribe'):
+                $hasTranscript = trim((string) ($inner['text']
+                    ?? ($inner['transcript'] ?? ($result['text'] ?? ($result['transcript'] ?? ''))))) !== '';
+
+                return $hasTranscript
+                    ? null
+                    : 'STT result carried no text/transcript';
         }
 
         switch ($task->execution_type) {
-            case 'remote_translation':
+            case GlobalTask::executionType('remote_translation'):
                 // A translation completion must carry SOME per-word outcome:
                 // actual translations, or explicit invalid / region-redirect
                 // verdicts (an all-invalid batch is still a real result).
@@ -1485,7 +1517,7 @@ class TaskManagerService
                     ? null
                     : 'Translation result carried no translations, invalid_words or region_redirect_words';
 
-            case 'remote_gemini':
+            case GlobalTask::executionType('remote_gemini'):
                 // A gemini image completion must carry image bytes or a URL.
                 $hasImage = !empty($inner['image_base64'])
                     || !empty($result['image_base64'])
@@ -1497,10 +1529,9 @@ class TaskManagerService
                     : 'Image result carried no image_base64/image_url';
 
             default:
-                // remote_client, remote_notebooklm, remote_audio, remote_compute,
-                // remote_ocr, remote_video, remote_io, remote_fast, local_timer,
-                // and any unknown/control-plane type: trust the worker's status;
-                // the stored_count<=0 gate still guards owned task types.
+                // Other centrally declared/control-plane lanes trust the
+                // worker's status; the stored_count<=0 gate still guards task
+                // types with a registered write-back processor.
                 return null;
         }
     }
@@ -1550,7 +1581,7 @@ class TaskManagerService
 
         GlobalTaskEvent::record(
             $task->task_id,
-            GlobalTaskEvent::EVENT_FAILED,
+            GlobalTaskEvent::event('failed'),
             $workerId,
             (int) $task->retry_count,
             [

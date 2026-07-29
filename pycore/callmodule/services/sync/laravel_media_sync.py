@@ -46,7 +46,9 @@ import json
 import os
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from pycore import ColorPrint, THREAD_BUS, get_user_data_store
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.database.repositories.user_data_store import get_user_data_store
 
 # Book text EXTRACTION (slow PDF/EPUB read) - used by sync_book_source only.
 # book_processor imports nothing from services.sync, so this stays cycle-free.

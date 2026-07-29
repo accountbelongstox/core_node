@@ -8,9 +8,7 @@ Thin wrapper around pycore utilities for MCP protocol
 import logging
 from typing import Dict, Any, Optional
 
-from pycore.pyutils.mcp.file_processing import (
-    get_file_comprehensive_info_with_ocr_text_positions_color_palette_document_metadata_pixel_analysis_and_processing_stats
-)
+from pycore.pyutils.mcp.file_processing.file_info_extractor_with_ocr_text_positions_color_palette_and_metadata import get_file_comprehensive_info_with_ocr_text_positions_color_palette_document_metadata_pixel_analysis_and_processing_stats
 from pycore.pyutils.mcp.file_processing.placeholder_image_generator_with_ocr_based_replacement import (
     get_placeholder_generator_singleton
 )

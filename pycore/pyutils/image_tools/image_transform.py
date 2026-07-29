@@ -17,7 +17,7 @@ Public functions (called via ImageTools methods):
 import logging
 from typing import Tuple, Optional, Dict, Any, List, Union
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
 
 Image = get_third_package_PIL_Image()
 

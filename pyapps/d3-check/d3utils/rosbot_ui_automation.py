@@ -7,14 +7,14 @@ import time
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 
-from pycore.pyfoundations.third_party import (
+from pycore.pyfoundations.third_party.api import (
     get_third_package_psutil,
     get_third_package_pythoncom,
     get_third_package_uiautomation,
     get_third_package_win32gui,
     get_third_package_win32con,
 )
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.input.click_handler import ClickHandler
 from d3utils.click_handler_singleton import get_click_handler
 

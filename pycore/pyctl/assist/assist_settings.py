@@ -9,8 +9,9 @@ Holds the per-capability gates that form the single Queue Center control plane:
                       sentence_audio, subtitle, stt } }
 
 translation_worker_enabled_on_start / assist_capability_enabled gate the
-EXISTING TranslationWorkerService lanes: section ABSENT => legacy default
-(pre-assist behaviour); section PRESENT => enabled AND the capability flag.
+EXISTING TranslationWorkerService lanes: section ABSENT => OFF (no task runs
+until the user enables it in the Queue Center UI — d.txt 6.1/8.1); section
+PRESENT => enabled AND the capability flag.
 """
 
 from typing import Any, Dict, Optional
@@ -120,9 +121,11 @@ def translation_worker_enabled_on_start(legacy_default: bool) -> bool:
     """
     Master-toggle gate for the EXISTING TranslationWorkerService.
 
-    - Section absent (fresh upgrade, key never written): return
-      ``legacy_default`` - i.e. Config.TRANSLATION_WORKER_ENABLED_ON_START -
-      preserving today's behaviour exactly.
+    - Section absent (assist never configured in the UI): return False —
+      Queue Center rule (d.txt 6.1/8.1): NO task processing starts at boot
+      unless the user explicitly enabled it in the UI. The env/Config value
+      only survives as a hard kill-switch (an explicit "0" forces a lane off
+      even when the UI toggle is on), never as an auto-start.
     - Section present: the assist toggle rules -
       ``enabled AND capabilities.translation``.
     """
@@ -134,13 +137,15 @@ def assist_capability_enabled(capability: str, legacy_default: bool = True) -> b
     Generic per-capability assist gate (the control plane every worker lane
     consults). Mirrors translation_worker_enabled_on_start for ALL capabilities:
 
-    - Section ABSENT (assist never configured): return ``legacy_default`` so the
-      lane keeps its pre-assist behaviour (a hard env-knob default).
+    - Section ABSENT (assist never configured in the UI): return False.
+      Backend workers must not process tasks the user never switched on
+      (Queue Center alignment d.txt 6.1/8.1); ``legacy_default`` is ignored
+      in this branch so no Config/env default can silently start processing.
     - Section PRESENT: the assist toggle rules - the lane is live only while the
       master ``enabled`` is on AND its capability flag is on (missing key => on,
       so a newly-added capability defaults to advertised).
     """
     if not assist_settings_exist():
-        return bool(legacy_default)
+        return False
     settings = load_assist_settings()
     return bool(settings["enabled"] and settings["capabilities"].get(capability, True))

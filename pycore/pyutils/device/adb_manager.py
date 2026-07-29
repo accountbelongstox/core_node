@@ -12,7 +12,7 @@ Design Principles:
 - Type-safe interfaces
 """
 
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import re
 import shlex
 from pathlib import Path

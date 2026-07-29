@@ -449,6 +449,14 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                     category: 'agent_history',
                   });
                 }}
+                onPlayArticle={(articleId) => {
+                  // Open the routed player page (#/read-daily/<id>) on the
+                  // daily-reading tab — a real page, not a modal over home.
+                  if (typeof window !== 'undefined') {
+                    window.history.replaceState(null, '', `#/read-daily/${encodeURIComponent(articleId)}`);
+                  }
+                  setActiveTab('daily-reading');
+                }}
               />
 
               {/* Multi-category content hub — live backend word / book / subtitle

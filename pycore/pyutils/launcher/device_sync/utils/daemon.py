@@ -12,7 +12,7 @@ Features:
 
 import sys
 import os
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 from pathlib import Path
 import subprocess
 

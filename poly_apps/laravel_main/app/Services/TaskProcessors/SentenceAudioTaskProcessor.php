@@ -36,7 +36,7 @@ use Illuminate\Support\Facades\Log;
  * Returns 1 on stored (or already-stored) audio, 0 when empty/unstorable — so
  * the result-trust layer downgrades an empty-store "completed" to 'failed'.
  */
-class SentenceAudioTaskProcessor implements TaskProcessorInterface
+class SentenceAudioTaskProcessor extends AbstractTaskProcessor
 {
     protected TaskManagerService $taskManager;
 
@@ -48,10 +48,9 @@ class SentenceAudioTaskProcessor implements TaskProcessorInterface
         $this->sentenceAudioService = $sentenceAudioService ?: new AppQyV1SentenceAudioService();
     }
 
-    public function canProcess(GlobalTask $task): bool
+    protected function taskTypeRoles(): array
     {
-        return $task->app_name === 'AppQyV1'
-            && $task->task_type === 'sentence_audio';
+        return ['sentence_audio'];
     }
 
     public function processResult(GlobalTask $task, array $result, bool $isDemoMode): int
@@ -237,8 +236,4 @@ class SentenceAudioTaskProcessor implements TaskProcessorInterface
         return $v !== '' ? $v : null;
     }
 
-    public function getPriority(): int
-    {
-        return 10;
-    }
 }

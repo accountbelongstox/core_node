@@ -25,8 +25,8 @@ import json
 import sys
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_requests
-from pycore import get_user_data_store
+from pycore.pyfoundations.third_party.api import get_third_package_requests
+from pycore.database.repositories.user_data_store import get_user_data_store
 from pycore.pyutils.codesync.peer_config import get_peer_config
 
 

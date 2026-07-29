@@ -20,7 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyutils.device.adb_manager import ADBManager
 from pycore.pyutils.rpc_v2.discovery.network_scanner import NetworkScanner
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class DeviceDiscovery:

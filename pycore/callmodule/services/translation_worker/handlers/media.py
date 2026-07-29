@@ -3,7 +3,7 @@
 
 from typing import Any, Dict
 
-from .. import lane_gating
+import pycore.callmodule.services.translation_worker.lane_gating as lane_gating
 
 
 

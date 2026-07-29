@@ -1,3 +1,2 @@
-from pycore.pyutils.ai_cluster.spark.spark_client import SparkClient
-
-__all__ = ["SparkClient"]
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

@@ -9,7 +9,7 @@ Extends BaseTTSWorkerThread to implement Edge TTS specific processing.
 import threading
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.edge_tts.worker_thread_base import (
     initialize_tts_worker,
     run_tts_worker,

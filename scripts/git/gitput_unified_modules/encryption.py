@@ -12,7 +12,7 @@ from gitput_unified_modules.utils import (
     get_core_node_dir,
     read_masked_password,
 )
-from pycore.pyfoundations.pybasecommon import Commander
+from pycore.pyfoundations.pybasecommon.commander import Commander
 
 
 def find_disguise_js() -> Optional[Path]:

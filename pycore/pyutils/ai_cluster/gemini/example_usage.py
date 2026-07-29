@@ -5,7 +5,7 @@ This example demonstrates how to use the gemini_manager singleton
 to interact with the Google Gemini API.
 """
 
-from pycore.pyutils.ai_cluster.gemini import gemini_manager
+from pycore.pyutils.ai_cluster.gemini.gemini_manager import gemini_manager
 
 
 def test_generate_content():

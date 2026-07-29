@@ -30,7 +30,7 @@ from typing import Any, Dict, Optional, Tuple
 from urllib.parse import quote
 
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient
 from pycore.pyctl.ai.ai_keys import (
     base_url, extra_secret, image_first_secret, image_model,

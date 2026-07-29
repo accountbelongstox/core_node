@@ -14,7 +14,7 @@ _core_node_root = _d3_check_root.parent.parent
 sys.path.insert(0, str(_core_node_root))
 sys.path.insert(0, str(_d3_check_root))
 
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_PIL_Image
 from d3utils.debug_bag_hover import (
     _find_line_in_crop,
     _draw_dots_on_matched,

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Optional, List, Dict, Tuple, Union, Literal
 from pathlib import Path
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 

@@ -13,7 +13,8 @@ import os
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.text_parsing import normalize_language_codes
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services.processors.book_processor import extract_text
@@ -36,8 +37,8 @@ from pycore.callmodule.services.corebook.corebook_completeness import (
 from pycore.callmodule.services.corebook.corebook_translate import translate_sentences
 from pycore.callmodule.services.corebook.corebook_audio import fill_audio_for_slots
 
-from pycore import get_user_data_store
-from pycore.callmodule.controllers.local_processing import books_state
+from pycore.database.repositories.user_data_store import get_user_data_store
+import pycore.callmodule.controllers.local_processing.books_state as books_state
 
 
 COREBOOK_AUTOFLOW_EVENT = "corebook_autoflow"

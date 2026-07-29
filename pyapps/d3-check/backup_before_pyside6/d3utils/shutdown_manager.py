@@ -12,7 +12,7 @@ import threading
 from typing import Callable, List, Optional
 
 # Direct pycore imports (no secondary encapsulation)
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from share.ui_registry import get_ui
 
 import timers.timer_manager as timer_manager

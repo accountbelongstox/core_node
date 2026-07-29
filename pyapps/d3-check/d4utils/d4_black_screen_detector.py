@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Union, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_PIL_Image
 
 numpy = get_third_package_numpy()
 np = numpy
@@ -19,7 +19,7 @@ Image = get_third_package_PIL_Image()
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class D4BlackScreenDetector:

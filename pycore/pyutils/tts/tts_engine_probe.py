@@ -21,19 +21,19 @@ from typing import Dict, Optional
 
 from pycore.pyfoundations.system_paths import get_core_node_root, get_local_data_dir
 
-from pycore.pyutils.tts import streamelements_engine
-from pycore.pyutils.tts import cosyvoice_engine
-from pycore.pyutils.tts import f5tts_engine
-from pycore.pyutils.tts import chattts_engine
-from pycore.pyutils.tts import gptsovits_engine
-from pycore.pyutils.tts import fishspeech_engine
-from pycore.pyutils.tts import sherpa_engine
-from pycore.pyutils.tts import kokoro_engine
-from pycore.pyutils.tts import azure_engine
-from pycore.pyutils.tts import qwen3tts_engine
-from pycore.pyutils.tts import qwen3tts_venv
-from pycore.pyutils.tts import melotts_engine
-from pycore.pyutils.tts import isolated_venv
+import pycore.pyutils.tts.streamelements_engine as streamelements_engine
+import pycore.pyutils.tts.cosyvoice_engine as cosyvoice_engine
+import pycore.pyutils.tts.f5tts_engine as f5tts_engine
+import pycore.pyutils.tts.chattts_engine as chattts_engine
+import pycore.pyutils.tts.gptsovits_engine as gptsovits_engine
+import pycore.pyutils.tts.fishspeech_engine as fishspeech_engine
+import pycore.pyutils.tts.sherpa_engine as sherpa_engine
+import pycore.pyutils.tts.kokoro_engine as kokoro_engine
+import pycore.pyutils.tts.azure_engine as azure_engine
+import pycore.pyutils.tts.qwen3tts_engine as qwen3tts_engine
+import pycore.pyutils.tts.qwen3tts_venv as qwen3tts_venv
+import pycore.pyutils.tts.melotts_engine as melotts_engine
+import pycore.pyutils.tts.isolated_venv as isolated_venv
 
 
 _STAGING_ENV: Dict[str, str] = {

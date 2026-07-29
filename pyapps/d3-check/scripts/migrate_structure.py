@@ -17,7 +17,7 @@ _current_dir = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.dirname(_current_dir) if os.path.basename(_current_dir) == "scripts" else _current_dir
 sys.path.insert(0, _project_root)
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class StructureMigration:

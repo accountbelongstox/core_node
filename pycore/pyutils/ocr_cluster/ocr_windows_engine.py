@@ -10,11 +10,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import (
-    get_third_package_PIL_Image,
-    get_third_package_numpy,
-    get_third_package_windows_ocr,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_windows_ocr
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,

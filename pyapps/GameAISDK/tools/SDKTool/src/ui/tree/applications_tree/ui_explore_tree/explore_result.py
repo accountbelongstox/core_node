@@ -19,12 +19,8 @@ import os
 import sys
 import json
 import math
-from pycore.pyfoundations.third_party import (
-    get_third_package_cv2,
-    get_third_package_numpy,
-    get_third_package_matplotlib,
-)
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy, get_third_package_matplotlib
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 cv2 = get_third_package_cv2()
 np = get_third_package_numpy()

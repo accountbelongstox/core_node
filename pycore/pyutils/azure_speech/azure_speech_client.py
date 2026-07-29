@@ -45,8 +45,8 @@ https://learn.microsoft.com/python/api/azure-cognitiveservices-speech/
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from pycore import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_speechsdk
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_speechsdk
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     init_serialized_owner,

@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import UI_QUEUE_BUMPS_LIST_BUMPS
 from pycore.callmodule.services.queue_bump_hub import get_queue_bump_hub
 

@@ -1,11 +1,12 @@
 import os
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import sys
 import time
 from pathlib import Path
 
 # Add parent directory to path for dependency checking
-from pycore.pyfoundations.third_party import get_third_package_psutil, get_third_package_pywinauto
+from pycore.pyfoundations.third_party.api import get_third_package_psutil
+from pycore.pyfoundations.third_party.api import get_third_package_pywinauto
 
 psutil = get_third_package_psutil()
 pywinauto = get_third_package_pywinauto()

@@ -20,21 +20,18 @@ import time
 import uuid
 from typing import Any, Dict, Optional
 
-from pycore import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_fastapi
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 
 fastapi = get_third_package_fastapi()
 Request = fastapi.Request
 JSONResponse = fastapi.responses.JSONResponse
 status = fastapi.status
 
-from pycore.pyutils.rpc_v2.config import RPC_CONSTANTS
-from pycore.pyutils.rpc_v2.common import (
-    InventoryTable,
-    RequestEventTable,
-    RequestStatus,
-    RPCRequestContext,
-)
+from pycore.pyutils.rpc_v2.config.rpc_constants import RPC_CONSTANTS
+from pycore.pyutils.rpc_v2.common.inventory_table import InventoryTable
+from pycore.pyutils.rpc_v2.common.request_event_table import RequestEventTable, RequestStatus
+from pycore.pyutils.rpc_v2.common.typing import RPCRequestContext
 from pycore.pyutils.rpc_v2.server.ack_manager import FastAPIAckManager
 from pycore.pyutils.rpc_v2.server.routes_manager import RoutesManager
 from pycore.pyutils.rpc_v2.server.request_processor import RequestProcessor
@@ -164,8 +161,7 @@ class HttpRPCHandler:
                 result=inventory_item.result,
                 error=inventory_item.error,
             )
-            return await await_serialized(
-                self.ack_manager.prepare_http_response_with_ack,
+            return await self.ack_manager.prepare_http_response_with_ack(
                 request_id=request_id,
                 data={
                     "type": MSG_TYPES["RESPONSE"],
@@ -186,8 +182,7 @@ class HttpRPCHandler:
         )
         if existing_event:
             if existing_event.status == RequestStatus.COMPLETED:
-                return await await_serialized(
-                    self.ack_manager.prepare_http_response_with_ack,
+                return await self.ack_manager.prepare_http_response_with_ack(
                     request_id=request_id,
                     data={
                         "type": MSG_TYPES["RESPONSE"],
@@ -309,8 +304,7 @@ class HttpRPCHandler:
                 )
             )
 
-            return await await_serialized(
-                self.ack_manager.prepare_http_response_with_ack,
+            return await self.ack_manager.prepare_http_response_with_ack(
                 request_id=request_id,
                 data={
                     "type": MSG_TYPES["RESPONSE"],
@@ -348,8 +342,7 @@ class HttpRPCHandler:
                 result=inventory_item.result,
                 error=inventory_item.error,
             )
-            return await await_serialized(
-                self.ack_manager.prepare_http_response_with_ack,
+            return await self.ack_manager.prepare_http_response_with_ack(
                 request_id=request_id,
                 data={
                     "type": MSG_TYPES["RESPONSE"],
@@ -384,8 +377,7 @@ class HttpRPCHandler:
             )
 
         if event.status == RequestStatus.COMPLETED:
-            return await await_serialized(
-                self.ack_manager.prepare_http_response_with_ack,
+            return await self.ack_manager.prepare_http_response_with_ack(
                 request_id=request_id,
                 data={
                     "type": MSG_TYPES["RESPONSE"],

@@ -16,7 +16,7 @@ Main Functions:
 
 import os
 import sys
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 from pycore.pyfoundations.serialized_worker import SerializedValue
 from pathlib import Path
 from typing import Dict, List, Optional

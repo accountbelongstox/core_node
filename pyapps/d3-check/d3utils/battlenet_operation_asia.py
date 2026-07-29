@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from d3utils.battlenet_operation_base import (
     BattlenetOperationBase,

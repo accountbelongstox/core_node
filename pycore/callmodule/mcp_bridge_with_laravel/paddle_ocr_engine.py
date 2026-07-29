@@ -18,11 +18,7 @@ import subprocess
 
 from ocr_config import OCRLimits, APIKeys
 
-from pycore.pyfoundations.third_party import (
-    get_third_package_PIL_Image,
-    get_third_package_PIL_ImageDraw,
-    get_third_package_PIL_ImageFont,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont
 from pycore.pyfoundations.runtime_abi import PADDLE_CPU_PACKAGE
 
 

@@ -20,9 +20,9 @@ from typing import Any, Dict, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 
-from .. import lane_gating
+import pycore.callmodule.services.translation_worker.lane_gating as lane_gating
 
-from pycore.pyutils.stt import stt_orchestrator
+import pycore.pyutils.stt.stt_orchestrator as stt_orchestrator
 import shutil
 import subprocess
 

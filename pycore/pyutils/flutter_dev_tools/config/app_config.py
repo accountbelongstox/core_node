@@ -10,18 +10,14 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 # Import from pycore following PYTHON_PYCORE.md standards
-from pycore.pyfoundations import ColorPrint, ENCYCLOPEDIA
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
 )
-from pycore.pyfoundations.pygvar import (
-    IS_WINDOWS,
-    PROJECT_ROOT,
-    CACHE_DIR,
-    LOCAL_CORE_NODE_DIR
-)
+from pycore.pyfoundations.pygvar.constants import IS_WINDOWS, PROJECT_ROOT, CACHE_DIR, LOCAL_CORE_NODE_DIR
 
 # Configuration cache key prefix
 CONFIG_CACHE_PREFIX = "flutter_dev_tool_config"

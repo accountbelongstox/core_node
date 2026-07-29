@@ -11,14 +11,14 @@ import hashlib
 from pathlib import Path
 from typing import Optional, List, Dict
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.system_paths import APP_CACHE_DIR
-from pycore.pyctl.desktop import get_voice_subtitle_queue
+from pycore.pyctl.desktop.queue_manager import get_voice_subtitle_queue
 from pycore.pyctl.desktop.ai_hooks import ai_describe_image
-from pycore.pyutils.ocr_cluster import extract_text as ocr_extract_text
-from pycore.pyutils.tts import synthesize as tts_synthesize
-from pycore.pyutils.translator import GoogleTranslator
+from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import extract_text as ocr_extract_text
+from pycore.pyutils.tts.tts_orchestrator import synthesize as tts_synthesize
+from pycore.pyutils.translator.google_translator import GoogleTranslator
 from pycore.pyutils.common.tts_models import clean_tts_text
 
 

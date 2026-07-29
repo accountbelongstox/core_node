@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """File Controller"""
-from ...services.processors import FileProcessor
+from pycore.callmodule.services.processors.file_processor import FileProcessor
 from ...models.local_processing.file_models import FileAnalyzeRequest, FileAnalyzeResponse
 
 class FileController:

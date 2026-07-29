@@ -9,12 +9,12 @@ This module only defines menu structure, does not start any threads.
 import platform
 from typing import Any, Dict, List
 
-from pycore import THREAD_BUS
-from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
 
-from pycore.callmodule.platform import system_service_manager as ssm
+import pycore.callmodule.platform.system_service_manager as ssm
 from pycore.callmodule.tray_codesync_cache import get_tray_codesync_state
 
 
@@ -255,14 +255,14 @@ def tray_menu_to_dicts(items: List[TrayMenuItem]) -> List[Dict[str, Any]]:
 
 import json
 import hashlib
-from pycore.callmodule.callmodule_config import Config as CallmoduleConfig
+from pycore.callmodule.callmodule_config.config import Config as CallmoduleConfig
 
 _TRAY_MENU_SIGNATURE = {'value': None}
 
 def _menu_signature(menu_items: list) -> str:
     """Create a stable signature for tray menu payloads."""
     try:
-        from pycore import THREAD_BUS
+        from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
         state = THREAD_BUS.get_signal("tray.codesync.state")
         if not isinstance(state, dict):
             state = {}
@@ -292,7 +292,8 @@ def update_tray_menu_with_singleton(launcher, port: int, singleton_port: int):
         port: RPC v2 server port
         singleton_port: Singleton port
     """
-    from pycore import THREAD_BUS, ColorPrint
+    from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+    from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
     menu = build_tray_menu(port=port, singleton_port=singleton_port)
     if CallmoduleConfig.UI_ENABLE_TRAY:
         payload = tray_menu_to_dicts(menu)

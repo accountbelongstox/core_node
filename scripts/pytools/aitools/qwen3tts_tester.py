@@ -91,7 +91,7 @@ def _load_hf_secret():
 def _load_service_module():
     _bootstrap_cache_env()
     _ensure_project_paths()
-    from pycore.pyutils.tts import qwen3tts_service
+    import pycore.pyutils.tts.qwen3tts_service as qwen3tts_service
     return qwen3tts_service
 
 
@@ -129,7 +129,7 @@ def _get_service():
 def _load_weights_module():
     _bootstrap_cache_env()
     _ensure_project_paths()
-    from pycore.pyutils.tts import qwen3tts_weights
+    import pycore.pyutils.tts.qwen3tts_weights as qwen3tts_weights
     return qwen3tts_weights
 
 
@@ -145,7 +145,7 @@ def _output_root() -> Path:
     if _output_dir is None:
         _bootstrap_cache_env()
         _ensure_project_paths()
-        from pycore.pyfoundations.pygvar import PYTOOLS_TMP_DIR
+        from pycore.pyfoundations.pygvar.global_var_manager import PYTOOLS_TMP_DIR
         root = Path(PYTOOLS_TMP_DIR) / "qwen3tts_tester"
         root.mkdir(parents=True, exist_ok=True)
         _output_dir = root
@@ -179,7 +179,7 @@ def check_import(verbose: bool = True) -> bool:
     interpreter, so readiness is the isolated venv, not an in-process import."""
     _bootstrap_cache_env()
     _ensure_project_paths()
-    from pycore.pyutils.tts import qwen3tts_venv
+    import pycore.pyutils.tts.qwen3tts_venv as qwen3tts_venv
     py = qwen3tts_venv.resolve_python()
     ready = py is not None
 
@@ -908,7 +908,7 @@ def run_web_ui(host: str = WEB_HOST, port: Optional[int] = None, open_browser: b
     print(f"[INFO] URL: {url}")
     print(f"[INFO] Output dir: {_output_root()}")
     weights = _load_weights_module()
-    from pycore.pyutils.tts import qwen3tts_venv as _qv
+    import pycore.pyutils.tts.qwen3tts_venv as _qv
     print(f"[INFO] Model:   {weights.resolve_model_id()}")
     print(f"[INFO] Venv:    {_qv.venv_dir()} "
           f"({'ready' if _qv.venv_ready() else 'will build with --system-site-packages on start'})")

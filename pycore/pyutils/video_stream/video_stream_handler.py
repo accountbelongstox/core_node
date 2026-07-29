@@ -16,7 +16,7 @@ import struct
 from typing import Optional, Callable, AsyncGenerator
 from dataclasses import dataclass
 
-from pycore.pyutils.device import ScrcpyDevice
+from pycore.pyutils.device.scrcpy_device import ScrcpyDevice
 from pycore.pyfoundations.serialized_worker import await_bus_task
 
 # Import FMP4Encoder at module level

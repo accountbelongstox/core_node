@@ -25,7 +25,7 @@ import sys
 from .runtime import http
 
 from .peer_config import get_peer_config
-from . import daemon
+import pycore.pyutils.codesync.daemon as daemon
 
 
 DEFAULT_PORT = 59000

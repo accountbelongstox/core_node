@@ -11,7 +11,7 @@ Imports go at file top.
 from typing import Optional, List, Callable, Any
 from dataclasses import dataclass
 
-from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 
 
 @dataclass

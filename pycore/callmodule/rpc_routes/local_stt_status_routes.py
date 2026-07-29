@@ -3,9 +3,9 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import UI_STT_STATUS_STATUS, UI_STT_STATUS_TEST
-from pycore.callmodule.services import stt_status_service as stt
+import pycore.callmodule.services.stt_status_service as stt
 
 
 def register_local_stt_status_routes(server):

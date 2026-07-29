@@ -13,8 +13,9 @@ from pathlib import Path
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 import hashlib
-from pycore.database import database_manager, DATABASE_AVAILABLE
-from pycore.database.models import SpeechTTSCacheModel, TableKeys
+from pycore.database.exports import database_manager, DATABASE_AVAILABLE
+from pycore.database.models.util_speech.tts_cache_model import SpeechTTSCacheModel
+from pycore.database.models.table_keys import TableKeys
 
 
 

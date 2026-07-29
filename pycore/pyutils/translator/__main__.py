@@ -9,7 +9,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from pycore.pyutils.translator import (
+from pycore.pyutils.translator.google_translator import (
     GoogleTranslator,
     translate_from_json_file,
     translate_from_dict,

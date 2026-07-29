@@ -69,6 +69,19 @@
         {{ opt.label }}
       </button>
     </div>
+    <div class="flex gap-1.5 mt-1.5">
+      <input
+        v-model.trim="customValidityLanguage"
+        class="flex-1 min-w-0 px-2 py-1.5 rounded text-[9px] border bg-transparent"
+        maxlength="12"
+        placeholder="Other language code"
+        @keyup.enter="selectCustomLanguage"
+      />
+      <button
+        class="px-2 py-1.5 rounded text-[9px] font-bold border text-slate-300"
+        @click="selectCustomLanguage"
+      >Use</button>
+    </div>
     <p v-if="languageSaved" class="text-[8px] mt-1.5 text-emerald-400">Saved</p>
   </div>
 </template>
@@ -96,7 +109,6 @@ const validityOptions: { id: AiWebProvider; label: string }[] = [
   { id: 'deepseek', label: 'DeepSeek' },
   { id: 'gemini', label: 'Gemini' },
   { id: 'chatgpt', label: 'ChatGPT' },
-  { id: 'zai', label: 'Z.AI' },
 ];
 
 const languageOptions: { id: string; label: string }[] = [
@@ -112,6 +124,7 @@ const languageOptions: { id: string; label: string }[] = [
 const provider = ref<SelectableProvider>('chatgpt');
 const validityProvider = ref<AiWebProvider>('deepseek');
 const validityLanguage = ref<string>('en');
+const customValidityLanguage = ref('');
 const saved = ref(false);
 const validitySaved = ref(false);
 const languageSaved = ref(false);
@@ -162,13 +175,20 @@ const selectValidity = async (id: AiWebProvider) => {
   }
 };
 
-const selectLanguage = async (id: string) => {
-  validityLanguage.value = id;
+const selectLanguage = async (id: string): Promise<boolean> => {
   try {
     await setValidityLanguage(id);
+    validityLanguage.value = id;
     flash(languageSaved);
+    return true;
   } catch {
-    // ignore persist failure
+    return false;
   }
+};
+
+const selectCustomLanguage = async () => {
+  const language = customValidityLanguage.value.trim().toLowerCase();
+  if (!language) return;
+  if (await selectLanguage(language)) customValidityLanguage.value = '';
 };
 </script>

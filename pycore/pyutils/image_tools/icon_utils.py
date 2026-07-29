@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
 
 
 _ICO_SIZES = (16, 32, 48, 256)

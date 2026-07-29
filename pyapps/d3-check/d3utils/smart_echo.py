@@ -8,7 +8,7 @@ All logic in memory (crop + OCR, no screenshot file). Driven by tick_driver tick
 
 import time
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.window.activator import WindowActivator
 from providor.providor_index import DIABLO_III_WINDOW_TITLES

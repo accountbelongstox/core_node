@@ -8,13 +8,13 @@ from typing import Dict, List, Optional
 from pathlib import Path
 import json
 
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 
 requests = get_third_package_requests()
-from pycore.database import database_manager
-from pycore.database.models import VoiceDictionariesModel
-from pycore.pyfoundations.pygvar import CACHE_DIR
+from pycore.database.exports import database_manager
+from pycore.database.models.app_voice.dictionaries_model import VoiceDictionariesModel
+from pycore.pyfoundations.pygvar.constants import CACHE_DIR
 
 
 class WordValidityService:

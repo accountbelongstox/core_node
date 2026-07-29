@@ -16,19 +16,19 @@ if _dir and _dir not in sys.path:
     sys.path.insert(0, _dir)
 
 try:
-    from pycore.pyfoundations.third_party import get_third_package_msgpack
+    from pycore.pyfoundations.third_party.api import get_third_package_msgpack
     msgpack = get_third_package_msgpack()
 except ImportError:
     import msgpack
 
 try:
-    from pycore.pyfoundations.third_party import get_third_package_zmq
+    from pycore.pyfoundations.third_party.api import get_third_package_zmq
     zmq = get_third_package_zmq()
 except ImportError:
     import zmq
 
 from common.CommonContext import IO_SERVICE_CONTEXT
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class ZMQSocket(object):

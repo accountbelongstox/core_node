@@ -12,7 +12,7 @@ import asyncio
 import base64
 from typing import Any, Dict
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyctl.agent_history.agent_history_service import get_agent_history_service
 import pycore.callmodule.services.agent_history_article_records as records
 from pycore.callmodule.services.agent_history_tick_service import get_agent_history_tick_service
@@ -33,6 +33,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_AGENT_HISTORY_ARTICLE_LOGS,
     UI_AGENT_HISTORY_ARTICLE_RECORDS,
     UI_AGENT_HISTORY_ARTICLE_AUDIO,
+    UI_AGENT_HISTORY_TEST_EXTRACT,
 )
 
 
@@ -134,16 +135,17 @@ def register_local_agent_history_routes(server):
     async def article_config_post_handler(params, request_id, context):
         p = _params(params)
         cfg = await _run(save_config, p)
-        if cfg.get("enabled"):
-            await _run(set_agent_history_callbacks_enabled, True)
-        else:
-            await _run(set_agent_history_callbacks_enabled, False)
+        pipeline_on = bool(cfg.get("enabled"))
+        # Extraction keeps running when tools are checked even if the
+        # pipeline toggle is off, so prompt history stays fresh.
+        extract_on = pipeline_on or bool(cfg.get("enabled_tools"))
+        await _run(set_agent_history_callbacks_enabled, pipeline_on, extract_on)
         return {"success": True, "data": cfg, "operation_id": f"op_config_{request_id}"}
 
     server.route(name=UI_AGENT_HISTORY_ARTICLE_CONFIG_POST, handler=article_config_post_handler, sync=False)
 
     async def article_start_handler(params, request_id, context):
-        await _run(set_agent_history_callbacks_enabled, True)
+        await _run(set_agent_history_callbacks_enabled, True, True)
         data = await _run(start_backfill)
         return {"success": True, "data": data, "operation_id": f"op_start_{request_id}"}
 
@@ -189,6 +191,16 @@ def register_local_agent_history_routes(server):
         }
 
     server.route(name=UI_AGENT_HISTORY_ARTICLE_AUDIO, handler=article_audio_handler, sync=False)
+
+    async def test_extract_handler(params, request_id, context):
+        p = _params(params)
+        tool = str(p.get("tool") or "")
+        if not tool:
+            return {"success": False, "error": "missing tool"}
+        data = await _run(get_agent_history_service().test_extract, tool)
+        return {"success": True, "data": data}
+
+    server.route(name=UI_AGENT_HISTORY_TEST_EXTRACT, handler=test_extract_handler, sync=False)
 
     ColorPrint.green("[ConfigBuilder] Registered agent_history RPC routes")
 

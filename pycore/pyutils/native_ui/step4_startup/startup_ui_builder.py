@@ -17,12 +17,10 @@ These functions mutate the thread's UI attributes (``thread.root``,
 
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import (
-    get_third_package_tkinter,
-    get_third_package_PIL_Image,
-    get_third_package_PIL_ImageTk,
-)
-from pycore.pyutils.native_ui.step0_i18n import i18n, I18nKeys
+from pycore.pyfoundations.third_party.api import get_third_package_tkinter
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageTk
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
+from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 
 # Resolve tkinter + PIL via the third_party manager (auto-installs python3-tk on Linux).
 # Module-level resolution mirrors the original file: it runs at import time but does

@@ -15,8 +15,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.ai_cluster.openrouter import ChatSession, list_free_models
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.ai_cluster.openrouter.chat_session import ChatSession, list_free_models
 
 
 def example_1_basic_usage():

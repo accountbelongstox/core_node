@@ -19,10 +19,10 @@ import tempfile
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon import exec_silent
-from pycore.pyutils.clipboard import clipboard_manager
-from pycore.pyutils.hotkey import HotkeyListener
-from pycore.pyutils.common import speech_config
+from pycore.pyfoundations.pybasecommon.commander import exec_silent
+from pycore.pyutils.clipboard.clipboard_manager import clipboard_manager
+from pycore.pyutils.hotkey.hotkey_listener import HotkeyListener
+from pycore.pyutils.common.speech_config import speech_config
 
 # Backend globals + AudioDeviceManager: single-sourced in audio_devices.py.
 # Importing audio_devices first preserves the original import-time init order

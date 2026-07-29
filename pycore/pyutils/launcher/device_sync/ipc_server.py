@@ -18,7 +18,7 @@ import json
 import time
 from typing import Any, Optional, Callable, Dict
 from pycore.pyfoundations.serialized_worker import start_bus_task
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 DEFAULT_IPC_PORT = 45678
 

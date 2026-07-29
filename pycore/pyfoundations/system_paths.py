@@ -38,7 +38,7 @@ from pycore.pyfoundations.system_info import (
     get_largest_mnt_drive as _get_largest_mounted_drive,
 )
 from pycore.pyfoundations.app_config_path import get_app_config_dir as _get_foundation_app_config_dir
-from pycore.pyfoundations.user_data_store import (
+from pycore.database.repositories.user_data_store import (
     UserDataStore,
     get_user_data_store,
     STORE_FILE_NAME,

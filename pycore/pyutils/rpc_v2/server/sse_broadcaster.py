@@ -26,9 +26,10 @@ import uuid
 from collections import deque
 from typing import Any, Deque, Dict, Optional, Set, Tuple
 
-from pycore import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_fastapi
-from pycore.database import StateRepository, SystemEvent
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_fastapi
+from pycore.database.repositories.state_repository import StateRepository
+from pycore.database.models.state_models import SystemEvent
 from datetime import datetime, timezone
 
 fastapi = get_third_package_fastapi()
@@ -57,7 +58,7 @@ class SSEBroadcaster:
         for e in events:
             self._sse_ring.append((e.seq, e.topic, e.payload_json or {}))
 
-    def publish(self, event_name: str, data: Dict[str, Any]):
+    async def publish(self, event_name: str, data: Dict[str, Any]):
         """
         SSE fan-out half of broadcast_event().
 
@@ -66,8 +67,13 @@ class SSEBroadcaster:
         subscriber queue. Runs on the event loop thread, so plain (non-locked)
         mutation of these structures is safe; SSE generators consume on the same
         loop. Never blocks the WS delivery path.
+
+        The system-event DB insert is offloaded with asyncio.to_thread: a
+        contended SQLite write (busy_timeout 30s) on the loop froze every RPC
+        route — this method runs once per broadcast, including every pycore_log
+        line, so it is the hottest blocking path in the server.
         """
-        # 1. Persist event to DB
+        # 1. Persist event to DB (off the event loop)
         sys_event = SystemEvent(
             seq=0,
             event_id=uuid.uuid4().hex,
@@ -79,7 +85,7 @@ class SSEBroadcaster:
             payload_json=data,
             created_at=_now_iso(),
         )
-        self._repo.insert_system_event(sys_event)
+        await asyncio.to_thread(self._repo.insert_system_event, sys_event)
         
         # 2. Update in-memory state
         seq = sys_event.seq

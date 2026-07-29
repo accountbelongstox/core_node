@@ -7,7 +7,7 @@ Fragment1 (start): C5/C5w then C10+C7a/C7w/C7b. Fragment2 (game_tool): C10 done 
 import time
 from typing import Optional, Tuple
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.input.click_handler import ClickHandler
 from d3utils.click_handler_singleton import get_click_handler
 from pycore.pyutils.window.activator import WindowActivator
@@ -48,7 +48,7 @@ from providor.constants.d3 import (
     D3_ONLINE_SIMILARITY_RESIZE,
 )
 from d3utils.d3u_common.image_conversion import normalize_image_to_bgr
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_cv2
+from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_cv2
 
 np_mod = get_third_package_numpy()
 cv2_mod = get_third_package_cv2()

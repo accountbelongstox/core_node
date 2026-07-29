@@ -17,7 +17,7 @@ for _ in range(12):
         break
     _dir = os.path.dirname(_dir)
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from common.CommonContext import IO_SERVICE_CONTEXT
 from common.Define import BASE_64_DECODE_IMG_SEND_TYPE, MSG_ID_UI_ACTION, ACTION_ID_NONE, UI_ACTION_CONTACT, \
     ACTION_ID_CLICK, ACTION_ID_SWIPE, GAME_STATE_START, GAME_STATE_OVER, GAME_STATE_MATCH_WIN, GAME_STATE_UI, \

@@ -36,7 +36,7 @@ import {
   WATCHDOG_ALARM,
   WATCHDOG_PERIOD_MINUTES,
 } from './bing-worker-lifecycle';
-import { isCapabilityActive } from './task-center/run-intent';
+import { isProcessorActive } from './task-center/run-intent';
 import { LANES } from '@/utils/task-center-lanes';
 import { DEFAULT_SOURCE_LANG, DEFAULT_TARGET_LANG } from '@/utils/task-center-types';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
@@ -155,7 +155,14 @@ const IDLE_DISCARD_MS = 60_000;
 // lookups; any other task_type (e.g. image generation) is released as 'failed'
 // so the dispatcher re-pends it for a capable worker. Module-level so it is
 // created once, not on every processTask call.
-const HANDLED_TASK_TYPES = new Set([TASK_TYPE_KEYS.word_translation]);
+const DICTIONARY_TASK_TYPES = new Set([
+  TASK_TYPE_KEYS.dictionary_explanation,
+  TASK_TYPE_KEYS.dictionary_explanation_demo,
+]);
+const HANDLED_TASK_TYPES = new Set([
+  TASK_TYPE_KEYS.word_translation,
+  ...DICTIONARY_TASK_TYPES,
+]);
 
 interface PersistedRuntime {
   running: boolean;
@@ -165,6 +172,11 @@ interface PersistedRuntime {
 class BingDictionaryWorkerService {
   private isRunning = false;
   private config: Required<WorkerConfig> | null = null;
+
+  public canHandleTaskType(taskType: string): boolean {
+    return HANDLED_TASK_TYPES.has(taskType);
+  }
+
   private workerClient: WorkerApiClient | null = null;
   private pollIntervalId: ReturnType<typeof setInterval> | null = null;
   private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -610,12 +622,10 @@ class BingDictionaryWorkerService {
     }
 
     // Run-intent gate (single source of truth): NEVER resurrect the crawler
-    // unless the Task Center run-intent the popup checkboxes write says assist is
-    // running AND 'bing' is an active capability. This is what stops the
-    // watchdog + session run-intent from resurrecting Bing after the user
-    // Stopped / unchecked it. When not intended, disarm the watchdog so it can't
-    // keep firing every minute for nothing.
-    if (!(await isCapabilityActive('bing'))) {
+    // unless the Task Center run-intent says assist is running and an active
+    // central capability owns the Bing processor. This stops the watchdog from
+    // resurrecting Bing after the merged switch is disabled.
+    if (!(await isProcessorActive(LANES.BING_DICTIONARY))) {
       await this.clearWatchdog();
       return;
     }
@@ -705,15 +715,18 @@ class BingDictionaryWorkerService {
     const response = await this.workerClient.register({
       worker_id: workerId,
       worker_name: this.config.workerName,
-      // Production Bing work owns translation. Pronunciation capture remains
+      // This Chrome service owns Bing translation work. Pycore independently
+      // claims other eligible translation tasks from Laravel. Pronunciation capture remains
       // part of each dictionary lookup and the Extension diagnostic tools, while
       // dedicated audio-generation tasks are owned by the shared Qwen TTS worker.
       processor_types: [
+        LANES.REMOTE_CLIENT,
         LANES.REMOTE_TRANSLATION,
         LANES.REMOTE_FAST,
       ] as ProcessorType[],
-      // Advertise ONLY 'translate' (B18: bing is the sole translate owner on the
-      // fast lane; WebAiTranslate owns ai_translate). 'image' is no longer in the
+      // Advertise ONLY 'translate' (B18: Bing is the Chrome translate claimant;
+      // WebAiTranslate owns Chrome ai_translate, while Pycore remains an independent
+      // claimant declared in the central contract). 'image' is no longer in the
       // shared fast set (B17) — a Bing dictionary tab can scrape a word lookup but
       // cannot GENERATE an image, so the dispatcher must never route a true image
       // task here. The processTask capability guard still rejects any image task
@@ -1260,6 +1273,7 @@ class BingDictionaryWorkerService {
               target_language: targetLanguage,
               provider: 'bing',
               translations,
+              words: DICTIONARY_TASK_TYPES.has(task.task_type) ? translations : undefined,
               invalid_words: invalidWords,
               region_redirect_words: [],
             },
@@ -1320,6 +1334,7 @@ class BingDictionaryWorkerService {
           target_language: targetLanguage,
           provider: 'bing',
           translations,
+          words: DICTIONARY_TASK_TYPES.has(task.task_type) ? translations : undefined,
           invalid_words: invalidWords,
           // Persistent region/redirect words — backend marks is_valid=false with
           // validity_source='region-redirect' so they stop being re-queued.

@@ -60,6 +60,7 @@ const PcAgentHistoryPage: React.FC = () => {
   const [tab, setTab] = useState<TabId>('sessions');
   const [filterTool, setFilterTool] = useState('');
   const [filterUser, setFilterUser] = useState('');
+  const [enabledTools, setEnabledTools] = useState<string[]>([]);
   const [search, setSearch] = useState('');
 
   const [selectedId, setSelectedId] = useState('');
@@ -208,12 +209,15 @@ const PcAgentHistoryPage: React.FC = () => {
   const filteredPrompts = useMemo(() => {
     const needle = debouncedSearch.toLowerCase();
     return allPrompts.filter((p) => {
+      // Checked tools gate the list (2.1) — an explicit dropdown pick or no
+      // checked tools at all falls back to showing everything.
+      if (!filterTool && enabledTools.length > 0 && !enabledTools.includes((p.tool || '').toLowerCase())) return false;
       if (filterTool && p.tool !== filterTool) return false;
       if (filterUser && p.os_user !== filterUser) return false;
       if (needle && !(p.text || '').toLowerCase().includes(needle)) return false;
       return true;
     });
-  }, [allPrompts, filterTool, filterUser, debouncedSearch]);
+  }, [allPrompts, filterTool, filterUser, debouncedSearch, enabledTools]);
 
   const promptTotal = filteredPrompts.length;
   const totalPages = Math.max(1, Math.ceil(promptTotal / PAGE_SIZE));
@@ -271,7 +275,7 @@ const PcAgentHistoryPage: React.FC = () => {
         </div>
       )}
 
-      <PcAgentHistoryConfigPanel tk={tk} />
+      <PcAgentHistoryConfigPanel tk={tk} onEnabledToolsChange={setEnabledTools} />
 
       <PcAgentHistoryRecords tk={tk} />
 

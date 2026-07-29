@@ -12,12 +12,12 @@ from typing import Dict, Optional, List, Any
 from pathlib import Path
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_ultralytics
+from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_ultralytics
 np = get_third_package_numpy()
 from share.project_path import ensure_d3_check_in_sys_path, get_project_root
 ensure_d3_check_in_sys_path()
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d3utils.d3u_common.image_annotator_helper import create_annotator, get_tmp_dir, generate_timestamp
 from d3utils.screenshot_provider import get_screenshot_provider
 from share.game_interface_data import get_game_interface_data, UIRegion

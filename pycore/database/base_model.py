@@ -27,7 +27,7 @@ class ColorPrint:
     @staticmethod
     def yellow(msg):
         if not ColorPrint._is_mcp: _OriginalColorPrint.yellow(msg)
-from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
+from pycore.pyfoundations.third_party.api import get_third_package_sqlalchemy
 
 sqlalchemy = get_third_package_sqlalchemy()
 

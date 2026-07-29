@@ -12,14 +12,11 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.pybasecommon.compute_caps import is_onnx_cuda_usable
 from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
-from pycore.pyfoundations.third_party import (
-    get_third_package_cnocr,
-    get_cnocr_prewarmed,
-    init_third_party_cnocr,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_cnocr
+from pycore.pyfoundations.third_party.api import get_cnocr_prewarmed, init_third_party_cnocr
 from pycore.pyutils.ocr_cluster.ocr_cnocr_engine import CnOCREngine
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_ImageGrab
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_ImageGrab
 
 
 # Official: https://cnocr.readthedocs.io/zh-cn/stable/usage/  default det_model_name='ch_PP-OCRv5_det'

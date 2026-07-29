@@ -17,8 +17,8 @@ from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
 
-from pycore import ColorPrint
-from pycore.pyutils.api import WebSocketManager
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.api.websocket_manager import WebSocketManager
 
 # Import namespace handlers
 from pyapps.matrix.api.unified_ws_handlers import (

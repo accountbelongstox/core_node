@@ -28,7 +28,8 @@ from pycore.pyctl.agent_history.agent_history_fragments import (
 )
 from pycore.pyctl.ai.ai_chat import chat_once
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit, rate_status
-from pycore.pyutils.tts import synthesize, engine_available
+from pycore.pyutils.tts.tts_orchestrator import synthesize
+from pycore.pyutils.tts.tts_orchestrator import engine_available
 from pycore.callmodule.services.sync.laravel_endpoint_manager import get_laravel_endpoint_manager
 
 _SECTION = "agent_history_article"

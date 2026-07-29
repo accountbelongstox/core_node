@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from pycore.pyfoundations.third_party import get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
 
 # Get numpy via third_party manager
 np = get_third_package_numpy()

@@ -15,9 +15,9 @@ from pycore.pyctl.ai.ai_keys import (
     is_configured,
 )
 
-from pycore.pyutils.ai_cluster.openai_compat import OpenAICompatClient
-from pycore.pyutils.ai_cluster.cloudflare import CloudflareAIClient
-from pycore.pyutils.ai_cluster.spark import SparkClient
+from pycore.pyutils.ai_cluster.openai_compat.openai_compat_client import OpenAICompatClient
+from pycore.pyutils.ai_cluster.cloudflare.cloudflare_client import CloudflareAIClient
+from pycore.pyutils.ai_cluster.spark.spark_client import SparkClient
 
 
 

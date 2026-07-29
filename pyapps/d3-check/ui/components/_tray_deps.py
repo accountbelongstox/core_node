@@ -1,6 +1,6 @@
 # Optional dependencies for system tray. All loaded via pycore third_party style; no catch in this module.
 
-from pycore.pyfoundations.third_party import (
+from pycore.pyfoundations.third_party.api import (
     get_third_package_pythoncom,
     get_third_package_runtime,
     get_third_package_pystray,

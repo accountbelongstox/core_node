@@ -27,7 +27,7 @@ if ncore_path not in sys.path:
     sys.path.insert(0, ncore_path)
 
 # pytools foundations (from pycore)
-from pycore.pyfoundations.color_print import ColorPrint  # noqa: E402
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint  # noqa: E402
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA  # noqa: E402
 
 # pytools utils - Core utilities (from pycore)

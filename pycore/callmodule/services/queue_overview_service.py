@@ -9,7 +9,7 @@ selected Laravel endpoint over HTTP, then normalizes Laravel metrics against
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from pycore.callmodule.callmodule_config import Config
+from pycore.callmodule.callmodule_config.config import Config
 from pycore.callmodule.controllers.local_processing.task_center_assist import (
     fetch_assist_overview,
 )

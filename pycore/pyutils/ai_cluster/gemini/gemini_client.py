@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_google_genai
+from pycore.pyfoundations.third_party.api import get_third_package_google_genai
 
 import json
 

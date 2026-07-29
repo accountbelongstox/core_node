@@ -13,7 +13,7 @@ Implements periodic device discovery, monitoring, and management tasks:
 import time
 import threading
 from typing import Optional
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pyapps.matrix.adb_device_manager.adb_executor import adb_executor, ADBExecutor
 from pyapps.matrix.adb_device_manager.device_table import device_table, DeviceTable, DeviceInfo, DeviceState, DeviceType
 from pyapps.matrix.adb_device_manager.network_scanner import network_scanner, NetworkScanner

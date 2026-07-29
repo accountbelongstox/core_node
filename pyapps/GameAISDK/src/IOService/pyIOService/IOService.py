@@ -19,8 +19,8 @@ import configparser
 import os
 import time
 
-from pycore.pyfoundations.third_party import get_third_package_cv2
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_cv2
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 cv2 = get_third_package_cv2()
 

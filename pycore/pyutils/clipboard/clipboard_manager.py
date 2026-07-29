@@ -11,15 +11,13 @@ from __future__ import annotations
 import ctypes
 import platform
 import shutil
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import sys
 from typing import Callable, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import (
-    get_third_package_pyperclip,
-    get_third_package_tkinter,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_pyperclip
+from pycore.pyfoundations.third_party.api import get_third_package_tkinter
 
 pyperclip = get_third_package_pyperclip()
 tk = get_third_package_tkinter()

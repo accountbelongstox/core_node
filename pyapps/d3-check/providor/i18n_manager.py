@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class I18nManager:

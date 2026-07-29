@@ -14,7 +14,7 @@ from enum import Enum
 from pathlib import Path
 
 # Direct pycore imports (no secondary encapsulation)
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # =============================================================================
 # CONSTANTS AND ENUMS

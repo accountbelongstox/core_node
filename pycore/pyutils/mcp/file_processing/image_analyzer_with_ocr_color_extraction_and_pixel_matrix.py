@@ -11,7 +11,12 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont, get_third_package_numpy
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_PIL_Image,
+    get_third_package_PIL_ImageDraw,
+    get_third_package_PIL_ImageFont,
+    get_third_package_numpy,
+)
 
 import os
 
@@ -20,7 +25,7 @@ PIL_Image = get_third_package_PIL_Image()
 PIL_ImageDraw = get_third_package_PIL_ImageDraw()
 PIL_ImageFont = get_third_package_PIL_ImageFont()
 numpy = get_third_package_numpy()
-from pycore.pyutils.ocr_cluster import ocr_manager
+from pycore.pyutils.ocr_cluster.ocr.ocr_manager import ocr_manager
 from pycore.pyutils.mcp.file_processing.color_palette_extractor_with_dominant_colors_and_histogram import (
     get_color_extractor_singleton
 )

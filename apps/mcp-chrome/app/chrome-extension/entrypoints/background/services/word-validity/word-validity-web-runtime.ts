@@ -10,9 +10,6 @@ import {
   parseValidityClassification,
   type ClassifierWord,
 } from './word-validity-classifier';
-import { logger } from '@/utils/logger';
-
-const LOG = 'Word-Validity Runtime';
 let classificationQueue: Promise<void> = Promise.resolve();
 
 export interface WordValidityRuntimeResult {
@@ -44,12 +41,8 @@ async function executeClassification(
   providerOverride?: AiWebProvider,
   targetLanguage?: string,
 ): Promise<WordValidityRuntimeResult> {
-  const requestedProvider = providerOverride || await getValidityProvider();
-  const provider = requestedProvider === 'zai' ? 'gemini' : requestedProvider;
+  const provider = providerOverride || await getValidityProvider();
   const prompt = buildValidityPrompt(words.map((word) => word.word), targetLanguage);
-  if (requestedProvider === 'zai') {
-    logger.warn(LOG, 'Z.AI has no page driver; using Gemini');
-  }
   const answer = await sendPrompt(provider, prompt);
   const classification = parseValidityClassification(answer, words);
 

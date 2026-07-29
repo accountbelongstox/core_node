@@ -62,9 +62,9 @@ Threading / lifecycle (mirrors translation_worker_service / queue_monitor)
   - The actual connect + recv loop runs on a dedicated daemon thread with
     auto-reconnect and QUIET-RETRY logging (ONE clear connected/disconnected/
     unreachable line, not a stack every retry — mirrors the worker's style).
-  - Enable/disable at runtime via the heartbeat management router:
-        POST /api/heartbeat/enable/translation_ws_client
-        POST /api/heartbeat/disable/translation_ws_client
+  - Pycore UI enables/disables it only through RPC v2
+    `ui.heartbeat_workers.config`; the background Laravel SSE connection remains
+    a Pycore-to-Laravel transport.
 
 Logging: ColorPrint only (pycore rule). The SSE transport uses third-party
 `requests` via get_third_package_requests() (never a bare import). This module
@@ -86,8 +86,8 @@ from pycore.pyfoundations.serialized_worker import (
     start_bus_task,
 )
 # Rule §4: all inter-thread data exchange goes through the global bus.
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 # requests is a third-party dep — always via the lazy accessor (SSE transport).
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
@@ -618,8 +618,8 @@ class TranslationWsClient:
         LIGHT + exception-safe: only ensures the background SSE thread is running.
         It does NO network I/O itself (the SSE loop owns the socket on its own
         thread), so it never blocks the heartbeat thread. Disabling the callback
-        (POST /api/heartbeat/disable/translation_ws_client) stops ticking this, so
-        we also expose stop() for an explicit teardown.
+        through RPC v2 `ui.heartbeat_workers.config` stops ticking this, so we
+        also expose stop() for an explicit teardown.
 
         Because this callback only runs WHILE ENABLED, its presence keeps the WS
         thread alive; we additionally relaunch the thread here if it died.

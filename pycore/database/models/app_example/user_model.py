@@ -7,7 +7,7 @@ Demonstrates app-specific table implementation
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
+from pycore.pyfoundations.third_party.api import get_third_package_sqlalchemy
 
 sqlalchemy = get_third_package_sqlalchemy()
 from pycore.database.base_model import BaseModel

@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyctl.agent_history.agent_history_service import get_agent_history_service
 from pycore.callmodule.services.agent_history_pipeline.worker import tick_pipeline as pipeline_tick
 

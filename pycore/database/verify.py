@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-from pycore.database import database_manager, BaseModel, DATABASE_AVAILABLE
-from pycore.database.models import TableKeys, TableNamespaces
-from pycore.database.models import (
-import traceback
+from pycore.database.exports import database_manager, BaseModel, DATABASE_AVAILABLE
+from pycore.database.models.table_keys import TableKeys
+from pycore.database.models.namespaces import TableNamespaces
+from pycore.database.models.common.log_model import CommonLogModel
+from pycore.database.models.app_example.user_model import ExampleUserModel
+from pycore.database.models.app_example.task_model import ExampleTaskModel
+from pycore.database.models.util_cache.cache_model import UtilCacheModel
+from pycore.database.models import import traceback
 """
 Database System Verification Script
-Checks file structure, imports, and functionality
+Checks file structure
+from pycore.database.models import imports
+from pycore.database.models import and functionality
 """
 
 import os
@@ -13,65 +19,68 @@ import sys
 import re
 
 # Add project root to path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+project_root = os.path.abspathos.path.joinos.path.dirname__file__
+from pycore.database.models import '../..'
 if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+    sys.path.insert0
+from pycore.database.models import project_root
 
-print('=' * 70)
-print('DATABASE SYSTEM VERIFICATION REPORT')
-print('=' * 70)
-print()
+print'=' * 70
+print'DATABASE SYSTEM VERIFICATION REPORT'
+print'=' * 70
+print
 
 # 1. Check file structure
-print('1. FILE STRUCTURE CHECK')
-print('-' * 70)
+print'1. FILE STRUCTURE CHECK'
+print'-' * 70
 
-db_path = os.path.dirname(os.path.abspath(__file__))
+db_path = os.path.dirnameos.path.abspath__file__
 expected_files = [
-    '__init__.py',
-    'base_model.py',
-    'database_manager.py',
-    'table_registry.py',
-    'example_usage.py',
-    'README.md',
-    'verify.py',
-    'models/__init__.py',
-    'models/namespaces.py',
-    'models/table_keys.py',
-    'models/common/__init__.py',
-    'models/common/config_model.py',
-    'models/common/log_model.py',
-    'models/app_example/__init__.py',
-    'models/app_example/user_model.py',
-    'models/app_example/task_model.py',
-    'models/util_cache/__init__.py',
-    'models/util_cache/cache_model.py',
-]
+    '__init__.py'
+from pycore.database.models import 'base_model.py'
+from pycore.database.models import 'database_manager.py'
+from pycore.database.models import 'table_registry.py'
+from pycore.database.models import 'example_usage.py'
+from pycore.database.models import 'README.md'
+from pycore.database.models import 'verify.py'
+from pycore.database.models import 'models/__init__.py'
+from pycore.database.models import 'models/namespaces.py'
+from pycore.database.models import 'models/table_keys.py'
+from pycore.database.models import 'models/common/__init__.py'
+from pycore.database.models import 'models/common/config_model.py'
+from pycore.database.models import 'models/common/log_model.py'
+from pycore.database.models import 'models/app_example/__init__.py'
+from pycore.database.models import 'models/app_example/user_model.py'
+from pycore.database.models import 'models/app_example/task_model.py'
+from pycore.database.models import 'models/util_cache/__init__.py'
+from pycore.database.models import 'models/util_cache/cache_model.py'
+from pycore.database.models import ]
 
 all_exist = True
 for f in expected_files:
-    full_path = os.path.join(db_path, f)
-    exists = os.path.exists(full_path)
+    full_path = os.path.joindb_path
+from pycore.database.models import f
+    exists = os.path.existsfull_path
     if not exists:
         all_exist = False
     status = '[OK]' if exists else '[MISSING]'
-    print(f'{status:10} {f}')
+    printf'{status:10} {f}'
 
-print()
+print
 
 # 2. Import check
-print('2. IMPORT & FUNCTIONALITY CHECK')
-print('-' * 70)
+print'2. IMPORT & FUNCTIONALITY CHECK'
+print'-' * 70
 
 try:
-    print('[OK]       Core imports (database_manager, BaseModel, DATABASE_AVAILABLE)')
+    print'[OK]       Core imports database_manager
+from pycore.database.models import BaseModel
+from pycore.database.models import DATABASE_AVAILABLE'
 
-    print('[OK]       Constants (TableKeys, TableNamespaces)')
+    print'[OK]       Constants TableKeys
+from pycore.database.models import TableNamespaces'
 
-        CommonConfigModel, CommonLogModel,
-        ExampleUserModel, ExampleTaskModel,
-        UtilCacheModel,
-    )
+        CommonConfigModel
     print('[OK]       All 5 models imported')
 
     # Check table keys

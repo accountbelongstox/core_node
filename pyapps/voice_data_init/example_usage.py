@@ -4,7 +4,7 @@ Voice Data Init - Usage Examples
 Demonstrates how to use the voice data initialization application
 """
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pyapps.voice_data_init.controller.init_controller import InitController
 
 
@@ -147,8 +147,8 @@ def example_8_database_queries():
     """
     ColorPrint.blue("\n=== Example 8: Database Queries ===")
 
-    from pycore.database import database_manager
-    from pycore.database.models import VoiceDictionariesModel
+    from pycore.database.exports import database_manager
+    from pycore.database.models.app_voice.dictionaries_model import VoiceDictionariesModel
 
     controller = InitController()
     controller.setup_database()

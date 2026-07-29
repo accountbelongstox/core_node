@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """RPC Routes for ai_probe."""
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_AI_PROBE_AI_CATALOG,
     UI_AI_PROBE_PROBE,
     UI_AI_PROBE_BALANCE,
 )
-from pycore.callmodule.services import ai_probe_service as probe
+import pycore.callmodule.services.ai_probe_service as probe
 
 
 def register_local_ai_probe_routes(server):

@@ -15,12 +15,13 @@ instance is passed at call time.
 import time
 from typing import Any, Dict
 
+from pycore.callmodule.services.queue_center_contract import task_prompt_text
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from .. import lane_gating
-from . import audio as _h_audio
+import pycore.callmodule.services.translation_worker.lane_gating as lane_gating
+import pycore.callmodule.services.translation_worker.handlers.audio as _h_audio
 
-from pycore.pyctl.ai import prompt_translate
+import pycore.pyctl.ai.prompt_translate as prompt_translate
 
 
 
@@ -46,7 +47,7 @@ def process_prompt_translation_task(worker, task: Dict[str, Any]) -> None:
     """
     task_id = task.get("task_id")
     payload = task.get("payload") or {}
-    text = (payload.get("text") or "").strip()
+    text = task_prompt_text(task.get("task_type"), payload).strip()
     prompt_id = payload.get("prompt_id") or ""
     src = (payload.get("source_lang") or "auto").strip() or "auto"
     want_audio = bool(payload.get("want_audio", True))

@@ -28,7 +28,7 @@ use Illuminate\Support\Facades\Log;
  * writeback's translations[] entry shape so the storage code is reused verbatim
  * — no second image-writing implementation.
  */
-class WordGeminiImageTaskProcessor implements TaskProcessorInterface
+class WordGeminiImageTaskProcessor extends AbstractTaskProcessor
 {
     protected TaskManagerService $taskManager;
 
@@ -37,10 +37,9 @@ class WordGeminiImageTaskProcessor implements TaskProcessorInterface
         $this->taskManager = $taskManager;
     }
 
-    public function canProcess(GlobalTask $task): bool
+    protected function taskTypeRoles(): array
     {
-        return $task->app_name === 'AppQyV1'
-            && $task->task_type === 'gemini_image';
+        return ['gemini_image'];
     }
 
     public function processResult(GlobalTask $task, array $result, bool $isDemoMode): int
@@ -124,8 +123,4 @@ class WordGeminiImageTaskProcessor implements TaskProcessorInterface
         return (int) ($outcome['processed'] ?? 0);
     }
 
-    public function getPriority(): int
-    {
-        return 10;
-    }
 }

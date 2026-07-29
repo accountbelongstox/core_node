@@ -22,7 +22,7 @@ from typing import Any, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
-from pycore.pyfoundations.third_party import get_third_package_torch
+from pycore.pyfoundations.third_party.api import get_third_package_torch
 
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id

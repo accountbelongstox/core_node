@@ -85,11 +85,81 @@ class GlobalTaskRecord(TypedDict, total=False):
     error: Optional[str]
     assigned_to: Optional[str]
     timeout_seconds: int
+    retry_count: int
+    max_retries: int
     assigned_at: Optional[str]
     timeout_at: Optional[str]
     completed_at: Optional[str]
     created_at: Optional[str]
     updated_at: Optional[str]
+
+
+class GlobalTaskCreateResult(TypedDict):
+    task_id: str
+    execution_type: str
+    priority: int
+    is_fast_tier: bool
+
+
+class GlobalTaskEventRecord(TypedDict, total=False):
+    id: object
+    task_id: str
+    event: str
+    worker_id: Optional[str]
+    attempt: Optional[int]
+    detail: Optional[Dict[str, Any]]
+    created_at: Optional[str]
+    _id: object
+
+
+class GlobalTaskCurrentPhase(TypedDict):
+    phase: Optional[str]
+    worker_id: Optional[str]
+    elapsed_seconds: Optional[int]
+
+
+class GlobalTaskDetailMetadata(TypedDict):
+    total_attempts: int
+    max_retries: int
+    will_retry: bool
+    estimated_timeout_in_seconds: Optional[int]
+
+
+class GlobalTaskDetailBundle(TypedDict):
+    task: GlobalTaskRecord
+    events: List[GlobalTaskEventRecord]
+    current_phase: GlobalTaskCurrentPhase
+    metadata: GlobalTaskDetailMetadata
+
+
+class GlobalTaskStatsRecord(TypedDict):
+    total: int
+    pending: int
+    assigned: int
+    processing: int
+    completed: int
+    completed_demo: int
+    failed: int
+    cancelled: int
+
+
+class GlobalTaskWorkerRegistration(TypedDict, total=False):
+    worker_id: str
+    worker_name: str
+    processor_types: List[str]
+    capabilities: List[str]
+    hostname: str
+    platform: str
+    metadata: Dict[str, Any]
+
+
+class GlobalTaskWorkerResult(TypedDict, total=False):
+    task_id: str
+    worker_id: str
+    status: str
+    progress: float
+    result: Dict[str, Any]
+    error: str
 
 
 QUEUE_CENTER_SCHEMA_VERSION = int(_CONTRACT_DOCUMENT["schema_version"])
@@ -131,6 +201,15 @@ GLOBAL_TASK_WORKER_RESULT_STATUSES: Tuple[str, ...] = tuple(
     GLOBAL_TASK_STATUSES_BY_ROLE[role]
     for role in _TASK_CONTRACT["statuses"]["worker_reportable"]
 )
+GLOBAL_TASK_EVENTS_BY_ROLE: Dict[str, str] = {
+    str(key): str(value) for key, value in _TASK_CONTRACT["events"]["values"].items()
+}
+GLOBAL_TASK_TERMINAL_EVENTS: Tuple[str, ...] = tuple(
+    GLOBAL_TASK_EVENTS_BY_ROLE[role] for role in _TASK_CONTRACT["events"]["terminal"]
+)
+GLOBAL_TASK_STREAM_EVENTS_BY_ROLE: Dict[str, str] = {
+    str(key): str(value) for key, value in _TASK_CONTRACT["stream_events"].items()
+}
 GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE: Dict[str, str] = {
     str(key): str(value) for key, value in _TASK_CONTRACT["execution_types"].items()
 }
@@ -140,6 +219,10 @@ GLOBAL_TASK_EXECUTION_TYPES: Tuple[str, ...] = tuple(
 GLOBAL_TASK_CAPABILITIES: Tuple[str, ...] = tuple(
     _CONTRACT_DOCUMENT["capability_claimants"].keys()
 )
+GLOBAL_TASK_CAPABILITIES_BY_ROLE: Dict[str, str] = {
+    str(capability): str(capability)
+    for capability in _CONTRACT_DOCUMENT["capability_claimants"].keys()
+}
 GLOBAL_TASK_PRIORITIES: Dict[str, int] = {
     str(key): int(value) for key, value in _TASK_CONTRACT["priorities"].items()
 }
@@ -157,6 +240,22 @@ GLOBAL_TASK_WIRE_SHAPES: Dict[str, Tuple[str, ...]] = {
     str(key): tuple(str(field) for field in value)
     for key, value in _TASK_CONTRACT["wire_shapes"].items()
 }
+_GLOBAL_TASK_WIRE_TYPED_DICTS: Dict[str, Any] = {
+    "create_result": GlobalTaskCreateResult,
+    "summary": GlobalTaskRecord,
+    "worker_pull": GlobalTaskRecord,
+    "status": GlobalTaskRecord,
+    "detail": GlobalTaskRecord,
+    "event": GlobalTaskEventRecord,
+    "detail_bundle": GlobalTaskDetailBundle,
+    "current_phase": GlobalTaskCurrentPhase,
+    "detail_metadata": GlobalTaskDetailMetadata,
+    "stats": GlobalTaskStatsRecord,
+    "worker_registration": GlobalTaskWorkerRegistration,
+    "worker_result": GlobalTaskWorkerResult,
+}
+
+
 GLOBAL_TASK_TYPE_CATALOG: Tuple[Dict[str, Any], ...] = tuple(
     dict(definition) for definition in _TASK_CONTRACT["task_types"]
 )
@@ -166,16 +265,25 @@ GLOBAL_TASK_TYPES_BY_KEY: Dict[str, Dict[str, Any]] = {
 _HISTORY_CONTRACT: Dict[str, Any] = _TASK_CONTRACT["history_buckets"]
 GLOBAL_TASK_HISTORY_BUCKETS: Tuple[str, ...] = tuple(_HISTORY_CONTRACT["all"])
 
-CALLBACK_QUEUE_ROLES: Dict[str, str] = {
-    "translation_worker": "consumer",
-    "translation_queue_monitor": "monitor",
-    "translation_ws_client": "signal",
-    "tts_queue_poller": "consumer",
-    "tts_sentence_worker": "consumer",
-    "ai_rate_reset": "maintainer",
-    "agent_history_extraction": "maintainer",
-    "agent_history_pipeline": "maintainer",
-}
+CALLBACK_QUEUE_ROLES: Dict[str, str] = dict(
+    _CONTRACT_DOCUMENT["callback_queue_roles"]
+)
+
+
+def _assert_global_task_wire_dto_coverage() -> None:
+    for shape, fields in GLOBAL_TASK_WIRE_SHAPES.items():
+        typed_dict = _GLOBAL_TASK_WIRE_TYPED_DICTS.get(shape)
+        if typed_dict is None:
+            raise RuntimeError(f"Missing Queue Center DTO for wire shape: {shape}")
+        missing = [field for field in fields if field not in typed_dict.__annotations__]
+        if missing:
+            missing_fields = ", ".join(missing)
+            raise RuntimeError(
+                f"Queue Center DTO drift detected for wire shape {shape}: {missing_fields}"
+            )
+
+
+_assert_global_task_wire_dto_coverage()
 
 
 def get_queue_center_contract() -> Dict[str, Any]:
@@ -201,6 +309,28 @@ def task_capability(task_type: object) -> Optional[str]:
     definition = task_type_definition(task_type)
     capability = definition.get("capability") if definition else None
     return str(capability) if capability else None
+
+
+def task_prompt_payload_field(task_type: object) -> str:
+    """Return the primary prompt key declared for a task type."""
+    definition = task_type_definition(task_type) or {}
+    return str(definition.get("prompt_payload_field") or "question")
+
+
+def task_prompt_text(task_type: object, payload: Mapping[str, Any]) -> str:
+    """Read a prompt using the central primary field plus legacy fallbacks."""
+    fields = dict.fromkeys((
+        task_prompt_payload_field(task_type),
+        "text",
+        "source_text",
+        "question",
+        "prompt",
+    ))
+    for field in fields:
+        value = payload.get(field)
+        if isinstance(value, str) and value.strip():
+            return value
+    return ""
 
 
 def task_types_for_execution(execution_type: str) -> Tuple[str, ...]:
@@ -282,9 +412,11 @@ __all__ = [
     "QUEUE_CENTER_SECTION_DEFINITIONS",
     "QUEUE_COUNT_KEYS",
     "GLOBAL_TASK_CAPABILITIES",
+    "GLOBAL_TASK_CAPABILITIES_BY_ROLE",
     "GLOBAL_TASK_CAPABILITY_SINGLE_LANES",
     "GLOBAL_TASK_EXECUTION_TYPES",
     "GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE",
+    "GLOBAL_TASK_EVENTS_BY_ROLE",
     "GLOBAL_TASK_HISTORY_BUCKETS",
     "GLOBAL_TASK_FAST_LANE_CAPABILITIES",
     "GLOBAL_TASK_LIMITS",
@@ -292,12 +424,22 @@ __all__ = [
     "GLOBAL_TASK_PRIORITIES",
     "GLOBAL_TASK_STATUSES",
     "GLOBAL_TASK_STATUSES_BY_ROLE",
+    "GLOBAL_TASK_STREAM_EVENTS_BY_ROLE",
     "GLOBAL_TASK_TERMINAL_STATUSES",
+    "GLOBAL_TASK_TERMINAL_EVENTS",
     "GLOBAL_TASK_TYPE_CATALOG",
     "GLOBAL_TASK_TYPES_BY_KEY",
     "GLOBAL_TASK_WIRE_SHAPES",
     "GLOBAL_TASK_WORKER_RESULT_STATUSES",
+    "GlobalTaskCurrentPhase",
+    "GlobalTaskCreateResult",
+    "GlobalTaskDetailBundle",
+    "GlobalTaskDetailMetadata",
+    "GlobalTaskEventRecord",
     "GlobalTaskRecord",
+    "GlobalTaskStatsRecord",
+    "GlobalTaskWorkerRegistration",
+    "GlobalTaskWorkerResult",
     "QueueCenterControlMetrics",
     "QueueCenterScope",
     "QueueCenterSectionContract",
@@ -312,6 +454,8 @@ __all__ = [
     "task_capability",
     "task_execution_type",
     "task_local_label",
+    "task_prompt_payload_field",
+    "task_prompt_text",
     "task_type_definition",
     "task_types_for_execution",
 ]

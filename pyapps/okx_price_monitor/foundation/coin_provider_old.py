@@ -12,9 +12,9 @@ import json
 from pathlib import Path
 from typing import List, Dict, Optional
 
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyfoundations.secret_manager import get_secret_key
-from pycore.pyfoundations.pygvar import PROJECT_ROOT
+from pycore.pyfoundations.pygvar.constants import PROJECT_ROOT
 from pyapps.okx_price_monitor.core import config, timestamp_ms
 from pyapps.okx_price_monitor.foundation.printer import Printer
 from pyapps.okx_price_monitor.lib.okx_auth import OKXAuth

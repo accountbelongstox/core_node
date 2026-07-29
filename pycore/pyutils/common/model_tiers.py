@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from pycore.pyfoundations.third_party import get_third_package_torch
+from pycore.pyfoundations.third_party.api import get_third_package_torch
 """
 Runtime bridge to pycore/tts_install_assets/tts_model_tiers.py.
 

@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import UI_ENGINES_LOAD_STATUS_LOAD_STATUS
 from pycore.callmodule.services.engines_load_status_service import get_load_status
 

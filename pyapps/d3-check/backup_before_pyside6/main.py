@@ -33,7 +33,7 @@ from controller.d3_macro_controller import D3MacroController
 from controller.http_bridge_controller import HTTPBridgeController
 from runtime import get_system_initializer
 from providor.i18n_manager import i18n_manager
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def main():

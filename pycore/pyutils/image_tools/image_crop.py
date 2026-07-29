@@ -12,7 +12,7 @@ from typing import Tuple, Union, Optional, Dict
 from pathlib import Path
 from collections import OrderedDict
 
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
+from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
 
 numpy = get_third_package_numpy()
 np = numpy

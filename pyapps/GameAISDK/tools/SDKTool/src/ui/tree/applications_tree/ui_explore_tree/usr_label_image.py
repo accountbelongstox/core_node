@@ -19,7 +19,7 @@ import os
 import shutil
 import logging
 
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy
 
 cv2 = get_third_package_cv2()
 np = get_third_package_numpy()

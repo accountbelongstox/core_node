@@ -25,8 +25,8 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Import after path setup
-from pycore.pyfoundations.pybasecommon import Commander
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.commander import Commander
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class MatrixPackager:
@@ -85,7 +85,7 @@ class MatrixPackager:
 
         try:
             # Import third_party.py will automatically check and install dependencies
-            from pycore.pyfoundations import third_party
+            import pycore.pyfoundations.third_party.api as third_party
             ColorPrint.green("All dependencies checked via third_party.py")
             return True
         except Exception as e:

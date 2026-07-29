@@ -15,7 +15,7 @@ import json
 import time
 from typing import Optional, Any, List, Dict, Union
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from d3utils.ui_control_operations import (
     operate_button,

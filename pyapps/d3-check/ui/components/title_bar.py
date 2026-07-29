@@ -14,7 +14,7 @@ from ..utils.tk_variables import var_str
 from ..widgets import ThemedCombobox
 from runtime import trigger_window_minimize, trigger_window_maximize, trigger_app_restart, trigger_app_exit
 from providor.i18n_manager import i18n_manager
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class TitleBar:

@@ -18,11 +18,11 @@ from typing import Dict, Any, Optional
 
 from package_manager import PackageManager
 from document_converter import DocumentConverter
-from pycore.pyfoundations.third_party import get_third_package_pypdf
+from pycore.pyfoundations.third_party.api import get_third_package_pypdf
 
-from pycore.pyfoundations.third_party import get_third_package_pdfplumber
-from pycore.pyfoundations.third_party import get_third_package_openpyxl
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_pdfplumber
+from pycore.pyfoundations.third_party.api import get_third_package_openpyxl
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
 
 import xml.etree.ElementTree as ET
 

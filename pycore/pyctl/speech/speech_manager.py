@@ -17,13 +17,13 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Callable, Union
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_edge_tts
+from pycore.pyfoundations.third_party.api import get_third_package_edge_tts
 from pycore.pyfoundations.system_paths import map_web_path
 
 from pycore.pyctl.speech.transcription_app import run_app
 from pycore.pyctl.speech.transcription_app import run_app_dual_source
 
-from pycore.pyutils.azure_speech import get_azure_speech_client
+from pycore.pyutils.azure_speech.azure_speech_client import get_azure_speech_client
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     SerializedSingletonProvider,
@@ -35,9 +35,10 @@ from pycore.pyfoundations.serialized_worker import (
 
 
 edge_tts_module = get_third_package_edge_tts()
-from pycore.pyutils.azure_speech import speech_recognizer, SPEECH_RECOGNITION_AVAILABLE
-from pycore.database import database_manager, DATABASE_AVAILABLE
-from pycore.database.models import SpeechTTSCacheModel, TableKeys
+from pycore.pyutils.azure_speech.speech_recognizer import speech_recognizer, SPEECH_RECOGNITION_AVAILABLE
+from pycore.database.exports import database_manager, DATABASE_AVAILABLE
+from pycore.database.models.util_speech.tts_cache_model import SpeechTTSCacheModel
+from pycore.database.models.table_keys import TableKeys
 
 
 _ASYNC_WORK_QUEUE = 'pyctl.speech.manager.async'

@@ -649,6 +649,7 @@ export const pcZh: PcTranslationDict = {
     targetLang: '目标 (EN)',
     minRawWords: 'Raw 最少词数',
     autoProcess: '自动处理历史',
+    monitoredTools: '监控工具（勾选 = 处理）',
     heartbeatTicks: '心跳次数',
     localLlmTitle: '本地 LLM 引擎',
     localLlmFallbackHint: 'Agent History 短文不使用本地 LLM（仅 OpenRouter）。',

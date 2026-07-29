@@ -14,7 +14,7 @@ Strategy:
 
 import json
 import socket
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import platform
 from typing import Optional, Dict
 from pathlib import Path

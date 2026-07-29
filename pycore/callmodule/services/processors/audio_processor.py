@@ -10,7 +10,7 @@ from datetime import timedelta
 
 from pycore.pyfoundations.system_paths import get_app_temp_dir
 
-from pycore.pyutils.whisper_stt import WhisperSTTProvider
+from pycore.pyutils.whisper_stt.whisper_provider import WhisperSTTProvider
 
 
 

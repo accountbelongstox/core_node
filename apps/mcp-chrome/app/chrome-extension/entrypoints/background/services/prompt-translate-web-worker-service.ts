@@ -1,16 +1,17 @@
 /**
  * Prompt-Translate Web Worker Service
  *
- * Fulfils the cross-stack `prompt_translation` global task (the pycore/Laravel
- * "AI prompt assist" pipeline) by DRIVING the Gemini or ChatGPT WEB page — never
+ * Fulfils Laravel's shared `prompt_translation` global task by DRIVING the
+ * Gemini or ChatGPT WEB page — never
  * an AI API. Pulls a prompt_translation task (execution_type remote_translation,
  * capability=null), translates the prompt to English via the user's preferred
  * web provider, and submits the contract result shape:
  *   { prompt_id, detected_language, english, cleaned, variants:[N], provider }
  * (`english` is required by the Laravel validateResultShape.)
  *
- * Fail-soft: any failure submits 'failed' so the task is released back to
- * pycore. Single chat tab => concurrency 1. Registered disabled-by-default.
+ * Fail-soft: any failure submits 'failed' so Laravel can retry it with any
+ * eligible Pycore or mcp-chrome claimant. Single chat tab => concurrency 1.
+ * Registered disabled-by-default.
  */
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
@@ -19,7 +20,7 @@ import { chatgptWebTool } from '../tools/browser/chatgpt-web';
 import { geminiWebTool } from '../tools/browser/gemini-web';
 import { getPreferredProvider } from '../tools/browser/ai-web-common';
 import { logger } from '@/utils/logger';
-import { TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
+import { TASK_TYPE_KEYS, taskPromptText } from '@/utils/queue-center-contract';
 
 const LOG = 'Prompt-Translate Web';
 
@@ -59,7 +60,7 @@ class PromptTranslateWebWorkerService extends SimpleWorkerBase {
 
   protected async executeTask(task: Task): Promise<void> {
     const payload = (task.payload as any) || {};
-    const text = typeof payload.text === 'string' ? payload.text : '';
+    const text = taskPromptText(task.task_type, payload);
     const promptId = payload.prompt_id;
     if (!text.trim()) {
       await this.submitResult(task.task_id, 'failed', undefined, { error: 'no text in payload' });

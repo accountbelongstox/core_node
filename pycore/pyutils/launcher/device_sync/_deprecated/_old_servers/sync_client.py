@@ -24,7 +24,7 @@ import os
 import time
 from typing import Any, Optional, Dict, List, Callable
 from pycore.pyfoundations.serialized_worker import start_bus_task
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pathlib import Path
 
 from pycore.pyutils.launcher.device_sync._deprecated._old_servers.discovery import DeviceDiscovery

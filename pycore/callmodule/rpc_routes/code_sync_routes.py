@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """RPC Routes for code_sync."""
 
-from pycore import ColorPrint
-from pycore.callmodule.rpc_routes import route_names as rn
-from pycore.callmodule.services import code_sync_service as cs
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+import pycore.callmodule.rpc_routes.route_names as rn
+import pycore.callmodule.services.code_sync_service as cs
 
 
 def register_code_sync_routes(server):

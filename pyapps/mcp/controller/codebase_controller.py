@@ -9,11 +9,9 @@ import os
 from pathlib import Path
 from typing import Dict, Optional, Any
 
-from pycore.pyutils.mcp.codebase import (
-    get_directory_tree_generator_singleton,
-    get_codebase_file_searcher_singleton,
-    get_codebase_content_analyzer_singleton
-)
+from pycore.pyutils.mcp.codebase.tree_generator import get_directory_tree_generator_singleton
+from pycore.pyutils.mcp.codebase.file_searcher import get_codebase_file_searcher_singleton
+from pycore.pyutils.mcp.codebase.content_analyzer import get_codebase_content_analyzer_singleton
 
 logger = logging.getLogger(__name__)
 

@@ -3,13 +3,13 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_ASSIST_ASSIST_CONFIG,
     UI_ASSIST_ASSIST_CYCLE,
     UI_ASSIST_ASSIST_STATUS,
 )
-from pycore.callmodule.services import assist_service as assist
+import pycore.callmodule.services.assist_service as assist
 
 
 def register_local_assist_routes(server):

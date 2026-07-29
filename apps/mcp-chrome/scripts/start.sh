@@ -18,6 +18,9 @@ NC='\033[0m' # No Color
 MCP_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 MCP_PROJECT_ROOT="$( cd "$MCP_SCRIPT_DIR/.." && pwd )"
 
+# WXT imports config/queue_center_contract.json from the repository root
+# directly. Do not copy the task contract here; wxt.config.ts explicitly allows
+# that root so Laravel, Pycore, both UIs, and mcp-chrome read one source.
 # Import variable management library and key definitions
 source "$MCP_SCRIPT_DIR/var_keys.sh"
 source "$MCP_SCRIPT_DIR/var_manager.sh"

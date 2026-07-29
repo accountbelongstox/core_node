@@ -30,8 +30,8 @@ import time
 from typing import Any, Dict, Optional
 from urllib.parse import urlsplit
 
-from pycore import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 
 from pycore.callmodule.services.sync.laravel_http_recorder import (
     get_laravel_http_recorder,

@@ -25,7 +25,7 @@ import threading
 import time
 import os
 
-from pycore.pyfoundations.third_party import get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
 
 np = get_third_package_numpy()
 

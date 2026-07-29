@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.services.notebooklm_stt import (
     apply_notebooklm_auto_convert,
     clear_cache,

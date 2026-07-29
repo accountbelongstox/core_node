@@ -55,7 +55,7 @@ from typing import Any, Optional, Dict, Callable
 from dataclasses import dataclass
 from enum import Enum
 
-from pycore import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from pycore.pyutils.native_ui.step9_frontend.port_killer import kill_process_on_port

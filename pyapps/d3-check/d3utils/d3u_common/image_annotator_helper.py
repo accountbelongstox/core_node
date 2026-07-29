@@ -16,8 +16,8 @@ ensure_d3_check_in_sys_path()
 
 from datetime import datetime
 
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
 from pycore.pyutils.image_annotator import ImageAnnotator
 from providor.constants.common import TMP_DIR
 

@@ -10,9 +10,10 @@ Stores clipboard history with file support.
 import hashlib
 from datetime import datetime
 from typing import Dict, Any, Optional, List
-from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
+from pycore.pyfoundations.third_party.api import get_third_package_sqlalchemy
 from pycore.database.base_model import BaseModel
-from pycore.database.models import TableNamespaces, TableKeys
+from pycore.database.models.namespaces import TableNamespaces
+from pycore.database.models.table_keys import TableKeys
 
 import time
 

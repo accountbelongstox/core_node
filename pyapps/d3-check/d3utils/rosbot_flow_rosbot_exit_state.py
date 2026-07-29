@@ -8,7 +8,7 @@ F3_ProcessGone: mark exit reason when process gone (ROSBOT_FLOW_MERMAID).
 """
 from typing import Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from providor.providor_index import get_config_value_safe, set_config_value_async
 

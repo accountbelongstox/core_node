@@ -11,7 +11,7 @@ for device listing.
 from typing import List
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common import speech_config
+from pycore.pyutils.common.speech_config import speech_config
 
 
 def select_language_with_cache(source: str = "default", allow_multi_select: bool = False) -> List[str]:

@@ -6,7 +6,7 @@ Used by F3 timeout (history/flow); log_monitor_thread reads logs.txt only and do
 """
 import time
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 _f3_rosbot_started_at: float = 0.0
 

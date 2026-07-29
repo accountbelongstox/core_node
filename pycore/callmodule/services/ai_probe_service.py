@@ -16,8 +16,9 @@ matches the exact contract in pycore.pyctl.ai.ai_probe (UI depends on it).
 import time
 from typing import Optional
 
-from pycore.pyctl.ai import probe_all, probe_one, catalog, balance_all, balance_one
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyctl.ai.ai_probe import probe_all, probe_one, catalog
+from pycore.pyctl.ai.ai_balance import balance_all, balance_one
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 # Last-probe cache so repeated UI loads are cheap. ~30s TTL; refresh=1 bypasses.
 _CACHE_TTL_SECONDS = 30.0

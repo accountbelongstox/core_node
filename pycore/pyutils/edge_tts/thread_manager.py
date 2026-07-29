@@ -21,8 +21,8 @@ from pycore.pyfoundations.serialized_worker import (
 )
 from typing import Dict, Optional
 
-from pycore import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.tts_models import ItemType
 from pycore.pyutils.edge_tts.worker_thread_base import BaseTTSWorkerThread
 

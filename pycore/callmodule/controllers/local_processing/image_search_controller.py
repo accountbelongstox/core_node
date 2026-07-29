@@ -4,8 +4,8 @@
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyctl.ai import generate_image
-from pycore.pyctl.ai import image_search_history
+from pycore.pyctl.ai.ai_gateway import generate_image
+import pycore.pyctl.ai.image_search_history as image_search_history
 from pycore.pyutils.external_apis.image_search_client import (
     _DEFAULT_NUM,
     _ENGINE,

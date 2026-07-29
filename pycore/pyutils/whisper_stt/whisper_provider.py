@@ -34,7 +34,9 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore.pyfoundations import ColorPrint, THREAD_BUS, is_cuda_available
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.compute_caps import is_cuda_available
 from pycore.pyutils.common.stt_base_provider import BaseSpeechRecognitionProvider
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
@@ -56,7 +58,7 @@ from pycore.pyutils.whisper_stt.audio_capture import (
     SystemAudioCapture,
 )
 
-from pycore.pyfoundations.third_party import get_third_package_whisper
+from pycore.pyfoundations.third_party.api import get_third_package_whisper
 
 
 
@@ -579,3 +581,5 @@ __all__ = [
     'WHISPER_MODELS',
     'DEFAULT_MODEL',
 ]
+
+whisper_stt_provider = get_whisper_stt_provider()

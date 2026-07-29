@@ -10,7 +10,8 @@ from PySide6.QtCore import QTimer, QRect
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QScreen
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from typing import Optional, Tuple
 

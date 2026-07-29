@@ -13,7 +13,7 @@ Provides:
 import asyncio
 from typing import Any, Dict, Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from .module_registry import get_module_info, get_method_info, SUPPORTED_MODULES
 from .module_loader import ModuleLoader
 

@@ -20,6 +20,25 @@ import type { LaravelApiEndpoint } from '../../core/api-libs/pycore';
 
 const LARAVEL_ENDPOINT_CHANGED_EVENT = 'laravel_endpoint_changed';
 
+/**
+ * d.txt 8.2 — the Laravel endpoint is stored TWICE: the backend persists it in
+ * user_data.json (laravel_api.current) and the frontend keeps its own copy in
+ * localStorage under this key. When the frontend (re)connects to the backend,
+ * the FRONTEND copy wins: any mismatch pushes `laravel_api.select(feUrl)` so a
+ * backend-side reset/seed-migration can never silently undo the user's choice.
+ */
+const FE_ENDPOINT_KEY = 'pycore_laravel_current_endpoint';
+
+function readFeEndpoint(): string {
+  try { return localStorage.getItem(FE_ENDPOINT_KEY) || ''; } catch { return ''; }
+}
+
+function writeFeEndpoint(url: string): void {
+  try {
+    if (url) localStorage.setItem(FE_ENDPOINT_KEY, url);
+  } catch { /* storage optional */ }
+}
+
 export interface PcLaravelEndpointContextValue {
   endpoints: LaravelApiEndpoint[];
   current: string;
@@ -54,6 +73,9 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
   // WS broadcast). Both may fire for the same switch; we only surface it
   // once so downstream listeners don't reload twice.
   const lastEndpointUrlRef = useRef<string | null>(null);
+  // One-shot guard for the frontend-wins sync (d.txt 8.2): the last FE url we
+  // already pushed to the backend, so a failing select never sync-loops.
+  const feLastPushedRef = useRef<string | null>(null);
 
   const dispatchEndpointChanged = useCallback((url: string) => {
     if (!url || url === lastEndpointUrlRef.current) return;
@@ -70,6 +92,25 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
         setCurrent(r.current || '');
         setError(null);
         setFallback(false);
+        // d.txt 8.2 — frontend-wins sync: the FE keeps its own endpoint copy
+        // (localStorage) and the backend keeps one (user_data.json). On every
+        // successful (re)connect the FE copy is authoritative: when it differs
+        // from the backend's stored current, push it via laravel_api.select.
+        const feUrl = readFeEndpoint();
+        if (
+          feUrl &&
+          normalizeLaravelApiUrl(feUrl) !== normalizeLaravelApiUrl(r.current || '') &&
+          feLastPushedRef.current !== feUrl
+        ) {
+          feLastPushedRef.current = feUrl;
+          void pycoreLaravelApi.select(feUrl)
+            .then((res) => {
+              if (res && res.success === false) throw new Error(res.error || 'select failed');
+              dispatchEndpointChanged(feUrl);
+              void reload();
+            })
+            .catch(() => { feLastPushedRef.current = null; });
+        }
         return true;
       }
       throw new Error(r?.error || 'laravel_api.list: malformed response');
@@ -108,9 +149,11 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
       if (Array.isArray(data.endpoints)) setEndpoints(data.endpoints);
       if (typeof data.current === 'string' && data.current) {
         setCurrent(data.current);
+        writeFeEndpoint(data.current); // keep the FE copy aligned (d.txt 8.2)
         dispatchEndpointChanged(data.current);
       } else if (typeof data.url === 'string' && data.url) {
         setCurrent(data.url);
+        writeFeEndpoint(data.url); // keep the FE copy aligned (d.txt 8.2)
         dispatchEndpointChanged(data.url);
       }
       setError(null);
@@ -145,6 +188,7 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
     try {
       const r = await pycoreLaravelApi.select(url);
       if (r && r.success === false) throw new Error(r.error || 'select failed');
+      writeFeEndpoint(url); // FE keeps its own copy of the selection (d.txt 8.2)
       await reload();
       dispatchEndpointChanged(url);
       setSwitching(null);

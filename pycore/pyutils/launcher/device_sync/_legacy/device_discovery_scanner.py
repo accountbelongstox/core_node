@@ -22,7 +22,7 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
     start_bus_task,
 )
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 from .simple_device_scanner import SimpleDeviceScanner
 from .logging_config import setup_logging

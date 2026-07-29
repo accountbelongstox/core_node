@@ -22,11 +22,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 # Import from pycore following project standards
 from pycore.pyfoundations.secret_manager import get_secret_key
-from pycore.pyfoundations.third_party import get_third_package_speechsdk, get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_speechsdk, get_third_package_numpy
 
 speechsdk = get_third_package_speechsdk()
 np = get_third_package_numpy()
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Import pyaudiowpatch for Windows system audio capture
 try:

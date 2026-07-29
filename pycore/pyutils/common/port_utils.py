@@ -11,7 +11,7 @@ import time
 import os
 import signal
 from typing import List, Optional
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 import subprocess
 

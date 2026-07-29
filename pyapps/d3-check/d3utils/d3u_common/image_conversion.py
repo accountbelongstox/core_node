@@ -8,7 +8,7 @@ Unified helpers for loading/normalizing and converting between formats.
 from pathlib import Path
 from typing import Optional, Union
 
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
 
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
@@ -18,7 +18,7 @@ Image = get_third_package_PIL_Image()
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def normalize_image_to_bgr(image_input: Union[str, Path, Image.Image, np.ndarray]) -> np.ndarray:

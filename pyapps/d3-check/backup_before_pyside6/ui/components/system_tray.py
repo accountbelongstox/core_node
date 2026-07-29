@@ -12,7 +12,7 @@ import time
 import threading
 from typing import Optional, Callable
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.i18n_manager import i18n_manager
 
 from ._tray_deps import (

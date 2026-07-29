@@ -17,7 +17,7 @@ import sys
 import os
 
 # Direct pycore imports (no secondary encapsulation)
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from runtime import is_shutdown_requested
 
 class StatusBar:

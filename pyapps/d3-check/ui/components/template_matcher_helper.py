@@ -12,7 +12,7 @@ from pathlib import Path
 import sys
 import copy
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw
 
 Image = get_third_package_PIL_Image()
 ImageDraw = get_third_package_PIL_ImageDraw()
@@ -20,7 +20,7 @@ ImageDraw = get_third_package_PIL_ImageDraw()
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.image_matcher import ImageMatcher
 from d3utils.image_matcher_registry import get_image_matcher
 from providor.providor_index import (

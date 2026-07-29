@@ -12,7 +12,7 @@ Features:
 
 from typing import TYPE_CHECKING
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from .module_registry import SUPPORTED_MODULES
 from .module_loader import get_module_loader
 from .module_call_handler import ModuleCallHandler

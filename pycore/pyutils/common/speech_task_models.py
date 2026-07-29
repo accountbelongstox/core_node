@@ -12,7 +12,7 @@ Integrates with PyHeartbeat GlobalTaskQueue and Task system.
 
 Usage:
     from pycore.pyutils.common.speech_task_models import TTSTaskData, TTSTaskResult
-    from pycore.pyfoundations import Task
+    from pycore.pyutils.common.tasks import Task
 
     # Create task data
     task_data = TTSTaskData(text="Hello", language="en-US")
@@ -32,7 +32,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict, Any
 from enum import Enum
 
-from pycore.pyfoundations import Task, TaskPriority
+from pycore.pyutils.common.tasks import Task, TaskPriority
 
 
 

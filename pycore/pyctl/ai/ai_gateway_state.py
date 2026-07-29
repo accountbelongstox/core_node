@@ -26,7 +26,7 @@ from typing import Any, Dict, Optional, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
 from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyctl.ai.ai_keys import PROVIDER_ORDER
 from pycore.pyctl.ai.ai_rate_limits import resolve_limit
 from pycore.pyctl.ai.ai_usage_log import record_usage

@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Log;
  *
  * Handles dictionary explanation tasks for AppQyV1
  */
-class DictionaryTaskProcessor implements TaskProcessorInterface
+class DictionaryTaskProcessor extends AbstractTaskProcessor
 {
     protected TaskManagerService $taskManager;
 
@@ -21,10 +21,9 @@ class DictionaryTaskProcessor implements TaskProcessorInterface
         $this->taskManager = $taskManager;
     }
 
-    public function canProcess(GlobalTask $task): bool
+    protected function taskTypeRoles(): array
     {
-        return $task->app_name === 'AppQyV1'
-            && in_array($task->task_type, ['dictionary_explanation', 'dictionary_explanation_demo']);
+        return ['dictionary_explanation', 'dictionary_explanation_demo'];
     }
 
     public function processResult(GlobalTask $task, array $result, bool $isDemoMode): int
@@ -56,8 +55,4 @@ class DictionaryTaskProcessor implements TaskProcessorInterface
         return count($words);
     }
 
-    public function getPriority(): int
-    {
-        return 10;
-    }
 }

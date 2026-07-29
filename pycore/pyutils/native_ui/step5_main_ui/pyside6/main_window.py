@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 import time
 
-from pycore import THREAD_BUS, ColorPrint
-from pycore import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 """
 PySide6 Main Window - Frameless Window with Custom Title Bar
 

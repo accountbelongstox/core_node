@@ -14,7 +14,7 @@ import shutil
 import traceback
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_win32api, get_third_package_win32con, get_third_package_pywinauto
+from pycore.pyfoundations.third_party.api import get_third_package_win32api, get_third_package_win32con, get_third_package_pywinauto
 
 win32api = get_third_package_win32api()
 win32con = get_third_package_win32con()

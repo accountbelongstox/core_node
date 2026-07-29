@@ -14,9 +14,10 @@ This example shows:
 5. Event handling for tray menu items
 """
 
-from pycore import ColorPrint, THREAD_BUS
-from pycore.pylauncher import LauncherConfig, ServiceLauncher
-from pycore.pyutils.native_ui import get_platform_adapter
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pylauncher.launcher import LauncherConfig, ServiceLauncher
+from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
 
 
 def create_tray_menu_items():

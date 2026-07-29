@@ -1,3 +1,2 @@
-from pycore.pyutils.ai_cluster.github.github_client import GitHubModelsClient
-
-__all__ = ["GitHubModelsClient"]
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

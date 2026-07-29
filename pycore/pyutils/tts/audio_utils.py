@@ -14,7 +14,7 @@ from typing import Any, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.safe_subprocess import subprocess
 
-from pycore.pyfoundations.third_party import get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
 
 
 

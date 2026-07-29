@@ -19,15 +19,13 @@ Usage:
 """
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint as _OriginalColorPrint
-from pycore.database import get_database_manager
-from pycore.database.models import TableKeys
-from pycore.database.models.common import CommonConfigModel
-from pycore.database.models.util_speech import (
-    SpeechConfigModel,
-    SpeechTTSCacheModel,
-    SpeechSTTCacheModel,
-)
-from pycore.database.models.util_clipboard import ClipboardHistoryModel
+from pycore.database.exports import get_database_manager
+from pycore.database.models.table_keys import TableKeys
+from pycore.database.models.common.config_model import CommonConfigModel
+from pycore.database.models.util_speech.speech_config_model import SpeechConfigModel
+from pycore.database.models.util_speech.tts_cache_model import SpeechTTSCacheModel
+from pycore.database.models.util_speech.stt_cache_model import SpeechSTTCacheModel
+from pycore.database.models.util_clipboard.clipboard_history_model import ClipboardHistoryModel
 
 # Suppress ColorPrint output in MCP mode
 class ColorPrint:

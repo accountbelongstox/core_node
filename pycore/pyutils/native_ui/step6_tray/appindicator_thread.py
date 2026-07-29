@@ -14,7 +14,8 @@ import threading
 from typing import Optional, List, Any
 from pathlib import Path
 
-from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from .appindicator_system_tray import (
     AppIndicatorSystemTray,

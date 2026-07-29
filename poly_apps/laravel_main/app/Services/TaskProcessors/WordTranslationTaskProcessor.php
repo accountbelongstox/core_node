@@ -40,7 +40,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
  * row mutation lives in AppQyV1WordTranslationWriteback to keep this processor
  * thin and reusable from the self-filler timer.
  */
-class WordTranslationTaskProcessor implements TaskProcessorInterface
+class WordTranslationTaskProcessor extends AbstractTaskProcessor
 {
     protected TaskManagerService $taskManager;
 
@@ -61,7 +61,7 @@ class WordTranslationTaskProcessor implements TaskProcessorInterface
         return $this->lastOutcome;
     }
 
-    public function canProcess(GlobalTask $task): bool
+    protected function taskTypeRoles(): array
     {
         // word_media (chrome/remote_fast) and word_audio (pycore/remote_audio)
         // are the media-on-demand twins of word_translation: every worker result
@@ -70,8 +70,7 @@ class WordTranslationTaskProcessor implements TaskProcessorInterface
         // AppQyV1WordTranslationWriteback::apply (fill-missing/idempotent — it
         // fills image/audio even when a translation already exists, never
         // early-returns, so concurrent chrome+pycore completion is safe).
-        return $task->app_name === 'AppQyV1'
-            && in_array($task->task_type, ['word_translation', 'word_media', 'word_audio'], true);
+        return ['word_translation', 'word_media', 'word_audio'];
     }
 
     public function processResult(GlobalTask $task, array $result, bool $isDemoMode): int
@@ -163,8 +162,4 @@ class WordTranslationTaskProcessor implements TaskProcessorInterface
         return (int) (($outcome['processed'] ?? 0) + ($outcome['invalidated'] ?? 0));
     }
 
-    public function getPriority(): int
-    {
-        return 10;
-    }
 }

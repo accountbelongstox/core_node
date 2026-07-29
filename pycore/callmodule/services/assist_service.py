@@ -7,9 +7,9 @@ import traceback
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyheartbeat import get_heartbeat_system
-from pycore.pyctl.assist import ASSIST_API_PREFIX, load_assist_settings, save_assist_settings
-from pycore.callmodule.callmodule_config import Config
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+from pycore.pyctl.assist.assist_settings import ASSIST_API_PREFIX, load_assist_settings, save_assist_settings
+from pycore.callmodule.callmodule_config.config import Config
 from pycore.callmodule.services.assist_capability_sync import apply_assist_runtime
 from pycore.callmodule.services.assist_wiring import resolve_selected_endpoint_for_ui
 from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service

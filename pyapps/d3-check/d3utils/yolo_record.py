@@ -78,7 +78,7 @@ except ImportError:
 
 # Optional: cv2 for compose_segment_to_frames (module-level per §6.1)
 try:
-    from pycore.pyfoundations.third_party import get_third_package_cv2
+    from pycore.pyfoundations.third_party.api import get_third_package_cv2
     _cv2 = get_third_package_cv2()
 except Exception:
     _cv2 = None

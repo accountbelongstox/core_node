@@ -1,8 +1,2 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Native UI Module
-"""
-
-# Exports will be added as needed
-__all__ = []
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

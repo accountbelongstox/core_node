@@ -23,7 +23,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
@@ -32,19 +32,18 @@ from pycore.pyfoundations.serialized_worker import (
 # Internal imports at file top (PYTHON_PYCORE.md §1.4). task_manager is stdlib-only.
 from pycore.pyctl.desktop.task_manager import get_task_manager
 
-from .base_laravel_worker import BaseLaravelWorkerService
-from . import lane_gating
-from .done_words_cache import DoneWordsCache
-from .task_heap import TaskHeap
-from .handlers import (
-    translation as h_translation,
-    stt as h_stt,
-    media as h_media,
-    ai_translate as h_ai_translate,
-    prompt_translate as h_prompt_translate,
-)
+from pycore.callmodule.services.translation_worker.base_laravel_worker import BaseLaravelWorkerService
+import pycore.callmodule.services.translation_worker.lane_gating as lane_gating
+from pycore.callmodule.services.translation_worker.done_words_cache import DoneWordsCache
+from pycore.callmodule.services.translation_worker.task_heap import TaskHeap
+import pycore.callmodule.services.translation_worker.handlers.ai_translate as h_ai_translate
+import pycore.callmodule.services.translation_worker.handlers.audio as h_audio
+import pycore.callmodule.services.translation_worker.handlers.media as h_media
+import pycore.callmodule.services.translation_worker.handlers.prompt_translate as h_prompt_translate
+import pycore.callmodule.services.translation_worker.handlers.stt as h_stt
+import pycore.callmodule.services.translation_worker.handlers.translation as h_translation
 
-from pycore.callmodule.callmodule_config import Config as _Cfg
+from pycore.callmodule.callmodule_config.config import Config as _Cfg
 from pycore.callmodule.services.queue_center_contract import (
     GLOBAL_TASK_TYPES_BY_KEY,
     task_execution_type,
@@ -73,9 +72,14 @@ class TranslationWorkerService(BaseLaravelWorkerService):
     WORD_TRANSLATION_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["word_translation"]["key"]
     PROMPT_TRANSLATION_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["prompt_translation"]["key"]
     SUBTITLE_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["subtitle_search"]["key"]
+    WORD_AUDIO_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["word_audio"]["key"]
+    ARTICLE_AUDIO_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["article_audio"]["key"]
+    SENTENCE_AUDIO_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
     TRANSLATION_FAST_PROCESSOR_TYPE = task_execution_type("word_media")
     TRANSLATION_PROCESSOR_TYPE = task_execution_type(WORD_TRANSLATION_TASK_TYPE)
     SUBTITLE_EXECUTION_TYPE = task_execution_type(SUBTITLE_TASK_TYPE)
+    AUDIO_EXECUTION_TYPE = task_execution_type(WORD_AUDIO_TASK_TYPE)
+    SENTENCE_AUDIO_EXECUTION_TYPE = task_execution_type(SENTENCE_AUDIO_TASK_TYPE)
     STT_EXECUTION_TYPE = task_execution_type("stt")
     STT_TASK_TYPES = task_types_for_execution(STT_EXECUTION_TYPE)
 
@@ -222,6 +226,42 @@ class TranslationWorkerService(BaseLaravelWorkerService):
 
     # -------------------- task processing --------------------
 
+    def _start_lease_keepalive(self, task: Dict[str, Any], lease_seconds: int) -> None:
+        """Ping 'processing' while a task executes so Laravel's lease tracks real work.
+
+        d.txt 7: a long task (cold TTS engine start, a large word batch) can
+        outlive the ``timeout_at`` lease; the reaper then reassigns it and the
+        late result is rejected 409 ('task reassigned / not ours'), wasting the
+        work. The ping carries NO progress field — the backend leaves the
+        stored progress untouched and only extends the lease.
+        """
+        task_id = task.get("task_id")
+        interval = max(15.0, min(120.0, float(lease_seconds) / 3.0))
+
+        def _keepalive() -> None:
+            while not task.get("_lease_stop"):
+                # Condition-based wait on a never-signalled name — a pure
+                # cancellable timer, no sleep-poll (threading standard).
+                THREAD_BUS.wait_signal(
+                    "translation.worker.lease_keepalive", timeout=interval
+                )
+                if task.get("_lease_stop"):
+                    return
+                try:
+                    # attempts=1: a lost ping costs nothing, the next one lands.
+                    self._post_result(task_id, "processing", attempts=1)
+                except Exception:  # noqa: BLE001 - keep-alive must never raise
+                    pass
+
+        try:
+            start_bus_task(
+                _keepalive,
+                thread_name=f"TaskLeaseKeepAlive-{str(task_id)[:8]}",
+            )
+        except Exception as exc:  # noqa: BLE001
+            ColorPrint.yellow(f"[TranslationWorker] lease keep-alive start failed ({exc})")
+
+
     def _process_task(self, task: Dict[str, Any]) -> None:
         """
         Process one claimed task and POST its result. Runs on a TaskManager
@@ -232,6 +272,8 @@ class TranslationWorkerService(BaseLaravelWorkerService):
           - capability == 'ai_translate'  -> ai_translate.ai_translate_words
           - task_type == 'subtitle_search'-> media.process_subtitle_search_task
           - task_type == 'prompt_translation' -> prompt_translate.process_prompt_translation_task
+          - task_type word_audio/article_audio -> audio.process_audio_task
+          - task_type == 'sentence_audio' -> audio.process_audio_task
           - task_type in STT_TASK_TYPES   -> stt.process_stt_task
           - task_type word_translation/'' -> translation.process_word_translation
           - anything else                 -> 'failed' (re-route)
@@ -252,6 +294,13 @@ class TranslationWorkerService(BaseLaravelWorkerService):
                 return
             if task_type == self.PROMPT_TRANSLATION_TASK_TYPE:
                 h_prompt_translate.process_prompt_translation_task(self, task)
+                return
+            if task_type in (
+                self.WORD_AUDIO_TASK_TYPE,
+                self.ARTICLE_AUDIO_TASK_TYPE,
+                self.SENTENCE_AUDIO_TASK_TYPE,
+            ):
+                h_audio.process_audio_task(self, task)
                 return
             if task_type in self.STT_TASK_TYPES:
                 h_stt.process_stt_task(self, task)
@@ -281,6 +330,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
             ColorPrint.red(f"[TranslationWorker] Task {task_id} failed: {e}")
             self._post_result(task_id, "failed", error=str(e))
         finally:
+            task["_lease_stop"] = True
             self._release_inflight(task_id)
 
     # -------------------- local task accounting --------------------
@@ -378,6 +428,8 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         self._purge_inflight_locked(now)
         ttl = int(task.get("timeout_seconds") or self.INFLIGHT_DEFAULT_TTL)
         deadline = now + max(ttl, self.INFLIGHT_DEFAULT_TTL)
+        task["_lease_stop"] = False
+        self._start_lease_keepalive(task, max(ttl, self.INFLIGHT_DEFAULT_TTL))
         # The state owner makes the duplicate claim check and update indivisible.
         existing = self._inflight.setdefault(task_id, deadline)
         if existing is not deadline:

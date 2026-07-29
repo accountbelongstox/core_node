@@ -28,7 +28,7 @@ import json
 import time
 from typing import Optional
 
-from pycore import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pylauncher.singleton_protocol import MessageType
 

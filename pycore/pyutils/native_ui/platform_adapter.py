@@ -42,7 +42,7 @@ from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from pathlib import Path
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
 import ctypes

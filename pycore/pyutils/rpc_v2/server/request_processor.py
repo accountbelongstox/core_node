@@ -10,9 +10,9 @@ through `await_serialized` so they cannot block the uvicorn event loop.
 import asyncio
 from typing import Any, Callable, Dict, Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from pycore.pyutils.rpc_v2.common import RequestEventTable, RequestStatus
+from pycore.pyutils.rpc_v2.common.request_event_table import RequestEventTable, RequestStatus
 from pycore.pyutils.rpc_v2.server._serialized_bridge import await_serialized
 
 
@@ -54,7 +54,10 @@ class RequestProcessor:
             if asyncio.iscoroutinefunction(handler):
                 result = await handler(params, request_id, context)
             else:
-                result = handler(params, request_id, context)
+                # RPC v2 standard §6: a blocking sync handler must never run on
+                # the uvicorn receive loop — offload it like the WS sync path
+                # (websocket_handler._handle_sync_request) does.
+                result = await asyncio.to_thread(handler, params, request_id, context)
 
             await await_serialized(
                 self.request_event_table.set_result,

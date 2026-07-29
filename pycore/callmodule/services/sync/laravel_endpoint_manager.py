@@ -20,6 +20,13 @@ Persistence lives in the unified user-data store (user_data.json) under the
         "seed_version": 3                          # default-set migration marker
     }
 
+NOTE (d.txt 8.2): the endpoint is stored TWICE — this backend copy in
+user_data.json AND a frontend copy in the pycore-manager localStorage
+(``pycore_laravel_current_endpoint``, see PcLaravelEndpointContext.tsx). When
+the frontend (re)connects, the FRONTEND copy is authoritative: the provider
+pushes ``laravel_api.select`` for any mismatch, so a backend-side reset can
+never silently undo the user's choice.
+
 The candidate list is seeded from the defaults below — the loopback
 (http://127.0.0.1:9000; localhost is merged into it) plus the named
 cross-machine hosts (_NAMED_DEFAULTS, all :9000), with an explicitly configured
@@ -48,14 +55,15 @@ import re
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore import ColorPrint, get_user_data_store
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.database.repositories.user_data_store import get_user_data_store
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     map_bus_tasks,
     serialized_method,
 )
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.callmodule.callmodule_config.config import Config as CallmoduleConfig
 from pycore.callmodule.services.sync.laravel_http_recorder import notify_laravel_http
 

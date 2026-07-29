@@ -8,9 +8,9 @@ ROOT = Path(__file__).resolve().parents[1] / "pycore" / "callmodule" / "rpc_rout
     '''# -*- coding: utf-8 -*-
 """RPC Routes for voice_subtitle."""
 
-from pycore import ColorPrint
-from pycore.callmodule.rpc_routes import route_names as rn
-from pycore.callmodule.services import voice_subtitle_service as vs
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+import pycore.callmodule.rpc_routes.route_names as rn
+import pycore.callmodule.services.voice_subtitle_service as vs
 from pycore.callmodule.services.voice_subtitle_service import (
     AddImageRequest,
     AddTextRequest,
@@ -128,7 +128,7 @@ __all__ = ["register_voice_subtitle_routes"]
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_IMAGE_SEARCH_STATUS,
     UI_IMAGE_SEARCH_SEARCH_AI,
@@ -137,7 +137,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_IMAGE_SEARCH_DELETE_HISTORY,
     UI_IMAGE_SEARCH_CLEAR_HISTORY,
 )
-from pycore.callmodule.services import image_search_service as img
+import pycore.callmodule.services.image_search_service as img
 from pycore.callmodule.services.image_search_service import (
     ImageSearchAiRequest,
     ImageSearchCompareRequest,
@@ -188,7 +188,7 @@ __all__ = ["register_local_image_search_routes"]
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_AI_IMAGE_IMAGE,
     UI_AI_IMAGE_IMAGE_TEST,
@@ -198,7 +198,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_AI_IMAGE_IMAGE_HISTORY_DELETE,
     UI_AI_IMAGE_IMAGE_HISTORY_CLEAR,
 )
-from pycore.callmodule.services import ai_image_service as ai
+import pycore.callmodule.services.ai_image_service as ai
 from pycore.callmodule.services.ai_image_service import ImageRequest, ImageTestRequest
 
 

@@ -18,7 +18,7 @@ project_root = os.path.dirname(current_dir)
 
 sys.path.insert(0, project_root)
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d3utils.interface_manager import D3InterfaceManager, get_d3_interface_manager
 from share.game_interface_data import get_game_interface_data
 from share.template_match_debug import is_debug_ui_active, push as debug_push

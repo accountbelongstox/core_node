@@ -12,8 +12,8 @@ from typing import Optional
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d4utils.d4_operation_base import D4OperationBase
 
 Image = get_third_package_PIL_Image()

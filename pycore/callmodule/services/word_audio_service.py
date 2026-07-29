@@ -38,9 +38,9 @@ from urllib.parse import quote
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
-from pycore.pyfoundations.third_party import get_third_package_requests
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyfoundations.third_party.api import get_third_package_requests
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 from pycore.pyutils.common.api_secrets import streamelements_key_present
 from pycore.pyutils.external_apis.word_audio_client import find_pronunciation
 from pycore.pyutils.tts.tts_orchestrator import TTS_ENGINE_PRIORITY, _priority
@@ -52,7 +52,7 @@ from pycore.callmodule.services.sync.laravel_endpoint_manager import (
 )
 # Unified pycore->Laravel HTTP gateway (times + logs + records every call).
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
-from pycore.callmodule.services import get_tts_queue_poller_service
+from pycore.callmodule.services.tts_queue_poller_service import get_tts_queue_poller_service
 
 # Larvel word-audio batch surface (proxied so the pycore-manager Queue Center
 # bar edits laravel-owned data through pycore, matching the sentence-audio pattern).

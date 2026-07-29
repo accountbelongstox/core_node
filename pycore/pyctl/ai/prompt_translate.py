@@ -12,7 +12,7 @@ import json
 import re
 from typing import Any, Dict, List
 
-from pycore.pyctl.ai import generate_text
+from pycore.pyctl.ai.ai_gateway import generate_text
 
 from pycore.pyutils.translator.code_filter import mask_code, unmask_code
 

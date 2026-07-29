@@ -9,7 +9,7 @@ import time
 import threading
 import queue
 from typing import Any, Dict, Callable, Optional
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from share.values.task_status import TaskStatus
 
 

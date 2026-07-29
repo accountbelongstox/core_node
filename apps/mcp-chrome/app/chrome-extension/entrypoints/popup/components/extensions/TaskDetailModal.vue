@@ -114,6 +114,7 @@ import { taskPath } from '@/utils/api-paths';
 import { WorkerApiClient, PRIORITY_FAST } from '@/entrypoints/background/api/WorkerApiClient';
 import {
   FAST_PROMOTABLE_TASK_TYPES,
+  TASK_EVENT_BY_ROLE,
   TASK_STATUS_BY_ROLE,
 } from '@/utils/queue-center-contract';
 import {
@@ -248,9 +249,9 @@ const dotColor = (): string => {
 
 const eventColor = (event: string): string => {
   const e = (event || '').toLowerCase();
-  if (e === 'completed') return 'var(--success)';
-  if (e === 'failed' || e === 'cancelled') return 'var(--danger, #e5484d)';
-  if (e === 'timeout' || e === 'reclaimed') return 'var(--warning)';
+  if (e === TASK_EVENT_BY_ROLE.completed) return 'var(--success)';
+  if (e === TASK_EVENT_BY_ROLE.failed || e === TASK_EVENT_BY_ROLE.cancelled) return 'var(--danger, #e5484d)';
+  if (e === TASK_EVENT_BY_ROLE.timeout || e === TASK_EVENT_BY_ROLE.reclaimed) return 'var(--warning)';
   return 'var(--accent)';
 };
 

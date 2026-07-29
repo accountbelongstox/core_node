@@ -6,7 +6,7 @@ System key send (e.g. F7). Used by SmartEcho and ROSBOT debug/test.
 
 import time
 
-from pycore.pyfoundations.third_party import get_third_package_win32api
+from pycore.pyfoundations.third_party.api import get_third_package_win32api
 
 win32api = get_third_package_win32api()
 VK_F7 = 0x76

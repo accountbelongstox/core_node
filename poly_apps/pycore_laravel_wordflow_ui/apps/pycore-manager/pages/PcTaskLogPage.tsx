@@ -5,6 +5,7 @@ import React, { useCallback, useState } from 'react';
 import { Search, RefreshCw, Loader2, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { pycoreApi } from '../../../core/api-libs/pycore';
+import { GLOBAL_TASK_LIMITS } from '../../../core/api-libs/pycore/QueueCenterContract';
 
 const PcTaskLogPage: React.FC = () => {
   const { t } = useTranslation('pc');
@@ -24,7 +25,7 @@ const PcTaskLogPage: React.FC = () => {
         q: q.trim() || undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
-        limit: 300,
+        limit: GLOBAL_TASK_LIMITS.history_records,
       });
       setEntries(r?.entries ?? []);
       setTotal(r?.total ?? 0);

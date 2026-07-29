@@ -16,7 +16,7 @@ batch) and consolidate with pyutils/whisper_stt/audio_capture.py.
 import threading
 from typing import Any
 
-from pycore import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 # Backend globals: single-sourced in audio_devices.py (import, do not re-declare).
 from pycore.pyctl.speech.audio_devices import pyaudio, np

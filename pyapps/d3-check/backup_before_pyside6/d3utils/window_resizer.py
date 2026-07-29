@@ -9,8 +9,8 @@ import ctypes
 import time
 from typing import List, Tuple
 
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_win32gui
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 from pycore.pyutils.common.window_finder import WindowFinder
 
 win32gui = get_third_package_win32gui()

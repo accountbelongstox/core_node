@@ -105,6 +105,11 @@ def translate_to_english(article_cn: Dict[str, Any]) -> Tuple[Dict[str, Any], st
         raise ValueError("translated article too short")
         
     data["article_en"] = article_en
-    data["title_en"] = str(data.get("title_en") or "").strip() or article_cn.get("title_cn")
+    # Fallback must stay English — the CN title must never leak into title_en
+    # (wordnew Daily Reading renders the English version).
+    title_en = str(data.get("title_en") or "").strip()
+    if not title_en:
+        title_en = " ".join(article_en.split()[:8]).strip() or "Untitled article"
+    data["title_en"] = title_en
     
     return data, "openrouter"

@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Optional, Tuple, Any
 
 from providor.providor_index import CONFIG
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from d3utils.battlenet_manager import get_battlenet_manager
 from d3utils.d3_manager import get_d3_manager

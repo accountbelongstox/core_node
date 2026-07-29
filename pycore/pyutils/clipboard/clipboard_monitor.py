@@ -14,8 +14,9 @@ THREAD_BUS Integration:
 
 import time
 from typing import Optional, Callable
-from pycore import THREAD_BUS, ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_pyperclip
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_pyperclip
 from pycore.pyutils.clipboard.clipboard_history import get_clipboard_history
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,

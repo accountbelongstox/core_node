@@ -13,6 +13,17 @@
     "word_audio",
     "sentence_audio"
   ],
+  "callback_queue_roles": {
+    "global_task_worker": "transport",
+    "translation_worker": "consumer",
+    "translation_queue_monitor": "monitor",
+    "translation_ws_client": "signal",
+    "tts_queue_poller": "consumer",
+    "tts_sentence_worker": "consumer",
+    "ai_rate_reset": "maintainer",
+    "agent_history_extraction": "maintainer",
+    "agent_history_pipeline": "maintainer"
+  },
   "section_contract_defaults": {
     "queue": {"pending": 0, "leased": 0, "processing": 0, "total": 0},
     "worker": {"online": false, "claimed": 0, "ok": null, "fail": null, "last_heartbeat": null},
@@ -83,6 +94,24 @@
       "terminal": ["completed", "completed_demo", "failed", "cancelled"],
       "worker_reportable": ["processing", "completed", "failed"]
     },
+    "events": {
+      "values": {
+        "assigned": "assigned",
+        "processing": "processing",
+        "completed": "completed",
+        "failed": "failed",
+        "timeout": "timeout",
+        "reclaimed": "reclaimed",
+        "cancelled": "cancelled"
+      },
+      "terminal": ["completed", "failed", "cancelled"]
+    },
+    "stream_events": {
+      "initial": "task.detail-initial",
+      "transition": "task.event",
+      "ping": "ping",
+      "close": "stream.close"
+    },
     "execution_types": {
       "local_timer": "local_timer",
       "remote_client": "remote_client",
@@ -110,10 +139,15 @@
       "maximum": 1000
     },
     "limits": {
+      "list_default": 20,
       "list": 200,
+      "worker_pull_default": 5,
       "worker_pull": 50,
       "completed": 500,
-      "long_poll_seconds": 30
+      "long_poll_seconds": 30,
+      "history_records": 200,
+      "history_timeline": 50,
+      "event_batch": 200
     },
     "capability_labels": {
       "audio": "Audio",
@@ -138,7 +172,31 @@
     "fast_lane_capabilities": [
       "translate", "ai_translate", "puter_translate", "audio", "image", "sentence_audio"
     ],
+    "chrome_capability_switches": {
+      "image": {
+        "storage_key": "tkCapImage",
+        "label": "执行图片与封面任务",
+        "hint": "Book/library covers and word images via Google/Bing, plus Gemini image tasks",
+        "processors": ["remote_gemini", "media_image"],
+        "uses_validity_runner": false
+      },
+      "validity": {
+        "storage_key": "tkCapValidity",
+        "label": "执行单词有效性与翻译任务",
+        "hint": "Drains unchecked or untranslated words and enables the Web-AI and Bing translation workers",
+        "processors": ["web_ai_translate", "bing_dictionary"],
+        "uses_validity_runner": true
+      },
+      "notebooklm": {
+        "storage_key": "tkCapNotebooklm",
+        "label": "执行 NotebookLM 生成任务",
+        "hint": "Laravel NotebookLM queue to shared browser runtime with result write-back",
+        "processors": ["remote_notebooklm"],
+        "uses_validity_runner": false
+      }
+    },
     "wire_shapes": {
+      "create_result": ["task_id", "execution_type", "priority", "is_fast_tier"],
       "summary": [
         "task_id", "app_name", "task_type", "execution_type", "status", "progress",
         "assigned_to", "created_at", "capability", "priority", "is_fast_tier"
@@ -159,6 +217,14 @@
         "assigned_at", "timeout_at", "completed_at", "created_at", "updated_at"
       ],
       "event": ["id", "task_id", "event", "worker_id", "attempt", "detail", "created_at"],
+      "detail_bundle": ["task", "events", "current_phase", "metadata"],
+      "current_phase": ["phase", "worker_id", "elapsed_seconds"],
+      "detail_metadata": [
+        "total_attempts", "max_retries", "will_retry", "estimated_timeout_in_seconds"
+      ],
+      "stats": [
+        "total", "pending", "assigned", "processing", "completed", "completed_demo", "failed", "cancelled"
+      ],
       "worker_registration": [
         "worker_id", "worker_name", "processor_types", "capabilities", "hostname", "platform", "metadata"
       ],
@@ -170,10 +236,32 @@
         "label": "Word Translation",
         "execution_type": "remote_translation",
         "capability": "translate",
+        "capability_mode": "selectable",
+        "capabilities": ["translate", "ai_translate", "puter_translate"],
         "interactive": true,
         "fast_promotable": true,
         "pycore_local_label": "remote_translation",
         "ui": {"icon": "🔤", "badge": "TRANSLATE", "summary_label": "待翻译任务", "color": "#818cf8"}
+      },
+      {
+        "key": "dictionary_explanation",
+        "label": "Dictionary Explanation",
+        "execution_type": "remote_client",
+        "capability": null,
+        "claimants": ["chrome"],
+        "interactive": false,
+        "pycore_local_label": "remote_client",
+        "ui": {"icon": "📖", "badge": "DICTIONARY", "summary_label": "待词典释义", "color": "#2563eb"}
+      },
+      {
+        "key": "dictionary_explanation_demo",
+        "label": "Dictionary Explanation Demo",
+        "execution_type": "remote_client",
+        "capability": null,
+        "claimants": ["chrome"],
+        "interactive": false,
+        "pycore_local_label": "remote_client",
+        "ui": {"icon": "🧪", "badge": "DICTIONARY DEMO", "summary_label": "待演示词典释义", "color": "#3b82f6"}
       },
       {
         "key": "prompt_translation",
@@ -182,6 +270,7 @@
         "capability": null,
         "claimants": ["pycore", "chrome"],
         "interactive": false,
+        "prompt_payload_field": "text",
         "pycore_local_label": "remote_translation",
         "ui": {"icon": "🌐", "badge": "PROMPT", "summary_label": "待提示词翻译", "color": "#06b6d4"}
       },
@@ -259,6 +348,7 @@
         "capability": null,
         "claimants": ["chrome"],
         "interactive": false,
+        "prompt_payload_field": "question",
         "pycore_local_label": "remote_notebooklm",
         "ui": {"icon": "📓", "badge": "NOTEBOOK", "summary_label": "待 NLM 处理", "color": "#fbbf24"}
       },
@@ -268,6 +358,7 @@
         "execution_type": "remote_gemini",
         "capability": "image",
         "interactive": false,
+        "prompt_payload_field": "prompt",
         "pycore_local_label": "remote_image",
         "ui": {"icon": "🎨", "badge": "IMAGE", "summary_label": "待 AI 生图", "color": "#c084fc"}
       },
@@ -278,6 +369,7 @@
         "capability": null,
         "claimants": ["chrome"],
         "interactive": false,
+        "prompt_payload_field": "question",
         "pycore_local_label": "remote_gemini_text",
         "ui": {"icon": "💬", "badge": "CHAT", "summary_label": "待 AI 对话", "color": "#f472b6"}
       },
@@ -288,6 +380,7 @@
         "capability": null,
         "claimants": ["chrome"],
         "interactive": false,
+        "prompt_payload_field": "prompt",
         "pycore_local_label": "remote_chatgpt",
         "ui": {"icon": "💭", "badge": "CHATGPT", "summary_label": "待 ChatGPT 对话", "color": "#10a37f"}
       },

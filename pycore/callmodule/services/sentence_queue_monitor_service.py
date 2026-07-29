@@ -19,7 +19,7 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
     start_bus_task,
 )
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
 from pycore.callmodule.services.sync.laravel_endpoint_manager import resolve_laravel_base_url
 from pycore.callmodule.services.queue_bump_hub import get_queue_bump_hub

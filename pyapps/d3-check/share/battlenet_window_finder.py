@@ -9,7 +9,7 @@ from typing import Optional, List, Dict, Any
 
 from providor.constants.common import BATTLE_NET_EXE_NAME
 from providor.providor_index import get_config_value_safe
-from pycore.pyfoundations.third_party import get_third_package_win32gui
+from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 from pycore.pyutils.common.browser_window_detector import get_process_exe_path
 
 win32gui = get_third_package_win32gui()

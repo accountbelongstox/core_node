@@ -7,7 +7,7 @@ So log_monitor does not reference log_analyzer; communication is via event cente
 import queue
 from typing import List
 
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from providor.constants.common import LOG_LINE
 
 # Cap lines drained per tick to avoid one tick blocking too long (see LOG_MONITOR_EVENT_BUS_SHORTCOMINGS.md)

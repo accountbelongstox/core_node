@@ -14,6 +14,7 @@ import type {
   TranslateHistoryResponse, TranslateHistoryDeleteResponse, TranslateHistoryClearResponse,
   AgentHistoryIndexResponse, AgentHistoryPromptsResponse, AgentHistorySessionResponse,
   AgentHistoryArticleRecordsResponse,
+  AgentHistoryTestExtractResponse,
   PcQueueOverview, PcCapabilitySettings, PcCapabilityKey,
   PcTaskCenterResponse, QueueCenterControlName, QueueCenterControlResponse,
   QueueCenterSnapshot,
@@ -30,6 +31,7 @@ import type {
 import {
   callRpc, PYCORE_RPC_ROUTES,
 } from './PycoreApiTransport';
+import { GLOBAL_TASK_LIMITS } from './QueueCenterContract';
 
 export const pycoreApiLocal = {
   // --- translation queue (Laravel pending queue, steered via pycore) ------ #
@@ -55,9 +57,8 @@ export const pycoreApiLocal = {
 
   // --- Pycore → Laravel queue capability control plane ------------------- #
   // Status includes the worker loop state, circuit breaker, counters and the
-  // last observed Laravel-side queue counts. Config is a PATCH (only the
-  // provided fields change). Cycle runs one claim→process→submit pass NOW and
-  // returns 400 when assist is disabled.
+  // last observed Laravel-side queue counts. Config updates are partial (only
+  // the provided fields change). Cycle runs one claim→process→submit pass now.
   getAssistStatus: () =>
     callRpc(PYCORE_RPC_ROUTES.assist, { action: 'status' }),
   setAssistConfig: (config: AssistConfigPatch) =>
@@ -72,7 +73,7 @@ export const pycoreApiLocal = {
   // on-disk text log.
   getRecentTasks: (params: { limit?: number; end?: string; worker?: string; task_type?: string } = {}) =>
     callRpc(PYCORE_RPC_ROUTES.taskHistoryGetRecentTasks, {
-      limit: params.limit ?? 100,
+      limit: params.limit ?? GLOBAL_TASK_LIMITS.history_records,
       end: params.end,
       worker: params.worker,
       task_type: params.task_type,
@@ -81,7 +82,7 @@ export const pycoreApiLocal = {
     callRpc(PYCORE_RPC_ROUTES.taskHistoryClearRecentTasks, {}) as Promise<PcTaskClearResponse>,
   getCompletedTasks: (params: { limit?: number; offset?: number; task_type?: string } = {}) =>
     callRpc(PYCORE_RPC_ROUTES.taskHistoryGetCompletedArchive, {
-      limit: params.limit ?? 200,
+      limit: params.limit ?? GLOBAL_TASK_LIMITS.completed,
       offset: params.offset ?? 0,
       task_type: params.task_type,
     }) as Promise<PcCompletedTaskArchiveResponse>,
@@ -267,6 +268,9 @@ export const pycoreApiLocal = {
     >,
   getAgentHistoryArticleRecords: (limit = 100) =>
     callRpc(PYCORE_RPC_ROUTES.agentHistoryArticleRecords, { limit }) as Promise<AgentHistoryArticleRecordsResponse>,
+  /** Probe one tool: parse its newest history source and return the latest prompt. */
+  testAgentHistoryToolExtract: (tool: string) =>
+    callRpc(PYCORE_RPC_ROUTES.agentHistoryTestExtract, { tool }) as Promise<AgentHistoryTestExtractResponse>,
   /** Fetch article audio as a data: URL via RPC (base64 + MIME). */
   getAgentHistoryArticleAudioDataUrl: async (recordId: string | number): Promise<string> => {
     const res = await callRpc(PYCORE_RPC_ROUTES.agentHistoryArticleAudio, {
@@ -337,7 +341,7 @@ export const pycoreApiLocal = {
       date_to: params.date_to,
       task_type: params.task_type,
       worker: params.worker,
-      limit: params.limit ?? 200,
+      limit: params.limit ?? GLOBAL_TASK_LIMITS.history_records,
     }) as Promise<{ success?: boolean; entries?: any[]; total?: number; stored?: number }>,
 
   // --- Word-dictionary TTS auto-start (Queue Center strip) ---------------- #

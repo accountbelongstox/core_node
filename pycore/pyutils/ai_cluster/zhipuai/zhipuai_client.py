@@ -7,7 +7,7 @@ Provides text generation using Zhipu AI's GLM models via REST API.
 """
 
 from typing import Dict, Any, List, Optional
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 
 
 class ZhipuAIClient:

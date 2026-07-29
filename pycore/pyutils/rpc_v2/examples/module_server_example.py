@@ -30,16 +30,17 @@ Call translator:
 import sys
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_uvicorn
+from pycore.pyfoundations.third_party.api import get_third_package_uvicorn
 
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.rpc_v2.server.fastapi_server import FastAPIRPCServer
-from pycore.pyutils.rpc_v2.modules import register_module_routes, register_homepage_routes
+from pycore.pyutils.rpc_v2.modules.auto_register import register_module_routes
+from pycore.pyutils.rpc_v2.modules.homepage_routes import register_homepage_routes
 
 
 def main():

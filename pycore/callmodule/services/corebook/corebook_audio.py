@@ -5,7 +5,7 @@ import os
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.tts import tts_orchestrator
+import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 from pycore.callmodule.services.corebook.corebook_store import (
     absolute_audio_path,
     audio_root,

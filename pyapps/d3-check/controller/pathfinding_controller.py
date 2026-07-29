@@ -13,7 +13,7 @@ from typing import Optional, Tuple, List, Dict, Any
 from pathlib import Path
 
 # Third-party imports
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont
 
 Image = get_third_package_PIL_Image()
 ImageDraw = get_third_package_PIL_ImageDraw()
@@ -28,7 +28,7 @@ controller_path = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, controller_path)
 
 # Project imports
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.image_annotator import ImageAnnotator
 from pycore.pyutils.image_crop import ImageCrop
 from d3utils.cnocr_engine_registry import get_cnocr_engine_default

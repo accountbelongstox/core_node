@@ -27,7 +27,7 @@ use App\Services\TaskManagerService;
  *   - the daily short-sentence center (AppQyV1DailySentenceService), which feeds
  *     the wordnew daily-reading view.
  */
-class PromptTranslationTaskProcessor implements TaskProcessorInterface
+class PromptTranslationTaskProcessor extends AbstractTaskProcessor
 {
     protected TaskManagerService $taskManager;
 
@@ -36,9 +36,14 @@ class PromptTranslationTaskProcessor implements TaskProcessorInterface
         $this->taskManager = $taskManager;
     }
 
-    public function canProcess(GlobalTask $task): bool
+    protected function taskTypeRoles(): array
     {
-        return $task->task_type === 'prompt_translation';
+        return ['prompt_translation'];
+    }
+
+    protected function appName(): ?string
+    {
+        return null;
     }
 
     public function processResult(GlobalTask $task, array $result, bool $isDemoMode): int
@@ -82,8 +87,4 @@ class PromptTranslationTaskProcessor implements TaskProcessorInterface
         return 1;
     }
 
-    public function getPriority(): int
-    {
-        return 10;
-    }
 }

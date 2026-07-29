@@ -6,7 +6,7 @@ Region Detector for D4 Controller. Singleton via get_region_detector(); do not i
 
 from datetime import datetime
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.i18n_manager import i18n_manager
 # D4State functionality now integrated into D4InterfaceData
 from providor.constants.d4 import D4_ANNOTATED_DIR

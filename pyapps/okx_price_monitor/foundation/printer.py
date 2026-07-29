@@ -7,7 +7,7 @@ Provides colorized printing for console output.
 """
 
 from typing import Optional
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class Printer:

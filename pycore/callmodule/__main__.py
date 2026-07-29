@@ -13,11 +13,11 @@ import argparse
 import sys
 from pathlib import Path
 
-from pycore.callmodule.platform.windows_tray import launch_windows_tray
+from pycore.callmodule.platform.windows_startup_manager import launch_windows_tray
 from pycore.callmodule.global_config import init_global_config
-from pycore.pyfoundations.third_party import get_third_package_uvicorn
+from pycore.pyfoundations.third_party.api import get_third_package_uvicorn
 
-from pycore.callmodule.platform import launch_platform_aware
+from pycore.callmodule.callmodule_main import start as launch_platform_aware
 
 
 

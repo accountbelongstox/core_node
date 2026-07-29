@@ -23,7 +23,7 @@ import threading
 import subprocess
 from typing import Optional
 
-from pycore import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from .frontend_config import FrontendConfig
 from .frontend_singleton_detector import FrontendSingletonDetector

@@ -13,9 +13,9 @@ import time
 from pathlib import Path
 from typing import Optional, Any, Dict, List
 
-from pycore import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.clipboard import add_recognition_to_clipboard
+from pycore.pyutils.clipboard.clipboard_sync import add_recognition_to_clipboard
 from pycore.pyctl.speech.cache_info import print_recognition_cache_info
 
 from pycore.pyctl.speech.provider_status import get_provider_status

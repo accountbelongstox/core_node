@@ -13,10 +13,10 @@ It performs two main functions:
 
 import sys
 import os
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 # Dependencies are automatically checked when third_party module is imported
 # Import third_party to trigger dependency check
-from pycore.pyfoundations import third_party
+import pycore.pyfoundations.third_party.api as third_party
 
 # The directory where the standalone tool scripts are located.
 TOOLS_DIR = os.path.join(os.path.dirname(__file__), "py_auto")

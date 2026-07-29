@@ -216,13 +216,43 @@ export function restoreTaskCenterRuntime(): Promise<void> {
 
 async function runLifecycleAction(action: () => Promise<void>): Promise<void> {
   const pendingRestore = restoreInFlight;
+  // A preemptive Stop bumps runtimeEpoch outside this queue; an action still
+  // WAITING here when that happens must be dropped, not run after the Stop.
+  const enqueueEpoch = runtimeEpoch;
   const operation = lifecycleQueue.then(async () => {
+    const superseded = runtimeEpoch !== enqueueEpoch;
     runtimeEpoch++;
     if (pendingRestore) await pendingRestore;
+    if (superseded) return;
     await action();
   });
   lifecycleQueue = operation.catch(() => undefined);
   await operation;
+}
+
+/**
+ * Stop is the escape hatch: it must NEVER queue behind a hung start/restore
+ * (d.txt 6.2.2 — clicking Stop had no effect while a start was stuck in
+ * retries behind a dead endpoint). It bumps runtimeEpoch so any in-flight
+ * restore/start self-rolls-back, then tears everything down immediately
+ * instead of joining lifecycleQueue.
+ */
+async function runStopAction(sendResponse: (response: any) => void): Promise<void> {
+  runtimeEpoch++;
+  taskCenter.stopAll();
+  wordValidityRunnerService.stop();
+  // Belt-and-suspenders: force-clear the Bing watchdog + session run-intent
+  // so the crawler can NEVER resurrect after Stop (even if its processor
+  // was not running in this SW instance).
+  await bingDictionaryWorkerService.stopAndClear();
+  await clearRunIntent();
+  await persistTaskCenterRuntime(false, null);
+  lastStartConfig = null;
+  sendResponse({
+    success: true,
+    message: 'Task Center stopped',
+    status: await buildFullStatus(),
+  });
 }
 
 /** Back-compat: derive capability keys from a raw processorType allowlist. */
@@ -324,22 +354,7 @@ async function handleTaskCenterMessage(
       }
 
       case 'stop': {
-        await runLifecycleAction(async () => {
-          taskCenter.stopAll();
-          wordValidityRunnerService.stop();
-          // Belt-and-suspenders: force-clear the Bing watchdog + session run-intent
-          // so the crawler can NEVER resurrect after Stop (even if its processor
-          // was not running in this SW instance).
-          await bingDictionaryWorkerService.stopAndClear();
-          await clearRunIntent();
-          await persistTaskCenterRuntime(false, null);
-          lastStartConfig = null;
-          sendResponse({
-            success: true,
-            message: 'Task Center stopped',
-            status: await buildFullStatus(),
-          });
-        });
+        await runStopAction(sendResponse);
         break;
       }
 
@@ -427,6 +442,7 @@ async function handleStart(
   config: (TaskCenterConfig & { activeCapabilities?: CapabilityKey[] }) | undefined,
   sendResponse: (response: any) => void,
 ) {
+  const startEpoch = runtimeEpoch;
   if (!config || !config.apiUrl) {
     sendResponse({ success: false, error: 'Config with apiUrl is required to start Task Center' });
     return;
@@ -476,6 +492,15 @@ async function handleStart(
     if (!validityWasRunning) wordValidityRunnerService.stop();
     if (!centerWasRunning) taskCenter.stopAll();
     throw error;
+  }
+
+  // A Stop landed while the lanes were starting — roll back instead of
+  // resurrecting a running state the user already cancelled (d.txt 6.2.2).
+  if (startEpoch !== runtimeEpoch) {
+    wordValidityRunnerService.stop();
+    taskCenter.stopAll();
+    sendResponse({ success: false, error: 'Start superseded by Stop' });
+    return;
   }
 
   lastStartConfig = config;
@@ -547,6 +572,7 @@ async function handleSetCapability(
     sendResponse({ success: false, error: `Unknown capability: ${capability}` });
     return;
   }
+  const capEpoch = runtimeEpoch;
   const def = CAPABILITY_BY_KEY[capability];
   const intent = await getRunIntent();
   const capSet = new Set(intent.activeCapabilities);
@@ -634,7 +660,7 @@ async function handleSetCapability(
       wordValidityRunnerService.stop();
     }
     if (
-      capability === 'bing' &&
+      def.processors.includes(LANES.BING_DICTIONARY) &&
       !activeCapabilities.some((key) =>
         CAPABILITY_BY_KEY[key]?.processors.includes(LANES.BING_DICTIONARY),
       )
@@ -648,6 +674,12 @@ async function handleSetCapability(
   if (activeCapabilities.length === 0 && taskCenter.isTaskCenterRunning()) {
     taskCenter.stopAll();
     lastStartConfig = null;
+  }
+
+  // A Stop landed mid-toggle — do not resurrect run-intent (d.txt 6.2.2).
+  if (capEpoch !== runtimeEpoch) {
+    sendResponse({ success: false, error: 'Capability change superseded by Stop' });
+    return;
   }
 
   // Update run-intent's active set; running is true while >=1 capability active.

@@ -76,7 +76,7 @@ class OKXFrontendConfig:
     @classmethod
     def print_info(cls):
         """Print frontend configuration info"""
-        from pycore import ColorPrint
+        from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
         ColorPrint.blue("=" * 70)
         ColorPrint.blue(" OKX FRONTEND CONFIGURATION")

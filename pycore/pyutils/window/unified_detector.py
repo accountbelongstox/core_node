@@ -36,7 +36,7 @@ from dataclasses import dataclass
 import argparse
 import json
 
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_yaml
+from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy, get_third_package_yaml
 
 import time
 import traceback

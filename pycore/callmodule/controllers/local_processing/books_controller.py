@@ -18,13 +18,15 @@ import json
 import time
 from typing import List, Optional, Tuple
 
-from pycore import ColorPrint, get_user_data_store, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.database.repositories.user_data_store import get_user_data_store
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.system_paths import get_local_data_dir
 from pycore.pyfoundations.text_parsing import (
     guess_language,
     normalize_language_codes,
 )
-from pycore.pyutils.text_stats import compute_text_stats, merge_stats
+from pycore.pyutils.text_stats.text_statistics import compute_text_stats, merge_stats
 from pycore.callmodule.services.processors.book_processor import (
     BOOK_EXTENSIONS,
     iter_books,
@@ -55,7 +57,7 @@ from .books_list_cache import (
 )
 # Books user-data persistence (the "books" section) - moved to books_state.py
 # (reuse-batch); thin delegators below preserve the public API.
-from . import books_state
+import pycore.callmodule.controllers.local_processing.books_state as books_state
 
 # _LIST_CACHE_SUBDIR lives in books_list_cache.py; staging_dir below uses
 # get_local_data_dir() directly (the shared <cache>/pycore dir).

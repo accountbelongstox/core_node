@@ -11,7 +11,7 @@ Example:
 - util_cache.items -> Cache utility items table
 
 Usage:
-    from pycore.database.models import TableKeys
+    from pycore.database.models.table_keys import TableKeys
     table = database_manager.get_table(TableKeys.COMMON_CONFIG)
 """
 

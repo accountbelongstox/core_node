@@ -4,11 +4,11 @@ FastAPI Application Factory
 """
 
 from pathlib import Path
-from pycore.pyfoundations.third_party import get_third_package_fastapi
+from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.callmodule.services.heartbeat_agent_history import (
     register_agent_history_extraction,
 )
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 
 fastapi = get_third_package_fastapi()
 

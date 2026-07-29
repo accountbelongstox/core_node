@@ -15,12 +15,9 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import get_cnocr_pip_package
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.pybasecommon.compute_caps import is_onnx_cuda_usable
-from pycore.pyfoundations.third_party import REC_MORE_CONFIGS_CNOCR
-from pycore.pyfoundations.third_party import (
-    get_third_package_cnocr,
-    get_third_package_PIL_Image,
-    get_third_package_numpy,
-)
+from pycore.pyfoundations.third_party.api import REC_MORE_CONFIGS_CNOCR
+from pycore.pyfoundations.third_party.api import get_third_package_cnocr
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_numpy
 
 try:
 except ImportError:

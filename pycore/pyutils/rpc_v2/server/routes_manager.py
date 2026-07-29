@@ -7,7 +7,7 @@ Route registration helpers for rpc_v2.
 import asyncio
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.rpc_v2.common.typing import RouteConfig
 
 

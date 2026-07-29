@@ -12,7 +12,7 @@ Routes:
 
 import os
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.callmodule.services.sync.laravel_media_sync import (
     resolve_laravel_base_url,

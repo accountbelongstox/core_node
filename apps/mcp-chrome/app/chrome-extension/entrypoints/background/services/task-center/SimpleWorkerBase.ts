@@ -10,8 +10,8 @@
  *   - which task_type(s) it handles (`handlesTaskType`)
  *   - how to do one task (`executeTask`)
  *
- * Fast lane: a worker that advertises >=1 capability also subscribes to the
- * shared `remote_fast` processor lane (see withFastLane). The dispatcher then
+ * Fast lane: a worker advertising a centrally fast-eligible capability also
+ * subscribes to `remote_fast` (see withFastLane). The dispatcher then
  * hands it any fast-tier task whose `capability` matches one this worker
  * advertised. When a pull/heartbeat reports pending_fast>0 the worker fires an
  * immediate wait=0 re-poll (jittered + coalesced) instead of waiting for the
@@ -30,7 +30,12 @@ import { ApiError } from '../../api/BaseApiClient';
 import { logger } from '@/utils/logger';
 import { tabController } from '../tab-controller';
 import { LANES } from '@/utils/task-center-lanes';
-import { FAST_LANE_CAPABILITIES, TASK_STATUS_BY_ROLE } from '@/utils/queue-center-contract';
+import {
+  FAST_LANE_CAPABILITIES,
+  TASK_LIMITS,
+  TASK_STATUS_BY_ROLE,
+  workerResultStatus,
+} from '@/utils/queue-center-contract';
 import type { ProcessorStats } from '@/utils/task-center-types';
 import { submitOutbox, isTerminalWorkerResultError } from '../outbox/submit-outbox';
 
@@ -72,8 +77,6 @@ export interface SimpleWorkerStats extends ProcessorStats {
   lastErrorAt: number | null;
   lastRequestAt: number | null;
 }
-
-type WorkerResultStatusRole = 'processing' | 'completed' | 'failed';
 
 // Once this many worker HTTP calls fail in a row the poll loop backs off to a
 // slow cadence instead of the 1s hot-loop — a down backend must not be hammered.
@@ -231,9 +234,9 @@ export abstract class SimpleWorkerBase {
     this.config = {
       apiUrl: config.apiUrl.trim().replace(/\/+$/, ''),
       workerName: config.workerName || `MCP Chrome ${this.processorKey} Worker`,
-      pollWait: config.pollWait ?? 20,
+      pollWait: config.pollWait ?? TASK_LIMITS.long_poll_seconds,
       heartbeatInterval: config.heartbeatInterval ?? 12,
-      batchSize: config.batchSize ?? 3,
+      batchSize: config.batchSize ?? TASK_LIMITS.worker_pull_default,
     };
 
     this.workerClient = new WorkerApiClient(this.config.apiUrl);
@@ -440,7 +443,9 @@ export abstract class SimpleWorkerBase {
       try {
         // If a fast re-poll was deferred while a cycle was in flight, drain the
         // fast tier now with wait=0 instead of a long poll.
-        const wait = this.needsFastRepoll ? 0 : (this.config?.pollWait ?? 20);
+        const wait = this.needsFastRepoll
+          ? 0
+          : (this.config?.pollWait ?? TASK_LIMITS.long_poll_seconds);
         this.needsFastRepoll = false;
         await this.cycle(wait);
       } catch (error) {
@@ -617,12 +622,12 @@ export abstract class SimpleWorkerBase {
    */
   protected async submitResult(
     taskId: string,
-    statusRole: WorkerResultStatusRole,
+    statusRole: string,
     result?: TaskResult['result'],
     extra?: { error?: string; progress?: number },
   ): Promise<void> {
     if (!this.workerClient) return;
-    const status = TASK_STATUS_BY_ROLE[statusRole];
+    const status = workerResultStatus(statusRole);
     const payload: TaskResult = {
       task_id: taskId,
       worker_id: this.stats.workerId || '',
@@ -657,11 +662,11 @@ export abstract class SimpleWorkerBase {
     }
     // The result is now delivered OR durably owned by the outbox (or terminal):
     // mark terminal + bump stats so dispatchOne's safety-net does not re-submit.
-    if (statusRole === 'completed' || statusRole === 'failed') {
+    if (status === TASK_STATUS_BY_ROLE.completed || status === TASK_STATUS_BY_ROLE.failed) {
       this.terminalPosted = true;
     }
-    if (statusRole === 'completed') this.stats.translated++;
-    if (statusRole === 'failed') this.stats.failed++;
+    if (status === TASK_STATUS_BY_ROLE.completed) this.stats.translated++;
+    if (status === TASK_STATUS_BY_ROLE.failed) this.stats.failed++;
   }
 
   protected delay(ms: number): Promise<void> {

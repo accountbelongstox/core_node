@@ -1,5 +1,2 @@
-"""Install-time tier metadata and API server stubs for TTS/STT prerequisites."""
-
-from pathlib import Path
-
-ASSETS_DIR = Path(__file__).resolve().parent
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

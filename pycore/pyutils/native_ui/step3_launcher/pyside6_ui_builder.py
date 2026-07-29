@@ -16,15 +16,14 @@ tail is delegated to _restart.restart_process (shared with server mode).
 
 from typing import TYPE_CHECKING
 
-from pycore import ColorPrint, THREAD_BUS
-from pycore.pyfoundations.third_party import get_third_package_pyside6
-from pycore.pyutils.native_ui.step1_config import NativeUIConfig
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_pyside6
+from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import configure_webengine_all_tiers
-from pycore.pyutils.native_ui.step5_main_ui.pyside6 import (
-    PySide6Framework,
-    PySide6UIConfig,
-    PySide6TrayMenuItem
-)
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.framework import PySide6Framework
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import PySide6UIConfig
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.system_tray import PySide6TrayMenuItem
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import StartupWindowConfig
 from pycore.pyutils.native_ui.step3_launcher._restart import restart_process
 

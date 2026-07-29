@@ -12,9 +12,10 @@ worker.py. The worker instance is passed at call time.
 import asyncio
 from typing import Any, Dict, List, Tuple
 
-from pycore.callmodule.services import ai_batch_translate
+import pycore.callmodule.services.ai_batch_translate as ai_batch_translate
 from pycore.callmodule.services.task_capability_chains import get_chains
 from pycore.callmodule.services.task_history_store import append_record
+from pycore.callmodule.services.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.translator.dictionary import get_dictionary_service
 from pycore.pyutils.translator.google_translator import GoogleTranslator
@@ -30,6 +31,7 @@ _LANGUAGE_NAME_TO_CODE = {
     "vietnamese": "vi",
     "lao": "lo",
 }
+_WORD_TRANSLATION_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["word_translation"]["key"]
 
 
 def _google_language(language: str, fallback: str) -> str:
@@ -255,7 +257,7 @@ def process_word_translation(worker, task: Dict[str, Any]) -> None:
 
     try:
         append_record({
-            "task_type": "word_translation",
+            "task_type": _WORD_TRANSLATION_TASK_TYPE,
             "worker": "translation_worker",
             "task_id": str(task_id or ""),
             "title": content_preview[:120],

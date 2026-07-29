@@ -13,7 +13,7 @@
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { LANES } from '@/utils/task-center-lanes';
-import { TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
+import { TASK_TYPE_KEYS, taskPromptText } from '@/utils/queue-center-contract';
 import { geminiWebTool } from '../tools/browser/gemini-web';
 import { logger } from '@/utils/logger';
 import { parseWebChatToolResult, extractAudioParams } from './web-chat-worker-common';
@@ -47,18 +47,9 @@ class GeminiWorkerService extends SimpleWorkerBase {
 
   protected async executeTask(task: Task): Promise<void> {
     const payload = (task.payload as any) || {};
-    // Laravel sends {question, title} (AppQyV1AiPromptFanoutTask.php's fan-out
-    // payload / AppQyV1TaskEnqueueController's manual-enqueue validation both
-    // key on question|source_text) -- NOT `prompt`. Also accept `prompt` for
-    // any older/manual caller that used this worker's original field name.
-    const prompt =
-      typeof payload.question === 'string' && payload.question.trim()
-        ? payload.question
-        : typeof payload.source_text === 'string' && payload.source_text.trim()
-          ? payload.source_text
-          : typeof payload.prompt === 'string'
-            ? payload.prompt
-            : '';
+    // The primary field is declared beside gemini_chat in the shared JSON;
+    // source_text/question/prompt remain compatibility fallbacks in one helper.
+    const prompt = taskPromptText(task.task_type, payload);
     if (!prompt.trim()) {
       await this.submitResult(task.task_id, 'failed', undefined, {
         error: 'no question/source_text/prompt in payload',

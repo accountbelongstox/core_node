@@ -31,6 +31,7 @@ export const LANES = {
   REMOTE_SUBTITLE: EXECUTION_TYPES_BY_ROLE.remote_subtitle,
   REMOTE_SENTENCE_AUDIO: EXECUTION_TYPES_BY_ROLE.remote_sentence_audio,
   REMOTE_STT: EXECUTION_TYPES_BY_ROLE.remote_stt,
+  REMOTE_CHATGPT: EXECUTION_TYPES_BY_ROLE.remote_chatgpt,
   // ── Processor / worker identifier keys (a processor's own processorType) ──
   MEDIA_IMAGE: 'media_image',
   QWEN_TTS: 'qwen_tts',

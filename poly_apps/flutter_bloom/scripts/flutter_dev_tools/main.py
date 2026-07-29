@@ -21,7 +21,7 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 # Import from pycore following standards
-from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Import project modules
 from api import app_checker

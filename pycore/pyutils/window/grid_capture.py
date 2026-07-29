@@ -17,7 +17,7 @@ the facade. NEVER imports back into screenshot.py (avoids circular import).
 import time
 from typing import List, Optional, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_win32gui
+from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 
 win32gui = get_third_package_win32gui()
 

@@ -1,7 +1,2 @@
-# -*- coding: utf-8 -*-
-"""Upload Service"""
-class UploadService:
-    def get_tasks(self):
-        return {"success": True, "total": 0, "tasks": []}
-    def get_servers(self):
-        return {"success": True, "servers": []}
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

@@ -5,27 +5,26 @@ namespace App\Services\TaskProcessors;
 use App\Models\GlobalTask;
 use App\Models\AppQyV1GeminiTextResult;
 use App\Services\TaskManagerService;
+use App\Support\QueueCenterContract;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Gemini Text Task Processor
+ * Shared web-chat text result processor (legacy class/table name retained).
  *
- * Write-back stage for the `gemini_chat` task type (execution_type
- * 'remote_gemini_text' — its own dedicated lane, pulled by the chrome Task
- * Center Gemini-text worker which drives the chrome_gemini MCP tool). Text-only
- * sibling of `gemini_image`: no image, no dictionary-row attachment — just a
- * prompt in, a text answer out (mirrors NotebookLmTaskProcessor).
+ * Both gemini_chat and chatgpt_chat produce the same prompt-in/answer-out
+ * artifact. Their lanes and primary payload fields remain separate in
+ * config/queue_center_contract.json, while this one processor owns persistence.
  *
  * Task contract:
- *   payload : { question|source_text, title? }
- *   result  : { result: { answer?, provider:'gemini' } }
+ *   payload : { <contract prompt_payload_field>|source_text, title? }
+ *   result  : { result?: { answer?, provider? }, answer?, provider? }
  *
  * The completed answer is persisted as a lightweight text record
  * (app_qy_v1_gemini_text_results); the authoritative task completion is still
  * the global_tasks row status set by submitResult — this only stores the
  * artifact.
  */
-class GeminiTextTaskProcessor implements TaskProcessorInterface
+class GeminiTextTaskProcessor extends AbstractTaskProcessor
 {
     protected TaskManagerService $taskManager;
 
@@ -34,10 +33,9 @@ class GeminiTextTaskProcessor implements TaskProcessorInterface
         $this->taskManager = $taskManager;
     }
 
-    public function canProcess(GlobalTask $task): bool
+    protected function taskTypeRoles(): array
     {
-        return $task->app_name === 'AppQyV1'
-            && $task->task_type === 'gemini_chat';
+        return ['gemini_chat', 'chatgpt_chat'];
     }
 
     public function processResult(GlobalTask $task, array $result, bool $isDemoMode): int
@@ -53,9 +51,9 @@ class GeminiTextTaskProcessor implements TaskProcessorInterface
         // or send the fields flat — accept both.
         $inner = (isset($result['result']) && is_array($result['result'])) ? $result['result'] : $result;
 
-        $question = $payload['question'] ?? ($payload['source_text'] ?? null);
+        $question = QueueCenterContract::taskPromptPayloadText($task->task_type, $payload);
         $answer = $inner['answer'] ?? null;
-        $provider = $inner['provider'] ?? 'gemini';
+        $provider = $inner['provider'] ?? $task->task_type;
         $title = $payload['title'] ?? null;
 
         // Nothing usable to store — leave the task completed without a record.
@@ -75,7 +73,7 @@ class GeminiTextTaskProcessor implements TaskProcessorInterface
                 'provider' => is_string($provider) ? mb_substr($provider, 0, 40) : 'gemini',
             ]);
 
-            Log::info('[GeminiTextTaskProcessor] Gemini text answer stored', [
+            Log::info('[GeminiTextTaskProcessor] Web-chat answer stored', [
                 'task_id' => $task->task_id,
                 'has_answer' => true,
             ]);
@@ -92,8 +90,4 @@ class GeminiTextTaskProcessor implements TaskProcessorInterface
         }
     }
 
-    public function getPriority(): int
-    {
-        return 10;
-    }
 }

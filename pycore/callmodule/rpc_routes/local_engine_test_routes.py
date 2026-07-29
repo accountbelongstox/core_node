@@ -27,7 +27,7 @@ Routes:
 import asyncio
 from typing import Any, Dict, List
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     LOCAL_AI_CHAT,
     LOCAL_AI_IMAGE_TEST,
@@ -40,15 +40,15 @@ from pycore.callmodule.rpc_routes.route_names import (
     LOCAL_TTS_TEST,
 )
 from pycore.pyfoundations.serialized_worker import await_bus_task
-from pycore.pyctl.ai import speech_history
+import pycore.pyctl.ai.speech_history as speech_history
 from pycore.pyctl.ai.ai_gateway import generate_image, generate_text, gateway_status
 from pycore.pyutils.common.api_secrets import streamelements_key_present
 from pycore.pyutils.edge_tts.edge_tts_client import get_edge_tts_client
-from pycore.pyutils.ocr_cluster import ocr_status as ocr_orchestrator_status
-from pycore.pyutils.ocr_cluster import ocr_test
-from pycore.pyutils.stt import stt_status as stt_orchestrator_status
-from pycore.pyutils.stt import stt_test as stt_orchestrator_test
-from pycore.pyutils.tts import tts_status as tts_orchestrator_status
+from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import ocr_status as ocr_orchestrator_status
+from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import ocr_test
+from pycore.pyutils.stt.stt_orchestrator import stt_status as stt_orchestrator_status
+from pycore.pyutils.stt.stt_orchestrator import stt_test as stt_orchestrator_test
+from pycore.pyutils.tts.tts_orchestrator import tts_status as tts_orchestrator_status
 from pycore.pyutils.tts.tts_orchestrator import get_edge_cooldown_seconds
 from pycore.pyutils.tts.tts_orchestrator import tts_test as tts_orchestrator_test
 from pycore.pyutils.tts.tts_service_manager import get_server_settings

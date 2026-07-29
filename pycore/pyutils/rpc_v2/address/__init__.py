@@ -1,6 +1,2 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-from .address_provider import RPCAddressProvider, RPCAddress
-
-__all__ = ["RPCAddressProvider", "RPCAddress"]
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

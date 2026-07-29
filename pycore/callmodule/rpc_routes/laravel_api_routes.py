@@ -17,7 +17,7 @@ Routes:
 - laravel_api.probe: probe one or all endpoints (3s timeout)
 """
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,

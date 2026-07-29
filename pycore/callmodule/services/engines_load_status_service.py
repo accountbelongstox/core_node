@@ -3,7 +3,7 @@
 
 from typing import Any, Dict
 
-from pycore.pyutils.common import model_load_status
+import pycore.pyutils.common.model_load_status as model_load_status
 from pycore.pyutils.common.managed_service import managed_services
 
 

@@ -22,8 +22,8 @@ THREAD_BUS Integration:
 import os
 import re
 import socket
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 import time
 from dataclasses import dataclass

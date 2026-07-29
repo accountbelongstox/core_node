@@ -21,7 +21,7 @@ from pycore.pyfoundations.serialized_worker import start_bus_task
 from typing import Any, Optional
 
 from PySide6.QtCore import QObject, Signal
-from pycore import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 
 class TickTimer(QObject):

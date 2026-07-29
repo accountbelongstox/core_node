@@ -11,7 +11,7 @@ operations plus status tracking to prevent duplicate submissions.
 from collections import deque
 from typing import Deque, Dict, Optional
 
-from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.tts_models import (
     DocumentModel,
     SentenceModel,

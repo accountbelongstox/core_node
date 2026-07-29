@@ -119,7 +119,9 @@ class AppQyV1TaskEnqueueController extends Controller
 
         // Capability-routed task types are pinned so a caller cannot place work
         // on a fast lane whose worker cannot execute that task shape.
-        $capability = $taskDefinition['capability'] ?? ($validated['capability'] ?? null);
+        $capability = ($taskDefinition['capability_mode'] ?? 'fixed') === 'selectable'
+            ? ($validated['capability'] ?? ($taskDefinition['capability'] ?? null))
+            : ($taskDefinition['capability'] ?? null);
 
         // Honor "jump to task-top" only for the privileged translate/audio types;
         // for everything else interactive is ignored so they keep their natural
@@ -160,45 +162,19 @@ class AppQyV1TaskEnqueueController extends Controller
      */
     private function validatePayload(string $taskType, array $payload): ?string
     {
-        if ($taskType === 'notebooklm') {
-            $hasQuestion = (isset($payload['question']) && is_string($payload['question']) && $payload['question'] !== '')
-                || (isset($payload['source_text']) && is_string($payload['source_text']) && $payload['source_text'] !== '');
-            if (!$hasQuestion) {
-                return 'notebooklm payload requires a non-empty question or source_text';
+        $taskDefinition = QueueCenterContract::taskTypeDefinition($taskType);
+        if (array_key_exists('prompt_payload_field', $taskDefinition ?? [])) {
+            if (QueueCenterContract::taskPromptPayloadText($taskType, $payload) === null) {
+                $field = QueueCenterContract::taskTypePromptPayloadField($taskType);
+                if ($taskType === QueueCenterContract::taskTypeKey('gemini_image')) {
+                    // The message also flags the SHOULD fields so an operator who
+                    // omits word/language understands the result would be dropped.
+                    return "{$taskType} payload requires a non-empty {$field}; it SHOULD also include word + language, "
+                        . 'otherwise the generated image has no dictionary row to attach to and the result is dropped '
+                        . '(prompt-only = lane test).';
+                }
+                return "{$taskType} payload requires a non-empty {$field} or source_text";
             }
-            return null;
-        }
-
-        if ($taskType === 'gemini_chat') {
-            $hasQuestion = (isset($payload['question']) && is_string($payload['question']) && $payload['question'] !== '')
-                || (isset($payload['source_text']) && is_string($payload['source_text']) && $payload['source_text'] !== '');
-            if (!$hasQuestion) {
-                return 'gemini_chat payload requires a non-empty question or source_text';
-            }
-            return null;
-        }
-
-        if ($taskType === 'chatgpt_chat') {
-            $hasPrompt = isset($payload['prompt']) && is_string($payload['prompt']) && $payload['prompt'] !== '';
-            if (!$hasPrompt) {
-                return 'chatgpt_chat payload requires a non-empty prompt';
-            }
-            return null;
-        }
-
-        if ($taskType === 'gemini_image') {
-            // HARD requirement: prompt (the only thing the worker needs to run).
-            $hasPrompt = isset($payload['prompt']) && is_string($payload['prompt']) && $payload['prompt'] !== '';
-            if (!$hasPrompt) {
-                // The message also flags the SHOULD fields so an operator who
-                // omits word/language understands the result would be dropped.
-                return 'gemini_image payload requires a non-empty prompt; it SHOULD also include word + language, '
-                    . 'otherwise the generated image has no dictionary row to attach to and the result is dropped '
-                    . '(prompt-only = lane test).';
-            }
-            // Graceful: a prompt-only task is allowed (lane test) but the
-            // generated image cannot be persisted without word/language — the
-            // processor logs and drops it. Do NOT hard-fail here.
             return null;
         }
 

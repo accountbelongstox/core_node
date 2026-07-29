@@ -10,13 +10,13 @@ import time
 from dataclasses import asdict
 from typing import Any, Dict, Optional
 
-from pycore.pyfoundations.third_party import get_third_package_fastapi
+from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 
 # Get fastapi via third_party manager
 fastapi = get_third_package_fastapi()
 Request = fastapi.Request
 
-from pycore.pyutils.rpc_v2.config import get_rpc_config
+from pycore.pyutils.rpc_v2.config.rpc_config import get_rpc_config
 from pycore.pyutils.rpc_v2.constants import (
     RPC_PROTOCOL_VERSION,
     RPC_STATUS_PATH,
@@ -25,7 +25,7 @@ from pycore.pyutils.rpc_v2.constants import (
     RPC_PROTOCOL_SYNC_PATH,
 )
 from pycore.pyutils.rpc_v2.protocol.models import RPCServiceInfo, RPCAddressResponse
-from pycore.pyutils.rpc_v2.address import RPCAddressProvider
+from pycore.pyutils.rpc_v2.address.address_provider import RPCAddressProvider
 
 
 class RPCProtocolClient:

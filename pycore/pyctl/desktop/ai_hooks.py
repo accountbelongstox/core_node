@@ -7,7 +7,7 @@ pipelines (processor, background_services) cannot import pycore.pyctl.ai
 directly. Instead they call THESE hooks, and the APP layer (callmodule) injects
 the unified AI gateway at startup:
 
-    from pycore.pyctl.ai import generate_text, describe_image
+    from pycore.pyctl.ai.ai_gateway import generate_text, describe_image
     from pycore.pyctl.desktop.ai_hooks import set_ai_handlers
     set_ai_handlers(text_handler=generate_text, image_handler=describe_image)
 
@@ -21,7 +21,7 @@ ONLY AI exit.
 
 from typing import Any, Callable, Dict, Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
 
 _AI_HANDLERS = SerializedValue(

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from pycore.pyfoundations.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT
+from pycore.pyfoundations.pygvar.constants import PROJECT_ROOT as PYCORE_PROJECT_ROOT
 
 
 

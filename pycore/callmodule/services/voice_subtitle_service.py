@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyctl.desktop import get_voice_subtitle_queue
+from pycore.pyctl.desktop.queue_manager import get_voice_subtitle_queue
 from pycore.pyctl.desktop.background_services import get_background_services
 from pycore.pyctl.desktop.processor import process_image_input, process_text_input
 from pycore.pyctl.desktop.task_manager import get_task_manager

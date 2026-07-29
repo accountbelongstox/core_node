@@ -3,8 +3,8 @@
 
 import asyncio
 
-from pycore import ColorPrint
-from pycore.callmodule.controllers.local_processing import VideoExtractController
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.callmodule.controllers.local_processing.video_extract_controller import VideoExtractController
 from pycore.callmodule.rpc_routes.route_names import (
     UI_VIDEO_EXTRACT_CAPABILITIES,
     UI_VIDEO_EXTRACT_GET_TASK,

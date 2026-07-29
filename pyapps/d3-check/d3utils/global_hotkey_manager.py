@@ -17,7 +17,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 # Direct pycore imports (no secondary encapsulation)
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.hotkey.global_hotkey_listener import (
     get_global_hotkey_listener,
     register_global_hotkey,

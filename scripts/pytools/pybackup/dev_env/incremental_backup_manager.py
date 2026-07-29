@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
-from pycore.pyfoundations.pygvar import BACKUP_METADATA_FILENAME, BACKUP_INDEX_FILENAME
+from pycore.pyfoundations.pygvar.constants import BACKUP_METADATA_FILENAME, BACKUP_INDEX_FILENAME
 
 logger = logging.getLogger(__name__)
 

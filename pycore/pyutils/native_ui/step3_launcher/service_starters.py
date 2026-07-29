@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore.pyutils.native_ui.step9_frontend import FrontendLauncherThread
+from pycore.pyutils.native_ui.step9_frontend.frontend_thread import FrontendLauncherThread
 """
 Service starters for the native UI launcher.
 
@@ -29,13 +29,12 @@ CIRCULAR IMPORT NOTE:
 from pathlib import Path
 from typing import Optional, Any, TYPE_CHECKING
 
-from pycore import ColorPrint, THREAD_BUS
-from pycore.pyutils.native_ui.step1_config import NativeUIConfig
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
-from pycore.pyutils.native_ui.step9_frontend import (
-    FrontendConfig,
-    start_frontend_if_needed
-)
+from pycore.pyutils.native_ui.step9_frontend.frontend_config import FrontendConfig
+from pycore.pyutils.native_ui.step9_frontend.frontend_starter import start_frontend_if_needed
 from pycore.pylauncher.singleton_detector import SingletonDetector
 from pycore.pyfoundations.launcher_config import LauncherConfig
 # ServiceLauncher lives in the higher pylauncher layer; obtain it via the
@@ -47,7 +46,7 @@ from pycore.pyfoundations.service_launcher_provider import get_service_launcher
 import traceback
 
 from pycore.pyutils.common.port_utils import ensure_ports_available
-from pycore.pyutils.native_ui.step6_tray import TrayMenuItem
+from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
 
 
 

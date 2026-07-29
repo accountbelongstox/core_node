@@ -14,11 +14,9 @@ The ServerManager will automatically:
 - Clean up on application exit
 """
 
-from pycore.pyutils.native_ui import (
-    NativeUIConfig,
-    launch_native_app,
-    get_server_manager
-)
+from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
+from pycore.pyutils.native_ui.step3_launcher.launch_native_app import launch_native_app
+from pycore.pyutils.native_ui.step2_port_url.server_manager import get_server_manager
 
 import tempfile
 from pathlib import Path

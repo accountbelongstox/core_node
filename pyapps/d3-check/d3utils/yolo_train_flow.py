@@ -12,7 +12,7 @@ import subprocess
 import sys
 from typing import List, Optional, Tuple
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d3utils.yolo_record import (
     run_gameaisdk_start_record,
     stop_record,
@@ -52,7 +52,7 @@ yolo_data_layout = None
 if _root:
     try:
         from pycore.pyutils.voc_annotator.main_window import run_voc_annotator
-        from pycore.pyutils.voc_annotator import yolo_data_layout
+import pycore.pyutils.voc_annotator.yolo_data_layout as yolo_data_layout
     except ImportError:
         pass
 

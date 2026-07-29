@@ -23,7 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from typing import Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pyapps.matrix.services import VideoStreamService, DeviceIDManager
 
 

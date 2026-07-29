@@ -3,13 +3,13 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_WORD_TTS_STATUS,
     UI_WORD_TTS_CONFIG,
     UI_WORD_TTS_RUN_ONCE,
 )
-from pycore.callmodule.services import get_tts_queue_poller_service
+from pycore.callmodule.services.tts_queue_poller_service import get_tts_queue_poller_service
 from pycore.callmodule.services.word_tts_auto import apply_auto_start, get_status
 
 

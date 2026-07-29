@@ -11,7 +11,7 @@ import os
 import subprocess
 import sys
 import time
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 from typing import Dict, List, Callable, Optional, Set
 from dataclasses import dataclass
 from enum import Enum

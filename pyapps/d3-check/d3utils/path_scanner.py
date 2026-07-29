@@ -18,7 +18,7 @@ from providor.constants.d3 import (
     ROSBOT_DIR_NAMESPACE_ASIA,
     ROSBOT_DIR_NAMESPACE_CN,
 )
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.providor_index import get_config_section
 from d3utils.drive_order import get_fixed_drive_roots_for_scan
 

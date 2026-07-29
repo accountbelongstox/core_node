@@ -13,9 +13,9 @@ import json
 from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_uiautomation
+from pycore.pyfoundations.third_party.api import get_third_package_uiautomation
 
-from pycore.pyfoundations.third_party import get_third_package_win32api
+from pycore.pyfoundations.third_party.api import get_third_package_win32api
 
 
 uiautomation = get_third_package_uiautomation()

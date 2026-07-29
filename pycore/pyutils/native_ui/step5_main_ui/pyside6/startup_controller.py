@@ -15,7 +15,8 @@ contributes methods, so it composes safely with the QObject-derived
 ThreadBusBridgeMixin via cooperative multiple inheritance.
 """
 
-from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.native_ui.step4_startup.startup_window import ColorPrintCapture  # noqa: F401  (kept for legacy import compatibility)
 from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals

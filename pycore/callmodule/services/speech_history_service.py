@@ -16,8 +16,8 @@ Endpoints (prefix /api/local/speech):
 import base64
 import os
 
-from pycore.pyctl.ai import speech_history
-from pycore.pyutils.common import system_launcher
+import pycore.pyctl.ai.speech_history as speech_history
+import pycore.pyutils.common.system_launcher as system_launcher
 
 
 def history(limit: int = 50):

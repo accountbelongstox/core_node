@@ -15,10 +15,7 @@ NEVER imports back into screenshot.py (avoids circular import within the window 
 
 from typing import Optional, Tuple
 
-from pycore.pyfoundations.third_party import (
-    get_third_package_PIL_Image,
-    get_third_package_mss,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_mss
 
 mss = get_third_package_mss()
 Image = get_third_package_PIL_Image()

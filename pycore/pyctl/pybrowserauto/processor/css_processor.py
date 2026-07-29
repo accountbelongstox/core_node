@@ -12,7 +12,7 @@ from urllib.parse import urljoin
 from typing import Dict, Optional, List
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from pycore.pyctl.pybrowserauto.core import URLRewriter
+from pycore.pyctl.pybrowserauto.core.url_rewriter import URLRewriter
 
 
 

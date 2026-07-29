@@ -12,7 +12,7 @@ import os
 from typing import Optional, Callable, Dict, Any, List
 
 # Direct pycore imports (no secondary encapsulation)
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Import unified styles
 from ..unified_styles import UnifiedStyles

@@ -10,6 +10,7 @@
  */
 
 import type { CapabilityKey } from './task-capabilities';
+import { TASK_LIMITS } from './queue-center-contract';
 export type { TaskRow } from './queue-center-contract';
 
 // ─────────────────────────── Message envelope ───────────────────────────
@@ -25,10 +26,10 @@ export const SUBMIT_OUTBOX_MSG = 'submit_outbox' as const;
 // Single source for the numeric worker defaults + the default translation
 // language pair, so the popup composable and every worker agree on one value.
 
-/** Default poll interval / batch size (5) and heartbeat cadence (60s). */
+/** Extension scheduling defaults plus the central worker pull default. */
 export const TASK_CENTER_DEFAULTS = {
   pollInterval: 5,
-  batchSize: 5,
+  batchSize: TASK_LIMITS.worker_pull_default,
   heartbeatInterval: 60,
 } as const;
 

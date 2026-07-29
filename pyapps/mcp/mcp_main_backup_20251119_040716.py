@@ -38,7 +38,7 @@ os.environ.setdefault("MCP_PROJECT_ROOT", str(PROJECT_ROOT))
 # Note: ColorPrint MCP mode is automatically enabled by pymain.py when app=mcp is detected
 # No need to call ColorPrint.enable_mcp_mode() here
 
-from pycore.pyfoundations.third_party import get_third_package_FastMCP, get_third_package_Context
+from pycore.pyfoundations.third_party.api import get_third_package_FastMCP, get_third_package_Context
 
 # Ensure fastmcp can wrap sys.stdout/sys.stderr even when the host replaces the
 # streams with raw BufferedWriter objects (common in sandboxed CLIs).

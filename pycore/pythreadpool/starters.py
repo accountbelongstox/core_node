@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from pycore.pyctl.speech.speech_thread import SpeechTranscriptionThread
-from pycore.pyutils.native_ui.step5_main_ui.pyside6 import PySide6UIThread, PySide6UIConfig, StartupWindowConfig
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.ui_thread import PySide6UIThread
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import PySide6UIConfig, StartupWindowConfig
 from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem, PYSTRAY_AVAILABLE
 from pycore.pyutils.native_ui.step6_tray.tray_thread import TkinterSystemTrayThread
@@ -29,13 +30,14 @@ import threading
 import traceback
 from typing import Dict, Any, Optional
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedValue
 from .registry import SERVICE_STARTERS, THREAD_REGISTRY
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 
-from pycore.pyheartbeat import initialize_heartbeat_system
-from pycore.pyutils.rpc_v2 import FastAPIRPCServerRunner
+from pycore.pyheartbeat.heartbeat import initialize_heartbeat_system
+from pycore.pyutils.rpc_v2.server.server_runner import FastAPIRPCServerRunner
 
 
 

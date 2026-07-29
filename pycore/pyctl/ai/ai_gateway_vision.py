@@ -21,8 +21,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_requests
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_requests
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient
 from pycore.pyctl.ai.ai_keys import PROVIDERS, first_secret
 from pycore.pyctl.ai.ai_gateway_state import _PROBE_TTL_S

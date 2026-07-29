@@ -10,7 +10,10 @@ import time
 from typing import Dict, Optional, List, Callable
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from pycore.pyutils.pybrowser.fetchers import HTTPFetcher, BrowserFetcher, IframeFetcher, TampermonkeyFetcher
+from pycore.pyutils.pybrowser.fetchers.http_fetcher import HTTPFetcher
+from pycore.pyutils.pybrowser.fetchers.browser_fetcher import BrowserFetcher
+from pycore.pyutils.pybrowser.fetchers.iframe_fetcher import IframeFetcher
+from pycore.pyutils.pybrowser.fetchers.tampermonkey_fetcher import TampermonkeyFetcher
 
 
 

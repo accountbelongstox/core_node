@@ -11,11 +11,7 @@ from pathlib import Path
 from typing import Optional, Union, Dict, List
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import (
-    get_third_package_cv2,
-    get_third_package_numpy,
-    get_third_package_PIL_Image,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
 
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
@@ -26,7 +22,7 @@ current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parent
 sys.path.insert(0, str(project_root))
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.constants.common import DEBUG, TMP_DIR
 from providor.constants.d4 import D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT
 from providor.providor_index import D4_TEMPLATE_CONFIGS

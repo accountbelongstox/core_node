@@ -57,8 +57,8 @@ def _test_tensor_on_cuda():
 def _test_cnocr_context(context: str, run_one_ocr: bool = True):
     """Try CnOcr(context=context); if run_one_ocr, call .ocr() on a tiny image to trigger device use. Return (success: bool, message: str)."""
     try:
-        from pycore.pyfoundations.third_party import get_third_package_cnocr
-        from pycore.pyfoundations.third_party import get_third_package_numpy
+        from pycore.pyfoundations.third_party.api import get_third_package_cnocr
+        from pycore.pyfoundations.third_party.api import get_third_package_numpy
         cnocr_module = get_third_package_cnocr()
         if cnocr_module is None:
             return False, "cnocr not installed (pip install cnocr[ort-cpu] or cnocr[ort-gpu])"

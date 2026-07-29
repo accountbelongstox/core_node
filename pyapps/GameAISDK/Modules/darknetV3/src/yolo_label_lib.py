@@ -26,7 +26,7 @@ while _dir:
 
 get_third_package_labelImg = None
 try:
-    from pycore.pyfoundations.third_party import get_third_package_labelImg
+    from pycore.pyfoundations.third_party.api import get_third_package_labelImg
 except ImportError:
     pass
 
@@ -227,7 +227,7 @@ def annotations_to_yolo_segment(
     Returns (True, "Converted N files") or (False, error_message).
     """
     try:
-        from pycore.pyutils.voc_annotator import annotation_io
+import pycore.pyutils.voc_annotator.annotation_io as annotation_io
     except ImportError:
         return False, "pycore not available for segment export"
     if not annotations_dir or not os.path.isdir(annotations_dir):

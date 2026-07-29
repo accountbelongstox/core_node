@@ -5,7 +5,7 @@ Kanai Cube operations: panel toggle, reset to first page, navigate, upgrade/refo
 import time
 from typing import Any
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from share.game_interface_data import (
     get_scaled_kanai_put_material_button,
     get_scaled_kanai_right_panel_toggle,

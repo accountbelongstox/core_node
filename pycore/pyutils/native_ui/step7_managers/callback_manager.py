@@ -12,7 +12,7 @@ Supports multiple callbacks executed in order.
 """
 
 from typing import List, Callable, Optional
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     init_serialized_owner,

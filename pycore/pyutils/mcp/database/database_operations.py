@@ -15,7 +15,7 @@ from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
 )
-from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
+from pycore.pyfoundations.third_party.api import get_third_package_sqlalchemy
 
 import re
 

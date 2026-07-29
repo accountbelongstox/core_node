@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.controllers.management.local_processing_controller import LocalProcessingController
 from pycore.callmodule.models.management.local_processing_models import LocalProcessingConfig
 from pycore.callmodule.rpc_routes.route_names import UI_LOCAL_CONFIG_UPDATE_CONFIG

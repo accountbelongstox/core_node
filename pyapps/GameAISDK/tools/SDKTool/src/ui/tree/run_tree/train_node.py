@@ -24,11 +24,7 @@ import time
 import traceback
 from collections import OrderedDict
 
-from pycore.pyfoundations.third_party import (
-    get_third_package_numpy,
-    get_third_package_urllib3,
-    get_third_package_matplotlib,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_urllib3, get_third_package_matplotlib
 
 matplotlib = get_third_package_matplotlib()
 plot = matplotlib.pyplot

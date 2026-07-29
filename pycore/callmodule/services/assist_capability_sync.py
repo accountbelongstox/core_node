@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_user_data_store
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 
 
 def _toggle_callback(name: str, want: bool) -> Tuple[bool, Optional[str]]:

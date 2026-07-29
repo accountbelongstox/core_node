@@ -3,9 +3,9 @@
 
 import asyncio
 
-from pycore import ColorPrint
-from pycore.callmodule.rpc_routes import route_names as rn
-from pycore.callmodule.services import vocabulary_service as vocab
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+import pycore.callmodule.rpc_routes.route_names as rn
+import pycore.callmodule.services.vocabulary_service as vocab
 
 
 def register_local_vocabulary_routes(server):

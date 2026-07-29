@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_SUBTITLE_SEARCH_STATUS,
     UI_SUBTITLE_SEARCH_PROBE,

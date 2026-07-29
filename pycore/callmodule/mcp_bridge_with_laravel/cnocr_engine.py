@@ -9,7 +9,7 @@ import time
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 from pycore.pyfoundations.pybasecommon.compute_caps import get_cnocr_pip_package
 
 # Get logger

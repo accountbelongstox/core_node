@@ -8,7 +8,7 @@ Disconnected: SIFT match of d3_disconnected template (providor.constants.d3.D3_D
 
 from typing import Optional, List, Dict, Any, Tuple
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from share.game_interface_data import get_game_interface_data, get_screen_resolution
 
 from d3utils.d3_manager import get_d3_manager

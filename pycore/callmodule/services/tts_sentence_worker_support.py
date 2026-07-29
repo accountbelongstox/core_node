@@ -9,12 +9,13 @@ from typing import Any, Dict, List, Optional, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.callmodule.services.sync.laravel_client import get_laravel_client
+from pycore.callmodule.services.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY
 from pycore.callmodule.services.tts_concurrency import (
     effective_concurrency,
     recommended_concurrency,
 )
 from pycore.pyctl.desktop.task_manager import get_task_manager
-from pycore.pyutils.tts import tts_orchestrator
+import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 
 CLAIM_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/claim"
 REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/report"
@@ -22,6 +23,7 @@ _CLAIM_TIMEOUT = 60
 _REPORT_TIMEOUT = 60
 _MAX_BATCH = 50
 _ENGINE_PROBE_TTL_S = 60.0
+_SENTENCE_AUDIO_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
 
 
 class SentencePriorityQueue:
@@ -386,7 +388,9 @@ class TTSSentenceWorkerApiMixin:
                 language,
             )
             local_id = tm.create_task(
-                task_type="sentence_audio",
+                # The local UI record retains the Laravel task key from the
+                # shared JSON model; it must not introduce a history alias.
+                task_type=_SENTENCE_AUDIO_TASK_TYPE,
                 input_data={
                     "remote_task_id": task.get("task_id"),
                     "content_id": task.get("content_id") or task.get("sentence_id"),

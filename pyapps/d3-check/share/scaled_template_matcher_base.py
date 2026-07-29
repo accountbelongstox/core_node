@@ -10,9 +10,9 @@ Subclass provides: standard_width, standard_height, get_scale_factors(), get_tem
 from typing import Optional, Union, Dict, List, Tuple, Callable, Any
 from pathlib import Path
 
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
 
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()

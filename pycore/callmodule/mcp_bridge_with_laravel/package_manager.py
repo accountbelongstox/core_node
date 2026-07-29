@@ -18,7 +18,7 @@ import subprocess
 import sys
 
 from constants import FileProcessorConstants
-from pycore.pyfoundations.third_party import build_pip_install_command
+from pycore.pyfoundations.third_party.api import build_pip_install_command
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,

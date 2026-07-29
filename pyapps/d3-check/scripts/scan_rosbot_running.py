@@ -24,7 +24,7 @@ try:
 except Exception:
     pass
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d3utils.rosbot_manager import get_rosbot_manager
 
 

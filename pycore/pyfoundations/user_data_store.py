@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 from pycore.pyfoundations.app_config_path import get_app_config_dir
 

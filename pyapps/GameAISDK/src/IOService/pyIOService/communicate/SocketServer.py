@@ -19,7 +19,7 @@ for _ in range(12):
 
 import queue
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from communicate.SocketThread import RecvThread
 from communicate.SocketThread import SendThread
 from communicate.ZMQSocket import ZMQSocket

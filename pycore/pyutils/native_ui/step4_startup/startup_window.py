@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import time
-from pycore import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
 """
 Startup Window Helpers - ColorPrintCapture only
@@ -13,7 +13,7 @@ This file keeps ColorPrintCapture for redirecting ColorPrint/stdout/stderr to an
 import sys
 import io
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class ColorPrintCapture:
@@ -21,7 +21,7 @@ class ColorPrintCapture:
     Capture ColorPrint output and redirect to TkinterStartupThread (or any object with log()).
 
     Usage:
-        from pycore.pyutils.native_ui.startup_window_thread import TkinterStartupThread
+        from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
         startup_thread = TkinterStartupThread(app_name="My App")
         startup_thread.start()
         capture = ColorPrintCapture(startup_thread)

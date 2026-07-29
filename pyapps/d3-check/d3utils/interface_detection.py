@@ -6,7 +6,7 @@ Used by game_assistant_controller and bag_info_collector; rules (left 30%, templ
 
 from typing import Optional, Any, Dict, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_PIL_Image
 
 np = get_third_package_numpy()
 PIL_Image = get_third_package_PIL_Image()

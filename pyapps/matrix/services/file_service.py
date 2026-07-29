@@ -16,7 +16,7 @@ except ImportError:
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from pycore.pyutils.device import ADBManager
+from pycore.pyutils.device.adb_manager import ADBManager
 from pyapps.matrix.matrix_config import Config
 
 

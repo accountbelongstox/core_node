@@ -24,7 +24,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # This file lives at pycore/callmodule/platform/system_service_manager.py, so the
 # repo root is 4 parents up.

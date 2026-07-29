@@ -9,7 +9,7 @@ import queue
 import threading
 from typing import Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from providor.constants.common import CMD_SHUTDOWN
 

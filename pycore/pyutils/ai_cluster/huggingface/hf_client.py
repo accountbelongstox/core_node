@@ -9,7 +9,7 @@ was retired and no longer resolves.
 
 from typing import Any, Dict, List, Optional
 
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 
 
 class HuggingFaceClient:

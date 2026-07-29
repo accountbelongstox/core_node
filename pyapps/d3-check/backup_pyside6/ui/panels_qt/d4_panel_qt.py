@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QTextEdit, QFrame, QScrollArea,
 )
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.i18n_manager import i18n_manager
 from controller.d4func.map_name_utils import get_current_map_name_from_shared_data
 from runtime import is_shutdown_requested

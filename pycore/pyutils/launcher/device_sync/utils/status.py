@@ -9,11 +9,11 @@ Provides status checking and diagnostic tools for Device Sync.
 import sys
 import os
 import socket
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 from pathlib import Path
 import tempfile
 
-from pycore.pyfoundations.third_party import get_third_package_pystray
+from pycore.pyfoundations.third_party.api import get_third_package_pystray
 
 
 

@@ -11,6 +11,12 @@ matching client ACK. On reconnect / replay, `notify_websocket_with_retry`
 constructs a shim event from the inventory row and drives the same retry
 + ACK-wait state machine as a live completion — sending the frame is not
 the same as receiving the ACK.
+
+Threading contract (RPC v2 desktop UI standard §6): every method that runs
+on the uvicorn event loop is a coroutine, and every @serialized_method table
+call goes through `await_serialized` so the loop NEVER blocks on the table
+owner threads. Sync entry points would freeze the whole RPC layer (every
+route times out together) the moment a table owner is busy.
 """
 
 from __future__ import annotations
@@ -19,24 +25,21 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from pycore import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_fastapi
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 
 fastapi = get_third_package_fastapi()
 JSONResponse = fastapi.responses.JSONResponse
 
-from pycore.pyutils.rpc_v2.config import RPC_CONSTANTS
-from pycore.pyutils.rpc_v2.common import (
-    RequestEvent,
-    RequestEventTable,
-    RequestStatus,
-    InventoryTable,
-)
+from pycore.pyutils.rpc_v2.config.rpc_constants import RPC_CONSTANTS
+from pycore.pyutils.rpc_v2.common.request_event_table import RequestEvent, RequestEventTable, RequestStatus
+from pycore.pyutils.rpc_v2.common.inventory_table import InventoryTable
 from pycore.pyutils.rpc_v2.constants import (
     DEFAULT_ACK_MAX_RETRIES,
     DEFAULT_ACK_RETRY_INTERVAL,
 )
 from pycore.pyutils.rpc_v2.server.client_registry import ClientRegistry
+from pycore.pyutils.rpc_v2.server._serialized_bridge import await_serialized
 
 MSG_TYPES = RPC_CONSTANTS.MESSAGE_TYPES
 
@@ -72,7 +75,7 @@ class FastAPIAckManager:
         if self.debug:
             ColorPrint.green(f"[FastAPIAckManager] Initialized (ack_timeout={self.ack_timeout}s)")
 
-    def notify_websocket_with_retry(
+    async def notify_websocket_with_retry(
         self,
         client_id: str,
         request_id: str,
@@ -82,6 +85,10 @@ class FastAPIAckManager:
         """
         Schedule websocket delivery with retry + ACK tracking without blocking awaits.
 
+        Coroutine: callers either await it (idempotent notify wrapper) or schedule
+        it with asyncio.create_task (fire-and-forget delivery). Table lookups go
+        through await_serialized so the event loop never blocks.
+
         When only an inventory row exists (event has expired but the durable
         completion is still queued for delivery), the row IS NOT deleted here.
         We build a shim retry plan and drive the same send + ACK-wait loop
@@ -89,7 +96,7 @@ class FastAPIAckManager:
         after the client confirms receipt.
         """
 
-        event = self.request_event_table.get_event(request_id)
+        event = await await_serialized(self.request_event_table.get_event, request_id)
         inventory_item = None
         plan: Optional[_RetryPlan] = None
 
@@ -102,7 +109,9 @@ class FastAPIAckManager:
             )
         else:
             # No event → fall back to inventory-only delivery.
-            inventory_item = self.inventory_table.get(request_id, remove=False)
+            inventory_item = await await_serialized(
+                self.inventory_table.get, request_id, remove=False
+            )
             if inventory_item is None:
                 # Nothing to deliver.
                 return
@@ -174,13 +183,15 @@ class FastAPIAckManager:
         Never deletes inventory as a side-effect: only a matching client
         ACK removes it (see `handle_ack`).
         """
-        event = self.request_event_table.get_event(request_id)
+        event = await await_serialized(self.request_event_table.get_event, request_id)
         inventory_only = event is None
 
         if inventory_only:
             # Re-check inventory still exists — a race where it was removed
             # via cleanup / concurrent ACK should stop the loop.
-            item = self.inventory_table.get(request_id, remove=False)
+            item = await await_serialized(
+                self.inventory_table.get, request_id, remove=False
+            )
             if item is None:
                 self._pending_inventory_acks.pop((client_id, request_id), None)
                 return
@@ -202,8 +213,12 @@ class FastAPIAckManager:
         success = await self.client_registry.safe_send(client_id, payload)
         if success:
             if not inventory_only:
-                self.request_event_table.update_status(request_id, RequestStatus.ACK_PENDING)
-                self.request_event_table.increment_notify_attempt(request_id)
+                await await_serialized(
+                    self.request_event_table.update_status, request_id, RequestStatus.ACK_PENDING
+                )
+                await await_serialized(
+                    self.request_event_table.increment_notify_attempt, request_id
+                )
             self._schedule_ack_timeout(
                 client_id=client_id,
                 request_id=request_id,
@@ -222,7 +237,7 @@ class FastAPIAckManager:
 
         if attempt + 1 >= plan.max_retries:
             if not inventory_only:
-                self._store_in_inventory(client_id, request_id, result, error, event)
+                await self._store_in_inventory(client_id, request_id, result, error, event)
             elif self.debug:
                 # Inventory is already the source of truth; keep it and drop the retry.
                 ColorPrint.yellow(
@@ -289,11 +304,14 @@ class FastAPIAckManager:
             if (client_id, request_id) not in self._pending_inventory_acks:
                 return
             # Inventory might have been cleaned up externally.
-            if self.inventory_table.get(request_id, remove=False) is None:
+            item = await await_serialized(
+                self.inventory_table.get, request_id, remove=False
+            )
+            if item is None:
                 self._pending_inventory_acks.pop((client_id, request_id), None)
                 return
         else:
-            event = self.request_event_table.get_event(request_id)
+            event = await await_serialized(self.request_event_table.get_event, request_id)
             if not event or event.status != RequestStatus.ACK_PENDING:
                 return
 
@@ -302,9 +320,9 @@ class FastAPIAckManager:
 
         if attempt + 1 >= plan.max_retries:
             if not inventory_only:
-                event = self.request_event_table.get_event(request_id)
+                event = await await_serialized(self.request_event_table.get_event, request_id)
                 if event:
-                    self._store_in_inventory(client_id, request_id, result, error, event)
+                    await self._store_in_inventory(client_id, request_id, result, error, event)
             else:
                 # Give up but keep inventory intact so a future reconnect
                 # can try again.
@@ -321,7 +339,7 @@ class FastAPIAckManager:
             delay=plan.retry_interval,
         )
 
-    def handle_ack(self, client_id: str, request_id: str):
+    async def handle_ack(self, client_id: str, request_id: str):
         """Mark ACK as received.
 
         Handles two cases:
@@ -329,10 +347,12 @@ class FastAPIAckManager:
           - only inventory exists (event expired) → validate client_id owns
             the inventory row, then delete it.
         """
-        event = self.request_event_table.get_event(request_id)
+        event = await await_serialized(self.request_event_table.get_event, request_id)
 
         if event is None:
-            inventory_item = self.inventory_table.get(request_id, remove=False)
+            inventory_item = await await_serialized(
+                self.inventory_table.get, request_id, remove=False
+            )
             if inventory_item is None:
                 return
             if inventory_item.client_id and inventory_item.client_id != client_id:
@@ -341,7 +361,7 @@ class FastAPIAckManager:
                         f"[FastAPIAckManager] Ignored inventory ACK for {request_id} from wrong client {client_id[:8]}..."
                     )
                 return
-            self.inventory_table.delete(request_id)
+            await await_serialized(self.inventory_table.delete, request_id)
             self._pending_inventory_acks.pop((client_id, request_id), None)
             if self.debug:
                 ColorPrint.green(
@@ -357,9 +377,11 @@ class FastAPIAckManager:
             return
 
         if event.status == RequestStatus.ACK_PENDING:
-            self.request_event_table.update_status(request_id, RequestStatus.ACK_RECEIVED)
-            self.request_event_table.mark_notified(request_id)
-            self.inventory_table.delete(request_id)
+            await await_serialized(
+                self.request_event_table.update_status, request_id, RequestStatus.ACK_RECEIVED
+            )
+            await await_serialized(self.request_event_table.mark_notified, request_id)
+            await await_serialized(self.inventory_table.delete, request_id)
             self._pending_inventory_acks.pop((client_id, request_id), None)
             if self.debug:
                 ColorPrint.green(
@@ -370,22 +392,33 @@ class FastAPIAckManager:
                 f"[FastAPIAckManager] Unexpected ACK for {request_id} with status {event.status.value}"
             )
 
-    def prepare_http_response_with_ack(
+    async def prepare_http_response_with_ack(
         self,
         request_id: str,
         data: Dict[str, Any],
         status_code: int = 200,
         event: Optional[RequestEvent] = None,
     ) -> JSONResponse:
-        """Return HTTP response payload with ACK tracking semantics."""
+        """Return HTTP response payload with ACK tracking semantics.
+
+        Coroutine: runs on the uvicorn loop (table calls via await_serialized),
+        so `_schedule_http_ack_confirmation` always has a running loop. The old
+        sync version was wrapped in await_serialized by the HTTP handler, which
+        executed it on a bridge pool thread where asyncio.get_running_loop()
+        raises — every async HTTP route answered 500.
+        """
         payload = dict(data)
         payload.setdefault("type", MSG_TYPES["RESPONSE"])
         payload.setdefault("queue", None)
         payload["requires_ack"] = True
 
-        target_event = event or self.request_event_table.get_event(request_id)
+        target_event = event or await await_serialized(
+            self.request_event_table.get_event, request_id
+        )
         if target_event:
-            self.request_event_table.update_status(request_id, RequestStatus.ACK_PENDING)
+            await await_serialized(
+                self.request_event_table.update_status, request_id, RequestStatus.ACK_PENDING
+            )
             self._schedule_http_ack_confirmation(request_id)
 
         return JSONResponse(content=payload, status_code=status_code)
@@ -394,17 +427,19 @@ class FastAPIAckManager:
         loop = asyncio.get_running_loop()
 
         async def confirmer():
-            event = self.request_event_table.get_event(request_id)
+            event = await await_serialized(self.request_event_table.get_event, request_id)
             if not event or event.status != RequestStatus.ACK_PENDING:
                 return
-            self.request_event_table.update_status(request_id, RequestStatus.ACK_RECEIVED)
-            self.request_event_table.mark_notified(request_id)
+            await await_serialized(
+                self.request_event_table.update_status, request_id, RequestStatus.ACK_RECEIVED
+            )
+            await await_serialized(self.request_event_table.mark_notified, request_id)
             if self.debug:
                 ColorPrint.blue(f"[FastAPIAckManager] HTTP ACK confirmed for {request_id}")
 
         loop.call_later(self.ack_timeout, lambda: asyncio.create_task(confirmer()))
 
-    def _store_in_inventory(
+    async def _store_in_inventory(
         self,
         client_id: str,
         request_id: str,
@@ -413,7 +448,8 @@ class FastAPIAckManager:
         event: RequestEvent,
     ):
         """Persist response for later retrieval."""
-        self.inventory_table.store(
+        await await_serialized(
+            self.inventory_table.store,
             request_id=request_id,
             route=event.route,
             result=result,
@@ -421,6 +457,6 @@ class FastAPIAckManager:
             client_type=event.client_type,
             error=error,
         )
-        self.request_event_table.mark_stored(request_id)
+        await await_serialized(self.request_event_table.mark_stored, request_id)
         if self.debug:
             ColorPrint.yellow(f"[FastAPIAckManager] Stored result of {request_id} in inventory")

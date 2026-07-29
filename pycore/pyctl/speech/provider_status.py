@@ -16,20 +16,20 @@ from typing import Dict, Optional, Callable, List
 from dataclasses import dataclass, replace
 from datetime import datetime
 
-from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
     start_bus_task,
 )
-from pycore.pyfoundations.third_party import (
+from pycore.pyfoundations.third_party.api import (
     get_third_package_edge_tts,
     get_third_package_speechsdk,
     get_third_package_vosk,
     get_third_package_whisper,
 )
 from pycore.pyutils.edge_tts.edge_tts_client import get_edge_tts_client
-from pycore.pyutils.azure_speech import get_azure_speech_client
+from pycore.pyutils.azure_speech.azure_speech_client import get_azure_speech_client
 from pycore.pyutils.azure_speech.quota_state import (
     is_tts_quota_blocked,
     is_stt_quota_blocked,

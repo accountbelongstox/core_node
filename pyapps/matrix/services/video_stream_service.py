@@ -19,8 +19,8 @@ from typing import Optional, Dict, Set, List
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from pycore import ColorPrint
-from pycore.pyutils.device import ServerParams, VideoCodec
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.device.server_params import ServerParams, VideoCodec
 from pycore.pyutils.device.connection_manager import DeviceConnection
 from pycore.pyutils.device.scrcpy_server_manager import get_scrcpy_server_manager
 from pyapps.matrix.matrix_config import Config

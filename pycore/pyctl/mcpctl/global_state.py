@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict
 
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 
 

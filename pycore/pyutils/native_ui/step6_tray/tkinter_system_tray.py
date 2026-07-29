@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations  # Enable deferred type hint evaluation
 
-from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 """
 Tkinter-based System Tray using pystray
 
@@ -11,8 +11,8 @@ Uses pystray library for cross-platform system tray support.
 Communicates with main thread via THREAD_BUS signals.
 
 Usage:
-    from pycore import THREAD_BUS
-    from pycore.pyutils.native_ui.tkinter_system_tray import TkinterSystemTray, TrayMenuItem
+    from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+    from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray, TrayMenuItem
 
     # Define menu items with callbacks
     menu_items = [
@@ -53,11 +53,12 @@ from pathlib import Path
 from typing import List, Optional, Callable, TYPE_CHECKING
 from dataclasses import dataclass
 
-from pycore import THREAD_BUS, ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_pystray
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_pystray
 
 # i18n for multi-language support (pycore-internal: direct top import, never lazy)
-from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 
 # Use lazy loader to get pystray (handles X11 display errors gracefully)
 pystray = get_third_package_pystray()

@@ -42,7 +42,7 @@ from pycore.callmodule.platform.autostart_target import (
     write_preference,
 )
 
-from pycore.pyfoundations.third_party import get_third_package_pythoncom
+from pycore.pyfoundations.third_party.api import get_third_package_pythoncom
 
 
 

@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from share.game_interface_data import get_game_interface_data
 from providor.providor_index import get_config_value_safe, set_config_value_async, BATTLE_NET_CONFIG_PATH
 from providor.constants.common import (

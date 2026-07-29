@@ -13,9 +13,11 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore.pyfoundations import ColorPrint, Task, ENCYCLOPEDIA
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.tasks import Task
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 from pycore.pythreadpool.registry import THREAD_REGISTRY
 

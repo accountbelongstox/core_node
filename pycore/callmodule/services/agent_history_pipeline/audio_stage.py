@@ -6,7 +6,8 @@ from typing import Any, Dict
 
 from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyfoundations.tts_engine_policy import configured_tts_priority
-from pycore.pyutils.tts import engine_available, synthesize
+from pycore.pyutils.tts.tts_orchestrator import synthesize
+from pycore.pyutils.tts.tts_orchestrator import engine_available
 from pycore.callmodule.services.agent_history_pipeline.config import get_config
 
 _NO_LOCAL_TTS = "no local TTS engine available"

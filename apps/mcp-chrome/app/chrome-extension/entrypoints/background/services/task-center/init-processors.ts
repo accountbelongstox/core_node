@@ -27,7 +27,8 @@ export function initializeProcessors(): void {
   taskCenter.registerProcessor(bingDictionaryProcessor, true);
 
   // Register Web-AI Translate Processor (B4: ENABLED). Advertises capability
-  // ai_translate (remote_fast lane); it is the sole ai_translate owner (B18).
+  // ai_translate (remote_fast lane). This is the Chrome claimant; Pycore is an
+  // independent Laravel claimant declared by the same central contract.
   taskCenter.registerProcessor(webAiTranslateProcessor, true);
 
   // Register ChatGPT / Gemini web-chat processors (DISABLED by default, opt-in).

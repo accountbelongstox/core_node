@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_WORD_AUDIO_STATUS,
     UI_WORD_AUDIO_TEST,
@@ -16,7 +16,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_WORD_AUDIO_BOOST_PRIORITY,
     UI_WORD_AUDIO_BOOST_PRIORITY_BATCH,
 )
-from pycore.callmodule.services import word_audio_service as wa
+import pycore.callmodule.services.word_audio_service as wa
 
 
 def register_local_word_audio_routes(server):

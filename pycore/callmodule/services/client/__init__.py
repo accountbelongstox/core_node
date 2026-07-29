@@ -1,7 +1,2 @@
-# -*- coding: utf-8 -*-
-"""Client Service"""
-class ClientService:
-    def forward_request(self, endpoint, method, data):
-        return {"success": False, "error": "Not implemented"}
-    def get_connection_status(self):
-        return {"connected": False}
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

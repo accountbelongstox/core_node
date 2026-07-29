@@ -10,7 +10,7 @@ import sys
 from typing import Union, Tuple
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
+from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
 
 np = get_third_package_numpy()
 PIL_Image = get_third_package_PIL_Image()

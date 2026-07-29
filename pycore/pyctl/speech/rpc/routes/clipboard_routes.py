@@ -9,10 +9,10 @@ RPC routes for clipboard history management.
 import time
 from typing import Dict, Any
 
-from pycore.pyfoundations import ColorPrint
-from pycore.database import get_database_manager
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.database.exports import get_database_manager
 
-from pycore.database.models import TableKeys
+from pycore.database.models.table_keys import TableKeys
 
 from pycore.database.models.util_clipboard.clipboard_history_model import ClipboardHistoryModel
 

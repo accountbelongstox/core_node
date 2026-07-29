@@ -7,7 +7,7 @@ Speech Recognizer facade hosted under azure_speech.
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, List
 
-from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     init_serialized_owner,
@@ -174,3 +174,6 @@ _SPEECH_RECOGNIZER_PROVIDER = SerializedSingletonProvider(
 
 def get_speech_recognizer() -> SpeechRecognizer:
     return _SPEECH_RECOGNIZER_PROVIDER.get()
+
+SPEECH_RECOGNITION_AVAILABLE = True
+speech_recognizer = get_speech_recognizer()

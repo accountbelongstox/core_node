@@ -7,7 +7,7 @@ import asyncio
 import importlib.metadata
 from typing import Any, Dict
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TRANSLATE_STATUS,
     UI_TRANSLATE_TRANSLATE,
@@ -17,7 +17,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TRANSLATE_HISTORY_CLEAR,
 )
 from pycore.pyctl.ai.ai_gateway import generate_text
-from pycore.pyctl.ai import translate_history
+import pycore.pyctl.ai.translate_history as translate_history
 from pycore.pyfoundations.system_paths import map_web_path
 from pycore.pyutils.translator.google_translator import (
     GOOGLETRANS_AVAILABLE,

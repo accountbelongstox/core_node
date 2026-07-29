@@ -12,9 +12,9 @@ from typing import List, Tuple, Dict, Optional, Union
 from pathlib import Path
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_cv2
+from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_cv2
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
 
 
 numpy = get_third_package_numpy()

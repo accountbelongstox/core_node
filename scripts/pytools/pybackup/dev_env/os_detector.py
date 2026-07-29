@@ -4,13 +4,7 @@ import logging
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 
-from pycore.pyfoundations.pygvar import (
-    IS_WINDOWS,
-    IS_LINUX,
-    IS_MAC,
-    SYSTEM_NAME,
-    SYSTEM_VERSION
-)
+from pycore.pyfoundations.pygvar.constants import IS_WINDOWS, IS_LINUX, IS_MAC, SYSTEM_NAME, SYSTEM_VERSION
 
 logger = logging.getLogger(__name__)
 

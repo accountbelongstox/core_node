@@ -4,9 +4,11 @@ Initialization Controller
 Main controller for voice data initialization
 """
 
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.database import database_manager, DATABASE_AVAILABLE
-from pycore.database.models import TableKeys, VoiceDictionariesModel, VoiceCacheDbDoneModel
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.database.exports import database_manager, DATABASE_AVAILABLE
+from pycore.database.models.table_keys import TableKeys
+from pycore.database.models.app_voice.dictionaries_model import VoiceDictionariesModel
+from pycore.database.models.app_voice.cache_db_done_model import VoiceCacheDbDoneModel
 
 from pyapps.voice_data_init.service.word_init_service import WordInitService
 from pyapps.voice_data_init.service.olddb_import_service import OldDbImportService

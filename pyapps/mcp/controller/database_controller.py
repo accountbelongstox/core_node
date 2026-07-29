@@ -7,10 +7,8 @@ Provides simplified interface to database operations
 import logging
 from typing import Dict, List, Optional, Any
 
-from pycore.pyutils.mcp.database import (
-    get_database_namespace_manager_singleton,
-    get_database_operations_manager_singleton
-)
+from pycore.pyutils.mcp.database.namespace_manager import get_database_namespace_manager_singleton
+from pycore.pyutils.mcp.database.database_operations import get_database_operations_manager_singleton
 
 logger = logging.getLogger(__name__)
 

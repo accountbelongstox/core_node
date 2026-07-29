@@ -4,15 +4,13 @@ Database System Usage Example
 Demonstrates how to use the pycore database system
 """
 
-from pycore.database import database_manager, DATABASE_AVAILABLE
-from pycore.database.models import (
-    TableKeys,
-    CommonConfigModel,
-    CommonLogModel,
-    ExampleUserModel,
-    ExampleTaskModel,
-    UtilCacheModel,
-)
+from pycore.database.exports import database_manager, DATABASE_AVAILABLE
+from pycore.database.models.table_keys import TableKeys
+from pycore.database.models.common.config_model import CommonConfigModel
+from pycore.database.models.common.log_model import CommonLogModel
+from pycore.database.models.app_example.user_model import ExampleUserModel
+from pycore.database.models.app_example.task_model import ExampleTaskModel
+from pycore.database.models.util_cache.cache_model import UtilCacheModel
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 

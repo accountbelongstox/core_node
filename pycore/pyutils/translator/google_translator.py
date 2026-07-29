@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.system_paths import map_web_path
-from pycore.pyfoundations.third_party import get_third_package_googletrans_Translator
+from pycore.pyfoundations.third_party.api import get_third_package_googletrans_Translator
 
 try:
     Translator = get_third_package_googletrans_Translator()

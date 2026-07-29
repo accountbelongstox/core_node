@@ -14,7 +14,7 @@ import time
 from enum import Enum
 from typing import Optional, Tuple
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.constants.common import (
     BN_FLOW_WAIT_AFTER_START_SEC,
     BN_FLOW_POLL_TIMEOUT_SEC,

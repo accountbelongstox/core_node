@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.controllers.management.system_controller import SystemController
 from pycore.callmodule.models.management.system_models import SystemConfig
 from pycore.callmodule.rpc_routes.route_names import UI_CONFIG_UPDATE_CONFIG

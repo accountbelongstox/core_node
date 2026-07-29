@@ -10,7 +10,7 @@ import re
 import string
 from typing import List, Dict, Optional, Tuple
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.tts_models import SentenceModel, WordModel, clean_tts_text
 
 

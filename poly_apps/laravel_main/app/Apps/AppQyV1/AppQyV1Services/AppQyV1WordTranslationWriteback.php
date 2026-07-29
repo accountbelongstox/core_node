@@ -259,43 +259,58 @@ class AppQyV1WordTranslationWriteback
                         if (!is_array($current)) {
                             $current = [];
                         }
+                        $storedTranslation = $current[$targetCode] ?? null;
+                        $translationMissing = !is_string($storedTranslation)
+                            || trim($storedTranslation) === '';
 
-                        // 1. Flat map keyed by target language (status endpoint reads
-                        //    this).
-                        $current[$targetCode] = $translationText;
+                        if ($translationMissing) {
+                            // 1. Flat map keyed by target language (status endpoint reads
+                            //    this).
+                            $current[$targetCode] = $translationText;
 
-                        // 2. Nested word_translation list (getLibraryWords reads
-                        //    $trans[1]).
-                        $wordTranslation = [];
-                        if (isset($current['word_translation']) && is_array($current['word_translation'])) {
-                            $wordTranslation = $current['word_translation'];
-                        }
-
-                        $replaced = false;
-                        foreach ($wordTranslation as $idx => $pair) {
-                            if (is_array($pair) && isset($pair[0]) && $pair[0] === $targetCode) {
-                                $wordTranslation[$idx] = [$targetCode, $translationText];
-                                $replaced = true;
-                                break;
+                            // 2. Nested word_translation list (getLibraryWords reads
+                            //    $trans[1]).
+                            $wordTranslation = [];
+                            if (isset($current['word_translation']) && is_array($current['word_translation'])) {
+                                $wordTranslation = $current['word_translation'];
                             }
-                        }
-                        if (!$replaced) {
-                            $wordTranslation[] = [$targetCode, $translationText];
-                        }
-                        $current['word_translation'] = array_values($wordTranslation);
 
-                        $entry->translations = $current;
-                        $entry->has_translation = true;
-                        $entry->translation_provider = $provider;
+                            $hasTargetPair = false;
+                            foreach ($wordTranslation as $pair) {
+                                if (is_array($pair) && isset($pair[0]) && $pair[0] === $targetCode) {
+                                    $hasTargetPair = true;
+                                    break;
+                                }
+                            }
+                            if (!$hasTargetPair) {
+                                $wordTranslation[] = [$targetCode, $translationText];
+                            }
+                            $current['word_translation'] = array_values($wordTranslation);
+
+                            $entry->translations = $current;
+                            $entry->has_translation = true;
+                            $entry->translation_provider = $provider;
+                            $dirty = true;
+
+                            // Queue the multi-worker coordination signal (Phase-C
+                            // `word.translated`) for after-commit. It must not fire
+                            // while the row lock is held.
+                            $broadcastQueue[] = [
+                                'word' => $word,
+                                'translation' => $translationText,
+                            ];
+                        }
+                    }
+
+                    // A successful dictionary/AI result is also a positive
+                    // validity verdict. Mark only unchecked/previously-invalid
+                    // rows so an existing explicit valid source is preserved.
+                    if ($entry->validity_checked_at === null || $entry->is_valid !== true) {
+                        $entry->is_valid = true;
+                        $entry->validity_checked_at = now();
+                        $entry->validity_source = $provider;
+                        $entry->validity_note = null;
                         $dirty = true;
-
-                        // Queue the multi-worker coordination signal (Phase-C
-                        // `word.translated`) for after-commit. It must not fire
-                        // while the row lock is held.
-                        $broadcastQueue[] = [
-                            'word' => $word,
-                            'translation' => $translationText,
-                        ];
                     }
 
                     // --- Phonetics (fill-missing — never overwrite existing) ---

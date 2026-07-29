@@ -3,7 +3,7 @@
 RPC Routes for task_history
 """
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TASK_HISTORY_GET_COMPLETED_ARCHIVE,
     UI_TASK_HISTORY_SYNC_COMPLETED_ARCHIVE,

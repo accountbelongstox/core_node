@@ -14,7 +14,8 @@ import threading
 import time
 from typing import Optional
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.clipboard.clipboard_monitor import get_clipboard_monitor
 from pycore.pyutils.window.screenshot import WindowScreenshot
 from pycore.pyctl.desktop.ai_hooks import ai_generate_text

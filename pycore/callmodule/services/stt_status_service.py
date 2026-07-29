@@ -4,8 +4,8 @@
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyctl.ai import speech_history
-from pycore.pyutils.stt import stt_status as orchestrator_status, stt_test as orchestrator_test
+import pycore.pyctl.ai.speech_history as speech_history
+from pycore.pyutils.stt.stt_orchestrator import stt_status as orchestrator_status, stt_test as orchestrator_test
 
 
 def status():

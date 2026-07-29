@@ -13,7 +13,7 @@ from typing import Optional
 current_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(current_dir))
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from share.game_interface_data import get_d4_interface_data
 
 

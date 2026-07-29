@@ -1,13 +1,13 @@
 import time
 import uuid
-from pycore.pyfoundations.pybasecommon import exec_silent
+from pycore.pyfoundations.pybasecommon.commander import exec_silent
 from typing import Callable, Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
 
-from pycore.pyfoundations.third_party import get_third_package_psutil
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_psutil
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     init_serialized_owner,
@@ -18,10 +18,7 @@ import subprocess
 
 psutil = get_third_package_psutil()
 
-from pycore.pyfoundations.pygvar import (
-    SEVEN_ZIP_EXECUTABLE,
-    MAX_CONCURRENT_ZIP_TASKS,
-)
+from pycore.pyfoundations.pygvar.constants import SEVEN_ZIP_EXECUTABLE, MAX_CONCURRENT_ZIP_TASKS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

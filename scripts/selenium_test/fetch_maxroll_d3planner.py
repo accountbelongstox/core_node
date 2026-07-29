@@ -17,11 +17,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from pycore.pyfoundations.third_party import (
-    get_third_package_selenium,
-    get_third_package_webdriver_manager,
-    get_third_package_requests,
-)
+from pycore.pyfoundations.third_party.api import get_third_package_selenium, get_third_package_webdriver_manager, get_third_package_requests
 from pycore.pyutils.pybrowser.utils.browser_finder import find_browser, find_driver
 
 _requests_mod = get_third_package_requests()

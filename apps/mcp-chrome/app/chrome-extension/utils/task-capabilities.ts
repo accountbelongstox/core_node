@@ -1,24 +1,21 @@
 /**
- * Task Center capability catalog — the SINGLE source of truth shared by the
- * popup checkboxes and the background scheduler / run-intent gate.
+ * Task Center capability facade shared by the popup checkboxes and the
+ * background scheduler / run-intent gate.
  *
  * A "capability" is one user-facing switch. It maps to the TaskCenter
  * processorTypes it activates. Keeping this catalog in one neutral module guarantees the popup UI
  * and the background can never disagree on which lanes a checkbox turns on.
  *
- * Every capability maps to a real in-extension runner or processor lane.
+ * Definitions come from config/queue_center_contract.json. This module only
+ * adapts the central snake_case fields to the existing popup API.
  */
 
-import { LANES } from './task-center-lanes';
+import {
+  CHROME_CAPABILITY_SWITCHES,
+  type ChromeCapabilityKey,
+} from './queue-center-contract';
 
-export type CapabilityKey =
-  | 'image'
-  | 'audio'
-  | 'validity'
-  | 'article'
-  | 'notebooklm'
-  | 'bing'
-  | 'aiTranslate';
+export type CapabilityKey = ChromeCapabilityKey;
 
 export interface CapabilityDef {
   key: CapabilityKey;
@@ -32,71 +29,21 @@ export interface CapabilityDef {
   usesValidityRunner: boolean;
 }
 
-export const CAPABILITIES: CapabilityDef[] = [
-  {
-    key: 'image',
-    storageKey: 'tkCapImage',
-    zhLabel: '执行图片与封面任务',
-    hint: 'Book/library covers and word images via Google/Bing, plus Gemini image tasks',
-    processors: [LANES.REMOTE_GEMINI, LANES.MEDIA_IMAGE],
-    usesValidityRunner: false,
-  },
-  // 8.4: 语音生成任务现在由 pycore 辅助（Qwen3-TTS via RPC v2），面板不再提供
-  // 该选项；代码保留以便将来恢复。
-  // {
-  //   key: 'audio',
-  //   storageKey: 'tkCapAudio',
-  //   zhLabel: '执行语音生成任务',
-  //   hint: 'Laravel audio queue → shared Qwen3-TTS runtime → write-back',
-  //   processors: [LANES.QWEN_TTS],
-  //   usesValidityRunner: false,
-  // },
-  {
-    key: 'validity',
-    storageKey: 'tkCapValidity',
-    zhLabel: '执行单词有效性检测',
-    hint: 'Drains the Laravel unchecked-word backlog (EN by default) via the shared web classifier — validity + translation in one pass',
-    // Runner-driven: pulls /vocabulary/validity/pending directly and loops
-    // until the backlog is empty (not the global-task lane, which only works
-    // when the backend enqueues word_validity tasks).
-    processors: [],
-    usesValidityRunner: true,
-  },
-  // 8.5: 短文生成任务现在由 pycore 辅助（agent_history pipeline），面板不再
-  // 提供该选项；代码保留以便将来恢复。
-  // {
-  //   key: 'article',
-  //   storageKey: 'tkCapArticle',
-  //   zhLabel: '执行短文生成任务',
-  //   hint: 'Gemini short-article and text generation',
-  //   processors: [LANES.REMOTE_GEMINI_TEXT],
-  //   usesValidityRunner: false,
-  // },
-  {
-    key: 'notebooklm',
-    storageKey: 'tkCapNotebooklm',
-    zhLabel: '执行 NotebookLM 生成任务',
-    hint: 'Laravel NotebookLM queue → shared browser runtime → write-back',
-    processors: [LANES.REMOTE_NOTEBOOKLM],
-    usesValidityRunner: false,
-  },
-  {
-    key: 'bing',
-    storageKey: 'tkCapBing',
-    zhLabel: '执行 Bing 翻译功能',
-    hint: 'Bing dictionary translation, phonetics and media capture',
-    processors: [LANES.BING_DICTIONARY],
-    usesValidityRunner: false,
-  },
-  {
-    key: 'aiTranslate',
-    storageKey: 'tkCapAiTranslate',
-    zhLabel: '执行 Web-AI 翻译任务',
-    hint: 'DeepSeek web translation tasks on the AI fast lane',
-    processors: [LANES.WEB_AI_TRANSLATE],
-    usesValidityRunner: false,
-  },
-];
+export const CAPABILITIES: CapabilityDef[] = Object.entries(
+  CHROME_CAPABILITY_SWITCHES,
+).map(([key, definition]) => ({
+  key: key as CapabilityKey,
+  storageKey: definition.storage_key,
+  zhLabel: definition.label,
+  hint: definition.hint,
+  processors: [...definition.processors],
+  usesValidityRunner: definition.uses_validity_runner,
+}));
+
+// Audio generation remains implemented by the Qwen TTS processor but is not a
+// Chrome Task-tab switch because Pycore owns production audio assistance.
+// Article generation remains in the Pycore agent-history pipeline for the same
+// reason; neither implementation is removed by this active catalog facade.
 
 export const CAPABILITY_KEYS: CapabilityKey[] = CAPABILITIES.map((c) => c.key);
 

@@ -12,7 +12,7 @@ FILES = {
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TTS_STATUS_STATUS,
     UI_TTS_STATUS_TEST,
@@ -20,7 +20,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TTS_STATUS_POST_SETTINGS,
     UI_TTS_STATUS_POST_SERVER_ACTION,
 )
-from pycore.callmodule.services import tts_status_service as tts
+import pycore.callmodule.services.tts_status_service as tts
 from pycore.callmodule.services.tts_status_service import (
     _TtsServerAction,
     _TtsSettingsPatch,
@@ -75,9 +75,9 @@ __all__ = ["register_local_tts_status_routes"]
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import UI_STT_STATUS_STATUS, UI_STT_STATUS_TEST
-from pycore.callmodule.services import stt_status_service as stt
+import pycore.callmodule.services.stt_status_service as stt
 from pycore.callmodule.services.stt_status_service import _SttTestReq
 
 
@@ -108,7 +108,7 @@ __all__ = ["register_local_stt_status_routes"]
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_LLM_STATUS_STATUS,
     UI_LLM_STATUS_TEST,
@@ -116,7 +116,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_LLM_STATUS_POST_SETTINGS,
     UI_LLM_STATUS_POST_SERVER_ACTION,
 )
-from pycore.callmodule.services import llm_status_service as llm
+import pycore.callmodule.services.llm_status_service as llm
 from pycore.callmodule.services.llm_status_service import (
     _LlmServerAction,
     _LlmSettingsPatch,
@@ -169,9 +169,9 @@ __all__ = ["register_local_llm_status_routes"]
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import UI_OCR_STATUS_STATUS, UI_OCR_STATUS_TEST
-from pycore.callmodule.services import ocr_status_service as ocr
+import pycore.callmodule.services.ocr_status_service as ocr
 from pycore.callmodule.services.ocr_status_service import _OcrTestReq
 
 
@@ -202,13 +202,13 @@ __all__ = ["register_local_ocr_status_routes"]
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_ASSIST_ASSIST_STATUS,
     UI_ASSIST_ASSIST_CONFIG,
     UI_ASSIST_ASSIST_CYCLE,
 )
-from pycore.callmodule.services import assist_service as assist
+import pycore.callmodule.services.assist_service as assist
 from pycore.callmodule.services.assist_service import CapabilitiesPatch, ConfigRequest
 
 
@@ -245,14 +245,14 @@ __all__ = ["register_local_assist_routes"]
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_AI_KEYS_LIST_KEYS,
     UI_AI_KEYS_SET_KEY,
     UI_AI_KEYS_RESET_COOLDOWN,
     UI_AI_KEYS_DELETE_KEY,
 )
-from pycore.callmodule.services import ai_keys_service as keys
+import pycore.callmodule.services.ai_keys_service as keys
 from pycore.callmodule.services.ai_keys_service import CooldownResetRequest, KeySetRequest
 
 
@@ -299,13 +299,13 @@ __all__ = ["register_local_ai_keys_routes"]
     "local_ai_probe_routes.py": '''# -*- coding: utf-8 -*-
 """RPC Routes for ai_probe."""
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_AI_PROBE_AI_CATALOG,
     UI_AI_PROBE_PROBE,
     UI_AI_PROBE_BALANCE,
 )
-from pycore.callmodule.services import ai_probe_service as probe
+import pycore.callmodule.services.ai_probe_service as probe
 
 
 def register_local_ai_probe_routes(server):
@@ -338,7 +338,7 @@ __all__ = ["register_local_ai_probe_routes"]
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_SPEECH_HISTORY_HISTORY,
     UI_SPEECH_HISTORY_HISTORY_FILE,
@@ -346,7 +346,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_SPEECH_HISTORY_HISTORY_DELETE,
     UI_SPEECH_HISTORY_HISTORY_CLEAR,
 )
-from pycore.callmodule.services import speech_history_service as hist
+import pycore.callmodule.services.speech_history_service as hist
 
 
 def register_local_speech_history_routes(server):
@@ -388,12 +388,12 @@ __all__ = ["register_local_speech_history_routes"]
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_HEARTBEAT_WORKERS_STATUS,
     UI_HEARTBEAT_WORKERS_CONFIG,
 )
-from pycore.callmodule.services import heartbeat_workers_service as hb
+import pycore.callmodule.services.heartbeat_workers_service as hb
 
 
 def register_local_heartbeat_workers_routes(server):
@@ -423,7 +423,7 @@ __all__ = ["register_local_heartbeat_workers_routes"]
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.controllers.local_processing.video_extract_controller import VideoExtractController
 from pycore.callmodule.rpc_routes.route_names import UI_SYSTEM_RESOURCES_SYSTEM_RESOURCES
 
@@ -445,7 +445,7 @@ __all__ = ["register_local_system_resources_routes"]
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.controllers.management.local_processing_controller import LocalProcessingController
 from pycore.callmodule.models.management.local_processing_models import LocalProcessingConfig
 from pycore.callmodule.rpc_routes.route_names import UI_LOCAL_CONFIG_UPDATE_CONFIG
@@ -470,7 +470,7 @@ __all__ = ["register_local_local_config_routes"]
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.controllers.management.system_controller import SystemController
 from pycore.callmodule.models.management.system_models import SystemConfig
 from pycore.callmodule.rpc_routes.route_names import UI_CONFIG_UPDATE_CONFIG
@@ -493,9 +493,9 @@ __all__ = ["register_management_config_routes"]
     "management_heartbeat_routes.py": '''# -*- coding: utf-8 -*-
 """RPC Routes for management heartbeat."""
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import UI_HEARTBEAT_GET_CALLBACK_STATUS
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 
 
 def register_management_heartbeat_routes(server):

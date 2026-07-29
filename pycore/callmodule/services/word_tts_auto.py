@@ -13,8 +13,8 @@ import threading
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_user_data_store
-from pycore.pyheartbeat import get_heartbeat_system
-from pycore.pyctl.assist import assist_settings_exist, load_assist_settings, save_assist_settings
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+from pycore.pyctl.assist.assist_settings import assist_settings_exist, load_assist_settings, save_assist_settings
 
 from pycore.callmodule.services.tts_queue_poller_service import (
     get_tts_queue_poller_service,

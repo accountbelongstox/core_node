@@ -10,10 +10,12 @@ except ImportError:
 
 from typing import Optional, Dict, Set, TYPE_CHECKING
 import asyncio
-from pycore.pyutils.control import TouchEvent, KeyEvent, MessageBuilder
+from pycore.pyutils.control.touch_event import TouchEvent
+from pycore.pyutils.control.key_event import KeyEvent
+from pycore.pyutils.control.message_builder import MessageBuilder
 from pycore.pyutils.device.device_manager import device_manager
-from pycore.pyutils.device import ADBManager
-from pycore.pyutils.group import SyncEvent
+from pycore.pyutils.device.adb_manager import ADBManager
+from pycore.pyutils.group.sync_event import SyncEvent
 from pyapps.matrix.matrix_config import Config
 
 if TYPE_CHECKING:

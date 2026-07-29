@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 """
 Unified System Tray Configuration
 
@@ -11,7 +12,7 @@ Provides a unified interface for system tray configuration that works with both:
 All communication happens via THREAD_BUS, no parameter passing required.
 
 Usage:
-    from pycore.pyutils.native_ui.tray_config import TrayConfig, TrayMenuItem, TrayBackend
+    from pycore.pyutils.native_ui.step1_config.tray_config import TrayConfig, TrayMenuItem, TrayBackend
 
     # Define tray configuration
     tray_config = TrayConfig(
@@ -26,7 +27,7 @@ Usage:
     )
 
     # Store in THREAD_BUS (accessible globally)
-    from pycore import THREAD_BUS
+    from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
     THREAD_BUS.set('tray_config', tray_config)
 
     # Listen for tray signals

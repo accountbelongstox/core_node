@@ -25,7 +25,7 @@ import traceback
 sys.path.insert(0, 'pyManageCenter')
 sys.path.append('pyManageCenter/protocol')
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from ManageCenter import ManageCenter
 from util.config_path_mgr import SYS_CONFIG_DIR, DEFAULT_USER_CONFIG_DIR
 

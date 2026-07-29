@@ -17,9 +17,9 @@ import tkinter as tk
 from tkinter import messagebox
 from typing import Optional
 
-from pycore.pyfoundations.third_party import get_third_package_pystray, get_third_package_PIL_Image, get_third_package_PIL_ImageDraw
+from pycore.pyfoundations.third_party.api import get_third_package_pystray, get_third_package_PIL_Image, get_third_package_PIL_ImageDraw
 from pycore.pyfoundations.serialized_worker import start_bus_task
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 
 pystray = get_third_package_pystray()

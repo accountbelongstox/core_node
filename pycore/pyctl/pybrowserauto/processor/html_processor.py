@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Dict, Optional, List
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from pycore.pyfoundations.third_party import get_third_package_BeautifulSoup
-from pycore.pyctl.pybrowserauto.core import URLRewriter
+from pycore.pyfoundations.third_party.api import get_third_package_BeautifulSoup
+from pycore.pyctl.pybrowserauto.core.url_rewriter import URLRewriter
 
 
 

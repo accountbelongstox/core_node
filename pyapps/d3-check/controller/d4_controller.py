@@ -17,7 +17,7 @@ from datetime import datetime
 current_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(current_dir))
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.constants.common import TMP_DIR, DEBUG
 from providor.providor_index import DIABLO_IV_WINDOW_TITLES
 from d3utils.screenshot_provider import get_screenshot_provider

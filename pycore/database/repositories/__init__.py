@@ -1,4 +1,2 @@
-# -*- coding: utf-8 -*-
-from pycore.database.repositories.state_repository import StateRepository
-
-__all__ = ["StateRepository"]
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

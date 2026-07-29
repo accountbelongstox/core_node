@@ -3,14 +3,14 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_AI_KEYS_DELETE_KEY,
     UI_AI_KEYS_LIST_KEYS,
     UI_AI_KEYS_RESET_COOLDOWN,
     UI_AI_KEYS_SET_KEY,
 )
-from pycore.callmodule.services import ai_keys_service as keys
+import pycore.callmodule.services.ai_keys_service as keys
 
 
 def register_local_ai_keys_routes(server):

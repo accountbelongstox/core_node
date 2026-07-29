@@ -17,7 +17,7 @@ from pycore.pyfoundations.system_paths import map_web_path
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 def test_import():
     """Test if module can be imported"""

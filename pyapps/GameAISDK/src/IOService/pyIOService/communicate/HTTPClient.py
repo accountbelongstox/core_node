@@ -23,7 +23,7 @@ import threading
 import time
 from urllib import request
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class HTTPThread(threading.Thread):

@@ -21,7 +21,7 @@ export enum TaskStatus {
 /**
  * Task result interface
  */
-export interface TaskResult {
+export interface DeepSeekTaskResult {
   content: string; // The AI response text
   conversationUrl: string; // URL to the conversation
   extractedAt: number; // Timestamp when result was extracted
@@ -53,7 +53,7 @@ export interface DeepSeekTask {
   updatedAt: number; // Timestamp (ms)
   tabId?: number; // Chrome tab ID where task is running
   conversationId?: string; // DeepSeek conversation ID
-  result?: TaskResult; // Result data when completed
+  result?: DeepSeekTaskResult; // Result data when completed
   error?: string; // Error message if failed
   metadata?: {
     attachments?: string[]; // File paths/URLs of attachments

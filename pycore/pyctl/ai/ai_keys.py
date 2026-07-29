@@ -25,7 +25,7 @@ from typing import Dict, Any, Tuple, List, Optional, FrozenSet
 from pycore.pyfoundations.secret_manager import (
     get_secret_key, get_secret_key_indexed, get_all_secret_keys_indexed,
 )
-from pycore.pyctl.ai import ai_key_rotation
+import pycore.pyctl.ai.ai_key_rotation as ai_key_rotation
 
 # Free OpenRouter models (subset; full list: openrouter.ai/models?q=free)
 # Default: openrouter/free — official Free Models Router (auto-picks an available :free model).

@@ -12,9 +12,9 @@ from typing import Any, Dict, Optional
 from urllib.parse import urlparse, parse_qs
 
 # Import from pycore following PYTHON_PYCORE.md standards
-from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from pycore.pyutils.flutter_dev_tools.config import get_app_config
+from pycore.pyutils.flutter_dev_tools.config.app_config import get_app_config
 
 
 class BaseHandler:

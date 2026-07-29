@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class ClientStatus(Enum):

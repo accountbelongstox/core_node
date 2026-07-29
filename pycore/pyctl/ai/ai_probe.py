@@ -53,7 +53,7 @@ from typing import Dict, Any, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 from functools import partial
 
 from pycore.pyctl.ai.ai_keys import (
@@ -72,7 +72,7 @@ from pycore.pyctl.ai.ai_gateway_state import _in_cooldown, _on_probe_result
 
 from pycore.pyutils.ai_cluster.openrouter.openrouter_client import OpenRouterClient
 from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient
-from pycore.pyutils.ai_cluster.deepseek import get_deepseek_client
+from pycore.pyutils.ai_cluster.deepseek.deepseek_client import get_deepseek_client
 from pycore.pyutils.ai_cluster.groq.groq_client import GroqClient
 from pycore.pyutils.ai_cluster.mistral.mistral_client import MistralClient
 from pycore.pyutils.ai_cluster.cohere.cohere_client import CohereClient

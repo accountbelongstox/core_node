@@ -7,7 +7,7 @@ When phase is C_ACTION_GROUP, only one action-group step runs per tick; see docs
 import time
 from typing import Callable, Optional, Tuple
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.constants.d3 import C10_SKIP_AFTER_TELEPORT_SEC
 from providor.providor_index import CONFIG, DIABLO_III_WINDOW_TITLES
 from share.game_interface_data import get_game_interface_data

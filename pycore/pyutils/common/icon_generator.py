@@ -10,7 +10,7 @@ from pathlib import Path
 import os
 import shutil
 import tempfile
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 from pycore.pyutils.common.appusermodelid import set_shortcut_app_user_model_id
 
 try:
@@ -23,7 +23,7 @@ except ImportError:
     if sys.platform == "win32":
         print("Warning: win32com not available, some features may not work")
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
 
 
 

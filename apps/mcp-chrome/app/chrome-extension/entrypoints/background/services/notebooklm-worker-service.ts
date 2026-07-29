@@ -12,7 +12,7 @@
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { LANES } from '@/utils/task-center-lanes';
-import { TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
+import { TASK_TYPE_KEYS, taskPromptText } from '@/utils/queue-center-contract';
 import { notebookLmTool } from '../tools/browser/notebooklm';
 import { logger } from '@/utils/logger';
 import { parseWebChatToolResult } from './web-chat-worker-common';
@@ -47,12 +47,7 @@ class NotebookLmWorkerService extends SimpleWorkerBase {
 
   protected async executeTask(task: Task): Promise<void> {
     const payload = (task.payload as any) || {};
-    const question =
-      typeof payload.question === 'string' && payload.question.trim()
-        ? payload.question
-        : typeof payload.source_text === 'string'
-          ? payload.source_text
-          : '';
+    const question = taskPromptText(task.task_type, payload);
     if (!question.trim()) {
       await this.submitResult(task.task_id, 'failed', undefined, {
         error: 'no question/source_text in payload',

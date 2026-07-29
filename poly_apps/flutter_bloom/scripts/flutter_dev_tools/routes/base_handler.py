@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional
 from urllib.parse import urlparse, parse_qs
 
 # Import from pycore following PYTHON_PYCORE.md standards
-from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from config import get_app_config
 

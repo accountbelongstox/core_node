@@ -19,7 +19,8 @@ changes to connected WS clients for real-time UI refresh:
 - article.published: agent-history Daily Reading publication
 """
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.callmodule.rpc_routes.route_names import THREAD_BUS_TRIGGER
 
 

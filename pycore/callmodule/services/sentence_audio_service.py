@@ -12,7 +12,7 @@ Endpoints (prefix /api/local/sentence-audio):
 import traceback
 from typing import Any, Dict, List, Optional
 
-from pycore.callmodule.services import get_tts_sentence_worker_service
+from pycore.callmodule.services.tts_sentence_worker_service import get_tts_sentence_worker_service
 from pycore.callmodule.services.sentence_audio_auto import apply_auto_start, get_status
 from pycore.callmodule.services.sentence_queue_monitor_service import (
     get_sentence_queue_monitor_service,

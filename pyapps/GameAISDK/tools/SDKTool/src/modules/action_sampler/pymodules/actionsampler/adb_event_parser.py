@@ -18,7 +18,7 @@ if _dir and _dir not in sys.path:
 import logging
 from abc import ABCMeta
 
-from pycore.pyfoundations.third_party import get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
 
 np = get_third_package_numpy()
 

@@ -14,7 +14,7 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.window.activator import WindowActivator
 from d3utils.window_analyzer_singleton import get_window_analyzer
@@ -73,7 +73,7 @@ def register_login_controller_actions(
     _ensure_bn_only_fn = ensure_bn_only
 
 
-from pycore.pyfoundations.third_party import get_third_package_pythoncom
+from pycore.pyfoundations.third_party.api import get_third_package_pythoncom
 pythoncom = get_third_package_pythoncom()
 
 _rosdebug_running_busy = False

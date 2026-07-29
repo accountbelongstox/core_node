@@ -12,7 +12,7 @@ CONFIG_QUEUE = queue.Queue()
 # Save requests: actual file write runs in dedicated thread so config worker and main thread never block on I/O
 SAVE_QUEUE = queue.Queue()
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont
 from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 Image = get_third_package_PIL_Image()
@@ -20,7 +20,7 @@ ImageDraw = get_third_package_PIL_ImageDraw()
 ImageFont = get_third_package_PIL_ImageFont()
 
 # Direct pycore imports (no secondary encapsulation)
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.constants.common import (
     ROOT_DIR,
     TMP_DIR,

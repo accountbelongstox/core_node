@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_SENTENCE_AUDIO_STATUS,
     UI_SENTENCE_AUDIO_CONFIG,
@@ -13,7 +13,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_SENTENCE_AUDIO_VARIANTS_STORE,
     UI_SENTENCE_AUDIO_VARIANTS_DESTROY,
 )
-from pycore.callmodule.services import sentence_audio_service as sa
+import pycore.callmodule.services.sentence_audio_service as sa
 
 
 def register_local_sentence_audio_routes(server):

@@ -3,7 +3,7 @@
 Log monitor: single place for LogMonitorThread access. Lifecycle only (thread refs allowed).
 """
 
-from pycore.pyfoundations.third_party import get_third_package_watchdog
+from pycore.pyfoundations.third_party.api import get_third_package_watchdog
 
 from .thread_registry import get_thread_registry
 

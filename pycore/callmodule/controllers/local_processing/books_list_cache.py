@@ -27,7 +27,7 @@ import json
 import hashlib
 from typing import Callable, List, Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_local_data_dir
 from pycore.callmodule.services.sync.laravel_media_sync import source_key_for
 

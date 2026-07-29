@@ -14,14 +14,14 @@ Architecture:
 """
 
 from typing import Optional, Dict, Any
-from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.database import get_database_manager
+from pycore.database.exports import get_database_manager
 
-from pycore.database.models import TableKeys
+from pycore.database.models.table_keys import TableKeys
 
-from pycore.database.models.util_speech import SpeechConfigModel
-from pycore.pyutils.common import global_config
+from pycore.database.models.util_speech.speech_config_model import SpeechConfigModel
+from pycore.pyutils.common.global_config import global_config
 
 
 

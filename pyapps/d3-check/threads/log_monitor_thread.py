@@ -14,9 +14,9 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyfoundations.third_party import get_third_package_watchdog
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_watchdog
 from providor.constants.common import LOG_LINE, LOG_MONITOR_INIT
 
 _POLL_INTERVAL_SEC = 2.0

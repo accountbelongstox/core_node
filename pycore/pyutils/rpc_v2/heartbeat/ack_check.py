@@ -7,10 +7,10 @@ Heartbeat task for monitoring ACK timeouts in rpc_v2.
 import time
 from typing import Any, Dict, List, Optional
 
-from pycore import ColorPrint
-from pycore.pyfoundations.heartbeat.heartbeat_thread import TaskModel, TaskHandler
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.heartbeat.thread import TaskModel, TaskHandler
 
-from pycore.pyutils.rpc_v2.common import RequestStatus
+from pycore.pyutils.rpc_v2.common.request_event_table import RequestStatus
 
 
 class RpcAckCheckModel(TaskModel):

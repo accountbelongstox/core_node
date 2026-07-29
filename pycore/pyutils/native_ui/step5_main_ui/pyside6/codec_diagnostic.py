@@ -11,7 +11,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QLibraryInfo, qVersion
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 

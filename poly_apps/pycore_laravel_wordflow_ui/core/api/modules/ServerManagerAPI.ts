@@ -2,10 +2,21 @@ import { BaseAPI, DEFAULT_REQUEST_TIMEOUT_MS } from '../base/BaseAPI';
 import { APIResponse } from '../../types';
 import type {
   GlobalTaskCapability,
+  GlobalTaskCurrentPhase,
+  GlobalTaskCreateResult,
+  GlobalTaskDetailBundle as CanonicalGlobalTaskDetailBundle,
+  GlobalTaskDetailMetadata,
   GlobalTaskDetailRecord,
   GlobalTaskEventRecord,
   GlobalTaskStatusRecord,
+  GlobalTaskStatus,
+  GlobalTaskStatsRecord,
   GlobalTaskSummary,
+} from '../../api-libs/pycore/QueueCenterContract';
+import {
+  GLOBAL_TASK_EVENTS_BY_ROLE,
+  GLOBAL_TASK_PRIORITIES,
+  GLOBAL_TASK_STREAM_EVENTS_BY_ROLE,
 } from '../../api-libs/pycore/QueueCenterContract';
 
 // ==================== Global Task / Worker substrate types ====================
@@ -24,7 +35,7 @@ export type GlobalTaskDetail = GlobalTaskStatusRecord;
 // ==================== Live task drilldown (detail / events / SSE stream) ====================
 // laravel_main control-plane routes (no-auth), NOT under /api/app_qy_v1:
 //   GET  /api/task/{id}/detail        — full detail snapshot (task + events + phase)
-//   POST /api/task/{id}/bump          — raise priority (default 100 = fast lane)
+//   POST /api/task/{id}/bump          — raise priority (central fast tier)
 //   GET  /api/task/{id}/stream        — SSE: task.detail-initial / task.event / ping / stream.close
 // These power the QueuePanel live drilldown modal + "Bump to top".
 
@@ -34,28 +45,14 @@ export type GlobalTaskDetailFull = GlobalTaskDetailRecord;
 export type GlobalTaskEvent = GlobalTaskEventRecord;
 
 /** What the worker is doing right now (phase + elapsed). */
-export interface GlobalTaskPhase {
-  phase: string | null;
-  worker_id: string | null;
-  elapsed_seconds: number | null;
-}
+export type GlobalTaskPhase = GlobalTaskCurrentPhase;
 
 /** Retry / timeout bookkeeping. */
-export interface GlobalTaskMeta {
-  total_attempts: number;
-  max_retries: number;
-  will_retry: boolean;
-  estimated_timeout_in_seconds: number | null;
-}
+export type GlobalTaskMeta = GlobalTaskDetailMetadata;
 
 /** Full GET /api/task/{id}/detail payload (envelope already unwrapped). Also the
  *  EXACT shape pushed on the SSE `task.detail-initial` event. */
-export interface GlobalTaskDetailBundle {
-  task: GlobalTaskDetailFull;
-  events: GlobalTaskEvent[];
-  current_phase: GlobalTaskPhase;
-  metadata: GlobalTaskMeta;
-}
+export type GlobalTaskDetailBundle = CanonicalGlobalTaskDetailBundle;
 
 /** Handlers for subscribeTaskDetail()'s EventSource lifecycle. */
 export interface TaskDetailStreamHandlers {
@@ -76,17 +73,8 @@ export interface TaskDetailStreamHandle {
   close: () => void;
 }
 
-/** GET /api/task/stats → data.stats (covers the full status vocabulary). */
-export interface GlobalTaskStats {
-  total: number;
-  pending: number;
-  assigned: number;
-  processing: number;
-  completed: number;
-  completed_demo: number;
-  failed: number;
-  cancelled: number;
-}
+/** Laravel task statistics over the central status vocabulary. */
+export type GlobalTaskStats = GlobalTaskStatsRecord;
 
 /** Row shape returned by GET /api/worker/list. */
 export interface GlobalWorkerInfo {
@@ -350,7 +338,7 @@ export class ServerManagerAPI extends BaseAPI {
    * Cancel a pending/assigned/processing global task.
    * POST /api/task/{taskId}/cancel — 409-style error if not cancellable.
    */
-  async cancelGlobalTask(taskId: string): Promise<APIResponse<{ task_id: string; status: string }>> {
+  async cancelGlobalTask(taskId: string): Promise<APIResponse<{ task_id: string; status: GlobalTaskStatus }>> {
     return this.post(`/task/${encodeURIComponent(taskId)}/cancel`, {});
   }
 
@@ -369,33 +357,31 @@ export class ServerManagerAPI extends BaseAPI {
   }
 
   /**
-   * Raise a pending task's priority (default 100 = the interactive fast lane),
+   * Raise a pending task to the centrally defined interactive fast priority,
    * bumping it to the front of the queue. POST /api/task/{taskId}/bump.
    * 404 if unknown, 409 if the task is no longer pending.
    */
   async bumpTaskPriority(
     taskId: string,
-    priority: number = 100,
-  ): Promise<APIResponse<{ task_id: string; priority: number; status: string }>> {
+    priority: number = GLOBAL_TASK_PRIORITIES.fast,
+  ): Promise<APIResponse<{ task_id: string; priority: number; status: GlobalTaskStatus }>> {
     return this.post(`/task/${encodeURIComponent(taskId)}/bump`, { priority });
   }
 
   /**
    * Enqueue a USER-INITIATED single request on the interactive fast lane.
    * POST /api/task/create with `interactive:true` so the created GlobalTask
-   * lands on `remote_fast` at priority 100. `capability` tags which lane-subset
-   * may claim it ("audio" | "image" | "translate" | "sentence_audio" | null for
-   * either client). Batch/scan enqueues stay interactive:false (the default) and
-   * MUST NOT use this method.
+   * lands on the central fast lane/priority when the task definition permits.
+   * `capability` must be one of the central task definition's eligible values.
+   * Batch/scan enqueues stay interactive:false and MUST NOT use this method.
    */
   async createInteractiveTask(data: {
     app_name: string;
     task_type: string;
     payload: any;
     capability?: FastCapability;
-    execution_type?: string;
     timeout_seconds?: number;
-  }): Promise<APIResponse<{ task_id: string; status: string; priority: number }>> {
+  }): Promise<APIResponse<GlobalTaskCreateResult>> {
     return this.post('/task/create', {
       ...data,
       interactive: true,
@@ -445,12 +431,12 @@ export class ServerManagerAPI extends BaseAPI {
       const es = new EventSource(buildUrl());
       source = es;
 
-      es.addEventListener('task.detail-initial', (ev) => {
+      es.addEventListener(GLOBAL_TASK_STREAM_EVENTS_BY_ROLE.initial, (ev) => {
         const data = parse((ev as MessageEvent).data) as GlobalTaskDetailBundle | null;
         if (data) handlers.onInitial?.(data);
       });
 
-      es.addEventListener('task.event', (ev) => {
+      es.addEventListener(GLOBAL_TASK_STREAM_EVENTS_BY_ROLE.transition, (ev) => {
         const data = parse((ev as MessageEvent).data) as GlobalTaskEvent | null;
         if (!data) return;
         // Advance the resume cursor (server keys reconnects by `_id`).
@@ -458,17 +444,20 @@ export class ServerManagerAPI extends BaseAPI {
         if (id !== undefined && id !== null) cursor = String(id);
         // Track terminal arrival locally (belt-and-suspenders for the SSE close
         // contract). Deliberately NOT 'failed'/'timeout', which may be retryable.
-        if (data.event === 'completed' || data.event === 'cancelled') terminal = true;
+        if (data.event === GLOBAL_TASK_EVENTS_BY_ROLE.completed
+          || data.event === GLOBAL_TASK_EVENTS_BY_ROLE.cancelled) {
+          terminal = true;
+        }
         handlers.onEvent?.(data);
       });
 
-      es.addEventListener('ping', (ev) => {
+      es.addEventListener(GLOBAL_TASK_STREAM_EVENTS_BY_ROLE.ping, (ev) => {
         const data = parse((ev as MessageEvent).data);
         if (data && data.cursor != null) cursor = String(data.cursor);
         handlers.onPing?.(cursor);
       });
 
-      es.addEventListener('stream.close', (ev) => {
+      es.addEventListener(GLOBAL_TASK_STREAM_EVENTS_BY_ROLE.close, (ev) => {
         const data = parse((ev as MessageEvent).data);
         if (data && data.cursor != null) cursor = String(data.cursor);
         handlers.onClose?.(cursor);

@@ -15,7 +15,7 @@ while _dir and not os.path.isdir(os.path.join(_dir, "pycore")):
 if _dir and _dir not in sys.path:
     sys.path.insert(0, _dir)
 
-from pycore.pyfoundations.third_party import get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
 
 np = get_third_package_numpy()
 

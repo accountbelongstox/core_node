@@ -18,7 +18,7 @@ sys.path.insert(0, current_dir)
 # Add ncore path
 
 from providor.providor_second import DIABLO_III_WINDOW_TITLES
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 class GameProcessDetector:
     """Detects Diablo III game process by checking window titles"""

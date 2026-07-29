@@ -1,6 +1,2 @@
-# -*- coding: utf-8 -*-
-"""CoreBook portable bundle engine (convert / enrich / submit / autoflow)."""
-
-from .corebook_engine import CoreBookEngine
-
-__all__ = ["CoreBookEngine"]
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

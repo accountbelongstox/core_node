@@ -22,9 +22,9 @@ from ...models.management.local_processing_models import (
 
 import time
 
-from pycore.pyfoundations.third_party import get_third_package_torch
-from pycore.pyutils.ocr_cluster import ocr_manager
-from pycore.pyfoundations.third_party import get_third_package_whisper
+from pycore.pyfoundations.third_party.api import get_third_package_torch
+import pycore.pyutils.ocr_cluster.ocr.ocr_manager as ocr_manager
+from pycore.pyfoundations.third_party.api import get_third_package_whisper
 
 
 

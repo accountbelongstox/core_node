@@ -1197,6 +1197,18 @@ export interface AgentHistoryArticleRecord {
   uploaded_at?: string | null;
 }
 
+export interface AgentHistoryTestExtractResponse {
+  success?: boolean;
+  data?: {
+    ok: boolean;
+    tool: string;
+    sources?: number;
+    error?: string;
+    prompt?: { ts: number; text: string };
+  };
+  error?: string | null;
+}
+
 export interface AgentHistoryArticleRecordsResponse {
   success?: boolean;
   records?: AgentHistoryArticleRecord[];
@@ -1404,7 +1416,7 @@ export interface TranslationQueueActionResponse {
   error?: string;
 }
 
-/** pyctl TaskManager record (GET /api/local/task-center/tasks/{id}). */
+/** pyctl TaskManager record returned by RPC v2 ui.task_center.get_local_task_detail. */
 export interface LocalTaskDetail {
   task_id: string;
   task_type: string;
@@ -2165,7 +2177,7 @@ export interface DictionaryEntry {
 }
 
 // --- Recent tasks (cross-end task history: pycore + chrome) ---------------- #
-// GET /api/local/tasks/recent — a unified, newest-first log of finished task
+// RPC v2 ui.task_history.get_recent_tasks — a newest-first log of finished task
 // units across both ends (pycore workers + the chrome MCP host). Each record is
 // a single processed item (a word, a TTS synth, an image fetch, a translation
 // batch, …). `detail` is free-form per task_type; the common keys are typed but
@@ -2275,7 +2287,7 @@ export interface PcTaskRecentStats {
   log_path: string;
 }
 
-/** GET /api/local/tasks/recent — recent task history + roll-up stats. */
+/** RPC v2 recent task history plus roll-up stats. */
 export interface PcTaskRecentResponse {
   success: boolean;
   records: PcTaskRecord[];
@@ -2287,7 +2299,7 @@ export interface PcTaskRecentResponse {
   error?: string;
 }
 
-/** GET /api/local/tasks/completed — persistent terminal-task archive. */
+/** RPC v2 persistent terminal-task archive. */
 export interface PcCompletedTaskArchiveResponse {
   success: boolean;
   records: PcTaskRecord[];
@@ -2302,7 +2314,7 @@ export interface PcCompletedTaskArchiveResponse {
   error?: string;
 }
 
-/** POST /api/local/tasks/completed/sync — cross-end archive synchronization. */
+/** RPC v2 cross-end archive synchronization. */
 export interface PcCompletedTaskSyncResponse {
   success: boolean;
   partial?: boolean;
@@ -2314,7 +2326,7 @@ export interface PcCompletedTaskSyncResponse {
   error?: string;
 }
 
-/** POST /api/local/tasks/clear — wipe history + truncate the text log. */
+/** RPC v2 command to wipe history and truncate the text log. */
 export interface PcTaskClearResponse {
   ok: boolean;
   error?: string;

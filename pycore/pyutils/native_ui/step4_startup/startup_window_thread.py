@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import time
-from pycore import THREAD_BUS
-from pycore.pyutils.native_ui.step0_i18n import i18n, I18nKeys
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
+from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 """
 TkinterStartupThread - Thread-Safe Startup Window (orchestrator)
 
@@ -27,7 +28,7 @@ Both are invoked from ``run()`` on the Tkinter thread (widgets are never created
 at import time and never from a foreign thread).
 
 Usage:
-    from pycore import THREAD_BUS
+    from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
     from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
 
     # Start window
@@ -53,8 +54,9 @@ import os
 import threading
 from typing import Optional, Any
 
-from pycore import THREAD_BUS, ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_tkinter
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_tkinter
 
 # tkinter is needed here for type hints (tk.Tk / tk.Text / ttk.Progressbar ...) and
 # for the tk constants used in _append_log / _cleanup. Resolved via third_party manager.
@@ -62,7 +64,8 @@ tk = get_third_package_tkinter()
 ttk = tk.ttk
 
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
-from pycore.pyutils.native_ui.step4_startup import startup_ui_builder, startup_tray_runner
+import pycore.pyutils.native_ui.step4_startup.startup_ui_builder as startup_ui_builder
+import pycore.pyutils.native_ui.step4_startup.startup_tray_runner as startup_tray_runner
 
 
 class TkinterStartupThread(threading.Thread):

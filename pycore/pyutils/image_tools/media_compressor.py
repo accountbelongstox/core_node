@@ -32,9 +32,9 @@ import uuid
 from pathlib import Path
 from typing import Optional, Dict, Tuple, Union, List, Callable
 
-from pycore.pyfoundations.third_party import get_third_package_cv2
+from pycore.pyfoundations.third_party.api import get_third_package_cv2
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider, start_bus_task
 
 # Re-exported data contracts (kept importable from this module for backwards

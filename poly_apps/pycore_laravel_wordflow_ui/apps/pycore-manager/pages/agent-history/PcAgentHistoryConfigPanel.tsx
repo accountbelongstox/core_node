@@ -3,6 +3,7 @@ import { pycoreApi } from '../../../../core/api-libs/pycore/PycoreApi';
 import { callRpc, connectPycoreWs } from '../../../../core/api-libs/pycore/PycoreWs';
 import { pycoreEventBus } from '../../../../core/api-libs/pycore/PycoreEventBus';
 import PcAgentHistoryLogPanel from './PcAgentHistoryLogPanel';
+import PcAgentHistoryToolCheckboxes from './PcAgentHistoryToolCheckboxes';
 import PcLlmEnginesStrip from '../../components/PcLlmEnginesStrip';
 
 const REFERENCE_LANGUAGE = 'CN';
@@ -14,13 +15,17 @@ const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
  * auto-processes history while on; no start call), plus language/word/LLM options.
  * Display-side phase/pending/last_error come from the operation store.
  */
-const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk }) => {
+const PcAgentHistoryConfigPanel: React.FC<{
+  tk: (k: string) => string;
+  onEnabledToolsChange?: (tools: string[]) => void;
+}> = ({ tk, onEnabledToolsChange }) => {
   const [articleCfg, setArticleCfg] = useState<Record<string, unknown> | null>(null);
   const [opStatus, setOpStatus] = useState<Record<string, any> | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [minRawWords, setMinRawWords] = useState(200);
+  const [enabledTools, setEnabledTools] = useState<string[]>([]);
 
   const loadConfig = useCallback(async () => {
     try {
@@ -29,11 +34,16 @@ const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk
         setArticleCfg(res.data);
         setEnabled(!!res.data.enabled);
         setMinRawWords(Number(res.data.min_raw_words || 200));
+        const tools = Array.isArray((res.data as any).enabled_tools)
+          ? ((res.data as any).enabled_tools as unknown[]).map(String)
+          : [];
+        setEnabledTools(tools);
+        onEnabledToolsChange?.(tools);
       }
     } catch (e) {
       setMsg(e instanceof Error ? e.message : tk('loadError'));
     }
-  }, [tk]);
+  }, [tk, onEnabledToolsChange]);
 
   const loadOpStatus = useCallback(async () => {
     try {
@@ -62,10 +72,11 @@ const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk
     return () => { off(); };
   }, [loadOpStatus]);
 
-  const saveConfig = async (enabledOverride?: boolean) => {
+  const saveConfig = async (enabledOverride?: boolean, toolsOverride?: string[]) => {
     setBusy(true);
     setMsg(null);
     const on = enabledOverride ?? enabled;
+    const tools = toolsOverride ?? enabledTools;
     try {
       const res = await pycoreApi.saveAgentHistoryArticleConfig({
         extract_as_article: on,
@@ -74,6 +85,7 @@ const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk
         target_lang: TARGET_LANGUAGE,
         min_raw_words: minRawWords,
         live_listen: true,
+        enabled_tools: tools,
       });
       if (res.success && res.data) {
         setArticleCfg(res.data);
@@ -86,6 +98,15 @@ const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleToolToggle = (tool: string, checked: boolean) => {
+    const tools = checked
+      ? [...enabledTools, tool]
+      : enabledTools.filter((t) => t !== tool);
+    setEnabledTools(tools);
+    onEnabledToolsChange?.(tools);
+    void saveConfig(undefined, tools);
   };
 
   const restartBackfill = async () => {
@@ -178,6 +199,7 @@ const PcAgentHistoryConfigPanel: React.FC<{ tk: (k: string) => string }> = ({ tk
             </button>
           </div>
         </div>
+        <PcAgentHistoryToolCheckboxes tk={tk} enabledTools={enabledTools} onToggle={handleToolToggle} />
         <PcLlmEnginesStrip tk={tk} />
         {articleCfg && (
           <div className="text-[11px] font-mono text-slate-500">

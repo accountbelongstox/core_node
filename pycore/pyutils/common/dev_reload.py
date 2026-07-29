@@ -33,7 +33,8 @@ import os
 import time
 from pathlib import Path
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import start_bus_task
 
 # Directories never worth watching: caches, vendored JS (Vite owns the FE),

@@ -14,7 +14,7 @@ from pathlib import Path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from controller.training import D3CheckTrainingController
 
 

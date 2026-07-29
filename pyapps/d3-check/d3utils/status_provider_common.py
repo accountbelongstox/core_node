@@ -9,7 +9,7 @@ Shared logic: apply running flag, optional geometry, detect dynamic triple (on_l
 import sys
 from typing import Optional, Dict, Any, Callable, Tuple
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def refresh_window_state(

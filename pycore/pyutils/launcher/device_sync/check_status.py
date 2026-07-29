@@ -7,9 +7,9 @@ Check if Device Sync is running and diagnose issues.
 
 import sys
 import socket
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 
-from pycore.pyfoundations.third_party import get_third_package_pystray
+from pycore.pyfoundations.third_party.api import get_third_package_pystray
 
 
 def check_ipc_server():

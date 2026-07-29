@@ -23,9 +23,11 @@ pycore.pyutils.native_ui). The `launch` alias is preserved.
 
 import time
 
-from pycore import ColorPrint, THREAD_BUS
-from pycore.pyutils.native_ui.step1_config import NativeUIConfig
-from pycore.pyutils.native_ui.step2_port_url import get_port_range, process_url
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
+from pycore.pyutils.native_ui.step2_port_url.port_allocator import get_port_range
+from pycore.pyutils.native_ui.step2_port_url.url_handler import process_url
 from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
 from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import launch_app_with_startup
 from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager
@@ -349,7 +351,7 @@ def _initialize_timer_manager(config: NativeUIConfig) -> None:
 
     The timer manager is auto-started if enable_timer=True.
     Users can register tasks anytime using:
-        from pycore.pyutils.native_ui import get_timer_manager
+        from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager
         timer_mgr = get_timer_manager()
         timer_mgr.register_task("my_task", interval=5.0, callback=my_callback)
     """

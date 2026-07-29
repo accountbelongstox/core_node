@@ -16,11 +16,11 @@ Architecture:
 
 import json
 from typing import Optional, Dict, Any
-from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.database import get_database_manager
+from pycore.database.exports import get_database_manager
 
-from pycore.database.models import TableKeys
+from pycore.database.models.table_keys import TableKeys
 
 from pycore.database.models.common.config_model import CommonConfigModel
 

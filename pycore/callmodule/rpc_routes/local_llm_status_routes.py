@@ -3,7 +3,7 @@
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_LLM_STATUS_GET_SETTINGS,
     UI_LLM_STATUS_POST_SERVER_ACTION,
@@ -11,7 +11,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_LLM_STATUS_STATUS,
     UI_LLM_STATUS_TEST,
 )
-from pycore.callmodule.services import llm_status_service as llm
+import pycore.callmodule.services.llm_status_service as llm
 
 
 def register_local_llm_status_routes(server):

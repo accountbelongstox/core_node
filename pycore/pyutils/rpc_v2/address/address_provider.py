@@ -8,9 +8,10 @@ import time
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
-from pycore.pyutils.rpc_v2.config import get_rpc_config
+from pycore.pyutils.rpc_v2.config.rpc_config import get_rpc_config
 from pycore.pyutils.rpc_v2.discovery.rpc_discovery import RPCDiscovery, DiscoveredRPCService
 from pycore.pyutils.rpc_v2.discovery.local_ip_detector import get_local_lan_ip, confirm_local_lan_ip
 

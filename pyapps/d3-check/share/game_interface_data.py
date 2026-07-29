@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from share.ui_registry import get_ui
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
 
 numpy = get_third_package_numpy()
 np = numpy
@@ -34,7 +34,7 @@ from providor.constants.common import (
 from providor.constants.d3 import D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT
 from providor.constants.d4 import D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT
 from providor.providor_index import get_template_path, BATTLE_NET_CONFIG_PATH
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Global scale variables (moved from providor_index)
 GLOBAL_SCALE_X = 1.0  # Horizontal scale factor

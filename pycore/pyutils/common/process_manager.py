@@ -6,16 +6,16 @@ Handles process management including starting, stopping, and monitoring processe
 """
 
 import os
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import sys
 import time
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_psutil
+from pycore.pyfoundations.third_party.api import get_third_package_psutil
 
-from pycore.pyfoundations.third_party import get_third_package_win32gui
-from pycore.pyfoundations.third_party import get_third_package_win32process
+from pycore.pyfoundations.third_party.api import get_third_package_win32gui
+from pycore.pyfoundations.third_party.api import get_third_package_win32process
 
 
 psutil = get_third_package_psutil()

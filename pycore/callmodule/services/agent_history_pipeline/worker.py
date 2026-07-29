@@ -8,7 +8,11 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.callmodule.services.operation_service import OperationService
 from pycore.callmodule.services.operation_event_service import OperationEventService
-from pycore.callmodule.services.agent_history_pipeline.config import get_config, save_config
+from pycore.callmodule.services.agent_history_pipeline.config import (
+    advance_tool_cursor,
+    get_config,
+    save_config,
+)
 from pycore.callmodule.services.agent_history_pipeline.planner import plan_batches
 from pycore.callmodule.services.agent_history_pipeline.article_stages import generate_chinese_article, translate_to_english
 from pycore.callmodule.services.agent_history_pipeline.audio_stage import synthesize_audio
@@ -37,7 +41,9 @@ _run_gate = _RunGate()
 
 # A failed pipeline item is retried until this many attempts, then stays failed
 # (transient TTS / network errors must not silently drop the whole article).
-MAX_ITEM_ATTEMPTS = 3
+# One attempt per 10s tick, so 30 attempts ≈ 5 minutes of retry — long enough
+# for a cold-loading local TTS engine, bounded enough to drop a poison batch.
+MAX_ITEM_ATTEMPTS = 30
 
 def _try_acquire_run() -> Optional[object]:
     return _run_gate.acquire()
@@ -67,6 +73,8 @@ def start_backfill() -> Dict[str, Any]:
             "raw_index": 0,
             "attempts": 0,
         }
+        cfg["cursors"] = {}
+        cfg["last_tool"] = ""
         save_config(cfg)
         
         items, pending = plan_batches(live=False)
@@ -132,6 +140,11 @@ def tick_pipeline() -> None:
         op_service = OperationService()
         event_service = OperationEventService()
 
+        # Best-effort: one deferred Laravel upload per tick. A generated
+        # article must eventually reach laravel even if the first upload
+        # failed (network reset, endpoint down) — never regenerated.
+        _retry_pending_upload()
+
         active_ops = [
             op for op in op_service.repo.list_nonterminal_operations(limit=10)
             if str(op.kind).startswith("agent_history")
@@ -147,7 +160,10 @@ def tick_pipeline() -> None:
             if pending_items:
                 item = pending_items[0]
                 try:
-                    _process_item(item, op_service, event_service)
+                    if _process_item(item, op_service, event_service):
+                        # Item reached the succeeded stage — advance its tool
+                        # cursor so completed batches are never re-planned.
+                        _advance_cursor_for_input(item.input_json or {})
                 except Exception as e:
                     _fail_item(item, e, op_service)
                 return
@@ -183,13 +199,11 @@ def tick_pipeline() -> None:
         
         try:
             _process_item(item, op_service, event_service)
-            
-            # Update cursor on success
+
+            # Advance the per-tool cursor (forward only) and rotate to the
+            # next tool so every AI is processed evenly.
+            _advance_cursor_for_input(items[0])
             cfg = get_config()
-            if items[0].get("last_fragment_id"):
-                cfg["cursor"]["after_fragment_id"] = items[0]["last_fragment_id"]
-            if items[0].get("last_ts"):
-                cfg["cursor"]["after_ts"] = int(items[0]["last_ts"])
             cfg["cursor"]["attempts"] = 0
             save_config(cfg)
             
@@ -207,6 +221,22 @@ def tick_pipeline() -> None:
     finally:
         _release_run(token)
 
+def _advance_cursor_for_input(input_data: Dict[str, Any]) -> None:
+    """Advance the per-tool cursor (forward only) from a planned item's input
+    and rotate to the next tool so every AI is processed evenly."""
+    tool = str(input_data.get("tool") or "")
+    if not tool:
+        return
+    cfg = get_config()
+    advance_tool_cursor(
+        cfg,
+        tool,
+        int(input_data.get("last_ts") or 0),
+        str(input_data.get("last_fragment_id") or ""),
+    )
+    cfg["last_tool"] = tool
+    save_config(cfg)
+
 def _fail_item(item, error: Exception, op_service: OperationService) -> None:
     """Mark an item failed, KEEPING its checkpoint so a retry resumes the stage."""
     err = str(error)
@@ -219,6 +249,48 @@ def _fail_item(item, error: Exception, op_service: OperationService) -> None:
         message=f"Item failed: {err}",
     )
 
+def _retry_pending_upload() -> None:
+    """Re-upload one locally saved article that never reached Laravel.
+
+    Upload failure at stage 5 is best-effort (the item still succeeds), so
+    without this retry a generated bilingual article + audio could stay local
+    forever. Retried from the saved record — no regeneration, no extra
+    OpenRouter request.
+    """
+    try:
+        pending = records.pending_uploads()
+    except Exception:
+        return
+    if not pending:
+        return
+    record = pending[0]
+    record_id = str(record.get("id") or "")
+    if not record_id:
+        return
+    try:
+        audio_bytes = records.read_audio(record_id)
+        audio: Dict[str, Any] = {}
+        if audio_bytes:
+            audio["audio_base64"] = base64.b64encode(audio_bytes).decode("ascii")
+            audio["engine"] = record.get("tts_engine") or "local"
+        laravel_data = upload_to_laravel(
+            {
+                "title_en": record.get("title_en"),
+                "title_cn": record.get("title_cn"),
+                "reference_cn": record.get("reference_cn"),
+                "article_en": record.get("article_en"),
+            },
+            audio,
+            "",
+        )
+        records.mark_uploaded(record_id)
+        ColorPrint.green(
+            f"[AgentHistoryPipeline] deferred upload succeeded for record {record_id}: "
+            f"{laravel_data.get('article_id')}"
+        )
+    except Exception as exc:  # noqa: BLE001 — retry again on the next tick
+        ColorPrint.gray(f"[AgentHistoryPipeline] upload retry deferred: {exc}")
+
 def _is_item_terminal(item) -> bool:
     """Terminal = done/skipped/cancelled, or failed past the retry cap."""
     if item.status in ("succeeded", "skipped", "cancelled"):
@@ -227,8 +299,9 @@ def _is_item_terminal(item) -> bool:
         return int(item.attempts or 0) >= MAX_ITEM_ATTEMPTS
     return False
 
-def _process_item(item, op_service: OperationService, event_service: OperationEventService) -> None:
-    """Drive an item through its stages."""
+def _process_item(item, op_service: OperationService, event_service: OperationEventService) -> bool:
+    """Drive an item through one stage. Returns True only when the item
+    reached the terminal succeeded stage in this call."""
     checkpoint = item.checkpoint_json or {}
     input_data = item.input_json or {}
     raw_text = input_data.get("raw_text", "")
@@ -302,14 +375,16 @@ def _process_item(item, op_service: OperationService, event_service: OperationEv
             )
             
         op_service.transition_item(
-            item.id, 
-            "succeeded", 
-            "completed", 
-            1.0, 
+            item.id,
+            "succeeded",
+            "completed",
+            1.0,
             checkpoint_json=checkpoint,
             result_json=checkpoint,
             message="Item completed successfully"
         )
+        return True
+    return False
 
 def count_words(text: str) -> int:
     return len([w for w in text.split() if w.strip()])

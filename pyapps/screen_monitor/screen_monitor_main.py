@@ -17,13 +17,13 @@ import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from pycore.pyfoundations.third_party import get_third_package_mss, get_third_package_PIL_Image
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_mss, get_third_package_PIL_Image
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.ocr import ocr_manager
 from pycore.pyutils.window.ops import WindowOps
 from pycore.pyutils.image_comparator import ImageComparator
 from pycore.pyutils.window.analyzer import WindowAnalyzer
-from pycore.pyfoundations.pygvar import PYTOOLS_TMP_DIR
+from pycore.pyfoundations.pygvar.global_var_manager import PYTOOLS_TMP_DIR
 
 mss = get_third_package_mss()
 PIL_Image = get_third_package_PIL_Image()

@@ -27,7 +27,7 @@ repo_root = os.path.dirname(os.path.dirname(project_root))
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.app_constants import (
     D3_LEGENDARY_ANCIENT_RATE,
     D3_LEGENDARY_PRIMAL_RATE,

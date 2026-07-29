@@ -31,7 +31,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from pycore.pyutils.python_env.isolated_venv import resolve_python as resolve_isolated_python
 from pycore.pyutils.python_env.isolated_venv import venv_ready as isolated_venv_ready
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.tts import qwen3tts_weights
+import pycore.pyutils.tts.qwen3tts_weights as qwen3tts_weights
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,

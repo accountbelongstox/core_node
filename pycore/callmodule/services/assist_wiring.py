@@ -4,7 +4,7 @@
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyctl.assist import load_assist_settings
+from pycore.pyctl.assist.assist_settings import load_assist_settings
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
 )

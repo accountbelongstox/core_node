@@ -15,8 +15,9 @@ THREAD_BUS Integration:
 import time
 import threading
 from typing import Optional, Callable
-from pycore import THREAD_BUS, ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_pynput
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_pynput
 from pycore.pyfoundations.serialized_worker import start_bus_task
 
 pynput = get_third_package_pynput()

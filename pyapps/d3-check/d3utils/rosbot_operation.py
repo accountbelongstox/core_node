@@ -10,12 +10,12 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.i18n_manager import i18n_manager
 from d3utils.rosbot_manager import get_rosbot_manager
 from d3utils.rosbot_ui_automation import run_after_rosbot_start as _run_after_rosbot_start, resume_rosbot_ui as _resume_rosbot_ui
 
-from pycore.pyfoundations.third_party import get_third_package_win32gui, get_third_package_win32con
+from pycore.pyfoundations.third_party.api import get_third_package_win32gui, get_third_package_win32con
 
 # docs/rosbot_ui_elements_1.json: KEY dialog has window title "Error" and text "Please, enter a key"
 _ROSBOT_KEY_DIALOG_JSON_PATH = Path(__file__).resolve().parent.parent / "docs" / "rosbot_ui_elements_1.json"

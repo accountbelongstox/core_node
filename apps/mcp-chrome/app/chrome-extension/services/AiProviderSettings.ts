@@ -1,10 +1,10 @@
 import { localStorage } from './ExtensionStorage';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 
-export type AiWebProvider = 'chatgpt' | 'gemini' | 'deepseek' | 'zai';
+export type AiWebProvider = 'chatgpt' | 'gemini' | 'deepseek';
 
 const WEB_PROVIDERS: readonly AiWebProvider[] = ['chatgpt', 'gemini'];
-const VALIDITY_PROVIDERS: readonly AiWebProvider[] = ['chatgpt', 'gemini', 'deepseek', 'zai'];
+const VALIDITY_PROVIDERS: readonly AiWebProvider[] = ['chatgpt', 'gemini', 'deepseek'];
 
 function isProvider(value: unknown, providers: readonly AiWebProvider[]): value is AiWebProvider {
   return typeof value === 'string' && providers.includes(value as AiWebProvider);
@@ -38,14 +38,14 @@ export async function setValidityProvider(provider: AiWebProvider): Promise<void
  */
 export async function getValidityLanguage(): Promise<string> {
   const stored = await localStorage.get<unknown>(STORAGE_KEYS.VALIDITY_LANGUAGE, 'en');
-  return typeof stored === 'string' && /^[a-z]{2}(-[a-zA-Z]{2,})?$/i.test(stored.trim())
+  return typeof stored === 'string' && /^[a-z]{2,3}(-[a-zA-Z]{2,})?$/i.test(stored.trim())
     ? stored.trim().toLowerCase()
     : 'en';
 }
 
 export async function setValidityLanguage(language: string): Promise<void> {
   const normalized = String(language || '').trim().toLowerCase();
-  if (!/^[a-z]{2}(-[a-z]{2,})?$/.test(normalized)) {
+  if (!/^[a-z]{2,3}(-[a-z]{2,})?$/.test(normalized)) {
     throw new Error(`Unsupported validity language: ${language}`);
   }
   await localStorage.set(STORAGE_KEYS.VALIDITY_LANGUAGE, normalized);

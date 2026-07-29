@@ -21,7 +21,7 @@ import os
 import re
 from typing import Any, Dict, List, Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyutils.common.model_tiers import (
     runtime_faster_whisper_compute_type,

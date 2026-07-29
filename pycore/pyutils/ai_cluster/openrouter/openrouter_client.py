@@ -13,7 +13,7 @@ Features:
 - Support for DeepSeek R1T2 Chimera and other models
 
 Usage:
-    from pycore.pyutils.openrouter_sdk import get_openrouter_client
+    from pycore.pyutils.ai_cluster.openrouter.openrouter_client import get_openrouter_client
 
     client = get_openrouter_client()
     response = client.chat_completion(
@@ -28,7 +28,7 @@ from typing import Dict, Any, Optional, List, Iterator, Callable
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
 requests = get_third_package_requests()
@@ -441,3 +441,5 @@ def get_openrouter_client(
         site_url=site_url,
         site_name=site_name,
     )
+
+openrouter_client = get_openrouter_client()

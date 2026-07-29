@@ -11,7 +11,7 @@ from typing import Tuple, List, Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
 
 Image = get_third_package_PIL_Image()
 
@@ -28,7 +28,7 @@ from share.game_interface_data import (
     D4RegionInfo,
     D4PointInfo,
 )
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.constants.common import DEBUG
 from d3utils.d3u_common.image_annotator_helper import create_annotator, get_image_pil, ANNOTATION_COLORS
 

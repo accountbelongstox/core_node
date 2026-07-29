@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore import THREAD_BUS
-from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 """
 PySide6 System Tray - System Tray Icon with Menu

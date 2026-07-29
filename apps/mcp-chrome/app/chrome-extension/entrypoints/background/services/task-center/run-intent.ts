@@ -79,3 +79,11 @@ export async function isCapabilityActive(key: CapabilityKey): Promise<boolean> {
   const intent = await getRunIntent();
   return intent.running && intent.activeCapabilities.includes(key);
 }
+
+/** True when any active central capability owns the given processor. */
+export async function isProcessorActive(processorType: string): Promise<boolean> {
+  const intent = await getRunIntent();
+  return intent.running && intent.activeCapabilities.some(
+    (key) => CAPABILITY_BY_KEY[key]?.processors.includes(processorType),
+  );
+}

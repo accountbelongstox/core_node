@@ -134,12 +134,12 @@ class WorkerController extends Controller
             'worker_id' => 'required|string',
             'limit' => "nullable|integer|min:1|max:{$pullLimit}",
             // Long-poll wait budget (seconds). 0 = legacy immediate return.
-            // Clamped server-side to MAX_LONG_POLL_SECONDS in the manager.
+            // Clamped to the central long_poll_seconds contract value.
             'wait' => "nullable|integer|min:0|max:{$longPollLimit}",
         ]);
 
         $workerId = $validated['worker_id'];
-        $limit = $validated['limit'] ?? 5;
+        $limit = $validated['limit'] ?? QueueCenterContract::taskLimit('worker_pull_default');
         // validate()'s `integer` rule checks but does NOT cast query-string params,
         // so $validated['wait'] arrives as the string "0"; cast before the strict
         // `=== 0` comparison below or the immediate-return fast path is never taken.
@@ -234,10 +234,10 @@ class WorkerController extends Controller
             'error' => 'nullable|string',
         ]);
 
-        $progress = 0;
-        if (isset($validated['progress'])) {
-            $progress = $validated['progress'];
-        }
+        // NULL when the worker omitted progress (a lease keep-alive ping —
+        // d.txt 7): the service then leaves the stored progress untouched and
+        // only extends the task lease.
+        $progress = $validated['progress'] ?? null;
 
         $result = null;
         if (isset($validated['result'])) {

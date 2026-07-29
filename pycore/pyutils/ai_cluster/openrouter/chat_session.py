@@ -13,7 +13,7 @@ Features:
 - Conversation management
 
 Usage:
-    from pycore.pyutils.openrouter_sdk import ChatSession
+    from pycore.pyutils.ai_cluster.openrouter.openrouter_client import ChatSession
 
     # Create session
     session = ChatSession()
@@ -37,7 +37,7 @@ from typing import List, Dict, Any, Optional, Callable, Iterator
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.ai_cluster.openrouter.openrouter_client import get_openrouter_client
 
 

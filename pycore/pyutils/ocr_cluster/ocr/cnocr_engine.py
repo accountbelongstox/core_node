@@ -12,7 +12,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.ocr_cluster.ocr.ocr_result import OCRResult
 
 try:
-    from pycore.pyfoundations.third_party import REC_MORE_CONFIGS_CNOCR as _REC_MORE_CONFIGS
+    from pycore.pyfoundations.third_party.api import REC_MORE_CONFIGS_CNOCR as _REC_MORE_CONFIGS
 except Exception:  # noqa: BLE001 — degrade to no extra config rather than break import
     _REC_MORE_CONFIGS = {}
 

@@ -52,7 +52,7 @@ const LANGUAGE_OPTIONS: Array<{ code: string; label: string }> = [
 
 const RECORD_TYPES = ['book', 'subtitle'] as const;
 
-/** Priority presets. 100 = the shared interactive fast lane (remote_fast). */
+/** Priority presets; shared tiers come from config/queue_center_contract.json. */
 const PRIORITY_OPTIONS: Array<{ value: number; label: string }> = [
   { value: GLOBAL_TASK_PRIORITIES.default, label: `Normal (${GLOBAL_TASK_PRIORITIES.default})` },
   { value: 10, label: 'High (10)' },

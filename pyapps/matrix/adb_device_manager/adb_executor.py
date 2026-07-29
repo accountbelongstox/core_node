@@ -10,8 +10,8 @@ timeout management, and result parsing.
 import re
 import threading
 from typing import Optional, List, Tuple, Dict
-from pycore import ColorPrint
-from pycore.pyfoundations.pybasecommon import exec_silent
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.commander import exec_silent
 
 
 class ADBExecutor:
@@ -301,7 +301,7 @@ def set_adb_path(adb_path: str):
     """
     global adb_executor
     adb_executor.adb_path = adb_path
-    from pycore import ColorPrint
+    from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
     ColorPrint.green(f"[ADBExecutor] ADB path updated: {adb_path}")
 
 __all__ = ["ADBExecutor", "adb_executor", "set_adb_path"]

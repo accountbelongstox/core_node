@@ -7,7 +7,7 @@ Signal system module with signal management and timer system
 
 # Import ColorPrint for logging
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 import time
 from enum import Enum

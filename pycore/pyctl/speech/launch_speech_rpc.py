@@ -19,14 +19,14 @@ import time
 import argparse
 from typing import Optional
 
-from pycore.pyfoundations import ColorPrint
-from pycore.pylauncher import launch_services, LauncherConfig, ServiceLauncher
-from pycore.pyctl.speech.rpc import start_rpc_service
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pylauncher.launcher import launch_services, LauncherConfig, ServiceLauncher
+from pycore.pyctl.speech.rpc.rpc_service import start_rpc_service
 
-from pycore.pyutils.common import speech_config
+from pycore.pyutils.common.speech_config import speech_config
 from pathlib import Path
-from pycore.pyutils.rpc_v2 import UnifiedRpcServerRunner
-from pycore.pylauncher import stop_services
+from pycore.pyutils.rpc_v2.server.server_runner import FastAPIRPCServerRunner as UnifiedRpcServerRunner
+from pycore.pylauncher.launcher import stop_services
 
 
 

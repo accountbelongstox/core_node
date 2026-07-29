@@ -6,7 +6,7 @@ Fills fields: try UIA ValuePattern.SetValue first; on failure use pycore field_i
 import time
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.input.field_input import fill_field_with_fallback, CLEAR_MODE_REPLACE
 from providor.constants.common import (
     ASIA_LOGIN_ACCOUNT_AUTOMATION_IDS,

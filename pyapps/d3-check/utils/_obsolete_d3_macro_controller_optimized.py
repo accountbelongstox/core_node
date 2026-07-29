@@ -20,7 +20,7 @@ _project_root = _current_dir.parent
 sys.path.insert(0, str(_project_root))
 
 # Direct pycore imports (no secondary encapsulation)
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.providor_index import CONFIG, load_config
 from controller.game_interface_controller import GameInterfaceController
 

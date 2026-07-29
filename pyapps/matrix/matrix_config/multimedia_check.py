@@ -7,8 +7,9 @@ This shows the correct way to use ensure_ffmpeg and ensure_pyside6_codecs
 in your application.
 """
 
-from pycore import ColorPrint
-from pycore.pyutils.ensure_library import ensure_ffmpeg, ensure_pyside6_codecs
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.ensure_library.ffmpeg_installer import ensure_ffmpeg
+from pycore.pyutils.ensure_library.pyside6_checker import ensure_pyside6_codecs
 
 
 def check_multimedia_environment():

@@ -8,8 +8,8 @@ import ipaddress
 import socket
 from typing import Optional
 
-from pycore import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_psutil
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_psutil
 
 psutil = get_third_package_psutil()
 

@@ -33,7 +33,8 @@ import time
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWidgets import QApplication
 
-from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from .system_tray import build_pyside6_menu_from_dicts
 

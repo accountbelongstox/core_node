@@ -8,13 +8,11 @@ of the translator utility.
 """
 
 import asyncio
-from pycore.pyutils.translator import (
-    romanize_text,
-    romanize_batch,
+from pycore.pyutils.translator.romanization import romanize_text, romanize_batch, Romanizer
+from pycore.pyutils.translator.phonetic import (
     text_to_ipa,
     word_to_ipa,
     batch_to_ipa,
-    Romanizer,
     PhoneticTranscriber,
 )
 

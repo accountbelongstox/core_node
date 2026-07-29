@@ -6,6 +6,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowDown, ArrowUp, Home, Pause, Play, Plus, SkipBack, SkipForward, Trash2, X } from 'lucide-react';
 import type { DailyReadingPatternStep, DailyReadingPlayer } from './useDailyReadingPlayer';
+import { WfDailyReadingWordGroupsPanel } from './WfDailyReadingWordGroupsPanel';
 
 interface Props {
   player: DailyReadingPlayer;
@@ -55,6 +56,13 @@ export const WfDailyReadingPlayerOverlay: React.FC<Props> = ({ player, trans, on
               {current.reference_cn}
             </p>
           )}
+          {/* Word Groups / Default Vocabulary Group linkage panel — refresh
+              keyed on the article index so just-played words re-read state. */}
+          <WfDailyReadingWordGroupsPanel
+            article={current}
+            trans={trans}
+            refreshToken={index}
+          />
         </article>
       </div>
 

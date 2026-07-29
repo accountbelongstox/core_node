@@ -4,7 +4,7 @@ RPC Routes for task_center
 """
 
 import asyncio
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TASK_CENTER_GET,
     UI_TASK_CENTER_GET_QUEUE_CENTER_SNAPSHOT,

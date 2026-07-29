@@ -13,8 +13,10 @@ import time
 import subprocess
 from pathlib import Path
 
-from pycore import get_user_data_store, THREAD_BUS, ColorPrint
-from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.database.repositories.user_data_store import get_user_data_store
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from ...models.local_processing.user_data_models import (
     SystemSettingsResponse,
     VideoExtractHistoryEntry,

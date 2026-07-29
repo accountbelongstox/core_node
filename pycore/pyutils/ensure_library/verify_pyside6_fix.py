@@ -12,14 +12,14 @@ Usage:
 import sys
 from pathlib import Path
 
-from pycore.pyutils.ensure_library import ensure_pyside6_codecs
+from pycore.pyutils.ensure_library.pyside6_checker import ensure_pyside6_codecs
 
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 def main():
     """Run quick verification"""

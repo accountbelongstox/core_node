@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from pycore.pyfoundations.system_paths import get_local_data_dir
-from pycore.pyutils.common import hf_local_weights as _core
+import pycore.pyutils.common.hf_local_weights as _core
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 
 # Static LFS sizes (offline fallback; install scripts also resolve live via HF API).

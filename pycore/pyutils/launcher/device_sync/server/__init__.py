@@ -1,11 +1,2 @@
-# -*- coding: utf-8 -*-
-"""
-Server Module - PRIMARY server functionality for Device Sync
-"""
-
-from .primary import SimplePrimaryServer, PrimaryServerHandler
-
-__all__ = [
-    'SimplePrimaryServer',
-    'PrimaryServerHandler',
-]
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

@@ -10,7 +10,7 @@ If you need to use MCP routes, use pycore_module_caller.py instead.
 """
 
 from typing import Any
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def register_mcp_routes(rpc_server: Any) -> None:

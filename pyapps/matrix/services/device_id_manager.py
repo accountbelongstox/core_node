@@ -6,7 +6,7 @@ Assigns simple numeric IDs to each device to avoid passing complex serials
 """
 
 from typing import Dict, Optional
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class DeviceIDManager:

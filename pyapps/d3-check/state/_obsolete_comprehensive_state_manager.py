@@ -20,7 +20,7 @@ sys.path.insert(0, current_dir)
 # Add ncore path
 
 from providor.providor_second import CONFIG, load_config
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 @dataclass
 class RosBotState:

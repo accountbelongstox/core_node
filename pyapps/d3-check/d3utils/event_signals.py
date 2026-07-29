@@ -6,7 +6,7 @@ Event signals - shared event names and triggers used by shutdown_manager, event_
 
 from typing import Optional
 
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from providor.constants.common import (
     EXTENSION_SHUTDOWN,
     EXTENSION_ROSBOT_STARTED,

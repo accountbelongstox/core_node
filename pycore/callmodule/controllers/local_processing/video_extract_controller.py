@@ -3,9 +3,10 @@
 
 import os
 
-from pycore import ColorPrint, get_user_data_store
-from pycore.pyutils.common import system_launcher
-from ...services.processors import VideoExtractProcessor
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.database.repositories.user_data_store import get_user_data_store
+import pycore.pyutils.common.system_launcher as system_launcher
+from pycore.callmodule.services.processors.video_extract_processor import VideoExtractProcessor
 from ...services.processors.video_extract_processor import whisper_capabilities, VIDEO_EXTENSIONS
 # v3 multi-language subtitle correspondence view (SAME slot builders the ingest
 # sync uses — bilingual cue split + multi-track time-overlap alignment). The read
@@ -29,7 +30,7 @@ from pycore.pyctl.desktop.task_manager import get_task_manager
 import shutil
 import subprocess
 
-from pycore.pyfoundations.third_party import get_third_package_psutil
+from pycore.pyfoundations.third_party.api import get_third_package_psutil
 
 
 

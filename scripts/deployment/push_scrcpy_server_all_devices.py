@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.device.scrcpy_init import get_initializer
 from pycore.pyutils.device.scrcpy_server_manager import get_scrcpy_server_manager
 from pyapps.matrix.matrix_config import Config

@@ -167,6 +167,7 @@ export const PYCORE_RPC_ROUTES = {
   agentHistoryArticleLogs: 'ui.agent_history.article_logs',
   agentHistoryArticleRecords: 'ui.agent_history.article_records',
   agentHistoryArticleAudio: 'ui.agent_history.article_audio',
+  agentHistoryTestExtract: 'ui.agent_history.test_extract',
   translateStatus: 'ui.translate.status',
   translateTranslate: 'ui.translate.translate',
   translateAi: 'ui.translate.ai',

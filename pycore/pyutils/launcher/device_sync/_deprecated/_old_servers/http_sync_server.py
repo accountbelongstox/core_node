@@ -26,7 +26,7 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
     start_bus_task,
 )
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pathlib import Path
 import urllib.parse
 import socket

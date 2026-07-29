@@ -4,7 +4,7 @@ import win32gui
 import win32con
 import win32api
 from PIL import Image
-from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 """
 Windows Native System Tray (pywin32 / Shell_NotifyIcon)
 
@@ -38,7 +38,8 @@ import threading
 from pathlib import Path
 from typing import List, Optional
 
-from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Reuse the canonical tray menu item dataclass (same one build_tray_menu produces)
 from .tkinter_system_tray import TrayMenuItem

@@ -23,8 +23,9 @@ Backend selection:
 
 from typing import Any
 
-from pycore import THREAD_BUS, ColorPrint
-from pycore.pyutils.native_ui.step0_i18n import i18n
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import (
     TkinterSystemTray,
     TrayMenuItem as TkinterTrayMenuItem,

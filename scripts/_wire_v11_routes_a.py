@@ -20,7 +20,7 @@ add(
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import UI_VERSION_VERSION
 from pycore.callmodule.services.version_service import get_version
 
@@ -44,7 +44,7 @@ add(
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import UI_QUEUE_BUMPS_LIST_BUMPS
 from pycore.callmodule.services.queue_bump_hub import get_queue_bump_hub
 
@@ -75,7 +75,7 @@ add(
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import UI_ENGINES_LOAD_STATUS_LOAD_STATUS
 from pycore.callmodule.services.engines_load_status_service import get_load_status
 
@@ -99,13 +99,13 @@ add(
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_WORD_TTS_STATUS,
     UI_WORD_TTS_CONFIG,
     UI_WORD_TTS_RUN_ONCE,
 )
-from pycore.callmodule.services import get_tts_queue_poller_service
+from pycore.callmodule.services.tts_queue_poller_service import get_tts_queue_poller_service
 from pycore.callmodule.services.word_tts_auto import apply_auto_start, get_status
 
 
@@ -152,7 +152,7 @@ add(
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_DICTIONARY_DICTIONARY_STATUS,
     UI_DICTIONARY_DICTIONARY_LOOKUP,
@@ -202,7 +202,7 @@ add(
 
 import asyncio
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TASK_SETTINGS_CHAINS,
     UI_TASK_SETTINGS_UPDATE_CHAIN,
@@ -242,15 +242,16 @@ add(
 
 import asyncio
 
-from pycore import ColorPrint
-from pycore.callmodule.callmodule_config import Config
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.callmodule.callmodule_config.config import Config
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TRANSLATION_QUEUE_SET_PRIORITY,
     UI_TRANSLATION_QUEUE_STACK,
     UI_TRANSLATION_QUEUE_GET_TASK_DETAIL,
 )
-from pycore.callmodule.services import get_queue_monitor_service, get_translation_worker_service
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
+from pycore.callmodule.services.translation_worker_service import get_translation_worker_service
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 
 
 def _monitor():

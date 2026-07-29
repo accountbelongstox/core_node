@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # FastMCP framework
-from pycore.pyfoundations.third_party import get_third_package_FastMCP
+from pycore.pyfoundations.third_party.api import get_third_package_FastMCP
 
 import tempfile
 import glob

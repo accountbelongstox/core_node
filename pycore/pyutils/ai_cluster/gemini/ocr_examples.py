@@ -5,7 +5,7 @@ This example demonstrates how to use the ocr_and_organize function
 to extract text from images and organize it into coherent content.
 """
 
-from pycore.pyutils.ai_cluster.gemini import gemini_manager
+from pycore.pyutils.ai_cluster.gemini.gemini_manager import gemini_manager
 
 
 def example_basic_ocr():

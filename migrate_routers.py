@@ -56,7 +56,7 @@ def process_file(filepath):
 RPC Routes for {base_name}
 \"\"\"
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     {imports}
 )

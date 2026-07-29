@@ -13,7 +13,7 @@ This file is kept for backward compatibility.
 from pathlib import Path
 from typing import Optional, Callable
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.robust_downloader import RobustDownloader
 
 

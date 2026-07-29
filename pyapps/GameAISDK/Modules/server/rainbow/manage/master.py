@@ -21,7 +21,7 @@ import argparse
 import queue
 import time
 
-from pycore.pyfoundations.third_party import get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
 
 import torch
 

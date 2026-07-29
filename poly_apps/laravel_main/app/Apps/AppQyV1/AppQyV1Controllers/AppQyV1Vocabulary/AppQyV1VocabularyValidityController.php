@@ -213,11 +213,8 @@ class AppQyV1VocabularyValidityController extends Controller
         // exact dual-write is reused (translations[targetCode] + word_translation
         // pair + has_translation + translation_provider). Only when a target language
         // was supplied and at least one valid result carried a translation.
-        // NOTE ON IDEMPOTENCY: apply() OVERWRITES the translation text, so it does
-        // NOT skip already-translated words on its own. The skip is enforced
-        // read-side in getPending() (where('has_translation', false)) — a word with a
-        // translation is never handed out again — so in practice apply() here only
-        // ever writes a fresh translation.
+        // AppQyV1WordTranslationWriteback is fill-missing per target language,
+        // so a validity-only pass cannot overwrite an existing translation.
         $translated = 0;
         if ($targetLanguage !== null && !empty($translationsToWrite)) {
             $taskId = 'validity-report-' . uniqid('', true);

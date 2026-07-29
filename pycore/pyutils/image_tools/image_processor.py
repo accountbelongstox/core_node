@@ -20,7 +20,7 @@ import logging
 from typing import Tuple, Optional, Dict, Any, List, Union
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import (
+from pycore.pyfoundations.third_party.api import (
     get_third_package_PIL_Image,
     get_third_package_PIL_ImageDraw,
     get_third_package_PIL_ImageFont,
@@ -29,7 +29,8 @@ from pycore.pyfoundations.third_party import (
     get_third_package_PIL_ImageOps,
 )
 
-from . import image_split, image_transform
+import pycore.pyutils.image_tools.image_split as image_split
+import pycore.pyutils.image_tools.image_transform as image_transform
 
 Image = get_third_package_PIL_Image()
 ImageDraw = get_third_package_PIL_ImageDraw()

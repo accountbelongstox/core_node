@@ -11,7 +11,7 @@ from pathlib import Path
 import sys
 import os
 
-from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
+from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
 from pycore.pyfoundations.system_paths import get_system_cache_dir
 cv2 = get_third_package_cv2()
 np = get_third_package_numpy()
@@ -20,7 +20,7 @@ Image = get_third_package_PIL_Image()
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d3utils.d3u_common.image_annotator_helper import (
     create_annotator,
     draw_grid_overlay,

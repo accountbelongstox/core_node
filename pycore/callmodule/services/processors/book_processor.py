@@ -40,7 +40,7 @@ import re
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Reuse the video processor's ASCII filename transcoding (no duplication).
 from pycore.callmodule.services.processors.video_extract_processor import (

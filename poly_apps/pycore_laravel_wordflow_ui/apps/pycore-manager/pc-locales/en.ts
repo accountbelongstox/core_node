@@ -664,6 +664,7 @@ export const pcEn = {
     targetLang: 'Target (EN)',
     minRawWords: 'Min raw words',
     autoProcess: 'Auto process history',
+    monitoredTools: 'Monitored tools (checked = processed)',
     heartbeatTicks: 'Heartbeat ticks',
     localLlmTitle: 'Local LLM engines',
     localLlmFallbackHint: 'Local LLM is not used for Agent History articles (OpenRouter only).',

@@ -9,8 +9,8 @@ First successful build is the button.
 from pathlib import Path
 from typing import Optional, Tuple, Union, Dict, Any
 
-from pycore.pyfoundations.third_party import get_third_package_numpy, get_third_package_PIL_Image
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_PIL_Image
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 np = get_third_package_numpy()
 Image = get_third_package_PIL_Image()

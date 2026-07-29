@@ -17,7 +17,7 @@ import time
 from typing import Optional
 from pathlib import Path
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from .webengine_config import configure_webengine_tier3_settings, mark_gpu_fallback
 
 try:

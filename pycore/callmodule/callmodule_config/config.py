@@ -10,7 +10,7 @@ import os
 import platform
 from pathlib import Path
 
-from pycore.pyfoundations.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT
+from pycore.pyfoundations.pygvar.constants import PROJECT_ROOT as PYCORE_PROJECT_ROOT
 
 
 class Config:
@@ -105,8 +105,9 @@ class Config:
     LARAVEL_WORKER_API_URL = os.getenv("LARAVEL_WORKER_API_URL", "http://127.0.0.1:9000")
     # Heartbeat-callback interval (seconds) for the translation worker poll loop.
     TRANSLATION_WORKER_INTERVAL = int(os.getenv("TRANSLATION_WORKER_INTERVAL", "12"))
-    # Whether the translation worker callback is enabled on start (pipeline runs
-    # by default; can be toggled at runtime via /api/heartbeat/disable/translation_worker).
+    # Whether the translation worker callback is enabled on start. Pycore UI
+    # changes it only through RPC v2 `ui.heartbeat_workers.config`; Pycore owns
+    # the callback and any Laravel HTTP traffic.
     TRANSLATION_WORKER_ENABLED_ON_START = (
         os.getenv("TRANSLATION_WORKER_ENABLED_ON_START", "1") in ("1", "true", "True")
     )
@@ -170,8 +171,8 @@ class Config:
     # OFF by default (legacy fallback only). The effective startup state is the
     # PERSISTED UI toggle via sentence_audio_auto_enabled_on_start(); this env flag
     # is just the fallback when assist was never configured. Force-enable a headless
-    # deploy with PYCORE_TTS_SENTENCE_WORKER=1, or toggle at runtime via the UI /
-    # POST /api/heartbeat/enable/tts_sentence_worker.
+    # deploy with PYCORE_TTS_SENTENCE_WORKER=1, or toggle it from Pycore UI through
+    # RPC v2 `ui.heartbeat_workers.config`.
     TTS_SENTENCE_WORKER_ENABLED_ON_START = (
         os.getenv("PYCORE_TTS_SENTENCE_WORKER", "0") in ("1", "true", "True")
     )
@@ -191,7 +192,7 @@ class Config:
     # Heartbeat-callback interval (seconds) for the queue-monitor poll loop (~5s).
     TRANSLATION_QUEUE_MONITOR_INTERVAL = int(os.getenv("TRANSLATION_QUEUE_MONITOR_INTERVAL", "5"))
     # Enabled on start by default so the UI sees the live queue out of the box;
-    # toggle at runtime via /api/heartbeat/disable/translation_queue_monitor.
+    # Pycore UI toggles it through RPC v2 `ui.heartbeat_workers.config`.
     TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START = (
         os.getenv("TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START", "1") in ("1", "true", "True")
     )
@@ -235,7 +236,7 @@ class Config:
         "TRANSLATION_SSE_PATH", "/api/app_qy_v1/ai_tools/translation/queue/stream"
     )
     # Whether the WS client is enabled on start (real-time signal runs by default);
-    # toggle at runtime via /api/heartbeat/disable/translation_ws_client.
+    # Pycore UI toggles it through RPC v2 `ui.heartbeat_workers.config`.
     TRANSLATION_WS_ENABLED_ON_START = (
         os.getenv("TRANSLATION_WS_ENABLED_ON_START", "1") in ("1", "true", "True")
     )

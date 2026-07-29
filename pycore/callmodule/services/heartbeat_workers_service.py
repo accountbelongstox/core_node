@@ -3,7 +3,7 @@
 
 from typing import Any, Dict, List
 
-from pycore.pyheartbeat import get_heartbeat_system
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 from pycore.callmodule.services.queue_center_contract import CALLBACK_QUEUE_ROLES
 from pycore.callmodule.services.heartbeat_worker_prefs import (
     apply_callback_enabled,

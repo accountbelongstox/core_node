@@ -16,7 +16,7 @@ from typing import List, Dict, Any, Tuple, Optional
 from pathlib import Path
 
 from ocr_config import OCRLimits, ProcessingConfig
-from pycore.pyfoundations.third_party import get_third_package_pypdf
+from pycore.pyfoundations.third_party.api import get_third_package_pypdf
 
 logger = logging.getLogger(__name__)
 

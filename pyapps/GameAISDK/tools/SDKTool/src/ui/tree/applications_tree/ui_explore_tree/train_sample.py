@@ -23,7 +23,7 @@ import threading
 import json
 
 try:
-    from pycore.pyfoundations.third_party import get_third_package_zmq, get_third_package_matplotlib
+    from pycore.pyfoundations.third_party.api import get_third_package_zmq, get_third_package_matplotlib
     zmq = get_third_package_zmq()
     matplotlib = get_third_package_matplotlib()
     plot = matplotlib.pyplot
@@ -32,7 +32,7 @@ except ImportError:
     import matplotlib
     plot = matplotlib.pyplot
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from PyQt5.QtWidgets import QApplication
 

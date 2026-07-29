@@ -14,7 +14,7 @@ current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parent
 sys.path.insert(0, str(project_root))
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.constants.d3 import (
     D3_STANDARD_RESOLUTION_WIDTH,
     D3_STANDARD_RESOLUTION_HEIGHT,

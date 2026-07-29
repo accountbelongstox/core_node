@@ -5,11 +5,11 @@ namespace App\Services\TaskProcessors;
 use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleAudioWriteback;
 
-class ArticleAudioTaskProcessor implements TaskProcessorInterface
+class ArticleAudioTaskProcessor extends AbstractTaskProcessor
 {
-    public function canProcess(GlobalTask $task): bool
+    protected function taskTypeRoles(): array
     {
-        return $task->app_name === 'AppQyV1' && $task->task_type === 'article_audio';
+        return ['article_audio'];
     }
 
     public function processResult(GlobalTask $task, array $result, bool $isDemoMode): int
@@ -42,8 +42,4 @@ class ArticleAudioTaskProcessor implements TaskProcessorInterface
         return $stored ? 1 : 0;
     }
 
-    public function getPriority(): int
-    {
-        return 10;
-    }
 }

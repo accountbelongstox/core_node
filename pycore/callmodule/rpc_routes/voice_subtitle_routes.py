@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """RPC Routes for voice_subtitle."""
 
-from pycore import ColorPrint
-from pycore.callmodule.rpc_routes import route_names as rn
-from pycore.callmodule.services import voice_subtitle_service as vs
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+import pycore.callmodule.rpc_routes.route_names as rn
+import pycore.callmodule.services.voice_subtitle_service as vs
 
 
 def register_voice_subtitle_routes(server):

@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Dict, Optional, List
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.database_base import DatabaseBase
 from pycore.pyutils.edge_tts.config import TTSConfig
 from pycore.pyutils.common.tts_models import SentenceModel, WordModel, DocumentModel

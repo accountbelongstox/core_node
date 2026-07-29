@@ -1,23 +1,2 @@
-# -*- coding: utf-8 -*-
-"""
-Controllers - Handle request/response logic
-"""
-
-# Management controllers (NEW)
-from .management import (
-    SystemController,
-    LocalProcessingController,
-    LogsController,
-)
-
-# Legacy controllers
-from .module_call_controller import ModuleCallController
-
-__all__ = [
-    # Management controllers
-    'SystemController',
-    'LocalProcessingController',
-    'LogsController',
-    # Legacy controllers
-    'ModuleCallController',
-]
+# Package marker only. FORBIDDEN: re-exports or package organization here.
+# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).

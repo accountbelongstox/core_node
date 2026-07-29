@@ -11,8 +11,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from typing import Optional, Dict
 import threading
 
-from pycore import ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_av
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_av
 
 # Lazy-load av to follow third_party conventions
 av = get_third_package_av()

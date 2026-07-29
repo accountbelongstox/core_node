@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import Dict, Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.constants.common import (
     TMP_DIR,
     SCALED_TEMPLATES_CACHE_DIR,

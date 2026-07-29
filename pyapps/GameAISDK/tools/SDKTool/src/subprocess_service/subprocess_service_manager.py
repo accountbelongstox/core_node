@@ -21,7 +21,7 @@ import signal
 import subprocess
 import time
 
-from pycore.pyfoundations.third_party import get_third_package_psutil
+from pycore.pyfoundations.third_party.api import get_third_package_psutil
 
 psutil = get_third_package_psutil()
 

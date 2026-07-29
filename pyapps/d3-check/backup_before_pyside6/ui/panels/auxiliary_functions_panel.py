@@ -12,7 +12,7 @@ import os
 from typing import Optional, Callable
 
 # Direct pycore imports (no secondary encapsulation)
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.providor_index import CONFIG, get_config_value_safe, queue_config_save, DIABLO_III_WINDOW_TITLES
 from providor.constants.common import BATTLE_NET_EXE_NAME
 from providor.constants.d3 import DIABLO_III_EXE_NAME
@@ -30,7 +30,12 @@ from providor.i18n_manager import i18n_manager
 from ..utils.tk_variables import var_str
 from ui.utils.config_binding import ConfigBinding
 from share.game_interface_data import get_game_interface_data, get_scaled_bag_region, get_global_scale
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageTk, get_third_package_cv2, get_third_package_numpy
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_PIL_Image,
+    get_third_package_PIL_ImageTk,
+    get_third_package_cv2,
+    get_third_package_numpy,
+)
 from d3utils.screenshot_provider import get_screenshot_provider
 from d3utils.interface_manager import get_d3_interface_manager
 from d3utils.collectors.bag_info_collector import get_bag_info_collector

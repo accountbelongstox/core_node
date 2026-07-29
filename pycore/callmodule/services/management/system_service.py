@@ -20,7 +20,8 @@ from ...models.management.system_models import (
     ResourceUsage,
 )
 
-from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 

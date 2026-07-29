@@ -20,9 +20,10 @@ from typing import Optional, Dict, Any
 from pathlib import Path
 
 # Import THREAD_BUS and i18n (at top of file for consistency)
-from pycore import THREAD_BUS
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
-from pycore.pyutils.native_ui.step0_i18n import i18n, I18nKeys
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
+from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 
 # 导入样式系统
 from .title_bar_styles import (

@@ -15,7 +15,7 @@ Features:
 - Singleton pattern for global access
 
 Usage:
-    from pycore.pyutils.timer_manager import get_timer_manager
+    from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager
 
     # Get singleton instance
     manager = get_timer_manager()
@@ -43,8 +43,8 @@ import time
 from typing import Dict, Callable, Optional, Any, List
 from dataclasses import dataclass, field, replace
 
-from pycore import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     init_serialized_owner,

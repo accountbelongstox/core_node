@@ -40,7 +40,7 @@ import os
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # --- sub-module imports (one-directional; sub-modules never import back) ---- #
 # Facade re-exports: the names below stay importable from THIS path so the

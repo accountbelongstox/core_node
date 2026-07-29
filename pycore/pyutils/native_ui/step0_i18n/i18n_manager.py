@@ -38,7 +38,7 @@ Translation File Format:
     }
 
 Usage:
-    from pycore.pyutils.native_ui.step0_i18n import i18n
+    from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
     from pathlib import Path
     
     # i18n is pre-initialized with base translations
@@ -68,7 +68,8 @@ import locale
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusKeys, BusSignals
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
@@ -615,3 +616,6 @@ __all__ = [
     'I18nManager',
     'get_i18n_manager'
 ]
+
+# Module-level singleton (was step0_i18n/__init__.py)
+i18n = get_i18n_manager()

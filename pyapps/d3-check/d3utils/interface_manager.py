@@ -12,7 +12,7 @@ import time
 from typing import Optional, Tuple, Dict
 
 # Direct pycore imports (no secondary encapsulation)
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.window.ops import send_key as window_send_key
 from share.game_interface_data import (
     get_game_interface_data,
