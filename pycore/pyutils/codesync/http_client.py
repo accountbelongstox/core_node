@@ -28,12 +28,14 @@ class HttpFrameClient:
         host: str,
         port: int,
         sender_id: str,
-        io_timeout: float = 120.0,
+        stream_timeout: float = 30.0,
+        frame_timeout: float = 900.0,
     ) -> None:
         self.host = str(host or "").strip()
         self.port = int(port)
         self.sender_id = str(sender_id or "").strip()
-        self.io_timeout = float(io_timeout)
+        self.stream_timeout = float(stream_timeout)
+        self.frame_timeout = float(frame_timeout)
         self._response: Optional[Any] = None
         self._frame_id = ""
         self._session_id = ""
@@ -52,7 +54,7 @@ class HttpFrameClient:
             headers=SSE_REQUEST_HEADERS,
             method="GET",
         )
-        self._response = urllib.request.urlopen(request, timeout=self.io_timeout)
+        self._response = urllib.request.urlopen(request, timeout=self.stream_timeout)
         content_type = str(self._response.headers.get("Content-Type") or "")
         if not is_sse_content_type(content_type):
             self.close()
@@ -73,7 +75,7 @@ class HttpFrameClient:
                 "sender_id": self.sender_id,
                 "frame": str(text or ""),
             },
-            timeout=self.io_timeout,
+            timeout=self.frame_timeout,
         )
         if response.status_code != 200:
             raise ConnectionError(
@@ -82,7 +84,7 @@ class HttpFrameClient:
 
     def recv_text(self) -> Optional[str]:
         self._ensure_connected()
-        deadline = time.monotonic() + self.io_timeout
+        deadline = time.monotonic() + self.stream_timeout
         while time.monotonic() < deadline:
             event_name, data, _event_id = read_sse_event(self._response)
             if event_name != SSE_EVENT_NAME or not data:

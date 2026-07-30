@@ -429,7 +429,13 @@ class CodeSyncManager:
             return [str(get_core_node_root())]
 
     # Phase priority for the aggregate badge (higher value wins).
-    _PHASE_PRIORITY = {"pushing": 3, "receiving": 3, "retrying": 2, "idle": 0}
+    _PHASE_PRIORITY = {
+        "scanning": 3,
+        "pushing": 3,
+        "receiving": 3,
+        "retrying": 2,
+        "idle": 0,
+    }
     _PHASE_IDLE_TTL = 60.0  # seconds an idle channel row lingers before pruning
 
     def set_sync_phase(self, phase: str, count: int = 0, channel: Optional[str] = None,
@@ -581,10 +587,19 @@ class CodeSyncManager:
             "transport": code_sync_transport_status(),
         }
 
-    def get_peers(self) -> dict:
+    def _peer_status_rows(self) -> list:
         snap = self.mesh.snapshot()
+        peers = [dict(peer) for peer in snap.get("peers", [])]
+        connected = set()
+        if self.role == "dev" and self.distributing:
+            connected.update(self.push_sender.get_status().get("clients", []))
+        for peer in peers:
+            peer["transport_connected"] = peer.get("id") in connected
+        return peers
+
+    def get_peers(self) -> dict:
         return {"success": True, "self": self.get_local_peer_status(),
-                "peers": snap.get("peers", []), "version": self.config.version()}
+                "peers": self._peer_status_rows(), "version": self.config.version()}
 
     def get_status(self) -> dict:
         status: Dict[str, Any] = {
@@ -595,7 +610,7 @@ class CodeSyncManager:
             "code": self.local_code_stats(),
             "version": self.config.version(),
             "self": self.get_local_peer_status(),
-            "peers": self.mesh.snapshot().get("peers", []),
+            "peers": self._peer_status_rows(),
         }
         try:
             if self.role == "dev" and self.distributing:

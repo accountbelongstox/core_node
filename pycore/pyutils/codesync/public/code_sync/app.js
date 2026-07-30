@@ -36,7 +36,7 @@ function renderStatus(status) {
   byId('transport').textContent = self.transport?.label || '-';
   const detail = self.role === 'client'
     ? `${sessions} inbound DEV SSE session(s)`
-    : `${status.distributing ? 'Distribution enabled' : 'Distribution stopped'}`;
+    : `${Number(status.server?.connected_clients || self.summary?.clients || 0)} client(s) online · ${status.distributing ? 'distribution enabled' : 'distribution stopped'}`;
   setConnection(true, detail);
   byId('toggle-sync').textContent = self.role === 'dev'
     ? (status.distributing ? 'Stop distribution' : 'Start distribution')
@@ -53,8 +53,10 @@ function renderPeers(peers) {
   root.className = 'list';
   root.innerHTML = peers.map((peer) => {
     const phase = peer.status?.sync_phase?.phase || 'idle';
-    const reachable = Boolean(peer.reachable);
-    return `<div class="row"><span>${escapeHtml(peer.name || peer.host)}<br><small>${escapeHtml(peer.host)}:${escapeHtml(peer.port)} · ${escapeHtml(peer.role)} · ${escapeHtml(phase)}</small></span><strong class="${reachable ? 'ok' : 'bad'}">${reachable ? 'reachable' : 'offline'}</strong></div>`;
+    const connected = Boolean(peer.transport_connected);
+    const reachable = connected || Boolean(peer.reachable);
+    const connectionLabel = connected ? 'online · HTTP SSE' : (reachable ? 'reachable' : 'offline');
+    return `<div class="row"><span>${escapeHtml(peer.name || peer.host)}<br><small>${escapeHtml(peer.host)}:${escapeHtml(peer.port)} · ${escapeHtml(peer.role)} · ${escapeHtml(phase)}</small></span><strong class="${reachable ? 'ok' : 'bad'}">${connectionLabel}</strong></div>`;
   }).join('');
 }
 

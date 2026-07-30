@@ -16,8 +16,13 @@ import os
 from pathlib import Path
 
 from pycore.pyutils.codesync.textnorm import normalized_md5
-from pycore.pyutils.codesync.wire_codec import _fmt_bytes, _fmt_diff
-from pycore.pyutils.codesync.runtime import get_local_data_dir
+from pycore.pyutils.codesync.wire_codec import (
+    FRAME_FULL_SYNC_COMPLETE,
+    FRAME_FULL_SYNC_COMPLETE_ACK,
+    _fmt_bytes,
+    _fmt_diff,
+)
+from pycore.pyutils.codesync.runtime import get_local_data_dir, log as ColorPrint
 
 
 # Shell/script extensions that should be executable on Linux/macOS.
@@ -72,11 +77,23 @@ class PushReceiver:
             # Advertise the wire capabilities we understand so the dev can compress
             # payloads. Older devs ignore `caps` and keep sending plain base64.
             send(json.dumps({"type": "welcome", "client_id": self.m.config.machine_id,
-                             "name": me.get("name"), "caps": {"gzip": True}}))
+                             "name": me.get("name"), "caps": {
+                                 "gzip": True,
+                                 "full_sync_complete": True,
+                             }}))
+            self.m.log_sync("connection", "", "HTTP SSE connected",
+                            peer=msg.get("dev_name") or msg.get("dev_id") or "DEV",
+                            direction="receive")
+            ColorPrint.green(
+                f"[CodeSync HTTP/SSE] DEV "
+                f"'{msg.get('dev_name') or msg.get('dev_id') or 'unknown'}' connected"
+            )
         elif t == "ping":
             send(json.dumps({"type": "pong"}))
         elif t == "manifest":
             self._handle_manifest(msg, send)
+        elif t == FRAME_FULL_SYNC_COMPLETE:
+            self._handle_full_sync_complete(msg, send)
         elif t == "batch":
             self._apply_batch(msg, send)
         elif t == "file":  # legacy single-file frame
@@ -95,6 +112,33 @@ class PushReceiver:
             self.m.set_sync_phase("idle", 0, channel=dev_id,
                                   name=msg.get("dev_name") or "", direction="receive")
         return True
+
+    def _handle_full_sync_complete(self, msg: dict, send) -> None:
+        dev_id = msg.get("dev_id") or "_local"
+        dev_name = msg.get("dev_name") or ""
+        peer = dev_name or (str(dev_id)[:8] if dev_id else "")
+        self.m.log_sync(
+            "reconcile",
+            "",
+            "full diff complete",
+            details=(f"{int(msg.get('manifest') or 0)} compared, "
+                     f"{int(msg.get('different') or 0)} differed, "
+                     f"{int(msg.get('written') or 0)} written, "
+                     f"{int(msg.get('skipped') or 0)} skipped, "
+                     f"{int(msg.get('errors') or 0)} error(s)"),
+            peer=peer,
+            direction="receive",
+        )
+        ColorPrint.green(
+            f"[CodeSync HTTP/SSE] Full sync complete from '{peer}': "
+            f"{int(msg.get('manifest') or 0)} compared, "
+            f"{int(msg.get('different') or 0)} differed, "
+            f"{int(msg.get('written') or 0)} written, "
+            f"{int(msg.get('errors') or 0)} error(s)"
+        )
+        self.m.set_sync_phase("idle", 0, channel=dev_id, name=dev_name,
+                              direction="receive")
+        send(json.dumps({"type": FRAME_FULL_SYNC_COMPLETE_ACK}))
 
     def _apply_batch(self, msg: dict, send) -> None:
         files = msg.get("files") or []
@@ -128,8 +172,7 @@ class PushReceiver:
 
     def _load_received(self) -> dict:
         """The client's SMALL per-sync table {rel: hash} of files it has received,
-        used to scope full-sync deletions to ONLY codesync-delivered files (never a
-        client-local file) and to speed up the manifest compare."""
+        used to retain update-only ownership metadata between reconciliations."""
         try:
             p = self._received_table_path()
             if p.exists():
@@ -166,12 +209,22 @@ class PushReceiver:
         received = self._load_received()
         need = []
         hashed = 0
+        total = len(files)
+        ColorPrint.blue(
+            f"[CodeSync HTTP/SSE] Full manifest received from '{peer}': "
+            f"comparing {total} file(s)"
+        )
         # Build the NEW table from only files we can confirm are present+correct now.
         # Needed files are NOT recorded here - _apply_batch records each as it is
         # actually written, so an interrupted transfer can't leave the table claiming
         # a file the client never received (which would wrongly fast-skip it forever).
         new_table = {}
-        for rel, h in files.items():
+        self.m.set_sync_phase("scanning", total, channel=dev_id,
+                              name=dev_name, direction="receive")
+        for index, (rel, h) in enumerate(files.items(), 1):
+            if index % 250 == 0:
+                self.m.set_sync_phase("scanning", total - index, channel=dev_id,
+                                      name=dev_name, direction="receive")
             srel = str(rel).replace("\\", "/")
             try:
                 target = (root / srel).resolve()
@@ -182,23 +235,15 @@ class PushReceiver:
             if not target.exists():
                 need.append(srel)
                 continue
-            have = received.get(srel)
-            if have == h:
-                new_table[srel] = h  # FAST path: table says up-to-date (no re-read)
-                continue
-            if have is None:
-                # Untracked (first sync / a pre-existing tree e.g. fresh git clone):
-                # confirm against the real file ONCE so we don't re-fetch what's
-                # already on disk. Tracked-but-different always needs fetching.
-                try:
-                    if normalized_md5(target.read_bytes()) == h:
-                        hashed += 1
-                        new_table[srel] = h
-                        continue
-                except Exception:
-                    pass
-                hashed += 1
-            need.append(srel)
+            try:
+                matches = normalized_md5(target.read_bytes()) == h
+            except Exception:
+                matches = False
+            hashed += 1
+            if matches:
+                new_table[srel] = h
+            else:
+                need.append(srel)
         # UPDATE-ONLY: the client NEVER deletes. A file we have that is absent from
         # the dev manifest (removed/excluded on the dev, or a dev-only env file) is
         # KEPT. We just retain it in our fast-skip table (when still on disk) so a
@@ -216,11 +261,17 @@ class PushReceiver:
         # Persist the confirmed-present files; needed ones are added by _apply_batch
         # as they are actually written.
         self._save_received(new_table)
-        self.m.log_sync("reconnect", "", "full sync",
+        self.m.log_sync("reconnect", "", "full diff complete",
                         details=f"{len(need)} to fetch, "
                                 f"{len(files) - len(need)} up-to-date "
                                 f"({hashed} re-hashed); update-only, 0 deleted",
                         peer=peer, direction="receive")
+        ColorPrint.green(
+            f"[CodeSync HTTP/SSE] Full diff complete for '{peer}': "
+            f"{total} compared, {len(need)} differ"
+        )
+        self.m.set_sync_phase("idle", 0, channel=dev_id, name=dev_name,
+                              direction="receive")
         send(json.dumps({"type": "need", "need": need}))
 
     def _apply_one(self, msg: dict, peer: str = "") -> dict:

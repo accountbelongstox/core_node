@@ -16,7 +16,9 @@ PUSH_TICK = 1.0          # seconds between incremental delta pushes
 # keeps more files, instead of losing a big in-flight batch). 3 MB balances that
 # against per-batch round-trip overhead (gzip already packs more files per byte).
 MAX_BATCH_BYTES = 3 * 1024 * 1024
-MAX_BACKOFF = 30         # seconds; backoff is min(MAX_BACKOFF, 2**attempt)
+OFFLINE_RETRY_SECONDS = 60.0
+FRAME_FULL_SYNC_COMPLETE = "full_sync_complete"
+FRAME_FULL_SYNC_COMPLETE_ACK = "full_sync_complete_ack"
 
 # --- wire transform tuning (the per-file read+compress+encode pipeline) ----- #
 GZIP_LEVEL = 6           # zlib level for compressible files (text/code/config)

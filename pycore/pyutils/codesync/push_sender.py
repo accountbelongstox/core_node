@@ -6,7 +6,7 @@ Each DEV opens a persistent SSE reply stream on a reachable CLIENT and sends
 file frames over HTTP: a full manifest reconcile on every (re)connect, then
 incremental deltas. A supervisor thread (outliving individual push threads)
 owns persistent per-client state so an offline client resumes the deltas it
-missed, and a dead peer is retried with exponential backoff.
+missed, and an offline peer is retried once per minute.
 
 Stdlib only + codesync siblings (runtime/textnorm/wire_codec/http_client/watcher);
 never pycore/third_party.
@@ -28,7 +28,8 @@ from pycore.pyutils.codesync.runtime import (
 )
 from pycore.pyutils.codesync.textnorm import normalize_eol
 from pycore.pyutils.codesync.wire_codec import (
-    PUSH_TICK, MAX_BATCH_BYTES, MAX_BACKOFF,
+    PUSH_TICK, MAX_BATCH_BYTES, OFFLINE_RETRY_SECONDS,
+    FRAME_FULL_SYNC_COMPLETE, FRAME_FULL_SYNC_COMPLETE_ACK,
     GZIP_LEVEL, GZIP_MIN_BYTES, GZIP_KEEP_RATIO,
     ENCODE_WORKERS, ENCODE_LOOKAHEAD, _fmt_bytes,
 )
@@ -48,8 +49,7 @@ class PushSender:
     push thread dying, so an offline client resumes with the deltas it missed:
       * _client_sent[client_id] -> last_sent snapshot {dest_rel: (mtime, hash, abspath)}
       * _client_seen[client_id] -> True once we have ever connected to it
-      * _peer_retry[peer_id]    -> {"attempt": int, "next_retry_at": float,
-                                    "logged": bool}
+      * _peer_retry[peer_id]    -> {"attempt": int, "next_retry_at": float}
     """
 
     def __init__(self, manager):
@@ -148,10 +148,9 @@ class PushSender:
 
     # ----- retry/backoff bookkeeping -------------------------------------- #
     def _note_failure(self, peer: dict, exc, mid_sync: bool = False) -> None:
-        """Schedule the next retry with exponential backoff; log only the FIRST
-        failure of a streak to avoid spam, and surface a 'retrying' phase. Applies
-        to BOTH connect failures and mid-sync drops so a flapping link backs off
-        instead of hot-looping every supervisor tick.
+        """Schedule and record the fixed one-minute retry for a failed peer.
+
+        This applies to both initial connection failures and mid-sync drops.
 
         Manager notify runs AFTER the PushSender state write so a deadlocked
         Manager cannot pin this owner's worker."""
@@ -165,15 +164,14 @@ class PushSender:
             )
         except Exception:
             pass
-        if info["should_log"]:
-            self.m.log_sync(
-                "connection",
-                "",
-                "HTTP SSE connection failed",
-                details=info["error"],
-                peer=info["name"],
-                direction="push",
-            )
+        self.m.log_sync(
+            "connection",
+            "",
+            "HTTP SSE connection failed",
+            details=info["error"],
+            peer=info["name"],
+            direction="push",
+        )
 
     @serialized_method
     def _note_failure_state(self, peer: dict, exc, mid_sync: bool = False):
@@ -181,38 +179,28 @@ class PushSender:
         host = peer.get("host")
         port = int(peer.get("port", PYCORE_HTTP_PORT))
         retry = self._peer_retry.setdefault(
-            pid, {"attempt": 0, "next_retry_at": 0.0, "logged": False})
+            pid, {"attempt": 0, "next_retry_at": 0.0})
         attempt = retry["attempt"]
-        # Cap the exponent: an offline peer otherwise grows `attempt` without
-        # bound and recomputes an ever-larger 2**attempt every ~30s forever.
-        delay = min(MAX_BACKOFF, 2 ** min(attempt, 16))
+        delay = OFFLINE_RETRY_SECONDS
         retry["next_retry_at"] = time.time() + delay
         retry["attempt"] = min(attempt + 1, 16)
-        first = not retry["logged"]
-        retry["logged"] = True
         name = peer.get("name") or host
-        if first:
-            what = "link dropped mid-sync" if mid_sync else "unreachable"
-            # Be explicit this is a CODE-SYNC PEER (a remote pycore on its :59000 RPC
-            # port) — NOT the Laravel backend (:9000). The two share a host in some
-            # deployments; naming the service here avoids mistaking one for the other.
-            ColorPrint.yellow(f"[CodeSync HttpPush] code-sync peer '{name}' "
-                              f"(pycore {host}:{port}) {what} ({exc}); "
-                              f"retrying with backoff (next in {delay}s)")
+        what = "link dropped mid-sync" if mid_sync else "unreachable"
+        ColorPrint.yellow(f"[CodeSync HttpPush] code-sync peer '{name}' "
+                          f"(pycore {host}:{port}) {what} ({exc}); "
+                          f"retrying in {int(delay)}s")
         return {
             "pid": pid,
             "name": name,
             "attempt": min(attempt + 1, 16),
-            "should_log": first,
             "error": str(exc),
         }
 
     @serialized_method
     def _note_success(self, peer: dict) -> None:
-        """Reset the backoff streak on a successful connect."""
+        """Reset retry state on a successful connect."""
         pid = peer.get("id")
-        self._peer_retry[pid] = {"attempt": 0, "next_retry_at": 0.0,
-                                 "logged": False}
+        self._peer_retry[pid] = {"attempt": 0, "next_retry_at": 0.0}
 
     @serialized_method
     def _set_peer_connected(self, peer_id: str, connected: bool) -> None:
@@ -224,10 +212,23 @@ class PushSender:
 
     @serialized_method
     def get_status(self) -> dict:
+        now = time.time()
         return {
             "running": self._running,
             "connected_clients": len(self._connected_peers),
             "clients": sorted(self._connected_peers),
+            "retrying": {
+                peer_id: {
+                    "attempt": int(state.get("attempt") or 0),
+                    "next_retry_in": max(
+                        0,
+                        int(float(state.get("next_retry_at") or 0.0) - now),
+                    ),
+                }
+                for peer_id, state in self._peer_retry.items()
+                if peer_id not in self._connected_peers
+                and float(state.get("next_retry_at") or 0.0) > now
+            },
         }
 
     # ----- one peer connection -------------------------------------------- #
@@ -253,7 +254,9 @@ class PushSender:
             client_id = wj.get("client_id") or peer.get("id")
             # Capability negotiation: only compress on the wire if THIS client
             # advertised it (older clients omit caps -> plain base64, unchanged).
-            gzip_ok = bool((wj.get("caps") or {}).get("gzip"))
+            caps = wj.get("caps") or {}
+            gzip_ok = bool(caps.get("gzip"))
+            completion_ok = bool(caps.get("full_sync_complete"))
             connected = True
             self._set_peer_connected(peer.get("id"), True)
             self._note_success(peer)
@@ -271,7 +274,15 @@ class PushSender:
             gz_note = " (gzip)" if gzip_ok else ""
             ColorPrint.green(f"[HttpPush] Connected to {client_name}; running full sync{gz_note}")
             self._clear_client_state(client_id)
-            last = self._full_sync(client, wm, client_id, client_name, pid, gzip_ok)
+            last = self._full_sync(
+                client,
+                wm,
+                client_id,
+                client_name,
+                pid,
+                gzip_ok,
+                completion_ok,
+            )
             self._store_client_state(client_id, last)
             ColorPrint.green(f"[HttpPush] {client_name} in sync ({len(last)} files); "
                              f"pushing deltas every {PUSH_TICK}s")
@@ -465,7 +476,7 @@ class PushSender:
         return sent
 
     def _full_sync(self, client, wm, client_id: str, client_name: str, pid: str,
-                   gzip_ok: bool = False) -> dict:
+                   gzip_ok: bool = False, completion_ok: bool = False) -> dict:
         """Full reconcile on (re)connect: send the manifest {rel: hash} of every
         synced file; the client diffs it against its real files and replies with the
         subset it NEEDs (missing or content-differs). Push exactly those in
@@ -482,9 +493,8 @@ class PushSender:
         # paths as deletions and WIPE itself. Defense-in-depth + correctness: never
         # send it. The watcher swaps its index atomically (never a partial scan), so
         # the only unsafe state is fully empty. The supervisor already gates on
-        # wm.ready(), so this is belt-and-suspenders; wait up to 30s (under the
-        # client's 120s read timeout) and, if STILL empty, ABORT - the supervisor
-        # retries once the index is populated.
+        # wm.ready(), so this is belt-and-suspenders; wait up to 30s and, if it is
+        # still empty, abort so the supervisor retries after the index is populated.
         waited = 0.0
         while not snap and waited < 30.0 and THREAD_BUS.get_signal(self._running_signal, False) and not is_shutdown_requested():
             time.sleep(0.5)
@@ -513,9 +523,10 @@ class PushSender:
         except (ValueError, TypeError):
             raise ConnectionError("malformed manifest reply")
         need = [d for d in (need_raw or []) if d in snap]
-        self.m.log_sync("reconnect", "", "full sync",
-                        details=f"{len(need)}/{len(manifest)} file(s) to send",
+        self.m.log_sync("reconnect", "", "full diff started",
+                        details=f"{len(need)}/{len(manifest)} file(s) differ",
                         peer=peer_label, direction="push")
+        full_results = []
         if need:
             # SMALL files first: over a slow/flapping link a full sync may not drain a
             # huge tree in one window, so a tiny late-ordered file (e.g. a script)
@@ -527,7 +538,41 @@ class PushSender:
                 client, items, gzip_ok, dev_id=dev_id, dev_name=dev_name, channel=channel,
                 client_name=client_name, peer_label=peer_label, first_reason="full",
                 log_reason_for=lambda dest: "full sync",
-                on_acked=lambda results: None)  # full sync: baseline is the whole snap
+                on_acked=full_results.extend)
+        result_counts = {"written": 0, "skipped": 0, "error": 0}
+        for result in full_results:
+            status = str(result.get("status") or "error")
+            result_counts[status if status in result_counts else "error"] += 1
+        completion = {
+            "type": FRAME_FULL_SYNC_COMPLETE,
+            "dev_id": dev_id,
+            "dev_name": dev_name,
+            "manifest": len(manifest),
+            "different": len(need),
+            "written": result_counts["written"],
+            "skipped": result_counts["skipped"],
+            "errors": result_counts["error"],
+        }
+        if completion_ok:
+            client.send_text(json.dumps(completion))
+            completion_reply = client.recv_text()
+            try:
+                completion_type = (json.loads(completion_reply or "") or {}).get("type")
+            except (TypeError, ValueError):
+                completion_type = ""
+            if completion_type != FRAME_FULL_SYNC_COMPLETE_ACK:
+                raise ConnectionError("no full_sync_complete_ack")
+        self.m.log_sync(
+            "reconcile",
+            "",
+            "full diff complete",
+            details=(f"{len(manifest)} compared, {len(need)} differed, "
+                     f"{result_counts['written']} written, "
+                     f"{result_counts['skipped']} skipped, "
+                     f"{result_counts['error']} error(s)"),
+            peer=peer_label,
+            direction="push",
+        )
         self.m.set_sync_phase("idle", 0, channel=channel, name=client_name,
                               direction="push")
         return snap
