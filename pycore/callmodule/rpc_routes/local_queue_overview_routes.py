@@ -9,7 +9,7 @@ def register_local_queue_overview_routes(server):
     """Register HTTP controllers."""
 
     server.post(
-        name=UI_QUEUE_OVERVIEW_GET_QUEUE_OVERVIEW,
+        path=UI_QUEUE_OVERVIEW_GET_QUEUE_OVERVIEW,
         handler=get_queue_overview,
     )
 

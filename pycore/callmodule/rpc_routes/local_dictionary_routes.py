@@ -17,10 +17,9 @@ def register_local_dictionary_routes(server):
 
         return _run()
 
-    server.post(name=UI_DICTIONARY_DICTIONARY_STATUS, handler=dictionary_status_handler)
+    server.post(path=UI_DICTIONARY_DICTIONARY_STATUS, handler=dictionary_status_handler)
 
     def dictionary_lookup_handler(params, request_id, context):
-        params = params or {}
 
         def _run():
             svc = dictionary_service
@@ -36,5 +35,5 @@ def register_local_dictionary_routes(server):
 
         return _run()
 
-    server.post(name=UI_DICTIONARY_DICTIONARY_LOOKUP, handler=dictionary_lookup_handler)
+    server.post(path=UI_DICTIONARY_DICTIONARY_LOOKUP, handler=dictionary_lookup_handler)
 

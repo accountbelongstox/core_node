@@ -6,15 +6,36 @@ A single self-contained control panel served at GET / in standalone mode. Pure
 HTML + vanilla JS (no build, no CDN), talking to the same /code-sync/* API the
 desktop React app uses - so a headless box (cloud/VPS) has a browser UI too.
 
-ZERO Python logic: this module is just a raw HTML string assignment, so it cannot
-violate the codesync stdlib-only / no-pycore-import invariant. Served by
-http_server._Handler.do_GET (standalone mode only; full pycore serves its React
-UI instead and never starts this server).
+The route map is injected from the canonical Code Sync route contract. Served by
+http_server._Handler.do_GET in standalone mode only.
 
 No third-party dependencies.
 """
 
+import json
+
 from pycore.pyfoundations.pygvar import PYCORE_HTTP_PORT
+import pycore.pyutils.codesync.routes as routes
+
+
+PANEL_ROUTE_VALUES = {
+    "peers": routes.PEERS_PATH,
+    "serviceStatus": routes.SERVICE_STATUS_PATH,
+    "serviceRestart": routes.SERVICE_RESTART_PATH,
+    "serviceReinstall": routes.SERVICE_REINSTALL_PATH,
+    "fileTree": routes.FILE_TREE_PATH,
+    "peerFileTree": routes.PEER_FILE_TREE_PATH,
+    "settings": routes.SETTINGS_PATH,
+    "settingsReset": routes.SETTINGS_RESET_PATH,
+    "logs": routes.LOGS_PATH,
+    "discover": routes.DISCOVER_PATH,
+    "peersAdd": routes.PEERS_ADD_PATH,
+    "role": routes.ROLE_PATH,
+    "distribute": routes.DISTRIBUTE_PATH,
+    "skipUpdate": routes.SKIP_UPDATE_PATH,
+    "peersRemove": routes.PEERS_REMOVE_PATH,
+}
+PANEL_ROUTES_JSON = json.dumps(PANEL_ROUTE_VALUES, separators=(",", ":"))
 
 PANEL_HTML = r"""<!doctype html>
 <html lang="en">
@@ -186,6 +207,7 @@ PANEL_HTML = r"""<!doctype html>
 </div>
 
 <script>
+const ROUTES = __CODE_SYNC_ROUTES__;
 const $ = (s) => document.querySelector(s);
 async function api(path, body){
   const opt = body !== undefined
@@ -266,7 +288,7 @@ function renderPeers(peers){
   }).join('');
 }
 async function load(){
-  const d = await api('/code-sync/peers');
+  const d = await api(ROUTES.peers);
   if(!d || !d.success){ setConn(false); return; }
   setConn(true);
   $('#ver').textContent = d.version;
@@ -279,7 +301,7 @@ async function load(){
 // ---- service self-management (restart / reinstall via pyservice.sh) ----
 async function loadSvcStatus(){
   const el = $('#svc-state'); if(!el) return;
-  const d = await api('/code-sync/service/status');
+  const d = await api(ROUTES.serviceStatus);
   if(!d || !d.available){
     el.textContent = 'n/a'; el.className = 'badge b-pending';
     el.title = (d && d.error) || 'systemd only';
@@ -313,7 +335,7 @@ function renderSvcResult(d){
         + cmds.map(cmdRow).join('') + '</ul>' : '');
 }
 async function svcOp(which){
-  const path = which === 'reinstall' ? '/code-sync/service/reinstall' : '/code-sync/service/restart';
+  const path = which === 'reinstall' ? ROUTES.serviceReinstall : ROUTES.serviceRestart;
   const br = $('#svc-restart'), bi = $('#svc-reinstall');
   if(br) br.disabled = true; if(bi) bi.disabled = true;
   const d = await api(path, {});
@@ -405,7 +427,7 @@ function toggleDir(path){
 }
 async function loadTree(){
   if(!treeOpen()) return;
-  const d = await api('/code-sync/file-tree');
+  const d = await api(ROUTES.fileTree);
   TREE = (d && d.success) ? d : null;
   renderTree();
 }
@@ -448,7 +470,7 @@ async function openDrift(pid){
   $('#drift-modal').style.display = 'flex';
   $('#drift-refresh').onclick = function(){ openDrift(DRIFT_PID); };
   $('#drift-body').innerHTML = '<div class="muted" style="padding:16px">Fetching the client’s tree…</div>';
-  const d = await api('/code-sync/peer-file-tree?peer_id=' + encodeURIComponent(pid));
+  const d = await api(ROUTES.peerFileTree + '?peer_id=' + encodeURIComponent(pid));
   DRIFT = d; renderDrift();
 }
 function closeDrift(){ $('#drift-modal').style.display = 'none'; DRIFT = null; }
@@ -500,7 +522,7 @@ const FKEYS = [
   ['excluded_path_substrings','Excluded if path contains','/cache/'],
 ];
 async function loadFilters(){
-  const d = await api('/code-sync/settings');
+  const d = await api(ROUTES.settings);
   if(!d || !d.success) return;
   if(!FILTERS_DIRTY) FILTERS = d.settings;
   $('#filters-src').style.display = d.overridden ? '' : 'none';
@@ -544,11 +566,11 @@ function rmChip(key, idx){ (FILTERS[key]||[]).splice(idx,1); FILTERS_DIRTY=true;
 function toggleGitignore(){ if(!FILTERS) return; FILTERS.apply_gitignore=!FILTERS.apply_gitignore; FILTERS_DIRTY=true; renderFilters(); }
 async function saveFilters(){
   if(!FILTERS) return;
-  const d = await api('/code-sync/settings', FILTERS);
+  const d = await api(ROUTES.settings, FILTERS);
   if(d && d.success){ FILTERS=d.settings; FILTERS_DIRTY=false; $('#filters-src').style.display=''; renderFilters(); }
 }
 async function resetFilters(){
-  const d = await api('/code-sync/settings/reset', {});
+  const d = await api(ROUTES.settingsReset, {});
   if(d && d.success){ FILTERS=d.settings; FILTERS_DIRTY=false; $('#filters-src').style.display='none'; renderFilters(); }
 }
 
@@ -574,7 +596,7 @@ function peerCell(l){
   return '<span class="muted" style="margin-left:8px">'+esc(arrow)+esc(l.peer)+'</span>';
 }
 async function loadLogs(){
-  const d = await api('/code-sync/logs?limit=100');
+  const d = await api(ROUTES.logs + '?limit=100');
   LOGS = (d && d.success && Array.isArray(d.logs)) ? d.logs : [];
   const ul = $('#synclog');
   if(!LOGS.length){ ul.innerHTML = '<li class="muted" style="padding:8px">No recent sync activity</li>'; return; }
@@ -593,7 +615,7 @@ async function loadLogs(){
 async function toggleScanLan(){
   if(!FILTERS) return;
   const enabled = !FILTERS.scan_lan;
-  const d = await api('/code-sync/settings', {scan_lan: enabled});
+  const d = await api(ROUTES.settings, {scan_lan: enabled});
   if(d && d.success){
     FILTERS = d.settings;
     FILTERS_DIRTY = false;
@@ -602,23 +624,23 @@ async function toggleScanLan(){
 }
 async function discover(){
   if(!FILTERS || !FILTERS.scan_lan) return;
-  const d = await api('/code-sync/discover');
+  const d = await api(ROUTES.discover);
   if(d && d.candidates && d.candidates.length){
-    for(const c of d.candidates){ await api('/code-sync/peers/add',
+    for(const c of d.candidates){ await api(ROUTES.peersAdd,
       {name:c.name||c.host, host:c.host, port:c.port, role:c.role||'client'}); }
   }
   load();
 }
 async function setRole(r){
-  await api('/code-sync/role', {role:r});
+  await api(ROUTES.role, {role:r});
   load();
 }
-async function toggleDistribute(on){ await api('/code-sync/distribute', {enabled:on}); load(); }
-async function toggleSkip(on){ await api('/code-sync/skip-update', {enabled:on}); load(); }
-async function removePeer(id){ await api('/code-sync/peers/remove', {id:id}); load(); }
+async function toggleDistribute(on){ await api(ROUTES.distribute, {enabled:on}); load(); }
+async function toggleSkip(on){ await api(ROUTES.skipUpdate, {enabled:on}); load(); }
+async function removePeer(id){ await api(ROUTES.peersRemove, {id:id}); load(); }
 async function addPeer(){
   const host = $('#a-host').value.trim(); if(!host){ $('#a-host').focus(); return; }
-  await api('/code-sync/peers/add', { name: $('#a-name').value.trim() || host, host: host,
+  await api(ROUTES.peersAdd, { name: $('#a-name').value.trim() || host, host: host,
     port: parseInt($('#a-port').value,10) || __PYCORE_HTTP_PORT__, role: $('#a-role').value });
   $('#a-name').value=''; $('#a-host').value=''; load();
 }
@@ -628,3 +650,4 @@ applyTreePanel(); load(); setInterval(load, 5000);
 </html>
 """
 PANEL_HTML = PANEL_HTML.replace("__PYCORE_HTTP_PORT__", str(PYCORE_HTTP_PORT))
+PANEL_HTML = PANEL_HTML.replace("__CODE_SYNC_ROUTES__", PANEL_ROUTES_JSON)

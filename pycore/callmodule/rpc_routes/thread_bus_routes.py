@@ -5,7 +5,7 @@ Thread Bus HTTP Routes
 HTTP controller bridge for THREAD_BUS events and live event subscriptions.
 
 Routes:
-- thread_bus.trigger_event: trigger a THREAD_BUS event from the web UI
+- thread_bus/trigger_event: trigger a THREAD_BUS event from the web UI
 
 Listener subscriptions (server.register_thread_bus_listener) broadcast state
 changes to connected HTTP event clients for real-time UI refresh:
@@ -26,18 +26,17 @@ from pycore.callmodule.rpc_routes.route_names import THREAD_BUS_TRIGGER
 
 def register_thread_bus_routes(server):
     """
-    Register the thread_bus.trigger_event HTTP controller and the THREAD_BUS
+    Register the thread_bus/trigger_event HTTP controller and the THREAD_BUS
     broadcast listener subscriptions the desktop UI needs for real-time refresh.
 
     Preserves the event bridge the original create_rpc_server() provided: the web UI
-    issues the shared HTTP `callRpc` request with an event name and payload
+    issues the shared HTTP request with an event name and payload
     (e.g. for subtitle fullscreen mode), which must be turned into a real
     THREAD_BUS event server-side. Also broadcasts voice-subtitle / system-settings
     / language / code-sync state changes to connected HTTP event clients.
     """
 
     def thread_bus_trigger_event(params, request_id, context):
-        params = params or {}
         event_name = params.get('event_name')
         event_data = params.get('event_data', {})
         if not event_name:
@@ -46,7 +45,7 @@ def register_thread_bus_routes(server):
         return {'success': True, 'event': event_name}
 
     server.post(
-        name=THREAD_BUS_TRIGGER,
+        path=THREAD_BUS_TRIGGER,
         handler=thread_bus_trigger_event,
         description='Trigger a THREAD_BUS event from the web UI',
     )
@@ -70,6 +69,5 @@ def register_thread_bus_routes(server):
     )
     for event_name in event_names:
         server.register_thread_bus_listener(event_name)
-    # operation.changed is delivered by the durable HTTP v2 outbox. Registering
+    # operation.changed is delivered by the durable HTTP API outbox. Registering
     # it here would duplicate every event as a legacy broadcast frame.
-

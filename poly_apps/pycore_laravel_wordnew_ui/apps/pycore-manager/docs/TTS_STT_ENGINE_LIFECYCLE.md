@@ -43,9 +43,9 @@ appears automatically) rather than a hardcoded list.
 
 ## 3. Tests
 
-Every Test button opens the shared `PcTestPopup` and runs over WebSocket RPC
-(`local.{tts,stt,ocr,ai}.test`) via `PycoreApi.testTts/testStt/testOcr/testAiChat`.
-If the pycore WS is not connected the popup surfaces a clear "not connected" message
+Every Test button opens the shared `PcTestPopup` and runs over the Pycore HTTP API
+(`local/{tts,stt,ocr,ai}/test`) via `PycoreApi.testTts/testStt/testOcr/testAiChat`.
+If Pycore HTTP is not connected the popup surfaces a clear "not connected" message
 (tests do not silently no-op). TTS results play audio; STT/OCR/AI render text.
 
 ---

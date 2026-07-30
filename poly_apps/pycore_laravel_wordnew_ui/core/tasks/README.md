@@ -39,7 +39,7 @@ usePersistentTask<T>(key: string, opts: {
   running: boolean;          // is a session live for this key
   begin: (saved?: any) => void; // register + persist {key, saved} + start polling
   end: () => void;           // stop polling + clear persistence
-  set: (data: T) => void;    // push a value between polls (e.g. a WS event)
+  set: (data: T) => void;    // push a value between polls (e.g. an SSE event)
   saved: any;                // the persisted re-attach payload
 }
 ```
@@ -49,7 +49,7 @@ Behavior:
 - `begin(saved)` registers a live session, persists `{ key, saved }`, fires an
   immediate poll, then polls `poll()` every `intervalMs` into `data`.
 - `end()` stops the timer and removes the persisted record.
-- `set(data)` lets a WS push (or a manual refresh) update `data` between polls.
+- `set(data)` lets an SSE push (or a manual refresh) update `data` between polls.
 - **`poll()` returning `null` means "settle"**: the provider stops the timer but
   keeps `data` + the persisted record. Use this for a continuous task that has
   reached a terminal state but whose final snapshot should still survive a reload
@@ -76,8 +76,8 @@ useEffect(() => { if (!job.running) job.begin({ id }); }, []);
 job.data;          // survives navigation + reload
 job.running;
 
-// push a WS event between polls:
-socket.on('tick', d => job.set(d));
+// push an SSE event between polls:
+eventSource.addEventListener('tick', event => job.set(JSON.parse(event.data)));
 ```
 
 Keep **page-only UI state local** (form inputs, selected rows, modals, transient
@@ -159,22 +159,20 @@ persistence pattern is therefore a three-part server/broadcast/page loop:
    Because this lives server-side, a browser reload re-reads the *current* value;
    nothing is held in client `localStorage`.
 
-2. **Reverb broadcasts push live updates.** The job (or an observer on the
-   progress write) dispatches a broadcast event on a private/presence channel,
-   e.g. `TaskProgressUpdated implements ShouldBroadcast` on
-   `new PrivateChannel("tasks.{$task->id}")`, carrying `{ progress, status }`.
-   Reverb (the first-party WebSocket server; see `config/reverb.php`) delivers
-   it to subscribed clients without the page polling.
+2. **SSE broadcasts push live updates.** The job (or an observer on the
+   progress write) appends a named event carrying `{ progress, status }` to the
+   server-owned event stream. The browser resumes from its last cursor after a
+   reconnect, so progress does not depend on page polling.
 
-3. **An Inertia page subscribes via Echo (and/or partial-reload polls).** The
-   page wires Laravel Echo — the project's existing `resources/js/echo.js`
-   (Reverb broadcaster) — to listen on the task's channel and merge pushed
-   `{ progress, status }` into local component state for a live bar:
+3. **An Inertia page subscribes through EventSource.** The page listens for the
+   task's named SSE event and merges `{ progress, status }` into local component
+   state for a live bar:
 
    ```js
-   // resources/js/echo.js already configures `window.Echo` (Reverb).
-   Echo.private(`tasks.${taskId}`)
-       .listen('TaskProgressUpdated', (e) => setProgress(e.progress));
+   const stream = new EventSource(`/api/tasks/${taskId}/events`);
+   stream.addEventListener('task.progress', (event) => {
+       setProgress(JSON.parse(event.data).progress);
+   });
    ```
 
    As a fallback (or where broadcasting is off), the page can use **Inertia

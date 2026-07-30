@@ -7,7 +7,7 @@ REPO = Path(__file__).resolve().parents[1]
 REPLACEMENTS = [
     (
         "from pycore.pyutils.rpc_v2.server.server_runner import UnifiedRpcServerRunner",
-        "from pycore.pyutils.rpc_v2.runner import RpcServerRunner",
+        "from pycore.pyutils.rpc_v2.runner import HttpServerRunner",
     ),
     (
         "from pycore.pyutils.native_ui.step5_main_ui.framework import WebViewFramework",

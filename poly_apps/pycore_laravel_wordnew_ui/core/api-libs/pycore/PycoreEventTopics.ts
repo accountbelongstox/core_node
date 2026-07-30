@@ -32,6 +32,11 @@ export const PYCORE_BROWSER_EVENTS = {
   laravelApiChanged: 'pycore:laravel-api-changed',
 } as const;
 
+export const PYCORE_SSE_EVENTS = {
+  state: 'sse.state',
+  event: 'sse.event',
+} as const;
+
 export const VORTEX_PYCORE_EVENT_TOPICS = {
   marketProgress: 'okx_market_progress',
   marketStatus: 'okx_market_status',

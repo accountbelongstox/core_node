@@ -19,6 +19,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 from pycore.pyutils.launcher.device_sync.core.config import get_global_config, DEFAULT_SYNC_INTERVAL
 from pycore.pyutils.launcher.device_sync.core.scanner import SimpleDeviceScanner
+import pycore.pyutils.launcher.device_sync.routes as routes
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.device_sync.core.database import get_sync_record_store
 from pycore.pyutils.launcher.device_sync.sse_protocol import consume_sync_events
@@ -213,7 +214,10 @@ class SimpleClient:
         Returns:
             List of file metadata dicts
         """
-        url = f"http://{self.config.primary_server_ip}:{self.config.primary_server_port}/api/files"
+        url = (
+            f"http://{self.config.primary_server_ip}:"
+            f"{self.config.primary_server_port}{routes.FILES_PATH}"
+        )
 
         try:
             with urllib.request.urlopen(url, timeout=10) as response:
@@ -333,8 +337,11 @@ class SimpleClient:
             File content bytes
         """
         # URL encode file path
-        encoded_path = urllib.parse.quote(file_path)
-        url = f"http://{self.config.primary_server_ip}:{self.config.primary_server_port}/api/file/{encoded_path}"
+        path = routes.file_download_path(file_path)
+        url = (
+            f"http://{self.config.primary_server_ip}:"
+            f"{self.config.primary_server_port}{path}"
+        )
 
         try:
             with urllib.request.urlopen(url, timeout=30) as response:

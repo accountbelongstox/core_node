@@ -60,3 +60,4 @@ pyapps/{appname}/
 - Heartbeat (`pyfoundations/heartbeat/`): Thread subclasses with THREAD_BUS-backed state; registrations HARD-CODED in `registry.py`, each lib provides TaskModel + TaskHandler.
 - Database (`pycore/database/`): table names only via `TableKeys` (`{namespace}.{table}`), never hardcoded; database-specific logic must live in `pycore/database`, higher layers only organize workflows.
 - Services: rpc_v2 / callmodule on `:59000`; pyutils re-exported from `pycore.pyutils` with `*_AVAILABLE` flags (GUI needs `PYUTILS_LOAD_GUI=1`); UI shell `poly_apps/pycore_laravel_wordnew_ui`.
+- **FORBIDDEN**: mixing HTML / JS / CSS / Python code.

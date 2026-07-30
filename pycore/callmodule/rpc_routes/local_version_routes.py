@@ -7,5 +7,5 @@ from pycore.pyctl.runtime.version_service import get_version
 
 
 def register_local_version_routes(server):
-    server.post(name=UI_VERSION_VERSION, handler=get_version)
+    server.post(path=UI_VERSION_VERSION, handler=get_version)
 

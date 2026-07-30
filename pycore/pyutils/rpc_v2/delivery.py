@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Thread-safe event delivery bridge for active RPC servers."""
+"""Thread-safe event delivery bridge for active HTTP/SSE servers."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ DeliveryBinding = Tuple[asyncio.AbstractEventLoop, EventPublisher]
 
 
 class HttpEventDeliveryService:
-    """Publish domain events to every active RPC server event journal."""
+    """Publish domain events to every active SSE event journal."""
 
     def __init__(self) -> None:
         self._lock = threading.RLock()

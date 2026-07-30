@@ -1,7 +1,7 @@
 /**
  * Queue Center shared state.
  *
- * The UI consumes one HTTP v2 snapshot and only normalizes display-safe scalar
+ * The UI consumes one HTTP API snapshot and only normalizes display-safe scalar
  * values. Queue counts, lifecycle, category membership, and controls are owned
  * by pycore and aligned through config/queue_center_contract.json.
  */
@@ -120,7 +120,7 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-/** App-wide HTTP v2 hub. Mount once in PcProviders. */
+/** App-wide HTTP API hub. Mount once in PcProviders. */
 export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [autoRefresh, setAutoRefreshState] = useState<boolean>(() => readAutoRefreshPref());
   const [hub, setHub] = useState<QueueCenterHubData>(() => {

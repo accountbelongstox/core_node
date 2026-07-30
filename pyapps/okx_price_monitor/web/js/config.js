@@ -7,36 +7,36 @@ window.AppConfig = {
     // API Configuration
     api: {
         baseUrl: window.location.origin,
-        rpcPath: '/api/controller',
+        rpcPath: '/api',
         timeout: 30000, // 30 seconds
         retryAttempts: 3,
         retryDelay: 1000
     },
 
-    // RPC Routes
+    // HTTP routes
     routes: {
         // Monitor routes
-        stats: 'monitor.stats',
-        coinsList: 'monitor.coins_list',
-        coinSummary: 'monitor.coin_summary',
-        allSummaries: 'monitor.all_summaries',
-        alerts: 'monitor.alerts',
-        config: 'monitor.config',
-        updateConfig: 'monitor.update_config',
-        startMonitoring: 'monitor.start',
-        stopMonitoring: 'monitor.stop',
+        stats: 'monitor/stats',
+        coinsList: 'monitor/coins_list',
+        coinSummary: 'monitor/coin_summary',
+        allSummaries: 'monitor/all_summaries',
+        alerts: 'monitor/alerts',
+        config: 'monitor/config',
+        updateConfig: 'monitor/update_config',
+        startMonitoring: 'monitor/start',
+        stopMonitoring: 'monitor/stop',
 
         // Trading routes
-        tradingSummary: 'trading.summary',
-        tradingPositions: 'trading.positions',
-        tradingHistory: 'trading.history',
-        tradingBalance: 'trading.balance',
+        tradingSummary: 'trading/summary',
+        tradingPositions: 'trading/positions',
+        tradingHistory: 'trading/history',
+        tradingBalance: 'trading/balance',
 
         // Legacy routes (for compatibility)
-        coinsStats: 'monitor.stats',
-        coinsSummaries: 'monitor.all_summaries',
-        priceChanges: 'monitor.all_summaries',
-        serverStatus: 'monitor.stats'
+        coinsStats: 'monitor/stats',
+        coinsSummaries: 'monitor/all_summaries',
+        priceChanges: 'monitor/all_summaries',
+        serverStatus: 'monitor/stats'
     },
 
     // Menu Configuration

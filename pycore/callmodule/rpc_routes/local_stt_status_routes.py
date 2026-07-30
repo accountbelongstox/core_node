@@ -8,7 +8,7 @@ from pycore.pyutils.stt.stt_orchestrator import stt_status
 
 
 def register_local_stt_status_routes(server):
-    server.post(name=UI_STT_STATUS_STATUS, handler=stt_status)
+    server.post(path=UI_STT_STATUS_STATUS, handler=stt_status)
 
-    server.post(name=UI_STT_STATUS_TEST, handler=stt.test)
+    server.post(path=UI_STT_STATUS_TEST, handler=stt.test)
 

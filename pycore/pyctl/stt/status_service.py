@@ -11,7 +11,7 @@ from pycore.pyctl.stt.test_service import test as orchestrator_test
 def test(params: Optional[Dict[str, Any]] = None):
     """Live recognition test for ONE engine (or the best available)."""
     p = params or {}
-    ColorPrint.yellow("[DEPRECATED] HTTP POST /api/local/stt/test — use controller local.stt.test")
+    ColorPrint.yellow("[DEPRECATED] Direct STT test entry; use the HTTP controller")
     result = orchestrator_test(
         engine=p.get("engine"),
         language=str(p.get("language") or "en"),

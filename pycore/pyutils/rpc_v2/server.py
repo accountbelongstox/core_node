@@ -60,7 +60,7 @@ class _PrivateNetworkAccessMiddleware:
 
 
 class HttpServer:
-    """Compose HTTP controllers and bounded replayable events."""
+    """Compose HTTP routes and bounded replayable SSE events."""
 
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         server_options = options or {}
@@ -74,7 +74,7 @@ class HttpServer:
             float(server_options.get("http_keep_alive_timeout", 120.0)),
         )
         self.stream_logs = bool(server_options.get("stream_logs", True))
-        self.binding_id = f"rpc-server-{id(self)}"
+        self.binding_id = f"http-server-{id(self)}"
         self.app = FastAPI(
             title="Pycore HTTP Server",
             version=HTTP_PROTOCOL_VERSION,
@@ -115,7 +115,7 @@ class HttpServer:
         return await await_bus_task(
             handler,
             *arguments,
-            thread_name="RpcControllerThread",
+            thread_name="HttpRouteThread",
         )
 
     def _register_lifecycle(self) -> None:
@@ -177,7 +177,7 @@ class HttpServer:
 
     def _register_exception_handler(self) -> None:
         @self.app.exception_handler(Exception)
-        async def rpc_error(request: Request, exc: Exception) -> Any:
+        async def http_error(request: Request, exc: Exception) -> Any:
             request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
             ColorPrint.red(
                 f"[HttpServer] {request.method} {request.url.path} failed: {exc}"
@@ -243,9 +243,9 @@ class HttpServer:
             if method not in route.methods:
                 return self._error_response(
                     request_id,
-                    route.name,
+                    route.path,
                     "method_not_allowed",
-                    f"{method} is not allowed for {route.name}",
+                    f"{method} is not allowed for {route.path}",
                     405,
                 )
             params = await self._read_http_params(request)
@@ -255,21 +255,21 @@ class HttpServer:
 
     def _register_route(
         self,
-        name: str,
+        path: str,
         handler: Callable,
         description: Optional[str] = None,
         timeout: Optional[float] = None,
         methods: Iterable[str] = ("POST",),
     ) -> HttpRoute:
         route = self.dispatcher.register(
-            name,
+            path,
             handler,
             methods=methods,
             description=description,
             timeout=timeout,
         )
         if self.debug:
-            ColorPrint.blue(f"[HttpServer] Registered HTTP route: {route.name}")
+            ColorPrint.blue(f"[HttpServer] Registered HTTP route: {route.path}")
         return route
 
     def register_routes(
@@ -278,35 +278,35 @@ class HttpServer:
         group: Optional[str] = None,
         timeout: Optional[float] = None,
     ) -> List[HttpRoute]:
-        """Register a controller mapping without duplicating route loops."""
+        """Register an HTTP route group without duplicating registration loops."""
         registered = []
         for registration in routes:
-            name = registration[0]
+            path = registration[0]
             handler = registration[1]
             description = registration[2] if len(registration) > 2 else None
             registered.append(
                 self.post(
-                    name=name,
+                    path=path,
                     handler=handler,
                     description=description,
                     timeout=timeout,
                 )
             )
-        if group:
-            ColorPrint.green(
+        if self.debug and group:
+            ColorPrint.blue(
                 f"[HttpServer] Registered HTTP route group: {group}"
             )
         return registered
 
     def get(
         self,
-        name: str,
+        path: str,
         handler: Callable,
         description: Optional[str] = None,
         timeout: Optional[float] = None,
     ) -> HttpRoute:
         return self._register_route(
-            name,
+            path,
             handler,
             description=description,
             timeout=timeout,
@@ -315,13 +315,13 @@ class HttpServer:
 
     def post(
         self,
-        name: str,
+        path: str,
         handler: Callable,
         description: Optional[str] = None,
         timeout: Optional[float] = None,
     ) -> HttpRoute:
         return self._register_route(
-            name,
+            path,
             handler,
             description=description,
             timeout=timeout,

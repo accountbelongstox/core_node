@@ -3,9 +3,13 @@
  * Re-exports HTTP transport, cache helpers, and shared types.
  */
 export { pycoreApi, mapQueueSnapshot } from './PycoreApi';
-export { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
+export { PYCORE_HTTP_ROUTES, VORTEX_PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
 export type { PycoreHttpRoute } from './PycoreHttpRoutes';
-export { PYCORE_BROWSER_EVENTS, PYCORE_EVENT_TOPICS } from './PycoreEventTopics';
+export {
+  PYCORE_BROWSER_EVENTS,
+  PYCORE_EVENT_TOPICS,
+  VORTEX_PYCORE_EVENT_TOPICS,
+} from './PycoreEventTopics';
 export type { PycoreEventTopic } from './PycoreEventTopics';
 export type {
   PycoreApi, QueueResponse, RuntimeInfo, SystemSettingsResponse,

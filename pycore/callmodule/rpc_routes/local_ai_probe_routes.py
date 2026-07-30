@@ -15,30 +15,28 @@ from pycore.pyctl.ai.ai_usage_log import usage_log
 
 
 def register_local_ai_probe_routes(server):
-    server.post(name=UI_AI_PROBE_AI_CATALOG, handler=catalog)
+    server.post(path=UI_AI_PROBE_AI_CATALOG, handler=catalog)
 
     def probe_handler(params, request_id, context):
-        params = params or {}
         return probe.probe(
             int(params.get("refresh") or 0),
             params.get("provider"),
         )
 
-    server.post(name=UI_AI_PROBE_PROBE, handler=probe_handler)
+    server.post(path=UI_AI_PROBE_PROBE, handler=probe_handler)
 
     def balance_handler(params, request_id, context):
-        params = params or {}
         return probe.balance(params.get("provider"))
 
-    server.post(name=UI_AI_PROBE_BALANCE, handler=balance_handler)
+    server.post(path=UI_AI_PROBE_BALANCE, handler=balance_handler)
 
     def rate_limits_handler(params, request_id, context):
-        return rate_status((params or {}).get("provider"))
+        return rate_status(params.get("provider"))
 
     def usage_handler(params, request_id, context):
-        request = params or {}
+        request = params
         return usage_log(int(request.get("limit") or 100), request.get("kind"))
 
-    server.post(name=UI_AI_PROBE_RATE_LIMITS, handler=rate_limits_handler)
-    server.post(name=UI_AI_PROBE_USAGE, handler=usage_handler)
+    server.post(path=UI_AI_PROBE_RATE_LIMITS, handler=rate_limits_handler)
+    server.post(path=UI_AI_PROBE_USAGE, handler=usage_handler)
 

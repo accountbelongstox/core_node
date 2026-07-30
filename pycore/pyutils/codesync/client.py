@@ -41,6 +41,7 @@ from pycore.pyutils.codesync.runtime import (
     start_bus_task,
 )
 
+import pycore.pyutils.codesync.routes as routes
 from pycore.pyutils.codesync.server_connection import ServerConnection
 from pycore.pyutils.codesync.sync_logger import SyncLogger
 
@@ -227,7 +228,7 @@ class CodeSyncClient:
         def check_host(ip: str):
             try:
                 # Try to connect to code-sync endpoint
-                url = f"http://{ip}:{self.server_port}/code-sync/ping"
+                url = f"http://{ip}:{self.server_port}{routes.PING_PATH}"
                 response = requests.get(url, timeout=1)
 
                 if response.status_code == 200:

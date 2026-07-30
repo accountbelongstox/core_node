@@ -15,7 +15,7 @@ def status():
 def test(params: Optional[Dict[str, Any]] = None):
     """Live OCR test for ONE engine (or the best available)."""
     p = params or {}
-    ColorPrint.yellow("[DEPRECATED] HTTP POST /api/local/ocr/test — use controller local.ocr.test")
+    ColorPrint.yellow("[DEPRECATED] Direct OCR test entry; use the HTTP controller")
     return ocr_test(
         engine=p.get("engine"),
         image_path=p.get("image_path"),

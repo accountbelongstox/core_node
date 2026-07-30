@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register Agent History controllers on HTTP v2."""
+"""Register Agent History controllers on HTTP API."""
 
 from pycore.callmodule.rpc_routes import route_names
 import pycore.pyctl.agent_history.ui_service as agent_history_ui_service

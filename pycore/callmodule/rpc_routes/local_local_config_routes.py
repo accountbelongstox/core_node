@@ -9,9 +9,8 @@ from pycore.callmodule.rpc_routes.route_names import UI_LOCAL_CONFIG_UPDATE_CONF
 
 def register_local_local_config_routes(server):
     def update_config_handler(params, request_id, context):
-        params = params or {}
         config = LocalProcessingConfig(**params)
         return local_processing_service.update_config(config)
 
-    server.post(name=UI_LOCAL_CONFIG_UPDATE_CONFIG, handler=update_config_handler)
+    server.post(path=UI_LOCAL_CONFIG_UPDATE_CONFIG, handler=update_config_handler)
 

@@ -172,7 +172,7 @@ export const PcPipelineStatusPanels: React.FC<PcPipelineStatusPanelsProps> = ({
   } = usePycoreCapability();
 
   // Live per-engine model-load overlay (TTS + STT). The store fast-polls itself
-  // while any engine is loading and merges rpc_v2 'engine_load_status_update' deltas.
+  // while any engine is loading and merges SSE 'engine_load_status_update' deltas.
   const { engines: engineLoad } = usePcEngineLoadStatus();
 
   const retryOne = () => { void retry(); };

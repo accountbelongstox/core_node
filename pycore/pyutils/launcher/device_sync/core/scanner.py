@@ -26,6 +26,7 @@ from pycore.pyfoundations.serialized_worker import (
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.device_sync.network_cache import NetworkCache
+import pycore.pyutils.launcher.device_sync.routes as routes
 
 from pycore.pyutils.launcher.device_sync.core.config import get_global_config
 
@@ -58,7 +59,7 @@ def _scan_device_request(request: Dict) -> Optional[Dict]:
     finally:
         sock.close()
 
-    url = f"http://{ip}:{port}/api/status"
+    url = f"http://{ip}:{port}{routes.STATUS_PATH}"
     try:
         with urllib.request.urlopen(url, timeout=1) as response:
             info = json.loads(response.read().decode('utf-8'))
@@ -242,7 +243,7 @@ class SimpleDeviceScanner:
         Returns:
             Device info dict
         """
-        url = f"http://{ip}:{self.port}/api/status"
+        url = f"http://{ip}:{self.port}{routes.STATUS_PATH}"
 
         try:
             with urllib.request.urlopen(url, timeout=1) as response:

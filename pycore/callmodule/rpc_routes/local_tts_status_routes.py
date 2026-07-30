@@ -14,13 +14,12 @@ import pycore.pyctl.tts.status_service as tts
 
 def register_local_tts_status_routes(server):
     def status_handler(params, request_id, context):
-        params = params or {}
         return tts.status(int(params.get("refresh") or 0))
 
-    server.post(name=UI_TTS_STATUS_STATUS, handler=status_handler)
+    server.post(path=UI_TTS_STATUS_STATUS, handler=status_handler)
 
-    server.post(name=UI_TTS_STATUS_TEST, handler=tts.test)
-    server.post(name=UI_TTS_STATUS_GET_SETTINGS, handler=tts.get_settings)
-    server.post(name=UI_TTS_STATUS_POST_SETTINGS, handler=tts.post_settings)
-    server.post(name=UI_TTS_STATUS_POST_SERVER_ACTION, handler=tts.post_server_action)
+    server.post(path=UI_TTS_STATUS_TEST, handler=tts.test)
+    server.post(path=UI_TTS_STATUS_GET_SETTINGS, handler=tts.get_settings)
+    server.post(path=UI_TTS_STATUS_POST_SETTINGS, handler=tts.post_settings)
+    server.post(path=UI_TTS_STATUS_POST_SERVER_ACTION, handler=tts.post_server_action)
 

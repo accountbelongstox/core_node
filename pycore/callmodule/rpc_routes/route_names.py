@@ -21,7 +21,7 @@ LARAVEL_API_PROBE = "laravel_api/probe"
 LARAVEL_API_BUS_TIMEOUT = 20.0
 
 # Native pycore-manager HTTP controllers. Each name is exposed below
-# /api/ by the shared HTTP v2 HTTP server.
+# /api/ by the shared HTTP server.
 UI_BOOKS_SUPPORTED_FORMATS = "ui/books/supported_formats"
 UI_BOOKS_SCAN = "ui/books/scan"
 UI_BOOKS_ANALYZE = "ui/books/analyze"

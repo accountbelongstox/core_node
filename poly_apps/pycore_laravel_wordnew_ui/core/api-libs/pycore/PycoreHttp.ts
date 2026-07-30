@@ -6,7 +6,7 @@ import { PycorePaths } from './pycoreEndpoints';
 import { rewritePycoreEndpoint } from './pycoreTarget';
 import { appendHttpDebug, summarizeHttpParams } from './pycoreHttpLog';
 import { StorageKeys, StorageManager } from '../../persistence';
-import { PYCORE_BROWSER_EVENTS } from './PycoreEventTopics';
+import { PYCORE_BROWSER_EVENTS, PYCORE_SSE_EVENTS } from './PycoreEventTopics';
 
 type EventHandler = (data: any) => void;
 type StatusHandler = (connected: boolean) => void;
@@ -183,8 +183,8 @@ function openEventStream(): void {
   if (!started || suspended || eventSource || typeof EventSource === 'undefined') return;
   const source = new EventSource(eventStreamUrl());
   eventSource = source;
-  source.addEventListener('sse.state', handleSseState as EventListener);
-  source.addEventListener('sse.event', handleSseRecord as EventListener);
+  source.addEventListener(PYCORE_SSE_EVENTS.state, handleSseState as EventListener);
+  source.addEventListener(PYCORE_SSE_EVENTS.event, handleSseRecord as EventListener);
   source.onopen = () => {
     setConnected(true);
     retryDelayMs = RETRY_MIN_MS;

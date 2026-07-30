@@ -110,7 +110,7 @@ export default function VocabTranslateTab() {
         const url = p.audio_base64
           ? `data:${p.mime || 'audio/mpeg'};base64,${p.audio_base64}`
           : await fetchPycoreBlobUrl(String(p.audio_url || ''));
-        if (!url) throw new Error('TTS audio bytes are unavailable over HTTP v2');
+        if (!url) throw new Error('TTS audio bytes are unavailable over HTTP API');
         setAudioUrl(url);
         setOffline(false);
         const audio = new Audio(url);

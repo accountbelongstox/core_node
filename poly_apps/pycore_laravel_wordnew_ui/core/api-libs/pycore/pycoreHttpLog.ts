@@ -1,5 +1,5 @@
 /**
- * pycoreHttpLog - global in-memory ring buffer of HTTP/HTTP request records for
+ * pycoreHttpLog - global in-memory ring buffer of HTTP request records for
  * the pycore-manager HTTP debugger (PcHttpDebugger). Holds BOTH directions:
  *
  *   - direction 'pycore': FE -> pycore requests. Instrumented at the two FE
@@ -82,9 +82,4 @@ export function summarizeHttpParams(value: unknown): string {
   } catch {
     return String(value).slice(0, 240);
   }
-}
-
-/** Map a native rpc_v2 route to a debugger operation label. */
-export function rpcRouteToHttpMethod(route: string): string {
-  return 'HTTP';
 }

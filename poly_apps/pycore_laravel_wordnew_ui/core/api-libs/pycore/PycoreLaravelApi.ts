@@ -1,5 +1,5 @@
 /**
- * PycoreLaravelApi — typed wrappers for the pycore `laravel_api.*` rpc_v2 HTTPs.
+ * PycoreLaravelApi - typed wrappers for the `laravel_api/*` HTTP routes.
  *
  * The frontend owns the prepared endpoint catalog; the pycore backend owns its
  * persisted overrides and selected target (the same resolution

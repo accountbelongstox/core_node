@@ -106,7 +106,7 @@ const PcAiStudioView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal })
     try {
       const r = await pycoreApi.getImageHistory(50);
       const entries: ImageHistoryEntry[] = Array.isArray(r?.entries) ? r.entries : [];
-      // Resolve history files to data URLs over HTTP v2 before any image,
+      // Resolve history files to data URLs over HTTP API before any image,
       // lightbox, or download element receives them.
       const groups = await Promise.all([...entries].reverse().map(async (e): Promise<StudioMsg[]> => {
         const imageSrc = await fetchPycoreBlobUrl(pycoreApi.imageHistoryFileUrl(e.id));

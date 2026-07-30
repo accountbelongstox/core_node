@@ -1,5 +1,5 @@
 /**
- * API Module - RPC v2 Client
+ * API Module - HTTP Client
  * Handles all API communication with the backend
  */
 
@@ -9,8 +9,8 @@ window.API = (function() {
     const config = window.AppConfig;
 
     /**
-     * Make RPC call to backend
-     * @param {string} route - RPC route name
+     * Make an HTTP request to the backend
+     * @param {string} route - HTTP route path
      * @param {object} params - Request parameters
      * @returns {Promise<object>} Response data
      */

@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pygvar import PYCORE_HTTP_PORT
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 
+import pycore.pyutils.codesync.routes as routes
 from pycore.pyutils.codesync.runtime import (
     log as ColorPrint,
     http as requests,
@@ -729,7 +730,7 @@ class CodeSyncManager:
         port = int(peer.get("port", PYCORE_HTTP_PORT) or PYCORE_HTTP_PORT)
         name = peer.get("name") or host
         peer_meta = {"id": peer_id, "name": name, "host": host, "port": port}
-        url = f"http://{host}:{port}/code-sync/file-tree"
+        url = f"http://{host}:{port}{routes.FILE_TREE_PATH}"
         try:
             r = requests.get(url, timeout=20)
             code = getattr(r, "status_code", 0)

@@ -56,6 +56,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Dict, List, Optional
 
 import fastapi
@@ -83,8 +84,14 @@ Qwen3TTSModel = qwen_tts.Qwen3TTSModel
 Response = fastapi.responses.Response
 StreamingResponse = fastapi.responses.StreamingResponse
 _DEFAULT_HOST = "0.0.0.0"
-_RPC_V2_HTTP_EVENT_MODULE_NAME = "_qwen3tts_rpc_v2_http_event_service"
-_RPC_V2_HTTP_EVENT_SERVICE_PATH = (
+_PYCORE_MODULE_NAME = "pycore"
+_PYFOUNDATIONS_MODULE_NAME = "pycore.pyfoundations"
+_HTTP_SSE_MODULE_NAME = "pycore.pyfoundations.http_sse"
+_HTTP_SSE_MODULE_PATH = (
+    Path(__file__).resolve().parents[1] / "pyfoundations" / "http_sse.py"
+)
+_HTTP_EVENT_MODULE_NAME = "_qwen3tts_http_event_service"
+_HTTP_EVENT_MODULE_PATH = (
     Path(__file__).resolve().parents[1]
     / "pyutils"
     / "rpc_v2"
@@ -93,24 +100,37 @@ _RPC_V2_HTTP_EVENT_SERVICE_PATH = (
 )
 
 
-def _load_rpc_v2_http_event_module():
-    """Load the standalone-compatible RPC v2 leaf without importing pycore."""
-    spec = importlib.util.spec_from_file_location(
-        _RPC_V2_HTTP_EVENT_MODULE_NAME,
-        _RPC_V2_HTTP_EVENT_SERVICE_PATH,
-    )
+def _load_source_module(module_name: str, module_path: Path):
+    existing_module = sys.modules.get(module_name)
+    if existing_module is not None:
+        return existing_module
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
     if spec is None or spec.loader is None:
-        raise RuntimeError(
-            f"Cannot load RPC v2 HTTP event service: {_RPC_V2_HTTP_EVENT_SERVICE_PATH}"
-        )
+        raise RuntimeError(f"Cannot load source module: {module_path}")
     module = importlib.util.module_from_spec(spec)
-    sys.modules[_RPC_V2_HTTP_EVENT_MODULE_NAME] = module
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
 
 
-rpc_v2_http_event = _load_rpc_v2_http_event_module()
-http_service = rpc_v2_http_event.HttpEventService(
+def _register_pycore_namespace() -> None:
+    pycore_module = sys.modules.get(_PYCORE_MODULE_NAME)
+    if pycore_module is None:
+        pycore_module = ModuleType(_PYCORE_MODULE_NAME)
+        pycore_module.__path__ = []
+        sys.modules[_PYCORE_MODULE_NAME] = pycore_module
+    pyfoundations_module = sys.modules.get(_PYFOUNDATIONS_MODULE_NAME)
+    if pyfoundations_module is None:
+        pyfoundations_module = ModuleType(_PYFOUNDATIONS_MODULE_NAME)
+        pyfoundations_module.__path__ = []
+        sys.modules[_PYFOUNDATIONS_MODULE_NAME] = pyfoundations_module
+    pycore_module.pyfoundations = pyfoundations_module
+
+
+_register_pycore_namespace()
+http_sse = _load_source_module(_HTTP_SSE_MODULE_NAME, _HTTP_SSE_MODULE_PATH)
+http_event = _load_source_module(_HTTP_EVENT_MODULE_NAME, _HTTP_EVENT_MODULE_PATH)
+http_service = http_event.HttpEventService(
     fastapi_module=fastapi,
     title="Qwen3-TTS HTTP Service",
     version="1.0.0",

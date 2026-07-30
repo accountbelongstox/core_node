@@ -134,7 +134,7 @@ def status(refresh: int = 0):
 def test(params: Optional[Dict[str, Any]] = None):
     """Live synth test for ONE engine (or the best available)."""
     p = params or {}
-    ColorPrint.yellow("[DEPRECATED] HTTP POST /api/local/tts/test — use controller local.tts.test")
+    ColorPrint.yellow("[DEPRECATED] Direct TTS test entry; use the HTTP controller")
     result = orchestrator_test(
         engine=p.get("engine"),
         text=p.get("text"),

@@ -315,4 +315,6 @@ export const VORTEX_PYCORE_HTTP_ROUTES = {
   status: 'okx/status',
 } as const;
 
-export type PycoreHttpRoute = typeof PYCORE_HTTP_ROUTES[keyof typeof PYCORE_HTTP_ROUTES];
+export type PycoreHttpRoute =
+  | typeof PYCORE_HTTP_ROUTES[keyof typeof PYCORE_HTTP_ROUTES]
+  | typeof VORTEX_PYCORE_HTTP_ROUTES[keyof typeof VORTEX_PYCORE_HTTP_ROUTES];

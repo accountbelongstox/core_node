@@ -8,7 +8,7 @@ from pycore.callmodule.rpc_routes.route_names import UI_SYSTEM_RESOURCES_SYSTEM_
 
 def register_local_system_resources_routes(server):
     server.post(
-        name=UI_SYSTEM_RESOURCES_SYSTEM_RESOURCES,
+        path=UI_SYSTEM_RESOURCES_SYSTEM_RESOURCES,
         handler=video_extract_service.system_resources,
     )
 

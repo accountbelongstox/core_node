@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from pycore.pyfoundations.http_sse import HTTP_EVENTS_PATH
 from pycore.pyfoundations.machine_id import get_machine_id
 from pycore.pyfoundations.system_info import (
     DISK_INFO,
@@ -101,7 +102,6 @@ HTTP_STATUS_PATH = "/api/status"
 HTTP_INFO_PATH = "/api/info"
 HTTP_ROUTES_PATH = "/api/routes"
 HTTP_API_PREFIX = "/api"
-HTTP_EVENTS_PATH = "/api/events"
 
 _SYSTEM_KEY = SYSTEM_NAME.lower()
 _HOME_PATH = Path(USER_HOME_DIR)

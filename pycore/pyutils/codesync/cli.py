@@ -31,6 +31,7 @@ from pycore.pyfoundations.pygvar import (
 
 from pycore.pyutils.codesync.runtime import http
 
+import pycore.pyutils.codesync.routes as routes
 from pycore.pyutils.codesync.peer_config import get_peer_config
 import pycore.pyutils.codesync.daemon as daemon
 
@@ -66,7 +67,7 @@ def _http_post(port, path, body, timeout=4.0):
 
 
 def _server_up(port):
-    return _http_get(port, "/code-sync/ping", timeout=1.0) is not None
+    return _http_get(port, routes.PING_PATH, timeout=1.0) is not None
 
 
 def _emit(obj):
@@ -103,7 +104,7 @@ def cmd_run(args):
 
 
 def cmd_show(args):
-    data = _http_get(args.port, "/code-sync/peers")
+    data = _http_get(args.port, routes.PEERS_PATH)
     if data is not None:
         _emit({"source": "service", "self": data.get("self"),
                "peers": data.get("peers"), "version": data.get("version")})
@@ -116,7 +117,7 @@ def cmd_show(args):
 def cmd_role(args):
     if not args.role:  # get
         if _server_up(args.port):
-            data = _http_get(args.port, "/code-sync/peers") or {}
+            data = _http_get(args.port, routes.PEERS_PATH) or {}
             _emit({"source": "service", "role": (data.get("self") or {}).get("role")})
         else:
             _emit({"source": "file", "role": _peer_config().get_role()})
@@ -125,7 +126,7 @@ def cmd_role(args):
         _emit({"success": False, "error": "role must be 'dev' or 'client'"})
         return 1
     if _server_up(args.port):
-        res = _http_post(args.port, "/code-sync/role", {"role": args.role})
+        res = _http_post(args.port, routes.ROLE_PATH, {"role": args.role})
         _emit({"source": "service", "result": res})
         return 0 if res and res.get("success") else 1
     role = _peer_config().set_role(args.role)
@@ -140,7 +141,7 @@ def cmd_peers(args):
 
     if op == "list":
         if up:
-            data = _http_get(args.port, "/code-sync/peers") or {}
+            data = _http_get(args.port, routes.PEERS_PATH) or {}
             _emit({"source": "service", "peers": data.get("peers"), "self": data.get("self")})
         else:
             me, peers, _ = _offline_snapshot(cfg)
@@ -155,7 +156,7 @@ def cmd_peers(args):
         role = args.role or "client"
         port = args.peer_port or DEFAULT_PORT
         if up:
-            res = _http_post(args.port, "/code-sync/peers/add",
+            res = _http_post(args.port, routes.PEERS_ADD_PATH,
                              {"name": name, "host": args.host, "port": port, "role": role})
             _emit({"source": "service", "result": res})
             return 0 if res and res.get("success") else 1
@@ -168,7 +169,7 @@ def cmd_peers(args):
             _emit({"success": False, "error": "--id is required"})
             return 1
         if up:
-            res = _http_post(args.port, "/code-sync/peers/remove", {"id": args.id})
+            res = _http_post(args.port, routes.PEERS_REMOVE_PATH, {"id": args.id})
             _emit({"source": "service", "result": res})
             return 0 if res and res.get("success") else 1
         ok = cfg.remove_peer(args.id)
@@ -189,7 +190,7 @@ def cmd_peers(args):
         if args.role is not None:
             fields["role"] = args.role
         if up:
-            res = _http_post(args.port, "/code-sync/peers/update", {"id": args.id, **fields})
+            res = _http_post(args.port, routes.PEERS_UPDATE_PATH, {"id": args.id, **fields})
             _emit({"source": "service", "result": res})
             return 0 if res and res.get("success") else 1
         updated = cfg.update_peer(args.id, fields)
@@ -213,11 +214,11 @@ def _runtime_toggle(args, path, label):
 
 
 def cmd_distribute(args):
-    return _runtime_toggle(args, "/code-sync/distribute", "distribute")
+    return _runtime_toggle(args, routes.DISTRIBUTE_PATH, "distribute")
 
 
 def cmd_skip_update(args):
-    return _runtime_toggle(args, "/code-sync/skip-update", "skip-update")
+    return _runtime_toggle(args, routes.SKIP_UPDATE_PATH, "skip-update")
 
 
 # --------------------------------------------------------------------------- #

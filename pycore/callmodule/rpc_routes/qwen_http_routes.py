@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register Qwen3TTS controllers and event wiring on HTTP v2."""
+"""Register Qwen3TTS controllers and event wiring on HTTP API."""
 
 from pycore.callmodule.rpc_routes import route_names
 import pycore.pyctl.tts.qwen.ui_service as qwen_ui_service

@@ -339,7 +339,7 @@ def ocr_test(engine: Optional[str] = None, image_path: Optional[str] = None,
     name = engine or best_engine()
     if not name:
         return {"success": False, "engine": None, "text": "", "latency_ms": 0,
-                "route": "local.ocr.test", "error": "no OCR engine available"}
+                "error": "no OCR engine available"}
 
     tmp_path: Optional[str] = None
     resolved = image_path
@@ -357,12 +357,10 @@ def ocr_test(engine: Optional[str] = None, image_path: Optional[str] = None,
             resolved = tmp_path
         except Exception as e:  # noqa: BLE001
             return {"success": False, "engine": name, "text": "", "latency_ms": 0,
-                    "route": "local.ocr.test",
                     "error": f"could not decode image_data: {e}"}
 
     if not resolved or not Path(resolved).exists():
         return {"success": False, "engine": name, "text": "", "latency_ms": 0,
-                "route": "local.ocr.test",
                 "error": "no image provided (upload or paste an image, or let the popup render sample text)"}
 
     t0 = time.monotonic()

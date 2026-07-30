@@ -12,12 +12,11 @@ import pycore.pyctl.assist.service as assist
 
 def register_local_assist_routes(server):
     def assist_status_handler(params, request_id, context):
-        params = params or {}
         include = params.get("include_laravel", True)
         return assist.assist_status(bool(include))
 
-    server.post(name=UI_ASSIST_ASSIST_STATUS, handler=assist_status_handler)
+    server.post(path=UI_ASSIST_ASSIST_STATUS, handler=assist_status_handler)
 
-    server.post(name=UI_ASSIST_ASSIST_CONFIG, handler=assist.assist_config)
-    server.post(name=UI_ASSIST_ASSIST_CYCLE, handler=assist.assist_cycle)
+    server.post(path=UI_ASSIST_ASSIST_CONFIG, handler=assist.assist_config)
+    server.post(path=UI_ASSIST_ASSIST_CYCLE, handler=assist.assist_cycle)
 

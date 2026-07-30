@@ -9,10 +9,9 @@ import pycore.pyctl.assist.heartbeat_workers_service as hb
 
 
 def register_local_heartbeat_workers_routes(server):
-    server.post(name=UI_HEARTBEAT_WORKERS_STATUS, handler=hb.status)
+    server.post(path=UI_HEARTBEAT_WORKERS_STATUS, handler=hb.status)
 
     def config_handler(params, request_id, context):
-        params = params or {}
         if "enabled" not in params:
             return {"success": False, "error": "enabled is required"}
         return hb.config(
@@ -20,5 +19,5 @@ def register_local_heartbeat_workers_routes(server):
             bool(params["enabled"]),
         )
 
-    server.post(name=UI_HEARTBEAT_WORKERS_CONFIG, handler=config_handler)
+    server.post(path=UI_HEARTBEAT_WORKERS_CONFIG, handler=config_handler)
 

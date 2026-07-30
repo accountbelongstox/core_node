@@ -16,29 +16,27 @@ from pycore.pyctl.capabilities import capabilities_status, system_info
 def register_local_capability_status_routes(server):
     """Register HTTP controllers."""
 
-    server.post(name=UI_CAPABILITY_STATUS_STATUS, handler=capabilities_status)
-    server.post(name=UI_CAPABILITY_STATUS_INFO, handler=system_info)
+    server.post(path=UI_CAPABILITY_STATUS_STATUS, handler=capabilities_status)
+    server.post(path=UI_CAPABILITY_STATUS_INFO, handler=system_info)
 
     def open_directory_handler(params, request_id, context):
-        params = params or {}
         return cap.open_directory(str(params.get("key") or ""))
 
     server.post(
-        name=UI_CAPABILITY_STATUS_OPEN_DIRECTORY,
+        path=UI_CAPABILITY_STATUS_OPEN_DIRECTORY,
         handler=open_directory_handler,
     )
 
     server.post(
-        name=UI_CAPABILITY_STATUS_GET_CAPABILITY_SETTINGS,
+        path=UI_CAPABILITY_STATUS_GET_CAPABILITY_SETTINGS,
         handler=cap.get_capability_settings,
     )
 
     def post_capability_settings_handler(params, request_id, context):
-        params = params or {}
         return cap.post_capability_settings(str(params.get("capability") or ""), params.get("priority"), params.get("options"))
 
     server.post(
-        name=UI_CAPABILITY_STATUS_POST_CAPABILITY_SETTINGS,
+        path=UI_CAPABILITY_STATUS_POST_CAPABILITY_SETTINGS,
         handler=post_capability_settings_handler,
     )
 

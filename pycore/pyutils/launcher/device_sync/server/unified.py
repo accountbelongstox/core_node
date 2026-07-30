@@ -24,10 +24,8 @@ from pycore.pyutils.launcher.device_sync.core.config import (
 )
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.device_sync.core.database import get_sync_record_store
-from pycore.pyutils.launcher.device_sync.sse_protocol import (
-    SYNC_EVENT_PATH,
-    serve_sync_events,
-)
+import pycore.pyutils.launcher.device_sync.routes as routes
+from pycore.pyutils.launcher.device_sync.sse_protocol import serve_sync_events
 
 class UnifiedHTTPHandler(BaseHTTPRequestHandler):
     """
@@ -47,27 +45,27 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
         config = get_global_config()
 
         # ===== Public Endpoints (available in both modes) =====
-        if path == '/':
+        if path == routes.ROOT_PATH:
             self._handle_dashboard()
-        elif path == '/api/status':
+        elif path == routes.STATUS_PATH:
             self._handle_status()
-        elif path == '/api/devices':
+        elif path == routes.DEVICES_PATH:
             self._handle_devices()
 
         # ===== PRIMARY Mode Endpoints =====
         elif config.isPrimaryServer:
-            if path == '/api/files':
+            if path == routes.FILES_PATH:
                 self._handle_files_list()
-            elif path == SYNC_EVENT_PATH:
+            elif path == routes.EVENTS_PATH:
                 self._handle_sync_events()
-            elif path.startswith('/api/file/'):
+            elif path.startswith(routes.FILE_PATH_PREFIX):
                 self._handle_file_download(path)
             else:
                 self.send_error(404, "Not Found")
 
         # ===== SECONDARY Mode Endpoints (GET) =====
         else:
-            if path == '/api/sync/status':
+            if path == routes.SYNC_STATUS_PATH:
                 self._handle_sync_status()
             else:
                 self.send_error(404, "Not Found")
@@ -84,9 +82,9 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
             return
 
         # ===== SECONDARY Mode POST Endpoints =====
-        if path == '/api/sync/start':
+        if path == routes.SYNC_START_PATH:
             self._handle_sync_start()
-        elif path == '/api/sync/stop':
+        elif path == routes.SYNC_STOP_PATH:
             self._handle_sync_stop()
         else:
             self.send_error(404, "Not Found")
@@ -245,12 +243,12 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
             clients_html = "<h3>Connected Clients</h3><p>No clients currently connected</p>"
 
         # API endpoints
-        endpoints_html = """
+        endpoints_html = f"""
         <h3>API Endpoints</h3>
         <ul>
-            <li><a href="/api/status">/api/status</a> - Server status</li>
-            <li><a href="/api/files">/api/files</a> - File list (requires API access)</li>
-            <li><a href="/api/devices">/api/devices</a> - Online devices</li>
+            <li><a href="{routes.STATUS_PATH}">{routes.STATUS_PATH}</a> - Server status</li>
+            <li><a href="{routes.FILES_PATH}">{routes.FILES_PATH}</a> - File list (requires API access)</li>
+            <li><a href="{routes.DEVICES_PATH}">{routes.DEVICES_PATH}</a> - Online devices</li>
         </ul>
         """
 
@@ -349,7 +347,11 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
 
         # Record connection
         client_ip = self.client_address[0]
-        record_store.record_connection('client_connect', client_ip, request_path='/api/files')
+        record_store.record_connection(
+            'client_connect',
+            client_ip,
+            request_path=routes.FILES_PATH,
+        )
 
         client_info = {'ip': client_ip, 'last_seen': time.time()}
         config.upsert_connected_client(client_info)
@@ -403,7 +405,7 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
             return
 
         # Extract file path
-        file_path_encoded = path[len('/api/file/'):]
+        file_path_encoded = path[len(routes.FILE_PATH_PREFIX):]
         file_path = urllib.parse.unquote(file_path_encoded)
 
         full_path = config.root_dir / file_path

@@ -10,14 +10,8 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
         strictPort: false,  // Allow fallback to other ports if 58889 is busy
         proxy: {
-          '/rpc': {
-            target: 'http://localhost:58888',  // Backend RPC server
-            changeOrigin: true,
-            ws: true,  // Enable WebSocket proxy for RPC
-          },
-          '/ws': {
-            target: 'ws://localhost:58888',  // WebSocket proxy for logs
-            ws: true,
+          '/api': {
+            target: 'http://localhost:58888',
             changeOrigin: true,
           }
         }

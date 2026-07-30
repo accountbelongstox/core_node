@@ -2,7 +2,7 @@
  * Shared Queue Center section + panel contracts (used by PcQueueCenterPage and
  * the section body panels).
  *
- * All UI traffic uses HTTP v2. The canonical structure and runtime defaults are
+ * All UI traffic uses HTTP API. The canonical structure and runtime defaults are
  * in core/api-libs/pycore/QueueCenterContract.ts, backed by
  * config/queue_center_contract.json.
  */

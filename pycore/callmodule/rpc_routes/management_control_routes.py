@@ -12,13 +12,12 @@ from pycore.callmodule.rpc_routes.route_names import (
 def register_management_control_routes(server):
     """Register HTTP controllers."""
 
-    server.post(name=UI_CONTROL_GET_AUTOSTART, handler=autostart_service.get_status)
+    server.post(path=UI_CONTROL_GET_AUTOSTART, handler=autostart_service.get_status)
 
     def set_autostart_handler(params, request_id, context):
-        params = params or {}
         enabled = bool(params.get("enabled"))
         target = params.get("target")
         mechanism = params.get("mechanism")
         return autostart_service.set_enabled(enabled, target, mechanism)
 
-    server.post(name=UI_CONTROL_SET_AUTOSTART, handler=set_autostart_handler)
+    server.post(path=UI_CONTROL_SET_AUTOSTART, handler=set_autostart_handler)

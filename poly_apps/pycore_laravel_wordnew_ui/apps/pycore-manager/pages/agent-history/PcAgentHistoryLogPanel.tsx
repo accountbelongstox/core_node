@@ -7,7 +7,7 @@ import { PYCORE_HTTP_ROUTES } from '../../../../core/api-libs/pycore/PycoreHttpR
 
 const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
 
-/** Live pipeline log panel — hydrates from ui.operation.snapshot; refreshes on operation.changed. */
+/** Live pipeline log panel; hydrates from ui/operation/snapshot and follows operation.changed. */
 const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string }> = ({ tk }) => {
   const [data, setData] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);

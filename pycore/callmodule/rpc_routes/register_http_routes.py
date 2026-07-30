@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register every callmodule HTTP v2 HTTP controller group."""
+"""Register every callmodule HTTP controller group."""
 
 from pycore.callmodule.rpc_routes.code_sync_routes import register_code_sync_routes
 from pycore.callmodule.rpc_routes.corebook_routes import register_corebook_routes

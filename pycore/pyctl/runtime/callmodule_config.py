@@ -51,8 +51,8 @@ class Config:
     RESOURCES_DIR = APP_ROOT / "resources"
 
     # ==================== Backend ====================
-    RPC_HOST = HTTP_BIND_HOST
-    RPC_PORT = PYCORE_HTTP_PORT
+    HTTP_HOST = HTTP_BIND_HOST
+    HTTP_PORT = PYCORE_HTTP_PORT
 
     # ==================== Singleton (shared with pylauncher) ====================
     SINGLETON_PORT_START = 59100
@@ -185,7 +185,7 @@ class Config:
     # Heartbeat-callback interval (seconds) for the queue-monitor poll loop (~5s).
     TRANSLATION_QUEUE_MONITOR_INTERVAL = TRANSLATION_QUEUE_MONITOR_INTERVAL
     # Enabled on start by default so the UI sees the live queue out of the box;
-    # Pycore UI toggles it through RPC v2 `ui.heartbeat_workers.config`.
+    # Pycore UI toggles it through HTTP `ui/heartbeat_workers/config`.
     TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START = (
         os.getenv("TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START", "1") in ("1", "true", "True")
     )
@@ -211,8 +211,8 @@ class Config:
     CORS_ALLOW_ORIGINS = [
         f"http://localhost:{FRONTEND_PORT}",
         f"http://127.0.0.1:{FRONTEND_PORT}",
-        f"http://localhost:{RPC_PORT}",
-        f"http://127.0.0.1:{RPC_PORT}",
+        f"http://localhost:{HTTP_PORT}",
+        f"http://127.0.0.1:{HTTP_PORT}",
     ]
     CORS_ALLOW_CREDENTIALS = True
     CORS_ALLOW_METHODS = ["*"]
@@ -231,4 +231,3 @@ class Config:
 
 # Global configuration instance
 config = Config()
-

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register Task Center controllers on HTTP v2."""
+"""Register Task Center controllers on HTTP API."""
 
 from pycore.callmodule.rpc_routes import route_names
 from pycore.pyctl.queue_center.task_center_service import (
@@ -16,7 +16,7 @@ def register_local_task_center_routes(server) -> None:
     """Register Task Center controllers."""
 
     def control_handler(params, _request_id, _context):
-        request = params or {}
+        request = params
         control_name = request.get("control_name")
         if not control_name:
             return {"success": False, "error": "control_name is required"}
@@ -29,13 +29,13 @@ def register_local_task_center_routes(server) -> None:
         return set_queue_center_control(control_name, control)
 
     def local_detail_handler(params, _request_id, _context):
-        task_id = (params or {}).get("task_id")
+        task_id = params.get("task_id")
         if not task_id:
             return {"success": False, "error": "task_id is required"}
         return get_local_task_detail(task_id)
 
     def remote_detail_handler(params, _request_id, _context):
-        task_id = (params or {}).get("task_id")
+        task_id = params.get("task_id")
         if not task_id:
             return {"success": False, "error": "task_id is required"}
         return get_remote_task_detail(task_id)

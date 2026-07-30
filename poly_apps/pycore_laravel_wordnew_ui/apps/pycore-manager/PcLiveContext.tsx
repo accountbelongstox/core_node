@@ -97,7 +97,7 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
     });
 
     // pycore -> Laravel request records (LaravelClient -> LaravelHttpRecorder ->
-    // rpc_v2 broadcast) feed the HTTP debugger's 'laravel' direction rows.
+    // SSE broadcast) feed the HTTP debugger's 'laravel' direction rows.
     const offLaravelHttp = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.laravelHttp, (data: any) => {
       appendHttpDebug({
         direction: 'laravel',

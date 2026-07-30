@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { RPCClient } from '../services/rpc';
+import { HttpClient } from '../services/http';
 import { CoinSummary } from '../types';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
@@ -13,7 +13,7 @@ export const HistoryPage: React.FC = () => {
 
   const fetchSummaries = async () => {
     try {
-      const data = await RPCClient.getAllSummaries(50); // Top 50
+      const data = await HttpClient.getAllSummaries(50); // Top 50
       setSummaries(data.summaries);
       if (!selectedCoin && data.summaries.length > 0) {
         setSelectedCoin(data.summaries[0]);

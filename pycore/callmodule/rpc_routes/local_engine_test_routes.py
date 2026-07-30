@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register local engine test and status controllers on HTTP v2."""
+"""Register local engine test and status controllers on HTTP API."""
 
 from pycore.callmodule.rpc_routes.route_names import (
     LOCAL_AI_IMAGE_TEST,
@@ -22,7 +22,7 @@ def register_local_engine_test_routes(server) -> None:
     """Register thin local engine controller adapters."""
 
     def tts_status_handler(params, _request_id, _context):
-        return tts_status(refresh=int((params or {}).get("refresh") or 0))
+        return tts_status(refresh=int(params.get("refresh") or 0))
 
     routes = (
         (LOCAL_TTS_TEST, local_engine_service.test_tts, "Live TTS synthesis test"),

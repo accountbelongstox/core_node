@@ -14,18 +14,18 @@ has the SAME two-layer structure:
     translation queue (QueueMonitorService snapshot) + the translation
     worker's registration/inflight status.
 
-RPC v2 routes:
+HTTP routes:
 
-  ui.task_center.get_task_center
+  ui/task_center/get_task_center
       -> { scheduler, local_tasks, remote_queue, timestamp }
 
-  ui.task_center.get_local_task_detail
+  ui/task_center/get_local_task_detail
       -> { success:true, task:{ task_id, task_type, status, progress,
              input_data, result, error, created_at, updated_at, ... } }
 
 Local runtime data comes from in-process singletons. The canonical overview
 service may call Laravel through pycore's server-side HTTP client; UI callers
-always use the RPC v2 routes above.
+always use the HTTP routes above.
 """
 
 import time

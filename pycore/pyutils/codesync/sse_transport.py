@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """In-process Code Sync SSE frame broker."""
 
-import json
 import time
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional, Tuple
 
+from pycore.pyutils.codesync.routes import EVENTS_ACK_PATH, EVENTS_PATH
 from pycore.pyutils.codesync.runtime import (
     THREAD_BUS,
     init_serialized_owner,
@@ -13,32 +13,15 @@ from pycore.pyutils.codesync.runtime import (
 )
 
 
-SSE_STREAM_PATH = "/code-sync/events"
-SSE_ACK_PATH = "/code-sync/events/ack"
+SSE_STREAM_PATH = EVENTS_PATH
+SSE_ACK_PATH = EVENTS_ACK_PATH
 SSE_EVENT_NAME = "code-sync.frame"
-SSE_CONTENT_TYPE = "text/event-stream"
-SSE_RESPONSE_HEADERS = {
-    "Cache-Control": "no-cache, no-transform",
-    "Connection": "keep-alive",
-    "X-Accel-Buffering": "no",
-}
 SSE_KEEP_ALIVE_SECONDS = 15.0
 SSE_CLIENT_STALE_SECONDS = 45.0
 SSE_ACK_TIMEOUT_SECONDS = 120.0
 SSE_TRANSPORT_LABEL = (
     "HTTP SSE downlink + HTTP POST ACK; reconnect runs full manifest comparison"
 )
-
-
-def encode_sse_frame(event: str, payload: Dict[str, Any], event_id: str = "") -> bytes:
-    lines = []
-    if event_id:
-        lines.append(f"id: {event_id}")
-    lines.append(f"event: {event}")
-    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str)
-    for line in encoded.splitlines() or [""]:
-        lines.append(f"data: {line}")
-    return ("\n".join(lines) + "\n\n").encode("utf-8")
 
 
 class CodeSyncSseBroker:
@@ -48,6 +31,7 @@ class CodeSyncSseBroker:
         self._frames: Dict[str, list] = {}
         self._connected: Dict[str, float] = {}
         self._sessions: Dict[str, int] = {}
+        self._aliases: Dict[str, str] = {}
         init_serialized_owner(self, "codesync.sse_broker.state", "CodeSyncSseBrokerState")
 
     @staticmethod
@@ -59,13 +43,18 @@ class CodeSyncSseBroker:
         return f"codesync.sse.ack.{frame_id}"
 
     @serialized_method
-    def connect(self, client_id: str) -> int:
+    def connect(self, client_id: str, aliases: Iterable[str] = ()) -> int:
         normalized = str(client_id or "").strip()
         if not normalized:
             return 0
         session = self._sessions.get(normalized, 0) + 1
         self._sessions[normalized] = session
         self._connected[normalized] = time.monotonic()
+        self._aliases[normalized] = normalized
+        for alias in aliases:
+            normalized_alias = str(alias or "").strip()
+            if normalized_alias:
+                self._aliases[normalized_alias] = normalized
         return session
 
     @serialized_method
@@ -79,6 +68,27 @@ class CodeSyncSseBroker:
         normalized = str(client_id or "").strip()
         if self._sessions.get(normalized) == int(session or 0):
             self._connected.pop(normalized, None)
+            self._aliases = {
+                alias: target
+                for alias, target in self._aliases.items()
+                if target != normalized
+            }
+
+    @serialized_method
+    def resolve_client(self, client_id: str, host: str, port: int) -> str:
+        now = time.monotonic()
+        normalized_host = str(host or "").strip()
+        candidates = (
+            str(client_id or "").strip(),
+            normalized_host,
+            f"{normalized_host}:{int(port or 0)}",
+        )
+        for candidate in candidates:
+            target = self._aliases.get(candidate, candidate)
+            last_seen = self._connected.get(target, 0.0)
+            if last_seen and now - last_seen <= SSE_CLIENT_STALE_SECONDS:
+                return target
+        return ""
 
     @serialized_method
     def is_connected(self, client_id: str) -> bool:
@@ -159,6 +169,20 @@ class CodeSyncSseBroker:
         THREAD_BUS.clear_signal(signal_name)
         return reply
 
+    def acknowledge_payload(
+        self,
+        payload: Dict[str, Any],
+    ) -> Tuple[Dict[str, Any], int]:
+        client_id = str((payload or {}).get("client_id") or "").strip()
+        frame_id = str((payload or {}).get("frame_id") or "").strip()
+        if not client_id or not frame_id:
+            return (
+                {"success": False, "error": "client_id and frame_id required"},
+                400,
+            )
+        accepted = self.acknowledge(client_id, frame_id, (payload or {}).get("reply"))
+        return {"success": accepted}, 200 if accepted else 404
+
 
 code_sync_sse_broker = CodeSyncSseBroker()
 
@@ -176,12 +200,9 @@ def code_sync_transport_status() -> Dict[str, str]:
 
 __all__ = [
     "SSE_ACK_PATH",
-    "SSE_CONTENT_TYPE",
     "SSE_EVENT_NAME",
     "SSE_KEEP_ALIVE_SECONDS",
-    "SSE_RESPONSE_HEADERS",
     "SSE_STREAM_PATH",
     "code_sync_sse_broker",
     "code_sync_transport_status",
-    "encode_sse_frame",
 ]

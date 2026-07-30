@@ -21,7 +21,11 @@ import {
 } from 'lucide-react';
 import Portal from '../../../components/shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
-import { pycoreApi, usePcEngineLoadStatus } from '../../../core/api-libs/pycore';
+import {
+  PYCORE_HTTP_ROUTES,
+  pycoreApi,
+  usePcEngineLoadStatus,
+} from '../../../core/api-libs/pycore';
 import { PcBlobAudio } from './PcBlobMedia';
 import type {
   TtsTestResponse, SttTestResponse, OcrTestResponse, AiChatResponse,
@@ -82,7 +86,7 @@ const KIND_THEME: Record<PcTestKind, KindTheme> = {
     btn: 'bg-indigo-500 hover:bg-indigo-600',
     ring: 'focus:ring-indigo-500/30 focus:border-indigo-400/50',
     subtitle: 'Synthesize speech with this engine. Output is an audio clip.',
-    route: () => 'local.tts.test',
+    route: () => PYCORE_HTTP_ROUTES.localTtsTest,
   },
   stt: {
     Icon: Mic,
@@ -94,7 +98,7 @@ const KIND_THEME: Record<PcTestKind, KindTheme> = {
     btn: 'bg-sky-500 hover:bg-sky-600',
     ring: 'focus:ring-sky-500/30 focus:border-sky-400/50',
     subtitle: 'Round-trip: synthesize your phrase, then recognize it with this engine.',
-    route: () => 'local.stt.test',
+    route: () => PYCORE_HTTP_ROUTES.localSttTest,
   },
   ai: {
     Icon: Cpu,
@@ -107,8 +111,8 @@ const KIND_THEME: Record<PcTestKind, KindTheme> = {
     ring: 'focus:ring-fuchsia-500/30 focus:border-fuchsia-400/50',
     subtitle: 'One chat turn to this provider (not TTS/STT).',
     route: (target) => target === 'auto'
-      ? 'local.ai.chat (provider=auto)'
-      : `local.ai.chat (${target})`,
+      ? `${PYCORE_HTTP_ROUTES.localAiChat} (provider=auto)`
+      : `${PYCORE_HTTP_ROUTES.localAiChat} (${target})`,
   },
   ocr: {
     Icon: ScanText,
@@ -120,7 +124,7 @@ const KIND_THEME: Record<PcTestKind, KindTheme> = {
     btn: 'bg-emerald-500 hover:bg-emerald-600',
     ring: 'focus:ring-emerald-500/30 focus:border-emerald-400/50',
     subtitle: 'Recognize text from an uploaded image or rendered sample.',
-    route: () => 'local.ocr.test',
+    route: () => PYCORE_HTTP_ROUTES.localOcrTest,
   },
 };
 
@@ -418,9 +422,7 @@ export const PcTestPopup: React.FC<PcTestPopupProps> = ({ state, onClose }) => {
 
   const displayedTime = phase === 'run' ? elapsed : latencyS;
   const timeLabel = displayedTime == null ? '—' : `${displayedTime.toFixed(1)}s`;
-  const apiRoute = (result && typeof (result as { route?: string }).route === 'string'
-    ? (result as { route?: string }).route
-    : null) || theme.route(target);
+  const apiRoute = theme.route(target);
 
   // Engine status chips for the header.
   const statusChips: { label: string; color: string }[] = [];

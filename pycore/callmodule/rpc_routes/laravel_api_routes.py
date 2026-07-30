@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register Laravel endpoint-management controllers on HTTP v2."""
+"""Register Laravel endpoint-management controllers on HTTP API."""
 
 from pycore.callmodule.rpc_routes import route_names
 from pycore.callmodule.rpc_routes.route_names import (
@@ -12,7 +12,7 @@ def register_laravel_api_routes(server) -> None:
     """Register thin Laravel endpoint controller adapters."""
 
     def list_handler(params, _request_id, _context):
-        request_params = params or {}
+        request_params = params
         frontend_endpoints = request_params.get("frontend_endpoints")
         if not isinstance(frontend_endpoints, list):
             frontend_endpoints = None
@@ -22,13 +22,13 @@ def register_laravel_api_routes(server) -> None:
         )
 
     def add_handler(params, _request_id, _context):
-        return laravel_endpoint_manager.add((params or {}).get("url"))
+        return laravel_endpoint_manager.add(params.get("url"))
 
     def remove_handler(params, _request_id, _context):
-        return laravel_endpoint_manager.remove((params or {}).get("url"))
+        return laravel_endpoint_manager.remove(params.get("url"))
 
     def select_handler(params, _request_id, _context):
-        result = laravel_endpoint_manager.select((params or {}).get("url"))
+        result = laravel_endpoint_manager.select(params.get("url"))
         if isinstance(result, dict) and result.get("success"):
             server.broadcast_event_sync(
                 BusSignals.LARAVEL_ENDPOINT_CHANGED,
@@ -42,7 +42,7 @@ def register_laravel_api_routes(server) -> None:
         return result
 
     def probe_handler(params, _request_id, _context):
-        return laravel_endpoint_manager.probe_route((params or {}).get("url"))
+        return laravel_endpoint_manager.probe_route(params.get("url"))
 
     routes = (
         (route_names.LARAVEL_API_LIST, list_handler, "List Laravel endpoints"),

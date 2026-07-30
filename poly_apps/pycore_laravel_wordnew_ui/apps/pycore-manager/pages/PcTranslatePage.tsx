@@ -5,7 +5,7 @@
  *
  *  1. Status — is the FREE googletrans library importable, its version, the
  *     service URL, and the on-disk translation cache dir + entry count.
- *     Driven by `pycoreApi.getTranslateStatus()` over HTTP v2.
+ *     Driven by `pycoreApi.getTranslateStatus()` over HTTP API.
  *
  *  2. Test box (the "share data with AI" requirement) — one text input + source
  *     and target language selectors feed the SAME input to BOTH paths:

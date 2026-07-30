@@ -4,7 +4,7 @@
  *
  * The pycore end has a single "endpoint": the pycore backend on :59000
  * (direct). Health is determined by a FastAPI HTTP controller probe
- * (`ui.ping`, 3s timeout). Two consecutive failures are required before
+ * (`ui/ping`, 3s timeout). Two consecutive failures are required before
  * flipping to down, so a single transient blip is tolerated.
  *
  * Loop:
@@ -48,7 +48,7 @@ export const PYCORE_HEALTH_EVENT = 'pycore-health-changed';
 export const PYCORE_HEALTH_DEFAULTS = {
   /** Default ALL-Offline retry interval (ms). */
   healthCheckInterval: 60_000,
-  /** ui.ping HTTP probe timeout (ms). Short — long enough to survive a
+  /** ui/ping HTTP probe timeout (ms). Short — long enough to survive a
    *  cold Octane hit but not so long that a stalled bus locks the UI. */
   pingTimeoutMs: 3_000,
   /** Consecutive probe failures required before flipping to down.
@@ -123,7 +123,7 @@ export function checkPycoreNow(): Promise<boolean> {
     // First miss after ready: stay probing (up=null). Never retain a prior
     // eslint-disable-next-line no-console
     console.warn(
-      `[pycore-health] ui.ping failed (attempt ${consecutiveFailures}/${PYCORE_HEALTH_DEFAULTS.failuresBeforeDown}); ` +
+      `[pycore-health] ui/ping failed (attempt ${consecutiveFailures}/${PYCORE_HEALTH_DEFAULTS.failuresBeforeDown}); ` +
       'keeping probing state.',
     );
     applyReachability('probing', ms);

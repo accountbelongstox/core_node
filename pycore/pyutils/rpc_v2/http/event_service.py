@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 """Standalone FastAPI event journal shared with isolated subprocess assets.
 
-This module intentionally imports no pycore package. Standalone services may
-load it directly from its file path and inject their FastAPI module.
+Standalone services may load it directly and inject their FastAPI module. Its
+only project dependency is the stdlib-only SSE protocol leaf.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 import uuid
 from collections import deque
@@ -16,27 +15,26 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Deque, Dict, Iterable, Optional, Set, Tuple
 
+from pycore.pyfoundations.http_sse import (
+    HTTP_EVENTS_PATH,
+    SSE_CONTENT_TYPE,
+    SSE_KEEP_ALIVE,
+    SSE_RESPONSE_HEADERS,
+    encode_sse_event,
+)
+
 
 DEFAULT_EVENT_MAX = 5000
 DEFAULT_EVENT_MAX_AGE_SECONDS = 3600.0
 DEFAULT_EVENT_WAIT_SECONDS = 20.0
 MAX_EVENT_WAIT_SECONDS = 30.0
 SSE_KEEP_ALIVE_SECONDS = 15.0
+SSE_STATE_EVENT_NAME = "sse.state"
+SSE_RECORD_EVENT_NAME = "sse.event"
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-
-def _sse_frame(event: str, data: Any, event_id: Optional[int] = None) -> str:
-    encoded = json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=str)
-    lines = []
-    if event_id is not None:
-        lines.append(f"id: {event_id}")
-    lines.append(f"event: {event}")
-    for line in encoded.splitlines() or [""]:
-        lines.append(f"data: {line}")
-    return "\n".join(lines) + "\n\n"
 
 
 @dataclass(frozen=True)
@@ -233,7 +231,7 @@ class HttpEventService:
         fastapi_module: Any,
         title: str = "HTTP Event Service",
         version: str = "1.0.0",
-        event_path: str = "/api/events",
+        event_path: str = HTTP_EVENTS_PATH,
         event_max: int = DEFAULT_EVENT_MAX,
         event_max_age_seconds: float = DEFAULT_EVENT_MAX_AGE_SECONDS,
     ) -> None:
@@ -301,24 +299,20 @@ class HttpEventService:
                         "cursor_ahead": result["cursor_ahead"],
                     }
                     if first or result["replay_lost"] or result["cursor_ahead"]:
-                        yield _sse_frame("sse.state", state)
+                        yield encode_sse_event(SSE_STATE_EVENT_NAME, state)
                     events = result["events"]
                     if events:
                         for record in events:
                             cursor = max(cursor, int(record.get("seq") or 0))
-                            yield _sse_frame("sse.event", record, cursor)
+                            yield encode_sse_event(SSE_RECORD_EVENT_NAME, record, cursor)
                     else:
-                        yield ": keep-alive\n\n"
+                        yield SSE_KEEP_ALIVE
                     first = False
 
             return streaming_response_type(
                 event_stream(),
-                media_type="text/event-stream",
-                headers={
-                    "Cache-Control": "no-cache, no-transform",
-                    "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no",
-                },
+                media_type=SSE_CONTENT_TYPE,
+                headers=dict(SSE_RESPONSE_HEADERS),
             )
 
         async def acknowledge_events(
@@ -334,13 +328,13 @@ class HttpEventService:
             self.event_path,
             stream_events,
             methods=["GET"],
-            name="rpc_event_stream",
+            name="sse_event_stream",
         )
         self.app.add_api_route(
             f"{self.event_path}/ack",
             acknowledge_events,
             methods=["POST"],
-            name="rpc_event_ack",
+            name="sse_event_ack",
         )
 
 

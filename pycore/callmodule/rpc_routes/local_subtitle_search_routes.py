@@ -23,10 +23,10 @@ def register_local_subtitle_search_routes(server):
     """Register HTTP controllers."""
 
     def provider_test_handler(params, request_id, context):
-        return subtitle_search_service.provider_test((params or {}).get("name"))
+        return subtitle_search_service.provider_test(params.get("name"))
 
     def search_handler(params, request_id, context):
-        return subtitle_search_service.search((params or {}).get("query"))
+        return subtitle_search_service.search(params.get("query"))
 
     routes = (
         (UI_SUBTITLE_SEARCH_STATUS, subtitle_search_service.status),

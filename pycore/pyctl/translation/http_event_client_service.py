@@ -62,8 +62,8 @@ Threading / lifecycle (mirrors translation_worker_service / queue_monitor)
   - The actual connect + recv loop runs on a dedicated daemon thread with
     auto-reconnect and QUIET-RETRY logging (ONE clear connected/disconnected/
     unreachable line, not a stack every retry — mirrors the worker's style).
-  - Pycore UI enables/disables it only through RPC v2
-    `ui.heartbeat_workers.config`; the background Laravel SSE connection remains
+  - Pycore UI enables/disables it only through HTTP
+    `ui/heartbeat_workers/config`; the background Laravel SSE connection remains
     a Pycore-to-Laravel transport.
 
 Logging: ColorPrint only (pycore rule). The SSE transport uses third-party
@@ -78,6 +78,7 @@ from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 # ColorPrint is the only allowed logger in pycore processors/services.
+from pycore.pyfoundations.http_sse import SSE_REQUEST_HEADERS, SseEventDecoder
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
@@ -498,8 +499,6 @@ class TranslationHttpEventClient:
         our cursor, so no event is missed across the gap.
         """
         while not THREAD_BUS.has_signal(_BUS_STOP):
-            event_name = ""
-            data_buf: list = []
             try:
                 url = self._stream_url()
                 # (connect timeout, read timeout). Server heartbeats arrive <=15s,
@@ -508,7 +507,7 @@ class TranslationHttpEventClient:
                 with laravel_client.get_stream(
                     url,
                     timeout=(8, 60),
-                    headers={"Accept": "text/event-stream", "Cache-Control": "no-cache"},
+                    headers=SSE_REQUEST_HEADERS,
                 ) as resp:
                     if resp.status_code != 200:
                         raise RuntimeError(f"HTTP {resp.status_code}")
@@ -522,30 +521,16 @@ class TranslationHttpEventClient:
                         ColorPrint.green(
                             f"[TranslationSSE] Connected to Laravel SSE at {self._public_url()}"
                         )
+                    decoder = SseEventDecoder()
                     # SSE framing: accumulate field lines; a blank line ends one
                     # event. iter_lines yields lines without the trailing newline.
                     for raw in resp.iter_lines(decode_unicode=True):
                         if THREAD_BUS.has_signal(_BUS_STOP):
                             break
-                        if raw is None:
-                            continue
-                        if isinstance(raw, (bytes, bytearray)):
-                            raw = raw.decode("utf-8", "ignore")
-                        line = raw.rstrip("\r")
-
-                        if line == "":
-                            if event_name or data_buf:
-                                self._dispatch_sse(event_name, "\n".join(data_buf))
-                            event_name = ""
-                            data_buf = []
-                            continue
-                        if line.startswith(":"):
-                            continue  # SSE comment / keep-alive
-                        if line.startswith("event:"):
-                            event_name = line[len("event:"):].strip()
-                        elif line.startswith("data:"):
-                            data_buf.append(line[len("data:"):].lstrip(" "))
-                        # other SSE fields (id:/retry:) are ignored
+                        event = decoder.feed_line(raw)
+                        if event is not None:
+                            event_name, data, _event_id = event
+                            self._dispatch_sse(event_name, data)
 
             except Exception as e:
                 # Unreachable (Laravel down) / non-200 — ONE concise line, then
@@ -626,7 +611,7 @@ class TranslationHttpEventClient:
         LIGHT + exception-safe: only ensures the background SSE thread is running.
         It does NO network I/O itself (the SSE loop owns the socket on its own
         thread), so it never blocks the heartbeat thread. Disabling the callback
-        through RPC v2 `ui.heartbeat_workers.config` stops ticking this, so we
+        through HTTP `ui/heartbeat_workers/config` stops ticking this, so we
         also expose stop() for an explicit teardown.
 
         Because this callback only runs while enabled, it keeps the SSE

@@ -109,7 +109,7 @@ export const OkxQuantPanel: React.FC<{ dark: boolean; lang: string }> = ({ dark,
   }, []);
 
   // Initial load is driven by HTTP readiness.
-  // mirroring OkxBacktestPanel — never call requestPycoreHttp before the socket is OPEN.
+  // Mirror OkxBacktestPanel and wait for transport readiness before requesting data.
   const loadSerSettings = useCallback(async () => {
     try {
       const s = await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.getSettings, {}, 8000);

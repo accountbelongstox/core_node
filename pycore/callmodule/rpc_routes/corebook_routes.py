@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register the CoreBook autoflow controller on HTTP v2."""
+"""Register the CoreBook autoflow controller on HTTP API."""
 
 import os
 
@@ -12,7 +12,7 @@ def register_corebook_routes(server) -> None:
     """Register CoreBook controller adapters."""
 
     def convert(params, _request_id, _context):
-        request = params or {}
+        request = params
         return corebook_engine.convert(
             request.get("path"),
             request.get("language"),
@@ -22,7 +22,7 @@ def register_corebook_routes(server) -> None:
         )
 
     def get(params, _request_id, _context):
-        request = params or {}
+        request = params
         return corebook_engine.get(
             request.get("source_key"),
             request.get("start", 0),
@@ -30,10 +30,10 @@ def register_corebook_routes(server) -> None:
         )
 
     def delete(params, _request_id, _context):
-        return corebook_engine.delete((params or {}).get("source_key"))
+        return corebook_engine.delete(params.get("source_key"))
 
     def add_language(params, _request_id, _context):
-        request = params or {}
+        request = params
         return corebook_engine.add_language(
             request.get("source_key"),
             request.get("target_language"),
@@ -43,7 +43,7 @@ def register_corebook_routes(server) -> None:
         )
 
     def fill_audio(params, _request_id, _context):
-        request = params or {}
+        request = params
         return corebook_engine.fill_audio(
             request.get("source_key"),
             request.get("languages"),
@@ -52,7 +52,7 @@ def register_corebook_routes(server) -> None:
         )
 
     def submit(params, _request_id, _context):
-        request = params or {}
+        request = params
         return corebook_engine.submit(
             request.get("source_key"),
             request.get("upload_audio"),
@@ -61,7 +61,7 @@ def register_corebook_routes(server) -> None:
         )
 
     def corebook_autoflow(params, _request_id, _context):
-        request = params or {}
+        request = params
         path = str(request.get("path") or "").strip()
         languages = normalize_language_codes(request.get("languages"))
         if not path:
@@ -80,7 +80,7 @@ def register_corebook_routes(server) -> None:
         )
 
     server.post(
-        name=route_names.COREBOOK_AUTOFLOW,
+        path=route_names.COREBOOK_AUTOFLOW,
         handler=corebook_autoflow,
         description="CoreBook one-click pipeline",
     )

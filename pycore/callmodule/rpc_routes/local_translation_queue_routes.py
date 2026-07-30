@@ -15,18 +15,16 @@ from pycore.pyctl.translation.worker.worker import translation_worker_service
 
 def register_local_translation_queue_routes(server):
     def snapshot_handler(params, request_id, context):
-        return queue_monitor_service.get_snapshot(bool((params or {}).get("refresh")))
+        return queue_monitor_service.get_snapshot(bool(params.get("refresh")))
 
-    server.post(name=UI_TRANSLATION_QUEUE_SNAPSHOT, handler=snapshot_handler)
+    server.post(path=UI_TRANSLATION_QUEUE_SNAPSHOT, handler=snapshot_handler)
 
     def set_priority_handler(params, request_id, context):
-        params = params or {}
         return queue_monitor_service.set_priority(params.get("task_id"), params.get("priority"))
 
-    server.post(name=UI_TRANSLATION_QUEUE_SET_PRIORITY, handler=set_priority_handler)
+    server.post(path=UI_TRANSLATION_QUEUE_SET_PRIORITY, handler=set_priority_handler)
 
     def stack_handler(params, request_id, context):
-        params = params or {}
 
         result = queue_monitor_service.stack(
             words=list(params.get("words") or []),
@@ -41,10 +39,9 @@ def register_local_translation_queue_routes(server):
             translation_worker_service.poll_once()
         return result
 
-    server.post(name=UI_TRANSLATION_QUEUE_STACK, handler=stack_handler)
+    server.post(path=UI_TRANSLATION_QUEUE_STACK, handler=stack_handler)
 
     def get_task_detail_handler(params, request_id, context):
-        params = params or {}
         return queue_monitor_service.get_task_detail(str(params.get("task_id") or ""))
 
-    server.post(name=UI_TRANSLATION_QUEUE_GET_TASK_DETAIL, handler=get_task_detail_handler)
+    server.post(path=UI_TRANSLATION_QUEUE_GET_TASK_DETAIL, handler=get_task_detail_handler)

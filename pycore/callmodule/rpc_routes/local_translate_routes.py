@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register manual translation controllers on HTTP v2."""
+"""Register manual translation controllers on HTTP API."""
 
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TRANSLATE_AI,
@@ -15,10 +15,10 @@ import pycore.pyctl.translation.manual_translation_service as manual_translation
 def register_local_translate_routes(server) -> None:
     """Register thin manual translation controller adapters."""
 
-    server.post(name=UI_TRANSLATE_STATUS, handler=manual_translation_service.status)
-    server.post(name=UI_TRANSLATE_TRANSLATE, handler=manual_translation_service.translate_google)
-    server.post(name=UI_TRANSLATE_AI, handler=manual_translation_service.translate_ai)
-    server.post(name=UI_TRANSLATE_HISTORY, handler=manual_translation_service.history)
-    server.post(name=UI_TRANSLATE_HISTORY_DELETE, handler=manual_translation_service.history_delete)
-    server.post(name=UI_TRANSLATE_HISTORY_CLEAR, handler=manual_translation_service.history_clear)
+    server.post(path=UI_TRANSLATE_STATUS, handler=manual_translation_service.status)
+    server.post(path=UI_TRANSLATE_TRANSLATE, handler=manual_translation_service.translate_google)
+    server.post(path=UI_TRANSLATE_AI, handler=manual_translation_service.translate_ai)
+    server.post(path=UI_TRANSLATE_HISTORY, handler=manual_translation_service.history)
+    server.post(path=UI_TRANSLATE_HISTORY_DELETE, handler=manual_translation_service.history_delete)
+    server.post(path=UI_TRANSLATE_HISTORY_CLEAR, handler=manual_translation_service.history_clear)
 

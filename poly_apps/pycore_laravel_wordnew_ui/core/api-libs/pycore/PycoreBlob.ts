@@ -2,7 +2,7 @@
  * PycoreBlob — fetch pycore binary assets over HTTP controllers as
  * data: URLs, instead of loading them as HTTP element `src` from :59000.
  *
- * Selects the concrete native HTTP v2 resource controller for each path.
+ * Selects the concrete native HTTP API resource controller for each path.
  * Returns an empty URL while the HTTP controller is unavailable. An in-memory cache keeps a
  * given path's data URL stable across re-renders so a list of thumbnails does not
  * re-fetch on every render.
@@ -44,7 +44,7 @@ function resourceCall(path: string): Promise<unknown> {
 }
 
 /**
- * Resolve a pycore media path to a cached `data:` URL fetched over HTTP v2.
+ * Resolve a pycore media path to a cached `data:` URL fetched over HTTP API.
  * It returns an empty string while HTTP is unavailable and never falls back to
  * browser HTTP.
  */

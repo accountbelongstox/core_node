@@ -49,7 +49,7 @@ IMPORT_FIXES = [
     ),
     (
         r"from pycore\.pyutils\.rpc_v2 import UnifiedRpcServerRunner",
-        "from pycore.pyutils.rpc_v2.runner import RpcServerRunner",
+        "from pycore.pyutils.rpc_v2.runner import HttpServerRunner",
     ),
     (
         r"from pycore\.pyutils\.native_ui import FileMonitor",
@@ -157,18 +157,18 @@ def fix_imports() -> None:
     print(f"import-fix files: {changed}")
 
 
-def verify_rpc_runner() -> None:
+def verify_http_runner() -> None:
     target = REPO / "pycore/pyutils/rpc_v2/runner.py"
     text = target.read_text(encoding="utf-8")
-    if "class RpcServerRunner" not in text:
+    if "class HttpServerRunner" not in text:
         for p in (REPO / "pycore/pyutils/rpc_v2").rglob("*.py"):
             t = p.read_text(encoding="utf-8", errors="replace")
-            if "class RpcServerRunner" in t:
-                print(f"RpcServerRunner found in {p.relative_to(REPO)}")
+            if "class HttpServerRunner" in t:
+                print(f"HttpServerRunner found in {p.relative_to(REPO)}")
                 return
-        print("WARNING: RpcServerRunner not found")
+        print("WARNING: HttpServerRunner not found")
     else:
-        print("RpcServerRunner OK in runner.py")
+        print("HttpServerRunner OK in runner.py")
 
 
 def verify_webview() -> None:
@@ -182,7 +182,7 @@ def verify_webview() -> None:
 
 def main() -> None:
     recover()
-    verify_rpc_runner()
+    verify_http_runner()
     verify_webview()
     fix_imports()
 

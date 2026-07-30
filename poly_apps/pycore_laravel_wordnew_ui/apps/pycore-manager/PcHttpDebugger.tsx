@@ -1,5 +1,5 @@
 /**
- * PcHttpDebugger - a GLOBAL floating HTTP/HTTP request debugger for the
+ * PcHttpDebugger - a GLOBAL floating HTTP request debugger for the
  * pycore-manager end. Mounted ONCE in PcLayout (overlays every page, incl.
  * /pycore-manager/queue-center).
  *

@@ -49,7 +49,7 @@ def register_tts_queue_poller() -> None:
         f"{'enabled' if enabled_on_start else 'disabled'} (user settings)"
     )
     ColorPrint.blue(f"  - Batch size: {TTS_WORKER_BATCH}")
-    ColorPrint.blue("  - UI control: RPC v2 ui.heartbeat_workers.config")
+    ColorPrint.blue("  - UI control: HTTP ui/heartbeat_workers/config")
     restore_word_tts_auto_start()
 
 
@@ -72,7 +72,7 @@ def register_tts_sentence_worker() -> None:
         f"{'enabled' if enabled_on_start else 'disabled'} (user settings)"
     )
     ColorPrint.blue(f"  - Batch size: {TTS_SENTENCE_WORKER_BATCH}")
-    ColorPrint.blue("  - UI control: RPC v2 ui.heartbeat_workers.config")
+    ColorPrint.blue("  - UI control: HTTP ui/heartbeat_workers/config")
     restore_sentence_audio_auto_start()
 
 

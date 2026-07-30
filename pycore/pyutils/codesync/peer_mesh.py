@@ -31,6 +31,7 @@ from typing import Any, Callable, Dict, List, Optional
 from pycore.pyfoundations.pygvar import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 
+import pycore.pyutils.codesync.routes as routes
 from pycore.pyutils.codesync.runtime import (
     log as ColorPrint,
     http as requests,
@@ -131,7 +132,7 @@ class PeerMeshManager:
 
     def _probe(self, peer: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         try:
-            r = requests.get(self._peer_url(peer, "/code-sync/peer/status"), timeout=PROBE_TIMEOUT)
+            r = requests.get(self._peer_url(peer, routes.PEER_STATUS_PATH), timeout=PROBE_TIMEOUT)
             if r.status_code == 200:
                 return r.json()
         except Exception:
@@ -211,7 +212,7 @@ class PeerMeshManager:
             if peer.get("id") == self_id or peer.get("role") != "client":
                 continue
             try:
-                r = requests.post(self._peer_url(peer, "/code-sync/peer/heartbeat"),
+                r = requests.post(self._peer_url(peer, routes.PEER_HEARTBEAT_PATH),
                                   json=local, timeout=PROBE_TIMEOUT)
                 if r.status_code != 200 or not self._apply_remote_config_fn:
                     continue
@@ -280,7 +281,7 @@ class PeerMeshManager:
         pid = peer.get("id")
         payload = self.config.to_payload()
         try:
-            r = requests.post(self._peer_url(peer, "/code-sync/peer/config"),
+            r = requests.post(self._peer_url(peer, routes.PEER_CONFIG_PATH),
                               json=payload, timeout=PROBE_TIMEOUT)
             ok = r.status_code == 200
         except Exception:
@@ -327,7 +328,10 @@ class PeerMeshManager:
 
         def check(ip: str):
             try:
-                r = requests.get(f"http://{ip}:{scan_port}/code-sync/peer/status", timeout=1)
+                r = requests.get(
+                    f"http://{ip}:{scan_port}{routes.PEER_STATUS_PATH}",
+                    timeout=1,
+                )
                 if r.status_code == 200:
                     d = r.json()
                     candidate = {"host": ip, "port": scan_port,

@@ -400,7 +400,7 @@ const PcBooksPage: React.FC = () => {
       const r = await pycoreApi.booksAnalyze(path, { formats: activeFormats(), languages: selectedLangList(), preview_chars: 1200, persist: true });
       if (r && r.success) {
         setAnalyses((prev) => ({ ...prev, [path]: r }));
-        // Read lightweight totals through HTTP v2 (chapter count lives in totals.chapters).
+        // Read lightweight totals through HTTP API (chapter count lives in totals.chapters).
         pycoreApi.booksList(path, 'chapters', 0, 1, { languages: selectedLangList() })
           .then((lr) => {
             if (lr?.totals) {

@@ -1,14 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Monitor API - RPC API Endpoints
+Monitor API - HTTP API Endpoints
 
-Provides RPC endpoints for the web UI using rpc_v2.
+Provides HTTP endpoints for the web UI.
 """
 
 import json
 from typing import Dict, Any, Optional
 
+from pyapps.okx_price_monitor.api.http_routes import (
+    MONITOR_ALERTS,
+    MONITOR_ALL_SUMMARIES,
+    MONITOR_COINS_LIST,
+    MONITOR_COIN_SUMMARY,
+    MONITOR_CONFIG,
+    MONITOR_START,
+    MONITOR_STATS,
+    MONITOR_STOP,
+    MONITOR_UPDATE_CONFIG,
+    TRADING_BALANCE,
+    TRADING_HISTORY,
+    TRADING_POSITIONS,
+    TRADING_SUMMARY,
+)
 from pyapps.okx_price_monitor.services.monitor_manager import get_monitor_manager
 from pyapps.okx_price_monitor.core.monitor_config import monitor_config
 from pyapps.okx_price_monitor.services.backtest_engine import get_backtest_engine
@@ -318,26 +333,26 @@ def register_monitor_routes(server):
     Register all monitor API routes
 
     Args:
-        server: RpcServer instance
+        server: HttpServer instance
     """
     api = MonitorAPI()
     trading_api = TradingAPI()
 
     # Monitor routes
-    server.route("monitor.stats", api.get_stats, description="Get system statistics")
-    server.route("monitor.coins_list", api.get_coins_list, description="Get all coins with record counts")
-    server.route("monitor.coin_summary", api.get_coin_summary, description="Get specific coin summary")
-    server.route("monitor.all_summaries", api.get_all_summaries, description="Get all coin summaries")
-    server.route("monitor.alerts", api.get_alerts, description="Get trading alerts")
-    server.route("monitor.config", api.get_config, description="Get configuration")
-    server.route("monitor.update_config", api.update_config, description="Update configuration")
-    server.route("monitor.start", api.start_monitoring, description="Start monitoring")
-    server.route("monitor.stop", api.stop_monitoring, description="Stop monitoring")
+    server.post(MONITOR_STATS, api.get_stats, description="Get system statistics")
+    server.post(MONITOR_COINS_LIST, api.get_coins_list, description="Get all coins with record counts")
+    server.post(MONITOR_COIN_SUMMARY, api.get_coin_summary, description="Get specific coin summary")
+    server.post(MONITOR_ALL_SUMMARIES, api.get_all_summaries, description="Get all coin summaries")
+    server.post(MONITOR_ALERTS, api.get_alerts, description="Get trading alerts")
+    server.post(MONITOR_CONFIG, api.get_config, description="Get configuration")
+    server.post(MONITOR_UPDATE_CONFIG, api.update_config, description="Update configuration")
+    server.post(MONITOR_START, api.start_monitoring, description="Start monitoring")
+    server.post(MONITOR_STOP, api.stop_monitoring, description="Stop monitoring")
 
     # Trading routes
-    server.route("trading.summary", trading_api.get_trading_summary, description="Get trading performance summary")
-    server.route("trading.positions", trading_api.get_active_positions, description="Get active positions")
-    server.route("trading.history", trading_api.get_trade_history, description="Get trade history")
-    server.route("trading.balance", trading_api.get_balance, description="Get current balance")
+    server.post(TRADING_SUMMARY, trading_api.get_trading_summary, description="Get trading performance summary")
+    server.post(TRADING_POSITIONS, trading_api.get_active_positions, description="Get active positions")
+    server.post(TRADING_HISTORY, trading_api.get_trade_history, description="Get trade history")
+    server.post(TRADING_BALANCE, trading_api.get_balance, description="Get current balance")
 
     print("[API] Registered 9 monitor routes + 4 trading routes")

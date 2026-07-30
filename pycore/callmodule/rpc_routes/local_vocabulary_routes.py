@@ -7,19 +7,19 @@ import pycore.pyctl.vocabulary.service as vocab
 
 def register_local_vocabulary_routes(server):
     def queue_batch_query(params, _request_id, _context):
-        return vocab.vocab_tts_queue_batch_query(list((params or {}).get("items") or []))
+        return vocab.vocab_tts_queue_batch_query(list(params.get("items") or []))
 
     def library_words(params, _request_id, _context):
-        request = params or {}
+        request = params
         query = dict(request)
         library_id = int(query.pop("library_id"))
         return vocab.vocab_library_words(library_id, query)
 
     def delete_library(params, _request_id, _context):
-        return vocab.vocab_delete_library(int((params or {}).get("library_id")))
+        return vocab.vocab_delete_library(int(params.get("library_id")))
 
     def update_dictionary_word(params, _request_id, _context):
-        request = dict(params or {})
+        request = dict(params)
         md5 = str(request.pop("md5", ""))
         return vocab.vocab_update_dictionary_word(
             md5,
@@ -27,7 +27,7 @@ def register_local_vocabulary_routes(server):
         )
 
     def delete_dictionary_word(params, _request_id, _context):
-        request = dict(params or {})
+        request = dict(params)
         md5 = str(request.pop("md5", ""))
         return vocab.vocab_delete_dictionary_word(
             md5,
@@ -35,7 +35,7 @@ def register_local_vocabulary_routes(server):
         )
 
     def resource(params, _request_id, _context):
-        return vocab.vocab_resource(str((params or {}).get("url") or ""))
+        return vocab.vocab_resource(str(params.get("url") or ""))
 
     routes = (
         (rn.UI_VOCABULARY_VOCAB_TRANSLATION_LANGUAGES, vocab.vocab_translation_languages),

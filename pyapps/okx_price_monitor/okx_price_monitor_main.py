@@ -25,12 +25,12 @@ from pyapps.okx_price_monitor.core.monitor_config import monitor_config
 from pyapps.okx_price_monitor.okx_frontend_config import frontend_config
 
 
-_rpc_server = None  # Global RPC server instance
+_http_server = None
 
 
-def get_rpc_server():
-    """Get the global RPC server instance"""
-    return _rpc_server
+def get_http_server():
+    """Get the global HTTP server instance."""
+    return _http_server
 
 
 def okx_main_entry():
@@ -61,35 +61,26 @@ def okx_main_entry():
     ColorPrint.green("[OKX] Background monitoring started")
 
 
-def rpc_init_callback(rpc_server):
+def http_init_callback(http_server):
     """
-    RPC v2 initialization callback
+    HTTP initialization callback.
 
-    This function is called by pylauncher after RPC v2 server is created.
-    It registers all OKX routes to the RPC v2 server instance.
+    This function is called after the shared HTTP server is created.
+    It registers all OKX routes on that server instance.
 
     Args:
-        rpc_server: RpcServer instance
+        http_server: HttpServer instance
     """
-    global _rpc_server
+    global _http_server
 
-    # Save RPC server instance
-    _rpc_server = rpc_server
+    _http_server = http_server
 
     from pyapps.okx_price_monitor.api import register_monitor_routes
-    from pyapps.okx_price_monitor.api.log_websocket import router as log_router
 
-    # Register all OKX RPC v2 routes
-    ColorPrint.blue("[OKX] Registering API routes...")
-    register_monitor_routes(rpc_server)
-    ColorPrint.green("[OKX] API routes registered successfully")
-
-    # Register WebSocket routes for log streaming
-    ColorPrint.blue("[OKX] Registering log WebSocket routes...")
-    fastapi_app = rpc_server.app  # Get underlying FastAPI app
-    fastapi_app.include_router(log_router)
-    ColorPrint.green("[OKX] Log WebSocket routes registered:")
-    ColorPrint.green("  - ws://localhost:58888/ws/logs")
+    ColorPrint.blue("[OKX] Registering HTTP API routes...")
+    register_monitor_routes(http_server)
+    ColorPrint.green("[OKX] HTTP API routes registered successfully")
+    ColorPrint.green("[OKX] Log SSE stream: /api/events")
 
 
 def start():
@@ -135,13 +126,13 @@ def start():
         frontend_skip_build=frontend_config.FRONTEND_SKIP_BUILD,
         frontend_block_until_ready=(frontend_config.FRONTEND_MODE == "dev"),  # Wait for dev server in dev mode
 
-        # ========== RPC v2 Configuration ==========
+        # ========== HTTP Configuration ==========
         rpc_enabled=True,
         rpc_port=monitor_config.WEB_PORT,  # 58888
         rpc_host=monitor_config.WEB_HOST,  # 0.0.0.0
         rpc_debug=monitor_config.DEBUG_MODE,
-        rpc_routers=[],  # No FastAPI routers - using RPC v2 routes
-        rpc_init_callback=rpc_init_callback,  # Callback to register OKX routes
+        rpc_routers=[],
+        rpc_init_callback=http_init_callback,
         rpc_allow_origins=["*"],
         rpc_auto_mount_frontend=True,  # Auto-coordinate static file mounting
 
@@ -178,7 +169,7 @@ def start():
     ColorPrint.blue(f"  - Frontend mode: {frontend_config.FRONTEND_MODE}")
     ColorPrint.blue(f"  - Frontend port: {frontend_config.FRONTEND_PORT}")
     ColorPrint.blue(f"  - Backend port: {monitor_config.WEB_PORT}")
-    ColorPrint.blue(f"  - Backend protocol: RPC v2")
+    ColorPrint.blue("  - Backend protocol: HTTP + SSE")
     ColorPrint.blue(f"  - Window URL: {frontend_config.get_window_url()}")
 
     # One-click launch (native_ui handles everything)

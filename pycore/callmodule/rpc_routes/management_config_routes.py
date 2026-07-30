@@ -9,9 +9,8 @@ from pycore.callmodule.rpc_routes.route_names import UI_CONFIG_UPDATE_CONFIG
 
 def register_management_config_routes(server):
     def update_config_handler(params, request_id, context):
-        params = params or {}
         config = SystemConfig(**params)
         return system_service.update_system_config(config)
 
-    server.post(name=UI_CONFIG_UPDATE_CONFIG, handler=update_config_handler)
+    server.post(path=UI_CONFIG_UPDATE_CONFIG, handler=update_config_handler)
 

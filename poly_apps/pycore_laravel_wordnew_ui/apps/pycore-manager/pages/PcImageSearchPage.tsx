@@ -7,7 +7,7 @@
  *
  *  1. Status — is the SerpApi key configured, the engine, the service URL and
  *     how many searches are in the shared history.
- *     Driven by `pycoreApi.getImageSearchStatus()` over HTTP v2.
+ *     Driven by `pycoreApi.getImageSearchStatus()` over HTTP API.
  *
  *  2. Search + AI compare (the "evaluate alongside AI" requirement) — one query
  *     feeds BOTH paths:

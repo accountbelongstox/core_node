@@ -21,8 +21,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from pycore.pyfoundations.http_sse import (
+    SSE_KEEP_ALIVE,
+    encode_sse_event,
+    send_sse_headers,
+)
 from pycore.pyfoundations.pygvar import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 
+import pycore.pyutils.codesync.routes as routes
 from pycore.pyutils.codesync.runtime import (
     is_shutdown_requested,
     log as ColorPrint,
@@ -38,13 +44,10 @@ from pycore.pyutils.codesync.service_ops import (
 )
 from pycore.pyutils.codesync.sse_transport import (
     SSE_ACK_PATH,
-    SSE_CONTENT_TYPE,
     SSE_EVENT_NAME,
     SSE_KEEP_ALIVE_SECONDS,
-    SSE_RESPONSE_HEADERS,
     SSE_STREAM_PATH,
     code_sync_sse_broker,
-    encode_sse_frame,
 )
 
 from urllib.parse import urlparse, parse_qs
@@ -102,15 +105,18 @@ class _Handler(BaseHTTPRequestHandler):
     def _send_html(self, html: str, status: int = 200) -> None:
         self._write_response(html.encode("utf-8"), status, "text/html; charset=utf-8")
 
-    def _stream_frames(self, client_id: str, since_frame: str) -> None:
+    def _stream_frames(
+        self,
+        client_id: str,
+        since_frame: str,
+        client_port: int,
+    ) -> None:
         cursor = str(since_frame or "").strip()
-        session = code_sync_sse_broker.connect(client_id)
+        source_host = self.client_address[0] if self.client_address else ""
+        aliases = (source_host, f"{source_host}:{int(client_port or 0)}")
+        session = code_sync_sse_broker.connect(client_id, aliases)
         try:
-            self.send_response(200)
-            self.send_header("Content-Type", f"{SSE_CONTENT_TYPE}; charset=utf-8")
-            for name, value in SSE_RESPONSE_HEADERS.items():
-                self.send_header(name, value)
-            self.end_headers()
+            send_sse_headers(self)
             while not is_shutdown_requested():
                 code_sync_sse_broker.touch(client_id, session)
                 frame = code_sync_sse_broker.wait_next_frame(
@@ -119,10 +125,10 @@ class _Handler(BaseHTTPRequestHandler):
                     SSE_KEEP_ALIVE_SECONDS,
                 )
                 if frame is None:
-                    body = b": keep-alive\n\n"
+                    body = SSE_KEEP_ALIVE
                 else:
                     cursor = str(frame.get("frame_id") or "")
-                    body = encode_sse_frame(SSE_EVENT_NAME, frame, cursor)
+                    body = encode_sse_event(SSE_EVENT_NAME, frame, cursor)
                 self.wfile.write(body)
                 self.wfile.flush()
         except _CONN_ERRORS:
@@ -137,7 +143,7 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?", 1)[0].rstrip("/") or "/"
         try:
-            if path == "/":
+            if path == routes.ROOT_PATH:
                 # Light mode: there is nothing to administer locally, so serve a
                 # tiny JSON identity blob instead of the full control panel.
                 if getattr(self.server, "serve_panel", True) is False:
@@ -147,22 +153,22 @@ class _Handler(BaseHTTPRequestHandler):
                 # Standalone mode only: a self-contained, build-free control panel.
                 # (Full pycore serves its React UI instead and never starts this server.)
                 return self._send_html(PANEL_HTML)
-            if path == "/favicon.ico":
+            if path == routes.FAVICON_PATH:
                 return self._send_bytes(b"", status=204, content_type="image/x-icon")
-            if path == "/code-sync/ping":
+            if path == routes.PING_PATH:
                 return self._send_json({"status": "ok", "service": "code-sync"})
-            if path == "/code-sync/status":
+            if path == routes.STATUS_PATH:
                 return self._send_json(_manager().get_status())
-            if path == "/code-sync/peer/status":
+            if path == routes.PEER_STATUS_PATH:
                 try:
                     return self._send_json(_manager().get_local_peer_status())
                 except Exception as exc:
                     return self._send_json({"role": "client", "distributing": False, "error": str(exc)})
-            if path == "/code-sync/peers":
+            if path == routes.PEERS_PATH:
                 return self._send_json(_manager().get_peers())
-            if path == "/code-sync/settings":
+            if path == routes.SETTINGS_PATH:
                 return self._send_json(_manager().get_sync_settings())
-            if path == "/code-sync/logs":
+            if path == routes.LOGS_PATH:
                 limit = 100
                 try:
                     q = parse_qs(urlparse(self.path).query)
@@ -170,9 +176,9 @@ class _Handler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
                 return self._send_json(_manager().get_sync_logs(limit))
-            if path == "/code-sync/file-tree":
+            if path == routes.FILE_TREE_PATH:
                 return self._send_json(_manager().get_file_tree())
-            if path == "/code-sync/peer-file-tree":
+            if path == routes.PEER_FILE_TREE_PATH:
                 pid = ""
                 try:
                     q = parse_qs(urlparse(self.path).query)
@@ -182,15 +188,18 @@ class _Handler(BaseHTTPRequestHandler):
                 if not pid:
                     return self._send_json({"success": False, "error": "peer_id required"}, status=400)
                 return self._send_json(_manager().get_peer_file_tree(pid))
-            if path == "/code-sync/service/status":
+            if path == routes.SERVICE_STATUS_PATH:
                 return self._send_json(_service_status())
             if path == SSE_STREAM_PATH:
                 q = parse_qs(urlparse(self.path).query)
                 client_id = str((q.get("client_id") or [""])[0]).strip()
                 since_frame = str((q.get("since_frame") or [""])[0]).strip()
+                client_port = int(
+                    (q.get("client_port") or [str(PYCORE_HTTP_PORT)])[0]
+                )
                 if not client_id:
                     return self._send_json({"detail": "client_id required"}, status=400)
-                return self._stream_frames(client_id, since_frame)
+                return self._stream_frames(client_id, since_frame, client_port)
             return self._send_json({"detail": "Not found"}, status=404)
         except Exception as exc:
             return self._send_json({"detail": str(exc)}, status=500)
@@ -207,52 +216,41 @@ class _Handler(BaseHTTPRequestHandler):
         m = _manager()
 
         if path == SSE_ACK_PATH:
-            client_id = str(body.get("client_id") or "").strip()
-            frame_id = str(body.get("frame_id") or "").strip()
-            if not client_id or not frame_id:
-                return self._send_json(
-                    {"success": False, "error": "client_id and frame_id required"},
-                    status=400,
-                )
-            accepted = code_sync_sse_broker.acknowledge(
-                client_id,
-                frame_id,
-                body.get("reply"),
-            )
-            return self._send_json({"success": accepted}, status=200 if accepted else 404)
+            result, status = code_sync_sse_broker.acknowledge_payload(body)
+            return self._send_json(result, status=status)
 
-        if path == "/api/ui/code_sync/ping":
+        if path == routes.UI_PING_PATH:
             return self._send_json({"status": "ok", "service": "code-sync"})
 
         # ---- mesh / control ---------------------------------------------- #
-        if path == "/code-sync/peer/config":
+        if path == routes.PEER_CONFIG_PATH:
             return self._send_json(m.apply_remote_config(
                 body.get("peers", []), body.get("version", 0), body.get("updated_at", 0.0)))
-        if path == "/code-sync/peer/heartbeat":
+        if path == routes.PEER_HEARTBEAT_PATH:
             src = self.client_address[0] if self.client_address else None
             return self._send_json(m.receive_heartbeat(body, src))
-        if path == "/code-sync/settings":
+        if path == routes.SETTINGS_PATH:
             return self._send_json(m.set_sync_settings(body))
-        if path == "/code-sync/settings/reset":
+        if path == routes.SETTINGS_RESET_PATH:
             return self._send_json(m.reset_sync_settings())
-        if path == "/code-sync/peers/add":
+        if path == routes.PEERS_ADD_PATH:
             return self._send_json(m.add_peer(
                 body.get("name", ""), body.get("host", ""),
                 int(body.get("port", PYCORE_HTTP_PORT) or PYCORE_HTTP_PORT),
                 body.get("role", "client"),
             ))
-        if path == "/code-sync/peers/remove":
+        if path == routes.PEERS_REMOVE_PATH:
             return self._send_json(m.remove_peer(body.get("id", "")))
-        if path == "/code-sync/peers/update":
+        if path == routes.PEERS_UPDATE_PATH:
             fields = {k: v for k, v in body.items() if k != "id" and v is not None}
             return self._send_json(m.update_peer(body.get("id", ""), fields))
-        if path == "/code-sync/role":
+        if path == routes.ROLE_PATH:
             return self._send_json(m.set_role(body.get("role", "client")))
-        if path == "/code-sync/distribute":
+        if path == routes.DISTRIBUTE_PATH:
             return self._send_json(m.set_distributing(bool(body.get("enabled", False))))
-        if path == "/code-sync/skip-update":
+        if path == routes.SKIP_UPDATE_PATH:
             return self._send_json(m.set_skip_update(bool(body.get("enabled", False))))
-        if path == "/code-sync/discover":
+        if path == routes.DISCOVER_PATH:
             return self._send_json(m.discover())
 
         # ---- service self-management (Linux/systemd; reuses pyservice.sh) - #
@@ -262,7 +260,7 @@ class _Handler(BaseHTTPRequestHandler):
         #              `pyservice.sh codesync` prompt-YES flow).
         # Detached + 1s-delayed, so this reply reaches the panel before systemd
         # stops this very process; the panel then shows the log-view commands.
-        if path in ("/code-sync/service/restart", "/code-sync/service/reinstall"):
+        if path in (routes.SERVICE_RESTART_PATH, routes.SERVICE_REINSTALL_PATH):
             op = "restart" if path.endswith("restart") else "install"
             ok, command, err = _run_service_op_detached(op)
             resp = {
@@ -279,7 +277,7 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send_json(resp, status=200 if ok else 503)
 
         # ---- file transfer (dev AND distributing) ------------------------ #
-        if path == "/code-sync/register":
+        if path == routes.REGISTER_PATH:
             if not m.is_server_mode():
                 return self._send_json({"detail": "Not in server mode"}, status=503)
             server = m.get_server()
@@ -289,7 +287,7 @@ class _Handler(BaseHTTPRequestHandler):
             needs = server.register_client(body.get("client_id", ""), client_ip)
             return self._send_json({"success": True, "needs_initial_sync": needs,
                                     "message": f"Client registered: {body.get('client_id', '')}"})
-        if path == "/code-sync/initial-sync":
+        if path == routes.INITIAL_SYNC_PATH:
             if not m.is_server_mode():
                 return self._send_json({"detail": "Not in server mode"}, status=503)
             server = m.get_server()
@@ -297,7 +295,7 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._send_json({"detail": "Server not available"}, status=503)
             return self._send_json({"success": True,
                                     "files": server.get_initial_sync_files(body.get("client_id", ""))})
-        if path == "/code-sync/changes":
+        if path == routes.CHANGES_PATH:
             if not m.is_server_mode():
                 return self._send_json({"detail": "Not in server mode"}, status=503)
             server = m.get_server()
@@ -309,7 +307,7 @@ class _Handler(BaseHTTPRequestHandler):
             if rc > 0 or sc > 0:
                 server.update_client_stats(cid, received_count=rc, skipped_count=sc)
             return self._send_json({"success": True, "files": server.get_changed_files(cid)})
-        if path == "/code-sync/download":
+        if path == routes.DOWNLOAD_PATH:
             if not m.is_server_mode():
                 return self._send_json({"detail": "Not in server mode"}, status=503)
             server = m.get_server()
@@ -330,7 +328,7 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._send_json({"detail": f"File not found: {normalized}"}, status=404)
             with open(file_path, "rb") as fh:
                 return self._send_bytes(fh.read())
-        if path == "/code-sync/toggle-backup":
+        if path == routes.TOGGLE_BACKUP_PATH:
             if not m.is_client_mode():
                 return self._send_json({"detail": "Not in client mode"}, status=503)
             client = m.get_client()
@@ -341,13 +339,13 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send_json({"success": True, "enabled": enabled})
 
         # ---- deprecated back-compat shims -------------------------------- #
-        if path == "/code-sync/set-server":
+        if path == routes.SET_SERVER_PATH:
             m.set_server_mode()
             return self._send_json({"success": True, "message": "Switched to server mode"})
-        if path == "/code-sync/set-client":
+        if path == routes.SET_CLIENT_PATH:
             m.set_client_mode()
             return self._send_json({"success": True, "message": "Switched to client mode"})
-        if path == "/code-sync/stop":
+        if path == routes.STOP_PATH:
             m.stop()
             return self._send_json({"success": True, "message": "Code sync stopped"})
 
@@ -386,7 +384,9 @@ class CodeSyncHTTPServer:
             self._httpd.serve_forever,
             thread_name="CodeSyncHTTPThread",
         )
-        ColorPrint.green(f"[CodeSync HTTP] Listening on http://{self.host}:{self.port}/code-sync/")
+        ColorPrint.green(
+            f"[CodeSync HTTP] Listening on http://{self.host}:{self.port}{routes.BASE_PATH}/"
+        )
 
     def stop(self) -> None:
         if self._httpd is not None:

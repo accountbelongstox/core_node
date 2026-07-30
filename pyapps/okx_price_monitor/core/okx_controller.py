@@ -18,7 +18,7 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from pyapps.okx_price_monitor.core.okx_config import okx_config
-from pycore.pyfoundations.pygvar import RPC_CONTROLLER_PREFIX
+from pycore.pyfoundations.pygvar import HTTP_API_PREFIX
 
 
 class OKXController:
@@ -158,7 +158,7 @@ class OKXController:
     def _start_web_server(self) -> bool:
         """Start web server for monitoring"""
         from pyapps.okx_price_monitor.core.monitor_config import monitor_config
-        from pycore.pyutils.rpc_v2.server import RpcServer
+        from pycore.pyutils.rpc_v2.server import HttpServer
         from pyapps.okx_price_monitor.api import register_monitor_routes
         from fastapi.responses import FileResponse
         from fastapi.staticfiles import StaticFiles
@@ -169,8 +169,8 @@ class OKXController:
         self.manager.start_monitoring()
         print("[WEB MODE] Background monitoring started\n")
 
-        # Create RPC server
-        server = RpcServer(
+        # Create HTTP server
+        server = HttpServer(
             options={
                 "host": monitor_config.WEB_HOST,
                 "port": monitor_config.WEB_PORT,
@@ -204,7 +204,7 @@ class OKXController:
         print(f"\nWeb Interface:")
         print(f"  http://localhost:{monitor_config.WEB_PORT}")
         print(f"\nAPI Endpoint:")
-        print(f"  http://localhost:{monitor_config.WEB_PORT}{RPC_CONTROLLER_PREFIX}/<name>")
+        print(f"  http://localhost:{monitor_config.WEB_PORT}{HTTP_API_PREFIX}/<path>")
         print("\nPress Ctrl+C to stop")
         print("="*80 + "\n")
 

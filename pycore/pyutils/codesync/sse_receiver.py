@@ -8,6 +8,11 @@ import urllib.request
 import uuid
 from typing import Any, Dict
 
+from pycore.pyfoundations.http_sse import (
+    SSE_REQUEST_HEADERS,
+    is_sse_content_type,
+    read_sse_event,
+)
 from pycore.pyfoundations.pygvar import PYCORE_HTTP_PORT
 
 from pycore.pyutils.codesync.runtime import (
@@ -21,7 +26,6 @@ from pycore.pyutils.codesync.runtime import (
 )
 from pycore.pyutils.codesync.sse_transport import (
     SSE_ACK_PATH,
-    SSE_CONTENT_TYPE,
     SSE_EVENT_NAME,
     SSE_STREAM_PATH,
 )
@@ -124,42 +128,31 @@ class SseReceiver:
         client_id = self.m.config.machine_id
         query = urllib.parse.urlencode({
             "client_id": client_id,
+            "client_port": int(
+                self.m.config.get_self().get("port", PYCORE_HTTP_PORT)
+                or PYCORE_HTTP_PORT
+            ),
             "since_frame": self._last_frame(peer_id),
         })
         url = f"http://{host}:{port}{SSE_STREAM_PATH}?{query}"
         request = urllib.request.Request(
             url,
-            headers={"Accept": SSE_CONTENT_TYPE, "Cache-Control": "no-cache"},
+            headers=SSE_REQUEST_HEADERS,
             method="GET",
         )
         ColorPrint.green(f"[CodeSync SSE] Connecting to DEV {host}:{port}")
         with urllib.request.urlopen(request, timeout=60) as response:
             content_type = str(response.headers.get("Content-Type") or "")
-            if SSE_CONTENT_TYPE not in content_type:
+            if not is_sse_content_type(content_type):
                 raise ConnectionError(f"unexpected content type: {content_type}")
-            event_name = ""
-            data_lines = []
             while (
                 THREAD_BUS.get_signal(self._running_signal, False)
                 and self.m.get_role() == "client"
                 and not is_shutdown_requested()
             ):
-                raw_line = response.readline()
-                if not raw_line:
-                    raise ConnectionError("stream closed")
-                line = raw_line.decode("utf-8").rstrip("\r\n")
-                if not line:
-                    if event_name == SSE_EVENT_NAME and data_lines:
-                        self._handle_frame(peer_id, host, port, "\n".join(data_lines))
-                    event_name = ""
-                    data_lines = []
-                    continue
-                if line.startswith(":"):
-                    continue
-                if line.startswith("event:"):
-                    event_name = line[6:].strip()
-                elif line.startswith("data:"):
-                    data_lines.append(line[5:].lstrip())
+                event_name, data, _event_id = read_sse_event(response)
+                if event_name == SSE_EVENT_NAME and data:
+                    self._handle_frame(peer_id, host, port, data)
 
     def _handle_frame(self, peer_id: str, host: str, port: int, data: str) -> None:
         payload = json.loads(data)

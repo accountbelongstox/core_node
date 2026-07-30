@@ -6,16 +6,20 @@ import time
 
 import pycore.callmodule.rpc_routes.route_names as rn
 import pycore.pyutils.codesync.service as cs
+from pycore.pyfoundations.http_sse import (
+    SSE_CONTENT_TYPE,
+    SSE_KEEP_ALIVE,
+    SSE_RESPONSE_HEADERS,
+    encode_sse_event,
+)
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
+from pycore.pyfoundations.pygvar import PYCORE_HTTP_PORT
 from pycore.pyutils.codesync.sse_transport import (
     SSE_ACK_PATH,
-    SSE_CONTENT_TYPE,
     SSE_EVENT_NAME,
     SSE_KEEP_ALIVE_SECONDS,
-    SSE_RESPONSE_HEADERS,
     SSE_STREAM_PATH,
     code_sync_sse_broker,
-    encode_sse_frame,
 )
 
 
@@ -27,28 +31,35 @@ def register_code_sync_routes(server):
     ack_body = fastapi_module.Body(default={})
 
     def get_sync_logs(params, _request_id, _context):
-        return cs.get_sync_logs(int((params or {}).get("limit") or 100))
+        return cs.get_sync_logs(int(params.get("limit") or 100))
 
     def get_peer_file_tree(params, _request_id, _context):
-        return cs.get_peer_file_tree(str((params or {}).get("peer_id") or ""))
+        return cs.get_peer_file_tree(str(params.get("peer_id") or ""))
 
-    async def stream_frames(client_id: str, since_frame: str = ""):
+    async def stream_frames(
+        request: fastapi_module.Request,
+        client_id: str,
+        since_frame: str = "",
+        client_port: int = PYCORE_HTTP_PORT,
+    ):
         normalized_client_id = str(client_id or "").strip()
+        source_host = str(request.client.host if request.client else "").strip()
+        aliases = (source_host, f"{source_host}:{int(client_port or 0)}")
 
         async def event_stream():
             cursor = str(since_frame or "").strip()
             next_keep_alive = time.monotonic() + SSE_KEEP_ALIVE_SECONDS
-            session = code_sync_sse_broker.connect(normalized_client_id)
+            session = code_sync_sse_broker.connect(normalized_client_id, aliases)
             try:
                 while True:
                     code_sync_sse_broker.touch(normalized_client_id, session)
                     frame = code_sync_sse_broker.next_frame(normalized_client_id, cursor)
                     if frame is not None:
                         cursor = str(frame.get("frame_id") or "")
-                        yield encode_sse_frame(SSE_EVENT_NAME, frame, cursor)
+                        yield encode_sse_event(SSE_EVENT_NAME, frame, cursor)
                         next_keep_alive = time.monotonic() + SSE_KEEP_ALIVE_SECONDS
                     elif time.monotonic() >= next_keep_alive:
-                        yield b": keep-alive\n\n"
+                        yield SSE_KEEP_ALIVE
                         next_keep_alive = time.monotonic() + SSE_KEEP_ALIVE_SECONDS
                     await asyncio.sleep(0.1)
             finally:
@@ -57,21 +68,14 @@ def register_code_sync_routes(server):
         return streaming_response_type(
             event_stream(),
             media_type=SSE_CONTENT_TYPE,
-            headers=SSE_RESPONSE_HEADERS,
+            headers=dict(SSE_RESPONSE_HEADERS),
         )
 
     async def acknowledge_frame(payload=ack_body):
-        client_id = str(payload.get("client_id") or "").strip()
-        frame_id = str(payload.get("frame_id") or "").strip()
-        accepted = bool(client_id and frame_id) and code_sync_sse_broker.acknowledge(
-            client_id,
-            frame_id,
-            payload.get("reply"),
-        )
-        status_code = 200 if accepted else 404
+        result, status = code_sync_sse_broker.acknowledge_payload(payload)
         return fastapi_module.responses.JSONResponse(
-            {"success": accepted},
-            status_code=status_code,
+            result,
+            status_code=status,
         )
 
     routes = (

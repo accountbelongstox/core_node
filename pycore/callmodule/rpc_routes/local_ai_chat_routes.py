@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register AI chat controllers on HTTP v2."""
+"""Register AI chat controllers on HTTP API."""
 
 from pycore.callmodule.rpc_routes.route_names import LOCAL_AI_CHAT
 from pycore.pyctl.ai.ai_chat import chat_once
@@ -10,7 +10,7 @@ def register_local_ai_chat_routes(server) -> None:
     """Register the AI chat controller."""
 
     def chat_handler(params, _request_id, _context):
-        request = params or {}
+        request = params
         messages = [
             {
                 "role": item.get("role", "user"),
@@ -29,5 +29,5 @@ def register_local_ai_chat_routes(server) -> None:
             result = chat_once(provider, messages, model, source=source)
         return {"success": True, "data": result}
 
-    server.post(name=LOCAL_AI_CHAT, handler=chat_handler)
+    server.post(path=LOCAL_AI_CHAT, handler=chat_handler)
 

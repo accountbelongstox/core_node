@@ -7,21 +7,21 @@ import pycore.pyctl.desktop.voice_subtitle_service as vs
 
 def register_voice_subtitle_routes(server):
     def get_audio_file(params, _request_id, _context):
-        return vs.get_audio_file(str((params or {}).get("path") or ""))
+        return vs.get_audio_file(str(params.get("path") or ""))
 
     def filter_queue_by_category(params, _request_id, _context):
         return vs.filter_queue_by_category(
-            str((params or {}).get("category") or "")
+            str(params.get("category") or "")
         )
 
     def get_latest_items(params, _request_id, _context):
-        return vs.get_latest_items(int((params or {}).get("limit") or 300))
+        return vs.get_latest_items(int(params.get("limit") or 300))
 
     def get_task_status(params, _request_id, _context):
-        return vs.get_task_status(str((params or {}).get("task_id") or ""))
+        return vs.get_task_status(str(params.get("task_id") or ""))
 
     def get_all_tasks(params, _request_id, _context):
-        return vs.get_all_tasks(int((params or {}).get("limit") or 50))
+        return vs.get_all_tasks(int(params.get("limit") or 50))
 
     routes = (
         (rn.UI_VOICE_SUBTITLE_ADD_TEXT, vs.add_text),

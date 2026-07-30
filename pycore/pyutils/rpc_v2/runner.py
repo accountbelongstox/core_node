@@ -33,7 +33,7 @@ class HttpServerRunner:
         self._thread: Optional[Any] = None
         self._uvicorn_server: Optional[Any] = None
         self._cancel_filter = _CancelledErrorFilter()
-        self._start_signal = f"rpc.server.started.{id(self)}"
+        self._start_signal = f"http.server.started.{id(self)}"
 
         @self.server.app.on_event("startup")
         async def mark_started() -> None:
@@ -70,11 +70,11 @@ class HttpServerRunner:
         logging.getLogger("uvicorn.error").removeFilter(self._cancel_filter)
         ColorPrint.blue("[HttpServerRunner] Server stopped")
 
-    def get(self, name: str, handler: Callable, **options: Any) -> Any:
-        return self.server.get(name, handler, **options)
+    def get(self, path: str, handler: Callable, **options: Any) -> Any:
+        return self.server.get(path, handler, **options)
 
-    def post(self, name: str, handler: Callable, **options: Any) -> Any:
-        return self.server.post(name, handler, **options)
+    def post(self, path: str, handler: Callable, **options: Any) -> Any:
+        return self.server.post(path, handler, **options)
 
     def register_routes(
         self,

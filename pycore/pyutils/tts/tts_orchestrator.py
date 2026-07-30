@@ -728,14 +728,14 @@ def tts_test(engine: Optional[str] = None, text: Optional[str] = None,
     name = engine or best_engine()
     if not name:
         return {"success": False, "engine": None, "latency_ms": 0, "bytes": 0,
-                "route": "local.tts.test", "error": "no TTS engine available"}
+                "error": "no TTS engine available"}
     if is_server_engine(name) and prepare_server_for_use(name):
         invalidate_server_engine_cache(name)
     if not engine_available(name):
         reason = _engine_disabled_reason(name)
         err = reason or f"{name} unavailable"
         return {"success": False, "engine": name, "latency_ms": 0, "bytes": 0,
-                "route": "local.tts.test", "error": err}
+                "error": err}
     out = get_edge_tts_voice_cache_dir(language) / f"{name}.mp3"
     sample = (text or "").strip() or "This is a pycore text to speech test."
     want_accent = _normalize_accent(accent)
@@ -754,7 +754,6 @@ def tts_test(engine: Optional[str] = None, text: Optional[str] = None,
         "engine": name,
         "latency_ms": latency,
         "bytes": size,
-        "route": "local.tts.test",
         "path": str(out) if (ok and size > 0) else None,
         "text": sample,
         "language": language,

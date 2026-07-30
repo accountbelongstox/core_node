@@ -7,6 +7,6 @@ import pycore.pyutils.ocr_cluster.status_service as ocr
 
 
 def register_local_ocr_status_routes(server):
-    server.post(name=UI_OCR_STATUS_STATUS, handler=ocr.status)
-    server.post(name=UI_OCR_STATUS_TEST, handler=ocr.test)
+    server.post(path=UI_OCR_STATUS_STATUS, handler=ocr.status)
+    server.post(path=UI_OCR_STATUS_TEST, handler=ocr.test)
 

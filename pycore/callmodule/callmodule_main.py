@@ -43,8 +43,8 @@ def start(
     ColorPrint.blue("=" * 70)
 
     # Update config with runtime parameters
-    Config.RPC_HOST = host
-    Config.RPC_PORT = port
+    Config.HTTP_HOST = host
+    Config.HTTP_PORT = port
 
     ColorPrint.green("[Callmodule] RPC v2 HTTP controllers via register_http_routes")
 
@@ -197,4 +197,3 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     start(host=args.host, port=args.port, debug=args.debug)
-

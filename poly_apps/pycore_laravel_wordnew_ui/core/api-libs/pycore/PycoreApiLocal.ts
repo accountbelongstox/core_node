@@ -228,7 +228,7 @@ export const pycoreApiLocal = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.translateHistoryClear, {}) as Promise<TranslateHistoryClearResponse>,
 
   // --- Agent history (local Claude/Codex/Cursor/Gemini txt store) ---------- #
-  // Native HTTP v2 routes — do NOT use getJSON/postJSON → router.invoke.
+  // Native HTTP API routes — do NOT use getJSON/postJSON → router.invoke.
   getAgentHistoryIndex: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryIndex, {}) as Promise<AgentHistoryIndexResponse>,
   getAgentHistoryPrompts: (params?: {
@@ -307,7 +307,7 @@ export const pycoreApiLocal = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioQueueSnapshot, {}),
 
   // --- Sentence-audio voice variants (per-language accent/gender specs) ----- #
-  // The UI calls pycore through HTTP v2. Pycore may use Laravel HTTP internally
+  // The UI calls pycore through HTTP API. Pycore may use Laravel HTTP internally
   // to read, replace, or remove variant specs.
   getSentenceVoiceVariants: async (lang: string): Promise<SentenceVoiceVariant[]> => {
     const r = await requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioVariantsIndex, { lang }) as {
@@ -430,7 +430,7 @@ export const pycoreApiLocal = {
   // The laravel-manager vocabulary surface, re-exposed through pycore so the
   // pycore-manager Vocabulary page talks only to pycore (UI -> pycore ->
   // laravel). Pure passthrough: responses are laravel's native JSON shapes.
-  // Query and body payloads are sent through one native HTTP v2 route.
+  // Query and body payloads are sent through one native HTTP API route.
   getVocabTranslationLanguages: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTranslationLanguages, {}),
   translateVocab: (payload: VocabTranslateRequest) =>
@@ -475,7 +475,7 @@ export const pycoreApiLocal = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabDictionaryWords, params),
   createVocabDictionaryWord: (payload: Record<string, unknown>) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabCreateDictionaryWord, payload),
-  // Updates remain HTTP v2; pycore chooses the required Laravel HTTP verb.
+  // Updates remain HTTP API; pycore chooses the required Laravel HTTP verb.
   updateVocabDictionaryWord: (md5: string, payload: Record<string, unknown>) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabUpdateDictionaryWord, { md5, ...payload }),
   deleteVocabDictionaryWord: (md5: string, params: Record<string, unknown>) =>

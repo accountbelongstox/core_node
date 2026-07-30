@@ -8,7 +8,7 @@
  * for "what did my sync land"). It shows the resolved base_url + reachability
  * and a per-source local↔backend comparison with a sync-state badge.
  *
- * Books and detail peeks use video_extract.backend_media_* HTTP v2 routes.
+ * Books and detail peeks use video_extract.backend_media_* HTTP API routes.
  * Only pycore performs the selected-endpoint HTTP calls to Laravel; this UI
  * never falls back to a browser Laravel client.
  *
@@ -136,7 +136,7 @@ const PcLaravelMediaPanel: React.FC = () => {
   const [books, setBooks] = useState<MediaListResponse | null>(null);
   const [peek, setPeek] = useState<PeekState | null>(null);
 
-  // Both reads travel UI -> pycore HTTP v2 -> Laravel HTTP.
+  // Both reads travel UI -> pycore HTTP API -> Laravel HTTP.
   const refresh = useCallback(async () => {
     setLoading(true);
     try {

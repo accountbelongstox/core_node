@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register video-extract synchronization controllers on HTTP v2."""
+"""Register video-extract synchronization controllers on HTTP API."""
 
 from pycore.callmodule.rpc_routes import route_names
 from pycore.pyctl.desktop.subtitle_language_fill_service import fill
@@ -15,7 +15,7 @@ def register_video_extract_routes(server) -> None:
     """Register thin video-extract controller adapters."""
 
     def sync_source_handler(params, _request_id, _context):
-        request = params or {}
+        request = params
         paths = request.get("paths")
         source_path = request.get("source_path")
         targets = [
@@ -44,7 +44,7 @@ def register_video_extract_routes(server) -> None:
         }
 
     def fill_languages_handler(params, _request_id, _context):
-        request = params or {}
+        request = params
         return fill(
             paths=request.get("paths"),
             languages=request.get("languages"),
@@ -52,11 +52,11 @@ def register_video_extract_routes(server) -> None:
         )
 
     def backend_status_handler(params, _request_id, _context):
-        request = params or {}
+        request = params
         return backend_status(request.get("paths"), request.get("base_url"))
 
     def media_list_handler(params, _request_id, _context):
-        request = params or {}
+        request = params
         return list_media(
             request.get("kind") or "",
             request.get("page") or 1,
@@ -64,7 +64,7 @@ def register_video_extract_routes(server) -> None:
         )
 
     def media_detail_handler(params, _request_id, _context):
-        request = params or {}
+        request = params
         return get_media_detail(
             request.get("kind") or "",
             request.get("source_key") or "",
@@ -72,7 +72,7 @@ def register_video_extract_routes(server) -> None:
         )
 
     def sync_all_handler(params, _request_id, _context):
-        request = params or {}
+        request = params
         return sync_all(
             request.get("paths"),
             request.get("language") or "en",

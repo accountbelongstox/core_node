@@ -74,7 +74,7 @@ export const PcLayout: React.FC = () => {
         </main>
         {/* Global floating live-log: present on every pycore page. */}
         <PcFloatingLog />
-        {/* Global HTTP/HTTP request debugger (FE->pycore + pycore->Laravel). */}
+        {/* Global HTTP request debugger (FE->pycore + pycore->Laravel). */}
         <PcHttpDebugger />
         </div>
       </PcTestPopupProvider>
