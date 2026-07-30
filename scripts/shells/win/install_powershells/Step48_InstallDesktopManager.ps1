@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-    Prerequisite installer for the UNIFIED dashboard UI (poly_apps\pycore_laravel_wordflow_ui,
+    Prerequisite installer for the UNIFIED dashboard UI (poly_apps\pycore_laravel_wordnew_ui,
     React/Vite) loaded by the PySide6 webview. Runs `pnpm install` once (idempotent).
 
 .DESCRIPTION
     Auto-discovered and run by PreparePycorePrerequisites.ps1 before the Pycore service launches.
-    Pre-warms the Node dependencies for poly_apps\pycore_laravel_wordflow_ui (its
+    Pre-warms the Node dependencies for poly_apps\pycore_laravel_wordnew_ui (its
     pycore-manager end is what the webview loads via PYCORE_UI_URL) so the Vite dev
     server starts fast. The legacy standalone app pycore\pyctl\desktop\desktop-manager
     is SUPERSEDED and no longer installed here (code is kept but unused).
@@ -31,15 +31,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# scripts\shells\linux\common\iniscripts  ->  core_node\poly_apps\pycore_laravel_wordflow_ui (five parents up)
-$uiDir = Join-Path (Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent) 'poly_apps\pycore_laravel_wordflow_ui'
+# scripts\shells\linux\common\iniscripts  ->  core_node\poly_apps\pycore_laravel_wordnew_ui (five parents up)
+$uiDir = Join-Path (Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent) 'poly_apps\pycore_laravel_wordnew_ui'
 
 Write-Host '============================================================' -ForegroundColor Cyan
-Write-Host ' Installing Dashboard UI deps (pnpm) - pycore_laravel_wordflow_ui' -ForegroundColor Cyan
+Write-Host ' Installing Dashboard UI deps (pnpm) - pycore_laravel_wordnew_ui' -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
 
 if (-not (Test-Path (Join-Path $uiDir 'package.json'))) {
-    Write-Host "[skip] pycore_laravel_wordflow_ui not found at $uiDir" -ForegroundColor DarkYellow
+    Write-Host "[skip] pycore_laravel_wordnew_ui not found at $uiDir" -ForegroundColor DarkYellow
     return
 }
 

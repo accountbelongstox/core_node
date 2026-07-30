@@ -42,8 +42,8 @@ import platform
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from ._cache import _lazy_import
-from ._package_cache import _PACKAGE_CACHE
+from pycore.pyfoundations.third_party._cache import _lazy_import
+from pycore.pyfoundations.third_party._package_cache import _PACKAGE_CACHE
 
 
 # Standard packages getter functions
@@ -171,6 +171,11 @@ def get_third_package_psutil():
     return _lazy_import('psutil', 'import psutil')
 
 
+def get_third_package_pydantic():
+    """Get pydantic package (lazy load)."""
+    return _lazy_import('pydantic', 'import pydantic')
+
+
 def get_third_package_mss():
     """Get mss package (lazy load)"""
     return _lazy_import('mss', 'import mss')
@@ -208,11 +213,6 @@ def get_third_package_labelImg():
 
 
 # Network and web packages
-def get_third_package_websockets():
-    """Get websockets package (lazy load)"""
-    return _lazy_import('websockets', 'import websockets')
-
-
 def get_third_package_requests():
     """Get requests package (lazy load)"""
     return _lazy_import('requests', 'import requests')
@@ -290,7 +290,14 @@ def get_third_package_uvicorn():
 
 def get_third_package_fastapi():
     """Get fastapi package (lazy load)"""
-    return _lazy_import('fastapi', 'import fastapi')
+    package = _lazy_import('fastapi', 'import fastapi')
+    package.encoders = importlib.import_module('fastapi.encoders')
+    package.responses = importlib.import_module('fastapi.responses')
+    package.CORSMiddleware = importlib.import_module(
+        'fastapi.middleware.cors'
+    ).CORSMiddleware
+    package.StaticFiles = importlib.import_module('fastapi.staticfiles').StaticFiles
+    return package
 
 
 # Device and streaming packages
@@ -429,6 +436,11 @@ def get_third_package_PIL_ImageDraw_optional():
 def get_third_package_pynput():
     """Get pynput package (lazy load)"""
     return _lazy_import('pynput', 'import pynput')
+
+
+def get_third_package_keyboard():
+    """Get keyboard package (lazy load)"""
+    return _lazy_import('keyboard', 'import keyboard')
 
 
 def get_third_package_pyperclip():

@@ -3,12 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\GlobalTask;
-use App\Models\Worker;
-use App\Services\OctaneTimerService;
-use App\Services\TaskManagerService;
+use App\Services\TaskCenterSummaryService;
 use App\Services\UserConfig\UserConfigService;
 use App\Support\QueueCenterContract;
-use App\Services\WorkerManagerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Traits\ApiResponse;
@@ -33,31 +30,6 @@ class TaskCenterController extends Controller
     use ApiResponse;
 
     /**
-     * How each timer task relates to the global task queue. Timers absent
-     * from this map are pure scheduled jobs with no queue role. `target`
-     * names the queue task_type (or subsystem) the timer touches.
-     */
-    private const TIMER_QUEUE_ROLES = [
-        'app_qy_v1_word_translation_scan_task' => [
-            'role' => 'producer',
-            'target' => 'word_translation',
-        ],
-        'app_qy_v1_dictionary_translation_task' => [
-            'role' => 'producer',
-            'target' => 'dictionary_explanation',
-        ],
-        'app_qy_v1_word_translation_filler_task' => [
-            'role' => 'consumer',
-            'target' => 'word_translation',
-            'worker_id' => 'laravel-internal-ai',
-        ],
-        'global_task_maintenance_task' => [
-            'role' => 'maintainer',
-            'target' => '*',
-        ],
-    ];
-
-    /**
      * Eligible clients are read from GlobalTask's canonical capability maps.
      * Chrome owns browser-driven image/poster work and shares translation/audio
      * where both runtimes advertise the capability. NULL capability is reported
@@ -66,13 +38,11 @@ class TaskCenterController extends Controller
     // Both maps are canonical on GlobalTask — this controller reads them from
     // there so the Queue Center and the pycore-manager overview never contradict.
 
-    protected $taskManager;
-    protected $workerManager;
+    protected $summaryService;
 
-    public function __construct(TaskManagerService $taskManager, WorkerManagerService $workerManager)
+    public function __construct(TaskCenterSummaryService $summaryService)
     {
-        $this->taskManager = $taskManager;
-        $this->workerManager = $workerManager;
+        $this->summaryService = $summaryService;
     }
 
     /**
@@ -129,72 +99,10 @@ class TaskCenterController extends Controller
      */
     public function overview(): JsonResponse
     {
-        $timerStatus = OctaneTimerService::getStatus();
-
-        $schedulerTasks = [];
-        $timerTasks = [];
-        if (isset($timerStatus['tasks']) && is_array($timerStatus['tasks'])) {
-            $timerTasks = $timerStatus['tasks'];
-        }
-
-        foreach ($timerTasks as $name => $stats) {
-            $entry = [
-                'name' => $name,
-                'interval' => $stats['interval'] ?? null,
-                'run_count' => $stats['run_count'] ?? 0,
-                'error_count' => $stats['error_count'] ?? 0,
-                'last_run' => $stats['last_run'] ?? null,
-                'last_run_ago' => $stats['last_run_ago'] ?? null,
-                'last_duration' => $stats['last_duration'] ?? null,
-                'last_error' => $stats['last_error'] ?? null,
-                'queue_role' => null,
-                'queue_target' => null,
-            ];
-
-            if (isset(self::TIMER_QUEUE_ROLES[$name])) {
-                $entry['queue_role'] = self::TIMER_QUEUE_ROLES[$name]['role'];
-                $entry['queue_target'] = self::TIMER_QUEUE_ROLES[$name]['target'];
-            }
-
-            $schedulerTasks[] = $entry;
-        }
-
-        $relations = [];
-        foreach (self::TIMER_QUEUE_ROLES as $timerName => $meta) {
-            $relations[] = [
-                'timer' => $timerName,
-                'role' => $meta['role'],
-                'target' => $meta['target'],
-                'worker_id' => $meta['worker_id'] ?? null,
-                'registered' => array_key_exists($timerName, $timerTasks),
-            ];
-        }
-
-        return $this->success([
-            'scheduler' => [
-                'running' => (bool) ($timerStatus['running'] ?? false),
-                'uptime' => $timerStatus['uptime'] ?? null,
-                'total_ticks' => $timerStatus['total_ticks'] ?? 0,
-                'tasks' => $schedulerTasks,
-            ],
-            'queue' => [
-                'stats' => $this->taskManager->getTaskStats(),
-                // Additive: per-capability category placement (fast-lane vs its
-                // single dedicated lane), per-lane pending/processing counts, and
-                // the eligible claimant client(s) — so a client can see the
-                // intended dual-client race without opening per-task detail.
-                'categories' => $this->buildCategories(),
-                // Additive: live per-task_type counts (pending/leased/processing) over
-                // ALL rows — clients must not recompute aggregates from a
-                // truncated task-list window (the "counts don't match" bug).
-                'by_type' => $this->buildLiveTypeCounts(),
-            ],
-            'workers' => [
-                'stats' => $this->workerManager->getWorkerStats(),
-            ],
-            'relations' => $relations,
-            'timestamp' => now()->toISOString(),
-        ], 'Task center overview retrieved successfully');
+        return $this->success(
+            $this->summaryService->overview(),
+            'Task center overview retrieved successfully'
+        );
     }
 
     /**
@@ -289,145 +197,6 @@ class TaskCenterController extends Controller
             'types' => $types,
             'next_cursor_id' => $records->count() === $limit ? $nextCursor : null,
         ], 'Completed task history retrieved successfully');
-    }
-
-    /**
-     * Live per-task_type counts over the FULL table (no list window):
-     * { task_type: { pending, leased, processing } }. Powers client summary strips so
-     * they match the server-side Task Center exactly.
-     *
-     * @return array<string,array{pending:int,leased:int,processing:int}>
-     */
-    private function buildLiveTypeCounts(): array
-    {
-        $live = GlobalTask::statuses('live');
-        $rows = GlobalTask::query()
-            ->whereIn('status', $live)
-            ->groupBy('task_type', 'status')
-            ->selectRaw('task_type, status, count(*) as total')
-            ->get();
-
-        $out = [];
-        foreach ($rows as $row) {
-            $type = (string) ($row->task_type ?? '');
-            if ($type === '') {
-                continue;
-            }
-            if (!isset($out[$type])) {
-                $out[$type] = ['pending' => 0, 'leased' => 0, 'processing' => 0];
-            }
-            if ($row->status === GlobalTask::status('pending')) {
-                $out[$type]['pending'] = (int) $row->total;
-            } elseif ($row->status === GlobalTask::status('assigned')) {
-                $out[$type]['leased'] = (int) $row->total;
-            } elseif ($row->status === GlobalTask::status('processing')) {
-                $out[$type]['processing'] = (int) $row->total;
-            }
-        }
-        return $out;
-    }
-
-    /**
-     * Build the per-capability category breakdown.
-     *
-     * For each capability we report, in TWO orthogonal lanes:
-     *   - fast_lane: pending/processing on the shared remote_fast lane narrowed
-     *     to this capability (the interactive dual-client race);
-     *   - single_lane: pending/processing on every NON-fast execution_type lane
-     *     for the same capability (the background / dedicated-worker lane).
-     * Plus claimants[] — which client(s) may actually claim this capability,
-     * derived from config/queue_center_contract.json, so the FE
-     * never hardcodes routing.
-     *
-     * Counts come from one grouped query over the live rows, keyed by
-     * (capability, execution_type, status). The lane is determined by the
-     * execution type, not the priority-tier marker.
-     *
-     * @return array<int,array<string,mixed>>
-     */
-    private function buildCategories(): array
-    {
-        $live = GlobalTask::statuses('live');
-
-        // (capability, execution_type, status) -> count over live rows only.
-        $rows = GlobalTask::query()
-            ->whereIn('status', $live)
-            ->groupBy('capability', 'execution_type', 'status')
-            ->selectRaw('capability, execution_type, status, count(*) as total')
-            ->get();
-
-        $tally = [];
-        foreach ($rows as $row) {
-            $cap = $row->capability ?? '_null';
-            $fastKey = $row->execution_type === GlobalTask::executionType('remote_fast')
-                ? 'fast'
-                : 'single';
-            $tally[$cap][$fastKey][$row->status] = (int) $row->total;
-        }
-
-        // Online-worker coverage: for each capability, is there ANY online
-        // worker that can actually claim its tasks? Answered per-lane so the UI
-        // can show exactly WHY a category is stuck:
-        //   fast_lane:   worker has remote_fast in processor_types AND the cap
-        //                in capabilities (the capability-match narrowing).
-        //   single_lane: worker has the dedicated execution_type (from
-        //                CAPABILITY_SINGLE_LANE) in processor_types. Capabilities
-        //                with no dedicated lane (ai_translate) are false for
-        //                single_lane; image also has the dedicated Gemini lane.
-        //   NULL-cap:    any online worker at all.
-        $onlineWorkers = Worker::online()->get();
-        $onlineFastCaps = [];   // set of capabilities any online fast worker advertises
-        $onlineSingleExec = []; // set of execution_types any online worker registers
-        $anyOnline = $onlineWorkers->isNotEmpty();
-        foreach ($onlineWorkers as $w) {
-            $pt = is_array($w->processor_types) ? $w->processor_types : [];
-            $caps = $w->capabilityList();
-            if (in_array(GlobalTask::executionType('remote_fast'), $pt, true)) {
-                foreach ($caps as $c) {
-                    $onlineFastCaps[$c] = true;
-                }
-            }
-            foreach ($pt as $exec) {
-                $onlineSingleExec[$exec] = true;
-            }
-        }
-
-        $lane = static function (array $tally, string $cap, string $fastKey, bool $hasOnline): array {
-            $bucket = $tally[$cap][$fastKey] ?? [];
-            return [
-                'pending' => (int) ($bucket[GlobalTask::status('pending')] ?? 0),
-                'leased' => (int) ($bucket[GlobalTask::status('assigned')] ?? 0),
-                'processing' => (int) ($bucket[GlobalTask::status('processing')] ?? 0),
-                // True when at least one online worker can claim this category's
-                // tasks on this lane. False with pending>0 = stuck: no worker
-                // registers the lane/capability - the UI can show the cause.
-                'has_online_worker' => $hasOnline,
-            ];
-        };
-
-        $categories = [];
-        foreach (GlobalTask::capabilities() as $cap) {
-            $fastHasOnline = isset($onlineFastCaps[$cap]);
-            $singleExec = GlobalTask::capabilitySingleLanes()[$cap] ?? null;
-            $singleHasOnline = $singleExec !== null && isset($onlineSingleExec[$singleExec]);
-            $categories[] = [
-                'capability' => $cap,
-                'claimants' => QueueCenterContract::claimantsForCapability($cap),
-                'fast_lane' => $lane($tally, $cap, 'fast', $fastHasOnline),
-                'single_lane' => $lane($tally, $cap, 'single', $singleHasOnline),
-            ];
-        }
-
-        // NULL-capability tasks (any eligible client). Reported as its own
-        // category so its counts are never silently dropped from the overview.
-        $categories[] = [
-            'capability' => null,
-            'claimants' => QueueCenterContract::claimantsForCapability(null),
-            'fast_lane' => $lane($tally, '_null', 'fast', $anyOnline),
-            'single_lane' => $lane($tally, '_null', 'single', $anyOnline),
-        ];
-
-        return $categories;
     }
 
 }

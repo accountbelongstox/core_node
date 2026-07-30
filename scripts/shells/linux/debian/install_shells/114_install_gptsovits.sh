@@ -7,7 +7,7 @@
 # pins an OLD transformers, INCOMPATIBLE with the main interpreter's shared 4.46.x pin
 # (deepseek/qwen25/nllb/bark). So the requirements are NEVER installed into the main
 # interpreter: they are built into a DEDICATED per-engine venv by
-# pycore.pyutils.tts.isolated_venv.ensure_venv("gptsovits", ...) (created --system-site-packages
+# pycore.pyutils.common.python_env.isolated_venv.ensure_venv("gptsovits", ...) (created --system-site-packages
 # so it REUSES the system CUDA torch; the old-transformers stack is layered inside it only,
 # shadowing the main copies). pycore's tts_service_manager launches the cloned api_v2.py
 # under that venv (isolated_venv.resolve_python("gptsovits")) and the gptsovits engine talks
@@ -90,7 +90,7 @@ pip_i() { vpip "$PYTHON" -m pip install --break-system-packages "$@" 2>/dev/null
 
 # Provision / verify the ISOLATED gptsovits venv (Bucket B) from the cloned repo's
 # requirements.txt. Delegates to the single source of truth
-# pycore.pyutils.python_env.isolated_venv.ensure_venv("gptsovits", ...), run UNDER $PYTHON so the
+# pycore.pyutils.common.python_env.isolated_venv.ensure_venv("gptsovits", ...), run UNDER $PYTHON so the
 # venv is built next to that interpreter and reuses its system CUDA torch via
 # --system-site-packages; the requirements (old transformers) install INTO the venv only.
 # Cheap when already healthy; repairs a broken venv. $1 is a Python bool literal (True on
@@ -99,7 +99,7 @@ provision_gptsovits_venv() {
     local force_py="$1"
     local probe_output
     TTS_ISOLATED_VENV_READY=0
-    probe_output="$("$PYTHON" -c "import sys; sys.path.insert(0, r'''$CORE_NODE_ROOT'''); from pycore.pyutils.python_env import isolated_venv; ready = isolated_venv.ensure_venv('gptsovits', ['-r', r'''$REQ_FILE'''], health_imports='import torch, transformers, numpy', force=$force_py); print('__VENV_READY__' if ready else '__VENV_NOT_READY__')")"
+    probe_output="$("$PYTHON" -c "import sys; sys.path.insert(0, r'''$CORE_NODE_ROOT'''); from pycore.pyutils.common.python_env import isolated_venv; ready = isolated_venv.ensure_venv('gptsovits', ['-r', r'''$REQ_FILE'''], health_imports='import torch, transformers, numpy', force=$force_py); print('__VENV_READY__' if ready else '__VENV_NOT_READY__')")"
     [[ "$probe_output" == *"__VENV_READY__"* ]] && TTS_ISOLATED_VENV_READY=1
     :
 }
@@ -119,7 +119,7 @@ fi
 # never masked by present sentinels.
 if [[ -f "$TARGET_DIR/api_v2.py" && -f "$SENTINEL" && -f "$REQ_FILE" && "$FORCE" -eq 0 ]] \
     && tts_dependency_stamp_matches "$PYTHON" "gptsovits" "$DEPS_SENTINEL"; then
-    provision_gptsovits_venv "$_GPTSOVITS_FORCE_PY"
+    tts_probe_isolated_venv_provisioned "$PYTHON" "gptsovits"
     if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
         tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "GPT-SoVITS repo + models + isolated venv already present"
         echo "[install_gptsovits]  START:  pycore launches $TARGET_DIR/api_v2.py under the ISOLATED venv as a managed class-C server ($SERVER_URL)."
@@ -186,7 +186,7 @@ if [[ ! -f "$REQ_FILE" ]]; then
 fi
 if tts_dependency_stamp_matches "$PYTHON" "gptsovits" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "isolated GPT-SoVITS venv provisioned (.deps_done)"
-    provision_gptsovits_venv "$_GPTSOVITS_FORCE_PY"
+    tts_probe_isolated_venv_provisioned "$PYTHON" "gptsovits"
     if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
         echo "[install_gptsovits] [OK] isolated GPT-SoVITS venv verified (self-repair)."
     else

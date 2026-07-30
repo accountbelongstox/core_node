@@ -13,8 +13,7 @@ Covers TWO kinds of TTS services under category "tts":
                     gptsovits are ISOLATED-VENV class-C servers (Bucket B): their
                     api server (qwen3tts_api_server.py / melotts_api_server.py /
                     the cloned GPT-SoVITS api_v2.py) runs under a DEDICATED
-                    per-engine venv - qwen3tts via qwen3tts_venv, melotts +
-                    gptsovits via isolated_venv.resolve_python(<engine>) - because
+                    per-engine venv resolved by isolated_venv - because
                     each pins a transformers that cannot coexist with the main
                     interpreter's shared pin. PYTHONPATH/PYTHONHOME are stripped so
                     the venv's packages are never shadowed. Per-engine venv dirs +
@@ -45,11 +44,11 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.python_env.isolated_venv import (
+from pycore.pyutils.common.python_env.isolated_venv import (
     MAIN_INTERPRETER,
     resolve_python as resolve_isolated_python,
 )
-from pycore.pyutils.python_env.isolated_venv import venv_ready as isolated_venv_ready
+from pycore.pyutils.common.python_env.isolated_venv import venv_ready as isolated_venv_ready
 from pycore.pyfoundations.third_party.api import get_third_package_psutil, get_third_package_requests
 from pycore.pyutils.common.managed_service import CategorySettings, ServiceSpec, managed_services
 from pycore.pyutils.common.model_tiers import runtime_engine_model
@@ -62,8 +61,14 @@ import pycore.pyutils.tts.f5tts_engine as f5tts_engine
 
 import pycore.pyutils.tts.fishspeech_engine as fishspeech_engine
 import pycore.pyutils.tts.melotts_engine as melotts_engine
-import pycore.pyutils.tts.qwen3tts_engine as qwen3tts_engine
-import pycore.pyutils.tts.qwen3tts_weights as qwen3tts_weights
+import pycore.pyutils.tts.qwen.engine as qwen_engine
+import pycore.pyutils.tts.qwen.events as qwen_events
+import pycore.pyutils.tts.qwen.weights as qwen_weights
+from pycore.pyutils.tts.qwen.config import (
+    DEFAULT_PORT as QWEN_DEFAULT_PORT,
+    ENGINE_NAME as QWEN_ENGINE_NAME,
+    api_server_path as qwen_api_server_path,
+)
 
 
 _TTS_SECTION = "tts"
@@ -81,7 +86,6 @@ _MODEL_MODULE = {
     "kokoro": "kokoro_engine",
     "sherpa": "sherpa_engine",
 }
-_QWEN3TTS_API_SERVER = "qwen3tts_api_server.py"
 _MELOTTS_API_SERVER = "melotts_api_server.py"
 
 
@@ -118,7 +122,7 @@ def _server_spec(engine: str) -> Optional[_ServerSpec]:
     if engine == "f5tts":
         return _ServerSpec(("/health", "/"), f5tts_engine.base_url())
     if engine == "qwen3tts":
-        return _ServerSpec(("/health", "/"), qwen3tts_engine.base_url())
+        return _ServerSpec(("/health", "/"), qwen_engine.base_url())
     if engine == "melotts":
         return _ServerSpec(("/health", "/"), melotts_engine.base_url())
     return None
@@ -260,10 +264,10 @@ def _melotts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dic
 def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dict[str, str]]]:
     """Class-C start command for qwen3tts: launch the api server under the ISOLATED
     venv (never the main interpreter, which lacks the required transformers pin).
-    Mirrors Qwen3TtsService.start's env; PYTHONPATH/PYTHONHOME are stripped so the
+    PYTHONPATH/PYTHONHOME are stripped so the
     venv's pinned transformers is not shadowed by the main interpreter.
 
-    qwen3tts_weights.resolve_model_id() converts a matching verified HF repo id
+    qwen.weights.resolve_model_id() converts a matching verified HF repo id
     to staging/weights. The venv is package-only and must never own or download
     another managed model copy.
 
@@ -271,17 +275,17 @@ def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Di
     at start time. Provisioning is done idempotently by the install scripts
     (Step61_InstallQwen3Tts.ps1 / 140_install_qwen3tts.sh) that pyservice runs; a
     missing venv -> no start + disabled_reason points at the installer."""
-    venv_python = resolve_isolated_python("qwen3tts")
-    model_id = qwen3tts_weights.resolve_model_id(allow_remote=False)
+    venv_python = resolve_isolated_python(QWEN_ENGINE_NAME)
+    model_id = qwen_weights.resolve_model_id(allow_remote=False)
     if not venv_python or not model_id:
         return None
-    api_server = Path(__file__).resolve().parents[2] / "tts_install_assets" / _QWEN3TTS_API_SERVER
+    api_server = qwen_api_server_path()
     if not api_server.is_file():
         return None
-    base = qwen3tts_engine.base_url()
+    base = qwen_engine.base_url()
     parsed = urlparse(base)
     host = parsed.hostname or "127.0.0.1"
-    port = parsed.port or 57210
+    port = parsed.port or QWEN_DEFAULT_PORT
     extra: Dict[str, str] = {
         "QWEN3TTS_HOST": host,
         "QWEN3TTS_PORT": str(port),
@@ -347,7 +351,6 @@ def invalidate_server_engine_cache(engine: str) -> None:
         "fishspeech": "fishspeech_engine",
         "gptsovits": "gptsovits_engine",
         "f5tts": "f5tts_engine",
-        "qwen3tts": "qwen3tts_engine",
         "melotts": "melotts_engine",
     }
     mod_name = mod_map.get(engine)
@@ -357,13 +360,25 @@ def invalidate_server_engine_cache(engine: str) -> None:
         mod = importlib.import_module(f"pycore.pyutils.tts.{mod_name}")
         lock = getattr(mod, "_avail_lock", None)
         cache = getattr(mod, "_avail_cache", None)
-        # qwen3tts_engine / melotts_engine are stateless HTTP clients with no
+        # Qwen3TTS and melotts_engine are stateless HTTP clients with no
         # availability cache - nothing to invalidate; skip gracefully.
         if lock is not None and isinstance(cache, dict):
             with lock:
                 cache["ts"] = 0.0
     except Exception:  # noqa: BLE001
         pass
+
+
+def _on_server_started(engine: str) -> None:
+    invalidate_server_engine_cache(engine)
+    if engine == "qwen3tts":
+        qwen_events.start_qwen3tts_http_events()
+
+
+def _on_server_stopped(engine: str) -> None:
+    invalidate_server_engine_cache(engine)
+    if engine == "qwen3tts":
+        qwen_events.stop_qwen3tts_http_events()
 
 
 # --------------------------------------------------------------------------- #
@@ -476,8 +491,8 @@ def _register_services() -> None:
             config_ready=lambda e=e: _config_ready(e),
             start_command=lambda e=e: _start_command(e),
             health=lambda e=e: _http_healthy(e),
-            on_started=lambda e=e: invalidate_server_engine_cache(e),
-            on_stopped=lambda e=e: invalidate_server_engine_cache(e),
+            on_started=lambda e=e: _on_server_started(e),
+            on_stopped=lambda e=e: _on_server_stopped(e),
             stop_foreign=lambda e=e: _stop_foreign_server(e),
         ))
     for e in _MODEL_ENGINES:
@@ -587,7 +602,13 @@ def server_runtime_status(engine: str) -> Dict[str, Any]:
             "server_managed": st["managed"],
             "server_enabled": st["enabled"],
             "server_idle_remaining_s": st["idle_remaining_s"],
+            "server_url": st.get("ready_url"),
         }
+        if engine == "qwen3tts" and st["running"]:
+            status["server_url"] = status["server_url"] or qwen_engine.base_url()
+            queue = qwen_engine.get_queue_status()
+            if queue is not None:
+                status["queue"] = queue
         return status
     return {
         "server_engine": False,

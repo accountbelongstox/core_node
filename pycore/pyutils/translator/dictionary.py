@@ -29,7 +29,6 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import map_web_path
 from pycore.pyfoundations.serialized_worker import (
-    SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
 )
@@ -259,16 +258,7 @@ class DictionaryService:
         }
 
 
-_DICTIONARY_SERVICE_PROVIDER = SerializedSingletonProvider(
-    DictionaryService,
-    "translator.dictionary.provider",
-    "DictionaryServiceProvider",
-)
+dictionary_service = DictionaryService()
 
 
-def get_dictionary_service() -> DictionaryService:
-    """Get the offline DictionaryService singleton."""
-    return _DICTIONARY_SERVICE_PROVIDER.get()
-
-
-__all__ = ["DictionaryService", "get_dictionary_service"]
+__all__ = ["DictionaryService", "dictionary_service"]

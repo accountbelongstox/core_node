@@ -28,7 +28,7 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
-import pycore.pyutils.tts.isolated_venv as isolated_venv
+import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
 
 _ENGINE = "melotts"
 _DEFAULT_HOST = "127.0.0.1"

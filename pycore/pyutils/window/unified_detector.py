@@ -36,6 +36,7 @@ from dataclasses import dataclass
 import argparse
 import json
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy, get_third_package_yaml
 
 import time
@@ -598,16 +599,16 @@ Examples:
         # List classes
         if args.list_classes:
             classes = detector.get_available_classes()
-            print("\nAvailable detection classes:")
+            ColorPrint.plain("\nAvailable detection classes:")
             for cls in classes:
-                print(f"  - {cls}")
+                ColorPrint.plain(f"  - {cls}")
             return 0
 
         # Display model information
         if args.info:
             info = detector.get_model_info()
-            print("\nModel Information:")
-            print(json.dumps(info, indent=2, ensure_ascii=False))
+            ColorPrint.plain("\nModel Information:")
+            ColorPrint.plain(json.dumps(info, indent=2, ensure_ascii=False))
             return 0
 
         # Detect image
@@ -632,15 +633,15 @@ Examples:
             print(json.dumps(output, indent=2, ensure_ascii=False))
         else:
             # Text format
-            print(f"\nDetection results: {args.image}")
-            print(f"Found {len(results)} objects:")
+            ColorPrint.plain(f"\nDetection results: {args.image}")
+            ColorPrint.plain(f"Found {len(results)} objects:")
 
             for i, result in enumerate(results, 1):
-                print(f"\n[{i}] {result.class_name}")
-                print(f"    Confidence: {result.confidence:.3f}")
-                print(f"    Position: x={result.bbox['x']}, y={result.bbox['y']}, "
+                ColorPrint.plain(f"\n[{i}] {result.class_name}")
+                ColorPrint.plain(f"    Confidence: {result.confidence:.3f}")
+                ColorPrint.plain(f"    Position: x={result.bbox['x']}, y={result.bbox['y']}, "
                       f"w={result.bbox['w']}, h={result.bbox['h']}")
-                print(f"    Model: {result.model_name} ({result.model_type})")
+                ColorPrint.plain(f"    Model: {result.model_name} ({result.model_type})")
 
         # Save drawn results
         if args.output:
@@ -650,12 +651,12 @@ Examples:
                 target_class=args.target,
                 use_640=not args.no_640
             )
-            print(f"\nResults saved to: {args.output}")
+            ColorPrint.plain(f"\nResults saved to: {args.output}")
 
         return 0
 
     except Exception as e:
-        print(f"\nError: {e}", file=sys.stderr)
+        ColorPrint.plain(f"\nError: {e}", file=sys.stderr)
         traceback.print_exc()
         return 1
 

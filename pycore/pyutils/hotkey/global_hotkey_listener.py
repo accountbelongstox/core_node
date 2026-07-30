@@ -1,106 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import keyboard
-import mouse
 """
 Global Hotkey Listener
 Provides system-wide hotkey monitoring with high priority and conflict resolution
 """
 
-import os
-import subprocess
-import sys
 import time
-from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
-from typing import Dict, List, Callable, Optional, Set
 from dataclasses import dataclass
 from enum import Enum
+from typing import Dict, List, Callable, Optional
 
-# Import ColorPrint from pycore (same package)
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
 )
+from pycore.pyfoundations.third_party.api import get_third_package_keyboard
 
-
-def _auto_install_dependencies():
-    """
-    Automatically install required dependencies using python -m pip
-    """
-    try:
-        ColorPrint.blue("[AUTO-INSTALL] Installing required dependencies...")
-        
-        # Get the current Python executable path
-        python_exe = sys.executable
-        
-        # Install keyboard and mouse packages
-        packages = ['keyboard', 'mouse']
-        
-        for package in packages:
-            ColorPrint.blue(f"[AUTO-INSTALL] Installing {package}...")
-            try:
-                # Use python -m pip install to ensure we use the correct pip
-                result = exec_silent(
-                    [python_exe, '-m', 'pip', 'install', package],
-                    capture_output=True,
-                    text=True,
-                    timeout=60  # 60 second timeout
-                )
-                
-                if result.return_code == 0:
-                    ColorPrint.green(f"[AUTO-INSTALL] Successfully installed {package}")
-                else:
-                    ColorPrint.red(f"[AUTO-INSTALL] Failed to install {package}: {result.stderr}")
-                    return False
-                    
-            except subprocess.TimeoutExpired:
-                ColorPrint.red(f"[AUTO-INSTALL] Timeout while installing {package}")
-                return False
-            except Exception as e:
-                ColorPrint.red(f"[AUTO-INSTALL] Error installing {package}: {e}")
-                return False
-        
-        ColorPrint.green("[AUTO-INSTALL] All dependencies installed successfully")
-        return True
-        
-    except Exception as e:
-        ColorPrint.red(f"[AUTO-INSTALL] Failed to auto-install dependencies: {e}")
-        return False
-
-
-def _check_and_install_dependencies():
-    """
-    Check if dependencies are available, if not, try to install them
-    """
-    try:
-        return True
-    except ImportError:
-        ColorPrint.yellow("[DEPENDENCY] Required modules not found, attempting auto-installation...")
-        
-        if _auto_install_dependencies():
-            # Try importing again after installation
-            try:
-                ColorPrint.green("[DEPENDENCY] Dependencies successfully installed and imported")
-                return True
-            except ImportError as e:
-                ColorPrint.red(f"[DEPENDENCY] Still unable to import after installation: {e}")
-                return False
-        else:
-            ColorPrint.red("[DEPENDENCY] Auto-installation failed")
-            return False
-
-
-# Check and install dependencies
-KEYBOARD_AVAILABLE = _check_and_install_dependencies()
-
-# Import modules after auto-installation
-if KEYBOARD_AVAILABLE:
-    try:
-    except ImportError:
-        KEYBOARD_AVAILABLE = False
-
+keyboard = get_third_package_keyboard()
+KEYBOARD_AVAILABLE = keyboard is not None
 
 class HotkeyType(Enum):
     """Hotkey types"""

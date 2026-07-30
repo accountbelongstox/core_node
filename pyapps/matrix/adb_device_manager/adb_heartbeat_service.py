@@ -11,7 +11,7 @@ import time
 import threading
 from typing import Optional, List
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.tasks import Task
+from pycore.pyfoundations.tasks import Task
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from pyapps.matrix.adb_device_manager.adb_executor import adb_executor, ADBExecutor
 from pyapps.matrix.adb_device_manager.device_table import device_table, DeviceTable, DeviceInfo, DeviceState, DeviceType

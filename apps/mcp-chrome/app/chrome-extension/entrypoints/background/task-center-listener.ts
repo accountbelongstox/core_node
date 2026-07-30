@@ -16,8 +16,9 @@ import {
 } from './services/task-center/run-intent';
 import {
   CAPABILITY_BY_KEY,
-  capabilityForProcessor,
+  capabilitiesForProcessors,
   processorsForCapabilities,
+  sanitizeCapabilities,
   type CapabilityKey,
 } from '@/utils/task-capabilities';
 import {
@@ -34,7 +35,7 @@ import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 interface PersistedTaskCenterRuntime {
   running: boolean;
-  config: (TaskCenterConfig & { activeCapabilities?: CapabilityKey[] }) | null;
+  config: TaskCenterConfig | null;
 }
 
 const TASK_CENTER_RUNTIME_KEY = STORAGE_KEYS.TASK_CENTER_RUNTIME;
@@ -105,7 +106,7 @@ async function buildFullStatus(): Promise<FullTaskCenterStatus> {
 
 async function persistTaskCenterRuntime(
   running: boolean,
-  config: (TaskCenterConfig & { activeCapabilities?: CapabilityKey[] }) | null,
+  config: TaskCenterConfig | null,
 ): Promise<void> {
   const payload: PersistedTaskCenterRuntime = { running, config: running ? config : null };
   try {
@@ -147,7 +148,6 @@ async function performRuntimeRestore(): Promise<void> {
   const activeCapabilities = sanitizeCapabilities(intent.activeCapabilities);
   const enabledProcessors = processorsForCapabilities(activeCapabilities);
   const usesValidity = activeCapabilities.some((key) => CAPABILITY_BY_KEY[key]?.usesValidityRunner);
-  if (enabledProcessors.length === 0 && !usesValidity) return;
 
   const processors = { ...(runtime.config.processors || {}) };
   processors[LANES.BING_DICTIONARY] = {
@@ -167,7 +167,7 @@ async function performRuntimeRestore(): Promise<void> {
   let validityStarted = false;
 
   try {
-    if (enabledProcessors.length > 0 && !centerWasRunning) {
+    if (!centerWasRunning) {
       await taskCenter.startAll(config);
       centerStarted = true;
     }
@@ -192,7 +192,7 @@ async function performRuntimeRestore(): Promise<void> {
       if (lastStartConfig === config) lastStartConfig = null;
       return;
     }
-    console.log('[Task Center] Restored active processors after service-worker restart');
+    console.log('[Task Center] Restored runtime after service-worker restart');
   } catch (error) {
     if (validityStarted) wordValidityRunnerService.stop();
     if (centerStarted) taskCenter.stopAll();
@@ -253,28 +253,6 @@ async function runStopAction(sendResponse: (response: any) => void): Promise<voi
     message: 'Task Center stopped',
     status: await buildFullStatus(),
   });
-}
-
-/** Back-compat: derive capability keys from a raw processorType allowlist. */
-function capabilitiesFromProcessors(processors: string[]): CapabilityKey[] {
-  const set = new Set<CapabilityKey>();
-  for (const p of processors) {
-    const cap = capabilityForProcessor(p);
-    if (cap) set.add(cap);
-  }
-  return Array.from(set);
-}
-
-/** Filter an arbitrary array down to known CapabilityKeys. */
-function sanitizeCapabilities(raw: unknown): CapabilityKey[] {
-  if (!Array.isArray(raw)) return [];
-  const out: CapabilityKey[] = [];
-  for (const k of raw) {
-    if (typeof k === 'string' && (k as CapabilityKey) in CAPABILITY_BY_KEY) {
-      out.push(k as CapabilityKey);
-    }
-  }
-  return out;
 }
 
 /**
@@ -339,7 +317,7 @@ async function handleTaskCenterMessage(
   message: {
     type: string;
     action: string;
-    config?: TaskCenterConfig & { activeCapabilities?: CapabilityKey[] };
+    config?: TaskCenterConfig;
     processorType?: string;
     capability?: CapabilityKey;
     enabled?: boolean;
@@ -439,7 +417,7 @@ async function handleTaskCenterMessage(
  * is honored and the capabilities are derived from it.
  */
 async function handleStart(
-  config: (TaskCenterConfig & { activeCapabilities?: CapabilityKey[] }) | undefined,
+  config: TaskCenterConfig | undefined,
   sendResponse: (response: any) => void,
 ) {
   const startEpoch = runtimeEpoch;
@@ -452,36 +430,27 @@ async function handleStart(
   if (!config.processors) config.processors = {};
 
   // Resolve the active capabilities + the processor allowlist they map to.
+  const hasCapabilitySelection = Array.isArray(config.activeCapabilities);
   let activeCapabilities = sanitizeCapabilities(config.activeCapabilities);
   let enabledProcessors: string[];
-  if (activeCapabilities.length > 0) {
+  if (hasCapabilitySelection) {
     enabledProcessors = processorsForCapabilities(activeCapabilities);
   } else if (Array.isArray(config.enabledProcessors)) {
     enabledProcessors = config.enabledProcessors;
-    activeCapabilities = capabilitiesFromProcessors(enabledProcessors);
+    activeCapabilities = capabilitiesForProcessors(enabledProcessors);
   } else {
     enabledProcessors = [];
   }
+  config.activeCapabilities = activeCapabilities;
   config.enabledProcessors = enabledProcessors;
 
   const usesValidity = activeCapabilities.some((k) => CAPABILITY_BY_KEY[k]?.usesValidityRunner);
 
-  // Reject an empty selection instead of persisting a misleading running state.
-  if (enabledProcessors.length === 0 && !usesValidity) {
-    sendResponse({
-      success: false,
-      error: 'Select at least one task capability before starting Task Center',
-    });
-    return;
-  }
-
-  // Start the task-center lanes (skip when only the validity runner is active).
+  // The center itself always starts. Capabilities only control execution lanes.
   const centerWasRunning = taskCenter.isTaskCenterRunning();
   const validityWasRunning = wordValidityRunnerService.getStatus().running;
   try {
-    if (enabledProcessors.length > 0) {
-      await taskCenter.startAll(config);
-    }
+    await taskCenter.startAll(config);
 
     // Start the client-driven validity runner when a validity-runner capability is
     // active (independent of the global-task lane).
@@ -521,12 +490,11 @@ async function handleStart(
  * A failed new start restores the last known-good runtime.
  */
 async function handleReconfigure(
-  config: (TaskCenterConfig & { activeCapabilities?: CapabilityKey[] }) | undefined,
+  config: TaskCenterConfig | undefined,
   sendResponse: (response: any) => void,
 ): Promise<void> {
-  const activeCapabilities = sanitizeCapabilities(config?.activeCapabilities);
-  if (!config?.apiUrl || activeCapabilities.length === 0) {
-    sendResponse({ success: false, error: 'Running configuration with active capabilities is required' });
+  if (!config?.apiUrl) {
+    sendResponse({ success: false, error: 'Running configuration with apiUrl is required' });
     return;
   }
 
@@ -546,7 +514,7 @@ async function handleReconfigure(
   try {
     await handleStart(config, sendResponse);
   } catch (error) {
-    if (previousConfig?.apiUrl && previousIntent.activeCapabilities.length > 0) {
+    if (previousConfig?.apiUrl && previousIntent.running) {
       try {
         await handleStart(previousConfig, () => undefined);
       } catch (rollbackError) {
@@ -565,7 +533,7 @@ async function handleReconfigure(
 async function handleSetCapability(
   capability: CapabilityKey | undefined,
   enabled: boolean,
-  config: (TaskCenterConfig & { activeCapabilities?: CapabilityKey[] }) | undefined,
+  config: TaskCenterConfig | undefined,
   sendResponse: (response: any) => void,
 ) {
   if (!capability || !(capability in CAPABILITY_BY_KEY)) {
@@ -575,6 +543,10 @@ async function handleSetCapability(
   const capEpoch = runtimeEpoch;
   const def = CAPABILITY_BY_KEY[capability];
   const intent = await getRunIntent();
+  if (!intent.running) {
+    sendResponse({ success: false, error: 'Start Task Center before changing capabilities' });
+    return;
+  }
   const capSet = new Set(intent.activeCapabilities);
   if (enabled) capSet.add(capability);
   else capSet.delete(capability);
@@ -584,122 +556,81 @@ async function handleSetCapability(
   // persisted batch, interval, language, and parallelism settings.
   const effectiveConfig = config || lastStartConfig;
   const apiUrl = (effectiveConfig?.apiUrl || '').trim();
-
-  if (enabled) {
-    if ((def.processors.length > 0 || def.usesValidityRunner) && !apiUrl) {
-      sendResponse({
-        success: false,
-        error: 'apiUrl required to start a capability (start Task Center first or pass config.apiUrl)',
-      });
-      return;
-    }
-    const startedProcessors: string[] = [];
-    try {
-      if (!taskCenter.isTaskCenterRunning()) {
-        // Runner-only selection (e.g. validity): an EMPTY lane allowlist must
-        // NOT hit startAll — startAll treats absent/empty as "keep current
-        // per-processor state" and would light up every default-enabled lane.
-        const laneAllow = processorsForCapabilities(activeCapabilities);
-        if (laneAllow.length > 0) {
-          await taskCenter.startAll({
-            ...(effectiveConfig || { apiUrl }),
-            apiUrl,
-            activeCapabilities,
-            enabledProcessors: laneAllow,
-          });
-        }
-      } else {
-        for (const p of def.processors) {
-          const processorConfig = effectiveConfig?.processors?.[p] || { apiUrl };
-          const wasRunning = taskCenter.getProcessorStatus(p)?.isRunning === true;
-          taskCenter.enableProcessor(p);
-          try {
-            await taskCenter.startProcessor(p, { ...processorConfig, apiUrl });
-          } catch (error) {
-            if (!wasRunning) taskCenter.disableProcessor(p);
-            throw error;
-          }
-          if (!wasRunning) startedProcessors.push(p);
-        }
-      }
-      if (def.usesValidityRunner) {
-        await wordValidityRunnerService.start({ apiUrl });
-      }
-    } catch (error: any) {
-      for (const processorType of startedProcessors.reverse()) {
-        taskCenter.disableProcessor(processorType);
-      }
-      sendResponse({
-        success: false,
-        error: error?.message || `Failed to start capability: ${capability}`,
-      });
-      return;
-    }
-    // Remember the apiUrl so a later toggle can start more lanes.
-    if (apiUrl) {
-      lastStartConfig = {
-        ...(lastStartConfig || {}),
-        ...(effectiveConfig || {}),
-        apiUrl,
-        processors: {
-          ...(lastStartConfig?.processors || {}),
-          ...(effectiveConfig?.processors || {}),
-        },
-      };
-    }
-  } else {
-    for (const p of def.processors) {
-      const stillNeeded = activeCapabilities.some((key) =>
-        CAPABILITY_BY_KEY[key]?.processors.includes(p),
-      );
-      if (!stillNeeded) {
-        taskCenter.disableProcessor(p);
-      }
-    }
-    if (def.usesValidityRunner) {
-      wordValidityRunnerService.stop();
-    }
-    if (
-      def.processors.includes(LANES.BING_DICTIONARY) &&
-      !activeCapabilities.some((key) =>
-        CAPABILITY_BY_KEY[key]?.processors.includes(LANES.BING_DICTIONARY),
-      )
-    ) {
-      // Ensure the Bing watchdog + session run-intent are cleared so the crawler
-      // cannot resurrect after being toggled off.
-      await bingDictionaryWorkerService.stopAndClear();
-    }
+  if (!apiUrl) {
+    sendResponse({ success: false, error: 'apiUrl is required to change capabilities' });
+    return;
   }
 
-  if (activeCapabilities.length === 0 && taskCenter.isTaskCenterRunning()) {
-    taskCenter.stopAll();
-    lastStartConfig = null;
+  const previousProcessors = processorsForCapabilities(intent.activeCapabilities);
+  const enabledProcessors = processorsForCapabilities(activeCapabilities);
+  const previousValidityRunning = wordValidityRunnerService.getStatus().running;
+  const usesValidity = activeCapabilities.some(
+    (key) => CAPABILITY_BY_KEY[key]?.usesValidityRunner,
+  );
+  const baseConfig = lastStartConfig || effectiveConfig || { apiUrl };
+  const previousConfig: TaskCenterConfig = {
+    ...baseConfig,
+    apiUrl,
+    processors: { ...(baseConfig.processors || {}) },
+    activeCapabilities: [...intent.activeCapabilities],
+    enabledProcessors: previousProcessors,
+  };
+  const nextConfig: TaskCenterConfig = {
+    ...baseConfig,
+    ...(effectiveConfig || {}),
+    apiUrl,
+    processors: {
+      ...(baseConfig.processors || {}),
+      ...(effectiveConfig?.processors || {}),
+    },
+    activeCapabilities,
+    enabledProcessors,
+  };
+
+  try {
+    await taskCenter.syncProcessors(enabledProcessors, nextConfig);
+    if (usesValidity && !previousValidityRunning) {
+      await wordValidityRunnerService.start({ apiUrl });
+    } else if (!usesValidity && previousValidityRunning) {
+      wordValidityRunnerService.stop();
+    }
+  } catch (error: any) {
+    try {
+      await taskCenter.syncProcessors(previousProcessors, previousConfig);
+      if (previousValidityRunning && !wordValidityRunnerService.getStatus().running) {
+        await wordValidityRunnerService.start({ apiUrl });
+      } else if (!previousValidityRunning) {
+        wordValidityRunnerService.stop();
+      }
+    } catch (rollbackError) {
+      console.error('[Task Center] Failed to roll back capability change:', rollbackError);
+    }
+    sendResponse({
+      success: false,
+      error: error?.message || `Failed to update capability: ${capability}`,
+    });
+    return;
+  }
+
+  if (
+    !enabled &&
+    def.processors.includes(LANES.BING_DICTIONARY) &&
+    !enabledProcessors.includes(LANES.BING_DICTIONARY)
+  ) {
+    await bingDictionaryWorkerService.stopAndClear();
   }
 
   // A Stop landed mid-toggle — do not resurrect run-intent (d.txt 6.2.2).
   if (capEpoch !== runtimeEpoch) {
+    taskCenter.stopAll();
+    wordValidityRunnerService.stop();
     sendResponse({ success: false, error: 'Capability change superseded by Stop' });
     return;
   }
 
-  // Update run-intent's active set; running is true while >=1 capability active.
-  await setRunIntent({ running: activeCapabilities.length > 0, activeCapabilities });
-  if (activeCapabilities.length > 0) {
-    const baseConfig = lastStartConfig || effectiveConfig;
-    lastStartConfig = {
-      ...(baseConfig || { apiUrl }),
-      apiUrl,
-      processors: {
-        ...(baseConfig?.processors || {}),
-        ...(effectiveConfig?.processors || {}),
-      },
-      activeCapabilities,
-      enabledProcessors: processorsForCapabilities(activeCapabilities),
-    };
-    await persistTaskCenterRuntime(true, lastStartConfig);
-  } else {
-    await persistTaskCenterRuntime(false, null);
-  }
+  lastStartConfig = nextConfig;
+  await setRunIntent({ running: true, activeCapabilities });
+  await persistTaskCenterRuntime(true, nextConfig);
 
   sendResponse({ success: true, status: await buildFullStatus() });
 }

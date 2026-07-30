@@ -3,7 +3,6 @@ OCR CnOCR Engine Module (pycore generic).
 Uses pycore third_party: get_third_package_cnocr, get_third_package_PIL_Image, get_third_package_numpy.
 Supports context (GPU/CPU) with CPU fallback, rec_model fallbacks (e.g. free doc model first), cand_alphabet for number-only.
 """
-import torch
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -20,6 +19,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_cnocr
 from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_numpy
 
 try:
+    import torch
 except ImportError:
     torch = None
 
@@ -362,28 +362,28 @@ def create_ocr(
 
 if __name__ == '__main__':
     # Usage example
-    print("=== CnOCR Engine Test ===\n")
+    ColorPrint.plain("=== CnOCR Engine Test ===\n")
 
     # Create OCR instance
     ocr = CnOCREngine(det_model_name='naive_det')
 
     # Initialize (auto-install dependencies)
     if ocr.init():
-        print("\nInitialization successful!\n")
+        ColorPrint.plain("\nInitialization successful!\n")
 
         # Example 1: Recognize entire image
-        print("Example 1: Recognize entire image")
-        print("result = ocr.ocr('image.png')")
-        print("Returns: {'text': 'recognized text', 'offset': (0, 0), 'region': (0, 0, width, height)}\n")
+        ColorPrint.plain("Example 1: Recognize entire image")
+        ColorPrint.plain("result = ocr.ocr('image.png')")
+        ColorPrint.plain("Returns: {'text': 'recognized text', 'offset': (0, 0), 'region': (0, 0, width, height)}\n")
 
         # Example 2: Recognize grid position 5 (center)
-        print("Example 2: Recognize grid position 5 (center)")
-        print("result = ocr.ocr('image.png', grid_position=5)")
-        print("Returns: {'text': 'recognized text', 'offset': (x, y), 'region': (left, top, right, bottom)}\n")
+        ColorPrint.plain("Example 2: Recognize grid position 5 (center)")
+        ColorPrint.plain("result = ocr.ocr('image.png', grid_position=5)")
+        ColorPrint.plain("Returns: {'text': 'recognized text', 'offset': (x, y), 'region': (left, top, right, bottom)}\n")
 
-        print("Grid layout:")
-        print("1  2  3")
-        print("4  5  6")
-        print("7  8  9")
+        ColorPrint.plain("Grid layout:")
+        ColorPrint.plain("1  2  3")
+        ColorPrint.plain("4  5  6")
+        ColorPrint.plain("7  8  9")
     else:
-        print("\nInitialization failed!")
+        ColorPrint.plain("\nInitialization failed!")

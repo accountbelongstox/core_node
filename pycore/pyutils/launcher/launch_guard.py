@@ -18,7 +18,7 @@ from pycore.pyfoundations.pybasecommon.commander import exec_silent
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 from pycore.pyfoundations.third_party.api import get_third_package_win32process
-from pycore.pyutils.common.process_manager import ProcessManager
+from pycore.pyfoundations.process_manager import ProcessManager
 from pycore.pyutils.launcher.app_finder import AppFinder
 from pycore.pyutils.launcher.char_size_measurer import count_wt_windows
 

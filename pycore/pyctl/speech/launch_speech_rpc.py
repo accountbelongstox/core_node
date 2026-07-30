@@ -20,12 +20,16 @@ import argparse
 from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import (
+    RPC_CONTROLLER_PREFIX,
+    RPC_STATUS_PATH,
+)
 from pycore.pylauncher.launcher import launch_services, LauncherConfig, ServiceLauncher
 from pycore.pyctl.speech.rpc.rpc_service import start_rpc_service
 
 from pycore.pyutils.common.speech_config import speech_config
 from pathlib import Path
-from pycore.pyutils.rpc_v2.server.server_runner import FastAPIRPCServerRunner as UnifiedRpcServerRunner
+from pycore.pyutils.rpc_v2.runner import RpcServerRunner
 from pycore.pylauncher.launcher import stop_services
 
 
@@ -34,17 +38,13 @@ def initialize_speech_config():
     """
     Initialize speech service configuration on startup
 
-    Uses dedicated SpeechConfig (util_speech.config table).
-    Auto-migrates from GlobalConfig if needed.
+    Uses the unified JSON-backed SpeechConfig section.
     """
 
-    # SpeechConfig will automatically:
-    # 1. Initialize defaults from SpeechConfigModel.DEFAULT_CONFIG
-    # 2. Auto-migrate speech_* keys from GlobalConfig
-    # Just trigger initialization by accessing config
+    # Trigger loading from the in-memory user settings map.
     all_config = speech_config.get_all()
 
-    ColorPrint.blue(f"[SpeechConfig] Loaded {len(all_config)} config keys from speech database")
+    ColorPrint.blue(f"[SpeechConfig] Loaded {len(all_config)} config keys from unified JSON")
 
     # Get statistics by category
     stats = speech_config.get_statistics()
@@ -66,7 +66,7 @@ def launch_speech_rpc_service(
     Uses pylauncher to:
     1. Start PyHeartbeat system
     2. Start the SpeechSwitch with provider routing
-    3. Start the FastAPI-based RPC server (HTTP + WebSocket) in a thread
+    3. Start the FastAPI-based HTTP controller server in a thread
     4. Register speech routes on the running server
 
     Args:
@@ -109,7 +109,7 @@ def launch_speech_rpc_service(
     web_dir = Path(__file__).parent / 'rpc_v2' / 'web'
 
     # Step 3: Create RPC server and configure static directories BEFORE starting
-    rpc_server = UnifiedRpcServerRunner(
+    rpc_server = RpcServerRunner(
         host=host,
         port=port,
         debug=debug
@@ -143,13 +143,13 @@ def launch_speech_rpc_service(
     )
 
     ColorPrint.green("=== Speech RPC Service Started ===")
-    ColorPrint.blue(f"  HTTP API: http://{host}:{port}/rpc/<route>")
-    ColorPrint.blue(f"  Health: http://{host}:{port}/health")
+    ColorPrint.blue(f"  HTTP API: http://{host}:{port}{RPC_CONTROLLER_PREFIX}/<route>")
+    ColorPrint.blue(f"  Health: http://{host}:{port}{RPC_STATUS_PATH}")
     ColorPrint.blue(f"  Endpoints:")
-    ColorPrint.blue(f"    - POST /rpc/tts")
-    ColorPrint.blue(f"    - POST /rpc/stt")
-    ColorPrint.blue(f"    - POST /rpc/status")
-    ColorPrint.blue(f"    - POST /rpc/queue_stats")
+    ColorPrint.blue(f"    - POST {RPC_CONTROLLER_PREFIX}/tts")
+    ColorPrint.blue(f"    - POST {RPC_CONTROLLER_PREFIX}/stt")
+    ColorPrint.blue(f"    - POST {RPC_CONTROLLER_PREFIX}/status")
+    ColorPrint.blue(f"    - POST {RPC_CONTROLLER_PREFIX}/queue_stats")
 
     return instances
 

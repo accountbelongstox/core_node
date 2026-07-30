@@ -2,13 +2,13 @@
 """
 Thread Bus RPC Routes
 
-WebSocket RPC bridge for THREAD_BUS events + live broadcast subscriptions.
+HTTP controller bridge for THREAD_BUS events and live event subscriptions.
 
 Routes:
 - thread_bus.trigger_event: trigger a THREAD_BUS event from the web UI
 
 Listener subscriptions (server.register_thread_bus_listener) broadcast state
-changes to connected WS clients for real-time UI refresh:
+changes to connected HTTP event clients for real-time UI refresh:
 - voice_subtitle_update / voice_subtitle_queue_update /
   voice_subtitle_ui_show / voice_subtitle_ui_hide: voice-subtitle state
 - system_settings_update: system-settings changes
@@ -21,22 +21,23 @@ changes to connected WS clients for real-time UI refresh:
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.callmodule.rpc_routes.route_names import THREAD_BUS_TRIGGER
 
 
 def register_thread_bus_routes(server):
     """
-    Register the thread_bus.trigger_event WS RPC handler and the THREAD_BUS
+    Register the thread_bus.trigger_event HTTP controller and the THREAD_BUS
     broadcast listener subscriptions the desktop UI needs for real-time refresh.
 
-    Restores the WS bridge the original create_rpc_server() provided: the web UI
-    issues `rpcClient.call('thread_bus.trigger_event', {event_name, event_data})`
+    Preserves the event bridge the original create_rpc_server() provided: the web UI
+    issues the shared HTTP `callRpc` request with an event name and payload
     (e.g. for subtitle fullscreen mode), which must be turned into a real
     THREAD_BUS event server-side. Also broadcasts voice-subtitle / system-settings
-    / language / code-sync state changes to connected WS clients.
+    / language / code-sync state changes to connected HTTP event clients.
     """
 
-    async def thread_bus_trigger_event(params, request_id, context):
+    def thread_bus_trigger_event(params, request_id, context):
         params = params or {}
         event_name = params.get('event_name')
         event_data = params.get('event_data', {})
@@ -48,32 +49,30 @@ def register_thread_bus_routes(server):
     server.route(
         name=THREAD_BUS_TRIGGER,
         handler=thread_bus_trigger_event,
-        sync=False,
         description='Trigger a THREAD_BUS event from the web UI',
     )
 
     # Voice-subtitle state changes -> live UI refresh.
-    for ev in ('voice_subtitle_update', 'voice_subtitle_queue_update',
-               'voice_subtitle_ui_show', 'voice_subtitle_ui_hide'):
-        server.register_thread_bus_listener(ev)
-    # System-settings changes are broadcast live to the UI via THREAD_BUS.
-    server.register_thread_bus_listener('system_settings_update')
-    # Tray / native i18n language switches -> web UI sync (PcLanguageSync).
-    server.register_thread_bus_listener('ui.i18n.language_changed')
-    # Code Sync peer-mesh status/config ticks -> live UI refresh.
-    server.register_thread_bus_listener('code_sync_update')
-    # Engine model-load progress (class-B models + class-C servers, TTS+STT) ->
-    # live UI refresh alongside the polled /api/local/engines/load-status endpoint.
-    server.register_thread_bus_listener('engine_load_status_update')
-    # Agent-history pipeline and Laravel SSE relay -> Wordnew Daily Reading.
-    server.register_thread_bus_listener('article.published')
-    # Operation store changes (OperationService / OperationEventService).
-    # Delivered over the same SSE ring with ?since resume semantics.
-    server.register_thread_bus_listener('operation.changed')
-    # Laravel log mirror updates -> live UI refresh for PcLaravelLogsPage.
-    server.register_thread_bus_listener('laravel.logs.changed')
+    event_names = (
+        BusSignals.VOICE_SUBTITLE_UPDATE,
+        BusSignals.VOICE_SUBTITLE_QUEUE_UPDATE,
+        BusSignals.VOICE_SUBTITLE_UI_SHOW,
+        BusSignals.VOICE_SUBTITLE_UI_HIDE,
+        BusSignals.SYSTEM_SETTINGS_UPDATE,
+        BusSignals.I18N_LANGUAGE_CHANGED,
+        BusSignals.CODE_SYNC_UPDATE,
+        BusSignals.COREBOOK_AUTOFLOW,
+        BusSignals.ENGINE_LOAD_STATUS_UPDATE,
+        BusSignals.ARTICLE_PUBLISHED,
+        BusSignals.AGENT_HISTORY_SESSIONS_CHANGED,
+        BusSignals.LARAVEL_LOGS_CHANGED,
+        BusSignals.SUBTITLE_LANGUAGE_FILL,
+        BusSignals.VIDEO_EXTRACT_SYNC,
+    )
+    for event_name in event_names:
+        server.register_thread_bus_listener(event_name)
+    # operation.changed is delivered by the durable RPC v2 outbox. Registering
+    # it here would duplicate every event as a legacy broadcast frame.
 
     ColorPrint.green("[ConfigBuilder] Registered thread_bus.trigger_event + broadcast listeners")
 
-
-__all__ = ['register_thread_bus_routes']

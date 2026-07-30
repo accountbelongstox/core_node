@@ -19,6 +19,8 @@ import configparser
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
 
 class BuildConfig:
     """
@@ -272,7 +274,7 @@ optimize_images = false
             return BuildConfig(config_data)
 
         except Exception as e:
-            print(f"[WARNING] Failed to parse build_config.ini: {e}")
+            ColorPrint.yellow(f"[BuildConfigParser] Failed to parse build_config.ini: {e}")
             return None
 
     def create_default_config(self) -> bool:
@@ -289,7 +291,7 @@ optimize_images = false
             self._exists = True
             return True
         except Exception as e:
-            print(f"[ERROR] Failed to create default config: {e}")
+            ColorPrint.red(f"[BuildConfigParser] Failed to create default config: {e}")
             return False
 
     @staticmethod

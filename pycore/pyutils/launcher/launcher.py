@@ -36,6 +36,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import platform
 import os
 import tempfile
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime, run_background
 
 from pycore.pyutils.launcher.screen_manager import ScreenManager
@@ -47,8 +48,7 @@ from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor
 from pycore.pyutils.launcher.config_manager import ConfigManager
 from pycore.pyutils.launcher.app_finder import AppFinder
 from pycore.pyutils.launcher.menu import InteractiveMenu
-from pycore.pyutils.common.icon_generator import DesktopIconGenerator
-from pycore.pyutils.common.process_manager import ProcessManager
+from pycore.pyfoundations.process_manager import ProcessManager
 from pycore.pyutils.launcher.launch_guard import is_app_running, resolve_launch_path
 
 # ============================================================================
@@ -153,18 +153,18 @@ def main():
     # Paths are only written when user explicitly finds applications via menu
 
     # Show prompt
-    print("\n" + "=" * 60)
-    print("Window Launcher - Startup Options")
-    print("=" * 60)
-    print("Options:")
-    print("  [1] - Launch Window Layout Only")
-    print("  [2] - Launch Pycore Module Only (background)")
-    print("  [3] - Launch Both (Window Layout + Pycore Module)")
-    print("  [M] - Configuration Menu")
-    print("  [Enter] - Default (Launch Both)")
-    print("=" * 60)
-    print("Tip: If admin rights are needed, right-click the desktop shortcut -> Run as administrator.")
-    print("=" * 60)
+    ColorPrint.plain("\n" + "=" * 60)
+    ColorPrint.plain("Window Launcher - Startup Options")
+    ColorPrint.plain("=" * 60)
+    ColorPrint.plain("Options:")
+    ColorPrint.plain("  [1] - Launch Window Layout Only")
+    ColorPrint.plain("  [2] - Launch Pycore Module Only (background)")
+    ColorPrint.plain("  [3] - Launch Both (Window Layout + Pycore Module)")
+    ColorPrint.plain("  [M] - Configuration Menu")
+    ColorPrint.plain("  [Enter] - Default (Launch Both)")
+    ColorPrint.plain("=" * 60)
+    ColorPrint.plain("Tip: If admin rights are needed, right-click the desktop shortcut -> Run as administrator.")
+    ColorPrint.plain("=" * 60)
 
     launch_windows = True
     launch_module = False
@@ -179,7 +179,7 @@ def main():
             user_input = '2'
         else:  # 'both' or None
             user_input = '3'
-        print(f"[Launcher] Headless mode (no-pause); auto-selected option {user_input}")
+        ColorPrint.plain(f"[Launcher] Headless mode (no-pause); auto-selected option {user_input}")
     else:
         try:
             user_input = input("Select option: ").strip().upper()
@@ -190,23 +190,23 @@ def main():
     if user_input == '1':
         launch_windows = True
         launch_module = False
-        print("\n[Launcher] Mode: Window Layout Only")
+        ColorPrint.plain("\n[Launcher] Mode: Window Layout Only")
     elif user_input == '2':
         launch_windows = False
         launch_module = True
-        print("\n[Launcher] Mode: Pycore Module Only")
+        ColorPrint.plain("\n[Launcher] Mode: Pycore Module Only")
     elif user_input == '3' or user_input == '':
         launch_windows = True
         launch_module = True
-        print("\n[Launcher] Mode: Both (Window Layout + Pycore Module)")
+        ColorPrint.plain("\n[Launcher] Mode: Both (Window Layout + Pycore Module)")
     elif user_input == 'M':
         menu = InteractiveMenu(config_manager, app_finder)
         menu.run()
-        print("\nContinuing with launcher...")
+        ColorPrint.plain("\nContinuing with launcher...")
         launch_windows = True
         launch_module = True
     else:
-        print("\n[Launcher] Unknown option, using default (Both)")
+        ColorPrint.plain("\n[Launcher] Unknown option, using default (Both)")
         launch_windows = True
         launch_module = True
 
@@ -215,9 +215,9 @@ def main():
         time.sleep(0.5)
 
     if not launch_windows:
-        print("\n[Launcher] Skipping window layout (Pycore Module only mode)")
-        print("[Launcher] Pycore Module running in background (RPC v2 default :59000)")
-        print("\n" + "=" * 60)
+        ColorPrint.plain("\n[Launcher] Skipping window layout (Pycore Module only mode)")
+        ColorPrint.plain("[Launcher] Pycore Module running in background (RPC v2 default :59000)")
+        ColorPrint.plain("\n" + "=" * 60)
         if not no_pause:
             try:
                 input("Press Enter to exit...")
@@ -225,9 +225,9 @@ def main():
                 pass
         return
 
-    print("=" * 60)
-    print("Window Layout Calculator - Step by Step")
-    print("=" * 60)
+    ColorPrint.plain("=" * 60)
+    ColorPrint.plain("Window Layout Calculator - Step by Step")
+    ColorPrint.plain("=" * 60)
 
     # Use configuration
     term_config = config_manager.get_terminal_config()
@@ -255,24 +255,24 @@ def main():
         if not isinstance(window_chrome, dict):
             window_chrome = {}
 
-        print(f"\nCharacter size measurement:")
-        print(f"  Column ratio: {measured_columns} columns = {measured_width_px}px")
-        print(f"  Row ratio: {measured_rows} rows = {measured_height_px}px")
+        ColorPrint.plain(f"\nCharacter size measurement:")
+        ColorPrint.plain(f"  Column ratio: {measured_columns} columns = {measured_width_px}px")
+        ColorPrint.plain(f"  Row ratio: {measured_rows} rows = {measured_height_px}px")
         if calibration_height and calibration_rows:
-            print(f"  Calibration: {calibration_rows} rows = {calibration_height}px (actual)")
+            ColorPrint.plain(f"  Calibration: {calibration_rows} rows = {calibration_height}px (actual)")
 
         total_windows = grid_columns * grid_rows
         ubuntu_count = WindowLauncher().calculate_ubuntu_count(total_windows)
         wt_count = total_windows - ubuntu_count
 
-        print(f"Grid layout: {grid_columns} columns x {grid_rows} rows = {total_windows} windows")
+        ColorPrint.plain(f"Grid layout: {grid_columns} columns x {grid_rows} rows = {total_windows} windows")
         if ubuntu_count > 0:
-            print(f"  - {wt_count} Windows Terminal windows")
-            print(f"  - {ubuntu_count} Ubuntu terminals (auto-reserved)")
+            ColorPrint.plain(f"  - {wt_count} Windows Terminal windows")
+            ColorPrint.plain(f"  - {ubuntu_count} Ubuntu terminals (auto-reserved)")
         else:
-            print(f"  - {total_windows} Windows Terminal windows")
-        print(f"Calculation: Window size = Screen / Grid, then convert to columns.rows using column/row ratios")
-        print("=" * 60)
+            ColorPrint.plain(f"  - {total_windows} Windows Terminal windows")
+        ColorPrint.plain(f"Calculation: Window size = Screen / Grid, then convert to columns.rows using column/row ratios")
+        ColorPrint.plain("=" * 60)
 
         # Create launcher instance with values from config
         launcher = WindowLauncher(
@@ -294,7 +294,7 @@ def main():
         # Launch windows (idempotent: WindowLauncher tops up only the deficit).
         launcher.launch_windows()
     else:
-        print("Terminal launching is disabled")
+        ColorPrint.plain("Terminal launching is disabled")
 
     # Launch configured applications using explorer executor (via bat files)
     apps_config = config_manager.get_applications_config()
@@ -304,12 +304,12 @@ def main():
 
     for app_name, app_config in apps_config.items():
         if not app_config.get('enabled', False):
-            print(f"\nSkipping {app_name} (disabled in config).")
+            ColorPrint.plain(f"\nSkipping {app_name} (disabled in config).")
             continue
 
         # vscode is intentionally not launched by this flow anymore.
         if app_name == 'vscode':
-            print(f"\nSkipping {app_name} (not launched by this flow).")
+            ColorPrint.plain(f"\nSkipping {app_name} (not launched by this flow).")
             continue
 
         launch_as_admin = app_name == 'aiassistant'
@@ -324,18 +324,18 @@ def main():
             except OSError:
                 resolved_app_path = Path(app_path)
             if resolved_app_path in launched_exe_paths:
-                print(f"\nSkipping {app_name} (same executable already launched in this run).")
+                ColorPrint.plain(f"\nSkipping {app_name} (same executable already launched in this run).")
                 continue
 
         if is_app_running(app_name, process_manager, app_finder, exe_path=app_path):
-            print(f"\nSkipping {app_name} (already running).")
+            ColorPrint.plain(f"\nSkipping {app_name} (already running).")
             continue
 
         if app_path:
             launch_label = app_name
             if app_name == 'edge':
                 launch_label = 'edge (Chrome portable)'
-            print(f"\nLaunching {launch_label}{' (as administrator)' if launch_as_admin else ''}...")
+            ColorPrint.plain(f"\nLaunching {launch_label}{' (as administrator)' if launch_as_admin else ''}...")
             try:
                 app_path_obj = Path(app_path)
 
@@ -355,19 +355,19 @@ def main():
                         executor.execute_file(app_path, independent=True)
                     if resolved_app_path is not None:
                         launched_exe_paths.add(resolved_app_path)
-                    print(f"  Launched: {app_path}")
+                    ColorPrint.plain(f"  Launched: {app_path}")
                 else:
-                    print(f"  Error: Application path does not exist: {app_path}")
+                    ColorPrint.plain(f"  Error: Application path does not exist: {app_path}")
             except Exception as e:
-                print(f"Failed to launch {app_name}: {e}")
+                ColorPrint.plain(f"Failed to launch {app_name}: {e}")
         elif launch_as_admin:
-            print(f"\nSkipping {app_name} (no AIAssistant*.exe found in Downloads).")
+            ColorPrint.plain(f"\nSkipping {app_name} (no AIAssistant*.exe found in Downloads).")
         elif app_name in ('chrome', 'chrome_beta', 'edge'):
-            print(f"\nSkipping {app_name} (Chrome executable not found).")
+            ColorPrint.plain(f"\nSkipping {app_name} (Chrome executable not found).")
 
     # Pause to view output, wait for 'y' or Enter to continue.
     # Headless (auto-start) runs skip this pause so the launcher exits on its own.
-    print("\n" + "=" * 60)
+    ColorPrint.plain("\n" + "=" * 60)
     if not no_pause:
         while True:
             try:

@@ -43,7 +43,7 @@ auto = uiautomation
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
-from pycore.pyfoundations.pygvar.global_var_manager import PYTOOLS_TMP_DIR
+from pycore.pyfoundations.pygvar import PYTOOLS_TMP_DIR
 
 
 class WindowAnalyzer:
@@ -567,7 +567,7 @@ class WindowAnalyzer:
 def main():
     """Main function for testing"""
     analyzer = WindowAnalyzer()
-    print("WindowAnalyzer initialized successfully")
+    ColorPrint.plain("WindowAnalyzer initialized successfully")
 
 
 if __name__ == "__main__":

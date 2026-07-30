@@ -4,7 +4,7 @@
 Config Management RPC Routes
 
 Global configuration management for speech service.
-Stores settings in database for persistence.
+Stores settings in the shared JSON user-data store.
 
 Endpoints:
 - config.get: Get configuration value(s)
@@ -26,7 +26,7 @@ def register_config_routes(rpc_server, service_instances: Dict[str, Any]):
     Register configuration management routes
 
     Args:
-        rpc_server: UnifiedRpcServerRunner instance (HTTP + WebSocket + CORS)
+        rpc_server: RpcServerRunner instance
         service_instances: Dict with service instances
     """
 

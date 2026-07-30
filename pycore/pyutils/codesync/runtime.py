@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-codesync.runtime — the bridge / shim layer (stdlib only).
+codesync.runtime - the bridge / shim layer.
 
 This module is the ONLY place the codesync library talks to the outside world.
-It has **zero** dependency on the `pycore` package and imports **only the Python
-standard library**, so the whole `codesync` package can run standalone
+It depends only on the standard library and the shared pyfoundations HTTP leaf,
+so the whole `codesync` package can run standalone
 (`pyservice.sh codesync ...`) without booting the full pycore runtime, without
 `third_party`, and without the `pyservice.sh` prerequisite install.
 
@@ -27,13 +27,15 @@ import subprocess
 import sys
 import threading
 import time
-import urllib.error
-import urllib.request
 import uuid
 from collections import deque
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+
+from pycore.pyutils.common.http_client import HttpClient
+from pycore.pyutils.common.strtools.normalization import to_bool
+from pycore.pyfoundations.pygvar import HTTP_LOOPBACK_HOST
 
 try:
     import winreg
@@ -376,9 +378,6 @@ _LOCAL_SHUTDOWN_REGISTRY = LocalShutdownRegistry()
 # and never receives/serves files or scans the tree. Precedence:
 #   explicit set_light()/configure(light=) > env CODESYNC_LIGHT > default OFF.
 # None means "not explicitly set" -> fall back to the env var.
-_LIGHT_TRUTHY = ("1", "true", "True", "yes", "on")
-
-
 def _runtime_config() -> Dict[str, Any]:
     """Return the current injected-service snapshot from THREAD_BUS."""
     return dict(THREAD_BUS.get_signal(_RUNTIME_CONFIG_SIGNAL, _DEFAULT_RUNTIME_CONFIG))
@@ -401,7 +400,7 @@ def is_light() -> bool:
     light = _runtime_config().get("light")
     if light is not None:
         return bool(light)
-    return os.environ.get("CODESYNC_LIGHT", "") in _LIGHT_TRUTHY
+    return to_bool(os.environ.get("CODESYNC_LIGHT", ""))
 
 
 def configure(*, logger=None, emit_event=None, thread_bus=None, is_shutdown_requested=None,
@@ -459,53 +458,9 @@ log = _Log()
 
 
 # --------------------------------------------------------------------------- #
-# HTTP client shim — `requests`-compatible subset over urllib (stdlib).        #
-# Matches requests semantics the codesync code relies on: returns a response   #
-# object with .status_code/.json()/.content/.text and does NOT raise on HTTP   #
-# 4xx/5xx (only connection/timeout errors raise, which callers catch).         #
+# Shared HTTP client. It exposes the requests-compatible subset Code Sync uses. #
 # --------------------------------------------------------------------------- #
-class _Resp:
-    def __init__(self, status_code: int, content: bytes):
-        self.status_code = status_code
-        self.content = content
-
-    @property
-    def text(self) -> str:
-        return self.content.decode("utf-8", errors="replace")
-
-    def json(self):
-        return _json.loads(self.content.decode("utf-8", errors="replace"))
-
-
-class _Http:
-    def get(self, url: str, timeout: float = 10.0) -> _Resp:
-        return self._request("GET", url, None, timeout)
-
-    def post(self, url: str, json: Any = None, timeout: float = 10.0) -> _Resp:
-        return self._request("POST", url, json, timeout)
-
-    def _request(self, method: str, url: str, json_body: Any, timeout: float) -> _Resp:
-        data = None
-        headers = {}
-        if json_body is not None:
-            data = _json.dumps(json_body).encode("utf-8")
-            headers["Content-Type"] = "application/json"
-        req = urllib.request.Request(url, data=data, headers=headers, method=method)
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return _Resp(resp.getcode(), resp.read())
-        except urllib.error.HTTPError as exc:
-            # 4xx/5xx: behave like requests — return the response, don't raise.
-            try:
-                body = exc.read() or b""
-            except Exception:
-                body = b""
-            return _Resp(exc.code, body)
-        # urllib.error.URLError / socket.timeout / OSError propagate to the
-        # caller's `except Exception` (same as requests' ConnectionError).
-
-
-http = _Http()
+http = HttpClient()
 
 
 # --------------------------------------------------------------------------- #
@@ -639,7 +594,7 @@ def _stdlib_read_smbios_product_uuid() -> Optional[str]:
 
 
 def _stdlib_machine_id() -> str:
-    """Replicates pycore.pyutils.security.machine_id.get_machine_id() exactly so
+    """Replicates pycore.pyfoundations.machine_id.get_machine_id() exactly so
     the self-entry id in the committed peers file is identical in both modes."""
     raw: Optional[str] = None
     try:
@@ -672,7 +627,7 @@ def _stdlib_machine_id() -> str:
 
 
 def _stdlib_hardware_machine_id() -> str:
-    """Replicates pycore.pyutils.security.machine_id.get_hardware_machine_id()."""
+    """Replicates pycore.pyfoundations.machine_id.get_hardware_machine_id()."""
     raw = _stdlib_read_smbios_product_uuid()
     if raw and _is_valid_smbios_uuid(raw):
         return _digest_id("smbios:", _normalize_uuid(raw))
@@ -713,7 +668,7 @@ def get_local_lan_ip() -> str:
             s.connect(("8.8.8.8", 80))
             return s.getsockname()[0]
     except Exception:
-        return "127.0.0.1"
+        return HTTP_LOOPBACK_HOST
 
 
 def get_core_node_root() -> Path:

@@ -233,7 +233,7 @@ class VoiceSubtitleAPI {
     /**
      * Code sync operations always use local server because:
      * 1. Monitors local file system for changes
-     * 2. Manages local WebSocket server/client
+     * 2. Manages local HTTP code-sync peers
      * 3. Remote servers don't have access to user's code files
      */
 
@@ -321,5 +321,4 @@ class VoiceSubtitleAPI {
         });
     }
 }
-
 

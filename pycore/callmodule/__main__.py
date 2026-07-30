@@ -13,11 +13,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from pycore.callmodule.platform.windows_startup_manager import launch_windows_tray
-from pycore.callmodule.global_config import init_global_config
-from pycore.pyfoundations.third_party.api import get_third_package_uvicorn
-
-from pycore.callmodule.callmodule_main import start as launch_platform_aware
+from pycore.pylauncher.platform.windows_startup_manager import launch_windows_tray
+from pycore.pycore_module_caller import main as launch_service
 
 
 
@@ -68,61 +65,15 @@ def main():
 
     args = parser.parse_args()
 
-    # Force specific mode if requested
     if args.tray:
         launch_windows_tray(host=args.host, port=args.port, debug=args.debug)
         return
 
-    if args.service or args.reload:
-        # Service mode or reload mode
-
-        init_global_config(
-            pycore_root=str(PYCORE_ROOT),
-            http_port=args.port,
-            host=args.host,
-            debug=args.debug
-        )
-
-        uvicorn = get_third_package_uvicorn()
-        uvicorn.run(
-            "pycore.callmodule.app:create_app",
-            host=args.host,
-            port=args.port,
-            reload=args.reload,
-            factory=True,
-            log_level="debug" if args.debug else "info"
-        )
-        return
-
-    # Platform-aware mode (default). The platform launcher (PySide6 tray/UI) is
-    # optional - when it is unavailable (headless host, missing dep, or the
-    # launcher module was removed) fall back to the same service-mode app path
-    # used by --service (create_app via uvicorn). No hot-reload in fallback.
-    try:
-        launch_platform_aware(host=args.host, port=args.port, debug=args.debug)
-        return
-    except Exception as exc:  # noqa: BLE001 - launcher optional; fall back to service mode
-        print(
-            f"[callmodule] platform launcher unavailable ({exc}); "
-            "starting service mode (no tray) instead."
-        )
-
-
-    init_global_config(
-        pycore_root=str(PYCORE_ROOT),
-        http_port=args.port,
-        host=args.host,
-        debug=args.debug
-    )
-
-    uvicorn = get_third_package_uvicorn()
-    uvicorn.run(
-        "pycore.callmodule.app:create_app",
+    launch_service(
         host=args.host,
         port=args.port,
-        reload=False,
-        factory=True,
-        log_level="debug" if args.debug else "info"
+        debug=args.debug,
+        reload=args.reload,
     )
 
 

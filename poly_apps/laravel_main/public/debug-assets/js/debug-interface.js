@@ -2,7 +2,7 @@
  * Debug Interface Core JavaScript
  * Main framework: Sidebar toggle and iframe section switching.
  * Only API Testing Dashboard and SSO Authentication are available here.
- * All other management features and actual code are developed in poly_apps/pycore_laravel_wordflow_ui/.
+ * All other management features and actual code are developed in poly_apps/pycore_laravel_wordnew_ui/.
  */
 
 document.addEventListener('DOMContentLoaded', function() {

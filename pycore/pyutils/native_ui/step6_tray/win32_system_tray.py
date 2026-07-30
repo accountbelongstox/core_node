@@ -33,7 +33,6 @@ import ctypes
 import ctypes.wintypes as wintypes
 import tempfile
 import time
-import sys
 import threading
 from pathlib import Path
 from typing import List, Optional
@@ -42,7 +41,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Reuse the canonical tray menu item dataclass (same one build_tray_menu produces)
-from .tkinter_system_tray import TrayMenuItem
+from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
 
 try:
     WIN32_AVAILABLE = True
@@ -173,14 +172,6 @@ class Win32SystemTray:
         if not point:
             return False
         return point[0] != 0 or point[1] != 0
-
-    @staticmethod
-    def _log_to_cmd(message, level='info'):
-        try:
-            stream = sys.stdout
-            print(f"[Win32Tray] {message}", file=stream, flush=True)
-        except Exception:
-            pass
 
     def _resolve_menu_position(self, msg, wparam, lparam):
         if msg == getattr(win32con, "WM_CONTEXTMENU", 0x007B):
@@ -348,11 +339,11 @@ class Win32SystemTray:
 
         hmenu = self._build_menu()
         try:
-            self._log_to_cmd("Right click detected. Opening tray context menu.")
+            ColorPrint.blue("[Win32Tray] Right click detected. Opening tray context menu.")
             pos = self._resolve_menu_position(msg, wparam, lparam)
             if not isinstance(pos, tuple) or len(pos) < 2:
                 pos = (0, 0)
-            self._log_to_cmd(f"Tray menu anchor point: ({pos[0]}, {pos[1]})")
+            ColorPrint.blue(f"[Win32Tray] Tray menu anchor point: ({pos[0]}, {pos[1]})")
             try:
                 win32gui.SetForegroundWindow(self.hwnd)  # required for dismissal
             except Exception:
@@ -376,7 +367,7 @@ class Win32SystemTray:
                     "started_at": started_at,
                 }
                 self._tray_timing_log("menu_selected", timing)
-                self._log_to_cmd(f"Tray menu selected: {signal}")
+                ColorPrint.blue(f"[Win32Tray] Tray menu selected: {signal}")
                 ColorPrint.blue(f"[Win32Tray] Menu item -> signal: {signal}")
                 THREAD_BUS.trigger_event(signal, {"signal": signal, "_tray_timing": timing})
                 self._tray_timing_log("thread_bus_trigger_returned", timing)

@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Sentence-library audio pipeline (laravel_main side of the Books v3 unified
- * model — see poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md §6).
+ * model — see poly_apps/pycore_laravel_wordnew_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md §6).
  *
  * The FILE on disk is the source of truth, NOT the DB:
  *   <sentence_sounds>/<language>/<content_id>.mp3

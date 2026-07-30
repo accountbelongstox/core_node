@@ -20,7 +20,7 @@ import time
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.third_party.api import get_third_package_requests
-from pycore.pyutils.common.api_secrets import streamelements_api_key
+from pycore.pyfoundations.api_secrets import streamelements_api_key
 
 STREAMELEMENTS_SPEECH_URL = "https://api.streamelements.com/kappa/v2/speech"
 # (connect, read) timeouts (seconds).

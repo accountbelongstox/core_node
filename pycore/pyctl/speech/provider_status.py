@@ -28,9 +28,9 @@ from pycore.pyfoundations.third_party.api import (
     get_third_package_vosk,
     get_third_package_whisper,
 )
-from pycore.pyutils.edge_tts.edge_tts_client import get_edge_tts_client
-from pycore.pyutils.azure_speech.azure_speech_client import get_azure_speech_client
-from pycore.pyutils.azure_speech.quota_state import (
+from pycore.pyutils.tts.edge.client import edge_tts_client
+from pycore.pyutils.azure_speech.azure_speech_client import azure_speech_client
+from pycore.pyutils.common.azure_speech_quota_state import (
     is_tts_quota_blocked,
     is_stt_quota_blocked,
 )
@@ -89,7 +89,7 @@ class ProviderStatus:
 
     Usage:
         # Get singleton instance
-        status = get_provider_status()
+        status = provider_status
 
         # Check TTS providers
         status.check_tts_providers()
@@ -254,14 +254,14 @@ class ProviderStatus:
 
     def _is_edge_tts_busy(self) -> bool:
         try:
-            client = get_edge_tts_client()
+            client = edge_tts_client
             return client.is_busy()
         except Exception:
             return False
 
     def _is_azure_tts_busy(self) -> bool:
         try:
-            client = get_azure_speech_client()
+            client = azure_speech_client
             return client.is_busy()
         except Exception:
             return False
@@ -405,27 +405,22 @@ class ProviderStatus:
                 status_color(f"  {status_symbol} {provider_name:10s} - ", end="")
                 if info.available:
                     busy_state = "busy" if info.busy else "idle"
-                    print(f"Available ({busy_state}, last success: {info.last_success})")
+                    ColorPrint.plain(f"Available ({busy_state}, last success: {info.last_success})")
                 else:
-                    print(f"Unavailable - {info.error}")
+                    ColorPrint.plain(f"Unavailable - {info.error}")
                     if info.failure_count > 0:
-                        print(f"                  (failures: {info.failure_count}, last: {info.last_failure})")
+                        ColorPrint.plain(f"                  (failures: {info.failure_count}, last: {info.last_failure})")
 
         ColorPrint.blue("="*70 + "\n")
 
 
 # Global singleton instance
-_provider_status = ProviderStatus()
-
-
-def get_provider_status() -> ProviderStatus:
-    """Get global ProviderStatus singleton."""
-    return _provider_status
+provider_status = ProviderStatus()
 
 
 # Export
 __all__ = [
     'ProviderStatus',
     'ProviderInfo',
-    'get_provider_status'
+    'provider_status'
 ]

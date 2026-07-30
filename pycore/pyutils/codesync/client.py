@@ -24,7 +24,9 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Optional, Dict
 
-from .runtime import (
+from pycore.pyfoundations.pygvar import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
+
+from pycore.pyutils.codesync.runtime import (
     log as ColorPrint,
     http as requests,
     emit_event,
@@ -39,12 +41,12 @@ from .runtime import (
     start_bus_task,
 )
 
-from .server_connection import ServerConnection
-from .sync_logger import SyncLogger
+from pycore.pyutils.codesync.server_connection import ServerConnection
+from pycore.pyutils.codesync.sync_logger import SyncLogger
 
 import uuid
 import platform
-from .textnorm import normalize_eol
+from pycore.pyutils.codesync.textnorm import normalize_eol
 
 
 
@@ -81,7 +83,7 @@ class CodeSyncClient:
 
         # Multi-server connections
         self.servers: Dict[str, ServerConnection] = {}  # {host: ServerConnection}
-        self.server_port: int = 59000
+        self.server_port: int = PYCORE_HTTP_PORT
 
         # Client state
         self.running = False
@@ -209,7 +211,7 @@ class CodeSyncClient:
         # Get local network segment (reuses runtime's hook-aware LAN IP helper,
         # which falls back to the UDP-connect-to-8.8.8.8 trick then "127.0.0.1").
         local_ip = get_local_lan_ip()
-        if not local_ip or local_ip == "127.0.0.1":
+        if not local_ip or local_ip == HTTP_LOOPBACK_HOST:
             ColorPrint.yellow("[CodeSync Client] Cannot determine local IP")
             return
 

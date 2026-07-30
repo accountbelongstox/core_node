@@ -318,7 +318,7 @@ def register_monitor_routes(server):
     Register all monitor API routes
 
     Args:
-        server: FastAPIRPCServer instance
+        server: RpcServer instance
     """
     api = MonitorAPI()
     trading_api = TradingAPI()

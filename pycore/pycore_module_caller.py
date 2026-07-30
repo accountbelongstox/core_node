@@ -56,7 +56,7 @@ sys.path[:] = [p for p in sys.path
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore.callmodule.platform.startup_manager import refresh_startup_launcher
+from pycore.pylauncher.platform.startup_manager import refresh_startup_launcher
 from pycore.pyutils.common.dev_reload import start_reload_watcher
 
 from pycore.pyfoundations.system_paths import apply_shared_cache_env
@@ -65,11 +65,12 @@ apply_shared_cache_env()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pygvar import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 import pycore.pylauncher.register_providers  # noqa: F401 — provider registration
 from pycore.pylauncher.launcher import ServiceLauncher, on_singleton_superseded
-from pycore.callmodule.config import build_launcher_config
-from pycore.callmodule.tray_menu import update_tray_menu_with_singleton
-from pycore.callmodule.event_handlers import register_event_handlers
+from pycore.callmodule.config import build_launcher_config, build_tray_service_config
+from pycore.pylauncher.tray_menu import update_tray_menu_with_singleton
+from pycore.pyctl.runtime.event_handlers import register_event_handlers
 
 # Set when a NEWER instance supersedes this (running PRIMARY) one via the
 # singleton port protocol. It drives the PROCESS EXIT CODE: a superseded instance
@@ -81,7 +82,12 @@ from pycore.callmodule.event_handlers import register_event_handlers
 _SUPERSEDED = {'flag': False}
 
 
-def main(host='0.0.0.0', port=59000, debug=False, reload=True):
+def main(
+    host: str = HTTP_BIND_HOST,
+    port: int = PYCORE_HTTP_PORT,
+    debug: bool = False,
+    reload: bool = True,
+):
     """
     Main entry point
 
@@ -122,7 +128,12 @@ def main(host='0.0.0.0', port=59000, debug=False, reload=True):
         ColorPrint.blue(f"[Main] Singleton Port: {singleton_port}")
 
     # 3. Register event handlers (callmodule layer - event handlers via THREAD_BUS)
-    register_event_handlers(launcher, port, singleton_port)
+    register_event_handlers(
+        launcher,
+        port,
+        singleton_port,
+        tray_config_builder=build_tray_service_config,
+    )
 
     # 3a. Remember if a newer instance takes us over, so the exit code below tells
     #     pyservice to leave the shared UI dev server up (see _SUPERSEDED note).
@@ -183,8 +194,8 @@ def main(host='0.0.0.0', port=59000, debug=False, reload=True):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Pycore Module Caller")
-    parser.add_argument('--host', default='0.0.0.0', help='Host to bind (default: 0.0.0.0)')
-    parser.add_argument('--port', type=int, default=59000, help='Port to bind (default: 59000)')
+    parser.add_argument('--host', default=HTTP_BIND_HOST, help='Host to bind')
+    parser.add_argument('--port', type=int, default=PYCORE_HTTP_PORT, help='Port to bind')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     parser.add_argument('--reload', action='store_true',
                         help='Hot-reload is ON by default; this flag is kept for compatibility')

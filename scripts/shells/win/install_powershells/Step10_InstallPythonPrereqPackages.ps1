@@ -26,6 +26,12 @@
 # Idempotent: each bundle skips when pip metadata already exists.
 # Mirrors linux/debian/install_shells/14_install_python_prereq_packages.sh.
 
+[CmdletBinding()]
+param(
+    [string]$Python = '',
+    [switch]$Force
+)
+
 $stepErrorActionPreference = 'Continue'
 $scriptRoot = $PSScriptRoot
 $shellsWinRoot = $null
@@ -47,7 +53,7 @@ Write-Host "$SCRIPT_INDEX ======================================================
 Write-Host "$SCRIPT_INDEX Install python prerequisite packages (captcha/AI backends)" -ForegroundColor Cyan
 Write-Host "$SCRIPT_INDEX ============================================================" -ForegroundColor Cyan
 
-$preferredPython = $Global:PYTHON_EXE_PATH
+$preferredPython = if ($Python) { $Python } else { $Global:PYTHON_EXE_PATH }
 if (-not ($preferredPython -and (Test-Path $preferredPython))) {
     $preferredPython = $null
 }

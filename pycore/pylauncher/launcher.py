@@ -5,9 +5,9 @@ from typing import Dict, Any, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pythreadpool.pool import get_global_thread_pool
+from pycore.pythreadpool import global_thread_pool
 from pycore.pythreadpool.registry import SERVICE_STARTERS
-from pycore.pylauncher.singleton_detector import SingletonDetector, on_singleton_superseded
+from pycore.pyfoundations.singleton.detector import SingletonDetector, on_singleton_superseded
 from pycore.pyfoundations.launcher_config import LauncherConfig  # noqa: F401 — re-export
 
 import traceback
@@ -181,7 +181,7 @@ class ServiceLauncher:
             # Get RPC v2 server and register custom route
             rpc = launcher.get_service('rpc_v2')
             if rpc:
-                rpc.server.route('custom', handler_func, sync=True)
+                rpc.server.route('custom', handler_func)
 
             # Get heartbeat system
             heartbeat = launcher.get_service('heartbeat')

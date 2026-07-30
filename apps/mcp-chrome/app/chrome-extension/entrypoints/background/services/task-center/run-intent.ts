@@ -10,7 +10,8 @@
  */
 
 import {
-  CAPABILITY_BY_KEY,
+  processorsForCapabilities,
+  sanitizeCapabilities,
   type CapabilityKey,
 } from '@/utils/task-capabilities';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
@@ -32,13 +33,8 @@ export async function getRunIntent(): Promise<RunIntent> {
     const raw = result?.[STORAGE_KEY];
     if (!raw || typeof raw !== 'object') return { ...DEFAULT_INTENT };
     const running = raw.running === true;
-    const activeCapabilities = Array.isArray(raw.activeCapabilities)
-      ? raw.activeCapabilities.filter(
-          (key: unknown): key is CapabilityKey =>
-            typeof key === 'string' && key in CAPABILITY_BY_KEY,
-        )
-      : [];
-    return { running: running && activeCapabilities.length > 0, activeCapabilities };
+    const activeCapabilities = sanitizeCapabilities(raw.activeCapabilities);
+    return { running, activeCapabilities };
   } catch {
     return { ...DEFAULT_INTENT };
   }
@@ -46,16 +42,9 @@ export async function getRunIntent(): Promise<RunIntent> {
 
 /** Persist the full run-intent (deduped capability list). */
 export async function setRunIntent(intent: RunIntent): Promise<void> {
-  const seen = new Set<CapabilityKey>();
-  const activeCapabilities: CapabilityKey[] = [];
-  for (const key of intent.activeCapabilities || []) {
-    if (!seen.has(key)) {
-      seen.add(key);
-      activeCapabilities.push(key);
-    }
-  }
+  const activeCapabilities = sanitizeCapabilities(intent.activeCapabilities);
   const payload: RunIntent = {
-    running: intent.running === true && activeCapabilities.length > 0,
+    running: intent.running === true,
     activeCapabilities,
   };
   try {
@@ -83,7 +72,5 @@ export async function isCapabilityActive(key: CapabilityKey): Promise<boolean> {
 /** True when any active central capability owns the given processor. */
 export async function isProcessorActive(processorType: string): Promise<boolean> {
   const intent = await getRunIntent();
-  return intent.running && intent.activeCapabilities.some(
-    (key) => CAPABILITY_BY_KEY[key]?.processors.includes(processorType),
-  );
+  return intent.running && processorsForCapabilities(intent.activeCapabilities).includes(processorType);
 }

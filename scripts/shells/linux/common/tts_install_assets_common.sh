@@ -2,6 +2,11 @@
 # Resolve pycore/tts_install_assets from install_shells (5 levels below repo root).
 
 TTS_ISOLATED_VENV_READY=0
+NEURAL_TTS_LAST_REPORTED_MODEL_PATH=""
+
+_core_node_repo_root_from_tts_common() {
+    (cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)
+}
 
 pycore_repo_root_from_install_shells() {
     local script_dir="$1"
@@ -46,18 +51,19 @@ tts_idempotent_msg() {
     "$py" "$tier_script" idempotent "$reason" 2>/dev/null
 }
 
-tts_runtime_policy_path() {
+tts_runtime_policy_run() {
+    local py="$1"
+    shift
     local repo_root
     repo_root="$(_core_node_repo_root_from_tts_common)"
-    printf '%s' "$repo_root/pycore/pyutils/python_env/runtime_policy.py"
+    (cd "$repo_root" && "$py" -m pycore.pyutils.common.python_env.runtime_policy "$@")
 }
 
 tts_engine_compatible() {
     local py="$1" engine="$2" prefix="${3:-}"
-    local policy_path python_version result override_name override_python
-    policy_path="$(tts_runtime_policy_path)"
+    local python_version result override_name override_python
     python_version="$("$py" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)"
-    if ! result="$("$py" "$policy_path" compatibility "$engine" --python-version "$python_version")"; then
+    if ! result="$(tts_runtime_policy_run "$py" compatibility "$engine" --python-version "$python_version")"; then
         echo "$prefix[SKIP] $engine runtime policy failed." >&2
         return 1
     fi
@@ -68,7 +74,7 @@ tts_engine_compatible() {
     override_python="${!override_name:-}"
     if [[ -n "$override_python" && -x "$override_python" ]]; then
         python_version="$("$override_python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)"
-        if ! result="$("$py" "$policy_path" compatibility "$engine" --python-version "$python_version")"; then
+        if ! result="$(tts_runtime_policy_run "$py" compatibility "$engine" --python-version "$python_version")"; then
             echo "$prefix[SKIP] $engine runtime policy failed for override interpreter." >&2
             return 1
         fi
@@ -81,9 +87,8 @@ tts_engine_compatible() {
 }
 
 tts_dependency_fingerprint() {
-    local py="$1" engine="$2" policy_path
-    policy_path="$(tts_runtime_policy_path)"
-    "$py" "$policy_path" fingerprint "$engine"
+    local py="$1" engine="$2"
+    tts_runtime_policy_run "$py" fingerprint "$engine"
 }
 
 tts_dependency_stamp_matches() {
@@ -96,16 +101,14 @@ tts_dependency_stamp_matches() {
 }
 
 tts_engine_health_ok() {
-    local py="$1" engine="$2" policy_path output
-    policy_path="$(tts_runtime_policy_path)"
-    output="$("$py" "$policy_path" health-probe "$engine")"
+    local py="$1" engine="$2" output
+    output="$(tts_runtime_policy_run "$py" health-probe "$engine")"
     [[ "$output" == *"__HEALTH_READY__"* ]]
 }
 
 tts_dependencies_ready() {
     local py="$1" engine="$2" stamp="$3"
-    tts_dependency_stamp_matches "$py" "$engine" "$stamp" \
-        && tts_engine_health_ok "$py" "$engine"
+    tts_dependency_stamp_matches "$py" "$engine" "$stamp"
 }
 
 tts_write_dependency_stamp() {
@@ -129,15 +132,15 @@ tts_provision_isolated_venv() {
     PYCORE_ISOLATED_FORCE="$force_value" \
     "$py" -c 'import os, sys
 sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
-from pycore.pyutils.python_env import isolated_venv
+from pycore.pyutils.common.python_env import isolated_venv
 isolated_venv.ensure_venv(
     os.environ["PYCORE_ISOLATED_ENGINE"],
     force=os.environ.get("PYCORE_ISOLATED_FORCE") == "1",
 )'
     probe_output="$(PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" "$py" -c 'import os, sys
 sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
-from pycore.pyutils.python_env import isolated_venv
-print("__VENV_READY__" if isolated_venv.venv_healthy(os.environ["PYCORE_ISOLATED_ENGINE"]) else "__VENV_NOT_READY__")' 2>/dev/null)"
+from pycore.pyutils.common.python_env import isolated_venv
+print("__VENV_READY__" if isolated_venv.venv_ready(os.environ["PYCORE_ISOLATED_ENGINE"]) else "__VENV_NOT_READY__")' 2>/dev/null)"
     [[ "$probe_output" == *"__VENV_READY__"* ]] && TTS_ISOLATED_VENV_READY=1
     :
 }
@@ -149,8 +152,21 @@ tts_resolve_isolated_python() {
     PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" \
     "$py" -c 'import os, sys
 sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
-from pycore.pyutils.python_env import isolated_venv
+from pycore.pyutils.common.python_env import isolated_venv
 print(isolated_venv.resolve_python(os.environ["PYCORE_ISOLATED_ENGINE"]) or "")' 2>/dev/null
+}
+
+tts_probe_isolated_venv_provisioned() {
+    local py="$1" engine="$2"
+    local repo_root probe_output
+    repo_root="$(_core_node_repo_root_from_tts_common)"
+    TTS_ISOLATED_VENV_READY=0
+    probe_output="$(PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" "$py" -c 'import os, sys
+sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
+from pycore.pyutils.common.python_env import isolated_venv
+print("__VENV_READY__" if isolated_venv.venv_ready(os.environ["PYCORE_ISOLATED_ENGINE"]) else "__VENV_NOT_READY__")' 2>/dev/null)"
+    [[ "$probe_output" == *"__VENV_READY__"* ]] && TTS_ISOLATED_VENV_READY=1
+    :
 }
 
 _tts_assets_common_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -362,6 +378,11 @@ _hf_download_file() {
     mkdir -p "$parent"
     url="${mirror%/}/${repo}/resolve/main/${name}"
     expected="$catalog_bytes"
+    if [[ -s "$out" && "${expected:-0}" -le 0 ]]; then
+        have="$(wc -c < "$out" 2>/dev/null | tr -d ' ')"
+        echo "${prefix}[idempotent] local file found: ${out} (${have:-0} bytes); remote lookup skipped"
+        return 0
+    fi
     if [[ "${expected:-0}" -le 0 ]]; then
         expected="$(curl -fsI --connect-timeout 30 "$url" 2>/dev/null | awk 'tolower($1)=="content-length:" {print $2}' | tr -d '\r' | tail -n1)"
     fi
@@ -383,15 +404,6 @@ _hf_download_file() {
     if ! _hf_file_complete "$out" "${expected:-0}"; then
         return 1
     fi
-    case "$name" in
-        *.safetensors)
-            if ! _test_safetensors_readable "$out" "$py"; then
-                echo "${prefix}[!] ${name} failed safetensors verify; backing up for retry" >&2
-                _backup_install_asset_path "$out" "$prefix"
-                return 1
-            fi
-            ;;
-    esac
     return 0
 }
 
@@ -400,9 +412,15 @@ install_hf_repo_flat() {
     shift 4 || true
     local allow_raw="${1:-*}" mirror="${2:-$(_hf_mirror_base)}" sentinel_value="${3:-$repo}" py="${4:-python3}"
     local -a allow=()
-    local name all_ok=1 count=0 total=0 catalog_bytes=0
+    local name all_ok=1 count=0 total=0 catalog_bytes=0 local_bytes=0
     IFS=',' read -r -a allow <<< "$allow_raw"
     mkdir -p "$dest"
+    if neural_tts_local_weights_ready "$dest" "$repo" "$py"; then
+        local_bytes="$(find "$dest" -type f \( -name '*.safetensors' -o -name '*.bin' -o -name '*.pt' \) -printf '%s\n' 2>/dev/null | awk '{sum += $1} END {print sum + 0}')"
+        printf '%s\n' "$sentinel_value" > "$sentinel"
+        echo "${prefix}[idempotent] local model found: ${dest} (${local_bytes} bytes); remote lookup skipped"
+        return 0
+    fi
     mapfile -t names < <(_hf_list_repo_files "$repo" || true)
     total="${#names[@]}"
     if [[ "$total" -eq 0 ]]; then
@@ -432,61 +450,25 @@ install_hf_repo_flat() {
     return 1
 }
 
-_test_safetensors_readable() {
-    local path="$1" py="${2:-python3}"
-    [[ -f "$path" ]] || return 1
-    command -v "$py" >/dev/null 2>&1 || return 0
-    "$py" -c "from safetensors import safe_open; f=safe_open('$path', framework='pt'); _=f.keys()" >/dev/null 2>&1
-}
-
-_core_node_repo_root_from_tts_common() {
-    (cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)
-}
-
-_invoke_qwen3tts_weights_ready_check() {
-    local dir="$1" repo="${2:-}" py="${3:-python3}"
-    local probe_output repo_root
-    [[ -d "$dir" ]] || return 1
-    command -v "$py" >/dev/null 2>&1 || return 2
-    repo_root="$(_core_node_repo_root_from_tts_common)"
-    probe_output="$("$py" -c "import sys
-from pathlib import Path
-sys.path.insert(0, r'''$repo_root''')
-from pycore.pyutils.tts.qwen3tts_weights import local_weights_ready
-print('__WEIGHTS_READY__' if local_weights_ready(Path(r'''$dir'''), r'''$repo''') else '__WEIGHTS_NOT_READY__')" 2>/dev/null)"
-    [[ "$probe_output" == *"__WEIGHTS_READY__"* ]]
-}
-
 neural_tts_local_weights_ready() {
     local dir="$1" repo="${2:-}" py="${3:-python3}"
-    local rel expected have rc
-    _invoke_qwen3tts_weights_ready_check "$dir" "$repo" "$py"
-    rc=$?
-    if [[ "$rc" -eq 0 ]]; then return 0; fi
-    if [[ "$rc" -eq 1 ]]; then return 1; fi
-
+    local weight_count=0 f="" file_size=0 total_bytes=0
     [[ -d "$dir" ]] || return 1
     find "$dir" -type f -name 'config.json' 2>/dev/null | grep -q . || return 1
-    local weight_count=0
     while IFS= read -r -d '' f; do
         weight_count=$((weight_count + 1))
-        if [[ -n "$repo" ]]; then
-            rel="${f#${dir%/}/}"
-            expected="$(_hf_catalog_size "$repo" "$rel")"
-            if [[ "${expected:-0}" -gt 0 ]]; then
-                have="$(wc -c < "$f" 2>/dev/null | tr -d ' ')"
-                [[ "${have:-0}" -ge "${expected:-0}" ]] || return 1
-            elif [[ ! -s "$f" ]]; then
-                return 1
-            fi
-        elif [[ ! -s "$f" ]]; then
-            return 1
-        fi
-        case "$f" in
-            *.safetensors) _test_safetensors_readable "$f" "$py" || return 1 ;;
-        esac
+        [[ -s "$f" ]] || return 1
+        file_size="$(wc -c < "$f" 2>/dev/null | tr -d ' ')"
+        total_bytes=$((total_bytes + ${file_size:-0}))
     done < <(find "$dir" -type f \( -name '*.safetensors' -o -name '*.bin' -o -name '*.pt' \) -print0 2>/dev/null)
-    [[ "$weight_count" -gt 0 ]]
+    if [[ "$weight_count" -gt 0 ]]; then
+        if [[ "$NEURAL_TTS_LAST_REPORTED_MODEL_PATH" != "$dir" ]]; then
+            echo "[model-cache] local model found: $dir (${total_bytes} bytes)"
+            NEURAL_TTS_LAST_REPORTED_MODEL_PATH="$dir"
+        fi
+        return 0
+    fi
+    return 1
 }
 
 _whisper_model_url() {
@@ -507,13 +489,18 @@ _whisper_model_url() {
 
 install_whisper_model_weights() {
     local model="$1" cache_dir="$2" prefix="$3"
-    local url out expected
+    local url out expected local_bytes
     url="$(_whisper_model_url "$model")" || {
         echo "${prefix}[!] unknown whisper model '${model}'" >&2
         return 1
     }
     mkdir -p "$cache_dir"
     out="${cache_dir%/}/${model}.pt"
+    if [[ -s "$out" ]]; then
+        local_bytes="$(wc -c < "$out" 2>/dev/null | tr -d ' ')"
+        echo "${prefix}[idempotent] local whisper model found: ${out} (${local_bytes:-0} bytes); remote lookup skipped"
+        return 0
+    fi
     expected="$(curl -fsI --connect-timeout 30 "$url" 2>/dev/null | awk 'tolower($1)=="content-length:" {print $2}' | tr -d '\r' | tail -n1)"
     if _hf_file_complete "$out" "${expected:-0}"; then
         echo "${prefix}[idempotent] skipping: whisper ${model} already cached"

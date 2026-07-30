@@ -13,7 +13,7 @@ from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
 )
-from pycore.pyutils.common.stt_base_provider import BaseSpeechRecognitionProvider
+from pycore.pyfoundations.speech_recognition_provider import BaseSpeechRecognitionProvider
 from pycore.pyutils.azure_speech.stt_provider import AzureSpeechRecognitionProvider
 
 
@@ -170,10 +170,7 @@ _SPEECH_RECOGNIZER_PROVIDER = SerializedSingletonProvider(
     "azure_speech.recognizer.provider",
     "SpeechRecognizerProvider",
 )
-
-
-def get_speech_recognizer() -> SpeechRecognizer:
-    return _SPEECH_RECOGNIZER_PROVIDER.get()
-
 SPEECH_RECOGNITION_AVAILABLE = True
-speech_recognizer = get_speech_recognizer()
+speech_recognizer = _SPEECH_RECOGNIZER_PROVIDER.get()
+
+__all__ = ['speech_recognizer']

@@ -9,7 +9,7 @@ use App\Providers\AppTablePrefixServiceProvider;
 /**
  * Extend {prefix}_source_sentences with the v3 chapter + cross-language
  * correspondence anchor columns (Books v3 unified model — see
- * poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md §3.3).
+ * poly_apps/pycore_laravel_wordnew_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md §3.3).
  *
  * source_sentences is language-independent: one row per (source, grain, seq)
  * slot. The per-language text lives in {prefix}_sentences_{lang} keyed by the

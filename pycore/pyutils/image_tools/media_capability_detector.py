@@ -67,7 +67,7 @@ class MediaCapabilityDetector:
     def _print(self, *args, **kwargs):
         """Print if verbose mode enabled"""
         if self.verbose:
-            print(*args, **kwargs)
+            ColorPrint.plain(*args, **kwargs)
 
     def _load_from_cache(self, cached: Dict):
         """Load state from ENCYCLOPEDIA cache"""

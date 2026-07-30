@@ -29,10 +29,11 @@ from typing import Dict, Callable, Optional, Any
 # Core imports
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.tasks import TaskState
-from pycore.pyutils.common.tasks import get_global_task_queue
+from pycore.pyfoundations.tasks import TaskState
+from pycore.pyfoundations.tasks import get_global_task_queue
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.pythreadpool.pool import GlobalThreadPool, get_global_thread_pool, ThreadStatus
+from pycore.pythreadpool import global_thread_pool
+from pycore.pythreadpool.pool import GlobalThreadPool, ThreadStatus
 
 
 _CALLBACKS_SIGNAL = 'heartbeat.callbacks'
@@ -222,7 +223,7 @@ class HeartbeatPusherThread(threading.Thread):
     @property
     def _thread_pool(self):
         config = THREAD_BUS.get_signal(self._config_signal, {}) or {}
-        return config.get("thread_pool") or get_global_thread_pool()
+        return config.get("thread_pool") or global_thread_pool
 
     def register_callback(
         self,
@@ -523,7 +524,7 @@ class HeartbeatSystem:
         THREAD_BUS.signal(self._running_signal, False)
 
         self._task_queue = get_global_task_queue()
-        self._thread_pool = get_global_thread_pool()
+        self._thread_pool = global_thread_pool
 
         self._heartbeat_pusher: Optional[HeartbeatPusherThread] = None
 
@@ -575,9 +576,8 @@ class HeartbeatSystem:
 
         ColorPrint.blue("[HeartbeatSystem] Stopped")
 
-    @serialized_method
     def is_running(self) -> bool:
-        """Check if system is running"""
+        """Read the published runtime state without entering the owner queue."""
         return bool(THREAD_BUS.get_signal(self._running_signal, False)) and (
             self._heartbeat_pusher is not None and
             self._heartbeat_pusher.is_running()
@@ -625,16 +625,14 @@ class HeartbeatSystem:
             return self._heartbeat_pusher.disable_callback(name)
         return False
 
-    @serialized_method
     def is_callback_enabled(self, name: str) -> bool:
-        """Return live enabled flag for a registered callback."""
+        """Read a callback flag from the immutable THREAD_BUS snapshot."""
         if self._heartbeat_pusher:
             return self._heartbeat_pusher.is_callback_enabled(name)
         return False
 
-    @serialized_method
     def get_stats(self) -> dict:
-        """Get comprehensive system statistics"""
+        """Get a read-only snapshot without entering the state-owner queue."""
         stats = {
             'running': bool(THREAD_BUS.get_signal(self._running_signal, False)),
             'config': self._config.copy(),
@@ -647,9 +645,8 @@ class HeartbeatSystem:
 
         return stats
 
-    @serialized_method
     def get_total_ticks(self) -> int:
-        """Get total tick count from heartbeat"""
+        """Get total tick count from the published heartbeat snapshot."""
         if self._heartbeat_pusher:
             return int(self._heartbeat_pusher.get_stats().get('total_ticks', 0))
         return 0
@@ -658,9 +655,8 @@ class HeartbeatSystem:
         """Get current timestamp"""
         return time.time()
 
-    @serialized_method
     def get_uptime(self) -> float:
-        """Get heartbeat system uptime in seconds"""
+        """Get uptime from the published heartbeat snapshot."""
         if not self._heartbeat_pusher:
             return 0.0
         return float(self._heartbeat_pusher.get_stats().get('uptime', 0.0))
@@ -670,15 +666,7 @@ class HeartbeatSystem:
 # Global Instance and Helper Functions
 # ============================================================
 
-_heartbeat_system = HeartbeatSystem()
-def get_heartbeat_system() -> HeartbeatSystem:
-    """
-    Get heartbeat system singleton
-
-    Returns:
-        HeartbeatSystem instance
-    """
-    return _heartbeat_system
+heartbeat_system = HeartbeatSystem()
 
 
 def initialize_heartbeat_system() -> HeartbeatSystem:
@@ -690,7 +678,7 @@ def initialize_heartbeat_system() -> HeartbeatSystem:
     Returns:
         HeartbeatSystem instance
     """
-    system = get_heartbeat_system()
+    system = heartbeat_system
 
     ColorPrint.blue("[Heartbeat] Initialized")
     ColorPrint.blue("[Heartbeat] Use system.start() to begin operation")
@@ -703,6 +691,6 @@ __all__ = [
     'HeartbeatPusher',
     'HeartbeatPusherThread',
     'HeartbeatSystem',
-    'get_heartbeat_system',
+    'heartbeat_system',
     'initialize_heartbeat_system'
 ]

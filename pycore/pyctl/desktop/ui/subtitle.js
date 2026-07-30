@@ -15,28 +15,17 @@ const speedSelect = document.getElementById('speedSelect');
 const volumeSlider = document.getElementById('volumeSlider');
 const subtitleText = document.getElementById('subtitleText');
 
-// ========== RPC Client ==========
-const rpcClient = new FastAPIWsRpcClient('ws://localhost:59000/rpc/ws', {
-    debug: true,
-    reconnect: true,
-    reconnectInterval: 3000,
-    maxReconnectAttempts: 999
-});
-
 // ========== Initialization ==========
 async function init() {
     try {
-        await rpcClient.connect();
-        console.log('[RPC] Connected to WebSocket');
-        updateStatus(true);
-
-        // Fetch initial queue
         await fetchQueue();
+        console.log('[HTTP] Pycore is reachable');
+        updateStatus(true);
 
         // Start auto-refresh every 3 seconds
         setInterval(fetchQueue, 3000);
     } catch (error) {
-        console.error('[RPC] Connection failed:', error);
+        console.error('[HTTP] Connection failed:', error);
         updateStatus(false);
     }
 }
@@ -256,18 +245,6 @@ function updateStatus(connected) {
         statusText.textContent = 'Disconnected';
     }
 }
-
-// ========== RPC Connection Events ==========
-rpcClient.on('connection', () => {
-    console.log('[RPC] WebSocket connected');
-    updateStatus(true);
-    fetchQueue();
-});
-
-rpcClient.on('disconnect', () => {
-    console.log('[RPC] WebSocket disconnected');
-    updateStatus(false);
-});
 
 // ========== Start ==========
 init();

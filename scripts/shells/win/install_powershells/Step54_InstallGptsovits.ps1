@@ -41,7 +41,7 @@
     Perform clone, isolated-venv build, and model download. Also enabled by
     GPTSOVITS_INSTALL=1 (explicit opt-in only; NOT the default NEURAL_TTS_INSTALL batch).
 .PARAMETER Force
-    Re-run the model snapshot even if the sentinel says it is complete.
+    Re-run dependency provisioning; complete local model files remain unchanged.
 #>
 [CmdletBinding()]
 param(
@@ -121,7 +121,7 @@ if (Test-ServerUp -Url $serverUrl) {
 }
 
 if ($resolvedPython) {
-    $gptsovitsVenvReady = Test-IsolatedTtsVenvHealthy -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'gptsovits'
+    $gptsovitsVenvReady = Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'gptsovits'
 }
 
 # Fully installed already (repo + models + isolated venv) -> instant idempotent exit.

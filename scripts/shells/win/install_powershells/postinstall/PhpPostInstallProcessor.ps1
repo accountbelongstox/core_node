@@ -122,16 +122,17 @@ function Configure-PhpIniForPackage {
         [string]$LogPrefix = "[PHP-Config]"
     )
 
+    $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+    $phpConfigScriptPath = Join-Path $parentDir "1_phpconfig\configure_php_ini.php"
+    $phpIniDepsFixPath = Join-Path $parentDir "1_phpconfig\fix_php_ini_deps.php"
+    $phpErrorLogPath = Join-Path $PhpDir "error.log"
+
     Write-Host "$LogPrefix Configuring PHP using configure_php_ini.php..." -ForegroundColor Cyan
 
     if (-not (Test-Path $PhpExePath)) {
         Write-Host "$LogPrefix Error: PHP executable not found: $PhpExePath" -ForegroundColor Red
         return
     }
-
-    $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-    $phpConfigScriptPath = Join-Path $parentDir "1_phpconfig\configure_php_ini.php"
-    $phpIniDepsFixPath = Join-Path $parentDir "1_phpconfig\fix_php_ini_deps.php"
 
     if (-not (Test-Path $phpConfigScriptPath)) {
         Write-Host "$LogPrefix Error: configure_php_ini.php not found at $phpConfigScriptPath" -ForegroundColor Red
@@ -140,7 +141,7 @@ function Configure-PhpIniForPackage {
 
     try {
         Write-Host "$LogPrefix Running configure_php_ini.php..." -ForegroundColor Yellow
-        & $PhpExePath $phpConfigScriptPath $PhpExePath
+        & $PhpExePath $phpConfigScriptPath $PhpExePath $phpErrorLogPath
         Write-Host "$LogPrefix PHP configuration completed" -ForegroundColor Green
     }
     catch {

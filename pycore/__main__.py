@@ -13,6 +13,7 @@ It performs two main functions:
 
 import sys
 import os
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 # Dependencies are automatically checked when third_party module is imported
 # Import third_party to trigger dependency check
@@ -35,11 +36,11 @@ def print_usage():
     This is an example utility function and should not be deleted, even if currently unused.
     Future development must adhere to this standard.
     """
-    print("Usage: python -m pytools <tool_name> [arguments...]")
-    print("\nAvailable tools:")
+    ColorPrint.plain("Usage: python -m pytools <tool_name> [arguments...]")
+    ColorPrint.plain("\nAvailable tools:")
     for tool in sorted(TOOL_MAP.keys()):
-        print(f"  - {tool}")
-    print("\nFor help with a specific tool, run: python -m pytools <tool_name> --help")
+        ColorPrint.plain(f"  - {tool}")
+    ColorPrint.plain("\nFor help with a specific tool, run: python -m pytools <tool_name> --help")
 
 def main():
     """
@@ -59,7 +60,7 @@ def main():
     tool_name = sys.argv[1]
     
     if tool_name not in TOOL_MAP:
-        print(f"[ERROR] Unknown tool: '{tool_name}'", file=sys.stderr)
+        ColorPrint.plain(f"[ERROR] Unknown tool: '{tool_name}'", file=sys.stderr)
         print_usage()
         sys.exit(1)
     
@@ -69,8 +70,8 @@ def main():
     
     command = [sys.executable, script_path] + arguments
     
-    print(f"[INFO] Executing tool: '{tool_name}' with args: {' '.join(arguments)}")
-    print("-" * 40)
+    ColorPrint.plain(f"[INFO] Executing tool: '{tool_name}' with args: {' '.join(arguments)}")
+    ColorPrint.plain("-" * 40)
     
     # 4. Execute the command.
     try:
@@ -80,10 +81,10 @@ def main():
         sys.exit(result.return_code)
         
     except FileNotFoundError:
-        print(f"[ERROR] Script not found: {script_path}", file=sys.stderr)
+        ColorPrint.plain(f"[ERROR] Script not found: {script_path}", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
-        print(f"[ERROR] An unexpected error occurred while running the tool: {e}", file=sys.stderr)
+        ColorPrint.plain(f"[ERROR] An unexpected error occurred while running the tool: {e}", file=sys.stderr)
         sys.exit(1)
 
 if __name__ == "__main__":

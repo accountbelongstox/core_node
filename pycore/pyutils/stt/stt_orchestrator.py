@@ -14,22 +14,19 @@ Priority (highest first), local-first like TTS:
 
 Override order with env ``STT_ENGINE_PRIORITY`` (e.g. ``whisper->vosk``).
 
-The live test (``stt_test``) synthesizes a known phrase with the TTS orchestrator
-(offline-first) and feeds the clip back through the chosen STT engine, returning
-{success, engine, text, latency_ms, error} — the round-trip is the test.
+Cross-domain round-trip testing lives in ``pycore.pyctl.stt.test_service``;
+this module owns STT availability, recognition, and model lifecycle only.
 """
 
 import contextlib
 import importlib.metadata
 import importlib.util
 import os
-import tempfile
 import time
 import wave
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.managed_service import CategorySettings, ServiceSpec, managed_services
 import pycore.pyutils.common.model_load_status as model_load_status
@@ -38,7 +35,7 @@ from pycore.pyfoundations.serialized_worker import (
     call_serialized,
 )
 from pycore.pyfoundations.third_party.api import get_third_package_vosk, get_third_package_whisper
-from pycore.pyutils.common.api_secrets import azure_speech_key, azure_speech_region
+from pycore.pyfoundations.api_secrets import azure_speech_key, azure_speech_region
 from pycore.pyutils.common.model_tiers import (
     runtime_faster_whisper_compute_type,
     runtime_faster_whisper_device,
@@ -48,20 +45,14 @@ from pycore.pyutils.common.model_tiers import (
 
 import json as _json
 
-from pycore.pyutils.azure_speech.quota_state import is_stt_quota_blocked
+from pycore.pyutils.common.azure_speech_quota_state import is_stt_quota_blocked
 from pycore.pyfoundations.system_paths import APP_CACHE_DIR
-import pycore.pyutils.tts.sherpa_engine as sherpa_engine
-from pycore.pyfoundations.third_party.api import get_third_package_sherpa_onnx
-from pycore.pyutils.tts.tts_orchestrator import synthesize as tts_synth
-
-import array
 
 
 
 
 _DEFAULT_PRIORITY = ("faster-whisper", "whisper", "vosk", "azure")
 _KNOWN_ENGINES = _DEFAULT_PRIORITY
-_SAMPLE_PHRASE = "the quick brown fox jumps over the lazy dog"
 _ENGINE_NOTES = {
     "faster-whisper": "Faster-Whisper (CTranslate2; GPU large-v3 / CPU medium)",
     "whisper": "OpenAI Whisper (offline; GPU large-v3 / CPU medium)",
@@ -308,10 +299,6 @@ def _transcribe_azure(audio_path: Path, language: Optional[str]) -> str:
     return ""
 
 
-# Engines that decode compressed audio (mp3) themselves; the rest need a PCM wav.
-_NEEDS_WAV = {"vosk", "azure"}
-
-
 def _model_load_ctx(engine: str):
     """Report FIRST-load progress for a class-B in-process STT model to the shared
     model-load registry (surfaced at /api/local/engines/load-status). azure is an
@@ -356,93 +343,6 @@ def transcribe(engine: str, audio_path: Path, language: Optional[str] = None,
         model,
         timeout=900.0,
     )
-
-
-def _make_sample_clip(language: str, want_wav: bool, phrase: str = _SAMPLE_PHRASE) -> Optional[Path]:
-    """Synthesize the known phrase with the TTS orchestrator (offline-first) so the
-    STT test has audio to recognize. Returns an mp3, or a 16k PCM wav when an engine
-    needs one (vosk/azure) — converted from a local sherpa render via stdlib wave."""
-    tmp_dir = Path(tempfile.gettempdir()) / "pycore_stt_test"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    if want_wav:
-        # Render raw samples with the offline sherpa engine and write a PCM wav
-        # directly — no ffmpeg, and the exact format vosk/azure expect.
-        try:
-            if not sherpa_engine.available() or get_third_package_sherpa_onnx() is None:
-                return None
-            tts = sherpa_engine._get_tts()  # noqa: SLF001 — reuse the loaded model
-            if tts is None:
-                return None
-            audio = tts.generate(phrase, 0, speed=1.0)
-            samples = getattr(audio, "samples", None)
-            sample_rate = int(getattr(audio, "sample_rate", 22050))
-            if samples is None:
-                return None
-            ints = array.array("h", (max(-32768, min(32767, int(s * 32767))) for s in samples))
-            wav_path = tmp_dir / "sample.wav"
-            with wave.open(str(wav_path), "wb") as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(sample_rate)
-                wf.writeframes(ints.tobytes())
-            return wav_path
-        except Exception as e:  # noqa: BLE001
-            ColorPrint.yellow(f"[stt] could not build wav sample: {e}")
-            return None
-    # mp3 path: any TTS engine works; whisper/faster-whisper decode mp3 themselves.
-    try:
-        mp3_path = tmp_dir / "sample.mp3"
-        res = tts_synth(phrase, language, mp3_path)
-        if res.get("success") and mp3_path.exists() and mp3_path.stat().st_size > 0:
-            return mp3_path
-    except Exception as e:  # noqa: BLE001
-        ColorPrint.yellow(f"[stt] could not build mp3 sample: {e}")
-    return None
-
-
-def stt_test(engine: Optional[str] = None, language: str = "en",
-             text: Optional[str] = None,
-             # Per-engine extra params.
-             model: Optional[str] = None,
-             **extra_params: Any) -> Dict[str, Any]:
-    """Live round-trip test: synth ``text`` (or the default sample phrase),
-    recognize it with ``engine`` (or the best available), return
-    {success, engine, text, latency_ms, error}. The synthesized phrase is
-    echoed back as ``phrase`` so the caller knows what was recognized.
-
-    Per-engine params:
-    - model (faster-whisper / whisper): override the default model name."""
-    name = engine or best_engine()
-    if not name:
-        return {"success": False, "engine": None, "text": "", "latency_ms": 0,
-                "route": "local.stt.test", "error": "no STT engine available"}
-    if not engine_available(name):
-        return {"success": False, "engine": name, "text": "", "latency_ms": 0,
-                "route": "local.stt.test", "error": f"{name} unavailable"}
-
-    phrase = (text or "").strip() or _SAMPLE_PHRASE
-    sample = _make_sample_clip(language, want_wav=(name in _NEEDS_WAV), phrase=phrase)
-    if sample is None:
-        return {"success": False, "engine": name, "text": "", "latency_ms": 0,
-                "route": "local.stt.test",
-                "error": "could not produce a sample clip (offline TTS needed to generate test audio)"}
-
-    t0 = time.monotonic()
-    try:
-        recognized = transcribe(name, sample, language, model=model)
-    except Exception as e:  # noqa: BLE001
-        return {"success": False, "engine": name, "text": "", "latency_ms": round((time.monotonic() - t0) * 1000),
-                "route": "local.stt.test",
-                "phrase": phrase, "path": str(sample), "language": language, "error": f"{e}"}
-    latency = round((time.monotonic() - t0) * 1000)
-    ok = bool((recognized or "").strip())
-    result: Dict[str, Any] = {"success": ok, "engine": name, "text": recognized, "latency_ms": latency,
-            "route": "local.stt.test",
-            "phrase": phrase, "path": str(sample), "language": language,
-            "error": None if ok else "engine returned empty text"}
-    if model:
-        result["model"] = model
-    return result
 
 
 def _is_model_loaded(engine: str) -> bool:
@@ -502,7 +402,6 @@ __all__ = [
     "best_engine",
     "stt_status",
     "transcribe",
-    "stt_test",
     "is_model_loaded",
     "unload_model",
 ]

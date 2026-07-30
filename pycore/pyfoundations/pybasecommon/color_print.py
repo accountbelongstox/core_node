@@ -131,7 +131,7 @@ class ColorPrint:
     
     # ---- Live log streaming via the callback registry (observer pattern) ----
     # This base print library stays DECOUPLED: it never imports rpc_v2 (or any
-    # other pycore folder). Live WS streaming is wired by rpc_v2 REGISTERING a
+    # other pycore folder). Live HTTP event delivery is wired by rpc_v2 registering a
     # callback here (rpc_v2 imports ColorPrint, never the reverse — keeps this
     # base lib decoupled, no circular import). Every color method prints to the
     # terminal AND fans out to all registered callbacks via
@@ -216,6 +216,17 @@ class ColorPrint:
     def _log_to_callback(message, color_type="white", log_level=None):
         """Fan out the message to all registered callbacks (observer pattern)."""
         _color_print_callback.notify(message, color_type, log_level)
+
+    @staticmethod
+    def plain(*values, sep=' ', end='\n', file=None, flush=False):
+        """Write uncolored output through the shared ColorPrint pipeline."""
+        separator = ' ' if sep is None else sep
+        line_end = '\n' if end is None else end
+        message = separator.join(str(value) for value in values)
+        output_stream = ColorPrint._output_stream if file is None else file
+        if not ColorPrint._mcp_mode:
+            print(message, end=line_end, file=output_stream, flush=flush)
+        ColorPrint._log_to_callback(message, "white", "INFO")
 
     @staticmethod
     def stream(message, color="gray", log_level="DEBUG"):
@@ -409,7 +420,7 @@ class ColorPrint:
         """Print a separator line"""
         if length is None:
             length = min(columns, 80)
-        print(char * length, file=ColorPrint._output_stream)
+        ColorPrint.plain(char * length)
 
     @staticmethod
     def print_header(title, char='=', length=None):
@@ -443,7 +454,15 @@ class ColorPrint:
         else:
             color = ColorPrint.BLUE
 
-        print(f"{color}[{status.upper()}]{ColorPrint.RESET} {message}", file=ColorPrint._output_stream)
+        text = f"[{status.upper()}] {message}"
+        color_type = {
+            ColorPrint.GREEN: "green",
+            ColorPrint.RED: "red",
+            ColorPrint.YELLOW: "yellow",
+            ColorPrint.BLUE: "blue",
+        }.get(color, "white")
+        ColorPrint._write(text, color)
+        ColorPrint._log_to_callback(text, color_type, status.upper())
 
     @staticmethod
     def print_progress(current, total, message="", bar_length=30):
@@ -456,11 +475,11 @@ class ColorPrint:
         filled_length = int(bar_length * current // total) if total > 0 else 0
         bar = '█' * filled_length + '-' * (bar_length - filled_length)
 
-        progress_text = f"\r{ColorPrint.BLUE}[{bar}]{ColorPrint.RESET} {percentage:.1f}% {message}"
-        print(progress_text, end='', flush=True, file=ColorPrint._output_stream)
+        progress_text = f"[{bar}] {percentage:.1f}% {message}"
+        ColorPrint.refresh_line(progress_text, "blue")
 
         if current >= total:
-            print(file=ColorPrint._output_stream)  # New line when complete
+            ColorPrint.plain("")
 
     @staticmethod
     def print_table_row(columns_data, widths=None, separator='|'):
@@ -473,7 +492,7 @@ class ColorPrint:
             width = widths[i] if i < len(widths) else 15
             row += f" {str(data):<{width}} {separator}"
 
-        print(row, file=ColorPrint._output_stream)
+        ColorPrint.plain(row)
 
     @staticmethod
     def print_table_header(headers, widths=None, separator='|'):
@@ -487,7 +506,7 @@ class ColorPrint:
         separator_line = separator
         for width in widths:
             separator_line += '-' * (width + 2) + separator
-        print(separator_line, file=ColorPrint._output_stream)
+        ColorPrint.plain(separator_line)
 
     @staticmethod
     def _hash_message(message):

@@ -5,23 +5,7 @@ Tracks which tables are loaded and provides access to them
 """
 
 from typing import Dict, Type, Optional, List
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint as _OriginalColorPrint
-
-# Suppress ColorPrint output in MCP mode
-class ColorPrint:
-    _is_mcp = _OriginalColorPrint.is_mcp_mode()
-    @staticmethod
-    def blue(msg):
-        if not ColorPrint._is_mcp: _OriginalColorPrint.blue(msg)
-    @staticmethod
-    def red(msg):
-        if not ColorPrint._is_mcp: _OriginalColorPrint.red(msg)
-    @staticmethod
-    def green(msg):
-        if not ColorPrint._is_mcp: _OriginalColorPrint.green(msg)
-    @staticmethod
-    def yellow(msg):
-        if not ColorPrint._is_mcp: _OriginalColorPrint.yellow(msg)
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class TableRegistry:

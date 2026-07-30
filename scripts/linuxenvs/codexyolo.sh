@@ -12,19 +12,30 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 upgrade_choice=""
-feature_list_output=""
-feature_line=""
-feature_name=""
-feature_line_regex='^([^[:space:]]+)[[:space:]]{2,}(stable|experimental|under[[:space:]]development)[[:space:]]{2,}(true|false)[[:space:]]*$'
+script_dir_path=""
+scripts_dir_path=""
+core_node_path=""
+mcp_chrome_path=""
+mcp_chrome_node_modules_path=""
+mcp_chrome_shared_artifact_path=""
+mcp_chrome_native_artifact_path=""
+mcp_chrome_extension_manifest_path=""
+mcp_chrome_register_script_path=""
+mcp_chrome_url="http://127.0.0.1:12306/mcp"
+mcp_chrome_needs_build=0
 model="gpt-5.6-sol"
 reasoning_effort="high"
-rollout_budget_limit_tokens="${CODEX_ROLLOUT_BUDGET_TOKENS:-100000}"
-enabled_features=()
 codex_args=()
 
-if [[ ! "$rollout_budget_limit_tokens" =~ ^[1-9][0-9]*$ ]]; then
-    rollout_budget_limit_tokens="100000"
-fi
+script_dir_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+scripts_dir_path="$(dirname "$script_dir_path")"
+core_node_path="$(dirname "$scripts_dir_path")"
+mcp_chrome_path="$core_node_path/apps/mcp-chrome"
+mcp_chrome_node_modules_path="$mcp_chrome_path/node_modules"
+mcp_chrome_shared_artifact_path="$mcp_chrome_path/packages/shared/dist/index.js"
+mcp_chrome_native_artifact_path="$mcp_chrome_path/app/native-server/dist/index.js"
+mcp_chrome_extension_manifest_path="$mcp_chrome_path/.output/build_extension/manifest.json"
+mcp_chrome_register_script_path="$mcp_chrome_path/scripts/register-local-dev.cjs"
 
 codex_args=(
     --yolo
@@ -35,7 +46,6 @@ codex_args=(
     --config "plan_mode_reasoning_effort=\"$reasoning_effort\""
     --config "agents.default_subagent_model=\"$model\""
     --config "agents.default_subagent_reasoning_effort=\"$reasoning_effort\""
-    --config "features.rollout_budget.limit_tokens=$rollout_budget_limit_tokens"
 )
 
 echo ""
@@ -43,7 +53,7 @@ echo "============================================================"
 echo "codexyolo.sh"
 echo "============================================================"
 
-read -r -p "Upgrade Codex CLI via 'pnpm add --global @openai/codex@latest'? [y/N]: " upgrade_choice || upgrade_choice=""
+read -r -p "Upgrade Codex CLI via 'pnpm add --global @openai/codex@latest'? [N/y]: " upgrade_choice || upgrade_choice=""
 if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
     if ! command -v pnpm >/dev/null 2>&1; then
         echo "[WARN] pnpm is unavailable; keeping the installed Codex CLI."
@@ -54,39 +64,56 @@ if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
         echo "[INFO] Codex CLI upgrade command completed."
     fi
 else
-    echo "[INFO] Codex CLI upgrade skipped (default N)."
+    echo "[INFO] Codex CLI upgrade skipped."
 fi
 
 if ! command -v codex >/dev/null 2>&1; then
     echo "[ERROR] codex is not available on PATH."
+    exit 1
 fi
 
-feature_list_output="$(codex features list 2>/dev/null)"
-if [ -n "$feature_list_output" ]; then
-    while IFS= read -r feature_line; do
-        if [[ "$feature_line" =~ $feature_line_regex ]]; then
-            feature_name="${BASH_REMATCH[1]}"
-            case "$feature_name" in
-                code_mode_only)
-                    continue
-                    ;;
-                shell_zsh_fork|unified_exec_zsh_fork)
-                    if ! command -v zsh >/dev/null 2>&1; then
-                        continue
-                    fi
-                    ;;
-            esac
-            enabled_features+=("$feature_name")
-            codex_args+=(--enable "$feature_name")
-        fi
-    done <<< "$feature_list_output"
-else
-    echo "[WARN] Feature discovery is unavailable; upgrade Codex to enable all active feature flags."
+if [ ! -f "$mcp_chrome_shared_artifact_path" ] ||
+    [ ! -f "$mcp_chrome_native_artifact_path" ] ||
+    [ ! -f "$mcp_chrome_extension_manifest_path" ]; then
+    mcp_chrome_needs_build=1
 fi
+
+if ! command -v node >/dev/null 2>&1; then
+    echo "[ERROR] node is required to install Chrome MCP."
+    exit 1
+fi
+if { [ ! -d "$mcp_chrome_node_modules_path" ] || [ "$mcp_chrome_needs_build" -eq 1 ]; } &&
+    ! command -v pnpm >/dev/null 2>&1; then
+    echo "[ERROR] pnpm is required to install Chrome MCP."
+    exit 1
+fi
+
+echo "[INFO] Ensuring Chrome MCP is installed..."
+if [ ! -d "$mcp_chrome_node_modules_path" ]; then
+    echo "[INFO] Installing Chrome MCP dependencies..."
+    (
+        cd "$mcp_chrome_path"
+        pnpm install
+    )
+fi
+if [ "$mcp_chrome_needs_build" -eq 1 ]; then
+    echo "[INFO] Building missing Chrome MCP artifacts..."
+    (
+        cd "$mcp_chrome_path"
+        pnpm run build:all
+    )
+fi
+(
+    cd "$mcp_chrome_path"
+    node "$mcp_chrome_register_script_path"
+)
+
+codex mcp add chrome --url "$mcp_chrome_url"
+echo "[INFO] Chrome MCP registered in Codex."
 
 echo "[INFO] Model: $model ($reasoning_effort)"
 echo "[INFO] YOLO: ON; live search: ON; hook trust bypass: ON"
-echo "[INFO] Active features enabled: ${#enabled_features[@]}; extra args: $#"
+echo "[INFO] Codex feature defaults preserved; extra args: $#"
 echo "============================================================"
 echo ""
 

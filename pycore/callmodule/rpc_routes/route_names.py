@@ -1,10 +1,12 @@
-"""Central registry for native pycore RPC v2 route names."""
+"""Central registry for callmodule RPC v2 HTTP protocol constants."""
 
-PYCORE_ROUTER_INVOKE = "pycore.router.invoke"
-PYCORE_ROUTER_RESOURCE = "pycore.router.resource"
 THREAD_BUS_TRIGGER = "thread_bus.trigger_event"
+UI_OPERATION_SNAPSHOT = "ui.operation.snapshot"
+UI_OPERATION_EVENTS = "ui.operation.events"
+UI_OPERATION_CANCEL = "ui.operation.cancel"
 COREBOOK_AUTOFLOW = "corebook.autoflow"
 VIDEO_EXTRACT_SYNC_SOURCE = "video_extract.sync_source"
+VIDEO_EXTRACT_FILL_LANGUAGES = "video_extract.fill_languages"
 VIDEO_EXTRACT_BACKEND_STATUS = "video_extract.backend_status"
 VIDEO_EXTRACT_BACKEND_MEDIA_LIST = "video_extract.backend_media_list"
 VIDEO_EXTRACT_BACKEND_MEDIA_DETAIL = "video_extract.backend_media_detail"
@@ -16,23 +18,10 @@ LARAVEL_API_ADD = "laravel_api.add"
 LARAVEL_API_REMOVE = "laravel_api.remove"
 LARAVEL_API_SELECT = "laravel_api.select"
 LARAVEL_API_PROBE = "laravel_api.probe"
+LARAVEL_API_BUS_TIMEOUT = 20.0
 
-# Native pycore-manager operations. These names are the transport contract;
-# legacy HTTP paths are deliberately not part of the UI protocol.
-UI_VOICE_QUEUE = "ui.voice.queue"
-UI_VOICE_QUEUE_CLEAR = "ui.voice.queue.clear"
-UI_VOICE_QUEUE_TOGGLE = "ui.voice.queue.toggle"
-UI_VOICE_QUEUE_SET_INDEX = "ui.voice.queue.set_index"
-UI_VOICE_QUEUE_INCREMENT = "ui.voice.queue.increment_play_count"
-UI_VOICE_QUEUE_REMOVE = "ui.voice.queue.remove"
-UI_VOICE_ADD_TEXT = "ui.voice.add_text"
-UI_VOICE_CLIPBOARD_STATUS = "ui.voice.clipboard.status"
-UI_VOICE_CLIPBOARD_START = "ui.voice.clipboard.start"
-UI_VOICE_CLIPBOARD_STOP = "ui.voice.clipboard.stop"
-UI_VOICE_SCREENSHOT_STATUS = "ui.voice.screenshot.status"
-UI_VOICE_SCREENSHOT_START = "ui.voice.screenshot.start"
-UI_VOICE_SCREENSHOT_STOP = "ui.voice.screenshot.stop"
-UI_VOICE_SCREENSHOT_LANGUAGE = "ui.voice.screenshot.language"
+# Native pycore-manager HTTP controllers. Each name is exposed below
+# /api/controller/ by the shared RPC v2 HTTP server.
 UI_BOOKS_SUPPORTED_FORMATS = "ui.books.supported_formats"
 UI_BOOKS_SCAN = "ui.books.scan"
 UI_BOOKS_ANALYZE = "ui.books.analyze"
@@ -49,45 +38,7 @@ UI_COREBOOK_DELETE = "ui.corebook.delete"
 UI_COREBOOK_ADD_LANGUAGE = "ui.corebook.add_language"
 UI_COREBOOK_FILL_AUDIO = "ui.corebook.fill_audio"
 UI_COREBOOK_SUBMIT = "ui.corebook.submit"
-UI_AI_CATALOG = "ui.ai.catalog"
-UI_AI_PROBE = "ui.ai.probe"
-UI_AI_BALANCE = "ui.ai.balance"
-UI_AI_RATE_LIMITS = "ui.ai.rate_limits"
-UI_AI_USAGE = "ui.ai.usage"
-UI_USER_DATA = "ui.user_data"
-UI_VIDEO_EXTRACT = "ui.video_extract"
-UI_AI_KEYS = "ui.ai.keys"
-UI_AI_IMAGE = "ui.ai.image"
-UI_SPEECH_HISTORY = "ui.speech.history"
-UI_RUNTIME = "ui.runtime"
-UI_DICTIONARY = "ui.dictionary"
-UI_TRANSLATION_QUEUE = "ui.translation_queue"
-UI_TTS = "ui.tts"
-UI_LLM = "ui.llm"
 UI_PING = "ui.ping"
-UI_VOCABULARY = "ui.vocabulary"
-UI_IMAGE_SEARCH = "ui.image_search"
-UI_VERSION = "ui.version"
-UI_WORKERS = "ui.workers"
-UI_ASSIST = "ui.assist"
-UI_MANAGEMENT = "ui.management"
-UI_SYSTEM = "ui.system"
-CODE_SYNC_ROUTES = {
-    "ui.code_sync.peers": "peers",
-    "ui.code_sync.peer.add": "add_peer",
-    "ui.code_sync.peer.remove": "remove_peer",
-    "ui.code_sync.peer.update": "update_peer",
-    "ui.code_sync.role": "role",
-    "ui.code_sync.distribute": "distribute",
-    "ui.code_sync.skip_update": "skip_update",
-    "ui.code_sync.discover": "discover",
-    "ui.code_sync.settings": "settings",
-    "ui.code_sync.settings.update": "settings_update",
-    "ui.code_sync.settings.reset": "settings_reset",
-    "ui.code_sync.logs": "logs",
-    "ui.code_sync.file_tree": "file_tree",
-    "ui.code_sync.peer_file_tree": "peer_file_tree",
-}
 LOCAL_AI_CHAT = "local.ai.chat"
 LOCAL_AI_STATUS = "local.ai.status"
 LOCAL_AI_IMAGE_TEST = "local.ai.image.test"
@@ -122,6 +73,7 @@ UI_CODE_SYNC_SET_CLIENT_MODE = "ui.code_sync.set_client_mode"
 UI_CODE_SYNC_STOP_SYNC = "ui.code_sync.stop_sync"
 UI_CODE_SYNC_DOWNLOAD_FILE = "ui.code_sync.download_file"
 UI_CODE_SYNC_TOGGLE_BACKUP = "ui.code_sync.toggle_backup"
+CODE_SYNC_PUSH_FRAME = "code_sync.push_frame"
 UI_NOTEBOOKLM_STT_GET_STATUS = "ui.notebooklm_stt.get_status"
 UI_NOTEBOOKLM_STT_UPDATE_SETTINGS = "ui.notebooklm_stt.update_settings"
 UI_NOTEBOOKLM_STT_CONVERT_ALL = "ui.notebooklm_stt.convert_all"
@@ -154,12 +106,6 @@ UI_VOICE_SUBTITLE_STOP_SCREENSHOT_MONITOR = "ui.voice_subtitle.stop_screenshot_m
 UI_VOICE_SUBTITLE_GET_SCREENSHOT_MONITOR_STATUS = "ui.voice_subtitle.get_screenshot_monitor_status"
 UI_VOICE_SUBTITLE_GET_TASK_STATUS = "ui.voice_subtitle.get_task_status"
 UI_VOICE_SUBTITLE_GET_ALL_TASKS = "ui.voice_subtitle.get_all_tasks"
-UI_WEB_HOMEPAGE = "ui.web.homepage"
-UI_WEB_GET_API_INFO = "ui.web.get_api_info"
-UI_WEB_PING = "ui.web.ping"
-UI_WEB_GET_DESKTOP_UI = "ui.web.get_desktop_ui"
-UI_WEB_GET_SUBTITLE_UI = "ui.web.get_subtitle_ui"
-UI_WEB_GET_FAVICON = "ui.web.get_favicon"
 UI_AGENT_HISTORY_INDEX = "ui.agent_history.index"
 UI_AGENT_HISTORY_PROMPTS = "ui.agent_history.prompts"
 UI_AGENT_HISTORY_SESSION_DETAIL = "ui.agent_history.session_detail"
@@ -205,6 +151,8 @@ UI_AI_KEYS_DELETE_KEY = "ui.ai_keys.delete_key"
 UI_AI_PROBE_AI_CATALOG = "ui.ai_probe.ai_catalog"
 UI_AI_PROBE_PROBE = "ui.ai_probe.probe"
 UI_AI_PROBE_BALANCE = "ui.ai_probe.balance"
+UI_AI_PROBE_RATE_LIMITS = "ui.ai_probe.rate_limits"
+UI_AI_PROBE_USAGE = "ui.ai_probe.usage"
 UI_ASSIST_ASSIST_STATUS = "ui.assist.assist_status"
 UI_ASSIST_ASSIST_CONFIG = "ui.assist.assist_config"
 UI_ASSIST_ASSIST_CYCLE = "ui.assist.assist_cycle"
@@ -219,11 +167,13 @@ UI_ENGINES_LOAD_STATUS_LOAD_STATUS = "ui.engines_load_status.load_status"
 UI_HEARTBEAT_WORKERS_STATUS = "ui.heartbeat_workers.status"
 UI_HEARTBEAT_WORKERS_CONFIG = "ui.heartbeat_workers.config"
 UI_IMAGE_SEARCH_STATUS = "ui.image_search.status"
+UI_IMAGE_SEARCH_SEARCH = "ui.image_search.search"
 UI_IMAGE_SEARCH_SEARCH_AI = "ui.image_search.search_ai"
 UI_IMAGE_SEARCH_COMPARE = "ui.image_search.compare"
 UI_IMAGE_SEARCH_HISTORY = "ui.image_search.history"
 UI_IMAGE_SEARCH_DELETE_HISTORY = "ui.image_search.delete_history"
 UI_IMAGE_SEARCH_CLEAR_HISTORY = "ui.image_search.clear_history"
+UI_IMAGE_SEARCH_RESOURCE = "ui.image_search.resource"
 UI_LLM_STATUS_STATUS = "ui.llm_status.status"
 UI_LLM_STATUS_TEST = "ui.llm_status.test"
 UI_LLM_STATUS_GET_SETTINGS = "ui.llm_status.get_settings"
@@ -267,6 +217,7 @@ UI_TASK_HISTORY_SEARCH_TASKS = "ui.task_history.search_tasks"
 UI_TASK_HISTORY_CLEAR_RECENT_TASKS = "ui.task_history.clear_recent_tasks"
 UI_TASK_SETTINGS_CHAINS = "ui.task_settings.chains"
 UI_TASK_SETTINGS_UPDATE_CHAIN = "ui.task_settings.update_chain"
+UI_TRANSLATION_QUEUE_SNAPSHOT = "ui.translation_queue.snapshot"
 UI_TRANSLATION_QUEUE_SET_PRIORITY = "ui.translation_queue.set_priority"
 UI_TRANSLATION_QUEUE_STACK = "ui.translation_queue.stack"
 UI_TRANSLATION_QUEUE_GET_TASK_DETAIL = "ui.translation_queue.get_task_detail"
@@ -277,6 +228,10 @@ UI_TTS_STATUS_POST_SETTINGS = "ui.tts_status.post_settings"
 UI_TTS_STATUS_POST_SERVER_ACTION = "ui.tts_status.post_server_action"
 UI_VERSION_VERSION = "ui.version.version"
 UI_VIDEO_EXTRACT_CAPABILITIES = "ui.video_extract.capabilities"
+UI_VIDEO_EXTRACT_OPEN = "ui.video_extract.open"
+UI_VIDEO_EXTRACT_PREVIEW = "ui.video_extract.preview"
+UI_VIDEO_EXTRACT_START = "ui.video_extract.start"
+UI_VIDEO_EXTRACT_SEGMENTS = "ui.video_extract.segments"
 UI_VIDEO_EXTRACT_GET_TASK = "ui.video_extract.get_task"
 UI_VIDEO_EXTRACT_CANCEL_TASK = "ui.video_extract.cancel_task"
 UI_VIDEO_EXTRACT_PAUSE_TASK = "ui.video_extract.pause_task"
@@ -305,6 +260,14 @@ UI_VOCABULARY_VOCAB_BATCH_DICTIONARY_WORDS = "ui.vocabulary.vocab_batch_dictiona
 UI_VOCABULARY_VOCAB_DICTIONARY_SENTENCES = "ui.vocabulary.vocab_dictionary_sentences"
 UI_VOCABULARY_VOCAB_VALIDITY_REPORT = "ui.vocabulary.vocab_validity_report"
 UI_VOCABULARY_VOCAB_STORAGE_SUMMARY = "ui.vocabulary.vocab_storage_summary"
+UI_VOCABULARY_RESOURCE = "ui.vocabulary.resource"
+UI_USER_DATA_GET_SYSTEM_SETTINGS = "ui.user_data.get_system_settings"
+UI_USER_DATA_SET_SYSTEM_SETTINGS = "ui.user_data.set_system_settings"
+UI_USER_DATA_GET_VIDEO_HISTORY = "ui.user_data.get_video_history"
+UI_USER_DATA_ADD_VIDEO_HISTORY = "ui.user_data.add_video_history"
+UI_USER_DATA_REMOVE_VIDEO_HISTORY = "ui.user_data.remove_video_history"
+UI_USER_DATA_SET_VIDEO_OPTIONS = "ui.user_data.set_video_options"
+UI_USER_DATA_PICK_PATH = "ui.user_data.pick_path"
 UI_WORD_AUDIO_STATUS = "ui.word_audio.status"
 UI_WORD_AUDIO_TEST = "ui.word_audio.test"
 UI_WORD_AUDIO_MISSING_BATCH = "ui.word_audio.missing_batch"
@@ -321,17 +284,15 @@ UI_WORD_TTS_RUN_ONCE = "ui.word_tts.run_once"
 UI_CONFIG_UPDATE_CONFIG = "ui.config.update_config"
 UI_CONTROL_GET_AUTOSTART = "ui.control.get_autostart"
 UI_CONTROL_SET_AUTOSTART = "ui.control.set_autostart"
-UI_HEARTBEAT_GET_CALLBACK_STATUS = "ui.heartbeat.get_callback_status"
 UI_LOCAL_CONFIG_UPDATE_CONFIG = "ui.local_config.update_config"
-UI_LOGS_CLEAR_LOGS = "ui.logs.clear_logs"
-UI_LOGS_GET_LOG_STATS = "ui.logs.get_log_stats"
 UI_LARAVEL_LOGS_SNAPSHOT = "ui.laravel.logs_snapshot"
 UI_LARAVEL_LOGS_REFRESH = "ui.laravel.logs_refresh"
 UI_LARAVEL_LOGS_STATUS = "ui.laravel.logs_status"
 UI_LARAVEL_LOGS_RECORDS = "ui.laravel.logs_records"
+UI_LARAVEL_LOGS_CLEAR = "ui.laravel.logs_clear"
 UI_LARAVEL_LOGS_CANCEL = "ui.laravel.logs_cancel"
 
-# Qwen3TTS RPC v2 routes (FIX V3)
+# Qwen3TTS HTTP controllers
 UI_QWEN_HEALTH = "ui.qwen.health"
 UI_QWEN_CAPABILITIES = "ui.qwen.capabilities"
 UI_QWEN_MODEL_LOAD = "ui.qwen.model.load"
@@ -341,324 +302,3 @@ UI_QWEN_SYNTHESIS_STATUS = "ui.qwen.synthesis.status"
 UI_QWEN_SYNTHESIS_CANCEL = "ui.qwen.synthesis.cancel"
 UI_QWEN_OPERATION_SNAPSHOT = "ui.qwen.operation.snapshot"
 UI_QWEN_OPERATION_EVENTS = "ui.qwen.operation.events"
-
-__all__ = [
-    "UI_CODE_SYNC_PING",
-    "UI_CODE_SYNC_GET_STATUS",
-    "UI_CODE_SYNC_PEER_STATUS",
-    "UI_CODE_SYNC_PEER_CONFIG",
-    "UI_CODE_SYNC_PEER_HEARTBEAT",
-    "UI_CODE_SYNC_GET_PEERS",
-    "UI_CODE_SYNC_GET_SYNC_SETTINGS",
-    "UI_CODE_SYNC_SET_SYNC_SETTINGS",
-    "UI_CODE_SYNC_RESET_SYNC_SETTINGS",
-    "UI_CODE_SYNC_GET_SYNC_LOGS",
-    "UI_CODE_SYNC_GET_FILE_TREE",
-    "UI_CODE_SYNC_GET_PEER_FILE_TREE",
-    "UI_CODE_SYNC_ADD_PEER",
-    "UI_CODE_SYNC_REMOVE_PEER",
-    "UI_CODE_SYNC_UPDATE_PEER",
-    "UI_CODE_SYNC_SET_ROLE",
-    "UI_CODE_SYNC_SET_DISTRIBUTE",
-    "UI_CODE_SYNC_SET_SKIP_UPDATE",
-    "UI_CODE_SYNC_DISCOVER",
-    "UI_CODE_SYNC_SET_SERVER_MODE",
-    "UI_CODE_SYNC_SET_CLIENT_MODE",
-    "UI_CODE_SYNC_STOP_SYNC",
-    "UI_CODE_SYNC_DOWNLOAD_FILE",
-    "UI_CODE_SYNC_TOGGLE_BACKUP",
-    "UI_NOTEBOOKLM_STT_GET_STATUS",
-    "UI_NOTEBOOKLM_STT_UPDATE_SETTINGS",
-    "UI_NOTEBOOKLM_STT_CONVERT_ALL",
-    "UI_NOTEBOOKLM_STT_CONVERT_SINGLE",
-    "UI_NOTEBOOKLM_STT_LIST_AUDIO_FILES",
-    "UI_NOTEBOOKLM_STT_CLEAR_CACHE",
-    "UI_VOICE_SUBTITLE_ADD_TEXT",
-    "UI_VOICE_SUBTITLE_ADD_IMAGE",
-    "UI_VOICE_SUBTITLE_ADD_VOICE",
-    "UI_VOICE_SUBTITLE_GET_QUEUE",
-    "UI_VOICE_SUBTITLE_CLEAR_QUEUE",
-    "UI_VOICE_SUBTITLE_TOGGLE_ENABLED",
-    "UI_VOICE_SUBTITLE_NEXT_ITEM",
-    "UI_VOICE_SUBTITLE_PREVIOUS_ITEM",
-    "UI_VOICE_SUBTITLE_SET_CURRENT_INDEX",
-    "UI_VOICE_SUBTITLE_INCREMENT_PLAY_COUNT",
-    "UI_VOICE_SUBTITLE_GET_AUDIO_FILE",
-    "UI_VOICE_SUBTITLE_GET_CATEGORIES",
-    "UI_VOICE_SUBTITLE_FILTER_QUEUE_BY_CATEGORY",
-    "UI_VOICE_SUBTITLE_FILTER_QUEUE_BY_TODAY",
-    "UI_VOICE_SUBTITLE_GET_LATEST_ITEMS",
-    "UI_VOICE_SUBTITLE_CHANGE_ITEM_CATEGORY",
-    "UI_VOICE_SUBTITLE_REMOVE_MULTIPLE_ITEMS",
-    "UI_VOICE_SUBTITLE_START_CLIPBOARD_MONITOR",
-    "UI_VOICE_SUBTITLE_STOP_CLIPBOARD_MONITOR",
-    "UI_VOICE_SUBTITLE_GET_CLIPBOARD_MONITOR_STATUS",
-    "UI_VOICE_SUBTITLE_START_SCREENSHOT_MONITOR",
-    "UI_VOICE_SUBTITLE_SET_SCREENSHOT_LANGUAGE",
-    "UI_VOICE_SUBTITLE_STOP_SCREENSHOT_MONITOR",
-    "UI_VOICE_SUBTITLE_GET_SCREENSHOT_MONITOR_STATUS",
-    "UI_VOICE_SUBTITLE_GET_TASK_STATUS",
-    "UI_VOICE_SUBTITLE_GET_ALL_TASKS",
-    "UI_WEB_HOMEPAGE",
-    "UI_WEB_GET_API_INFO",
-    "UI_WEB_PING",
-    "UI_WEB_GET_DESKTOP_UI",
-    "UI_WEB_GET_SUBTITLE_UI",
-    "UI_WEB_GET_FAVICON",
-    "UI_AGENT_HISTORY_INDEX",
-    "UI_AGENT_HISTORY_PROMPTS",
-    "UI_AGENT_HISTORY_SESSION_DETAIL",
-    "UI_AGENT_HISTORY_REFRESH",
-    "UI_AGENT_HISTORY_UPDATE_PROMPT",
-    "UI_AGENT_HISTORY_STATUS",
-    "UI_AGENT_HISTORY_ARTICLE_CONFIG_GET",
-    "UI_AGENT_HISTORY_ARTICLE_CONFIG_POST",
-    "UI_AGENT_HISTORY_ARTICLE_START",
-    "UI_AGENT_HISTORY_ARTICLE_LIST",
-    "UI_AGENT_HISTORY_ARTICLE_LOGS",
-    "UI_AGENT_HISTORY_ARTICLE_RECORDS",
-    "UI_AGENT_HISTORY_ARTICLE_AUDIO",
-    "UI_TRANSLATE_STATUS",
-    "UI_TRANSLATE_TRANSLATE",
-    "UI_TRANSLATE_AI",
-    "UI_TRANSLATE_HISTORY",
-    "UI_TRANSLATE_HISTORY_DELETE",
-    "UI_TRANSLATE_HISTORY_CLEAR",
-    "UI_SUBTITLE_SEARCH_STATUS",
-    "UI_SUBTITLE_SEARCH_PROBE",
-    "UI_SUBTITLE_SEARCH_PROVIDERS",
-    "UI_SUBTITLE_SEARCH_PROVIDER_TEST",
-    "UI_SUBTITLE_SEARCH_CACHE",
-    "UI_SUBTITLE_SEARCH_CACHE_CLEAR",
-    "UI_SUBTITLE_SEARCH_SEARCH",
-    "UI_SUBTITLE_SEARCH_DOWNLOAD",
-    "UI_SUBTITLE_SEARCH_HISTORY",
-    "UI_SUBTITLE_SEARCH_HISTORY_DELETE",
-    "UI_SUBTITLE_SEARCH_HISTORY_CLEAR",
-    "UI_AI_IMAGE_IMAGE",
-    "UI_AI_IMAGE_IMAGE_TEST",
-    "UI_AI_IMAGE_IMAGE_HISTORY",
-    "UI_AI_IMAGE_IMAGE_HISTORY_FILE",
-    "UI_AI_IMAGE_IMAGE_HISTORY_REVEAL",
-    "UI_AI_IMAGE_IMAGE_HISTORY_DELETE",
-    "UI_AI_IMAGE_IMAGE_HISTORY_CLEAR",
-    "UI_AI_KEYS_LIST_KEYS",
-    "UI_AI_KEYS_SET_KEY",
-    "UI_AI_KEYS_RESET_COOLDOWN",
-    "UI_AI_KEYS_DELETE_KEY",
-    "UI_AI_PROBE_AI_CATALOG",
-    "UI_AI_PROBE_PROBE",
-    "UI_AI_PROBE_BALANCE",
-    "UI_ASSIST_ASSIST_STATUS",
-    "UI_ASSIST_ASSIST_CONFIG",
-    "UI_ASSIST_ASSIST_CYCLE",
-    "UI_CAPABILITY_STATUS_STATUS",
-    "UI_CAPABILITY_STATUS_INFO",
-    "UI_CAPABILITY_STATUS_OPEN_DIRECTORY",
-    "UI_CAPABILITY_STATUS_GET_CAPABILITY_SETTINGS",
-    "UI_CAPABILITY_STATUS_POST_CAPABILITY_SETTINGS",
-    "UI_DICTIONARY_DICTIONARY_STATUS",
-    "UI_DICTIONARY_DICTIONARY_LOOKUP",
-    "UI_ENGINES_LOAD_STATUS_LOAD_STATUS",
-    "UI_HEARTBEAT_WORKERS_STATUS",
-    "UI_HEARTBEAT_WORKERS_CONFIG",
-    "UI_IMAGE_SEARCH_STATUS",
-    "UI_IMAGE_SEARCH_SEARCH_AI",
-    "UI_IMAGE_SEARCH_COMPARE",
-    "UI_IMAGE_SEARCH_HISTORY",
-    "UI_IMAGE_SEARCH_DELETE_HISTORY",
-    "UI_IMAGE_SEARCH_CLEAR_HISTORY",
-    "UI_LLM_STATUS_STATUS",
-    "UI_LLM_STATUS_TEST",
-    "UI_LLM_STATUS_GET_SETTINGS",
-    "UI_LLM_STATUS_POST_SETTINGS",
-    "UI_LLM_STATUS_POST_SERVER_ACTION",
-    "UI_OCR_STATUS_STATUS",
-    "UI_OCR_STATUS_TEST",
-    "UI_QUEUE_BUMPS_LIST_BUMPS",
-    "UI_QUEUE_OVERVIEW_GET_QUEUE_OVERVIEW",
-    "UI_QUEUE_PRIORITY_PRIORITIZE_WORD_IMAGES",
-    "UI_QUEUE_PRIORITY_PRIORITIZE_SENTENCE_AUDIO",
-    "UI_QUEUE_PRIORITY_PRIORITIZE_SENTENCE_AUDIO_ITEM",
-    "UI_QUEUE_PRIORITY_PRIORITIZE_WORD_AUDIO_WORDS",
-    "UI_QUEUE_PRIORITY_PRIORITIZE_COVERS",
-    "UI_QUEUE_PRIORITY_PRIORITIZE_POSTERS",
-    "UI_SENTENCE_AUDIO_STATUS",
-    "UI_SENTENCE_AUDIO_CONFIG",
-    "UI_SENTENCE_AUDIO_RUN_ONCE",
-    "UI_SENTENCE_AUDIO_QUEUE_SNAPSHOT",
-    "UI_SENTENCE_AUDIO_VARIANTS_INDEX",
-    "UI_SENTENCE_AUDIO_VARIANTS_STORE",
-    "UI_SENTENCE_AUDIO_VARIANTS_DESTROY",
-    "UI_SPEECH_HISTORY_HISTORY",
-    "UI_SPEECH_HISTORY_HISTORY_FILE",
-    "UI_SPEECH_HISTORY_HISTORY_REVEAL",
-    "UI_SPEECH_HISTORY_HISTORY_DELETE",
-    "UI_SPEECH_HISTORY_HISTORY_CLEAR",
-    "UI_STT_STATUS_STATUS",
-    "UI_STT_STATUS_TEST",
-    "UI_SYSTEM_RESOURCES_SYSTEM_RESOURCES",
-    "UI_TASK_CENTER_GET",
-    "UI_TASK_CENTER_GET_QUEUE_CENTER_SNAPSHOT",
-    "UI_TASK_CENTER_SET_QUEUE_CENTER_CONTROL",
-    "UI_TASK_CENTER_GET_LOCAL_TASK_DETAIL",
-    "UI_TASK_CENTER_GET_REMOTE_TASK_DETAIL",
-    "UI_TASK_HISTORY_GET_COMPLETED_ARCHIVE",
-    "UI_TASK_HISTORY_SYNC_COMPLETED_ARCHIVE",
-    "UI_TASK_HISTORY_COMPLETED_ARCHIVE_RESOURCE",
-    "UI_TASK_HISTORY_GET_RECENT_TASKS",
-    "UI_TASK_HISTORY_SEARCH_TASKS",
-    "UI_TASK_HISTORY_CLEAR_RECENT_TASKS",
-    "UI_TASK_SETTINGS_CHAINS",
-    "UI_TASK_SETTINGS_UPDATE_CHAIN",
-    "UI_TRANSLATION_QUEUE_SET_PRIORITY",
-    "UI_TRANSLATION_QUEUE_STACK",
-    "UI_TRANSLATION_QUEUE_GET_TASK_DETAIL",
-    "UI_TTS_STATUS_STATUS",
-    "UI_TTS_STATUS_TEST",
-    "UI_TTS_STATUS_GET_SETTINGS",
-    "UI_TTS_STATUS_POST_SETTINGS",
-    "UI_TTS_STATUS_POST_SERVER_ACTION",
-    "UI_VERSION_VERSION",
-    "UI_VIDEO_EXTRACT_CAPABILITIES",
-    "UI_VIDEO_EXTRACT_GET_TASK",
-    "UI_VIDEO_EXTRACT_CANCEL_TASK",
-    "UI_VIDEO_EXTRACT_PAUSE_TASK",
-    "UI_VIDEO_EXTRACT_RESUME_TASK",
-    "UI_VOCABULARY_VOCAB_TRANSLATION_LANGUAGES",
-    "UI_VOCABULARY_VOCAB_TRANSLATION_TRANSLATE",
-    "UI_VOCABULARY_VOCAB_TRANSLATION_QUEUE_BATCH_ADD",
-    "UI_VOCABULARY_VOCAB_TTS_GENERATE",
-    "UI_VOCABULARY_VOCAB_TTS_QUEUE_BATCH_QUERY",
-    "UI_VOCABULARY_VOCAB_TTS_SENTENCE_AUDIO",
-    "UI_VOCABULARY_VOCAB_TTS_QUEUE_STATS",
-    "UI_VOCABULARY_VOCAB_TTS_QUEUE_ITEMS",
-    "UI_VOCABULARY_VOCAB_ASSIST_OVERVIEW",
-    "UI_VOCABULARY_VOCAB_ASSIST_OVERVIEW_ITEMS",
-    "UI_VOCABULARY_VOCAB_COVER_RETRY",
-    "UI_VOCABULARY_VOCAB_LIBRARIES",
-    "UI_VOCABULARY_VOCAB_LIBRARY_WORDS",
-    "UI_VOCABULARY_VOCAB_DELETE_LIBRARY",
-    "UI_VOCABULARY_VOCAB_STATISTICS",
-    "UI_VOCABULARY_VOCAB_LANGUAGE_BREAKDOWN",
-    "UI_VOCABULARY_VOCAB_DICTIONARY_WORDS",
-    "UI_VOCABULARY_VOCAB_CREATE_DICTIONARY_WORD",
-    "UI_VOCABULARY_VOCAB_UPDATE_DICTIONARY_WORD",
-    "UI_VOCABULARY_VOCAB_DELETE_DICTIONARY_WORD",
-    "UI_VOCABULARY_VOCAB_BATCH_DICTIONARY_WORDS",
-    "UI_VOCABULARY_VOCAB_DICTIONARY_SENTENCES",
-    "UI_VOCABULARY_VOCAB_VALIDITY_REPORT",
-    "UI_VOCABULARY_VOCAB_STORAGE_SUMMARY",
-    "UI_WORD_AUDIO_STATUS",
-    "UI_WORD_AUDIO_TEST",
-    "UI_WORD_AUDIO_MISSING_BATCH",
-    "UI_WORD_AUDIO_WORD_AUDIO_MEDIA",
-    "UI_WORD_AUDIO_UPLOAD_WORD_AUDIO",
-    "UI_WORD_AUDIO_FETCH_YOUDAO",
-    "UI_WORD_AUDIO_EDGE_SYNTH",
-    "UI_WORD_AUDIO_FIX_WORD_TEXT",
-    "UI_WORD_AUDIO_BOOST_PRIORITY",
-    "UI_WORD_AUDIO_BOOST_PRIORITY_BATCH",
-    "UI_WORD_TTS_STATUS",
-    "UI_WORD_TTS_CONFIG",
-    "UI_WORD_TTS_RUN_ONCE",
-    "UI_CONFIG_UPDATE_CONFIG",
-    "UI_CONTROL_GET_AUTOSTART",
-    "UI_CONTROL_SET_AUTOSTART",
-    "UI_HEARTBEAT_GET_CALLBACK_STATUS",
-    "UI_LOCAL_CONFIG_UPDATE_CONFIG",
-    "UI_LOGS_CLEAR_LOGS",
-    "UI_LOGS_GET_LOG_STATS",
-    "UI_LARAVEL_LOGS_SNAPSHOT",
-    "UI_LARAVEL_LOGS_REFRESH",
-    "UI_LARAVEL_LOGS_STATUS",
-    "UI_LARAVEL_LOGS_RECORDS",
-    "UI_LARAVEL_LOGS_CANCEL",
-    # Qwen3TTS routes
-    "UI_QWEN_HEALTH",
-    "UI_QWEN_CAPABILITIES",
-    "UI_QWEN_MODEL_LOAD",
-    "UI_QWEN_MODEL_STATUS",
-    "UI_QWEN_SYNTHESIS_SUBMIT",
-    "UI_QWEN_SYNTHESIS_STATUS",
-    "UI_QWEN_SYNTHESIS_CANCEL",
-    "UI_QWEN_OPERATION_SNAPSHOT",
-    "UI_QWEN_OPERATION_EVENTS",
-
-    "PYCORE_ROUTER_INVOKE",
-    "PYCORE_ROUTER_RESOURCE",
-    "THREAD_BUS_TRIGGER",
-    "COREBOOK_AUTOFLOW",
-    "VIDEO_EXTRACT_SYNC_SOURCE",
-    "VIDEO_EXTRACT_BACKEND_STATUS",
-    "VIDEO_EXTRACT_SYNC_ALL",
-    "BOOK_SYNC_SOURCE",
-    "MEDIA_ENRICH",
-    "LARAVEL_API_LIST",
-    "LARAVEL_API_ADD",
-    "LARAVEL_API_REMOVE",
-    "LARAVEL_API_SELECT",
-    "LARAVEL_API_PROBE",
-    "UI_VOICE_QUEUE",
-    "UI_VOICE_QUEUE_CLEAR",
-    "UI_VOICE_QUEUE_TOGGLE",
-    "UI_VOICE_QUEUE_SET_INDEX",
-    "UI_VOICE_QUEUE_INCREMENT",
-    "UI_VOICE_QUEUE_REMOVE",
-    "UI_VOICE_ADD_TEXT",
-    "UI_VOICE_CLIPBOARD_STATUS",
-    "UI_VOICE_CLIPBOARD_START",
-    "UI_VOICE_CLIPBOARD_STOP",
-    "UI_VOICE_SCREENSHOT_STATUS",
-    "UI_VOICE_SCREENSHOT_START",
-    "UI_VOICE_SCREENSHOT_STOP",
-    "UI_VOICE_SCREENSHOT_LANGUAGE",
-    "UI_BOOKS_SUPPORTED_FORMATS",
-    "UI_BOOKS_SCAN",
-    "UI_BOOKS_ANALYZE",
-    "UI_BOOKS_STATE",
-    "UI_BOOKS_STATE_ADD",
-    "UI_BOOKS_STATE_REMOVE",
-    "UI_BOOKS_SUBMIT",
-    "UI_BOOKS_LIST",
-    "UI_BOOKS_ANALYZE_UPLOAD",
-    "UI_AI_CATALOG",
-    "UI_AI_PROBE",
-    "UI_AI_BALANCE",
-    "UI_AI_RATE_LIMITS",
-    "UI_AI_USAGE",
-    "UI_USER_DATA",
-    "UI_VIDEO_EXTRACT",
-    "UI_AI_KEYS",
-    "UI_AI_IMAGE",
-    "UI_SPEECH_HISTORY",
-    "UI_RUNTIME",
-    "UI_DICTIONARY",
-    "UI_TRANSLATION_QUEUE",
-    "UI_TTS",
-    "UI_LLM",
-    "UI_PING",
-    "UI_VOCABULARY",
-    "UI_IMAGE_SEARCH",
-    "UI_VERSION",
-    "UI_WORKERS",
-    "UI_ASSIST",
-    "UI_MANAGEMENT",
-    "UI_SYSTEM",
-    "UI_COREBOOK_LIST",
-    "UI_COREBOOK_CONVERT",
-    "UI_COREBOOK_GET",
-    "UI_COREBOOK_DELETE",
-    "UI_COREBOOK_ADD_LANGUAGE",
-    "UI_COREBOOK_FILL_AUDIO",
-    "UI_COREBOOK_SUBMIT",
-    "LOCAL_AI_CHAT",
-    "LOCAL_AI_STATUS",
-    "LOCAL_AI_IMAGE_TEST",
-    "LOCAL_OCR_STATUS",
-    "LOCAL_OCR_TEST",
-    "LOCAL_STT_STATUS",
-    "LOCAL_STT_TEST",
-    "LOCAL_TTS_STATUS",
-    "LOCAL_TTS_TEST",
-]

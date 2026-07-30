@@ -15,13 +15,13 @@ project_type_1	unknown
 build_mode_index_1	0
 platform_index_1	0
 display_line_1	flutter_bloom[10001]  [dev|web]
-project_name_2	pycore_laravel_wordflow_ui
-project_path_2	D:\programing\core_node\poly_apps\pycore_laravel_wordflow_ui
+project_name_2	pycore_laravel_wordnew_ui
+project_path_2	D:\programing\core_node\poly_apps\pycore_laravel_wordnew_ui
 project_port_2	10002
 project_type_2	vite
 build_mode_index_2	0
 platform_index_2	0
-display_line_2	pycore_laravel_wordflow_ui[10002]  [dev|web]
+display_line_2	pycore_laravel_wordnew_ui[10002]  [dev|web]
 project_name_3	laravel_main
 project_path_3	D:\programing\core_node\poly_apps\laravel_main
 project_port_3	10003

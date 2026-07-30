@@ -112,7 +112,7 @@ class MediaCompressor:
     def _print(self, *args, **kwargs):
         """Print if verbose mode enabled"""
         if self.verbose:
-            print(*args, **kwargs)
+            ColorPrint.plain(*args, **kwargs)
 
     def compress_image(self,
                       input_path: Union[str, Path],
@@ -327,13 +327,13 @@ class MediaCompressor:
                     # Print FFmpeg progress output
                     line = line.strip()
                     if line and ('frame=' in line or 'time=' in line or 'speed=' in line):
-                        print(f"  {line}", end='\r')
+                        ColorPrint.plain(f"  {line}", end='\r')
 
             # Wait for process to complete
             process.wait()
 
             if self.verbose:
-                print()  # New line after progress
+                ColorPrint.plain()  # New line after progress
 
             if process.return_code != 0:
                 ColorPrint.red(f"FFmpeg process failed with code {process.return_code}")
@@ -692,13 +692,13 @@ if __name__ == "__main__":
     compressor = MediaCompressor(verbose=True)
 
     # Print status
-    print("\n" + "=" * 80)
-    print("MEDIA COMPRESSOR STATUS")
-    print("=" * 80)
+    ColorPrint.plain("\n" + "=" * 80)
+    ColorPrint.plain("MEDIA COMPRESSOR STATUS")
+    ColorPrint.plain("=" * 80)
     status = compressor.get_status_info()
     for key, value in status.items():
-        print(f"{key}: {value}")
-    print("=" * 80)
+        ColorPrint.plain(f"{key}: {value}")
+    ColorPrint.plain("=" * 80)
 
     # Example usage (uncomment to test with actual files)
     # if len(sys.argv) > 2:

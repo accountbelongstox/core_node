@@ -10,7 +10,7 @@ from packaging.utils import canonicalize_name
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from ._deps import (
+from pycore.pyfoundations.third_party._deps import (
     DEPENDENCY_MAP,
     WINDOWS_ONLY_PACKAGES,
     GUI_ONLY_IMPORTS,

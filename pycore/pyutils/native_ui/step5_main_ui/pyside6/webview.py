@@ -18,7 +18,7 @@ from typing import Optional
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from .webengine_config import configure_webengine_tier3_settings, mark_gpu_fallback
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import configure_webengine_tier3_settings, mark_gpu_fallback
 
 try:
     _QURLQUERY_AVAILABLE = True

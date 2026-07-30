@@ -21,7 +21,7 @@ from providor.i18n_manager import i18n_manager
 from share.game_interface_data import get_game_interface_data
 from timers.one_shot_tasks import do_path_scan, do_rosbot_update, do_window_monitor_initial_check
 from d3utils.path_scanner import pick_best_rosbot_dir_by_region, are_paths_valid_for_skip_scan
-from pycore.pyutils.system_launcher import open_file_with_notepad
+from pycore.pyfoundations.system_launcher import open_file_with_notepad
 from providor.constants.common import TAMPERMONKEY_SCRIPT_PATH, BATTLE_NET_EXE_NAME
 from providor.constants.d3 import DIABLO_III_EXE_NAME, ROSBOT_DIR_NAMESPACE_ASIA, ROSBOT_DIR_NAMESPACE_CN
 from runtime import (

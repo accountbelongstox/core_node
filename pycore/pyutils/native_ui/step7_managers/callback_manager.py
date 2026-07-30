@@ -260,6 +260,8 @@ _CALLBACK_MANAGER_PROVIDER = SerializedSingletonProvider(
     "CallbackManagerProvider",
 )
 
+callback_manager = _CALLBACK_MANAGER_PROVIDER.get()
+
 
 def get_callback_manager(debug: bool = False) -> CallbackManager:
     """
@@ -271,4 +273,9 @@ def get_callback_manager(debug: bool = False) -> CallbackManager:
     Returns:
         CallbackManager singleton instance
     """
-    return _CALLBACK_MANAGER_PROVIDER.get(debug=debug)
+    if debug:
+        callback_manager.debug = True
+    return callback_manager
+
+
+__all__ = ['callback_manager']

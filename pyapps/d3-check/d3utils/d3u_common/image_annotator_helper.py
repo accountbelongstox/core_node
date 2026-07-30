@@ -18,7 +18,7 @@ from datetime import datetime
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
-from pycore.pyutils.image_annotator import ImageAnnotator
+from pycore.pyutils.image_tools.image_annotator import ImageAnnotator
 from providor.constants.common import TMP_DIR
 
 cv2 = get_third_package_cv2()

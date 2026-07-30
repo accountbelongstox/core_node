@@ -14,7 +14,7 @@ from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.runtime_abi import CTRANSLATE2_CUDA_MAJOR
-from pycore.pyfoundations.system_paths import get_user_data_store
+from pycore.pyutils.common.user_data_store import user_data_store
 
 try:
     import ctranslate2
@@ -73,7 +73,7 @@ def _faster_whisper_gpu_usable() -> bool:
 
 def _persisted(section: str, key: str) -> Optional[str]:
     try:
-        raw = (get_user_data_store().get_section(section) or {}).get(key)
+        raw = (user_data_store.get_section(section) or {}).get(key)
         text = str(raw).strip() if raw is not None else ""
         return text or None
     except Exception:
@@ -86,7 +86,7 @@ def persist_stt_models(
 ) -> None:
     """Persist install-time STT model picks (best-effort)."""
     try:
-        store = get_user_data_store()
+        store = user_data_store
         section = dict(store.get_section(_STT_SECTION) or {})
         if whisper:
             section["whisper_model"] = whisper

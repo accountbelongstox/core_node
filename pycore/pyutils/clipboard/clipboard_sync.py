@@ -1,17 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Clipboard Recognition Sync
-
-Syncs speech recognition results to clipboard database for real-time sharing.
-"""
+"""Sync speech recognition results to file-backed clipboard history."""
 
 from typing import Optional
+
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-
-from pycore.database.exports import database_manager
-from pycore.database.models.util_clipboard.clipboard_history_model import ClipboardHistoryModel
-
+from pycore.pyutils.clipboard.clipboard_history import get_clipboard_history
 
 
 def add_recognition_to_clipboard(
@@ -22,7 +16,7 @@ def add_recognition_to_clipboard(
     confidence: Optional[float] = None
 ) -> bool:
     """
-    Add speech recognition result to clipboard database
+    Add speech recognition result to clipboard history
 
     Args:
         text: Recognized text
@@ -41,32 +35,27 @@ def add_recognition_to_clipboard(
         if not content:
             return False
 
-        # Check if clipboard database is initialized (by checking if engine exists)
-        if "clipboard" not in database_manager.engines:
-            # Clipboard database not loaded - skip silently in non-critical contexts
-            # This happens when clipboard module is used without explicit database initialization
-            return False
-
         # Add metadata to client_id for tracking
         full_client_id = f"{client_id}_{source}"
 
-        # Add to clipboard database
-        with database_manager.get_connection("clipboard") as conn:
-            item_id = ClipboardHistoryModel.add_clipboard_item(
-                conn,
-                content=content,
-                client_id=full_client_id,
-                content_type="text",
-                file_path=None,
-                file_name=f"Recognition_{language}.txt" if language != "unknown" else "Recognition.txt",
-                file_size=len(content.encode('utf-8'))
-            )
+        item = get_clipboard_history().add_item(
+            content=content,
+            client_id=full_client_id,
+            content_type="text",
+            file_path=None,
+            file_name=(
+                f"Recognition_{language}.txt"
+                if language != "unknown"
+                else "Recognition.txt"
+            ),
+            file_size=len(content.encode("utf-8")),
+        )
 
-        if item_id is None:
+        if item is None:
             # Duplicate item (already in recent history)
             return False
 
-        ColorPrint.green(f"[ClipboardSync] Added to clipboard database: {content[:50]}...")
+        ColorPrint.green(f"[ClipboardSync] Added to clipboard history: {content[:50]}...")
         if confidence is not None:
             ColorPrint.blue(f"[ClipboardSync] Language: {language}, Confidence: {confidence:.2%}")
         else:

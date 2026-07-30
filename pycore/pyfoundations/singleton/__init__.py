@@ -1,0 +1,1 @@
+"""Cross-process singleton primitives."""

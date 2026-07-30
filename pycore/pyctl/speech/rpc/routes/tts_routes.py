@@ -15,8 +15,8 @@ import uuid
 from typing import Dict, Any
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.tasks import Task, TaskPriority
-from pycore.pyutils.common.tasks import get_global_task_queue
+from pycore.pyfoundations.tasks import Task, TaskPriority
+from pycore.pyfoundations.tasks import get_global_task_queue
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.speech_task_models import TTSTaskData, create_tts_task
 
@@ -26,7 +26,7 @@ def register_tts_routes(rpc_server, service_instances: Dict[str, Any]):
     Register TTS routes on RPC server
 
     Args:
-        rpc_server: UnifiedRpcServerRunner instance (HTTP + WebSocket + CORS)
+        rpc_server: RpcServerRunner instance
         service_instances: Dict with 'tts_switch', 'stt_switch', etc.
     """
 

@@ -14,7 +14,7 @@ import time
 import threading
 from typing import Optional, List, Dict, Tuple
 
-from .runtime import (
+from pycore.pyutils.codesync.runtime import (
     log as ColorPrint,
     http as requests,
     start_bus_task,

@@ -16,7 +16,7 @@ from typing import List
 
 import platform
 
-from .frontend_config import FrontendConfig
+from pycore.pyutils.native_ui.step9_frontend.frontend_config import FrontendConfig
 
 
 # Package managers / runtimes that need a .cmd shim on Windows

@@ -71,7 +71,7 @@ export class ApiManager {
           autoMode: false,
         });
         console.log('[API Manager] First-run default endpoint: remote-laravel');
-        if (!options.autoDetect) return;
+        return;
       }
     }
 

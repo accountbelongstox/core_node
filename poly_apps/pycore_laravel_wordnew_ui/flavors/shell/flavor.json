@@ -1,0 +1,16 @@
+{
+  "id": "shell",
+  "name": "Nexus Dash",
+  "shortName": "Nexus",
+  "appId": "com.corenode.nexusdash",
+  "version": "0.0.0",
+  "rootRoute": "/home",
+  "platforms": ["web"],
+  "themeColor": "#0f172a",
+  "backgroundColor": "#0f172a",
+  "description": "Unified control center hosting every sub-app (laravel/pycore/wordnew/vortex).",
+  "assets": {
+    "icon": "icon.svg",
+    "splash": "icon.svg"
+  }
+}

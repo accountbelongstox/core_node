@@ -27,6 +27,7 @@ import math
 import shutil
 import subprocess
 import time
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class LinuxWindowPlacer:
@@ -264,7 +265,7 @@ class LinuxWindowPlacer:
                         capture_output=True, text=True, timeout=5,
                     )
         except Exception as e:
-            print(f"  place: failed to position id {wid:#x} ({e})")
+            ColorPrint.plain(f"  place: failed to position id {wid:#x} ({e})")
 
     @staticmethod
     def _place_by_title_wmctrl(title, x, y, width=None, height=None):
@@ -290,9 +291,9 @@ class LinuxWindowPlacer:
                 capture_output=True, text=True, timeout=5,
             )
             sized = "" if width is None else f" (size {width}x{height})"
-            print(f"  wmctrl: placed {title} -> {x},{y}{sized}")
+            ColorPrint.plain(f"  wmctrl: placed {title} -> {x},{y}{sized}")
         except Exception as e:
-            print(f"  wmctrl: failed to place {title} ({e})")
+            ColorPrint.plain(f"  wmctrl: failed to place {title} ({e})")
 
     @staticmethod
     def _place_by_title_xdotool(title, x, y, width=None, height=None):
@@ -317,7 +318,7 @@ class LinuxWindowPlacer:
             )
             wids = [w for w in search.stdout.split() if w]
             if not wids:
-                print(f"  xdotool: no window found for title {title}")
+                ColorPrint.plain(f"  xdotool: no window found for title {title}")
                 return
             for wid in wids:
                 subprocess.run(
@@ -330,6 +331,6 @@ class LinuxWindowPlacer:
                         capture_output=True, text=True, timeout=5,
                     )
             sized = "" if width is None else f" (size {width}x{height})"
-            print(f"  xdotool: placed {title} -> {x},{y}{sized}")
+            ColorPrint.plain(f"  xdotool: placed {title} -> {x},{y}{sized}")
         except Exception as e:
-            print(f"  xdotool: failed to place {title} ({e})")
+            ColorPrint.plain(f"  xdotool: failed to place {title} ({e})")

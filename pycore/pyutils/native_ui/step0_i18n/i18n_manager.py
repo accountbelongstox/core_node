@@ -600,22 +600,8 @@ _I18N_MANAGER_PROVIDER = SerializedSingletonProvider(
     "I18nManagerProvider",
 )
 
-
-def get_i18n_manager() -> I18nManager:
-    """
-    Get the singleton I18nManager instance
-
-    Returns:
-        I18nManager singleton instance
-    """
-    return _I18N_MANAGER_PROVIDER.get()
+i18n = _I18N_MANAGER_PROVIDER.get()
 
 
 # Export
-__all__ = [
-    'I18nManager',
-    'get_i18n_manager'
-]
-
-# Module-level singleton (was step0_i18n/__init__.py)
-i18n = get_i18n_manager()
+__all__ = ['i18n']

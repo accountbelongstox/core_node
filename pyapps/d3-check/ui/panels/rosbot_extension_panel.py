@@ -37,7 +37,7 @@ from timers.one_shot_tasks import (
     do_rosbot_update,
 )
 from d3utils.path_scanner import pick_best_rosbot_dir_by_region, are_paths_valid_for_skip_scan
-from pycore.pyutils.common.system_launcher import open_file_with_notepad
+from pycore.pyfoundations.system_launcher import open_file_with_notepad
 from providor.constants.common import TAMPERMONKEY_SCRIPT_PATH, BATTLE_NET_EXE_NAME
 from providor.constants.d3 import DIABLO_III_EXE_NAME, ROSBOT_EXE_PATTERNS, ROSBOT_DIR_NAMESPACE_ASIA, ROSBOT_DIR_NAMESPACE_CN
 from runtime import (

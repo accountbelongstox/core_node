@@ -5,7 +5,7 @@
  * Aligned adapters:
  * - poly_apps/laravel_main/app/Support/QueueCenterContract.php
  * - pycore/callmodule/services/queue_center_contract.py
- * - poly_apps/pycore_laravel_wordflow_ui/core/api-libs/pycore/QueueCenterContract.ts
+ * - poly_apps/pycore_laravel_wordnew_ui/core/api-libs/pycore/QueueCenterContract.ts
  *
  * mcp-chrome intentionally calls Laravel directly; Pycore is a separate Laravel
  * worker, Pycore UI reaches Laravel only through Pycore RPC v2, and
@@ -196,6 +196,21 @@ export interface TaskTypeDefinition {
   };
 }
 
+export interface QueueCategoryDefinition {
+  key: string;
+  label: string;
+  laravel_task_type: string | null;
+  summary_task_type?: string;
+  capability: WorkerCapability | null;
+  primary_handler: 'pycore' | 'chrome' | 'laravel';
+}
+
+export interface QueueLiveCounts {
+  pending: number;
+  leased: number;
+  processing: number;
+}
+
 interface ContractDocument {
   schema_version: number;
   capability_claimants: Record<string, Array<'pycore' | 'chrome'>>;
@@ -225,6 +240,7 @@ interface ContractDocument {
     wire_shapes: Record<string, string[]>;
     task_types: TaskTypeDefinition[];
   };
+  categories: QueueCategoryDefinition[];
 }
 
 const TASK_WIRE_DTO_FIELDS = {
@@ -308,6 +324,17 @@ export const FAST_LANE_CAPABILITIES = QUEUE_CENTER_CONTRACT.task_contract.fast_l
 export const CHROME_CAPABILITY_SWITCHES = QUEUE_CENTER_CONTRACT.task_contract.chrome_capability_switches;
 export const TASK_WIRE_SHAPES = QUEUE_CENTER_CONTRACT.task_contract.wire_shapes;
 export const TASK_TYPE_CATALOG = QUEUE_CENTER_CONTRACT.task_contract.task_types;
+export const QUEUE_CATEGORY_CATALOG = QUEUE_CENTER_CONTRACT.categories;
+export const TASK_SUMMARY_CATEGORY_KEYS = QUEUE_CATEGORY_CATALOG.reduce(
+  (categories, definition) => {
+    const taskType = definition.summary_task_type;
+    if (!taskType) return categories;
+    if (!categories[taskType]) categories[taskType] = [];
+    categories[taskType].push(definition.key);
+    return categories;
+  },
+  {} as Record<string, string[]>,
+);
 export const TASK_TYPE_BY_KEY = Object.fromEntries(
   TASK_TYPE_CATALOG.map((definition) => [definition.key, definition]),
 ) as Record<string, TaskTypeDefinition>;

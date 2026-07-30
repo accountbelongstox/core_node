@@ -8,7 +8,7 @@ import time
 from typing import Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.input.click_handler import ClickHandler
+from pycore.pyctl.desktop.click_handler import ClickHandler
 from d3utils.click_handler_singleton import get_click_handler
 from pycore.pyutils.window.activator import WindowActivator
 from providor.constants.d3 import D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT

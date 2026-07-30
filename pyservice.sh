@@ -32,7 +32,7 @@
 #   status | uninstall | help.  The service subcommands are Linux/systemd only.
 #
 # ---------------------------------------------------------------------------
-# Headless config CLI:  pyservice.sh config ...  -> python -m pycore.pyutils.pyservice_cli
+# Headless config CLI:  pyservice.sh config ...  -> python -m pycore.pyctl.pyservice_cli
 # ---------------------------------------------------------------------------
 # HTTP-first, file-fallback: while the service is running, edits go through its
 # HTTP API and apply live (and broadcast to any open UI); while it is stopped,
@@ -60,7 +60,7 @@
 #
 # Config storage:
 #   - System settings      : ~/.core_node/config/user_data.json  (system_settings section)
-#   - Code-sync role/peers  : pycore/pyutils/device_sync/code_sync_peers.json  (committed)
+#   - Code-sync role/peers  : pycore/pyutils/codesync/code_sync_peers.json  (committed)
 #
 # ---------------------------------------------------------------------------
 # systemd service (Linux):  sudo ./pyservice.sh install|start|stop|restart|status|uninstall
@@ -75,18 +75,19 @@
 # ---------------------------------------------------------------------------
 # UI vs headless
 # ---------------------------------------------------------------------------
-# Desktop / with Node: `run` serves the unified shell poly_apps/pycore_laravel_wordflow_ui
+# Desktop / with Node: `run` serves the unified shell poly_apps/pycore_laravel_wordnew_ui
 # (its pycore-manager end) at http://localhost:<UI_PORT>/pycore-manager, loaded by
-# PySide6 via PYCORE_UI_URL. Backend is unchanged: rpc_v2 on :59000, a /pyapi
-# reverse proxy, and a direct ws://host:59000/rpc/ws log stream (a global floating
-# collapsible log panel is present on every pycore page). The old standalone React
+# PySide6 via PYCORE_UI_URL. Backend controllers and replayable events use HTTP
+# on :59000. A global floating collapsible log panel is present on every pycore
+# page. The old standalone React
 # app pycore/pyctl/desktop/desktop-manager (dev server :15654) was superseded by the
-# unified shell (poly_apps/pycore_laravel_wordflow_ui) and has been removed.
+# unified shell (poly_apps/pycore_laravel_wordnew_ui) and has been removed.
 # Headless Linux (no Node / no display): only the legacy in-process /web/subtitle
 # page is served and no Qt window/tray is created (those are Windows-only), so the
 # worker is effectively an RPC server - configure it with `pyservice config ...`.
 # ---------------------------------------------------------------------------
 set -uo pipefail
+export PYCORE_HTTP_EVENTS_ENABLED=1
 
 # Resolve this script's directory (repo root), following symlinks.
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
@@ -122,8 +123,12 @@ ONLY=0
 NO_UI=0
 UI_BUILD=0
 UI_PORT="13054"
-SKIP_VOXCPM2=0
 PREPARE_ARGS=()
+UI_DIR="$SCRIPT_DIR/poly_apps/pycore_laravel_wordnew_ui"
+UI_START="$SCRIPT_DIR/poly_apps/pycore_laravel_wordnew_ui/scripts/start.sh"
+UI_PID=""
+UI_READY=0
+UI_START_ARGS=()
 
 # --- locate a Python 3 interpreter --------------------------------------- #
 # Defined early so subcommands (config) can reuse it before the run path.
@@ -185,7 +190,7 @@ Usage:
 Subcommands:
   run          Launch the service (default if no subcommand is given)
   config       Edit/show headless config via the cross-platform Python CLI
-               (forwards remaining args to: python -m pycore.pyutils.pyservice_cli config)
+               (forwards remaining args to: python -m pycore.pyctl.pyservice_cli config)
   codesync     Standalone Code Sync (stdlib only; no prereqs, no pycore import).
                (no subcommand)            -> prompt to add+start the systemd service
                install|uninstall|start|stop|restart|status -> manage that service
@@ -205,20 +210,18 @@ Options (apply to 'run'):
   --debug          Enable the worker's debug mode
   --no-reload      Disable backend hot-reload (watch .py -> restart; ON by default)
   --reload         (legacy alias; hot-reload is already the default)
-  --no-install     Skip the prerequisite-install step
+  --no-install     Skip all shell prerequisite installers
   --only           Run ONLY the prerequisite step, then exit
   --no-ui          Do not launch the dashboard UI; use legacy /web/subtitle
   --ui-build       Build the dashboard UI and serve it (vite preview)
   --ui-port PORT   Port the UI server listens on (default: 13054)
-  --skip-voxcpm2   Skip VoxCPM2 + Bark + Parler prerequisite installs
-                   (sets VOXCPM2_SKIP=1 / BARK_SKIP=1 / PARLER_SKIP=1)
   --               Everything after a bare -- is forwarded to prepare.sh
 
 Examples:
   ./pyservice.sh                              # run: install prereqs, launch 0.0.0.0:59000
   ./pyservice.sh run --no-ui --port 8000      # run on port 8000, legacy UI
   ./pyservice.sh --port 8000                  # no subcommand == run
-  ./pyservice.sh --skip-voxcpm2               # run, but skip VoxCPM2/Bark/Parler installs
+  ./pyservice.sh --no-install                   # run without prerequisite installers
   ./pyservice.sh config --show                # show headless config
   ./pyservice.sh install                      # install the systemd service (Linux)
   ./pyservice.sh --only -- --whisper-model base  # only prereqs (args after -- -> prepare.sh)
@@ -253,7 +256,10 @@ _pyservice_maybe_elevate() {
     command -v sudo >/dev/null 2>&1 || return 0
     case "$CMD" in
         install|start|stop|restart|status|uninstall) ;;
-        run) [ -z "${INVOCATION_ID:-}" ] || return 0 ;;
+        run)
+            [ -z "${INVOCATION_ID:-}" ] || return 0
+            [[ " $* " == *" --no-install "* ]] && return 0
+            ;;
         *) return 0 ;;
     esac
     local env_args=() v
@@ -279,7 +285,7 @@ _pyservice_maybe_elevate
 #   * install|uninstall|start|stop|restart|status -> manage that systemd service.
 #   * run|show|role|peers|distribute|skip-update  -> the stdlib CLI: the bootstrap
 #     is run as a FILE so `codesync` loads as a top-level name (pycore/__init__.py
-#     is never executed, no third_party). See device_sync/CODESYNC_LITE_DESIGN.md.
+#     is never executed, no third_party). See pycore/pyutils/codesync/runtime.py.
 if [[ "$CMD" == "codesync" ]]; then
     CS_MGR="$SCRIPT_DIR/scripts/shells/linux/common/codesync_service.sh"
     case "${1:-}" in
@@ -330,7 +336,7 @@ if [[ "$CMD" == "config" ]]; then
         exit 1
     fi
     cd "$SCRIPT_DIR"
-    exec "$PY" -m pycore.pyutils.pyservice_cli config "$@"
+    exec "$PY" -m pycore.pyctl.pyservice_cli config "$@"
 fi
 
 # service subcommands -> hand off to the Linux systemd helper.
@@ -349,12 +355,11 @@ while [[ $# -gt 0 ]]; do
         --debug)      DEBUG=1;        shift   ;;
         --no-reload)  RELOAD=0;       shift   ;;
         --reload)     RELOAD=1;       shift   ;;
-        --no-install) NO_INSTALL=1;   shift   ;;
+        --no-install) NO_INSTALL=1; shift ;;
         --only)       ONLY=1;         shift   ;;
         --no-ui)      NO_UI=1;        shift   ;;
         --ui-build)   UI_BUILD=1;     shift   ;;
         --ui-port)    UI_PORT="$2";   shift 2 ;;
-        --skip-voxcpm2) SKIP_VOXCPM2=1; shift ;;
         --)           shift; PREPARE_ARGS+=("$@"); break ;;
         *) echo "[!] Unknown argument: $1" >&2; shift ;;
     esac
@@ -363,7 +368,7 @@ done
 echo "======================================================"
 echo " Pycore Service - entry point"
 echo "======================================================"
-echo "[i] pyservice run - run \`pyservice.sh help\` for all commands (host=$BIND_HOST port=$PORT ui=$([[ "$NO_UI" -eq 1 ]] && echo legacy || echo 'dashboard (pycore-manager)') skip_tts=$([[ "$SKIP_VOXCPM2" -eq 1 ]] && echo 'voxcpm2+bark+parler skipped' || echo default))"
+echo "[i] pyservice run - run \`pyservice.sh help\` for all commands (host=$BIND_HOST port=$PORT ui=$([[ "$NO_UI" -eq 1 ]] && echo legacy || echo 'dashboard (pycore-manager)') prerequisites=$([[ "$NO_INSTALL" -eq 1 ]] && echo skipped || echo enabled))"
 
 if ! PY="$(resolve_python)"; then
     echo "[X] Python 3 was NOT found. Install it, then re-run:" >&2
@@ -396,19 +401,11 @@ cd "$SCRIPT_DIR"
 # venv; melotts/gptsovits build opt-in only) never touch the main interpreter. See
 # development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5 & §7.
 if [[ "$NO_INSTALL" -eq 1 ]]; then
-    echo "[i] Skipping prerequisite install (--no-install)."
+    echo "[i] Skipping all shell prerequisite installers (--no-install)."
 else
     echo "[..] Running prerequisite installers ..."
     # Neural TTS batch (ChatTTS/CosyVoice/Fish Speech/Kokoro/VoxCPM2/F5/GPT-SoVITS); idempotent. Opt out: NEURAL_TTS_INSTALL=0
     [[ -z "${NEURAL_TTS_INSTALL:-}" ]] && export NEURAL_TTS_INSTALL=1
-    # --skip-voxcpm2 (mirrors Windows -SkipVoxcpm2): export the per-engine skip flags so the
-    # numbered installers (119_voxcpm2 / 116_bark / 139_parler) skip cleanly even though the
-    # NEURAL_TTS_INSTALL batch would otherwise force them (each checks its *_SKIP flag first).
-    if [[ "$SKIP_VOXCPM2" -eq 1 ]]; then
-        export VOXCPM2_SKIP=1
-        export BARK_SKIP=1
-        export PARLER_SKIP=1
-    fi
     bash "$PREPARE_REL" --python "$PY" "${PREPARE_ARGS[@]+"${PREPARE_ARGS[@]}"}"
 fi
 
@@ -454,112 +451,29 @@ stop_docker_publisher() {
 }
 
 # --- 2) launch the unified dashboard UI (unless --no-ui) ----------------- #
-# The UI is the pure-Vite shell at poly_apps/pycore_laravel_wordflow_ui. It runs as its own
-# dev server (pnpm); PySide6 loads it via PYCORE_UI_URL (exported, pointing at the
-# pycore-manager end, so the worker child inherits it). Falls back to the legacy
-# /web/subtitle UI otherwise.
-UI_PID=""
-cleanup_ui() {
-    if [[ -n "$UI_PID" ]]; then
-        pkill -P "$UI_PID" 2>/dev/null || true
-        kill "$UI_PID" 2>/dev/null || true
-    fi
-}
-trap cleanup_ui EXIT INT TERM
+# Delegate frontend lifecycle to its canonical idempotent start script.
 
-UI_DIR="$SCRIPT_DIR/poly_apps/pycore_laravel_wordflow_ui"
 if [[ "$NO_UI" -eq 1 ]]; then
     echo "[i] --no-ui: using legacy /web/subtitle UI."
-elif [[ ! -f "$UI_DIR/package.json" ]]; then
-    echo "[i] dashboard UI not found; using legacy /web/subtitle UI."
-elif ! command -v pnpm >/dev/null 2>&1; then
-    echo "[i] pnpm not on PATH; using legacy /web/subtitle UI."
+elif [[ ! -f "$UI_START" ]]; then
+    echo "[i] dashboard start.sh not found; using legacy /web/subtitle UI."
 else
-    # Service-aware UI startup: if the dashboard UI systemd unit
-    # (ncore-nexus-dash) is active, it OWNS port $UI_PORT - reuse it and do NOT
-    # start/kill a local vite (a kill here would race the unit's Restart=always).
-    # This keeps pycore's UI startup consistent with the UI's own start.sh
-    # service logic: when the UI is already a running service, pycore just points
-    # its webview at it instead of launching a second server.
-    UI_SERVICE_ACTIVE=0
-    if systemctl is-active --quiet ncore-nexus-dash 2>/dev/null; then
-        UI_SERVICE_ACTIVE=1
-        echo "[OK] UI systemd service 'ncore-nexus-dash' is active; reusing http://localhost:$UI_PORT/pycore-manager (not starting a local vite)"
-        export PYCORE_UI_URL="http://localhost:$UI_PORT/pycore-manager"
-    fi
-    # Free the UI port from a foreign Docker publisher first (host vite servers
-    # are processes, not containers -> no-op; the reuse/kill logic below handles those).
-    stop_docker_publisher "$UI_PORT" || true
-    # Vite reads PORT for its dev-server port; the /pyapi proxy + WS target the
-    # running pycore backend via PYCORE_API_BASE.
     RPC_PORT="$PORT"
     export PORT="$UI_PORT"
     export PYCORE_UI_PORT="$UI_PORT"
     export PYCORE_API_BASE="http://localhost:$RPC_PORT"
-    # Install deps only if missing.
-    if [[ ! -d "$UI_DIR/node_modules" ]]; then
-        echo "[..] Installing dashboard deps (pnpm install) ..."
-        ( cd "$UI_DIR" && pnpm install )
-    fi
-    # REUSE a healthy dashboard already serving this port (dev mode only):
-    # concurrent starts (boot autostart + manual run) must NOT kill each other's
-    # dev server — the loser of the worker singleton would leave the winner's
-    # webview with ERR_CONNECTION_REFUSED. Require shell HTML plus compiled
-    # Tailwind CSS so a stale v3/PostCSS Vite process is never reused.
-    UI_REUSE=0
-    if [[ "$UI_BUILD" -ne 1 ]]; then
-        if curl -fsS --max-time 2 "http://localhost:$UI_PORT/pycore-manager" 2>/dev/null | grep -q 'Nexus Dash'; then
-            css_bytes="$(curl -fsS --max-time 5 "http://localhost:$UI_PORT/themes/index.css" 2>/dev/null | wc -c | tr -d ' ')"
-            if [[ "${css_bytes:-0}" -ge 10000 ]] && ! curl -fsS --max-time 5 "http://localhost:$UI_PORT/themes/index.css" 2>/dev/null | grep -q '@tailwind base'; then
-                UI_REUSE=1
-            else
-                echo "[!] Dashboard on port $UI_PORT serves HTML but CSS is broken (stale Vite/PostCSS). Will restart it."
-            fi
-        fi
-    fi
-    # When the UI systemd service is active, force reuse so the kill/start branch
-    # below never runs (it would kill the service's vite and race systemd).
-    [[ "$UI_SERVICE_ACTIVE" -eq 1 ]] && UI_REUSE=1
-    if [[ "$UI_REUSE" -eq 1 ]]; then
-        echo "[OK] Reusing dashboard dev server already on http://localhost:$UI_PORT (not restarting it)"
-        # UI_PID stays empty: we don't own this server, cleanup_ui must not kill it.
-        export PYCORE_UI_URL="http://localhost:$UI_PORT/pycore-manager"
-    else
-    # Free the UI port FIRST: kill any stale UI server (an old desktop-manager or a
-    # prior dashboard) still bound to it — otherwise the webview loads the stale
-    # server shadowing this port and the UI "doesn't change".
-    if command -v lsof >/dev/null 2>&1; then
-        lsof -ti "tcp:$UI_PORT" 2>/dev/null | xargs -r kill -9 2>/dev/null || true
-    elif command -v fuser >/dev/null 2>&1; then
-        fuser -k "${UI_PORT}/tcp" 2>/dev/null || true
-    fi
     if [[ "$UI_BUILD" -eq 1 ]]; then
-        echo "[..] Building dashboard UI (pnpm build) ..."
-        ( cd "$UI_DIR" && pnpm build )
-        ( cd "$UI_DIR" && NODE_ENV=production pnpm exec vite preview --port "$UI_PORT" --strictPort --host 0.0.0.0 ) &
-        UI_PID=$!
+        UI_START_ARGS=(--non-interactive --no-backend --dist)
     else
-        echo "[..] Starting dashboard dev server on http://localhost:$UI_PORT ..."
-        # Explicit --port + --strictPort: bind THIS port deterministically rather than
-        # silently falling back to a different Vite default, so the webview's
-        # PYCORE_UI_URL host always matches the server we just started. (The dashboard's
-        # vite.config.ts also defaults to 13054, so a standalone `pnpm dev` matches.)
-        ( cd "$UI_DIR" && pnpm exec vite --port "$UI_PORT" --strictPort --host 0.0.0.0 ) &
-        UI_PID=$!
+        UI_START_ARGS=(--non-interactive --no-backend --dev)
     fi
-    # Default the PySide6 webview to the pycore-manager end of the shell.
+    echo "[..] Starting dashboard through $UI_START ..."
+    ( cd "$UI_DIR" && bash "$UI_START" "${UI_START_ARGS[@]}" ) &
     export PYCORE_UI_URL="http://localhost:$UI_PORT/pycore-manager"
-    # Wait (up to ~15s) for the UI to answer before the webview loads it.
-    for i in $(seq 1 30); do
-        if curl -fsS "http://localhost:$UI_PORT/pycore-manager" >/dev/null 2>&1; then break; fi
-        sleep 0.5
-    done
-    echo "[OK] UI at $PYCORE_UI_URL (pid $UI_PID)"
-    fi
+    echo "[i] Dashboard start dispatched asynchronously: $PYCORE_UI_URL"
 fi
 
 # --- 3) launch the worker ------------------------------------------------ #
-# NOTE: run (not exec) so the EXIT trap can stop the UI afterwards.
 # Restore PORT to the RPC port so the Python worker (which reads $PORT env var)
 # binds to 59000, not 13054 (the Vite UI port that was temporarily exported).
 export PORT="${RPC_PORT:-59000}"
@@ -628,10 +542,4 @@ echo "[>] Launching worker: $WORKER_REL"
 echo ""
 "$PY" "${PY_ARGS[@]}"
 CODE=$?
-# Exit code 3 = the worker YIELDED to a newer running instance: that instance is
-# (or may be) serving its webview from this UI server — leave it running.
-if [[ "$CODE" -eq 3 && -n "$UI_PID" ]]; then
-    echo "[i] Worker yielded to a newer instance; leaving UI server running (pid $UI_PID)."
-    UI_PID=""
-fi
 exit $CODE

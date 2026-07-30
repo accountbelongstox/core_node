@@ -9,6 +9,7 @@ import os
 import sys
 from pathlib import Path
 from typing import List, Dict, Optional
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 try:
     HAS_WIN32COM = True
@@ -43,11 +44,11 @@ class UbuntuFinder:
             # Linux/macOS this finder is simply a no-op. Warn only on Windows (where pywin32
             # should be installed) to avoid noise on every other platform.
             if sys.platform == "win32":
-                print("Warning: win32com not available, cannot read shortcuts")
+                ColorPrint.plain("Warning: win32com not available, cannot read shortcuts")
             return []
         
         if not self.start_menu_path.exists():
-            print(f"Warning: Start Menu path not found: {self.start_menu_path}")
+            ColorPrint.plain(f"Warning: Start Menu path not found: {self.start_menu_path}")
             return []
         
         found_shortcuts = []
@@ -62,9 +63,9 @@ class UbuntuFinder:
                         if shortcut_info:
                             found_shortcuts.append(shortcut_info)
                     except Exception as e:
-                        print(f"Warning: Error reading shortcut {shortcut_path}: {e}")
+                        ColorPrint.plain(f"Warning: Error reading shortcut {shortcut_path}: {e}")
         except Exception as e:
-            print(f"Warning: Error searching for shortcuts: {e}")
+            ColorPrint.plain(f"Warning: Error searching for shortcuts: {e}")
         
         return found_shortcuts
     
@@ -97,7 +98,7 @@ class UbuntuFinder:
                 'full_command': full_command
             }
         except Exception as e:
-            print(f"Warning: Failed to read shortcut {shortcut_path}: {e}")
+            ColorPrint.plain(f"Warning: Failed to read shortcut {shortcut_path}: {e}")
             return None
     
     def get_first_ubuntu_shortcut(self) -> Optional[Dict[str, str]]:

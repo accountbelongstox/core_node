@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from .placeholder_generator import (
 """
 Design Structure Auto Expand - 设计文档结构自动扩展
 
@@ -18,23 +17,19 @@ Design Structure Auto Expand - 设计文档结构自动扩展
 
 import os
 import json
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-# Import placeholder generator
-try:
-        manage_placeholder,
-        ensure_images_readme,
-        get_markdown_placeholder_comment
-    )
-    PLACEHOLDER_AVAILABLE = True
-except ImportError:
-    PLACEHOLDER_AVAILABLE = False
-    print("[Warning] placeholder_generator not available")
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.flutter_dev_tools.utils.placeholder_generator import (
+    ensure_images_readme,
+    get_markdown_placeholder_comment,
+    manage_placeholder,
+)
 
-import shutil
-
+PLACEHOLDER_AVAILABLE = True
 
 
 # ============================================================
@@ -281,7 +276,7 @@ def ensure_directory(path: Path) -> bool:
     """确保目录存在，不存在则创建"""
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
-        print(f"[AutoExpand] Created directory: {path}")
+        ColorPrint.plain(f"[AutoExpand] Created directory: {path}")
         return True
     return False
 
@@ -291,7 +286,7 @@ def ensure_file(path: Path, content: str, force: bool = False) -> bool:
     if not path.exists() or force:
         path.write_text(content, encoding='utf-8')
         action = "Created" if not path.exists() else "Updated"
-        print(f"[AutoExpand] {action} file: {path}")
+        ColorPrint.plain(f"[AutoExpand] {action} file: {path}")
         return True
     return False
 
@@ -387,9 +382,9 @@ def cleanup_deprecated_files(base_dir: Path) -> List[str]:
             try:
                 shutil.rmtree(dir_path)
                 removed_items.append(str(dir_path))
-                print(f"[Cleanup] Removed deprecated directory: {dir_path}")
+                ColorPrint.plain(f"[Cleanup] Removed deprecated directory: {dir_path}")
             except Exception as e:
-                print(f"[Cleanup] Error removing {dir_path}: {e}")
+                ColorPrint.plain(f"[Cleanup] Error removing {dir_path}: {e}")
 
     # Remove deprecated files
     for pattern in deprecated_file_patterns:
@@ -398,9 +393,9 @@ def cleanup_deprecated_files(base_dir: Path) -> List[str]:
                 try:
                     file_path.unlink()
                     removed_items.append(str(file_path))
-                    print(f"[Cleanup] Removed deprecated file: {file_path}")
+                    ColorPrint.plain(f"[Cleanup] Removed deprecated file: {file_path}")
                 except Exception as e:
-                    print(f"[Cleanup] Error removing {file_path}: {e}")
+                    ColorPrint.plain(f"[Cleanup] Error removing {file_path}: {e}")
 
     return removed_items
 
@@ -423,7 +418,7 @@ def ensure_design_structure(app_name: str, base_dir: Optional[Path] = None) -> b
         base_dir = script_dir / "lib" / "apps" / app_name / "design_docs_and_progress"
 
     if not base_dir.exists():
-        print(f"[AutoExpand] Creating design_docs_and_progress for {app_name}...")
+        ColorPrint.plain(f"[AutoExpand] Creating design_docs_and_progress for {app_name}...")
         base_dir.mkdir(parents=True, exist_ok=True)
     else:
         # Cleanup deprecated files if directory exists
@@ -445,9 +440,9 @@ def ensure_design_structure(app_name: str, base_dir: Optional[Path] = None) -> b
             pageview_map_path,
             json.dumps(pageview_map_content, indent=2, ensure_ascii=False)
         )
-        print(f"[AutoExpand] Created pageview_map.json at root level")
+        ColorPrint.plain(f"[AutoExpand] Created pageview_map.json at root level")
 
-    print(f"[AutoExpand] Design structure ensured for {app_name}")
+    ColorPrint.plain(f"[AutoExpand] Design structure ensured for {app_name}")
     return True
 
 
@@ -469,7 +464,7 @@ def ensure_all_apps_design_structure(flutter_bloom_dir: Optional[Path] = None) -
     apps_dir = flutter_bloom_dir / "lib" / "apps"
 
     if not apps_dir.exists():
-        print(f"[AutoExpand] Apps directory not found: {apps_dir}")
+        ColorPrint.plain(f"[AutoExpand] Apps directory not found: {apps_dir}")
         return {}
 
     results = {}
@@ -479,7 +474,7 @@ def ensure_all_apps_design_structure(flutter_bloom_dir: Optional[Path] = None) -
             try:
                 results[app_name] = ensure_design_structure(app_name)
             except Exception as e:
-                print(f"[AutoExpand] Error expanding {app_name}: {e}")
+                ColorPrint.plain(f"[AutoExpand] Error expanding {app_name}: {e}")
                 results[app_name] = False
 
     return results
@@ -498,7 +493,7 @@ if __name__ == "__main__":
     else:
         # 扩展所有应用
         results = ensure_all_apps_design_structure()
-        print(f"\n[AutoExpand] Summary:")
+        ColorPrint.plain(f"\n[AutoExpand] Summary:")
         for app, success in results.items():
             status = "✓" if success else "✗"
-            print(f"  {status} {app}")
+            ColorPrint.plain(f"  {status} {app}")

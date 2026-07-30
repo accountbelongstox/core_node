@@ -13,7 +13,7 @@ import hashlib
 import re
 from typing import Optional
 
-from pycore.pyutils.security.machine_id import get_machine_id
+from pycore.pyfoundations.machine_id import get_machine_id
 
 from pycore.pyfoundations.third_party.api import get_third_package_cryptography
 
@@ -84,14 +84,14 @@ def decrypt_password(cipher_b64: str) -> Optional[str]:
             try:
                 ColorPrint.yellow(_DECRYPT_FAIL_HINT)
             except Exception:
-                print(_DECRYPT_FAIL_HINT)
+                ColorPrint.plain(_DECRYPT_FAIL_HINT)
             return None
         return payload[2:]
     except Exception:
         try:
             ColorPrint.yellow(_DECRYPT_FAIL_HINT)
         except Exception:
-            print(_DECRYPT_FAIL_HINT)
+            ColorPrint.plain(_DECRYPT_FAIL_HINT)
         return None
 
 

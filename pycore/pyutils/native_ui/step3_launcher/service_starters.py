@@ -9,7 +9,7 @@ Holds the four service-starter helpers extracted from launch_native_app:
   - _start_rpc_v2_service      -> delegates to pylauncher.ServiceLauncher (rpc_v2 starter)
                                   + common.port_utils.ensure_ports_available
   - _start_pylauncher_tray_service -> delegates to pylauncher.ServiceLauncher (tray starter)
-  - _start_singleton_detector  -> delegates to pylauncher.singleton_detector.SingletonDetector
+  - _start_singleton_detector  -> delegates to the shared singleton detector
 
 Also exposes make_busy_state_checker(): the shared busy-state state_checker
 callback, reusing ServiceLauncher._singleton_detect's pattern (the body is
@@ -30,12 +30,13 @@ from pathlib import Path
 from typing import Optional, Any, TYPE_CHECKING
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import RPC_CONTROLLER_PREFIX
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
 from pycore.pyutils.native_ui.step9_frontend.frontend_config import FrontendConfig
 from pycore.pyutils.native_ui.step9_frontend.frontend_starter import start_frontend_if_needed
-from pycore.pylauncher.singleton_detector import SingletonDetector
+from pycore.pyfoundations.singleton.detector import SingletonDetector
 from pycore.pyfoundations.launcher_config import LauncherConfig
 # ServiceLauncher lives in the higher pylauncher layer; obtain it via the
 # pyfoundations provider seam (registered by pylauncher at import time) so this
@@ -93,23 +94,12 @@ def _start_singleton_detector(
     # Create singleton detector with shutdown_existing=True
     # This means: if an old instance exists, notify it to shutdown and take over
 
-    # Define singleton callbacks (from launcher.py:204-218)
-    def handle_singleton_message(msg):
-        """Handle incoming messages from new instances"""
-        if msg.get('type') == 'SHUTDOWN':
-            ColorPrint.yellow(f"[Singleton] Received shutdown request from new instance (PID {msg.get('pid')})")
-            THREAD_BUS.request_shutdown(
-                f"Shutdown by new instance (PID {msg.get('pid')})",
-                execute_handlers=True
-            )
-
     detector = SingletonDetector(
         app_id=config.app_id,
         port_start=port_start,
         port_range=port_range,
         timeout=1.0,
         debug=config.debug,
-        on_message=handle_singleton_message,
         state_checker=make_busy_state_checker(),
         shutdown_existing=True  # New instance will shutdown old instance and take over
     )
@@ -324,8 +314,14 @@ def _start_rpc_v2_service(
             ColorPrint.print_success(
                 f"[NativeLauncher] Phase 4.7: RPC v2 started on {config.rpc_host}:{config.rpc_port}"
             )
-            ColorPrint.blue(f"  - HTTP API: http://{config.rpc_host}:{config.rpc_port}/rpc/<route>")
-            ColorPrint.blue(f"  - WebSocket: ws://{config.rpc_host}:{config.rpc_port}/rpc/ws")
+            ColorPrint.blue(
+                f"  - HTTP API: http://{config.rpc_host}:{config.rpc_port}"
+                f"{RPC_CONTROLLER_PREFIX}/<route>"
+            )
+            ColorPrint.blue(
+                f"  - HTTP controllers: "
+                f"http://{config.rpc_host}:{config.rpc_port}/api/controllers"
+            )
             if static_mounts:
                 ColorPrint.blue(f"  - Frontend: http://{config.rpc_host}:{config.rpc_port}/")
 

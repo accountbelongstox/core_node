@@ -8,9 +8,11 @@ import json
 from pathlib import Path
 from typing import Dict, Any
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.app_finder import AppFinder
+from pycore.pyutils.common.user_data_store import user_data_store
 
-
+_SECTION = "launcher"
 
 class ConfigManager:
     """Manage launcher configuration"""
@@ -22,7 +24,8 @@ class ConfigManager:
         Args:
             config_path: Path to config file (default: launcher directory / config.json)
         """
-        if config_path is None:
+        self._uses_unified_store = config_path is None
+        if self._uses_unified_store:
             config_path = Path(__file__).parent / 'config.json'
         
         self.config_path = Path(config_path)
@@ -90,6 +93,22 @@ class ConfigManager:
             'applications': self._get_applications_defaults()
         }
         
+        if self._uses_unified_store:
+            personalized = user_data_store.get_personalized_section(_SECTION)
+            if not personalized and self.config_path.exists():
+                try:
+                    with open(self.config_path, 'r', encoding='utf-8') as f:
+                        legacy_config = json.load(f)
+                    if isinstance(legacy_config, dict):
+                        user_data_store.set_section(_SECTION, legacy_config)
+                except Exception as e:
+                    ColorPrint.plain(f"Warning: Failed to migrate launcher config: {e}")
+            user_config = user_data_store.get_section(_SECTION)
+            self._merge_config(default_config, user_config)
+            self._ensure_all_apps_in_config(default_config)
+            self._remove_paths_from_config(default_config)
+            return default_config
+
         if self.config_path.exists():
             try:
                 with open(self.config_path, 'r', encoding='utf-8') as f:
@@ -108,7 +127,7 @@ class ConfigManager:
                     self._remove_paths_from_config(default_config)
                     return default_config
             except Exception as e:
-                print(f"Warning: Failed to load config, using defaults: {e}")
+                ColorPrint.plain(f"Warning: Failed to load config, using defaults: {e}")
         
         return default_config
     
@@ -128,11 +147,14 @@ class ConfigManager:
             config_to_save = json.loads(json.dumps(self.config))  # Deep copy
             self._remove_paths_from_config(config_to_save)
             
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump(config_to_save, f, indent=2, ensure_ascii=False)
+            if self._uses_unified_store:
+                user_data_store.set_section(_SECTION, config_to_save)
+            else:
+                with open(self.config_path, 'w', encoding='utf-8') as f:
+                    json.dump(config_to_save, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
-            print(f"Error: Failed to save config: {e}")
+            ColorPrint.plain(f"Error: Failed to save config: {e}")
             return False
     
     def get(self, key_path, default=None):

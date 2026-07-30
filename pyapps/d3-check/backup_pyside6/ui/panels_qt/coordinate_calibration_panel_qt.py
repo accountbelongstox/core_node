@@ -15,8 +15,8 @@ from PySide6.QtWidgets import (
     QFrame, QMessageBox, QFileDialog, QComboBox, QTreeWidget, QTreeWidgetItem,
     QTableWidget, QTableWidgetItem, QMenu, QInputDialog,
 )
-from pycore.pyutils.system_launcher import open_dir
-from pycore.pyutils.window_activator import WindowActivator
+from pycore.pyfoundations.system_launcher import open_dir
+from pycore.pyutils.window.activator import WindowActivator
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.window_finder import WindowFinder

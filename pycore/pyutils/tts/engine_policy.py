@@ -12,7 +12,7 @@ from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
 )
-from pycore.pyfoundations.system_paths import get_user_data_store
+from pycore.pyutils.common.user_data_store import user_data_store
 
 _USER_FRONT_ORDER = (
     "gptsovits", "streamelements", "sherpa", "melotts", "edge", "gtts_web", "azure",
@@ -161,7 +161,7 @@ def _is_legacy_tts_order(saved: tuple[str, ...]) -> bool:
 
 def _persist_tts_order(order: tuple[str, ...]) -> None:
     try:
-        store = get_user_data_store()
+        store = user_data_store
         capabilities = dict(store.get_section(_CAP_SECTION) or {})
         capabilities["tts"] = list(order)
         store.set_section(_CAP_SECTION, capabilities)
@@ -182,7 +182,7 @@ def _migrate_legacy_tts_order(saved: tuple[str, ...]) -> tuple[str, ...]:
 
 def _read_persisted_profile(capability: str) -> Optional[tuple[str, ...]]:
     try:
-        store = get_user_data_store()
+        store = user_data_store
         value = (store.get_section(_CAP_SECTION) or {}).get(capability)
         if isinstance(value, list) and value:
             saved = tuple(str(item).strip() for item in value if str(item).strip())
@@ -408,7 +408,7 @@ def format_tts_synth_command(
         "cosyvoice": f'cosyvoice POST /inference_sft lang={language_value}',
         "f5tts": f'f5tts POST /process lang={language_value}',
         "fishspeech": f'fishspeech POST /v1/tts lang={language_value}',
-        "qwen3tts": f'qwen3tts POST /synthesize lang={language_value}',
+        "qwen3tts": f'qwen3tts POST /queue/submit lang={language_value}',
         "bark": f'bark BarkModel.generate(lang={language_value})',
         "parler": "parler_tts.generate(description=PARLER_DESCRIPTION)",
         "voxcpm2": f'voxcpm2.generate(lang={language_value}, speed={tts_rate_to_speed(rate)})',

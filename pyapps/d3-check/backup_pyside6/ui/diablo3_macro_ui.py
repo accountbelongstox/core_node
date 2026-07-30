@@ -47,7 +47,7 @@ from providor.constants.ui import (
 )
 from share.ui_registry import register_ui
 from runtime import register_main_thread_handlers, trigger_window_show, trigger_app_exit
-from pycore.pyutils.tk_taskbar import set_windows_app_user_model_id
+from pycore.pyutils.desktop.tk_taskbar import set_windows_app_user_model_id
 
 
 class _GeometryFilter(QObject):
@@ -257,7 +257,7 @@ class Diablo3MacroUI:
     def _apply_taskbar_fix(self):
         if sys.platform == "win32":
             try:
-                from pycore.pyutils.tk_taskbar import ensure_tk_root_in_taskbar
+                from pycore.pyutils.desktop.tk_taskbar import ensure_tk_root_in_taskbar
                 if not self._taskbar_style_applied:
                     if ensure_tk_root_in_taskbar(self.root):
                         self._taskbar_style_applied = True

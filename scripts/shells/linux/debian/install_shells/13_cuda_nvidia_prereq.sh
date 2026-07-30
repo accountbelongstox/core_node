@@ -29,6 +29,16 @@ CUDA_TOOLKIT_LIB="$PARENT_DIR_LEVEL_2/common/install_cuda_toolkit.sh"
 CUDA_POLICY_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/cuda_index.sh"
 CUDA_POLICY_TAG=""
 OS_ID=""
+PYTHON="python3"
+FORCE=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --python) PYTHON="$2"; shift 2 ;;
+        --force)  FORCE=1; shift ;;
+        *) echo "[$SCRIPT_INDEX] Unknown argument: $1" >&2; shift ;;
+    esac
+done
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"

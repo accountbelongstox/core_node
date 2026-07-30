@@ -13,14 +13,14 @@ from pycore.pyfoundations.pybasecommon.compute_caps import (
     is_onnx_cuda_usable,
 )
 
-from ._pip_runner import _is_pip_package_installed
-from ._torch_cuda import _print_cuda_support_prompt
-from ._hf_helpers import (
+from pycore.pyfoundations.third_party._pip_runner import _is_pip_package_installed
+from pycore.pyfoundations.third_party._torch_cuda import _print_cuda_support_prompt
+from pycore.pyfoundations.third_party._hf_helpers import (
     get_third_package_cnocr,
     get_third_package_huggingface_hub,
     _ensure_huggingface_cli_on_path,
 )
-from ._ocr_models import (
+from pycore.pyfoundations.third_party._ocr_models import (
     init_ocr_models_from_hf,
     PREWARM_LANGUAGES,
     prewarm_det_rec_for_lang,

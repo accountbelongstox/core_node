@@ -15,7 +15,7 @@
     <p v-if="error" class="tk-error">{{ error }}</p>
 
     <div class="flex items-center justify-between">
-      <span class="text-xs" style="color: var(--text-muted)">选择任务后点击开始 · Select tasks then Start</span>
+      <span class="text-xs" style="color: var(--text-muted)">Start monitors Laravel; selections toggle execution</span>
       <div class="flex items-center gap-3">
         <span
           class="px-3 py-1 text-xs font-bold rounded-full"
@@ -28,7 +28,7 @@
         <button
           class="px-4 py-2 bg-purple-500 text-white font-medium rounded-lg hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm"
           @click="toggleCenter"
-          :disabled="!isRunning && (!config.apiUrl || checkedCapabilityKeys.length === 0)"
+          :disabled="!isRunning && !config.apiUrl"
         >
           {{ isRunning ? 'Stop' : 'Start' }}
         </button>
@@ -212,9 +212,8 @@ const backendLastRequest = computed(() =>
 );
 
 const onStart = async () => {
-  // 1. Immediately populate every lane's pending count, THEN 2. start lanes.
-  await unifiedRef.value?.loadAll?.();
   await startTaskCenter(checkedCapabilityKeys.value);
+  if (state.value.isRunning) await unifiedRef.value?.loadAll?.();
 };
 
 const onStop = async () => {

@@ -156,7 +156,7 @@
 
 #### 5.1 后端服务器 (web_server.py)
 ```python
-✅ FastAPIRPCServer 集成
+✅ RpcServer 集成
 ✅ 端口配置: 58888
 ✅ 静态文件服务 (html=True)
 ✅ 同步路由支持 (sync=True)

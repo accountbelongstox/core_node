@@ -6,8 +6,8 @@ Qwen3-TTS Web UI tester (pycore-backed).
 qwen-tts hard-pins transformers==4.57.3, which conflicts with this (main)
 interpreter's transformers==4.46.x (parler-tts pin). So qwen-tts is NEVER imported
 here; the tester launches the official HTTP api server (qwen3tts_api_server.py) in
-the DEDICATED venv (pycore.pyutils.tts.qwen3tts_venv) and talks to it over HTTP via
-pycore.pyutils.tts.qwen3tts_service. The subprocess stdout (model loading) streams
+the DEDICATED venv (pycore.pyutils.common.python_env.isolated_venv) and talks to it over HTTP via
+pycore.pyutils.tts.qwen.standalone_service. The subprocess stdout (model loading) streams
 to this console, and every HTTP request/response is logged in full.
 
 Run with no arguments to open a local browser UI: upload or paste text from any
@@ -91,8 +91,8 @@ def _load_hf_secret():
 def _load_service_module():
     _bootstrap_cache_env()
     _ensure_project_paths()
-    import pycore.pyutils.tts.qwen3tts_service as qwen3tts_service
-    return qwen3tts_service
+    import pycore.pyutils.tts.qwen.standalone_service as standalone_service
+    return standalone_service
 
 
 def _service_output(line: str) -> None:
@@ -115,7 +115,7 @@ def _get_service():
         model_id = weights.resolve_model_id()
         device = (os.environ.get("QWEN3TTS_DEVICE") or "").strip() or None
         env_port = (os.environ.get("QWEN3TTS_PORT") or "").strip()
-        _service = svc_mod.Qwen3TtsService(
+        _service = svc_mod.QwenStandaloneService(
             host=(os.environ.get("QWEN3TTS_HOST") or "127.0.0.1").strip() or "127.0.0.1",
             port=int(env_port) if env_port.isdigit() else None,
             model_id=model_id,
@@ -129,8 +129,15 @@ def _get_service():
 def _load_weights_module():
     _bootstrap_cache_env()
     _ensure_project_paths()
-    import pycore.pyutils.tts.qwen3tts_weights as qwen3tts_weights
-    return qwen3tts_weights
+    import pycore.pyutils.tts.qwen.weights as qwen_weights
+    return qwen_weights
+
+
+def _load_venv_module():
+    _bootstrap_cache_env()
+    _ensure_project_paths()
+    import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
+    return isolated_venv
 
 
 def _load_tts_params():
@@ -145,7 +152,7 @@ def _output_root() -> Path:
     if _output_dir is None:
         _bootstrap_cache_env()
         _ensure_project_paths()
-        from pycore.pyfoundations.pygvar.global_var_manager import PYTOOLS_TMP_DIR
+        from pycore.pyfoundations.pygvar import PYTOOLS_TMP_DIR
         root = Path(PYTOOLS_TMP_DIR) / "qwen3tts_tester"
         root.mkdir(parents=True, exist_ok=True)
         _output_dir = root
@@ -179,8 +186,8 @@ def check_import(verbose: bool = True) -> bool:
     interpreter, so readiness is the isolated venv, not an in-process import."""
     _bootstrap_cache_env()
     _ensure_project_paths()
-    import pycore.pyutils.tts.qwen3tts_venv as qwen3tts_venv
-    py = qwen3tts_venv.resolve_python()
+    isolated_venv = _load_venv_module()
+    py = isolated_venv.resolve_python("qwen3tts")
     ready = py is not None
 
     if verbose:
@@ -206,12 +213,11 @@ def _print_redownload_hints(model_id: str | None = None) -> None:
 
 
 def _engine_status() -> Dict[str, Any]:
-    svc_mod = _load_service_module()
     weights = _load_weights_module()
     params = _load_tts_params()
     model_id = weights.resolve_model_id()
     weights_ok, _, weight_detail = weights.audit_local_weights(verbose=False)
-    venv_ready = svc_mod.venv_ready()
+    venv_ready = _load_venv_module().venv_ready("qwen3tts")
 
     svc = _get_service()
     health = svc.health() if svc.port else None
@@ -908,10 +914,10 @@ def run_web_ui(host: str = WEB_HOST, port: Optional[int] = None, open_browser: b
     print(f"[INFO] URL: {url}")
     print(f"[INFO] Output dir: {_output_root()}")
     weights = _load_weights_module()
-    import pycore.pyutils.tts.qwen3tts_venv as _qv
+    isolated_venv = _load_venv_module()
     print(f"[INFO] Model:   {weights.resolve_model_id()}")
-    print(f"[INFO] Venv:    {_qv.venv_dir()} "
-          f"({'ready' if _qv.venv_ready() else 'will build with --system-site-packages on start'})")
+    print(f"[INFO] Venv:    {isolated_venv.venv_dir('qwen3tts')} "
+          f"({'ready' if isolated_venv.venv_ready('qwen3tts') else 'will build with --system-site-packages on start'})")
     print("[INFO] Starting isolated Qwen3-TTS api server (model loading streams below)...")
     print("[INFO] Press Ctrl+C to stop.")
     print()
@@ -1092,7 +1098,7 @@ def test_engine(
 
     svc = _get_service()
     print()
-    print(f"[INFO] Isolated venv ready: {_load_service_module().venv_ready()}")
+    print(f"[INFO] Isolated venv ready: {_load_venv_module().venv_ready('qwen3tts')}")
     print(f"[INFO] Text:   {sample_text}")
     print(f"[INFO] Output: {out_path} (format={fmt})")
     if fmt == "mp3":

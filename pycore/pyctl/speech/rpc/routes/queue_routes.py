@@ -13,9 +13,9 @@ Endpoints:
 from typing import Dict, Any
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.tasks import get_global_task_queue
+from pycore.pyfoundations.tasks import get_global_task_queue
 
-from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 
 
 
@@ -24,7 +24,7 @@ def register_queue_routes(rpc_server, service_instances: Dict[str, Any]):
     Register queue management routes on RPC server
 
     Args:
-        rpc_server: UnifiedRpcServerRunner instance (HTTP + WebSocket + CORS)
+        rpc_server: RpcServerRunner instance
         service_instances: Dict with service instances
     """
 
@@ -44,7 +44,7 @@ def register_queue_routes(rpc_server, service_instances: Dict[str, Any]):
             }
         """
 
-        heartbeat_system = get_heartbeat_system()
+        heartbeat_system = shared_heartbeat_system
 
         if not heartbeat_system:
             return {

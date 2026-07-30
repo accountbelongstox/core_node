@@ -23,6 +23,9 @@ TARGET_LINK_PATH="/usr/local/bin/php"
 #   can silently change which php is the system default that step 34 then consumes.
 PHP_BIN="/usr/bin/php${PHP_VERSION}"
 PHP_ALT_PRIORITY="85"
+PHP_CONFIG_ROOT=$(map_web_path "php")
+PHP_CONFIG_DIR="$PHP_CONFIG_ROOT/$PHP_VERSION"
+PHP_ERROR_LOG_PATH="$PHP_CONFIG_DIR/error.log"
 
 # PHP 8.5 specific packages (NO FPM - using Swoole)
 # Note: opcache is now a core extension in PHP 8.5, no separate package needed
@@ -115,7 +118,7 @@ OPEN_BASEDIR_PATHS=""
 
 # PHP Configuration Files (FPM not used - using Swoole)
 PHP_INI_FILES=(
-    "/etc/php/8.5/cli/php.ini"
+    "$PHP_CONFIG_DIR/cli/php.ini"
 )
 
 # Web Server Configuration - Use map_web_path for proper path mapping

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Local-first TTS synthesis with profile-aware fallback and managed engines.
 
-Priority persistence and runtime cooldown state live in pyfoundations.tts_engine_policy.
+Priority persistence and runtime cooldown state live in pyutils.tts.engine_policy.
 """
 
 import contextlib
@@ -51,11 +51,11 @@ from pycore.pyutils.tts.engine_policy import (
     tts_variant_result as _variant_result,
 )
 import pycore.pyutils.tts.sentence_audio_cache as sentence_audio_cache
-from pycore.pyutils.edge_tts.config import TTSConfig
-from pycore.pyutils.edge_tts.edge_tts_client import get_edge_tts_client
+from pycore.pyutils.tts.edge.config import TTSConfig
+from pycore.pyutils.tts.edge.client import edge_tts_client
 from pycore.pyutils.common.model_tiers import runtime_engine_model
-from .tts_engine_probe import engine_installed, engine_unavailable_reason
-from .tts_service_manager import (
+from pycore.pyutils.tts.tts_engine_probe import engine_installed, engine_unavailable_reason
+from pycore.pyutils.tts.tts_service_manager import (
     invalidate_server_engine_cache,
     is_server_engine,
     prepare_server_for_use,
@@ -75,7 +75,7 @@ import pycore.pyutils.tts.gtts_web_engine as gtts_web_engine
 import pycore.pyutils.tts.kokoro_engine as kokoro_engine
 import pycore.pyutils.tts.melotts_engine as melotts_engine
 import pycore.pyutils.tts.parler_engine as parler_engine
-import pycore.pyutils.tts.qwen3tts_engine as qwen3tts_engine
+import pycore.pyutils.tts.qwen.engine as qwen_engine
 import pycore.pyutils.tts.sherpa_engine as sherpa_engine
 import pycore.pyutils.tts.streamelements_engine as streamelements_engine
 import pycore.pyutils.tts.voxcpm2_engine as voxcpm2_engine
@@ -158,7 +158,7 @@ def engine_available(name: str) -> bool:
     if name == "fishspeech":
         return fishspeech_engine.available()
     if name == "qwen3tts":
-        return qwen3tts_engine.available()
+        return qwen_engine.available()
     if name == "bark":
         return bark_engine.available()
     if name == "parler":
@@ -170,7 +170,7 @@ def engine_available(name: str) -> bool:
     if name == "f5tts":
         return f5tts_engine.available()
     if name == "edge":
-        return get_edge_tts_client().initialize()
+        return edge_tts_client.initialize()
     if name == "streamelements":
         return streamelements_engine.available()
     if name == "sherpa":
@@ -298,7 +298,7 @@ def report_tts_engine_startup() -> None:
 
 def _synth_edge(text: str, lang: Optional[str], output_path: Path, rate: Optional[str],
                 accent: Optional[str] = None, gender: Optional[str] = None) -> bool:
-    client = get_edge_tts_client()
+    client = edge_tts_client
     if not client.initialize():
         return False
     voice = _edge_voice(lang, accent, gender)
@@ -328,7 +328,7 @@ def _synth_offline(
     if engine == "fishspeech":
         return fishspeech_engine.synthesize(text, lang or "en", output_path, speed=speed)
     if engine == "qwen3tts":
-        return qwen3tts_engine.synthesize(text, lang or "en", output_path, speed=speed)
+        return qwen_engine.synthesize(text, lang or "en", output_path, speed=speed)
     if engine == "bark":
         return bark_engine.synthesize(text, lang or "en", output_path, speed=speed)
     if engine == "parler":
@@ -549,7 +549,7 @@ def synthesize_variants(
     if can_batch:
         try:
             with managed_services.using("qwen3tts"):
-                ok_flags = qwen3tts_engine.synthesize_variants(
+                ok_flags = qwen_engine.synthesize_variants(
                     cleaned, language or "en", variants[:n], [Path(out_paths[i]) for i in range(n)]
                 )
         except Exception as exc:  # noqa: BLE001 - batch failure -> per-variant fallback
@@ -598,7 +598,7 @@ def synthesize_variants(
 
 _DETAIL_ENGINES = {
     "fishspeech": fishspeech_engine,
-    "qwen3tts": qwen3tts_engine,
+    "qwen3tts": qwen_engine,
     "melotts": melotts_engine,
     "chattts": chattts_engine,
     "f5tts": f5tts_engine,
@@ -668,7 +668,7 @@ def synthesize_engine(
     try:
         with managed_services.using(engine), _model_load_ctx(engine):
             if engine == "qwen3tts":
-                ok = qwen3tts_engine.synthesize(
+                ok = qwen_engine.synthesize(
                     (text or "").strip(), language or "en", output_path,
                     speed=_rate_to_speed(rate),
                     speaker=extra_params.get("speaker"),

@@ -6,7 +6,7 @@ echo "Stopping Device Sync..."
 
 # Method 1: Try IPC shutdown command
 echo "Trying IPC shutdown command..."
-python3 -c "from pycore.pyutils.launcher.device_sync.ipc_server import send_shutdown_command; send_shutdown_command()" 2>/dev/null
+python3 -c "from pycore.pyutils.launcher.device_sync.core.ipc import send_shutdown_command; send_shutdown_command()" 2>/dev/null
 
 if [ $? -eq 0 ]; then
     echo "Shutdown command sent via IPC"

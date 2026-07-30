@@ -68,6 +68,26 @@ export function processorsForCapabilities(keys: CapabilityKey[]): string[] {
   return Array.from(out);
 }
 
+export function sanitizeCapabilities(raw: unknown): CapabilityKey[] {
+  if (!Array.isArray(raw)) return [];
+  const out = new Set<CapabilityKey>();
+  for (const key of raw) {
+    if (typeof key === 'string' && (key as CapabilityKey) in CAPABILITY_BY_KEY) {
+      out.add(key as CapabilityKey);
+    }
+  }
+  return Array.from(out);
+}
+
+export function capabilitiesForProcessors(processors: string[]): CapabilityKey[] {
+  const out = new Set<CapabilityKey>();
+  for (const processorType of processors) {
+    const capability = capabilityForProcessor(processorType);
+    if (capability) out.add(capability);
+  }
+  return Array.from(out);
+}
+
 /** The capability that owns a given processorType, or null (for run-intent gating). */
 export function capabilityForProcessor(processorType: string): CapabilityKey | null {
   for (const def of CAPABILITIES) {

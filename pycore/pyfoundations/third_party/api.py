@@ -33,9 +33,9 @@ import os
 # ---------------------------------------------------------------------------
 # Import sub-modules LEAF-FIRST so no sub-module triggers a circular import.
 # ---------------------------------------------------------------------------
-from ._package_cache import _PACKAGE_CACHE
+from pycore.pyfoundations.third_party._package_cache import _PACKAGE_CACHE
 
-from ._deps import (
+from pycore.pyfoundations.third_party._deps import (
     DEPENDENCY_MAP,
     OPTIONAL_PACKAGES,
     WINDOWS_OCR_WINRT_PACKAGES,
@@ -50,7 +50,7 @@ from ._deps import (
     _is_headless_linux,
 )
 
-from ._pip_runner import (
+from pycore.pyfoundations.third_party._pip_runner import (
     run_third_party_command,
     build_pip_install_command,
     run_pip_install_with_realtime_output,
@@ -64,9 +64,9 @@ from ._pip_runner import (
     _clear_cnocr_cache,
 )
 
-from ._cache import _lazy_import
+from pycore.pyfoundations.third_party._cache import _lazy_import
 
-from ._torch_cuda import (
+from pycore.pyfoundations.third_party._torch_cuda import (
     _print_cuda_support_prompt,
     _ensure_torch_cpu_build_when_no_gpu,
     _ensure_sherpa_onnx_cpu_build_when_no_gpu,
@@ -79,9 +79,9 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import register_compute_torch_getter
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 
-from ._dep_check import check_and_install_dependencies
+from pycore.pyfoundations.third_party._dep_check import check_and_install_dependencies
 
-from ._getters_core import (
+from pycore.pyfoundations.third_party._getters_core import (
     get_third_package_aiohttp,
     get_third_package_aiohttp_web,
     get_third_package_yaml,
@@ -99,6 +99,7 @@ from ._getters_core import (
     get_third_package_cv2,
     get_third_package_pyautogui,
     get_third_package_psutil,
+    get_third_package_pydantic,
     get_third_package_mss,
     get_third_package_torch,
     get_third_package_ultralytics,
@@ -106,7 +107,6 @@ from ._getters_core import (
     get_third_package_matplotlib,
     get_third_package_labelme,
     get_third_package_labelImg,
-    get_third_package_websockets,
     get_third_package_requests,
     get_third_package_urllib3,
     get_third_package_idna,
@@ -138,6 +138,7 @@ from ._getters_core import (
     get_third_package_PIL_Image_optional,
     get_third_package_PIL_ImageDraw_optional,
     get_third_package_pynput,
+    get_third_package_keyboard,
     get_third_package_pyperclip,
     get_third_package_googletrans,
     get_third_package_googletrans_Translator,
@@ -167,7 +168,7 @@ from ._getters_core import (
     get_third_package_eng_to_ipa,
 )
 
-from ._getters_optional import (
+from pycore.pyfoundations.third_party._getters_optional import (
     install_and_reimport_azure,
     install_and_reimport_edge_tts,
     get_third_package_speechsdk,
@@ -185,6 +186,9 @@ from ._getters_optional import (
     get_third_package_win32api,
     get_third_package_win32process,
     get_third_package_win32ui,
+    get_third_package_win32com_client,
+    get_third_package_win32com_propsys,
+    get_third_package_win32com_pscon,
     get_third_package_windows_ocr,
     get_third_package_sherpa_onnx,
     get_third_package_melo,
@@ -194,7 +198,7 @@ from ._getters_optional import (
     get_third_package_pyaudiowpatch,
 )
 
-from ._hf_helpers import (
+from pycore.pyfoundations.third_party._hf_helpers import (
     get_third_package_huggingface_hub,
     _print_cnocr_init_info,
     get_third_package_cnocr,
@@ -211,7 +215,7 @@ from ._hf_helpers import (
     hf_download_repo_latest,
 )
 
-from ._ocr_models import (
+from pycore.pyfoundations.third_party._ocr_models import (
     PREWARM_SPEC,
     PREWARM_LANGUAGES,
     REC_MORE_CONFIGS_CNOCR,
@@ -245,7 +249,7 @@ from ._ocr_models import (
     init_ocr_models_from_hf,
 )
 
-from ._ocr_initializer import (
+from pycore.pyfoundations.third_party._ocr_initializer import (
     OcrInitializer,
     _cuda_initializer,
     _ocr_initializer,
@@ -281,7 +285,6 @@ __all__ = [
     # Lazy loading getter functions (use these instead of direct imports)
     'get_third_package_aiohttp',
     'get_third_package_aiohttp_web',
-    'get_third_package_websockets',
     'get_third_package_requests',
     'get_third_package_urllib3',
     'get_third_package_idna',
@@ -313,6 +316,7 @@ __all__ = [
     'get_third_package_cv2',
     'get_third_package_pyautogui',
     'get_third_package_psutil',
+    'get_third_package_pydantic',
     'get_third_package_mss',
     'get_third_package_torch',
     'get_third_package_ultralytics',
@@ -337,6 +341,7 @@ __all__ = [
     'get_huggingface_cli_command',
     'ensure_huggingface_cli_prerequisite',
     'get_third_package_pynput',
+    'get_third_package_keyboard',
     'get_third_package_pyperclip',
     # Google Translate API
     'get_third_package_googletrans',
@@ -386,6 +391,9 @@ __all__ = [
     'get_third_package_win32api',
     'get_third_package_win32process',
     'get_third_package_win32ui',
+    'get_third_package_win32com_client',
+    'get_third_package_win32com_propsys',
+    'get_third_package_win32com_pscon',
     'get_third_package_windows_ocr',
     'get_third_package_sherpa_onnx',
     'get_third_package_melo',

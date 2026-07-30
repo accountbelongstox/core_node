@@ -25,6 +25,7 @@ import platform
 import os
 import tempfile
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import run_background
 from pycore.pyutils.launcher.launch_guard import is_pycore_module_running
 
@@ -37,23 +38,23 @@ def launch_pycore_module():
     Process is detached so it continues after launcher exits.
     """
     if is_pycore_module_running():
-        print("[Launcher] Skipping Pycore Module (already running).")
+        ColorPrint.plain("[Launcher] Skipping Pycore Module (already running).")
         return
 
-    print("[Launcher] Starting Pycore Module in background...")
+    ColorPrint.plain("[Launcher] Starting Pycore Module in background...")
 
     project_root = Path(__file__).parent.parent.parent.parent
     caller_script = project_root / 'pycore' / 'pycore_module_caller.py'
 
     if not caller_script.exists():
-        print(f"[Launcher] Failed: pycore_module_caller.py not found at {caller_script}")
+        ColorPrint.plain(f"[Launcher] Failed: pycore_module_caller.py not found at {caller_script}")
         return
 
     try:
         log_dir = Path(tempfile.gettempdir()) / 'pycore_module'
         log_dir.mkdir(exist_ok=True)
         log_file = log_dir / 'pycore_module_launcher.log'
-        print(f"[Launcher] Pycore Module log dir: {log_dir}")
+        ColorPrint.plain(f"[Launcher] Pycore Module log dir: {log_dir}")
 
         python_exe = sys.executable
         if platform.system() == 'Windows':
@@ -61,9 +62,9 @@ def launch_pycore_module():
             pythonw_exe = python_dir / 'pythonw.exe'
             if pythonw_exe.exists():
                 python_exe = str(pythonw_exe)
-                print("[Launcher] Using pythonw.exe for no console window")
+                ColorPrint.plain("[Launcher] Using pythonw.exe for no console window")
             else:
-                print("[Launcher] WARNING: pythonw.exe not found, using python.exe")
+                ColorPrint.plain("[Launcher] WARNING: pythonw.exe not found, using python.exe")
 
         cmd = [python_exe, str(caller_script)]
         env = os.environ.copy()
@@ -73,7 +74,7 @@ def launch_pycore_module():
             pythonpath = f"{pythonpath}{sep}{env['PYTHONPATH']}"
         env['PYTHONPATH'] = pythonpath
 
-        print(f"[Launcher] Command: {' '.join(cmd)}")
+        ColorPrint.plain(f"[Launcher] Command: {' '.join(cmd)}")
 
         proc = run_background(
             cmd,
@@ -83,10 +84,10 @@ def launch_pycore_module():
             detached=True
         )
 
-        print(f"[Launcher] Pycore Module started with PID: {proc.pid}")
-        print("[Launcher] RPC v2 will be available after startup (default port 59000)")
+        ColorPrint.plain(f"[Launcher] Pycore Module started with PID: {proc.pid}")
+        ColorPrint.plain("[Launcher] RPC v2 will be available after startup (default port 59000)")
 
         time.sleep(0.5)
     except Exception as e:
-        print(f"[Launcher] Failed to start Pycore Module: {e}")
-        print("[Launcher] You can start manually: python pycore_module_caller.py")
+        ColorPrint.plain(f"[Launcher] Failed to start Pycore Module: {e}")
+        ColorPrint.plain("[Launcher] You can start manually: python pycore_module_caller.py")

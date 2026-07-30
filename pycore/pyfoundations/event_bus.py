@@ -11,6 +11,7 @@ from datetime import datetime
 import asyncio
 import copy
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     init_serialized_owner,
@@ -225,7 +226,7 @@ if __name__ == "__main__":
 
         # Subscribe to device connected event
         def on_device_connected(event: Event):
-            print(f"Device connected: {event.data}")
+            ColorPrint.plain(f"Device connected: {event.data}")
 
         bus.subscribe(EventTypes.DEVICE_CONNECTED, on_device_connected)
 
@@ -238,6 +239,6 @@ if __name__ == "__main__":
 
         # Check history
         history = bus.get_history(EventTypes.DEVICE_CONNECTED)
-        print(f"History: {len(history)} events")
+        ColorPrint.plain(f"History: {len(history)} events")
 
     asyncio.run(main())

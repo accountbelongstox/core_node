@@ -1,14 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Pycore Module Caller Service - RPC v2 Architecture
-
-HTTP API service using RPC v2 framework with:
-- Hardcoded translator module (no dynamic imports)
-- Singleton instance (prevents repeated initialization)
-- Network accessible (0.0.0.0:59000)
-- Fast startup (PYCORE_SKIP_DEP_CHECK environment variable)
-"""
+"""Run the callmodule translation routes on the shared RPC v2 server."""
 
 import sys
 import os
@@ -21,13 +13,17 @@ sys.path.insert(0, str(CORE_NODE_ROOT))
 # Set environment variable to skip dependency check (must be before imports)
 os.environ.setdefault('PYCORE_SKIP_DEP_CHECK', '1')
 
-from pycore.pyutils.rpc_v2.server.fastapi_server import FastAPIRPCServer
-from pycore.pyutils.rpc_v2.modules.auto_register import register_module_routes
-from pycore.pyutils.rpc_v2.modules.homepage_routes import register_homepage_routes
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_uvicorn
+from pycore.callmodule.rpc_routes.local_translate_routes import register_local_translate_routes
+from pycore.pyutils.rpc_v2.server import RpcServer
+
+
+uvicorn = get_third_package_uvicorn()
 
 
 def main():
-    """Start RPC v2 server with translator module"""
+    """Start RPC v2 with the current callmodule translation routes."""
     
     # Create RPC v2 server
     options = {
@@ -36,40 +32,26 @@ def main():
         "debug": False
     }
     
-    server = FastAPIRPCServer(options)
+    server = RpcServer(options)
     
-    # Register module routes (translator with translate_single, translate_batch, detect_language)
-    register_module_routes(server, debug=False)
-    
-    # Register homepage routes (shows all available routes)
-    register_homepage_routes(server.app)
+    register_local_translate_routes(server)
     
     # Print startup info
-    print("=" * 70)
-    print("Pycore Module Caller - RPC v2 Architecture")
-    print("=" * 70)
-    print(f"Homepage:     http://0.0.0.0:{options['port']}/")
-    print(f"API Modules:  http://0.0.0.0:{options['port']}/api/modules")
-    print(f"Health:       http://0.0.0.0:{options['port']}/rpc/status")
-    print(f"Routes:       http://0.0.0.0:{options['port']}/rpc/routes")
-    print(f"RPC Endpoint: POST http://0.0.0.0:{options['port']}/rpc/{{route}}")
-    print(f"WebSocket:    ws://0.0.0.0:{options['port']}/rpc/ws")
-    print("=" * 70)
-    print()
-    print("Available modules:")
-    print("  - translator (Google Translator)")
-    print("    - translate_single: Translate single text")
-    print("    - translate_batch:  Batch translation")
-    print("    - detect_language:  Language detection")
-    print()
-    print("Example:")
-    print("  curl -X POST http://localhost:59000/rpc/translator.translate_single \\")
-    print("    -H 'Content-Type: application/json' \\")
-    print("    -d '{\"params\": {\"text\": \"Hello\", \"src\": \"en\", \"dest\": \"ko\"}}'")
-    print("=" * 70)
+    ColorPrint.blue("=" * 70)
+    ColorPrint.blue("Pycore Translation RPC Service")
+    ColorPrint.blue("=" * 70)
+    ColorPrint.blue(f"Health:       http://0.0.0.0:{options['port']}/rpc/status")
+    ColorPrint.blue(f"Routes:       http://0.0.0.0:{options['port']}/rpc/routes")
+    ColorPrint.blue(
+        f"Controllers:  POST http://0.0.0.0:{options['port']}"
+        "/api/controller/{route}"
+    )
+    ColorPrint.blue(f"Events:       GET  http://0.0.0.0:{options['port']}/api/events")
+    ColorPrint.blue("=" * 70)
+    ColorPrint.blue(f"Controllers:  http://0.0.0.0:{options['port']}/api/controller/{{name}}")
+    ColorPrint.blue("=" * 70)
     
     # Start server
-    import uvicorn
     uvicorn.run(
         server.app,
         host=options["host"],

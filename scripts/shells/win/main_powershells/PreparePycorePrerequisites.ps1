@@ -10,9 +10,20 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+[CmdletBinding()]
+param(
+    [string]$Python = '',
+    [string[]]$Include = @(),
+    [string]$WhisperModel = '',
+    [string]$FasterWhisperModel = '',
+    [string]$VoskModel = '',
+    [switch]$Full,
+    [switch]$Force
+)
+
 # Pycore prerequisite orchestrator (caller: pyservice.ps1).
-# Runs install_powershells/Step*.ps1 in dependency order with no parameters; each Step
-# resolves the centrally configured system Python and skips when already satisfied.
+# Runs install_powershells/Step*.ps1 in dependency order and forwards only parameters
+# declared by each installer.
 
 $ErrorActionPreference = 'Stop'
 
@@ -25,8 +36,19 @@ $invokeArgs         = @{}
 $skipVariable       = ''
 $skipValue          = ''
 $installMode        = ''
+$runtimeRunId       = [guid]::NewGuid().ToString('N')
+$scriptCommand      = $null
+$scriptParameters   = $null
+$pythonPath         = ''
+$requestedModel     = ''
+. (Join-Path $winCommonDir 'GlobalVars.ps1')
+Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
 . $manifestPath
+
+$pythonPath = if ($Python) { $Python } else { $Global:PYTHON_EXE_PATH }
+Set-GlobalVar -key 'PYCORE_RUNTIME_STATE_RUN_ID' -value $runtimeRunId
+Set-GlobalVar -key 'PYCORE_RUNTIME_STATE_PROCESS_ID' -value ([string]$PID)
 
 Write-Host '------------------------------------------------------' -ForegroundColor Cyan
 Write-Host ' Pycore prerequisites (PreparePycorePrerequisites)' -ForegroundColor Cyan
@@ -37,6 +59,11 @@ Write-Host '    missing package metadata or incomplete model files. See TTS_STT_
 foreach ($entry in $PycorePrerequisiteScripts) {
     $name = $entry.Key
     $installMode = [string]$entry.InstallMode
+
+    if ($Include.Count -gt 0 -and $Include -notcontains $name) {
+        Write-Host ("[skip] {0} (not in -Include)" -f $name) -ForegroundColor DarkGray
+        continue
+    }
 
     $skipVariable = [string]$entry.SkipEnv
     $skipValue = if ($skipVariable) { [Environment]::GetEnvironmentVariable($skipVariable, 'Process') } else { '' }
@@ -49,10 +76,30 @@ foreach ($entry in $PycorePrerequisiteScripts) {
 
     $scriptPath = Get-PycorePrerequisiteScriptPath -ScriptName $entry.Script
     $invokeArgs = @{}
-    if ($neuralBatchInstall -and $installMode -eq 'neural' -and $entry.Full) {
+    $scriptCommand = Get-Command -Name $scriptPath -CommandType ExternalScript
+    $scriptParameters = $scriptCommand.Parameters
+    if ($pythonPath -and $scriptParameters.ContainsKey('Python')) {
+        $invokeArgs['Python'] = $pythonPath
+    }
+    if ($Force -and $scriptParameters.ContainsKey('Force')) {
+        $invokeArgs['Force'] = $true
+    }
+    $requestedModel = switch ($name) {
+        'faster_whisper' { $FasterWhisperModel }
+        'whisper' { $WhisperModel }
+        'vosk' { $VoskModel }
+        default { '' }
+    }
+    if ($requestedModel -and $scriptParameters.ContainsKey('Model')) {
+        $invokeArgs['Model'] = $requestedModel
+    }
+    if ($Full -and $entry.Full -and $scriptParameters.ContainsKey('Full')) {
         $invokeArgs['Full'] = $true
     }
-    elseif ($env:MELOTTS_INSTALL -eq '1' -and $name -eq 'melotts' -and $entry.Full) {
+    elseif ($neuralBatchInstall -and $installMode -eq 'neural' -and $entry.Full -and $scriptParameters.ContainsKey('Full')) {
+        $invokeArgs['Full'] = $true
+    }
+    elseif ($env:MELOTTS_INSTALL -eq '1' -and $name -eq 'melotts' -and $entry.Full -and $scriptParameters.ContainsKey('Full')) {
         $invokeArgs['Full'] = $true
     }
 

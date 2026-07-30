@@ -23,7 +23,7 @@ from typing import Optional, Union, Tuple, List, Dict, Any, Callable
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from ._hf_helpers import (
+from pycore.pyfoundations.third_party._hf_helpers import (
     hf_download_file,
     hf_download_zip_and_extract,
     hf_list_repo_files,
@@ -241,7 +241,7 @@ def _download_ppocr_single_model_repos(
         return True
     ColorPrint.blue("[HF] Single-model repos (V5/V4 etc.):")
     for repo_id in repos:
-        print(f"  [HF]   - {repo_id}", flush=True)
+        ColorPrint.plain(f"  [HF]   - {repo_id}", flush=True)
     sys.stdout.flush()
     rev = revision or "main"
     ok = True
@@ -401,7 +401,7 @@ def _download_and_extract_zips_to(
     if all_zips:
         ColorPrint.blue("[HF] Available zips (%s):" % path_in_repo)
         for z in all_zips:
-            print(f"  [HF]   - {os.path.basename(z)}", flush=True)
+            ColorPrint.plain(f"  [HF]   - {os.path.basename(z)}", flush=True)
         sys.stdout.flush()
     else:
         ColorPrint.yellow(f"[HF] No zip files under {path_in_repo}")
@@ -420,7 +420,7 @@ def _download_and_extract_zips_to(
             if to_download:
                 ColorPrint.blue("[HF] Will download (allowlist):")
                 for z in to_download:
-                    print(f"  [HF]   - {os.path.basename(z)}", flush=True)
+                    ColorPrint.plain(f"  [HF]   - {os.path.basename(z)}", flush=True)
                 sys.stdout.flush()
             zips = to_download
         if not zips:

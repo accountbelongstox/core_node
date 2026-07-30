@@ -86,7 +86,7 @@ from pathlib import Path
 
 # pycore modules
 from pycore.pyfoundations import ColorPrint, ENCYCLOPEDIA
-from pycore.pygvar import IS_WINDOWS, PROJECT_ROOT, CACHE_DIR
+from pycore.pyfoundations.pygvar import IS_WINDOWS, PROJECT_ROOT, CACHE_DIR
 ```
 
 **Global Variables Used**:

@@ -38,7 +38,7 @@ from typing import List, Dict, Any, Optional, Callable, Iterator
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.ai_cluster.openrouter.openrouter_client import get_openrouter_client
+from pycore.pyutils.ai_cluster.openrouter.openrouter_client import openrouter_client
 
 
 class SessionState(Enum):
@@ -73,7 +73,7 @@ class ChatSession:
             max_history: Maximum number of messages to keep in history
             auto_cache: Enable automatic message caching
         """
-        self.client = get_openrouter_client()
+        self.client = openrouter_client
 
         # Auto-select free model if not specified
         if model is None:
@@ -442,7 +442,7 @@ def list_free_models():
     ColorPrint.green("Available Free Models")
     ColorPrint.green("=" * 70)
 
-    client = get_openrouter_client()
+    client = openrouter_client
     models = client.get_models()
 
     free_models = []

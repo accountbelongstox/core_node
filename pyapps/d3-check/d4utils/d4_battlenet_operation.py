@@ -7,9 +7,9 @@ Asia vs CN: tab/play automation_id and name keywords differ; region from game_in
 import os
 import time
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Any, Optional, List, Dict
 
-from pycore.pyutils.common.system_launcher import start_program, Any
+from pycore.pyfoundations.system_launcher import start_program
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from d3utils.click_handler_singleton import get_click_handler

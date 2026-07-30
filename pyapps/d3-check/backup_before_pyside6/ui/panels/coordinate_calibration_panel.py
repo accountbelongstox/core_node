@@ -11,7 +11,7 @@ import os
 import sys
 from typing import Optional, Callable, List, Dict
 
-from pycore.pyutils.system_launcher import open_dir
+from pycore.pyfoundations.system_launcher import open_dir
 from pathlib import Path
 import json
 from datetime import datetime
@@ -43,7 +43,7 @@ from providor.i18n_manager import i18n_manager
 from ui.utils.config_binding import ConfigBinding
 from ..components.yolo_annotation_window import YoloAnnotationWindow
 from ..components.coordinate_picker_window import CoordinatePicker
-from pycore.pyutils.window_activator import WindowActivator
+from pycore.pyutils.window.activator import WindowActivator
 
 try:
     from ..components.record_config_dialog import RecordConfigDialog

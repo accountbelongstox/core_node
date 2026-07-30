@@ -25,18 +25,18 @@ from typing import Optional
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from .frontend_config import FrontendConfig
-from .frontend_singleton_detector import FrontendSingletonDetector
-# Reuse the byte-identical HTTP readiness probe from the universal launcher
-from pycore.pyutils.frontend_launcher.universal_launcher import UniversalFrontendLauncher
+from pycore.pyutils.native_ui.step9_frontend.frontend_config import FrontendConfig
+from pycore.pyutils.native_ui.step9_frontend.frontend_singleton_detector import FrontendSingletonDetector
+# Reuse the shared HTTP readiness probe.
+from pycore.pyutils.common.http_client import http_endpoint_ok
 # Pure command-resolution helpers (extracted)
-from .frontend_commands import (
+from pycore.pyutils.native_ui.step9_frontend.frontend_commands import (
     resolve_command_for_platform as _resolve_command_for_platform,
     resolve_dev_command,
     resolve_build_command,
 )
 # Reusable subprocess/streaming wrappers (extracted)
-from .frontend_process import popen_streaming, stream_process_output, start_output_consumer
+from pycore.pyutils.native_ui.step9_frontend.frontend_process import popen_streaming, stream_process_output, start_output_consumer
 
 import traceback
 from pycore.pyutils.native_ui.step9_frontend.port_killer import is_port_available
@@ -547,13 +547,8 @@ class FrontendLauncherThread(threading.Thread):
             time.sleep(2)
 
     def _http_ok(self, host: str, port: int, path: str) -> bool:
-        """Check if HTTP server responds.
-
-        Delegates to the byte-identical implementation in
-        ``UniversalFrontendLauncher._http_ok`` (pyutils/frontend_launcher) to
-        avoid duplicating the socket probe logic.
-        """
-        return UniversalFrontendLauncher._http_ok(self, host, port, path)
+        """Check if the HTTP server responds."""
+        return http_endpoint_ok(host, port, path)
 
     def wait_for_ready(self, timeout: Optional[float] = None) -> bool:
         """

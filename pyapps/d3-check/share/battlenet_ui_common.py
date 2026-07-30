@@ -7,7 +7,7 @@ import time
 from typing import Optional, List, Dict, Any, Tuple
 
 from pycore.pyfoundations.third_party.api import get_third_package_pythoncom, get_third_package_uiautomation
-from pycore.pyutils.input.click_handler import ClickHandler
+from pycore.pyctl.desktop.click_handler import ClickHandler
 
 pythoncom = get_third_package_pythoncom()
 uiautomation = get_third_package_uiautomation()

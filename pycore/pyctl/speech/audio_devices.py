@@ -146,7 +146,7 @@ class AudioDeviceManager:
             ColorPrint.yellow("  2. Check devices are enabled in system settings")
             ColorPrint.yellow("  3. Try restarting the application")
 
-        print("="*70)
+        ColorPrint.plain("="*70)
         return devices
 
     def _list_windows_devices(self):
@@ -176,8 +176,8 @@ class AudioDeviceManager:
                     if is_loopback or device_info.get('maxOutputChannels', 0) > 0:
                         if is_loopback or 'loopback' in device_info['name'].lower():
                             devices.append(('loopback', i, device_info))
-                            print(f"  [{len(devices)-1}] {device_info['name']}")
-                            print(f"      Sample Rate: {int(device_info['defaultSampleRate'])} Hz")
+                            ColorPrint.plain(f"  [{len(devices)-1}] {device_info['name']}")
+                            ColorPrint.plain(f"      Sample Rate: {int(device_info['defaultSampleRate'])} Hz")
                             loopback_count += 1
 
             if loopback_count == 0:
@@ -196,8 +196,8 @@ class AudioDeviceManager:
                 # Skip if already added as loopback
                 if not any(d[1] == i for d in devices):
                     devices.append(('microphone', i, device_info))
-                    print(f"  [{len(devices)-1}] {device_info['name']}")
-                    print(f"      Sample Rate: {int(device_info['defaultSampleRate'])} Hz")
+                    ColorPrint.plain(f"  [{len(devices)-1}] {device_info['name']}")
+                    ColorPrint.plain(f"      Sample Rate: {int(device_info['defaultSampleRate'])} Hz")
                     mic_count += 1
 
         if mic_count == 0:
@@ -221,8 +221,8 @@ class AudioDeviceManager:
             # Monitor sources typically have "monitor" in the name
             if 'monitor' in device_info['name'].lower():
                 devices.append(('loopback', i, device_info))
-                print(f"  [{len(devices)-1}] {device_info['name']}")
-                print(f"      Sample Rate: {int(device_info['defaultSampleRate'])} Hz")
+                ColorPrint.plain(f"  [{len(devices)-1}] {device_info['name']}")
+                ColorPrint.plain(f"      Sample Rate: {int(device_info['defaultSampleRate'])} Hz")
                 monitor_count += 1
 
         if monitor_count == 0:
@@ -240,8 +240,8 @@ class AudioDeviceManager:
             if device_info.get('maxInputChannels', 0) > 0:
                 if not any(d[1] == i for d in devices):
                     devices.append(('microphone', i, device_info))
-                    print(f"  [{len(devices)-1}] {device_info['name']}")
-                    print(f"      Sample Rate: {int(device_info['defaultSampleRate'])} Hz")
+                    ColorPrint.plain(f"  [{len(devices)-1}] {device_info['name']}")
+                    ColorPrint.plain(f"      Sample Rate: {int(device_info['defaultSampleRate'])} Hz")
                     mic_count += 1
 
         if mic_count == 0:
@@ -266,8 +266,8 @@ class AudioDeviceManager:
                 name_lower = device_info['name'].lower()
                 if 'blackhole' in name_lower or 'soundflower' in name_lower:
                     devices.append(('loopback', i, device_info))
-                    print(f"  [{len(devices)-1}] {device_info['name']}")
-                    print(f"      Sample Rate: {int(device_info['defaultSampleRate'])} Hz")
+                    ColorPrint.plain(f"  [{len(devices)-1}] {device_info['name']}")
+                    ColorPrint.plain(f"      Sample Rate: {int(device_info['defaultSampleRate'])} Hz")
                     virtual_count += 1
 
             if virtual_count == 0:
@@ -285,8 +285,8 @@ class AudioDeviceManager:
             if device_info.get('maxInputChannels', 0) > 0:
                 if not any(d[1] == i for d in devices):
                     devices.append(('microphone', i, device_info))
-                    print(f"  [{len(devices)-1}] {device_info['name']}")
-                    print(f"      Sample Rate: {int(device_info['defaultSampleRate'])} Hz")
+                    ColorPrint.plain(f"  [{len(devices)-1}] {device_info['name']}")
+                    ColorPrint.plain(f"      Sample Rate: {int(device_info['defaultSampleRate'])} Hz")
                     mic_count += 1
 
         if mic_count == 0:
@@ -306,9 +306,9 @@ class AudioDeviceManager:
 
             if device_info.get('maxInputChannels', 0) > 0:
                 devices.append(('microphone', i, device_info))
-                print(f"  [{len(devices)-1}] {device_info['name']}")
-                print(f"      Inputs: {device_info['maxInputChannels']}")
-                print(f"      Sample Rate: {int(device_info['defaultSampleRate'])} Hz")
+                ColorPrint.plain(f"  [{len(devices)-1}] {device_info['name']}")
+                ColorPrint.plain(f"      Inputs: {device_info['maxInputChannels']}")
+                ColorPrint.plain(f"      Sample Rate: {int(device_info['defaultSampleRate'])} Hz")
 
         return devices
 

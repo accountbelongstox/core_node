@@ -14,8 +14,8 @@ from pathlib import Path
 from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from .frontend_config import FrontendConfig
-from .output_capturer import OutputCapturer
+from pycore.pyutils.frontend_launcher.frontend_config import FrontendConfig
+from pycore.pyutils.frontend_launcher.output_capturer import OutputCapturer
 import subprocess
 
 import traceback
@@ -299,7 +299,7 @@ class NuxtLauncher:
             # Animated progress
             dots = (dots + 1) % 4
             progress_bar = '.' * dots + ' ' * (3 - dots)
-            print(
+            ColorPrint.plain(
                 f"\r[Waiting for frontend{progress_bar}] "
                 f"Elapsed: {current_elapsed:>5.1f}s | "
                 f"Attempts: {attempt:>3} | "

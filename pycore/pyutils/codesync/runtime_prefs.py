@@ -1,16 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Code Sync runtime toggles — per-machine persistence for session flags.
+Code Sync runtime toggles backed by the unified user settings map.
 
 Unlike role/peers (peer_config) and filter presets (sync_settings), these are
 the dev "distributing" and client "skip_update" switches. Tray and UI both call
 the same manager methods; persisting here keeps behaviour identical regardless
 of which surface last changed a toggle.
 
-Stored at:
-  <cache>/pycore/codesync/runtime_prefs.json  (gitignored)
-
-Stdlib only: paths/log via `.runtime`; no pycore import.
+The former runtime_prefs.json is read once as a migration source. New writes
+go to the codesync_runtime section in user_data.json.
 """
 
 import json
@@ -18,7 +16,9 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .runtime import (
+from pycore.pyutils.common.user_data_store import user_data_store
+
+from pycore.pyutils.codesync.runtime import (
     get_local_data_dir,
     init_serialized_owner,
     log as ColorPrint,
@@ -26,6 +26,7 @@ from .runtime import (
 )
 
 _KEYS = ("distributing", "skip_update")
+_SECTION = "codesync_runtime"
 
 
 def get_runtime_prefs_file() -> Path:
@@ -34,17 +35,31 @@ def get_runtime_prefs_file() -> Path:
 
 class RuntimePrefs:
     def __init__(self, path: Optional[Path] = None):
-        self._path = Path(path) if path else get_runtime_prefs_file()
+        self._path = Path(path) if path else None
+        self._legacy_path = get_runtime_prefs_file()
         init_serialized_owner(self, "codesync.runtime_prefs", "CodeSyncRuntimePrefs")
 
     def _read(self) -> Dict[str, Any]:
+        if self._path is None:
+            personalized = user_data_store.get_personalized_section(_SECTION)
+            if personalized:
+                return personalized
+            legacy = self._read_file(self._legacy_path)
+            if legacy:
+                user_data_store.set_section(_SECTION, legacy)
+                return legacy
+            return user_data_store.get_section(_SECTION)
+        return self._read_file(self._path)
+
+    @staticmethod
+    def _read_file(path: Path) -> Dict[str, Any]:
         try:
-            if self._path.exists():
-                data = json.loads(self._path.read_text(encoding="utf-8"))
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
                     return data
         except Exception as exc:
-            ColorPrint.yellow(f"[CodeSyncPrefs] read {self._path} failed: {exc}")
+            ColorPrint.yellow(f"[CodeSyncPrefs] read {path} failed: {exc}")
         return {}
 
     @serialized_method
@@ -61,16 +76,19 @@ class RuntimePrefs:
         for key in _KEYS:
             if key in patch and patch[key] is not None:
                 data[key] = bool(patch[key])
-        try:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self._path.with_suffix(self._path.suffix + ".tmp")
-            tmp.write_text(
-                json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True),
-                encoding="utf-8",
-            )
-            os.replace(str(tmp), str(self._path))
-        except Exception as exc:
-            ColorPrint.red(f"[CodeSyncPrefs] save {self._path} failed: {exc}")
+        if self._path is None:
+            user_data_store.set_section(_SECTION, data)
+        else:
+            try:
+                self._path.parent.mkdir(parents=True, exist_ok=True)
+                tmp = self._path.with_suffix(self._path.suffix + ".tmp")
+                tmp.write_text(
+                    json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True),
+                    encoding="utf-8",
+                )
+                os.replace(str(tmp), str(self._path))
+            except Exception as exc:
+                ColorPrint.red(f"[CodeSyncPrefs] save {self._path} failed: {exc}")
         return self.get()
 
 

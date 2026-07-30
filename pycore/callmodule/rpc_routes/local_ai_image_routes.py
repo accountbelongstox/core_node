@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """RPC Routes for ai_image."""
 
-import asyncio
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
@@ -13,45 +12,33 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_AI_IMAGE_IMAGE_HISTORY_REVEAL,
     UI_AI_IMAGE_IMAGE_TEST,
 )
-import pycore.callmodule.services.ai_image_service as ai
+import pycore.pyctl.ai.image_service as ai
 
 
 def register_local_ai_image_routes(server):
-    async def image_handler(params, request_id, context):
-        return await asyncio.to_thread(ai.image, params or {})
+    server.route(name=UI_AI_IMAGE_IMAGE, handler=ai.image)
+    server.route(name=UI_AI_IMAGE_IMAGE_TEST, handler=ai.image_test)
 
-    server.route(name=UI_AI_IMAGE_IMAGE, handler=image_handler, sync=False)
+    def image_history_handler(params, request_id, context):
+        return ai.image_history(int((params or {}).get("limit") or 50))
 
-    async def image_test_handler(params, request_id, context):
-        return await asyncio.to_thread(ai.image_test, params or {})
+    server.route(name=UI_AI_IMAGE_IMAGE_HISTORY, handler=image_history_handler)
 
-    server.route(name=UI_AI_IMAGE_IMAGE_TEST, handler=image_test_handler, sync=False)
+    def image_history_file_handler(params, request_id, context):
+        return ai.image_history_file(str((params or {}).get("image_id") or ""))
 
-    async def image_history_handler(params, request_id, context):
-        return await asyncio.to_thread(ai.image_history, int((params or {}).get("limit") or 50))
+    server.route(name=UI_AI_IMAGE_IMAGE_HISTORY_FILE, handler=image_history_file_handler)
 
-    server.route(name=UI_AI_IMAGE_IMAGE_HISTORY, handler=image_history_handler, sync=False)
+    def image_history_reveal_handler(params, request_id, context):
+        return ai.image_history_reveal(str((params or {}).get("image_id") or ""))
 
-    async def image_history_file_handler(params, request_id, context):
-        return await asyncio.to_thread(ai.image_history_file, str((params or {}).get("image_id") or ""))
+    server.route(name=UI_AI_IMAGE_IMAGE_HISTORY_REVEAL, handler=image_history_reveal_handler)
 
-    server.route(name=UI_AI_IMAGE_IMAGE_HISTORY_FILE, handler=image_history_file_handler, sync=False)
+    def image_history_delete_handler(params, request_id, context):
+        return ai.image_history_delete(str((params or {}).get("image_id") or ""))
 
-    async def image_history_reveal_handler(params, request_id, context):
-        return await asyncio.to_thread(ai.image_history_reveal, str((params or {}).get("image_id") or ""))
+    server.route(name=UI_AI_IMAGE_IMAGE_HISTORY_DELETE, handler=image_history_delete_handler)
 
-    server.route(name=UI_AI_IMAGE_IMAGE_HISTORY_REVEAL, handler=image_history_reveal_handler, sync=False)
-
-    async def image_history_delete_handler(params, request_id, context):
-        return await asyncio.to_thread(ai.image_history_delete, str((params or {}).get("image_id") or ""))
-
-    server.route(name=UI_AI_IMAGE_IMAGE_HISTORY_DELETE, handler=image_history_delete_handler, sync=False)
-
-    async def image_history_clear_handler(params, request_id, context):
-        return await asyncio.to_thread(ai.image_history_clear)
-
-    server.route(name=UI_AI_IMAGE_IMAGE_HISTORY_CLEAR, handler=image_history_clear_handler, sync=False)
+    server.route(name=UI_AI_IMAGE_IMAGE_HISTORY_CLEAR, handler=ai.image_history_clear)
     ColorPrint.green("[ConfigBuilder] Registered ai_image RPC routes")
 
-
-__all__ = ["register_local_ai_image_routes"]

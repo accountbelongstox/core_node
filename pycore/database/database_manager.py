@@ -16,25 +16,9 @@ from pathlib import Path
 from contextlib import contextmanager
 
 from pycore.pyfoundations.system_paths import map_web_path
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint as _OriginalColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.third_party.api import get_third_package_sqlalchemy
-
-# Suppress ColorPrint output in MCP mode
-class ColorPrint:
-    _is_mcp = _OriginalColorPrint.is_mcp_mode()
-    @staticmethod
-    def blue(msg):
-        if not ColorPrint._is_mcp: _OriginalColorPrint.blue(msg)
-    @staticmethod
-    def red(msg):
-        if not ColorPrint._is_mcp: _OriginalColorPrint.red(msg)
-    @staticmethod
-    def green(msg):
-        if not ColorPrint._is_mcp: _OriginalColorPrint.green(msg)
-    @staticmethod
-    def yellow(msg):
-        if not ColorPrint._is_mcp: _OriginalColorPrint.yellow(msg)
 
 sqlalchemy = get_third_package_sqlalchemy()
 
@@ -365,14 +349,5 @@ class DatabaseManager:
         ColorPrint.green("[DatabaseManager] All databases closed")
 
 
-# Singleton instance
-_database_manager_singleton = DatabaseManager()
-
-
-def get_database_manager() -> DatabaseManager:
-    """Get singleton instance of DatabaseManager"""
-    return _database_manager_singleton
-
-
-# Export singleton instance
-database_manager = get_database_manager()
+# Shared package instance
+database_manager = DatabaseManager()

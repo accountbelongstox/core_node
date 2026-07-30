@@ -7,7 +7,7 @@ Each machine has a ROLE (from the committed peer config, peer_config.py):
     (always on) plus the status mesh. Pulls the newest version of each file across
     ALL configured dev-ends (per-file mtime).
   * dev: DISTRIBUTES code to clients. Runs the status mesh on startup; file
-    distribution defaults OFF but is restored from runtime_prefs.json when the
+    distribution defaults OFF but is restored from unified user settings when the
     tray/UI last enabled it (set_distributing(True) persists per machine).
 
 Every machine runs the PeerMeshManager (peer_mesh.py): it probes all configured
@@ -25,7 +25,10 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .runtime import (
+from pycore.pyfoundations.pygvar import PYCORE_HTTP_PORT
+from pycore.pyfoundations.thread_bus_constants import BusSignals
+
+from pycore.pyutils.codesync.runtime import (
     log as ColorPrint,
     http as requests,
     emit_event,
@@ -37,17 +40,18 @@ from .runtime import (
     start_bus_task,
 )
 
-from .server import CodeSyncServer, get_code_sync_server
-from .client import CodeSyncClient, get_code_sync_client
-from .peer_config import get_peer_config, _local_lan_ip
-from .peer_mesh import PeerMeshManager
-from .runtime_prefs import get_runtime_prefs
-from .sync_ws import PushSender, PushReceiver
+from pycore.pyutils.codesync.server import CodeSyncServer, get_code_sync_server
+from pycore.pyutils.codesync.client import CodeSyncClient, get_code_sync_client
+from pycore.pyutils.codesync.peer_config import get_peer_config, _local_lan_ip
+from pycore.pyutils.codesync.peer_mesh import PeerMeshManager
+from pycore.pyutils.codesync.runtime_prefs import get_runtime_prefs
+from pycore.pyutils.codesync.push_receiver import PushReceiver
+from pycore.pyutils.codesync.push_sender import PushSender
 
-from .sync_settings import build_excluder
-from .sync_settings import get_sync_settings
+from pycore.pyutils.codesync.sync_settings import build_excluder
+from pycore.pyutils.codesync.sync_settings import get_sync_settings
 import os as _os
-from .watcher import get_watch_manager
+from pycore.pyutils.codesync.watcher import get_watch_manager
 
 
 VALID_ROLES = ("dev", "client")
@@ -100,15 +104,15 @@ class CodeSyncManager:
                                     light=light_client)
         self.mesh.start()
 
-        # WS push channel (dev dials clients out; clients accept). The receiver is
-        # used by the WS server endpoint; the sender supervisor only acts while
+        # HTTP push channel (dev sends requests to clients). The receiver is
+        # used by the HTTP controller; the sender supervisor only acts while
         # this node is a distributing dev.
         # Per-CHANNEL sync phase: each remote end (the OTHER end's id) gets its own
         # row so concurrent peers no longer stomp a single global phase. A legacy
         # caller that passes no channel lands in the "_local" channel.
         self._peer_phases: Dict[str, Dict[str, Any]] = {}
         self._sync_logs = []  # ring of recent push/receive events (newest last)
-        # Construct BOTH the receiver and the sender (so the WS endpoint and the
+        # Construct both the receiver and the sender (so the HTTP endpoint and the
         # back-compat surface keep working), but a light client never STARTS the
         # sender supervisor — it neither pushes nor receives code.
         self.push_receiver = PushReceiver(self)
@@ -167,16 +171,15 @@ class CodeSyncManager:
         self._stop_services()
         if role == "client":
             # A CLIENT is PASSIVE: it never scans the LAN, never dials out to a
-            # dev-end. It only EXPOSES a WS server (the always-on http_server /
-            # FastAPI `/code-sync/ws` receiver) that dev-ends connect INTO and push
+            # dev-end. It exposes an HTTP controller that dev-ends call to push
             # code to. The legacy outbound puller (CodeSyncClient: LAN scan + connect
             # to dev) is intentionally NOT started. Skip-update is enforced at the
             # receiver (see PushReceiver), not by stopping a puller.
             if self._skip_update:
                 ColorPrint.yellow("[CodeSync Manager] Client role; updates are SKIPPED "
-                                  "(WS receiver will reject pushed code).")
+                                  "(HTTP receiver will reject pushed code).")
             else:
-                ColorPrint.green("[CodeSync Manager] Client role: receiving via WS push "
+                ColorPrint.green("[CodeSync Manager] Client role: receiving via HTTP push "
                                  "(passive server only — no LAN scan, no outbound connect).")
         else:  # dev
             # Mesh already runs; file distribution stays OFF until enabled.
@@ -243,7 +246,7 @@ class CodeSyncManager:
     def _set_skip_update_state(self, enabled: bool) -> dict:
         with self._state_scope:
             self._skip_update = bool(enabled)
-            # Enforced at the WS receiver (PushReceiver checks is_skip_update and
+            # Enforced at the HTTP receiver (PushReceiver checks is_skip_update and
             # drops pushed manifests/files) — there is no outbound puller to stop.
             # The status mesh keeps running so peers still see this node.
             msg = ("Updates skipped (rejecting pushed code)" if self._skip_update
@@ -321,7 +324,10 @@ class CodeSyncManager:
         client = get_code_sync_client()
         for peer in self.config.dev_peers():
             try:
-                client.add_server(peer.get("host"), int(peer.get("port", 59000)))
+                client.add_server(
+                    peer.get("host"),
+                    int(peer.get("port", PYCORE_HTTP_PORT)),
+                )
             except Exception as exc:
                 ColorPrint.yellow(f"[CodeSync Manager] add_server failed: {exc}")
 
@@ -333,7 +339,13 @@ class CodeSyncManager:
                 pass
 
     # ----- peers (config CRUD; replicated via mesh) ----------------------- #
-    def add_peer(self, name: str, host: str, port: int = 59000, role: str = "client") -> dict:
+    def add_peer(
+        self,
+        name: str,
+        host: str,
+        port: int = PYCORE_HTTP_PORT,
+        role: str = "client",
+    ) -> dict:
         self.config.add_peer(name, host, port, role)
         self._sync_client_targets()
         self.mesh.broadcast_config()
@@ -414,7 +426,7 @@ class CodeSyncManager:
         self._broadcast()
         return {"success": True, "settings": settings}
 
-    # ----- WS push: phase + sync-log ring (shared by sender & receiver) ---- #
+    # ----- HTTP push: phase + sync-log ring (shared by sender & receiver) -- #
     def sync_target_root(self) -> Path:
         """Where a CLIENT writes pushed files (mapped under this root by dest_rel)."""
         return get_core_node_root()
@@ -443,7 +455,7 @@ class CodeSyncManager:
         waits on this queue while we wait on the mesh queue."""
         self._set_sync_phase_state(phase, count, channel, name, direction)
         try:
-            emit_event("code_sync_update", self.mesh.snapshot())
+            emit_event(BusSignals.CODE_SYNC_UPDATE, self.mesh.snapshot())
         except Exception:
             pass
 
@@ -519,7 +531,7 @@ class CodeSyncManager:
 
     @serialized_method
     def get_sync_logs(self, limit: int = 100) -> dict:
-        """Recent push/receive activity for the UI's log panel — the WS-push ring
+        """Recent push/receive activity for the UI's log panel.
         (dev 'sent' + client 'received'/'skipped'/'error'), newest last."""
         with self._sync_scope:
             logs = list(self._sync_logs)
@@ -725,7 +737,7 @@ class CodeSyncManager:
         if not peer:
             return {"success": False, "error": "unknown peer"}
         host = peer.get("host")
-        port = int(peer.get("port", 59000) or 59000)
+        port = int(peer.get("port", PYCORE_HTTP_PORT) or PYCORE_HTTP_PORT)
         name = peer.get("name") or host
         peer_meta = {"id": peer_id, "name": name, "host": host, "port": port}
         url = f"http://{host}:{port}/code-sync/file-tree"
@@ -788,7 +800,7 @@ class CodeSyncManager:
 
     def _broadcast(self) -> None:
         try:
-            emit_event("code_sync_update", self.mesh.snapshot())
+            emit_event(BusSignals.CODE_SYNC_UPDATE, self.mesh.snapshot())
         except Exception:
             pass
 

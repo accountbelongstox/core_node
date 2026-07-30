@@ -1,0 +1,77 @@
+1:修复QWEN-TTS的BUG，并调整代码构架：
+[qwen3tts +0.00s] synth failed: [WinError 10054] An existing connection was forcibly closed by the remote host
+[TranslationWorker +0.01s] Posted 'processing' 
+
+2:[qwen3tts +0.01s] synth failed: [WinError 10054] An existing connection was forcibly closed by the remote host
+[qwen3tts +0.01s] synth failed: [WinError 10054] An existing connection was forcibly closed by the remote host
+
+:[laravel +0.22s] GET /api/app_qy_v1/ai_tools/translation/queue/pending_words -> 404 (213ms) success=False
+
+:[TranslationWorker +0.02s] Pull transient error (timed out); will retry next tick
+
+[laravel +0.11s] POST /api/worker/tasks/result -> ERR (8407ms) HTTPConnectionPool(host='43.163.112.77', port=9000): Read timed out. (read timeout=8)
+[laravel +0.07s] POST /api/worker/tasks/result -> ERR (8331ms) HTTPConnectionPool(host='43.163.112.77', port=9000): Read timed out. (read timeout=8)
+[Heartbeat +0.04s] Tick #930, Time: 2026-07-29 21:16:55
+[qwen3tts +0.27s] INFO:     connection open
+[qwen3tts +0.02s] INFO:     127.0.0.1:49213 - "WebSocket /ws" [accepted]
+[qwen3tts +0.00s] INFO:     connection open
+[qwen3tts +0.00s] INFO:     127.0.0.1:49214 - "WebSocket /ws" [accepted]
+[qwen3tts +0.01s] Exception in callback _ProactorBasePipeTransport._call_connection_lost()
+[qwen3tts +0.01s] handle: <Handle _ProactorBasePipeTransport._call_connection_lost()>
+[qwen3tts +0.00s] Traceback (most recent call last):
+[qwen3tts +0.00s] File "D:\.dev_win10\python313\Lib\asyncio\events.py", line 89, in _run
+[qwen3tts +0.00s] self._context.run(self._callback, *self._args)
+[qwen3tts +0.00s] ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[qwen3tts +0.01s] File "D:\.dev_win10\python313\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+[qwen3tts +0.01s] self._sock.shutdown(socket.SHUT_RDWR)
+[qwen3tts +0.01s] ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+[qwen3tts +0.01s] ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host
+[qwen3tts +0.01s] Exception in callback _ProactorBasePipeTransport._call_connection_lost()
+[qwen3tts +0.01s] handle: <Handle _ProactorBasePipeTransport._call_connection_lost()>
+[qwen3tts +0.01s] Traceback (most recent call last):
+[qwen3tts +0.01s] File "D:\.dev_win10\python313\Lib\asyncio\events.py", line 89, in _run
+[qwen3tts +0.01s] self._context.run(self._callback, *self._args)
+[qwen3tts +0.01s] ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[tts +0.00s] sentence cache MISS; synthesizing
+[qwen3tts +0.01s] File "D:\.dev_win10\python313\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+[qwen3tts +0.01s] self._sock.shutdown(socket.SHUT_RDWR)
+[qwen3tts +0.01s] ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+[qwen3tts +0.03s] ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host
+[qwen3tts +0.01s] Exception in callback _ProactorBasePipeTransport._call_connection_lost()
+[qwen3tts +0.01s] handle: <Handle _ProactorBasePipeTransport._call_connection_lost()>
+[qwen3tts +0.01s] Traceback (most recent call last):
+[qwen3tts +0.00s] File "D:\.dev_win10\python313\Lib\asyncio\events.py", line 89, in _run
+[qwen3tts +0.01s] self._context.run(self._callback, *self._args)
+[qwen3tts +0.01s] ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[qwen3tts +0.01s] File "D:\.dev_win10\python313\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+[qwen3tts +0.01s] self._sock.shutdown(socket.SHUT_RDWR)
+[qwen3tts +0.01s] ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+[qwen3tts +0.01s] ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host
+[qwen3tts +0.01s] Exception in callback _ProactorBasePipeTransport._call_connection_lost()
+[qwen3tts +0.01s] handle: <Handle _ProactorBasePipeTransport._call_connection_lost()>
+[qwen3tts +0.01s] Traceback (most recent call last):
+[qwen3tts +0.00s] File "D:\.dev_win10\python313\Lib\asyncio\events.py", line 89, in _run
+[qwen3tts +0.00s] self._context.run(self._callback, *self._args)
+[qwen3tts +0.01s] ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[qwen3tts +0.01s] File "D:\.dev_win10\python313\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+[qwen3tts +0.01s] self._sock.shutdown(socket.SHUT_RDWR)
+[qwen3tts +0.01s] ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+[qwen3tts +0.01s] ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host
+[qwen3tts +0.01s] Setting `pad_token_id` to `eos_token_id`:2150 for open-end generation.
+[laravel +0.16s] GET /api/app_qy_v1/ai_tools/tts/sentence/missing -> 200 (745ms) success=True total=179407 items=100 summary={'languages': {'af': 0, 'am': 0, 'ar': 0, 'as': 0, 'az': 0, 'bg': 0, 'bn': 0, 'bs': 0, 'ca': 0, 'cs'
+[qwen3tts +0.08s] synth failed: [WinError 10054] An existing connection was forcibly closed by the remote host[qwen3tts +0.00s] synth failed: [WinError 10054] An existing connection was forcibly closed by the remote host
+
+[tts +0.25s] stopped foreign qwen3tts server (pid=32204) on port 57210
+
+2：修改pycore  UI ,pycore rpc v2，事件ID也要发送，为什么就这样一个没有任何信息的请求。传递的数据也要打印。
+[WS <<<] event:request_accepted  {status: 'accepted'}status: "accepted"[[Prototype]]: Object
+PycoreWs.ts:257 [WS <<<] event:request_accepted  {status: 'accepted'}status: "accepted"[[Prototype]]: Object
+PycoreWs.ts:257 [WS <<<] event:request_accepted  {status: 'accepted'}
+PycoreWs.ts:257 [WS <<<] event:request_accepted  {status: 'accepted'}
+PycoreWs.ts:257 [WS <<<] event:request_accepted  {status: 'accepted'}
+
+3：http://127.0.0.1:13054/pycore-manager/queue-center 
+其中的 Queue overview unavailable — pycore (:59000) may be offline.，明明在 [WS >>>] ui.user_data #91dbc2d9 {action: 'system_settings_get'}请求的时候，为什么pycore UI的数据没有统一，pycore也有数据递归的BUG，导致卡住。
+UI没有显示pycore在线。
+
+4：

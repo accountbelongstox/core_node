@@ -456,7 +456,7 @@ class AppQyV1ProfileController extends BaseController
             'recentTools' => [],
             // WordFlow account-level prefs: per-user learning target +
             // opaque client settings blob (WfSettingsCenter shape) so the
-            // wordflow end can roam settings across devices.
+            // WordNew clients can roam settings across devices.
             'daily_goal' => 20,
             'app_settings' => null,
         ];

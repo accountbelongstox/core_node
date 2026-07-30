@@ -8,7 +8,7 @@ const AppConfig = {
     // API Configuration
     api: {
         baseUrl: window.location.origin,
-        rpcPath: '/rpc',
+        rpcPath: '/api/controller',
         timeout: 30000,
         retryCount: 3
     },

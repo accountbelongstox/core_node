@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Dict, Any
 import json
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.flutter_dev_tools.utils.pageview_updater import (
     update_pageview_map,
     cleanup_orphaned_entries,
@@ -51,8 +52,8 @@ def update_app_pageview_map(
     app_name = app_path.name
 
     try:
-        print(f"[PageViewUpdater] Updating pageview_map.json for: {app_name}")
-        print(f"[PageViewUpdater] Layer: {layer}, Force: {force}")
+        ColorPrint.plain(f"[PageViewUpdater] Updating pageview_map.json for: {app_name}")
+        ColorPrint.plain(f"[PageViewUpdater] Layer: {layer}, Force: {force}")
 
         # Update pageview map
         updated_map = update_pageview_map(
@@ -89,7 +90,7 @@ def update_app_pageview_map(
         }
 
     except Exception as e:
-        print(f"[ERROR] Failed to update pageview_map.json: {e}")
+        ColorPrint.plain(f"[ERROR] Failed to update pageview_map.json: {e}")
         traceback.print_exc()
 
         return {
@@ -164,7 +165,7 @@ def upload_actual_image(
         return result
 
     except Exception as e:
-        print(f"[ERROR] Failed to upload actual image: {e}")
+        ColorPrint.plain(f"[ERROR] Failed to upload actual image: {e}")
         traceback.print_exc()
 
         return {

@@ -42,21 +42,11 @@ resolve_python() {
     return 1
 }
 
-warm_melotts_models() {
+prepare_melotts_nltk() {
     local venv_python="$1"
-    local languages="$2"
-    local device="$3"
 
     [[ -n "$venv_python" ]] || return 0
     "$venv_python" -c 'import nltk; nltk.download("averaged_perceptron_tagger_eng", quiet=True)' >/dev/null 2>&1 || true
-    MELOTTS_WARM_LANGUAGES="$languages" MELOTTS_WARM_DEVICE="$device" "$venv_python" -c 'import os
-from melo.api import TTS
-for language in os.environ["MELOTTS_WARM_LANGUAGES"].split(","):
-    try:
-        TTS(language=language.strip(), device=os.environ["MELOTTS_WARM_DEVICE"])
-        print(f"[install_melotts] [warmed] {language.strip()}")
-    except Exception as exc:
-        print(f"[install_melotts] [skip] {language.strip()}: {exc}")' || true
 }
 
 echo "============================================================"
@@ -89,7 +79,7 @@ tts_official_env_line "$PYTHON" "$SCRIPT_DIR" melotts | while read -r line; do
 done
 
 if [[ "$FORCE" -eq 0 ]] && tts_dependency_stamp_matches "$PYTHON" "melotts" "$DEPS_SENTINEL"; then
-    tts_provision_isolated_venv "$PYTHON" "melotts" 0
+    tts_probe_isolated_venv_provisioned "$PYTHON" "melotts"
     if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
         tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "MeloTTS isolated venv verified"
         complete_prereq_step "$PYTHON" "$PREFIX"
@@ -121,6 +111,6 @@ if [[ -z "$VENV_PYTHON" ]]; then
     fail_prereq_step "$PYTHON" "$PREFIX"
 fi
 
-warm_melotts_models "$VENV_PYTHON" "$LANGUAGES" "$DEVICE"
+prepare_melotts_nltk "$VENV_PYTHON"
 echo "${PREFIX}[OK] MeloTTS ready; runtime uses $VENV_PYTHON."
 complete_prereq_step "$PYTHON" "$PREFIX"

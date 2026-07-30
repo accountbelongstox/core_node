@@ -233,7 +233,7 @@ def run_app(speech_manager, interactive: bool = True, language: str = None, devi
         ColorPrint.yellow("[INFO] Play audio to see transcription")
     else:
         ColorPrint.yellow("[INFO] Start speaking into microphone")
-    print()
+    ColorPrint.plain()
 
     # Run for duration
     start_time = time.time()
@@ -271,14 +271,14 @@ def run_app(speech_manager, interactive: bool = True, language: str = None, devi
     ColorPrint.blue("="*70)
 
     summary = session.get_session_summary()
-    print(f"Total Utterances: {summary['total_utterances']}")
-    print(f"Total Words: {summary['total_words']}")
-    print(f"Total Characters: {summary['total_characters']}")
-    print(f"Average Confidence: {summary['average_confidence']:.2%}")
+    ColorPrint.plain(f"Total Utterances: {summary['total_utterances']}")
+    ColorPrint.plain(f"Total Words: {summary['total_words']}")
+    ColorPrint.plain(f"Total Characters: {summary['total_characters']}")
+    ColorPrint.plain(f"Average Confidence: {summary['average_confidence']:.2%}")
 
     # Ask if user wants to save session
     if summary['total_utterances'] > 0:
-        print()
+        ColorPrint.plain()
         save_choice = input("Save session to file? (y/n) [default: n]: ").strip().lower()
         if save_choice == 'y':
             timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -336,9 +336,9 @@ def run_app_dual_source(speech_manager):
     device_manager = AudioDeviceManager()
 
     # Select microphone with cache
-    print("\n" + "="*70)
-    print("Select Microphone Device")
-    print("="*70)
+    ColorPrint.plain("\n" + "="*70)
+    ColorPrint.plain("Select Microphone Device")
+    ColorPrint.plain("="*70)
     mic_device = select_device_with_cache(device_manager, device_type="microphone")
     if not mic_device:
         ColorPrint.red("\nNo microphone selected")
@@ -346,9 +346,9 @@ def run_app_dual_source(speech_manager):
         sys.exit(1)
 
     # Select system audio with cache
-    print("\n" + "="*70)
-    print("Select System Audio Device")
-    print("="*70)
+    ColorPrint.plain("\n" + "="*70)
+    ColorPrint.plain("Select System Audio Device")
+    ColorPrint.plain("="*70)
     system_device = select_device_with_cache(device_manager, device_type="system")
     if not system_device:
         ColorPrint.red("\nNo system audio device selected")
@@ -466,7 +466,7 @@ def run_app_dual_source(speech_manager):
     ColorPrint.yellow("[System Audio] Play audio to see transcription")
     ColorPrint.blue("[Hotkey] Ctrl+Click - Copy last system audio text")
     ColorPrint.blue("[Hotkey] Ctrl+DoubleClick - Replay last system audio text")
-    print()
+    ColorPrint.plain()
 
     # Run until interrupted
     start_time = time.time()
@@ -497,20 +497,20 @@ def run_app_dual_source(speech_manager):
     ColorPrint.blue("="*70)
 
     ColorPrint.yellow(f"\n[Microphone - {mic_language}]")
-    print(f"Total Utterances: {len(mic_channel.recognized_texts)}")
+    ColorPrint.plain(f"Total Utterances: {len(mic_channel.recognized_texts)}")
     if mic_channel.recognized_texts:
         total_words = sum(len(item['text'].split()) for item in mic_channel.recognized_texts)
         avg_conf = sum(item['confidence'] for item in mic_channel.recognized_texts) / len(mic_channel.recognized_texts)
-        print(f"Total Words: {total_words}")
-        print(f"Average Confidence: {avg_conf:.2%}")
+        ColorPrint.plain(f"Total Words: {total_words}")
+        ColorPrint.plain(f"Average Confidence: {avg_conf:.2%}")
 
     ColorPrint.yellow(f"\n[System Audio - {system_language}]")
-    print(f"Total Utterances: {len(sys_channel.recognized_texts)}")
+    ColorPrint.plain(f"Total Utterances: {len(sys_channel.recognized_texts)}")
     if sys_channel.recognized_texts:
         total_words = sum(len(item['text'].split()) for item in sys_channel.recognized_texts)
         avg_conf = sum(item['confidence'] for item in sys_channel.recognized_texts) / len(sys_channel.recognized_texts)
-        print(f"Total Words: {total_words}")
-        print(f"Average Confidence: {avg_conf:.2%}")
+        ColorPrint.plain(f"Total Words: {total_words}")
+        ColorPrint.plain(f"Average Confidence: {avg_conf:.2%}")
 
     ColorPrint.blue("\n" + "="*70)
     ColorPrint.green("[DONE] Dual-source transcription completed")

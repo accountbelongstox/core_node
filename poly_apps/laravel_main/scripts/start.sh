@@ -94,7 +94,7 @@ ARG=""
 # Optional: also bring the nexus-dash UI up as its own background service when this
 # service is registered (idempotent; the UI script owns its own systemd registration).
 INCLUDE_UI="${INCLUDE_UI:-}"
-UI_START="${POLY_APPS_DIR}/pycore_laravel_wordflow_ui/scripts/start.sh"
+UI_START="${POLY_APPS_DIR}/pycore_laravel_wordnew_ui/scripts/start.sh"
 
 # Parse service-related arguments (the orchestrator passes these so it never re-prompts).
 for ARG in "$@"; do
@@ -880,7 +880,7 @@ if [ "${LARAVEL_SERVICE_RUN:-}" != "1" ]; then
             # The UI script owns its own systemd registration (--service --no-backend so it
             # never tries to launch a second laravel_main); safe to call idempotently.
             if [ -z "$INCLUDE_UI" ]; then
-                if [ -f "$UI_START" ] && ask_default_no "Also add the pycore_laravel_wordflow_ui dashboard to a background service?"; then
+                if [ -f "$UI_START" ] && ask_default_no "Also add the pycore_laravel_wordnew_ui dashboard to a background service?"; then
                     INCLUDE_UI="yes"
                 else
                     INCLUDE_UI="no"
@@ -888,7 +888,7 @@ if [ "${LARAVEL_SERVICE_RUN:-}" != "1" ]; then
             fi
             if [ "$INCLUDE_UI" = "yes" ]; then
                 if [ -f "$UI_START" ]; then
-                    echo "Bringing up pycore_laravel_wordflow_ui dashboard as a background service (idempotent)..."
+                    echo "Bringing up pycore_laravel_wordnew_ui dashboard as a background service (idempotent)..."
                     bash "$UI_START" --no-backend --service || echo "  Warning: UI dashboard service registration failed (continuing)."
                 else
                     echo "  Warning: UI start script not found: $UI_START (skipping)."

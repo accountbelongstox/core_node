@@ -101,7 +101,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'translation/*',
             'tts/*',
             // SPA file-manager endpoints (web group): token-less cross-origin POSTs
-            // from the wordflow UI. The '*' glob spans '/', so this also covers the
+            // from the WordNew UI. The '*' glob spans '/', so this also covers the
             // nested static-resources/chunked-upload/* sub-paths.
             'static-resources/*',
             // PddToolV1 ROOT-level POST/PUT/DELETE SaaS endpoints (no /api prefix).

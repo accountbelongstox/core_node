@@ -1,16 +1,16 @@
 /**
  * MCP Backend RPC Client (Enhanced with RPC v2 features)
  *
- * Based on existing mcpctl/rpc_client.js but enhanced with:
- * - UMD module pattern (from rpc_v2/http_rpc_client.js)
- * - Retry mechanism (from rpc_v2/http_rpc_client.js)
- * - Request persistence (from rpc_v2/http_rpc_client.js)
+ * MCP-specific HTTP client with:
+ * - UMD module support
+ * - Retry handling
+ * - Request persistence
  *
  * Preserves all MCP-specific business logic
  */
 
 (function (global, factory) {
-    // UMD module pattern (复用 RPC v2)
+    // UMD module pattern.
     if (typeof module === 'object' && typeof module.exports === 'object') {
         module.exports = factory();
     } else if (typeof define === 'function' && define.amd) {
@@ -23,7 +23,7 @@
 
     const isBrowser = typeof window !== 'undefined';
 
-    // Helper: Generate UUID (复用 RPC v2)
+    // Generate a request UUID.
     function uuid() {
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
             const r = Math.random() * 16 | 0;

@@ -11,7 +11,8 @@ from pathlib import Path
 import os
 import platform
 
-from pycore.pyutils.common.icon_generator import DesktopIconGenerator
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.desktop_icon_generator import DesktopIconGenerator
 
 
 class DesktopShortcutManager:
@@ -72,10 +73,10 @@ class DesktopShortcutManager:
                 if self.platform == 'Windows' and icon_file.suffix.lower() == '.png':
                     try:
                         ico_path = self.generator._resolve_icon_path(icon_file)
-                        print(f"[INFO] Converted PNG to ICO: {ico_path}")
+                        ColorPrint.plain(f"[INFO] Converted PNG to ICO: {ico_path}")
                         return ico_path
                     except Exception as e:
-                        print(f"[WARNING] Failed to convert PNG: {e}")
+                        ColorPrint.plain(f"[WARNING] Failed to convert PNG: {e}")
                         return str(icon_file)
                 return str(icon_file)
 
@@ -86,20 +87,20 @@ class DesktopShortcutManager:
             # Priority 2: Check for icon.ico
             ico_file = app_path / "icon.ico"
             if ico_file.exists():
-                print(f"[INFO] Found icon.ico in app directory")
+                ColorPrint.plain(f"[INFO] Found icon.ico in app directory")
                 return str(ico_file)
 
             # Priority 3: Check for icon.png (auto-convert on Windows)
             png_file = app_path / "icon.png"
             if png_file.exists():
-                print(f"[INFO] Found icon.png in app directory")
+                ColorPrint.plain(f"[INFO] Found icon.png in app directory")
                 if self.platform == 'Windows':
                     try:
                         ico_path = self.generator._resolve_icon_path(png_file)
-                        print(f"[INFO] Converted PNG to ICO: {ico_path}")
+                        ColorPrint.plain(f"[INFO] Converted PNG to ICO: {ico_path}")
                         return ico_path
                     except Exception as e:
-                        print(f"[WARNING] Failed to convert PNG: {e}")
+                        ColorPrint.plain(f"[WARNING] Failed to convert PNG: {e}")
                         return str(png_file)
                 return str(png_file)
 
@@ -493,13 +494,13 @@ Examples:
         )
 
         if args.json:
-            print(json.dumps(result, indent=2))
+            ColorPrint.plain(json.dumps(result, indent=2))
         else:
-            print(result['message'])
+            ColorPrint.plain(result['message'])
             if result['success']:
-                print(f"Icon used: {result['icon_used']}")
+                ColorPrint.plain(f"Icon used: {result['icon_used']}")
                 if result.get('icon_converted'):
-                    print("PNG icon was automatically converted to ICO")
+                    ColorPrint.plain("PNG icon was automatically converted to ICO")
 
         return 0 if result['success'] else 1
 
@@ -515,9 +516,9 @@ Examples:
         )
 
         if args.json:
-            print(json.dumps(result, indent=2))
+            ColorPrint.plain(json.dumps(result, indent=2))
         else:
-            print(result['message'])
+            ColorPrint.plain(result['message'])
 
         return 0 if result['success'] else 1
 
@@ -525,9 +526,9 @@ Examples:
         result = manager.delete_shortcut(args.name)
 
         if args.json:
-            print(json.dumps(result, indent=2))
+            ColorPrint.plain(json.dumps(result, indent=2))
         else:
-            print(result['message'])
+            ColorPrint.plain(result['message'])
 
         return 0 if result['success'] else 1
 
@@ -535,14 +536,14 @@ Examples:
         shortcuts = manager.list_shortcuts()
 
         if args.json:
-            print(json.dumps(shortcuts, indent=2))
+            ColorPrint.plain(json.dumps(shortcuts, indent=2))
         else:
-            print(f"Desktop shortcuts ({len(shortcuts)}):")
+            ColorPrint.plain(f"Desktop shortcuts ({len(shortcuts)}):")
             for shortcut in shortcuts:
                 if 'error' in shortcut:
-                    print(f"  {shortcut['name']}: ERROR - {shortcut['error']}")
+                    ColorPrint.plain(f"  {shortcut['name']}: ERROR - {shortcut['error']}")
                 else:
-                    print(f"  {shortcut['name']}: {shortcut.get('target', shortcut.get('path', 'N/A'))}")
+                    ColorPrint.plain(f"  {shortcut['name']}: {shortcut.get('target', shortcut.get('path', 'N/A'))}")
 
         return 0
 
@@ -550,16 +551,16 @@ Examples:
         result = manager.get_shortcut_info(args.name)
 
         if args.json:
-            print(json.dumps(result, indent=2))
+            ColorPrint.plain(json.dumps(result, indent=2))
         else:
             if result['success']:
                 info = result['info']
-                print(f"Shortcut: {info['name']}")
+                ColorPrint.plain(f"Shortcut: {info['name']}")
                 for key, value in info.items():
                     if key != 'name':
-                        print(f"  {key}: {value}")
+                        ColorPrint.plain(f"  {key}: {value}")
             else:
-                print(f"Error: {result['error']}")
+                ColorPrint.plain(f"Error: {result['error']}")
 
         return 0 if result['success'] else 1
 

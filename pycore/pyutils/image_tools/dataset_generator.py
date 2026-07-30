@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass, asdict
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy
 
 import traceback
@@ -110,7 +111,7 @@ class DatasetGenerator:
             images_dir.mkdir(parents=True, exist_ok=True)
             labels_dir.mkdir(parents=True, exist_ok=True)
 
-        print(f"[DatasetGenerator] Created directory structure at: {self.output_dir}")
+        ColorPrint.plain(f"[DatasetGenerator] Created directory structure at: {self.output_dir}")
 
     def _load_metadata(self):
         """Load existing metadata for append mode"""
@@ -119,9 +120,9 @@ class DatasetGenerator:
                 data = json.load(f)
                 for item in data:
                     self.metadata.append(SampleMetadata(**item))
-            print(f"[DatasetGenerator] Loaded existing metadata: {len(self.metadata)} samples")
+            ColorPrint.plain(f"[DatasetGenerator] Loaded existing metadata: {len(self.metadata)} samples")
         except Exception as e:
-            print(f"[DatasetGenerator] Warning: Failed to load metadata: {e}")
+            ColorPrint.plain(f"[DatasetGenerator] Warning: Failed to load metadata: {e}")
 
     def _save_metadata(self):
         """Save metadata to JSON file"""
@@ -129,9 +130,9 @@ class DatasetGenerator:
         try:
             with open(metadata_path, 'w', encoding='utf-8') as f:
                 json.dump([asdict(m) for m in self.metadata], f, indent=2, ensure_ascii=False)
-            print(f"[DatasetGenerator] Saved metadata: {metadata_path}")
+            ColorPrint.plain(f"[DatasetGenerator] Saved metadata: {metadata_path}")
         except Exception as e:
-            print(f"[DatasetGenerator] Error: Failed to save metadata: {e}")
+            ColorPrint.plain(f"[DatasetGenerator] Error: Failed to save metadata: {e}")
             raise
 
     def _load_images(self):
@@ -146,9 +147,9 @@ class DatasetGenerator:
         if self.template_image is None:
             raise ValueError(f"Cannot load template image: {self.config.template_image_path}")
 
-        print(f"[DatasetGenerator] Loaded images:")
-        print(f"  Screen: {self.screen_image.shape}")
-        print(f"  Template: {self.template_image.shape}")
+        ColorPrint.plain(f"[DatasetGenerator] Loaded images:")
+        ColorPrint.plain(f"  Screen: {self.screen_image.shape}")
+        ColorPrint.plain(f"  Template: {self.template_image.shape}")
 
     def _assign_split(self) -> str:
         """Randomly assign sample to train/val/test split"""
@@ -235,7 +236,7 @@ class DatasetGenerator:
 
     def _generate_base_positive_samples(self) -> List[SampleMetadata]:
         """Generate base positive samples: randomly place template on screenshot"""
-        print(f"\n[DatasetGenerator] Generating base positive samples ({self.config.base_positive_count})...")
+        ColorPrint.plain(f"\n[DatasetGenerator] Generating base positive samples ({self.config.base_positive_count})...")
 
         samples = []
         screen_h, screen_w = self.screen_image.shape[:2]
@@ -263,14 +264,14 @@ class DatasetGenerator:
             samples.append(metadata)
 
             if (i + 1) % 20 == 0:
-                print(f"  Progress: {i + 1}/{self.config.base_positive_count}")
+                ColorPrint.plain(f"  Progress: {i + 1}/{self.config.base_positive_count}")
 
-        print(f"[DatasetGenerator] Completed: {len(samples)} base positive samples")
+        ColorPrint.plain(f"[DatasetGenerator] Completed: {len(samples)} base positive samples")
         return samples
 
     def _generate_base_negative_samples(self) -> List[SampleMetadata]:
         """Generate base negative samples: extract regions from original screenshot"""
-        print(f"\n[DatasetGenerator] Generating base negative samples ({self.config.base_negative_count})...")
+        ColorPrint.plain(f"\n[DatasetGenerator] Generating base negative samples ({self.config.base_negative_count})...")
 
         samples = []
         screen_h, screen_w = self.screen_image.shape[:2]
@@ -295,14 +296,14 @@ class DatasetGenerator:
             samples.append(metadata)
 
             if (i + 1) % 20 == 0:
-                print(f"  Progress: {i + 1}/{self.config.base_negative_count}")
+                ColorPrint.plain(f"  Progress: {i + 1}/{self.config.base_negative_count}")
 
-        print(f"[DatasetGenerator] Completed: {len(samples)} base negative samples")
+        ColorPrint.plain(f"[DatasetGenerator] Completed: {len(samples)} base negative samples")
         return samples
 
     def _apply_blur_augmentation(self, base_samples: List[SampleMetadata]) -> List[SampleMetadata]:
         """Apply blur augmentation"""
-        print(f"\n[DatasetGenerator] Applying blur augmentation ({len(base_samples)} samples)...")
+        ColorPrint.plain(f"\n[DatasetGenerator] Applying blur augmentation ({len(base_samples)} samples)...")
 
         augmented_samples = []
         for i, base_sample in enumerate(base_samples):
@@ -310,7 +311,7 @@ class DatasetGenerator:
             image_path = self.output_dir / base_sample.image_path
             image = cv2.imread(str(image_path))
             if image is None:
-                print(f"  Warning: Cannot read image: {image_path}")
+                ColorPrint.plain(f"  Warning: Cannot read image: {image_path}")
                 continue
 
             # Random blur kernel size
@@ -328,14 +329,14 @@ class DatasetGenerator:
             augmented_samples.append(metadata)
 
             if (i + 1) % 20 == 0:
-                print(f"  Progress: {i + 1}/{len(base_samples)}")
+                ColorPrint.plain(f"  Progress: {i + 1}/{len(base_samples)}")
 
-        print(f"[DatasetGenerator] Completed: {len(augmented_samples)} blur augmented samples")
+        ColorPrint.plain(f"[DatasetGenerator] Completed: {len(augmented_samples)} blur augmented samples")
         return augmented_samples
 
     def _apply_stretch_augmentation(self, base_samples: List[SampleMetadata]) -> List[SampleMetadata]:
         """Apply non-uniform stretch augmentation"""
-        print(f"\n[DatasetGenerator] Applying stretch augmentation ({len(base_samples)} samples)...")
+        ColorPrint.plain(f"\n[DatasetGenerator] Applying stretch augmentation ({len(base_samples)} samples)...")
 
         augmented_samples = []
         for i, base_sample in enumerate(base_samples):
@@ -343,7 +344,7 @@ class DatasetGenerator:
             image_path = self.output_dir / base_sample.image_path
             image = cv2.imread(str(image_path))
             if image is None:
-                print(f"  Warning: Cannot read image: {image_path}")
+                ColorPrint.plain(f"  Warning: Cannot read image: {image_path}")
                 continue
 
             h, w = image.shape[:2]
@@ -374,19 +375,19 @@ class DatasetGenerator:
             augmented_samples.append(metadata)
 
             if (i + 1) % 20 == 0:
-                print(f"  Progress: {i + 1}/{len(base_samples)}")
+                ColorPrint.plain(f"  Progress: {i + 1}/{len(base_samples)}")
 
-        print(f"[DatasetGenerator] Completed: {len(augmented_samples)} stretch augmented samples")
+        ColorPrint.plain(f"[DatasetGenerator] Completed: {len(augmented_samples)} stretch augmented samples")
         return augmented_samples
 
     def generate(self) -> Dict:
         """Generate complete dataset"""
-        print("\n" + "=" * 80)
-        print("Dataset Generator - YOLO Format")
-        print("=" * 80)
-        print(f"Class: {self.config.class_name}")
-        print(f"Output: {self.output_dir}")
-        print("=" * 80)
+        ColorPrint.plain("\n" + "=" * 80)
+        ColorPrint.plain("Dataset Generator - YOLO Format")
+        ColorPrint.plain("=" * 80)
+        ColorPrint.plain(f"Class: {self.config.class_name}")
+        ColorPrint.plain(f"Output: {self.output_dir}")
+        ColorPrint.plain("=" * 80)
 
         try:
             # 1. Load images
@@ -447,34 +448,34 @@ class DatasetGenerator:
                 "validation": validation_result
             }
 
-            print("\n" + "=" * 80)
-            print("Dataset Generation Completed")
-            print("=" * 80)
-            print(f"Total samples: {result['total_samples']}")
-            print(f"  Positive: {result['positive_samples']}")
-            print(f"  Negative: {result['negative_samples']}")
-            print(f"\nSplit distribution:")
-            print(f"  Train: {split_stats['train']}")
-            print(f"  Val: {split_stats['val']}")
-            print(f"  Test: {split_stats['test']}")
-            print(f"\nAugmentation:")
-            print(f"  Base: {result['base_samples']}")
-            print(f"  Blur: {result['blur_augmented']}")
-            print(f"  Stretch: {result['stretch_augmented']}")
-            print(f"\nOutput: {result['output_dir']}")
-            print(f"Validation: {'PASSED' if validation_result['valid'] else 'FAILED'}")
-            print("=" * 80)
+            ColorPrint.plain("\n" + "=" * 80)
+            ColorPrint.plain("Dataset Generation Completed")
+            ColorPrint.plain("=" * 80)
+            ColorPrint.plain(f"Total samples: {result['total_samples']}")
+            ColorPrint.plain(f"  Positive: {result['positive_samples']}")
+            ColorPrint.plain(f"  Negative: {result['negative_samples']}")
+            ColorPrint.plain(f"\nSplit distribution:")
+            ColorPrint.plain(f"  Train: {split_stats['train']}")
+            ColorPrint.plain(f"  Val: {split_stats['val']}")
+            ColorPrint.plain(f"  Test: {split_stats['test']}")
+            ColorPrint.plain(f"\nAugmentation:")
+            ColorPrint.plain(f"  Base: {result['base_samples']}")
+            ColorPrint.plain(f"  Blur: {result['blur_augmented']}")
+            ColorPrint.plain(f"  Stretch: {result['stretch_augmented']}")
+            ColorPrint.plain(f"\nOutput: {result['output_dir']}")
+            ColorPrint.plain(f"Validation: {'PASSED' if validation_result['valid'] else 'FAILED'}")
+            ColorPrint.plain("=" * 80)
 
             return result
 
         except Exception as e:
-            print(f"\n[DatasetGenerator] Error: Generation failed: {e}")
+            ColorPrint.plain(f"\n[DatasetGenerator] Error: Generation failed: {e}")
             traceback.print_exc()
             return {}
 
     def _validate_dataset(self) -> Dict:
         """Validate dataset integrity"""
-        print("\n[DatasetGenerator] Validating dataset...")
+        ColorPrint.plain("\n[DatasetGenerator] Validating dataset...")
 
         issues = []
         valid = True
@@ -515,11 +516,11 @@ class DatasetGenerator:
         }
 
         if valid:
-            print("[DatasetGenerator] Validation PASSED")
+            ColorPrint.plain("[DatasetGenerator] Validation PASSED")
         else:
-            print(f"[DatasetGenerator] Validation FAILED: {len(issues)} issues found")
+            ColorPrint.plain(f"[DatasetGenerator] Validation FAILED: {len(issues)} issues found")
             for issue in issues[:5]:
-                print(f"  - {issue}")
+                ColorPrint.plain(f"  - {issue}")
 
         return result
 
@@ -542,7 +543,7 @@ generated_by: dataset_generator.py
 class_id: {self.class_id}
 """
         yaml_path.write_text(yaml_content)
-        print(f"[DatasetGenerator] Generated dataset config: {yaml_path}")
+        ColorPrint.plain(f"[DatasetGenerator] Generated dataset config: {yaml_path}")
 
 
 def generate_dataset_from_config(config_path: str) -> Dict:
@@ -593,4 +594,4 @@ if __name__ == "__main__":
         output_dir="./datasets/yes_icon_dataset",
         class_name="yes_icon"
     )
-    print(f"\nGeneration result: {result}")
+    ColorPrint.plain(f"\nGeneration result: {result}")

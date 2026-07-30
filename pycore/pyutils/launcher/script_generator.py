@@ -7,6 +7,7 @@ Generates temporary batch scripts for launching applications
 from pathlib import Path
 import os
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 
@@ -65,7 +66,7 @@ class ScriptGenerator:
             f.write('\r\n'.join(lines) + '\r\n')
         
         # Print the command for verification
-        print(f"  Command: {cmd}")
+        ColorPrint.plain(f"  Command: {cmd}")
         
         return bat_path
     
@@ -163,7 +164,7 @@ class ScriptGenerator:
         with open(bat_path, 'w', encoding='utf-8', newline='\r\n') as f:
             f.write('\r\n'.join(lines) + '\r\n')
         
-        print(f"  Command: {cmd}")
+        ColorPrint.plain(f"  Command: {cmd}")
         
         return bat_path
     

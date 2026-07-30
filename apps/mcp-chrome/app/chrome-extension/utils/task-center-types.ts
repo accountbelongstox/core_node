@@ -11,7 +11,6 @@
 
 import type { CapabilityKey } from './task-capabilities';
 import { TASK_LIMITS } from './queue-center-contract';
-export type { TaskRow } from './queue-center-contract';
 
 // ─────────────────────────── Message envelope ───────────────────────────
 // Centralized message-type + action string constants. Popup senders and the
@@ -89,11 +88,11 @@ export interface TaskCenterConfig {
   pollInterval?: number;
   /**
    * Per-processor config map. OPTIONAL: the popup may send only
-   * {apiUrl, activeCapabilities}; startAll() normalizes an absent map to {} so
+   * {apiUrl, activeCapabilities}; the center normalizes an absent map to {} so
    * lane activation never assumes its presence (logic consistency).
    */
   processors?: { [processorType: string]: ProcessorConfig };
-  /** Authoritative allowlist of processorTypes to run (see TaskCenter.startAll). */
+  /** Authoritative allowlist when present; an empty list keeps every processor idle. */
   enabledProcessors?: string[];
   /** Capability keys the user checked; the background maps these to processors. */
   activeCapabilities?: CapabilityKey[];

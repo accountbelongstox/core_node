@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # install_desktop_manager.sh - Prerequisite installer for the UNIFIED dashboard
-#   UI (poly_apps/pycore_laravel_wordflow_ui — its pycore-manager end is what the PySide6
+#   UI (poly_apps/pycore_laravel_wordnew_ui — its pycore-manager end is what the PySide6
 #   webview loads via PYCORE_UI_URL). Runs `pnpm install` once (idempotent) to
 #   pre-warm deps before the run step starts the Vite dev server.
 #
@@ -19,8 +19,8 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
-# iniscripts -> common -> linux -> shells -> scripts -> core_node (repo root, five up) -> poly_apps/pycore_laravel_wordflow_ui
-UI_DIR="$(cd "$SCRIPT_DIR/../../../../.." && pwd)/poly_apps/pycore_laravel_wordflow_ui"
+# iniscripts -> common -> linux -> shells -> scripts -> core_node (repo root, five up) -> poly_apps/pycore_laravel_wordnew_ui
+UI_DIR="$(cd "$SCRIPT_DIR/../../../../.." && pwd)/poly_apps/pycore_laravel_wordnew_ui"
 
 FORCE=0
 while [[ $# -gt 0 ]]; do
@@ -32,11 +32,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "============================================================"
-echo " Installing Dashboard UI deps (pnpm) - pycore_laravel_wordflow_ui"
+echo " Installing Dashboard UI deps (pnpm) - pycore_laravel_wordnew_ui"
 echo "============================================================"
 
 if [[ ! -f "$UI_DIR/package.json" ]]; then
-    echo "[skip] pycore_laravel_wordflow_ui not found at $UI_DIR"; exit 0
+    echo "[skip] pycore_laravel_wordnew_ui not found at $UI_DIR"; exit 0
 fi
 if ! command -v pnpm >/dev/null 2>&1; then
     echo "[skip] pnpm not found on PATH. UI is optional; install Node 18+ and pnpm to enable it."

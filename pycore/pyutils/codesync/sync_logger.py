@@ -13,7 +13,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from .runtime import log as ColorPrint
+from pycore.pyutils.codesync.runtime import log as ColorPrint
 
 
 # TODO(sync-logs): consolidate this per-file client log ring with the manager's

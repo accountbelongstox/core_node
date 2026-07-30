@@ -9,6 +9,7 @@ Provides status checking and diagnostic tools for Device Sync.
 import sys
 import os
 import socket
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 from pathlib import Path
 import tempfile
@@ -28,7 +29,7 @@ def check_ipc_server(verbose=True):
         True if IPC server is running
     """
     if verbose:
-        print("[Check] Testing IPC server connection...")
+        ColorPrint.plain("[Check] Testing IPC server connection...")
 
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -38,17 +39,17 @@ def check_ipc_server(verbose=True):
 
         if result == 0:
             if verbose:
-                print("    ✓ IPC server is RUNNING")
-                print("    → Device Sync is active")
+                ColorPrint.plain("    ✓ IPC server is RUNNING")
+                ColorPrint.plain("    → Device Sync is active")
             return True
         else:
             if verbose:
-                print("    ✗ IPC server NOT responding")
-                print("    → Device Sync is NOT running")
+                ColorPrint.plain("    ✗ IPC server NOT responding")
+                ColorPrint.plain("    → Device Sync is NOT running")
             return False
     except Exception as e:
         if verbose:
-            print(f"    ✗ Error: {e}")
+            ColorPrint.plain(f"    ✗ Error: {e}")
         return False
 
 
@@ -63,17 +64,17 @@ def check_pystray(verbose=True):
         True if pystray is installed
     """
     if verbose:
-        print("[Check] Testing pystray availability...")
+        ColorPrint.plain("[Check] Testing pystray availability...")
 
     try:
         pystray = get_third_package_pystray()
         if verbose:
-            print("    ✓ pystray is installed")
+            ColorPrint.plain("    ✓ pystray is installed")
         return True
     except ImportError:
         if verbose:
-            print("    ✗ pystray NOT installed")
-            print("    → Install with: pip install pystray pillow")
+            ColorPrint.plain("    ✗ pystray NOT installed")
+            ColorPrint.plain("    → Install with: pip install pystray pillow")
         return False
 
 
@@ -88,7 +89,7 @@ def check_process(verbose=True):
         True if process is running
     """
     if verbose:
-        print("[Check] Checking for Device Sync process...")
+        ColorPrint.plain("[Check] Checking for Device Sync process...")
 
     try:
         if sys.platform == 'win32':
@@ -103,11 +104,11 @@ def check_process(verbose=True):
             if 'pythonw.exe' in result.stdout:
                 if verbose:
                     count = result.stdout.count('pythonw.exe')
-                    print(f"    ✓ Found {count} pythonw.exe process(es)")
+                    ColorPrint.plain(f"    ✓ Found {count} pythonw.exe process(es)")
                 return True
             else:
                 if verbose:
-                    print("    ✗ No pythonw.exe process found")
+                    ColorPrint.plain("    ✗ No pythonw.exe process found")
                 return False
         else:
             # Linux
@@ -119,21 +120,21 @@ def check_process(verbose=True):
 
             if result.return_code == 0:
                 if verbose:
-                    print("    ✓ Device Sync process found")
+                    ColorPrint.plain("    ✓ Device Sync process found")
                 return True
             else:
                 if verbose:
-                    print("    ✗ No device_sync process found")
+                    ColorPrint.plain("    ✗ No device_sync process found")
                 return False
     except Exception as e:
         if verbose:
-            print(f"    ✗ Error: {e}")
+            ColorPrint.plain(f"    ✗ Error: {e}")
         return False
 
 
 def view_log():
     """Display log file contents."""
-    print("[Check] Checking log files...")
+    ColorPrint.plain("[Check] Checking log files...")
 
     log_dir = Path(tempfile.gettempdir()) / 'device_sync'
     launcher_log = log_dir / 'device_sync_launcher.log'
@@ -143,66 +144,66 @@ def view_log():
 
     # Check launcher log
     if launcher_log.exists():
-        print(f"    ✓ Launcher log found: {launcher_log}")
+        ColorPrint.plain(f"    ✓ Launcher log found: {launcher_log}")
         found_any = True
 
-        print()
-        print("=" * 60)
-        print("LAUNCHER LOG (from launcher.py startup)")
-        print("=" * 60)
+        ColorPrint.plain()
+        ColorPrint.plain("=" * 60)
+        ColorPrint.plain("LAUNCHER LOG (from launcher.py startup)")
+        ColorPrint.plain("=" * 60)
 
         try:
             with open(launcher_log, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             if content.strip():
-                print(content)
+                ColorPrint.plain(content)
             else:
-                print("    (Log file is empty)")
+                ColorPrint.plain("    (Log file is empty)")
 
-            print()
-            print("=" * 60)
-            print()
+            ColorPrint.plain()
+            ColorPrint.plain("=" * 60)
+            ColorPrint.plain()
 
         except Exception as e:
-            print(f"    ✗ Failed to read launcher log: {e}")
+            ColorPrint.plain(f"    ✗ Failed to read launcher log: {e}")
     else:
-        print(f"    ✗ Launcher log NOT found: {launcher_log}")
+        ColorPrint.plain(f"    ✗ Launcher log NOT found: {launcher_log}")
 
-    print()
+    ColorPrint.plain()
 
     # Check main log
     if main_log.exists():
-        print(f"    ✓ Main log found: {main_log}")
+        ColorPrint.plain(f"    ✓ Main log found: {main_log}")
         found_any = True
 
-        print()
-        print("=" * 60)
-        print("DEVICE SYNC MAIN LOG (from background process)")
-        print("=" * 60)
+        ColorPrint.plain()
+        ColorPrint.plain("=" * 60)
+        ColorPrint.plain("DEVICE SYNC MAIN LOG (from background process)")
+        ColorPrint.plain("=" * 60)
 
         try:
             with open(main_log, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             if content.strip():
-                print(content)
+                ColorPrint.plain(content)
             else:
-                print("    (Log file is empty)")
+                ColorPrint.plain("    (Log file is empty)")
 
-            print()
-            print("=" * 60)
-            print()
+            ColorPrint.plain()
+            ColorPrint.plain("=" * 60)
+            ColorPrint.plain()
 
         except Exception as e:
-            print(f"    ✗ Failed to read main log: {e}")
+            ColorPrint.plain(f"    ✗ Failed to read main log: {e}")
     else:
-        print(f"    ✗ Main log NOT found: {main_log}")
+        ColorPrint.plain(f"    ✗ Main log NOT found: {main_log}")
 
     if not found_any:
-        print()
-        print("    → No log files found")
-        print("    → Logs are only created when running in background mode")
+        ColorPrint.plain()
+        ColorPrint.plain("    → No log files found")
+        ColorPrint.plain("    → Logs are only created when running in background mode")
 
 
 def check_status():
@@ -211,52 +212,52 @@ def check_status():
 
     This is the simpler version from check_status.py.
     """
-    print("=" * 60)
-    print("Device Sync - Status Checker")
-    print("=" * 60)
-    print()
+    ColorPrint.plain("=" * 60)
+    ColorPrint.plain("Device Sync - Status Checker")
+    ColorPrint.plain("=" * 60)
+    ColorPrint.plain()
 
     # Check 1: IPC Server
     ipc_running = check_ipc_server()
-    print()
+    ColorPrint.plain()
 
     # Check 2: pystray
     pystray_available = check_pystray()
-    print()
+    ColorPrint.plain()
 
     # Check 3: Process
     process_running = check_process()
-    print()
+    ColorPrint.plain()
 
     # Summary
-    print("=" * 60)
-    print("Summary:")
-    print("=" * 60)
+    ColorPrint.plain("=" * 60)
+    ColorPrint.plain("Summary:")
+    ColorPrint.plain("=" * 60)
 
     if ipc_running and pystray_available:
-        print("✓ Device Sync is running")
-        print("✓ Tray icon should be visible")
-        print()
-        print("If you don't see tray icon:")
-        print("  1. Check Windows system tray (click ^ icon)")
-        print("  2. Check if icon is hidden in overflow area")
-        print("  3. Restart Device Sync")
+        ColorPrint.plain("✓ Device Sync is running")
+        ColorPrint.plain("✓ Tray icon should be visible")
+        ColorPrint.plain()
+        ColorPrint.plain("If you don't see tray icon:")
+        ColorPrint.plain("  1. Check Windows system tray (click ^ icon)")
+        ColorPrint.plain("  2. Check if icon is hidden in overflow area")
+        ColorPrint.plain("  3. Restart Device Sync")
     elif ipc_running and not pystray_available:
-        print("⚠ Device Sync is running but pystray not installed")
-        print()
-        print("To enable tray icon:")
-        print("  pip install pystray pillow")
+        ColorPrint.plain("⚠ Device Sync is running but pystray not installed")
+        ColorPrint.plain()
+        ColorPrint.plain("To enable tray icon:")
+        ColorPrint.plain("  pip install pystray pillow")
     elif not ipc_running:
-        print("✗ Device Sync is NOT running")
-        print()
-        print("To start Device Sync:")
-        print("  python -m pycore.pyutils.launcher.device_sync")
-        print()
-        print("Or use launcher:")
-        print("  python -m pycore.pyutils.launcher.launcher")
-        print("  Select option [2] - Launch Device Sync Only")
+        ColorPrint.plain("✗ Device Sync is NOT running")
+        ColorPrint.plain()
+        ColorPrint.plain("To start Device Sync:")
+        ColorPrint.plain("  python -m pycore.pyutils.launcher.device_sync")
+        ColorPrint.plain()
+        ColorPrint.plain("Or use launcher:")
+        ColorPrint.plain("  python -m pycore.pyutils.launcher.launcher")
+        ColorPrint.plain("  Select option [2] - Launch Device Sync Only")
 
-    print("=" * 60)
+    ColorPrint.plain("=" * 60)
 
 
 def diagnose():
@@ -265,70 +266,70 @@ def diagnose():
 
     This is the more detailed version from diagnose.py.
     """
-    print()
-    print("=" * 60)
-    print("Device Sync - Diagnostic Tool")
-    print("=" * 60)
-    print()
+    ColorPrint.plain()
+    ColorPrint.plain("=" * 60)
+    ColorPrint.plain("Device Sync - Diagnostic Tool")
+    ColorPrint.plain("=" * 60)
+    ColorPrint.plain()
 
     # Run checks
     ipc_running = check_ipc_server()
-    print()
+    ColorPrint.plain()
 
     pystray_available = check_pystray()
-    print()
+    ColorPrint.plain()
 
     process_running = check_process()
-    print()
+    ColorPrint.plain()
 
     # View log
     view_log()
 
     # Summary
-    print()
-    print("=" * 60)
-    print("SUMMARY")
-    print("=" * 60)
-    print()
+    ColorPrint.plain()
+    ColorPrint.plain("=" * 60)
+    ColorPrint.plain("SUMMARY")
+    ColorPrint.plain("=" * 60)
+    ColorPrint.plain()
 
     if ipc_running and pystray_available:
-        print("✓ Device Sync is RUNNING")
-        print()
-        print("Tray icon should be visible in:")
-        print("  Windows: System tray (bottom-right, click ^ icon)")
-        print()
-        print("If you don't see the icon:")
-        print("  1. Click the ^ arrow in system tray")
-        print("  2. Look for 'Device Sync' icon")
-        print("  3. Right-click icon to open menu")
-        print()
+        ColorPrint.plain("✓ Device Sync is RUNNING")
+        ColorPrint.plain()
+        ColorPrint.plain("Tray icon should be visible in:")
+        ColorPrint.plain("  Windows: System tray (bottom-right, click ^ icon)")
+        ColorPrint.plain()
+        ColorPrint.plain("If you don't see the icon:")
+        ColorPrint.plain("  1. Click the ^ arrow in system tray")
+        ColorPrint.plain("  2. Look for 'Device Sync' icon")
+        ColorPrint.plain("  3. Right-click icon to open menu")
+        ColorPrint.plain()
 
     elif ipc_running and not pystray_available:
-        print("⚠ Device Sync is running WITHOUT tray icon")
-        print()
-        print("To enable tray icon, install pystray:")
-        print("  pip install pystray pillow")
-        print()
+        ColorPrint.plain("⚠ Device Sync is running WITHOUT tray icon")
+        ColorPrint.plain()
+        ColorPrint.plain("To enable tray icon, install pystray:")
+        ColorPrint.plain("  pip install pystray pillow")
+        ColorPrint.plain()
 
     else:
-        print("✗ Device Sync is NOT running")
-        print()
-        print("To start Device Sync:")
-        print()
-        print("  Method 1 - Debug mode (see all output):")
-        print("    cd D:\\programing\\core_node\\pycore\\pyutils\\launcher\\device_sync")
-        print("    start_debug.bat")
-        print()
-        print("  Method 2 - Background mode:")
-        print("    python -m pycore.pyutils.launcher.launcher")
-        print("    Select option [2] - Launch Device Sync Only")
-        print()
-        print("  Method 3 - Direct launch:")
-        print("    python -m pycore.pyutils.launcher.device_sync")
-        print()
+        ColorPrint.plain("✗ Device Sync is NOT running")
+        ColorPrint.plain()
+        ColorPrint.plain("To start Device Sync:")
+        ColorPrint.plain()
+        ColorPrint.plain("  Method 1 - Debug mode (see all output):")
+        ColorPrint.plain("    cd D:\\programing\\core_node\\pycore\\pyutils\\launcher\\device_sync")
+        ColorPrint.plain("    start_debug.bat")
+        ColorPrint.plain()
+        ColorPrint.plain("  Method 2 - Background mode:")
+        ColorPrint.plain("    python -m pycore.pyutils.launcher.launcher")
+        ColorPrint.plain("    Select option [2] - Launch Device Sync Only")
+        ColorPrint.plain()
+        ColorPrint.plain("  Method 3 - Direct launch:")
+        ColorPrint.plain("    python -m pycore.pyutils.launcher.device_sync")
+        ColorPrint.plain()
 
-    print("=" * 60)
-    print()
+    ColorPrint.plain("=" * 60)
+    ColorPrint.plain()
 
 
 def main_status():

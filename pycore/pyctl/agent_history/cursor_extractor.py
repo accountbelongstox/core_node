@@ -16,7 +16,8 @@ import re
 from glob import glob
 from typing import Any, Dict, List, Optional
 
-from .base_extractor import BaseExtractor, MAX_TURNS
+from pycore.database.adapters.sqlite_readonly import open_readonly_db
+from pycore.pyctl.agent_history.base_extractor import BaseExtractor, MAX_TURNS
 
 
 class CursorExtractor(BaseExtractor):
@@ -206,8 +207,6 @@ class CursorExtractor(BaseExtractor):
     def _read_item_table(self, db_path: str) -> Dict[str, str]:
         rows: Dict[str, str] = {}
         try:
-            from pycore.database.adapters.sqlite_readonly import open_readonly_db
-
             with open_readonly_db(db_path) as conn:
                 cur = conn.execute(
                     "SELECT key, value FROM ItemTable WHERE key LIKE '%chat%' "

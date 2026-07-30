@@ -1,27 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore.pyutils.flutter_dev_tools.utils.comparison_manager import (
 """
 Comparison API - Handle comparison image creation, listing, and downloading
 """
 
+import base64
+import traceback
 from pathlib import Path
 from typing import Dict, Any
-import base64
 
-# Import comparison manager
-try:
-        get_comparison_base_dir,
-        save_comparison_for_page,
-        list_comparison_images
-    )
-    COMPARISON_AVAILABLE = True
-except ImportError:
-    COMPARISON_AVAILABLE = False
-    print("[WARNING] comparison_manager not available")
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.flutter_dev_tools.utils.comparison_manager import (
+    get_comparison_base_dir,
+    list_comparison_images,
+    save_comparison_for_page,
+)
 
-import traceback
-
+COMPARISON_AVAILABLE = True
 
 
 def create_comparison(
@@ -85,7 +80,7 @@ def create_comparison(
         return result
 
     except Exception as e:
-        print(f"[ERROR] Failed to create comparison: {e}")
+        ColorPrint.plain(f"[ERROR] Failed to create comparison: {e}")
         traceback.print_exc()
         return {
             "success": False,
@@ -120,7 +115,7 @@ def list_comparisons(app_path: Path, page_key: str) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        print(f"[ERROR] Failed to list comparisons: {e}")
+        ColorPrint.plain(f"[ERROR] Failed to list comparisons: {e}")
         return {
             "success": False,
             "error": str(e)

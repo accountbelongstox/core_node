@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from PIL import Image, ImageDraw, ImageFont
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import map_web_path
 """
 Comparison Image Manager - Generate side-by-side comparison images
@@ -21,14 +22,14 @@ try:
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
-    print("[WARNING] PIL not available, comparison image generation disabled")
+    ColorPrint.plain("[WARNING] PIL not available, comparison image generation disabled")
 
 # Import system paths
 try:
     SYSTEM_PATHS_AVAILABLE = True
 except ImportError:
     SYSTEM_PATHS_AVAILABLE = False
-    print("[WARNING] system_paths not available, using local directory")
+    ColorPrint.plain("[WARNING] system_paths not available, using local directory")
 
 
 def get_comparison_base_dir(app_name: str) -> Path:
@@ -152,7 +153,7 @@ def create_comparison_image(
         output_path.parent.mkdir(parents=True, exist_ok=True)
         composite.save(output_path, 'PNG')
 
-        print(f"[SUCCESS] Created comparison image: {output_path}")
+        ColorPrint.plain(f"[SUCCESS] Created comparison image: {output_path}")
 
         return {
             "success": True,
@@ -167,7 +168,7 @@ def create_comparison_image(
         }
 
     except Exception as e:
-        print(f"[ERROR] Failed to create comparison image: {e}")
+        ColorPrint.plain(f"[ERROR] Failed to create comparison image: {e}")
         return {
             "success": False,
             "error": str(e)

@@ -18,6 +18,7 @@ nothing works a sane default is returned. This class never raises.
 import re
 import shutil
 import subprocess
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class LinuxScreenManager:
@@ -44,20 +45,20 @@ class LinuxScreenManager:
             except Exception as e:
                 # Defensive: a probe should never bubble up, but if it does we
                 # log it and move on to the next strategy.
-                print(f"Warning: {probe.__name__} failed: {e}")
+                ColorPrint.plain(f"Warning: {probe.__name__} failed: {e}")
                 result = None
 
             if result is not None:
                 x, y, width, height = result
-                print(f"Screen dimensions: {width}x{height}")
-                print(f"Screen position: {x}, {y}")
+                ColorPrint.plain(f"Screen dimensions: {width}x{height}")
+                ColorPrint.plain(f"Screen position: {x}, {y}")
                 return result
 
         # Nothing worked -- fall back to a reasonable default.
         x, y, width, height = self.DEFAULT_DIMENSIONS
-        print("Warning: Could not detect screen dimensions, using default")
-        print(f"Screen dimensions: {width}x{height}")
-        print(f"Screen position: {x}, {y}")
+        ColorPrint.plain("Warning: Could not detect screen dimensions, using default")
+        ColorPrint.plain(f"Screen dimensions: {width}x{height}")
+        ColorPrint.plain(f"Screen position: {x}, {y}")
         return self.DEFAULT_DIMENSIONS
 
     # ------------------------------------------------------------------ #
@@ -109,7 +110,7 @@ class LinuxScreenManager:
 
         chosen = primary or first
         if chosen is not None:
-            print("Using xrandr (X11) for screen dimensions")
+            ColorPrint.plain("Using xrandr (X11) for screen dimensions")
         return chosen
 
     def _detect_wlr_randr(self):
@@ -153,7 +154,7 @@ class LinuxScreenManager:
                 mode_match = mode_re.search(line)
                 if mode_match:
                     w, h = int(mode_match.group(1)), int(mode_match.group(2))
-                    print("Using wlr-randr (Wayland) for screen dimensions")
+                    ColorPrint.plain("Using wlr-randr (Wayland) for screen dimensions")
                     return (pos[0], pos[1], w, h)
 
         return None
@@ -184,7 +185,7 @@ class LinuxScreenManager:
         match = re.search(r"dimensions:\s*(\d+)x(\d+)", proc.stdout)
         if match:
             w, h = int(match.group(1)), int(match.group(2))
-            print("Using xdpyinfo (X11) for screen dimensions")
+            ColorPrint.plain("Using xdpyinfo (X11) for screen dimensions")
             return (0, 0, w, h)
 
         return None

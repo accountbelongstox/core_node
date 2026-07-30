@@ -1,393 +1,176 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Speech Configuration Manager (SQLite Backend)
+"""Backward-compatible speech configuration facade over user_data.json."""
 
-Unified speech configuration management using util_speech.config table.
-Replaces speech_* keys in GlobalConfig with dedicated speech database.
+from typing import Any, Dict, Optional
 
-Architecture:
-- Dedicated util_speech.config table
-- Backward compatible with GlobalConfig API
-- Auto-migration from GlobalConfig
-- Category-based organization (tts, stt, ui, general)
-"""
-
-from typing import Optional, Dict, Any
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.database.exports import get_database_manager
-
-from pycore.database.models.table_keys import TableKeys
-
-from pycore.database.models.util_speech.speech_config_model import SpeechConfigModel
-from pycore.pyutils.common.global_config import global_config
+from pycore.pyutils.common.user_data_store import user_data_store
 
 
+_SECTION = "speech_config"
+
+
+def _category(key: str) -> str:
+    for prefix in ("tts", "stt", "ui"):
+        if key.startswith(f"{prefix}_"):
+            return prefix
+    return "general"
+
+
+def _value_type(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "bool"
+    if isinstance(value, int):
+        return "int"
+    if isinstance(value, float):
+        return "float"
+    if isinstance(value, list):
+        return "list"
+    if isinstance(value, dict):
+        return "dict"
+    return "string"
 
 
 class SpeechConfig:
-    """
-    Speech Configuration Manager (SQLite Backend)
+    """Expose the legacy speech configuration API through unified JSON."""
 
-    Provides unified configuration for all speech features:
-    - TTS (Text-to-Speech)
-    - STT (Speech-to-Text)
-    - UI (User Interface settings)
-    - General speech settings
-
-    Features:
-    - Persistent SQLite storage in util_speech.config
-    - Thread-safe operations
-    - Automatic default initialization
-    - Auto-migration from GlobalConfig
-    - Category-based organization
-    """
-
-    def __init__(self, database_name: str = 'speech', auto_migrate: bool = True):
-        """
-        Initialize Speech Config Manager
-
-        Args:
-            database_name: Database name (default: 'speech')
-            auto_migrate: Auto-migrate from GlobalConfig on first init
-        """
+    def __init__(self, database_name: str = "speech", auto_migrate: bool = True) -> None:
         self.database_name = database_name
-        self._db_manager = None
-        self._config_model = None
-        self._initialized = False
         self._auto_migrate = auto_migrate
-
-        # Auto-initialize
-        self._initialize()
         init_serialized_owner(
             self,
-            'pyutils.speech_config.state',
-            'SpeechConfigStateThread',
+            "pyutils.speech_config.state",
+            "SpeechConfigStateThread",
             timeout=300.0,
         )
+        if auto_migrate:
+            self._migrate_from_global_config()
 
-    def _initialize(self):
-        """Initialize database connection and table (lazy)"""
-        if self._initialized:
+    @property
+    def DEFAULT_CONFIG(self) -> Dict[str, Any]:
+        return user_data_store.get_default_section(_SECTION)
+
+    def _migrate_from_global_config(self) -> None:
+        if user_data_store.get_personalized_section(_SECTION):
             return
-
-        try:
-            # Get database manager
-            self._db_manager = get_database_manager()
-
-            # Get config model
-            self._config_model = SpeechConfigModel
-
-            # Register speech database if not already registered
-            if not self._db_manager.is_database_registered('speech'):
-                self._db_manager.register_database(database_name='speech')
-
-            # Load config table if not already loaded
-            if not self._db_manager.is_table_loaded('util_speech.config'):
-                self._db_manager.load_tables(
-                    table_keys=[TableKeys.SPEECH_CONFIG],
-                    models=[SpeechConfigModel],
-                    database_name='speech'
-                )
-
-            # Initialize defaults
-            with self._db_manager.get_connection(self.database_name) as conn:
-                self._config_model.initialize_defaults(conn)
-
-            # Auto-migrate from GlobalConfig if enabled
-            if self._auto_migrate:
-                self._migrate_from_global_config()
-
-            self._initialized = True
-            ColorPrint.blue(f"[SpeechConfig] Initialized with SQLite database: {self.database_name}")
-
-        except Exception as e:
-            ColorPrint.yellow(f"[SpeechConfig] Initialization deferred: {e}")
-            self._initialized = False
-
-    def _migrate_from_global_config(self):
-        """Migrate speech_* configs from GlobalConfig to SpeechConfig"""
-        try:
-
-            # Get all global configs
-            all_global_configs = global_config.get_all()
-
-            # Migrate
-            with self._db_manager.get_connection(self.database_name) as conn:
-                migrated = self._config_model.migrate_from_global_config(conn, all_global_configs)
-
-                if migrated > 0:
-                    ColorPrint.green(f"[SpeechConfig] Auto-migrated {migrated} configs from GlobalConfig")
-
-        except Exception as e:
-            ColorPrint.yellow(f"[SpeechConfig] Auto-migration skipped: {e}")
-
-    # ===== Public API (Backward Compatible with GlobalConfig) =====
+        global_personalized = user_data_store.get_personalized_section("global_config")
+        migrated = {
+            key[len("speech_"):]: value
+            for key, value in global_personalized.items()
+            if key.startswith("speech_")
+        }
+        if migrated:
+            user_data_store.update_section(_SECTION, migrated)
 
     @serialized_method
     def get(self, key: str, default: Any = None) -> Any:
-        """
-        Get configuration value
-
-        Args:
-            key: Configuration key (without 'speech_' prefix)
-            default: Default value if key doesn't exist
-
-        Returns:
-            Configuration value
-        """
-        # Ensure initialized
-        if not self._initialized:
-            self._initialize()
-
-        if not self._initialized:
-            return default
-
-        try:
-            with self._db_manager.get_connection(self.database_name) as conn:
-                return self._config_model.get_config(conn, key, default)
-        except Exception as e:
-            ColorPrint.yellow(f"[SpeechConfig] Failed to get {key}: {e}")
-            return default
+        return user_data_store.get(_SECTION, key, default)
 
     @serialized_method
     def set(self, key: str, value: Any, description: Optional[str] = None) -> bool:
-        """
-        Set configuration value
-
-        Args:
-            key: Configuration key (without 'speech_' prefix)
-            value: Configuration value
-            description: Optional description
-
-        Returns:
-            True if saved successfully
-        """
-        # Ensure initialized
-        if not self._initialized:
-            self._initialize()
-
-        if not self._initialized:
-            return False
-
         try:
-            with self._db_manager.get_connection(self.database_name) as conn:
-                self._config_model.set_config(conn, key, value, description)
+            user_data_store.set(_SECTION, key, value)
             ColorPrint.green(f"[SpeechConfig] Set {key} = {value}")
             return True
-        except Exception as e:
-            ColorPrint.red(f"[SpeechConfig] Failed to set {key}: {e}")
+        except Exception as exc:
+            ColorPrint.red(f"[SpeechConfig] Failed to set {key}: {exc}")
             return False
 
     @serialized_method
     def get_all(self) -> Dict[str, Any]:
-        """
-        Get all configuration
-
-        Returns:
-            Complete configuration dictionary
-        """
-        # Ensure initialized
-        if not self._initialized:
-            self._initialize()
-
-        if not self._initialized:
-            return {}
-
-        try:
-            with self._db_manager.get_connection(self.database_name) as conn:
-                return self._config_model.get_all_configs(conn)
-        except Exception as e:
-            ColorPrint.red(f"[SpeechConfig] Failed to get all configs: {e}")
-            return {}
+        return user_data_store.get_section(_SECTION)
 
     @serialized_method
     def get_by_category(self, category: str) -> Dict[str, Any]:
-        """
-        Get all configs in a specific category
-
-        Args:
-            category: Category name (tts, stt, ui, general)
-
-        Returns:
-            Dictionary of configs in that category
-        """
-        # Ensure initialized
-        if not self._initialized:
-            self._initialize()
-
-        if not self._initialized:
-            return {}
-
-        try:
-            with self._db_manager.get_connection(self.database_name) as conn:
-                return self._config_model.get_configs_by_category(conn, category)
-        except Exception as e:
-            ColorPrint.red(f"[SpeechConfig] Failed to get category {category}: {e}")
-            return {}
+        normalized = str(category or "").strip().lower()
+        return {
+            key: value
+            for key, value in self.get_all().items()
+            if _category(key) == normalized
+        }
 
     @serialized_method
     def update(self, config_dict: Dict[str, Any]) -> bool:
-        """
-        Update multiple configuration values
-
-        Args:
-            config_dict: Dictionary of key-value pairs to update
-
-        Returns:
-            True if saved successfully
-        """
-        # Ensure initialized
-        if not self._initialized:
-            self._initialize()
-
-        if not self._initialized:
-            return False
-
         try:
-            with self._db_manager.get_connection(self.database_name) as conn:
-                for key, value in config_dict.items():
-                    self._config_model.set_config(conn, key, value)
-            ColorPrint.green(f"[SpeechConfig] Updated {len(config_dict)} settings")
+            user_data_store.update_section(_SECTION, config_dict or {})
             return True
-        except Exception as e:
-            ColorPrint.red(f"[SpeechConfig] Failed to update: {e}")
+        except Exception as exc:
+            ColorPrint.red(f"[SpeechConfig] Failed to update: {exc}")
             return False
 
     @serialized_method
     def has_key(self, key: str) -> bool:
-        """
-        Check if configuration key exists
-
-        Args:
-            key: Configuration key
-
-        Returns:
-            True if key exists
-        """
-        try:
-            with self._db_manager.get_connection(self.database_name) as conn:
-                return self._config_model.key_exists(conn, key)
-        except Exception as e:
-            ColorPrint.yellow(f"[SpeechConfig] Failed to check key {key}: {e}")
-            return False
+        return key in user_data_store.get_section(_SECTION)
 
     @serialized_method
     def delete(self, key: str) -> bool:
-        """
-        Delete configuration key
-
-        Args:
-            key: Configuration key
-
-        Returns:
-            True if deleted successfully
-        """
-        try:
-            with self._db_manager.get_connection(self.database_name) as conn:
-                deleted = self._config_model.delete_config(conn, key)
-                return deleted > 0
-        except Exception as e:
-            ColorPrint.red(f"[SpeechConfig] Failed to delete {key}: {e}")
+        personalized = user_data_store.get_personalized_section(_SECTION)
+        if key not in personalized:
             return False
+        user_data_store.delete(_SECTION, key)
+        return True
 
     @serialized_method
-    def reset_to_defaults(self):
-        """Reset all speech configuration to defaults"""
-        try:
-            with self._db_manager.get_connection(self.database_name) as conn:
-                # Clear all existing configs
-                self._config_model.clear_all(conn)
-
-                # Re-initialize defaults
-                self._config_model.initialize_defaults(conn)
-
-            ColorPrint.yellow("[SpeechConfig] Reset to defaults")
-        except Exception as e:
-            ColorPrint.red(f"[SpeechConfig] Failed to reset: {e}")
+    def reset_to_defaults(self) -> None:
+        user_data_store.delete(_SECTION)
+        ColorPrint.yellow("[SpeechConfig] Reset to defaults")
 
     @serialized_method
     def get_statistics(self) -> Dict[str, Any]:
-        """
-        Get configuration statistics
-
-        Returns:
-            Statistics dict with total, by_category, by_type
-        """
-        try:
-            with self._db_manager.get_connection(self.database_name) as conn:
-                return self._config_model.get_statistics(conn)
-        except Exception as e:
-            ColorPrint.red(f"[SpeechConfig] Failed to get statistics: {e}")
-            return {}
-
-    # ===== Convenience Methods =====
+        values = self.get_all()
+        by_category: Dict[str, int] = {}
+        by_type: Dict[str, int] = {}
+        for key, value in values.items():
+            category = _category(key)
+            value_type = _value_type(value)
+            by_category[category] = by_category.get(category, 0) + 1
+            by_type[value_type] = by_type.get(value_type, 0) + 1
+        return {
+            "total_configs": len(values),
+            "by_category": by_category,
+            "by_type": by_type,
+        }
 
     def get_tts_provider(self) -> str:
-        """Get TTS provider"""
-        return self.get('tts_provider', 'edge')
+        return self.get("tts_provider", self.DEFAULT_CONFIG.get("tts_provider"))
 
-    def set_tts_provider(self, provider: str):
-        """Set TTS provider"""
-        self.set('tts_provider', provider)
+    def set_tts_provider(self, provider: str) -> None:
+        self.set("tts_provider", provider)
 
     def get_stt_provider(self) -> str:
-        """Get STT provider"""
-        return self.get('stt_provider', 'azure')
+        return self.get("stt_provider", self.DEFAULT_CONFIG.get("stt_provider"))
 
-    def set_stt_provider(self, provider: str):
-        """Set STT provider"""
-        self.set('stt_provider', provider)
+    def set_stt_provider(self, provider: str) -> None:
+        self.set("stt_provider", provider)
 
     def get_default_language(self) -> str:
-        """Get default language"""
-        return self.get('default_language', 'zh-CN')
+        return self.get("default_language", self.DEFAULT_CONFIG.get("default_language"))
 
-    def set_default_language(self, language: str):
-        """Set default language"""
-        self.set('default_language', language)
+    def set_default_language(self, language: str) -> None:
+        self.set("default_language", language)
 
     def is_auto_use_cached(self) -> bool:
-        """Check if auto-use cached config is enabled"""
-        return self.get('auto_use_cached', True)
+        return bool(self.get("auto_use_cached", self.DEFAULT_CONFIG.get("auto_use_cached")))
 
-    def print_config(self):
-        """Print current configuration"""
+    def print_config(self) -> None:
         ColorPrint.blue("\n" + "=" * 70)
-        ColorPrint.blue("[Speech Configuration - SQLite Backend]")
+        ColorPrint.blue("[Speech Configuration - Unified JSON]")
         ColorPrint.blue("=" * 70)
-
-        all_config = self.get_all()
-
-        # Group by category
-        categories = {}
-        for key, value in all_config.items():
-            # Infer category from key
-            if key.startswith('tts_'):
-                cat = 'TTS'
-            elif key.startswith('stt_'):
-                cat = 'STT'
-            elif key.startswith('ui_'):
-                cat = 'UI'
-            else:
-                cat = 'General'
-
-            if cat not in categories:
-                categories[cat] = {}
-            categories[cat][key] = value
-
-        # Print by category
-        for category in sorted(categories.keys()):
+        categories: Dict[str, Dict[str, Any]] = {}
+        for key, value in self.get_all().items():
+            categories.setdefault(_category(key).upper(), {})[key] = value
+        for category in sorted(categories):
             ColorPrint.green(f"\n[{category}]")
             for key, value in sorted(categories[category].items()):
-                print(f"  {key}: {value}")
-
+                ColorPrint.plain(f"  {key}: {value}")
         ColorPrint.blue("=" * 70 + "\n")
 
 
-# ===== Global Singleton =====
 speech_config = SpeechConfig()
 
 
-__all__ = ['SpeechConfig', 'speech_config']
+__all__ = ["SpeechConfig", "speech_config"]

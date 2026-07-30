@@ -227,7 +227,7 @@ def annotations_to_yolo_segment(
     Returns (True, "Converted N files") or (False, error_message).
     """
     try:
-import pycore.pyutils.voc_annotator.annotation_io as annotation_io
+        import pycore.pyutils.voc_annotator.annotation_io as annotation_io
     except ImportError:
         return False, "pycore not available for segment export"
     if not annotations_dir or not os.path.isdir(annotations_dir):
@@ -303,7 +303,7 @@ def launch_labelimg(
     config_path: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """
-    Launch VOC annotator: prefer pycore voc_annotator (PySide6, GameAISDK VOC); fallback to labelImg.
+    Launch the configured labelImg implementation.
     images_dir = open dir, save_dir = where to save XML (default images_dir).
     project_name and config_path: passed to pycore annotator for shared classes across segments.
     Returns (True, "") or (False, error_message).
@@ -314,17 +314,7 @@ def launch_labelimg(
     save = save_dir if save_dir and os.path.isdir(save_dir) else images_dir
     cwd = _core_node_root or os.path.dirname(images_dir) or "."
 
-    # Prefer pycore voc_annotator (PySide6; output GameAISDK VOC XML)
-    if _core_node_root and os.path.isdir(os.path.join(_core_node_root, "pycore", "pyutils", "voc_annotator")):
-        cmd = [sys.executable, "-m", "pycore.pyutils.voc_annotator", images_dir, save]
-        if config_path:
-            cmd.extend(["--config", os.path.abspath(config_path)])
-        if project_name:
-            cmd.extend(["--project-name", project_name])
-        if _popen_annotator(cmd, _core_node_root):
-            return True, ""
-
-    # Fallback: labelImg (PyQt5)
+    # labelImg (PyQt5)
     if get_third_package_labelImg is None:
         return False, "pycore not on sys.path; add core_node root to sys.path before importing yolo_label_lib"
     mod = get_third_package_labelImg()
@@ -353,5 +343,5 @@ def launch_labelimg(
         exe = shutil.which(name)
         if exe and _popen_annotator([exe, images_dir, "", save], cwd):
             return True, ""
-    return False, "Annotator process exited too soon; try: python -m pycore.pyutils.voc_annotator \"%s\"" % images_dir
+    return False, "labelImg process exited too soon for %s" % images_dir
 

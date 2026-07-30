@@ -1,48 +1,68 @@
 # -*- coding: utf-8 -*-
-"""RPC Routes for vocabulary."""
+"""RPC routes for Vocabulary."""
 
-import asyncio
-
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 import pycore.callmodule.rpc_routes.route_names as rn
-import pycore.callmodule.services.vocabulary_service as vocab
+import pycore.pyctl.vocabulary.service as vocab
 
 
 def register_local_vocabulary_routes(server):
-    pairs = [
-        (rn.UI_VOCABULARY_VOCAB_TRANSLATION_LANGUAGES, lambda p: vocab.vocab_translation_languages()),
-        (rn.UI_VOCABULARY_VOCAB_TRANSLATION_TRANSLATE, lambda p: vocab.vocab_translation_translate(p or {})),
-        (rn.UI_VOCABULARY_VOCAB_TRANSLATION_QUEUE_BATCH_ADD, lambda p: vocab.vocab_translation_queue_batch_add(p or {})),
-        (rn.UI_VOCABULARY_VOCAB_TTS_GENERATE, lambda p: vocab.vocab_tts_generate(p or {})),
-        (rn.UI_VOCABULARY_VOCAB_TTS_QUEUE_BATCH_QUERY, lambda p: vocab.vocab_tts_queue_batch_query(p or [])),
-        (rn.UI_VOCABULARY_VOCAB_TTS_SENTENCE_AUDIO, lambda p: vocab.vocab_tts_sentence_audio(p)),
-        (rn.UI_VOCABULARY_VOCAB_TTS_QUEUE_STATS, lambda p: vocab.vocab_tts_queue_stats()),
-        (rn.UI_VOCABULARY_VOCAB_TTS_QUEUE_ITEMS, lambda p: vocab.vocab_tts_queue_items(p)),
-        (rn.UI_VOCABULARY_VOCAB_ASSIST_OVERVIEW, lambda p: vocab.vocab_assist_overview()),
-        (rn.UI_VOCABULARY_VOCAB_ASSIST_OVERVIEW_ITEMS, lambda p: vocab.vocab_assist_overview_items(p)),
-        (rn.UI_VOCABULARY_VOCAB_COVER_RETRY, lambda p: vocab.vocab_cover_retry(p or {})),
-        (rn.UI_VOCABULARY_VOCAB_LIBRARIES, lambda p: vocab.vocab_libraries(p)),
-        (rn.UI_VOCABULARY_VOCAB_LIBRARY_WORDS, lambda p: vocab.vocab_library_words(int(p.get("library_id")), p)),
-        (rn.UI_VOCABULARY_VOCAB_DELETE_LIBRARY, lambda p: vocab.vocab_delete_library(int(p.get("library_id")))),
-        (rn.UI_VOCABULARY_VOCAB_STATISTICS, lambda p: vocab.vocab_statistics(p)),
-        (rn.UI_VOCABULARY_VOCAB_LANGUAGE_BREAKDOWN, lambda p: vocab.vocab_language_breakdown(p)),
-        (rn.UI_VOCABULARY_VOCAB_DICTIONARY_WORDS, lambda p: vocab.vocab_dictionary_words(p)),
-        (rn.UI_VOCABULARY_VOCAB_CREATE_DICTIONARY_WORD, lambda p: vocab.vocab_create_dictionary_word(p or {})),
-        (rn.UI_VOCABULARY_VOCAB_UPDATE_DICTIONARY_WORD, lambda p: vocab.vocab_update_dictionary_word(str(p.get("md5") or ""), p or {})),
-        (rn.UI_VOCABULARY_VOCAB_DELETE_DICTIONARY_WORD, lambda p: vocab.vocab_delete_dictionary_word(str(p.get("md5") or ""), p)),
-        (rn.UI_VOCABULARY_VOCAB_BATCH_DICTIONARY_WORDS, lambda p: vocab.vocab_batch_dictionary_words(p or {})),
-        (rn.UI_VOCABULARY_VOCAB_DICTIONARY_SENTENCES, lambda p: vocab.vocab_dictionary_sentences(p)),
-        (rn.UI_VOCABULARY_VOCAB_VALIDITY_REPORT, lambda p: vocab.vocab_validity_report(p or {})),
-        (rn.UI_VOCABULARY_VOCAB_STORAGE_SUMMARY, lambda p: vocab.vocab_storage_summary()),
-    ]
+    def queue_batch_query(params, _request_id, _context):
+        return vocab.vocab_tts_queue_batch_query(list((params or {}).get("items") or []))
 
-    for route_name, fn in pairs:
-        async def handler(params, request_id, context, _fn=fn):
-            return await asyncio.to_thread(_fn, params)
+    def library_words(params, _request_id, _context):
+        request = params or {}
+        query = dict(request)
+        library_id = int(query.pop("library_id"))
+        return vocab.vocab_library_words(library_id, query)
 
-        server.route(name=route_name, handler=handler, sync=False)
+    def delete_library(params, _request_id, _context):
+        return vocab.vocab_delete_library(int((params or {}).get("library_id")))
 
-    ColorPrint.green("[ConfigBuilder] Registered vocabulary RPC routes")
+    def update_dictionary_word(params, _request_id, _context):
+        request = dict(params or {})
+        md5 = str(request.pop("md5", ""))
+        return vocab.vocab_update_dictionary_word(
+            md5,
+            request,
+        )
 
+    def delete_dictionary_word(params, _request_id, _context):
+        request = dict(params or {})
+        md5 = str(request.pop("md5", ""))
+        return vocab.vocab_delete_dictionary_word(
+            md5,
+            request,
+        )
 
-__all__ = ["register_local_vocabulary_routes"]
+    def resource(params, _request_id, _context):
+        return vocab.vocab_resource(str((params or {}).get("url") or ""))
+
+    routes = (
+        (rn.UI_VOCABULARY_VOCAB_TRANSLATION_LANGUAGES, vocab.vocab_translation_languages),
+        (rn.UI_VOCABULARY_VOCAB_TRANSLATION_TRANSLATE, vocab.vocab_translation_translate),
+        (rn.UI_VOCABULARY_VOCAB_TRANSLATION_QUEUE_BATCH_ADD, vocab.vocab_translation_queue_batch_add),
+        (rn.UI_VOCABULARY_VOCAB_TTS_GENERATE, vocab.vocab_tts_generate),
+        (rn.UI_VOCABULARY_VOCAB_TTS_QUEUE_BATCH_QUERY, queue_batch_query),
+        (rn.UI_VOCABULARY_VOCAB_TTS_SENTENCE_AUDIO, vocab.vocab_tts_sentence_audio),
+        (rn.UI_VOCABULARY_VOCAB_TTS_QUEUE_STATS, vocab.vocab_tts_queue_stats),
+        (rn.UI_VOCABULARY_VOCAB_TTS_QUEUE_ITEMS, vocab.vocab_tts_queue_items),
+        (rn.UI_VOCABULARY_VOCAB_ASSIST_OVERVIEW, vocab.vocab_assist_overview),
+        (rn.UI_VOCABULARY_VOCAB_ASSIST_OVERVIEW_ITEMS, vocab.vocab_assist_overview_items),
+        (rn.UI_VOCABULARY_VOCAB_COVER_RETRY, vocab.vocab_cover_retry),
+        (rn.UI_VOCABULARY_VOCAB_LIBRARIES, vocab.vocab_libraries),
+        (rn.UI_VOCABULARY_VOCAB_LIBRARY_WORDS, library_words),
+        (rn.UI_VOCABULARY_VOCAB_DELETE_LIBRARY, delete_library),
+        (rn.UI_VOCABULARY_VOCAB_STATISTICS, vocab.vocab_statistics),
+        (rn.UI_VOCABULARY_VOCAB_LANGUAGE_BREAKDOWN, vocab.vocab_language_breakdown),
+        (rn.UI_VOCABULARY_VOCAB_DICTIONARY_WORDS, vocab.vocab_dictionary_words),
+        (rn.UI_VOCABULARY_VOCAB_CREATE_DICTIONARY_WORD, vocab.vocab_create_dictionary_word),
+        (rn.UI_VOCABULARY_VOCAB_UPDATE_DICTIONARY_WORD, update_dictionary_word),
+        (rn.UI_VOCABULARY_VOCAB_DELETE_DICTIONARY_WORD, delete_dictionary_word),
+        (rn.UI_VOCABULARY_VOCAB_BATCH_DICTIONARY_WORDS, vocab.vocab_batch_dictionary_words),
+        (rn.UI_VOCABULARY_VOCAB_DICTIONARY_SENTENCES, vocab.vocab_dictionary_sentences),
+        (rn.UI_VOCABULARY_VOCAB_VALIDITY_REPORT, vocab.vocab_validity_report),
+        (rn.UI_VOCABULARY_VOCAB_STORAGE_SUMMARY, vocab.vocab_storage_summary),
+        (rn.UI_VOCABULARY_RESOURCE, resource),
+    )
+    server.register_routes(routes, group="vocabulary")
+

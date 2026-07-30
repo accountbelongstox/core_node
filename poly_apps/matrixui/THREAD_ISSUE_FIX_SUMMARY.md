@@ -268,7 +268,7 @@ rm -f pyapps/matrix/adb_device_manager/device_push_service.py
 | FrontendThread | ✅ 继承 | ✅ True | ✅ 是 | ✅ 是 |
 | FrontendSingletonDetector | ⚠️ target | ✅ True | N/A | N/A |
 | SingletonDetector | ⚠️ target | ✅ True | N/A | N/A |
-| FastAPIRPCServer | ⚠️ target | ✅ True | N/A | N/A |
+| RpcServer | ⚠️ target | ✅ True | N/A | N/A |
 | NetworkScanner | ⚠️ target | ✅ True | N/A | N/A |
 
 **注意**: 标记为 ⚠️ target 的是工具类内部线程，daemon=True 不会阻塞关闭

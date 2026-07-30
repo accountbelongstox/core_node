@@ -7,7 +7,7 @@ window.AppConfig = {
     // API Configuration
     api: {
         baseUrl: window.location.origin,
-        rpcPath: '/rpc',
+        rpcPath: '/api/controller',
         timeout: 30000, // 30 seconds
         retryAttempts: 3,
         retryDelay: 1000

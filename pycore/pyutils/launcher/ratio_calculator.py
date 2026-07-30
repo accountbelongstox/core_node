@@ -3,6 +3,7 @@
 Ratio Calculator
 Calculates character pixel ratios for terminal windows
 """
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class RatioCalculator:
@@ -75,7 +76,7 @@ class RatioCalculator:
         char_width = self.char_width
         if calibration_height_px and calibration_term_rows and calibration_term_rows > 0:
             char_height = calibration_height_px / calibration_term_rows
-            print(f"  Calibration: {calibration_height_px}px / {calibration_term_rows} rows "
+            ColorPrint.plain(f"  Calibration: {calibration_height_px}px / {calibration_term_rows} rows "
                   f"= {char_height:.4f}px per row")
         else:
             char_height = self.char_height

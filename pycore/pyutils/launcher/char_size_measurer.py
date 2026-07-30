@@ -35,6 +35,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 # Win32 API constants
@@ -245,12 +246,12 @@ class CharSizeMeasurer:
             # later launches then reuse the cache with no flash.
             return None
 
-        print("[char-size] Measuring Windows Terminal cell size "
+        ColorPrint.plain("[char-size] Measuring Windows Terminal cell size "
               "(two calibration windows will flash briefly)...")
         rect_a = _launch_and_measure(*_CALIB_SIZE_A)
         rect_b = _launch_and_measure(*_CALIB_SIZE_B)
         if not rect_a or not rect_b:
-            print("[char-size] Calibration failed (window not detected in time); "
+            ColorPrint.plain("[char-size] Calibration failed (window not detected in time); "
                   "falling back to config ratios.")
             return None
 
@@ -262,12 +263,12 @@ class CharSizeMeasurer:
         char_height = (hb - ha) / (rows_b - rows_a)
 
         if char_width <= 0 or char_height <= 0:
-            print(f"[char-size] Calibration yielded non-positive cell size "
+            ColorPrint.plain(f"[char-size] Calibration yielded non-positive cell size "
                   f"({char_width:.3f}x{char_height:.3f}); discarding.")
             return None
 
         _save_cache(char_width, char_height, dpi)
-        print(f"[char-size] Measured: {char_width:.3f}px/col, {char_height:.3f}px/row "
+        ColorPrint.plain(f"[char-size] Measured: {char_width:.3f}px/col, {char_height:.3f}px/row "
               f"(DPI {dpi}); cached for future launches.")
         return (char_width, char_height,
                 f"dynamic measurement (DPI {dpi}, two-point)")

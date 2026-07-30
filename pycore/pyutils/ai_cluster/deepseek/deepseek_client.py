@@ -12,7 +12,7 @@ falling back to DEEPSEEK_API_KEY). The OpenAI-compatible key is sent as the
 Bearer token.
 
 Usage:
-    from pycore.pyutils.deepseek import get_deepseek_client
+    from pycore.pyutils.ai_cluster.deepseek.deepseek_client import get_deepseek_client
 
     client = get_deepseek_client()
     text = client.chat("Hello!")            # simple one-shot chat

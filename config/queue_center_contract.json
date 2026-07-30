@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "contract": "queue_center",
   "source_path": "config/queue_center_contract.json",
   "metric_semantics": {
@@ -339,7 +339,7 @@
         "capability": "poster",
         "interactive": false,
         "pycore_local_label": "remote_poster",
-        "ui": {"icon": "🎬", "badge": "COVER", "summary_label": "待搜索图书封面", "color": "#fb7185"}
+        "ui": {"icon": "🎬", "badge": "COVER", "summary_label": "待搜索封面与海报", "color": "#fb7185"}
       },
       {
         "key": "notebooklm",
@@ -439,6 +439,7 @@
       "key": "word_translation",
       "label": "Word Translation",
       "laravel_task_type": "word_translation",
+      "summary_task_type": "word_translation",
       "capability": "translate",
       "primary_handler": "pycore"
     },
@@ -446,6 +447,7 @@
       "key": "ai_translate",
       "label": "AI Translate",
       "laravel_task_type": "word_translation",
+      "summary_task_type": "word_translation",
       "capability": "ai_translate",
       "primary_handler": "pycore"
     },
@@ -453,6 +455,7 @@
       "key": "word_media",
       "label": "Word Media",
       "laravel_task_type": "word_media",
+      "summary_task_type": "word_media",
       "capability": "image",
       "primary_handler": "chrome"
     },
@@ -460,6 +463,7 @@
       "key": "word_audio",
       "label": "Word Audio",
       "laravel_task_type": "word_audio",
+      "summary_task_type": "word_audio",
       "capability": "audio",
       "primary_handler": "pycore"
     },
@@ -467,6 +471,7 @@
       "key": "sentence_audio",
       "label": "Sentence Audio",
       "laravel_task_type": "sentence_audio",
+      "summary_task_type": "sentence_audio",
       "capability": "sentence_audio",
       "primary_handler": "pycore"
     },
@@ -474,6 +479,7 @@
       "key": "subtitle_search",
       "label": "Subtitle Search",
       "laravel_task_type": "subtitle_search",
+      "summary_task_type": "subtitle_search",
       "capability": "subtitle",
       "primary_handler": "pycore"
     },
@@ -495,6 +501,7 @@
       "key": "cover",
       "label": "Vocabulary Cover",
       "laravel_task_type": null,
+      "summary_task_type": "poster",
       "capability": "image",
       "primary_handler": "chrome"
     },
@@ -502,6 +509,7 @@
       "key": "poster",
       "label": "Media Poster",
       "laravel_task_type": "poster",
+      "summary_task_type": "poster",
       "capability": "poster",
       "primary_handler": "chrome"
     },
@@ -509,6 +517,7 @@
       "key": "notebooklm",
       "label": "NotebookLM",
       "laravel_task_type": "notebooklm",
+      "summary_task_type": "notebooklm",
       "capability": null,
       "primary_handler": "chrome"
     },
@@ -516,6 +525,7 @@
       "key": "gemini_image",
       "label": "Gemini Image",
       "laravel_task_type": "gemini_image",
+      "summary_task_type": "gemini_image",
       "capability": "image",
       "primary_handler": "chrome"
     },
@@ -523,6 +533,7 @@
       "key": "gemini_chat",
       "label": "Gemini Chat",
       "laravel_task_type": "gemini_chat",
+      "summary_task_type": "gemini_chat",
       "capability": null,
       "primary_handler": "chrome"
     }

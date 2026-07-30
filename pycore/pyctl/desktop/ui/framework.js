@@ -25,13 +25,52 @@ function debugLog(message, useAlert = false) {
 if (GLOBAL_DEBUG) {
     debugLog('[Framework] Platform: ' + (isMobile ? 'Mobile' : 'Desktop'));
     debugLog('[Framework] User Agent: ' + navigator.userAgent);
-    debugLog('[Framework] Initializing WebSocket RPC Client', isMobile);
-    debugLog('[Framework] WebSocket URL: ' + CONFIG.WEBSOCKET.URL, isMobile);
-    console.log('[Framework] WebSocket Options:', CONFIG.WEBSOCKET.OPTIONS);
+    debugLog('[Framework] Initializing HTTP controller client', isMobile);
+    debugLog('[Framework] HTTP URL: ' + CONFIG.SERVER.BASE_URL, isMobile);
 }
 
 // ========== RPC Client ==========
-const rpcClient = new FastAPIWsRpcClient(CONFIG.WEBSOCKET.URL, CONFIG.WEBSOCKET.OPTIONS);
+class HttpControllerClient {
+    constructor(baseUrl) {
+        this.baseUrl = baseUrl.replace(/\/$/, '');
+        this.listeners = new Map();
+    }
+
+    async connect() {
+        await this.call('ui.ping', {});
+        this.emit('connection');
+    }
+
+    async call(route, params = {}) {
+        const response = await fetch(
+            `${this.baseUrl}/api/controller/${encodeURIComponent(route)}`,
+            {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(params)
+            }
+        );
+        if (!response.ok) {
+            this.emit('disconnect');
+            throw new Error(`HTTP ${response.status} for ${route}`);
+        }
+        return response.status === 204 ? null : response.json();
+    }
+
+    on(eventName, handler) {
+        const handlers = this.listeners.get(eventName) || [];
+        handlers.push(handler);
+        this.listeners.set(eventName, handlers);
+    }
+
+    emit(eventName) {
+        for (const handler of this.listeners.get(eventName) || []) {
+            handler();
+        }
+    }
+}
+
+const rpcClient = new HttpControllerClient(CONFIG.SERVER.BASE_URL);
 
 // ========== State ==========
 let currentQueue = [];
@@ -76,11 +115,11 @@ async function init() {
     if (GLOBAL_DEBUG) console.log('[Framework] Server config:', CONFIG.SERVER);
 
     try {
-        debugLog('[RPC] Attempting to connect to WebSocket...', isMobile);
-        debugLog('[RPC] URL: ' + CONFIG.WEBSOCKET.URL, isMobile);
+        debugLog('[RPC] Checking HTTP controller...', isMobile);
+        debugLog('[RPC] URL: ' + CONFIG.SERVER.BASE_URL, isMobile);
 
         await rpcClient.connect();
-        debugLog('[RPC] Connected to WebSocket successfully!', isMobile);
+        debugLog('[RPC] HTTP controller is reachable!', isMobile);
         updateStatus(true);
 
         // Fetch initial data
@@ -122,12 +161,12 @@ async function init() {
             subtitleText.innerHTML = `
                 <div class="empty-state" style="color: #f44336;">
                     <div class="icon">⚠️</div>
-                    <div style="margin-top: 10px; font-size: 16px;">WebSocket Connection Failed</div>
+                    <div style="margin-top: 10px; font-size: 16px;">HTTP Connection Failed</div>
                     <div style="margin-top: 5px; font-size: 12px; opacity: 0.7;">
                         ${error.message || 'Unknown error'}
                     </div>
                     <div style="margin-top: 10px; font-size: 11px; opacity: 0.6;">
-                        URL: ${CONFIG.WEBSOCKET.URL}
+                        URL: ${CONFIG.SERVER.BASE_URL}
                     </div>
                     <div style="margin-top: 5px; font-size: 11px; opacity: 0.6;">
                         ${isMobile ? 'Check if port 59000 is accessible from mobile network' : 'Check console for details (F12)'}
@@ -2212,13 +2251,13 @@ async function loadNotebookLMStatus() {
 
 // ========== RPC Connection Events ==========
 rpcClient.on('connection', () => {
-    debugLog('[RPC] WebSocket connected');
+    debugLog('[RPC] HTTP controller connected');
     updateStatus(true);
     fetchQueue();
 });
 
 rpcClient.on('disconnect', () => {
-    debugLog('[RPC] WebSocket disconnected');
+    debugLog('[RPC] HTTP controller disconnected');
     updateStatus(false);
 });
 

@@ -30,10 +30,8 @@ from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import (
     TkinterSystemTray,
     TrayMenuItem as TkinterTrayMenuItem,
 )
-from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import (
-    get_bus_manager,
-    BusSignals,
-)
+from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import bus_manager
+from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
 from pycore.pyutils.native_ui.platform_adapter import (
     get_platform_adapter,
     TrayBackend as PlatformTrayBackend,
@@ -58,8 +56,7 @@ def run_tray_mode(thread):
 
     (was TkinterStartupThread._run_tray_mode)
     """
-    bus_mgr = get_bus_manager()
-    tray_config = bus_mgr.get_tray_config()
+    tray_config = bus_manager.get_tray_config()
 
     if not tray_config or not tray_config.enabled:
         ColorPrint.print_warn("[TkinterStartupThread] No tray config found or tray disabled")

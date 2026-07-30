@@ -8,48 +8,25 @@ Holds the per-capability gates that form the single Queue Center control plane:
       capabilities: { translation, ai_translate, tts,
                       sentence_audio, subtitle, stt } }
 
-translation_worker_enabled_on_start / assist_capability_enabled gate the
-EXISTING TranslationWorkerService lanes: section ABSENT => OFF (no task runs
-until the user enables it in the Queue Center UI — d.txt 6.1/8.1); section
-PRESENT => enabled AND the capability flag.
+Defaults are loaded from config/user.settings.json. Personalized values from
+the mapped user configuration directory override them in memory and on disk.
 """
 
 from typing import Any, Dict, Optional
 
-from pycore.pyfoundations.system_paths import get_user_data_store
+from pycore.pyutils.common.user_data_store import user_data_store
 
-
-# ============================================================
-# Constants
-# ============================================================
 
 USER_DATA_SECTION = "assist_laravel"
-
-# Laravel queue-status API prefix (relative to the selected endpoint base URL).
 ASSIST_API_PREFIX = "/api/app_qy_v1/assist"
-
-# Per-capability assist toggles - the SINGLE control plane the Queue Center
-# exposes. Each key gates one canonical queue worker or lane:
-#   translation    word translation (translation_worker heartbeat)
-#   ai_translate   AI translation (remote_fast ai_translate capability)
-#   tts            word voice / TTS (dedicated tts_queue_poller)
-#   sentence_audio sentence voice (dedicated tts_sentence_worker)
-#   subtitle       subtitle search (remote_subtitle lane)
-#   stt            speech -> text (remote_stt lane; Laravel lane added separately)
-DEFAULT_SETTINGS: Dict[str, Any] = {
-    "enabled": False,
-    "capabilities": {
-        "translation": True,
-        "ai_translate": True,
-        "tts": True,
-        "sentence_audio": True,
-        # subtitle search: OFF by default - the SubtitleSearchController is absent
-        # at this baseline, so an enabled subtitle lane would claim tasks and fail
-        # them (burning retries). Enable only once the controller is restored.
-        "subtitle": False,
-        "stt": False,
-    },
-}
+CAPABILITY_KEYS = (
+    "translation",
+    "ai_translate",
+    "tts",
+    "sentence_audio",
+    "subtitle",
+    "stt",
+)
 
 
 # ============================================================
@@ -57,16 +34,16 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
 # ============================================================
 
 def _merge_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """Merge a raw section dictionary over the capability defaults."""
+    """Normalize the effective section loaded from the unified settings map."""
     raw = raw if isinstance(raw, dict) else {}
     caps_raw = raw.get("capabilities")
     caps_raw = caps_raw if isinstance(caps_raw, dict) else {}
     caps = {
-        key: bool(caps_raw.get(key, default))
-        for key, default in DEFAULT_SETTINGS["capabilities"].items()
+        key: bool(caps_raw.get(key))
+        for key in CAPABILITY_KEYS
     }
     return {
-        "enabled": bool(raw.get("enabled", DEFAULT_SETTINGS["enabled"])),
+        "enabled": bool(raw.get("enabled")),
         "capabilities": caps,
     }
 
@@ -76,18 +53,13 @@ def _merge_settings(raw: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 # ============================================================
 
 def assist_settings_exist() -> bool:
-    """True when the ``assist_laravel`` section is PRESENT in user_data.json.
-
-    Used by the translation-worker gating to preserve pre-upgrade behaviour:
-    while the key is entirely absent the translation worker keeps its legacy
-    Config-driven default; once the key exists the assist toggle rules.
-    """
-    return get_user_data_store().get(USER_DATA_SECTION) is not None
+    """True when the effective settings map contains the Assist section."""
+    return user_data_store.get(USER_DATA_SECTION) is not None
 
 
 def load_assist_settings() -> Dict[str, Any]:
     """Effective settings: stored section merged over defaults (validated)."""
-    return _merge_settings(get_user_data_store().get_section(USER_DATA_SECTION))
+    return _merge_settings(user_data_store.get_section(USER_DATA_SECTION))
 
 
 def save_assist_settings(patch: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -97,7 +69,7 @@ def save_assist_settings(patch: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     ``patch.capabilities`` is merged per-key, not replaced wholesale.
     Returns the effective settings after saving.
     """
-    store = get_user_data_store()
+    store = user_data_store
     current = store.get_section(USER_DATA_SECTION) or {}
     patch = patch if isinstance(patch, dict) else {}
     merged_raw = dict(current)
@@ -113,6 +85,33 @@ def save_assist_settings(patch: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     return effective
 
 
+def assist_callback_states(
+    settings: Optional[Dict[str, Any]] = None,
+) -> Dict[str, bool]:
+    """Resolve every queue callback from the current in-memory user settings."""
+    current = _merge_settings(settings) if settings is not None else load_assist_settings()
+    enabled = bool(current.get("enabled"))
+    capabilities = current.get("capabilities") or {}
+    translation = enabled and bool(capabilities.get("translation"))
+    ai_translate = enabled and bool(capabilities.get("ai_translate"))
+    word_audio = enabled and bool(capabilities.get("tts"))
+    sentence_audio = enabled and bool(capabilities.get("sentence_audio"))
+    subtitle = enabled and bool(capabilities.get("subtitle"))
+    stt = enabled and bool(capabilities.get("stt"))
+    translation_worker = translation or ai_translate or subtitle or stt
+    transport = translation_worker or word_audio or sentence_audio
+    return {
+        "global_task_worker": transport,
+        "translation_worker": translation_worker,
+        "translation_queue_monitor": translation or ai_translate,
+        "translation_http_event_client": transport,
+        "sentence_queue_monitor": sentence_audio,
+        "tts_queue_poller": word_audio,
+        "tts_sentence_worker": sentence_audio,
+        "subtitle_search_worker": subtitle,
+    }
+
+
 # ============================================================
 # Capability gates (control plane for every worker lane)
 # ============================================================
@@ -121,13 +120,8 @@ def translation_worker_enabled_on_start(legacy_default: bool) -> bool:
     """
     Master-toggle gate for the EXISTING TranslationWorkerService.
 
-    - Section absent (assist never configured in the UI): return False —
-      Queue Center rule (d.txt 6.1/8.1): NO task processing starts at boot
-      unless the user explicitly enabled it in the UI. The env/Config value
-      only survives as a hard kill-switch (an explicit "0" forces a lane off
-      even when the UI toggle is on), never as an auto-start.
-    - Section present: the assist toggle rules -
-      ``enabled AND capabilities.translation``.
+    The legacy default is accepted for call compatibility but never controls
+    lifecycle. The effective in-memory user setting is authoritative.
     """
     return assist_capability_enabled("translation", legacy_default)
 
@@ -137,15 +131,8 @@ def assist_capability_enabled(capability: str, legacy_default: bool = True) -> b
     Generic per-capability assist gate (the control plane every worker lane
     consults). Mirrors translation_worker_enabled_on_start for ALL capabilities:
 
-    - Section ABSENT (assist never configured in the UI): return False.
-      Backend workers must not process tasks the user never switched on
-      (Queue Center alignment d.txt 6.1/8.1); ``legacy_default`` is ignored
-      in this branch so no Config/env default can silently start processing.
-    - Section PRESENT: the assist toggle rules - the lane is live only while the
-      master ``enabled`` is on AND its capability flag is on (missing key => on,
-      so a newly-added capability defaults to advertised).
+    The lane is live only while the effective master setting and capability
+    setting are both enabled. Values come from the unified in-memory map.
     """
-    if not assist_settings_exist():
-        return False
     settings = load_assist_settings()
-    return bool(settings["enabled"] and settings["capabilities"].get(capability, True))
+    return bool(settings["enabled"] and settings["capabilities"].get(capability))

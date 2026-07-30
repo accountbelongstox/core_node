@@ -10,7 +10,7 @@ import shutil
 import traceback
 from pathlib import Path
 
-from pycore.pyfoundations.pygvar.constants import PROJECT_ROOT as PYCORE_PROJECT_ROOT, CACHE_DIR
+from pycore.pyfoundations.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT, CACHE_DIR
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.device.scrcpy_init import get_adb_path as get_init_adb_path
 

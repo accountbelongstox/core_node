@@ -94,6 +94,31 @@ class BusSignals:
     I18N_LANGUAGE_CHANGED = "ui.i18n.language_changed"
     UI_REDRAW = "ui.redraw"
 
+    # HTTP event topics bridged from THREAD_BUS or the durable RPC outbox
+    AGENT_HISTORY_SESSIONS_CHANGED = "agent_history.sessions.changed"
+    ARTICLE_PUBLISHED = "article.published"
+    CODE_SYNC_UPDATE = "code_sync_update"
+    COREBOOK_AUTOFLOW = "corebook_autoflow"
+    ENGINE_LOAD_STATUS_UPDATE = "engine_load_status_update"
+    LARAVEL_HTTP = "laravel_http"
+    LARAVEL_ENDPOINT_CHANGED = "laravel_endpoint_changed"
+    LARAVEL_LOGS_CHANGED = "laravel.logs.changed"
+    LARAVEL_LOGS_SNAPSHOT_UPDATED = "laravel.logs.snapshot.updated"
+    OPERATION_CHANGED = "operation.changed"
+    PYCORE_LOG = "pycore_log"
+    QUEUE_BUMP = "queue_bump"
+    QWEN_JOB_COMPLETED = "tts.qwen3tts.job.completed"
+    QWEN_JOB_FAILED = "tts.qwen3tts.job.failed"
+    QWEN_QUEUE_CHANGED = "tts.qwen3tts.queue.changed"
+    QWEN_QUEUE_EVENT = "tts.qwen3tts.queue.event"
+    SYSTEM_SETTINGS_UPDATE = "system_settings_update"
+    SUBTITLE_LANGUAGE_FILL = "subtitle_language_fill"
+    VIDEO_EXTRACT_SYNC = "video_extract_sync"
+    VOICE_SUBTITLE_QUEUE_UPDATE = "voice_subtitle_queue_update"
+    VOICE_SUBTITLE_UI_HIDE = "voice_subtitle_ui_hide"
+    VOICE_SUBTITLE_UI_SHOW = "voice_subtitle_ui_show"
+    VOICE_SUBTITLE_UPDATE = "voice_subtitle_update"
+
 
 # ============================================================
 # Data Class

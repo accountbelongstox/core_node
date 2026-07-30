@@ -176,13 +176,13 @@ self._listener_thread = threading.Thread(     # ⚠️ 使用 Thread(target=...)
 
 ---
 
-#### 2.8 FastAPIRPCServer Thread (可接受)
+#### 2.8 RpcServer Thread (可接受)
 **文件**: `pycore/pyutils/rpc_v2/server/fastapi_server.py:959`
 
 ```python
 self._thread = threading.Thread(
     target=runner,
-    name="FastAPIRPCServerThread",
+    name="RpcServerThread",
     daemon=True                                 # ✅ daemon=True，不会阻塞
 )
 ```
@@ -253,7 +253,7 @@ def stop(self):
 - FrontendThread
 - FrontendSingletonDetector listener
 - SingletonDetector listener
-- FastAPIRPCServer thread
+- RpcServer thread
 - NetworkScanner threads
 - **DevicePushService** ⚠️（daemon=True 但 join() 超时）
 

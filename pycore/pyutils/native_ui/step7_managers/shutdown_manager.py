@@ -15,29 +15,26 @@ Features:
 - Shutdown timeout handling
 
 Usage:
-    from pycore.pyutils.native_ui.step7_managers.shutdown_manager import get_shutdown_manager
-
-    # Get singleton instance
-    shutdown_mgr = get_shutdown_manager()
+    from pycore.pyutils.native_ui.step7_managers.shutdown_manager import shutdown_manager
 
     # Register pre-shutdown hooks
     def cleanup_resources():
         print("Cleaning up resources...")
 
-    shutdown_mgr.add_shutdown_hook(cleanup_resources, priority=10)
+    shutdown_manager.add_shutdown_hook(cleanup_resources, priority=10)
 
     # Request shutdown
-    shutdown_mgr.request_shutdown()
+    shutdown_manager.request_shutdown()
 
     # Or request restart
-    shutdown_mgr.request_restart()
+    shutdown_manager.request_restart()
 
     # Check shutdown state
-    if shutdown_mgr.is_shutdown_requested():
+    if shutdown_manager.is_shutdown_requested():
         print("Shutdown in progress")
 
     # Wait for shutdown completion
-    shutdown_mgr.wait_for_completion(timeout=10.0)
+    shutdown_manager.wait_for_completion(timeout=10.0)
 
 Author: Extracted from d3-check, adapted for pycore
 """
@@ -325,20 +322,12 @@ _SHUTDOWN_MANAGER_PROVIDER = SerializedSingletonProvider(
     "ShutdownManagerProvider",
 )
 
-
-def get_shutdown_manager() -> ShutdownManager:
-    """
-    Get the singleton ShutdownManager instance
-
-    Returns:
-        ShutdownManager singleton instance
-    """
-    return _SHUTDOWN_MANAGER_PROVIDER.get()
+shutdown_manager = _SHUTDOWN_MANAGER_PROVIDER.get()
 
 
 # Export
 __all__ = [
     'ShutdownManager',
     'ShutdownHook',
-    'get_shutdown_manager'
+    'shutdown_manager',
 ]

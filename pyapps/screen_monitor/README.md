@@ -24,7 +24,7 @@ Developed according to `PYTHON_PYCORE.md` standards:
 - `pycore.pyutils.window.analyzer` - Window detection and region analysis
 - `pycore.pyfoundations.color_print` - Colored console output
 - `pycore.pyfoundations.third_party` - Lazy loading of third-party packages (mss, PIL_Image)
-- `pycore.pygvar` - Global constants (PYTOOLS_TMP_DIR)
+- `pycore.pyfoundations.pygvar` - Global constants (PYTOOLS_TMP_DIR)
 
 ### Import Pattern (Absolute)
 
@@ -35,7 +35,7 @@ from pycore.pyutils.image_comparator import ImageComparator
 from pycore.pyutils.window.analyzer import WindowAnalyzer
 from pycore.pyfoundations.third_party import get_third_package_mss, get_third_package_PIL_Image
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pygvar import PYTOOLS_TMP_DIR
+from pycore.pyfoundations.pygvar import PYTOOLS_TMP_DIR
 ```
 
 ## Usage

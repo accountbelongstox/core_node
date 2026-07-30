@@ -252,31 +252,31 @@ class CUDADetector:
         """Print CUDA information to console (for debugging)."""
         info = cls.get_cuda_info()
 
-        print("=== CUDA Detection Results ===")
-        print(f"CUDA Available: {info['available']}")
-        print(f"nvidia-smi Found: {info['nvidia_smi_found']}")
+        ColorPrint.plain("=== CUDA Detection Results ===")
+        ColorPrint.plain(f"CUDA Available: {info['available']}")
+        ColorPrint.plain(f"nvidia-smi Found: {info['nvidia_smi_found']}")
 
         if info['driver_version']:
-            print(f"Driver Version: {info['driver_version']}")
+            ColorPrint.plain(f"Driver Version: {info['driver_version']}")
 
         if info['cuda_version']:
-            print(f"CUDA Version: {info['cuda_version']}")
+            ColorPrint.plain(f"CUDA Version: {info['cuda_version']}")
 
-        print(f"GPU Count: {info['gpu_count']}")
+        ColorPrint.plain(f"GPU Count: {info['gpu_count']}")
 
         if info['gpus']:
-            print("\nGPUs:")
+            ColorPrint.plain("\nGPUs:")
             for i, gpu in enumerate(info['gpus'], 1):
-                print(f"  {i}. {gpu['name']}")
+                ColorPrint.plain(f"  {i}. {gpu['name']}")
                 if gpu.get('memory_total'):
-                    print(f"     Memory: {gpu['memory_total']}")
+                    ColorPrint.plain(f"     Memory: {gpu['memory_total']}")
 
         if info['cuda_env_vars']:
-            print("\nCUDA Environment Variables:")
+            ColorPrint.plain("\nCUDA Environment Variables:")
             for key, value in info['cuda_env_vars'].items():
-                print(f"  {key}: {value}")
+                ColorPrint.plain(f"  {key}: {value}")
 
-        print("=" * 30)
+        ColorPrint.plain("=" * 30)
 
 
 def is_cuda_available() -> bool:

@@ -37,7 +37,7 @@ from typing import Any, Callable, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.compute_caps import is_cuda_available
-from pycore.pyutils.common.stt_base_provider import BaseSpeechRecognitionProvider
+from pycore.pyfoundations.speech_recognition_provider import BaseSpeechRecognitionProvider
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     init_serialized_owner,
@@ -575,11 +575,6 @@ def get_whisper_stt_provider(model_name: Optional[str] = None) -> WhisperSTTProv
     return _WHISPER_PROVIDER.get(model_name)
 
 
-__all__ = [
-    'WhisperSTTProvider',
-    'get_whisper_stt_provider',
-    'WHISPER_MODELS',
-    'DEFAULT_MODEL',
-]
+whisper_stt_provider = _WHISPER_PROVIDER.get()
 
-whisper_stt_provider = get_whisper_stt_provider()
+__all__ = ['whisper_stt_provider']

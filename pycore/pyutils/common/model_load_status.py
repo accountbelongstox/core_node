@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 """
 Universal model-load progress registry — the ONE status contract every speech
 engine reports to, surfaced to the UI for BOTH class-B in-process models and
@@ -20,7 +19,7 @@ Who writes:
     load a model, so they are never reported here.
 
 Who reads: GET /api/local/engines/load-status (engines_load_status_router). Each
-state change is ALSO best-effort broadcast over the existing rpc_v2 WS/SSE bus via
+state change is also best-effort published through the RPC v2 HTTP event journal via
 THREAD_BUS ('engine_load_status_update'); a listener is registered in
 callmodule/rpc_routes/thread_bus_routes.py. The polled endpoint is authoritative;
 the broadcast is an optimization.
@@ -35,6 +34,8 @@ from contextlib import contextmanager
 from typing import Any, Callable, Deque, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
@@ -47,9 +48,6 @@ try:
 except Exception:  # noqa: BLE001
     THREAD_BUS = None  # type: ignore[assignment]
     _THREAD_BUS_AVAILABLE = False
-
-# Live WS/SSE event name; the server subscribes to it in thread_bus_routes.py.
-BROADCAST_EVENT = "engine_load_status_update"
 
 _LOG_TAIL_MAX = 40
 _VALID_STATES = ("idle", "loading", "loaded", "error")
@@ -108,7 +106,7 @@ def _broadcast(name: str) -> None:
         return
     try:
         payload = _public(name, _entry(name))
-        THREAD_BUS.trigger_event(BROADCAST_EVENT, payload, async_mode=True)
+        THREAD_BUS.trigger_event(BusSignals.ENGINE_LOAD_STATUS_UPDATE, payload, async_mode=True)
     except Exception:  # noqa: BLE001 — status must never break the caller
         pass
 

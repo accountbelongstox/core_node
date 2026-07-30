@@ -15,6 +15,7 @@ import platform
 from pathlib import Path
 from typing import Dict, Optional, Callable
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.robust_downloader import RobustDownloader
 from pycore.pyfoundations.system_paths import get_system_cache_dir
 from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
@@ -104,7 +105,7 @@ class ScrcpyInitializer:
         """
         download_url = SCRCPY_DOWNLOAD_URLS.get(self.system)
         if not download_url:
-            print(f"[ScrcpyInit] ERROR: No download URL for system: {self.system}")
+            ColorPrint.plain(f"[ScrcpyInit] ERROR: No download URL for system: {self.system}")
             return None
 
         # Determine file extension
@@ -116,26 +117,26 @@ class ScrcpyInitializer:
         download_path = self.user_data_dir / filename
 
         if download_path.exists():
-            print(f"[ScrcpyInit] Package already downloaded: {download_path}")
+            ColorPrint.plain(f"[ScrcpyInit] Package already downloaded: {download_path}")
             return download_path
 
-        print(f"[ScrcpyInit] Downloading scrcpy from: {download_url}")
-        print(f"[ScrcpyInit] Destination: {download_path}")
+        ColorPrint.plain(f"[ScrcpyInit] Downloading scrcpy from: {download_url}")
+        ColorPrint.plain(f"[ScrcpyInit] Destination: {download_path}")
 
         def progress_callback(downloaded: int, total: int, attempt: int):
             if total > 0:
                 percent = (downloaded / total) * 100
                 mb_downloaded = downloaded / 1024 / 1024
                 mb_total = total / 1024 / 1024
-                print(f"\r[ScrcpyInit] Attempt {attempt}/5: {percent:.1f}% ({mb_downloaded:.1f}/{mb_total:.1f} MB)", end='')
+                ColorPrint.plain(f"\r[ScrcpyInit] Attempt {attempt}/5: {percent:.1f}% ({mb_downloaded:.1f}/{mb_total:.1f} MB)", end='')
 
         success = self._downloader.download(download_url, download_path, progress_callback)
 
         if success:
-            print(f"\n[ScrcpyInit] Download completed: {download_path.name}")
+            ColorPrint.plain(f"\n[ScrcpyInit] Download completed: {download_path.name}")
             return download_path
         else:
-            print(f"\n[ScrcpyInit] ERROR: Download failed")
+            ColorPrint.plain(f"\n[ScrcpyInit] ERROR: Download failed")
             return None
 
     def extract_package(self) -> bool:
@@ -146,25 +147,25 @@ class ScrcpyInitializer:
         if self.system == "windows":
             package_path = self._get_package_path()
             if package_path and package_path.exists():
-                print(f"[ScrcpyInit] Using local package: {package_path.name}")
+                ColorPrint.plain(f"[ScrcpyInit] Using local package: {package_path.name}")
             else:
-                print(f"[ScrcpyInit] No local .pyp package found, downloading...")
+                ColorPrint.plain(f"[ScrcpyInit] No local .pyp package found, downloading...")
                 package_path = self._download_package()
         else:
             # Linux/macOS: Download directly
-            print(f"[ScrcpyInit] Downloading package...")
+            ColorPrint.plain(f"[ScrcpyInit] Downloading package...")
             package_path = self._download_package()
 
         if not package_path:
-            print(f"[ScrcpyInit] ERROR: Failed to obtain scrcpy package")
+            ColorPrint.plain(f"[ScrcpyInit] ERROR: Failed to obtain scrcpy package")
             return False
 
         if not package_path.exists():
-            print(f"[ScrcpyInit] ERROR: Package not found: {package_path}")
+            ColorPrint.plain(f"[ScrcpyInit] ERROR: Package not found: {package_path}")
             return False
 
-        print(f"[ScrcpyInit] Extracting {package_path.name}...")
-        print(f"[ScrcpyInit] Target directory: {self.scrcpy_dir}")
+        ColorPrint.plain(f"[ScrcpyInit] Extracting {package_path.name}...")
+        ColorPrint.plain(f"[ScrcpyInit] Target directory: {self.scrcpy_dir}")
 
         try:
             # Create target directory
@@ -210,7 +211,7 @@ class ScrcpyInitializer:
                                 shutil.rmtree(self.scrcpy_dir)
                             extracted_dir.rename(self.scrcpy_dir)
 
-            print(f"[ScrcpyInit] Extraction completed")
+            ColorPrint.plain(f"[ScrcpyInit] Extraction completed")
 
             # Set executable permissions on Linux/macOS
             if self.system in ["linux", "darwin"]:
@@ -219,7 +220,7 @@ class ScrcpyInitializer:
             return True
 
         except Exception as e:
-            print(f"[ScrcpyInit] ERROR: Failed to extract package: {e}")
+            ColorPrint.plain(f"[ScrcpyInit] ERROR: Failed to extract package: {e}")
             return False
 
     def _set_executable_permissions(self):
@@ -230,7 +231,7 @@ class ScrcpyInitializer:
             exe_path = self.scrcpy_dir / exe_name
             if exe_path.exists():
                 exe_path.chmod(0o755)
-                print(f"[ScrcpyInit] Set executable: {exe_name}")
+                ColorPrint.plain(f"[ScrcpyInit] Set executable: {exe_name}")
 
     def get_adb_path(self) -> Optional[Path]:
         """Get absolute path to adb executable"""
@@ -269,10 +270,10 @@ class ScrcpyInitializer:
     def initialize(self) -> bool:
         """Initialize scrcpy (extract if needed)"""
         if self.is_initialized():
-            print(f"[ScrcpyInit] Already initialized at: {self.scrcpy_dir}")
+            ColorPrint.plain(f"[ScrcpyInit] Already initialized at: {self.scrcpy_dir}")
             return True
 
-        print(f"[ScrcpyInit] Initializing scrcpy...")
+        ColorPrint.plain(f"[ScrcpyInit] Initializing scrcpy...")
         return self.extract_package()
 
 
@@ -306,26 +307,26 @@ def get_scrcpy_path() -> Optional[Path]:
 
 if __name__ == "__main__":
     # Test initialization
-    print("=" * 70)
-    print("Scrcpy Initializer Test")
-    print("=" * 70)
+    ColorPrint.plain("=" * 70)
+    ColorPrint.plain("Scrcpy Initializer Test")
+    ColorPrint.plain("=" * 70)
 
     initializer = get_initializer()
 
-    print(f"\nSystem: {initializer.system}")
-    print(f"User data dir: {initializer.user_data_dir}")
-    print(f"Scrcpy dir: {initializer.scrcpy_dir}")
+    ColorPrint.plain(f"\nSystem: {initializer.system}")
+    ColorPrint.plain(f"User data dir: {initializer.user_data_dir}")
+    ColorPrint.plain(f"Scrcpy dir: {initializer.scrcpy_dir}")
 
-    print(f"\nInitialized: {initializer.is_initialized()}")
+    ColorPrint.plain(f"\nInitialized: {initializer.is_initialized()}")
 
     if not initializer.is_initialized():
-        print("\nInitializing...")
+        ColorPrint.plain("\nInitializing...")
         success = initializer.initialize()
-        print(f"Initialization result: {success}")
+        ColorPrint.plain(f"Initialization result: {success}")
 
-    print("\nPaths:")
+    ColorPrint.plain("\nPaths:")
     paths = initializer.get_paths()
     for name, path in paths.items():
-        print(f"  {name}: {path}")
+        ColorPrint.plain(f"  {name}: {path}")
 
-    print("\n" + "=" * 70)
+    ColorPrint.plain("\n" + "=" * 70)

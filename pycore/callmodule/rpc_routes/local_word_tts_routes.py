@@ -1,48 +1,30 @@
 # -*- coding: utf-8 -*-
-"""RPC Routes for word_tts."""
+"""Register Word TTS controllers on RPC v2."""
 
-import asyncio
-
+from pycore.callmodule.rpc_routes import route_names
+from pycore.pyctl.tts.word_queue_poller_service import tts_queue_poller_service
+from pycore.pyctl.tts.word_tts_auto import apply_auto_start, get_status
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.callmodule.rpc_routes.route_names import (
-    UI_WORD_TTS_STATUS,
-    UI_WORD_TTS_CONFIG,
-    UI_WORD_TTS_RUN_ONCE,
-)
-from pycore.callmodule.services.tts_queue_poller_service import get_tts_queue_poller_service
-from pycore.callmodule.services.word_tts_auto import apply_auto_start, get_status
 
 
-def register_local_word_tts_routes(server):
-    async def status_handler(params, request_id, context):
-        return await asyncio.to_thread(get_status)
+def register_local_word_tts_routes(server) -> None:
+    """Register Word TTS controllers."""
 
-    server.route(name=UI_WORD_TTS_STATUS, handler=status_handler, sync=False)
-
-    async def config_handler(params, request_id, context):
-        params = params or {}
-        if "auto_start" not in params:
+    def config_handler(params, _request_id, _context):
+        request = params or {}
+        if "auto_start" not in request:
             return {"success": False, "error": "auto_start is required"}
-        return await asyncio.to_thread(
-            apply_auto_start,
-            bool(params["auto_start"]),
-            params.get("concurrency"),
+        return apply_auto_start(
+            bool(request["auto_start"]),
+            request.get("concurrency"),
         )
 
-    server.route(name=UI_WORD_TTS_CONFIG, handler=config_handler, sync=False)
+    def run_once_handler(_params, _request_id, _context):
+        tts_queue_poller_service.poll_and_process()
+        return {"ok": True}
 
-    async def run_once_handler(params, request_id, context):
-        def _run():
-            try:
-                get_tts_queue_poller_service().poll_and_process()
-                return {"ok": True}
-            except Exception as exc:  # noqa: BLE001
-                return {"ok": False, "error": str(exc)}
-
-        return await asyncio.to_thread(_run)
-
-    server.route(name=UI_WORD_TTS_RUN_ONCE, handler=run_once_handler, sync=False)
+    server.route(name=route_names.UI_WORD_TTS_STATUS, handler=get_status)
+    server.route(name=route_names.UI_WORD_TTS_CONFIG, handler=config_handler)
+    server.route(name=route_names.UI_WORD_TTS_RUN_ONCE, handler=run_once_handler)
     ColorPrint.green("[ConfigBuilder] Registered word_tts RPC routes")
 
-
-__all__ = ["register_local_word_tts_routes"]

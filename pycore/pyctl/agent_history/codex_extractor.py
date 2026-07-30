@@ -8,7 +8,7 @@ import os
 from glob import glob
 from typing import Any, Dict, List, Optional
 
-from .base_extractor import BaseExtractor, MAX_TURNS
+from pycore.pyctl.agent_history.base_extractor import BaseExtractor, MAX_TURNS
 
 
 class CodexExtractor(BaseExtractor):

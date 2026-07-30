@@ -1,8 +1,0 @@
----
-description: "core_node git: commit-only (local); no rollback or other git ops."
-alwaysApply: true
----
-
-# Git
-
-`git commit` only (local). No rollback, no other git ops, no push unless asked. Otherwise edit code freely.

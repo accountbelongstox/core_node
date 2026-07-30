@@ -7,7 +7,7 @@ System Routes Handler - System operations endpoints
 from http import HTTPStatus
 
 # Import from pycore following standards
-from pycore.pyfoundations.pygvar.constants import SYSTEM_SCREEN_RESOLUTION, SYSTEM_MEMORY_INFO, SYSTEM_DISK_INFO, IS_WINDOWS, CPU_COUNT
+from pycore.pyfoundations.pygvar import SYSTEM_SCREEN_RESOLUTION, SYSTEM_MEMORY_INFO, SYSTEM_DISK_INFO, IS_WINDOWS, CPU_COUNT
 
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
 from pycore.pyfoundations.serialized_worker import start_bus_task

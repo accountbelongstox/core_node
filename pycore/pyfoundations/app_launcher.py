@@ -23,6 +23,7 @@ import importlib
 import importlib.util
 from pathlib import Path
 from typing import Optional, List
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
 
 
@@ -92,25 +93,25 @@ class AppLauncher:
         """
         if not self.pyapps_dir.exists():
             if debug:
-                print(f"[DEBUG] pyapps directory not found: {self.pyapps_dir}")
+                ColorPrint.plain(f"[DEBUG] pyapps directory not found: {self.pyapps_dir}")
             return []
 
         if debug:
-            print(f"\n[DEBUG] Scanning pyapps directory: {self.pyapps_dir}")
+            ColorPrint.plain(f"\n[DEBUG] Scanning pyapps directory: {self.pyapps_dir}")
 
         apps = []
         for item in self.pyapps_dir.iterdir():
             if debug:
-                print(f"[DEBUG] Checking: {item.name}")
+                ColorPrint.plain(f"[DEBUG] Checking: {item.name}")
 
             if not item.is_dir():
                 if debug:
-                    print(f"[DEBUG]   -> Skipped (not a directory)")
+                    ColorPrint.plain(f"[DEBUG]   -> Skipped (not a directory)")
                 continue
 
             if item.name.startswith('.') or item.name.startswith('__'):
                 if debug:
-                    print(f"[DEBUG]   -> Skipped (hidden/system directory)")
+                    ColorPrint.plain(f"[DEBUG]   -> Skipped (hidden/system directory)")
                 continue
 
             # Check for entry point (standard pattern first, then fallback)
@@ -121,20 +122,20 @@ class AppLauncher:
             has_fallback = main_file_fallback.exists()
 
             if debug:
-                print(f"[DEBUG]   -> {item.name}_main.py exists: {has_standard}")
-                print(f"[DEBUG]   -> main.py exists: {has_fallback}")
+                ColorPrint.plain(f"[DEBUG]   -> {item.name}_main.py exists: {has_standard}")
+                ColorPrint.plain(f"[DEBUG]   -> main.py exists: {has_fallback}")
 
             if has_standard or has_fallback:
                 apps.append(item.name)
                 if debug:
                     entry_file = f"{item.name}_main.py" if has_standard else "main.py"
-                    print(f"[DEBUG]   -> Added (entry: {entry_file})")
+                    ColorPrint.plain(f"[DEBUG]   -> Added (entry: {entry_file})")
             else:
                 if debug:
-                    print(f"[DEBUG]   -> Skipped (no valid entry point)")
+                    ColorPrint.plain(f"[DEBUG]   -> Skipped (no valid entry point)")
 
         if debug:
-            print(f"\n[DEBUG] Found {len(apps)} app(s): {', '.join(apps)}\n")
+            ColorPrint.plain(f"\n[DEBUG] Found {len(apps)} app(s): {', '.join(apps)}\n")
 
         return sorted(apps)
 
@@ -213,19 +214,19 @@ class AppLauncher:
             apps = self.get_available_apps()
 
         if not apps:
-            print('Error: No applications found in the pyapps directory.')
+            ColorPrint.plain('Error: No applications found in the pyapps directory.')
             return None
 
-        print('\nAvailable Python applications:')
+        ColorPrint.plain('\nAvailable Python applications:')
         for i, app_name in enumerate(apps, 1):
-            print(f'  [{i}] {app_name}')
-        print()
+            ColorPrint.plain(f'  [{i}] {app_name}')
+        ColorPrint.plain()
 
         while True:
             answer = input('Select an application by number or name: ').strip()
 
             if not answer:
-                print('Input cannot be empty.')
+                ColorPrint.plain('Input cannot be empty.')
                 continue
 
             # Try numeric selection
@@ -234,7 +235,7 @@ class AppLauncher:
                 if 0 <= index < len(apps):
                     return apps[index]
                 else:
-                    print(f'Invalid number. Please select 1-{len(apps)}.')
+                    ColorPrint.plain(f'Invalid number. Please select 1-{len(apps)}.')
                     continue
 
             # Try name matching
@@ -243,12 +244,12 @@ class AppLauncher:
             if len(matches) == 1:
                 return matches[0]
             elif len(matches) > 1:
-                print(f'\nMultiple matches found:')
+                ColorPrint.plain(f'\nMultiple matches found:')
                 for i, match in enumerate(matches, 1):
-                    print(f'  [{i}] {match}')
+                    ColorPrint.plain(f'  [{i}] {match}')
                 continue
             else:
-                print('No matching application found. Please try again.')
+                ColorPrint.plain('No matching application found. Please try again.')
                 continue
 
     def inject_app_to_environment(self, app_name: str):
@@ -294,31 +295,31 @@ class AppLauncher:
             matches = self.find_matching_apps(query)
 
             if len(matches) == 0:
-                print(f"\nError: No application found matching '{query}'")
+                ColorPrint.plain(f"\nError: No application found matching '{query}'")
 
                 # Show detailed scan with debug info
                 available = self.get_available_apps(debug=True)
 
                 if available:
-                    print(f"Available applications:")
+                    ColorPrint.plain(f"Available applications:")
                     for app in available:
-                        print(f"  - {app}")
+                        ColorPrint.plain(f"  - {app}")
                 else:
-                    print("No applications found in pyapps directory.")
+                    ColorPrint.plain("No applications found in pyapps directory.")
 
-                print(f"\nTip: Use keyword matching (e.g., 'mcp' matches 'mcpserver')")
-                print(f"Tip: Create a new app in pyapps/{query}/ with main.py entry point")
+                ColorPrint.plain(f"\nTip: Use keyword matching (e.g., 'mcp' matches 'mcpserver')")
+                ColorPrint.plain(f"Tip: Create a new app in pyapps/{query}/ with main.py entry point")
                 return False
 
             elif len(matches) == 1:
                 # Single match - use it
                 selected_app = matches[0]
                 if selected_app != query:
-                    print(f"Matched '{query}' to app: {selected_app}")
+                    ColorPrint.plain(f"Matched '{query}' to app: {selected_app}")
 
             else:
                 # Multiple matches - prompt user to select
-                print(f"\nMultiple applications match '{query}':")
+                ColorPrint.plain(f"\nMultiple applications match '{query}':")
                 selected_app = self.prompt_for_app_selection(matches)
                 if not selected_app:
                     return False
@@ -326,7 +327,7 @@ class AppLauncher:
             # No query provided - show all apps
             selected_app = self.prompt_for_app_selection()
             if not selected_app:
-                print('No application selected. Exiting.')
+                ColorPrint.plain('No application selected. Exiting.')
                 return False
 
         # Inject selected app
@@ -345,15 +346,15 @@ class AppLauncher:
         elif entry_fallback.exists():
             self.app_entry = entry_fallback
         else:
-            print(f'Error: No valid entry point found for app: {selected_app}')
-            print(f'Expected one of:')
-            print(f'  - {self.app_dir}/{selected_app}_main.py (standard pattern)')
-            print(f'  - {self.app_dir}/main.py (fallback pattern)')
+            ColorPrint.plain(f'Error: No valid entry point found for app: {selected_app}')
+            ColorPrint.plain(f'Expected one of:')
+            ColorPrint.plain(f'  - {self.app_dir}/{selected_app}_main.py (standard pattern)')
+            ColorPrint.plain(f'  - {self.app_dir}/main.py (fallback pattern)')
             return False
 
         # Validate directory exists
         if not self.app_dir.exists():
-            print(f'Error: App directory not found: {self.app_dir}')
+            ColorPrint.plain(f'Error: App directory not found: {self.app_dir}')
             return False
 
         self.context_loaded = True
@@ -373,10 +374,10 @@ class AppLauncher:
         # Suppress startup banner in MCP mode to avoid interfering with STDIO protocol
         is_mcp_mode = os.environ.get('PYCORE_MCP_MODE', '').lower() in ('1', 'true', 'yes')
         if not is_mcp_mode:
-            print(f'\n=== Starting Python App: {self.app_name} ===')
-            print(f'App Directory: {self.app_dir}')
-            print(f'App Entry: {self.app_entry}')
-            print()
+            ColorPrint.plain(f'\n=== Starting Python App: {self.app_name} ===')
+            ColorPrint.plain(f'App Directory: {self.app_dir}')
+            ColorPrint.plain(f'App Entry: {self.app_entry}')
+            ColorPrint.plain()
 
         # Search and launch executable files in app directory via the registered
         # provider (pylauncher). This allows parallel startup of other processes
@@ -385,7 +386,7 @@ class AppLauncher:
         executable_launcher_provider = _EXECUTABLE_LAUNCHER_PROVIDER.get()
         if executable_launcher_provider is not None:
             if not is_mcp_mode:
-                print(f'[Launcher] Searching for executable files in app directory...')
+                ColorPrint.plain(f'[Launcher] Searching for executable files in app directory...')
             executable_launcher = executable_launcher_provider()
             if executable_launcher is not None:
                 executable_launcher.search_and_launch_app_executables(
@@ -402,7 +403,7 @@ class AppLauncher:
         )
 
         if spec is None or spec.loader is None:
-            print(f'Error: Failed to load app module from {self.app_entry}')
+            ColorPrint.plain(f'Error: Failed to load app module from {self.app_entry}')
             return False
 
         # Create and execute module - let errors expose naturally
@@ -416,8 +417,8 @@ class AppLauncher:
         elif hasattr(app_module, 'start') and callable(app_module.start):
             app_module.start()
         else:
-            print(f'Warning: App {self.app_name} does not have a main() or start() function')
-            print('Module loaded but no entry function found.')
+            ColorPrint.plain(f'Warning: App {self.app_name} does not have a main() or start() function')
+            ColorPrint.plain('Module loaded but no entry function found.')
 
         return True
 

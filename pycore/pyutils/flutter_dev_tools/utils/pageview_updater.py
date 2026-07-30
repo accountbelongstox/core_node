@@ -18,7 +18,8 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 
 # Import image analyzer
-from .image_analyzer import analyze_image_full
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.flutter_dev_tools.utils.image_analyzer import analyze_image_full
 
 import shutil
 
@@ -274,7 +275,7 @@ def update_pageview_map(
     # Merge all discovered images
     all_images = rough_images + detailed_images
 
-    print(f"[INFO] Found {len(all_images)} images ({len(rough_images)} rough + {len(detailed_images)} detailed)")
+    ColorPrint.plain(f"[INFO] Found {len(all_images)} images ({len(rough_images)} rough + {len(detailed_images)} detailed)")
 
     # Update pageview map
     updated_count = 0
@@ -318,13 +319,13 @@ def update_pageview_map(
         # Update analysis
         if update_image_analysis(image_entry, full_path, force=force_reanalyze):
             updated_count += 1
-            print(f"[UPDATED] {page_key}/{file_name}")
+            ColorPrint.plain(f"[UPDATED] {page_key}/{file_name}")
 
     # Save updated map
     with open(pageview_map_path, 'w', encoding='utf-8') as f:
         json.dump(pageview_map, f, indent=2, ensure_ascii=False)
 
-    print(f"[SUCCESS] Updated {updated_count} images in pageview_map.json")
+    ColorPrint.plain(f"[SUCCESS] Updated {updated_count} images in pageview_map.json")
     return pageview_map
 
 
@@ -395,7 +396,7 @@ def add_actual_image(
     # Add to actual_images list (prepend to keep newest first)
     page_entry["actual_images"].insert(0, actual_entry)
 
-    print(f"[ADDED] Actual image: {relative_path}")
+    ColorPrint.plain(f"[ADDED] Actual image: {relative_path}")
 
     return {
         "success": True,
@@ -433,7 +434,7 @@ def cleanup_orphaned_entries(
                     # Remove orphaned entry
                     page_entry["expected_images"].remove(img_entry)
                     removed_count += 1
-                    print(f"[REMOVED] Orphaned expected image: {img_entry['file_path']}")
+                    ColorPrint.plain(f"[REMOVED] Orphaned expected image: {img_entry['file_path']}")
 
         # Check actual images
         if "actual_images" in page_entry:
@@ -444,13 +445,13 @@ def cleanup_orphaned_entries(
                     # Remove orphaned entry
                     page_entry["actual_images"].remove(img_entry)
                     removed_count += 1
-                    print(f"[REMOVED] Orphaned actual image: {img_entry['file_path']}")
+                    ColorPrint.plain(f"[REMOVED] Orphaned actual image: {img_entry['file_path']}")
 
         # Remove empty pages (no expected or actual images)
         if (not page_entry.get("expected_images") and
             not page_entry.get("actual_images")):
             del pageview_map["pages"][page_key]
-            print(f"[REMOVED] Empty page: {page_key}")
+            ColorPrint.plain(f"[REMOVED] Empty page: {page_key}")
 
     return removed_count
 
@@ -462,27 +463,27 @@ def cleanup_orphaned_entries(
 if __name__ == "__main__":
 
     if len(sys.argv) < 2:
-        print("Usage:")
-        print("  python pageview_updater.py <design_docs_path> [--force]")
-        print("\nExample:")
-        print("  python pageview_updater.py lib/apps/app_wuy/design_docs_and_progress")
-        print("  python pageview_updater.py lib/apps/app_wuy/design_docs_and_progress --force")
+        ColorPrint.plain("Usage:")
+        ColorPrint.plain("  python pageview_updater.py <design_docs_path> [--force]")
+        ColorPrint.plain("\nExample:")
+        ColorPrint.plain("  python pageview_updater.py lib/apps/app_wuy/design_docs_and_progress")
+        ColorPrint.plain("  python pageview_updater.py lib/apps/app_wuy/design_docs_and_progress --force")
         sys.exit(1)
 
     design_docs_path = Path(sys.argv[1])
     force_reanalyze = "--force" in sys.argv
 
     if not design_docs_path.exists():
-        print(f"[ERROR] Directory not found: {design_docs_path}")
+        ColorPrint.plain(f"[ERROR] Directory not found: {design_docs_path}")
         sys.exit(1)
 
     # Infer app name from path
     app_name = design_docs_path.parent.name
 
-    print(f"[INFO] Updating pageview_map.json for: {app_name}")
-    print(f"[INFO] Design docs root: {design_docs_path}")
-    print(f"[INFO] Force reanalyze: {force_reanalyze}")
-    print("="*60)
+    ColorPrint.plain(f"[INFO] Updating pageview_map.json for: {app_name}")
+    ColorPrint.plain(f"[INFO] Design docs root: {design_docs_path}")
+    ColorPrint.plain(f"[INFO] Force reanalyze: {force_reanalyze}")
+    ColorPrint.plain("="*60)
 
     # Update pageview map
     updated_map = update_pageview_map(
@@ -498,7 +499,7 @@ if __name__ == "__main__":
         pageview_map_path = design_docs_path / "pageview_map.json"
         with open(pageview_map_path, 'w', encoding='utf-8') as f:
             json.dump(updated_map, f, indent=2, ensure_ascii=False)
-        print(f"[CLEANUP] Removed {removed} orphaned entries")
+        ColorPrint.plain(f"[CLEANUP] Removed {removed} orphaned entries")
 
-    print("="*60)
-    print(f"[DONE] PageView map updated: {design_docs_path / 'pageview_map.json'}")
+    ColorPrint.plain("="*60)
+    ColorPrint.plain(f"[DONE] PageView map updated: {design_docs_path / 'pageview_map.json'}")

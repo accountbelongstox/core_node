@@ -58,11 +58,7 @@ class NativeUIBusManager:
     Singleton pattern for global access.
 
     Usage:
-        # Recommended: Use factory function
-        bus_mgr = get_bus_manager()
-
-        # Or use the class-level accessor
-        bus_mgr = NativeUIBusManager.get_instance()
+        from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import bus_manager
     """
 
     def __init__(self):
@@ -79,7 +75,7 @@ class NativeUIBusManager:
         Returns:
             NativeUIBusManager singleton instance
         """
-        return _NATIVE_UI_BUS_MANAGER_PROVIDER.get()
+        return bus_manager
 
     # ========================================================
     # Dependency Check Methods
@@ -289,10 +285,9 @@ class NativeUIBusManager:
                                       Must match the signal used in create_language_submenu()
                                       
         Usage:
-            from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import get_bus_manager
-            
-            bus_mgr = get_bus_manager()
-            bus_mgr.setup_language_change_handler("myapp.tray.set_language")
+            from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import bus_manager
+
+            bus_manager.setup_language_change_handler("myapp.tray.set_language")
         """
         
         def handle_set_language(event_data):
@@ -386,27 +381,10 @@ _NATIVE_UI_BUS_MANAGER_PROVIDER = SerializedSingletonProvider(
     "NativeUIBusManagerProvider",
 )
 
-
-def get_bus_manager() -> NativeUIBusManager:
-    """
-    Get NativeUIBusManager singleton instance
-
-    Returns:
-        NativeUIBusManager instance
-    """
-    return _NATIVE_UI_BUS_MANAGER_PROVIDER.get()
+bus_manager = _NATIVE_UI_BUS_MANAGER_PROVIDER.get()
 
 
-def get_native_ui_bus_manager() -> NativeUIBusManager:
-    """
-    Get NativeUIBusManager singleton instance (consistent naming)
-
-    This is an alias for get_bus_manager() with consistent naming pattern.
-
-    Returns:
-        NativeUIBusManager singleton instance
-    """
-    return _NATIVE_UI_BUS_MANAGER_PROVIDER.get()
+__all__ = ['bus_manager']
 
 
 # ============================================================
@@ -420,7 +398,7 @@ if __name__ == "__main__":
     ColorPrint.print_info("=" * 70)
 
     # Get manager
-    bus_mgr = get_bus_manager()
+    bus_mgr = bus_manager
 
     # Test 1: Record dependency info
     ColorPrint.print_success("\n[Test 1] Recording dependency info...")

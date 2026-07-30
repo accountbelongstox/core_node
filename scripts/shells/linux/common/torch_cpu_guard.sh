@@ -36,6 +36,60 @@
 TCG_CPU_INDEX_URL="https://download.pytorch.org/whl/cpu"
 TCG_TORCH_PACKAGES=(torch torchvision torchaudio)
 TCG_TORCH_HEALTH_PACKAGES=(torch torchvision torchaudio)
+TCG_RUNTIME_RUN_KEY="PYCORE_RUNTIME_STATE_RUN_ID"
+TCG_RUNTIME_PROCESS_KEY="PYCORE_RUNTIME_STATE_PROCESS_ID"
+TCG_VALIDATION_RUN_KEY="PYCORE_TORCH_VALIDATION_RUN_ID"
+TCG_VALIDATION_PYTHON_KEY="PYCORE_TORCH_VALIDATION_PYTHON"
+TCG_VALIDATION_STATE_KEY="PYCORE_TORCH_VALIDATION_CUDA_STATE"
+TCG_VALIDATION_USABLE_KEY="PYCORE_TORCH_VALIDATION_CUDA_USABLE"
+TCG_VALIDATION_POLICY_KEY="PYCORE_TORCH_VALIDATION_POLICY_TAG"
+TCG_CACHE_HIT=0
+TCG_CACHED_STATE=""
+TCG_CACHED_USABLE="false"
+TCG_CACHED_POLICY=""
+TCG_LAST_STATE=""
+TCG_LAST_USABLE="false"
+TCG_LAST_USABLE_KNOWN=0
+TCG_MUTATION_PERFORMED=0
+_TCG_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_TCG_GVAR_COMMON="$_TCG_COMMON_DIR/gvar_common.sh"
+
+if ! type get_var >/dev/null 2>&1; then
+    . "$_TCG_GVAR_COMMON"
+fi
+
+tcg_load_runtime_state() {
+    local py="$1"
+    local runtime_run_id validation_run_id runtime_process_id
+    TCG_CACHE_HIT=0
+    TCG_CACHED_STATE=""
+    TCG_CACHED_USABLE="false"
+    TCG_CACHED_POLICY=""
+    runtime_run_id="$(get_var "$TCG_RUNTIME_RUN_KEY" "")"
+    runtime_process_id="$(get_var "$TCG_RUNTIME_PROCESS_KEY" "")"
+    validation_run_id="$(get_var "$TCG_VALIDATION_RUN_KEY" "")"
+    if [[ -n "$runtime_run_id" && "$runtime_run_id" == "$validation_run_id" \
+        && "$runtime_process_id" == "$PPID" ]]; then
+        TCG_CACHE_HIT=1
+        TCG_CACHED_STATE="$(get_var "$TCG_VALIDATION_STATE_KEY" "")"
+        TCG_CACHED_USABLE="$(get_var "$TCG_VALIDATION_USABLE_KEY" "false")"
+        TCG_CACHED_POLICY="$(get_var "$TCG_VALIDATION_POLICY_KEY" "")"
+    fi
+    :
+}
+
+tcg_save_runtime_state() {
+    local py="$1" state="$2" usable="$3"
+    local runtime_run_id policy_tag
+    runtime_run_id="$(get_var "$TCG_RUNTIME_RUN_KEY" "")"
+    [[ -n "$runtime_run_id" ]] || return
+    set_var "$TCG_VALIDATION_RUN_KEY" "$runtime_run_id" false
+    set_var "$TCG_VALIDATION_PYTHON_KEY" "$py" false
+    set_var "$TCG_VALIDATION_STATE_KEY" "${state:-absent}" false
+    set_var "$TCG_VALIDATION_USABLE_KEY" "$usable" false
+    policy_tag="$(cuda_policy_tag 2>/dev/null || true)"
+    set_var "$TCG_VALIDATION_POLICY_KEY" "${policy_tag:-cpu}" false
+}
 
 # Serialize venv-mutating pip through the shared lock so this guard is safe to run while
 # the TTS/LLM parallel groups install concurrently.
@@ -83,7 +137,7 @@ PY
 # A CUDA-build wheel compiled for a CUDA NEWER than the driver supports (e.g. cu130 on a
 # 12.4 driver) imports fine but reports is_available()=False ("driver too old"); this is
 # the authoritative "does the CUDA build actually work on THIS driver" probe.
-tcg_torch_cuda_usable() {
+tcg_probe_torch_cuda_usable() {
     local py="$1" output=""
     output="$("$py" - 2>/dev/null <<'PY'
 try:
@@ -93,7 +147,22 @@ except Exception:
     print("__CUDA_UNAVAILABLE__")
 PY
     )"
-    [[ "$output" == *"__CUDA_READY__"* ]]
+    TCG_LAST_USABLE="false"
+    if [[ "$output" == *"__CUDA_READY__"* ]]; then
+        TCG_LAST_USABLE="true"
+    fi
+    TCG_LAST_USABLE_KNOWN=1
+    [[ "$TCG_LAST_USABLE" == "true" ]]
+}
+
+tcg_torch_cuda_usable() {
+    local py="$1"
+    tcg_load_runtime_state "$py"
+    if [[ "$TCG_CACHE_HIT" -eq 1 ]]; then
+        [[ "$TCG_CACHED_USABLE" == "true" ]]
+        return
+    fi
+    tcg_probe_torch_cuda_usable "$py"
 }
 
 tcg_torch_packages_installed() {
@@ -140,6 +209,7 @@ tcg_purge_nvidia_wheels() {
 # Install the CPU build of torch + torchvision + torchaudio from the CPU index.
 tcg_install_cpu_torch() {
     local py="$1" force="${2:-0}"
+    TCG_MUTATION_PERFORMED=1
     if [[ "$force" == "1" ]]; then
         vpip "$py" -m pip uninstall -y "${TCG_TORCH_PACKAGES[@]}" >/dev/null 2>&1 || true
     fi
@@ -148,13 +218,14 @@ tcg_install_cpu_torch() {
 }
 
 # THE idempotent repair routine. TCG_REPAIR_ONLY=1 -> never install when missing.
-tcg_ensure_torch_build() {
+tcg_ensure_torch_build_full() {
     local py state repair_only="${TCG_REPAIR_ONLY:-0}" policy_tag installed_tag index_url
     if ! py="$(tcg_resolve_python)"; then
         echo "[torch-guard] No python interpreter found; skipping." >&2
         return 0
     fi
     state="$(tcg_torch_cuda_state "$py")"
+    TCG_LAST_STATE="$state"
     if [[ -z "$state" ]] && tcg_torch_metadata_present "$py"; then
         echo "[torch-guard] torch metadata is present, but its binary cannot load; preserving it to prevent a reinstall loop."
         return 0
@@ -172,6 +243,7 @@ tcg_ensure_torch_build() {
                 echo "[torch-guard] GPU present, torch missing (repair-only) -> nothing to repair."
             else
                 echo "[torch-guard] GPU present, torch missing -> installing driver-matched CUDA build."
+                TCG_MUTATION_PERFORMED=1
                 vpip "$py" -m pip install --break-system-packages --no-user \
                     --index-url "$index_url" "${TCG_TORCH_PACKAGES[@]}" || true
             fi
@@ -179,6 +251,7 @@ tcg_ensure_torch_build() {
         fi
         if [[ "$state" == "None" ]]; then
             echo "[torch-guard] GPU present, torch is CPU-only -> switching to canonical $policy_tag."
+            TCG_MUTATION_PERFORMED=1
             vpip "$py" -m pip uninstall -y "${TCG_TORCH_PACKAGES[@]}" >/dev/null 2>&1 || true
             vpip "$py" -m pip install --break-system-packages --no-user \
                 --index-url "$index_url" "${TCG_TORCH_PACKAGES[@]}" || true
@@ -187,6 +260,7 @@ tcg_ensure_torch_build() {
         installed_tag="$(tcg_torch_state_tag "$state")"
         if [[ "$installed_tag" != "$policy_tag" ]]; then
             echo "[torch-guard] torch cuda=$state differs from canonical $policy_tag -> aligning."
+            TCG_MUTATION_PERFORMED=1
             vpip "$py" -m pip uninstall -y "${TCG_TORCH_PACKAGES[@]}" >/dev/null 2>&1 || true
             vpip "$py" -m pip install --break-system-packages --no-user \
                 --index-url "$index_url" "${TCG_TORCH_PACKAGES[@]}" || true
@@ -194,6 +268,7 @@ tcg_ensure_torch_build() {
         fi
         if ! tcg_torch_packages_installed "$py"; then
             echo "[torch-guard] $installed_tag torch group is incomplete -> repairing from the canonical release group."
+            TCG_MUTATION_PERFORMED=1
             vpip "$py" -m pip install --break-system-packages --no-user \
                 --index-url "$index_url" "${TCG_TORCH_PACKAGES[@]}" || true
             return 0
@@ -231,6 +306,37 @@ tcg_ensure_torch_build() {
             ;;
     esac
     return 0
+}
+
+tcg_ensure_torch_build() {
+    local py state usable="false"
+    py="$(tcg_resolve_python)"
+    if [[ -z "$py" ]]; then
+        echo "[torch-guard] No python interpreter found; skipping." >&2
+        return
+    fi
+    tcg_load_runtime_state "$py"
+    if [[ "$TCG_CACHE_HIT" -eq 1 ]]; then
+        echo "[torch-guard] Reusing pyservice runtime validation (policy=$TCG_CACHED_POLICY, cuda=$TCG_CACHED_STATE, usable=$TCG_CACHED_USABLE)."
+        return
+    fi
+    TCG_LAST_STATE=""
+    TCG_LAST_USABLE="false"
+    TCG_LAST_USABLE_KNOWN=0
+    TCG_MUTATION_PERFORMED=0
+    tcg_ensure_torch_build_full
+    state="$TCG_LAST_STATE"
+    if [[ "$TCG_MUTATION_PERFORMED" -eq 1 ]]; then
+        state="$(tcg_torch_cuda_state "$py")"
+        TCG_LAST_STATE="$state"
+    fi
+    if tcg_gpu_present && [[ "$state" != "Broken" ]]; then
+        if [[ "$TCG_MUTATION_PERFORMED" -eq 1 || "$TCG_LAST_USABLE_KNOWN" -eq 0 ]]; then
+            tcg_probe_torch_cuda_usable "$py" || true
+        fi
+        usable="$TCG_LAST_USABLE"
+    fi
+    tcg_save_runtime_state "$py" "$state" "$usable"
 }
 
 # Direct execution: parse flags and run the repair.

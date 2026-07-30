@@ -5,7 +5,7 @@ text_parsing — multi-language text primitives (pyfoundations leaf, stdlib only
 Low-level, dependency-free building blocks for analyzing text in any language:
 encoding detection, punctuation normalization, Unicode-script detection,
 multi-language word tokenization and sentence splitting. These are the reusable
-primitives the higher-level ``pyutils.text_stats`` engine builds statistics on
+primitives the higher-level text statistics engine builds statistics on
 (word / unique-word / sentence / unique-sentence counts + per-language breakdown)
 and that the Books ingest pipeline can share.
 

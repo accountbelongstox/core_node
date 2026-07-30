@@ -18,9 +18,9 @@ from typing import Optional, Union, List
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector, get_cnocr_pip_package
 
-from ._package_cache import _PACKAGE_CACHE
-from ._deps import DEPENDENCY_MAP
-from ._pip_runner import build_pip_install_command, run_pip_install_with_realtime_output
+from pycore.pyfoundations.third_party._package_cache import _PACKAGE_CACHE
+from pycore.pyfoundations.third_party._deps import DEPENDENCY_MAP
+from pycore.pyfoundations.third_party._pip_runner import build_pip_install_command, run_pip_install_with_realtime_output
 
 
 def get_third_package_huggingface_hub():

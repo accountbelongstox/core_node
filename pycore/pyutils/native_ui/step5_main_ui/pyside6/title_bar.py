@@ -26,7 +26,7 @@ from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 
 # 导入样式系统
-from .title_bar_styles import (
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.title_bar_styles import (
     TitleBarStyles,
     get_default_style,
     StyleSheetGenerator,

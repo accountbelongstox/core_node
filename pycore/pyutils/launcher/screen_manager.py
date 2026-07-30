@@ -5,6 +5,7 @@ Handles screen dimension detection across all monitors
 """
 
 import ctypes
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Win32 API constants
 SM_XVIRTUALSCREEN = 76
@@ -50,13 +51,13 @@ class ScreenManager:
             if screen_width <= 0 or screen_height <= 0:
                 raise ValueError("Invalid virtual screen dimensions from GetSystemMetrics")
             
-            print("Using Win32 API: Virtual desktop (all monitors) dimensions")
-            print(f"Screen dimensions: {screen_width}x{screen_height}")
-            print(f"Screen position: {screen_x}, {screen_y}")
+            ColorPrint.plain("Using Win32 API: Virtual desktop (all monitors) dimensions")
+            ColorPrint.plain(f"Screen dimensions: {screen_width}x{screen_height}")
+            ColorPrint.plain(f"Screen position: {screen_x}, {screen_y}")
             return screen_x, screen_y, screen_width, screen_height
         except Exception as e:
             # Fallback: Calculate virtual desktop from all screens using EnumDisplayMonitors
-            print("Warning: Win32 API method failed, calculating from all screens")
+            ColorPrint.plain("Warning: Win32 API method failed, calculating from all screens")
             try:
                 monitors_bounds = []
                 
@@ -95,17 +96,17 @@ class ScreenManager:
                     screen_width = max_x - min_x
                     screen_height = max_y - min_y
                     
-                    print(f"Using EnumDisplayMonitors: Calculated virtual desktop from {len(monitors_bounds)} screen(s)")
-                    print(f"Screen dimensions: {screen_width}x{screen_height}")
-                    print(f"Screen position: {screen_x}, {screen_y}")
+                    ColorPrint.plain(f"Using EnumDisplayMonitors: Calculated virtual desktop from {len(monitors_bounds)} screen(s)")
+                    ColorPrint.plain(f"Screen dimensions: {screen_width}x{screen_height}")
+                    ColorPrint.plain(f"Screen position: {screen_x}, {screen_y}")
                     return screen_x, screen_y, screen_width, screen_height
                 else:
                     raise ValueError("No monitors found")
             except Exception as e2:
-                print(f"Error: Failed to get screen dimensions: {e2}")
+                ColorPrint.plain(f"Error: Failed to get screen dimensions: {e2}")
                 screen_width = user32.GetSystemMetrics(0)
                 screen_height = user32.GetSystemMetrics(1)
-                print("Using Win32 API: Primary screen dimensions only")
-                print(f"Screen dimensions: {screen_width}x{screen_height}")
+                ColorPrint.plain("Using Win32 API: Primary screen dimensions only")
+                ColorPrint.plain(f"Screen dimensions: {screen_width}x{screen_height}")
                 return 0, 0, screen_width, screen_height
 

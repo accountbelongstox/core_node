@@ -391,7 +391,7 @@ export function useTaskCenter() {
   };
 
   const reconfigureTaskCenter = async () => {
-    if (!state.value.isRunning || state.value.activeCapabilities.length === 0) return;
+    if (!state.value.isRunning) return;
     try {
       error.value = '';
       await loadRuntimeProcessorSettings();

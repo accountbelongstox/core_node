@@ -15,7 +15,7 @@ Thread Model:
 - Main thread: Qt event loop (UI) - All GUI operations execute here
 - Tick thread: Periodic tasks timer - Background timer thread
 - Tray thread: System tray event loop - Separate thread for tray operations
-- RPC v2 thread: FastAPI/Uvicorn server - HTTP/WebSocket server thread
+- RPC v2 thread: FastAPI/Uvicorn HTTP controller and event server
 - THREAD_BUS: Cross-thread event bus - Routes events safely between threads
 
 IMPORTANT: All GUI operations (show/hide/move/resize) MUST execute in Qt main thread.
@@ -47,22 +47,22 @@ if TYPE_CHECKING:
     pass
 
 # Import PySide6 components
-from .config import PySide6UIConfig, StartupWindowConfig, ActionType
-from .main_window import PySide6MainWindow
-from .title_bar import PySide6TitleBar
-from .system_tray import (
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import PySide6UIConfig, StartupWindowConfig, ActionType
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.main_window import PySide6MainWindow
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.title_bar import PySide6TitleBar
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.system_tray import (
     PySide6SystemTray,
     PySide6TrayMenuItem,
     create_default_tray_menu,
     create_i18n_event_driven_tray_menu,
     build_pyside6_menu_from_dicts
 )
-from .webview import PySide6WebView
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.webview import PySide6WebView
 
 # Split-out sub-modules (re-exported for backwards compatibility)
-from .tick_timer import TickTimer
-from .thread_bus_bridge import ThreadBusBridgeMixin
-from .startup_controller import StartupControllerMixin
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.tick_timer import TickTimer
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.thread_bus_bridge import ThreadBusBridgeMixin
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.startup_controller import StartupControllerMixin
 
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import configure_webengine_all_tiers
 

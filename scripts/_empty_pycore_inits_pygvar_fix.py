@@ -4,15 +4,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 
-pygvar_map = {
-    "WS_RPC_CONSTANTS": "pycore.pyfoundations.pygvar.ws_rpc_constants",
-    "GlobalVarManager": "pycore.pyfoundations.pygvar.global_var_manager",
-    "GLOBAL_VARS_DIR": "pycore.pyfoundations.pygvar.global_var_manager",
-    "PYTOOLS_TMP_DIR": "pycore.pyfoundations.pygvar.global_var_manager",
-}
-const = (REPO / "pycore/pyfoundations/pygvar/constants.py").read_text(encoding="utf-8")
-for m in re.finditer(r"^([A-Z][A-Z0-9_]*)\s*=", const, re.M):
-    pygvar_map[m.group(1)] = "pycore.pyfoundations.pygvar.constants"
+PYGVAR_MODULE = "pycore.pyfoundations.pygvar"
 
 SIMPLE = [
     (
@@ -24,11 +16,10 @@ SIMPLE = [
         "from pycore.callmodule.controllers.upload.controller import UploadController",
     ),
     (
-        "from pycore.pyutils.pybrowser.fetchers import HTTPFetcher, BrowserFetcher, IframeFetcher, TampermonkeyFetcher",
+        "from pycore.pyutils.pybrowser.fetchers import HTTPFetcher, BrowserFetcher",
         "from pycore.pyutils.pybrowser.fetchers.http_fetcher import HTTPFetcher\n"
         "from pycore.pyutils.pybrowser.fetchers.browser_fetcher import BrowserFetcher\n"
-        "from pycore.pyutils.pybrowser.fetchers.iframe_fetcher import IframeFetcher\n"
-        "from pycore.pyutils.pybrowser.fetchers.tampermonkey_fetcher import TampermonkeyFetcher",
+        "",
     ),
     (
         "from pycore.callmodule.platform import system_service_manager as ssm",
@@ -49,8 +40,7 @@ def rewrite_pygvar(text: str) -> str:
                 name, alias = [x.strip() for x in chunk.split(" as ", 1)]
             else:
                 name, alias = chunk, None
-            mod = pygvar_map.get(name, "pycore.pyfoundations.pygvar.constants")
-            groups.setdefault(mod, []).append((name, alias))
+            groups.setdefault(PYGVAR_MODULE, []).append((name, alias))
         lines = []
         for mod, items in groups.items():
             parts = [f"{n} as {a}" if a else n for n, a in items]

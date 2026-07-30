@@ -12,6 +12,7 @@ LinuxTerminalLauncher, EditorLauncher).
 import sys
 from pathlib import Path
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.linux_screen_manager import LinuxScreenManager
 from pycore.pyutils.launcher.linux_terminal_launcher import LinuxTerminalLauncher
 
@@ -41,7 +42,7 @@ from pycore.pyutils.launcher.launch_guard import (
 )
 from pycore.pyutils.launcher.config_manager import ConfigManager
 from pycore.pyutils.launcher.app_finder import AppFinder
-from pycore.pyutils.common.process_manager import ProcessManager
+from pycore.pyfoundations.process_manager import ProcessManager
 
 
 class WindowLauncher:
@@ -148,7 +149,7 @@ class WindowLauncher:
                     self.calibration_term_rows = None
                     return
             except Exception as e:
-                print(f"Warning: dynamic char-size measurement failed ({e}); "
+                ColorPrint.plain(f"Warning: dynamic char-size measurement failed ({e}); "
                       f"using config fallback ratios.")
 
         # Fallback: sanitize physically-impossible char_height from bogus config
@@ -156,7 +157,7 @@ class WindowLauncher:
         # ~1.7-2.0x the advance width, so derive a sane height from the width.
         if self.ratio_calc.char_height < 4.0:
             sane_height = self.ratio_calc.char_width * 2.0
-            print(f"Warning: config char_height {self.ratio_calc.char_height:.3f}px/row is "
+            ColorPrint.plain(f"Warning: config char_height {self.ratio_calc.char_height:.3f}px/row is "
                   f"physically impossible; using {sane_height:.3f}px/row (2.0x char_width). "
                   f"Run on Windows for an exact measurement.")
             self.ratio_calc.char_height = sane_height
@@ -227,20 +228,20 @@ class WindowLauncher:
 
         # Step 3: Print calculation and WT/screen correspondence
         ratio_info = self.ratio_calc.get_info()
-        print(f"\nCalculation steps:")
-        print(f"  WT/screen: --pos = pixels (window top-left); --size = character cells (cols,rows); content px = cols*px_per_col + rows*px_per_row.")
-        print(f"  Char-size source: {ratio_info.get('source', 'config measurement')}")
-        print(f"  Column pixel ratio: {ratio_info['column_ratio']}")
-        print(f"  Row pixel ratio: {ratio_info['row_ratio']}")
-        print(f"  Step 1 - Cell size (px): Screen {screen_width}x{screen_height} / Grid {columns}x{rows} (gaps {gap_x}x{gap_y}px) = {target_window_width}x{target_window_height}px")
-        print(f"  Step 1b - Content target (chrome {self.window_chrome_horizontal_px}px H, {self.window_chrome_title_bar_px}px V; scale {self.window_chrome_content_scale}): {content_width}x{content_height}px")
-        print(f"  Step 2 - Terminal size (character cells):")
-        print(f"    Columns: {content_width}px / {self.ratio_calc.char_width:.4f}px-per-column = {term_columns} columns")
-        print(f"    Rows: {content_height}px / {self.ratio_calc.char_height:.4f}px-per-row = {term_rows} rows")
-        print(f"  Step 3 - Content size (px):")
-        print(f"    Width: {term_columns} cols * {self.ratio_calc.char_width:.4f} px/col = {actual_width:.1f}px")
-        print(f"    Height: {term_rows} rows * {self.ratio_calc.char_height:.4f} px/row = {actual_height:.1f}px")
-        print(f"  Result: --size \"{term_columns},{term_rows}\" (character cells) -> content {actual_width:.1f}x{actual_height:.1f}px; add chrome so window fits in {target_window_width}x{target_window_height}px cell.\n")
+        ColorPrint.plain(f"\nCalculation steps:")
+        ColorPrint.plain(f"  WT/screen: --pos = pixels (window top-left); --size = character cells (cols,rows); content px = cols*px_per_col + rows*px_per_row.")
+        ColorPrint.plain(f"  Char-size source: {ratio_info.get('source', 'config measurement')}")
+        ColorPrint.plain(f"  Column pixel ratio: {ratio_info['column_ratio']}")
+        ColorPrint.plain(f"  Row pixel ratio: {ratio_info['row_ratio']}")
+        ColorPrint.plain(f"  Step 1 - Cell size (px): Screen {screen_width}x{screen_height} / Grid {columns}x{rows} (gaps {gap_x}x{gap_y}px) = {target_window_width}x{target_window_height}px")
+        ColorPrint.plain(f"  Step 1b - Content target (chrome {self.window_chrome_horizontal_px}px H, {self.window_chrome_title_bar_px}px V; scale {self.window_chrome_content_scale}): {content_width}x{content_height}px")
+        ColorPrint.plain(f"  Step 2 - Terminal size (character cells):")
+        ColorPrint.plain(f"    Columns: {content_width}px / {self.ratio_calc.char_width:.4f}px-per-column = {term_columns} columns")
+        ColorPrint.plain(f"    Rows: {content_height}px / {self.ratio_calc.char_height:.4f}px-per-row = {term_rows} rows")
+        ColorPrint.plain(f"  Step 3 - Content size (px):")
+        ColorPrint.plain(f"    Width: {term_columns} cols * {self.ratio_calc.char_width:.4f} px/col = {actual_width:.1f}px")
+        ColorPrint.plain(f"    Height: {term_rows} rows * {self.ratio_calc.char_height:.4f} px/row = {actual_height:.1f}px")
+        ColorPrint.plain(f"  Result: --size \"{term_columns},{term_rows}\" (character cells) -> content {actual_width:.1f}x{actual_height:.1f}px; add chrome so window fits in {target_window_width}x{target_window_height}px cell.\n")
 
         windows = []
         # Step between cell origins = cell size + gap, so windows sit gap-px apart on both axes.
@@ -299,16 +300,16 @@ class WindowLauncher:
             limit = compute_terminal_deficit(
                 self.grid_columns, self.grid_rows, open_terminals)
             if limit <= 0:
-                print(
+                ColorPrint.plain(
                     f"\nSkipping terminal grid ({open_terminals} already open, "
                     f"target {grid_total}).")
                 return []
             if open_terminals > 0:
-                print(
+                ColorPrint.plain(
                     f"\n{open_terminals} terminals open; launching {limit} more "
                     f"to reach {grid_total}.")
         elif limit <= 0:
-            print(f"\nSkipping terminal grid (limit=0, target {grid_total}).")
+            ColorPrint.plain(f"\nSkipping terminal grid (limit=0, target {grid_total}).")
             return []
 
         # Get screen dimensions
@@ -333,10 +334,10 @@ class WindowLauncher:
         bat_files = self.wt_launcher.launch_windows(windows_config, delay, ubuntu_count)
 
         wt_count = total_windows - ubuntu_count
-        print(f"\nAll {total_windows} terminal windows launched:")
-        print(f"  - {wt_count} Windows Terminal windows")
+        ColorPrint.plain(f"\nAll {total_windows} terminal windows launched:")
+        ColorPrint.plain(f"  - {wt_count} Windows Terminal windows")
         if ubuntu_count > 0:
-            print(f"  - {ubuntu_count} Ubuntu terminals")
+            ColorPrint.plain(f"  - {ubuntu_count} Ubuntu terminals")
 
         return bat_files
 
@@ -358,7 +359,7 @@ class WindowLauncher:
         app_config = ConfigManager().get_app_config(app_key)
         app_path = resolve_launch_path(app_key, app_config, app_finder)
         if is_app_running(app_key, process_manager, app_finder, exe_path=app_path):
-            print(f"\nSkipping {app_key} editor grid (already running).")
+            ColorPrint.plain(f"\nSkipping {app_key} editor grid (already running).")
             return []
 
         # Get screen dimensions

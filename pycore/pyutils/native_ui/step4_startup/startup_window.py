@@ -81,7 +81,7 @@ if __name__ == "__main__":
         startup = TkinterStartupThread(app_name="Test Application")
         startup.start()
         if not THREAD_BUS.wait_signal("TkinterStartup_ready", timeout=3.0):
-            print("Window ready timeout")
+            ColorPrint.plain("Window ready timeout")
             return
         time.sleep(1)
         startup.log("Checking dependencies...", "info")

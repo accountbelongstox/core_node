@@ -25,11 +25,11 @@ from pycore.pyfoundations.runtime_abi import (
     cuda_tier_for_driver,
 )
 
-from ._deps import (
+from pycore.pyfoundations.third_party._deps import (
     PYTORCH_CUDA_INDEX_URL,
     PYTORCH_CPU_INDEX_URL,
 )
-from ._pip_runner import (
+from pycore.pyfoundations.third_party._pip_runner import (
     _is_pip_package_installed,
     run_third_party_command,
     run_pip_install_with_realtime_output,

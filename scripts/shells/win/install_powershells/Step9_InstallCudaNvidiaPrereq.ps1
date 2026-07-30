@@ -15,6 +15,12 @@
 # Runs AFTER Step8_InstallPython.ps1 (pip confirmed) and BEFORE
 # Step10_InstallPythonPrereqPackages.ps1 so torch/paddle guards pick GPU wheels.
 
+[CmdletBinding()]
+param(
+    [string]$Python = '',
+    [switch]$Force
+)
+
 $scriptRoot = $PSScriptRoot
 $winCommonDir = Join-Path (Split-Path $scriptRoot -Parent) "win_common"
 

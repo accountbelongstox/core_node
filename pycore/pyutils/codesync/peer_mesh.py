@@ -17,7 +17,7 @@ probe OR sent a fresh heartbeat; `via` records how it is connected
 (probe / heartbeat / both). This is what lets the UI show each client's contact
 state across WAN, not just on the LAN.
 
-Status snapshots are broadcast to the desktop UI via the existing RPC WebSocket
+Status snapshots are published to the desktop UI via the HTTP event journal
 by firing a 'code_sync_update' event (no-op in standalone mode).
 
 Stdlib only: HTTP via `.runtime.http` (urllib), events/shutdown via `.runtime`.
@@ -28,7 +28,10 @@ import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-from .runtime import (
+from pycore.pyfoundations.pygvar import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
+from pycore.pyfoundations.thread_bus_constants import BusSignals
+
+from pycore.pyutils.codesync.runtime import (
     log as ColorPrint,
     http as requests,
     emit_event,
@@ -39,7 +42,7 @@ from .runtime import (
     serialized_method,
     start_bus_task,
 )
-from .peer_config import PeerConfig, _local_lan_ip
+from pycore.pyutils.codesync.peer_config import PeerConfig, _local_lan_ip
 
 
 TICK_SECONDS = 5
@@ -124,7 +127,7 @@ class PeerMeshManager:
 
     # ----- probing --------------------------------------------------------- #
     def _peer_url(self, peer: Dict[str, Any], path: str) -> str:
-        return f"http://{peer.get('host')}:{int(peer.get('port', 59000))}{path}"
+        return f"http://{peer.get('host')}:{int(peer.get('port', PYCORE_HTTP_PORT))}{path}"
 
     def _probe(self, peer: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         try:
@@ -170,7 +173,7 @@ class PeerMeshManager:
         self._send_heartbeats()
         snap = self.snapshot()
         try:
-            emit_event("code_sync_update", snap)
+            emit_event(BusSignals.CODE_SYNC_UPDATE, snap)
         except Exception:
             pass
         return snap
@@ -231,7 +234,7 @@ class PeerMeshManager:
         never hold the mesh queue while calling manager.get_local_peer_status()."""
         self._store_heartbeat(payload, source)
         try:
-            emit_event("code_sync_update", self.snapshot())
+            emit_event(BusSignals.CODE_SYNC_UPDATE, self.snapshot())
         except Exception:
             pass
 
@@ -303,18 +306,18 @@ class PeerMeshManager:
                                   f"config push queued.")
         # Reflect the change in the UI immediately.
         try:
-            emit_event("code_sync_update", self.snapshot())
+            emit_event(BusSignals.CODE_SYNC_UPDATE, self.snapshot())
         except Exception:
             pass
 
     # ----- LAN discovery (helper) ----------------------------------------- #
-    def discover(self, port: int = 59000) -> List[Dict[str, Any]]:
+    def discover(self, port: int = PYCORE_HTTP_PORT) -> List[Dict[str, Any]]:
         """Scan the local /24 for code-sync peers not already in the config."""
         local_ip = _local_lan_ip()
         me = self.config.get_self()
         scan_port = int(me.get("port", port))
         prefix = ".".join(local_ip.split(".")[:3])
-        skip_ips = {local_ip, "127.0.0.1", "localhost", "::1",
+        skip_ips = {local_ip, HTTP_LOOPBACK_HOST, "localhost", "::1",
                     str(me.get("host") or "").strip()}
         try:
             skip_ips.add(socket.gethostname())

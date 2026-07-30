@@ -20,9 +20,7 @@ from typing import Optional, Dict
 from pathlib import Path
 from datetime import datetime
 
-from .logging_config import setup_logging
-
-logger = setup_logging(__name__)
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 CACHE_FILE = Path.home() / '.device_sync' / 'network_cache.json'
 
@@ -37,8 +35,8 @@ class NetworkCache:
         # Load or detect network
         network_info = cache.get_network_info()
 
-        print(f"Network: {network_info['network_prefix']}.0/24")
-        print(f"Router: {network_info['gateway']}")
+        ColorPrint.info(f"Network: {network_info['network_prefix']}.0/24")
+        ColorPrint.info(f"Router: {network_info['gateway']}")
     """
 
     def __init__(self):
@@ -65,7 +63,7 @@ class NetworkCache:
             }
         """
         if force_rescan:
-            logger.info("Force rescan requested, ignoring cache")
+            ColorPrint.info("Force rescan requested, ignoring cache")
             return self._scan_and_cache()
 
         # Try to load from cache
@@ -74,11 +72,11 @@ class NetworkCache:
         if cached:
             # Validate cache by pinging router
             if self._validate_cache(cached):
-                logger.info(f"Using cached network info (gateway: {cached['gateway']})")
+                ColorPrint.info(f"Using cached network info (gateway: {cached['gateway']})")
                 self.cached_info = cached
                 return cached
             else:
-                logger.warning("Cached network info invalid (router unreachable)")
+                ColorPrint.warning("Cached network info invalid (router unreachable)")
 
         # Cache miss or invalid, perform scan
         return self._scan_and_cache()
@@ -91,18 +89,18 @@ class NetworkCache:
             Cached network info or None
         """
         if not self.cache_file.exists():
-            logger.info("No network cache found")
+            ColorPrint.info("No network cache found")
             return None
 
         try:
             with open(self.cache_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
 
-            logger.info(f"Loaded network cache: {data.get('network_prefix')}.0/24")
+            ColorPrint.info(f"Loaded network cache: {data.get('network_prefix')}.0/24")
             return data
 
         except Exception as e:
-            logger.error(f"Failed to load network cache: {e}")
+            ColorPrint.error(f"Failed to load network cache: {e}")
             return None
 
     def _save_cache(self, network_info: Dict):
@@ -119,10 +117,10 @@ class NetworkCache:
             with open(self.cache_file, 'w', encoding='utf-8') as f:
                 json.dump(network_info, f, indent=2)
 
-            logger.info(f"Saved network cache: {network_info['network_prefix']}.0/24")
+            ColorPrint.info(f"Saved network cache: {network_info['network_prefix']}.0/24")
 
         except Exception as e:
-            logger.error(f"Failed to save network cache: {e}")
+            ColorPrint.error(f"Failed to save network cache: {e}")
 
     def _validate_cache(self, cached_info: Dict) -> bool:
         """
@@ -137,17 +135,17 @@ class NetworkCache:
         gateway = cached_info.get('gateway')
 
         if not gateway:
-            logger.warning("No gateway in cache")
+            ColorPrint.warning("No gateway in cache")
             return False
 
         # Ping router to check if network config changed
         is_reachable = self._ping_host(gateway)
 
         if is_reachable:
-            logger.info(f"Router {gateway} is reachable, cache valid")
+            ColorPrint.info(f"Router {gateway} is reachable, cache valid")
             return True
         else:
-            logger.warning(f"Router {gateway} is unreachable, cache invalid")
+            ColorPrint.warning(f"Router {gateway} is unreachable, cache invalid")
             return False
 
     def _scan_and_cache(self) -> Optional[Dict]:
@@ -157,24 +155,24 @@ class NetworkCache:
         Returns:
             Network info dict
         """
-        logger.info("Scanning network configuration...")
+        ColorPrint.info("Scanning network configuration...")
 
         # 1. Detect local IP
         local_ip = self._detect_local_ip()
         if not local_ip:
-            logger.error("Failed to detect local IP")
+            ColorPrint.error("Failed to detect local IP")
             return None
 
         # 2. Calculate network prefix
         network_prefix = self._calculate_network_prefix(local_ip)
         if not network_prefix:
-            logger.error("Failed to calculate network prefix")
+            ColorPrint.error("Failed to calculate network prefix")
             return None
 
         # 3. Detect router/gateway
         gateway = self._detect_gateway(network_prefix)
         if not gateway:
-            logger.warning("Failed to detect gateway, using default")
+            ColorPrint.warning("Failed to detect gateway, using default")
             gateway = f"{network_prefix}.1"
 
         # Build network info
@@ -206,10 +204,10 @@ class NetworkCache:
             s.close()
 
             if local_ip and local_ip != '127.0.0.1':
-                logger.info(f"Detected local IP: {local_ip}")
+                ColorPrint.info(f"Detected local IP: {local_ip}")
                 return local_ip
         except Exception as e:
-            logger.warning(f"Method 1 failed: {e}")
+            ColorPrint.warning(f"Method 1 failed: {e}")
 
         # Method 2: Hostname resolution
         try:
@@ -217,10 +215,10 @@ class NetworkCache:
             local_ip = socket.gethostbyname(hostname)
 
             if local_ip and local_ip != '127.0.0.1':
-                logger.info(f"Detected local IP (hostname): {local_ip}")
+                ColorPrint.info(f"Detected local IP (hostname): {local_ip}")
                 return local_ip
         except Exception as e:
-            logger.warning(f"Method 2 failed: {e}")
+            ColorPrint.warning(f"Method 2 failed: {e}")
 
         return None
 
@@ -239,7 +237,7 @@ class NetworkCache:
             return None
 
         network_prefix = '.'.join(parts[:3])
-        logger.info(f"Network prefix: {network_prefix}")
+        ColorPrint.info(f"Network prefix: {network_prefix}")
         return network_prefix
 
     def _detect_gateway(self, network_prefix: str) -> Optional[str]:
@@ -260,14 +258,14 @@ class NetworkCache:
             '192.168.0.1',
         ]
 
-        logger.info("Detecting gateway...")
+        ColorPrint.info("Detecting gateway...")
 
         for gateway in common_gateways:
             if self._ping_host(gateway, timeout=1):
-                logger.info(f"Found gateway: {gateway}")
+                ColorPrint.info(f"Found gateway: {gateway}")
                 return gateway
 
-        logger.warning("Gateway not found")
+        ColorPrint.warning("Gateway not found")
         return None
 
     def _ping_host(self, ip: str, timeout: int = 1) -> bool:
@@ -304,13 +302,13 @@ class NetworkCache:
             return result.return_code == 0
 
         except Exception as e:
-            logger.debug(f"Ping {ip} failed: {e}")
+            ColorPrint.debug(f"Ping {ip} failed: {e}")
             return False
 
     def clear_cache(self):
         """Clear network cache file"""
         if self.cache_file.exists():
             self.cache_file.unlink()
-            logger.info("Network cache cleared")
+            ColorPrint.info("Network cache cleared")
 
         self.cached_info = None

@@ -1,56 +1,97 @@
 # -*- coding: utf-8 -*-
-"""
-CoreBook RPC Routes
-
-WebSocket RPC handler for the Books page one-click pipeline:
-- corebook.autoflow: convert → AI-translate → TTS → submit to Laravel
-"""
+"""Register the CoreBook autoflow controller on RPC v2."""
 
 import os
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import await_bus_task
+from pycore.callmodule.rpc_routes import route_names
+from pycore.pyctl.corebook.engine import corebook_engine
 from pycore.pyfoundations.text_parsing import normalize_language_codes
-from pycore.callmodule.controllers.local_processing.corebook_controller import CoreBookController
-from pycore.callmodule.rpc_routes.route_names import COREBOOK_AUTOFLOW
-
-_controller = CoreBookController()
 
 
-def register_corebook_routes(server):
-    """Register the corebook.autoflow WS RPC handler."""
+def register_corebook_routes(server) -> None:
+    """Register CoreBook controller adapters."""
 
-    async def corebook_autoflow(params, request_id, context):
-        """Run the full CoreBook pipeline for one document path.
+    def convert(params, _request_id, _context):
+        request = params or {}
+        return corebook_engine.convert(
+            request.get("path"),
+            request.get("language"),
+            request.get("languages"),
+            request.get("source_type"),
+            request.get("text"),
+        )
 
-        params: { path, languages?:[...], source_type?:'book'|'document' }.
-        Progress streams over the ``corebook_autoflow`` THREAD_BUS event.
-        """
-        params = params or {}
-        path = (params.get("path") or "").strip()
-        languages = normalize_language_codes(params.get("languages"))
-        source_type = params.get("source_type") or "book"
+    def get(params, _request_id, _context):
+        request = params or {}
+        return corebook_engine.get(
+            request.get("source_key"),
+            request.get("start", 0),
+            request.get("limit", 0),
+        )
+
+    def delete(params, _request_id, _context):
+        return corebook_engine.delete((params or {}).get("source_key"))
+
+    def add_language(params, _request_id, _context):
+        request = params or {}
+        return corebook_engine.add_language(
+            request.get("source_key"),
+            request.get("target_language"),
+            request.get("source_language"),
+            request.get("chunk_size"),
+            request.get("grain"),
+        )
+
+    def fill_audio(params, _request_id, _context):
+        request = params or {}
+        return corebook_engine.fill_audio(
+            request.get("source_key"),
+            request.get("languages"),
+            request.get("rate"),
+            request.get("grain"),
+        )
+
+    def submit(params, _request_id, _context):
+        request = params or {}
+        return corebook_engine.submit(
+            request.get("source_key"),
+            request.get("upload_audio"),
+            request.get("request_assist"),
+            request.get("assist_items"),
+        )
+
+    def corebook_autoflow(params, _request_id, _context):
+        request = params or {}
+        path = str(request.get("path") or "").strip()
+        languages = normalize_language_codes(request.get("languages"))
         if not path:
             return {"success": False, "errors": ["path is required"]}
         if not languages:
-            return {"success": False, "errors": ["languages must include at least one code"]}
+            return {
+                "success": False,
+                "errors": ["languages must include at least one code"],
+            }
         if not os.path.isfile(os.path.abspath(path)):
             return {"success": False, "errors": [f"file not found: {path}"]}
-        try:
-            return await await_bus_task(
-                _controller.autoflow, path, languages, source_type)
-        except Exception as exc:
-            ColorPrint.red(f"[ConfigBuilder] corebook.autoflow failed: {exc}")
-            return {"success": False, "errors": [str(exc)]}
+        return corebook_engine.autoflow(
+            path,
+            languages,
+            request.get("source_type") or "book",
+        )
 
     server.route(
-        name=COREBOOK_AUTOFLOW,
+        name=route_names.COREBOOK_AUTOFLOW,
         handler=corebook_autoflow,
-        sync=False,
-        description="CoreBook one-click pipeline: convert, translate, TTS, submit",
+        description="CoreBook one-click pipeline",
     )
+    routes = (
+        (route_names.UI_COREBOOK_LIST, corebook_engine.list_books),
+        (route_names.UI_COREBOOK_CONVERT, convert),
+        (route_names.UI_COREBOOK_GET, get),
+        (route_names.UI_COREBOOK_DELETE, delete),
+        (route_names.UI_COREBOOK_ADD_LANGUAGE, add_language),
+        (route_names.UI_COREBOOK_FILL_AUDIO, fill_audio),
+        (route_names.UI_COREBOOK_SUBMIT, submit),
+    )
+    server.register_routes(routes, group="corebook")
 
-    ColorPrint.green("[ConfigBuilder] Registered corebook.autoflow RPC route")
-
-
-__all__ = ["register_corebook_routes"]

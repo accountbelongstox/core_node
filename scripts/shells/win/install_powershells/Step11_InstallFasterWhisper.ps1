@@ -42,6 +42,7 @@ $ctranslateGpuPackages = @()
 $ctranslateDepsReady   = $true
 $packageSpec           = ''
 $useCtranslateCuda     = $false
+$localModelInfo        = $null
 
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
@@ -53,6 +54,36 @@ function Test-PyModule {
     param([string]$Py, [string]$PackageName)
     $pipExe = $Global:PIP_EXE_PATH
     return Test-PipPackageInstalled -PipExe $pipExe -PackageName $PackageName
+}
+
+function Set-FasterWhisperLocalModelInfo {
+    param([string]$ModelName)
+    $cacheRoots = @()
+    $candidates = @()
+    $weightFiles = @()
+    $configFile = $null
+    $totalBytes = 0L
+    $script:localModelInfo = $null
+    if ($ModelName -and (Test-Path -LiteralPath $ModelName -PathType Container)) {
+        $candidates += (Get-Item -LiteralPath $ModelName)
+    }
+    if ($env:HUGGINGFACE_HUB_CACHE) { $cacheRoots += $env:HUGGINGFACE_HUB_CACHE }
+    if ($env:HF_HOME) { $cacheRoots += (Join-Path $env:HF_HOME 'hub') }
+    $cacheRoots += (Join-Path $Global:CORE_NODE_CACHE_DIR 'huggingface\hub')
+    foreach ($cacheRoot in $cacheRoots | Select-Object -Unique) {
+        if (Test-Path -LiteralPath $cacheRoot -PathType Container) {
+            $candidates += @(Get-ChildItem -LiteralPath $cacheRoot -Directory -Filter ("models--*--faster-whisper-{0}" -f $ModelName) -ErrorAction SilentlyContinue)
+        }
+    }
+    foreach ($candidate in $candidates) {
+        $configFile = Get-ChildItem -LiteralPath $candidate.FullName -Recurse -Filter 'config.json' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+        $weightFiles = @(Get-ChildItem -LiteralPath $candidate.FullName -Recurse -Include 'model.bin', 'model.safetensors' -File -ErrorAction SilentlyContinue)
+        if ($configFile -and $configFile.Length -gt 0 -and $weightFiles.Count -gt 0 -and -not ($weightFiles | Where-Object { $_.Length -le 0 } | Select-Object -First 1)) {
+            $totalBytes = [long](($weightFiles | Measure-Object -Property Length -Sum).Sum)
+            $script:localModelInfo = [pscustomobject]@{ Path = $candidate.FullName; Bytes = $totalBytes }
+            return
+        }
+    }
 }
 
 function Test-CtranslateCudaUsable {
@@ -167,15 +198,21 @@ if ($modelExplicit -or $Force) {
         $Model = Resolve-TtsModelTier -PythonExe $resolvedPython -Key faster_whisper_model -InstallScriptRoot $PSScriptRoot -Gpu:($useCtranslateCuda)
     }
     if ($Model -and $Model -ne 'auto') {
-        Write-Host ("$SCRIPT_INDEX [..] Pre-downloading faster-whisper model '{0}' ..." -f $Model) -ForegroundColor Yellow
         $dlOk = $false
-        try {
-            $prevEap = $ErrorActionPreference
-            $ErrorActionPreference = 'Continue'
-            $dlOut = (& $resolvedPython -c "from faster_whisper import download_model; download_model('$Model'); print('__DOWNLOAD_OK__')" 2>$null) -join ''
-            $ErrorActionPreference = $prevEap
-            $dlOk = ($dlOut -match '__DOWNLOAD_OK__')
-        } catch { $dlOk = $false }
+        Set-FasterWhisperLocalModelInfo -ModelName $Model
+        if ($localModelInfo) {
+            Write-Host ("$SCRIPT_INDEX [idempotent] local faster-whisper model found: {0} ({1:N0} bytes); remote lookup skipped" -f $localModelInfo.Path, $localModelInfo.Bytes) -ForegroundColor Green
+            $dlOk = $true
+        } else {
+            Write-Host ("$SCRIPT_INDEX [..] Pre-downloading faster-whisper model '{0}' ..." -f $Model) -ForegroundColor Yellow
+            try {
+                $prevEap = $ErrorActionPreference
+                $ErrorActionPreference = 'Continue'
+                $dlOut = (& $resolvedPython -c "from faster_whisper import download_model; download_model('$Model'); print('__DOWNLOAD_OK__')" 2>$null) -join ''
+                $ErrorActionPreference = $prevEap
+                $dlOk = ($dlOut -match '__DOWNLOAD_OK__')
+            } catch { $dlOk = $false }
+        }
         if ($dlOk) {
             Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready." -f $Model) -ForegroundColor Green
             Save-SttModelTier -PythonExe $resolvedPython -InstallScriptRoot $PSScriptRoot -FasterWhisperModel $Model

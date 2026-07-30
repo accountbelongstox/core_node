@@ -22,12 +22,12 @@ THREAD_REGISTRY = {
         "shutdown_priority": 100,  # Shutdown last (主进程后关)
     },
     "rpc": {
-        "description": "HTTP/WebSocket RPC server (legacy)",
+        "description": "HTTP controller and cached-event server",
         "default_enabled": False,
         "shutdown_priority": 50,  # Shutdown first (子进程先关)
     },
     "rpc_v2": {
-        "description": "Unified RPC server v2 (FastAPI + WebSocket)",
+        "description": "FastAPI HTTP controller and event service",
         "default_enabled": False,
         "shutdown_priority": 50,
     },

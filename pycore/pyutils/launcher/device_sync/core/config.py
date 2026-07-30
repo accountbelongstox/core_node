@@ -12,6 +12,7 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_system_cache_dir
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
@@ -134,51 +135,51 @@ class GlobalConfig(SerializedStateObject):
     @serialized_method
     def set_as_primary(self):
         """Set this device as PRIMARY server"""
-        print(f"[Config] set_as_primary() called")
-        print(f"[Config] BEFORE: isPrimaryServer={self.isPrimaryServer}, sync_enabled={self.sync_enabled}")
+        ColorPrint.plain(f"[Config] set_as_primary() called")
+        ColorPrint.plain(f"[Config] BEFORE: isPrimaryServer={self.isPrimaryServer}, sync_enabled={self.sync_enabled}")
         self.isPrimaryServer = True
         self.sync_enabled = False  # Primary doesn't sync, it serves
-        print(f"[Config] AFTER: isPrimaryServer={self.isPrimaryServer}, sync_enabled={self.sync_enabled}")
-        print(f"[Config] Set as PRIMARY server (id={id(self)})")
+        ColorPrint.plain(f"[Config] AFTER: isPrimaryServer={self.isPrimaryServer}, sync_enabled={self.sync_enabled}")
+        ColorPrint.plain(f"[Config] Set as PRIMARY server (id={id(self)})")
 
     @serialized_method
     def set_as_secondary(self):
         """Set this device as SECONDARY (client)"""
-        print(f"[Config] set_as_secondary() called")
-        print(f"[Config] BEFORE: isPrimaryServer={self.isPrimaryServer}")
+        ColorPrint.plain(f"[Config] set_as_secondary() called")
+        ColorPrint.plain(f"[Config] BEFORE: isPrimaryServer={self.isPrimaryServer}")
         self.isPrimaryServer = False
         # sync_enabled is controlled separately
-        print(f"[Config] AFTER: isPrimaryServer={self.isPrimaryServer}")
-        print(f"[Config] Set as SECONDARY (id={id(self)})")
+        ColorPrint.plain(f"[Config] AFTER: isPrimaryServer={self.isPrimaryServer}")
+        ColorPrint.plain(f"[Config] Set as SECONDARY (id={id(self)})")
 
     @serialized_method
     def enable_sync(self):
         """Enable sync (only for SECONDARY)"""
         if self.isPrimaryServer:
-            print("[Config] Cannot enable sync: This is PRIMARY server")
+            ColorPrint.plain("[Config] Cannot enable sync: This is PRIMARY server")
             return False
 
         self.sync_enabled = True
-        print("[Config] Sync enabled")
+        ColorPrint.plain("[Config] Sync enabled")
         return True
 
     @serialized_method
     def disable_sync(self):
         """Disable sync"""
         self.sync_enabled = False
-        print("[Config] Sync disabled")
+        ColorPrint.plain("[Config] Sync disabled")
 
     @serialized_method
     def enable_api(self):
         """Enable API access"""
         self.api_enabled = True
-        print("[Config] API access enabled")
+        ColorPrint.plain("[Config] API access enabled")
 
     @serialized_method
     def disable_api(self):
         """Disable API access"""
         self.api_enabled = False
-        print("[Config] API access disabled")
+        ColorPrint.plain("[Config] API access disabled")
 
     @serialized_method
     def update_network_info(self):
@@ -306,7 +307,7 @@ class GlobalConfig(SerializedStateObject):
         """Build file cache for root directory"""
 
         if not self.root_dir or not self.root_dir.exists():
-            print(f"[Config] Cannot build file cache: root_dir not set or doesn't exist")
+            ColorPrint.plain(f"[Config] Cannot build file cache: root_dir not set or doesn't exist")
             return
 
         try:
@@ -343,10 +344,10 @@ class GlobalConfig(SerializedStateObject):
             self.total_scans += 1
             duration = self.last_scan_time - start_time
 
-            print(f"[Config] File cache built: {len(self.file_cache)} files (excluded: {excluded_count}, took {duration:.2f}s)")
+            ColorPrint.plain(f"[Config] File cache built: {len(self.file_cache)} files (excluded: {excluded_count}, took {duration:.2f}s)")
 
         except Exception as e:
-            print(f"[Config] Error building file cache: {e}")
+            ColorPrint.plain(f"[Config] Error building file cache: {e}")
             # Don't clear existing cache on error
             traceback.print_exc()
 
@@ -428,7 +429,7 @@ def init_global_config(root_dir: str, http_port: int = 58923) -> GlobalConfig:
     # Update network information
     config.update_network_info()
 
-    print(f"[Config] Initialized: {config}")
-    print(f"[Config] Network: {config.network_prefix}.x (Gateway: {config.gateway_ip})")
+    ColorPrint.plain(f"[Config] Initialized: {config}")
+    ColorPrint.plain(f"[Config] Network: {config.network_prefix}.x (Gateway: {config.gateway_ip})")
 
     return config

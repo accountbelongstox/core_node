@@ -20,9 +20,12 @@ core_node_dir = d3_check_dir.parent.parent
 if str(core_node_dir) not in sys.path:
     sys.path.insert(0, str(core_node_dir))
 
-from pycore.pyutils.ultralytics.classification_trainer import ClassificationTrainer
-from pycore.pyutils.ultralytics.detection_trainer import DetectionTrainer
-from pycore.pyutils.ultralytics.unified_trainer import UnifiedClassificationTrainer, UnifiedDetectionTrainer
+from pycore.pyutils.ultralytics.training import (
+    ClassificationTrainer,
+    DetectionTrainer,
+    UnifiedClassificationTrainer,
+    UnifiedDetectionTrainer,
+)
 
 
 class D3CheckTrainingController:

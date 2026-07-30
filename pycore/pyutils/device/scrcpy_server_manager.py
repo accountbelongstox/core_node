@@ -241,14 +241,14 @@ class ScrcpyServerManager:
                     percent = (downloaded / total) * 100
                     mb_downloaded = downloaded / 1024 / 1024
                     mb_total = total / 1024 / 1024
-                    print(f"\r[ScrcpyServerManager] Attempt {attempt}/5: {percent:.1f}% ({mb_downloaded:.1f}/{mb_total:.1f} MB)", end='')
+                    ColorPrint.plain(f"\r[ScrcpyServerManager] Attempt {attempt}/5: {percent:.1f}% ({mb_downloaded:.1f}/{mb_total:.1f} MB)", end='')
 
             # Download with retry
             if not downloader.download(self.GITHUB_PACKAGE_URL, temp_zip_path, progress_callback):
                 ColorPrint.red(f"[ScrcpyServerManager] Failed to download package after retries")
                 return False
 
-            print()  # New line after progress
+            ColorPrint.plain()  # New line after progress
 
             # Extract scrcpy-server from zip
             ColorPrint.blue(f"[ScrcpyServerManager] Extracting scrcpy-server from package...")

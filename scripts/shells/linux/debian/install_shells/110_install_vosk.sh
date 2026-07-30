@@ -8,7 +8,7 @@
 #
 # Invocation (prepare_pycore_prerequisites.sh):  install_vosk.sh --python <py>
 #   --model auto|small|large   (default auto: CUDA->large, else small)
-#   --force                    (re-download / re-extract)
+#   --force                    (re-run dependency repair; preserve local model)
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
@@ -26,6 +26,9 @@ MODEL_DIR=""
 ARCHIVE=""
 TMP_EXTRACT=""
 VOSK_METADATA=""
+EXISTING_CONF=""
+EXISTING_MODEL_DIR=""
+LOCAL_MODEL_BYTES=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -79,9 +82,15 @@ mkdir -p "$MODEL_ROOT"
 echo "[install_vosk]  model dir : $MODEL_DIR"
 echo "[install_vosk]  source    : $MODEL_URL"
 
-# IDEMPOTENT: any model with a conf/ dir already present -> done.
-if find "$MODEL_ROOT" -type d -name conf 2>/dev/null | grep -q . && [[ "$FORCE" -eq 0 ]]; then
-    echo "[install_vosk] [OK] A Vosk model is already installed (conf/ present) -> skipping download."
+# IDEMPOTENT: any non-empty local model with a conf/ directory is ready.
+EXISTING_CONF="$(find "$MODEL_ROOT" -type d -name conf -print -quit 2>/dev/null)"
+if [[ -n "$EXISTING_CONF" ]]; then
+    EXISTING_MODEL_DIR="$(dirname "$EXISTING_CONF")"
+    LOCAL_MODEL_BYTES="$(find "$EXISTING_MODEL_DIR" -type f -printf '%s\n' 2>/dev/null | awk '{sum += $1} END {print sum + 0}')"
+fi
+if [[ -n "$EXISTING_MODEL_DIR" && "$LOCAL_MODEL_BYTES" -gt 0 ]] \
+    && ! find "$EXISTING_MODEL_DIR" -type f -size 0 -print -quit 2>/dev/null | grep -q .; then
+    echo "[install_vosk] [idempotent] local model found: $EXISTING_MODEL_DIR (${LOCAL_MODEL_BYTES} bytes); remote lookup skipped"
     _backup_install_asset_path "$TMP_EXTRACT" "[install_vosk] " >/dev/null
     complete_prereq_step "$PYTHON" "[install_vosk] " vosk
 fi

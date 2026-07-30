@@ -21,6 +21,7 @@ from pycore.database.models.state_models import (
 )
 from pycore.database.schema.state_schema import init_schema
 from pycore.pyfoundations.system_paths import get_local_data_dir
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 
 
 class RevisionConflictError(ValueError):
@@ -38,22 +39,27 @@ class StateRepository:
             db_path = get_local_data_dir() / "pycore_state.sqlite3"
         self._db_path = db_path
         self._local = threading.local()
+        self._journal_initialized = False
         # Initialize schema on first connection
         with self._get_conn() as conn:
             init_schema(conn)
 
     def _get_conn(self) -> sqlite3.Connection:
         if not hasattr(self._local, "conn"):
-            self._local.conn = sqlite3.connect(
+            conn = sqlite3.connect(
                 str(self._db_path),
                 timeout=30.0,  # Survive transient cross-instance lock contention
                 isolation_level=None,  # We manage transactions manually
                 check_same_thread=False,
             )
-            # Enable WAL mode for better concurrency
-            self._local.conn.execute("PRAGMA journal_mode=WAL")
-            self._local.conn.execute("PRAGMA busy_timeout=30000")
-            self._local.conn.execute("PRAGMA foreign_keys=ON")
+            if not self._journal_initialized:
+                # WAL is persistent for the database. Do not renegotiate it on
+                # every executor thread, where the pragma can reserve a lock.
+                conn.execute("PRAGMA journal_mode=WAL")
+                self._journal_initialized = True
+            conn.execute("PRAGMA busy_timeout=30000")
+            conn.execute("PRAGMA foreign_keys=ON")
+            self._local.conn = conn
         return self._local.conn
 
     @contextmanager
@@ -62,6 +68,21 @@ class StateRepository:
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("BEGIN IMMEDIATE")
+        try:
+            yield cursor
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+
+    @contextmanager
+    def read_transaction(self) -> Generator[sqlite3.Cursor, None, None]:
+        """Open a deferred read transaction without reserving the writer slot."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("BEGIN")
         try:
             yield cursor
             conn.commit()
@@ -278,7 +299,7 @@ class StateRepository:
             self._insert_event(cursor, event, outbox)
 
     def get_operation(self, op_id: str) -> Optional[Operation]:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute("SELECT * FROM operations WHERE id = ?", (op_id,))
             row = cursor.fetchone()
             if not row:
@@ -286,7 +307,7 @@ class StateRepository:
             return Operation.from_row(row)
 
     def get_latest_operation_by_scope(self, scope: str) -> Optional[Operation]:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute(
                 "SELECT * FROM operations WHERE scope = ? ORDER BY rowid DESC LIMIT 1",
                 (scope,)
@@ -301,7 +322,7 @@ class StateRepository:
         scope: Optional[str] = None,
         limit: int = 20,
     ) -> List[Operation]:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             if scope:
                 cursor.execute(
                     "SELECT * FROM operations WHERE scope = ? ORDER BY rowid DESC LIMIT ?",
@@ -361,16 +382,34 @@ class StateRepository:
 
     # --- Operation Items ---
 
-    def get_operation_items(self, op_id: str) -> List[OperationItem]:
-        with self.transaction() as cursor:
+    def get_operation_items(
+        self,
+        op_id: str,
+        include_results: bool = True,
+        include_payloads: bool = True,
+    ) -> List[OperationItem]:
+        with self.read_transaction() as cursor:
+            result_column = "result_json" if include_results else "NULL AS result_json"
+            payload_columns = (
+                "input_json, checkpoint_json"
+                if include_payloads
+                else "NULL AS input_json, NULL AS checkpoint_json"
+            )
             cursor.execute(
-                "SELECT * FROM operation_items WHERE operation_id = ? ORDER BY ordinal",
+                f"""
+                SELECT id, operation_id, item_key, ordinal, status, stage,
+                       progress, attempts, {payload_columns},
+                       {result_column}, error_json
+                FROM operation_items
+                WHERE operation_id = ?
+                ORDER BY ordinal
+                """,
                 (op_id,),
             )
             return [OperationItem.from_row(row) for row in cursor.fetchall()]
 
     def get_operation_item(self, item_id: str) -> Optional[OperationItem]:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute("SELECT * FROM operation_items WHERE id = ?", (item_id,))
             row = cursor.fetchone()
             if not row:
@@ -430,7 +469,7 @@ class StateRepository:
             """,
             (
                 event_id,
-                str(outbox.get("topic") or "operation.changed"),
+                str(outbox.get("topic") or BusSignals.OPERATION_CHANGED),
                 outbox.get("entity_type"),
                 outbox.get("entity_id"),
                 int(outbox.get("revision") or 0),
@@ -471,7 +510,7 @@ class StateRepository:
             self._insert_outbox(cursor, event.event_id, outbox)
 
     def get_outbox_event(self, event_id: str) -> Optional[Dict[str, Any]]:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute(
                 """
                 SELECT topic, entity_type, entity_id, revision, payload_json, audience
@@ -593,7 +632,7 @@ class StateRepository:
     def get_events(
         self, op_id: str, since_seq: int = 0, limit: int = 100
     ) -> List[OperationEvent]:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute(
                 """
                 SELECT * FROM operation_events
@@ -629,7 +668,7 @@ class StateRepository:
             event.seq = cursor.lastrowid
 
     def get_system_events(self, since_seq: int = 0, limit: int = 500) -> List[SystemEvent]:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute(
                 """
                 SELECT * FROM system_events
@@ -641,7 +680,7 @@ class StateRepository:
             return [SystemEvent.from_row(row) for row in cursor.fetchall()]
 
     def get_latest_system_event_seq(self) -> int:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute("SELECT MAX(seq) FROM system_events")
             row = cursor.fetchone()
             return row[0] if row and row[0] is not None else 0
@@ -649,7 +688,7 @@ class StateRepository:
     # --- UI Snapshots ---
 
     def get_ui_snapshot(self, profile_id: str, scope: str) -> Optional[UiSnapshot]:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute(
                 "SELECT * FROM ui_snapshots WHERE profile_id = ? AND scope = ?",
                 (profile_id, scope),
@@ -687,7 +726,7 @@ class StateRepository:
     def get_remote_cursor(
         self, source_type: str, source_id: str
     ) -> Optional[RemoteCursor]:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute(
                 "SELECT * FROM remote_cursors WHERE source_type = ? AND source_id = ?",
                 (source_type, source_id),
@@ -734,7 +773,7 @@ class StateRepository:
         idempotency_key: str,
         route: str,
     ) -> Optional[str]:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute(
                 """
                 SELECT operation_id FROM rpc_command_idempotency
@@ -753,7 +792,7 @@ class StateRepository:
         route: str,
         idempotency_key: str,
     ) -> Optional[Dict[str, Any]]:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute(
                 """
                 SELECT status, response_json, error_json, operation_id
@@ -902,23 +941,27 @@ class StateRepository:
 
         Returns (authenticated, resume_token). When authentication fails the token is empty.
         """
+        with self.read_transaction() as cursor:
+            cursor.execute(
+                "SELECT resume_token FROM rpc_client_sessions WHERE client_id = ?",
+                (client_id,),
+            )
+            row = cursor.fetchone()
+            if row:
+                stored = str(row[0])
+                return (True, stored) if resume_token and resume_token == stored else (False, "")
+
+        now = self._now_iso()
+        new_token = uuid.uuid4().hex
         with self.transaction() as cursor:
             cursor.execute(
                 "SELECT resume_token FROM rpc_client_sessions WHERE client_id = ?",
                 (client_id,),
             )
             row = cursor.fetchone()
-            now = self._now_iso()
             if row:
                 stored = str(row[0])
-                if resume_token and resume_token == stored:
-                    cursor.execute(
-                        "UPDATE rpc_client_sessions SET updated_at = ? WHERE client_id = ?",
-                        (now, client_id),
-                    )
-                    return True, stored
-                return False, ""
-            new_token = uuid.uuid4().hex
+                return (True, stored) if resume_token and resume_token == stored else (False, "")
             cursor.execute(
                 """
                 INSERT INTO rpc_client_sessions (client_id, resume_token, created_at, updated_at)
@@ -1028,7 +1071,7 @@ class StateRepository:
             return True
 
     def get_client_offset(self, client_id: str) -> int:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute(
                 "SELECT highest_contiguous_acked_seq FROM rpc_client_offset WHERE client_id = ?",
                 (client_id,),
@@ -1037,7 +1080,7 @@ class StateRepository:
             return int(row[0]) if row and row[0] is not None else 0
 
     def list_durable_client_ids(self) -> List[str]:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute(
                 """
                 SELECT client_id FROM rpc_client_offset
@@ -1053,7 +1096,7 @@ class StateRepository:
         after_seq: int = 0,
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute(
                 """
                 SELECT event_id, seq, topic, payload_json
@@ -1083,7 +1126,7 @@ class StateRepository:
     def list_nonterminal_operations(self, limit: int = 20) -> List[Operation]:
         terminal = ("completed", "failed", "cancelled")
         placeholders = ",".join("?" for _ in terminal)
-        with self.transaction() as cursor:
+        with self.read_transaction() as cursor:
             cursor.execute(
                 f"""
                 SELECT * FROM operations

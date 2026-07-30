@@ -7,8 +7,8 @@ Install-HfRepoFlat and scripts/shells/linux/common/tts_install_assets_common.sh
 install_hf_repo_flat).
 
 Single source of truth for the staging-dir + sentinel + verify pattern shared by
-all neural engines. Mirrors pycore/pyutils/tts/qwen3tts_weights.py but parameterized
-per engine (env var, subdir, static size fallback). qwen3tts_weights re-uses this
+all neural engines. The pycore.pyutils.tts.qwen.weights adapter binds this
+parameterized implementation to Qwen-specific defaults and hints.
 core and adds its engine-specific static sizes / hints.
 
 Layout (created by Install-HfRepoFlat):
@@ -35,7 +35,7 @@ from typing import Dict, Optional
 
 from pycore.pyfoundations.system_paths import get_local_data_dir
 
-_WEIGHT_SUFFIXES = (".safetensors", ".bin", ".pt")
+WEIGHT_SUFFIXES = (".safetensors", ".bin", ".pt")
 _HF_CATALOG_CACHE: Dict[str, Dict[str, int]] = {}
 
 
@@ -132,7 +132,7 @@ def hf_repo_catalog(repo_id: str, use_cache: bool = True, static_sizes: Optional
     return {}
 
 
-def _catalog_bytes(repo_id: str, rel_path: str, static_sizes: Optional[Dict[str, int]] = None) -> int:
+def catalog_bytes(repo_id: str, rel_path: str, static_sizes: Optional[Dict[str, int]] = None) -> int:
     repo = (repo_id or "").strip()
     rel = rel_path.replace("\\", "/")
     if not repo:
@@ -145,7 +145,7 @@ def _catalog_bytes(repo_id: str, rel_path: str, static_sizes: Optional[Dict[str,
     return 0
 
 
-def _safetensors_readable(path: Path) -> bool:
+def safetensors_readable(path: Path) -> bool:
     if not path.is_file():
         return False
     if importlib.util.find_spec("safetensors") is None:
@@ -172,7 +172,7 @@ def local_weights_ready(weights: Path, repo_id: str = "", static_sizes: Optional
     weight_files = [
         p
         for p in weights.rglob("*")
-        if p.is_file() and p.suffix.lower() in _WEIGHT_SUFFIXES
+        if p.is_file() and p.suffix.lower() in WEIGHT_SUFFIXES
     ]
     if not weight_files:
         return False
@@ -180,13 +180,13 @@ def local_weights_ready(weights: Path, repo_id: str = "", static_sizes: Optional
     for path in weight_files:
         rel = path.relative_to(weights).as_posix()
         size = path.stat().st_size
-        expected = _catalog_bytes(repo_id, rel, static_sizes)
+        expected = catalog_bytes(repo_id, rel, static_sizes)
         if expected > 0:
             if size < expected:
                 return False
         elif size <= 0:
             return False
-        if path.suffix.lower() == ".safetensors" and not _safetensors_readable(path):
+        if path.suffix.lower() == ".safetensors" and not safetensors_readable(path):
             return False
     return True
 
@@ -212,6 +212,8 @@ def resolve_model_id(env_var: str, subdir: str, default_repo: str, static_sizes:
 
 
 __all__ = [
+    "WEIGHT_SUFFIXES",
+    "catalog_bytes",
     "staging_dir",
     "weights_dir",
     "sentinel_model_id",
@@ -219,4 +221,5 @@ __all__ = [
     "local_weights_ready",
     "local_weights_dir",
     "resolve_model_id",
+    "safetensors_readable",
 ]

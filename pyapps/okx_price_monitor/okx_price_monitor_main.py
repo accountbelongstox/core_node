@@ -69,7 +69,7 @@ def rpc_init_callback(rpc_server):
     It registers all OKX routes to the RPC v2 server instance.
 
     Args:
-        rpc_server: RPC v2 server instance (FastAPIRPCServer)
+        rpc_server: RpcServer instance
     """
     global _rpc_server
 

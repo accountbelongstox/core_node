@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from pycore.pyutils.ultralytics.annotation_to_yolo_dataset import (
+from pycore.pyutils.ultralytics.dataset import (
     generate_yolo_dataset,
     build_train_command,
 )

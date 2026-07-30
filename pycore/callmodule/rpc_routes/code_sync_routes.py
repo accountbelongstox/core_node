@@ -1,49 +1,43 @@
 # -*- coding: utf-8 -*-
-"""RPC Routes for code_sync."""
+"""RPC routes for Code Sync."""
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 import pycore.callmodule.rpc_routes.route_names as rn
-import pycore.callmodule.services.code_sync_service as cs
+import pycore.pyutils.codesync.service as cs
 
 
 def register_code_sync_routes(server):
-    routes = [
-        (rn.UI_CODE_SYNC_PING, lambda p: cs.ping()),
-        (rn.UI_CODE_SYNC_GET_STATUS, lambda p: cs.get_status()),
-        (rn.UI_CODE_SYNC_PEER_STATUS, lambda p: cs.peer_status()),
-        (rn.UI_CODE_SYNC_PEER_CONFIG, lambda p: cs.peer_config(p or {})),
-        (rn.UI_CODE_SYNC_PEER_HEARTBEAT, lambda p: cs.peer_heartbeat(p or {})),
-        (rn.UI_CODE_SYNC_GET_PEERS, lambda p: cs.get_peers()),
-        (rn.UI_CODE_SYNC_GET_SYNC_SETTINGS, lambda p: cs.get_sync_settings()),
-        (rn.UI_CODE_SYNC_SET_SYNC_SETTINGS, lambda p: cs.set_sync_settings(p or {})),
-        (rn.UI_CODE_SYNC_RESET_SYNC_SETTINGS, lambda p: cs.reset_sync_settings()),
-        (rn.UI_CODE_SYNC_GET_SYNC_LOGS, lambda p: cs.get_sync_logs(int((p or {}).get("limit") or 100))),
-        (rn.UI_CODE_SYNC_GET_FILE_TREE, lambda p: cs.get_file_tree()),
-        (
-            rn.UI_CODE_SYNC_GET_PEER_FILE_TREE,
-            lambda p: cs.get_peer_file_tree(str((p or {}).get("peer_id") or "")),
-        ),
-        (rn.UI_CODE_SYNC_ADD_PEER, lambda p: cs.add_peer(p or {})),
-        (rn.UI_CODE_SYNC_REMOVE_PEER, lambda p: cs.remove_peer(p or {})),
-        (rn.UI_CODE_SYNC_UPDATE_PEER, lambda p: cs.update_peer(p or {})),
-        (rn.UI_CODE_SYNC_SET_ROLE, lambda p: cs.set_role(p or {})),
-        (rn.UI_CODE_SYNC_SET_DISTRIBUTE, lambda p: cs.set_distribute(p or {})),
-        (rn.UI_CODE_SYNC_SET_SKIP_UPDATE, lambda p: cs.set_skip_update(p or {})),
-        (rn.UI_CODE_SYNC_DISCOVER, lambda p: cs.discover()),
-        (rn.UI_CODE_SYNC_SET_SERVER_MODE, lambda p: cs.set_server_mode()),
-        (rn.UI_CODE_SYNC_SET_CLIENT_MODE, lambda p: cs.set_client_mode()),
-        (rn.UI_CODE_SYNC_STOP_SYNC, lambda p: cs.stop_sync()),
-        (rn.UI_CODE_SYNC_DOWNLOAD_FILE, lambda p: cs.download_file(p or {})),
-        (rn.UI_CODE_SYNC_TOGGLE_BACKUP, lambda p: cs.toggle_backup(p or {})),
-    ]
+    def get_sync_logs(params, _request_id, _context):
+        return cs.get_sync_logs(int((params or {}).get("limit") or 100))
 
-    for route_name, fn in routes:
-        async def handler(params, request_id, context, _fn=fn):
-            return await _fn(params)
+    def get_peer_file_tree(params, _request_id, _context):
+        return cs.get_peer_file_tree(str((params or {}).get("peer_id") or ""))
 
-        server.route(name=route_name, handler=handler, sync=False)
+    routes = (
+        (rn.CODE_SYNC_PUSH_FRAME, cs.push_frame),
+        (rn.UI_CODE_SYNC_PING, cs.ping),
+        (rn.UI_CODE_SYNC_GET_STATUS, cs.get_status),
+        (rn.UI_CODE_SYNC_PEER_STATUS, cs.peer_status),
+        (rn.UI_CODE_SYNC_PEER_CONFIG, cs.peer_config),
+        (rn.UI_CODE_SYNC_PEER_HEARTBEAT, cs.peer_heartbeat),
+        (rn.UI_CODE_SYNC_GET_PEERS, cs.get_peers),
+        (rn.UI_CODE_SYNC_GET_SYNC_SETTINGS, cs.get_sync_settings),
+        (rn.UI_CODE_SYNC_SET_SYNC_SETTINGS, cs.set_sync_settings),
+        (rn.UI_CODE_SYNC_RESET_SYNC_SETTINGS, cs.reset_sync_settings),
+        (rn.UI_CODE_SYNC_GET_SYNC_LOGS, get_sync_logs),
+        (rn.UI_CODE_SYNC_GET_FILE_TREE, cs.get_file_tree),
+        (rn.UI_CODE_SYNC_GET_PEER_FILE_TREE, get_peer_file_tree),
+        (rn.UI_CODE_SYNC_ADD_PEER, cs.add_peer),
+        (rn.UI_CODE_SYNC_REMOVE_PEER, cs.remove_peer),
+        (rn.UI_CODE_SYNC_UPDATE_PEER, cs.update_peer),
+        (rn.UI_CODE_SYNC_SET_ROLE, cs.set_role),
+        (rn.UI_CODE_SYNC_SET_DISTRIBUTE, cs.set_distribute),
+        (rn.UI_CODE_SYNC_SET_SKIP_UPDATE, cs.set_skip_update),
+        (rn.UI_CODE_SYNC_DISCOVER, cs.discover),
+        (rn.UI_CODE_SYNC_SET_SERVER_MODE, cs.set_server_mode),
+        (rn.UI_CODE_SYNC_SET_CLIENT_MODE, cs.set_client_mode),
+        (rn.UI_CODE_SYNC_STOP_SYNC, cs.stop_sync),
+        (rn.UI_CODE_SYNC_DOWNLOAD_FILE, cs.download_file),
+        (rn.UI_CODE_SYNC_TOGGLE_BACKUP, cs.toggle_backup),
+    )
+    server.register_routes(routes, group="code_sync")
 
-    ColorPrint.green("[ConfigBuilder] Registered code_sync RPC routes")
-
-
-__all__ = ["register_code_sync_routes"]

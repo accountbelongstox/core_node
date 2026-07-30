@@ -12,8 +12,6 @@ MARKER = (
 
 # HEAD __init__ path -> concrete module relative path
 RECOVER = {
-    "pycore/callmodule/rpc_routes/__init__.py": "pycore/callmodule/rpc_routes/register_rpc_routes.py",
-    "pycore/pyutils/rpc_v2/config/__init__.py": "pycore/pyutils/rpc_v2/config/rpc_constants.py",
     "pycore/pyctl/desktop/ui/__init__.py": "pycore/pyctl/desktop/ui/voice_subtitle_ui.py",
     "pycore/callmodule/models/upload/__init__.py": "pycore/callmodule/models/upload/models.py",
     "pycore/callmodule/models/client/__init__.py": "pycore/callmodule/models/client/models.py",
@@ -27,7 +25,7 @@ RECOVER = {
 IMPORT_FIXES = [
     (
         r"from pycore\.callmodule\.rpc_routes import register_rpc_routes",
-        "from pycore.callmodule.rpc_routes.register_rpc_routes import register_rpc_routes",
+        "from pycore.callmodule.rpc_routes.register_http_routes import register_http_routes as register_rpc_routes",
     ),
     (
         r"from pycore\.pyfoundations import is_cuda_available",
@@ -35,7 +33,7 @@ IMPORT_FIXES = [
     ),
     (
         r"from pycore\.pyfoundations import get_global_task_queue",
-        "from pycore.pyutils.common.tasks import get_global_task_queue",
+        "from pycore.pyfoundations.tasks import get_global_task_queue",
     ),
     (
         r"from pycore\.pyfoundations import ENCYCLOPEDIA",
@@ -51,7 +49,7 @@ IMPORT_FIXES = [
     ),
     (
         r"from pycore\.pyutils\.rpc_v2 import UnifiedRpcServerRunner",
-        "from pycore.pyutils.rpc_v2.server.server_runner import UnifiedRpcServerRunner",
+        "from pycore.pyutils.rpc_v2.runner import RpcServerRunner",
     ),
     (
         r"from pycore\.pyutils\.native_ui import FileMonitor",
@@ -100,11 +98,6 @@ def recover() -> None:
         content = content.replace(
             "from ...services.upload import UploadService",
             "from pycore.callmodule.services.upload.service import UploadService",
-        )
-        # rpc_v2 config used relative .rpc_config
-        content = content.replace(
-            "from .rpc_config import",
-            "from pycore.pyutils.rpc_v2.config.rpc_config import",
         )
         dst = REPO / dst_rel
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -164,20 +157,18 @@ def fix_imports() -> None:
     print(f"import-fix files: {changed}")
 
 
-def verify_unified_rpc() -> None:
-    # ensure UnifiedRpcServerRunner exists where we pointed
-    target = REPO / "pycore/pyutils/rpc_v2/server/server_runner.py"
+def verify_rpc_runner() -> None:
+    target = REPO / "pycore/pyutils/rpc_v2/runner.py"
     text = target.read_text(encoding="utf-8")
-    if "class UnifiedRpcServerRunner" not in text and "UnifiedRpcServerRunner" not in text:
-        # search
+    if "class RpcServerRunner" not in text:
         for p in (REPO / "pycore/pyutils/rpc_v2").rglob("*.py"):
             t = p.read_text(encoding="utf-8", errors="replace")
-            if "class UnifiedRpcServerRunner" in t:
-                print(f"UnifiedRpcServerRunner found in {p.relative_to(REPO)}")
+            if "class RpcServerRunner" in t:
+                print(f"RpcServerRunner found in {p.relative_to(REPO)}")
                 return
-        print("WARNING: UnifiedRpcServerRunner not found")
+        print("WARNING: RpcServerRunner not found")
     else:
-        print("UnifiedRpcServerRunner OK in server_runner.py")
+        print("RpcServerRunner OK in runner.py")
 
 
 def verify_webview() -> None:
@@ -191,7 +182,7 @@ def verify_webview() -> None:
 
 def main() -> None:
     recover()
-    verify_unified_rpc()
+    verify_rpc_runner()
     verify_webview()
     fix_imports()
 

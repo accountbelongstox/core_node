@@ -24,7 +24,7 @@ except ImportError:
 
 # Import OCR manager from pycore
 try:
-    from pycore.pyutils.ocr.ocr_manager import ocr_manager
+    from pycore.pyutils.common.ocr.manager import ocr_manager
     OCR_AVAILABLE = True
 except ImportError:
     OCR_AVAILABLE = False

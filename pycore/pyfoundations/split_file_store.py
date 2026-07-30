@@ -26,10 +26,8 @@ import hashlib
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-# Relative import binds to whichever package form (pyfoundations or
-# pycore.pyfoundations) the caller used, avoiding the dual-module-identity
-# trap. FileLockManager + JsonData are the only dependencies on file_lock.
-from .file_lock import FileLockManager, JsonData
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.file_lock import FileLockManager, JsonData
 
 
 class SplitFileStore:
@@ -105,7 +103,7 @@ class SplitFileStore:
     def _log(self, message: str):
         """Print log message if verbose"""
         if self.verbose:
-            print(f"[SplitFileStore] {message}", flush=True)
+            ColorPrint.plain(f"[SplitFileStore] {message}", flush=True)
 
     @staticmethod
     def _path_to_hash(path: str) -> str:

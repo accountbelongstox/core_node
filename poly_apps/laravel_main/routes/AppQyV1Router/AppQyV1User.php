@@ -57,7 +57,7 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::post('/profile', [AppQyV1ProfileController::class, 'updateProfile']);
 
         // Avatar upload (multipart FormData, field name "avatar"); consumed by
-        // the wordflow profile editor (WfProfileEditPage). Returns
+        // the WordNew profile editor (WfProfileEditPage). Returns
         // { avatar, avatar_url } inside the standard envelope.
         Route::post('/avatar', [AppQyV1ProfileController::class, 'uploadAvatar']);
 

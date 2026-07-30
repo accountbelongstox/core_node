@@ -28,14 +28,30 @@ from pycore.pyctl.agent_history.gemini_extractor import GeminiExtractor
 from pycore.pyctl.agent_history.generic_agent_extractor import GenericAgentExtractor
 from pycore.pyctl.agent_history.kimi_extractor import KimiExtractor
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.callmodule.services.operation_service import OperationService
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.serialized_worker import (
-    SerializedSingletonProvider,
     SerializedWorkerThread,
     call_serialized,
 )
 
 PROMPTS_CAP = 8000
+SESSION_SUMMARY_FIELDS = (
+    "id",
+    "raw_id",
+    "tool",
+    "os_user",
+    "project",
+    "title",
+    "started_at",
+    "ended_at",
+    "started_ts",
+    "prompt_count",
+    "message_count",
+    "has_subagent",
+    "models",
+    "bytes",
+    "file",
+)
 TOOL_MARKERS = (
     ".claude", ".codex", ".gemini", ".cursor", ".kimi-code", ".kimi",
     ".ark", ".ark-cli", ".agent", ".cline", ".antigravity",
@@ -56,6 +72,19 @@ def _detect_lang(text: str) -> str:
     if re.search(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]", text):
         return "zh"
     return "en"
+
+
+def _session_summary(detail: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep the index bounded to fields used by the session list UI."""
+    summary = {
+        field: detail.get(field)
+        for field in SESSION_SUMMARY_FIELDS
+        if field in detail
+    }
+    models = summary.get("models")
+    if isinstance(models, list):
+        summary["models"] = [str(model) for model in models[:20]]
+    return summary
 
 
 def user_homes() -> Dict[str, str]:
@@ -206,7 +235,7 @@ class AgentHistoryService:
                     self._apply_edits(detail.get("prompts") or [], edits)
                     txt.write_session(sid, detail)
 
-                    summary = {k: v for k, v in detail.items() if k not in ("prompts", "turns")}
+                    summary = _session_summary(detail)
                     summaries[sid] = summary
 
                     for p in detail.get("prompts") or []:
@@ -280,45 +309,14 @@ class AgentHistoryService:
                 "counts": counts,
             })
 
-            # Persist a UI-friendly snapshot into the operation store so the
-            # manager can switch from polling to `ui.operation.snapshot/events`
-            # without relying on the file store directly.
-            try:
-                op_service = OperationService()
-                op = op_service.create_operation(
-                    kind="agent_history_sessions_extract",
-                    scope="agent_history_sessions",
-                    items_data=[{"item_key": "sessions_prompts"}],
-                    initial_message="Agent history sessions/prompts updated",
-                )
-                items = op_service.get_operation_items(op.id)
-                if items:
-                    index = {
-                        "is_dev_machine": is_dev,
-                        "generated_at": generated_at,
-                        "tools": tools,
-                        "users": users,
-                        "langs": langs,
-                        "sessions": sessions,
-                        "counts": counts,
-                    }
-                    payload = {"index": index, "prompts": prompts}
-                    op_service.transition_item(
-                        items[0].id,
-                        status="succeeded",
-                        stage="completed",
-                        progress=1.0,
-                        result_json=payload,
-                        message="Agent history snapshot persisted",
-                    )
-            except Exception:
-                # Snapshot persistence is best-effort; extraction results stay
-                # correct because index/prompts are still written to disk above.
-                pass
-
             summary = {"is_dev_machine": is_dev, "changed": len(changed_paths), "removed": len(removed_paths)}
             summary.update(counts)
             THREAD_BUS.signal(_SUMMARY_SIGNAL, summary)
+            THREAD_BUS.trigger_event(
+                BusSignals.AGENT_HISTORY_SESSIONS_CHANGED,
+                {"generated_at": generated_at, **summary},
+                async_mode=True,
+            )
             return summary
         except Exception as e:
             summary = {"error": str(e)}
@@ -334,21 +332,23 @@ class AgentHistoryService:
 
     def read_index(self) -> Dict[str, Any]:
         index = txt.read_index()
-        if not index.get("sessions"):
-            self.extract(False)
-            index = txt.read_index()
         counts = txt.read_state().get("counts") or {}
         if not isinstance(counts, dict):
             counts = {}
         if not counts.get("sessions"):
             counts["sessions"] = index.get("sessions_count") or len(index.get("sessions") or [])
+        sessions = [
+            _session_summary(session)
+            for session in (index.get("sessions") or [])
+            if isinstance(session, dict)
+        ]
         return {
             "is_dev_machine": index.get("is_dev_machine", self.is_dev_machine()),
             "generated_at": index.get("generated_at", ""),
             "tools": index.get("tools") or [],
             "users": index.get("users") or [],
             "langs": index.get("langs") or [],
-            "sessions": index.get("sessions") or [],
+            "sessions": sessions,
             "counts": counts,
         }
 
@@ -360,12 +360,20 @@ class AgentHistoryService:
         offset: int = 0,
         q: Optional[str] = None,
         lang: Optional[str] = None,
+        tools: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         all_prompts = txt.read_prompts()
         needle = (q or "").strip().lower()
+        allowed_tools = {
+            str(item).strip().lower()
+            for item in (tools or [])
+            if str(item).strip()
+        }
         filtered = []
         for p in all_prompts:
             if tool and p.get("tool") != tool:
+                continue
+            if not tool and allowed_tools and str(p.get("tool") or "").lower() not in allowed_tools:
                 continue
             if user and p.get("os_user") != user:
                 continue
@@ -383,9 +391,6 @@ class AgentHistoryService:
             "limit": limit,
             "offset": offset,
         }
-
-    def read_session(self, session_id: str) -> Optional[Dict[str, Any]]:
-        return txt.read_session(session_id)
 
     def update_prompt(self, prompt_id: str, text: str) -> Optional[Dict[str, Any]]:
         m = re.match(r"^(.+)#(\d+)$", prompt_id)
@@ -437,8 +442,20 @@ class AgentHistoryService:
             return {"ok": False, "tool": key, "error": "no history source found", "sources": 0}
 
         sources.sort(key=lambda d: float(d.get("mtime") or 0), reverse=True)
+        inline_sources = [
+            source
+            for source in sources
+            if int(source.get("bytes") or 0) <= 16 * 1024 * 1024
+        ]
+        if not inline_sources:
+            return {
+                "ok": False,
+                "tool": key,
+                "error": "history sources exceed the 16 MiB inline probe limit",
+                "sources": len(sources),
+            }
         last_error = ""
-        for src in sources[:5]:
+        for src in inline_sources[:5]:
             try:
                 sessions = extractor.parse_source(src["path"], src["user"])
             except Exception as exc:  # noqa: BLE001 — try the next source
@@ -482,12 +499,4 @@ class AgentHistoryService:
                 p["edited"] = True
 
 
-_AGENT_HISTORY_PROVIDER = SerializedSingletonProvider(
-    AgentHistoryService,
-    "agent_history.service.provider",
-    "AgentHistoryServiceProvider",
-)
-
-
-def get_agent_history_service() -> AgentHistoryService:
-    return _AGENT_HISTORY_PROVIDER.get()
+agent_history_service = AgentHistoryService()

@@ -32,7 +32,7 @@ use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
  * Unique on (source_type, source_key, grain, seq).
  *
  * This is what powers per-sentence multi-language reading, per-sentence audio
- * status, wordflow joins, and reverse lookup — NOT recoverable cheaply from the
+ * status, WordNew joins, and reverse lookup — NOT recoverable cheaply from the
  * source's raw original (especially multi-track subtitle time alignment), so the
  * table is kept. The legacy `sentence_id` column was REMOVED (Books v3.1 §3.3):
  * the per-language link is carried entirely by lang_content_ids (content_id refs).

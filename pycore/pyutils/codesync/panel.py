@@ -11,8 +11,10 @@ violate the codesync stdlib-only / no-pycore-import invariant. Served by
 http_server._Handler.do_GET (standalone mode only; full pycore serves its React
 UI instead and never starts this server).
 
-No third-party deps; no pycore import.
+No third-party dependencies.
 """
+
+from pycore.pyfoundations.pygvar import PYCORE_HTTP_PORT
 
 PANEL_HTML = r"""<!doctype html>
 <html lang="en">
@@ -113,7 +115,7 @@ PANEL_HTML = r"""<!doctype html>
     <div class="addform">
       <input id="a-name" placeholder="name">
       <input id="a-host" placeholder="host / ip">
-      <input id="a-port" placeholder="59000" value="59000">
+      <input id="a-port" placeholder="__PYCORE_HTTP_PORT__" value="__PYCORE_HTTP_PORT__">
       <select id="a-role"><option value="dev">dev</option><option value="client" selected>client</option></select>
       <button class="primary" onclick="addPeer()">+ Add</button>
     </div>
@@ -615,7 +617,7 @@ async function removePeer(id){ await api('/code-sync/peers/remove', {id:id}); lo
 async function addPeer(){
   const host = $('#a-host').value.trim(); if(!host){ $('#a-host').focus(); return; }
   await api('/code-sync/peers/add', { name: $('#a-name').value.trim() || host, host: host,
-    port: parseInt($('#a-port').value,10) || 59000, role: $('#a-role').value });
+    port: parseInt($('#a-port').value,10) || __PYCORE_HTTP_PORT__, role: $('#a-role').value });
   $('#a-name').value=''; $('#a-host').value=''; load();
 }
 applyTreePanel(); load(); setInterval(load, 5000);
@@ -623,3 +625,4 @@ applyTreePanel(); load(); setInterval(load, 5000);
 </body>
 </html>
 """
+PANEL_HTML = PANEL_HTML.replace("__PYCORE_HTTP_PORT__", str(PYCORE_HTTP_PORT))

@@ -10,10 +10,10 @@ import importlib
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from ._deps import DEPENDENCY_MAP, OPTIONAL_PACKAGES, WINDOWS_ONLY_PACKAGES
-from ._hf_helpers import get_third_package_cnocr
-from ._package_cache import _PACKAGE_CACHE
-from ._pip_runner import build_pip_install_command, run_pip_install_with_realtime_output
+from pycore.pyfoundations.third_party._deps import DEPENDENCY_MAP, OPTIONAL_PACKAGES, WINDOWS_ONLY_PACKAGES
+from pycore.pyfoundations.third_party._hf_helpers import get_third_package_cnocr
+from pycore.pyfoundations.third_party._package_cache import _PACKAGE_CACHE
+from pycore.pyfoundations.third_party._pip_runner import build_pip_install_command, run_pip_install_with_realtime_output
 
 
 def _lazy_import(package_name: str, import_statement: str):

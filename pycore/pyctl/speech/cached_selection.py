@@ -43,16 +43,16 @@ def select_language_with_cache(source: str = "default", allow_multi_select: bool
             return cached_languages
 
     # Language selection
-    print("\n" + "="*70)
-    print(f"Language Selection ({source})")
-    print("="*70)
-    print("1 - Chinese (Simplified)")
-    print("2 - English (US)")
-    print("3 - Japanese")
-    print("4 - Korean")
+    ColorPrint.plain("\n" + "="*70)
+    ColorPrint.plain(f"Language Selection ({source})")
+    ColorPrint.plain("="*70)
+    ColorPrint.plain("1 - Chinese (Simplified)")
+    ColorPrint.plain("2 - English (US)")
+    ColorPrint.plain("3 - Japanese")
+    ColorPrint.plain("4 - Korean")
 
     if allow_multi_select:
-        print("\nYou can select multiple languages (e.g., '1,2' or '1 2')")
+        ColorPrint.plain("\nYou can select multiple languages (e.g., '1,2' or '1 2')")
 
     language_map = {
         "1": "zh-CN",
@@ -209,11 +209,11 @@ def select_duration_with_cache():
                     return speech_config.get("ui_duration_seconds")
 
     # Select duration
-    print("\n" + "="*70)
-    print("Duration Setting")
-    print("="*70)
-    print("1 - Continuous (press Ctrl+C to stop)")
-    print("2 - Time limited")
+    ColorPrint.plain("\n" + "="*70)
+    ColorPrint.plain("Duration Setting")
+    ColorPrint.plain("="*70)
+    ColorPrint.plain("1 - Continuous (press Ctrl+C to stop)")
+    ColorPrint.plain("2 - Time limited")
 
     while True:
         mode = input("\nSelect mode [default: 1]: ").strip()

@@ -1,5 +1,7 @@
 # Resolve pycore/tts_install_assets from an install_powershells Step script directory.
 
+$script:LastReportedLocalModelPath = ''
+
 function Get-ShellsLinuxCommonDirFromInstallScript {
     param([string]$InstallScriptRoot)
     $shellsDir = Split-Path (Split-Path (Split-Path $InstallScriptRoot -Parent) -Parent) -Parent
@@ -155,48 +157,6 @@ function Ensure-SoxOnPath {
 
     Write-Host ("{0} [!] SoX NOT on PATH — pysox (qwen-tts tokenizer) warns at import. Install: winget install ChrisBagwell.SoX" -f $Prefix) -ForegroundColor DarkYellow
     return $false
-}
-
-function Invoke-Qwen3TtsWeightsReadyCheck {
-    param(
-        [Parameter(Mandatory = $true)][string]$WeightsDir,
-        [string]$RepoId = '',
-        [string]$PythonExe = ''
-    )
-    $py = $PythonExe
-    if (-not $py) { $py = $Global:PYTHON_EXE_PATH }
-    if (-not $py) {
-        $pyCmd = Get-Command python -ErrorAction SilentlyContinue
-        if ($pyCmd) { $py = $pyCmd.Source }
-    }
-    if (-not $py) { return $null }
-
-    $repoRoot = Get-CoreNodeRepoRootFromWinCommon
-    $weightsLiteral = ($WeightsDir -replace "'", "''")
-    $repoLiteral = (($RepoId | ForEach-Object { "$_" }).Trim() -replace "'", "''")
-    $repoRootLiteral = ($repoRoot -replace "'", "''")
-    # PYCORE_SKIP_DEP_CHECK=1: install scripts manage deps themselves; never run the
-    # import-time check_and_install_dependencies() (it prints the CUDA check + does
-    # pip ops and throws under $ErrorActionPreference='Stop'). Detect via stdout
-    # marker, not exit code / return value.
-    $pyCode = @"
-import sys
-from pathlib import Path
-sys.path.insert(0, r'$repoRootLiteral')
-from pycore.pyutils.tts.qwen3tts_weights import local_weights_ready
-ok = local_weights_ready(Path(r'$weightsLiteral'), r'$repoLiteral')
-sys.stdout.write('__WEIGHTS_READY__' if ok else '__WEIGHTS_NOTREADY__')
-"@
-    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
-    $env:PYCORE_SKIP_DEP_CHECK = '1'
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    $out = (& $py -c $pyCode 2>$null) -join ''
-    $ErrorActionPreference = $prevEap
-    $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
-    if ($out -match '__WEIGHTS_READY__') { return $true }
-    if ($out -match '__WEIGHTS_NOTREADY__') { return $false }
-    return $null
 }
 
 function Test-PyModule {
@@ -432,8 +392,15 @@ function Invoke-HfFileDownloadResumable {
     if ($parent -and -not (Test-Path -LiteralPath $parent)) {
         New-Item -ItemType Directory -Force -Path $parent | Out-Null
     }
-    $url = ('{0}/{1}/resolve/main/{2}' -f $MirrorBase.TrimEnd('/'), $RepoId, $FileName)
     $expected = [long]$CatalogBytes
+    if ((Test-Path -LiteralPath $OutPath) -and $expected -le 0) {
+        $have = (Get-Item -LiteralPath $OutPath).Length
+        if ($have -gt 0) {
+            Write-Host ("{0} [idempotent] local file found: {1} ({2:N0} bytes); remote lookup skipped" -f $Prefix, $OutPath, $have) -ForegroundColor DarkGray
+            return $true
+        }
+    }
+    $url = ('{0}/{1}/resolve/main/{2}' -f $MirrorBase.TrimEnd('/'), $RepoId, $FileName)
     if ($expected -le 0) {
         try {
             $head = Invoke-WebRequest -Uri $url -Method Head -MaximumRedirection 5 -TimeoutSec 30 -UseBasicParsing -ErrorAction Stop
@@ -461,13 +428,6 @@ function Invoke-HfFileDownloadResumable {
     if (-not (Test-HfFileDownloadComplete -Path $OutPath -ExpectedBytes $expected)) {
         return $false
     }
-    if ($FileName -like '*.safetensors') {
-        if (-not (Test-SafetensorsReadable -Path $OutPath)) {
-            Write-Host ("{0} [!] {1} failed safetensors verify; backing up for retry" -f $Prefix, $FileName) -ForegroundColor DarkYellow
-            Backup-InstallAssetPath -Path $OutPath -Prefix $Prefix | Out-Null
-            return $false
-        }
-    }
     return $true
 }
 
@@ -487,9 +447,18 @@ function Install-HfRepoFlat {
         [string]$MirrorBase = '',
         [string]$SentinelValue = ''
     )
-    if (-not $MirrorBase) { $MirrorBase = Resolve-HfMirrorBase }
+    $localWeightFiles = @()
+    $localWeightBytes = 0L
     New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
     if (-not $SentinelValue) { $SentinelValue = $RepoId }
+    if (Test-NeuralTtsLocalWeightsReady -WeightsDir $DestDir -RepoId $RepoId) {
+        $localWeightFiles = @(Get-ChildItem -Path $DestDir -Recurse -Include '*.safetensors', '*.bin', '*.pt' -File -ErrorAction SilentlyContinue)
+        $localWeightBytes = [long](($localWeightFiles | Measure-Object -Property Length -Sum).Sum)
+        Set-Content -Path $SentinelPath -Value $SentinelValue -Encoding utf8
+        Write-Host ("{0} [idempotent] local model found: {1} ({2:N0} bytes); remote lookup skipped" -f $Prefix, $DestDir, $localWeightBytes) -ForegroundColor Green
+        return $true
+    }
+    if (-not $MirrorBase) { $MirrorBase = Resolve-HfMirrorBase }
 
     $catalog = Get-HfRepoFileCatalog -RepoId $RepoId
     if ($catalog.Count -eq 0) {
@@ -530,57 +499,26 @@ function Install-HfRepoFlat {
     return $false
 }
 
-function Test-SafetensorsReadable {
-    param([Parameter(Mandatory = $true)][string]$Path)
-    if (-not (Test-Path -LiteralPath $Path)) { return $false }
-    $py = $Global:PYTHON_EXE_PATH
-    if (-not $py) {
-        $pyCmd = Get-Command python -ErrorAction SilentlyContinue
-        if ($pyCmd) { $py = $pyCmd.Source }
-    }
-    if (-not $py) { return $true }
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    $out = (& $py -c "from safetensors import safe_open; f=safe_open(r'$($Path -replace "'", "''")', framework='pt'); _=f.keys(); print('__OK__')" 2>$null) -join ''
-    $ErrorActionPreference = $prevEap
-    return ($out -match '__OK__')
-}
-
 function Test-NeuralTtsLocalWeightsReady {
     param(
         [Parameter(Mandatory = $true)][string]$WeightsDir,
         [string]$RepoId = ''
     )
-    $pythonReady = Invoke-Qwen3TtsWeightsReadyCheck -WeightsDir $WeightsDir -RepoId $RepoId
-    if ($null -ne $pythonReady) { return [bool]$pythonReady }
-
     if (-not (Test-Path -LiteralPath $WeightsDir)) { return $false }
     $cfg = Get-ChildItem -Path $WeightsDir -Recurse -Filter 'config.json' -File -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $cfg) { return $false }
 
-    $catalog = @{}
-    if ($RepoId) {
-        $catalog = Get-HfRepoFileCatalog -RepoId $RepoId
-    }
-
-    $weightFiles = Get-ChildItem -Path $WeightsDir -Recurse -Include '*.safetensors', '*.bin', '*.pt' -File -ErrorAction SilentlyContinue
+    $weightFiles = @(Get-ChildItem -Path $WeightsDir -Recurse -Include '*.safetensors', '*.bin', '*.pt' -File -ErrorAction SilentlyContinue)
+    $totalBytes = 0L
     if (-not $weightFiles -or $weightFiles.Count -eq 0) { return $false }
 
-    $weightsRoot = (Resolve-Path -LiteralPath $WeightsDir).Path
     foreach ($file in $weightFiles) {
-        $rel = $file.FullName.Substring($weightsRoot.Length).TrimStart('\', '/').Replace('\', '/')
-        $expected = 0L
-        if ($catalog.ContainsKey($rel)) {
-            $expected = [long]$catalog[$rel]
-        }
-        if ($expected -gt 0) {
-            if ($file.Length -lt $expected) { return $false }
-        } elseif ($file.Length -le 0) {
-            return $false
-        }
-        if ($file.Extension -ieq '.safetensors') {
-            if (-not (Test-SafetensorsReadable -Path $file.FullName)) { return $false }
-        }
+        if ($file.Length -le 0) { return $false }
+        $totalBytes += $file.Length
+    }
+    if ($script:LastReportedLocalModelPath -ne $WeightsDir) {
+        Write-Host ("[model-cache] local model found: {0} ({1:N0} bytes)" -f $WeightsDir, $totalBytes) -ForegroundColor DarkGray
+        $script:LastReportedLocalModelPath = $WeightsDir
     }
     return $true
 }
@@ -617,6 +555,11 @@ function Install-WhisperModelWeights {
     New-Item -ItemType Directory -Force -Path $CacheDir | Out-Null
     $out = Join-Path $CacheDir ("{0}.pt" -f $Model)
     $expected = 0L
+    if (Test-HfFileDownloadComplete -Path $out) {
+        $localBytes = (Get-Item -LiteralPath $out).Length
+        Write-Host ("{0} [idempotent] local whisper model found: {1} ({2:N0} bytes); remote lookup skipped" -f $Prefix, $out, $localBytes) -ForegroundColor Green
+        return $true
+    }
     try {
         $head = Invoke-WebRequest -Uri $url -Method Head -MaximumRedirection 5 -TimeoutSec 30 -UseBasicParsing -ErrorAction Stop
         if ($head.Headers['Content-Length']) { $expected = [long]$head.Headers['Content-Length'] }
@@ -637,7 +580,7 @@ function Install-WhisperModelWeights {
 
 # --------------------------------------------------------------------------- #
 # Generic isolated per-engine TTS venv (Bucket B) — GENERALISES Step61's proven #
-# qwen3tts approach to any class-C engine via pycore.pyutils.tts.isolated_venv. #
+# qwen3tts approach via pycore.pyutils.common.python_env.isolated_venv.         #
 # melotts + gptsovits pin a transformers that must NEVER touch the shared main  #
 # interpreter, so they run their api server inside a DEDICATED per-engine venv.  #
 # These helpers invoke the SYSTEM Python to build/verify/resolve that venv;      #
@@ -663,25 +606,22 @@ function ConvertTo-PyListLiteral {
 }
 
 function Test-IsolatedTtsVenvProvisioned {
-    # Quick no-build gate. -Healthy also checks the central fingerprint and imports.
+    # Quick no-build gate based on the isolated environment layout and stamp.
     param(
         [Parameter(Mandatory = $true)][string]$PythonExe,
         [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
-        [Parameter(Mandatory = $true)][string]$Engine,
-        [switch]$Healthy
+        [Parameter(Mandatory = $true)][string]$Engine
     )
     $rootLiteral = ($CoreNodeRoot -replace "'", "''")
     $engineLit = ConvertTo-PyStringLiteral -Value $Engine
-    $methodLit = if ($Healthy) { "'venv_healthy'" } else { "'venv_ready'" }
     $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
     $prevEap = $ErrorActionPreference
     $out = ''
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
-from pycore.pyutils.python_env import isolated_venv
-probe = getattr(isolated_venv, $methodLit)
-sys.stdout.write('__VENV_READY__' if probe($engineLit) else '__VENV_NOTREADY__')
+from pycore.pyutils.common.python_env import isolated_venv
+sys.stdout.write('__VENV_READY__' if isolated_venv.venv_ready($engineLit) else '__VENV_NOTREADY__')
 "@
     # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
     # check_and_install_dependencies() (it does pip ops and throws under Stop).
@@ -696,19 +636,9 @@ sys.stdout.write('__VENV_READY__' if probe($engineLit) else '__VENV_NOTREADY__')
     return ($out -match '__VENV_READY__')
 }
 
-function Test-IsolatedTtsVenvHealthy {
-    param(
-        [Parameter(Mandatory = $true)][string]$PythonExe,
-        [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
-        [Parameter(Mandatory = $true)][string]$Engine
-    )
-    return Test-IsolatedTtsVenvProvisioned -PythonExe $PythonExe -CoreNodeRoot $CoreNodeRoot -Engine $Engine -Healthy
-}
-
 function Resolve-IsolatedTtsVenvPython {
     # Return the engine's isolated venv interpreter path (or '' when not provisioned).
-    # Used for post-build steps that must run INSIDE the venv (e.g. NLTK data /
-    # model warmup for melotts). Never builds.
+    # Used for post-build steps that must run inside the venv. Never builds.
     param(
         [Parameter(Mandatory = $true)][string]$PythonExe,
         [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
@@ -722,7 +652,7 @@ function Resolve-IsolatedTtsVenvPython {
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
-from pycore.pyutils.python_env import isolated_venv
+from pycore.pyutils.common.python_env import isolated_venv
 sys.stdout.write(isolated_venv.resolve_python($engineLit) or '')
 "@
     try {
@@ -770,7 +700,7 @@ function Invoke-IsolatedTtsVenvEnsure {
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
-from pycore.pyutils.python_env import isolated_venv
+from pycore.pyutils.common.python_env import isolated_venv
 isolated_venv.ensure_venv($engineLit, pip_packages=$pkgLit, pins=$pinLit, ${healthArg}force=$forceLiteral)
 "@
     # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
@@ -781,7 +711,7 @@ isolated_venv.ensure_venv($engineLit, pip_packages=$pkgLit, pins=$pinLit, ${heal
         # Run LIVE (attached): ensure_venv streams pip output; first build takes minutes.
         # Out-Host keeps child stdout out of the function's boolean return value.
         & $PythonExe -c $pyCode | Out-Host
-        $venvOk = Test-IsolatedTtsVenvHealthy -PythonExe $PythonExe -CoreNodeRoot $CoreNodeRoot -Engine $Engine
+        $venvOk = Test-IsolatedTtsVenvProvisioned -PythonExe $PythonExe -CoreNodeRoot $CoreNodeRoot -Engine $Engine
     } finally {
         $ErrorActionPreference = $prevEap
         $env:PYCORE_SKIP_DEP_CHECK = $prevSkip

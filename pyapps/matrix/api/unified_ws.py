@@ -18,7 +18,6 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.api.websocket_manager import WebSocketManager
 
 # Import namespace handlers
 from pyapps.matrix.api.unified_ws_handlers import (
@@ -39,9 +38,6 @@ from pyapps.matrix.services import DeviceService, VideoStreamService
 
 # Create router
 router = APIRouter(prefix="/ws", tags=["unified-websocket"])
-
-# WebSocket manager
-ws_manager = WebSocketManager()
 
 # Handler registry (singleton)
 _handler_registry: Optional[HandlerRegistry] = None
@@ -166,7 +162,6 @@ async def unified_websocket(websocket: WebSocket):
     # Register client
     client_state = ClientState(websocket)
     clients[websocket] = client_state
-    await ws_manager.connect("unified", websocket)
 
     # Get handler registry
     registry = get_handler_registry()
@@ -224,7 +219,6 @@ async def unified_websocket(websocket: WebSocket):
     finally:
         # Cleanup
         await client_state.cleanup()
-        await ws_manager.disconnect("unified", websocket)
         clients.pop(websocket, None)
         ColorPrint.blue(f"[UnifiedWS] Client cleaned up (remaining: {len(clients)})")
 

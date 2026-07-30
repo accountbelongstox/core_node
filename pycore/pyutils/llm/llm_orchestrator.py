@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.managed_service import managed_services
-from .llm_engines import (
+from pycore.pyutils.llm.llm_engines import (
     chat_completion_raw,
     base_url,
     default_model,
@@ -30,7 +30,7 @@ from .llm_engines import (
     engine_note,
     engine_priority,
 )
-from .llm_service_manager import (
+from pycore.pyutils.llm.llm_service_manager import (
     get_server_settings,
     is_llm_engine,
     prepare_server_for_use,

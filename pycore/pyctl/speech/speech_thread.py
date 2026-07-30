@@ -13,7 +13,7 @@ import time
 from typing import Optional, Dict, Any
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyctl.speech.speech_manager import get_speech_manager
+from pycore.pyctl.speech.speech_manager import speech_manager
 from pycore.pyctl.speech.transcription_app import run_app, run_app_dual_source
 
 
@@ -71,7 +71,6 @@ class SpeechTranscriptionThread(threading.Thread):
         })
 
         # Initialize speech manager
-        speech_manager = get_speech_manager()
         if not speech_manager.initialize():
             ColorPrint.red("[SpeechThread] Failed to initialize speech manager")
             THREAD_BUS.signal("speech.thread.error", {
@@ -103,7 +102,6 @@ class SpeechTranscriptionThread(threading.Thread):
 
 
         # Run in this thread
-        speech_manager = get_speech_manager()
         run_app(speech_manager)
 
     def _run_dual_source(self):
@@ -112,7 +110,6 @@ class SpeechTranscriptionThread(threading.Thread):
 
 
         # Run in this thread
-        speech_manager = get_speech_manager()
         run_app_dual_source(speech_manager)
 
     def stop(self):
@@ -168,8 +165,6 @@ class SpeechServiceThread(threading.Thread):
         })
 
         # Initialize speech manager
-        speech_manager = get_speech_manager()
-
         if not speech_manager.initialize():
             ColorPrint.red("[SpeechService] Failed to initialize")
             THREAD_BUS.signal("speech.service.error", {

@@ -10,12 +10,12 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.api_secrets import azure_speech_key, azure_speech_region
+from pycore.pyfoundations.api_secrets import azure_speech_key, azure_speech_region
 from pycore.pyfoundations.third_party.api import get_third_package_speechsdk
 from pycore.pyfoundations.third_party.api import get_third_package_numpy
 
-from pycore.pyutils.common.stt_base_provider import BaseSpeechRecognitionProvider
-from pycore.pyutils.azure_speech.quota_state import (
+from pycore.pyfoundations.speech_recognition_provider import BaseSpeechRecognitionProvider
+from pycore.pyutils.common.azure_speech_quota_state import (
     mark_stt_quota_exceeded,
     clear_stt_quota_issue,
     is_stt_quota_blocked,

@@ -22,20 +22,27 @@ import argparse
 import json
 import sys
 
-from .runtime import http
+from pycore.pyutils.common.http_client import build_http_base_url
+from pycore.pyfoundations.pygvar import (
+    HTTP_BIND_HOST,
+    HTTP_LOOPBACK_HOST,
+    PYCORE_HTTP_PORT,
+)
 
-from .peer_config import get_peer_config
+from pycore.pyutils.codesync.runtime import http
+
+from pycore.pyutils.codesync.peer_config import get_peer_config
 import pycore.pyutils.codesync.daemon as daemon
 
 
-DEFAULT_PORT = 59000
+DEFAULT_PORT = PYCORE_HTTP_PORT
 
 
 # --------------------------------------------------------------------------- #
 # small HTTP helpers                                                           #
 # --------------------------------------------------------------------------- #
 def _base(port):
-    return f"http://127.0.0.1:{port}"
+    return build_http_base_url(HTTP_LOOPBACK_HOST, port)
 
 
 def _http_get(port, path, timeout=2.0):
@@ -226,7 +233,7 @@ def build_parser():
     sub = p.add_subparsers(dest="action", required=True)
 
     run = sub.add_parser("run", parents=[common], help="start the standalone code-sync daemon")
-    run.add_argument("--host", default="0.0.0.0", help="bind host (default 0.0.0.0)")
+    run.add_argument("--host", default=HTTP_BIND_HOST, help="bind host")
     # Deprecated no-op: codesync is resident and never hot-reloads. Kept ONLY so an
     # old systemd unit whose ExecStart baked `--reload` still parses and starts.
     run.add_argument("--reload", action="store_true", help=argparse.SUPPRESS)

@@ -19,7 +19,7 @@ if _pycore_dir.exists() and str(_pycore_dir) not in sys.path:
 
 try:
     from .colors import Colors
-    from pyfoundations.file_lock_manager import SplitFileStore as ThreadSafeJsonStore
+    from pyfoundations.split_file_store import SplitFileStore as ThreadSafeJsonStore
     from .subsystems import (
         CacheMixin,
         CompressionMixin,
@@ -33,7 +33,7 @@ try:
 except ImportError:
     # Fallback for direct script execution
     from colors import Colors
-    from pyfoundations.file_lock_manager import SplitFileStore as ThreadSafeJsonStore
+    from pyfoundations.split_file_store import SplitFileStore as ThreadSafeJsonStore
     from subsystems import (
         CacheMixin,
         CompressionMixin,

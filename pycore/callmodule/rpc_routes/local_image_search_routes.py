@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """RPC Routes for image_search."""
 
-import asyncio
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
@@ -9,43 +8,66 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_IMAGE_SEARCH_COMPARE,
     UI_IMAGE_SEARCH_DELETE_HISTORY,
     UI_IMAGE_SEARCH_HISTORY,
+    UI_IMAGE_SEARCH_RESOURCE,
+    UI_IMAGE_SEARCH_SEARCH,
     UI_IMAGE_SEARCH_SEARCH_AI,
     UI_IMAGE_SEARCH_STATUS,
 )
-import pycore.callmodule.services.image_search_service as img
+from pycore.pyctl.ai.image_search_service import image_search_service
 
 
 def register_local_image_search_routes(server):
-    async def status_handler(params, request_id, context):
-        return await asyncio.to_thread(img.status)
+    image_search = image_search_service
+    server.route(name=UI_IMAGE_SEARCH_STATUS, handler=image_search.status)
 
-    server.route(name=UI_IMAGE_SEARCH_STATUS, handler=status_handler, sync=False)
+    def search_handler(params, request_id, context):
+        request = params or {}
+        return image_search.search(
+            str(request.get("query") or ""),
+            num=int(request.get("num") or 12),
+            country=request.get("country"),
+            record=bool(request.get("record", True)),
+        )
 
-    async def search_ai_handler(params, request_id, context):
-        return await asyncio.to_thread(img.search_ai, params or {})
+    server.route(name=UI_IMAGE_SEARCH_SEARCH, handler=search_handler)
 
-    server.route(name=UI_IMAGE_SEARCH_SEARCH_AI, handler=search_ai_handler, sync=False)
+    def search_ai_handler(params, request_id, context):
+        params = params or {}
+        return image_search.search_ai(
+            str(params.get("query") or ""),
+            size=params.get("size"),
+            model=params.get("model"),
+        )
 
-    async def compare_handler(params, request_id, context):
-        return await asyncio.to_thread(img.compare, params or {})
+    server.route(name=UI_IMAGE_SEARCH_SEARCH_AI, handler=search_ai_handler)
 
-    server.route(name=UI_IMAGE_SEARCH_COMPARE, handler=compare_handler, sync=False)
+    def compare_handler(params, request_id, context):
+        params = params or {}
+        return image_search.compare(
+            str(params.get("query") or ""),
+            num=int(params.get("num") or 12),
+            country=params.get("country"),
+            size=params.get("size"),
+            model=params.get("model"),
+        )
 
-    async def history_handler(params, request_id, context):
-        return await asyncio.to_thread(img.history, int((params or {}).get("limit") or 50))
+    server.route(name=UI_IMAGE_SEARCH_COMPARE, handler=compare_handler)
 
-    server.route(name=UI_IMAGE_SEARCH_HISTORY, handler=history_handler, sync=False)
+    def history_handler(params, request_id, context):
+        return image_search.history(int((params or {}).get("limit") or 50))
 
-    async def delete_history_handler(params, request_id, context):
-        return await asyncio.to_thread(img.delete_history, str((params or {}).get("entry_id") or ""))
+    server.route(name=UI_IMAGE_SEARCH_HISTORY, handler=history_handler)
 
-    server.route(name=UI_IMAGE_SEARCH_DELETE_HISTORY, handler=delete_history_handler, sync=False)
+    def delete_history_handler(params, request_id, context):
+        return image_search.delete_history(str((params or {}).get("entry_id") or ""))
 
-    async def clear_history_handler(params, request_id, context):
-        return await asyncio.to_thread(img.clear_history)
+    server.route(name=UI_IMAGE_SEARCH_DELETE_HISTORY, handler=delete_history_handler)
 
-    server.route(name=UI_IMAGE_SEARCH_CLEAR_HISTORY, handler=clear_history_handler, sync=False)
+    server.route(name=UI_IMAGE_SEARCH_CLEAR_HISTORY, handler=image_search.clear_history)
+
+    def resource_handler(params, request_id, context):
+        return image_search.resource(str((params or {}).get("url") or ""))
+
+    server.route(name=UI_IMAGE_SEARCH_RESOURCE, handler=resource_handler)
     ColorPrint.green("[ConfigBuilder] Registered image_search RPC routes")
 
-
-__all__ = ["register_local_image_search_routes"]

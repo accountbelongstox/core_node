@@ -7,7 +7,6 @@ Builds LauncherConfig for different platforms.
 Does NOT start any threads or services.
 """
 
-import asyncio
 import ctypes
 import hashlib
 import json
@@ -25,30 +24,29 @@ except ImportError:
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.database.repositories.user_data_store import get_user_data_store
-from pycore.pyfoundations.serialized_worker import await_bus_task, submit_coroutine_via_bus
-from pycore.pyfoundations.third_party.api import get_third_package_fastapi
+from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.strtools.normalization import to_bool
 from pycore.pylauncher.launcher import LauncherConfig
 from pycore.pyutils.codesync.manager import get_code_sync_manager
 from pycore.pyutils.codesync.runtime import configure as configure_codesync
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
-from pycore.callmodule.tray_menu import build_tray_menu, tray_menu_to_dicts
-from pycore.callmodule.callmodule_config.config import Config as CallmoduleConfig
+from pycore.pylauncher.tray_menu import build_tray_menu, tray_menu_to_dicts
+from pycore.pyctl.runtime.callmodule_config import Config as CallmoduleConfig
+from pycore.pyfoundations.pygvar import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 
-# Modular per-area WS RPC route registration (speech-routes convention: one file
-# per area, register_<area>_routes(server)). The 11 desktop-UI WS RPC handlers
-# + THREAD_BUS broadcast listeners live there; _init_rpc_routes wires them up.
-from pycore.callmodule.rpc_routes.register_rpc_routes import register_rpc_routes
+# Modular per-area HTTP controller registration.
+from pycore.callmodule.rpc_routes.register_http_routes import register_http_routes
 
 # Structured pycore->Laravel request recorder: every LaravelClient call (and the
-# endpoint-manager health probe) notify it. Wired below into a 'laravel_http' WS
-# event so the dashboard PcHttpDebugger sees URL/params/status/duration live.
-from pycore.callmodule.services.sync.laravel_http_recorder import register_laravel_http_callback
+# endpoint-manager health probe) notify it. Wired below into a 'laravel_http'
+# event so the dashboard sees URL/params/status/duration live.
+from pycore.pyutils.laravel.http_recorder import laravel_http_recorder
 
 # Unified priority-bump hub (any queue lane): wired below into a 'queue_bump'
-# WS event so the dashboard PcQueueBumpToasts sees bumps pushed in real time
+# event so the dashboard PcQueueBumpToasts sees bumps pushed in real time
 # (the 4s poll stays as fallback).
-from pycore.callmodule.services.queue_bump_hub import register_queue_bump_callback
+from pycore.pyutils.common.queue_bump_hub import queue_bump_hub
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 
 # Unified AI gateway -> desktop pipeline composition (pyctl/* packages must not
 # import each other, so the APP layer wires the gateway into the desktop hooks).
@@ -70,7 +68,7 @@ def _get_screen_size():
     TODO(modular-split): move _get_screen_size + _resolve_window_size +
     UI_DESIRED_WINDOW_SIZE into callmodule_config/ (screen/window sizing is a
     config concern, not a launcher-config-builder concern). Deferred to keep this
-    split focused on the WS RPC route seams.
+    split focused on the HTTP controller route seams.
     """
     try:
         if IS_WINDOWS:
@@ -110,7 +108,7 @@ def _resolve_tray_icon_path():
 
     TODO(modular-split): move _resolve_tray_icon_path + build_tray_service_config
     into callmodule/tray_menu.py (they are tray concerns). Deferred to keep this
-    split focused on the WS RPC route seams; both stay re-exported from here.
+    split focused on the HTTP controller route seams; both stay re-exported from here.
     """
     pycore_root = Path(__file__).parent.parent
     icon_path = pycore_root / CallmoduleConfig.TRAY_ICON_PATH_REL
@@ -125,7 +123,7 @@ def apply_saved_language():
     i18n_base.json) stays in effect — no OS-locale guessing.
     """
     try:
-        lang = (get_user_data_store().get_section('system_settings') or {}).get('lang')
+        lang = (user_data_store.get_section('system_settings') or {}).get('lang')
         if lang and lang in i18n.get_supported_languages():
             i18n.set_language(lang)
             ColorPrint.blue(f"[ConfigBuilder] Applied saved UI language: {lang}")
@@ -153,76 +151,20 @@ def build_tray_service_config(port: int, singleton_port: int = None) -> dict:
     }
 
 
-def _register_code_sync_ws(app) -> None:
-    """Serve the Code Sync file-push RECEIVER (``/code-sync/ws``) on the rpc_v2
-    FastAPI app (:59000).
-
-    Channel map (see CODE_SYNC_MESH.md): the UI talks to pycore over ``/rpc/ws``
-    (:59000); pycore talks to laravel over :9000 (the "Laravel endpoint"
-    selection); and the dev→client code-sync file push dials INTO each client
-    peer here, at ``/code-sync/ws`` on the SAME :59000 server.
-
-    Previously this WS route existed ONLY in the standalone codesync daemon
-    (``pyutils/codesync/http_server.py``), which full pycore never starts — so a
-    peer running full pycore answered ``WsPush`` handshakes with ``404 Not
-    Found``. Registering it here closes that gap: the receiver runs on the live
-    server every peer already exposes on :59000.
-
-    Bridges Starlette's async WebSocket to the library's SYNC
-    ``PushReceiver.handle_text(text, send)``: each frame is applied on a worker
-    thread (file I/O) and its replies are scheduled back on the server loop.
-    """
-    fastapi_pkg = get_third_package_fastapi()
-    WebSocketDisconnect = fastapi_pkg.WebSocketDisconnect
-
-    @app.websocket("/code-sync/ws")
-    async def code_sync_ws(websocket):
-        await websocket.accept()
-        receiver = get_code_sync_manager().push_receiver
-        loop = asyncio.get_running_loop()
-
-        def send(text: str) -> None:
-            # Called from the worker thread inside handle_text(); hand the reply
-            # back to the server loop (cross-thread safe, fire-and-forget).
-            submit_coroutine_via_bus(
-                loop,
-                websocket.send_text(text),
-                thread_name="CodeSyncWebSocketReplyThread",
-            )
-
-        try:
-            while True:
-                text = await websocket.receive_text()
-                keep = await await_bus_task(receiver.handle_text, text, send)
-                if not keep:
-                    break
-        except WebSocketDisconnect:
-            pass
-        except Exception as exc:
-            ColorPrint.yellow(f"[CodeSync WS] receiver error: {exc}")
-        finally:
-            try:
-                await websocket.close()
-            except Exception:
-                pass
-
-
 def _init_rpc_routes(server):
     """
-    Register the RPC routes/listeners the desktop UI needs over WebSocket.
+    Register HTTP controllers and replayable event listeners for the desktop UI.
 
-    The 11 WS RPC handlers + THREAD_BUS broadcast listeners are registered by the
+    Controllers and THREAD_BUS broadcast listeners are registered by the
     per-area ``register_<area>_routes`` functions in ``pycore.callmodule.rpc_routes``
     (one file per area, speech-routes convention). This orchestrator wires them up
-    and then performs the APP-level Code Sync warm-up (which must stay here:
-    ``_register_code_sync_ws`` serves the ``/code-sync/ws`` receiver on the rpc_v2
-    app, and the manager boot starts the status mesh + file puller at startup).
+    and then performs the application-level Code Sync warm-up.
 
-    Called by start_rpc_v2 with the FastAPIRPCServer instance after start.
+    Called by start_rpc_v2 with the RpcServer instance before startup.
     """
     try:
-        # Register WS RPC routes by functional area (modular).
-        register_rpc_routes(server)
+        # Register HTTP controllers by functional area.
+        register_http_routes(server)
 
         # Boot the Code Sync manager now (the tray no longer instantiates it):
         # this starts the status mesh for every role and the file puller for
@@ -242,42 +184,39 @@ def _init_rpc_routes(server):
                 # Node-local light-mode toggle (mesh-only client). Passed BEFORE the
                 # first get_code_sync_manager() below so the manager reads it in
                 # __init__; honours the CODESYNC_LIGHT env truthy set.
-                light=os.environ.get('CODESYNC_LIGHT', '') in ('1', 'true', 'True', 'yes', 'on'),
+                light=to_bool(os.environ.get('CODESYNC_LIGHT', '')),
             )
             get_code_sync_manager()
-            # Serve the codesync file-push receiver (/code-sync/ws) on THIS
-            # rpc_v2 server (:59000) so peers running full pycore accept the
-            # dev's pushes - closes the "ws handshake failed: 404" gap where the
-            # route only existed in the never-started standalone daemon.
-            _register_code_sync_ws(server.app)
         except Exception as e:
             ColorPrint.yellow(f"[ConfigBuilder] Code Sync manager warm-up failed: {e}")
-        # Live backend output -> UI ('pycore_log') needs NO wiring here: ColorPrint
-        # streams every line to this server's WS clients directly (the server
-        # registered itself + enabled streaming in FastAPIRPCServer.__init__).
-        # Structured pycore->Laravel request records -> UI 'laravel_http' WS event
+        # Live backend output -> UI ('pycore_log') needs no extra wiring.
+        # Structured pycore->Laravel request records -> UI 'laravel_http' event
         # (PcHttpDebugger). Mirrors the ColorPrint->pycore_log pipe but carries
         # structured fields (method/path/params/status/ms) instead of free text.
         try:
-            def _laravel_http_ws_callback(record):
-                server.broadcast_event_sync("laravel_http", record)
-            register_laravel_http_callback(_laravel_http_ws_callback)
+            def _laravel_http_event_callback(record):
+                server.broadcast_event_sync(BusSignals.LARAVEL_HTTP, record)
+            laravel_http_recorder.register_callback(_laravel_http_event_callback)
         except Exception as e:
-            ColorPrint.yellow(f"[ConfigBuilder] laravel_http WS bridge not wired: {e}")
-        # Priority-bump records (any queue lane) -> UI 'queue_bump' WS event
+            ColorPrint.yellow(f"[ConfigBuilder] laravel_http event bridge not wired: {e}")
+        # Priority-bump records (any queue lane) -> UI 'queue_bump' event
         # (PcQueueBumpToasts). Same observer pattern as the laravel_http bridge.
         try:
-            def _queue_bump_ws_callback(record):
-                server.broadcast_event_sync("queue_bump", record)
-            register_queue_bump_callback(_queue_bump_ws_callback)
+            def _queue_bump_event_callback(record):
+                server.broadcast_event_sync(BusSignals.QUEUE_BUMP, record)
+            queue_bump_hub.register_callback(_queue_bump_event_callback)
         except Exception as e:
-            ColorPrint.yellow(f"[ConfigBuilder] queue_bump WS bridge not wired: {e}")
-        ColorPrint.green("[ConfigBuilder] Registered RPC WS bridge (thread_bus.trigger_event + broadcasts)")
+            ColorPrint.yellow(f"[ConfigBuilder] queue_bump event bridge not wired: {e}")
+        ColorPrint.green("[ConfigBuilder] Registered HTTP controllers and event bridges")
     except Exception as e:
-        ColorPrint.yellow(f"[ConfigBuilder] Failed to register RPC WS bridge: {e}")
+        ColorPrint.yellow(f"[ConfigBuilder] Failed to register HTTP controllers: {e}")
 
 
-def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
+def build_launcher_config(
+    host: str = HTTP_BIND_HOST,
+    port: int = PYCORE_HTTP_PORT,
+    debug: bool = False,
+):
     """
     Build LauncherConfig for Pycore Module Caller
 
@@ -290,11 +229,15 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
         LauncherConfig instance
     """
     ColorPrint.blue("[ConfigBuilder] Building launcher configuration...")
+    http_events_enabled = os.environ.get(
+        "PYCORE_HTTP_EVENTS_ENABLED",
+        "1",
+    ) in ("1", "true", "True")
 
     # Warm the unified user-data store so user data (system settings, video-extract
     # history) is read from disk at startup and ready before the UI connects.
     try:
-        get_user_data_store()
+        user_data_store.as_dict()
     except Exception as e:
         ColorPrint.yellow(f"[ConfigBuilder] User data store warm-up failed: {e}")
 
@@ -320,17 +263,6 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
         })
         ColorPrint.blue(f"[ConfigBuilder] Added static mount: /desktop -> {DESKTOP_UI_DIR}")
 
-    # RPC v2 JavaScript client (defines FastAPIWsRpcClient used by the desktop UI
-    # via <script src="/js/rpc/ws_rpc_client.js">)
-    RPC_CLIENT_DIR = PYCORE_ROOT / "pyutils" / "rpc_v2" / "client"
-    if RPC_CLIENT_DIR.exists():
-        static_mounts.append({
-            'url_prefix': '/js/rpc',
-            'directory': str(RPC_CLIENT_DIR),
-            'name': 'rpc_client_js'
-        })
-        ColorPrint.blue(f"[ConfigBuilder] Added static mount: /js/rpc -> {RPC_CLIENT_DIR}")
-
     # Base services (common to all platforms)
     services = {
         'heartbeat': {},
@@ -340,7 +272,8 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
             'debug': debug,
             'fastapi_routers': [],
             'static_mounts': static_mounts,  # Mount static files
-            'init_callback': _init_rpc_routes,  # Register WS RPC bridge (thread_bus.trigger_event)
+            'init_callback': _init_rpc_routes,
+            'enable_http_events': http_events_enabled,
         },
     }
 

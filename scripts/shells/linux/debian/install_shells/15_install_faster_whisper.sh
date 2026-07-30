@@ -49,6 +49,9 @@ package_metadata=""
 USE_CTRANSLATE_CUDA=0
 FASTER_WHISPER_METADATA=""
 FASTER_WHISPER_READY=0
+FASTER_WHISPER_MODEL_READY=0
+LOCAL_MODEL_PATH=""
+LOCAL_MODEL_BYTES=0
 
 # Resolve the common dir the same way sibling install scripts do.
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -68,6 +71,45 @@ CUDA_INDEX_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/cuda_index.sh"
 . "$CUDA_INDEX_LIB"
 . "$PARENT_DIR_LEVEL_2/common/base_libs/lib_gpu.sh"
 CTRANSLATE_CUDA_MAJOR="${AI_CTRANSLATE2_CUDA_MAJOR:-12}"
+
+find_faster_whisper_local_model() {
+    local model_name="$1"
+    local cache_root="" candidate="" weight_file="" config_file="" bytes=0
+    local -a cache_roots=()
+    LOCAL_MODEL_PATH=""
+    LOCAL_MODEL_BYTES=0
+    [[ -n "${HUGGINGFACE_HUB_CACHE:-}" ]] && cache_roots+=("$HUGGINGFACE_HUB_CACHE")
+    [[ -n "${HF_HOME:-}" ]] && cache_roots+=("${HF_HOME%/}/hub")
+    cache_roots+=("${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/huggingface/hub")
+    if [[ -d "$model_name" ]]; then
+        config_file="$(find "$model_name" -type f -name 'config.json' -size +0c -print -quit 2>/dev/null)"
+        weight_file="$(find "$model_name" -type f \( -name 'model.bin' -o -name 'model.safetensors' \) -size +0c -print -quit 2>/dev/null)"
+        if [[ -n "$config_file" && -n "$weight_file" ]]; then
+            bytes="$(find "$model_name" -type f \( -name 'model.bin' -o -name 'model.safetensors' \) -printf '%s\n' 2>/dev/null | awk '{sum += $1} END {print sum + 0}')"
+            if [[ "$bytes" -gt 0 ]]; then
+                LOCAL_MODEL_PATH="$model_name"
+                LOCAL_MODEL_BYTES="$bytes"
+                return
+            fi
+        fi
+    fi
+    for cache_root in "${cache_roots[@]}"; do
+        [[ -d "$cache_root" ]] || continue
+        while IFS= read -r candidate; do
+            config_file="$(find "$candidate" -type f -name 'config.json' -size +0c -print -quit 2>/dev/null)"
+            weight_file="$(find "$candidate" -type f \( -name 'model.bin' -o -name 'model.safetensors' \) -size +0c -print -quit 2>/dev/null)"
+            if [[ -n "$config_file" && -n "$weight_file" ]]; then
+                bytes="$(find "$candidate" -type f \( -name 'model.bin' -o -name 'model.safetensors' \) -printf '%s\n' 2>/dev/null | awk '{sum += $1} END {print sum + 0}')"
+                if [[ "$bytes" -gt 0 ]]; then
+                    LOCAL_MODEL_PATH="$candidate"
+                    LOCAL_MODEL_BYTES="$bytes"
+                    return
+                fi
+            fi
+        done < <(find "$cache_root" -maxdepth 1 -type d -name "models--*--faster-whisper-${model_name}" -print 2>/dev/null)
+    done
+    :
+}
 CTRANSLATE_GPU_PACKAGE_CSV="${AI_CTRANSLATE2_GPU_PACKAGES:-}"
 IFS=',' read -ra CTRANSLATE_GPU_PACKAGES <<< "$CTRANSLATE_GPU_PACKAGE_CSV"
 
@@ -213,9 +255,19 @@ if [[ "$FASTER_WHISPER_READY" -eq 1 && ( -z "$MODEL" || "$MODEL" == "auto" ) ]];
     echo "[..] auto model tier ($(echo "$_gpu_flag" | tr -d '-')): '$MODEL'"
 fi
 if [[ "$FASTER_WHISPER_READY" -eq 1 && -n "$MODEL" && "$MODEL" != "auto" ]]; then
-    echo "[..] Pre-downloading faster-whisper model '$MODEL' ..."
-    echo "[run] $PYTHON -c \"from faster_whisper import download_model; download_model('$MODEL'); print('cached')\""
-    if "$PYTHON" -c "from faster_whisper import download_model; download_model('$MODEL'); print('cached')"; then
+    find_faster_whisper_local_model "$MODEL"
+    if [[ -n "$LOCAL_MODEL_PATH" ]]; then
+        echo "[idempotent] local faster-whisper model found: $LOCAL_MODEL_PATH (${LOCAL_MODEL_BYTES} bytes); remote lookup skipped"
+        FASTER_WHISPER_MODEL_READY=1
+    else
+        echo "[..] Pre-downloading faster-whisper model '$MODEL' ..."
+        echo "[run] $PYTHON -c \"from faster_whisper import download_model; download_model('$MODEL'); print('cached')\""
+        FASTER_WHISPER_MODEL_READY=0
+        if "$PYTHON" -c "from faster_whisper import download_model; download_model('$MODEL'); print('cached')"; then
+            FASTER_WHISPER_MODEL_READY=1
+        fi
+    fi
+    if [[ "$FASTER_WHISPER_MODEL_READY" -eq 1 ]]; then
         echo "[OK] model '$MODEL' ready."
         repo_root="$(pycore_repo_root_from_install_shells "$SCRIPT_CURRENT_DIR")"
         PYTHONPATH="$repo_root" "$PYTHON" -c "from pycore.pyutils.common.model_tiers import persist_stt_models; persist_stt_models(faster_whisper='$MODEL')" 2>/dev/null || true

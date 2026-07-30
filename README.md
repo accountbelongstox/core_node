@@ -2,7 +2,7 @@
 # AI Reading
 Backend: `poly_apps/laravel_main`
 Pycore: `./pyservice.sh` or `.ps1`, `./pycore`
-UI: `poly_apps/pycore_laravel_wordflow_ui` (includes Pycore manager: http://localhost:13054/pycore-manager, Laravel manager: `/laravel-manager`, vocabulary app: `/wordnew`)
+UI: `poly_apps/pycore_laravel_wordnew_ui` (includes Pycore manager: http://localhost:13054/pycore-manager, Laravel manager: `/laravel-manager`, vocabulary app: `/wordnew`)
 Ncore: `./main.js` and `./apps/`
 Chrome extension: `./apps/mcp-chrome`
 所有AI必须按项目规范修改代码，请先读AI规范和项目规范。

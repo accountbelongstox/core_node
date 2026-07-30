@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-import torch
-from qwen_tts import Qwen3TTSModel
 """
 Qwen3-TTS HTTP API for pycore (subprocess in the DEDICATED isolated venv).
 
-Runs inside the dedicated isolated venv (see pycore/pyutils/tts/qwen3tts_venv.py),
-launched by tts_service_manager.py (production) or qwen3tts_service.py (tester) -
+Runs inside the dedicated isolated venv managed by
+pycore.pyutils.common.python_env.isolated_venv, launched by tts_service_manager.py
+(production) or qwen.standalone_service (tester) -
 NEVER the main pycore interpreter, because qwen-tts owns transformer dependencies that
 conflicts with the main interpreter's ~4.46.x pin. No pycore imports here - standalone
 script. Lifecycle spec: development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5.
@@ -13,7 +12,7 @@ script. Lifecycle spec: development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_A
 Official: https://github.com/QwenLM/Qwen3-TTS  pip install -U qwen-tts
 
 Env:
-  QWEN3TTS_HOST / QWEN3TTS_PORT  - bind (default 127.0.0.1:57210)
+  QWEN3TTS_HOST / QWEN3TTS_PORT  - bind (default 0.0.0.0:57210)
   QWEN3TTS_MODEL                 - HF id or local path. Managed Pycore startup
                                    always supplies the verified persistent
                                    staging/weights path when available; the HF
@@ -22,36 +21,108 @@ Env:
   QWEN3TTS_SPEAKER               - preset speaker override
   QWEN3TTS_INSTRUCT              - optional style/emotion instruction
   QWEN3TTS_MAX_PARALLEL          - override auto GPU-tuned batch size
+  QWEN3TTS_QUEUE_MAX             - active queued/running jobs (default 200)
+  QWEN3TTS_QUEUE_RESULT_TTL_S    - completed result retention (default 900)
+  QWEN3TTS_QUEUE_RESULT_MAX      - maximum retained terminal jobs (default 200)
+  QWEN3TTS_TASK_TIMEOUT_S        - queued batch timeout (default 900)
 
 Endpoints:
   GET  /health              -> { ok, device, model_loaded, load_error }
-  GET  /                     -> same as /health
+  GET  /                     -> dependency-free local Web console
+  GET  /status               -> runtime, GPU, synthesis, and queue summary
   POST /synthesize           -> { text, language, speaker, instruct? } -> mp3 bytes
   POST /synthesize_batch     -> { text, language, variants:[{key,accent,gender}] }
                                  -> { results: [{key, ok, audio_base64, error}] }
+  POST /queue/submit         -> enqueue an idempotent priority job
+  GET  /queue/status         -> authoritative queue snapshot
+  GET  /queue/events         -> bounded event replay and long polling
+  POST /queue/events/ack     -> acknowledge the processed event sequence
+  POST /queue/cancel         -> cancel a pending/running job
+  GET  /queue/result/{id}    -> retained audio bytes
+
+Direct synthesize operations remain the interactive small-task fast path. The
+queue is process-local and intentionally not persisted; callers recover from a
+restart by timing out and resubmitting the same client_job_id.
 """
 
-import base64
+from __future__ import annotations
+
+import asyncio
+import importlib.util
 import io
 import json
 import os
-import shutil
-import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import fastapi
+import fastapi.encoders
+import fastapi.responses
+import pydantic
+import qwen_tts
+import torch
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel
 
-app = FastAPI()
+from qwen3tts_gpu import detect_model_variant, estimate_max_parallel, query_gpu_snapshot
+from qwen3tts_queue import QueueFullError, QwenQueue
+from qwen3tts_synthesis import QwenSynthesis
+from qwen3tts_web import (
+    QWEN3TTS_WEB_CSS_PATH,
+    QWEN3TTS_WEB_HTML_PATH,
+    QWEN3TTS_WEB_JS_PATH,
+)
+
+BaseModel = pydantic.BaseModel
+FastAPI = fastapi.FastAPI
+FileResponse = fastapi.responses.FileResponse
+JSONResponse = fastapi.responses.JSONResponse
+Qwen3TTSModel = qwen_tts.Qwen3TTSModel
+Response = fastapi.responses.Response
+StreamingResponse = fastapi.responses.StreamingResponse
+_DEFAULT_HOST = "0.0.0.0"
+_RPC_V2_HTTP_EVENT_MODULE_NAME = "_qwen3tts_rpc_v2_http_event_service"
+_RPC_V2_HTTP_EVENT_SERVICE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "pyutils"
+    / "rpc_v2"
+    / "http"
+    / "event_service.py"
+)
+
+
+def _load_rpc_v2_http_event_module():
+    """Load the standalone-compatible RPC v2 leaf without importing pycore."""
+    spec = importlib.util.spec_from_file_location(
+        _RPC_V2_HTTP_EVENT_MODULE_NAME,
+        _RPC_V2_HTTP_EVENT_SERVICE_PATH,
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(
+            f"Cannot load RPC v2 HTTP event service: {_RPC_V2_HTTP_EVENT_SERVICE_PATH}"
+        )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[_RPC_V2_HTTP_EVENT_MODULE_NAME] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+rpc_v2_http_event = _load_rpc_v2_http_event_module()
+http_service = rpc_v2_http_event.HttpEventService(
+    fastapi_module=fastapi,
+    title="Qwen3-TTS HTTP Service",
+    version="1.0.0",
+    event_path="/queue/events",
+)
+app: FastAPI = http_service.app
 _model = None
 _model_lock = threading.Lock()
 _device: Optional[str] = None
 _load_error: Optional[str] = None
+_QUEUE: Optional[QwenQueue] = None
+_SYNTHESIS: Optional[QwenSynthesis] = None
 
 
 def _log(msg: str) -> None:
@@ -86,12 +157,6 @@ _SPEAKER_PRESETS = {
     "ko": {"female": ["Sohee"], "male": ["Sohee"]},
 }
 _CAPABILITY_CACHE: Optional[Dict[str, Any]] = None
-_BATCH_VRAM_MB: Dict[str, Dict[int, int]] = {
-    "0.6B": {1: 4096, 4: 6144, 8: 9216, 16: 14336, 32: 24576},
-    "1.7B": {1: 8192, 4: 12288, 8: 18432, 16: 28672, 32: 49152},
-}
-_MAX_PARALLEL_CAP = 64
-_DEFAULT_RESERVE_RATIO = 0.12
 
 
 def _resolve_device() -> str:
@@ -196,10 +261,9 @@ def _get_capabilities() -> Dict[str, Any]:
     global _CAPABILITY_CACHE
     if _CAPABILITY_CACHE is not None:
         return _CAPABILITY_CACHE
-    try:
-        return _refresh_capabilities(_get_model())
-    except Exception:
-        return _default_capability_snapshot()
+    if _model_ready(_model):
+        return _refresh_capabilities(_model)
+    return _default_capability_snapshot()
 
 
 def _resolve_speaker(
@@ -303,141 +367,6 @@ def _speaker_for_variant(lang: str, variant: Dict[str, Any], index: int) -> Dict
     return resolved
 
 
-def _nvidia_smi_cmd() -> str:
-    """Resolve nvidia-smi by full path (not PATH-only) so this venv subprocess still
-    finds it under a sanitized PATH. Mirrors CUDADetector._nvidia_smi_cmd (standalone -
-    no pycore import here). Returns '' when unavailable."""
-    found = shutil.which("nvidia-smi")
-    if found:
-        return found
-    candidates = []
-    if os.name == "nt":
-        sysroot = os.environ.get("SystemRoot") or r"C:\Windows"
-        candidates.append(os.path.join(sysroot, "System32", "nvidia-smi.exe"))
-        for pf_var in ("ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"):
-            pf = os.environ.get(pf_var)
-            if pf:
-                candidates.append(os.path.join(pf, "NVIDIA Corporation", "NVSMI", "nvidia-smi.exe"))
-    else:
-        candidates.extend(["/usr/bin/nvidia-smi", "/usr/local/bin/nvidia-smi", "/bin/nvidia-smi"])
-    for cand in candidates:
-        if cand and os.path.isfile(cand):
-            return cand
-    return ""
-
-
-def _query_gpu_snapshot(device_index: int = 0) -> Dict[str, Any]:
-    exe = _nvidia_smi_cmd()
-    base = {"available": False, "util_percent": None, "mem_used_mb": 0, "mem_total_mb": 0}
-    if not exe:
-        return base
-    try:
-        out = subprocess.run(
-            [exe, "--query-gpu=index,name,utilization.gpu,memory.used,memory.total",
-             "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
-        )
-    except Exception:  # noqa: BLE001
-        return base
-    if out.returncode != 0:
-        return base
-    rows: List[Dict[str, Any]] = []
-    for line in (out.stdout or "").splitlines():
-        parts = [p.strip() for p in line.strip().split(",") if p.strip()]
-        if len(parts) < 5:
-            continue
-
-        def _num(tok, cast):
-            try:
-                return cast(tok)
-            except (ValueError, TypeError):
-                return None
-        rows.append({
-            "index": _num(parts[0], int) or 0,
-            "util_percent": _num(parts[2], float),
-            "mem_used_mb": _num(parts[3], int) or 0,
-            "mem_total_mb": _num(parts[4], int) or 0,
-        })
-    if not rows:
-        return base
-    picked = rows[device_index] if device_index < len(rows) else rows[0]
-    picked["available"] = True
-    return picked
-
-
-def _load_factor(gpu_util_percent: Optional[float]) -> float:
-    if gpu_util_percent is None:
-        return 1.0
-    util = float(gpu_util_percent)
-    if util >= 85.0:
-        return 0.25
-    if util >= 65.0:
-        return 0.5
-    if util >= 45.0:
-        return 0.75
-    return 1.0
-
-
-def _detect_model_variant(model_id: str) -> str:
-    return "0.6B" if "0.6b" in (model_id or "").lower() else "1.7B"
-
-
-def _estimate_max_parallel(model_variant: str, gpu_total_mb: int, gpu_used_mb: int,
-                            gpu_util_percent: Optional[float] = None) -> int:
-    curve = _BATCH_VRAM_MB.get(model_variant) or _BATCH_VRAM_MB["1.7B"]
-    total_mb = max(int(gpu_total_mb or 0), 0)
-    used_mb = max(int(gpu_used_mb or 0), 0)
-    budget = int(total_mb * (1.0 - _DEFAULT_RESERVE_RATIO)) if total_mb > 0 else 0
-    max_by_vram = 1
-    for batch_size, need_mb in sorted(curve.items()):
-        if need_mb <= budget:
-            max_by_vram = batch_size
-    free_mb = max(0, total_mb - used_mb)
-    max_by_free = 1
-    base_mb = curve[1]
-    if free_mb > 0 and 8 in curve:
-        per_item = max(256, int((curve[8] - base_mb) / 7))
-        extra = max(0, int((free_mb - max(0, base_mb - used_mb)) / per_item))
-        max_by_free = max(1, 1 + extra)
-    raw = max(1, min(max_by_vram, max_by_free, _MAX_PARALLEL_CAP))
-    adjusted = max(1, min(_MAX_PARALLEL_CAP, int(raw * _load_factor(gpu_util_percent))))
-    env_cap = (os.environ.get("QWEN3TTS_MAX_PARALLEL") or "").strip()
-    if env_cap.isdigit():
-        adjusted = max(1, min(int(env_cap), _MAX_PARALLEL_CAP))
-    return adjusted
-
-
-def _mp3_bytes(wav_samples, sample_rate: int) -> bytes:
-    import numpy as np
-    from pydub import AudioSegment
-    arr = np.asarray(wav_samples, dtype=np.float32)
-    arr = np.clip(arr, -1.0, 1.0)
-    pcm16 = (arr * 32767.0).astype(np.int16)
-    seg = AudioSegment(pcm16.tobytes(), frame_rate=int(sample_rate), sample_width=2, channels=1)
-    buf = io.BytesIO()
-    seg.export(buf, format="mp3")
-    buf.seek(0)
-    return buf.read()
-
-
-def _wav_bytes(wav_samples, sample_rate: int) -> bytes:
-    """PCM16 WAV via soundfile - no ffmpeg dependency (unlike the mp3 path)."""
-    import numpy as np
-    import soundfile as sf
-    arr = np.asarray(wav_samples, dtype=np.float32)
-    arr = np.clip(arr, -1.0, 1.0)
-    buf = io.BytesIO()
-    sf.write(buf, arr, int(sample_rate), format="WAV", subtype="PCM_16")
-    buf.seek(0)
-    return buf.read()
-
-
-def _encode_audio(wav_samples, sample_rate: int, fmt: str) -> "tuple[bytes, str]":
-    if (fmt or "mp3").strip().lower() == "wav":
-        return _wav_bytes(wav_samples, sample_rate), "audio/wav"
-    return _mp3_bytes(wav_samples, sample_rate), "audio/mpeg"
-
-
 class SynthRequest(BaseModel):
     text: str
     language: str = "en"
@@ -457,6 +386,68 @@ class BatchSynthRequest(BaseModel):
     language: str = "en"
     variants: List[VariantSpec]
     format: str = "mp3"
+
+
+class QueueSubmitRequest(SynthRequest):
+    priority: int = 0
+    client_job_id: Optional[str] = None
+    job_id: Optional[str] = None
+
+
+class QueueCancelRequest(BaseModel):
+    job_id: str
+
+
+def _gpu_index() -> int:
+    device = _device or _resolve_device()
+    if ":" not in device:
+        return 0
+    suffix = device.rsplit(":", 1)[-1]
+    return int(suffix) if suffix.isdigit() else 0
+
+
+def _max_parallel_snapshot() -> int:
+    snapshot = query_gpu_snapshot(_gpu_index())
+    return estimate_max_parallel(
+        detect_model_variant(_model_id()),
+        snapshot.get("mem_total_mb") or 0,
+        snapshot.get("mem_used_mb") or 0,
+        snapshot.get("util_percent"),
+    )
+
+
+def _get_synthesis() -> QwenSynthesis:
+    global _SYNTHESIS
+    if _SYNTHESIS is None:
+        _SYNTHESIS = QwenSynthesis(
+            get_model=_get_model,
+            model_lock=_model_lock,
+            resolve_speaker=_resolve_speaker,
+            speaker_for_variant=_speaker_for_variant,
+            qwen_language=_qwen_language,
+            query_gpu_snapshot=query_gpu_snapshot,
+            estimate_max_parallel=estimate_max_parallel,
+            detect_model_variant=detect_model_variant,
+            model_id=_model_id,
+            device=lambda: _device or _resolve_device(),
+            logger=_log,
+        )
+    return _SYNTHESIS
+
+
+def _get_queue() -> QwenQueue:
+    global _QUEUE
+    if _QUEUE is None:
+        def publish_event(topic: str, payload: Dict[str, Any]) -> None:
+            asyncio.create_task(http_service.publish_event(topic, payload))
+
+        _QUEUE = QwenQueue(
+            _get_synthesis().generate_queue_batch,
+            _max_parallel_snapshot,
+            _log,
+            event_publisher=publish_event,
+        )
+    return _QUEUE
 
 
 @app.get("/health")
@@ -485,9 +476,54 @@ def capabilities():
     }
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 def root():
-    return health()
+    return FileResponse(QWEN3TTS_WEB_HTML_PATH, media_type="text/html")
+
+
+@app.get("/qwen3tts_web/style.css", include_in_schema=False)
+def web_css():
+    return FileResponse(QWEN3TTS_WEB_CSS_PATH, media_type="text/css")
+
+
+@app.get("/qwen3tts_web/app.js", include_in_schema=False)
+def web_javascript():
+    return FileResponse(QWEN3TTS_WEB_JS_PATH, media_type="text/javascript")
+
+
+@app.get("/status")
+async def status():
+    gpu = await asyncio.to_thread(query_gpu_snapshot, _gpu_index())
+    queue = _get_queue().status()
+    direct = _get_synthesis().stats()
+    queue_count = int(queue.get("synthesized_count") or 0)
+    direct_count = int(direct.get("synthesized_count") or 0)
+    total_count = queue_count + direct_count
+    total_elapsed = (
+        int(queue.get("average_elapsed_ms") or 0) * queue_count
+        + int(direct.get("average_elapsed_ms") or 0) * direct_count
+    )
+    dtype = "float32" if (_device or _resolve_device()) == "cpu" else "bfloat16"
+    max_parallel = estimate_max_parallel(
+        detect_model_variant(_model_id()),
+        gpu.get("mem_total_mb") or 0,
+        gpu.get("mem_used_mb") or 0,
+        gpu.get("util_percent"),
+    )
+    return {
+        "ok": True,
+        "model_loaded": _model_ready(_model),
+        "model_id": _model_id(),
+        "device": _device or _resolve_device(),
+        "dtype": dtype,
+        "load_error": _load_error,
+        "gpu": gpu,
+        "max_parallel": max_parallel,
+        "synthesized_count": total_count,
+        "failed_count": int(queue.get("failed_count") or 0) + int(direct.get("failed_count") or 0),
+        "average_elapsed_ms": round(total_elapsed / total_count) if total_count else 0,
+        "queue": queue.get("counts"),
+    }
 
 
 @app.get("/load")
@@ -520,30 +556,14 @@ def synthesize(req: SynthRequest):
     _log(f"[api] /synthesize lang={req.language} speaker={req.speaker or 'auto'} "
          f"fmt={fmt} chars={len(text)}")
     try:
-        model = _get_model()
-        qwen_lang = _qwen_language(req.language)
-        resolved = _resolve_speaker(req.language, requested=(req.speaker or "").strip())
-        if not resolved.get("ok"):
-            return JSONResponse(
-                {
-                    "error": resolved,
-                    "code": resolved.get("code"),
-                    "supported_speakers": resolved.get("supported_speakers") or [],
-                },
-                status_code=422,
-            )
-        speaker = str(resolved["resolved_speaker"])
-        gen_kwargs: Dict[str, Any] = {"text": text, "language": qwen_lang, "speaker": speaker}
-        instruct = (req.instruct or os.environ.get("QWEN3TTS_INSTRUCT") or "").strip()
-        if instruct:
-            gen_kwargs["instruct"] = instruct
-        t0 = time.time()
-        with _model_lock:
-            wavs, sr = model.generate_custom_voice(**gen_kwargs)
-        audio, media = _encode_audio(wavs[0], sr, fmt)
-        _log(f"[api] synthesized {len(audio)} bytes ({fmt}) @ {int(sr)}Hz "
-             f"in {time.time() - t0:.2f}s")
-        return StreamingResponse(io.BytesIO(audio), media_type=media)
+        result = _get_synthesis().generate_one(req.dict())
+        _log(
+            f"[api] synthesized {len(result['audio'])} bytes ({fmt}) "
+            f"@ {result['sample_rate']}Hz in {result['elapsed_ms'] / 1000:.2f}s"
+        )
+        return StreamingResponse(
+            io.BytesIO(result["audio"]), media_type=result["media_type"]
+        )
     except Exception as exc:  # noqa: BLE001
         _log(f"[api] /synthesize FAILED: {exc}")
         return JSONResponse({"error": str(exc)}, status_code=500)
@@ -559,261 +579,117 @@ def synthesize_batch(req: BatchSynthRequest):
     _log(f"[api] /synthesize_batch lang={req.language} variants={len(variants)} "
          f"fmt={fmt} chars={len(text)}")
     try:
-        model = _get_model()
-        qwen_lang = _qwen_language(req.language)
-        resolved_rows: List[Dict[str, Any]] = []
-        speakers: List[str] = []
-        for i, variant in enumerate(variants):
-            resolved = _speaker_for_variant(req.language, variant.dict(), i)
-            if not resolved.get("ok"):
-                resolved_rows.append({
-                    "key": variant.key,
-                    "ok": False,
-                    "requested_speaker": variant.dict().get("speaker_id") or variant.dict().get("speaker"),
-                    "resolved_speaker": None,
-                    "fallback_applied": False,
-                    "audio_base64": None,
-                    "error": resolved,
-                })
-                speakers.append("")
-                continue
-            speakers.append(str(resolved["resolved_speaker"]))
-            resolved_rows.append(resolved)
-        if all(not speaker for speaker in speakers):
-            return JSONResponse(
-                {"error": "no valid speakers in batch", "results": resolved_rows},
-                status_code=422,
-            )
-        gpu_idx = 0
-        dev = _device or _resolve_device()
-        if ":" in dev:
-            suffix = dev.rsplit(":", 1)[-1]
-            if suffix.isdigit():
-                gpu_idx = int(suffix)
-        snap = _query_gpu_snapshot(gpu_idx)
-        n = len(variants)
-        max_parallel = _estimate_max_parallel(
-            _detect_model_variant(_model_id()),
-            snap.get("mem_total_mb") or 0, snap.get("mem_used_mb") or 0,
-            snap.get("util_percent"),
-        )
-        max_parallel = max(1, min(max_parallel, n))
-        results: List[Dict[str, Any]] = [None] * n  # type: ignore[list-item]
-        for idx, row in enumerate(resolved_rows):
-            if not row.get("ok"):
-                results[idx] = {
-                    "key": variants[idx].key,
-                    "ok": False,
-                    "requested_speaker": row.get("requested_speaker"),
-                    "resolved_speaker": None,
-                    "fallback_applied": False,
-                    "audio_base64": None,
-                    "error": row.get("error") or row,
-                }
-        with _model_lock:
-            for start in range(0, n, max_parallel):
-                chunk_speakers = [speaker for speaker in speakers[start:start + max_parallel] if speaker]
-                if not chunk_speakers:
-                    continue
-                chunk_indices = [start + offset for offset, speaker in enumerate(speakers[start:start + max_parallel]) if speaker]
-                chunk_n = len(chunk_speakers)
-                try:
-                    wavs, sr = model.generate_custom_voice(
-                        text=[text] * chunk_n, language=[qwen_lang] * chunk_n,
-                        speaker=chunk_speakers, non_streaming_mode=True,
-                    )
-                    for offset, wav in enumerate(wavs):
-                        idx = chunk_indices[offset]
-                        try:
-                            audio_bytes, _ = _encode_audio(wav, sr, fmt)
-                            audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
-                            row = resolved_rows[idx]
-                            results[idx] = {
-                                "key": variants[idx].key, "ok": True,
-                                "requested_speaker": row.get("requested_speaker"),
-                                "resolved_speaker": row.get("resolved_speaker"),
-                                "fallback_applied": bool(row.get("fallback_applied")),
-                                "audio_base64": audio_b64, "error": None,
-                            }
-                        except Exception as e:
-                            results[idx] = {
-                                "key": variants[idx].key, "ok": False,
-                                "requested_speaker": resolved_rows[idx].get("requested_speaker"),
-                                "resolved_speaker": resolved_rows[idx].get("resolved_speaker"),
-                                "fallback_applied": bool(resolved_rows[idx].get("fallback_applied")),
-                                "audio_base64": None, "error": f"encode failed: {e}",
-                            }
-                except Exception as chunk_exc:
-                    _log(f"[api] chunk failed, falling back to item-by-item: {chunk_exc}")
-                    # Fallback to item-by-item for this chunk
-                    for offset in range(chunk_n):
-                        idx = chunk_indices[offset]
-                        try:
-                            wavs, sr = model.generate_custom_voice(
-                                text=[text], language=[qwen_lang],
-                                speaker=[chunk_speakers[offset]], non_streaming_mode=True,
-                            )
-                            audio_bytes, _ = _encode_audio(wavs[0], sr, fmt)
-                            audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
-                            row = resolved_rows[idx]
-                            results[idx] = {
-                                "key": variants[idx].key, "ok": True,
-                                "requested_speaker": row.get("requested_speaker"),
-                                "resolved_speaker": row.get("resolved_speaker"),
-                                "fallback_applied": bool(row.get("fallback_applied")),
-                                "audio_base64": audio_b64, "error": None,
-                            }
-                        except Exception as item_exc:
-                            results[idx] = {
-                                "key": variants[idx].key, "ok": False,
-                                "requested_speaker": resolved_rows[idx].get("requested_speaker"),
-                                "resolved_speaker": resolved_rows[idx].get("resolved_speaker"),
-                                "fallback_applied": bool(resolved_rows[idx].get("fallback_applied")),
-                                "audio_base64": None, "error": str(item_exc),
-                            }
-        return {"results": results}
+        return _get_synthesis().generate_variants({
+            "text": text,
+            "language": req.language,
+            "variants": [variant.dict() for variant in variants],
+            "format": fmt,
+        })
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
-async def _ws_handle_message(data: Dict[str, Any]) -> Dict[str, Any]:
-    op = str(data.get("op") or "")
-    req_id = str(data.get("id") or "")
-    params = data.get("params") if isinstance(data.get("params"), dict) else {}
-
-    if op == "health":
-        ready = _model_ready(_model)
-        return {
-            "id": req_id,
-            "ok": True,
-            "data": {
-                "ok": True,
-                "device": _device or _resolve_device(),
-                "model_loaded": ready,
-                "load_error": None if ready else _load_error,
-            },
-        }
-
-    if op == "synthesize":
-        req = SynthRequest(**params)
-        text = (req.text or "").strip()
-        if not text:
-            return {"id": req_id, "ok": False, "error": "empty text"}
-        fmt = (req.format or "mp3").strip().lower()
-        try:
-            model = _get_model()
-            qwen_lang = _qwen_language(req.language)
-            resolved = _resolve_speaker(req.language, requested=(req.speaker or "").strip())
-            if not resolved.get("ok"):
-                return {"id": req_id, "ok": False, "error": resolved}
-            speaker = str(resolved["resolved_speaker"])
-            gen_kwargs: Dict[str, Any] = {"text": text, "language": qwen_lang, "speaker": speaker}
-            instruct = (req.instruct or os.environ.get("QWEN3TTS_INSTRUCT") or "").strip()
-            if instruct:
-                gen_kwargs["instruct"] = instruct
-            with _model_lock:
-                wavs, sr = model.generate_custom_voice(**gen_kwargs)
-            audio, _media = _encode_audio(wavs[0], sr, fmt)
-            return {
-                "id": req_id,
-                "ok": True,
-                "audio_base64": base64.b64encode(audio).decode("ascii"),
-                "format": fmt,
-            }
-        except Exception as exc:  # noqa: BLE001
-            return {"id": req_id, "ok": False, "error": str(exc)}
-
-    if op == "synthesize_batch":
-        req = BatchSynthRequest(**params)
-        text = (req.text or "").strip()
-        variants = req.variants or []
-        if not text or not variants:
-            return {"id": req_id, "ok": False, "error": "empty text or no variants"}
-        fmt = (req.format or "mp3").strip().lower()
-        try:
-            model = _get_model()
-            qwen_lang = _qwen_language(req.language)
-            resolved_rows: List[Dict[str, Any]] = []
-            speakers: List[str] = []
-            for i, variant in enumerate(variants):
-                resolved = _speaker_for_variant(req.language, variant.dict(), i)
-                if not resolved.get("ok"):
-                    resolved_rows.append({
-                        "key": variant.key,
-                        "ok": False,
-                        "error": resolved,
-                    })
-                    speakers.append("")
-                    continue
-                resolved_rows.append(resolved)
-                speakers.append(str(resolved["resolved_speaker"]))
-            results: List[Dict[str, Any]] = []
-            for i, variant in enumerate(variants):
-                row = resolved_rows[i] if i < len(resolved_rows) else None
-                if not isinstance(row, dict) or not row.get("ok"):
-                    results.append({
-                        "key": variant.key,
-                        "ok": False,
-                        "audio_base64": None,
-                        "error": row.get("error") if isinstance(row, dict) else "speaker resolve failed",
-                    })
-                    continue
-                speaker = speakers[i]
-                try:
-                    with _model_lock:
-                        wavs, sr = model.generate_custom_voice(
-                            text=text, language=qwen_lang, speaker=speaker
-                        )
-                    audio_bytes, _ = _encode_audio(wavs[0], sr, fmt)
-                    results.append({
-                        "key": variant.key,
-                        "ok": True,
-                        "requested_speaker": row.get("requested_speaker"),
-                        "resolved_speaker": row.get("resolved_speaker"),
-                        "fallback_applied": bool(row.get("fallback_applied")),
-                        "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
-                        "error": None,
-                    })
-                except Exception as item_exc:
-                    results.append({
-                        "key": variant.key,
-                        "ok": False,
-                        "audio_base64": None,
-                        "error": str(item_exc),
-                    })
-            return {"id": req_id, "ok": True, "data": {"results": results}}
-        except Exception as exc:  # noqa: BLE001
-            return {"id": req_id, "ok": False, "error": str(exc)}
-
-    return {"id": req_id, "ok": False, "error": f"unknown op: {op}"}
-
-
-@app.websocket("/ws")
-async def websocket_rpc(ws: WebSocket):
-    await ws.accept()
+@app.post("/queue/submit")
+async def queue_submit(req: QueueSubmitRequest):
     try:
-        while True:
-            raw = await ws.receive_text()
-            try:
-                data = json.loads(raw)
-            except json.JSONDecodeError:
-                await ws.send_json({"ok": False, "error": "invalid json"})
-                continue
-            if not isinstance(data, dict):
-                await ws.send_json({"ok": False, "error": "message must be an object"})
-                continue
-            response = await _ws_handle_message(data)
-            await ws.send_text(json.dumps(response, ensure_ascii=False))
-    except WebSocketDisconnect:
+        job = await _get_queue().submit(req.dict())
+        return {
+            "ok": True,
+            "event_instance_id": http_service.events.instance_id,
+            **job,
+        }
+    except QueueFullError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=429)
+    except (TypeError, ValueError) as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@app.get("/queue/status")
+async def queue_status():
+    return {"ok": True, **_get_queue().status()}
+
+
+@app.post("/queue/cancel")
+async def queue_cancel(req: QueueCancelRequest):
+    cancelled = await _get_queue().cancel(req.job_id)
+    return {"ok": True, "job_id": req.job_id, "cancelled": cancelled}
+
+
+@app.get("/queue/result/{job_id}")
+async def queue_result(job_id: str):
+    job = _get_queue().get_job(job_id)
+    if job is None:
+        return JSONResponse({"ok": False, "error": "job not found or expired"}, status_code=404)
+    if job.get("status") != "done" or not job.get("_audio"):
+        return JSONResponse(
+            {"ok": False, "status": job.get("status"), "error": job.get("error")},
+            status_code=409,
+        )
+    fmt = str(job.get("format") or "mp3")
+    return Response(
+        content=job["_audio"],
+        media_type=str(job.get("_media_type") or "application/octet-stream"),
+        headers={"Content-Disposition": f'inline; filename="qwen3tts-{job_id}.{fmt}"'},
+    )
+
+
+@app.on_event("startup")
+async def _suppress_windows_pipe_reset_noise() -> None:
+    """On Windows, pydub's ffmpeg subprocess pipe teardown makes the proactor
+    loop log 'Exception in callback _ProactorBasePipeTransport._call_connection_lost'
+    (ConnectionResetError 10054) after every mp3 encode. It is harmless noise —
+    swallow just that callback, keep every other loop exception visible."""
+    await _get_queue().start()
+    if os.name != "nt":
         return
+    loop = asyncio.get_running_loop()
+    previous = loop.get_exception_handler()
+
+    def _handler(_loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
+        exc = context.get("exception")
+        handle = str(context.get("handle") or "")
+        if isinstance(exc, ConnectionResetError) and "_call_connection_lost" in handle:
+            return
+        if previous is not None:
+            previous(_loop, context)
+        else:
+            _loop.default_exception_handler(context)
+
+    loop.set_exception_handler(_handler)
+
+
+@app.on_event("shutdown")
+async def _stop_queue() -> None:
+    if _QUEUE is not None:
+        await _QUEUE.stop()
+
+
+class _ReadyServer(uvicorn.Server):
+    """Print readiness only after uvicorn has successfully bound the socket."""
+
+    async def startup(self, sockets=None) -> None:  # noqa: ANN001
+        await super().startup(sockets=sockets)
+        if self.should_exit:
+            return
+        host = str(self.config.host)
+        port = int(self.config.port)
+        ready_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
+        _log(f"[api] QWEN3TTS_READY http://{ready_host}:{port} (Web console: /)")
 
 
 def main():
-    host = (os.environ.get("QWEN3TTS_HOST") or "127.0.0.1").strip()
-    port = int(os.environ.get("QWEN3TTS_PORT") or "57210")
+    host = (os.environ.get("QWEN3TTS_HOST") or _DEFAULT_HOST).strip() or _DEFAULT_HOST
+    raw_port = (os.environ.get("QWEN3TTS_PORT") or "").strip()
+    port_source = "QWEN3TTS_PORT" if raw_port else "default"
+    try:
+        port = int(raw_port) if raw_port else 57210
+    except ValueError:
+        port = 57210
+        port_source = "default (invalid QWEN3TTS_PORT ignored)"
     _log(f"[api] Qwen3-TTS API server starting on {host}:{port} "
-         f"(model={_model_id()}, device={_resolve_device()})")
-    uvicorn.run(app, host=host, port=port)
+         f"(port_source={port_source}, model={_model_id()}, device={_resolve_device()})")
+    config = uvicorn.Config(app, host=host, port=port)
+    _ReadyServer(config).run()
 
 
 if __name__ == "__main__":

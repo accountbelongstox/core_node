@@ -18,12 +18,10 @@ pystray = get_third_package_pystray()
 Image = get_third_package_PIL_Image()
 ImageDraw = get_third_package_PIL_ImageDraw()
 
-from .global_config import get_global_config
-from .simple_primary_server import SimplePrimaryServer
-from .simple_client import SimpleClient
-from .logging_config import setup_logging
-
-logger = setup_logging(__name__)
+from pycore.pyutils.launcher.device_sync.core.config import get_global_config
+from pycore.pyutils.launcher.device_sync.simple_primary_server import SimplePrimaryServer
+from pycore.pyutils.launcher.device_sync.simple_client import SimpleClient
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class SimpleTrayMenu:
@@ -49,7 +47,7 @@ class SimpleTrayMenu:
 
     def start(self):
         """Start tray menu"""
-        logger.info("Starting tray menu...")
+        ColorPrint.info("Starting tray menu...")
 
         # Create tray icon
         icon_image = self._create_icon_image()
@@ -63,12 +61,12 @@ class SimpleTrayMenu:
         )
 
         # Run tray icon (blocking)
-        logger.info("Tray menu started")
+        ColorPrint.info("Tray menu started")
         self.icon.run()
 
     def stop(self):
         """Stop tray menu"""
-        logger.info("Stopping tray menu...")
+        ColorPrint.info("Stopping tray menu...")
 
         # Stop components
         if self.client:
@@ -81,7 +79,7 @@ class SimpleTrayMenu:
         if self.icon:
             self.icon.stop()
 
-        logger.info("Tray menu stopped")
+        ColorPrint.info("Tray menu stopped")
 
     def _create_menu(self):
         """Create tray menu"""
@@ -151,7 +149,7 @@ class SimpleTrayMenu:
 
     def _on_set_primary(self):
         """Handle 'Set as PRIMARY' menu click"""
-        logger.info("User clicked: Set as PRIMARY")
+        ColorPrint.info("User clicked: Set as PRIMARY")
 
         # Stop client if running
         if self.client and self.client.is_running():
@@ -175,12 +173,12 @@ class SimpleTrayMenu:
             messagebox.showinfo("Device Sync", "Set as PRIMARY server\n\nServer started successfully!")
 
         except Exception as e:
-            logger.error(f"Failed to start PRIMARY server: {e}", exc_info=True)
+            ColorPrint.error(f"Failed to start PRIMARY server: {e}")
             messagebox.showerror("Device Sync", f"Failed to start PRIMARY server:\n{e}")
 
     def _on_set_secondary(self):
         """Handle 'Set as SECONDARY' menu click"""
-        logger.info("User clicked: Set as SECONDARY")
+        ColorPrint.info("User clicked: Set as SECONDARY")
 
         # Stop client if running
         if self.client and self.client.is_running():
@@ -200,13 +198,13 @@ class SimpleTrayMenu:
         """Handle 'Enable API Access' menu toggle"""
         if self.config.api_enabled:
             # Disable API
-            logger.info("User clicked: Disable API access")
+            ColorPrint.info("User clicked: Disable API access")
             self.config.disable_api()
             self._update_icon_title()
             messagebox.showinfo("Device Sync", "API access disabled\n\nClients will not be able to sync files from this server.\n/api/status is still accessible.")
         else:
             # Enable API
-            logger.info("User clicked: Enable API access")
+            ColorPrint.info("User clicked: Enable API access")
             self.config.enable_api()
             self._update_icon_title()
             messagebox.showinfo("Device Sync", "API access enabled\n\nClients can now sync files from this server.")
@@ -215,14 +213,14 @@ class SimpleTrayMenu:
         """Handle 'Scan node_modules' menu toggle"""
         if self.config.scan_node_modules:
             # Disable scanning node_modules
-            logger.info("User clicked: Disable node_modules scanning")
+            ColorPrint.info("User clicked: Disable node_modules scanning")
             self.config.scan_node_modules = False
             # Clear cache to force rebuild on next sync request
             self.config.file_cache = []
             messagebox.showinfo("Device Sync", "node_modules scanning disabled\n\nDirectories like node_modules, venv, __pycache__ will be excluded.\n(.git is always scanned)\n\nCache will be rebuilt on next sync request.")
         else:
             # Enable scanning node_modules
-            logger.info("User clicked: Enable node_modules scanning")
+            ColorPrint.info("User clicked: Enable node_modules scanning")
             self.config.scan_node_modules = True
             # Clear cache to force rebuild on next sync request
             self.config.file_cache = []
@@ -232,7 +230,7 @@ class SimpleTrayMenu:
         """Handle 'Enable Sync' menu toggle"""
         if self.config.sync_enabled:
             # Disable sync
-            logger.info("User clicked: Disable sync")
+            ColorPrint.info("User clicked: Disable sync")
             self.config.disable_sync()
 
             if self.client and self.client.is_running():
@@ -243,7 +241,7 @@ class SimpleTrayMenu:
 
         else:
             # Enable sync
-            logger.info("User clicked: Enable sync")
+            ColorPrint.info("User clicked: Enable sync")
 
             if self.config.isPrimaryServer:
                 messagebox.showwarning("Device Sync", "Cannot enable sync:\nThis is PRIMARY server")
@@ -263,13 +261,13 @@ class SimpleTrayMenu:
                 messagebox.showinfo("Device Sync", "Sync enabled\n\nClient started successfully!")
 
             except Exception as e:
-                logger.error(f"Failed to start client: {e}", exc_info=True)
+                ColorPrint.error(f"Failed to start client: {e}")
                 self.config.disable_sync()
                 messagebox.showerror("Device Sync", f"Failed to start client:\n{e}")
 
     def _on_show_status(self):
         """Handle 'Status' menu click"""
-        logger.info("User clicked: Status")
+        ColorPrint.info("User clicked: Status")
 
         status = self.config.get_status()
 
@@ -312,7 +310,7 @@ Client Running: {status['client_running']}"""
 
     def _on_restart(self):
         """Handle 'Restart' menu click"""
-        logger.info("User clicked: Restart")
+        ColorPrint.info("User clicked: Restart")
 
         # Confirm restart
         root = tk.Tk()
@@ -321,10 +319,10 @@ Client Running: {status['client_running']}"""
         root.destroy()
 
         if result:
-            logger.info("Restarting Device Sync...")
+            ColorPrint.info("Restarting Device Sync...")
 
             # Stop all services first (HTTP server, client, etc.)
-            logger.info("Stopping all services...")
+            ColorPrint.info("Stopping all services...")
             if self.client and self.client.is_running():
                 self.client.stop()
 
@@ -336,13 +334,13 @@ Client Running: {status['client_running']}"""
                 self.icon.stop()
 
             # Restart the program
-            logger.info("Restarting program...")
+            ColorPrint.info("Restarting program...")
             python = sys.executable
             os.execl(python, python, *sys.argv)
 
     def _on_exit(self):
         """Handle 'Exit' menu click"""
-        logger.info("User clicked: Exit")
+        ColorPrint.info("User clicked: Exit")
 
         # Confirm exit
         root = tk.Tk()
@@ -351,7 +349,7 @@ Client Running: {status['client_running']}"""
         root.destroy()
 
         if result:
-            logger.info("Exiting Device Sync...")
+            ColorPrint.info("Exiting Device Sync...")
             # stop() already handles stopping services in correct order
             self.stop()
 

@@ -13,15 +13,15 @@ import platform
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from ._cache import _lazy_import
-from ._package_cache import _PACKAGE_CACHE
-from ._deps import OPTIONAL_PACKAGES, WINDOWS_OCR_WINRT_PACKAGES
-from ._pip_runner import (
+from pycore.pyfoundations.third_party._cache import _lazy_import
+from pycore.pyfoundations.third_party._package_cache import _PACKAGE_CACHE
+from pycore.pyfoundations.third_party._deps import OPTIONAL_PACKAGES, WINDOWS_OCR_WINRT_PACKAGES
+from pycore.pyfoundations.third_party._pip_runner import (
     build_pip_install_command,
     run_pip_install_with_realtime_output,
     _is_pip_package_installed,
 )
-from ._torch_cuda import _ensure_sherpa_onnx_cpu_build_when_no_gpu
+from pycore.pyfoundations.third_party._torch_cuda import _ensure_sherpa_onnx_cpu_build_when_no_gpu
 
 
 def install_and_reimport_azure():
@@ -265,6 +265,36 @@ def get_third_package_win32ui():
     if platform.system() != 'Windows':
         return None
     return _lazy_import('win32ui', 'import win32ui')
+
+
+def get_third_package_win32com_client():
+    """Get win32com.client (lazy load, Windows only)."""
+    if platform.system() != 'Windows':
+        return None
+    return _lazy_import(
+        'win32com_client',
+        'from win32com import client as win32com_client',
+    )
+
+
+def get_third_package_win32com_propsys():
+    """Get win32com.propsys.propsys (lazy load, Windows only)."""
+    if platform.system() != 'Windows':
+        return None
+    return _lazy_import(
+        'win32com_propsys',
+        'from win32com.propsys import propsys as win32com_propsys',
+    )
+
+
+def get_third_package_win32com_pscon():
+    """Get win32com.propsys.pscon (lazy load, Windows only)."""
+    if platform.system() != 'Windows':
+        return None
+    return _lazy_import(
+        'win32com_pscon',
+        'from win32com.propsys import pscon as win32com_pscon',
+    )
 
 
 def get_third_package_windows_ocr():

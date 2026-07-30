@@ -11,36 +11,28 @@ Provides unified high-level interface for all speech operations.
 """
 
 import asyncio
-import hashlib
 import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable, Union
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party.api import get_third_package_edge_tts
-from pycore.pyfoundations.system_paths import map_web_path
-
-from pycore.pyctl.speech.transcription_app import run_app
-from pycore.pyctl.speech.transcription_app import run_app_dual_source
-
-from pycore.pyutils.azure_speech.azure_speech_client import get_azure_speech_client
 from pycore.pyfoundations.serialized_worker import (
-    SerializedWorkerThread,
     SerializedSingletonProvider,
+    SerializedWorkerThread,
     call_serialized,
     init_serialized_owner,
     serialized_method,
 )
-
+from pycore.pyfoundations.third_party.api import get_third_package_edge_tts
+from pycore.pyctl.speech.transcription_app import run_app
+from pycore.pyctl.speech.transcription_app import run_app_dual_source
+from pycore.pyutils.azure_speech.azure_speech_client import azure_speech_client
+from pycore.pyutils.azure_speech.speech_recognizer import SPEECH_RECOGNITION_AVAILABLE
+from pycore.pyutils.azure_speech.speech_recognizer import speech_recognizer
+from pycore.pyutils.tts.sentence_audio_cache import lookup_or_none, store_result
 
 
 edge_tts_module = get_third_package_edge_tts()
-from pycore.pyutils.azure_speech.speech_recognizer import speech_recognizer, SPEECH_RECOGNITION_AVAILABLE
-from pycore.database.exports import database_manager, DATABASE_AVAILABLE
-from pycore.database.models.util_speech.tts_cache_model import SpeechTTSCacheModel
-from pycore.database.models.table_keys import TableKeys
-
-
 _ASYNC_WORK_QUEUE = 'pyctl.speech.manager.async'
 _ASYNC_WORKER = SerializedWorkerThread(
     _ASYNC_WORK_QUEUE,
@@ -75,15 +67,12 @@ class SpeechManager:
         self._default_tts_provider = "edge"  # Default to edge-tts (free)
         self._edge_tts_available = False
         self._azure_tts_available = False
-        self._db_initialized = False
-        self._cache_root = map_web_path("pycore_db") / "tts_static"
         init_serialized_owner(
             self,
             "speech.manager.state",
             "SpeechManagerState",
             timeout=300.0,
         )
-        self._initialize_cache_database()
 
     @serialized_method
     def initialize(self) -> bool:
@@ -138,7 +127,7 @@ class SpeechManager:
     def _check_azure_tts(self) -> bool:
         """Check if Azure TTS is available"""
         try:
-            client = get_azure_speech_client()
+            client = azure_speech_client
             if client.initialize():
                 ColorPrint.green("[SpeechManager] Azure TTS available")
                 return True
@@ -156,87 +145,54 @@ class SpeechManager:
             return False
 
         # Edge TTS package is available - we use it directly via edge_tts_module
-        # The EdgeTTSClient has broken dependencies (missing pycore.pyutils.common.tts_models)
+        # The EdgeTTSClient requires the shared foundation speech models.
         # but we don't need it for basic TTS synthesis
         ColorPrint.green("[SpeechManager] Edge TTS available (free)")
         return True
 
-    # ========== TTS Cache Database Methods ==========
+    # ========== TTS Cache Methods ==========
 
-    @serialized_method
-    def _initialize_cache_database(self):
-        """Initialize TTS cache database"""
-        if not DATABASE_AVAILABLE:
-            ColorPrint.yellow("[SpeechManager] Database not available, cache disabled")
-            self._tts_cache_enabled = False
-            return
-
-        try:
-            database_manager.register_database("speech")
-            database_manager.load_tables(
-                database_name="speech",
-                table_keys=[TableKeys.SPEECH_TTS_CACHE],
-                models=[SpeechTTSCacheModel]
-            )
-            self._db_initialized = True
-            ColorPrint.blue("[SpeechManager] TTS cache database initialized")
-        except Exception as e:
-            ColorPrint.yellow(f"[SpeechManager] Cache database init failed: {e}")
-            self._tts_cache_enabled = False
-
-    def _get_text_hash(self, text: str) -> str:
-        """Calculate MD5 hash of text"""
-        return hashlib.md5(text.encode('utf-8')).hexdigest()
-
-    def _get_cache_path(self, provider: str, text: str, language: str, extension: str = "mp3") -> Path:
-        """Get cache file path"""
-        text_hash = self._get_text_hash(text)
-        lang_safe = language.replace('-', '_')
-        cache_dir = Path(self._cache_root) / provider / language
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        return cache_dir / f"{lang_safe}_{text_hash}.{extension}"
-
-    def _copy_from_cache(self, provider: str, text: str, language: str, output_path: Path) -> bool:
+    def _copy_from_cache(
+        self,
+        provider: str,
+        text: str,
+        language: str,
+        output_path: Path,
+        voice: Optional[str] = None,
+    ) -> bool:
         """Copy cached file to output location"""
-        if not self._db_initialized:
-            # Fallback to file-only check
-            cache_path = self._get_cache_path(provider, text, language)
-            if cache_path.exists():
-                shutil.copy2(cache_path, output_path)
-                return True
+        cache_path = lookup_or_none(
+            text=text,
+            lang=language,
+            speaker=voice,
+            engine=provider,
+            fmt="mp3",
+        )
+        if cache_path is None:
             return False
+        shutil.copy2(cache_path, output_path)
+        return True
 
-        try:
-            text_md5 = self._get_text_hash(text)
-            with database_manager.get_connection("speech") as conn:
-                record = SpeechTTSCacheModel.query_cache(conn, text_md5, language, provider, verify_file=True)
-                if record:
-                    cache_file = Path(record['file_path'])
-                    if cache_file.exists():
-                        shutil.copy2(cache_file, output_path)
-                        return True
-            return False
-        except Exception as e:
-            ColorPrint.yellow(f"[SpeechManager] Cache lookup failed: {e}")
-            return False
-
-    def _save_to_cache(self, provider: str, text: str, language: str, source_file: Path):
+    def _save_to_cache(
+        self,
+        provider: str,
+        text: str,
+        language: str,
+        source_file: Path,
+        voice: Optional[str] = None,
+    ) -> None:
         """Save file to cache"""
-        cache_path = self._get_cache_path(provider, text, language)
-        shutil.copy2(source_file, cache_path)
-
-        if not self._db_initialized:
-            return
-
-        try:
-            text_md5 = self._get_text_hash(text)
-            with database_manager.get_connection("speech") as conn:
-                SpeechTTSCacheModel.add_cache_entry(
-                    conn, text_md5, text, language, provider, str(cache_path.absolute())
-                )
-            ColorPrint.blue(f"[SpeechManager] Cached: {cache_path.name}")
-        except Exception as e:
-            ColorPrint.yellow(f"[SpeechManager] Cache save failed: {e}")
+        cache_path = store_result(
+            text=text,
+            lang=language,
+            speaker=voice,
+            instruct=None,
+            engine=provider,
+            fmt="mp3",
+            model_id=None,
+            data_bytes=source_file.read_bytes(),
+        )
+        ColorPrint.blue(f"[SpeechManager] Cached: {cache_path.name}")
 
     # ========== Speech Recognition (STT) Methods ==========
 
@@ -404,7 +360,7 @@ class SpeechManager:
 
         # Check cache first (if enabled)
         if use_cache:
-            if self._copy_from_cache(provider, text, language, output_path):
+            if self._copy_from_cache(provider, text, language, output_path, voice):
                 ColorPrint.green(f"[SpeechManager] Used cached TTS: {output_path.name}")
                 return True
 
@@ -418,7 +374,7 @@ class SpeechManager:
                 ColorPrint.red("[SpeechManager] Azure TTS not available")
                 return False
 
-            client = get_azure_speech_client()
+            client = azure_speech_client
             success = client.synthesize(text, output_path, voice)
 
         elif provider == "edge":
@@ -435,7 +391,7 @@ class SpeechManager:
 
         # Save to cache if successful and cache enabled
         if success and use_cache and output_path.exists():
-            self._save_to_cache(provider, text, language, output_path)
+            self._save_to_cache(provider, text, language, output_path, voice)
 
         return success
 
@@ -559,8 +515,4 @@ _SPEECH_MANAGER_PROVIDER = SerializedSingletonProvider(
     "SpeechManagerProvider",
     timeout=300.0,
 )
-
-
-def get_speech_manager() -> SpeechManager:
-    """Get global speech manager singleton instance"""
-    return _SPEECH_MANAGER_PROVIDER.get()
+speech_manager = _SPEECH_MANAGER_PROVIDER.get()

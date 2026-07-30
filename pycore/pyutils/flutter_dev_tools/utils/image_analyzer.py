@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from PIL import Image
-import pycore.pyutils.ocr_cluster.ocr.ocr_manager as ocr_manager
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+import pycore.pyutils.common.ocr.manager as ocr_manager
 import sys
 """
 Image Analyzer - Color Analysis + OCR Integration
@@ -22,14 +23,14 @@ try:
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
-    print("[WARNING] PIL not available, color analysis disabled")
+    ColorPrint.plain("[WARNING] PIL not available, color analysis disabled")
 
 # Import OCR manager from pycore
 try:
     OCR_AVAILABLE = True
 except ImportError:
     OCR_AVAILABLE = False
-    print("[WARNING] OCR manager not available, text recognition disabled")
+    ColorPrint.plain("[WARNING] OCR manager not available, text recognition disabled")
 
 
 def rgb_to_hex(rgb: Tuple[int, int, int]) -> str:
@@ -55,11 +56,11 @@ def analyze_image_colors(
         Example: [["#FFFFFF", 0.35], ["#000000", 0.25], ...]
     """
     if not PIL_AVAILABLE:
-        print(f"[SKIP] PIL not available, cannot analyze colors for: {image_path}")
+        ColorPrint.plain(f"[SKIP] PIL not available, cannot analyze colors for: {image_path}")
         return []
 
     if not image_path.exists():
-        print(f"[ERROR] Image not found: {image_path}")
+        ColorPrint.plain(f"[ERROR] Image not found: {image_path}")
         return []
 
     try:
@@ -93,11 +94,11 @@ def analyze_image_colors(
             ratio = round(count / total_pixels, 4)  # 4 decimal places
             result.append([hex_color, ratio])
 
-        print(f"[SUCCESS] Analyzed colors for: {image_path.name} (found {len(result)} colors)")
+        ColorPrint.plain(f"[SUCCESS] Analyzed colors for: {image_path.name} (found {len(result)} colors)")
         return result
 
     except Exception as e:
-        print(f"[ERROR] Failed to analyze colors for {image_path}: {e}")
+        ColorPrint.plain(f"[ERROR] Failed to analyze colors for {image_path}: {e}")
         return []
 
 
@@ -127,7 +128,7 @@ def analyze_image_ocr(
         }
     """
     if not OCR_AVAILABLE:
-        print(f"[SKIP] OCR not available, cannot extract text from: {image_path}")
+        ColorPrint.plain(f"[SKIP] OCR not available, cannot extract text from: {image_path}")
         return {
             "success": False,
             "text": "",
@@ -136,7 +137,7 @@ def analyze_image_ocr(
         }
 
     if not image_path.exists():
-        print(f"[ERROR] Image not found: {image_path}")
+        ColorPrint.plain(f"[ERROR] Image not found: {image_path}")
         return {
             "success": False,
             "text": "",
@@ -189,14 +190,14 @@ def analyze_image_ocr(
             })
 
         if ocr_result["success"]:
-            print(f"[SUCCESS] OCR extracted {len(ocr_result['words'])} words from: {image_path.name}")
+            ColorPrint.plain(f"[SUCCESS] OCR extracted {len(ocr_result['words'])} words from: {image_path.name}")
         else:
-            print(f"[WARNING] OCR failed for: {image_path.name}")
+            ColorPrint.plain(f"[WARNING] OCR failed for: {image_path.name}")
 
         return ocr_result
 
     except Exception as e:
-        print(f"[ERROR] Failed to perform OCR on {image_path}: {e}")
+        ColorPrint.plain(f"[ERROR] Failed to perform OCR on {image_path}: {e}")
         return {
             "success": False,
             "text": "",
@@ -278,7 +279,7 @@ def analyze_directory_images(
         List of analysis results for each image
     """
     if not directory.exists() or not directory.is_dir():
-        print(f"[ERROR] Directory not found: {directory}")
+        ColorPrint.plain(f"[ERROR] Directory not found: {directory}")
         return []
 
     # Supported image formats
@@ -291,15 +292,15 @@ def analyze_directory_images(
     ]
 
     if not image_files:
-        print(f"[WARNING] No images found in: {directory}")
+        ColorPrint.plain(f"[WARNING] No images found in: {directory}")
         return []
 
-    print(f"[INFO] Found {len(image_files)} images in: {directory}")
+    ColorPrint.plain(f"[INFO] Found {len(image_files)} images in: {directory}")
 
     # Analyze each image
     results = []
     for image_file in image_files:
-        print(f"[PROCESSING] {image_file.name}...")
+        ColorPrint.plain(f"[PROCESSING] {image_file.name}...")
         analysis = analyze_image_full(
             image_file,
             include_colors=include_colors,
@@ -309,7 +310,7 @@ def analyze_directory_images(
         )
         results.append(analysis)
 
-    print(f"[DONE] Analyzed {len(results)} images")
+    ColorPrint.plain(f"[DONE] Analyzed {len(results)} images")
     return results
 
 
@@ -320,11 +321,11 @@ def analyze_directory_images(
 if __name__ == "__main__":
 
     if len(sys.argv) < 2:
-        print("Usage:")
-        print("  python image_analyzer.py <image_path>          # Analyze single image")
-        print("  python image_analyzer.py <directory_path>      # Analyze all images in directory")
-        print("\nExample:")
-        print("  python image_analyzer.py design_docs_and_progress/2_page_designs_rough/images/")
+        ColorPrint.plain("Usage:")
+        ColorPrint.plain("  python image_analyzer.py <image_path>          # Analyze single image")
+        ColorPrint.plain("  python image_analyzer.py <directory_path>      # Analyze all images in directory")
+        ColorPrint.plain("\nExample:")
+        ColorPrint.plain("  python image_analyzer.py design_docs_and_progress/2_page_designs_rough/images/")
         sys.exit(1)
 
     target = Path(sys.argv[1])
@@ -332,15 +333,15 @@ if __name__ == "__main__":
     if target.is_file():
         # Analyze single image
         result = analyze_image_full(target)
-        print("\n" + "="*60)
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+        ColorPrint.plain("\n" + "="*60)
+        ColorPrint.plain(json.dumps(result, indent=2, ensure_ascii=False))
 
     elif target.is_dir():
         # Analyze directory
         results = analyze_directory_images(target)
-        print("\n" + "="*60)
-        print(json.dumps(results, indent=2, ensure_ascii=False))
+        ColorPrint.plain("\n" + "="*60)
+        ColorPrint.plain(json.dumps(results, indent=2, ensure_ascii=False))
 
     else:
-        print(f"[ERROR] Invalid path: {target}")
+        ColorPrint.plain(f"[ERROR] Invalid path: {target}")
         sys.exit(1)

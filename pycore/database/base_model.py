@@ -10,23 +10,8 @@ from typing import Optional, List, Dict, Any, Type
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint as _OriginalColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-# Suppress ColorPrint output in MCP mode
-class ColorPrint:
-    _is_mcp = _OriginalColorPrint.is_mcp_mode()
-    @staticmethod
-    def blue(msg):
-        if not ColorPrint._is_mcp: _OriginalColorPrint.blue(msg)
-    @staticmethod
-    def red(msg):
-        if not ColorPrint._is_mcp: _OriginalColorPrint.red(msg)
-    @staticmethod
-    def green(msg):
-        if not ColorPrint._is_mcp: _OriginalColorPrint.green(msg)
-    @staticmethod
-    def yellow(msg):
-        if not ColorPrint._is_mcp: _OriginalColorPrint.yellow(msg)
 from pycore.pyfoundations.third_party.api import get_third_package_sqlalchemy
 
 sqlalchemy = get_third_package_sqlalchemy()

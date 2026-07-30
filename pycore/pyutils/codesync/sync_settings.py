@@ -2,12 +2,8 @@
 """
 Code Sync filter settings — what to exclude from the synced/scanned tree.
 
-Two-tier, exactly like peer_config:
-  * PRESETS below  — the code-frozen defaults (single source of truth; what ships).
-  * OVERRIDE file   — per-machine `<cache>/pycore/codesync/sync_settings.json`
-                      (gitignored). Loaded with priority; only the keys present in
-                      the override replace the presets, so each machine can tweak
-                      filters WITHOUT touching code, and edits never churn the repo.
+Presets remain the shipped policy. Per-machine overrides use the unified
+user_data.json map; the former sync_settings.json is a migration source only.
 
 Settings:
   excluded_dirs            — directory NAMES pruned at any depth (e.g. node_modules).
@@ -27,7 +23,9 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .runtime import (
+from pycore.pyutils.common.user_data_store import user_data_store
+
+from pycore.pyutils.codesync.runtime import (
     get_local_data_dir,
     init_serialized_owner,
     log as ColorPrint,
@@ -139,6 +137,7 @@ PRESET_WATCH_DIRS: List[str] = []
 
 _KEYS = ("excluded_dirs", "excluded_files", "excluded_extensions",
          "excluded_path_substrings", "apply_gitignore", "watch_dirs", "scan_lan")
+_SECTION = "codesync_sync"
 
 
 def get_sync_settings_file() -> Path:
@@ -272,18 +271,32 @@ class Excluder:
 # --------------------------------------------------------------------------- #
 class SyncSettings:
     def __init__(self, override_path: Optional[Path] = None):
-        self._override_path = Path(override_path) if override_path else get_sync_settings_file()
+        self._override_path = Path(override_path) if override_path else None
+        self._legacy_override_path = get_sync_settings_file()
         self._cache: Optional[Dict[str, Any]] = None
         init_serialized_owner(self, "codesync.sync_settings", "CodeSyncSettings")
 
     def _load_override(self) -> Dict[str, Any]:
+        if self._override_path is None:
+            personalized = user_data_store.get_personalized_section(_SECTION)
+            if personalized:
+                return personalized
+            legacy = self._read_override_file(self._legacy_override_path)
+            if legacy:
+                user_data_store.set_section(_SECTION, legacy)
+                return legacy
+            return {}
+        return self._read_override_file(self._override_path)
+
+    @staticmethod
+    def _read_override_file(path: Path) -> Dict[str, Any]:
         try:
-            if self._override_path.exists():
-                d = json.loads(self._override_path.read_text(encoding="utf-8"))
+            if path.exists():
+                d = json.loads(path.read_text(encoding="utf-8"))
                 if isinstance(d, dict):
                     return d
         except Exception as exc:
-            ColorPrint.yellow(f"[SyncSettings] read {self._override_path} failed: {exc}")
+            ColorPrint.yellow(f"[SyncSettings] read {path} failed: {exc}")
         return {}
 
     @serialized_method
@@ -305,9 +318,15 @@ class SyncSettings:
         return self.get()
 
     def get_with_source(self) -> Dict[str, Any]:
+        override_path = self._override_path or user_data_store.path
+        overridden = bool(
+            self._override_path.exists()
+            if self._override_path is not None
+            else user_data_store.get_personalized_section(_SECTION)
+        )
         return {"settings": self.get(), "presets": presets(),
-                "override_path": str(self._override_path),
-                "overridden": self._override_path.exists()}
+                "override_path": str(override_path),
+                "overridden": overridden}
 
     @serialized_method
     def update(self, patch: Dict[str, Any]) -> Dict[str, Any]:
@@ -315,25 +334,31 @@ class SyncSettings:
         for k in _KEYS:
             if k in patch and patch[k] is not None:
                 ovr[k] = patch[k]
-        try:
-            self._override_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self._override_path.with_suffix(self._override_path.suffix + ".tmp")
-            tmp.write_text(json.dumps(ovr, ensure_ascii=False, indent=2, sort_keys=True),
-                           encoding="utf-8")
-            os.replace(str(tmp), str(self._override_path))
-        except Exception as exc:
-            ColorPrint.red(f"[SyncSettings] save failed: {exc}")
+        if self._override_path is None:
+            user_data_store.set_section(_SECTION, ovr)
+        else:
+            try:
+                self._override_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp = self._override_path.with_suffix(self._override_path.suffix + ".tmp")
+                tmp.write_text(json.dumps(ovr, ensure_ascii=False, indent=2, sort_keys=True),
+                               encoding="utf-8")
+                os.replace(str(tmp), str(self._override_path))
+            except Exception as exc:
+                ColorPrint.red(f"[SyncSettings] save failed: {exc}")
         self._cache = None
         return self.get()
 
     @serialized_method
     def reset(self) -> Dict[str, Any]:
-        """Drop the override -> back to code presets."""
-        try:
-            if self._override_path.exists():
-                self._override_path.unlink()
-        except Exception:
-            pass
+        """Drop the personalized override and return to shipped presets."""
+        if self._override_path is None:
+            user_data_store.delete(_SECTION)
+        else:
+            try:
+                if self._override_path.exists():
+                    self._override_path.unlink()
+            except Exception:
+                pass
         self._cache = None
         return self.get()
 

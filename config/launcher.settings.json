@@ -1,0 +1,27 @@
+{
+  "launcher": {
+    "terminal": {
+      "enabled": true,
+      "columns": 3,
+      "rows": 2,
+      "toggle": "X6"
+    },
+    "measurements": {
+      "columns": 67,
+      "columns_width_px": 510,
+      "rows": 32,
+      "rows_height_px": 485
+    },
+    "calibration": {
+      "actual_height_px": 485,
+      "term_rows": 32
+    },
+    "window_chrome": {
+      "title_bar_plus_padding_px": 56,
+      "horizontal_padding_px": 24,
+      "content_scale": 0.78,
+      "gap_horizontal_px": 16,
+      "gap_vertical_px": 24
+    }
+  }
+}

@@ -88,7 +88,7 @@ $LaravelServiceDesc = "laravel_main backend (native Windows: serve+queue+reverb)
 $SelfScript = Join-Path $ScriptDir "start.ps1"
 $CacheBaseDir = if ($Global:CORE_NODE_CACHE_DIR) { $Global:CORE_NODE_CACHE_DIR } elseif ($env:CORE_NODE_CACHE_DIR) { $env:CORE_NODE_CACHE_DIR } else { 'D:\www\cache' }
 $LogDir = Join-Path $CacheBaseDir 'pycore\logs'
-$UiStartPs1 = Join-Path $PolyAppsDir "pycore_laravel_wordflow_ui\scripts\start.ps1"
+$UiStartPs1 = Join-Path $PolyAppsDir "pycore_laravel_wordnew_ui\scripts\start.ps1"
 $AsServiceEnv = $env:AS_SERVICE
 $IncludeUiEnv = $env:INCLUDE_UI
 $IsServiceRun = ($env:LARAVEL_SERVICE_RUN -eq "1")
@@ -480,13 +480,13 @@ try {
                     } elseif ($IncludeUiEnv -eq "yes") {
                         $IncludeUiChoice = $true
                     } elseif (Test-Path -LiteralPath $UiStartPs1) {
-                        $IncludeUiChoice = Read-YesNoDefaultNo "Also add the pycore_laravel_wordflow_ui dashboard to a background service?"
+                        $IncludeUiChoice = Read-YesNoDefaultNo "Also add the pycore_laravel_wordnew_ui dashboard to a background service?"
                     } else {
                         $IncludeUiChoice = $false
                     }
                     if ($IncludeUiChoice) {
                         if (Test-Path -LiteralPath $UiStartPs1) {
-                            Write-Host "Bringing up pycore_laravel_wordflow_ui dashboard as a background service (idempotent)..." -ForegroundColor Yellow
+                            Write-Host "Bringing up pycore_laravel_wordnew_ui dashboard as a background service (idempotent)..." -ForegroundColor Yellow
                             Start-ChildScriptWithEnv -PwshExePath $PwshServiceExe -ScriptPath $UiStartPs1 -ScriptArgs @("-NoBackend") `
                                 -WorkingDirectory (Split-Path -Parent $UiStartPs1) -EnvironmentVars @{ AS_SERVICE = "yes" } -Wait
                         } else {

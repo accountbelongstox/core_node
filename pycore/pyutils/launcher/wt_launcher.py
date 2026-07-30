@@ -4,6 +4,7 @@ Windows Terminal Launcher
 Handles launching Windows Terminal windows and Ubuntu terminals
 """
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.script_generator import ScriptGenerator, format_wt_size
 from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor
 from pycore.pyutils.launcher.ubuntu_finder import UbuntuFinder
@@ -43,13 +44,13 @@ class WindowsTerminalLauncher:
         wt_windows = windows_config[:-ubuntu_count] if ubuntu_count > 0 else windows_config
         ubuntu_windows = windows_config[-ubuntu_count:] if ubuntu_count > 0 else []
         
-        print("\nCreating batch files:")
+        ColorPrint.plain("\nCreating batch files:")
         # One .bat per window: launch_terminal_1.bat .. launch_terminal_N.bat (each runs wt.exe -w -1 --pos ... --size ...)
         for i, (x, y, term_cols, term_rows) in enumerate(wt_windows, 1):
             bat_path = self.script_generator.create_wt_bat(i, x, y, term_cols, term_rows)
             bat_files.append(bat_path)
-            print(f"  Windows Terminal {i}: {bat_path}")
-        print(f"  -> Created {len(wt_windows)} batch files (one per window).")
+            ColorPrint.plain(f"  Windows Terminal {i}: {bat_path}")
+        ColorPrint.plain(f"  -> Created {len(wt_windows)} batch files (one per window).")
         
         # Create Ubuntu batch files
         ubuntu_shortcut = self.ubuntu_finder.get_first_ubuntu_shortcut()
@@ -60,19 +61,19 @@ class WindowsTerminalLauncher:
                     ubuntu_index, x, y, term_cols, term_rows, ubuntu_shortcut
                 )
                 bat_files.append(bat_path)
-                print(f"  Ubuntu Terminal {i}: {bat_path}")
+                ColorPrint.plain(f"  Ubuntu Terminal {i}: {bat_path}")
         elif ubuntu_count > 0:
-            print(f"  Warning: No Ubuntu shortcut found, skipping {ubuntu_count} Ubuntu terminals")
+            ColorPrint.plain(f"  Warning: No Ubuntu shortcut found, skipping {ubuntu_count} Ubuntu terminals")
         
         # Launch windows
-        print("\nLaunching windows:")
+        ColorPrint.plain("\nLaunching windows:")
         
         # Launch Windows Terminal windows
         for i, bat_path in enumerate(bat_files[:len(wt_windows)], 1):
             x, y, term_cols, term_rows = wt_windows[i-1]
             size_arg = format_wt_size(term_cols, term_rows)
             cmd = f'wt.exe -w -1 --pos "{x},{y}" --size "{size_arg}"'
-            print(f"  Windows Terminal {i}: {cmd}")
+            ColorPrint.plain(f"  Windows Terminal {i}: {cmd}")
             self.executor.execute_bat_file_with_cmd(bat_path, independent=True)
             time.sleep(delay)
         
@@ -80,7 +81,7 @@ class WindowsTerminalLauncher:
         if ubuntu_shortcut and ubuntu_count > 0:
             for i, bat_path in enumerate(bat_files[len(wt_windows):], 1):
                 x, y, term_cols, term_rows = ubuntu_windows[i-1]
-                print(f"  Ubuntu Terminal {i}: {bat_path}")
+                ColorPrint.plain(f"  Ubuntu Terminal {i}: {bat_path}")
                 self.executor.execute_bat_file_with_cmd(bat_path, independent=True)
                 time.sleep(delay)
         

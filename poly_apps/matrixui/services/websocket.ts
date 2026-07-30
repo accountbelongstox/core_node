@@ -400,9 +400,14 @@ class WebSocketService {
       if (eventName && this.rpcEventHandlers.has(eventName)) {
         try {
           this.rpcEventHandlers.get(eventName)!(message.data || message);
+          if (message.requires_ack && message.seq !== undefined) {
+            this.sendRpcEventAck(message.seq);
+          }
         } catch (err) {
           console.error('[RPC] Event handler error', err);
         }
+      } else if (message.requires_ack && message.seq !== undefined) {
+        this.sendRpcEventAck(message.seq);
       }
     } else if (message.type === 'welcome') {
       if (this.rpcOptions.debug) {
@@ -414,6 +419,12 @@ class WebSocketService {
   private sendRpcAck(requestId: string) {
     if (!this.rpcWs) return;
     const payload = { type: 'ack', id: requestId };
+    this.rpcWs.send(JSON.stringify(payload));
+  }
+
+  private sendRpcEventAck(seq: number) {
+    if (!this.rpcWs) return;
+    const payload = { type: 'ack', seq };
     this.rpcWs.send(JSON.stringify(payload));
   }
 

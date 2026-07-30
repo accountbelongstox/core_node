@@ -12,7 +12,7 @@
 #     and delegates compatibility to pip only when the package is absent.
 #   * Bucket B (qwen3tts, melotts, gptsovits): incompatible transformer dependencies stay out
 #     of the main interpreter — each installs into a DEDICATED per-engine venv
-#     (qwen3tts via qwen3tts_venv.ensure_venv; melotts/gptsovits via isolated_venv.ensure_venv),
+#     (qwen3tts/melotts/gptsovits via isolated_venv.ensure_venv),
 #     built --system-site-packages so it reuses the system CUDA torch and self-rebuilds on a
 #     broken import; their transformer dependencies never touch the shared interpreter. melotts and
 #     gptsovits keep an explicit --full opt-in only because the venv build + model download is
@@ -32,7 +32,11 @@ INSTALL_SHELLS_DIR="$(cd "$SCRIPT_DIR/../debian/install_shells" && pwd)"
 PYTHON="python3"
 INCLUDE=()
 WHISPER_MODEL=""
+FASTER_WHISPER_MODEL=""
+VOSK_MODEL=""
 NEURAL_BATCH_INSTALL=0
+FORCE_ALL=0
+FULL_ALL=0
 entry=""
 name=""
 script=""
@@ -42,13 +46,23 @@ install_mode=""
 supports_full="0"
 script_path=""
 shared_cache_env=""
+gvar_common=""
+runtime_run_id=""
 args=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --python)        PYTHON="$2";        shift 2 ;;
         --include)       INCLUDE+=("$2");     shift 2 ;;
-        --whisper-model) WHISPER_MODEL="$2";  shift 2 ;;
+        --whisper-model)
+            WHISPER_MODEL="$2"
+            [[ -n "$FASTER_WHISPER_MODEL" ]] || FASTER_WHISPER_MODEL="$2"
+            shift 2
+            ;;
+        --faster-whisper-model) FASTER_WHISPER_MODEL="$2"; shift 2 ;;
+        --vosk-model) VOSK_MODEL="$2"; shift 2 ;;
+        --force)         FORCE_ALL=1;          shift   ;;
+        --full)          FULL_ALL=1;           shift   ;;
         *) echo "[!] Unknown argument: $1" >&2; shift ;;
     esac
 done
@@ -59,6 +73,11 @@ pycore_export_python_env_from_common "$PYTHON"
 
 shared_cache_env="$COMMON_DIR/shared_cache_env.sh"
 source "$shared_cache_env"
+gvar_common="$COMMON_DIR/gvar_common.sh"
+source "$gvar_common"
+runtime_run_id="$(date +%s)_$$"
+set_var "PYCORE_RUNTIME_STATE_RUN_ID" "$runtime_run_id" false
+set_var "PYCORE_RUNTIME_STATE_PROCESS_ID" "$$" false
 
 [[ "${NEURAL_TTS_INSTALL:-0}" == "1" ]] && NEURAL_BATCH_INSTALL=1
 
@@ -121,10 +140,21 @@ for entry in "${PREREQ_ENTRIES[@]}"; do
     echo "[..] Prerequisite: $name"
     script_path="$INSTALL_SHELLS_DIR/$script"
     args=(--python "$PYTHON")
-    if [[ ( "$name" == "whisper" || "$name" == "faster_whisper" ) && -n "$WHISPER_MODEL" ]]; then
+    if [[ "$FORCE_ALL" -eq 1 ]]; then
+        args+=(--force)
+    fi
+    if [[ "$name" == "whisper" && -n "$WHISPER_MODEL" ]]; then
         args+=(--model "$WHISPER_MODEL")
     fi
-    if [[ "$NEURAL_BATCH_INSTALL" -eq 1 && "$install_mode" == "neural" && "$supports_full" == "1" ]]; then
+    if [[ "$name" == "faster_whisper" && -n "$FASTER_WHISPER_MODEL" ]]; then
+        args+=(--model "$FASTER_WHISPER_MODEL")
+    fi
+    if [[ "$name" == "vosk" && -n "$VOSK_MODEL" ]]; then
+        args+=(--model "$VOSK_MODEL")
+    fi
+    if [[ "$FULL_ALL" -eq 1 && "$supports_full" == "1" ]]; then
+        args+=(--full)
+    elif [[ "$NEURAL_BATCH_INSTALL" -eq 1 && "$install_mode" == "neural" && "$supports_full" == "1" ]]; then
         args+=(--full)
     elif [[ "${MELOTTS_INSTALL:-0}" == "1" && "$name" == "melotts" ]]; then
         args+=(--full)

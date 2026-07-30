@@ -332,7 +332,7 @@ Expected one of:
 ## Related Modules
 
 - `pycore.pylauncher` - Service launcher with singleton detection
-- `pycore.pygvar` - Global variables and paths
+- `pycore.pyfoundations.pygvar` - Global variables and paths
 - `pycore.pyfoundations.color_print` - Colored console output
 
 ## Version History

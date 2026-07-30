@@ -9,8 +9,8 @@ missing config, server down, or model files absent).
 
 qwen3tts and melotts are class-C isolated-venv HTTP servers (see
 development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5): their
-readiness is the DEDICATED per-engine venv (qwen3tts_venv.venv_ready /
-isolated_venv.venv_ready("melotts")), NOT a main-interpreter qwen_tts/melo import -
+readiness is the DEDICATED per-engine venv via isolated_venv.venv_ready(),
+NOT a main-interpreter qwen_tts/melo import -
 those pinned packages are never installed in the main interpreter.
 """
 
@@ -30,10 +30,9 @@ import pycore.pyutils.tts.fishspeech_engine as fishspeech_engine
 import pycore.pyutils.tts.sherpa_engine as sherpa_engine
 import pycore.pyutils.tts.kokoro_engine as kokoro_engine
 import pycore.pyutils.tts.azure_engine as azure_engine
-import pycore.pyutils.tts.qwen3tts_engine as qwen3tts_engine
-import pycore.pyutils.tts.qwen3tts_venv as qwen3tts_venv
+import pycore.pyutils.tts.qwen.engine as qwen_engine
 import pycore.pyutils.tts.melotts_engine as melotts_engine
-import pycore.pyutils.tts.isolated_venv as isolated_venv
+import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
 
 
 _STAGING_ENV: Dict[str, str] = {
@@ -97,7 +96,7 @@ def engine_installed(name: str) -> bool:
     if name == "qwen3tts":
         # Class C: readiness is the isolated venv (real `import qwen_tts` inside it),
         # never a main-interpreter qwen_tts probe.
-        return qwen3tts_venv.venv_ready()
+        return isolated_venv.venv_ready("qwen3tts")
     if name == "bark":
         return (_spec("transformers") and _spec("scipy")) or staging_deps_done("bark")
     if name == "parler":
@@ -137,14 +136,7 @@ def engine_installed(name: str) -> bool:
 def engine_unavailable_reason(name: str) -> Optional[str]:
     """Why an engine cannot synthesize now; None when no hint applies."""
     if name == "qwen3tts":
-        # Class C: distinguish "venv not built" (needs the installer) from a
-        # provisioned-but-not-yet-serving state (defer to the HTTP client hint).
-        if not qwen3tts_venv.venv_ready():
-            return (
-                "Qwen3-TTS isolated venv not built - run Step61_InstallQwen3Tts.ps1 / "
-                "140_install_qwen3tts.sh"
-            )
-        return qwen3tts_engine.disabled_reason()
+        return qwen_engine.disabled_reason()
 
     if name == "melotts":
         # Class C: readiness is the per-engine isolated venv (see engine_installed).

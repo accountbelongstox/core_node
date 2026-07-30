@@ -2,10 +2,9 @@
 """
 Code Sync CLIENT-side push receiver (stdlib only).
 
-The CLIENT accepts a WS the DEV dials out to and writes the pushed files under
+The CLIENT accepts HTTP frames from the DEV and writes the pushed files under
 the watched root, SKIPPING any whose canonical hash already matches, and logs +
-updates the sync phase. Never deletes (update-only client). See sync_ws.py for
-the full message-protocol reference.
+updates the sync phase. Never deletes (update-only client).
 
 Stdlib only + codesync siblings (textnorm/wire_codec); never pycore/third_party.
 """
@@ -16,9 +15,9 @@ import json
 import os
 from pathlib import Path
 
-from .textnorm import normalized_md5
-from .wire_codec import _fmt_bytes, _fmt_diff
-from .runtime import get_local_data_dir
+from pycore.pyutils.codesync.textnorm import normalized_md5
+from pycore.pyutils.codesync.wire_codec import _fmt_bytes, _fmt_diff
+from pycore.pyutils.codesync.runtime import get_local_data_dir
 
 
 # Shell/script extensions that should be executable on Linux/macOS.
@@ -50,7 +49,7 @@ def _restore_exec_bit(target, content: bytes) -> None:
 # CLIENT side -- apply pushed files                                           #
 # --------------------------------------------------------------------------- #
 class PushReceiver:
-    """Stateless-ish handler the WS server endpoint feeds each text frame."""
+    """Stateless handler for one HTTP-delivered text frame."""
 
     def __init__(self, manager):
         self.m = manager

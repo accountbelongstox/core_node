@@ -12,13 +12,12 @@
 
 <#
 .SYNOPSIS
-    Launches Codex in YOLO mode with every active additive feature enabled.
+    Launches Codex in YOLO mode after optional Chrome MCP installation.
 
 .DESCRIPTION
-    Offers an optional pnpm upgrade, discovers the installed CLI's feature list,
-    and enables stable, experimental, and under-development features for this
-    session. The main session, plan mode, and subagents use gpt-5.6-sol at high
-    reasoning effort. Removed, deprecated, and tool-restricting modes are skipped.
+    Offers an optional pnpm upgrade and Chrome MCP installation. The main session,
+    plan mode, and subagents use gpt-5.6-sol at high reasoning effort. Codex feature
+    defaults are preserved.
 #>
 
 Set-StrictMode -Version Latest
@@ -26,39 +25,57 @@ $ErrorActionPreference = "Stop"
 
 $scriptPath = $null
 $scriptsDirPath = $null
+$coreNodePath = $null
 $shellsWinPath = $null
 $winCommonDirPath = $null
 $windowsPathFunctionScript = $null
+$mcpChromePath = $null
+$mcpChromeNodeModulesPath = $null
+$mcpChromeSharedArtifactPath = $null
+$mcpChromeNativeArtifactPath = $null
+$mcpChromeExtensionManifestPath = $null
+$mcpChromeRegisterScriptPath = $null
+$mcpChromeEnsureWinBinScriptPath = $null
+$mcpChromeNeedsDependencies = $false
+$mcpChromeNeedsBuild = $false
+$mcpChromeUrl = "http://127.0.0.1:12306/mcp"
+$previousLocation = $null
 $upgradeChoice = $null
 $pnpmCommand = $null
+$nodeCommand = $null
 $codexCommand = $null
-$featureListOutput = @()
-$featureLine = $null
-$featureMatch = $null
-$featureName = $null
-$featureStage = $null
-$featureLinePattern = '^(?<name>\S+)\s{2,}(?<stage>under development|experimental|stable|deprecated|removed)\s{2,}(?<enabled>true|false)\s*$'
-$excludedFeatures = @("code_mode_only", "shell_zsh_fork", "unified_exec_zsh_fork")
-$enabledFeatures = @()
 $model = "gpt-5.6-sol"
 $reasoningEffort = "high"
-$parsedRolloutBudget = 0L
-$rolloutBudgetLimitTokens = 100000L
 $codexArgs = @()
 $displayArgs = $null
-if ([int64]::TryParse($env:CODEX_ROLLOUT_BUDGET_TOKENS, [ref]$parsedRolloutBudget) -and $parsedRolloutBudget -gt 0) {
-    $rolloutBudgetLimitTokens = $parsedRolloutBudget
-}
 
 $scriptPath = $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($scriptPath)) {
     $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 }
 $scriptsDirPath = Split-Path $scriptPath -Parent
+$coreNodePath = Split-Path $scriptsDirPath -Parent
 $shellsWinPath = Join-Path $scriptsDirPath "shells"
 $shellsWinPath = Join-Path $shellsWinPath "win"
 $winCommonDirPath = Join-Path $shellsWinPath "win_common"
 $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+$mcpChromePath = Join-Path $coreNodePath "apps"
+$mcpChromePath = Join-Path $mcpChromePath "mcp-chrome"
+$mcpChromeNodeModulesPath = Join-Path $mcpChromePath "node_modules"
+$mcpChromeSharedArtifactPath = Join-Path $mcpChromePath "packages"
+$mcpChromeSharedArtifactPath = Join-Path $mcpChromeSharedArtifactPath "shared"
+$mcpChromeSharedArtifactPath = Join-Path $mcpChromeSharedArtifactPath "dist"
+$mcpChromeSharedArtifactPath = Join-Path $mcpChromeSharedArtifactPath "index.js"
+$mcpChromeNativeArtifactPath = Join-Path $mcpChromePath "app"
+$mcpChromeNativeArtifactPath = Join-Path $mcpChromeNativeArtifactPath "native-server"
+$mcpChromeNativeArtifactPath = Join-Path $mcpChromeNativeArtifactPath "dist"
+$mcpChromeNativeArtifactPath = Join-Path $mcpChromeNativeArtifactPath "index.js"
+$mcpChromeExtensionManifestPath = Join-Path $mcpChromePath ".output"
+$mcpChromeExtensionManifestPath = Join-Path $mcpChromeExtensionManifestPath "build_extension"
+$mcpChromeExtensionManifestPath = Join-Path $mcpChromeExtensionManifestPath "manifest.json"
+$mcpChromeRegisterScriptPath = Join-Path $mcpChromePath "scripts"
+$mcpChromeEnsureWinBinScriptPath = Join-Path $mcpChromeRegisterScriptPath "ensure_win_bin.ps1"
+$mcpChromeRegisterScriptPath = Join-Path $mcpChromeRegisterScriptPath "register-local-dev.cjs"
 . $windowsPathFunctionScript
 Set-CoreNodePaths
 
@@ -67,7 +84,7 @@ Write-Host "============================================================" -Foreg
 Write-Host "codexyolo.ps1" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 
-$upgradeChoice = Read-Host "Upgrade Codex CLI via 'pnpm add --global @openai/codex@latest'? [y/N]"
+$upgradeChoice = Read-Host "Upgrade Codex CLI via 'pnpm add --global @openai/codex@latest'? [N/y]"
 if (($upgradeChoice -eq "y") -or ($upgradeChoice -eq "Y")) {
     $pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
     if ($null -eq $pnpmCommand) {
@@ -78,7 +95,7 @@ if (($upgradeChoice -eq "y") -or ($upgradeChoice -eq "Y")) {
         Write-Host "[INFO] Codex CLI upgrade command completed." -ForegroundColor Green
     }
 } else {
-    Write-Host "[INFO] Codex CLI upgrade skipped (default N)." -ForegroundColor DarkGray
+    Write-Host "[INFO] Codex CLI upgrade skipped." -ForegroundColor DarkGray
 }
 
 $codexCommand = Get-Command codex -ErrorAction SilentlyContinue
@@ -86,29 +103,41 @@ if ($null -eq $codexCommand) {
     throw "codex is not available on PATH."
 }
 
-if ($codexCommand) {
-    $featureListOutput = @(& $codexCommand.Source features list 2>$null)
+$mcpChromeNeedsDependencies = -not (Test-Path -LiteralPath $mcpChromeNodeModulesPath)
+$mcpChromeNeedsBuild = (-not (Test-Path -LiteralPath $mcpChromeSharedArtifactPath)) -or
+    (-not (Test-Path -LiteralPath $mcpChromeNativeArtifactPath)) -or
+    (-not (Test-Path -LiteralPath $mcpChromeExtensionManifestPath))
+$nodeCommand = Get-Command node -ErrorAction SilentlyContinue
+if ($null -eq $nodeCommand) {
+    throw "node is required to install Chrome MCP."
 }
-if ($featureListOutput.Count -gt 0) {
-    foreach ($featureLine in $featureListOutput) {
-        $featureMatch = [regex]::Match([string]$featureLine, $featureLinePattern)
-        if (-not $featureMatch.Success) {
-            continue
-        }
-
-        $featureName = $featureMatch.Groups["name"].Value
-        $featureStage = $featureMatch.Groups["stage"].Value
-        if (($featureStage -eq "deprecated") -or ($featureStage -eq "removed")) {
-            continue
-        }
-        if (($excludedFeatures -contains $featureName) -or ($enabledFeatures -contains $featureName)) {
-            continue
-        }
-        $enabledFeatures += $featureName
+if ($mcpChromeNeedsDependencies -or $mcpChromeNeedsBuild) {
+    $pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
+    if ($null -eq $pnpmCommand) {
+        throw "pnpm is required to install Chrome MCP."
     }
-} else {
-    Write-Host "[WARN] Feature discovery is unavailable; upgrade Codex to enable all active feature flags." -ForegroundColor Yellow
 }
+
+Write-Host "[INFO] Ensuring Chrome MCP is installed..." -ForegroundColor Cyan
+$previousLocation = Get-Location
+try {
+    Set-Location -LiteralPath $mcpChromePath
+    if ($mcpChromeNeedsDependencies) {
+        Write-Host "[INFO] Installing Chrome MCP dependencies..." -ForegroundColor Cyan
+        & $pnpmCommand.Source install
+    }
+    if ($mcpChromeNeedsBuild) {
+        & $mcpChromeEnsureWinBinScriptPath -WorkspaceRoot $mcpChromePath
+        Write-Host "[INFO] Building missing Chrome MCP artifacts..." -ForegroundColor Cyan
+        & $pnpmCommand.Source run build:all
+    }
+    & $nodeCommand.Source $mcpChromeRegisterScriptPath
+} finally {
+    Set-Location -LiteralPath $previousLocation
+}
+
+& $codexCommand.Source mcp add chrome --url $mcpChromeUrl
+Write-Host "[INFO] Chrome MCP registered in Codex." -ForegroundColor Green
 
 $codexArgs = @(
     "--yolo",
@@ -118,13 +147,8 @@ $codexArgs = @(
     "--config", ('model_reasoning_effort="{0}"' -f $reasoningEffort),
     "--config", ('plan_mode_reasoning_effort="{0}"' -f $reasoningEffort),
     "--config", ('agents.default_subagent_model="{0}"' -f $model),
-    "--config", ('agents.default_subagent_reasoning_effort="{0}"' -f $reasoningEffort),
-    "--config", ('features.rollout_budget.limit_tokens={0}' -f $rolloutBudgetLimitTokens)
+    "--config", ('agents.default_subagent_reasoning_effort="{0}"' -f $reasoningEffort)
 )
-foreach ($featureName in $enabledFeatures) {
-    $codexArgs += @("--enable", $featureName)
-}
-
 $displayArgs = if ($args.Count -gt 0) {
     [string]::Format("; extra args: {0}", ($args -join " "))
 } else {
@@ -133,7 +157,7 @@ $displayArgs = if ($args.Count -gt 0) {
 
 Write-Host "[INFO] Model: $model ($reasoningEffort)" -ForegroundColor Green
 Write-Host "[INFO] YOLO: ON; live search: ON; hook trust bypass: ON" -ForegroundColor Green
-Write-Host "[INFO] Active features enabled: $($enabledFeatures.Count)$displayArgs" -ForegroundColor Green
+Write-Host "[INFO] Codex feature defaults preserved$displayArgs" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 

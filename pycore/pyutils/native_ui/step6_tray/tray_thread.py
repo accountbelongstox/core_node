@@ -15,7 +15,7 @@ from typing import Optional, List
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from .tkinter_system_tray import TkinterSystemTray, TrayMenuItem, PYSTRAY_AVAILABLE
+from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray, TrayMenuItem, PYSTRAY_AVAILABLE
 
 
 class TkinterSystemTrayThread(threading.Thread):

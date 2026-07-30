@@ -20,7 +20,7 @@ from share.game_interface_data import (
 from d4utils.d4_window_region_detector import get_d4_window_region_detector
 from d4utils.d4_team_health_detector import get_d4_team_health_detector
 from d4utils.d4_small_map_detector import get_d4_small_map_detector
-from pycore.pyutils.image_crop import ImageCrop
+from pycore.pyutils.image_tools.image_crop import ImageCrop
 
 
 class RegionDetector:

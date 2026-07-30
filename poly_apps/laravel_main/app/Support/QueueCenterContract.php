@@ -11,7 +11,7 @@ use RuntimeException;
  * Source: config/queue_center_contract.json
  * Aligned adapters:
  * - pycore/callmodule/services/queue_center_contract.py
- * - poly_apps/pycore_laravel_wordflow_ui/core/api-libs/pycore/QueueCenterContract.ts
+ * - poly_apps/pycore_laravel_wordnew_ui/core/api-libs/pycore/QueueCenterContract.ts
  * - apps/mcp-chrome/app/chrome-extension/utils/queue-center-contract.ts
  *
  * A task status, lane, capability, priority, task-type route, or wire field must

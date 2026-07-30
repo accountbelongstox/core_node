@@ -8,7 +8,7 @@
     development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5/§7:
     MeloTTS owns transformer dependencies that may conflict with the shared system stack.
     Therefore melo is NEVER installed into the main interpreter. Instead this step builds a
-    DEDICATED per-engine venv via pycore/pyutils/tts/isolated_venv.ensure_venv('melotts', ...)
+    DEDICATED per-engine venv via pycore/pyutils/common/python_env/isolated_venv.ensure_venv('melotts', ...)
     (created --system-site-packages so it REUSES the system CUDA torch; only melo + its pinned
     package-managed transformer dependencies are layered inside, shadowing system copies). Production runs
     melotts as a class-C HTTP server (melotts_api_server.py, port 57212) under that venv; the
@@ -48,9 +48,7 @@ $depsSentinel     = $null
 $resolvedPython   = $null
 $doFull           = ($Full -or $env:MELOTTS_INSTALL -eq '1')
 $venvProvisioned  = $false
-$venvHealthy      = $false
 $venvReady        = $false
-$needWarm         = $false
 $hasCuda          = $false
 $device           = 'cpu'
 $langs            = 'EN,ZH'
@@ -86,37 +84,6 @@ function Invoke-MeloTtsVenvNltk {
     $ErrorActionPreference = $prevEap
 }
 
-function Invoke-MeloTtsVenvWarmup {
-    # Pre-download the MeloTTS model weights — INSIDE the venv (best-effort; models
-    # otherwise download lazily on first synth). Runs LIVE via Out-Host.
-    param([string]$VenvPython, [string]$LangList, [string]$DeviceName)
-    if (-not $VenvPython) { return }
-    Write-Host ("$SCRIPT_INDEX [..] pre-downloading models [{0}] on {1} (in venv) ..." -f $LangList, $DeviceName) -ForegroundColor Yellow
-    $warmPy = @"
-import sys
-from melo.api import TTS
-langs = sys.argv[1].split(',')
-device = sys.argv[2]
-for lang in langs:
-    lang = lang.strip()
-    if not lang:
-        continue
-    try:
-        TTS(language=lang, device=device)
-        print('  [warmed]', lang)
-    except Exception as e:
-        print('  [skip]', lang, '-', e)
-"@
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        & $VenvPython -c $warmPy $LangList $DeviceName | Out-Host
-    } catch {
-        Write-Host "$SCRIPT_INDEX [!] model pre-download incomplete (models still download lazily on first synth)." -ForegroundColor DarkYellow
-    }
-    $ErrorActionPreference = $prevEap
-}
-
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host " $SCRIPT_INDEX MeloTTS (free offline zh/en TTS, isolated venv)" -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
@@ -134,7 +101,6 @@ if (-not ($resolvedPython -and (Test-Path -LiteralPath $resolvedPython))) {
 }
 
 $venvProvisioned = Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts'
-$venvHealthy = Test-IsolatedTtsVenvHealthy -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts'
 $meloPolicy = Get-TtsEngineInstallPolicy -PythonExe $resolvedPython -Engine 'melotts'
 if ($meloPolicy) {
     $meloPins = @($meloPolicy.pins)
@@ -158,7 +124,7 @@ Write-Host ("$SCRIPT_INDEX  compute : {0}" -f $(if ($hasCuda) { 'CUDA GPU -> ful
 Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine melotts -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 
 # Idempotent fast-path: venv already built + sentinel present -> nothing to do.
-if ($venvHealthy -and (Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'melotts' -Path $depsSentinel) -and -not $Force) {
+if ($venvProvisioned -and (Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'melotts' -Path $depsSentinel) -and -not $Force) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'MeloTTS isolated venv already provisioned' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     Write-Host "$SCRIPT_INDEX  Runtime: pycore launches the melotts HTTP server (class C) under the isolated venv on demand." -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
@@ -189,16 +155,10 @@ if ($venvReady) {
     Write-Host "$SCRIPT_INDEX [!] venv build incomplete; will retry next run (main interpreter untouched)." -ForegroundColor DarkYellow
 }
 
-# Post-build steps run INSIDE the venv (NLTK data + optional model warmup).
-$needWarm = $venvReady -and ((-not $venvProvisioned) -or $Force)
+# Post-build NLTK data setup runs inside the venv without loading model weights.
 if ($venvReady) {
     $venvPython = Resolve-IsolatedTtsVenvPython -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts'
     Invoke-MeloTtsVenvNltk -VenvPython $venvPython
-    if ($needWarm) {
-        Invoke-MeloTtsVenvWarmup -VenvPython $venvPython -LangList $langs -DeviceName $device
-    } else {
-        Write-Host "$SCRIPT_INDEX [OK] venv already present -> skipping model warmup (use -Force to re-warm)." -ForegroundColor Green
-    }
     Write-Host "$SCRIPT_INDEX [OK] MeloTTS ready (free, offline; isolated venv)." -ForegroundColor Green
     Write-Host "$SCRIPT_INDEX  Runtime: pycore launches the melotts HTTP server (class C) under the isolated venv on demand." -ForegroundColor Cyan
 }

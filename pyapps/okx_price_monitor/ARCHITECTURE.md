@@ -109,7 +109,7 @@ from typing import List, Dict, Optional
 
 # 2. Third-party imports (pycore)
 from pycore.pyfoundations.third_party import get_third_package_okx
-from pycore.pygvar import PROJECT_ROOT
+from pycore.pyfoundations.pygvar import PROJECT_ROOT
 
 # 3. Import third-party packages
 get_third_package_okx()

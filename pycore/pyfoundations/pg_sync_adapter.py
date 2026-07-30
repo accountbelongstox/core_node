@@ -43,6 +43,7 @@ from typing import Optional, Tuple, List
 import re
 
 from datetime import datetime, timezone
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 
@@ -330,7 +331,7 @@ class PgSyncAdapter:
         Non-interactive (no TTY) → returns False (safe default).
         """
         if not sys.stdin.isatty():
-            print('[pg-sync] Non-interactive session — skipping sync (run start.sh in a terminal to confirm).', flush=True)
+            ColorPrint.plain('[pg-sync] Non-interactive session — skipping sync (run start.sh in a terminal to confirm).', flush=True)
             return False
 
         win_str = self._ts_str(win_ts)
@@ -346,14 +347,14 @@ class PgSyncAdapter:
              f'  (This is your last chance to cancel.)\n'),
         ]
         for i, msg in enumerate(prompts, 1):
-            print(msg, end='', flush=True)
+            ColorPrint.plain(msg, end='', flush=True)
             try:
                 answer = input(f'  [{i}/{PROMPT_ATTEMPTS}] Update Linux PG from Windows? [Y/n] ').strip()
             except (EOFError, KeyboardInterrupt):
-                print('\n[pg-sync] Cancelled.', flush=True)
+                ColorPrint.plain('\n[pg-sync] Cancelled.', flush=True)
                 return False
             if answer.lower() == 'n':
-                print('[pg-sync] Sync skipped by user.', flush=True)
+                ColorPrint.plain('[pg-sync] Sync skipped by user.', flush=True)
                 return False
         return True
 
@@ -436,10 +437,10 @@ class PgSyncAdapter:
             return False
         win_data = _win_path(self.win_data_dir)
         win_log = _win_path(self.win_pg_root / 'logs' / 'postgres.log')
-        print('[pg-sync] Starting Windows PostgreSQL to perform dump...', flush=True)
+        ColorPrint.plain('[pg-sync] Starting Windows PostgreSQL to perform dump...', flush=True)
         rc, _, err = _pg_run([str(ctl_exe), 'start', '-D', win_data, '-l', win_log], timeout=30)
         if rc != 0:
-            print(f'[pg-sync] Warning: pg_ctl.exe start returned {rc}: {err}', flush=True)
+            ColorPrint.plain(f'[pg-sync] Warning: pg_ctl.exe start returned {rc}: {err}', flush=True)
         self._win_pg_started = True
         for _ in range(PG_WAIT_TIMEOUT):
             if self._win_pg_is_ready():
@@ -455,7 +456,7 @@ class PgSyncAdapter:
             win_data = _win_path(self.win_data_dir)
             _pg_run([str(ctl_exe), 'stop', '-D', win_data, '-m', 'fast'], timeout=30)
             self._win_pg_started = False
-            print('[pg-sync] Stopped Windows PostgreSQL (was started by adapter).', flush=True)
+            ColorPrint.plain('[pg-sync] Stopped Windows PostgreSQL (was started by adapter).', flush=True)
 
     # -----------------------------------------------------------------------
     # Dump and restore
@@ -469,7 +470,7 @@ class PgSyncAdapter:
             return False
         dump_all = self.win_pg_bin / 'pg_dumpall.exe'
         if not dump_all.exists():
-            print(f'[pg-sync] pg_dumpall.exe not found at {dump_all}', flush=True)
+            ColorPrint.plain(f'[pg-sync] pg_dumpall.exe not found at {dump_all}', flush=True)
             return False
 
         # Write to a temp file first (atomic rename on completion)
@@ -477,7 +478,7 @@ class PgSyncAdapter:
         win_tmp = _win_path(tmp_dump)
         self.dump_path.parent.mkdir(parents=True, exist_ok=True)
 
-        print(f'[pg-sync] Dumping Windows PG → {tmp_dump} ...', flush=True)
+        ColorPrint.plain(f'[pg-sync] Dumping Windows PG → {tmp_dump} ...', flush=True)
         env = {'PGPASSWORD': self._password_win}
         rc, _, err = _pg_run(
             [str(dump_all), '-h', '127.0.0.1', '-p', '5432',
@@ -485,7 +486,7 @@ class PgSyncAdapter:
             env=env, timeout=600
         )
         if rc != 0 or not tmp_dump.exists() or tmp_dump.stat().st_size < 512:
-            print(f'[pg-sync] Dump failed (rc={rc}): {err[:300]}', flush=True)
+            ColorPrint.plain(f'[pg-sync] Dump failed (rc={rc}): {err[:300]}', flush=True)
             try:
                 tmp_dump.unlink(missing_ok=True)
             except OSError:
@@ -496,12 +497,12 @@ class PgSyncAdapter:
         try:
             tmp_dump.rename(self.dump_path)
         except OSError as exc:
-            print(f'[pg-sync] Could not rename dump: {exc}', flush=True)
+            ColorPrint.plain(f'[pg-sync] Could not rename dump: {exc}', flush=True)
             shutil.copy2(str(tmp_dump), str(self.dump_path))
             tmp_dump.unlink(missing_ok=True)
 
         size_mb = self.dump_path.stat().st_size / (1024 * 1024)
-        print(f'[pg-sync] Dump complete: {self.dump_path} ({size_mb:.1f} MB)', flush=True)
+        ColorPrint.plain(f'[pg-sync] Dump complete: {self.dump_path} ({size_mb:.1f} MB)', flush=True)
         return True
 
     def _restore_from_dump(self, dump_path: Path) -> bool:
@@ -513,24 +514,24 @@ class PgSyncAdapter:
         if not psql_bin and self.linux_pg_bin:
             psql_bin = str(self.linux_pg_bin / 'psql')
         if not psql_bin:
-            print('[pg-sync] psql not found — cannot restore.', flush=True)
+            ColorPrint.plain('[pg-sync] psql not found — cannot restore.', flush=True)
             return False
         if not dump_path.exists() or dump_path.stat().st_size < 512:
-            print(f'[pg-sync] Dump file missing or empty: {dump_path}', flush=True)
+            ColorPrint.plain(f'[pg-sync] Dump file missing or empty: {dump_path}', flush=True)
             return False
 
-        print(f'[pg-sync] Restoring from {dump_path} into local PostgreSQL...', flush=True)
+        ColorPrint.plain(f'[pg-sync] Restoring from {dump_path} into local PostgreSQL...', flush=True)
         env = {'PGPASSWORD': self._password_linux}
         cmd = [psql_bin, '-h', '127.0.0.1', '-p', '5432', '-U', 'postgres',
                '-d', 'postgres', '-f', str(dump_path)]
         rc, _, err = _pg_run(cmd, env=env, timeout=1200)
         if rc != 0:
-            print(f'[pg-sync] Restore finished with warnings (rc={rc}). Last stderr: {err[-400:]}', flush=True)
+            ColorPrint.plain(f'[pg-sync] Restore finished with warnings (rc={rc}). Last stderr: {err[-400:]}', flush=True)
             # psql -f exits 3 on non-fatal errors; treat as partial success
             if rc == 3 or 'ERROR' not in err:
                 return True
             return False
-        print('[pg-sync] Restore complete.', flush=True)
+        ColorPrint.plain('[pg-sync] Restore complete.', flush=True)
         return True
 
     # -----------------------------------------------------------------------
@@ -553,7 +554,7 @@ class PgSyncAdapter:
             tmp.write_text(json.dumps(meta, indent=2), encoding='utf-8')
             tmp.rename(self.sync_meta_path)
         except OSError as exc:
-            print(f'[pg-sync] Could not write sync metadata: {exc}', flush=True)
+            ColorPrint.plain(f'[pg-sync] Could not write sync metadata: {exc}', flush=True)
 
     def _read_sync_meta(self) -> dict:
         if not self.sync_meta_path or not self.sync_meta_path.exists():
@@ -572,7 +573,7 @@ class PgSyncAdapter:
         """
         win_started_ok = self._ensure_win_pg_running()
         if not win_started_ok:
-            print('[pg-sync] Could not start Windows PostgreSQL — aborting sync.', flush=True)
+            ColorPrint.plain('[pg-sync] Could not start Windows PostgreSQL — aborting sync.', flush=True)
             return False
 
         try:
@@ -581,22 +582,22 @@ class PgSyncAdapter:
         finally:
             self._stop_win_pg_if_started()
 
-        print('[pg-sync] Stopping local PostgreSQL for restore...', flush=True)
+        ColorPrint.plain('[pg-sync] Stopping local PostgreSQL for restore...', flush=True)
         self._stop_local_pg()
 
         started = self._start_local_pg()
         if not started:
-            print('[pg-sync] WARNING: Could not restart local PG. Attempting restore anyway...', flush=True)
+            ColorPrint.plain('[pg-sync] WARNING: Could not restart local PG. Attempting restore anyway...', flush=True)
         if not self._start_local_pg():
-            print('[pg-sync] ERROR: Local PG did not start after dump. Manual intervention needed.', flush=True)
+            ColorPrint.plain('[pg-sync] ERROR: Local PG did not start after dump. Manual intervention needed.', flush=True)
             return False
 
         success = self._restore_from_dump(self.dump_path)
         self._write_sync_meta(success, win_ts, linux_ts)
         if success:
-            print('[pg-sync] Windows → Linux PostgreSQL sync completed successfully.', flush=True)
+            ColorPrint.plain('[pg-sync] Windows → Linux PostgreSQL sync completed successfully.', flush=True)
         else:
-            print('[pg-sync] Sync completed with errors. Check psql output above.', flush=True)
+            ColorPrint.plain('[pg-sync] Sync completed with errors. Check psql output above.', flush=True)
         return success
 
     def _sync_linux_from_dump(self) -> bool:
@@ -611,9 +612,9 @@ class PgSyncAdapter:
         if dump_mtime <= linux_mtime:
             return False  # local data is already at least as fresh
 
-        print(f'[pg-sync] Found Windows PG export at {self.dump_path} (newer than local data).', flush=True)
+        ColorPrint.plain(f'[pg-sync] Found Windows PG export at {self.dump_path} (newer than local data).', flush=True)
         if not sys.stdin.isatty():
-            print('[pg-sync] Non-interactive — skipping restore. Run start.sh in a terminal to confirm.', flush=True)
+            ColorPrint.plain('[pg-sync] Non-interactive — skipping restore. Run start.sh in a terminal to confirm.', flush=True)
             return False
 
         try:
@@ -621,12 +622,12 @@ class PgSyncAdapter:
         except (EOFError, KeyboardInterrupt):
             return False
         if answer.lower() == 'n':
-            print('[pg-sync] Restore skipped.', flush=True)
+            ColorPrint.plain('[pg-sync] Restore skipped.', flush=True)
             return False
 
         self._stop_local_pg()
         if not self._start_local_pg():
-            print('[pg-sync] ERROR: Local PG did not start. Manual intervention needed.', flush=True)
+            ColorPrint.plain('[pg-sync] ERROR: Local PG did not start. Manual intervention needed.', flush=True)
             return False
 
         success = self._restore_from_dump(self.dump_path)
@@ -644,40 +645,40 @@ class PgSyncAdapter:
         self.detect()
         self._read_passwords()
 
-        print(f'[pg-sync] Environment: {self.env}', flush=True)
+        ColorPrint.plain(f'[pg-sync] Environment: {self.env}', flush=True)
 
         if self.env == PgEnv.WINDOWS:
             # Windows side: no sync needed (Windows is authoritative).
             return 0
 
         if self.env == PgEnv.LINUX_NATIVE:
-            print('[pg-sync] No Windows disk found — no cross-system sync possible.', flush=True)
+            ColorPrint.plain('[pg-sync] No Windows disk found — no cross-system sync possible.', flush=True)
             return 0
 
         if not self.win_data_dir or not self.win_data_dir.is_dir():
-            print(f'[pg-sync] Windows PG data dir not found at {self.win_data_dir} — skipping.', flush=True)
+            ColorPrint.plain(f'[pg-sync] Windows PG data dir not found at {self.win_data_dir} — skipping.', flush=True)
             return 0
 
         # Compare freshness
         win_newer, win_ts, linux_ts = self.compare_freshness()
 
         if not win_newer:
-            print(
+            ColorPrint.plain(
                 f'[pg-sync] Local Linux PG is up to date '
                 f'(Linux {self._ts_str(linux_ts)} ≥ Windows {self._ts_str(win_ts)}).',
                 flush=True
             )
             return 0
 
-        print(
+        ColorPrint.plain(
             f'[pg-sync] Windows PG is NEWER: {self._ts_str(win_ts)} > {self._ts_str(linux_ts)}',
             flush=True
         )
 
         if self.env == PgEnv.WSL:
             if not self.win_pg_bin:
-                print('[pg-sync] Windows PG binaries not found — cannot auto-sync.', flush=True)
-                print(f'[pg-sync] Expected: {self.win_mount}/.dev_win10/PG/bin or .dev_win11/PG/bin', flush=True)
+                ColorPrint.plain('[pg-sync] Windows PG binaries not found — cannot auto-sync.', flush=True)
+                ColorPrint.plain(f'[pg-sync] Expected: {self.win_mount}/.dev_win10/PG/bin or .dev_win11/PG/bin', flush=True)
                 return 0
             if not self.prompt_3x_confirm(win_ts, linux_ts):
                 return 0
@@ -689,7 +690,7 @@ class PgSyncAdapter:
             if self.dump_path and self.dump_path.exists():
                 self._sync_linux_from_dump()
             else:
-                print(
+                ColorPrint.plain(
                     f'[pg-sync] Windows PG is newer but cannot auto-sync on native Linux.\n'
                     f'[pg-sync] On Windows, run start.ps1 which exports a dump to:\n'
                     f'[pg-sync]   {self.dump_path}\n'

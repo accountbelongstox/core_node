@@ -1,0 +1,34 @@
+/**
+ * Shared HTTP controller helpers for pycore API domain modules.
+ */
+
+import { buildPycoreHttpUrl, normalizePycorePath } from './pycoreEndpoints';
+import { directPycoreHost, rewritePycoreEndpoint } from './pycoreTarget';
+import { callRpc, isHttpConnected } from './PycoreHttp';
+import { PYCORE_RPC_ROUTES } from './PycoreRpcRoutes';
+
+function guardPycoreReachability(): void {
+  // Requests fail through fetch with their concrete HTTP/network error.
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  const buffer = new Uint8Array(await file.arrayBuffer());
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let index = 0; index < buffer.length; index += chunkSize) {
+    binary += String.fromCharCode(...buffer.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+export {
+  guardPycoreReachability,
+  fileToBase64,
+  callRpc,
+  isHttpConnected,
+  PYCORE_RPC_ROUTES,
+  rewritePycoreEndpoint,
+  directPycoreHost,
+  buildPycoreHttpUrl,
+  normalizePycorePath,
+};

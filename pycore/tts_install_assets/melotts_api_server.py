@@ -7,7 +7,7 @@ from pydub import AudioSegment
 """
 MeloTTS HTTP API for pycore (subprocess in the DEDICATED isolated venv).
 
-Runs inside the per-engine isolated venv (see pycore/pyutils/tts/isolated_venv.py,
+Runs inside the per-engine isolated venv (see pycore/pyutils/common/python_env/isolated_venv.py,
 engine "melotts"), launched by tts_service_manager.py - NEVER the main pycore
 interpreter, because MeloTTS pins an OLD transformers (~4.27.x) which would
 downgrade the main interpreter's shared Bucket-A pin (~4.46.x) and break

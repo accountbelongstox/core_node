@@ -6,7 +6,7 @@
     Bucket B (isolated). qwen-tts owns transformer dependencies that may conflict with the
     main system Python 3.13 shared stack. Therefore qwen-tts
     is NEVER installed into the main interpreter. Instead this step builds the DEDICATED venv
-    via pycore/pyutils/python_env/isolated_venv.ensure_venv(). The environment is a
+    via pycore/pyutils/common/python_env/isolated_venv.ensure_venv(). The environment is a
     dedicated dependency overlay: --system-site-packages exposes the managed Python runtime
     so the CUDA torch group is reused, while qwen-tts owns its local dependency overrides.
     Production runs qwen3tts as a class-C HTTP server under that venv; the main interpreter only
@@ -43,8 +43,6 @@ $qwenModel      = $null
 $modelReady     = $false
 $dlOk           = $false
 $sentinelModel  = $null
-$apiServerSrc   = $null
-$apiServerDst   = $null
 $venvReady      = $false
 $cudaPolicy     = $null
 $soxReady       = $false
@@ -120,6 +118,7 @@ Write-Host ("$SCRIPT_INDEX  weights : {0}" -f $weightsDir) -ForegroundColor Dark
 Write-Host ("$SCRIPT_INDEX  model   : {0}" -f $qwenModel) -ForegroundColor DarkGray
 Write-Host ("$SCRIPT_INDEX  sentinel: {0} ({1})" -f $modelSentinel, $(if (Test-Path $modelSentinel) { 'present' } else { 'absent' })) -ForegroundColor DarkGray
 
+New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 $soxReady = Ensure-SoxOnPath -Prefix "$SCRIPT_INDEX " -Force:$Force
 if (-not $soxReady) {
     Write-Host "$SCRIPT_INDEX [!] SoX is unavailable; qwen-tts will retry next run." -ForegroundColor DarkYellow
@@ -130,7 +129,7 @@ if (
     (Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'qwen3tts' -Path $depsSentinel) -and
     (Test-Path $modelSentinel) -and
     -not $Force -and
-    (Test-IsolatedTtsVenvHealthy -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'qwen3tts')
+    (Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'qwen3tts')
 ) {
     $sentinelModel = (Get-Content -LiteralPath $modelSentinel -Raw -ErrorAction SilentlyContinue)
     if ($sentinelModel) { $sentinelModel = $sentinelModel.Trim().Trim([char]0xFEFF) }
@@ -144,14 +143,6 @@ if (
     } elseif (-not (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $qwenModel)) {
         Write-Host "$SCRIPT_INDEX [..] local weights incomplete or corrupt; repairing download." -ForegroundColor Yellow
     }
-}
-
-New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
-
-$apiServerSrc = Join-Path (Get-PycoreTtsInstallAssetsDir -InstallScriptRoot $PSScriptRoot) 'qwen3tts_api_server.py'
-$apiServerDst = Join-Path $targetDir 'qwen3tts_api_server.py'
-if (Test-Path $apiServerSrc) {
-    Copy-Item -Path $apiServerSrc -Destination $apiServerDst -Force
 }
 
 # --- Isolated venv (Bucket B): qwen-tts owns its transformer dependency set, which is

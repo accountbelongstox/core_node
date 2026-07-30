@@ -10,6 +10,63 @@ $nvidiaAlignPath = Join-Path $PSScriptRoot 'NvidiaCuStackAlign.ps1'
 $script:TorchCpuIndexUrl = Get-AiRuntimePolicyValue -Name 'AI_TORCH_CPU_INDEX' -Default 'https://download.pytorch.org/whl/cpu'
 $script:TorchPackages = Get-CanonicalTorchPackageSpecs
 $script:TorchHealthPackages = Get-AiRuntimePolicyList -Name 'AI_TORCH_HEALTH_PACKAGES'
+$script:PyserviceRuntimeRunKey = 'PYCORE_RUNTIME_STATE_RUN_ID'
+$script:PyserviceRuntimeProcessKey = 'PYCORE_RUNTIME_STATE_PROCESS_ID'
+$script:PyserviceTorchRunKey = 'PYCORE_TORCH_VALIDATION_RUN_ID'
+$script:PyserviceTorchPythonKey = 'PYCORE_TORCH_VALIDATION_PYTHON'
+$script:PyserviceTorchStateKey = 'PYCORE_TORCH_VALIDATION_CUDA_STATE'
+$script:PyserviceTorchUsableKey = 'PYCORE_TORCH_VALIDATION_CUDA_USABLE'
+$script:PyserviceTorchPolicyKey = 'PYCORE_TORCH_VALIDATION_POLICY_TAG'
+$script:PyserviceTorchCacheHit = $false
+$script:PyserviceTorchCachedState = ''
+$script:PyserviceTorchCachedUsable = ''
+$script:PyserviceTorchCachedPolicy = ''
+$script:LastTorchCudaState = ''
+$script:LastTorchCudaUsable = $false
+$script:LastTorchCudaUsableKnown = $false
+$script:TorchMutationPerformed = $false
+
+function Sync-PyserviceTorchRuntimeState {
+    param([string]$PythonCmd)
+    $getter = Get-Command -Name 'Get-GlobalVar' -CommandType Function -ErrorAction SilentlyContinue
+    $runtimeRunId = ''
+    $validationRunId = ''
+    $runtimeProcessId = ''
+    $script:PyserviceTorchCacheHit = $false
+    $script:PyserviceTorchCachedState = ''
+    $script:PyserviceTorchCachedUsable = ''
+    $script:PyserviceTorchCachedPolicy = ''
+    if (-not $getter) { return }
+    $runtimeRunId = [string](Get-GlobalVar -key $script:PyserviceRuntimeRunKey -defaultValue '')
+    $runtimeProcessId = [string](Get-GlobalVar -key $script:PyserviceRuntimeProcessKey -defaultValue '')
+    $validationRunId = [string](Get-GlobalVar -key $script:PyserviceTorchRunKey -defaultValue '')
+    if ($runtimeRunId -and $runtimeRunId -eq $validationRunId -and $runtimeProcessId -eq ([string]$PID)) {
+        $script:PyserviceTorchCacheHit = $true
+        $script:PyserviceTorchCachedState = [string](Get-GlobalVar -key $script:PyserviceTorchStateKey -defaultValue '')
+        $script:PyserviceTorchCachedUsable = [string](Get-GlobalVar -key $script:PyserviceTorchUsableKey -defaultValue 'false')
+        $script:PyserviceTorchCachedPolicy = [string](Get-GlobalVar -key $script:PyserviceTorchPolicyKey -defaultValue '')
+    }
+}
+
+function Save-PyserviceTorchRuntimeState {
+    param(
+        [string]$PythonCmd,
+        [string]$CudaState,
+        [bool]$CudaUsable,
+        [string]$PolicyTag
+    )
+    $getter = Get-Command -Name 'Get-GlobalVar' -CommandType Function -ErrorAction SilentlyContinue
+    $setter = Get-Command -Name 'Set-GlobalVar' -CommandType Function -ErrorAction SilentlyContinue
+    $runtimeRunId = ''
+    if (-not $getter -or -not $setter) { return }
+    $runtimeRunId = [string](Get-GlobalVar -key $script:PyserviceRuntimeRunKey -defaultValue '')
+    if (-not $runtimeRunId) { return }
+    Set-GlobalVar -key $script:PyserviceTorchRunKey -value $runtimeRunId
+    Set-GlobalVar -key $script:PyserviceTorchPythonKey -value $PythonCmd
+    Set-GlobalVar -key $script:PyserviceTorchStateKey -value $(if ($CudaState) { $CudaState } else { 'absent' })
+    Set-GlobalVar -key $script:PyserviceTorchUsableKey -value $CudaUsable.ToString().ToLowerInvariant()
+    Set-GlobalVar -key $script:PyserviceTorchPolicyKey -value $(if ($PolicyTag) { $PolicyTag } else { 'cpu' })
+}
 
 function Get-TcgPython {
     param([string]$Override)
@@ -32,9 +89,11 @@ function Get-TorchCudaState {
     $out = & $PythonCmd -c "import torch; print(str(torch.version.cuda))" 2>&1
     $text = ("$out").Trim()
     if ($text -match 'Error|Traceback|No module') {
+        $script:LastTorchCudaState = 'Broken'
         return 'Broken'
     }
 
+    $script:LastTorchCudaState = $text
     return $text
 }
 
@@ -51,10 +110,21 @@ function Convert-TorchCudaStateToTag {
     return ''
 }
 
-function Test-TorchCudaUsable {
+function Invoke-TorchCudaUsableProbe {
     param([string]$PythonCmd)
     $out = & $PythonCmd -c "import torch; print('__CUDA_OK__' if torch.cuda.is_available() else '__CUDA_FAIL__')" 2>&1
-    return ("$out" -match '__CUDA_OK__')
+    $script:LastTorchCudaUsable = ("$out" -match '__CUDA_OK__')
+    $script:LastTorchCudaUsableKnown = $true
+    return $script:LastTorchCudaUsable
+}
+
+function Test-TorchCudaUsable {
+    param([string]$PythonCmd)
+    Sync-PyserviceTorchRuntimeState -PythonCmd $PythonCmd
+    if ($script:PyserviceTorchCacheHit) {
+        return $script:PyserviceTorchCachedUsable -eq 'true'
+    }
+    return Invoke-TorchCudaUsableProbe -PythonCmd $PythonCmd
 }
 
 function Test-TorchPackagesInstalled {
@@ -110,6 +180,7 @@ function Install-CpuTorch {
         [switch]$Force
     )
     $installArgs = @()
+    $script:TorchMutationPerformed = $true
     if ($Force) {
         & $PipExe uninstall -y @script:TorchPackages
     }
@@ -125,6 +196,7 @@ function Install-GpuTorch {
         [switch]$Force
     )
     $installArgs = @()
+    $script:TorchMutationPerformed = $true
     if ($Force) {
         & $PipExe uninstall -y @script:TorchPackages
     }
@@ -133,7 +205,7 @@ function Install-GpuTorch {
     Sync-NvidiaCuStack -PythonCmd $PythonCmd -PipExe $PipExe -TargetMajor $Policy.Major
 }
 
-function Ensure-TorchBuild {
+function Invoke-TorchBuildEnsureFull {
     param(
         [string]$PythonCmd,
         [string]$PipExe,
@@ -160,7 +232,7 @@ function Ensure-TorchBuild {
         return
     }
 
-    if ($policy.Enabled) {
+    if ($policy.Enabled -and $state -ne 'Broken') {
         if (-not $state) {
             if ($RepairOnly) {
                 Write-Host '[torch-guard] GPU present, torch missing (repair-only) -> nothing to repair.'
@@ -218,4 +290,40 @@ function Ensure-TorchBuild {
             Remove-OrphanNvidiaWheels -PythonCmd $PythonCmd -PipExe $PipExe
         }
     }
+}
+
+function Ensure-TorchBuild {
+    param(
+        [string]$PythonCmd,
+        [string]$PipExe,
+        [switch]$RepairOnly
+    )
+    $state = ''
+    $usable = $false
+    $policy = $null
+    Sync-PyserviceTorchRuntimeState -PythonCmd $PythonCmd
+    if ($script:PyserviceTorchCacheHit) {
+        Write-Host "[torch-guard] Reusing pyservice runtime validation (policy=$($script:PyserviceTorchCachedPolicy), cuda=$($script:PyserviceTorchCachedState), usable=$($script:PyserviceTorchCachedUsable))."
+        return
+    }
+
+    $script:LastTorchCudaState = ''
+    $script:LastTorchCudaUsable = $false
+    $script:LastTorchCudaUsableKnown = $false
+    $script:TorchMutationPerformed = $false
+    Invoke-TorchBuildEnsureFull -PythonCmd $PythonCmd -PipExe $PipExe -RepairOnly:$RepairOnly
+
+    $state = $script:LastTorchCudaState
+    if ($script:TorchMutationPerformed -or -not $state) {
+        $state = Get-TorchCudaState -PythonCmd $PythonCmd
+    }
+    $policy = Get-CudaRuntimePolicy
+    if ($policy.Enabled) {
+        if ($script:TorchMutationPerformed -or -not $script:LastTorchCudaUsableKnown) {
+            $usable = Invoke-TorchCudaUsableProbe -PythonCmd $PythonCmd
+        } else {
+            $usable = $script:LastTorchCudaUsable
+        }
+    }
+    Save-PyserviceTorchRuntimeState -PythonCmd $PythonCmd -CudaState $state -CudaUsable $usable -PolicyTag $policy.Tag
 }

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import asyncio
 import threading
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.device.android_device import AndroidDevice
 from pycore.pyutils.device.scrcpy_device import ScrcpyDevice
 from pycore.pyutils.device.device_info import DeviceInfo
@@ -17,7 +18,7 @@ from pycore.pyutils.device.server_params import ServerParams, VideoCodec
 from pycore.pyutils.device.adb_manager import ADBManager
 from pycore.pyutils.device.adb_device import ADBDevice
 from pycore.pyfoundations.serialized_worker import await_bus_task
-from pycore.pyfoundations.pygvar.global_var_manager import GlobalVarManager
+from pycore.pyfoundations.pygvar import GlobalVarManager
 
 
 @dataclass
@@ -103,7 +104,7 @@ class DeviceManager:
         # Get basic device info from ADB
         device = ADBManager.get_device_info(serial, adb_path)
         if not device.is_online:
-            print(f"Device {serial} is not online (state: {device.state.value})")
+            ColorPrint.plain(f"Device {serial} is not online (state: {device.state.value})")
             return None
 
         # Get resolution
@@ -128,7 +129,7 @@ class DeviceManager:
 
         # Validate SDK version is numeric
         if not sdk_version_str or not sdk_version_str.isdigit():
-            print(f"Warning: Invalid SDK version for {serial}, using default")
+            ColorPrint.plain(f"Warning: Invalid SDK version for {serial}, using default")
             sdk_version = 0
         else:
             sdk_version = int(sdk_version_str)
@@ -167,13 +168,13 @@ class DeviceManager:
         async with self._lock:
             # Check if already connected
             if serial in self.devices:
-                print(f"Device {serial} already connected")
+                ColorPrint.plain(f"Device {serial} already connected")
                 return self.devices[serial]
 
             # Get device info
             info = await self.get_device_info(serial, adb_path)
             if not info:
-                print(f"Failed to get info for device {serial}")
+                ColorPrint.plain(f"Failed to get info for device {serial}")
                 return None
 
             # Use default params if not provided
@@ -190,21 +191,21 @@ class DeviceManager:
             device = ScrcpyDevice(serial, params, adb_path)
 
             # Start scrcpy-server (CRITICAL: must succeed for video streaming)
-            print(f"[DeviceManager] Starting scrcpy-server for {serial}...")
+            ColorPrint.plain(f"[DeviceManager] Starting scrcpy-server for {serial}...")
             await asyncio.wait_for(
                 await_bus_task(device.start_server),
                 timeout=60.0  # 60 seconds timeout (socket accept is 30s)
             )
-            print(f"[DeviceManager] ✓ scrcpy-server started successfully for {serial}")
+            ColorPrint.plain(f"[DeviceManager] ✓ scrcpy-server started successfully for {serial}")
 
             # Verify device is truly connected (has active sockets)
             if not device.is_connected():
                 error_msg = f"Device {serial} scrcpy-server started but sockets not connected"
-                print(f"[DeviceManager] ✗ {error_msg}")
-                print(f"[DeviceManager] Possible causes:")
-                print(f"  1. scrcpy-server.jar not pushed to /data/local/tmp/")
-                print(f"  2. ADB connection unstable")
-                print(f"  3. Device permissions issue")
+                ColorPrint.plain(f"[DeviceManager] ✗ {error_msg}")
+                ColorPrint.plain(f"[DeviceManager] Possible causes:")
+                ColorPrint.plain(f"  1. scrcpy-server.jar not pushed to /data/local/tmp/")
+                ColorPrint.plain(f"  2. ADB connection unstable")
+                ColorPrint.plain(f"  3. Device permissions issue")
                 # Update state with error
                 state = DeviceState(
                     serial=serial,
@@ -237,7 +238,7 @@ class DeviceManager:
             # Emit connected event
             await self._emit_connected(serial, info)
 
-            print(f"[DeviceManager] ✓ Device {serial} fully connected and ready for streaming")
+            ColorPrint.plain(f"[DeviceManager] ✓ Device {serial} fully connected and ready for streaming")
             return device
 
     async def disconnect_device(self, serial: str) -> bool:
@@ -275,7 +276,7 @@ class DeviceManager:
             # Emit disconnected event
             await self._emit_disconnected(serial)
 
-            print(f"Device {serial} disconnected")
+            ColorPrint.plain(f"Device {serial} disconnected")
             return True
 
     def get_device(self, serial: str) -> Optional[AndroidDevice]:

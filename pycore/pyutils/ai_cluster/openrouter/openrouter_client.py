@@ -442,4 +442,6 @@ def get_openrouter_client(
         site_name=site_name,
     )
 
-openrouter_client = get_openrouter_client()
+openrouter_client = _OPENROUTER_CLIENT_PROVIDER.get()
+
+__all__ = ['openrouter_client']

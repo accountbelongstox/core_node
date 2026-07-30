@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Qwen3-TTS Local Console</title>
+  <link rel="stylesheet" href="/qwen3tts_web/style.css">
+  <script src="/qwen3tts_web/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <h1>Qwen3-TTS Local Console</h1>
+    <p class="notice">Standalone service. Direct synthesis is the interactive fast path; queued jobs are in-memory and are lost when the process restarts.</p>
+    <div class="top">
+      <section>
+        <h2>Synthesize</h2>
+        <textarea id="text" placeholder="Enter text to synthesize"></textarea>
+        <div class="fields">
+          <select id="language">
+            <option value="en">English</option>
+            <option value="zh">Chinese</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+            <option value="de">German</option>
+            <option value="fr">French</option>
+            <option value="es">Spanish</option>
+          </select>
+          <select id="speaker"><option value="">Automatic speaker</option></select>
+          <select id="format"><option value="mp3">MP3</option><option value="wav">WAV</option></select>
+          <input id="priority" type="number" value="0" min="-100" max="100" title="Queue priority">
+        </div>
+        <input id="instruct" class="full-width" placeholder="Optional style or emotion instruction">
+        <div class="actions">
+          <button id="direct">Synthesize now</button>
+          <button id="submit" class="secondary">Add to queue</button>
+          <span id="message" class="muted"></span>
+        </div>
+        <audio id="audio" controls></audio>
+        <a id="download" hidden download>Download audio</a>
+      </section>
+      <section>
+        <h2>Runtime</h2>
+        <div class="grid">
+          <div><div class="label">Model</div><div id="model" class="metric">—</div></div>
+          <div><div class="label">Device</div><div id="device" class="metric">—</div></div>
+          <div><div class="label">GPU</div><div id="gpu" class="metric">—</div></div>
+          <div><div class="label">Batch max</div><div id="parallel" class="metric">—</div></div>
+        </div>
+        <p id="stats" class="muted"></p>
+      </section>
+    </div>
+    <section class="queue">
+      <div class="actions">
+        <h2 class="queue-title">Queue</h2>
+        <span id="counts" class="muted"></span>
+        <button id="refresh" class="secondary">Refresh</button>
+      </div>
+      <table>
+        <thead><tr><th>Status</th><th>Job</th><th>Text</th><th>Voice</th><th>Submitted</th><th>Elapsed</th><th>Result</th></tr></thead>
+        <tbody id="jobs"></tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

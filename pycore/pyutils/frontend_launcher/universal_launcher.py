@@ -21,10 +21,10 @@ THREAD_BUS Integration:
 
 import os
 import re
-import socket
 from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.http_client import http_endpoint_ok
 import time
 from dataclasses import dataclass
 from pycore.pyfoundations.serialized_worker import BusTaskThread, start_bus_task
@@ -286,20 +286,7 @@ class UniversalFrontendLauncher:
         return False
 
     def _http_ok(self, host: str, port: int, path: str) -> bool:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2)
-        code = sock.connect_ex((host, port))
-        if code != 0:
-            sock.close()
-            return False
-        request = f"GET {path} HTTP/1.0\r\nHost: {host}\r\n\r\n".encode("ascii")
-        sock.sendall(request)
-        response = sock.recv(1024)
-        sock.close()
-        if not response:
-            return False
-        status_line = response.split(b"\r\n", 1)[0]
-        return b"200" in status_line
+        return http_endpoint_ok(host, port, path)
 
     def _build_static_handler(self, directory: Path):
         class StaticHandler(SimpleHTTPRequestHandler):
@@ -366,7 +353,7 @@ class UniversalFrontendLauncher:
             if stripped:
                 output_lines.append(stripped)
                 if self.config.show_output:
-                    print(f"  {stripped}")
+                    ColorPrint.plain(f"  {stripped}")
 
         process.wait()
 
@@ -472,7 +459,7 @@ class UniversalFrontendLauncher:
             if stripped:
                 output_lines.append(stripped)
                 if self.config.show_output:
-                    print(f"  {stripped}")
+                    ColorPrint.plain(f"  {stripped}")
 
         process.wait()
 

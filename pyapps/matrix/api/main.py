@@ -59,7 +59,7 @@ def register_all_routes(rpc_server):
     Called by pylauncher after RPC v2 server initialization.
 
     Args:
-        rpc_server: RPC v2 server instance (FastAPIRPCServer)
+        rpc_server: RpcServer instance
     """
     ColorPrint.blue("=" * 70)
     ColorPrint.blue("[Matrix API] Registering RPC v2 WebSocket routes...")

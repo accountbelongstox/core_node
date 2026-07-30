@@ -6,6 +6,7 @@ A simple key-value dictionary database that can store and query any data
 """
 
 from typing import Any, Dict, List, Optional
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class Encyclopedia:
@@ -230,26 +231,26 @@ def main():
     enc["javascript"] = "A scripting language"
 
     # Query entries
-    print(f"Python: {enc.get('python')}")
-    print(f"Java: {enc.query('java')}")
-    print(f"JavaScript: {enc['javascript']}")
+    ColorPrint.plain(f"Python: {enc.get('python')}")
+    ColorPrint.plain(f"Java: {enc.query('java')}")
+    ColorPrint.plain(f"JavaScript: {enc['javascript']}")
 
     # Check existence
-    print(f"Has Python: {enc.has('python')}")
-    print(f"Has C++: {enc.has('c++')}")
+    ColorPrint.plain(f"Has Python: {enc.has('python')}")
+    ColorPrint.plain(f"Has C++: {enc.has('c++')}")
 
     # Search
-    print(f"Keys with 'java': {enc.search('java')}")
+    ColorPrint.plain(f"Keys with 'java': {enc.search('java')}")
 
     # Export
-    print(f"Export dict: {enc.export()}")
-    print(f"Export list: {enc.export_list()}")
+    ColorPrint.plain(f"Export dict: {enc.export()}")
+    ColorPrint.plain(f"Export list: {enc.export_list()}")
 
     # Statistics
-    print(f"Total entries: {enc.count()}")
-    print(f"Length: {len(enc)}")
+    ColorPrint.plain(f"Total entries: {enc.count()}")
+    ColorPrint.plain(f"Length: {len(enc)}")
 
-    print(f"\nEncyclopedia: {enc}")
+    ColorPrint.plain(f"\nEncyclopedia: {enc}")
 
 
 if __name__ == "__main__":

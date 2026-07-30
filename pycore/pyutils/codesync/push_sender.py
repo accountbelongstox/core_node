@@ -2,14 +2,13 @@
 """
 Code Sync DEV-side push sender (stdlib only).
 
-The DEV (behind NAT) dials out to each CLIENT peer over an outbound WS and
+The DEV (behind NAT) sends HTTP requests to each CLIENT peer and
 PUSHES file changes: a full manifest reconcile on every (re)connect, then
 incremental deltas. A supervisor thread (outliving individual push threads)
 owns persistent per-client state so an offline client resumes the deltas it
-missed, and a dead peer is retried with exponential backoff. See sync_ws.py for
-the full message-protocol reference.
+missed, and a dead peer is retried with exponential backoff.
 
-Stdlib only + codesync siblings (runtime/textnorm/wire_codec/ws_client/watcher);
+Stdlib only + codesync siblings (runtime/textnorm/wire_codec/http_client/watcher);
 never pycore/third_party.
 """
 
@@ -21,19 +20,21 @@ import time
 import uuid
 from pathlib import Path
 
-from .runtime import (
+from pycore.pyfoundations.pygvar import PYCORE_HTTP_PORT
+
+from pycore.pyutils.codesync.runtime import (
     log as ColorPrint, is_shutdown_requested, register_shutdown_handler,
     THREAD_BUS, init_serialized_owner, serialized_method, start_bus_task,
 )
-from .textnorm import normalize_eol
-from .wire_codec import (
+from pycore.pyutils.codesync.textnorm import normalize_eol
+from pycore.pyutils.codesync.wire_codec import (
     PUSH_TICK, MAX_BATCH_BYTES, MAX_BACKOFF,
     GZIP_LEVEL, GZIP_MIN_BYTES, GZIP_KEEP_RATIO,
     ENCODE_WORKERS, ENCODE_LOOKAHEAD, _fmt_bytes,
 )
 
-from .ws_client import WSClient
-from .watcher import get_watch_manager
+from pycore.pyutils.codesync.http_client import HttpFrameClient
+from pycore.pyutils.codesync.watcher import get_watch_manager
 
 
 
@@ -41,7 +42,7 @@ from .watcher import get_watch_manager
 # DEV side -- dial each client and push deltas                                #
 # --------------------------------------------------------------------------- #
 class PushSender:
-    """Maintains one outbound WS per client peer; pushes baseline-then-deltas.
+    """Maintains one HTTP push worker per client peer.
 
     The supervisor owns persistent per-client state that survives an individual
     push thread dying, so an offline client resumes with the deltas it missed:
@@ -66,9 +67,9 @@ class PushSender:
     def start(self) -> None:
         if not self._begin_start():
             return
-        start_bus_task(self._supervisor, thread_name="CodeSync-WsPush")
-        register_shutdown_handler(self.stop, priority=68, name="code_sync_ws_push")
-        ColorPrint.green("[WsPush] Sender supervisor started")
+        start_bus_task(self._supervisor, thread_name="CodeSync-HttpPush")
+        register_shutdown_handler(self.stop, priority=68, name="code_sync_http_push")
+        ColorPrint.green("[HttpPush] Sender supervisor started")
 
     def stop(self) -> None:
         self._set_running(False)
@@ -108,12 +109,12 @@ class PushSender:
                     # here makes that race structurally impossible.
                     if not wm.ready():
                         if not self._index_wait_logged:
-                            ColorPrint.blue("[WsPush] waiting for the initial file-index "
+                            ColorPrint.blue("[HttpPush] waiting for the initial file-index "
                                             "scan to finish before connecting to clients…")
                             self._index_wait_logged = True
                     else:
                         if self._index_wait_logged:
-                            ColorPrint.green("[WsPush] file index ready; connecting to clients.")
+                            ColorPrint.green("[HttpPush] file index ready; connecting to clients.")
                             self._index_wait_logged = False
                         self_id = self.m.config.machine_id
                         now = time.time()
@@ -123,7 +124,7 @@ class PushSender:
                             pid = peer.get("id")
                             self._ensure_peer_worker(peer, now)
             except Exception as exc:
-                ColorPrint.yellow(f"[WsPush] supervisor error: {exc}")
+                ColorPrint.yellow(f"[HttpPush] supervisor error: {exc}")
             for _ in range(6):  # re-check every ~3s
                 if not THREAD_BUS.get_signal(self._running_signal, False) or is_shutdown_requested():
                     return
@@ -141,7 +142,7 @@ class PushSender:
         self._threads[peer_id] = start_bus_task(
             self._push_to,
             peer,
-            thread_name=f"WsPush-{peer_id}",
+            thread_name=f"HttpPush-{peer_id}",
         )
 
     # ----- retry/backoff bookkeeping -------------------------------------- #
@@ -168,7 +169,7 @@ class PushSender:
     def _note_failure_state(self, peer: dict, exc, mid_sync: bool = False):
         pid = peer.get("id")
         host = peer.get("host")
-        port = int(peer.get("port", 59000))
+        port = int(peer.get("port", PYCORE_HTTP_PORT))
         retry = self._peer_retry.setdefault(
             pid, {"attempt": 0, "next_retry_at": 0.0, "logged": False})
         attempt = retry["attempt"]
@@ -185,7 +186,7 @@ class PushSender:
             # Be explicit this is a CODE-SYNC PEER (a remote pycore on its :59000 RPC
             # port) — NOT the Laravel backend (:9000). The two share a host in some
             # deployments; naming the service here avoids mistaking one for the other.
-            ColorPrint.yellow(f"[CodeSync WsPush] code-sync peer '{name}' "
+            ColorPrint.yellow(f"[CodeSync HttpPush] code-sync peer '{name}' "
                               f"(pycore {host}:{port}) {what} ({exc}); "
                               f"retrying with backoff (next in {delay}s)")
         return {
@@ -204,16 +205,16 @@ class PushSender:
     # ----- one peer connection -------------------------------------------- #
     def _push_to(self, peer: dict) -> None:
         host = peer.get("host")
-        port = int(peer.get("port", 59000))
-        ws = WSClient(host, port)
+        port = int(peer.get("port", PYCORE_HTTP_PORT))
+        client = HttpFrameClient(host, port)
         connected = False
         client_id = peer.get("id")
         try:
-            ws.connect()
+            client.connect()
             me = self.m.config.get_self()
-            ws.send_text(json.dumps({"type": "hello", "dev_id": self.m.config.machine_id,
+            client.send_text(json.dumps({"type": "hello", "dev_id": self.m.config.machine_id,
                                      "dev_name": me.get("name")}))
-            welcome = ws.recv_text()
+            welcome = client.recv_text()
             if not welcome:
                 raise ConnectionError("no welcome from client")
             wj = json.loads(welcome)
@@ -235,26 +236,26 @@ class PushSender:
             # per-client table from scratch. This bounds drift after an offline
             # window without ever removing client files. Incremental deltas follow.
             gz_note = " (gzip)" if gzip_ok else ""
-            ColorPrint.green(f"[WsPush] Connected to {client_name}; running full sync{gz_note}")
+            ColorPrint.green(f"[HttpPush] Connected to {client_name}; running full sync{gz_note}")
             self._clear_client_state(client_id)
-            last = self._full_sync(ws, wm, client_id, client_name, pid, gzip_ok)
+            last = self._full_sync(client, wm, client_id, client_name, pid, gzip_ok)
             self._store_client_state(client_id, last)
-            ColorPrint.green(f"[WsPush] {client_name} in sync ({len(last)} files); "
+            ColorPrint.green(f"[HttpPush] {client_name} in sync ({len(last)} files); "
                              f"pushing deltas every {PUSH_TICK}s")
 
             while THREAD_BUS.get_signal(self._running_signal, False) and self.m.is_distributing() and not is_shutdown_requested():
-                last = self._push_deltas(ws, wm, last, client_id, "delta",
+                last = self._push_deltas(client, wm, last, client_id, "delta",
                                          client_name, pid=pid, gzip_ok=gzip_ok)
                 time.sleep(PUSH_TICK)
                 # Keepalive: keeps the NAT/proxy mapping warm during idle ticks and
                 # fails fast (-> reconnect) if the link has silently died.
-                ws.ping()
+                client.ping()
         except Exception as exc:
             # Back off on connect failures AND mid-sync drops; last_sent is
             # persisted up to the last ack so the next connect resumes cleanly.
             self._note_failure(peer, exc, mid_sync=connected)
         finally:
-            ws.close()
+            client.close()
             self._remove_peer_worker(peer.get("id"))
 
     @serialized_method
@@ -352,15 +353,15 @@ class PushSender:
             yield response.get("result")
 
     # ----- shared batch streaming (full sync AND delta go through this) ------ #
-    def _send_batch(self, ws, entries: list, reason: str, dev_id: str,
+    def _send_batch(self, client, entries: list, reason: str, dev_id: str,
                     dev_name: str) -> list:
         """Send one 'batch' frame and read its ack; return the ack's results list.
         Defensive: a missing or MALFORMED ack raises ConnectionError so the caller
         backs off and retries rather than proceeding on a half-spoken protocol."""
-        ws.send_text(json.dumps({"type": "batch", "reason": reason,
+        client.send_text(json.dumps({"type": "batch", "reason": reason,
                                  "dev_id": dev_id, "dev_name": dev_name,
                                  "files": entries}))
-        ack = ws.recv_text()
+        ack = client.recv_text()
         if not ack:
             raise ConnectionError("no batch_ack")
         try:
@@ -369,7 +370,7 @@ class PushSender:
             raise ConnectionError("malformed batch_ack")
         return results if isinstance(results, list) else []
 
-    def _stream_files(self, ws, items, gzip_ok: bool, *, dev_id, dev_name, channel,
+    def _stream_files(self, client, items, gzip_ok: bool, *, dev_id, dev_name, channel,
                       client_name, peer_label, first_reason, log_reason_for, on_acked):
         """The single push path used by BOTH full sync and delta. Reads + encodes the
         ordered `items` ((dest, meta) tuples) AHEAD of the network, packs them into
@@ -401,7 +402,7 @@ class PushSender:
                 self.m.log_sync("sent", dest, log_reason_for(dest),
                                 details=f"{_fmt_bytes(fsize)} -> {peer_label}",
                                 size=fsize, peer=peer_label, direction="push")
-            results = self._send_batch(ws, chunk, reason, dev_id, dev_name)
+            results = self._send_batch(client, chunk, reason, dev_id, dev_name)
             on_acked(results)
             remaining -= len(chunk)
             self.m.set_sync_phase("pushing", max(0, remaining), channel=channel,
@@ -429,7 +430,7 @@ class PushSender:
         flush()
         return sent
 
-    def _full_sync(self, ws, wm, client_id: str, client_name: str, pid: str,
+    def _full_sync(self, client, wm, client_id: str, client_name: str, pid: str,
                    gzip_ok: bool = False) -> dict:
         """Full reconcile on (re)connect: send the manifest {rel: hash} of every
         synced file; the client diffs it against its real files and replies with the
@@ -468,9 +469,9 @@ class PushSender:
 
         self.m.set_sync_phase("scanning", len(manifest), channel=channel,
                               name=client_name, direction="push")
-        ws.send_text(json.dumps({"type": "manifest", "dev_id": dev_id,
+        client.send_text(json.dumps({"type": "manifest", "dev_id": dev_id,
                                  "dev_name": dev_name, "files": manifest}))
-        reply = ws.recv_text()
+        reply = client.recv_text()
         if not reply:
             raise ConnectionError("no manifest reply")
         try:
@@ -489,7 +490,7 @@ class PushSender:
             items = [(d, snap[d]) for d in need]
             items.sort(key=self._entry_size)
             self._stream_files(
-                ws, items, gzip_ok, dev_id=dev_id, dev_name=dev_name, channel=channel,
+                client, items, gzip_ok, dev_id=dev_id, dev_name=dev_name, channel=channel,
                 client_name=client_name, peer_label=peer_label, first_reason="full",
                 log_reason_for=lambda dest: "full sync",
                 on_acked=lambda results: None)  # full sync: baseline is the whole snap
@@ -497,7 +498,7 @@ class PushSender:
                               direction="push")
         return snap
 
-    def _push_deltas(self, ws, wm, last: dict, client_id: str, reason: str,
+    def _push_deltas(self, client, wm, last: dict, client_id: str, reason: str,
                      client_name: str = "", pid: str = "", gzip_ok: bool = False) -> dict:
         """Diff the shared watcher index against what we last acked for this client;
         push new/modified files in size-bounded BATCHES (one batch_ack round-trip per
@@ -552,7 +553,7 @@ class PushSender:
         # this batch's ack advances it) - each dest is unique, so this stays correct
         # across batches.
         self._stream_files(
-            ws, changed, gzip_ok, dev_id=dev_id, dev_name=dev_name, channel=channel,
+            client, changed, gzip_ok, dev_id=dev_id, dev_name=dev_name, channel=channel,
             client_name=client_name, peer_label=peer_label, first_reason=reason,
             log_reason_for=lambda dest: "new file" if dest not in last else "content changed",
             on_acked=_on_acked)

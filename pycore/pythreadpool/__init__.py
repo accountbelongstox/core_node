@@ -1,2 +1,3 @@
-# Package marker only. FORBIDDEN: re-exports or package organization here.
-# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).
+from pycore.pythreadpool.pool import global_thread_pool
+
+__all__ = ['global_thread_pool']

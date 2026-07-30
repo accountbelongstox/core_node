@@ -15,10 +15,13 @@ COMMON_DIR="$SCRIPT_DIR/../../common"
 MODEL_URL=""
 MODEL_DIR="${KOKORO_TTS_MODEL_DIR:-${CORE_NODE_CACHE_DIR:-$HOME/.core_node/cache}/tts/kokoro}"
 MODEL_SENTINEL="$MODEL_DIR/.model_done"
+FORCE=0
+LOCAL_MODEL_BYTES=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --python) PYTHON="$2"; shift 2 ;;
+        --force)  FORCE=1; shift ;;
         *) shift ;;
     esac
 done
@@ -52,11 +55,11 @@ model_files_complete() {
     # Multi-lang Kokoro needs model.onnx + tokens.txt + voices.bin + BOTH lexicons
     # (lexicon-us-en.txt, lexicon-zh.txt). Missing lexicon-zh.txt causes the
     # "unknown Chinese token" runtime error, so it is a required completeness gate.
-    [[ -n "$(find "$MODEL_DIR" -name '*.onnx' -print -quit 2>/dev/null)" ]] || return 1
-    [[ -n "$(find "$MODEL_DIR" -name 'tokens.txt' -print -quit 2>/dev/null)" ]] || return 1
-    [[ -n "$(find "$MODEL_DIR" -name 'voices.bin' -print -quit 2>/dev/null)" ]] || return 1
-    [[ -n "$(find "$MODEL_DIR" -name 'lexicon-zh.txt' -print -quit 2>/dev/null)" ]] || return 1
-    [[ -n "$(find "$MODEL_DIR" -name 'lexicon-us-en.txt' -print -quit 2>/dev/null)" ]] || return 1
+    [[ -n "$(find "$MODEL_DIR" -name '*.onnx' -size +0c -print -quit 2>/dev/null)" ]] || return 1
+    [[ -n "$(find "$MODEL_DIR" -name 'tokens.txt' -size +0c -print -quit 2>/dev/null)" ]] || return 1
+    [[ -n "$(find "$MODEL_DIR" -name 'voices.bin' -size +0c -print -quit 2>/dev/null)" ]] || return 1
+    [[ -n "$(find "$MODEL_DIR" -name 'lexicon-zh.txt' -size +0c -print -quit 2>/dev/null)" ]] || return 1
+    [[ -n "$(find "$MODEL_DIR" -name 'lexicon-us-en.txt' -size +0c -print -quit 2>/dev/null)" ]] || return 1
     return 0
 }
 
@@ -121,7 +124,13 @@ if ! PYTHON="$(resolve_python)"; then
     fail_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx soundfile
 fi
 
-if model_ok && "$PYTHON" -c "import sherpa_onnx, soundfile" 2>/dev/null; then
+if model_files_complete; then
+    LOCAL_MODEL_BYTES="$(find "$MODEL_DIR" -type f -printf '%s\n' 2>/dev/null | awk '{sum += $1} END {print sum + 0}')"
+    [[ -f "$MODEL_SENTINEL" ]] || printf '%s\n' "$MODEL_DIR" > "$MODEL_SENTINEL"
+    echo "[install_kokoro] [idempotent] local model found: $MODEL_DIR (${LOCAL_MODEL_BYTES} bytes); remote lookup skipped"
+fi
+
+if model_ok && "$PYTHON" -m pip show sherpa-onnx soundfile 2>/dev/null | grep -qi '^Name: soundfile$'; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "Kokoro multi-lang model present at $MODEL_DIR"
     complete_prereq_step "$PYTHON" "[install_kokoro] " sherpa_onnx soundfile
 fi
@@ -139,7 +148,7 @@ done
 echo "[install_kokoro]  compute   : $(command -v gpu_present >/dev/null 2>&1 && gpu_present && echo 'CUDA -> full Kokoro model' || echo 'CPU -> int8 Kokoro model')"
 echo "[install_kokoro]  model url : $MODEL_URL"
 
-if ! "$PYTHON" -c "import sherpa_onnx, soundfile" 2>/dev/null; then
+if ! "$PYTHON" -m pip show sherpa-onnx soundfile 2>/dev/null | grep -qi '^Name: soundfile$'; then
     echo "[install_kokoro] [..] pip install sherpa-onnx soundfile ..."
     pip_install sherpa-onnx soundfile
 fi

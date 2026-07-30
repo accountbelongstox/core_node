@@ -9,6 +9,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.translator.google_translator import (
     GoogleTranslator,
     translate_from_json_file,
@@ -18,7 +19,7 @@ from pycore.pyutils.translator.google_translator import (
 
 
 def print_usage_examples():
-    print("""
+    ColorPrint.plain("""
 Google Translator - Usage Examples
 
 1. Single translation with parameters:
@@ -195,16 +196,16 @@ async def main():
             count = 0
             for dest in args.dest:
                 count += clear_cache(args.src, dest)
-            print(f"✓ Cleared {count} cache entries for {args.src} -> {', '.join(args.dest)}")
+            ColorPrint.plain(f"✓ Cleared {count} cache entries for {args.src} -> {', '.join(args.dest)}")
         else:
             count = clear_cache()
-            print(f"✓ Cleared {count} cache entries (all languages)")
+            ColorPrint.plain(f"✓ Cleared {count} cache entries (all languages)")
         return 0
     
     use_cache = not args.no_cache
     
     if args.config:
-        print(f"Loading configuration from: {args.config}")
+        ColorPrint.plain(f"Loading configuration from: {args.config}")
         results = await translate_from_json_file(
             args.config,
             output_file=args.output,
@@ -219,8 +220,8 @@ async def main():
             'texts': texts
         }
         
-        print(f"Translating from {args.src} to {', '.join(args.dest)}...")
-        print()
+        ColorPrint.plain(f"Translating from {args.src} to {', '.join(args.dest)}...")
+        ColorPrint.plain()
         
         results = await translate_from_dict(
             config,
@@ -228,38 +229,38 @@ async def main():
             use_cache=use_cache
         )
     else:
-        print("Error: Either --text or --config must be provided")
-        print("Use --help for usage information or --examples for examples")
+        ColorPrint.plain("Error: Either --text or --config must be provided")
+        ColorPrint.plain("Use --help for usage information or --examples for examples")
         return 1
     
-    print("=" * 80)
-    print("Translation Results")
-    print("=" * 80)
-    print()
+    ColorPrint.plain("=" * 80)
+    ColorPrint.plain("Translation Results")
+    ColorPrint.plain("=" * 80)
+    ColorPrint.plain()
     
     for i, result in enumerate(results, 1):
         cache_marker = "[CACHE]" if result.from_cache else "[FRESH]"
         
         if result.error:
-            print(f"[{i}] ✗ ERROR: {result.error}")
-            print(f"    Original ({result.src_lang}): {result.original_text}")
+            ColorPrint.plain(f"[{i}] ✗ ERROR: {result.error}")
+            ColorPrint.plain(f"    Original ({result.src_lang}): {result.original_text}")
         else:
-            print(f"[{i}] {cache_marker} {result.src_lang} -> {result.dest_lang}")
-            print(f"    Original: {result.original_text}")
-            print(f"    Translated: {result.translated_text}")
+            ColorPrint.plain(f"[{i}] {cache_marker} {result.src_lang} -> {result.dest_lang}")
+            ColorPrint.plain(f"    Original: {result.original_text}")
+            ColorPrint.plain(f"    Translated: {result.translated_text}")
             if result.pronunciation:
-                print(f"    Pronunciation: {result.pronunciation}")
-        print()
+                ColorPrint.plain(f"    Pronunciation: {result.pronunciation}")
+        ColorPrint.plain()
     
     success_count = sum(1 for r in results if not r.error)
     cache_count = sum(1 for r in results if r.from_cache)
     
-    print("=" * 80)
-    print(f"Total: {len(results)} | Success: {success_count} | From Cache: {cache_count}")
-    print("=" * 80)
+    ColorPrint.plain("=" * 80)
+    ColorPrint.plain(f"Total: {len(results)} | Success: {success_count} | From Cache: {cache_count}")
+    ColorPrint.plain("=" * 80)
     
     if args.output:
-        print(f"\n✓ Results saved to: {args.output}")
+        ColorPrint.plain(f"\n✓ Results saved to: {args.output}")
     
     return 0 if success_count == len(results) else 1
 
@@ -269,8 +270,8 @@ if __name__ == '__main__':
         exit_code = asyncio.run(main())
         sys.exit(exit_code)
     except KeyboardInterrupt:
-        print("\n\nInterrupted by user")
+        ColorPrint.plain("\n\nInterrupted by user")
         sys.exit(1)
     except Exception as e:
-        print(f"\n✗ Error: {e}")
+        ColorPrint.plain(f"\n✗ Error: {e}")
         sys.exit(1)

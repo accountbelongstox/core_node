@@ -283,15 +283,15 @@ class WindowOps:
     def _kill_process_by_pid(self, pid: int, window_title: str):
         """Kill process by PID using win32api (in-process)."""
         if win32api is None:
-            print(f"[PROCESS] win32api not available, cannot kill PID {pid}")
+            ColorPrint.plain(f"[PROCESS] win32api not available, cannot kill PID {pid}")
             return
         try:
             handle = win32api.OpenProcess(PROCESS_TERMINATE, False, pid)
             win32api.TerminateProcess(handle, 0)
             win32api.CloseHandle(handle)
-            print(f"[PROCESS] Killing duplicate process PID {pid}: {window_title}")
+            ColorPrint.plain(f"[PROCESS] Killing duplicate process PID {pid}: {window_title}")
         except OSError as e:
-            print(f"[PROCESS] Failed to kill PID {pid}: {e}")
+            ColorPrint.plain(f"[PROCESS] Failed to kill PID {pid}: {e}")
 
     def find_windows_by_title(self, title_pattern: str) -> List[Tuple[int, str]]:
         all_windows = self.enum_windows()

@@ -12,6 +12,7 @@ Design Principles:
 - Type-safe interfaces
 """
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import re
 import shlex
@@ -315,7 +316,7 @@ class ADBManager:
             return props
 
         except Exception as e:
-            print(f"Failed to get device properties: {e}")
+            ColorPrint.plain(f"Failed to get device properties: {e}")
             return None
 
     @staticmethod
@@ -372,7 +373,7 @@ class ADBManager:
             return battery
 
         except Exception as e:
-            print(f"Failed to get battery status: {e}")
+            ColorPrint.plain(f"Failed to get battery status: {e}")
             return None
 
     @staticmethod
@@ -421,7 +422,7 @@ class ADBManager:
             Success status
         """
         if not local_path.exists():
-            print(f"Local file not found: {local_path}")
+            ColorPrint.plain(f"Local file not found: {local_path}")
             return False
 
         result = ADBManager.execute(
@@ -552,7 +553,7 @@ class ADBManager:
             return None
 
         except Exception as e:
-            print(f"Failed to get device IP: {e}")
+            ColorPrint.plain(f"Failed to get device IP: {e}")
             return None
 
     @staticmethod
@@ -580,7 +581,7 @@ class ADBManager:
             result = ADBManager.execute(serial, ["tcpip", str(port)], adb_path)
 
             if not result.success:
-                print(f"Failed to enable WiFi ADB: {result.stderr}")
+                ColorPrint.plain(f"Failed to enable WiFi ADB: {result.stderr}")
                 return False
 
             # Wait for restart
@@ -589,7 +590,7 @@ class ADBManager:
             return True
 
         except Exception as e:
-            print(f"Failed to enable WiFi ADB: {e}")
+            ColorPrint.plain(f"Failed to enable WiFi ADB: {e}")
             return False
 
     @staticmethod
@@ -615,7 +616,7 @@ class ADBManager:
         result = ADBManager.execute("", ["connect", f"{ip}:{port}"], adb_path, timeout=10)
 
         if not result.success:
-            print(f"Failed to connect WiFi: {result.stderr}")
+            ColorPrint.plain(f"Failed to connect WiFi: {result.stderr}")
             return False
 
         # Check if connected successfully
@@ -663,7 +664,7 @@ class ADBManager:
             Success status
         """
         if not apk_path.exists():
-            print(f"APK file not found: {apk_path}")
+            ColorPrint.plain(f"APK file not found: {apk_path}")
             return False
 
         result = ADBManager.execute(
@@ -713,7 +714,7 @@ class ADBManager:
             )
             return True
         except Exception as e:
-            print(f"Failed to set show touches: {e}")
+            ColorPrint.plain(f"Failed to set show touches: {e}")
             return False
 
     @staticmethod

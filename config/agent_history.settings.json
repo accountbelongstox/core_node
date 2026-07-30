@@ -1,0 +1,26 @@
+{
+  "agent_history_article": {
+    "enabled": false,
+    "extract_as_article": false,
+    "reference_lang": "CN",
+    "target_lang": "EN",
+    "min_raw_words": 200,
+    "openrouter_model": "openrouter/free",
+    "phase": "idle",
+    "live_listen": false,
+    "enabled_tools": [],
+    "cursors": {},
+    "last_tool": "",
+    "cursor": {
+      "fragment_index": 0,
+      "after_ts": 0,
+      "after_fragment_id": "",
+      "raw_index": 0,
+      "attempts": 0
+    },
+    "last_error": null,
+    "last_error_at": null,
+    "last_run_at": null,
+    "published": []
+  }
+}

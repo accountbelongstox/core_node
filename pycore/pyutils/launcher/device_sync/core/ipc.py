@@ -17,6 +17,7 @@ import socket
 import json
 import time
 from typing import Any, Optional, Callable, Dict
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
@@ -29,7 +30,7 @@ class IPCServer:
 
     Usage:
         def on_restart():
-            print("Restarting application...")
+            ColorPrint.info("Restarting application...")
 
         ipc = IPCServer(port=45678)
         ipc.register_handler('restart', on_restart)
@@ -101,7 +102,7 @@ class IPCServer:
 
             return result.get('status') == 'ok'
         except Exception as e:
-            print(f"[IPCServer] Failed to send command: {e}")
+            ColorPrint.plain(f"[IPCServer] Failed to send command: {e}")
             return False
         finally:
             client_socket.close()
@@ -134,7 +135,7 @@ class IPCServer:
             self.server_socket.listen(5)
             self.server_socket.settimeout(1)
         except Exception as e:
-            print(f"[IPCServer] Failed to bind port {self.port}: {e}")
+            ColorPrint.plain(f"[IPCServer] Failed to bind port {self.port}: {e}")
             return False
 
         self.running = True
@@ -144,7 +145,7 @@ class IPCServer:
             thread_name="CoreIPCServerThread",
         )
 
-        print(f"[IPCServer] Started on port {self.port}")
+        ColorPrint.plain(f"[IPCServer] Started on port {self.port}")
         return True
 
     def stop(self):
@@ -158,7 +159,7 @@ class IPCServer:
         if self.server_thread and self.server_thread.is_alive():
             self.server_thread.join(timeout=2)
 
-        print("[IPCServer] Stopped")
+        ColorPrint.plain("[IPCServer] Stopped")
 
     def _server_loop(self):
         """Server main loop (runs in background thread)."""
@@ -174,7 +175,7 @@ class IPCServer:
                 continue
             except Exception as e:
                 if THREAD_BUS.get_signal(self._running_signal, False):
-                    print(f"[IPCServer] Error accepting connection: {e}")
+                    ColorPrint.plain(f"[IPCServer] Error accepting connection: {e}")
 
     def _handle_client(self, client_socket: socket.socket):
         """

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from PIL import Image, ImageDraw, ImageFont
 """
 Placeholder Image Generator - 占位图生成器
 
@@ -12,6 +11,17 @@ Placeholder Image Generator - 占位图生成器
 
 from pathlib import Path
 from typing import List, Tuple, Optional
+
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_PIL_Image,
+    get_third_package_PIL_ImageDraw,
+    get_third_package_PIL_ImageFont,
+)
+
+Image = get_third_package_PIL_Image()
+ImageDraw = get_third_package_PIL_ImageDraw()
+ImageFont = get_third_package_PIL_ImageFont()
 
 # Example image names by layer (not fixed "_placeholder.png")
 EXAMPLE_IMAGE_NAMES = {
@@ -46,19 +56,6 @@ def generate_placeholder(
     Returns:
         True if generated successfully
     """
-    try:
-    except ImportError:
-        # 如果没有 PIL，生成一个简单的文本文件作为占位符
-        print("[PlaceholderGen] PIL not available, creating text placeholder")
-        image_path.parent.mkdir(parents=True, exist_ok=True)
-        image_path.with_suffix('.txt').write_text(
-            f"Placeholder for {directory_name}\n\n"
-            f"Please place design images here.\n"
-            f"This file will be auto-removed when actual images are added.\n",
-            encoding='utf-8'
-        )
-        return True
-
     try:
         # 创建图片
         img = Image.new('RGB', size, color='#F0F0F0')
@@ -129,11 +126,11 @@ def generate_placeholder(
 
         # 保存图片
         img.save(image_path, 'PNG')
-        print(f"[PlaceholderGen] Generated: {image_path}")
+        ColorPrint.plain(f"[PlaceholderGen] Generated: {image_path}")
         return True
 
     except Exception as e:
-        print(f"[PlaceholderGen] Error generating placeholder: {e}")
+        ColorPrint.plain(f"[PlaceholderGen] Error generating placeholder: {e}")
         return False
 
 
@@ -210,10 +207,10 @@ def remove_example_images(images_dir: Path) -> int:
     for img_path in example_images:
         try:
             img_path.unlink()
-            print(f"[PlaceholderCleanup] Removed: {img_path}")
+            ColorPrint.plain(f"[PlaceholderCleanup] Removed: {img_path}")
             removed_count += 1
         except Exception as e:
-            print(f"[PlaceholderCleanup] Error removing {img_path}: {e}")
+            ColorPrint.plain(f"[PlaceholderCleanup] Error removing {img_path}: {e}")
 
     return removed_count
 
@@ -332,10 +329,10 @@ def ensure_images_readme(images_dir: Path, layer_name: str = "") -> bool:
 
     try:
         readme_path.write_text(content, encoding='utf-8')
-        print(f"[ImagesREADME] Created: {readme_path}")
+        ColorPrint.plain(f"[ImagesREADME] Created: {readme_path}")
         return True
     except Exception as e:
-        print(f"[ImagesREADME] Error creating README: {e}")
+        ColorPrint.plain(f"[ImagesREADME] Error creating README: {e}")
         return False
 
 
@@ -379,11 +376,11 @@ if __name__ == "__main__":
 
     if len(sys.argv) > 1:
         test_dir = Path(sys.argv[1])
-        print(f"Testing placeholder management for: {test_dir}")
+        ColorPrint.plain(f"Testing placeholder management for: {test_dir}")
         manage_placeholder(test_dir, test_dir.name)
         ensure_images_readme(test_dir, test_dir.name)
     else:
         # 生成测试占位图
         test_path = Path("test_placeholder.png")
         generate_placeholder(test_path, "test_directory")
-        print(f"Generated test placeholder: {test_path}")
+        ColorPrint.plain(f"Generated test placeholder: {test_path}")

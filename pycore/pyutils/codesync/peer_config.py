@@ -14,8 +14,8 @@ Schema:
 
 The file is replicated across machines over the mesh (see peer_mesh.py) using
 last-writer-wins on (version, updated_at). It is EXCLUDED from the bulk code
-file-sync so the two mechanisms don't fight. Runtime toggles (distributing,
-skip_update) live in runtime_prefs.json under .data, not here.
+file-sync so the two mechanisms don't fight. Runtime toggles live in the
+unified user settings map, not here.
 
 Stdlib only: identity / lan-ip / paths come from `.runtime` (no pycore import).
 """
@@ -28,7 +28,9 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .runtime import (
+from pycore.pyfoundations.pygvar import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
+
+from pycore.pyutils.codesync.runtime import (
     log as ColorPrint,
     get_machine_id,
     get_local_lan_ip,
@@ -46,7 +48,7 @@ from .runtime import (
 BASELINE_FILE = get_peers_config_file()
 OVERRIDE_FILE = get_peers_override_file()
 PEERS_FILE_NAME = BASELINE_FILE.name  # same basename for both -> one sync-exclusion
-DEFAULT_PORT = 59000
+DEFAULT_PORT = PYCORE_HTTP_PORT
 VALID_ROLES = ("dev", "client")
 
 
@@ -170,7 +172,7 @@ class PeerConfig:
         my_port = int(me.get("port", self._port))
         if host and port == my_port:
             if host in (local_ip, str(me.get("host") or "").strip(),
-                        "127.0.0.1", "localhost"):
+                        HTTP_LOOPBACK_HOST, "localhost"):
                 return True
             try:
                 if host == socket.gethostname():

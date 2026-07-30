@@ -38,7 +38,7 @@
 - `pycore/pyfoundations` - 核心基础，仅使用 Python 标准库
 - `pycore/pyutils` - 工具类，可使用第三方包，导出实例/单例
 - `pycore/pyctl` - 可调用 pyutils 组织基础多功能类库
-- `pycore/pygvar` - 全局常量和变量
+- `pycore/pyfoundations/pygvar` - 全局常量和变量
 - `pyapps` - 使用 pycore 作为基础服务的应用
 
 ## 3. 模块开发规则
@@ -57,7 +57,7 @@
 
 ### 3.3 pygvar 使用
 - 所有常量和变量的集中位置
-- 导入模式：`from pycore.pygvar import CONSTANT_NAME`
+- 导入模式：`from pycore.pyfoundations.pygvar import CONSTANT_NAME`
 
 ## 4. 应用开发标准
 

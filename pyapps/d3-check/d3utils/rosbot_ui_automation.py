@@ -15,7 +15,7 @@ from pycore.pyfoundations.third_party.api import (
     get_third_package_win32con,
 )
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.input.click_handler import ClickHandler
+from pycore.pyctl.desktop.click_handler import ClickHandler
 from d3utils.click_handler_singleton import get_click_handler
 
 from d3utils.ui_control_operations import operate_button, operate_tab_item, click_at_control_rect

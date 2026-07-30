@@ -1,31 +1,13 @@
 # -*- coding: utf-8 -*-
 """Final pass: fix known broken imports after emptying pycore __init__ markers."""
-import re
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 
 REPLACEMENTS = [
     (
-        "from pycore.pyutils.rpc_v2.config import RPC_CONSTANTS",
-        "from pycore.pyutils.rpc_v2.config.rpc_constants import RPC_CONSTANTS",
-    ),
-    (
-        "from pycore.pyutils.rpc_v2.config import RPCConfig",
-        "from pycore.pyutils.rpc_v2.config.rpc_config import RPCConfig",
-    ),
-    (
-        "from pycore.pyutils.rpc_v2.config import get_rpc_config",
-        "from pycore.pyutils.rpc_v2.config.rpc_config import get_rpc_config",
-    ),
-    (
-        "from pycore.pyutils.rpc_v2.config import RPC_CONSTANTS, RPCConfig, get_rpc_config",
-        "from pycore.pyutils.rpc_v2.config.rpc_constants import RPC_CONSTANTS\n"
-        "from pycore.pyutils.rpc_v2.config.rpc_config import RPCConfig, get_rpc_config",
-    ),
-    (
         "from pycore.pyutils.rpc_v2.server.server_runner import UnifiedRpcServerRunner",
-        "from pycore.pyutils.rpc_v2.server.server_runner import FastAPIRPCServerRunner as UnifiedRpcServerRunner",
+        "from pycore.pyutils.rpc_v2.runner import RpcServerRunner",
     ),
     (
         "from pycore.pyutils.native_ui.step5_main_ui.framework import WebViewFramework",
@@ -99,44 +81,10 @@ def main() -> None:
         new = text
         for old, repl in all_repl:
             new = new.replace(old, repl)
-        # Multi-import from rpc_v2.config
-        new = re.sub(
-            r"from pycore\.pyutils\.rpc_v2\.config import \(([^)]+)\)",
-            lambda m: _expand_config_imports(m.group(1)),
-            new,
-            flags=re.S,
-        )
         if new != text:
             path.write_text(new, encoding="utf-8")
             changed += 1
             print(f"fixed {path.relative_to(REPO)}")
     print(f"done files={changed}")
-
-
-def _expand_config_imports(names_blob: str) -> str:
-    names = []
-    for chunk in names_blob.replace("\n", " ").split(","):
-        chunk = chunk.strip()
-        if not chunk:
-            continue
-        if " as " in chunk:
-            sym = chunk.split(" as ", 1)[0].strip()
-            alias = chunk.split(" as ", 1)[1].strip()
-        else:
-            sym, alias = chunk, None
-        names.append((sym, alias))
-    lines = []
-    for sym, alias in names:
-        mod = (
-            "rpc_constants"
-            if sym == "RPC_CONSTANTS"
-            else "rpc_config"
-        )
-        target = f"pycore.pyutils.rpc_v2.config.{mod}"
-        part = f"{sym} as {alias}" if alias else sym
-        lines.append(f"from {target} import {part}")
-    return "\n".join(lines)
-
-
 if __name__ == "__main__":
     main()

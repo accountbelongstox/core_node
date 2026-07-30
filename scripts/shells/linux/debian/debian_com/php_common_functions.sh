@@ -331,6 +331,10 @@ update_caddy_config_from_php_common() {
 # Configure PHP for Laravel with proper open_basedir
 configure_php_for_laravel_from_php_common() {
     local script_index="${1:-[LARAVEL_CONFIG]}"
+    local ini_file=""
+    local active_error_log_count=""
+    local configured_error_log=""
+    local desired_error_log="error_log = \"$PHP_ERROR_LOG_PATH\""
     
     print_step_from_common_functions "$script_index Configuring PHP for Laravel requirements"
     
@@ -364,6 +368,14 @@ configure_php_for_laravel_from_php_common() {
             $USE_SUDO sed -i '/^;open_basedir/d' "$ini_file"
             # Add new open_basedir = none setting
             echo "open_basedir = none" | $USE_SUDO tee -a "$ini_file" > /dev/null
+
+            # Keep PHP errors in the mapped PHP directory instead of the caller's CWD.
+            active_error_log_count=$(grep -E '^[[:space:]]*error_log[[:space:]]*=' "$ini_file" 2>/dev/null | wc -l)
+            configured_error_log=$(grep -E '^[[:space:]]*error_log[[:space:]]*=' "$ini_file" 2>/dev/null | tail -1 | sed -E 's/^[^=]*=//; s/^[[:space:]]*//; s/[[:space:]]*$//; s/^"//; s/"$//')
+            if [ "$active_error_log_count" -ne 1 ] || [ "$configured_error_log" != "$PHP_ERROR_LOG_PATH" ]; then
+                $USE_SUDO sed -i '/^[[:space:]]*error_log[[:space:]]*=/d' "$ini_file"
+                printf '%s\n' "$desired_error_log" | $USE_SUDO tee -a "$ini_file" > /dev/null
+            fi
             
             print_success_from_common_functions "$script_index Configured $ini_file"
         fi

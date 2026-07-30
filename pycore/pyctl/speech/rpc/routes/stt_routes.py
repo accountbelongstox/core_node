@@ -15,8 +15,8 @@ import uuid
 from typing import Dict, Any
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.tasks import Task, TaskPriority
-from pycore.pyutils.common.tasks import get_global_task_queue
+from pycore.pyfoundations.tasks import Task, TaskPriority
+from pycore.pyfoundations.tasks import get_global_task_queue
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.speech_task_models import STTTaskData, create_stt_task
 

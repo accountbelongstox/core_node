@@ -23,7 +23,7 @@ from pycore.pyfoundations.pybasecommon.commander import Commander
 from pycore.pyfoundations.pybasecommon.safe_subprocess import subprocess
 from pycore.pyfoundations.pybasecommon.compute_caps import last_ort_install_ran
 
-from ._package_cache import _PACKAGE_CACHE
+from pycore.pyfoundations.third_party._package_cache import _PACKAGE_CACHE
 
 
 def run_third_party_command(
@@ -41,9 +41,9 @@ def run_third_party_command(
     if not capture_output:
         cmd_str = " ".join(str(x) for x in cmd)
         if description:
-            print(f"[{description}] Executing: {cmd_str}")
+            ColorPrint.plain(f"[{description}] Executing: {cmd_str}")
         else:
-            print(f"Executing command: {cmd_str}")
+            ColorPrint.plain(f"Executing command: {cmd_str}")
         sys.stdout.flush()
     return Commander.run_command(cmd, capture_output=capture_output, timeout=timeout)
 

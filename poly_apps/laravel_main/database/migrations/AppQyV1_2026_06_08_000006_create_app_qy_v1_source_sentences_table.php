@@ -15,7 +15,7 @@ use App\Providers\AppTablePrefixServiceProvider;
  * group), primary_language, lang_content_ids {code: content_id|null} (the
  * per-language library refs; null = 留空), plus timing
  * (seg_index/sub_idx/start_sec/end_sec) for subtitles. This is what powers
- * per-sentence multi-language reading, per-sentence audio status, wordflow joins,
+ * per-sentence multi-language reading, per-sentence audio status, WordNew joins,
  * and reverse lookup — not recoverable cheaply from the source's raw original
  * (especially multi-track subtitle alignment).
  *

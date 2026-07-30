@@ -15,7 +15,8 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Python = 'python'
+    [string]$Python = 'python',
+    [switch]$Force
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,6 +32,8 @@ $curl             = $null
 $complete         = $false
 $attempt          = 0
 $dependenciesReady = $false
+$modelFiles       = @()
+$localModelBytes = 0L
 $winCommonDir     = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
@@ -57,7 +60,11 @@ function Test-KokoroMultiLangComplete {
     $voices = Get-ChildItem -Path $Dir -Recurse -Filter 'voices.bin'        -File -ErrorAction SilentlyContinue | Select-Object -First 1
     $lexZh  = Get-ChildItem -Path $Dir -Recurse -Filter 'lexicon-zh.txt'    -File -ErrorAction SilentlyContinue | Select-Object -First 1
     $lexEn  = Get-ChildItem -Path $Dir -Recurse -Filter 'lexicon-us-en.txt' -File -ErrorAction SilentlyContinue | Select-Object -First 1
-    return [bool]($onnx -and $tokens -and $voices -and $lexZh -and $lexEn)
+    return [bool]($onnx -and $onnx.Length -gt 0 -and
+        $tokens -and $tokens.Length -gt 0 -and
+        $voices -and $voices.Length -gt 0 -and
+        $lexZh -and $lexZh.Length -gt 0 -and
+        $lexEn -and $lexEn.Length -gt 0)
 }
 
 function Install-KokoroModel {
@@ -97,7 +104,16 @@ if ($env:KOKORO_SKIP -eq '1') {
 
 $modelSentinel = Join-Path $modelDir '.model_done'
 $modelComplete = Test-KokoroMultiLangComplete -Dir $modelDir
-$dependenciesReady = Test-TtsEngineHealth -PythonExe $resolvedPython -Engine 'kokoro'
+$dependenciesReady = (Test-PipPackageInstalled -PipExe $Global:PIP_EXE_PATH -PackageName 'sherpa-onnx') -and
+    (Test-PipPackageInstalled -PipExe $Global:PIP_EXE_PATH -PackageName 'soundfile')
+if ($modelComplete) {
+    $modelFiles = @(Get-ChildItem -Path $modelDir -Recurse -File -ErrorAction SilentlyContinue)
+    $localModelBytes = [long](($modelFiles | Measure-Object -Property Length -Sum).Sum)
+    if (-not (Test-Path -LiteralPath $modelSentinel)) {
+        Set-Content -LiteralPath $modelSentinel -Value $modelDir -Encoding utf8
+    }
+    Write-Host ("$SCRIPT_INDEX [idempotent] local model found: {0} ({1:N0} bytes); remote lookup skipped" -f $modelDir, $localModelBytes) -ForegroundColor Green
+}
 if ($modelComplete -and (Test-Path $modelSentinel) -and $dependenciesReady) {
     Write-TtsIdempotentSkip -PythonExe $Python -Reason "Kokoro multi-lang model present at $modelDir" -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('sherpa_onnx', 'soundfile')

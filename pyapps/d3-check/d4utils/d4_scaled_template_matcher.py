@@ -248,7 +248,7 @@ class D4ScaledTemplateMatcher(ScaledTemplateMatcherBase):
         scaled_end = calculate_unified_scaled_coordinate(
             end_coord, game_window_size, std_res, is_windowed
         )
-        from pycore.pyutils.image_crop import ImageCrop
+        from pycore.pyutils.image_tools.image_crop import ImageCrop
         region_crop = ImageCrop.crop_region(
             game_window_image, scaled_start, scaled_end, output_format="numpy"
         )

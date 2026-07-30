@@ -6,10 +6,10 @@
 # qwen-tts owns transformer dependencies that may conflict with the main interpreter
 # pin (Bucket A: deepseek/qwen25/nllb/bark). So qwen-tts is NEVER installed into the main
 # interpreter. It lives in a DEDICATED per-engine venv built + verified by
-# pycore.pyutils.python_env.isolated_venv.ensure_venv() (created --system-site-packages so it
+# pycore.pyutils.common.python_env.isolated_venv.ensure_venv() (created --system-site-packages so it
 # REUSES the system CUDA torch while qwen-tts and its pinned dependencies stay isolated,
 # shadowing only incompatible main copies). The qwen3tts_api_server.py runs under that venv and pycore
-# (tts_service_manager / qwen3tts_engine) talks to it over HTTP as a managed class-C server.
+# (tts_service_manager / qwen.engine) talks to it over HTTP as a managed class-C server.
 #
 # Official: https://github.com/QwenLM/Qwen3-TTS  (qwen-tts is installed INTO the venv, not here)
 #
@@ -43,7 +43,6 @@ _model_ready=0
 _gpu_flag="--cpu"
 _qwen_model=""
 _sentinel_model=""
-_assets_dir=""
 _line=""
 
 while [[ $# -gt 0 ]]; do
@@ -71,7 +70,7 @@ resolve_python() {
 }
 
 # Provision / verify the ISOLATED qwen-tts venv (Bucket B). Delegates to the single
-# source of truth pycore.pyutils.tts.qwen3tts_venv.ensure_venv(), run UNDER $PYTHON so
+# source of truth pycore.pyutils.common.python_env.isolated_venv.ensure_venv(), run UNDER $PYTHON so
 # the venv is built next to that interpreter and reuses its system CUDA torch via
 # --system-site-packages. Cheap when already healthy; repairs a broken venv. $1 is a
 # Python bool literal (True on --force). Returns 0 only when qwen_tts imports in the venv.
@@ -111,7 +110,8 @@ if ! ensure_sox_on_path "[install_qwen3tts] "; then
     fail_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
 fi
 
-if ! install_pycore_torch_stack "$PYTHON" "[install_qwen3tts] "; then
+install_pycore_torch_stack "$PYTHON" "[install_qwen3tts] "
+if [[ "$PYCORE_TORCH_STACK_READY" -ne 1 ]]; then
     echo "[install_qwen3tts] [!] canonical torch is not usable; Qwen3-TTS will retry next run." >&2
     fail_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
 fi
@@ -121,7 +121,7 @@ if tts_dependency_stamp_matches "$PYTHON" "qwen3tts" "$DEPS_SENTINEL" && [[ -f "
     if [[ "$_sentinel_model" == "$_qwen_model" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_qwen_model"; then
         # Weights verified; also verify (and self-repair) the isolated venv before the
         # fast idempotent exit \u2014 a broken venv must never be masked by a present sentinel.
-        provision_qwen3tts_venv "$_QWEN3TTS_FORCE_PY"
+        tts_probe_isolated_venv_provisioned "$PYTHON" "qwen3tts"
         if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
             tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "Qwen3-TTS already installed (isolated venv + verified model)"
             complete_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
@@ -135,11 +135,6 @@ if tts_dependency_stamp_matches "$PYTHON" "qwen3tts" "$DEPS_SENTINEL" && [[ -f "
     fi
 fi
 
-_assets_dir="$(pycore_tts_install_assets_dir "$SCRIPT_DIR")"
-if [[ -f "$_assets_dir/qwen3tts_api_server.py" ]]; then
-    cp -f "$_assets_dir/qwen3tts_api_server.py" "$TARGET_DIR/qwen3tts_api_server.py"
-fi
-
 # --- Isolated qwen-tts venv (Bucket B) ----------------------------------- #
 # Never install qwen-tts into the main interpreter: its transformer dependency set
 # would break the shared 4.46.x stack. The main interpreter only needs the shared torch
@@ -148,12 +143,14 @@ fi
 # present — to heal a drifted / half-built venv.
 if tts_dependency_stamp_matches "$PYTHON" "qwen3tts" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "isolated qwen-tts venv provisioned (.deps_done)"
-    provision_qwen3tts_venv "$_QWEN3TTS_FORCE_PY"
+    tts_probe_isolated_venv_provisioned "$PYTHON" "qwen3tts"
     if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
         _venv_ready=1
-        echo "[install_qwen3tts] [OK] isolated qwen-tts venv verified (self-repair)."
+        echo "[install_qwen3tts] [OK] isolated qwen-tts venv present."
     else
-        echo "[install_qwen3tts] [!] venv verify/repair incomplete; will RESUME next run."
+        echo "[install_qwen3tts] [..] isolated venv is missing; provisioning."
+        provision_qwen3tts_venv "$_QWEN3TTS_FORCE_PY"
+        [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]] && _venv_ready=1
     fi
 else
     echo "[install_qwen3tts] [..] provisioning isolated qwen-tts venv (package dependencies shadow main; system torch reused) ..."

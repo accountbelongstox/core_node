@@ -24,13 +24,14 @@ pycore.pyutils.native_ui). The `launch` alias is preserved.
 import time
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import RPC_CONTROLLER_PREFIX
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step2_port_url.port_allocator import get_port_range
 from pycore.pyutils.native_ui.step2_port_url.url_handler import process_url
 from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
 from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import launch_app_with_startup
-from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager
+from pycore.pyutils.native_ui.step7_managers.timer_manager import timer_manager
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
 from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
 from pycore.pyutils.native_ui.step3_launcher.service_starters import (
@@ -255,7 +256,10 @@ def launch_native_app(config: NativeUIConfig) -> None:
             ColorPrint.cyan(f"  Frontend:  {final_url}  ({config.frontend_framework} {config.frontend_mode})")
         if config.rpc_enabled:
             rpc_url = f"http://{config.rpc_host}:{config.rpc_port}"
-            ColorPrint.cyan(f"  Backend:   {rpc_url}/rpc/<route>  ({len(config.rpc_routers)} routes)")
+            ColorPrint.cyan(
+                f"  Backend:   {rpc_url}{RPC_CONTROLLER_PREFIX}/<route>  "
+                f"({len(config.rpc_routers)} routes)"
+            )
         ColorPrint.cyan(f"  Window:    {config.window_size[0]}x{config.window_size[1]}" + (" (frameless)" if config.frameless else ""))
         ColorPrint.print_success("=" * 70 + "\n")
 
@@ -351,11 +355,10 @@ def _initialize_timer_manager(config: NativeUIConfig) -> None:
 
     The timer manager is auto-started if enable_timer=True.
     Users can register tasks anytime using:
-        from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager
-        timer_mgr = get_timer_manager()
-        timer_mgr.register_task("my_task", interval=5.0, callback=my_callback)
+        from pycore.pyutils.native_ui.step7_managers.timer_manager import timer_manager
+        timer_manager.register_task("my_task", interval=5.0, callback=my_callback)
     """
-    timer_mgr = get_timer_manager()
+    timer_mgr = timer_manager
 
     if not timer_mgr.is_running():
         timer_mgr.start()

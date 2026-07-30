@@ -16,10 +16,8 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.parse
 
-from .global_config import get_global_config
-from .logging_config import setup_logging
-
-logger = setup_logging(__name__)
+from pycore.pyutils.launcher.device_sync.core.config import get_global_config
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class PrimaryServerHandler(BaseHTTPRequestHandler):
@@ -27,7 +25,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         """Override to use our logger"""
-        logger.debug(f"{self.address_string()} - {format % args}")
+        ColorPrint.debug(f"{self.address_string()} - {format % args}")
 
     def do_GET(self):
         """Handle GET requests"""
@@ -129,9 +127,9 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
 
         # Build file cache if needed (use global cache)
         if not config.file_cache:
-            logger.info("Building file cache...")
+            ColorPrint.info("Building file cache...")
             config.build_file_cache()
-            logger.info(f"File cache built: {len(config.file_cache)} files")
+            ColorPrint.info(f"File cache built: {len(config.file_cache)} files")
 
         response = {
             'status': 'ok',
@@ -171,7 +169,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
             self.wfile.write(content)
 
         except Exception as e:
-            logger.error(f"Failed to send file {file_path}: {e}")
+            ColorPrint.error(f"Failed to send file {file_path}: {e}")
             self.send_error(500, f"Failed to read file: {e}")
 
     def _handle_devices(self):
@@ -210,10 +208,10 @@ class SimplePrimaryServer:
     def start(self):
         """Start PRIMARY server"""
         if self.running:
-            logger.warning("Server already running")
+            ColorPrint.warning("Server already running")
             return
 
-        logger.info(f"Starting PRIMARY server on port {self.config.http_port}...")
+        ColorPrint.info(f"Starting PRIMARY server on port {self.config.http_port}...")
 
         try:
             # Create HTTP server
@@ -233,10 +231,10 @@ class SimplePrimaryServer:
 
             self.config.server_running = True
 
-            logger.info(f"✓ PRIMARY server started on {self.config.local_ip}:{self.config.http_port}")
+            ColorPrint.info(f"✓ PRIMARY server started on {self.config.local_ip}:{self.config.http_port}")
 
         except Exception as e:
-            logger.error(f"Failed to start server: {e}", exc_info=True)
+            ColorPrint.error(f"Failed to start server: {e}")
             self.running = False
             THREAD_BUS.signal(self._running_signal, False)
             raise
@@ -246,7 +244,7 @@ class SimplePrimaryServer:
         if not self.running:
             return
 
-        logger.info("Stopping PRIMARY server...")
+        ColorPrint.info("Stopping PRIMARY server...")
 
         self.running = False
         THREAD_BUS.signal(self._running_signal, False)
@@ -260,7 +258,7 @@ class SimplePrimaryServer:
 
         self.config.server_running = False
 
-        logger.info("PRIMARY server stopped")
+        ColorPrint.info("PRIMARY server stopped")
 
     def _server_loop(self):
         """Server main loop"""
@@ -268,7 +266,7 @@ class SimplePrimaryServer:
             self.server.serve_forever()
         except Exception as e:
             if THREAD_BUS.get_signal(self._running_signal, False):
-                logger.error(f"Server error: {e}", exc_info=True)
+                ColorPrint.error(f"Server error: {e}")
 
     def is_running(self) -> bool:
         """Check if server is running"""

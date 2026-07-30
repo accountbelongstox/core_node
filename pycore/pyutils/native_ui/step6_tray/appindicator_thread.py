@@ -17,12 +17,12 @@ from pathlib import Path
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from .appindicator_system_tray import (
+from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import (
     AppIndicatorSystemTray,
     APPINDICATOR_AVAILABLE,
     check_appindicator_available
 )
-from ._types import AppIndicatorMenuItem, build_appindicator_menu_items
+from pycore.pyutils.native_ui.step6_tray._types import AppIndicatorMenuItem, build_appindicator_menu_items
 
 import os
 import platform

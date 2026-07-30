@@ -13,7 +13,7 @@ from typing import Optional, List, Dict, Any, Callable
 from providor.constants.common import BATTLE_NET_EXE_NAME
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
-from pycore.pyutils.common.system_launcher import start_program
+from pycore.pyfoundations.system_launcher import start_program
 from pycore.pyutils.window.activator import WindowActivator
 from providor.providor_index import CONFIG, BATTLE_NET_WINDOW_TITLES
 from pycore.pyutils.common.browser_window_detector import get_default_skip_browser_callable

@@ -87,7 +87,7 @@ def rpc_init_callback(rpc_server):
     after ADB heartbeat is running.
 
     Args:
-        rpc_server: RPC v2 server instance (FastAPIRPCServer)
+        rpc_server: RPC v2 server instance (RpcServer)
     """
     global _rpc_server
 

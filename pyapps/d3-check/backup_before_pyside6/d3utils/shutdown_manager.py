@@ -16,7 +16,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from share.ui_registry import get_ui
 
 import timers.timer_manager as timer_manager
-from pycore.pyutils.hotkey_listener import HotkeyListener
+from pycore.pyutils.hotkey.hotkey_listener import HotkeyListener
 from d3utils.event_signals import trigger_extension_shutdown
 
 # Global hotkey listener reference

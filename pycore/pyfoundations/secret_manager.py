@@ -16,6 +16,7 @@ Main Functions:
 
 import os
 import sys
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 from pycore.pyfoundations.serialized_worker import SerializedValue
 from pathlib import Path
@@ -109,19 +110,19 @@ def _get_password_with_confirmation() -> Optional[str]:
         password2 = input("[SECRET_MANAGER] Confirm decryption password: ").strip()
 
         if password1 != password2:
-            print("[SECRET_MANAGER] ERROR: Passwords do not match")
+            ColorPrint.plain("[SECRET_MANAGER] ERROR: Passwords do not match")
             return None
 
         if not password1:
-            print("[SECRET_MANAGER] ERROR: Password cannot be empty")
+            ColorPrint.plain("[SECRET_MANAGER] ERROR: Password cannot be empty")
             return None
 
         return password1
     except KeyboardInterrupt:
-        print("\n[SECRET_MANAGER] Password input cancelled")
+        ColorPrint.plain("\n[SECRET_MANAGER] Password input cancelled")
         return None
     except Exception as e:
-        print(f"[SECRET_MANAGER] ERROR: Failed to read password: {e}")
+        ColorPrint.plain(f"[SECRET_MANAGER] ERROR: Failed to read password: {e}")
         return None
 
 
@@ -142,24 +143,24 @@ def decrypt_all_secrets(password: Optional[str] = None) -> bool:
     raw_dir = dirs['RAW_DIR']
 
     if not encrypted_dir.exists():
-        print(f"[SECRET_MANAGER] ERROR: Encrypted directory not found: {encrypted_dir}")
+        ColorPrint.plain(f"[SECRET_MANAGER] ERROR: Encrypted directory not found: {encrypted_dir}")
         return False
 
     raw_dir.mkdir(parents=True, exist_ok=True)
 
     encrypted_files = list(encrypted_dir.glob('*.js'))
     if not encrypted_files:
-        print(f"[SECRET_MANAGER] No encrypted files found in: {encrypted_dir}")
+        ColorPrint.plain(f"[SECRET_MANAGER] No encrypted files found in: {encrypted_dir}")
         return True
 
-    print(f"[SECRET_MANAGER] Found {len(encrypted_files)} encrypted files")
+    ColorPrint.plain(f"[SECRET_MANAGER] Found {len(encrypted_files)} encrypted files")
 
     disguise_js = find_disguise_tool()
     if not disguise_js:
-        print(f"[SECRET_MANAGER] ERROR: disguise.js not found")
+        ColorPrint.plain(f"[SECRET_MANAGER] ERROR: disguise.js not found")
         return False
 
-    print(f"[SECRET_MANAGER] Using decryption tool: {disguise_js}")
+    ColorPrint.plain(f"[SECRET_MANAGER] Using decryption tool: {disguise_js}")
 
     if not password:
         password = _password_from_env()
@@ -169,7 +170,7 @@ def decrypt_all_secrets(password: Optional[str] = None) -> bool:
         # actually there. On a headless server / CI / systemd unit there is no
         # TTY, so SKIP cleanly instead of blocking on input() and erroring out.
         if not _is_interactive():
-            print(
+            ColorPrint.plain(
                 "[SECRET_MANAGER] Non-interactive environment (no TTY) and no password "
                 f"env var set ({', '.join(_PASSWORD_ENV_VARS)}); skipping batch decryption."
             )
@@ -177,7 +178,7 @@ def decrypt_all_secrets(password: Optional[str] = None) -> bool:
         password = _get_password_with_confirmation()
 
     if not password:
-        print(f"[SECRET_MANAGER] ERROR: Password is required")
+        ColorPrint.plain(f"[SECRET_MANAGER] ERROR: Password is required")
         return False
 
     success_count = 0
@@ -185,7 +186,7 @@ def decrypt_all_secrets(password: Optional[str] = None) -> bool:
 
     for encrypted_file in encrypted_files:
         key_name = encrypted_file.stem
-        print(f"[SECRET_MANAGER] Decrypting: {encrypted_file.name} -> {key_name}")
+        ColorPrint.plain(f"[SECRET_MANAGER] Decrypting: {encrypted_file.name} -> {key_name}")
 
         try:
             result = exec_silent(
@@ -196,25 +197,25 @@ def decrypt_all_secrets(password: Optional[str] = None) -> bool:
             )
 
             if result.return_code == 0:
-                print(f"[SECRET_MANAGER]   SUCCESS: {key_name}")
+                ColorPrint.plain(f"[SECRET_MANAGER]   SUCCESS: {key_name}")
                 success_count += 1
             else:
-                print(f"[SECRET_MANAGER]   FAILED: {key_name}")
+                ColorPrint.plain(f"[SECRET_MANAGER]   FAILED: {key_name}")
                 if result.stderr:
-                    print(f"[SECRET_MANAGER]   Error: {result.stderr}")
+                    ColorPrint.plain(f"[SECRET_MANAGER]   Error: {result.stderr}")
                 fail_count += 1
         except Exception as e:
-            print(f"[SECRET_MANAGER]   FAILED: {key_name}")
-            print(f"[SECRET_MANAGER]   Error: {e}")
+            ColorPrint.plain(f"[SECRET_MANAGER]   FAILED: {key_name}")
+            ColorPrint.plain(f"[SECRET_MANAGER]   Error: {e}")
             fail_count += 1
 
-    print(f"\n[SECRET_MANAGER] ========================================")
-    print(f"[SECRET_MANAGER] Decryption Summary:")
-    print(f"[SECRET_MANAGER]   Total files: {len(encrypted_files)}")
-    print(f"[SECRET_MANAGER]   Successful:  {success_count}")
-    print(f"[SECRET_MANAGER]   Failed:      {fail_count}")
-    print(f"[SECRET_MANAGER]   Output dir:  {raw_dir}")
-    print(f"[SECRET_MANAGER] ========================================")
+    ColorPrint.plain(f"\n[SECRET_MANAGER] ========================================")
+    ColorPrint.plain(f"[SECRET_MANAGER] Decryption Summary:")
+    ColorPrint.plain(f"[SECRET_MANAGER]   Total files: {len(encrypted_files)}")
+    ColorPrint.plain(f"[SECRET_MANAGER]   Successful:  {success_count}")
+    ColorPrint.plain(f"[SECRET_MANAGER]   Failed:      {fail_count}")
+    ColorPrint.plain(f"[SECRET_MANAGER]   Output dir:  {raw_dir}")
+    ColorPrint.plain(f"[SECRET_MANAGER] ========================================")
 
     return fail_count == 0
 
@@ -274,7 +275,7 @@ def _read_secret_value(key_name: str) -> str:
     )
     if should_decrypt:
         # Step 3: File exists but not decrypted yet, trigger auto-decryption
-        print(f"[SECRET_MANAGER] Key '{key_name}' is encrypted. Triggering batch decryption...")
+        ColorPrint.plain(f"[SECRET_MANAGER] Key '{key_name}' is encrypted. Triggering batch decryption...")
         if decrypt_all_secrets():
             # Try reading again after decryption
             if raw_file.exists():
@@ -461,14 +462,14 @@ __all__ = [
 def main():
     """Command-line interface for secret_manager"""
     if len(sys.argv) < 2:
-        print("[SECRET_MANAGER] ERROR: Command is required")
+        ColorPrint.plain("[SECRET_MANAGER] ERROR: Command is required")
         sys.exit(1)
 
     command = sys.argv[1]
 
     if command == 'get_secret_key':
         if len(sys.argv) < 3:
-            print("[SECRET_MANAGER] ERROR: Key name is required")
+            ColorPrint.plain("[SECRET_MANAGER] ERROR: Key name is required")
             sys.exit(1)
 
         key_name = sys.argv[2]
@@ -483,7 +484,7 @@ def main():
         sys.exit(0)
 
     else:
-        print(f"[SECRET_MANAGER] ERROR: Unknown command: {command}")
+        ColorPrint.plain(f"[SECRET_MANAGER] ERROR: Unknown command: {command}")
         sys.exit(1)
 
 

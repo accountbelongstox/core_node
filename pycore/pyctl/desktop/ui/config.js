@@ -10,13 +10,11 @@ const _getServerConfig = () => {
     const host = window.location.hostname;
     const port = 59000;
     const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
 
     const config = {
         HOST: host,
         PORT: port,
-        BASE_URL: `${protocol}://${host}:${port}`,
-        WS_URL: `${wsProtocol}://${host}:${port}/rpc/ws`
+        BASE_URL: `${protocol}://${host}:${port}`
     };
 
     // Debug output (only if GLOBAL_DEBUG is true)
@@ -25,7 +23,6 @@ const _getServerConfig = () => {
         console.log('[CONFIG]   - Current location:', window.location.href);
         console.log('[CONFIG]   - Hostname:', host);
         console.log('[CONFIG]   - Base URL:', config.BASE_URL);
-        console.log('[CONFIG]   - WebSocket URL:', config.WS_URL);
     }
 
     return config;
@@ -103,17 +100,6 @@ const CONFIG = {
         PING: '/ping'
     },
 
-    // WebSocket configuration (uses dynamically determined URL)
-    WEBSOCKET: {
-        URL: _getServerConfig().WS_URL,
-        OPTIONS: {
-            debug: true,
-            reconnect: true,
-            reconnectInterval: 3000,
-            maxReconnectAttempts: 999
-        }
-    },
-
     // Default settings
     DEFAULTS: {
         PLAYBACK_MODE: 'all',
@@ -146,7 +132,5 @@ CONFIG.getApiPrefix = function() {
 // Freeze configuration to prevent modifications
 Object.freeze(CONFIG.SERVER);
 Object.freeze(CONFIG.API);
-Object.freeze(CONFIG.WEBSOCKET);
 Object.freeze(CONFIG.DEFAULTS);
 Object.freeze(CONFIG.UI);
-

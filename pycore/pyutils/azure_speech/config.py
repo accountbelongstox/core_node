@@ -10,7 +10,7 @@ Uses wwwroot namespace for caching (shared with edge_tts).
 from pathlib import Path
 
 from pycore.pyfoundations.system_paths import map_web_path
-from pycore.pyutils.common.api_secrets import azure_speech_key, azure_speech_region
+from pycore.pyfoundations.api_secrets import azure_speech_key, azure_speech_region
 
 
 class AzureSpeechConfig:
@@ -67,4 +67,3 @@ class AzureSpeechConfig:
 
 # Initialize directories on import
 AzureSpeechConfig.initialize()
-

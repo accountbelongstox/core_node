@@ -14,7 +14,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.tasks import Task
+from pycore.pyfoundations.tasks import Task
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -484,15 +484,7 @@ class GlobalThreadPool:
         return results
 
 
-_global_thread_pool = GlobalThreadPool()
-def get_global_thread_pool() -> GlobalThreadPool:
-    """
-    Get global thread pool singleton
-
-    Returns:
-        GlobalThreadPool instance
-    """
-    return _global_thread_pool
+global_thread_pool = GlobalThreadPool()
 
 
 def get_thread_pool_from_encyclopedia() -> Optional[Dict[str, Any]]:
@@ -518,7 +510,7 @@ __all__ = [
     'ThreadStatus',
     'ThreadInfo',
     'GlobalThreadPool',
-    'get_global_thread_pool',
+    'global_thread_pool',
     'get_thread_pool_from_encyclopedia',
     'THREAD_POOL_THREADS_KEY',
     'THREAD_POOL_TASK_HANDLERS_KEY',

@@ -40,7 +40,7 @@ SYMBOL_OVERRIDES: Dict[Tuple[str, str], str] = {
     ("pycore", "Event"): "pycore.pyfoundations.event_bus",
     ("pycore", "UserDataStore"): "pycore.database.repositories.user_data_store",
     ("pycore", "get_user_data_store"): "pycore.database.repositories.user_data_store",
-    ("pycore", "GlobalVarManager"): "pycore.pygvar",
+    ("pycore", "GlobalVarManager"): "pycore.pyfoundations.pygvar",
     ("pycore", "get_gpu_info"): "pycore.pyfoundations.pybasecommon.encyclopedia",
     ("pycore.pyfoundations", "THREAD_BUS"): "pycore.pyfoundations.thread_bus.bus",
     ("pycore.pyfoundations", "ColorPrint"): "pycore.pyfoundations.pybasecommon.color_print",

@@ -24,6 +24,7 @@ import socket
 import struct
 import subprocess
 import threading
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
 import time
 from typing import Optional, Callable
@@ -129,10 +130,10 @@ class ScrcpyDevice(AndroidDevice):
         # Server parses scid with Integer.parseInt(value, 0x10) - expects hex string!
         device_socket_name = f"scrcpy_{scid_hex}"  # e.g., scrcpy_1a2b3c4d
 
-        print(f"\n[ScrcpyDevice] Starting scrcpy-server for {self.serial}")
-        print(f"[ScrcpyDevice] SCID: {scid_hex} (hex), {scid} (decimal)")
-        print(f"[ScrcpyDevice] Device socket: localabstract:{device_socket_name}")
-        print(f"[ScrcpyDevice] Tunnel port: {video_port} (both video and control use same port)")
+        ColorPrint.plain(f"\n[ScrcpyDevice] Starting scrcpy-server for {self.serial}")
+        ColorPrint.plain(f"[ScrcpyDevice] SCID: {scid_hex} (hex), {scid} (decimal)")
+        ColorPrint.plain(f"[ScrcpyDevice] Device socket: localabstract:{device_socket_name}")
+        ColorPrint.plain(f"[ScrcpyDevice] Tunnel port: {video_port} (both video and control use same port)")
 
         # Tunnel configuration shared by setup + socket creation (delegated to tunnel_mode)
         tunnel_config = TunnelConfig(
@@ -167,9 +168,9 @@ class ScrcpyDevice(AndroidDevice):
             shell_command  # Pass as single string for proper shell parsing
         ]
 
-        print(f"[ScrcpyDevice] Starting scrcpy-server process...")
-        print(f"[ScrcpyDevice] Shell command: {shell_command}")
-        print(f"[ScrcpyDevice] ADB command: {' '.join(adb_cmd)}")
+        ColorPrint.plain(f"[ScrcpyDevice] Starting scrcpy-server process...")
+        ColorPrint.plain(f"[ScrcpyDevice] Shell command: {shell_command}")
+        ColorPrint.plain(f"[ScrcpyDevice] ADB command: {' '.join(adb_cmd)}")
 
         # Start scrcpy-server process
         # CRITICAL: stdout/stderr MUST be consumed by background threads to prevent PIPE deadlock!
@@ -189,15 +190,15 @@ class ScrcpyDevice(AndroidDevice):
 
         # Background threads to consume Server output (prevent PIPE deadlock)
         def _read_server_output(pipe, prefix):
-            print(f"[Server-{self.serial}] [{prefix}] Thread started")
+            ColorPrint.plain(f"[Server-{self.serial}] [{prefix}] Thread started")
             try:
                 for line in pipe:
                     line = line.rstrip()
                     if line:  # Only print non-empty lines
-                        print(f"[Server-{self.serial}] [{prefix}] {line}")
-                print(f"[Server-{self.serial}] [{prefix}] Thread finished (EOF)")
+                        ColorPrint.plain(f"[Server-{self.serial}] [{prefix}] {line}")
+                ColorPrint.plain(f"[Server-{self.serial}] [{prefix}] Thread finished (EOF)")
             except Exception as e:
-                print(f"[Server-{self.serial}] [{prefix}] Thread error: {e}")
+                ColorPrint.plain(f"[Server-{self.serial}] [{prefix}] Thread error: {e}")
 
         self._server_stdout_thread = start_bus_task(
             _read_server_output,
@@ -212,7 +213,7 @@ class ScrcpyDevice(AndroidDevice):
             thread_name="ScrcpyServerErrorThread",
         )
 
-        print(f"[ScrcpyDevice] Server process started (PID: {self._server_process.pid})")
+        ColorPrint.plain(f"[ScrcpyDevice] Server process started (PID: {self._server_process.pid})")
 
         # ============================================================================
         # Socket connection handling (delegated to TunnelMode.create_client_socket)
@@ -220,14 +221,14 @@ class ScrcpyDevice(AndroidDevice):
         mode_name = mode.get_mode_name()
         if mode_name == "REVERSE":
             # REVERSE MODE: PC listens, device connects to us
-            print(f"[ScrcpyDevice] REVERSE mode: Creating listening socket on port {video_port}...")
+            ColorPrint.plain(f"[ScrcpyDevice] REVERSE mode: Creating listening socket on port {video_port}...")
             video_listen_socket = mode.create_client_socket(tunnel_config, 10.0)
 
             # Wait for device to connect (via reverse tunnel)
-            print(f"[ScrcpyDevice] Waiting for device to connect...")
+            ColorPrint.plain(f"[ScrcpyDevice] Waiting for device to connect...")
             try:
                 self._video_socket, _ = video_listen_socket.accept()
-                print(f"[ScrcpyDevice] [OK] Video socket connected from device (REVERSE)")
+                ColorPrint.plain(f"[ScrcpyDevice] [OK] Video socket connected from device (REVERSE)")
             except socket.timeout:
                 video_listen_socket.close()
                 raise RuntimeError(f"Timeout waiting for video connection from {self.serial}")
@@ -236,7 +237,7 @@ class ScrcpyDevice(AndroidDevice):
 
         elif mode_name == "FORWARD":
             # FORWARD MODE: Device listens, PC connects to device
-            print(f"[ScrcpyDevice] FORWARD mode: Waiting for device to start listening...")
+            ColorPrint.plain(f"[ScrcpyDevice] FORWARD mode: Waiting for device to start listening...")
 
             # CRITICAL: Give server time to fully initialize before connecting
             # Server needs to: load classes -> create LocalServerSocket -> bind to socket name
@@ -244,7 +245,7 @@ class ScrcpyDevice(AndroidDevice):
             time.sleep(3.0)  # 3 second delay - allows server initialization (Android 7.0 is slow)
 
             # PC connects to forwarded port (mode.create_client_socket returns unconnected socket)
-            print(f"[ScrcpyDevice] Connecting to forwarded port {video_port}...")
+            ColorPrint.plain(f"[ScrcpyDevice] Connecting to forwarded port {video_port}...")
             self._video_socket = mode.create_client_socket(tunnel_config, 10.0)
 
             max_retries = 150  # Increased from 50 to 150 for multi-device queue delays
@@ -253,12 +254,12 @@ class ScrcpyDevice(AndroidDevice):
             for retry in range(max_retries):
                 try:
                     self._video_socket.connect(('localhost', video_port))
-                    print(f"[ScrcpyDevice] [OK] Video socket connected to device (FORWARD)")
+                    ColorPrint.plain(f"[ScrcpyDevice] [OK] Video socket connected to device (FORWARD)")
                     break
                 except (ConnectionRefusedError, OSError) as e:
                     if retry < max_retries - 1:
                         if retry % 10 == 0 and retry > 0:  # Log every 10th retry to reduce spam
-                            print(f"[ScrcpyDevice] Connection refused (retry {retry + 1}/{max_retries}), waiting...")
+                            ColorPrint.plain(f"[ScrcpyDevice] Connection refused (retry {retry + 1}/{max_retries}), waiting...")
                         time.sleep(retry_interval)
                     else:
                         raise RuntimeError(f"Failed to connect to device after {max_retries} retries: {e}")
@@ -268,26 +269,26 @@ class ScrcpyDevice(AndroidDevice):
             # Server sends dummy byte on FIRST socket only (DesktopConnection.java:68-71)
             # Must read it NOW, before connecting other sockets, to detect connection errors
             if mode.should_send_dummy_byte():
-                print(f"[ScrcpyDevice] Reading dummy byte from first socket (FORWARD mode)...")
+                ColorPrint.plain(f"[ScrcpyDevice] Reading dummy byte from first socket (FORWARD mode)...")
                 ready_sockets, _, _ = select.select([self._video_socket], [], [], 5.0)
 
                 if not ready_sockets:
-                    print(f"[ScrcpyDevice] [ERROR] Timeout waiting for dummy byte!")
+                    ColorPrint.plain(f"[ScrcpyDevice] [ERROR] Timeout waiting for dummy byte!")
                     raise RuntimeError("Timeout waiting for dummy byte from first socket (FORWARD mode)")
 
                 dummy_byte = self._video_socket.recv(1)
                 if not dummy_byte:
-                    print(f"[ScrcpyDevice] [ERROR] Connection closed while reading dummy byte!")
+                    ColorPrint.plain(f"[ScrcpyDevice] [ERROR] Connection closed while reading dummy byte!")
                     raise RuntimeError("Connection closed while reading dummy byte from first socket (FORWARD mode)")
 
-                print(f"[ScrcpyDevice] [OK] Dummy byte received: {dummy_byte.hex()}")
-                print(f"[ScrcpyDevice] First socket ready, now connecting control socket...")
+                ColorPrint.plain(f"[ScrcpyDevice] [OK] Dummy byte received: {dummy_byte.hex()}")
+                ColorPrint.plain(f"[ScrcpyDevice] First socket ready, now connecting control socket...")
 
         # Setup control socket (ALWAYS - scrcpy-server v3.3.3 expects 2 sockets)
         # QtScrcpy pattern: Always connect control socket even if control=False
         # The control parameter only disables message processing, not the socket connection
         if control_port > 0:
-            print(f"[ScrcpyDevice] Setting up control socket on port {control_port}...")
+            ColorPrint.plain(f"[ScrcpyDevice] Setting up control socket on port {control_port}...")
 
             if mode_name == "REVERSE":
                 # REVERSE MODE: PC listens, device connects to us
@@ -295,7 +296,7 @@ class ScrcpyDevice(AndroidDevice):
 
                 try:
                     self._control_socket, _ = control_listen_socket.accept()
-                    print(f"[ScrcpyDevice] [OK] Control socket connected from device (REVERSE)")
+                    ColorPrint.plain(f"[ScrcpyDevice] [OK] Control socket connected from device (REVERSE)")
                 except socket.timeout:
                     control_listen_socket.close()
                     raise RuntimeError(f"Timeout waiting for control connection from {self.serial}")
@@ -304,7 +305,7 @@ class ScrcpyDevice(AndroidDevice):
 
             elif mode_name == "FORWARD":
                 # FORWARD MODE: Device listens, PC connects to device
-                print(f"[ScrcpyDevice] Connecting to forwarded control port {control_port}...")
+                ColorPrint.plain(f"[ScrcpyDevice] Connecting to forwarded control port {control_port}...")
                 self._control_socket = mode.create_client_socket(tunnel_config, 10.0)
 
                 max_retries = 50  # Increased from 10 to 50 (official scrcpy standard)
@@ -312,26 +313,26 @@ class ScrcpyDevice(AndroidDevice):
                 for retry in range(max_retries):
                     try:
                         self._control_socket.connect(('localhost', control_port))
-                        print(f"[ScrcpyDevice] [OK] Control socket connected to device (FORWARD)")
+                        ColorPrint.plain(f"[ScrcpyDevice] [OK] Control socket connected to device (FORWARD)")
                         break
                     except (ConnectionRefusedError, OSError) as e:
                         if retry < max_retries - 1:
                             if retry % 10 == 0 and retry > 0:  # Log every 10th retry to reduce spam
-                                print(f"[ScrcpyDevice] Control connection refused (retry {retry + 1}/{max_retries}), waiting...")
+                                ColorPrint.plain(f"[ScrcpyDevice] Control connection refused (retry {retry + 1}/{max_retries}), waiting...")
                             time.sleep(retry_interval)
                         else:
                             raise RuntimeError(f"Failed to connect control socket after {max_retries} retries: {e}")
 
         # Read device metadata
         # Note: Dummy byte was already read after connecting first socket in FORWARD mode
-        print(f"[ScrcpyDevice] Reading device metadata...")
+        ColorPrint.plain(f"[ScrcpyDevice] Reading device metadata...")
         self._read_device_metadata()
-        print(f"[ScrcpyDevice] [OK] Device: {self.info.model}")
+        ColorPrint.plain(f"[ScrcpyDevice] [OK] Device: {self.info.model}")
 
         # Read codec metadata
-        print(f"[ScrcpyDevice] Reading video codec metadata...")
+        ColorPrint.plain(f"[ScrcpyDevice] Reading video codec metadata...")
         self._read_video_codec_metadata()
-        print(f"[ScrcpyDevice] [OK] Resolution: {self.info.resolution.width}x{self.info.resolution.height}")
+        ColorPrint.plain(f"[ScrcpyDevice] [OK] Resolution: {self.info.resolution.width}x{self.info.resolution.height}")
 
         # Switch to blocking mode for long-running streams
         if self._video_socket:
@@ -339,10 +340,10 @@ class ScrcpyDevice(AndroidDevice):
         if self._control_socket:
             self._control_socket.settimeout(None)
 
-        print(f"\n[ScrcpyDevice] [OK] Server started successfully for {self.serial}")
-        print(f"  Video port: {video_port}")
-        print(f"  Resolution: {self.info.resolution.width}x{self.info.resolution.height}")
-        print(f"  Model: {self.info.model}\n")
+        ColorPrint.plain(f"\n[ScrcpyDevice] [OK] Server started successfully for {self.serial}")
+        ColorPrint.plain(f"  Video port: {video_port}")
+        ColorPrint.plain(f"  Resolution: {self.info.resolution.width}x{self.info.resolution.height}")
+        ColorPrint.plain(f"  Model: {self.info.model}\n")
 
         # Store ports
         self._video_port = video_port
@@ -376,7 +377,7 @@ class ScrcpyDevice(AndroidDevice):
             self._server_process.wait(timeout=3)
             self._server_process = None
 
-        print(f"[ScrcpyDevice] Server stopped for {self.serial}")
+        ColorPrint.plain(f"[ScrcpyDevice] Server stopped for {self.serial}")
 
     def get_video_socket(self) -> socket.socket:
         """
@@ -473,33 +474,33 @@ class ScrcpyDevice(AndroidDevice):
         try:
             result = _run_adb_command_via_queue(cmd, env, timeout=5.0)
             if result.returncode == 0:
-                print(f"[ScrcpyDevice] [OK] Cleaned up old reverse tunnels for {self.serial}")
+                ColorPrint.plain(f"[ScrcpyDevice] [OK] Cleaned up old reverse tunnels for {self.serial}")
             else:
-                print(f"[ScrcpyDevice] [WARN] Failed to cleanup reverse tunnels: {result.stderr}")
+                ColorPrint.plain(f"[ScrcpyDevice] [WARN] Failed to cleanup reverse tunnels: {result.stderr}")
         except Exception as e:
-            print(f"[ScrcpyDevice] [WARN] Error cleaning reverse tunnels: {e}")
+            ColorPrint.plain(f"[ScrcpyDevice] [WARN] Error cleaning reverse tunnels: {e}")
 
         # Remove forward tunnels (via queue) - critical for fallback support
         cmd = [self.adb_path, "-s", self.serial, "forward", "--remove-all"]  # Must use -s with 19 devices
         try:
             result = _run_adb_command_via_queue(cmd, env, timeout=5.0)
             if result.returncode == 0:
-                print(f"[ScrcpyDevice] [OK] Cleaned up old forward tunnels for {self.serial}")
+                ColorPrint.plain(f"[ScrcpyDevice] [OK] Cleaned up old forward tunnels for {self.serial}")
             else:
-                print(f"[ScrcpyDevice] [WARN] Failed to cleanup forward tunnels: {result.stderr}")
+                ColorPrint.plain(f"[ScrcpyDevice] [WARN] Failed to cleanup forward tunnels: {result.stderr}")
         except Exception as e:
-            print(f"[ScrcpyDevice] [WARN] Error cleaning forward tunnels: {e}")
+            ColorPrint.plain(f"[ScrcpyDevice] [WARN] Error cleaning forward tunnels: {e}")
 
         # Kill old scrcpy-server processes (via queue)
         cmd = [self.adb_path, "-s", self.serial, "shell", "pkill -f com.genymobile.scrcpy.Server"]  # Must use -s with 19 devices
         try:
             result = _run_adb_command_via_queue(cmd, env, timeout=5.0)
             if result.returncode == 0:
-                print(f"[ScrcpyDevice] [OK] Killed old scrcpy-server processes on {self.serial}")
+                ColorPrint.plain(f"[ScrcpyDevice] [OK] Killed old scrcpy-server processes on {self.serial}")
             else:
-                print(f"[ScrcpyDevice] [WARN] No old processes to kill (expected)")
+                ColorPrint.plain(f"[ScrcpyDevice] [WARN] No old processes to kill (expected)")
         except Exception as e:
-            print(f"[ScrcpyDevice] [WARN] Error killing old processes: {e}")
+            ColorPrint.plain(f"[ScrcpyDevice] [WARN] Error killing old processes: {e}")
 
         # Give device time to cleanup
         time.sleep(0.3)
@@ -550,20 +551,20 @@ class ScrcpyDevice(AndroidDevice):
             mode_name = mode.get_mode_name()
             cmd = mode.get_adb_tunnel_command(self.adb_path, config)
 
-            print(f"[ScrcpyDevice] [TUNNEL] Trying {mode_name} mode for {self.serial}...")
-            print(f"[ScrcpyDevice] [TUNNEL] Command: {' '.join(cmd)}")
-            print(f"[ScrcpyDevice] [TUNNEL] ANDROID_SERIAL={self.serial}")
+            ColorPrint.plain(f"[ScrcpyDevice] [TUNNEL] Trying {mode_name} mode for {self.serial}...")
+            ColorPrint.plain(f"[ScrcpyDevice] [TUNNEL] Command: {' '.join(cmd)}")
+            ColorPrint.plain(f"[ScrcpyDevice] [TUNNEL] ANDROID_SERIAL={self.serial}")
 
             try:
                 result = _run_adb_command_via_queue(cmd, env, timeout=10.0)
             except Exception as e:
                 last_error = e
-                print(f"[ScrcpyDevice] [WARN] {mode_name} mode failed for {self.serial}: {e}")
-                print(f"[ScrcpyDevice] -> Trying next tunnel mode...")
+                ColorPrint.plain(f"[ScrcpyDevice] [WARN] {mode_name} mode failed for {self.serial}: {e}")
+                ColorPrint.plain(f"[ScrcpyDevice] -> Trying next tunnel mode...")
                 continue
 
             if result.returncode == 0:
-                print(f"[ScrcpyDevice] [OK] {mode_name} tunnel established: "
+                ColorPrint.plain(f"[ScrcpyDevice] [OK] {mode_name} tunnel established: "
                       f"localabstract:{config.device_socket_name} <-> tcp:{config.local_port}")
                 self._device_socket_name = config.device_socket_name
                 self._tunnel_mode = mode_name.lower()
@@ -571,8 +572,8 @@ class ScrcpyDevice(AndroidDevice):
 
             error_msg = result.stderr.strip()
             last_error = RuntimeError(f"{mode_name} failed: {error_msg}")
-            print(f"[ScrcpyDevice] [WARN] {mode_name} mode failed: {error_msg}")
-            print(f"[ScrcpyDevice] -> Trying next tunnel mode...")
+            ColorPrint.plain(f"[ScrcpyDevice] [WARN] {mode_name} mode failed: {error_msg}")
+            ColorPrint.plain(f"[ScrcpyDevice] -> Trying next tunnel mode...")
 
         raise RuntimeError(
             f"All tunnel modes failed for {self.serial}. Last error: {last_error}"
@@ -674,7 +675,7 @@ class ScrcpyDevice(AndroidDevice):
         # Read 64-byte device name from socket (both REVERSE and FORWARD modes)
         name_bytes = self._recv_exactly(self._video_socket, 64)
         device_name = name_bytes.split(b'\x00')[0].decode('utf-8')
-        print(f"[ScrcpyDevice] Device name from metadata: {device_name}")
+        ColorPrint.plain(f"[ScrcpyDevice] Device name from metadata: {device_name}")
 
         # Get additional device info from ADB (scrcpy protocol doesn't provide these)
         dpi = self._get_device_dpi()
@@ -709,7 +710,7 @@ class ScrcpyDevice(AndroidDevice):
         # Unpack as big-endian unsigned integers
         codec_id, width, height = struct.unpack(">III", codec_metadata)
 
-        print(f"[ScrcpyDevice] Codec metadata: codec_id=0x{codec_id:08x}, {width}x{height}")
+        ColorPrint.plain(f"[ScrcpyDevice] Codec metadata: codec_id=0x{codec_id:08x}, {width}x{height}")
 
         # Update DeviceInfo with actual resolution
         self.info.resolution = Resolution(width=width, height=height)

@@ -1,2 +1,3 @@
-# Package marker only. FORBIDDEN: re-exports or package organization here.
-# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).
+"""Whisper speech-to-text utilities."""
+
+__all__ = ['whisper_stt_provider']

@@ -16,14 +16,12 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.parse
 
-from ..core.config import get_global_config, DEFAULT_ROOT_DIR
-from ..core.logging import setup_logging
-from ..core.database import get_sync_database
+from pycore.pyutils.launcher.device_sync.core.config import get_global_config, DEFAULT_ROOT_DIR
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.launcher.device_sync.core.database import get_sync_record_store
 
 import time
 
-
-logger = setup_logging(__name__)
 
 
 class PrimaryServerHandler(BaseHTTPRequestHandler):
@@ -31,7 +29,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         """Override to use our logger"""
-        logger.debug(f"{self.address_string()} - {format % args}")
+        ColorPrint.debug(f"{self.address_string()} - {format % args}")
 
     def do_GET(self):
         """Handle GET requests"""
@@ -66,13 +64,13 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
     def _handle_root(self):
         """Handle root path - comprehensive dashboard"""
         config = get_global_config()
-        db = get_sync_database()
+        record_store = get_sync_record_store()
 
         # Get statistics
-        db_stats = db.get_stats()
-        recent_transfers = db.get_recent_transfers(limit=10)
-        recent_scans = db.get_recent_scans(limit=5)
-        recent_connections = db.get_recent_connections(limit=10)
+        sync_stats = record_store.get_stats()
+        recent_transfers = record_store.get_recent_transfers(limit=10)
+        recent_scans = record_store.get_recent_scans(limit=5)
+        recent_connections = record_store.get_recent_connections(limit=10)
 
         # Build connected clients HTML
         connected_clients_html = ""
@@ -207,7 +205,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
                         <div class="stat-label">Total Scans</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-number">{db_stats['total_transfers']}</div>
+                        <div class="stat-number">{sync_stats['total_transfers']}</div>
                         <div class="stat-label">Transfers</div>
                     </div>
                     <div class="stat-box">
@@ -271,11 +269,11 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
     def _handle_files_list(self):
         """Handle /api/files - return file list"""
         config = get_global_config()
-        db = get_sync_database()
+        record_store = get_sync_record_store()
 
         # Record connection
         client_ip = self.client_address[0]
-        db.record_connection('client_connect', client_ip, request_path='/api/files')
+        record_store.record_connection('client_connect', client_ip, request_path='/api/files')
 
         client_info = {'ip': client_ip, 'last_seen': time.time()}
         config.upsert_connected_client(client_info)
@@ -286,14 +284,14 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
 
         # Build file cache if needed (use global cache)
         if not config.file_cache:
-            logger.info("Building file cache...")
+            ColorPrint.info("Building file cache...")
             start_time = time.time()
             config.build_file_cache()
             duration = time.time() - start_time
-            logger.info(f"File cache built: {len(config.file_cache)} files")
+            ColorPrint.info(f"File cache built: {len(config.file_cache)} files")
 
-            # Record scan to database
-            db.record_scan(
+            # Record the scan in the bounded history store
+            record_store.record_scan(
                 scan_type='full',
                 files_found=len(config.file_cache),
                 duration_seconds=duration,
@@ -311,7 +309,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
     def _handle_file_download(self, path):
         """Handle /api/file/{path} - download file"""
         config = get_global_config()
-        db = get_sync_database()
+        record_store = get_sync_record_store()
         client_ip = self.client_address[0]
 
         # Extract file path from URL
@@ -322,7 +320,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
 
         if not full_path.exists():
             # Record failed transfer
-            db.record_transfer(
+            record_store.record_transfer(
                 session_id=None,
                 operation='download',
                 file_path=file_path,
@@ -336,7 +334,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
 
         if not full_path.is_file():
             # Record failed transfer
-            db.record_transfer(
+            record_store.record_transfer(
                 session_id=None,
                 operation='download',
                 file_path=file_path,
@@ -354,7 +352,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
                 content = f.read()
 
             # Record successful transfer
-            db.record_transfer(
+            record_store.record_transfer(
                 session_id=None,
                 operation='download',
                 file_path=file_path,
@@ -369,11 +367,11 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(content)
 
-            logger.info(f"File downloaded by {client_ip}: {file_path} ({len(content)} bytes)")
+            ColorPrint.info(f"File downloaded by {client_ip}: {file_path} ({len(content)} bytes)")
 
         except Exception as e:
             # Record failed transfer
-            db.record_transfer(
+            record_store.record_transfer(
                 session_id=None,
                 operation='download',
                 file_path=file_path,
@@ -382,7 +380,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
                 remote_device=client_ip,
                 error_message=str(e)
             )
-            logger.error(f"Failed to send file {file_path}: {e}")
+            ColorPrint.error(f"Failed to send file {file_path}: {e}")
             self.send_error(500, f"Failed to read file: {e}")
 
     def _handle_devices(self):
@@ -421,10 +419,10 @@ class SimplePrimaryServer:
     def start(self):
         """Start PRIMARY server"""
         if self.running:
-            logger.warning("Server already running")
+            ColorPrint.warning("Server already running")
             return
 
-        logger.info(f"Starting PRIMARY server on port {self.config.http_port}...")
+        ColorPrint.info(f"Starting PRIMARY server on port {self.config.http_port}...")
 
         try:
             # Create HTTP server
@@ -444,10 +442,10 @@ class SimplePrimaryServer:
 
             self.config.server_running = True
 
-            logger.info(f"✓ PRIMARY server started on {self.config.local_ip}:{self.config.http_port}")
+            ColorPrint.info(f"✓ PRIMARY server started on {self.config.local_ip}:{self.config.http_port}")
 
         except Exception as e:
-            logger.error(f"Failed to start server: {e}", exc_info=True)
+            ColorPrint.error(f"Failed to start server: {e}")
             self.running = False
             THREAD_BUS.signal(self._running_signal, False)
             raise
@@ -457,7 +455,7 @@ class SimplePrimaryServer:
         if not self.running:
             return
 
-        logger.info("Stopping PRIMARY server...")
+        ColorPrint.info("Stopping PRIMARY server...")
 
         self.running = False
         THREAD_BUS.signal(self._running_signal, False)
@@ -471,7 +469,7 @@ class SimplePrimaryServer:
 
         self.config.server_running = False
 
-        logger.info("PRIMARY server stopped")
+        ColorPrint.info("PRIMARY server stopped")
 
     def _server_loop(self):
         """Server main loop"""
@@ -479,7 +477,7 @@ class SimplePrimaryServer:
             self.server.serve_forever()
         except Exception as e:
             if THREAD_BUS.get_signal(self._running_signal, False):
-                logger.error(f"Server error: {e}", exc_info=True)
+                ColorPrint.error(f"Server error: {e}")
 
     def is_running(self) -> bool:
         """Check if server is running"""

@@ -14,12 +14,12 @@ from typing import Optional, List, Dict
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.system_paths import APP_CACHE_DIR
-from pycore.pyctl.desktop.queue_manager import get_voice_subtitle_queue
+from pycore.pyctl.desktop.queue_manager import voice_subtitle_queue
 from pycore.pyctl.desktop.ai_hooks import ai_describe_image
 from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import extract_text as ocr_extract_text
 from pycore.pyutils.tts.tts_orchestrator import synthesize as tts_synthesize
 from pycore.pyutils.translator.google_translator import GoogleTranslator
-from pycore.pyutils.common.tts_models import clean_tts_text
+from pycore.pyfoundations.speech_models import clean_tts_text
 
 
 # ============================================================
@@ -265,7 +265,7 @@ async def process_text_input(text: str, langs: List[str], category: str = "norma
             ColorPrint.green(f"[Processor] ✓ Generated {len(tts_results)} TTS audio(s)")
 
             # Add to queue
-            queue = get_voice_subtitle_queue()
+            queue = voice_subtitle_queue
             for item_index, item in enumerate(tts_results, 1):
                 queue.add_item(text=item['text'], audio_path=item['audio_path'], category=category,
                                ai_provider=ai_provider, ai_model=ai_model)

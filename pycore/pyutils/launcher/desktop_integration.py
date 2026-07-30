@@ -29,8 +29,9 @@ import platform
 import os
 import tempfile
 
-from pycore.pyutils.common.icon_generator import DesktopIconGenerator
-from pycore.pyutils.desktop.universal_shortcut import ShortcutManager
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.desktop_icon_generator import DesktopIconGenerator
+from pycore.pyfoundations.shortcut_manager import ShortcutManager
 
 # Real entry point for the desktop shortcut (.bat / .desktop). Must NOT use __file__
 # here — this module was split out of launcher.py and __file__ would point here.
@@ -41,8 +42,7 @@ _LAUNCHER_PY_PATH = _LAUNCHER_DIR / 'launcher.py'
 def get_windows_version():
     """Get Windows version (win10 or win11).
 
-    Delegates to ShortcutManager (canonical implementation in
-    pycore/pyutils/desktop/universal_shortcut.py) instead of duplicating it here.
+    Delegates to the foundation ShortcutManager implementation.
     """
     return ShortcutManager.get_windows_version()
 
@@ -53,8 +53,7 @@ def get_dev_env_path():
     drive, so use a hidden dir under the user home - otherwise the literal
     "D:\\.dev_...\\.winenvs" string is created as a folder in the cwd.
 
-    Delegates to ShortcutManager (canonical implementation in
-    pycore/pyutils/desktop/universal_shortcut.py) instead of duplicating it here.
+    Delegates to the foundation ShortcutManager implementation.
     """
     return ShortcutManager.get_dev_env_path()
 
@@ -96,9 +95,9 @@ def ensure_desktop_shortcut():
             os.chmod(dest, 0o755)
             subprocess.run(['update-desktop-database', str(apps_dir)], check=False,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print(f"Created/updated .desktop entry: {dest}")
+            ColorPrint.plain(f"Created/updated .desktop entry: {dest}")
         except Exception as e:
-            print(f"Warning: Failed to create .desktop entry: {e}")
+            ColorPrint.plain(f"Warning: Failed to create .desktop entry: {e}")
         return
 
     if platform.system() != 'Windows':
@@ -123,7 +122,7 @@ def ensure_desktop_shortcut():
     with open(bat_path, 'w', encoding='utf-8', newline='\r\n') as f:
         f.write(bat_content)
 
-    print(f"Created/updated bat file: {bat_path}")
+    ColorPrint.plain(f"Created/updated bat file: {bat_path}")
 
     # Use icon.ico if available, then icon.png, otherwise use Python icon
     icon_ico_path = launcher_dir / 'icon.ico'
@@ -144,9 +143,9 @@ def ensure_desktop_shortcut():
             working_dir=str(launcher_dir),  # Set working directory to launcher directory
             description="Launch Window Launcher - Multiple Terminal Windows"
         )
-        print(f"Created/updated desktop shortcut: {shortcut_name}")
+        ColorPrint.plain(f"Created/updated desktop shortcut: {shortcut_name}")
     except Exception as e:
-        print(f"Warning: Failed to create desktop shortcut: {e}")
+        ColorPrint.plain(f"Warning: Failed to create desktop shortcut: {e}")
 
 
 # Use file lock to ensure warning is shown only once (even across multiple imports)
@@ -169,16 +168,16 @@ def show_admin_permission_warning():
 
     # Print warning WITHOUT ANSI codes to avoid Windows terminal issues
     # Simple text output that won't cause duplicate printing
-    print("\n" + "=" * 60)
-    print("WARNING: Administrator Permission Required")
-    print("=" * 60)
-    print("Please add 'Run as administrator' permission to the")
-    print("'Window Launcher' desktop shortcut:")
-    print("\nSteps:")
-    print("1. Right-click on 'Window Launcher' shortcut on desktop")
-    print("2. Select 'Properties'")
-    print("3. Go to 'Advanced' tab (or 'Compatibility' tab)")
-    print("4. Check 'Run as administrator'")
-    print("5. Click 'OK' to save")
-    print("\nThis will ensure proper window positioning and permissions.")
-    print("=" * 60 + "\n")
+    ColorPrint.plain("\n" + "=" * 60)
+    ColorPrint.plain("WARNING: Administrator Permission Required")
+    ColorPrint.plain("=" * 60)
+    ColorPrint.plain("Please add 'Run as administrator' permission to the")
+    ColorPrint.plain("'Window Launcher' desktop shortcut:")
+    ColorPrint.plain("\nSteps:")
+    ColorPrint.plain("1. Right-click on 'Window Launcher' shortcut on desktop")
+    ColorPrint.plain("2. Select 'Properties'")
+    ColorPrint.plain("3. Go to 'Advanced' tab (or 'Compatibility' tab)")
+    ColorPrint.plain("4. Check 'Run as administrator'")
+    ColorPrint.plain("5. Click 'OK' to save")
+    ColorPrint.plain("\nThis will ensure proper window positioning and permissions.")
+    ColorPrint.plain("=" * 60 + "\n")

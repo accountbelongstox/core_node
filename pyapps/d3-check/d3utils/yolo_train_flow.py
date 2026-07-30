@@ -8,7 +8,6 @@ References GameAISDK Modules/darknetV3/src/yolo_label_lib.py for steps 3/4/5.
 import glob
 import os
 import shutil
-import subprocess
 import sys
 from typing import List, Optional, Tuple
 
@@ -46,15 +45,7 @@ if _root:
     except ImportError:
         pass
 
-# pycore voc_annotator: direct import
-run_voc_annotator = None
-yolo_data_layout = None
-if _root:
-    try:
-        from pycore.pyutils.voc_annotator.main_window import run_voc_annotator
 import pycore.pyutils.voc_annotator.yolo_data_layout as yolo_data_layout
-    except ImportError:
-        pass
 
 # ---------------------------------------------------------------------------
 # Step 1: Record (GameAISDK action_sampler via d3utils.yolo_record RecordSession)
@@ -115,66 +106,18 @@ def flow2_export_frames(project_path: str, skip_frames: int = 1) -> Tuple[bool, 
 # ---------------------------------------------------------------------------
 
 
-def _launch_voc_annotator_subprocess(project_path: str, images_dir: Optional[str] = None) -> Tuple[bool, str]:
-    """Launch VOC annotator in a separate process so Qt runs without Tk in the same process (avoids crash on Windows)."""
-    core_node_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    cmd = [sys.executable, "-m", "pycore.pyutils.voc_annotator", "--project-path", project_path]
-    if images_dir and os.path.isdir(images_dir):
-        cmd.extend(["--images-dir", images_dir])
-    try:
-        subprocess.Popen(
-            cmd,
-            cwd=core_node_root,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        return True, ""
-    except Exception as e:
-        return False, str(e)
-
-
 def flow3_open_label_tool(
     images_dir: Optional[str] = None,
     labels_output_dir: Optional[str] = None,
     project_path: Optional[str] = None,
     tk_after: Optional[object] = None,
 ) -> Tuple[bool, str]:
-    """Step 3: Open VOC annotator UI. Call convention (see docs/YOLO_OPEN_LABEL_DATA_FLOW_AND_ISSUES.md).
-    App is Python Tk; UI passes project_path + tk_after (Tk root). When tk_after is set, launch annotator in subprocess so the main Tk loop stays responsive.
-    If project_path valid and tk_after None: in-process run_voc_annotator (if available). If no valid project_path but images_dir valid: GameAISDK launch_labelimg.
-    """
+    """Open the GameAISDK labelImg integration for one image directory."""
     ColorPrint.blue("[DEBUG] flow3_open_label_tool entry: project_path=%s, images_dir=%s, labels_output_dir=%s" % (project_path, images_dir, labels_output_dir))
     ColorPrint.blue("[DEBUG] flow3_open_label_tool: project_ok=%s" % bool(project_path and os.path.isdir(project_path)))
-    if project_path and os.path.isdir(project_path):
-        if tk_after is not None:
-            annotator_images_dir = images_dir if (images_dir and os.path.isdir(images_dir)) else None
-            ColorPrint.blue("[DEBUG] flow3_open_label_tool: launching VOC annotator in subprocess (Tk: keep main loop responsive)")
-            ok, msg = _launch_voc_annotator_subprocess(project_path, annotator_images_dir)
-            if not ok:
-                return False, msg or "Failed to start annotator process"
-            if images_dir and os.path.isdir(images_dir) and open_frames_dir_for_labeling:
-                open_frames_dir_for_labeling(images_dir)
-            return True, ""
-        if run_voc_annotator is None:
-            ColorPrint.yellow("[DEBUG] flow3_open_label_tool: pycore voc_annotator not available")
-            return False, "pycore voc_annotator not available"
-        annotator_images_dir = images_dir if (images_dir and os.path.isdir(images_dir)) else None
-        try:
-            run_voc_annotator(
-                project_path=project_path,
-                images_dir=annotator_images_dir,
-                event_pump_schedule=None,
-            )
-        except Exception as e:
-            ColorPrint.yellow("[DEBUG] flow3_open_label_tool: run_voc_annotator raised: %s" % e)
-            return False, str(e)
-        if images_dir and os.path.isdir(images_dir) and open_frames_dir_for_labeling:
-            open_frames_dir_for_labeling(images_dir)
-        return True, ""
     if not images_dir or not os.path.isdir(images_dir):
         ColorPrint.yellow("[DEBUG] flow3_open_label_tool: no valid images_dir or project_path, returning False")
-        return False, "images_dir not found or pass project_path for pycore annotator"
+        return False, "images_dir not found"
     if _gameaisdk_launch_labelimg is None:
         ColorPrint.yellow("[DEBUG] flow3_open_label_tool: GameAISDK launch_labelimg not available")
         return False, "GameAISDK yolo_label_lib not available"

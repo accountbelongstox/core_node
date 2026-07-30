@@ -1,2 +1,3 @@
-# Package marker only. FORBIDDEN: re-exports or package organization here.
-# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).
+from pycore.database.database_manager import database_manager
+
+__all__ = ['database_manager']

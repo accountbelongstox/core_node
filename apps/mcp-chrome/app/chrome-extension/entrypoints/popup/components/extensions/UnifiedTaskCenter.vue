@@ -169,9 +169,9 @@
 <script lang="ts" setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { apiManager, getApiBase } from '@/services/ApiManager';
+import { TaskCenterApiClient } from '@/services/TaskCenterApiClient';
 import { usePersistedRef } from '@/composables/usePersistedRef';
-import { TASK_LIST_PATH, TASK_CENTER_OVERVIEW_PATH } from '@/utils/api-paths';
-import type { TaskRow } from '@/utils/task-center-types';
+import type { QueueLiveCounts, TaskRow } from '@/utils/queue-center-contract';
 import {
   CHROME_TASK_TYPES,
   LIVE_TASK_STATUSES,
@@ -188,7 +188,7 @@ import {
   isFastTier,
 } from './task-center-meta';
 
-// TaskRow is the canonical task-summary shape from utils/task-center-types.ts.
+// TaskRow is the canonical task-summary shape from utils/queue-center-contract.ts.
 
 interface SummaryCat {
   type: string;
@@ -223,7 +223,7 @@ const loadAllMsg = ref('');
 // present, the summary strip uses these EXACT counts instead of recomputing
 // from the centrally limited list window (which diverged from Laravel's Task
 // Center — the "data doesn't match" bug).
-const serverByType = ref<Record<string, { pending: number; leased: number; processing: number }> | null>(null);
+const serverByType = ref<Record<string, QueueLiveCounts> | null>(null);
 
 const sortKey = usePersistedRef<'created_desc' | 'created_asc' | 'priority_desc' | 'status'>('utcSort', 'created_desc');
 const statusFilter = usePersistedRef<'' | 'live' | 'history' | 'failed'>('utcStatusFilter', '');
@@ -233,14 +233,27 @@ const selectedTaskId = ref<string | null>(null);
 const selectedProcessorType = ref<string | null>(null);
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+let taskCenterApi: TaskCenterApiClient | null = null;
 
 const apiBase = getApiBase;
+const apiClient = (): TaskCenterApiClient => {
+  const baseUrl = apiBase();
+  if (!taskCenterApi || taskCenterApi.getBaseUrl() !== baseUrl) {
+    taskCenterApi = new TaskCenterApiClient(baseUrl);
+  }
+  return taskCenterApi;
+};
+
+const liveCountsForTaskType = (taskType: string): QueueLiveCounts | null => {
+  return serverByType.value?.[taskType] || null;
+};
 
 const pendingByType = computed(() => {
   if (serverByType.value) {
     const m: Record<string, number> = {};
-    for (const [type, counts] of Object.entries(serverByType.value)) {
-      if (counts.pending > 0) m[type] = counts.pending;
+    for (const category of SUMMARY_CATS) {
+      const counts = liveCountsForTaskType(category.type);
+      if (counts && counts.pending > 0) m[category.type] = counts.pending;
     }
     return m;
   }
@@ -255,9 +268,11 @@ const pendingByType = computed(() => {
 const processingByType = computed(() => {
   if (serverByType.value) {
     const m: Record<string, number> = {};
-    for (const [type, counts] of Object.entries(serverByType.value)) {
+    for (const category of SUMMARY_CATS) {
+      const counts = liveCountsForTaskType(category.type);
+      if (!counts) continue;
       const active = (counts.leased || 0) + (counts.processing || 0);
-      if (active > 0) m[type] = active;
+      if (active > 0) m[category.type] = active;
     }
     return m;
   }
@@ -273,7 +288,7 @@ const processingByType = computed(() => {
 
 const totalPending = computed(() => {
   if (serverByType.value) {
-    return Object.values(serverByType.value).reduce((sum, counts) => sum + counts.pending, 0);
+    return Object.values(pendingByType.value).reduce((sum, pending) => sum + pending, 0);
   }
   return rows.value.filter(
     (r) => (r.status || '').toLowerCase() === TASK_STATUS_BY_ROLE.pending,
@@ -355,32 +370,9 @@ const refresh = async (): Promise<void> => {
   loading.value = true;
   error.value = '';
   try {
-    const [listRes, overviewRes] = await Promise.all([
-      fetch(`${apiBase()}${TASK_LIST_PATH}?limit=${TASK_LIMITS.list}`, {
-        headers: { 'Cache-Control': 'no-cache' },
-      }),
-      // Best-effort aggregate fetch — a failure leaves the local fallback on.
-      fetch(`${apiBase()}${TASK_CENTER_OVERVIEW_PATH}`, {
-        headers: { 'Cache-Control': 'no-cache' },
-      }).catch(() => null),
-    ]);
-    if (!listRes.ok) { error.value = `Failed to load tasks (${listRes.status})`; return; }
-    const json = await listRes.json();
-    const data = json?.data ?? json;
-    rows.value = Array.isArray(data?.tasks) ? (data.tasks as TaskRow[]) : [];
-
-    if (overviewRes && overviewRes.ok) {
-      try {
-        const overviewJson = await overviewRes.json();
-        const overviewData = overviewJson?.data ?? overviewJson;
-        const byType = overviewData?.queue?.by_type;
-        serverByType.value = byType && typeof byType === 'object' ? byType : null;
-      } catch {
-        serverByType.value = null;
-      }
-    } else {
-      serverByType.value = null;
-    }
+    const snapshot = await apiClient().snapshot(TASK_LIMITS.list);
+    rows.value = snapshot.tasks;
+    serverByType.value = snapshot.summaryByType;
   } catch (e: any) {
     error.value = e?.message || 'Failed to load tasks';
   } finally {
@@ -396,12 +388,7 @@ const loadAll = async (): Promise<void> => {
   loadAllMsg.value = '';
   error.value = '';
   try {
-    const url = `${apiBase()}${TASK_LIST_PATH}?limit=${TASK_LIMITS.list}&status=${TASK_STATUS_BY_ROLE.pending}`;
-    const res = await fetch(url, { headers: { 'Cache-Control': 'no-cache' } });
-    if (!res.ok) { error.value = `Load failed (${res.status})`; return; }
-    const json = await res.json();
-    const data = json?.data ?? json;
-    const all: TaskRow[] = Array.isArray(data?.tasks) ? (data.tasks as TaskRow[]) : [];
+    const all = await apiClient().listTasks(TASK_LIMITS.list, TASK_STATUS_BY_ROLE.pending);
     const chromeHandled = all.filter((task) => CHROME_TASK_TYPE_KEYS.has(task.task_type));
     const existing = new Map(rows.value.map((r) => [r.task_id, r]));
     for (const t of all) existing.set(t.task_id, t);

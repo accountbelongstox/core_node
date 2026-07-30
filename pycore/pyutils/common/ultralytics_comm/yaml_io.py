@@ -4,7 +4,7 @@
 import os
 from typing import List, Optional
 
-from .layout import IMAGES_SUBDIR, DATA_YAML_NAME
+from pycore.pyutils.common.ultralytics_comm.layout import IMAGES_SUBDIR, DATA_YAML_NAME
 
 
 def build_data_yaml_content(

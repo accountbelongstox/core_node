@@ -12,8 +12,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from pycore.pyutils.pybrowser.fetchers.http_fetcher import HTTPFetcher
 from pycore.pyutils.pybrowser.fetchers.browser_fetcher import BrowserFetcher
-from pycore.pyutils.pybrowser.fetchers.iframe_fetcher import IframeFetcher
-from pycore.pyutils.pybrowser.fetchers.tampermonkey_fetcher import TampermonkeyFetcher
 
 
 
@@ -102,7 +100,7 @@ class CrawlController:
         Initialize fetcher
 
         Args:
-            fetcher_type: Type of fetcher ('http', 'browser', 'iframe', 'tampermonkey')
+            fetcher_type: Type of fetcher ('http' or 'browser')
             fetcher_options: Fetcher initialization options
 
         Returns:
@@ -119,10 +117,6 @@ class CrawlController:
             self.fetcher = HTTPFetcher()
         elif fetcher_type == 'browser':
             self.fetcher = BrowserFetcher()
-        elif fetcher_type == 'iframe':
-            self.fetcher = IframeFetcher()
-        elif fetcher_type == 'tampermonkey':
-            self.fetcher = TampermonkeyFetcher()
         else:
             ColorPrint.red(f'[CrawlController] Unknown fetcher type: {fetcher_type}')
             return False

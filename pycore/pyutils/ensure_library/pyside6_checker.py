@@ -228,7 +228,7 @@ def print_codec_solutions():
 
     ColorPrint.yellow("\nOption 1: Use Software Decoder in Backend (Recommended)")
     ColorPrint.blue("  - Use FFmpeg/PyAV to decode H.264 on backend")
-    ColorPrint.blue("  - Send RGB/RGBA frames via WebSocket")
+    ColorPrint.blue("  - Serve RGB/RGBA frames through an application HTTP endpoint")
     ColorPrint.blue("  - Render on HTML canvas")
     ColorPrint.blue("  - No QtWebEngine codec needed")
 
@@ -236,7 +236,7 @@ def print_codec_solutions():
     ColorPrint.blue("  - Send YUV420P frames from backend")
     ColorPrint.blue("  - Use WebGL shader for YUV-to-RGB conversion")
     ColorPrint.blue("  - Already implemented in your Matrix app")
-    ColorPrint.blue("  - Endpoint: ws://localhost:48000/video/yuv/{device_id}")
+    ColorPrint.blue("  - Video transport: HTTP endpoint supplied by the application")
 
     ColorPrint.yellow("\nOption 3: Install PySide6 with Codec Support (Advanced)")
     ColorPrint.blue("  - Some third-party PySide6 builds include codecs")

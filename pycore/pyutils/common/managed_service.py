@@ -8,20 +8,10 @@ development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md
 single-active / idle auto-shutdown / busy (in-flight) protection; orchestrators
 own priority; the UI only reads status.
 
-Engine taxonomy (spec §1):
-  - class A (cloud / CLI API: edge-tts, azure, gtts_web, streamelements): NOT
-    managed here. edge-tts is SERIALIZED process-wide by its THREAD_BUS owner in
-    edge_tts_client.py; unregistered names are a no-op in `using()`.
-  - class B (in-process local model: sherpa/kokoro/bark/voxcpm2;
-    faster-whisper/whisper/vosk): kind="model". Loaded lazily by the engine on
-    first call; may run in PARALLEL; each idle-unloads independently. start =
-    the engine's own lazy load (the manager does NOT trigger it); stop = unload +
-    torch.cuda.empty_cache().
-  - class C (local API/HTTP server: chattts/cosyvoice/fishspeech/gptsovits/f5tts/
-    qwen3tts/melotts): kind="server". start = Popen + wait for HTTP health; stop =
-    terminate. qwen3tts, melotts and gptsovits run inside DEDICATED per-engine
-    venvs (see qwen3tts_venv.py / isolated_venv.py) because their transformers
-    pins cannot coexist with the main interpreter's.
+Engine taxonomy (spec §1): class A cloud/CLI providers are unmanaged; class B
+in-process models load lazily and unload independently; class C API servers use
+Popen, HTTP health, and process termination. Incompatible class-C engines use
+dedicated venvs.
 
 Contract enforced here:
   - default no memory: nothing stays loaded by default; a service runs only
@@ -44,11 +34,8 @@ interpreter (argv[0] != this interpreter, e.g. qwen3tts's venv) PYTHONPATH /
 PYTHONHOME are stripped so the main interpreter's site-packages cannot shadow the
 venv (spec §5).
 
-Settings persist in user_data.json, one section per category, with a prefix
-so the TTS category keeps its existing `server_*` keys (router/UI compat) and
-STT uses `model_*` keys:
-  <prefix>auto_manage / <prefix>single_active / <prefix>idle_shutdown_s /
-  <prefix>enabled (per-service bool map)
+Settings persist in user_data.json per category as prefixed `auto_manage`,
+`single_active`, `idle_shutdown_s`, and `enabled` keys.
 """
 
 import atexit
@@ -62,7 +49,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from pycore.database.repositories.user_data_store import get_user_data_store
+from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_logs_dir
 from pycore.pyfoundations.serialized_worker import (
@@ -70,6 +57,7 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
     start_bus_task,
 )
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 from pycore.pyfoundations.third_party.api import get_third_package_torch
 import pycore.pyutils.common.model_load_status as model_load_status
@@ -80,6 +68,8 @@ _WATCHDOG_POLL_S = 5.0
 _RUN_CACHE_TTL_S = 10.0
 _START_TIMEOUT_S = 180.0
 _HEALTH_POLL_S = 1.5
+_READY_MARKER = "QWEN3TTS_READY "
+_READY_SIGNAL_PREFIX = "managed.service.ready_url."
 
 
 @dataclass
@@ -132,14 +122,20 @@ def _gpu_release() -> None:
         pass
 
 
-def _relay_managed_log(proc: subprocess.Popen, logfile: Any, service_name: str) -> None:
+def _relay_managed_log(proc: subprocess.Popen, logfile: Optional[Any], service_name: str) -> None:
     """Relay subprocess output after receiving all task data through THREAD_BUS."""
     try:
         for line in iter(proc.stdout.readline, b''):
             text = line.decode("utf-8", errors="replace")
-            logfile.write(text)
-            logfile.flush()
+            if logfile is not None:
+                logfile.write(text)
+                logfile.flush()
             ColorPrint.gray(f"[{service_name}] {text.strip()}")
+            marker_index = text.find(_READY_MARKER)
+            if marker_index >= 0:
+                endpoint = text[marker_index + len(_READY_MARKER):].strip().split(" ", 1)[0]
+                if endpoint:
+                    THREAD_BUS.signal(f"{_READY_SIGNAL_PREFIX}{service_name}", endpoint)
     except Exception:
         pass
 
@@ -203,14 +199,14 @@ class ManagedServiceManager:
     @staticmethod
     def _load_section(section: str) -> Dict[str, Any]:
         try:
-            return dict(get_user_data_store().get_section(section) or {})
+            return dict(user_data_store.get_section(section) or {})
         except Exception:  # noqa: BLE001
             return {}
 
     @staticmethod
     def _save_section(section: str, data: Dict[str, Any]) -> None:
         try:
-            get_user_data_store().set_section(section, data)
+            user_data_store.set_section(section, data)
         except Exception as e:  # noqa: BLE001
             ColorPrint.yellow(f"[managed] failed to persist {section}: {e}")
 
@@ -429,11 +425,11 @@ class ManagedServiceManager:
             return True
         popen_kwargs = self._popen_kwargs(cwd)
         logf = self._open_server_log(spec)
-        if logf is not None:
-            popen_kwargs["stdout"] = subprocess.PIPE
-            popen_kwargs["stderr"] = subprocess.STDOUT
+        popen_kwargs["stdout"] = subprocess.PIPE
+        popen_kwargs["stderr"] = subprocess.STDOUT
         if env is not None:
             popen_kwargs["env"] = self._launch_env(argv, env)
+        THREAD_BUS.clear_signal(f"{_READY_SIGNAL_PREFIX}{spec.name}")
         try:
             proc = subprocess.Popen(argv, **popen_kwargs)
             # Keep the defensive duplicate-process check for external changes.
@@ -452,13 +448,13 @@ class ManagedServiceManager:
                 return True
             if logf is not None:
                 self._logfiles[spec.name] = logf
-                start_bus_task(
-                    _relay_managed_log,
-                    proc,
-                    logf,
-                    spec.name,
-                    thread_name=f"ManagedLogRelay-{spec.name}-Thread",
-                )
+            start_bus_task(
+                _relay_managed_log,
+                proc,
+                logf,
+                spec.name,
+                thread_name=f"ManagedLogRelay-{spec.name}-Thread",
+            )
             self._last_activity[spec.name] = time.monotonic()
         except Exception as e:  # noqa: BLE001
             if logf is not None:
@@ -637,6 +633,7 @@ class ManagedServiceManager:
                     ColorPrint.yellow(f"[managed] unload {name} failed: {e}")
             _gpu_release()
         self._invalidate_run_cache(name)
+        THREAD_BUS.clear_signal(f"{_READY_SIGNAL_PREFIX}{name}")
         # Back to idle in the model-load registry (server terminated / model unloaded).
         try:
             model_load_status.reset(name)
@@ -710,6 +707,9 @@ class ManagedServiceManager:
             "enabled": bool(st.get("enabled", {}).get(name, True)),
             "in_flight": self.in_flight(name),
             "idle_remaining_s": idle_remaining,
+            "ready_url": THREAD_BUS.get_signal(
+                f"{_READY_SIGNAL_PREFIX}{name}", None
+            ),
         }
 
     @serialized_method
@@ -731,6 +731,7 @@ class ManagedServiceManager:
                         pass
                 self._last_activity.pop(name, None)
                 self._invalidate_run_cache(name)
+                THREAD_BUS.clear_signal(f"{_READY_SIGNAL_PREFIX}{name}")
 
     def _shutdown_idle(self) -> None:
         # Group idle seconds by category (one setting per category).

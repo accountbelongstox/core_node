@@ -409,7 +409,7 @@ def rpc_init_callback(rpc_server):
     It registers all Matrix routes to the RPC v2 server instance.
 
     Args:
-        rpc_server: RPC v2 server instance (FastAPIRPCServer)
+        rpc_server: RPC v2 server instance (RpcServer)
     """
     from pyapps.matrix.api.main import register_all_routes
 

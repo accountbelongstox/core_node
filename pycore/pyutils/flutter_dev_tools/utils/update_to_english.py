@@ -6,6 +6,7 @@ Update design_structure_auto_expand.py to English and rename directories
 
 from pathlib import Path
 import re
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Translation mapping
 TRANSLATIONS = {
@@ -56,7 +57,7 @@ TRANSLATIONS = {
 
 def update_file(file_path: Path):
     """Update file with English translations"""
-    print(f"Updating: {file_path}")
+    ColorPrint.plain(f"Updating: {file_path}")
 
     content = file_path.read_text(encoding='utf-8')
 
@@ -66,7 +67,7 @@ def update_file(file_path: Path):
 
     # Save
     file_path.write_text(content, encoding='utf-8')
-    print(f"Updated: {file_path}")
+    ColorPrint.plain(f"Updated: {file_path}")
 
 
 if __name__ == "__main__":
@@ -75,6 +76,6 @@ if __name__ == "__main__":
 
     if target_file.exists():
         update_file(target_file)
-        print("\nDone! Please review the changes.")
+        ColorPrint.plain("\nDone! Please review the changes.")
     else:
-        print(f"File not found: {target_file}")
+        ColorPrint.plain(f"File not found: {target_file}")

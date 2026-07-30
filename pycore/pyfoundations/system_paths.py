@@ -38,12 +38,6 @@ from pycore.pyfoundations.system_info import (
     get_largest_mnt_drive as _get_largest_mounted_drive,
 )
 from pycore.pyfoundations.app_config_path import get_app_config_dir as _get_foundation_app_config_dir
-from pycore.database.repositories.user_data_store import (
-    UserDataStore,
-    get_user_data_store,
-    STORE_FILE_NAME,
-)
-
 def _get_dev_compile_base(secondary_base: 'Path', suffix: str) -> 'Path':
     """Development-tooling base directory (where <base>/_<name>_<ver> with node/py
     etc. is installed). Mirrors gvar_common.sh get_dev_compile_base() and PHP
@@ -689,8 +683,4 @@ __all__ = [
     'CORE_NODE_ROOT',
     'LOCAL_DATA_DIR',
     'APP_TEMP_DIR',
-    # User data store (re-exported from user_data_store)
-    'UserDataStore',
-    'get_user_data_store',
-    'STORE_FILE_NAME',
 ]

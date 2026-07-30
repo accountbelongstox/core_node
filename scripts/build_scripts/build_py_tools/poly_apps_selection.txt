@@ -1,6 +1,6 @@
 generated_at	2025-12-05T07:39:51
-project_name	pycore_laravel_wordflow_ui
-project_path	D:\programing\core_node\poly_apps\pycore_laravel_wordflow_ui
+project_name	pycore_laravel_wordnew_ui
+project_path	D:\programing\core_node\poly_apps\pycore_laravel_wordnew_ui
 project_port	10002
 project_type	vite
 build_mode_index	0
@@ -9,7 +9,7 @@ build_mode_label	dev
 platform_label	web
 command_windows	npx --yes vite --port 10002
 command_unix	npx --yes vite --port 10002
-display_line	pycore_laravel_wordflow_ui[10002]  [dev|web]
+display_line	pycore_laravel_wordnew_ui[10002]  [dev|web]
 env_var_count	1
 env_var_name_0	PORT
 env_var_value_0	10002

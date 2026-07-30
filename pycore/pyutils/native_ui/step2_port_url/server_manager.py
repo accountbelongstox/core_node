@@ -28,7 +28,7 @@ import subprocess
 
 import traceback
 
-from pycore.pyutils.native_ui.step7_managers.shutdown_manager import get_shutdown_manager
+from pycore.pyutils.native_ui.step7_managers.shutdown_manager import shutdown_manager
 
 
 
@@ -404,8 +404,7 @@ class ServerManager:
 
         try:
 
-            shutdown_mgr = get_shutdown_manager()
-            shutdown_mgr.add_shutdown_hook(
+            shutdown_manager.add_shutdown_hook(
                 name="server_manager_cleanup",
                 callback=self.stop_all_servers,
                 priority=50  # Higher priority = earlier execution
@@ -424,20 +423,12 @@ _SERVER_MANAGER_PROVIDER = SerializedSingletonProvider(
     "ServerManagerProvider",
 )
 
-
-def get_server_manager() -> ServerManager:
-    """
-    Get the singleton ServerManager instance
-
-    Returns:
-        ServerManager singleton instance
-    """
-    return _SERVER_MANAGER_PROVIDER.get()
+server_manager = _SERVER_MANAGER_PROVIDER.get()
 
 
 # Export
 __all__ = [
     'ServerManager',
     'ServerProcess',
-    'get_server_manager'
+    'server_manager',
 ]

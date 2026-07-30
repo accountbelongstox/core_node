@@ -19,7 +19,6 @@ from enum import Enum
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
-    SerializedSingletonProvider,
     SerializedWorkerThread,
     call_serialized,
 )
@@ -283,6 +282,40 @@ class TaskManager:
         """Get task by ID"""
         return call_serialized(_TASK_STATE_QUEUE, self._get_task, task_id)
 
+    def get_task_response(self, task_id: str) -> Dict:
+        """Return one task using the shared RPC response contract."""
+        task = self.get_task(task_id)
+        if task is None:
+            return {"success": False, "error": "task not found"}
+        return {"success": True, "task": task.to_dict()}
+
+    def cancel_task(self, task_id: str) -> Dict:
+        """Request cancellation on the task state owner."""
+        return call_serialized(_TASK_STATE_QUEUE, self._set_task_control, task_id, "cancel")
+
+    def pause_task(self, task_id: str) -> Dict:
+        """Request pause on the task state owner."""
+        return call_serialized(_TASK_STATE_QUEUE, self._set_task_control, task_id, "pause")
+
+    def resume_task(self, task_id: str) -> Dict:
+        """Request resume on the task state owner."""
+        return call_serialized(_TASK_STATE_QUEUE, self._set_task_control, task_id, "resume")
+
+    def _set_task_control(self, task_id: str, action: str) -> Dict:
+        """Apply a control flag to the owned task instead of a detached clone."""
+        task = self.tasks.get(task_id)
+        if task is None:
+            return {"success": False, "error": "task not found"}
+        if action == "cancel":
+            setattr(task, "_cancel", True)
+        elif action == "pause":
+            setattr(task, "_pause", True)
+        elif action == "resume":
+            setattr(task, "_pause", False)
+        else:
+            return {"success": False, "error": f"unsupported task action: {action}"}
+        return {"success": True, "message": f"{action} requested"}
+
     def _get_task(self, task_id: str) -> Optional[Task]:
         """Return a detached task snapshot on the state-owner thread."""
         task = self.tasks.get(task_id)
@@ -454,13 +487,4 @@ class TaskManager:
         return f"task_{task_type}_{timestamp}_{unique_id}"
 
 
-_TASK_MANAGER_PROVIDER = SerializedSingletonProvider(
-    TaskManager,
-    "desktop.task_manager.provider",
-    "DesktopTaskManagerProvider",
-)
-
-
-def get_task_manager() -> TaskManager:
-    """Get global task manager instance"""
-    return _TASK_MANAGER_PROVIDER.get()
+task_manager = TaskManager()

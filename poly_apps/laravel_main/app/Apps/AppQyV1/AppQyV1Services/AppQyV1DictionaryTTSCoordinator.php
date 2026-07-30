@@ -28,7 +28,7 @@ use Illuminate\Support\Facades\Log;
  * report results back; every reported result is VALIDATED (row identity,
  * non-empty payload, MP3 magic bytes) before it can touch the main table.
  *
- * Task-id codec: external clients (qy_capacitor / wordflow) poll by numeric
+ * Task-id codec: external clients (qy_capacitor / WordNew) poll by numeric
  * task_id. Queue ids were globally unique; canonical row ids are per-table, so
  * ids are encoded as  rowId * 1000 + typeDigit * 100 + langIndex  using the
  * STABLE registries below (JS-safe: row ids stay far below 2^43).

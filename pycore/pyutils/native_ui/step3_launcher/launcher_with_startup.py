@@ -41,12 +41,13 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
 from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
-from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals, get_bus_manager
+from pycore.pyutils.native_ui.step7_managers.shutdown_manager import shutdown_manager
+from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import bus_manager
+from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
 
 import threading
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyutils.native_ui.step1_config.tray_config import TrayConfig, TrayBackend, create_default_tray_menu
-from pycore.pyutils.native_ui.step7_managers.shutdown_manager import get_shutdown_manager
 import traceback
 
 
@@ -174,8 +175,7 @@ def launch_app_with_startup(
         )
 
         # Store tray config in THREAD_BUS via bus_manager
-        bus_mgr = get_bus_manager()
-        bus_mgr.set_tray_config(tray_config)
+        bus_manager.set_tray_config(tray_config)
         ColorPrint.blue(f"[DebugLog] Created and stored TrayConfig in THREAD_BUS (app_name={app_name})")
 
         # Register handlers for default tray menu signals (BusSignals.TRAY_SHOW, TRAY_RESTART, and TRAY_EXIT)
@@ -200,8 +200,7 @@ def launch_app_with_startup(
             """
             ColorPrint.yellow("[TrayHandler] Received TRAY_RESTART signal, restarting application...")
             # Use shutdown manager to perform clean restart
-            shutdown_mgr = get_shutdown_manager()
-            shutdown_mgr.request_restart()
+            shutdown_manager.request_restart()
 
         def handle_tray_exit(event_data):
             """

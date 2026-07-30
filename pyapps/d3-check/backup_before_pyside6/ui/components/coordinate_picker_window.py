@@ -21,7 +21,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.image_annotator import ImageAnnotator
+from pycore.pyutils.image_tools.image_annotator import ImageAnnotator
 from providor.providor_index import (
     CLIENT_TYPE_BATTLENET,
     CLIENT_TYPE_D3_GAME,

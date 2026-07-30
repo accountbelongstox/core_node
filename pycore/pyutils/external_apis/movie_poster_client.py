@@ -10,7 +10,6 @@ invoke find_poster / save_poster_file in production paths.
 Canonical contract: poly_apps/laravel_main/docs/MOVIE_POSTER_PIPELINE.md
 """
 
-import asyncio
 import base64
 import os
 import re
@@ -20,11 +19,11 @@ from typing import Any, Dict, List, Optional, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party.api import get_third_package_requests
-from pycore.pyutils.translator.google_translator import GoogleTranslator
 from pycore.pyutils.external_apis.image_search_client import (
     build_poster_query,
     find_first_image_poster,
 )
+from pycore.pyutils.common.strtools.normalization import collapse_whitespace
 
 
 # --------------------------------------------------------------------------- #
@@ -148,7 +147,7 @@ def parse_title_year(filename_or_title: str) -> Tuple[str, Optional[int]]:
 
     # dashes -> spaces (dots/underscores already normalized above).
     text = text.replace("-", " ")
-    text = re.sub(r"\s+", " ", text).strip()
+    text = collapse_whitespace(text)
 
     # Drop release/quality/source tokens ANYWHERE in the remaining text. Once the
     # year cut removed most trailing noise, any leftover token word (a stray
@@ -170,59 +169,8 @@ def _looks_non_latin(text: str) -> bool:
     return bool(_CJK_RE.search(text or ""))
 
 
-def _run_async(coro):
-    """Run an async coroutine to completion from any thread.
-
-    Mirrors the translation worker's pattern: normally we spin a private event
-    loop via asyncio.run. If a loop is ALREADY running on this thread (rare for
-    these call sites), run the coroutine on a dedicated worker thread so we never
-    raise "asyncio.run() cannot be called from a running event loop".
-    """
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        # No running loop on this thread — the normal path.
-        return asyncio.run(coro)
-
-    # A loop is running here — offload to a fresh thread with its own loop.
-    result: Dict[str, Any] = {}
-
-    def _worker():
-        try:
-            result["value"] = asyncio.run(coro)
-        except Exception as exc:  # noqa: BLE001 - best-effort
-            result["error"] = exc
-
-    t = threading.Thread(target=_worker, daemon=True, name="poster-translate")
-    t.start()
-    t.join()
-    if "error" in result:
-        raise result["error"]
-    return result.get("value")
-
-
 def _translate_to_english(title: str) -> str:
-    """Translate a (likely CJK) title to English via GoogleTranslator.
-
-    Returns the English text, or the original title on any failure (best-effort).
-    """
-    if not title:
-        return title
-
-    async def _run() -> str:
-        async with GoogleTranslator() as translator:
-            res = await translator.translate_single(
-                title, src="auto", dest="en", use_cache=True)
-        return getattr(res, "translated_text", "") or ""
-
-    try:
-        english = _run_async(_run())
-        if english and english.strip():
-            ColorPrint.blue(
-                f"[MoviePoster] Translated title '{title}' -> '{english.strip()}'")
-            return english.strip()
-    except Exception as exc:  # noqa: BLE001 - best-effort
-        ColorPrint.yellow(f"[MoviePoster] Title translation failed ({exc}); using original")
+    """Keep legacy disabled poster lookup independent of translator domains."""
     return title
 
 

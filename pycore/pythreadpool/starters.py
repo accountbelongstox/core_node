@@ -33,11 +33,15 @@ from typing import Dict, Any, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedValue
-from .registry import SERVICE_STARTERS, THREAD_REGISTRY
+from pycore.pythreadpool.registry import SERVICE_STARTERS, THREAD_REGISTRY
 from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyfoundations.pygvar import (
+    PYCORE_HTTP_PORT,
+    RPC_CONTROLLER_PREFIX,
+)
 
 from pycore.pyheartbeat.heartbeat import initialize_heartbeat_system
-from pycore.pyutils.rpc_v2.server.server_runner import FastAPIRPCServerRunner
+from pycore.pyutils.rpc_v2.runner import RpcServerRunner
 
 
 
@@ -123,7 +127,7 @@ def start_heartbeat(config: Dict[str, Any]) -> Any:
 
 def start_rpc_v2(config: Dict[str, Any]) -> Any:
     """Start RPC v2 service (original class)"""
-    port = config.get('port', 58100)
+    port = config.get('port', PYCORE_HTTP_PORT)
     host = config.get('host', '0.0.0.0')
     debug = config.get('debug', False)
 
@@ -131,6 +135,8 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
     fastapi_routers = config.get('fastapi_routers', [])
     static_mounts = config.get('static_mounts', [])
     init_callback = config.get('init_callback')  # Optional callback to register routes
+    enable_http_events = config.get('enable_http_events', True)
+    http_keep_alive_timeout = config.get('http_keep_alive_timeout', 120.0)
 
     ColorPrint.blue(f"[rpc_v2] Starting RPC v2 Server on {host}:{port}...")
     if fastapi_routers:
@@ -139,20 +145,23 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
         ColorPrint.blue(f"[rpc_v2] Will mount {len(static_mounts)} static directory(ies)")
 
 
-    instance = FastAPIRPCServerRunner(
+    instance = RpcServerRunner(
         host=host,
         port=port,
         debug=debug,
         fastapi_routers=fastapi_routers,
-        static_mounts=static_mounts
+        static_mounts=static_mounts,
+        enable_http_events=enable_http_events,
+        http_keep_alive_timeout=http_keep_alive_timeout,
     )
-    instance.start()
 
-    # Call init callback if provided (for registering RPC v2 routes)
+    # Register every controller before uvicorn can accept requests.
     if init_callback and callable(init_callback):
         ColorPrint.blue(f"[rpc_v2] Calling initialization callback...")
         init_callback(instance.server)
         ColorPrint.green(f"[rpc_v2] Initialization callback completed")
+
+    instance.start()
 
     # Register shutdown handler
     def stop_rpc_v2():
@@ -169,8 +178,8 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
     )
 
     ColorPrint.green(f"[rpc_v2] RPC v2 Server started on {host}:{port}")
-    ColorPrint.blue(f"[rpc_v2] HTTP: http://{host}:{port}/rpc/<route>")
-    ColorPrint.blue(f"[rpc_v2] WebSocket: ws://{host}:{port}/rpc/ws")
+    ColorPrint.blue(f"[rpc_v2] HTTP controllers: http://{host}:{port}{RPC_CONTROLLER_PREFIX}/<name>")
+    ColorPrint.blue(f"[rpc_v2] HTTP events: {'enabled' if enable_http_events else 'disabled'}")
 
     return instance
 

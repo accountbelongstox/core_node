@@ -23,7 +23,7 @@ ensure_d3_check_in_sys_path()
 
 # Project imports
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.image_annotator import ImageAnnotator
+from pycore.pyutils.image_tools.image_annotator import ImageAnnotator
 from share.game_interface_data import (
     get_game_interface_data,
     BagCoordinates,

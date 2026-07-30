@@ -486,27 +486,107 @@
         📋 Quick Clipboard
     </div>
 
-    <!-- ✅ Use unified RPC client library for consistency -->
-    <!-- Path is /js/rpc/ as configured by UnifiedRpcServer._add_default_static_dirs() -->
-    <script src="/js/rpc/unified_rpc_client.js"></script>
-
     <script>
-        // Configuration - using unified client
-        const API_BASE = '/rpc';
+        // Configuration
+        const API_BASE = '/api/controller';
         let lastSyncTime = 0;
 
-        // ========================================
-        // ✅ Use UnifiedRpcClient instead of custom WebSocketManager
-        // ========================================
-        const rpcClient = new UnifiedRpcClient(`http://${window.location.hostname}:${window.location.port || 8765}`, {
-            clientId: localStorage.getItem('clientId') || undefined,  // Auto-generate if not exists
-            debug: true,
-            wsPath: '/rpc/ws',
-            httpPath: '/rpc',
-            reconnect: true,
-            maxReconnectAttempts: 10,
-            reconnectInterval: 3000
-        });
+        class SpeechHttpClient {
+            constructor(baseUrl, clientId) {
+                this.baseUrl = baseUrl.replace(/\/$/, '');
+                this.clientId = clientId || (
+                    crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+                );
+                this.listeners = new Map();
+                this.cursor = 0;
+                this.running = false;
+            }
+
+            getClientId() {
+                return this.clientId;
+            }
+
+            getMode() {
+                return 'http';
+            }
+
+            on(eventName, handler) {
+                const handlers = this.listeners.get(eventName) || [];
+                handlers.push(handler);
+                this.listeners.set(eventName, handlers);
+            }
+
+            emit(eventName, data) {
+                for (const handler of this.listeners.get(eventName) || []) {
+                    handler(data);
+                }
+            }
+
+            async connect() {
+                const response = await fetch(`${this.baseUrl}/rpc/status`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                this.running = true;
+                this.emit('connection', {mode: 'http'});
+                this.pollEvents();
+            }
+
+            async call(route, params = {}) {
+                const response = await fetch(
+                    `${this.baseUrl}${API_BASE}/${encodeURIComponent(route)}`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Pycore-Client-ID': this.clientId
+                        },
+                        body: JSON.stringify(params)
+                    }
+                );
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} for ${route}`);
+                }
+                return response.status === 204 ? {} : response.json();
+            }
+
+            async pollEvents() {
+                while (this.running) {
+                    try {
+                        const query = new URLSearchParams({
+                            client_id: this.clientId,
+                            since_seq: String(this.cursor),
+                            timeout_s: '20'
+                        });
+                        const response = await fetch(`${this.baseUrl}/api/events?${query}`);
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+                        const data = await response.json();
+                        for (const event of data.events || []) {
+                            this.cursor = Math.max(this.cursor, Number(event.seq) || 0);
+                            this.emit(event.topic, event.payload);
+                        }
+                        this.cursor = Math.max(this.cursor, Number(data.seq) || 0);
+                        if (this.cursor > 0) {
+                            await fetch(`${this.baseUrl}/api/events/ack`, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({client_id: this.clientId, seq: this.cursor})
+                            });
+                        }
+                    } catch (error) {
+                        this.emit('disconnect', {error});
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                    }
+                }
+            }
+        }
+
+        const rpcClient = new SpeechHttpClient(
+            window.location.origin,
+            localStorage.getItem('clientId') || undefined
+        );
 
         // Save client ID for persistence
         const clientId = rpcClient.getClientId();
@@ -1200,8 +1280,7 @@
             return div.innerHTML;
         }
 
-        // Auto-sync clipboard - only poll in HTTP mode
-        // In WebSocket mode, server can push clipboard updates via events
+        // Auto-sync clipboard through the HTTP controller.
         setInterval(async () => {
             // Only poll if using HTTP mode
             if (rpcClient.getMode() === 'http') {
@@ -1280,8 +1359,7 @@
             }).join('');
         }
 
-        // Auto-update queue stats - only poll in HTTP mode
-        // In WebSocket mode, server can push updates via events
+        // Auto-update queue stats through the HTTP controller.
         setInterval(async () => {
             // Only poll if using HTTP mode
             if (rpcClient.getMode() === 'http') {

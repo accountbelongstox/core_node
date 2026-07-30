@@ -31,7 +31,7 @@ except ImportError:
     HAS_THREAD_BUS = False
 
 # Import window state manager
-from .window_state import WindowStateManager
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.window_state import WindowStateManager
 
 
 class ResizeEdge(Enum):

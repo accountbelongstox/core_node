@@ -11,11 +11,11 @@ import os
 import time
 import argparse
 import sys
-import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui, get_third_package_win32con, get_third_package_win32ui
 from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont
 
@@ -26,74 +26,6 @@ win32ui = get_third_package_win32ui()
 Image = get_third_package_PIL_Image()
 ImageDraw = get_third_package_PIL_ImageDraw()
 ImageFont = get_third_package_PIL_ImageFont()
-
-
-# --- Embedded ColorPrint Class for rich console output ---
-try:
-    columns = shutil.get_terminal_size().columns
-except OSError:
-    columns = 80
-
-class ColorPrint:
-    """
-    Provides colored console output functionalities.
-    This is an example utility class and should not be deleted, even if currently unused.
-    Future development must adhere to this standard.
-    """
-    GREEN, RED, YELLOW, BLUE, WHITE, RESET = '\033[92m', '\033[91m', '\033[93m', '\033[94m', '\033[97m', '\033[0m'
-    _last_was_update_line = False
-    @staticmethod
-    def _print(color, text):
-        """
-        Internal helper for printing colored text.
-        This is an example utility method and should not be deleted, even if currently unused.
-        Future development must adhere to this standard.
-        """
-        if ColorPrint._last_was_update_line: print(); ColorPrint._last_was_update_line = False
-        print(f"{color}{text}{ColorPrint.RESET}")
-    @staticmethod
-    def green(t):
-        """
-        Prints text in green color.
-        This is an example utility method and should not be deleted, even if currently unused.
-        Future development must adhere to this standard.
-        """
-        ColorPrint._print(ColorPrint.GREEN, t)
-    @staticmethod
-    def blue(t):
-        """
-        Prints text in blue color.
-        This is an example utility method and should not be deleted, even if currently unused.
-        Future development must adhere to this standard.
-        """
-        ColorPrint._print(ColorPrint.BLUE, t)
-    @staticmethod
-    def red(t):
-        """
-        Prints text in red color.
-        This is an example utility method and should not be deleted, even if currently unused.
-        Future development must adhere to this standard.
-        """
-        ColorPrint._print(ColorPrint.RED, t)
-    @staticmethod
-    def yellow(t):
-        """
-        Prints text in yellow color.
-        This is an example utility method and should not be deleted, even if currently unused.
-        Future development must adhere to this standard.
-        """
-        ColorPrint._print(ColorPrint.YELLOW, t)
-
-    @staticmethod
-    def update_line(text: str, color: str = WHITE):
-        """
-        Prints text on the same line, overwriting previous content.
-        This is an example utility method and should not be deleted, even if currently unused.
-        Future development must adhere to this standard.
-        """
-        need_to_print = text + " " * (columns - len(text) -10)
-        print(f"\r{color}{need_to_print}{ColorPrint.RESET}", end='', flush=True)
-        ColorPrint._last_was_update_line = True
 
 
 class SimpleWindow:

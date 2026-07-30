@@ -21,11 +21,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from .runtime import log as ColorPrint, start_bus_task
-from .manager import get_manager
-import pycore.pyutils.codesync.ws_proto as ws_proto
-from .panel import PANEL_HTML
-from .service_ops import (
+from pycore.pyfoundations.pygvar import HTTP_BIND_HOST, PYCORE_HTTP_PORT
+
+from pycore.pyutils.codesync.runtime import log as ColorPrint, start_bus_task
+from pycore.pyutils.codesync.manager import get_manager
+from pycore.pyutils.codesync.panel import PANEL_HTML
+from pycore.pyutils.codesync.service_ops import (
     SERVICE_NAME,
     _service_status,
     _run_service_op_detached,
@@ -48,6 +49,7 @@ def _manager():
 
 class _Handler(BaseHTTPRequestHandler):
     server_version = "CodeSync/1.0"
+    protocol_version = "HTTP/1.1"
 
     # ---- low-level helpers ------------------------------------------------ #
     def _read_json(self) -> Dict[str, Any]:
@@ -89,50 +91,10 @@ class _Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # silence default stderr access log
         return
 
-    # ---- WebSocket push receiver (this node accepts; the dev pushes) ------ #
-    def _serve_ws(self) -> None:
-        key = self.headers.get("Sec-WebSocket-Key", "")
-        if not key:
-            return self._send_json({"detail": "missing Sec-WebSocket-Key"}, status=400)
-        try:
-            self.wfile.write(ws_proto.server_handshake_response(key))
-            self.wfile.flush()
-        except _CONN_ERRORS:
-            return  # client dropped before the upgrade completed
-
-        def send(text: str) -> None:
-            self.wfile.write(ws_proto.encode_frame(text.encode("utf-8"),
-                                                   ws_proto.OP_TEXT, mask=False))
-            self.wfile.flush()
-
-        receiver = _manager().push_receiver
-        try:
-            while True:
-                op, payload = ws_proto.read_message(self.rfile.read)
-                if op == ws_proto.OP_CLOSE:
-                    break
-                if op == ws_proto.OP_PING:
-                    self.wfile.write(ws_proto.encode_frame(payload, ws_proto.OP_PONG, mask=False))
-                    self.wfile.flush()
-                    continue
-                if not receiver.handle_text(payload.decode("utf-8"), send):
-                    break
-        except (ConnectionError, OSError):
-            pass
-        except Exception as exc:
-            ColorPrint.yellow(f"[CodeSync WS] receiver error: {exc}")
-
     # ---- routing ---------------------------------------------------------- #
     def do_GET(self):
         path = self.path.split("?", 1)[0].rstrip("/") or "/"
         try:
-            # WS push channel: the dev dials in here and pushes files (this node is
-            # the WS server / receiver). Upgrade then loop applying pushed frames.
-            # NOTE: full pycore does NOT run this standalone server — it serves the
-            # SAME /code-sync/ws receiver on its rpc_v2 app (:59000) via
-            # callmodule/config.py::_register_code_sync_ws. Keep both in sync.
-            if path == "/code-sync/ws" and "websocket" in self.headers.get("Upgrade", "").lower():
-                return self._serve_ws()
             if path == "/":
                 # Light mode: there is nothing to administer locally, so serve a
                 # tiny JSON identity blob instead of the full control panel.
@@ -195,6 +157,27 @@ class _Handler(BaseHTTPRequestHandler):
     def _dispatch_post(self, path: str, body: Dict[str, Any]):
         m = _manager()
 
+        if path in (
+            "/code-sync/push",
+            "/api/controller/code_sync.push_frame",
+        ):
+            frame = str(body.get("frame") or "")
+            if not frame:
+                return self._send_json(
+                    {"success": False, "error": "frame required", "reply": None},
+                    status=400,
+                )
+            replies = []
+            accepted = m.push_receiver.handle_text(frame, replies.append)
+            return self._send_json(
+                {
+                    "success": bool(accepted),
+                    "reply": replies[0] if replies else None,
+                }
+            )
+        if path == "/api/controller/ui.code_sync.ping":
+            return self._send_json({"status": "ok", "service": "code-sync"})
+
         # ---- mesh / control ---------------------------------------------- #
         if path == "/code-sync/peer/config":
             return self._send_json(m.apply_remote_config(
@@ -209,7 +192,9 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/code-sync/peers/add":
             return self._send_json(m.add_peer(
                 body.get("name", ""), body.get("host", ""),
-                int(body.get("port", 59000) or 59000), body.get("role", "client")))
+                int(body.get("port", PYCORE_HTTP_PORT) or PYCORE_HTTP_PORT),
+                body.get("role", "client"),
+            ))
         if path == "/code-sync/peers/remove":
             return self._send_json(m.remove_peer(body.get("id", "")))
         if path == "/code-sync/peers/update":
@@ -325,8 +310,8 @@ class _Handler(BaseHTTPRequestHandler):
 
 class _QuietHTTPServer(ThreadingHTTPServer):
     """HTTPServer that swallows client-disconnect errors instead of
-    dumping a traceback per dropped request (frequent with health probes / the WS
-    push link). Real server errors are still surfaced."""
+    dumping a traceback per dropped request. Real server errors are still surfaced.
+    """
 
     def handle_error(self, request, client_address):
         exc = sys.exc_info()[1]
@@ -338,7 +323,7 @@ class _QuietHTTPServer(ThreadingHTTPServer):
 class CodeSyncHTTPServer:
     """Thin lifecycle wrapper around an HTTPServer bound to /code-sync/*."""
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 59000,
+    def __init__(self, host: str = HTTP_BIND_HOST, port: int = PYCORE_HTTP_PORT,
                  serve_panel: bool = True):
         self.host = host
         self.port = port

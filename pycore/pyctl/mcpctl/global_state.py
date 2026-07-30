@@ -198,48 +198,4 @@ class MCPGlobalState:
 # Global Singleton Instance
 # ============================================================
 
-_global_state_instance = MCPGlobalState()
-
-
-def get_global_state() -> MCPGlobalState:
-    """
-    Get global state singleton instance
-
-    Returns:
-        MCPGlobalState singleton
-    """
-    return _global_state_instance
-
-
-# ============================================================
-# Convenience Functions
-# ============================================================
-
-def mark_task_begin(task_id: str = None):
-    """Mark task begin (convenience function)"""
-    get_global_state().begin_task(task_id)
-
-
-def mark_task_end(task_id: str = None):
-    """Mark task end (convenience function)"""
-    get_global_state().end_task(task_id)
-
-
-def is_backend_idle() -> bool:
-    """Check if backend is idle (convenience function)"""
-    return get_global_state().is_idle()
-
-
-def is_backend_busy() -> bool:
-    """Check if backend is busy (convenience function)"""
-    return get_global_state().is_busy()
-
-
-def can_backend_shutdown() -> bool:
-    """Check if backend can shutdown (convenience function)"""
-    return get_global_state().can_shutdown()
-
-
-def get_backend_state_dict() -> Dict[str, Any]:
-    """Get backend state as dict (convenience function)"""
-    return get_global_state().to_dict()
+global_state = MCPGlobalState()

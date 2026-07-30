@@ -1,27 +1,22 @@
 import time
 import uuid
-from pycore.pyfoundations.pybasecommon.commander import exec_silent
-from typing import Callable, Optional, List, Dict, Any
+import subprocess
 from dataclasses import dataclass, field
 from enum import Enum
-import logging
+from typing import Any, Callable, Dict, List, Optional
 
-from pycore.pyfoundations.third_party.api import get_third_package_psutil
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.commander import exec_silent
+from pycore.pyfoundations.pygvar import MAX_CONCURRENT_ZIP_TASKS, SEVEN_ZIP_EXECUTABLE
 from pycore.pyfoundations.serialized_worker import (
-    SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
     start_bus_task,
 )
-import subprocess
+from pycore.pyfoundations.third_party.api import get_third_package_psutil
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 psutil = get_third_package_psutil()
-
-from pycore.pyfoundations.pygvar.constants import SEVEN_ZIP_EXECUTABLE, MAX_CONCURRENT_ZIP_TASKS
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class TaskStatus(Enum):
@@ -87,13 +82,13 @@ class ZipTaskQueue:
         if not SEVEN_ZIP_EXECUTABLE:
             raise RuntimeError("7-Zip executable not found. Please install 7-Zip.")
 
-        logger.info(f"ZipTaskQueue initialized with {max_concurrent_tasks} concurrent tasks")
-        logger.info(f"Using 7-Zip executable: {SEVEN_ZIP_EXECUTABLE}")
+        ColorPrint.info(f"ZipTaskQueue initialized with {max_concurrent_tasks} concurrent tasks")
+        ColorPrint.info(f"Using 7-Zip executable: {SEVEN_ZIP_EXECUTABLE}")
 
     @serialized_method
     def start(self):
         if self.running:
-            logger.warning("ZipTaskQueue is already running")
+            ColorPrint.warning("ZipTaskQueue is already running")
             return
 
         self.running = True
@@ -106,20 +101,20 @@ class ZipTaskQueue:
                 thread_name=f"ZipTaskWorker-{i}",
             )
             self.worker_threads.append(thread)
-            logger.info(f"Started worker thread {i}")
+            ColorPrint.info(f"Started worker thread {i}")
 
     def stop(self, wait=True):
         worker_threads = self._stop_workers()
         if worker_threads is None:
             return
 
-        logger.info("Stopping ZipTaskQueue...")
+        ColorPrint.info("Stopping ZipTaskQueue...")
 
         if wait:
             for thread in worker_threads:
                 thread.join(timeout=5)
 
-        logger.info("ZipTaskQueue stopped")
+        ColorPrint.info("ZipTaskQueue stopped")
 
     @serialized_method
     def _stop_workers(self):
@@ -132,7 +127,7 @@ class ZipTaskQueue:
         return worker_threads
 
     def _worker(self, worker_id: int):
-        logger.info(f"Worker {worker_id} started")
+        ColorPrint.info(f"Worker {worker_id} started")
 
         while THREAD_BUS.get_signal(self.running_signal, False):
             if self._should_skip_due_to_cpu():
@@ -167,14 +162,14 @@ class ZipTaskQueue:
             return False
 
     def _execute_task(self, task: ZipTask, worker_id: int):
-        logger.info(f"Worker {worker_id} executing task {task.task_id}")
+        ColorPrint.info(f"Worker {worker_id} executing task {task.task_id}")
 
         task.status = TaskStatus.RUNNING
         task.start_time = time.time()
 
         try:
             command = self._build_command(task)
-            logger.debug(f"Executing command: {command}")
+            ColorPrint.debug(f"Executing command: {command}")
 
             exec_silent(
                 command,
@@ -188,39 +183,39 @@ class ZipTaskQueue:
             task.status = TaskStatus.COMPLETED
             task.end_time = time.time()
 
-            logger.info(f"Task {task.task_id} completed in {task.end_time - task.start_time:.2f}s")
+            ColorPrint.info(f"Task {task.task_id} completed in {task.end_time - task.start_time:.2f}s")
 
         except subprocess.CalledProcessError as e:
             task.status = TaskStatus.FAILED
             task.end_time = time.time()
             task.error = str(e)
 
-            logger.error(f"Task {task.task_id} failed: {e}")
+            ColorPrint.error(f"Task {task.task_id} failed: {e}")
 
         except Exception as e:
             task.status = TaskStatus.FAILED
             task.end_time = time.time()
             task.error = str(e)
 
-            logger.error(f"Task {task.task_id} exception: {e}")
+            ColorPrint.error(f"Task {task.task_id} exception: {e}")
 
         if task.callback:
             try:
                 task.callback(task)
             except Exception as callback_error:
-                logger.error(f"Task callback error: {callback_error}")
+                ColorPrint.error(f"Task callback error: {callback_error}")
 
         group_callback, group, global_callbacks = self._record_task_completion(task)
         if group_callback and group:
             try:
                 group_callback(group)
             except Exception as callback_error:
-                logger.error(f"Group callback error: {callback_error}")
+                ColorPrint.error(f"Group callback error: {callback_error}")
         for callback in global_callbacks:
             try:
                 callback(task)
             except Exception as callback_error:
-                logger.error(f"Global callback error: {callback_error}")
+                ColorPrint.error(f"Global callback error: {callback_error}")
 
     @serialized_method
     def _record_task_completion(self, task: ZipTask):
@@ -240,7 +235,7 @@ class ZipTaskQueue:
                     group.failed_count += 1
 
                 if (group.completed_count + group.failed_count) >= group.total_count:
-                    logger.info(f"Group {task.group_id} completed: {group.completed_count}/{group.total_count} succeeded")
+                    ColorPrint.info(f"Group {task.group_id} completed: {group.completed_count}/{group.total_count} succeeded")
                     group_callback = group.callback
 
         return group_callback, group, list(self.global_callbacks)
@@ -289,7 +284,7 @@ class ZipTaskQueue:
             group.total_count += 1
 
         THREAD_BUS.send_message(self.task_queue_name, task)
-        logger.info(f"Task {task_id} added to queue")
+        ColorPrint.info(f"Task {task_id} added to queue")
 
         if not self.running:
             self.start()
@@ -320,20 +315,20 @@ class ZipTaskQueue:
                 metadata=task_data.get('metadata')
             )
 
-        logger.info(f"Task group {group_id} added with {len(tasks)} tasks")
+        ColorPrint.info(f"Task group {group_id} added with {len(tasks)} tasks")
         return group
 
     @serialized_method
     def register_global_callback(self, callback: Callable):
         if callback not in self.global_callbacks:
             self.global_callbacks.append(callback)
-            logger.info("Global callback registered")
+            ColorPrint.info("Global callback registered")
 
     @serialized_method
     def unregister_global_callback(self, callback: Callable):
         if callback in self.global_callbacks:
             self.global_callbacks.remove(callback)
-            logger.info("Global callback unregistered")
+            ColorPrint.info("Global callback unregistered")
 
     @serialized_method
     def get_task_status(self, task_id: str) -> Optional[ZipTask]:
@@ -352,7 +347,7 @@ class ZipTaskQueue:
             if timeout is not None and time.time() - started_at >= timeout:
                 return False
             time.sleep(0.1)
-        logger.info("All tasks completed")
+        ColorPrint.info("All tasks completed")
         return True
 
     @serialized_method
@@ -367,12 +362,3 @@ class ZipTaskQueue:
         }
 
 
-_GLOBAL_ZIP_QUEUE_PROVIDER = SerializedSingletonProvider(
-    ZipTaskQueue,
-    "zip_task_queue.provider",
-    "GlobalZipTaskQueueProviderThread",
-)
-
-
-def get_global_zip_queue() -> ZipTaskQueue:
-    return _GLOBAL_ZIP_QUEUE_PROVIDER.get()

@@ -25,13 +25,13 @@ import uuid
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-from .runtime import (
+from pycore.pyutils.codesync.runtime import (
     log as ColorPrint, is_shutdown_requested, register_shutdown_handler,
     get_core_node_root, THREAD_BUS, init_serialized_owner, serialized_method,
     start_bus_task,
 )
-from .sync_settings import build_excluder, get_sync_settings
-from .textnorm import is_binary, normalize_eol
+from pycore.pyutils.codesync.sync_settings import build_excluder, get_sync_settings
+from pycore.pyutils.codesync.textnorm import is_binary, normalize_eol
 
 WATCH_TICK = 1.0  # seconds between index refreshes
 

@@ -3,18 +3,20 @@
 """
 HTTP Bridge Controller for D3Check
 Provides HTTP API endpoints for web-based GUI communication.
-Singleton per (host, port) via get_http_bridge_server(host, port); do not instantiate elsewhere.
 """
 
+import json
 import logging
 import os
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Callable, Optional
+from urllib.parse import parse_qs, urlsplit
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from providor.providor_index import CONFIG, queue_config_save, load_config
-from pycore.pyutils.web.http_bridge import HTTPBridgeServer
 from controller.d3_macro_controller import D3MacroController
 from share.oauth_callback import notify_oauth_done, notify_ping, get_and_consume_step1_received
 
@@ -37,16 +39,7 @@ except ImportError:
     yolo_compose_segment_to_frames = None
     yolo_delete_segment = None
 
-# Singleton per (host, port); instantiate via get_http_bridge_server only
-_http_bridge_cache: Dict[Tuple[str, int], HTTPBridgeServer] = {}
-
-
-def get_http_bridge_server(host: str, port: int) -> HTTPBridgeServer:
-    """Return cached HTTPBridgeServer for (host, port). Instantiate before use."""
-    key = (host, port)
-    if key not in _http_bridge_cache:
-        _http_bridge_cache[key] = HTTPBridgeServer(host, port)
-    return _http_bridge_cache[key]
+Handler = Callable[[Dict[str, Any]], Dict[str, Any]]
 
 
 class HTTPBridgeController:
@@ -64,10 +57,11 @@ class HTTPBridgeController:
         self.logger = logging.getLogger(__name__)
         self.host = host
         self.port = port
-
         self.macro_controller = macro_controller if macro_controller is not None else D3MacroController()
-
-        self.bridge = get_http_bridge_server(host, port)
+        self._get_handlers: Dict[str, Handler] = {}
+        self._post_handlers: Dict[str, Handler] = {}
+        self._server: Optional[ThreadingHTTPServer] = None
+        self._thread: Optional[threading.Thread] = None
 
         self._register_handlers()
 
@@ -77,30 +71,30 @@ class HTTPBridgeController:
 
     def _register_handlers(self):
         """Register HTTP request handlers"""
-        self.bridge.register_get_handler('/api/status', self._handle_get_status)
-        self.bridge.register_get_handler('/api/config', self._handle_get_config)
-        self.bridge.register_get_handler('/api/config/skill', self._handle_get_skill_config)
-        self.bridge.register_get_handler('/api/config/auxiliary', self._handle_get_auxiliary_config)
+        self._get_handlers['/api/status'] = self._handle_get_status
+        self._get_handlers['/api/config'] = self._handle_get_config
+        self._get_handlers['/api/config/skill'] = self._handle_get_skill_config
+        self._get_handlers['/api/config/auxiliary'] = self._handle_get_auxiliary_config
 
-        self.bridge.register_post_handler('/api/macro/start', self._handle_macro_start)
-        self.bridge.register_post_handler('/api/macro/stop', self._handle_macro_stop)
-        self.bridge.register_post_handler('/api/config/update', self._handle_config_update)
-        self.bridge.register_post_handler('/api/config/switch', self._handle_config_switch)
-        self.bridge.register_post_handler('/api/config/save', self._handle_config_save)
-        self.bridge.register_post_handler('/api/login-try/oauth-done', self._handle_login_try_oauth_done)
-        self.bridge.register_get_handler('/api/login-try/oauth-done', self._handle_login_try_oauth_done_get)
-        self.bridge.register_get_handler('/api/login-try/oauth-ping', self._handle_login_try_oauth_ping)
-        self.bridge.register_get_handler('/api/login-try/oauth-step1-received', self._handle_login_try_oauth_step1_received)
+        self._post_handlers['/api/macro/start'] = self._handle_macro_start
+        self._post_handlers['/api/macro/stop'] = self._handle_macro_stop
+        self._post_handlers['/api/config/update'] = self._handle_config_update
+        self._post_handlers['/api/config/switch'] = self._handle_config_switch
+        self._post_handlers['/api/config/save'] = self._handle_config_save
+        self._post_handlers['/api/login-try/oauth-done'] = self._handle_login_try_oauth_done
+        self._get_handlers['/api/login-try/oauth-done'] = self._handle_login_try_oauth_done_get
+        self._get_handlers['/api/login-try/oauth-ping'] = self._handle_login_try_oauth_ping
+        self._get_handlers['/api/login-try/oauth-step1-received'] = self._handle_login_try_oauth_step1_received
 
         # YOLO recording (DOT client calls Python to run GameAISDK video recording)
-        self.bridge.register_get_handler('/api/yolo/record/status', self._handle_yolo_record_status)
-        self.bridge.register_post_handler('/api/yolo/record/start', self._handle_yolo_record_start)
-        self.bridge.register_post_handler('/api/yolo/record/stop', self._handle_yolo_record_stop)
-        self.bridge.register_get_handler('/api/yolo/segments', self._handle_yolo_segments_get)
-        self.bridge.register_post_handler('/api/yolo/segments', self._handle_yolo_segments)
-        self.bridge.register_post_handler('/api/yolo/segment/info', self._handle_yolo_segment_info)
-        self.bridge.register_post_handler('/api/yolo/segment/export', self._handle_yolo_segment_export)
-        self.bridge.register_post_handler('/api/yolo/segment/delete', self._handle_yolo_segment_delete)
+        self._get_handlers['/api/yolo/record/status'] = self._handle_yolo_record_status
+        self._post_handlers['/api/yolo/record/start'] = self._handle_yolo_record_start
+        self._post_handlers['/api/yolo/record/stop'] = self._handle_yolo_record_stop
+        self._get_handlers['/api/yolo/segments'] = self._handle_yolo_segments_get
+        self._post_handlers['/api/yolo/segments'] = self._handle_yolo_segments
+        self._post_handlers['/api/yolo/segment/info'] = self._handle_yolo_segment_info
+        self._post_handlers['/api/yolo/segment/export'] = self._handle_yolo_segment_export
+        self._post_handlers['/api/yolo/segment/delete'] = self._handle_yolo_segment_delete
 
         ColorPrint.green("[HTTPBridgeController] All handlers registered")
 
@@ -373,16 +367,94 @@ class HTTPBridgeController:
 
     def start(self):
         """Start HTTP bridge server"""
-        self.bridge.start()
+        if self.is_running():
+            return
+
+        controller = self
+
+        class RequestHandler(BaseHTTPRequestHandler):
+            def do_OPTIONS(self) -> None:
+                self.send_response(204)
+                self._send_common_headers()
+                self.end_headers()
+
+            def do_GET(self) -> None:
+                route = urlsplit(self.path)
+                handler = controller._get_handlers.get(route.path)
+                if handler is None:
+                    self._send_json(404, {'success': False, 'error': 'Route not found'})
+                    return
+                self._invoke(handler, parse_qs(route.query, keep_blank_values=True))
+
+            def do_POST(self) -> None:
+                route = urlsplit(self.path)
+                handler = controller._post_handlers.get(route.path)
+                if handler is None:
+                    self._send_json(404, {'success': False, 'error': 'Route not found'})
+                    return
+                content_length = int(self.headers.get('Content-Length', '0') or 0)
+                raw_body = self.rfile.read(content_length) if content_length else b'{}'
+                try:
+                    payload = json.loads(raw_body.decode('utf-8'))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    self._send_json(400, {'success': False, 'error': 'Invalid JSON body'})
+                    return
+                if not isinstance(payload, dict):
+                    self._send_json(400, {'success': False, 'error': 'JSON body must be an object'})
+                    return
+                self._invoke(handler, payload)
+
+            def _invoke(self, handler: Handler, payload: Dict[str, Any]) -> None:
+                try:
+                    result = handler(payload)
+                except Exception as exc:
+                    self._send_json(500, {'success': False, 'error': str(exc)})
+                    return
+                response = result if isinstance(result, dict) else {'success': True, 'data': result}
+                self._send_json(200, response)
+
+            def _send_json(self, status: int, payload: Dict[str, Any]) -> None:
+                body = json.dumps(payload, ensure_ascii=False).encode('utf-8')
+                self.send_response(status)
+                self._send_common_headers()
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def _send_common_headers(self) -> None:
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+                self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+
+            def log_message(self, format_string: str, *args: Any) -> None:
+                return
+
+        self._server = ThreadingHTTPServer((self.host, self.port), RequestHandler)
+        self._thread = threading.Thread(
+            target=self._server.serve_forever,
+            name=f'HTTPBridge-{self.host}:{self.port}',
+            daemon=True,
+        )
+        self._thread.start()
         ColorPrint.green(f"[HTTPBridgeController] Server started on http://{self.host}:{self.port}")
 
     def stop(self):
         """Stop HTTP bridge server"""
-        self.bridge.stop()
+        server = self._server
+        thread = self._thread
+        self._server = None
+        self._thread = None
+        if server is None:
+            return
+        server.shutdown()
+        server.server_close()
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=2.0)
         ColorPrint.blue("[HTTPBridgeController] Server stopped")
 
     def is_running(self) -> bool:
         """Check if server is running"""
-        return self.bridge.is_running()
+        return self._server is not None and self._thread is not None and self._thread.is_alive()
 
 

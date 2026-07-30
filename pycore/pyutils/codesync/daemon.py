@@ -18,21 +18,24 @@ import os
 import signal
 import time
 
-from .runtime import (
+from pycore.pyfoundations.pygvar import HTTP_BIND_HOST, PYCORE_HTTP_PORT
+from pycore.pyutils.common.strtools.normalization import to_bool
+
+from pycore.pyutils.codesync.runtime import (
     log as ColorPrint,
     request_local_shutdown,
     is_shutdown_requested,
     set_light,
 )
-from .http_server import CodeSyncHTTPServer
-from .manager import get_manager
+from pycore.pyutils.codesync.http_server import CodeSyncHTTPServer
+from pycore.pyutils.codesync.manager import get_manager
 
 
-def run(host: str = "0.0.0.0", port: int = 59000, reload: bool = False,
+def run(host: str = HTTP_BIND_HOST, port: int = PYCORE_HTTP_PORT, reload: bool = False,
         light: bool = False) -> int:
     # Light mode: --light flag OR CODESYNC_LIGHT env (same truthy set as RELOAD).
     # MUST be set BEFORE get_manager() so the manager reads it in __init__.
-    light = light or os.environ.get("CODESYNC_LIGHT", "") in ("1", "true", "True", "yes", "on")
+    light = light or to_bool(os.environ.get("CODESYNC_LIGHT", ""))
     set_light(light)
 
     # Creating the manager starts the peer mesh and the role's file service
@@ -54,7 +57,7 @@ def run(host: str = "0.0.0.0", port: int = 59000, reload: bool = False,
     # Hot-reload was removed on purpose: codesync is a resident service. A legacy
     # `--reload` / `CODESYNC_RELOAD=1` is accepted (so old units start) but does
     # nothing — restart explicitly with `pyservice codesync restart` or reinstall.
-    if reload or os.environ.get("CODESYNC_RELOAD", "") in ("1", "true", "True", "yes", "on"):
+    if reload or to_bool(os.environ.get("CODESYNC_RELOAD", "")):
         ColorPrint.yellow("[CodeSync] note: hot-reload is disabled by design; the daemon stays "
                           "resident (restart with `pyservice codesync restart` or reinstall).")
 

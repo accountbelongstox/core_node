@@ -1,7 +1,7 @@
 /**
  * Database Viewer - Dashboard section (Laravel debug interface simple HTML only).
  * Centralized API usage, reusable components: table list, schema table, data grid, pagination.
- * For full management UI use poly_apps/pycore_laravel_wordflow_ui.
+ * For full management UI use poly_apps/pycore_laravel_wordnew_ui.
  */
 
 const DbViewerApi = {

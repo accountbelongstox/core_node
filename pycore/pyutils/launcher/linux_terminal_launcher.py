@@ -46,6 +46,7 @@ import subprocess
 import tempfile
 import time
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.linux_window_placer import LinuxWindowPlacer
 from pycore.pyutils.launcher.linux_terminal_argv import LinuxTerminalArgv
 
@@ -95,7 +96,7 @@ class LinuxTerminalLauncher:
         configs = [tuple(entry[:4]) for entry in windows_config]
         count = len(configs)
         if count == 0:
-            print("No windows to launch.")
+            ColorPrint.plain("No windows to launch.")
             return []
 
         # WAYLAND_DISPLAY is set by every Wayland compositor and is the canonical
@@ -128,12 +129,12 @@ class LinuxTerminalLauncher:
             return self._launch_x11_grid(configs, geom_emu, delay)
 
         if is_wayland:
-            print("Wayland session detected: clients cannot position their own "
+            ColorPrint.plain("Wayland session detected: clients cannot position their own "
                   "windows (xdg-shell), falling back to a single paned window.")
         elif getattr(self, "prefer_paned", False):
-            print("prefer_paned set: using a single paned window.")
+            ColorPrint.plain("prefer_paned set: using a single paned window.")
         else:
-            print("No terminal emulator/positioner available, falling back "
+            ColorPrint.plain("No terminal emulator/positioner available, falling back "
                   "to a single paned window.")
         return self._launch_paned_grid(configs, delay)
 
@@ -174,7 +175,7 @@ class LinuxTerminalLauncher:
         col_gap, row_gap = self._placer._grid_gaps(cell_w, cell_h)
         frame = None  # WM frame extents, measured once from the first window
         width = len(str(len(configs)))  # zero-pad index so titles never collide
-        print(f"X11 session: launching {len(configs)} separate '{emulator}' "
+        ColorPrint.plain(f"X11 session: launching {len(configs)} separate '{emulator}' "
               f"window(s), positioned by captured window id via {positioner}"
               + (f" (cell {cell_w}x{cell_h}px, gaps {col_gap}/{row_gap}px)" if cell_w else "") + ".")
 
@@ -198,7 +199,7 @@ class LinuxTerminalLauncher:
                 proc = subprocess.Popen(argv, start_new_session=True)
                 pids.append(proc.pid)
             except Exception as e:
-                print(f"  Window {i}: failed to launch ({e})")
+                ColorPrint.plain(f"  Window {i}: failed to launch ({e})")
                 continue
             # Identify the window we just created (one launch -> one new id).
             wid = self._placer._resolve_new_window_id(snapshot)
@@ -208,13 +209,13 @@ class LinuxTerminalLauncher:
                     frame = self._placer._frame_extents(wid)
                 px, py, w, h = self._placer._gap_geometry(x, y, cell_w, cell_h, frame, col_gap, row_gap)
                 self._placer._place_by_id(positioner, wid, px, py, w, h)
-                print(f"  Window {i}: {emulator} -> id {wid:#010x} @ {px},{py}"
+                ColorPrint.plain(f"  Window {i}: {emulator} -> id {wid:#010x} @ {px},{py}"
                       + (f" ({w}x{h}px)" if cell_w else "")
                       + f" (pid {proc.pid})")
             else:
                 # Id capture timed out: fall back to (hardened, exact) title match.
                 px, py, w, h = self._placer._gap_geometry(x, y, cell_w, cell_h, frame, col_gap, row_gap)
-                print(f"  Window {i}: id capture timed out; title-matching "
+                ColorPrint.plain(f"  Window {i}: id capture timed out; title-matching "
                       f"{title}")
                 if positioner == "wmctrl":
                     self._placer._place_by_title_wmctrl(title, px, py, w, h)
@@ -250,7 +251,7 @@ class LinuxTerminalLauncher:
         frame = None  # WM frame extents, measured once from the first window
         width = len(str(len(configs)))
         positioner = self._placer._find_positioner()
-        print(f"X11 session: launching {len(configs)} positioned "
+        ColorPrint.plain(f"X11 session: launching {len(configs)} positioned "
               f"'{emulator}' window(s)"
               + (f", snapped by id via {positioner} (gaps {col_gap}/{row_gap}px)" if positioner else "") + ".")
         pids = []
@@ -267,7 +268,7 @@ class LinuxTerminalLauncher:
                 proc = subprocess.Popen(argv, start_new_session=True)
                 pids.append(proc.pid)
             except Exception as e:
-                print(f"  Window {i}: failed to launch ({e})")
+                ColorPrint.plain(f"  Window {i}: failed to launch ({e})")
                 continue
             wid = self._placer._resolve_new_window_id(snapshot) if positioner else None
             if wid is not None:
@@ -276,11 +277,11 @@ class LinuxTerminalLauncher:
                     frame = self._placer._frame_extents(wid)
                 px, py, w, h = self._placer._gap_geometry(x, y, cell_w, cell_h, frame, col_gap, row_gap)
                 self._placer._place_by_id(positioner, wid, px, py, w, h)
-                print(f"  Window {i}: {emulator} geometry={geometry} -> "
+                ColorPrint.plain(f"  Window {i}: {emulator} geometry={geometry} -> "
                       f"id {wid:#010x} @ {px},{py} (pid {proc.pid})")
             else:
                 # No positioner / id capture failed: rely on the geometry hint.
-                print(f"  Window {i}: {emulator} geometry={geometry} "
+                ColorPrint.plain(f"  Window {i}: {emulator} geometry={geometry} "
                       f"(pid {proc.pid}; geometry hint only)")
             time.sleep(delay)
 
@@ -313,7 +314,7 @@ class LinuxTerminalLauncher:
         if shutil.which("tmux"):
             return self._launch_tmux(count, columns)
 
-        print("Neither kitty nor tmux found; launching plain unpositioned "
+        ColorPrint.plain("Neither kitty nor tmux found; launching plain unpositioned "
               "terminals (the compositor will tile them). Install 'kitty' or "
               "'tmux' for a proper single-window grid.")
         return self._launch_plain(count, delay)
@@ -341,18 +342,18 @@ class LinuxTerminalLauncher:
             with os.fdopen(fd, "w") as fh:
                 fh.write(session_text)
         except Exception as e:
-            print(f"  kitty: failed to write session file ({e})")
+            ColorPrint.plain(f"  kitty: failed to write session file ({e})")
             return []
 
         try:
             proc = subprocess.Popen(
                 ["kitty", "--session", path], start_new_session=True,
             )
-            print(f"  kitty: single window, {count} panes (grid layout) "
+            ColorPrint.plain(f"  kitty: single window, {count} panes (grid layout) "
                   f"(pid {proc.pid})")
             return [proc.pid]
         except Exception as e:
-            print(f"  kitty: failed to launch ({e})")
+            ColorPrint.plain(f"  kitty: failed to launch ({e})")
             return []
 
     def _launch_tmux(self, count, columns):
@@ -395,7 +396,7 @@ class LinuxTerminalLauncher:
             subprocess.run(["tmux", "select-layout", "-t", session, "tiled"],
                            capture_output=True, text=True, timeout=5)
         except Exception as e:
-            print(f"  tmux: failed to build session ({e})")
+            ColorPrint.plain(f"  tmux: failed to build session ({e})")
             return []
 
         # Open a terminal attached to the session. No geometry needed -- it is a
@@ -406,11 +407,11 @@ class LinuxTerminalLauncher:
 
         try:
             proc = subprocess.Popen(argv, start_new_session=True)
-            print(f"  tmux: single window, {count} tiled panes "
+            ColorPrint.plain(f"  tmux: single window, {count} tiled panes "
                   f"(~{columns} cols) via {emulator} (pid {proc.pid})")
             return [proc.pid]
         except Exception as e:
-            print(f"  tmux: failed to open attaching terminal ({e})")
+            ColorPrint.plain(f"  tmux: failed to open attaching terminal ({e})")
             return []
 
     def _launch_plain(self, count, delay):
@@ -437,8 +438,8 @@ class LinuxTerminalLauncher:
             try:
                 proc = subprocess.Popen(argv, start_new_session=True)
                 pids.append(proc.pid)
-                print(f"  Plain terminal {i}: {emulator} (pid {proc.pid})")
+                ColorPrint.plain(f"  Plain terminal {i}: {emulator} (pid {proc.pid})")
             except Exception as e:
-                print(f"  Plain terminal {i}: failed to launch ({e})")
+                ColorPrint.plain(f"  Plain terminal {i}: failed to launch ({e})")
             time.sleep(delay)
         return pids

@@ -12,11 +12,11 @@ Tier 3: QWebEngineSettings attributes
 
 Usage:
     # Apply all tiers before QApplication creation
-    from .webengine_config import configure_webengine_all_tiers
+    from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import configure_webengine_all_tiers
     configure_webengine_all_tiers()
 
     # Or apply individual tiers
-    from .webengine_config import (
+    from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import (
         configure_webengine_tier1_env,
         configure_webengine_tier2_qputenv,
         configure_webengine_tier3_settings

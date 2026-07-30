@@ -431,5 +431,5 @@ if __name__ == "__main__":
     )
 
     if result:
-        print(f"Found at: {result['center']}")
-        print(f"Score: {result['match_score']:.4f}")
+        ColorPrint.plain(f"Found at: {result['center']}")
+        ColorPrint.plain(f"Score: {result['match_score']:.4f}")

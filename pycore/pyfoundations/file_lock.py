@@ -23,10 +23,7 @@ Example scenario:
 All three processes access the same data file and use FileLockManager
 to coordinate exclusive access through file system locks.
 
-Split out of the former file_lock_manager module. The public import path
-``pyfoundations.file_lock_manager`` (and ``pycore.pyfoundations.file_lock_manager``)
-is preserved by a thin facade in file_lock_manager.py that re-exports the
-names defined here.
+Split out of the former file_lock_manager module.
 """
 
 import json
@@ -38,6 +35,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 
@@ -157,7 +155,7 @@ class FileLockManager:
     def _log(self, message: str):
         """Print log message if verbose mode is enabled"""
         if self.verbose:
-            print(f"[FileLockManager] {message}", flush=True)
+            ColorPrint.plain(f"[FileLockManager] {message}", flush=True)
 
     @staticmethod
     def _get_cache_directory() -> Path:
@@ -312,16 +310,16 @@ class FileLockManager:
         """
         current_pid = os.getpid()
 
-        print(f"[FileLockManager] Acquiring lock for {self.file_path.name} (PID {current_pid})...", flush=True)
+        ColorPrint.plain(f"[FileLockManager] Acquiring lock for {self.file_path.name} (PID {current_pid})...", flush=True)
 
         while True:
             # Ensure lock directory exists
             self._lock_dir.mkdir(parents=True, exist_ok=True)
 
             # Get all existing lock files
-            print(f"[FileLockManager] Scanning lock directory: {self._lock_dir}", flush=True)
+            ColorPrint.plain(f"[FileLockManager] Scanning lock directory: {self._lock_dir}", flush=True)
             lock_files = self._get_lock_files()
-            print(f"[FileLockManager] Found {len(lock_files)} lock files", flush=True)
+            ColorPrint.plain(f"[FileLockManager] Found {len(lock_files)} lock files", flush=True)
 
             # Clean up stale locks and check for self-deadlock
             active_locks = []
@@ -339,7 +337,7 @@ class FileLockManager:
 
             # If no active locks, try to acquire
             if not active_locks:
-                print(f"[FileLockManager] No active locks, attempting to acquire...", flush=True)
+                ColorPrint.plain(f"[FileLockManager] No active locks, attempting to acquire...", flush=True)
 
                 # Create lock file: {timestamp}.{pid}.lck
                 timestamp = int(time.time() * 1000000)  # microseconds
@@ -348,7 +346,7 @@ class FileLockManager:
 
                 # Check if file already exists (race condition check)
                 if self._current_lock_file.exists():
-                    print(f"[FileLockManager] Race condition, retrying...", flush=True)
+                    ColorPrint.plain(f"[FileLockManager] Race condition, retrying...", flush=True)
                     self._current_lock_file = None
                     time.sleep(self.retry_interval)
                     continue
@@ -357,12 +355,12 @@ class FileLockManager:
                 with self._current_lock_file.open('w') as f:
                     pass  # Empty file
 
-                print(f"[FileLockManager] Lock acquired: {lock_filename}", flush=True)
+                ColorPrint.plain(f"[FileLockManager] Lock acquired: {lock_filename}", flush=True)
                 return  # Lock acquired successfully
             else:
                 # Active locks exist, show waiting message
                 active_pids = [f.stem.split('.')[-1] for f in active_locks]
-                print(f"[FileLockManager] Waiting for lock (held by PID {active_pids})...", flush=True)
+                ColorPrint.plain(f"[FileLockManager] Waiting for lock (held by PID {active_pids})...", flush=True)
 
             # Wait before retry
             time.sleep(self.retry_interval)
@@ -397,11 +395,11 @@ class FileLockManager:
         Returns:
             Parsed JSON data (dict)
         """
-        print(f"[FileLockManager] read_json() called for {self.file_path.name}", flush=True)
+        ColorPrint.plain(f"[FileLockManager] read_json() called for {self.file_path.name}", flush=True)
         with self.lock():
-            print(f"[FileLockManager] Lock acquired, loading from disk...", flush=True)
+            ColorPrint.plain(f"[FileLockManager] Lock acquired, loading from disk...", flush=True)
             result = self._load_json_from_disk()
-            print(f"[FileLockManager] Loaded {len(str(result))} bytes", flush=True)
+            ColorPrint.plain(f"[FileLockManager] Loaded {len(str(result))} bytes", flush=True)
             return result
 
     def write_json(self, data: JsonData):
@@ -422,15 +420,15 @@ class FileLockManager:
             mutator: Function that modifies the data in-place
                     Example: lambda data: data.update({'key': 'value'})
         """
-        print(f"[FileLockManager] update_json() called for {self.file_path.name}", flush=True)
+        ColorPrint.plain(f"[FileLockManager] update_json() called for {self.file_path.name}", flush=True)
         with self.lock():
-            print(f"[FileLockManager] Lock acquired for update, loading...", flush=True)
+            ColorPrint.plain(f"[FileLockManager] Lock acquired for update, loading...", flush=True)
             data = self._load_json_from_disk()
-            print(f"[FileLockManager] Applying mutator...", flush=True)
+            ColorPrint.plain(f"[FileLockManager] Applying mutator...", flush=True)
             mutator(data)
-            print(f"[FileLockManager] Writing updated data...", flush=True)
+            ColorPrint.plain(f"[FileLockManager] Writing updated data...", flush=True)
             self._write_json_to_disk(data)
-            print(f"[FileLockManager] Update complete", flush=True)
+            ColorPrint.plain(f"[FileLockManager] Update complete", flush=True)
 
     # Compatibility aliases for ThreadSafeJsonStore API
     def ensure_file(self):
@@ -566,16 +564,16 @@ class FileLockManager:
 
 def main():
     """Test function for FileLockManager"""
-    print("=" * 60)
-    print("FileLockManager Test")
-    print("=" * 60)
-    print()
+    ColorPrint.plain("=" * 60)
+    ColorPrint.plain("FileLockManager Test")
+    ColorPrint.plain("=" * 60)
+    ColorPrint.plain()
 
     # Test file path
     test_file = Path.home() / '.core_node' / 'test_data.json'
 
-    print(f"Test file: {test_file}")
-    print()
+    ColorPrint.plain(f"Test file: {test_file}")
+    ColorPrint.plain()
 
     # Create manager
     manager = FileLockManager(
@@ -585,16 +583,16 @@ def main():
     )
 
     # Test 1: Write JSON
-    print("\n--- Test 1: Write JSON ---")
+    ColorPrint.plain("\n--- Test 1: Write JSON ---")
     manager.write_json({'counter': 1, 'items': ['test1', 'test2']})
 
     # Test 2: Read JSON
-    print("\n--- Test 2: Read JSON ---")
+    ColorPrint.plain("\n--- Test 2: Read JSON ---")
     data = manager.read_json()
-    print(f"Read data: {data}")
+    ColorPrint.plain(f"Read data: {data}")
 
     # Test 3: Update JSON
-    print("\n--- Test 3: Update JSON ---")
+    ColorPrint.plain("\n--- Test 3: Update JSON ---")
     def increment_counter(data):
         data['counter'] = data.get('counter', 0) + 1
         data['items'].append(f'item_{data["counter"]}')
@@ -603,26 +601,26 @@ def main():
 
     # Verify update
     data = manager.read_json()
-    print(f"After update: {data}")
+    ColorPrint.plain(f"After update: {data}")
 
     # Test 4: Lock status
-    print("\n--- Test 4: Lock Status ---")
+    ColorPrint.plain("\n--- Test 4: Lock Status ---")
     status = manager.get_lock_status()
-    print(f"Lock directory: {status['lock_dir']}")
-    print(f"Path hash: {status['path_hash']}")
-    print(f"Active locks: {status['lock_count']}")
+    ColorPrint.plain(f"Lock directory: {status['lock_dir']}")
+    ColorPrint.plain(f"Path hash: {status['path_hash']}")
+    ColorPrint.plain(f"Active locks: {status['lock_count']}")
 
     # Test 5: Manual lock control
-    print("\n--- Test 5: Manual Lock Control ---")
+    ColorPrint.plain("\n--- Test 5: Manual Lock Control ---")
     with manager.lock():
-        print("Lock acquired manually")
+        ColorPrint.plain("Lock acquired manually")
         time.sleep(1)
-        print("Performing operations...")
-    print("Lock released")
+        ColorPrint.plain("Performing operations...")
+    ColorPrint.plain("Lock released")
 
-    print("\n" + "=" * 60)
-    print("All tests completed!")
-    print("=" * 60)
+    ColorPrint.plain("\n" + "=" * 60)
+    ColorPrint.plain("All tests completed!")
+    ColorPrint.plain("=" * 60)
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.clipboard.clipboard_sync import add_recognition_to_clipboard
 from pycore.pyctl.speech.cache_info import print_recognition_cache_info
 
-from pycore.pyctl.speech.provider_status import get_provider_status
+from pycore.pyctl.speech.provider_status import provider_status
 
 
 
@@ -84,7 +84,7 @@ class RecognitionChannel:
         # Reset current recognizing text
         self.current_recognizing_text = ""
 
-        # Add to clipboard database for real-time sync
+        # Add to clipboard history for real-time sync
         add_recognition_to_clipboard(
             text=text,
             language=self.language,
@@ -94,10 +94,10 @@ class RecognitionChannel:
         )
 
         # Print cycle complete
-        print("-" * 70)
+        ColorPrint.plain("-" * 70)
         ColorPrint.blue(f"[{self.channel_name}] [CYCLE COMPLETE] Text: {text}")
         ColorPrint.blue(f"[{self.channel_name}] [CYCLE COMPLETE] Length: {len(text)} chars, Words: {len(text.split())}")
-        print("-" * 70)
+        ColorPrint.plain("-" * 70)
 
         # Print cache info (with speech_manager to show default TTS provider)
         print_recognition_cache_info(text, self.language, self.speech_manager)
@@ -176,7 +176,7 @@ class TranscriptionSession:
             'timestamp': time.time()
         })
 
-        # Add to clipboard database for real-time sync
+        # Add to clipboard history for real-time sync
         add_recognition_to_clipboard(
             text=text,
             language=self.language,
@@ -208,10 +208,10 @@ class TranscriptionSession:
             confidence: Confidence score
         """
         # Print separator for clarity
-        print("-" * 70)
+        ColorPrint.plain("-" * 70)
         ColorPrint.blue(f"[CYCLE COMPLETE] Text: {text}")
         ColorPrint.blue(f"[CYCLE COMPLETE] Length: {len(text)} chars, Words: {len(text.split())}")
-        print("-" * 70)
+        ColorPrint.plain("-" * 70)
 
         # Print cache info (with speech_manager to show default TTS provider)
         print_recognition_cache_info(text, self.language, self.speech_manager)
@@ -265,25 +265,22 @@ class TranscriptionSession:
         self.has_error = True
         self.error_message = error_msg
 
-        # Report provider failure to ProviderStatus
-        try:
-            provider_status = get_provider_status()
-        except:
-            provider_status = None
-
         # Check for critical errors that require session termination
         if "Quota exceeded" in error_msg or "Error code: 1007" in error_msg:
             THREAD_BUS.signal(self._quota_signal, True)
             THREAD_BUS.signal(self._stop_signal, True)
 
             # Report Azure STT as unavailable due to quota
-            if provider_status:
-                provider_status.mark_unavailable('stt', 'azure', 'Quota exceeded (Error 1007)')
+            provider_status.mark_unavailable(
+                'stt',
+                'azure',
+                'Quota exceeded (Error 1007)',
+            )
 
             # Show critical error message
-            print("\n" + "="*70)
+            ColorPrint.plain("\n" + "="*70)
             ColorPrint.red("CRITICAL ERROR: Azure Speech API Quota Exceeded!")
-            print("="*70)
+            ColorPrint.plain("="*70)
             ColorPrint.yellow("Your Azure Speech Service free tier limit has been reached.")
             ColorPrint.yellow("")
             ColorPrint.yellow("Options to resolve:")
@@ -293,7 +290,7 @@ class TranscriptionSession:
             ColorPrint.yellow("  4. Use alternative cloud provider")
             ColorPrint.yellow("")
             ColorPrint.yellow("Session will be terminated automatically.")
-            print("="*70)
+            ColorPrint.plain("="*70)
             sys.stdout.flush()
 
         elif "Connection was closed" in error_msg:

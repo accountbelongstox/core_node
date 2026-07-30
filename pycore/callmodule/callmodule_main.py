@@ -1,379 +1,35 @@
-import pycore.pylauncher.register_providers  # noqa: F401 — provider registration
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Pycore callmodule native UI launcher composition."""
+
 import argparse
-"""
-Pycore Callmodule - Native UI Integration
-
-Unified startup entry using NativeUIConfig pattern (same as Matrix).
-
-Architecture:
-- native_ui: Handles everything (frontend, RPC v2, PySide6 UI, tray, callbacks)
-- Callmodule: Only provides configuration and event handlers
-
-Platform-specific behavior:
-- Windows: PySide6 UI window + system tray + frontend
-- Linux: Background mode (frontend only, no UI window)
-
-Usage:
-    # Via pycore_module_caller.py (recommended)
-    python pycore_module_caller.py
-
-    # Direct
-    python -m pycore.callmodule.callmodule_main
-"""
-
-import sys
-import os
-import platform
 from pathlib import Path
 
-from pycore.callmodule.services.heartbeat_worker_prefs import restore_persisted_heartbeat_prefs
-from pycore.callmodule.services.system_settings_boot import apply_persisted_system_settings
-from pycore.pyutils.tts.tts_orchestrator import report_tts_engine_startup
-from pycore.callmodule.services.translation_worker_service import get_translation_worker_service
-from pycore.pyctl.assist.assist_settings import translation_worker_enabled_on_start
-from pycore.callmodule.services.assist_wiring import register_assist_runtime
-from pycore.callmodule.services.ai_rate_reset_service import get_ai_rate_reset_service
-from pycore.callmodule.services.heartbeat_agent_history import (
-    register_agent_history_extraction,
-)
-from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
-from pycore.pyheartbeat.heartbeat import get_heartbeat_system
-from pycore.callmodule.services.translation_ws_client_service import get_translation_ws_client
-from pycore.callmodule.services.laravel_log_mirror_service import get_laravel_log_mirror_service
-from pycore.callmodule.rpc_routes.route_names import UI_HEARTBEAT_WORKERS_CONFIG
-
-
-# Add project root to path
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
+import pycore.pylauncher.register_providers  # noqa: F401
+from pycore.pyctl.runtime.callmodule_config import Config
+from pycore.pyctl.runtime.event_handlers import register_runtime_workers
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
-from pycore.pyutils.native_ui.step3_launcher.launch_native_app import launch_native_app
+from pycore.pyfoundations.pygvar import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
+from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step2_port_url.port_allocator import register_port_range
-from pycore.callmodule.callmodule_config.config import Config
-from pycore.callmodule.services.heartbeat_tts_workers import (
-    register_sentence_queue_monitor as _register_sentence_queue_monitor,
-    register_tts_queue_poller as _register_tts_queue_poller,
-    register_tts_sentence_worker as _register_tts_sentence_worker,
-)
-
-# FastAPI HTTP routers package was removed; WS/RPC v2 routes register via
-# pycore.callmodule.rpc_routes.register_rpc_routes (see build_launcher_config).
+from pycore.pyutils.native_ui.step3_launcher.launch_native_app import launch_native_app
 
 
-def callmodule_main_entry():
-    """
-    Callmodule main entry point (called after native_ui initialization)
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 
-    Used to register event handlers and perform application-specific initialization.
 
-    Idempotent: This function can be called multiple times safely.
-    All operations within are designed to be idempotent.
-    """
+def callmodule_main_entry() -> None:
+    """Register the shared Pyctl runtime workers."""
     ColorPrint.green("[Callmodule] Main entry initialized")
-
-    # Register event handlers (from existing event_handlers.py)
-    # Note: Event handlers will be registered via on_ready_callbacks instead
-
-    # Ensure PyHeartbeat system is running (idempotent)
-    _ensure_heartbeat_running()
-
-    # Register TTS queue poller callback (idempotent)
-    _register_tts_queue_poller()
-
-    # Register TTS sentence-audio worker callback (idempotent)
-    _register_tts_sentence_worker()
-
-    # Register translation worker callback (idempotent)
-    _register_translation_worker()
-
-    # Register translation queue monitor callback (idempotent)
-    _register_queue_monitor()
-    _register_sentence_queue_monitor()
-
-    # Register translation Reverb WS client callback (idempotent) — Phase C
-    _register_translation_ws_client()
-
-    # Apply persisted queue capability controls (idempotent).
-    _register_assist_runtime()
-
-    # Register AI rate-budget auto-reset callback (idempotent)
-    _register_ai_rate_reset()
-
-    # Register local AI agent history extractor (idempotent)
-    _register_agent_history_extraction()
-
-    # Register Laravel log mirror (idempotent)
-    _register_laravel_log_mirror()
-
-    restore_persisted_heartbeat_prefs()
-    apply_persisted_system_settings()
-    # Migrate legacy TTS order + warn when STREAMELEMENTS_API_KEY is missing.
-    report_tts_engine_startup()
+    register_runtime_workers()
 
 
-def _register_laravel_log_mirror():
-    """Register the Laravel log mirror callback to PyHeartbeat (Idempotent)."""
-    heartbeat = get_heartbeat_system()
-    service = get_laravel_log_mirror_service()
-    
-    heartbeat.register_callback(
-        name='laravel_log_mirror',
-        callback=service.poll_once,
-        interval=5,  # Poll every 5 seconds
-        enabled=True,
-    )
-    ColorPrint.green("[Callmodule] Registered Laravel log mirror callback")
-
-
-def _ensure_heartbeat_running():
-    """
-    Ensure PyHeartbeat system is running (Idempotent)
-
-    This function checks if PyHeartbeat is running and starts it if needed.
-    Can be called multiple times safely - will not restart if already running.
-    """
-
-    heartbeat = get_heartbeat_system()
-
-    if not heartbeat.is_running():
-        ColorPrint.blue("[Callmodule] Starting PyHeartbeat system...")
-        heartbeat.start()
-        ColorPrint.green("[Callmodule] PyHeartbeat started")
-    else:
-        ColorPrint.blue("[Callmodule] PyHeartbeat already running")
-
-
-def _register_translation_worker():
-    """
-    Register the translation worker callback to PyHeartbeat (Idempotent).
-
-    Mirrors _register_tts_queue_poller(): a singleton service whose light poll
-    callback is registered with PyHeartbeat and toggled via the heartbeat
-    management router.
-
-    Architecture:
-    - Callback name: 'translation_worker'
-    - Interval: Config.TRANSLATION_WORKER_INTERVAL (~12s)
-    - Initial state: ENABLED by default (Config.TRANSLATION_WORKER_ENABLED_ON_START)
-                     so the Laravel translation pipeline runs out of the box.
-    - Laravel base URL: Config.LARAVEL_WORKER_API_URL (env LARAVEL_WORKER_API_URL)
-    - UI control: RPC v2 ui.heartbeat_workers.config
-
-    The callback only ensures registration, sends a heartbeat, pulls tasks and
-    dispatches each to a background TaskManager thread — it never blocks the
-    heartbeat loop with translation/network latency.
-    """
-
-    heartbeat = get_heartbeat_system()
-
-    worker = get_translation_worker_service(laravel_api_url=Config.LARAVEL_WORKER_API_URL)
-
-    # Master-toggle gate (assist_laravel): while the assist_laravel section is
-    # absent from user_data.json the legacy Config default applies unchanged;
-    # once it exists, enabled && capabilities.translation rules. Runtime
-    # changes are applied live through the RPC v2 assist route.
-    enabled_on_start = translation_worker_enabled_on_start(
-        Config.TRANSLATION_WORKER_ENABLED_ON_START)
-
-    heartbeat.register_callback(
-        name='translation_worker',
-        callback=worker.poll_once,
-        interval=Config.TRANSLATION_WORKER_INTERVAL,
-        enabled=enabled_on_start,
-    )
-    # One always-on transport callback owns Laravel register/pull/submit for all
-    # Pycore GlobalTask lanes. Per-feature callbacks remain the lane gates in
-    # lane_gating.py, so disabling translation does not strand enabled audio or
-    # sentence-audio work. poll_once is single-flight, making the legacy
-    # translation callback and this transport trigger safe to co-exist.
-    heartbeat.register_callback(
-        name='global_task_worker',
-        callback=worker.poll_once,
-        interval=Config.TRANSLATION_WORKER_INTERVAL,
-        enabled=True,
-    )
-
-    ColorPrint.green("[Callmodule] Registered translation worker callback")
-    ColorPrint.blue("  - Callback names: global_task_worker (transport), translation_worker (lane gate)")
-    ColorPrint.blue(f"  - Interval: {Config.TRANSLATION_WORKER_INTERVAL} seconds")
-    ColorPrint.blue(f"  - Initial state: {'enabled' if enabled_on_start else 'disabled'} "
-                    f"(assist_laravel gate)")
-    ColorPrint.blue(f"  - Laravel API: {Config.LARAVEL_WORKER_API_URL}")
-    # Lane/capability names resolve through the JSON contract consumed by
-    # Laravel, both UIs, and mcp-chrome; this startup log is not a second list.
-    ColorPrint.blue(
-        f"  - Lanes: {', '.join(worker._effective_processor_types()) or '(none enabled)'} "
-        "(advertised live per tick)")
-    ColorPrint.blue(
-        f"  - Capabilities: {', '.join(worker._effective_capabilities()) or '(none enabled)'}")
-    ColorPrint.blue(
-        f"  - Fast lane: poll {Config.TRANSLATION_FAST_POLL_INTERVAL}s on pending_fast "
-        f"(wait=0 burst-drain, priority heap)")
-    ColorPrint.blue(f"  - UI control: RPC v2 {UI_HEARTBEAT_WORKERS_CONFIG}")
-
-
-def _register_assist_runtime():
-    """Apply persisted capability settings after callback registration."""
-    register_assist_runtime()
-
-
-def _register_ai_rate_reset():
-    """
-    Register the AI rate-budget auto-reset callback to PyHeartbeat (Idempotent).
-
-    Demonstrates the heartbeat-as-trigger pattern: pyheartbeat stays generic and
-    AI-agnostic; this wiring INJECTS a light tick callback that frees AI rate
-    budget by the AI's own rate windows (ai_rate_limits.prune_expired) and clears
-    elapsed 429 cooldowns (ai_gateway.clear_expired_cooldowns). The UI reads the
-    refreshed rate snapshot, so budgets visibly reset on screen.
-
-    Architecture:
-    - Callback name: 'ai_rate_reset'
-    - Interval: PYCORE_AI_RATE_RESET_INTERVAL seconds (default 30; the per-minute
-      window is 60s, so a 30s prune keeps minute budgets fresh)
-    - Initial state: ENABLED (env PYCORE_AI_RATE_RESET=0 to disable)
-    - UI control: RPC v2 `ui.heartbeat_workers.config`
-    """
-
-    heartbeat = get_heartbeat_system()
-    service = get_ai_rate_reset_service()
-
-    interval = 30
-    raw = os.environ.get('PYCORE_AI_RATE_RESET_INTERVAL', '').strip()
-    if raw.isdigit() and int(raw) > 0:
-        interval = int(raw)
-    enabled = os.environ.get('PYCORE_AI_RATE_RESET', '1').strip().lower() not in ('0', 'false', 'no')
-
-    heartbeat.register_callback(
-        name='ai_rate_reset',
-        callback=service.tick,
-        interval=interval,
-        enabled=enabled,
-    )
-
-    ColorPrint.green("[Callmodule] Registered AI rate-budget reset callback")
-    ColorPrint.blue("  - Callback name: ai_rate_reset")
-    ColorPrint.blue(f"  - Interval: {interval} seconds")
-    ColorPrint.blue(f"  - Initial state: {'enabled' if enabled else 'disabled'}")
-    ColorPrint.blue("  - UI control: RPC v2 ui.heartbeat_workers.config")
-
-
-def _register_agent_history_extraction():
-    """
-    Register the local AI agent history extractor to PyHeartbeat (idempotent).
-
-    Delegates to services.heartbeat_agent_history.register_agent_history_extraction,
-    the shared helper also used by event_handlers on the pycore_module_caller path.
-    """
-    register_agent_history_extraction()
-
-
-def _register_queue_monitor():
-    """
-    Register the translation QUEUE MONITOR callback to PyHeartbeat (Idempotent).
-
-    Mirrors _register_translation_worker(): a singleton service whose light,
-    exception-safe poll callback is registered with PyHeartbeat and toggled via
-    the heartbeat management router.
-
-    Architecture:
-    - Callback name: 'translation_queue_monitor'
-    - Interval: Config.TRANSLATION_QUEUE_MONITOR_INTERVAL (~5s)
-    - Initial state: ENABLED by default (Config.TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START)
-                     so the UI sees the live queue out of the box.
-    - Laravel base URL: SHARED with the worker via Config.LARAVEL_WORKER_API_URL
-                        (the monitor reuses the worker's candidate discovery).
-    - UI control: RPC v2 `ui.heartbeat_workers.config`
-
-    The callback GETs the queue list, caches the snapshot, and detects priority
-    bumps (flagging tasks `recently_bumped`) — it never blocks the heartbeat loop.
-    """
-
-    heartbeat = get_heartbeat_system()
-
-    monitor = get_queue_monitor_service(
-        laravel_api_url=Config.LARAVEL_WORKER_API_URL,
-        bump_ttl_seconds=Config.TRANSLATION_QUEUE_BUMP_TTL_SECONDS,
-    )
-
-    heartbeat.register_callback(
-        name='translation_queue_monitor',
-        callback=monitor.poll_once,
-        interval=Config.TRANSLATION_QUEUE_MONITOR_INTERVAL,
-        enabled=Config.TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START,
-    )
-
-    ColorPrint.green("[Callmodule] Registered translation queue monitor callback")
-    ColorPrint.blue("  - Callback name: translation_queue_monitor")
-    ColorPrint.blue(f"  - Interval: {Config.TRANSLATION_QUEUE_MONITOR_INTERVAL} seconds")
-    ColorPrint.blue(f"  - Initial state: {'enabled' if Config.TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START else 'disabled'}")
-    ColorPrint.blue(f"  - Bump TTL: {Config.TRANSLATION_QUEUE_BUMP_TTL_SECONDS} seconds")
-    ColorPrint.blue("  - UI control: RPC v2 ui.heartbeat_workers.config")
-
-
-def _register_translation_ws_client():
-    """
-    Register the translation Reverb WS CLIENT supervisor to PyHeartbeat (Idempotent).
-
-    Phase C: a WebSocket client connects to Laravel's Reverb server (Pusher
-    protocol) and receives translation-queue events in REAL TIME, replacing the
-    queue monitor's 5s HTTP poll as the primary signal (the poll stays as the
-    slower fallback/reconciler). The client REUSES rpc_v2's WS library (the
-    third-party ``websockets`` package, via get_third_package_websockets()) as the
-    CLIENT transport, running its recv loop on a dedicated background thread.
-
-    The heartbeat callback here is ``supervise`` — a LIGHT tick that only ensures
-    the background WS thread is alive (it does NO network I/O on the heartbeat
-    thread). Disabling the callback stops the supervisor ticking; the thread is
-    daemon and also stoppable via the client's stop().
-
-    Architecture:
-    - Callback name: 'translation_ws_client'
-    - Interval: Config.TRANSLATION_WS_SUPERVISOR_INTERVAL (~5s)
-    - Initial state: ENABLED by default (Config.TRANSLATION_WS_ENABLED_ON_START)
-    - Reverb conn: Config.TRANSLATION_REVERB_{HOST,PORT,SCHEME,APP_KEY,CHANNEL}
-                   (env-overridable; REVERB_* derived). NOTE: REVERB_APP_KEY rotates
-                   on reverb restart — keep TRANSLATION_REVERB_APP_KEY in sync.
-    - UI control: RPC v2 `ui.heartbeat_workers.config`
-    """
-
-    heartbeat = get_heartbeat_system()
-
-    ws_client = get_translation_ws_client(
-        host=Config.TRANSLATION_REVERB_HOST,
-        port=Config.TRANSLATION_REVERB_PORT,
-        scheme=Config.TRANSLATION_REVERB_SCHEME,
-        app_key=Config.TRANSLATION_REVERB_APP_KEY,
-        channel=Config.TRANSLATION_REVERB_CHANNEL,
-        word_ttl_seconds=Config.TRANSLATION_WS_WORD_TTL_SECONDS,
-        sse_path=Config.TRANSLATION_SSE_PATH,
-    )
-
-    heartbeat.register_callback(
-        name='translation_ws_client',
-        callback=ws_client.supervise,
-        interval=Config.TRANSLATION_WS_SUPERVISOR_INTERVAL,
-        enabled=Config.TRANSLATION_WS_ENABLED_ON_START,
-    )
-
-    ColorPrint.green("[Callmodule] Registered translation SSE client callback")
-    ColorPrint.blue("  - Callback name: translation_ws_client")
-    ColorPrint.blue(f"  - Interval: {Config.TRANSLATION_WS_SUPERVISOR_INTERVAL} seconds (supervisor tick)")
-    ColorPrint.blue(f"  - Initial state: {'enabled' if Config.TRANSLATION_WS_ENABLED_ON_START else 'disabled'}")
-    ColorPrint.blue(
-        f"  - SSE: {Config.TRANSLATION_REVERB_SCHEME}://{Config.TRANSLATION_REVERB_HOST}:"
-        f"{Config.TRANSLATION_REVERB_PORT}{Config.TRANSLATION_SSE_PATH}"
-    )
-    ColorPrint.blue("  - WS library: websockets (rpc_v2's WS lib; sync client)")
-    ColorPrint.blue("  - UI control: RPC v2 ui.heartbeat_workers.config")
-
-
-def start(host='0.0.0.0', port=59000, debug=False):
+def start(
+    host: str = HTTP_BIND_HOST,
+    port: int = PYCORE_HTTP_PORT,
+    debug: bool = False,
+):
     """
     Unified startup entry point
 
@@ -390,7 +46,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
     Config.RPC_HOST = host
     Config.RPC_PORT = port
 
-    ColorPrint.green("[Callmodule] RPC v2 routes via register_rpc_routes")
+    ColorPrint.green("[Callmodule] RPC v2 HTTP controllers via register_http_routes")
 
     # Register singleton port range (callmodule_config/config.py)
     # Same as pylauncher so only one instance runs via pycore_module_caller.py or callmodule_main.
@@ -418,7 +74,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
             ColorPrint.yellow(f"[Callmodule] Using fallback icon: {icon_path}")
 
     # Frontend project path
-    frontend_app_dir = PROJECT_ROOT / "poly_apps" / "pycore-management"
+    frontend_app_dir = Config.FRONTEND_DIR
 
     # Platform-specific configuration (using adapter)
     IS_WINDOWS = adapter.is_windows
@@ -471,7 +127,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
         rpc_port=port,
         rpc_host=host,
         rpc_debug=debug,
-        # HTTP FastAPI routers retired; RPC v2 WS routes register in config.
+        # Legacy FastAPI routers retired; RPC v2 HTTP controllers register in config.
         rpc_routers=[],
         rpc_allow_origins=Config.CORS_ALLOW_ORIGINS,
         rpc_auto_mount_frontend=True,  # Auto-coordinate static file mounting
@@ -518,7 +174,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
     if IS_WINDOWS:
         native_tray_type = "tk" if adapter.get_recommended_tray_backend().value == "pystray" else "pyside6"
         ColorPrint.blue(f"  - Tray backend: {native_tray_type} (recommended: {adapter.get_recommended_tray_backend().value})")
-    ColorPrint.blue(f"  - RPC routes: register_rpc_routes (WS)")
+    ColorPrint.blue("  - HTTP controllers: register_http_routes")
 
     # One-click launch (native_ui handles everything)
     ColorPrint.green("[Callmodule] Launching application...")
@@ -535,9 +191,10 @@ def main():
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Pycore Callmodule with Native UI")
-    parser.add_argument('--host', default='0.0.0.0', help='Host to bind (default: 0.0.0.0)')
-    parser.add_argument('--port', type=int, default=59000, help='Port to bind (default: 59000)')
+    parser.add_argument('--host', default=HTTP_BIND_HOST, help='Host to bind')
+    parser.add_argument('--port', type=int, default=PYCORE_HTTP_PORT, help='Port to bind')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
 
     args = parser.parse_args()
     start(host=args.host, port=args.port, debug=args.debug)
+

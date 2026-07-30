@@ -5,7 +5,7 @@ Provides: get_image_matcher() default singleton; get_image_matcher_for_resolutio
 """
 from typing import Dict, Tuple, Optional
 
-from pycore.pyutils.image_matcher import ImageMatcher
+from pycore.pyutils.image_tools.image_matcher import ImageMatcher
 
 _default_matcher: Optional[ImageMatcher] = None
 _by_resolution: Dict[Tuple[int, int], ImageMatcher] = {}

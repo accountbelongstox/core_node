@@ -30,7 +30,7 @@ use Illuminate\Support\Facades\Schema;
  *              When assist is ON, generate synchronously via EdgeTTSService.
  *
  * External response shapes are byte-compatible with the legacy queue API
- * (qy_capacitor + wordflow FE poll these): status strings
+ * (qy_capacitor + WordNew FE poll these): status strings
  * pending/processing/completed/failed, per-result add statuses
  * queued/moved_to_front/already_available/already_completed, not-found
  * results carry an `error` key, audio_url built via AppQyV1TtsUrl::forPath.

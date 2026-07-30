@@ -55,9 +55,9 @@ from pycore.pyfoundations.serialized_worker import (
 
 speechsdk = get_third_package_speechsdk()
 from pycore.pyutils.azure_speech.config import AzureSpeechConfig
-from pycore.pyutils.common.tts_models import WordModel, SentenceModel, DocumentModel
-from pycore.pyutils.common.tts_queue_ops import TTSQueueOps
-from pycore.pyutils.azure_speech.quota_state import (
+from pycore.pyfoundations.speech_models import WordModel, SentenceModel, DocumentModel
+from pycore.pyfoundations.speech_queue_ops import TTSQueueOps
+from pycore.pyutils.common.azure_speech_quota_state import (
     mark_tts_quota_exceeded,
     clear_tts_quota_issue,
     is_tts_quota_blocked,
@@ -255,8 +255,4 @@ _AZURE_SPEECH_CLIENT_PROVIDER = SerializedSingletonProvider(
     "azure_speech.client.provider",
     "AzureSpeechClientProvider",
 )
-
-
-def get_azure_speech_client() -> AzureSpeechClient:
-    """Get global Azure Speech client instance"""
-    return _AZURE_SPEECH_CLIENT_PROVIDER.get()
+azure_speech_client = _AZURE_SPEECH_CLIENT_PROVIDER.get()

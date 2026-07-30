@@ -20,6 +20,10 @@ $inputPath = null;
 $iniContent = '';
 $phpIniDev = '';
 $phpIniProd = '';
+$errorLogPath = '';
+$errorLogDirectory = '';
+$errorLogDirectoryReal = '';
+$errorLogPathNormalized = '';
 $duplicatesRemoved = 0;
 $opensslEnabled = false;
 $saveSuccess = false;
@@ -34,7 +38,6 @@ $configReplacements = [
     'memory_limit' => '512M',
     'max_input_vars' => '10000',
     'date.timezone' => 'UTC',
-    'error_log' => '"error.log"',
     'file_uploads' => 'On',
     'disable_functions' => '',
     'opcache.enable' => '1',
@@ -118,6 +121,16 @@ if (strtolower(basename($inputPath)) === 'php.exe') {
 if ($phpDir === null || !is_dir($phpDir)) {
     die("Error: PHP directory not found: " . ($phpDir ?? 'unknown') . "\n");
 }
+
+$errorLogPath = $argc >= 3 ? $argv[2] : $phpDir . DIRECTORY_SEPARATOR . 'error.log';
+$errorLogDirectory = dirname($errorLogPath);
+$errorLogDirectoryReal = realpath($errorLogDirectory);
+if ($errorLogDirectoryReal === false) {
+    die("Error: PHP error log directory not found: $errorLogDirectory\n");
+}
+$errorLogPath = $errorLogDirectoryReal . DIRECTORY_SEPARATOR . basename($errorLogPath);
+$errorLogPathNormalized = str_replace('\\', '/', $errorLogPath);
+$configReplacements['error_log'] = '"' . $errorLogPathNormalized . '"';
 
 $extDir = $phpDir . '\\ext';
 

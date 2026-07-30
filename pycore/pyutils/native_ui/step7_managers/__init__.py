@@ -1,2 +1,8 @@
-# Package marker only. FORBIDDEN: re-exports or package organization here.
-# Import concrete modules directly (see development-guides/PYTHON_PYCORE.md).
+"""Native UI lifecycle managers."""
+
+__all__ = [
+    'bus_manager',
+    'callback_manager',
+    'shutdown_manager',
+    'timer_manager',
+]

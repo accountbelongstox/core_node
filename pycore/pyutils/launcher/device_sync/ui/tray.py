@@ -26,12 +26,10 @@ pystray = get_third_package_pystray()
 Image = get_third_package_PIL_Image()
 ImageDraw = get_third_package_PIL_ImageDraw()
 
-from ..core.config import get_global_config
-from ..server.unified import UnifiedHTTPServer
-from ..core.scanner import SimpleDeviceScanner
-from ..core.logging import setup_logging
-
-logger = setup_logging(__name__)
+from pycore.pyutils.launcher.device_sync.core.config import get_global_config
+from pycore.pyutils.launcher.device_sync.server.unified import UnifiedHTTPServer
+from pycore.pyutils.launcher.device_sync.core.scanner import SimpleDeviceScanner
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class SimpleTrayMenu:
@@ -70,86 +68,86 @@ class SimpleTrayMenu:
 
     def start(self):
         """Start tray menu with periodic network scanning"""
-        logger.info("=" * 70)
-        logger.info("STARTING TRAY MENU")
-        logger.info("=" * 70)
+        ColorPrint.info("=" * 70)
+        ColorPrint.info("STARTING TRAY MENU")
+        ColorPrint.info("=" * 70)
 
         # Set running flag BEFORE creating icon
         self.running = True
         THREAD_BUS.signal(self._running_signal, True)
-        logger.info(f"  self.running = {self.running}")
+        ColorPrint.info(f"  self.running = {self.running}")
 
         # Create tray icon
-        logger.info("[1/5] Creating tray icon image...")
-        logger.info(f"  Calling _create_icon_image()...")
+        ColorPrint.info("[1/5] Creating tray icon image...")
+        ColorPrint.info(f"  Calling _create_icon_image()...")
         icon_image = self._create_icon_image()
-        logger.info(f"  ✓ Icon image created: size={icon_image.size} mode={icon_image.mode}")
+        ColorPrint.info(f"  ✓ Icon image created: size={icon_image.size} mode={icon_image.mode}")
 
-        logger.info("[2/5] Creating tray menu...")
-        logger.info(f"  Calling _create_menu()...")
+        ColorPrint.info("[2/5] Creating tray menu...")
+        ColorPrint.info(f"  Calling _create_menu()...")
         menu = self._create_menu()
-        logger.info(f"  ✓ Menu created: {menu}")
+        ColorPrint.info(f"  ✓ Menu created: {menu}")
 
-        logger.info("[3/5] Getting icon title...")
-        logger.info(f"  Calling _get_title()...")
+        ColorPrint.info("[3/5] Getting icon title...")
+        ColorPrint.info(f"  Calling _get_title()...")
         title = self._get_title()
-        logger.info(f"  ✓ Title: '{title}'")
+        ColorPrint.info(f"  ✓ Title: '{title}'")
 
-        logger.info("[4/5] Creating pystray.Icon instance...")
-        logger.info(f"  name='DeviceSync'")
-        logger.info(f"  icon={icon_image}")
-        logger.info(f"  title='{title}'")
-        logger.info(f"  menu={menu}")
+        ColorPrint.info("[4/5] Creating pystray.Icon instance...")
+        ColorPrint.info(f"  name='DeviceSync'")
+        ColorPrint.info(f"  icon={icon_image}")
+        ColorPrint.info(f"  title='{title}'")
+        ColorPrint.info(f"  menu={menu}")
         self.icon = pystray.Icon(
             name="DeviceSync",
             icon=icon_image,
             title=title,
             menu=menu
         )
-        logger.info(f"  ✓ pystray.Icon instance created: {self.icon}")
+        ColorPrint.info(f"  ✓ pystray.Icon instance created: {self.icon}")
 
         # Setup periodic network scanning
-        logger.info("[5/5] Starting tray icon event loop (BLOCKING CALL)...")
-        logger.info("  >> IMPORTANT: Starting WITHOUT setup callback to test")
-        logger.info("  >> Will start periodic scan thread manually after icon.run_detached()")
+        ColorPrint.info("[5/5] Starting tray icon event loop (BLOCKING CALL)...")
+        ColorPrint.info("  >> IMPORTANT: Starting WITHOUT setup callback to test")
+        ColorPrint.info("  >> Will start periodic scan thread manually after icon.run_detached()")
 
         # Start icon in detached mode (non-blocking)
-        logger.info("  Calling icon.run_detached()...")
+        ColorPrint.info("  Calling icon.run_detached()...")
         self.icon.run_detached()
-        logger.info("  ✓ icon.run_detached() returned")
+        ColorPrint.info("  ✓ icon.run_detached() returned")
 
         # Now manually start periodic scan thread
-        logger.info("  Calling _setup_periodic_scan manually...")
+        ColorPrint.info("  Calling _setup_periodic_scan manually...")
         self._setup_periodic_scan(self.icon)
-        logger.info("  ✓ _setup_periodic_scan completed")
+        ColorPrint.info("  ✓ _setup_periodic_scan completed")
 
-        logger.info("  >> Check system tray for icon!")
-        logger.info("  >> Main thread will now block indefinitely...")
+        ColorPrint.info("  >> Check system tray for icon!")
+        ColorPrint.info("  >> Main thread will now block indefinitely...")
 
         # Keep main thread alive (no except block per user request)
-        logger.info("  Entering infinite loop to keep main thread alive...")
-        logger.info("  (Use Exit menu item to quit)")
+        ColorPrint.info("  Entering infinite loop to keep main thread alive...")
+        ColorPrint.info("  (Use Exit menu item to quit)")
         while THREAD_BUS.get_signal(self._running_signal, False):
             time.sleep(1)
 
-        logger.info("!!! Tray icon main loop ENDED (self.running=False) !!!")
+        ColorPrint.info("!!! Tray icon main loop ENDED (self.running=False) !!!")
 
     def stop(self):
         """Stop tray menu"""
-        logger.info("Stopping tray menu...")
+        ColorPrint.info("Stopping tray menu...")
 
         # Clear running flag to stop periodic scan thread
         self.running = False
         THREAD_BUS.signal(self._running_signal, False)
-        logger.info(f"  self.running = {self.running}")
+        ColorPrint.info(f"  self.running = {self.running}")
 
         # Stop tray icon
         if self.icon:
-            logger.info("  Stopping tray icon...")
+            ColorPrint.info("  Stopping tray icon...")
             self.icon.stop()
-            logger.info("  Tray icon stopped")
+            ColorPrint.info("  Tray icon stopped")
 
-        logger.info("Tray menu stopped")
+        ColorPrint.info("Tray menu stopped")
 
     def _setup_periodic_scan(self, icon):
         """
@@ -160,24 +158,24 @@ class SimpleTrayMenu:
         NOTE: icon.visible may be False during setup callback, so we use
         self.running flag instead of relying on icon.visible.
         """
-        logger.info("=" * 70)
-        logger.info("SETUP CALLBACK INVOKED")
-        logger.info("=" * 70)
-        logger.info(f"  icon parameter: {icon}")
-        logger.info(f"  icon type: {type(icon)}")
-        logger.info(f"  icon.visible: {icon.visible}  <<< May be False during setup!")
-        logger.info(f"  icon.name: {icon.name}")
-        logger.info(f"  self.running: {self.running}  <<< Using this flag instead")
+        ColorPrint.info("=" * 70)
+        ColorPrint.info("SETUP CALLBACK INVOKED")
+        ColorPrint.info("=" * 70)
+        ColorPrint.info(f"  icon parameter: {icon}")
+        ColorPrint.info(f"  icon type: {type(icon)}")
+        ColorPrint.info(f"  icon.visible: {icon.visible}  <<< May be False during setup!")
+        ColorPrint.info(f"  icon.name: {icon.name}")
+        ColorPrint.info(f"  self.running: {self.running}  <<< Using this flag instead")
 
         def periodic_scan():
-            logger.info(">>> Periodic scan thread STARTED")
-            logger.info(f"    Initial: self.running={self.running}, icon.visible={icon.visible}")
+            ColorPrint.info(">>> Periodic scan thread STARTED")
+            ColorPrint.info(f"    Initial: self.running={self.running}, icon.visible={icon.visible}")
             counter = 0
 
             # Use self.running instead of icon.visible (which may be False during setup)
             while THREAD_BUS.get_signal(self._running_signal, False):
                 counter += 1
-                logger.debug(f"Periodic scan tick #{counter} (running={self.running})")
+                ColorPrint.debug(f"Periodic scan tick #{counter} (running={self.running})")
 
                 # Scan if in SECONDARY mode
                 self.scanner.scan_if_needed(interval=self.SCAN_INTERVAL)
@@ -188,25 +186,25 @@ class SimpleTrayMenu:
                 # Sleep for a bit (increased to reduce CPU usage)
                 time.sleep(10)
 
-            logger.info(f"<<< Periodic scan thread ENDED after {counter} ticks")
-            logger.info(f"    Final: self.running={self.running}, icon.visible={icon.visible}")
+            ColorPrint.info(f"<<< Periodic scan thread ENDED after {counter} ticks")
+            ColorPrint.info(f"    Final: self.running={self.running}, icon.visible={icon.visible}")
 
         # Run periodic scan in a separate thread
-        logger.info("Creating periodic scan thread...")
+        ColorPrint.info("Creating periodic scan thread...")
         scan_thread = start_bus_task(
             periodic_scan,
             thread_name="DeviceSyncPeriodicScanThread",
         )
-        logger.info(f"  Thread created: {scan_thread}")
-        logger.info(f"  Thread name: {scan_thread.name}")
-        logger.info(f"  Thread daemon: {scan_thread.daemon}")
+        ColorPrint.info(f"  Thread created: {scan_thread}")
+        ColorPrint.info(f"  Thread name: {scan_thread.name}")
+        ColorPrint.info(f"  Thread daemon: {scan_thread.daemon}")
 
-        logger.info("Starting scan thread...")
-        logger.info(f"  ✓ Thread started, is_alive={scan_thread.is_alive()}")
+        ColorPrint.info("Starting scan thread...")
+        ColorPrint.info(f"  ✓ Thread started, is_alive={scan_thread.is_alive()}")
 
-        logger.info("=" * 70)
-        logger.info("SETUP CALLBACK COMPLETED")
-        logger.info("=" * 70)
+        ColorPrint.info("=" * 70)
+        ColorPrint.info("SETUP CALLBACK COMPLETED")
+        ColorPrint.info("=" * 70)
 
     def _get_title(self) -> str:
         """Get tray icon title based on current mode"""
@@ -229,80 +227,80 @@ class SimpleTrayMenu:
 
     def _create_menu(self):
         """Create tray menu (unified architecture)"""
-        logger.info("  >> _create_menu() called")
-        logger.info("  >> Using method references instead of lambda")
+        ColorPrint.info("  >> _create_menu() called")
+        ColorPrint.info("  >> Using method references instead of lambda")
 
         # Create Mode submenu
-        logger.info("  [a] Creating 'Set as PRIMARY' menu item...")
+        ColorPrint.info("  [a] Creating 'Set as PRIMARY' menu item...")
         item_primary = pystray.MenuItem(
             "Set as PRIMARY",
             self._on_set_primary,
             checked=self._is_primary_checked
         )
-        logger.info(f"      ✓ Created: {item_primary}")
+        ColorPrint.info(f"      ✓ Created: {item_primary}")
 
-        logger.info("  [b] Creating 'Set as SECONDARY' menu item...")
+        ColorPrint.info("  [b] Creating 'Set as SECONDARY' menu item...")
         item_secondary = pystray.MenuItem(
             "Set as SECONDARY",
             self._on_set_secondary,
             checked=self._is_secondary_checked
         )
-        logger.info(f"      ✓ Created: {item_secondary}")
+        ColorPrint.info(f"      ✓ Created: {item_secondary}")
 
-        logger.info("  [c] Creating Mode submenu...")
+        ColorPrint.info("  [c] Creating Mode submenu...")
         mode_menu = pystray.Menu(item_primary, item_secondary)
-        logger.info(f"      ✓ Mode submenu: {mode_menu}")
+        ColorPrint.info(f"      ✓ Mode submenu: {mode_menu}")
 
         # Create other menu items
-        logger.info("  [d] Creating 'Enable API Access' item...")
+        ColorPrint.info("  [d] Creating 'Enable API Access' item...")
         item_api = pystray.MenuItem(
             "Enable API Access",
             self._on_toggle_api,
             checked=self._is_api_enabled_checked,
             enabled=self._is_primary_mode_enabled
         )
-        logger.info(f"      ✓ Created: {item_api}")
+        ColorPrint.info(f"      ✓ Created: {item_api}")
 
-        logger.info("  [e] Creating 'Scan node_modules' item...")
+        ColorPrint.info("  [e] Creating 'Scan node_modules' item...")
         item_scan_nm = pystray.MenuItem(
             "Scan node_modules",
             self._on_toggle_scan_node_modules,
             checked=self._is_scan_nm_checked,
             enabled=self._is_primary_mode_enabled
         )
-        logger.info(f"      ✓ Created: {item_scan_nm}")
+        ColorPrint.info(f"      ✓ Created: {item_scan_nm}")
 
-        logger.info("  [f] Creating 'Enable Sync' item...")
+        ColorPrint.info("  [f] Creating 'Enable Sync' item...")
         item_sync = pystray.MenuItem(
             "Enable Sync",
             self._on_toggle_sync,
             checked=self._is_sync_enabled_checked,
             enabled=self._is_secondary_mode_enabled
         )
-        logger.info(f"      ✓ Created: {item_sync}")
+        ColorPrint.info(f"      ✓ Created: {item_sync}")
 
-        logger.info("  [g] Creating 'Scan Network' item...")
+        ColorPrint.info("  [g] Creating 'Scan Network' item...")
         item_scan_net = pystray.MenuItem(
             "Scan Network",
             self._on_scan_network,
             enabled=self._is_secondary_mode_enabled
         )
-        logger.info(f"      ✓ Created: {item_scan_net}")
+        ColorPrint.info(f"      ✓ Created: {item_scan_net}")
 
-        logger.info("  [h] Creating 'Open Web UI' item...")
+        ColorPrint.info("  [h] Creating 'Open Web UI' item...")
         item_web = pystray.MenuItem("Open Web UI", self._on_open_web)
-        logger.info(f"      ✓ Created: {item_web}")
+        ColorPrint.info(f"      ✓ Created: {item_web}")
 
-        logger.info("  [i] Creating 'Status' item...")
+        ColorPrint.info("  [i] Creating 'Status' item...")
         item_status = pystray.MenuItem("Status", self._on_show_status)
-        logger.info(f"      ✓ Created: {item_status}")
+        ColorPrint.info(f"      ✓ Created: {item_status}")
 
-        logger.info("  [j] Creating 'Exit' item...")
+        ColorPrint.info("  [j] Creating 'Exit' item...")
         item_exit = pystray.MenuItem("Exit", self._on_exit)
-        logger.info(f"      ✓ Created: {item_exit}")
+        ColorPrint.info(f"      ✓ Created: {item_exit}")
 
         # Assemble main menu
-        logger.info("  [k] Assembling main menu...")
+        ColorPrint.info("  [k] Assembling main menu...")
         menu = pystray.Menu(
             pystray.MenuItem("Mode", mode_menu),
             pystray.Menu.SEPARATOR,
@@ -317,9 +315,9 @@ class SimpleTrayMenu:
             pystray.Menu.SEPARATOR,
             item_exit
         )
-        logger.info(f"      ✓ Main menu assembled: {menu}")
+        ColorPrint.info(f"      ✓ Main menu assembled: {menu}")
 
-        logger.info("  << _create_menu() returning")
+        ColorPrint.info("  << _create_menu() returning")
         return menu
 
     # ========== Menu State Check Methods (replace lambda) ==========
@@ -376,13 +374,13 @@ class SimpleTrayMenu:
 
     def _on_set_primary(self):
         """Handle 'Set as PRIMARY' menu click (unified architecture)"""
-        logger.info("User clicked: Set as PRIMARY")
-        logger.info(f"  BEFORE: isPrimaryServer={self.config.isPrimaryServer}, api_enabled={self.config.api_enabled}")
+        ColorPrint.info("User clicked: Set as PRIMARY")
+        ColorPrint.info(f"  BEFORE: isPrimaryServer={self.config.isPrimaryServer}, api_enabled={self.config.api_enabled}")
 
         # Update config (HTTP server continues running)
         self.config.set_as_primary()
 
-        logger.info(f"  AFTER: isPrimaryServer={self.config.isPrimaryServer}, api_enabled={self.config.api_enabled}")
+        ColorPrint.info(f"  AFTER: isPrimaryServer={self.config.isPrimaryServer}, api_enabled={self.config.api_enabled}")
 
         # Disable sync if it was enabled
         if self.config.sync_enabled:
@@ -392,13 +390,13 @@ class SimpleTrayMenu:
         if self.icon:
             self.icon.title = self._get_title()
 
-        logger.info("✓ Set as PRIMARY server (HTTP server continues running)")
-        logger.info(f"  GlobalConfig id: {id(self.config)}")
-        logger.info(f"  Config device_id: {self.config.device_id}")
+        ColorPrint.info("✓ Set as PRIMARY server (HTTP server continues running)")
+        ColorPrint.info(f"  GlobalConfig id: {id(self.config)}")
+        ColorPrint.info(f"  Config device_id: {self.config.device_id}")
 
     def _on_set_secondary(self):
         """Handle 'Set as SECONDARY' menu click (unified architecture)"""
-        logger.info("User clicked: Set as SECONDARY")
+        ColorPrint.info("User clicked: Set as SECONDARY")
 
         # Update config (HTTP server continues running)
         self.config.set_as_secondary()
@@ -410,18 +408,18 @@ class SimpleTrayMenu:
         if self.icon:
             self.icon.title = self._get_title()
 
-        logger.info("✓ Set as SECONDARY (HTTP server continues running, sync disabled by default)")
+        ColorPrint.info("✓ Set as SECONDARY (HTTP server continues running, sync disabled by default)")
 
     def _on_toggle_api(self):
         """Handle 'Enable API Access' menu toggle"""
         if self.config.api_enabled:
-            logger.info("User clicked: Disable API access")
+            ColorPrint.info("User clicked: Disable API access")
             self.config.disable_api()
-            logger.info("✓ API access disabled - /api/status is still accessible")
+            ColorPrint.info("✓ API access disabled - /api/status is still accessible")
         else:
-            logger.info("User clicked: Enable API access")
+            ColorPrint.info("User clicked: Enable API access")
             self.config.enable_api()
-            logger.info("✓ API access enabled - Clients can now sync files")
+            ColorPrint.info("✓ API access enabled - Clients can now sync files")
 
         # Update icon title
         if self.icon:
@@ -430,55 +428,55 @@ class SimpleTrayMenu:
     def _on_toggle_scan_node_modules(self):
         """Handle 'Scan node_modules' menu toggle"""
         if self.config.scan_node_modules:
-            logger.info("User clicked: Disable node_modules scanning")
+            ColorPrint.info("User clicked: Disable node_modules scanning")
             self.config.scan_node_modules = False
             # Clear cache to force rebuild
             self.config.file_cache = []
-            logger.info("✓ node_modules scanning disabled")
+            ColorPrint.info("✓ node_modules scanning disabled")
         else:
-            logger.info("User clicked: Enable node_modules scanning")
+            ColorPrint.info("User clicked: Enable node_modules scanning")
             self.config.scan_node_modules = True
             # Clear cache to force rebuild
             self.config.file_cache = []
-            logger.info("✓ node_modules scanning enabled")
+            ColorPrint.info("✓ node_modules scanning enabled")
 
     def _on_toggle_sync(self):
         """Handle 'Enable Sync' menu toggle (unified architecture)"""
         if self.config.sync_enabled:
-            logger.info("User clicked: Disable sync")
+            ColorPrint.info("User clicked: Disable sync")
             self.config.disable_sync()
-            logger.info("✓ Sync disabled")
+            ColorPrint.info("✓ Sync disabled")
         else:
-            logger.info("User clicked: Enable sync")
+            ColorPrint.info("User clicked: Enable sync")
 
             # Check if sync can be enabled
             if self.config.isPrimaryServer:
-                logger.warning("Cannot enable sync: This is PRIMARY server")
+                ColorPrint.warning("Cannot enable sync: This is PRIMARY server")
                 self._show_message("Cannot Enable Sync", "PRIMARY servers cannot sync")
                 return
 
             # Check PRIMARY server availability
             if len(self.config.primary_servers) == 0:
-                logger.warning("Cannot enable sync: No PRIMARY servers found")
+                ColorPrint.warning("Cannot enable sync: No PRIMARY servers found")
                 self._show_message("Cannot Enable Sync", "No PRIMARY servers found on network")
                 return
 
             if len(self.config.primary_servers) > 1:
-                logger.warning(f"Cannot enable sync: Multiple PRIMARY servers found ({len(self.config.primary_servers)})")
+                ColorPrint.warning(f"Cannot enable sync: Multiple PRIMARY servers found ({len(self.config.primary_servers)})")
                 self._show_message("Cannot Enable Sync", f"Multiple PRIMARY servers found ({len(self.config.primary_servers)}). Only one allowed.")
                 return
 
             # Check if trying to connect to self
             primary = self.config.primary_servers[0]
             if primary['ip'] == self.config.local_ip:
-                logger.warning("Cannot enable sync: Cannot connect to self")
+                ColorPrint.warning("Cannot enable sync: Cannot connect to self")
                 self._show_message("Cannot Enable Sync", "Cannot sync to self")
                 return
 
             # Enable sync
             self.config.enable_sync()
             self.config.primary_server_ip = primary['ip']
-            logger.info(f"✓ Sync enabled - Connected to {primary['ip']}")
+            ColorPrint.info(f"✓ Sync enabled - Connected to {primary['ip']}")
 
         # Update icon title
         if self.icon:
@@ -486,7 +484,7 @@ class SimpleTrayMenu:
 
     def _on_scan_network(self):
         """Handle 'Scan Network' menu click"""
-        logger.info("User clicked: Scan Network")
+        ColorPrint.info("User clicked: Scan Network")
 
         # Force immediate scan
         self.scanner.scan_if_needed(force=True)
@@ -509,17 +507,17 @@ class SimpleTrayMenu:
 
     def _on_open_web(self):
         """Handle 'Open Web UI' menu click"""
-        logger.info("User clicked: Open Web UI")
+        ColorPrint.info("User clicked: Open Web UI")
 
         # Build URL
         url = f"http://{self.config.local_ip or 'localhost'}:{self.config.http_port}/"
-        logger.info(f"Opening Web UI: {url}")
+        ColorPrint.info(f"Opening Web UI: {url}")
 
         webbrowser.open(url)
 
     def _on_show_status(self):
         """Handle 'Status' menu click (unified architecture)"""
-        logger.info("User clicked: Status")
+        ColorPrint.info("User clicked: Status")
 
         status = self.config.get_status()
 
@@ -569,8 +567,8 @@ Online Devices: {status['online_devices_count']}"""
 
     def _on_exit(self):
         """Handle 'Exit' menu click"""
-        logger.info("User clicked: Exit")
-        logger.info("Exiting Device Sync...")
+        ColorPrint.info("User clicked: Exit")
+        ColorPrint.info("Exiting Device Sync...")
         self.stop()
 
     def _show_message(self, title: str, message: str):

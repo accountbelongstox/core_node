@@ -4,6 +4,7 @@ Editor Launcher
 Handles launching Chrome/VSCode/Antigravity windows
 """
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.script_generator import ScriptGenerator
 from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor
 import sys
@@ -93,11 +94,11 @@ class EditorLauncher:
             )
             bat_files.append(bat_path)
             
-            print(f"Created batch file for {app_name} {i}: {bat_path}")
+            ColorPrint.plain(f"Created batch file for {app_name} {i}: {bat_path}")
         
         # Launch windows
         for i, bat_path in enumerate(bat_files, 1):
-            print(f"Launching {app_name} window {i}...")
+            ColorPrint.plain(f"Launching {app_name} window {i}...")
             self.executor.execute_bat_file(bat_path, independent=True)
             time.sleep(delay)
 
@@ -115,7 +116,7 @@ class EditorLauncher:
             if binary:
                 break
         if not binary:
-            print(f"  {app_name}: no binary found on PATH (Linux) -- skipping")
+            ColorPrint.plain(f"  {app_name}: no binary found on PATH (Linux) -- skipping")
             return []
 
         launched = []
@@ -124,11 +125,11 @@ class EditorLauncher:
             argv = [binary, '--new-window']
             if file_path:
                 argv.append(str(file_path))
-            print(f"Launching {app_name} window {i} ({binary})...")
+            ColorPrint.plain(f"Launching {app_name} window {i} ({binary})...")
             try:
                 subprocess.Popen(argv, start_new_session=True, close_fds=True)
             except Exception as e:
-                print(f"  Failed to launch {app_name}: {e}")
+                ColorPrint.plain(f"  Failed to launch {app_name}: {e}")
             launched.append(binary)
             time.sleep(delay)
         return launched

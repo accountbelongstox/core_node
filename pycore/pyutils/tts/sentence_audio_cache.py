@@ -30,7 +30,7 @@ import hashlib
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import map_web_path
@@ -152,6 +152,25 @@ def store_result(
     return store(key, fmt or "mp3", data_bytes)
 
 
+def statistics() -> Dict[str, Any]:
+    """Return file-derived cache counts without maintaining a separate index."""
+    total_entries = 0
+    total_size = 0
+    for path in cache_dir().iterdir():
+        if not path.is_file() or path.name.endswith(".tmp"):
+            continue
+        try:
+            total_size += path.stat().st_size
+            total_entries += 1
+        except OSError:
+            continue
+    return {
+        "total_entries": total_entries,
+        "total_cache_size_bytes": total_size,
+        "total_cache_size_mb": total_size / (1024 * 1024),
+    }
+
+
 __all__ = [
     "cache_dir",
     "make_key",
@@ -159,4 +178,5 @@ __all__ = [
     "store",
     "lookup_or_none",
     "store_result",
+    "statistics",
 ]

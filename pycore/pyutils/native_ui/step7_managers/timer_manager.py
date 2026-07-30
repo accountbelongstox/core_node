@@ -15,26 +15,23 @@ Features:
 - Singleton pattern for global access
 
 Usage:
-    from pycore.pyutils.native_ui.step7_managers.timer_manager import get_timer_manager
-
-    # Get singleton instance
-    manager = get_timer_manager()
+    from pycore.pyutils.native_ui.step7_managers.timer_manager import timer_manager
 
     # Register a task
     def my_task():
         print("Task executed")
 
-    manager.register_task("my_task", interval=5.0, callback=my_task)
+    timer_manager.register_task("my_task", interval=5.0, callback=my_task)
 
     # Start manager
-    manager.start()
+    timer_manager.start()
 
     # Enable/disable task
-    manager.enable_task("my_task")
-    manager.disable_task("my_task")
+    timer_manager.enable_task("my_task")
+    timer_manager.disable_task("my_task")
 
     # Stop manager
-    manager.stop()
+    timer_manager.stop()
 
 Author: Extracted from d3-check, adapted for pycore
 """
@@ -371,21 +368,12 @@ _TIMER_MANAGER_PROVIDER = SerializedSingletonProvider(
     "TimerManagerProvider",
 )
 
-
-# Factory function for convenience
-def get_timer_manager() -> TimerManager:
-    """
-    Get the singleton TimerManager instance
-
-    Returns:
-        TimerManager singleton instance
-    """
-    return _TIMER_MANAGER_PROVIDER.get()
+timer_manager = _TIMER_MANAGER_PROVIDER.get()
 
 
 # Export
 __all__ = [
     'TimerManager',
     'TimerTask',
-    'get_timer_manager'
+    'timer_manager',
 ]

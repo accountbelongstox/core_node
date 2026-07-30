@@ -26,7 +26,7 @@ pdfplumber = get_third_package_pdfplumber()
 python_docx = get_third_package_python_docx()
 openpyxl = get_third_package_openpyxl()
 python_pptx = get_third_package_python_pptx()
-from pycore.pyfoundations.pygvar.global_var_manager import PYTOOLS_TMP_DIR
+from pycore.pyfoundations.pygvar import PYTOOLS_TMP_DIR
 
 logger = logging.getLogger(__name__)
 

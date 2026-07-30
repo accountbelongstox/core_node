@@ -25,7 +25,7 @@ Design notes
   reload flag rides through os.execv (sys.argv is preserved), so the choice stays
   on across restarts.
 - Logs the EXACT file and change kind that triggered the restart (not a generic
-  "files changed"), and routes through ColorPrint so it also reaches the live WS
+  "files changed"), and routes through ColorPrint so it also reaches live HTTP events
   log bridge.
 """
 

@@ -43,7 +43,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.window.activator import WindowActivator
 from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.common.browser_window_detector import get_default_skip_browser_callable
-from pycore.pyfoundations.pygvar.global_var_manager import PYTOOLS_TMP_DIR
+from pycore.pyfoundations.pygvar import PYTOOLS_TMP_DIR
 import pycore.pyutils.window.grid_capture as grid_capture
 import pycore.pyutils.window.screen_capture as screen_capture
 from pycore.pyutils.window.grid_capture import is_rect_minimized_or_offscreen

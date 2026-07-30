@@ -17,14 +17,12 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Optional
 
-from ..core.config import get_global_config, DEFAULT_ROOT_DIR
-from ..core.logging import setup_logging
-from ..core.database import get_sync_database
+from pycore.pyutils.launcher.device_sync.core.config import get_global_config, DEFAULT_ROOT_DIR
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.launcher.device_sync.core.database import get_sync_record_store
 
 import time
 
-
-logger = setup_logging(__name__)
 
 
 class UnifiedHTTPHandler(BaseHTTPRequestHandler):
@@ -36,7 +34,7 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         """Override to use our logger"""
-        logger.debug(f"{self.address_string()} - {format % args}")
+        ColorPrint.debug(f"{self.address_string()} - {format % args}")
 
     def do_GET(self):
         """Handle GET requests (mode-aware)"""
@@ -92,23 +90,23 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
     def _handle_dashboard(self):
         """Handle / - Unified dashboard showing current mode"""
         config = get_global_config()
-        db = get_sync_database()
+        record_store = get_sync_record_store()
 
         # Log current config state for debugging
-        logger.info(f"_handle_dashboard: config id={id(config)}, isPrimaryServer={config.isPrimaryServer}, api_enabled={config.api_enabled}")
+        ColorPrint.info(f"_handle_dashboard: config id={id(config)}, isPrimaryServer={config.isPrimaryServer}, api_enabled={config.api_enabled}")
 
         mode = "PRIMARY SERVER" if config.isPrimaryServer else "SECONDARY CLIENT"
         mode_color = "#27ae60" if config.isPrimaryServer else "#3498db"
 
         # Get statistics
-        db_stats = db.get_stats()
-        recent_transfers = db.get_recent_transfers(limit=10)
+        sync_stats = record_store.get_stats()
+        recent_transfers = record_store.get_recent_transfers(limit=10)
 
         # Build mode-specific content
         if config.isPrimaryServer:
-            mode_content = self._build_primary_content(config, db_stats)
+            mode_content = self._build_primary_content(config, sync_stats)
         else:
-            mode_content = self._build_secondary_content(config, db_stats)
+            mode_content = self._build_secondary_content(config, sync_stats)
 
         # Build transfers table
         transfers_html = ""
@@ -194,7 +192,7 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
                         <div class="stat-label">Total Scans</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-number">{db_stats['total_transfers']}</div>
+                        <div class="stat-number">{sync_stats['total_transfers']}</div>
                         <div class="stat-label">Transfers</div>
                     </div>
                     <div class="stat-box">
@@ -223,7 +221,7 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(html.encode('utf-8'))
 
-    def _build_primary_content(self, config, db_stats) -> str:
+    def _build_primary_content(self, config, sync_stats) -> str:
         """Build PRIMARY mode specific content"""
         # Connected clients
         clients_html = ""
@@ -264,7 +262,7 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
         </div>
         """
 
-    def _build_secondary_content(self, config, db_stats) -> str:
+    def _build_secondary_content(self, config, sync_stats) -> str:
         """Build SECONDARY mode specific content"""
         # Primary servers
         servers_html = ""
@@ -309,7 +307,7 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
         config = get_global_config()
 
         # Log current config state for debugging
-        logger.debug(f"_handle_status: isPrimaryServer={config.isPrimaryServer}, api_enabled={config.api_enabled}")
+        ColorPrint.debug(f"_handle_status: isPrimaryServer={config.isPrimaryServer}, api_enabled={config.api_enabled}")
 
         status = {
             'mode': 'primary' if config.isPrimaryServer else 'secondary',
@@ -336,7 +334,7 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
     def _handle_files_list(self):
         """Handle /api/files - Return file list (PRIMARY mode only)"""
         config = get_global_config()
-        db = get_sync_database()
+        record_store = get_sync_record_store()
 
         # Check API access permission
         if not config.api_enabled:
@@ -345,7 +343,7 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
 
         # Record connection
         client_ip = self.client_address[0]
-        db.record_connection('client_connect', client_ip, request_path='/api/files')
+        record_store.record_connection('client_connect', client_ip, request_path='/api/files')
 
         client_info = {'ip': client_ip, 'last_seen': time.time()}
         config.upsert_connected_client(client_info)
@@ -356,14 +354,14 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
 
         # Build file cache if needed
         if not config.file_cache:
-            logger.info("Building file cache...")
+            ColorPrint.info("Building file cache...")
             start_time = time.time()
             config.build_file_cache()
             duration = time.time() - start_time
-            logger.info(f"File cache built: {len(config.file_cache)} files")
+            ColorPrint.info(f"File cache built: {len(config.file_cache)} files")
 
             # Record scan
-            db.record_scan(
+            record_store.record_scan(
                 scan_type='full',
                 files_found=len(config.file_cache),
                 duration_seconds=duration,
@@ -381,7 +379,7 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
     def _handle_file_download(self, path):
         """Handle /api/file/{path} - Download file (PRIMARY mode only)"""
         config = get_global_config()
-        db = get_sync_database()
+        record_store = get_sync_record_store()
         client_ip = self.client_address[0]
 
         # Check API access permission
@@ -396,12 +394,12 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
         full_path = config.root_dir / file_path
 
         if not full_path.exists():
-            db.record_transfer(None, 'download', file_path, 0, 'failed', client_ip, 'File not found')
+            record_store.record_transfer(None, 'download', file_path, 0, 'failed', client_ip, 'File not found')
             self.send_error(404, "File not found")
             return
 
         if not full_path.is_file():
-            db.record_transfer(None, 'download', file_path, 0, 'failed', client_ip, 'Not a file')
+            record_store.record_transfer(None, 'download', file_path, 0, 'failed', client_ip, 'Not a file')
             self.send_error(400, "Not a file")
             return
 
@@ -410,7 +408,7 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
             with open(full_path, 'rb') as f:
                 content = f.read()
 
-            db.record_transfer(None, 'download', file_path, len(content), 'success', client_ip)
+            record_store.record_transfer(None, 'download', file_path, len(content), 'success', client_ip)
 
             self.send_response(200)
             self.send_header('Content-Type', 'application/octet-stream')
@@ -418,11 +416,11 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(content)
 
-            logger.info(f"File downloaded by {client_ip}: {file_path} ({len(content)} bytes)")
+            ColorPrint.info(f"File downloaded by {client_ip}: {file_path} ({len(content)} bytes)")
 
         except Exception as e:
-            db.record_transfer(None, 'download', file_path, 0, 'failed', client_ip, str(e))
-            logger.error(f"Failed to send file {file_path}: {e}")
+            record_store.record_transfer(None, 'download', file_path, 0, 'failed', client_ip, str(e))
+            ColorPrint.error(f"Failed to send file {file_path}: {e}")
             self.send_error(500, f"Failed to read file: {e}")
 
     # ========== SECONDARY Mode Handlers ==========
@@ -527,10 +525,10 @@ class UnifiedHTTPServer:
         Server runs in main thread, tray runs on top of it.
         """
         if self.running:
-            logger.warning("Server already running")
+            ColorPrint.warning("Server already running")
             return
 
-        logger.info(f"Starting unified HTTP server on port {self.config.http_port}...")
+        ColorPrint.info(f"Starting unified HTTP server on port {self.config.http_port}...")
 
         try:
             # Create HTTP server
@@ -543,12 +541,12 @@ class UnifiedHTTPServer:
             self.running = True
             self.config.server_running = True
 
-            logger.info(f"✓ Unified HTTP server started on {self.config.local_ip}:{self.config.http_port}")
-            logger.info(f"  Current mode: {'PRIMARY' if self.config.isPrimaryServer else 'SECONDARY'}")
-            logger.info(f"  Dashboard: http://{self.config.local_ip}:{self.config.http_port}/")
+            ColorPrint.info(f"✓ Unified HTTP server started on {self.config.local_ip}:{self.config.http_port}")
+            ColorPrint.info(f"  Current mode: {'PRIMARY' if self.config.isPrimaryServer else 'SECONDARY'}")
+            ColorPrint.info(f"  Dashboard: http://{self.config.local_ip}:{self.config.http_port}/")
 
         except Exception as e:
-            logger.error(f"Failed to start server: {e}", exc_info=True)
+            ColorPrint.error(f"Failed to start server: {e}")
             self.running = False
             raise
 
@@ -564,9 +562,9 @@ class UnifiedHTTPServer:
         try:
             self.server.serve_forever()
         except KeyboardInterrupt:
-            logger.info("Server interrupted by user")
+            ColorPrint.info("Server interrupted by user")
         except Exception as e:
-            logger.error(f"Server error: {e}", exc_info=True)
+            ColorPrint.error(f"Server error: {e}")
         finally:
             self.stop()
 
@@ -575,7 +573,7 @@ class UnifiedHTTPServer:
         if not self.running:
             return
 
-        logger.info("Stopping unified HTTP server...")
+        ColorPrint.info("Stopping unified HTTP server...")
 
         self.running = False
 
@@ -585,7 +583,7 @@ class UnifiedHTTPServer:
 
         self.config.server_running = False
 
-        logger.info("Unified HTTP server stopped")
+        ColorPrint.info("Unified HTTP server stopped")
 
     def is_running(self) -> bool:
         """Check if server is running"""

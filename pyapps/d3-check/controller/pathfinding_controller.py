@@ -29,8 +29,8 @@ sys.path.insert(0, controller_path)
 
 # Project imports
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.image_annotator import ImageAnnotator
-from pycore.pyutils.image_crop import ImageCrop
+from pycore.pyutils.image_tools.image_annotator import ImageAnnotator
+from pycore.pyutils.image_tools.image_crop import ImageCrop
 from d3utils.cnocr_engine_registry import get_cnocr_engine_default
 from d3utils.collectors.grid_screenshot_collector import GridScreenshotCollector, get_grid_screenshot_collector
 from d3utils.state_aware_click_handler import get_state_aware_click_handler

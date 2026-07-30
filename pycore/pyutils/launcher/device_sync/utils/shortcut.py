@@ -8,6 +8,7 @@ This creates a desktop shortcut that launches Device Sync in background mode.
 import sys
 import os
 from pathlib import Path
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def create_desktop_shortcut():
@@ -15,8 +16,8 @@ def create_desktop_shortcut():
     try:
         pass
     except ImportError:
-        print("Error: pywin32 not installed")
-        print("Install with: pip install pywin32")
+        ColorPrint.plain("Error: pywin32 not installed")
+        ColorPrint.plain("Install with: pip install pywin32")
         return False
 
     # Get desktop path
@@ -32,7 +33,7 @@ def create_desktop_shortcut():
     # Fallback to python.exe if pythonw not found
     if not pythonw_exe.exists():
         pythonw_exe = Path(sys.executable)
-        print(f"Warning: pythonw.exe not found, using {pythonw_exe.name}")
+        ColorPrint.plain(f"Warning: pythonw.exe not found, using {pythonw_exe.name}")
 
     # Arguments
     arguments = '-m pycore.pyutils.launcher.device_sync'
@@ -56,24 +57,24 @@ def create_desktop_shortcut():
     shortcut.Description = "Device Sync - File Synchronization Tool"
     shortcut.save()
 
-    print(f"Shortcut created: {shortcut_path}")
-    print(f"Target: {pythonw_exe}")
-    print(f"Arguments: {arguments}")
-    print("\nDouble-click to start Device Sync in background")
+    ColorPrint.plain(f"Shortcut created: {shortcut_path}")
+    ColorPrint.plain(f"Target: {pythonw_exe}")
+    ColorPrint.plain(f"Arguments: {arguments}")
+    ColorPrint.plain("\nDouble-click to start Device Sync in background")
 
     return True
 
 
 if __name__ == '__main__':
-    print("Creating Device Sync Desktop Shortcut...")
-    print("=" * 60)
+    ColorPrint.plain("Creating Device Sync Desktop Shortcut...")
+    ColorPrint.plain("=" * 60)
 
     if create_desktop_shortcut():
-        print("\nSuccess! Shortcut created on desktop")
-        print("Double-click 'Device Sync' to start")
+        ColorPrint.plain("\nSuccess! Shortcut created on desktop")
+        ColorPrint.plain("Double-click 'Device Sync' to start")
     else:
-        print("\nFailed to create shortcut")
-        print("You can still run manually with:")
-        print("  python -m pycore.pyutils.launcher.device_sync")
+        ColorPrint.plain("\nFailed to create shortcut")
+        ColorPrint.plain("You can still run manually with:")
+        ColorPrint.plain("  python -m pycore.pyutils.launcher.device_sync")
 
     input("\nPress Enter to exit...")

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 import copy
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     init_serialized_owner,
@@ -134,19 +135,19 @@ class RoutesConfig:
     @serialized_method
     def print_routes(self) -> None:
         """Print all registered routes"""
-        print("\n" + "=" * 80)
-        print("Registered Routes")
-        print("=" * 80)
+        ColorPrint.plain("\n" + "=" * 80)
+        ColorPrint.plain("Registered Routes")
+        ColorPrint.plain("=" * 80)
 
         for method in HTTPMethod:
             method_routes = self.get_routes_by_method(method)
             if method_routes:
-                print(f"\n{method.value}:")
+                ColorPrint.plain(f"\n{method.value}:")
                 for route in method_routes:
                     desc = f" - {route.description}" if route.description else ""
-                    print(f"  {route.path}{desc}")
+                    ColorPrint.plain(f"  {route.path}{desc}")
 
-        print("=" * 80 + "\n")
+        ColorPrint.plain("=" * 80 + "\n")
 
 
 _ROUTES_CONFIG_PROVIDER = SerializedSingletonProvider(

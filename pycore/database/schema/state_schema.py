@@ -23,6 +23,7 @@ def _create_operations_table(cursor: sqlite3.Cursor) -> None:
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_operations_status ON operations(status)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_operations_kind_scope ON operations(kind, scope)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_operations_scope ON operations(scope)")
 
 def _create_operation_items_table(cursor: sqlite3.Cursor) -> None:
     cursor.execute("""

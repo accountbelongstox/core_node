@@ -3,8 +3,7 @@
 """
 Database Base Class
 
-Provides base database functionality for SQLite operations.
-This is a foundation module - only uses Python standard library.
+Provides database-owned base functionality for SQLite operations.
 """
 
 import sqlite3

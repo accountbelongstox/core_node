@@ -14,7 +14,7 @@ from typing import Literal, Tuple, Optional, Dict
 from pathlib import Path
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from pycore.pyutils.native_ui.step2_port_url.server_manager import get_server_manager
+from pycore.pyutils.native_ui.step2_port_url.server_manager import server_manager
 
 
 
@@ -149,7 +149,7 @@ class URLHandler:
         """
 
         app_name = url
-        server_mgr = get_server_manager()
+        server_mgr = server_manager
 
         if self.debug:
             ColorPrint.blue(f"[URLHandler] Processing Nuxt app: {app_name}")
@@ -214,7 +214,7 @@ class URLHandler:
         """
 
         dist_path = Path(url).resolve()
-        server_mgr = get_server_manager()
+        server_mgr = server_manager
 
         if self.debug:
             ColorPrint.blue(f"[URLHandler] Processing Vue dist: {dist_path}")

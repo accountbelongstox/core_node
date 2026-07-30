@@ -11,6 +11,7 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 
@@ -175,7 +176,7 @@ class AppFinder:
                 json.dump(self.cache, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
-            print(f"Error: Failed to save cache: {e}")
+            ColorPrint.plain(f"Error: Failed to save cache: {e}")
             return False
     
     def expand_path(self, path):
@@ -441,20 +442,20 @@ class AppFinder:
 
         source_dir = self._find_native_chrome_application_dir()
         if source_dir is None:
-            print('Warning: native Chrome installation not found; cannot copy to portable path.')
+            ColorPrint.plain('Warning: native Chrome installation not found; cannot copy to portable path.')
             return None
 
         dest_dir = self.CHROME_PORTABLE_APPLICATION_DIR
         dest_dir.parent.mkdir(parents=True, exist_ok=True)
-        print(f'Copying Chrome from {source_dir} to {dest_dir} ...')
+        ColorPrint.plain(f'Copying Chrome from {source_dir} to {dest_dir} ...')
         shutil.copytree(source_dir, dest_dir, dirs_exist_ok=True)
 
         portable_exe = self.CHROME_PORTABLE_EXE
         if not portable_exe.is_file():
-            print(f'Warning: portable Chrome copy finished but {portable_exe} is missing.')
+            ColorPrint.plain(f'Warning: portable Chrome copy finished but {portable_exe} is missing.')
             return None
 
-        print(f'Portable Chrome ready: {portable_exe}')
+        ColorPrint.plain(f'Portable Chrome ready: {portable_exe}')
         return str(portable_exe.resolve())
 
     def find_portable_chrome(self, force_refresh: bool = False) -> Optional[str]:

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Optional, Callable
 
 import traceback
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 
@@ -84,7 +85,7 @@ class RobustDownloader:
                 start_byte = 0
                 if resume and temp_path.exists():
                     start_byte = temp_path.stat().st_size
-                    print(f"[RobustDownloader] Resuming from {start_byte} bytes")
+                    ColorPrint.plain(f"[RobustDownloader] Resuming from {start_byte} bytes")
 
                 # Create request with Range header for resume
                 request = urllib.request.Request(url)
@@ -105,7 +106,7 @@ class RobustDownloader:
                         total_size = int(content_length)
                         if start_byte > 0:
                             # Server doesn't support Range, restart download
-                            print(f"[RobustDownloader] Server doesn't support resume, restarting...")
+                            ColorPrint.plain(f"[RobustDownloader] Server doesn't support resume, restarting...")
                             if temp_path.exists():
                                 temp_path.unlink()
                             start_byte = 0
@@ -139,7 +140,7 @@ class RobustDownloader:
                         dest_path.unlink()
                     temp_path.rename(dest_path)
 
-                    print(f"\n[RobustDownloader] Download complete: {dest_path.name} ({downloaded} bytes)")
+                    ColorPrint.plain(f"\n[RobustDownloader] Download complete: {dest_path.name} ({downloaded} bytes)")
                     return True
 
             except urllib.error.HTTPError as e:
@@ -149,31 +150,31 @@ class RobustDownloader:
                         if dest_path.exists():
                             dest_path.unlink()
                         temp_path.rename(dest_path)
-                        print(f"[RobustDownloader] File already downloaded")
+                        ColorPrint.plain(f"[RobustDownloader] File already downloaded")
                         return True
                     else:
                         # Restart download
                         if temp_path.exists():
                             temp_path.unlink()
-                        print(f"[RobustDownloader] Range error, restarting download...")
+                        ColorPrint.plain(f"[RobustDownloader] Range error, restarting download...")
                         continue
 
-                print(f"[RobustDownloader] HTTP error {e.code}: {e.reason}")
+                ColorPrint.plain(f"[RobustDownloader] HTTP error {e.code}: {e.reason}")
 
             except (urllib.error.URLError, IOError, OSError) as e:
-                print(f"[RobustDownloader] Download error: {e}")
+                ColorPrint.plain(f"[RobustDownloader] Download error: {e}")
 
             except Exception as e:
-                print(f"[RobustDownloader] Unexpected error: {e}")
+                ColorPrint.plain(f"[RobustDownloader] Unexpected error: {e}")
                 traceback.print_exc()
 
             # Retry with exponential backoff
             if attempt < self.max_retries:
                 delay = min(self.retry_delay * (2 ** (attempt - 1)), self.max_retry_delay)
-                print(f"[RobustDownloader] Retry {attempt}/{self.max_retries} in {delay:.1f}s...")
+                ColorPrint.plain(f"[RobustDownloader] Retry {attempt}/{self.max_retries} in {delay:.1f}s...")
                 time.sleep(delay)
             else:
-                print(f"[RobustDownloader] ✗ Download failed after {self.max_retries} attempts")
+                ColorPrint.plain(f"[RobustDownloader] ✗ Download failed after {self.max_retries} attempts")
 
         # Cleanup temp file on failure
         if temp_path.exists():
@@ -207,7 +208,7 @@ def download_with_progress(
             percent = (downloaded / total) * 100
             mb_downloaded = downloaded / 1024 / 1024
             mb_total = total / 1024 / 1024
-            print(f"\r[Download] Attempt {attempt}/{max_retries}: {percent:.1f}% ({mb_downloaded:.1f}/{mb_total:.1f} MB)", end='')
+            ColorPrint.plain(f"\r[Download] Attempt {attempt}/{max_retries}: {percent:.1f}% ({mb_downloaded:.1f}/{mb_total:.1f} MB)", end='')
 
     return downloader.download(url, dest_path, progress_callback)
 

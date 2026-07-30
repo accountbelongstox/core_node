@@ -16,14 +16,19 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Set, Optional, Tuple
 
-from .runtime import (
+from pycore.pyutils.codesync.runtime import (
     get_core_node_root,
     init_serialized_owner,
     log as ColorPrint,
     serialized_method,
 )
 
-from .sync_settings import build_excluder
+from pycore.pyutils.codesync.sync_settings import (
+    PRESET_EXCLUDED_DIRS,
+    PRESET_EXCLUDED_EXTENSIONS,
+    PRESET_EXCLUDED_FILES,
+    build_excluder,
+)
 
 
 
@@ -88,14 +93,9 @@ class CodeSyncServer:
     # (single source of truth), overlaid at runtime by the per-machine .data
     # override. These class attrs mirror the presets for back-compat with any code
     # that still reads them directly; live scans use sync_settings.build_excluder().
-    from .sync_settings import (
-        PRESET_EXCLUDED_DIRS as _PD,
-        PRESET_EXCLUDED_FILES as _PF,
-        PRESET_EXCLUDED_EXTENSIONS as _PE,
-    )
-    EXCLUDED_DIRS = set(_PD)
-    EXCLUDED_FILES = set(_PF)
-    EXCLUDED_EXTENSIONS = set(_PE)
+    EXCLUDED_DIRS = set(PRESET_EXCLUDED_DIRS)
+    EXCLUDED_FILES = set(PRESET_EXCLUDED_FILES)
+    EXCLUDED_EXTENSIONS = set(PRESET_EXCLUDED_EXTENSIONS)
 
     def __init__(self, root_dir: str = None, scan_interval: int = 5):
         """
@@ -295,7 +295,7 @@ class CodeSyncServer:
     def set_client_baseline(self, client_id: str) -> int:
         """Mark a client as ALREADY in sync with the CURRENT tree without sending
         anything — only files created/modified afterwards count as changes. This is
-        the WS-push model: we never bulk-ship the existing tree, we only push deltas
+        the HTTP-push model: we never bulk-ship the existing tree, we only push deltas
         (and the receiver skips any file whose hash already matches). Returns the
         baseline file count."""
         self._scan_if_needed()

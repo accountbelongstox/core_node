@@ -1,88 +1,89 @@
 # -*- coding: utf-8 -*-
 """RPC Routes for video_extract — native UI path (no router.invoke)."""
 
-import asyncio
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.callmodule.controllers.local_processing.video_extract_controller import VideoExtractController
+from pycore.pyctl.desktop.video_extract_service import video_extract_service
+from pycore.pyctl.desktop.video_extract_models import (
+    VideoExtractOpenRequest,
+    VideoExtractRequest,
+    VideoExtractSegmentsRequest,
+)
 from pycore.callmodule.rpc_routes.route_names import (
     UI_VIDEO_EXTRACT_CAPABILITIES,
+    UI_VIDEO_EXTRACT_OPEN,
+    UI_VIDEO_EXTRACT_PREVIEW,
+    UI_VIDEO_EXTRACT_START,
+    UI_VIDEO_EXTRACT_SEGMENTS,
     UI_VIDEO_EXTRACT_GET_TASK,
     UI_VIDEO_EXTRACT_CANCEL_TASK,
     UI_VIDEO_EXTRACT_PAUSE_TASK,
     UI_VIDEO_EXTRACT_RESUME_TASK,
 )
-from pycore.pyctl.desktop.task_manager import get_task_manager
-
-_controller = VideoExtractController()
-
-
-def _get_task_sync(task_id: str):
-    task = get_task_manager().get_task(task_id)
-    if not task:
-        return {"success": False, "error": "task not found"}
-    return {"success": True, "task": task.to_dict()}
-
-
-def _flag_task(task_id: str, attr: str, value, message: str):
-    task = get_task_manager().get_task(task_id)
-    if not task:
-        return {"success": False, "error": "task not found"}
-    setattr(task, attr, value)
-    return {"success": True, "message": message}
+from pycore.pyctl.desktop.task_manager import task_manager
 
 
 def register_local_video_extract_routes(server):
-    """Register WS RPC handlers."""
+    """Register HTTP controllers."""
 
-    async def capabilities_handler(params, request_id, context):
-        return await asyncio.to_thread(_controller.capabilities)
+    server.route(
+        name=UI_VIDEO_EXTRACT_CAPABILITIES,
+        handler=video_extract_service.capabilities,
+    )
 
-    server.route(name=UI_VIDEO_EXTRACT_CAPABILITIES, handler=capabilities_handler, sync=False)
+    def open_handler(params, request_id, context):
+        return video_extract_service.open(VideoExtractOpenRequest(**(params or {})))
 
-    async def get_task_handler(params, request_id, context):
+    def preview_handler(params, request_id, context):
+        return video_extract_service.preview(VideoExtractRequest(**(params or {})))
+
+    def start_handler(params, request_id, context):
+        return video_extract_service.start(VideoExtractRequest(**(params or {})))
+
+    def segments_handler(params, request_id, context):
+        return video_extract_service.segments(VideoExtractSegmentsRequest(**(params or {})))
+
+    server.route(name=UI_VIDEO_EXTRACT_OPEN, handler=open_handler)
+    server.route(name=UI_VIDEO_EXTRACT_PREVIEW, handler=preview_handler)
+    server.route(name=UI_VIDEO_EXTRACT_START, handler=start_handler)
+    server.route(name=UI_VIDEO_EXTRACT_SEGMENTS, handler=segments_handler)
+
+    def get_task_handler(params, request_id, context):
         params = params or {}
         task_id = str(params.get("task_id") or params.get("id") or "")
         if not task_id:
             return {"success": False, "error": "task_id is required"}
-        return await asyncio.to_thread(_get_task_sync, task_id)
+        return task_manager.get_task_response(task_id)
 
-    server.route(name=UI_VIDEO_EXTRACT_GET_TASK, handler=get_task_handler, sync=False)
+    server.route(name=UI_VIDEO_EXTRACT_GET_TASK, handler=get_task_handler)
 
-    async def cancel_task_handler(params, request_id, context):
+    def cancel_task_handler(params, request_id, context):
         params = params or {}
         task_id = str(params.get("task_id") or params.get("id") or "")
         if not task_id:
             return {"success": False, "error": "task_id is required"}
-        return await asyncio.to_thread(
-            _flag_task, task_id, "_cancel", True, "cancel requested",
-        )
+        return task_manager.cancel_task(task_id)
 
-    server.route(name=UI_VIDEO_EXTRACT_CANCEL_TASK, handler=cancel_task_handler, sync=False)
+    server.route(name=UI_VIDEO_EXTRACT_CANCEL_TASK, handler=cancel_task_handler)
 
-    async def pause_task_handler(params, request_id, context):
+    def pause_task_handler(params, request_id, context):
         params = params or {}
         task_id = str(params.get("task_id") or params.get("id") or "")
         if not task_id:
             return {"success": False, "error": "task_id is required"}
-        return await asyncio.to_thread(
-            _flag_task, task_id, "_pause", True, "pause requested",
-        )
+        return task_manager.pause_task(task_id)
 
-    server.route(name=UI_VIDEO_EXTRACT_PAUSE_TASK, handler=pause_task_handler, sync=False)
+    server.route(name=UI_VIDEO_EXTRACT_PAUSE_TASK, handler=pause_task_handler)
 
-    async def resume_task_handler(params, request_id, context):
+    def resume_task_handler(params, request_id, context):
         params = params or {}
         task_id = str(params.get("task_id") or params.get("id") or "")
         if not task_id:
             return {"success": False, "error": "task_id is required"}
-        return await asyncio.to_thread(
-            _flag_task, task_id, "_pause", False, "resume requested",
-        )
+        return task_manager.resume_task(task_id)
 
-    server.route(name=UI_VIDEO_EXTRACT_RESUME_TASK, handler=resume_task_handler, sync=False)
+    server.route(name=UI_VIDEO_EXTRACT_RESUME_TASK, handler=resume_task_handler)
 
     ColorPrint.green("[ConfigBuilder] Registered video_extract RPC routes")
 
 
-__all__ = ["register_local_video_extract_routes"]

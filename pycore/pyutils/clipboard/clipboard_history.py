@@ -1,201 +1,204 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Clipboard History Manager
+"""File-backed clipboard history for local synchronization."""
 
-Stores clipboard history using database.
-Supports multi-device synchronization.
-
-Note: This is a lightweight wrapper that uses the database for persistence.
-The actual data is stored in the clipboard database via ClipboardHistoryModel.
-"""
-
+import hashlib
 import time
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
 )
+from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
+from pycore.pyutils.common.user_data_store import UserDataStore
+
+
+CLIPBOARD_HISTORY_FILE_NAME = "clipboard_history.json"
+CLIPBOARD_HISTORY_SECTION = "clipboard_history"
+DEFAULT_MAX_ITEMS = 1000
 
 
 class ClipboardHistory:
-    """
-    Clipboard history manager (Database-backed)
+    """Own a bounded clipboard history persisted as JSON."""
 
-    Features:
-    - Database persistence (via ClipboardHistoryModel)
-    - Client-based tracking
-    - Timestamp-based ordering
-    - Multi-device synchronization
-    - Deduplication
-
-    Note: This class is a lightweight interface.
-    Actual storage is handled by the database model in RPC manager.
-    """
-
-    def __init__(self, max_items: int = 1000):
-        """
-        Initialize clipboard history
-
-        Args:
-            max_items: Maximum history items to keep (for in-memory cache)
-        """
-        self.max_items = max_items
-        self.items: List[Dict[str, Any]] = []
+    def __init__(self, max_items: int = DEFAULT_MAX_ITEMS):
+        self.max_items = max(1, int(max_items))
+        self._store = UserDataStore(
+            base_dir=APP_CONFIG_DIR,
+            file_name=CLIPBOARD_HISTORY_FILE_NAME,
+            defaults_dir=APP_CONFIG_DIR / "clipboard_defaults",
+        )
+        section = self._store.get_section(CLIPBOARD_HISTORY_SECTION)
+        entries = section.get("entries")
+        self.items = [
+            dict(item)
+            for item in entries or []
+            if isinstance(item, dict)
+        ][-self.max_items:]
+        numeric_ids = [
+            item["id"]
+            for item in self.items
+            if isinstance(item.get("id"), int)
+        ]
+        stored_next_id = section.get("next_id")
+        derived_next_id = max(numeric_ids, default=0) + 1
+        self._next_id = (
+            max(stored_next_id, derived_next_id)
+            if isinstance(stored_next_id, int)
+            else derived_next_id
+        )
         init_serialized_owner(
             self,
             "clipboard.history.state",
             "ClipboardHistoryState",
         )
+        ColorPrint.blue("[ClipboardHistory] Initialized (file-backed)")
 
-        ColorPrint.blue("[ClipboardHistory] Initialized (database-backed)")
+    def _persist(self) -> None:
+        self._store.set_section(
+            CLIPBOARD_HISTORY_SECTION,
+            {
+                "entries": self.items[-self.max_items:],
+                "next_id": self._next_id,
+            },
+        )
 
     @serialized_method
     def add_item(
         self,
         content: str,
         client_id: str = "unknown",
-        content_type: str = "text"
-    ) -> Dict[str, Any]:
-        """
-        Add item to clipboard history (in-memory only)
-
-        Note: For database persistence, use RPC API clipboard_add
-
-        Args:
-            content: Clipboard content
-            client_id: Client identifier
-            content_type: Content type (text, image, file, etc.)
-
-        Returns:
-            Created item dict
-        """
-        # Check for duplicates (same content within last 10 items)
-        recent_items = self.items[-10:] if len(self.items) >= 10 else self.items
+        content_type: str = "text",
+        file_path: Optional[str] = None,
+        file_name: Optional[str] = None,
+        file_size: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Append one item unless the same client recently recorded it."""
+        content_hash = hashlib.md5(content.encode("utf-8")).hexdigest()
+        recent_items = [
+            item
+            for item in self.items
+            if item.get("client_id") == client_id
+        ][-10:]
         for item in recent_items:
-            if item['content'] == content:
-                return dict(item)
+            if item.get("content_hash") == content_hash:
+                return None
 
-        # Create new item
+        timestamp = time.time()
         item = {
-            'id': f"{int(time.time() * 1000)}_{client_id}",
-            'content': content,
-            'content_type': content_type,
-            'client_id': client_id,
-            'timestamp': time.time(),
-            'created_at': time.strftime("%Y-%m-%d %H:%M:%S")
+            "id": self._next_id,
+            "content": content,
+            "content_type": content_type,
+            "content_hash": content_hash,
+            "file_path": file_path,
+            "file_name": file_name,
+            "file_size": file_size,
+            "client_id": client_id,
+            "timestamp": timestamp,
+            "created_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp)),
         }
-
-        # Add to history
+        self._next_id += 1
         self.items.append(item)
-
-        # Trim if exceeds max
-        if len(self.items) > self.max_items:
-            self.items = self.items[-self.max_items:]
-
+        self.items = self.items[-self.max_items:]
+        self._persist()
         return dict(item)
 
     @serialized_method
-    def get_recent(self, limit: int = 50, client_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """
-        Get recent clipboard items
-
-        Args:
-            limit: Maximum items to return
-            client_id: Filter by client ID (None = all clients)
-
-        Returns:
-            List of clipboard items (newest first)
-        """
+    def get_recent(
+        self,
+        limit: int = 50,
+        client_id: Optional[str] = None,
+        content_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return recent items in newest-first order."""
+        limit_value = max(0, int(limit))
+        if limit_value == 0:
+            return []
         items = self.items
-
-        # Filter by client if specified
         if client_id:
-            items = [item for item in items if item['client_id'] == client_id]
-
-        # Return most recent first
-        return [dict(item) for item in reversed(items[-limit:])]
+            items = [item for item in items if item.get("client_id") == client_id]
+        if content_type:
+            items = [
+                item
+                for item in items
+                if item.get("content_type") == content_type
+            ]
+        return [dict(item) for item in reversed(items[-limit_value:])]
 
     @serialized_method
-    def get_since(self, timestamp: float, client_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """
-        Get clipboard items since timestamp
-
-        Args:
-            timestamp: Unix timestamp
-            client_id: Filter by client ID
-
-        Returns:
-            List of items since timestamp
-        """
-        items = [item for item in self.items if item['timestamp'] > timestamp]
-
-        # Filter by client if specified
+    def get_since(
+        self,
+        timestamp: float,
+        client_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return items newer than a timestamp in newest-first order."""
+        timestamp_value = float(timestamp)
+        items = [
+            item
+            for item in self.items
+            if float(item.get("timestamp") or 0.0) > timestamp_value
+        ]
         if client_id:
-            items = [item for item in items if item['client_id'] == client_id]
-
-        return [dict(item) for item in items]
+            items = [item for item in items if item.get("client_id") == client_id]
+        return [dict(item) for item in reversed(items)]
 
     @serialized_method
     def search(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
-        """
-        Search clipboard history
-
-        Args:
-            query: Search query
-            limit: Maximum results
-
-        Returns:
-            List of matching items
-        """
+        """Search clipboard text and return newest matches first."""
+        limit_value = max(0, int(limit))
+        if limit_value == 0:
+            return []
         query_lower = query.lower()
         matches = [
-            item for item in self.items
-            if query_lower in item['content'].lower()
+            item
+            for item in self.items
+            if query_lower in str(item.get("content") or "").lower()
         ]
-
-        # Return most recent matches first
-        return [dict(item) for item in reversed(matches[-limit:])]
+        return [dict(item) for item in reversed(matches[-limit_value:])]
 
     @serialized_method
-    def clear_history(self, client_id: Optional[str] = None):
-        """
-        Clear clipboard history
-
-        Args:
-            client_id: Clear only for specific client (None = all)
-        """
+    def clear_history(self, client_id: Optional[str] = None) -> None:
+        """Clear all items or only items owned by one client."""
         if client_id:
-            self.items = [item for item in self.items if item['client_id'] != client_id]
-            ColorPrint.yellow(f"[ClipboardHistory] Cleared history for client: {client_id}")
+            self.items = [
+                item
+                for item in self.items
+                if item.get("client_id") != client_id
+            ]
+            ColorPrint.yellow(
+                f"[ClipboardHistory] Cleared history for client: {client_id}"
+            )
         else:
             self.items = []
             ColorPrint.yellow("[ClipboardHistory] Cleared all history")
+        self._persist()
 
     @serialized_method
     def get_statistics(self) -> Dict[str, Any]:
-        """Get clipboard history statistics"""
+        """Return basic clipboard history statistics."""
         if not self.items:
             return {
-                'total_items': 0,
-                'clients': [],
-                'oldest_timestamp': None,
-                'newest_timestamp': None
+                "total_items": 0,
+                "clients": [],
+                "oldest_timestamp": None,
+                "newest_timestamp": None,
             }
 
-        clients = list(set(item['client_id'] for item in self.items))
-
+        clients = sorted({str(item.get("client_id") or "") for item in self.items})
         return {
-            'total_items': len(self.items),
-            'clients': clients,
-            'client_counts': {
-                client: len([item for item in self.items if item['client_id'] == client])
+            "total_items": len(self.items),
+            "clients": clients,
+            "client_counts": {
+                client: len(
+                    [item for item in self.items if item.get("client_id") == client]
+                )
                 for client in clients
             },
-            'oldest_timestamp': self.items[0]['timestamp'],
-            'newest_timestamp': self.items[-1]['timestamp']
+            "oldest_timestamp": self.items[0].get("timestamp"),
+            "newest_timestamp": self.items[-1].get("timestamp"),
         }
 
 
@@ -207,5 +210,11 @@ _CLIPBOARD_HISTORY_PROVIDER = SerializedSingletonProvider(
 
 
 def get_clipboard_history() -> ClipboardHistory:
-    """Get global clipboard history singleton"""
+    """Get the global clipboard history singleton."""
     return _CLIPBOARD_HISTORY_PROVIDER.get()
+
+
+__all__ = [
+    "ClipboardHistory",
+    "get_clipboard_history",
+]

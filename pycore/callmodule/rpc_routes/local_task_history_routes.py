@@ -13,38 +13,38 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TASK_HISTORY_CLEAR_RECENT_TASKS
 )
 
-from pycore.callmodule.controllers.local_processing.task_history_controller import (
+from pycore.pyctl.task_history.service import (
     get_completed_archive,
-    sync_completed_archive,
     completed_archive_resource,
     get_recent_tasks,
     search_tasks,
     clear_recent_tasks,
 )
+from pycore.pyctl.task_history.archive import completed_task_archive
 
 def register_local_task_history_routes(server):
-    """Register WS RPC handlers."""
+    """Register HTTP controllers."""
     
-    async def get_completed_archive_handler(params, request_id, context):
+    def get_completed_archive_handler(params, request_id, context):
         task_type = params.get("task_type")
         limit = params.get("limit", 200)
         offset = params.get("offset", 0)
         return get_completed_archive(task_type=task_type, limit=limit, offset=offset)
         
-    server.route(name=UI_TASK_HISTORY_GET_COMPLETED_ARCHIVE, handler=get_completed_archive_handler, sync=False)
+    server.route(name=UI_TASK_HISTORY_GET_COMPLETED_ARCHIVE, handler=get_completed_archive_handler)
 
-    async def sync_completed_archive_handler(params, request_id, context):
-        return sync_completed_archive()
-        
-    server.route(name=UI_TASK_HISTORY_SYNC_COMPLETED_ARCHIVE, handler=sync_completed_archive_handler, sync=False)
+    server.route(
+        name=UI_TASK_HISTORY_SYNC_COMPLETED_ARCHIVE,
+        handler=completed_task_archive.sync_all,
+    )
 
-    async def completed_archive_resource_handler(params, request_id, context):
+    def completed_archive_resource_handler(params, request_id, context):
         cache_key = params.get("cache_key")
         return completed_archive_resource(cache_key=cache_key)
         
-    server.route(name=UI_TASK_HISTORY_COMPLETED_ARCHIVE_RESOURCE, handler=completed_archive_resource_handler, sync=False)
+    server.route(name=UI_TASK_HISTORY_COMPLETED_ARCHIVE_RESOURCE, handler=completed_archive_resource_handler)
 
-    async def get_recent_tasks_handler(params, request_id, context):
+    def get_recent_tasks_handler(params, request_id, context):
         limit = params.get("limit", 200)
         end = params.get("end")
         worker = params.get("worker")
@@ -62,9 +62,9 @@ def register_local_task_history_routes(server):
             task_type=task_type,
         )
         
-    server.route(name=UI_TASK_HISTORY_GET_RECENT_TASKS, handler=get_recent_tasks_handler, sync=False)
+    server.route(name=UI_TASK_HISTORY_GET_RECENT_TASKS, handler=get_recent_tasks_handler)
 
-    async def search_tasks_handler(params, request_id, context):
+    def search_tasks_handler(params, request_id, context):
         q = params.get("q")
         date_from = params.get("date_from")
         date_to = params.get("date_to")
@@ -80,13 +80,8 @@ def register_local_task_history_routes(server):
             limit=limit,
         )
         
-    server.route(name=UI_TASK_HISTORY_SEARCH_TASKS, handler=search_tasks_handler, sync=False)
+    server.route(name=UI_TASK_HISTORY_SEARCH_TASKS, handler=search_tasks_handler)
 
-    async def clear_recent_tasks_handler(params, request_id, context):
-        return clear_recent_tasks()
-        
-    server.route(name=UI_TASK_HISTORY_CLEAR_RECENT_TASKS, handler=clear_recent_tasks_handler, sync=False)
+    server.route(name=UI_TASK_HISTORY_CLEAR_RECENT_TASKS, handler=clear_recent_tasks)
 
     ColorPrint.green("[ConfigBuilder] Registered task_history RPC routes")
-
-__all__ = ["register_local_task_history_routes"]

@@ -11,7 +11,7 @@
 .PARAMETER Model
     'auto' (default) | 'small' | 'large'.
 .PARAMETER Force
-    Re-download / re-extract even if a model is already present.
+    Re-run dependency repair; a non-empty local model is always preserved.
 #>
 [CmdletBinding()]
 param(
@@ -37,6 +37,9 @@ $modelDir       = $null
 $archivePath    = $null
 $tmpExtract     = $null
 $existingConf   = $null
+$existingModelDir = $null
+$existingModelFiles = @()
+$localModelBytes = 0L
 $pipExePath     = $null
 
 function Resolve-PythonInterpreter {
@@ -110,10 +113,15 @@ Write-Host ("$SCRIPT_INDEX  model dir : {0}" -f $modelDir) -ForegroundColor Dark
 Write-Host ("$SCRIPT_INDEX  source    : {0}" -f $modelUrl) -ForegroundColor DarkGray
 Write-Host ("$SCRIPT_INDEX  existing  : {0}" -f $(if ($existingConf) { $existingConf.FullName } else { 'none' })) -ForegroundColor DarkGray
 
-if ($existingConf -and -not $Force) {
-    Write-Host "$SCRIPT_INDEX [OK] A Vosk model is already installed (conf/ present) -> skipping download." -ForegroundColor Green
-    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('vosk')
-    return
+if ($existingConf) {
+    $existingModelDir = Split-Path $existingConf.FullName -Parent
+    $existingModelFiles = @(Get-ChildItem -Path $existingModelDir -Recurse -File -ErrorAction SilentlyContinue)
+    if ($existingModelFiles.Count -gt 0 -and -not ($existingModelFiles | Where-Object { $_.Length -le 0 } | Select-Object -First 1)) {
+        $localModelBytes = [long](($existingModelFiles | Measure-Object -Property Length -Sum).Sum)
+        Write-Host ("$SCRIPT_INDEX [idempotent] local Vosk model found: {0} ({1:N0} bytes); remote lookup skipped" -f $existingModelDir, $localModelBytes) -ForegroundColor Green
+        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('vosk')
+        return
+    }
 }
 
 $curl = Get-Command curl.exe -ErrorAction SilentlyContinue

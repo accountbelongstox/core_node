@@ -10,12 +10,7 @@ import time
 from typing import Dict, Any
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.database.exports import get_database_manager
-
-from pycore.database.models.table_keys import TableKeys
-
-from pycore.database.models.util_clipboard.clipboard_history_model import ClipboardHistoryModel
-
+from pycore.pyutils.clipboard.clipboard_history import get_clipboard_history
 
 
 
@@ -29,19 +24,7 @@ def register_clipboard_routes(rpc_server, service_instances: Dict[str, Any] = No
     """
     ColorPrint.blue("[ClipboardRoutes] Registering clipboard routes...")
 
-    # Auto-initialize clipboard database if not registered
-
-    db_manager = get_database_manager()
-
-    if not db_manager.is_database_registered('clipboard'):
-        ColorPrint.blue("[ClipboardRoutes] Initializing clipboard database...")
-        db_manager.register_database(database_name='clipboard')
-        db_manager.load_tables(
-            table_keys=[TableKeys.CLIPBOARD_HISTORY],
-            models=[ClipboardHistoryModel],
-            database_name='clipboard'
-        )
-        ColorPrint.green("[ClipboardRoutes] ✓ Clipboard database initialized")
+    clipboard_history = get_clipboard_history()
 
     def handle_clipboard_get(params: Dict, request_id: str, context: Dict) -> Dict[str, Any]:
         """
@@ -66,26 +49,11 @@ def register_clipboard_routes(rpc_server, service_instances: Dict[str, Any] = No
             client_id = params.get('client_id')
             content_type = params.get('content_type')
 
-            # Import model here to avoid circular imports
-
-            db_manager = get_database_manager()
-
-            # Check if clipboard database is registered
-            if not db_manager.is_database_registered('clipboard'):
-                ColorPrint.yellow("[ClipboardRoutes] Clipboard database not registered, returning empty list")
-                return {
-                    'success': True,
-                    'items': [],
-                    'info': 'Clipboard database not initialized'
-                }
-
-            with db_manager.get_connection("clipboard") as conn:
-                items = ClipboardHistoryModel.get_recent_items(
-                    conn,
-                    limit=limit,
-                    client_id=client_id,
-                    content_type=content_type
-                )
+            items = clipboard_history.get_recent(
+                limit=limit,
+                client_id=client_id,
+                content_type=content_type,
+            )
 
             # Convert to JSON-serializable format
             items_list = [_sanitize_clipboard_item(item) for item in items]
@@ -125,26 +93,10 @@ def register_clipboard_routes(rpc_server, service_instances: Dict[str, Any] = No
             since = params.get('since', 0.0)
             client_id = params.get('client_id')
 
-            # Import model here to avoid circular imports
-
-            db_manager = get_database_manager()
-
-            # Check if clipboard database is registered
-            if not db_manager.is_database_registered('clipboard'):
-                ColorPrint.yellow("[ClipboardRoutes] Clipboard database not registered, returning empty sync")
-                return {
-                    'success': True,
-                    'items': [],
-                    'server_time': time.time(),
-                    'info': 'Clipboard database not initialized'
-                }
-
-            with db_manager.get_connection("clipboard") as conn:
-                items = ClipboardHistoryModel.get_items_since(
-                    conn,
-                    timestamp=since,
-                    client_id=client_id
-                )
+            items = clipboard_history.get_since(
+                timestamp=since,
+                client_id=client_id,
+            )
 
             # Convert to JSON-serializable format
             items_list = [_sanitize_clipboard_item(item) for item in items]

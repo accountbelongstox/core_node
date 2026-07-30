@@ -21,6 +21,7 @@ Usage:
 import os
 
 import time
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 # Debug flags
@@ -71,7 +72,7 @@ def debug_print(message: str, component: str = "MCP"):
         should_print = True
 
     if should_print or MCP_DEBUG_ALL:
-        print(f"[{timestamp}] [DEBUG:{component}] {message}")
+        ColorPrint.plain(f"[{timestamp}] [DEBUG:{component}] {message}")
 
 
 # Export debug status on import

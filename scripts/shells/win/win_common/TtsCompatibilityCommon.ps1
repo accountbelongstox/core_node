@@ -1,7 +1,7 @@
 # Central TTS compatibility, dependency-plan, and policy-stamp helpers.
 
 $script:TtsPolicyRepoRoot = Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent
-$script:TtsPolicyPythonFile = Join-Path $script:TtsPolicyRepoRoot 'pycore\pyutils\python_env\runtime_policy.py'
+$script:TtsPolicyPythonModule = 'pycore.pyutils.common.python_env.runtime_policy'
 $script:TtsPolicyLastError = ''
 
 function Get-TtsPolicyPythonVersion {
@@ -24,20 +24,22 @@ function Invoke-TtsPolicyCommand {
     $outputItems = @()
     $output = ''
     $exitCode = 0
+    $locationPushed = $false
     $script:TtsPolicyLastError = ''
     if (-not (Test-Path -LiteralPath $PythonExe)) {
         $script:TtsPolicyLastError = "Python executable is unavailable: $PythonExe"
         return ''
     }
-    if (-not (Test-Path -LiteralPath $script:TtsPolicyPythonFile)) {
-        $script:TtsPolicyLastError = "TTS runtime policy is unavailable: $script:TtsPolicyPythonFile"
-        return ''
-    }
     $ErrorActionPreference = 'Continue'
     try {
-        $outputItems = @(& $PythonExe $script:TtsPolicyPythonFile @Arguments 2>&1)
+        Push-Location -LiteralPath $script:TtsPolicyRepoRoot
+        $locationPushed = $true
+        $outputItems = @(& $PythonExe -m $script:TtsPolicyPythonModule @Arguments 2>&1)
         $exitCode = $LASTEXITCODE
     } finally {
+        if ($locationPushed) {
+            Pop-Location
+        }
         $ErrorActionPreference = $previous
     }
     $output = ([string]::Join([Environment]::NewLine, @($outputItems))).Trim()
@@ -138,8 +140,7 @@ function Test-TtsDependenciesReady {
         [Parameter(Mandatory = $true)][string]$Engine,
         [Parameter(Mandatory = $true)][string]$Path
     )
-    return (Test-TtsDependencyStamp -PythonExe $PythonExe -Engine $Engine -Path $Path) -and
-        (Test-TtsEngineHealth -PythonExe $PythonExe -Engine $Engine)
+    return (Test-TtsDependencyStamp -PythonExe $PythonExe -Engine $Engine -Path $Path)
 }
 
 function Set-TtsDependencyStamp {

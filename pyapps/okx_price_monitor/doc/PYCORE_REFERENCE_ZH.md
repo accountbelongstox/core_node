@@ -27,7 +27,7 @@
 
 ### 2.1 规范中已记录
 - `ocr/` - OCR CnOCR引擎
-- `rpc/` - UnifiedRpcServer HTTP+WebSocket
+- `rpc_v2/` - RpcServer HTTP 主接口与 WebSocket 双向通道
 
 ### 2.2 规范中未记录
 
@@ -48,7 +48,7 @@
 - `pybrowser/` - SpiderEngine, SessionManager, ChromeBrowser, EdgeBrowser, FirefoxBrowser, 插件
 
 #### RPC v2
-- `rpc_v2/` - FastAPIRPCServer, RPCDiscovery, NetworkScanner, RPCProtocolClient
+- `rpc_v2/` - RpcServer, RpcServerRunner, RpcServiceScanner, rpc_delivery_service
 - `wsrpc/` - WsRpcServer, WsRpcClient, SingletonBackendDetector, SingletonRpcBackend
 
 #### 翻译

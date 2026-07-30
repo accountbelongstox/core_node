@@ -158,9 +158,27 @@ class TaskCenterService {
     }
   }
 
+  private applyProcessorAllowlist(enabledProcessors: string[] | undefined): void {
+    if (!Array.isArray(enabledProcessors)) return;
+    const allow = new Set(enabledProcessors);
+    for (const [processorType, entry] of this.registry.entries()) {
+      entry.enabled = allow.has(processorType);
+    }
+  }
+
+  private processorConfig(processorType: string, config: TaskCenterConfig): ProcessorConfig {
+    return config.processors?.[processorType] || { apiUrl: config.apiUrl };
+  }
+
+  private describeProcessorError(error: any): string {
+    const message = error?.message || String(error ?? 'unknown error');
+    const status = error?.statusCode ?? error?.status;
+    return status ? `${message} (HTTP ${status})` : message;
+  }
+
   /**
-   * Start Task Center (activate all enabled processors)
-   * This changes state only - processors remain hooked
+   * Start Task Center and activate its explicitly enabled processors.
+   * An empty allowlist is a valid observer-only runtime.
    */
   async startAll(config: TaskCenterConfig): Promise<void> {
     if (!this.initialized) {
@@ -168,30 +186,26 @@ class TaskCenterService {
     }
 
     if (this.isRunning) {
-      console.warn('[TaskCenter] Task Center already running');
+      const enabledProcessors = Array.isArray(config.enabledProcessors)
+        ? config.enabledProcessors
+        : Array.from(this.registry.entries())
+            .filter(([, entry]) => entry.enabled)
+            .map(([processorType]) => processorType);
+      await this.syncProcessors(enabledProcessors, config);
       return;
     }
 
-    // Normalize the optional per-processor config map up front so lane
-    // activation never assumes its presence (the popup may send only
-    // {apiUrl, activeCapabilities}). Single guard, one place.
-    if (!config.processors) config.processors = {};
-    this.config = config;
+    const normalizedConfig: TaskCenterConfig = {
+      ...config,
+      processors: { ...(config.processors || {}) },
+      enabledProcessors: Array.isArray(config.enabledProcessors)
+        ? [...config.enabledProcessors]
+        : undefined,
+    };
+    this.config = normalizedConfig;
     console.log('[TaskCenter] 🚀 Activating Task Center...');
 
-    // Apply the optional enabledProcessors allowlist: when provided and
-    // non-empty it becomes authoritative — each processor is enabled iff it is
-    // listed, so checked lanes run even if registered disabled by default, and
-    // unlisted lanes stay off. Absent/empty => keep current per-processor state.
-    const allow =
-      Array.isArray(config.enabledProcessors) && config.enabledProcessors.length > 0
-        ? new Set(config.enabledProcessors)
-        : null;
-    if (allow) {
-      for (const [processorType, entry] of this.registry.entries()) {
-        entry.enabled = allow.has(processorType);
-      }
-    }
+    this.applyProcessorAllowlist(normalizedConfig.enabledProcessors);
 
     // Track each start() promise alongside its processorType so allSettled
     // results can be correlated. Event emission is folded into the result
@@ -200,19 +214,13 @@ class TaskCenterService {
     const failedProcessors: string[] = [];
     const failureReasons: Record<string, string> = {};
 
-    const describeStartError = (error: any): string => {
-      const message = error?.message || String(error ?? 'unknown error');
-      const status = error?.statusCode ?? error?.status;
-      return status ? `${message} (HTTP ${status})` : message;
-    };
-
     for (const [processorType, entry] of this.registry.entries()) {
       if (!entry.enabled) {
         console.log(`[TaskCenter] ⏸  Processor ${processorType} disabled, skipping`);
         continue;
       }
 
-      const processorConfig = config.processors?.[processorType] || { apiUrl: config.apiUrl };
+      const processorConfig = this.processorConfig(processorType, normalizedConfig);
 
       try {
         console.log(`[TaskCenter] ▶️  Activating processor: ${processorType}`);
@@ -223,7 +231,7 @@ class TaskCenterService {
         // allSettled below, but guard anyway).
         console.error(`[TaskCenter] ❌ Failed to activate processor ${processorType}:`, error);
         failedProcessors.push(processorType);
-        failureReasons[processorType] = describeStartError(error);
+        failureReasons[processorType] = this.describeProcessorError(error);
         this.emitEvent({
           type: 'processor_failed',
           processorType,
@@ -233,11 +241,9 @@ class TaskCenterService {
     }
 
     const results = await Promise.allSettled(startEntries.map((e) => e.promise));
-    let startedCount = 0;
     results.forEach((result, i) => {
       const { processorType } = startEntries[i];
       if (result.status === 'fulfilled') {
-        startedCount++;
         this.emitEvent({
           type: 'processor_started',
           processorType,
@@ -249,7 +255,7 @@ class TaskCenterService {
           result.reason,
         );
         failedProcessors.push(processorType);
-        failureReasons[processorType] = describeStartError(result.reason);
+        failureReasons[processorType] = this.describeProcessorError(result.reason);
         this.emitEvent({
           type: 'processor_failed',
           processorType,
@@ -262,7 +268,7 @@ class TaskCenterService {
     // would make the capability checkboxes claim more work than is actually
     // being processed, so stop every lane started in this attempt and let the
     // caller surface one actionable failure.
-    if (failedProcessors.length > 0 || startedCount === 0) {
+    if (failedProcessors.length > 0) {
       results.forEach((result, index) => {
         if (result.status !== 'fulfilled') return;
         const { processorType } = startEntries[index];
@@ -273,15 +279,11 @@ class TaskCenterService {
           console.error(`[TaskCenter] Failed to roll back processor ${processorType}:`, error);
         }
       });
-      throw new Error(
-        failedProcessors.length > 0
-          ? `Failed to start processors: ${
-              failedProcessors
-                .map((type) => (failureReasons[type] ? `${type} — ${failureReasons[type]}` : type))
-                .join('; ')
-            }`
-          : 'No processors were selected for startup',
-      );
+      throw new Error(`Failed to start processors: ${
+        failedProcessors
+          .map((type) => (failureReasons[type] ? `${type} — ${failureReasons[type]}` : type))
+          .join('; ')
+      }`);
     }
 
     this.isRunning = true;
@@ -291,6 +293,74 @@ class TaskCenterService {
     });
 
     console.log('[TaskCenter] ✅ Task Center activated');
+  }
+
+  async syncProcessors(enabledProcessors: string[], config: TaskCenterConfig): Promise<void> {
+    const normalizedConfig: TaskCenterConfig = {
+      ...config,
+      processors: { ...(config.processors || {}) },
+      enabledProcessors: [...enabledProcessors],
+    };
+    if (!this.isRunning) {
+      await this.startAll(normalizedConfig);
+      return;
+    }
+
+    const allow = new Set(enabledProcessors);
+    const previousStates = new Map<string, { enabled: boolean; running: boolean }>();
+    let startingProcessor: string | null = null;
+    for (const [processorType, entry] of this.registry.entries()) {
+      previousStates.set(processorType, {
+        enabled: entry.enabled,
+        running: entry.processor.getStatus().isRunning,
+      });
+    }
+
+    try {
+      for (const [processorType, entry] of this.registry.entries()) {
+        if (!allow.has(processorType)) continue;
+        entry.enabled = true;
+        if (entry.processor.getStatus().isRunning) continue;
+        startingProcessor = processorType;
+        await entry.processor.start(this.processorConfig(processorType, normalizedConfig));
+        this.emitEvent({
+          type: 'processor_started',
+          processorType,
+          timestamp: Date.now(),
+        });
+      }
+    } catch (error) {
+      for (const [processorType, entry] of this.registry.entries()) {
+        const previous = previousStates.get(processorType);
+        if (!previous) continue;
+        if (!previous.running && entry.processor.getStatus().isRunning) entry.processor.stop();
+        entry.enabled = previous.enabled;
+      }
+      if (startingProcessor) {
+        this.emitEvent({
+          type: 'processor_failed',
+          processorType: startingProcessor,
+          timestamp: Date.now(),
+        });
+      }
+      throw new Error(
+        `Failed to start processor ${startingProcessor || 'unknown'}: ${this.describeProcessorError(error)}`,
+      );
+    }
+
+    for (const [processorType, entry] of this.registry.entries()) {
+      if (allow.has(processorType)) continue;
+      const wasRunning = entry.processor.getStatus().isRunning;
+      this.disableProcessor(processorType);
+      if (wasRunning) {
+        this.emitEvent({
+          type: 'processor_stopped',
+          processorType,
+          timestamp: Date.now(),
+        });
+      }
+    }
+    this.config = normalizedConfig;
   }
 
   /**

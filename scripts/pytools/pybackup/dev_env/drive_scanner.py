@@ -5,7 +5,7 @@ from typing import List, Dict, Tuple
 from dataclasses import dataclass
 import logging
 
-from pycore.pyfoundations.pygvar.constants import IS_WINDOWS
+from pycore.pyfoundations.pygvar import IS_WINDOWS
 
 logger = logging.getLogger(__name__)
 

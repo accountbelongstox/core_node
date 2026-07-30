@@ -17,7 +17,7 @@ from pycore.database.exports import database_manager
 from pycore.database.models.table_keys import TableKeys
 from pycore.database.models.app_voice.dictionaries_model import VoiceDictionariesModel
 from pycore.database.models.app_voice.cache_db_done_model import VoiceCacheDbDoneModel
-from pycore.pyfoundations.pygvar.constants import CACHE_DIR, DEFAULT_TEMP_DIR
+from pycore.pyfoundations.pygvar import CACHE_DIR, DEFAULT_TEMP_DIR
 
 
 class OldDbImportService:

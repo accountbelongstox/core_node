@@ -6,6 +6,7 @@ without affecting other processes.
 """
 
 import urllib.request
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import sys
 import platform
@@ -36,18 +37,18 @@ def shutdown_via_http(host: str = "127.0.0.1", port: int = 5757, timeout: int = 
         url = f"http://{host}:{port}/api/shutdown"
         req = urllib.request.Request(url, method='POST')
 
-        print(f"[PORT-CHECK] Attempting graceful shutdown via {url}...")
+        ColorPrint.plain(f"[PORT-CHECK] Attempting graceful shutdown via {url}...")
 
         with urllib.request.urlopen(req, timeout=timeout) as response:
             data = response.read().decode('utf-8')
-            print(f"[PORT-CHECK] Server acknowledged shutdown request")
+            ColorPrint.plain(f"[PORT-CHECK] Server acknowledged shutdown request")
             return True
 
     except urllib.error.URLError as e:
-        print(f"[PORT-CHECK] HTTP shutdown failed: {e}")
+        ColorPrint.plain(f"[PORT-CHECK] HTTP shutdown failed: {e}")
         return False
     except Exception as e:
-        print(f"[PORT-CHECK] HTTP shutdown error: {e}")
+        ColorPrint.plain(f"[PORT-CHECK] HTTP shutdown error: {e}")
         return False
 
 
@@ -67,7 +68,7 @@ def get_process_using_port(port: int) -> Optional[Dict[str, str]]:
         else:
             return _get_process_unix(port)
     except Exception as e:
-        print(f"[WARNING] Failed to check port {port}: {e}")
+        ColorPrint.plain(f"[WARNING] Failed to check port {port}: {e}")
         return None
 
 
@@ -152,7 +153,7 @@ def _get_process_windows(port: int) -> Optional[Dict[str, str]]:
         return None
 
     except Exception as e:
-        print(f"[WARNING] Windows port check failed: {e}")
+        ColorPrint.plain(f"[WARNING] Windows port check failed: {e}")
         return None
 
 
@@ -193,10 +194,10 @@ def _get_process_unix(port: int) -> Optional[Dict[str, str]]:
         return None
 
     except FileNotFoundError:
-        print("[WARNING] lsof not found. Install it or run as root.")
+        ColorPrint.plain("[WARNING] lsof not found. Install it or run as root.")
         return None
     except Exception as e:
-        print(f"[WARNING] Unix port check failed: {e}")
+        ColorPrint.plain(f"[WARNING] Unix port check failed: {e}")
         return None
 
 
@@ -281,7 +282,7 @@ def kill_process(pid: str, force: bool = True) -> bool:
         return result.return_code == 0
 
     except Exception as e:
-        print(f"[ERROR] Failed to kill process {pid}: {e}")
+        ColorPrint.plain(f"[ERROR] Failed to kill process {pid}: {e}")
         return False
 
 
@@ -301,51 +302,51 @@ def cleanup_old_server(port: int, auto_kill: bool = True, host: str = "127.0.0.1
     Returns:
         True if port is now free or was successfully cleaned
     """
-    print(f"\n[PORT-CHECK] Checking port {port}...")
+    ColorPrint.plain(f"\n[PORT-CHECK] Checking port {port}...")
 
     process_info = get_process_using_port(port)
 
     if not process_info:
-        print(f"[PORT-CHECK] Port {port} is free")
+        ColorPrint.plain(f"[PORT-CHECK] Port {port} is free")
         return True
 
     pid = process_info["pid"]
     name = process_info["name"]
     cmdline = process_info["cmdline"]
 
-    print(f"[PORT-CHECK] Port {port} is in use:")
-    print(f"  PID:     {pid}")
-    print(f"  Name:    {name}")
-    print(f"  Command: {cmdline[:100] if cmdline else '(unavailable)'}...")
+    ColorPrint.plain(f"[PORT-CHECK] Port {port} is in use:")
+    ColorPrint.plain(f"  PID:     {pid}")
+    ColorPrint.plain(f"  Name:    {name}")
+    ColorPrint.plain(f"  Command: {cmdline[:100] if cmdline else '(unavailable)'}...")
 
     # Check if it's our server
     if is_our_server_process(process_info, port):
-        print(f"[PORT-CHECK] [OK] Identified as our server process")
+        ColorPrint.plain(f"[PORT-CHECK] [OK] Identified as our server process")
 
         if auto_kill:
             # Strategy 1: Try graceful HTTP shutdown first
             if shutdown_via_http(host, port, timeout=3):
-                print(f"[PORT-CHECK] Waiting for graceful shutdown...")
+                ColorPrint.plain(f"[PORT-CHECK] Waiting for graceful shutdown...")
                 if wait_for_port_release(port, timeout=5):
-                    print(f"[PORT-CHECK] [OK] Server shut down gracefully")
+                    ColorPrint.plain(f"[PORT-CHECK] [OK] Server shut down gracefully")
                     return True
                 else:
-                    print(f"[PORT-CHECK] Graceful shutdown timed out, trying force kill...")
+                    ColorPrint.plain(f"[PORT-CHECK] Graceful shutdown timed out, trying force kill...")
 
             # Strategy 2: Force kill
-            print(f"[PORT-CHECK] Killing old server instance (PID: {pid})...")
+            ColorPrint.plain(f"[PORT-CHECK] Killing old server instance (PID: {pid})...")
             if kill_process(pid):
-                print(f"[PORT-CHECK] [OK] Successfully killed old server")
+                ColorPrint.plain(f"[PORT-CHECK] [OK] Successfully killed old server")
                 return True
             else:
-                print(f"[PORT-CHECK] [FAIL] Failed to kill process")
+                ColorPrint.plain(f"[PORT-CHECK] [FAIL] Failed to kill process")
                 return False
         else:
-            print(f"[PORT-CHECK] Auto-kill disabled. Please stop it manually.")
+            ColorPrint.plain(f"[PORT-CHECK] Auto-kill disabled. Please stop it manually.")
             return False
     else:
-        print(f"[PORT-CHECK] [FAIL] NOT our server process - will not kill")
-        print(f"[PORT-CHECK] Please stop the process manually or use a different port")
+        ColorPrint.plain(f"[PORT-CHECK] [FAIL] NOT our server process - will not kill")
+        ColorPrint.plain(f"[PORT-CHECK] Please stop the process manually or use a different port")
         return False
 
 

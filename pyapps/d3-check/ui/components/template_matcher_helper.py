@@ -21,7 +21,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.image_matcher import ImageMatcher
+from pycore.pyutils.image_tools.image_matcher import ImageMatcher
 from d3utils.image_matcher_registry import get_image_matcher
 from providor.providor_index import (
     D3_TEMPLATE_CONFIGS,

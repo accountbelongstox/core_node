@@ -15,8 +15,8 @@ from datetime import datetime
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.serialized_worker import (
-    SerializedSingletonProvider,
     SerializedWorkerThread,
     call_serialized,
 )
@@ -100,11 +100,11 @@ class VoiceSubtitleQueue:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
         # Every mutation funnels through here, so this is the single live-update
-        # point: the rpc_v2 server relays the event to its WS clients (registered
+        # point: the rpc_v2 server publishes the event to its HTTP event journal
         # in callmodule config), keeping the dashboard queue pages in sync.
         # Payload shape == GET /voice-subtitle/queue response (minus 'success').
         THREAD_BUS.trigger_event(
-            'voice_subtitle_queue_update',
+            BusSignals.VOICE_SUBTITLE_QUEUE_UPDATE,
             data,
             async_mode=True,
         )
@@ -462,18 +462,4 @@ class VoiceSubtitleQueue:
         return removed_count
 
 
-_VOICE_SUBTITLE_QUEUE_PROVIDER = SerializedSingletonProvider(
-    VoiceSubtitleQueue,
-    "desktop.voice_subtitle_queue.provider",
-    "VoiceSubtitleQueueProvider",
-)
-
-
-def get_voice_subtitle_queue() -> VoiceSubtitleQueue:
-    """
-    Get global voice subtitle queue instance
-
-    Returns:
-        VoiceSubtitleQueue: Global queue instance
-    """
-    return _VOICE_SUBTITLE_QUEUE_PROVIDER.get()
+voice_subtitle_queue = VoiceSubtitleQueue()

@@ -24,7 +24,7 @@ from typing import Optional
 from xml.sax.saxutils import escape
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.api_secrets import azure_speech_key, azure_speech_region
+from pycore.pyfoundations.api_secrets import azure_speech_key, azure_speech_region
 
 try:  # optional third-party (already in pycore requirements)
     _AZURE_SDK_AVAILABLE = True

@@ -24,7 +24,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from .runtime import get_core_node_root
+from pycore.pyutils.codesync.runtime import get_core_node_root
 
 SERVICE_NAME = "codesync"
 

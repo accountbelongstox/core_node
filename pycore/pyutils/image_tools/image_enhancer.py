@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional, Tuple, List, Union, Dict, Any
 from abc import ABC, abstractmethod
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import (
     get_third_package_cv2,
     get_third_package_numpy,
@@ -263,7 +264,7 @@ class SubImageEnhancement(ImageEnhancement):
         else:
             sub_img = cv2.imread(str(self.sub_image_path), cv2.IMREAD_UNCHANGED)
             if sub_img is None:
-                print(f"WARNING: Failed to load sub-image: {self.sub_image_path}")
+                ColorPrint.plain(f"WARNING: Failed to load sub-image: {self.sub_image_path}")
                 return img
 
         # Scale sub-image
@@ -490,4 +491,4 @@ if __name__ == "__main__":
 
     # Save
     cv2.imwrite("enhanced_test.png", result)
-    print("Test image created: enhanced_test.png")
+    ColorPrint.plain("Test image created: enhanced_test.png")

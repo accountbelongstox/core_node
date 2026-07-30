@@ -68,7 +68,7 @@ DocumentOffline                               10003
 flutter_bloom                                 10004
 GetDocFromUrlByPuppeteer                      10005
 kmpapp_1                                      10006
-pycore_laravel_wordflow_ui                             10007  ✅ Stable
+pycore_laravel_wordnew_ui                             10007  ✅ Stable
 laravel_main                                  10008
 ...
 ```
@@ -83,14 +83,14 @@ laravel_main                                  10008
 
 **Before Fix**:
 ```
-Old: pycore_laravel_wordflow_ui → Port 10018
-New: pycore_laravel_wordflow_ui → Port 10019  ❌ Changed!
+Old: pycore_laravel_wordnew_ui → Port 10018
+New: pycore_laravel_wordnew_ui → Port 10019  ❌ Changed!
 ```
 
 **After Fix**:
 ```
-Old: pycore_laravel_wordflow_ui → Port 10007
-New: pycore_laravel_wordflow_ui → Port 10007  ✅ No change!
+Old: pycore_laravel_wordnew_ui → Port 10007
+New: pycore_laravel_wordnew_ui → Port 10007  ✅ No change!
      (aaa_new_app takes port 10000, others shift, but l* is still at same relative position)
 ```
 
@@ -100,7 +100,7 @@ aaa_new_app                  10000  ← New
 cmg-corporate-portal         10001  ← Shifted +1
 d3-check                     10002  ← Shifted +1
 ...
-pycore_laravel_wordflow_ui            10008  ← Shifted +1 (but predictable)
+pycore_laravel_wordnew_ui            10008  ← Shifted +1 (but predictable)
 ```
 
 The key improvement: **Predictable and consistent ordering regardless of app type**
@@ -143,7 +143,7 @@ Create a fixed port mapping file to ensure ports NEVER change:
 // scripts/unified_manager/config/port_map.json
 {
   "DevOps": 10000,
-  "pycore_laravel_wordflow_ui": 10018,
+  "pycore_laravel_wordnew_ui": 10018,
   "laravel_main": 10019,
   ...
 }
@@ -184,11 +184,11 @@ cd /www/programing/core_node/scripts/unified_manager
 
 2. Or manually update service files:
 ```bash
-sudo systemctl stop webapp-pycore_laravel_wordflow_ui
-sudo vim /etc/systemd/system/webapp-pycore_laravel_wordflow_ui.service
+sudo systemctl stop webapp-pycore_laravel_wordnew_ui
+sudo vim /etc/systemd/system/webapp-pycore_laravel_wordnew_ui.service
 # Update PORT=10018 to new port
 sudo systemctl daemon-reload
-sudo systemctl start webapp-pycore_laravel_wordflow_ui
+sudo systemctl start webapp-pycore_laravel_wordnew_ui
 ```
 
 ---
