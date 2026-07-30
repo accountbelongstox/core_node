@@ -28,7 +28,7 @@ from pathlib import Path
 from pycore.pyutils.common.http_client import HttpClient, build_http_base_url
 from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyutils.codesync.peer_config import get_peer_config
-from pycore.pyfoundations.pygvar import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
+from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
 
 
 # Make `pycore` importable when run as a script/module from anywhere.

@@ -35,7 +35,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyutils.common.http_client import HttpClient
 from pycore.pyutils.common.strtools.normalization import to_bool
-from pycore.pyfoundations.pygvar import HTTP_LOOPBACK_HOST
+from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST
 
 try:
     import winreg

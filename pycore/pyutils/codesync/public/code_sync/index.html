@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Code Sync</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <h1>Code Sync</h1>
+        <p>HTTP transport and synchronization state</p>
+      </div>
+      <span id="connection" class="badge offline">offline</span>
+    </header>
+
+    <section class="card stats">
+      <div><span>Node</span><strong id="node-name">-</strong></div>
+      <div><span>Role</span><strong id="role">-</strong></div>
+      <div><span>Files</span><strong id="files">0</strong></div>
+      <div><span>Phase</span><strong id="phase">idle</strong></div>
+    </section>
+
+    <section class="card">
+      <h2>Transport</h2>
+      <p id="transport">-</p>
+      <p id="connection-detail" class="muted">Waiting for status.</p>
+      <div class="actions">
+        <button id="role-dev">DEV role</button>
+        <button id="role-client">CLIENT role</button>
+        <button id="toggle-sync">Start distribution</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Peers</h2>
+      <div id="peers" class="list empty">No peers.</div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>SSE Sync log</h2>
+        <div class="ranges">
+          <button data-minutes="5">5m</button>
+          <button data-minutes="30">30m</button>
+          <button data-minutes="60" class="active">1h</button>
+          <button data-minutes="1440">24h</button>
+        </div>
+      </div>
+      <div id="activity" class="list empty">No recent sync activity.</div>
+    </section>
+  </main>
+  <script src="assets/app.js" defer></script>
+</body>
+</html>

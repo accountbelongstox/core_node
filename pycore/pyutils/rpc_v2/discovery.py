@@ -13,7 +13,7 @@ from typing import List, Optional
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
-from pycore.pyfoundations.pygvar import HTTP_STATUS_PATH, PYCORE_HTTP_PORT
+from pycore.pyfoundations.network_constants import HTTP_STATUS_PATH, PYCORE_HTTP_PORT
 from pycore.pyutils.common.http_client import HttpClient, build_http_base_url
 
 

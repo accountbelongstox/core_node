@@ -14,7 +14,7 @@ import type {
 } from './pycoreTypes';
 
 import {
-  requestPycoreHttp, PYCORE_HTTP_ROUTES,
+  requestPycoreHttp, requestPycoreStatus, PYCORE_HTTP_ROUTES,
   directPycoreHost, buildPycoreHttpUrl,
   fileToBase64, guardPycoreReachability,
 } from './PycoreApiTransport';
@@ -36,6 +36,7 @@ import {
 import { pycoreApiAi } from './PycoreApiAi';
 import { pycoreApiSpeech } from './PycoreApiSpeech';
 import { pycoreApiLocal } from './PycoreApiLocal';
+import { PycorePaths } from './pycoreEndpoints';
 
 export type {
   QueueResponse, RuntimeInfo, SystemSettingsResponse,
@@ -105,12 +106,12 @@ export const pycoreApi = {
 
   // --- generic passthrough removed: use named PYCORE_HTTP_ROUTES via requestPycoreHttp --- #
 
-  ping: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.ping, {}),
+  ping: () => requestPycoreStatus(),
 
   getRuntime: (): Promise<RuntimeInfo> => {
     const host = directPycoreHost();
     const apiBase = buildPycoreHttpUrl(host, '/').replace(/\/$/, '');
-    const eventUrl = buildPycoreHttpUrl(host, '/api/events');
+    const eventUrl = buildPycoreHttpUrl(host, PycorePaths.events);
     return Promise.resolve({ eventUrl, apiBase });
   },
 

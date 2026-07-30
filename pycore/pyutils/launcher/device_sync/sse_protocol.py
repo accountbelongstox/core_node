@@ -13,10 +13,9 @@ from pycore.pyfoundations.http_sse import (
     send_sse_headers,
 )
 from pycore.pyutils.launcher.device_sync.core.config import DEFAULT_SYNC_INTERVAL
-from pycore.pyutils.launcher.device_sync.routes import EVENTS_PATH
+import pycore.pyutils.launcher.device_sync.routes as routes
 
 
-SYNC_EVENT_PATH = EVENTS_PATH
 SYNC_EVENT_NAME = "sync"
 SSE_READ_TIMEOUT_SECONDS = max(30, DEFAULT_SYNC_INTERVAL * 3)
 SSE_CONNECTION_ERRORS = (ConnectionError, OSError)
@@ -46,7 +45,7 @@ def consume_sync_events(
     keep_running: Callable[[], bool],
     on_sync: Callable[[], Any],
 ) -> None:
-    url = f"http://{host}:{int(port)}{SYNC_EVENT_PATH}"
+    url = f"http://{host}:{int(port)}{routes.EVENTS_PATH}"
     request = urllib.request.Request(
         url,
         headers=SSE_REQUEST_HEADERS,
@@ -65,7 +64,6 @@ def consume_sync_events(
 __all__ = [
     "SSE_READ_TIMEOUT_SECONDS",
     "SYNC_EVENT_NAME",
-    "SYNC_EVENT_PATH",
     "consume_sync_events",
     "serve_sync_events",
 ]

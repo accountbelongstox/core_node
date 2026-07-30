@@ -18,7 +18,7 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
 )
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pygvar import HTTP_BIND_HOST, PYCORE_HTTP_PORT
+from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 
 
 DEFAULT_HTTP_PORT = PYCORE_HTTP_PORT

@@ -32,7 +32,7 @@ from pycore.pyutils.codesync.runtime import configure as configure_codesync
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pylauncher.tray_menu import build_tray_menu, tray_menu_to_dicts
 from pycore.pyctl.runtime.callmodule_config import Config as CallmoduleConfig
-from pycore.pyfoundations.pygvar import HTTP_BIND_HOST, PYCORE_HTTP_PORT
+from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 
 # Modular per-area HTTP controller registration.
 from pycore.callmodule.rpc_routes.register_http_routes import register_http_routes
@@ -250,19 +250,6 @@ def build_launcher_config(
     # provider dispatch + quota/cooldown handling + per-task records.
     set_ai_handlers(text_handler=ai_generate_text, image_handler=ai_describe_image)
 
-    # Define static mounts configuration
-    PYCORE_ROOT = Path(__file__).parent.parent
-    DESKTOP_UI_DIR = PYCORE_ROOT / "pyctl" / "desktop" / "ui"
-
-    static_mounts = []
-    if DESKTOP_UI_DIR.exists():
-        static_mounts.append({
-            'url_prefix': '/desktop',
-            'directory': str(DESKTOP_UI_DIR),
-            'name': 'desktop_ui_static'
-        })
-        ColorPrint.blue(f"[ConfigBuilder] Added static mount: /desktop -> {DESKTOP_UI_DIR}")
-
     # Base services (common to all platforms)
     services = {
         'heartbeat': {},
@@ -271,7 +258,7 @@ def build_launcher_config(
             'host': host,
             'debug': debug,
             'fastapi_routers': [],
-            'static_mounts': static_mounts,  # Mount static files
+            'static_mounts': [],
             'init_callback': _init_rpc_routes,
             'enable_http_events': http_events_enabled,
         },
@@ -287,11 +274,8 @@ def build_launcher_config(
             'app_name': CallmoduleConfig.UI_APP_NAME,
             'app_id': CallmoduleConfig.UI_APP_ID,
             'window_size': window_size_tuple,
-            # The PySide6 webview loads the new React "Desktop Manager" UI when
-            # PYCORE_UI_URL is set (pyservice.ps1/.sh exports it after launching the
-            # UI dev server, default http://localhost:13054). Falls back to the
-            # legacy in-process /web/subtitle page when unset (e.g. direct runs).
-            'webview_url': os.environ.get('PYCORE_UI_URL') or f'http://localhost:{port}/web/subtitle',
+            # The PySide6 webview loads the unified React Pycore UI.
+            'webview_url': os.environ.get('PYCORE_UI_URL') or CallmoduleConfig.FRONTEND_URL,
             'show_on_start': CallmoduleConfig.UI_SHOW_ON_START,
             'frameless': CallmoduleConfig.UI_FRAMELESS,
             # No Qt custom title bar: the embedded React UI renders its own

@@ -4,19 +4,13 @@
 import json
 from typing import Any, Optional, Tuple
 
-
-SSE_CONTENT_TYPE = "text/event-stream"
-HTTP_EVENTS_PATH = "/api/events"
-SSE_RESPONSE_HEADERS = (
-    ("Cache-Control", "no-cache, no-transform"),
-    ("Connection", "keep-alive"),
-    ("X-Accel-Buffering", "no"),
+from pycore.pyfoundations.network_constants import (
+    HTTP_EVENTS_PATH,
+    SSE_CONTENT_TYPE,
+    SSE_KEEP_ALIVE,
+    SSE_REQUEST_HEADERS,
+    SSE_RESPONSE_HEADERS,
 )
-SSE_REQUEST_HEADERS = {
-    "Accept": SSE_CONTENT_TYPE,
-    "Cache-Control": "no-cache",
-}
-SSE_KEEP_ALIVE = b": keep-alive\n\n"
 
 
 class SseEventDecoder:

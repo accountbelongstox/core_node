@@ -11,21 +11,19 @@ Architecture:
 """
 
 import json
-import socket
 import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 from typing import Optional
 
 from pycore.pyutils.launcher.device_sync.core.config import (
-    DEFAULT_ROOT_DIR,
     get_global_config,
 )
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.device_sync.core.database import get_sync_record_store
 import pycore.pyutils.launcher.device_sync.routes as routes
 from pycore.pyutils.launcher.device_sync.sse_protocol import serve_sync_events
+from pycore.pyutils.launcher.device_sync.static_assets import serve_device_sync_asset
 
 class UnifiedHTTPHandler(BaseHTTPRequestHandler):
     """
@@ -92,219 +90,7 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
     # ========== Common Handlers ==========
 
     def _handle_dashboard(self):
-        """Handle / - Unified dashboard showing current mode"""
-        config = get_global_config()
-        record_store = get_sync_record_store()
-
-        # Log current config state for debugging
-        ColorPrint.info(f"_handle_dashboard: config id={id(config)}, isPrimaryServer={config.isPrimaryServer}, api_enabled={config.api_enabled}")
-
-        mode = "PRIMARY SERVER" if config.isPrimaryServer else "SECONDARY CLIENT"
-        mode_color = "#27ae60" if config.isPrimaryServer else "#3498db"
-
-        # Get statistics
-        sync_stats = record_store.get_stats()
-        recent_transfers = record_store.get_recent_transfers(limit=10)
-
-        # Build mode-specific content
-        if config.isPrimaryServer:
-            mode_content = self._build_primary_content(config, sync_stats)
-        else:
-            mode_content = self._build_secondary_content(config, sync_stats)
-
-        # Build transfers table
-        transfers_html = ""
-        if recent_transfers:
-            transfers_html = "<h3>Recent File Transfers</h3><table><tr><th>Time</th><th>Operation</th><th>File</th><th>Size</th><th>Status</th></tr>"
-            for transfer in recent_transfers:
-                size_mb = transfer['file_size'] / (1024 * 1024)
-                transfers_html += f"""
-                <tr>
-                    <td>{transfer['timestamp']}</td>
-                    <td>{transfer['operation']}</td>
-                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">{transfer['file_path']}</td>
-                    <td>{size_mb:.2f} MB</td>
-                    <td class="status-{transfer['status']}">{transfer['status']}</td>
-                </tr>
-                """
-            transfers_html += "</table>"
-        else:
-            transfers_html = "<h3>Recent File Transfers</h3><p>No transfers recorded</p>"
-
-        html = f"""<!DOCTYPE html>
-<html>
-<head>
-    <title>Device Sync - {mode}</title>
-    <meta http-equiv="refresh" content="30">
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f7fa; }}
-        .container {{ max-width: 1200px; margin: 0 auto; }}
-        h1 {{ color: #2c3e50; margin-bottom: 10px; }}
-        .mode-badge {{ display: inline-block; padding: 8px 16px; border-radius: 5px; font-weight: bold; background: {mode_color}; color: white; }}
-        .subtitle {{ color: #7f8c8d; margin-bottom: 30px; }}
-        .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }}
-        .card {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        .card h2 {{ margin-top: 0; color: #34495e; font-size: 18px; border-bottom: 2px solid #3498db; padding-bottom: 10px; }}
-        .card h3 {{ color: #2c3e50; font-size: 16px; margin-top: 20px; margin-bottom: 10px; }}
-        .info {{ margin: 8px 0; line-height: 1.6; }}
-        .label {{ font-weight: 600; color: #555; display: inline-block; min-width: 140px; }}
-        .value {{ color: #2c3e50; }}
-        .status-badge {{ display: inline-block; padding: 3px 8px; border-radius: 3px; font-size: 12px; font-weight: 600; }}
-        .status-badge.active {{ background: #d4edda; color: #155724; }}
-        .status-badge.enabled {{ background: #cce5ff; color: #004085; }}
-        .status-badge.disabled {{ background: #f8d7da; color: #721c24; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }}
-        th {{ background: #ecf0f1; padding: 8px; text-align: left; font-weight: 600; color: #2c3e50; }}
-        td {{ padding: 8px; border-bottom: 1px solid #ecf0f1; }}
-        tr:hover {{ background: #f8f9fa; }}
-        .status-success {{ color: #27ae60; font-weight: 600; }}
-        .status-failed {{ color: #e74c3c; font-weight: 600; }}
-        ul {{ margin: 10px 0; padding-left: 20px; }}
-        li {{ margin: 5px 0; }}
-        .stats-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 15px 0; }}
-        .stat-box {{ text-align: center; padding: 15px; background: #f8f9fa; border-radius: 5px; }}
-        .stat-number {{ font-size: 24px; font-weight: bold; color: #3498db; }}
-        .stat-label {{ font-size: 12px; color: #7f8c8d; margin-top: 5px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔄 Device Sync</h1>
-        <div class="mode-badge">{mode}</div>
-        <div class="subtitle">Auto-refresh every 30s</div>
-
-        <div class="grid">
-            <div class="card">
-                <h2>📊 System Status</h2>
-                <div class="info"><span class="label">Mode:</span> <span class="value">{mode}</span></div>
-                <div class="info"><span class="label">Hostname:</span> <span class="value">{config.hostname}</span></div>
-                <div class="info"><span class="label">IP Address:</span> <span class="value">{config.local_ip or 'Unknown'}</span></div>
-                <div class="info"><span class="label">Port:</span> <span class="value">{config.http_port}</span></div>
-                <div class="info"><span class="label">Root Dir:</span> <span class="value">{DEFAULT_ROOT_DIR}</span></div>
-                <div class="info"><span class="label">Device ID:</span> <span class="value">{config.device_id[:16] if config.device_id else 'N/A'}...</span></div>
-            </div>
-
-            <div class="card">
-                <h2>📈 Statistics</h2>
-                <div class="stats-grid">
-                    <div class="stat-box">
-                        <div class="stat-number">{config.file_cache_count}</div>
-                        <div class="stat-label">Files Cached</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">{config.total_scans}</div>
-                        <div class="stat-label">Total Scans</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">{sync_stats['total_transfers']}</div>
-                        <div class="stat-label">Transfers</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">{config.online_devices_count}</div>
-                        <div class="stat-label">Devices</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {mode_content}
-
-        <div class="card">
-            {transfers_html}
-        </div>
-    </div>
-</body>
-</html>"""
-
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/html; charset=utf-8')
-        # Disable browser caching to ensure config changes are reflected immediately
-        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-        self.send_header('Pragma', 'no-cache')
-        self.send_header('Expires', '0')
-        self.end_headers()
-        self.wfile.write(html.encode('utf-8'))
-
-    def _build_primary_content(self, config, sync_stats) -> str:
-        """Build PRIMARY mode specific content"""
-        # Connected clients
-        clients_html = ""
-        if config.connected_clients:
-            clients_html = "<h3>Connected Clients</h3><ul>"
-            for client in config.connected_clients:
-                clients_html += f"""
-                <li>
-                    <strong>{client.get('ip', 'Unknown')}</strong>
-                    {f" - {client.get('hostname', '')}" if client.get('hostname') else ""}
-                </li>
-                """
-            clients_html += "</ul>"
-        else:
-            clients_html = "<h3>Connected Clients</h3><p>No clients currently connected</p>"
-
-        # API endpoints
-        endpoints_html = f"""
-        <h3>API Endpoints</h3>
-        <ul>
-            <li><a href="{routes.STATUS_PATH}">{routes.STATUS_PATH}</a> - Server status</li>
-            <li><a href="{routes.FILES_PATH}">{routes.FILES_PATH}</a> - File list (requires API access)</li>
-            <li><a href="{routes.DEVICES_PATH}">{routes.DEVICES_PATH}</a> - Online devices</li>
-        </ul>
-        """
-
-        return f"""
-        <div class="grid">
-            <div class="card">
-                <h2>👥 Clients</h2>
-                {clients_html}
-            </div>
-            <div class="card">
-                <h2>🔗 API</h2>
-                <div class="info"><span class="label">API Access:</span> <span class="status-badge {'enabled' if config.api_enabled else 'disabled'}">{('Enabled' if config.api_enabled else 'Disabled').upper()}</span></div>
-                {endpoints_html}
-            </div>
-        </div>
-        """
-
-    def _build_secondary_content(self, config, sync_stats) -> str:
-        """Build SECONDARY mode specific content"""
-        # Primary servers
-        servers_html = ""
-        if config.primary_servers:
-            servers_html = "<h3>Available PRIMARY Servers</h3><ul>"
-            for server in config.primary_servers:
-                servers_html += f"""
-                <li>
-                    <strong>{server.get('ip', 'Unknown')}</strong>
-                    {f" ({server.get('hostname', '')})" if server.get('hostname') else ""}
-                </li>
-                """
-            servers_html += "</ul>"
-        else:
-            servers_html = "<h3>Available PRIMARY Servers</h3><p>No PRIMARY servers found on network</p>"
-
-        # Sync status
-        can_sync = self._can_enable_sync()
-        sync_status_msg = ""
-        if not can_sync['allowed']:
-            sync_status_msg = f"<p style='color: #e74c3c;'>⚠️ {can_sync['reason']}</p>"
-        else:
-            sync_status_msg = "<p style='color: #27ae60;'>✓ Sync can be enabled</p>"
-
-        return f"""
-        <div class="grid">
-            <div class="card">
-                <h2>🔄 Sync Status</h2>
-                <div class="info"><span class="label">Sync Enabled:</span> <span class="status-badge {'enabled' if config.sync_enabled else 'disabled'}">{('YES' if config.sync_enabled else 'NO')}</span></div>
-                <div class="info"><span class="label">Primary Server:</span> <span class="value">{config.primary_server_ip or 'Not set'}</span></div>
-                {sync_status_msg}
-            </div>
-            <div class="card">
-                <h2>🌐 Network</h2>
-                {servers_html}
-            </div>
-        </div>
-        """
+        serve_device_sync_asset(self, routes.ROOT_PATH)
 
     def _handle_status(self):
         """Handle /api/status - Return current mode status"""
@@ -608,3 +394,5 @@ class UnifiedHTTPServer:
     def is_running(self) -> bool:
         """Check if server is running"""
         return self.running
+
+

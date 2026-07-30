@@ -8,8 +8,8 @@ shared manager. Used ONLY in standalone mode (`pyservice.sh codesync run`); when
 the full pycore runtime is up, its FastAPI app serves these routes instead and
 this server is not started (so port 59000 is never double-bound).
 
-The control panel HTML lives in `.panel` (PANEL_HTML); the systemd self-management
-ops live in `.service_ops`. Both are stdlib-only; no pycore import.
+The control panel assets live under `.public/code_sync`; systemd self-management
+operations live in `.service_ops`.
 
 No third-party deps; no pycore import.
 """
@@ -22,11 +22,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.http_sse import (
-    SSE_KEEP_ALIVE,
-    encode_sse_event,
     send_sse_headers,
 )
-from pycore.pyfoundations.pygvar import HTTP_BIND_HOST, PYCORE_HTTP_PORT
+from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 
 import pycore.pyutils.codesync.routes as routes
 from pycore.pyutils.codesync.runtime import (
@@ -35,7 +33,7 @@ from pycore.pyutils.codesync.runtime import (
     start_bus_task,
 )
 from pycore.pyutils.codesync.manager import get_manager
-from pycore.pyutils.codesync.panel import PANEL_HTML
+from pycore.pyutils.codesync.panel import load_panel_asset, load_panel_index
 from pycore.pyutils.codesync.service_ops import (
     SERVICE_NAME,
     _service_status,
@@ -43,11 +41,8 @@ from pycore.pyutils.codesync.service_ops import (
     _service_log_commands,
 )
 from pycore.pyutils.codesync.sse_transport import (
-    SSE_ACK_PATH,
-    SSE_EVENT_NAME,
-    SSE_KEEP_ALIVE_SECONDS,
-    SSE_STREAM_PATH,
     code_sync_sse_broker,
+    iter_code_sync_reply_stream,
 )
 
 from urllib.parse import urlparse, parse_qs
@@ -102,39 +97,20 @@ class _Handler(BaseHTTPRequestHandler):
                     content_type: str = "application/octet-stream") -> None:
         self._write_response(data, status, content_type)
 
-    def _send_html(self, html: str, status: int = 200) -> None:
-        self._write_response(html.encode("utf-8"), status, "text/html; charset=utf-8")
-
     def _stream_frames(
         self,
-        client_id: str,
-        since_frame: str,
-        client_port: int,
+        session_id: str,
     ) -> None:
-        cursor = str(since_frame or "").strip()
-        source_host = self.client_address[0] if self.client_address else ""
-        aliases = (source_host, f"{source_host}:{int(client_port or 0)}")
-        session = code_sync_sse_broker.connect(client_id, aliases)
         try:
             send_sse_headers(self)
-            while not is_shutdown_requested():
-                code_sync_sse_broker.touch(client_id, session)
-                frame = code_sync_sse_broker.wait_next_frame(
-                    client_id,
-                    cursor,
-                    SSE_KEEP_ALIVE_SECONDS,
-                )
-                if frame is None:
-                    body = SSE_KEEP_ALIVE
-                else:
-                    cursor = str(frame.get("frame_id") or "")
-                    body = encode_sse_event(SSE_EVENT_NAME, frame, cursor)
+            for body in iter_code_sync_reply_stream(
+                session_id,
+                is_shutdown_requested,
+            ):
                 self.wfile.write(body)
                 self.wfile.flush()
         except _CONN_ERRORS:
             return
-        finally:
-            code_sync_sse_broker.disconnect(client_id, session)
 
     def log_message(self, fmt, *args):  # silence default stderr access log
         return
@@ -152,9 +128,20 @@ class _Handler(BaseHTTPRequestHandler):
                                             "role": m.get_role(), "reachable": True})
                 # Standalone mode only: a self-contained, build-free control panel.
                 # (Full pycore serves its React UI instead and never starts this server.)
-                return self._send_html(PANEL_HTML)
+                return self._send_bytes(
+                    load_panel_index(),
+                    content_type="text/html; charset=utf-8",
+                )
             if path == routes.FAVICON_PATH:
                 return self._send_bytes(b"", status=204, content_type="image/x-icon")
+            if path == routes.ROUTES_PATH:
+                return self._send_json(routes.PANEL_API_ROUTES)
+            if path.startswith(routes.ASSETS_PATH_PREFIX):
+                asset = load_panel_asset(path[len(routes.ASSETS_PATH_PREFIX):])
+                if asset is None:
+                    return self._send_json({"detail": "Not found"}, status=404)
+                data, content_type = asset
+                return self._send_bytes(data, content_type=content_type)
             if path == routes.PING_PATH:
                 return self._send_json({"status": "ok", "service": "code-sync"})
             if path == routes.STATUS_PATH:
@@ -190,16 +177,12 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._send_json(_manager().get_peer_file_tree(pid))
             if path == routes.SERVICE_STATUS_PATH:
                 return self._send_json(_service_status())
-            if path == SSE_STREAM_PATH:
+            if path == routes.EVENTS_PATH:
                 q = parse_qs(urlparse(self.path).query)
-                client_id = str((q.get("client_id") or [""])[0]).strip()
-                since_frame = str((q.get("since_frame") or [""])[0]).strip()
-                client_port = int(
-                    (q.get("client_port") or [str(PYCORE_HTTP_PORT)])[0]
-                )
-                if not client_id:
-                    return self._send_json({"detail": "client_id required"}, status=400)
-                return self._stream_frames(client_id, since_frame, client_port)
+                session_id = str((q.get("session_id") or [""])[0]).strip()
+                if not session_id:
+                    return self._send_json({"detail": "session_id required"}, status=400)
+                return self._stream_frames(session_id)
             return self._send_json({"detail": "Not found"}, status=404)
         except Exception as exc:
             return self._send_json({"detail": str(exc)}, status=500)
@@ -215,8 +198,11 @@ class _Handler(BaseHTTPRequestHandler):
     def _dispatch_post(self, path: str, body: Dict[str, Any]):
         m = _manager()
 
-        if path == SSE_ACK_PATH:
-            result, status = code_sync_sse_broker.acknowledge_payload(body)
+        if path == routes.EVENTS_FRAME_PATH:
+            result, status = code_sync_sse_broker.handle_frame_payload(
+                body,
+                m.push_receiver.handle_text,
+            )
             return self._send_json(result, status=status)
 
         if path == routes.UI_PING_PATH:

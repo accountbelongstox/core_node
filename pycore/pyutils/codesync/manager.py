@@ -23,7 +23,7 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pycore.pyfoundations.pygvar import PYCORE_HTTP_PORT
+from pycore.pyfoundations.network_constants import PYCORE_HTTP_PORT
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 
 import pycore.pyutils.codesync.routes as routes
@@ -315,7 +315,7 @@ class CodeSyncManager:
 
     # ----- client wiring --------------------------------------------------- #
     def _sync_client_targets(self) -> None:
-        """Configured DEV peers are observed by the SSE receiver supervisor."""
+        """Keep the legacy hook; inbound CLIENT routes require no target list."""
         return
 
     def _stop_services(self) -> None:
@@ -554,9 +554,13 @@ class CodeSyncManager:
         }
         try:
             if self.role == "dev" and self.distributing:
-                summary["clients"] = len(get_code_sync_server().clients)
+                summary["clients"] = int(
+                    self.push_sender.get_status().get("connected_clients", 0)
+                )
             elif self.role == "client":
-                summary["servers"] = len(self.sse_receiver.get_status().get("servers", []))
+                summary["servers"] = int(
+                    self.sse_receiver.get_status().get("connected_sessions", 0)
+                )
         except Exception:
             pass
         return {
@@ -595,7 +599,7 @@ class CodeSyncManager:
         }
         try:
             if self.role == "dev" and self.distributing:
-                status["server"] = get_code_sync_server().get_status()
+                status["server"] = self.push_sender.get_status()
             elif self.role == "client":
                 status["client"] = self.sse_receiver.get_status()
         except Exception:

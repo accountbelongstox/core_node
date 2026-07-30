@@ -30,11 +30,8 @@ from pycore.pyutils.common.service_config import (
     TTS_WORKER_INTERVAL,
     UI_ENABLE_TRAY,
 )
-from pycore.pyfoundations.pygvar import (
-    HTTP_BIND_HOST,
-    PROJECT_ROOT as PYCORE_PROJECT_ROOT,
-    PYCORE_HTTP_PORT,
-)
+from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
+from pycore.pyfoundations.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT
 
 
 class Config:

@@ -24,7 +24,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Optional, Dict
 
-from pycore.pyfoundations.pygvar import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
+from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
 
 from pycore.pyutils.codesync.runtime import (
     log as ColorPrint,

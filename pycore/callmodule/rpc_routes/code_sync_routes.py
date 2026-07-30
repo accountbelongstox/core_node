@@ -1,25 +1,17 @@
 # -*- coding: utf-8 -*-
 """HTTP routes for Code Sync."""
 
-import asyncio
-import time
-
 import pycore.callmodule.rpc_routes.route_names as rn
 import pycore.pyutils.codesync.service as cs
 from pycore.pyfoundations.http_sse import (
     SSE_CONTENT_TYPE,
-    SSE_KEEP_ALIVE,
     SSE_RESPONSE_HEADERS,
-    encode_sse_event,
 )
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
-from pycore.pyfoundations.pygvar import PYCORE_HTTP_PORT
+import pycore.pyutils.codesync.routes as code_sync_http_routes
 from pycore.pyutils.codesync.sse_transport import (
-    SSE_ACK_PATH,
-    SSE_EVENT_NAME,
-    SSE_KEEP_ALIVE_SECONDS,
-    SSE_STREAM_PATH,
     code_sync_sse_broker,
+    iter_code_sync_reply_stream,
 )
 
 
@@ -28,7 +20,7 @@ fastapi_module = get_third_package_fastapi()
 
 def register_code_sync_routes(server):
     streaming_response_type = fastapi_module.responses.StreamingResponse
-    ack_body = fastapi_module.Body(default={})
+    frame_body = fastapi_module.Body(default={})
 
     def get_sync_logs(params, _request_id, _context):
         return cs.get_sync_logs(int(params.get("limit") or 100))
@@ -37,42 +29,28 @@ def register_code_sync_routes(server):
         return cs.get_peer_file_tree(str(params.get("peer_id") or ""))
 
     async def stream_frames(
-        request: fastapi_module.Request,
-        client_id: str,
-        since_frame: str = "",
-        client_port: int = PYCORE_HTTP_PORT,
+        session_id: str,
+        sender_id: str = "",
     ):
-        normalized_client_id = str(client_id or "").strip()
-        source_host = str(request.client.host if request.client else "").strip()
-        aliases = (source_host, f"{source_host}:{int(client_port or 0)}")
-
-        async def event_stream():
-            cursor = str(since_frame or "").strip()
-            next_keep_alive = time.monotonic() + SSE_KEEP_ALIVE_SECONDS
-            session = code_sync_sse_broker.connect(normalized_client_id, aliases)
-            try:
-                while True:
-                    code_sync_sse_broker.touch(normalized_client_id, session)
-                    frame = code_sync_sse_broker.next_frame(normalized_client_id, cursor)
-                    if frame is not None:
-                        cursor = str(frame.get("frame_id") or "")
-                        yield encode_sse_event(SSE_EVENT_NAME, frame, cursor)
-                        next_keep_alive = time.monotonic() + SSE_KEEP_ALIVE_SECONDS
-                    elif time.monotonic() >= next_keep_alive:
-                        yield SSE_KEEP_ALIVE
-                        next_keep_alive = time.monotonic() + SSE_KEEP_ALIVE_SECONDS
-                    await asyncio.sleep(0.1)
-            finally:
-                code_sync_sse_broker.disconnect(normalized_client_id, session)
+        normalized_session_id = str(session_id or "").strip()
+        if not normalized_session_id:
+            return fastapi_module.responses.JSONResponse(
+                {"detail": "session_id required"},
+                status_code=400,
+            )
 
         return streaming_response_type(
-            event_stream(),
+            iter_code_sync_reply_stream(normalized_session_id),
             media_type=SSE_CONTENT_TYPE,
             headers=dict(SSE_RESPONSE_HEADERS),
         )
 
-    async def acknowledge_frame(payload=ack_body):
-        result, status = code_sync_sse_broker.acknowledge_payload(payload)
+    async def receive_frame(payload=frame_body):
+        manager = cs.get_code_sync_manager()
+        result, status = code_sync_sse_broker.handle_frame_payload(
+            payload,
+            manager.push_receiver.handle_text,
+        )
         return fastapi_module.responses.JSONResponse(
             result,
             status_code=status,
@@ -106,14 +84,14 @@ def register_code_sync_routes(server):
     )
     server.register_routes(routes, group="code_sync")
     server.app.add_api_route(
-        SSE_STREAM_PATH,
+        code_sync_http_routes.EVENTS_PATH,
         stream_frames,
         methods=["GET"],
         name="code_sync_sse_stream",
     )
     server.app.add_api_route(
-        SSE_ACK_PATH,
-        acknowledge_frame,
+        code_sync_http_routes.EVENTS_FRAME_PATH,
+        receive_frame,
         methods=["POST"],
-        name="code_sync_sse_ack",
+        name="code_sync_sse_frame",
     )

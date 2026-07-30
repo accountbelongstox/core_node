@@ -28,7 +28,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pylauncher.launcher import LauncherConfig, ServiceLauncher
-from pycore.pyfoundations.pygvar import HTTP_API_PREFIX, MCP_BACKEND_RPC_PORT
+from pycore.pyfoundations.network_constants import HTTP_API_PREFIX
+from pycore.pyfoundations.pygvar import MCP_BACKEND_RPC_PORT
 from pycore.pyctl.mcpctl.backend.config import BACKEND_INFO_TEMPLATE
 from pycore.pyctl.mcpctl.backend.handlers.context import set_handler_context
 from pycore.pyctl.mcpctl.backend.rpc_routes import register_mcp_routes

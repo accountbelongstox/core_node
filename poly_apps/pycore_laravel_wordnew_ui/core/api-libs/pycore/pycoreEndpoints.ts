@@ -4,7 +4,7 @@
  * All UI transports resolve paths here, then `pycoreTarget` picks the host
  * (page origin, remote preset, etc.).
  */
-import { PYCORE_HTTP_PORT } from '../../../config/constants';
+import { PYCORE_HTTP_PATHS, PYCORE_HTTP_PORT } from './PycoreNetwork';
 
 export const PYCORE_PORT = PYCORE_HTTP_PORT;
 
@@ -30,10 +30,12 @@ export function buildPycoreHttpUrl(host: string, path: string): string {
 
 /** Well-known pycore HTTP paths (relative to :59000). */
 export const PycorePaths = {
-  ping: '/ping',
-  events: '/api/events',
-  eventsAck: '/api/events/ack',
-  api: (route: string) => `/api/${route
+  status: PYCORE_HTTP_PATHS.status,
+  info: PYCORE_HTTP_PATHS.info,
+  routes: PYCORE_HTTP_PATHS.routes,
+  events: PYCORE_HTTP_PATHS.events,
+  eventsAck: PYCORE_HTTP_PATHS.eventsAck,
+  api: (route: string) => `${PYCORE_HTTP_PATHS.apiPrefix}/${route
     .replace(/^\/+/, '')
     .split('/')
     .map((part) => encodeURIComponent(part))

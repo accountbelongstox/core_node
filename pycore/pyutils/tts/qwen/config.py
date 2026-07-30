@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 
-from pycore.pyfoundations.pygvar import (
+from pycore.pyfoundations.network_constants import (
     HTTP_BIND_HOST,
     QWEN3TTS_HTTP_PORT,
     QWEN3TTS_HTTP_TIMEOUT_SECONDS,

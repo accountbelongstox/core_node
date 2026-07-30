@@ -65,7 +65,7 @@ apply_shared_cache_env()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyfoundations.pygvar import HTTP_BIND_HOST, PYCORE_HTTP_PORT
+from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 import pycore.pylauncher.register_providers  # noqa: F401 — provider registration
 from pycore.pylauncher.launcher import ServiceLauncher, on_singleton_superseded
 from pycore.callmodule.config import build_launcher_config, build_tray_service_config

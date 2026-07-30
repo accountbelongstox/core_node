@@ -15,23 +15,20 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Deque, Dict, Iterable, Optional, Set, Tuple
 
-from pycore.pyfoundations.http_sse import (
+from pycore.pyfoundations.http_sse import encode_sse_event
+from pycore.pyfoundations.network_constants import (
     HTTP_EVENTS_PATH,
     SSE_CONTENT_TYPE,
+    SSE_EVENT_JOURNAL_MAX,
+    SSE_EVENT_MAX_AGE_SECONDS,
+    SSE_EVENT_MAX_WAIT_SECONDS,
+    SSE_EVENT_WAIT_SECONDS,
     SSE_KEEP_ALIVE,
+    SSE_KEEP_ALIVE_SECONDS,
+    SSE_RECORD_EVENT_NAME,
     SSE_RESPONSE_HEADERS,
-    encode_sse_event,
+    SSE_STATE_EVENT_NAME,
 )
-
-
-DEFAULT_EVENT_MAX = 5000
-DEFAULT_EVENT_MAX_AGE_SECONDS = 3600.0
-DEFAULT_EVENT_WAIT_SECONDS = 20.0
-MAX_EVENT_WAIT_SECONDS = 30.0
-SSE_KEEP_ALIVE_SECONDS = 15.0
-SSE_STATE_EVENT_NAME = "sse.state"
-SSE_RECORD_EVENT_NAME = "sse.event"
-
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -68,9 +65,9 @@ class SseEventJournal:
     def __init__(
         self,
         *,
-        max_events: int = DEFAULT_EVENT_MAX,
-        max_age_seconds: float = DEFAULT_EVENT_MAX_AGE_SECONDS,
-        max_wait_seconds: float = MAX_EVENT_WAIT_SECONDS,
+        max_events: int = SSE_EVENT_JOURNAL_MAX,
+        max_age_seconds: float = SSE_EVENT_MAX_AGE_SECONDS,
+        max_wait_seconds: float = SSE_EVENT_MAX_WAIT_SECONDS,
     ) -> None:
         self.instance_id = uuid.uuid4().hex
         self.max_events = max(1, int(max_events))
@@ -123,7 +120,7 @@ class SseEventJournal:
         *,
         client_id: str,
         since_seq: int = 0,
-        timeout_seconds: float = DEFAULT_EVENT_WAIT_SECONDS,
+        timeout_seconds: float = SSE_EVENT_WAIT_SECONDS,
         topics: Optional[Iterable[str]] = None,
     ) -> Dict[str, Any]:
         normalized_client_id = str(client_id or "").strip()
@@ -232,8 +229,8 @@ class HttpEventService:
         title: str = "HTTP Event Service",
         version: str = "1.0.0",
         event_path: str = HTTP_EVENTS_PATH,
-        event_max: int = DEFAULT_EVENT_MAX,
-        event_max_age_seconds: float = DEFAULT_EVENT_MAX_AGE_SECONDS,
+        event_max: int = SSE_EVENT_JOURNAL_MAX,
+        event_max_age_seconds: float = SSE_EVENT_MAX_AGE_SECONDS,
     ) -> None:
         self.fastapi = fastapi_module
         self.json_encoder = fastapi_module.encoders.jsonable_encoder
@@ -273,6 +270,7 @@ class HttpEventService:
         streaming_response_type = self.fastapi.responses.StreamingResponse
 
         async def stream_events(
+            request,
             client_id: str,
             since_seq: int = 0,
             topics: Optional[str] = None,
@@ -285,12 +283,16 @@ class HttpEventService:
                 nonlocal cursor
                 first = True
                 while True:
+                    if await request.is_disconnected():
+                        return
                     result = await self.events.poll(
                         client_id=normalized_client_id,
                         since_seq=cursor,
                         timeout_seconds=SSE_KEEP_ALIVE_SECONDS,
                         topics=topic_filter,
                     )
+                    if await request.is_disconnected():
+                        return
                     state = {
                         "instance_id": result["instance_id"],
                         "seq": result["seq"],
@@ -314,6 +316,8 @@ class HttpEventService:
                 media_type=SSE_CONTENT_TYPE,
                 headers=dict(SSE_RESPONSE_HEADERS),
             )
+
+        stream_events.__annotations__["request"] = self.fastapi.Request
 
         async def acknowledge_events(
             payload: Dict[str, Any] = ack_body,

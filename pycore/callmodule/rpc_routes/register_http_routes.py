@@ -44,7 +44,6 @@ from pycore.callmodule.rpc_routes.management_config_routes import register_manag
 from pycore.callmodule.rpc_routes.management_control_routes import register_management_control_routes
 from pycore.callmodule.rpc_routes.management_logs_routes import register_management_logs_routes
 from pycore.callmodule.rpc_routes.media_routes import register_media_routes
-from pycore.callmodule.rpc_routes.native_ui_routes import register_native_ui_routes
 from pycore.callmodule.rpc_routes.notebooklm_stt_routes import register_notebooklm_stt_routes
 from pycore.callmodule.rpc_routes.operation_routes import register_operation_routes
 from pycore.callmodule.rpc_routes.qwen_http_routes import register_qwen_http_routes
@@ -61,7 +60,6 @@ HTTP_ROUTE_REGISTRARS = (
     register_corebook_routes,
     register_laravel_api_routes,
     register_local_engine_test_routes,
-    register_native_ui_routes,
     register_code_sync_routes,
     register_local_books_routes,
     register_local_ai_chat_routes,

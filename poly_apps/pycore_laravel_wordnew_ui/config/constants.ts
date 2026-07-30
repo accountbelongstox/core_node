@@ -19,11 +19,6 @@ export const DEFAULT_API_PORT = 9000;
 export const DEFAULT_FRONTEND_PORT = 13054;
 
 /**
- * Pycore HTTP backend port. Fixed; UI connects directly (no reverse proxy).
- */
-export const PYCORE_HTTP_PORT = 59000;
-
-/**
  * Default API timeout in milliseconds
  */
 export const DEFAULT_API_TIMEOUT = 30000;

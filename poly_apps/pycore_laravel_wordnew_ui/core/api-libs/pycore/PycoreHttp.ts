@@ -6,7 +6,13 @@ import { PycorePaths } from './pycoreEndpoints';
 import { rewritePycoreEndpoint } from './pycoreTarget';
 import { appendHttpDebug, summarizeHttpParams } from './pycoreHttpLog';
 import { StorageKeys, StorageManager } from '../../persistence';
-import { PYCORE_BROWSER_EVENTS, PYCORE_SSE_EVENTS } from './PycoreEventTopics';
+import {
+  PYCORE_BROWSER_EVENTS,
+  PYCORE_HTTP_DEFAULTS,
+  PYCORE_HTTP_HEADER_NAMES,
+  PYCORE_HTTP_JSON_CONTENT_TYPE,
+  PYCORE_SSE_EVENTS,
+} from './PycoreNetwork';
 
 type EventHandler = (data: any) => void;
 type StatusHandler = (connected: boolean) => void;
@@ -28,11 +34,6 @@ interface HttpEventState {
   cursor_ahead?: boolean;
 }
 
-const DEFAULT_HTTP_TIMEOUT_MS = 30_000;
-const RETRY_MIN_MS = 1_000;
-const RETRY_MAX_MS = 30_000;
-const MAX_PROCESSED_EVENTS = 512;
-
 const eventHandlers = new Map<string, Set<EventHandler>>();
 const statusHandlers = new Set<StatusHandler>();
 const diagHandlers = new Set<DiagHandler>();
@@ -48,7 +49,7 @@ let eventSource: EventSource | null = null;
 let eventReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let eventInstanceId = '';
 let eventSeq = 0;
-let retryDelayMs = RETRY_MIN_MS;
+let retryDelayMs = PYCORE_HTTP_DEFAULTS.reconnectMinMs;
 let httpLogEnabled = false;
 
 class PycoreHttpError extends Error {
@@ -99,7 +100,7 @@ function rememberEvent(eventId: string): boolean {
   if (!eventId) return true;
   if (processedEvents.has(eventId)) return false;
   processedEvents.add(eventId);
-  if (processedEvents.size > MAX_PROCESSED_EVENTS) {
+  if (processedEvents.size > PYCORE_HTTP_DEFAULTS.maxProcessedEvents) {
     const oldest = processedEvents.values().next().value;
     if (oldest) processedEvents.delete(oldest);
   }
@@ -117,7 +118,7 @@ function eventStreamUrl(): string {
 async function acknowledgeEvents(seq: number): Promise<void> {
   const response = await fetch(rewritePycoreEndpoint(PycorePaths.eventsAck), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { [PYCORE_HTTP_HEADER_NAMES.contentType]: PYCORE_HTTP_JSON_CONTENT_TYPE },
     body: JSON.stringify({ client_id: getClientId(), seq }),
   });
   if (!response.ok) {
@@ -187,7 +188,7 @@ function openEventStream(): void {
   source.addEventListener(PYCORE_SSE_EVENTS.event, handleSseRecord as EventListener);
   source.onopen = () => {
     setConnected(true);
-    retryDelayMs = RETRY_MIN_MS;
+    retryDelayMs = PYCORE_HTTP_DEFAULTS.reconnectMinMs;
   };
   source.onerror = () => {
     if (eventSource === source) eventSource = null;
@@ -195,30 +196,37 @@ function openEventStream(): void {
     setConnected(false);
     if (!started || suspended) return;
     const delayMs = retryDelayMs;
-    retryDelayMs = Math.min(RETRY_MAX_MS, retryDelayMs * 2);
+    retryDelayMs = Math.min(PYCORE_HTTP_DEFAULTS.reconnectMaxMs, retryDelayMs * 2);
     scheduleEventReconnect(delayMs);
   };
 }
 
-async function requestHttp(route: string, params: any, timeoutMs?: number): Promise<any> {
+async function requestHttp(
+  route: string,
+  params: any,
+  timeoutMs?: number,
+  path: string = PycorePaths.api(route),
+  method: 'GET' | 'POST' = 'POST',
+): Promise<any> {
   const requestId = newRequestId();
   const waitMs = typeof timeoutMs === 'number' && timeoutMs > 0
     ? timeoutMs
-    : DEFAULT_HTTP_TIMEOUT_MS;
+    : PYCORE_HTTP_DEFAULTS.requestTimeoutMs;
   const abortController = new AbortController();
   const timer = setTimeout(() => abortController.abort(), waitMs);
   try {
-    const response = await fetch(rewritePycoreEndpoint(PycorePaths.api(route)), {
-      method: 'POST',
+    const requestOptions: RequestInit = {
+      method,
       headers: {
-        'Content-Type': 'application/json',
-        'X-Request-ID': requestId,
-        'X-Pycore-Client-ID': getClientId(),
-        'X-Pycore-Browser-ID': getBrowserId(),
+        [PYCORE_HTTP_HEADER_NAMES.contentType]: PYCORE_HTTP_JSON_CONTENT_TYPE,
+        [PYCORE_HTTP_HEADER_NAMES.requestId]: requestId,
+        [PYCORE_HTTP_HEADER_NAMES.clientId]: getClientId(),
+        [PYCORE_HTTP_HEADER_NAMES.browserId]: getBrowserId(),
       },
-      body: JSON.stringify(params ?? {}),
       signal: abortController.signal,
-    });
+    };
+    if (method === 'POST') requestOptions.body = JSON.stringify(params ?? {});
+    const response = await fetch(rewritePycoreEndpoint(path), requestOptions);
     const responseText = await response.text();
     let payload: any = null;
     if (responseText) {
@@ -352,6 +360,10 @@ export function requestPycoreHttp(route: string, params: any = {}, timeoutMs?: n
     });
 }
 
+export function requestPycoreStatus(timeoutMs?: number): Promise<any> {
+  return requestHttp('status', {}, timeoutMs, PycorePaths.status, 'GET');
+}
+
 export function connectPycoreHttp(): void {
   if (started) return;
   started = true;
@@ -371,6 +383,6 @@ export function setPycoreActive(active: boolean): void {
     setConnected(false);
     return;
   }
-  retryDelayMs = RETRY_MIN_MS;
+  retryDelayMs = PYCORE_HTTP_DEFAULTS.reconnectMinMs;
   if (started) openEventStream();
 }

@@ -24,7 +24,7 @@ pycore.pyutils.native_ui). The `launch` alias is preserved.
 import time
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pygvar import HTTP_API_PREFIX
+from pycore.pyfoundations.network_constants import HTTP_API_PREFIX
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step2_port_url.port_allocator import get_port_range

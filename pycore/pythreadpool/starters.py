@@ -35,7 +35,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pythreadpool.registry import SERVICE_STARTERS, THREAD_REGISTRY
 from pycore.pyfoundations.thread_bus_constants import BusSignals
-from pycore.pyfoundations.pygvar import (
+from pycore.pyfoundations.network_constants import (
     PYCORE_HTTP_PORT,
     HTTP_API_PREFIX,
 )

@@ -18,7 +18,7 @@ import os
 import signal
 import time
 
-from pycore.pyfoundations.pygvar import HTTP_BIND_HOST, PYCORE_HTTP_PORT
+from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 from pycore.pyutils.common.strtools.normalization import to_bool
 
 from pycore.pyutils.codesync.runtime import (

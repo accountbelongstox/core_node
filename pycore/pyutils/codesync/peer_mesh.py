@@ -28,7 +28,7 @@ import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore.pyfoundations.pygvar import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
+from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 
 import pycore.pyutils.codesync.routes as routes

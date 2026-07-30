@@ -4,7 +4,7 @@
  *
  * The pycore end has a single "endpoint": the pycore backend on :59000
  * (direct). Health is determined by a FastAPI HTTP controller probe
- * (`ui/ping`, 3s timeout). Two consecutive failures are required before
+ * (`GET /api/status`, 3s timeout). Two consecutive failures are required before
  * flipping to down, so a single transient blip is tolerated.
  *
  * Loop:
@@ -25,9 +25,11 @@ import {
   OfflineRecheckScheduler,
   clampRecheckInterval,
 } from '../../health/OfflineRecheckScheduler';
-import { requestPycoreHttp } from './PycoreHttp';
-import { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
+import { requestPycoreStatus } from './PycoreHttp';
+import { PYCORE_HEALTH_DEFAULTS, PYCORE_HTTP_PATHS } from './PycoreNetwork';
 import { StorageKeys, StorageManager } from '../../persistence';
+
+export { PYCORE_HEALTH_DEFAULTS } from './PycoreNetwork';
 
 export type PycoreReachability =
   | 'unknown'
@@ -44,19 +46,6 @@ export interface PycoreHealthState {
 }
 
 export const PYCORE_HEALTH_EVENT = 'pycore-health-changed';
-
-export const PYCORE_HEALTH_DEFAULTS = {
-  /** Default ALL-Offline retry interval (ms). */
-  healthCheckInterval: 60_000,
-  /** ui/ping HTTP probe timeout (ms). Short — long enough to survive a
-   *  cold Octane hit but not so long that a stalled bus locks the UI. */
-  pingTimeoutMs: 3_000,
-  /** Consecutive probe failures required before flipping to down.
-   *  A single 3s miss on a busy machine is not enough evidence. */
-  failuresBeforeDown: 2,
-  /** Short gap between probe attempts while reachability is probing. */
-  probeRetryMs: 750,
-};
 
 let lastState: PycoreHealthState = {
   up: null,
@@ -102,7 +91,7 @@ export function checkPycoreNow(): Promise<boolean> {
     const start = performance.now();
     let httpOk = false;
     try {
-      await requestPycoreHttp(PYCORE_HTTP_ROUTES.ping, {}, PYCORE_HEALTH_DEFAULTS.pingTimeoutMs);
+      await requestPycoreStatus(PYCORE_HEALTH_DEFAULTS.pingTimeoutMs);
       httpOk = true;
     } catch {
       httpOk = false;
@@ -123,7 +112,7 @@ export function checkPycoreNow(): Promise<boolean> {
     // First miss after ready: stay probing (up=null). Never retain a prior
     // eslint-disable-next-line no-console
     console.warn(
-      `[pycore-health] ui/ping failed (attempt ${consecutiveFailures}/${PYCORE_HEALTH_DEFAULTS.failuresBeforeDown}); ` +
+      `[pycore-health] GET ${PYCORE_HTTP_PATHS.status} failed (attempt ${consecutiveFailures}/${PYCORE_HEALTH_DEFAULTS.failuresBeforeDown}); ` +
       'keeping probing state.',
     );
     applyReachability('probing', ms);

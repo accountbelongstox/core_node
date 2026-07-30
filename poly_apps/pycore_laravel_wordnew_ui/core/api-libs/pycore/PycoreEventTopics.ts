@@ -1,4 +1,6 @@
-/** Central registry for pycore HTTP event topics and browser-only events. */
+/** Central registry for Pycore domain event topics. */
+export { PYCORE_BROWSER_EVENTS, PYCORE_SSE_EVENTS } from './PycoreNetwork';
+
 export const PYCORE_EVENT_TOPICS = {
   agentHistorySessionsChanged: 'agent_history.sessions.changed',
   articlePublished: 'article.published',
@@ -24,17 +26,6 @@ export const PYCORE_EVENT_TOPICS = {
   voiceSubtitleUiHide: 'voice_subtitle_ui_hide',
   voiceSubtitleUiShow: 'voice_subtitle_ui_show',
   voiceSubtitleUpdate: 'voice_subtitle_update',
-} as const;
-
-export const PYCORE_BROWSER_EVENTS = {
-  httpEventReplayLost: 'http_event_replay_lost',
-  httpEventServerRestarted: 'http_event_server_restarted',
-  laravelApiChanged: 'pycore:laravel-api-changed',
-} as const;
-
-export const PYCORE_SSE_EVENTS = {
-  state: 'sse.state',
-  event: 'sse.event',
 } as const;
 
 export const VORTEX_PYCORE_EVENT_TOPICS = {

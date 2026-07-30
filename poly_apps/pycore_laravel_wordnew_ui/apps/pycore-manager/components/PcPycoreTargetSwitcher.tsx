@@ -19,6 +19,7 @@ import {
   localPycoreHost, isPycoreSecureContext, pnaBlockedReason,
   pycoreLocalConnectionHint,
 } from '../../../core/api-libs/pycore/pycoreTarget';
+import { PYCORE_HTTP_PORT } from '../../../core/api-libs/pycore/PycoreNetwork';
 
 interface Props {
   variant?: 'header' | 'block';
@@ -100,7 +101,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
           {!pnaReason && !secureCtx && (
             <div className="flex items-start gap-2 rounded-xl border border-slate-200 dark:border-white/5 px-3 py-1.5 text-[10px] leading-relaxed text-slate-400">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              <span>Not a secure context (HTTP public IP): direct access to <b>127.0.0.1</b> or private IPs will be blocked by Private Network Access. Current target ({activeHost}:59000) is reachable because it is in the same address space.</span>
+              <span>Not a secure context (HTTP public IP): direct access to <b>127.0.0.1</b> or private IPs will be blocked by Private Network Access. Current target ({activeHost}:{PYCORE_HTTP_PORT}) is reachable because it is in the same address space.</span>
             </div>
           )}
 
@@ -151,7 +152,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
                   >
                     <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
                       <span className="flex items-center gap-2 text-xs"><Globe className="w-4 h-4 text-sky-500" /> {p.label}</span>
-                      <span className="text-[10px] font-mono text-slate-400 pl-6">{p.host}:59000</span>
+                      <span className="text-[10px] font-mono text-slate-400 pl-6">{p.host}:{PYCORE_HTTP_PORT}</span>
                     </span>
                     {active && <Check className="w-4 h-4 text-amber-500" />}
                   </button>
@@ -174,7 +175,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
                       : 'border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-600 dark:text-slate-300'
                   }`}
                 >
-                  <span className="flex items-center gap-2 truncate"><Globe className="w-3.5 h-3.5 shrink-0" /> {h}:59000</span>
+                  <span className="flex items-center gap-2 truncate"><Globe className="w-3.5 h-3.5 shrink-0" /> {h}:{PYCORE_HTTP_PORT}</span>
                   {mode === 'remote' && target.host === h && <Check className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
                 </button>
               ))}
@@ -203,8 +204,8 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
               </button>
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              All modes connect directly to <b>host:59000</b> (no proxy).
-              Current URL / Local = {localHost}:59000; Remote = any host:59000.
+              All modes connect directly to <b>host:{PYCORE_HTTP_PORT}</b> (no proxy).
+              Current URL / Local = {localHost}:{PYCORE_HTTP_PORT}; Remote = any host:{PYCORE_HTTP_PORT}.
               Laravel is separate (<b>:9000</b>, header switcher). Switching reloads the page.
             </p>
           </div>

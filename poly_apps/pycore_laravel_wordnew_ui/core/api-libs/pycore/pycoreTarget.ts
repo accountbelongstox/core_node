@@ -13,6 +13,7 @@ import {
   buildPycoreHttpUrl,
   normalizePycorePath,
 } from './pycoreEndpoints';
+import { DEFAULT_FRONTEND_PORT } from '../../../config/constants';
 import { StorageKeys, StorageManager } from '../../persistence';
 
 export interface PycorePresetHost {
@@ -69,7 +70,7 @@ export function isLoopbackPage(): boolean {
 /** UI served from the Vite dev shell (:13054). */
 export function isViteDevShell(): boolean {
   return typeof location !== 'undefined'
-    && location.port === '13054';
+    && location.port === String(DEFAULT_FRONTEND_PORT);
 }
 
 /** Page hostname for origin/local target (localhost stays localhost, not 127.0.0.1). */

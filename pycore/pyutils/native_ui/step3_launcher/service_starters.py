@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Optional, Any, TYPE_CHECKING
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pygvar import HTTP_API_PREFIX
+from pycore.pyfoundations.network_constants import HTTP_API_PREFIX
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager

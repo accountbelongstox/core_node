@@ -6,6 +6,14 @@ export { pycoreApi, mapQueueSnapshot } from './PycoreApi';
 export { PYCORE_HTTP_ROUTES, VORTEX_PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
 export type { PycoreHttpRoute } from './PycoreHttpRoutes';
 export {
+  PYCORE_HTTP_PORT,
+  PYCORE_HTTP_PATHS,
+  PYCORE_HTTP_DEFAULTS,
+  PYCORE_HTTP_HEADER_NAMES,
+  PYCORE_HTTP_JSON_CONTENT_TYPE,
+  PYCORE_SSE_EVENTS,
+} from './PycoreNetwork';
+export {
   PYCORE_BROWSER_EVENTS,
   PYCORE_EVENT_TOPICS,
   VORTEX_PYCORE_EVENT_TOPICS,
@@ -25,7 +33,7 @@ export type {
 } from './PycoreApi';
 
 export {
-  connectPycoreHttp, subscribe, subscribeHttpEvent, requestPycoreHttp, onHttpStatus, onHttpDiag,
+  connectPycoreHttp, subscribe, subscribeHttpEvent, requestPycoreHttp, requestPycoreStatus, onHttpStatus, onHttpDiag,
   isHttpConnected, getClientId, getBrowserId, setPycoreActive,
 } from './PycoreHttp';
 

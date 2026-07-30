@@ -6,21 +6,19 @@ Only handles PRIMARY server functionality, no client logic.
 Uses global_config for shared state.
 """
 
-import os
 import json
-import socket
-from pathlib import Path
-from typing import Any, Optional, Dict, List
+from typing import Any, Optional
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import urllib.parse
 
-from pycore.pyutils.launcher.device_sync.core.config import get_global_config, DEFAULT_ROOT_DIR
+from pycore.pyutils.launcher.device_sync.core.config import get_global_config
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.device_sync.core.database import get_sync_record_store
 import pycore.pyutils.launcher.device_sync.routes as routes
 from pycore.pyutils.launcher.device_sync.sse_protocol import serve_sync_events
+from pycore.pyutils.launcher.device_sync.static_assets import serve_device_sync_asset
 
 import time
 
@@ -39,8 +37,14 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
         path = parsed_path.path
         config = get_global_config()
 
+        if path == routes.ROUTES_PATH:
+            self._send_json(routes.PUBLIC_ROUTES)
+            return
+        if serve_device_sync_asset(self, path):
+            return
+
         # Check API access control (except for root and status)
-        if path.startswith(routes.API_PREFIX) and path != routes.STATUS_PATH:
+        if path.startswith(routes.API_PREFIX) and path not in routes.PUBLIC_API_PATHS:
             if not config.api_enabled:
                 self.send_error(403, "API access is disabled")
                 return
@@ -66,192 +70,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
         self.send_error(405, "Method Not Allowed")
 
     def _handle_root(self):
-        """Handle root path - comprehensive dashboard"""
-        config = get_global_config()
-        record_store = get_sync_record_store()
-
-        # Get statistics
-        sync_stats = record_store.get_stats()
-        recent_transfers = record_store.get_recent_transfers(limit=10)
-        recent_scans = record_store.get_recent_scans(limit=5)
-        recent_connections = record_store.get_recent_connections(limit=10)
-
-        # Build connected clients HTML
-        connected_clients_html = ""
-        if config.connected_clients:
-            connected_clients_html = "<h3>Connected Clients</h3><ul>"
-            for client in config.connected_clients:
-                connected_clients_html += f"""
-                <li>
-                    <strong>{client.get('ip', 'Unknown')}</strong>
-                    {f" - {client.get('hostname', '')}" if client.get('hostname') else ""}
-                    {f" ({client.get('device_id', '')[:8]}...)" if client.get('device_id') else ""}
-                </li>
-                """
-            connected_clients_html += "</ul>"
-        else:
-            connected_clients_html = "<h3>Connected Clients</h3><p>No clients currently connected</p>"
-
-        # Build online devices HTML
-        online_devices_html = ""
-        if config.online_devices:
-            online_devices_html = "<h3>Network Devices</h3><ul>"
-            for device in config.online_devices:
-                device_mode = device.get('mode', 'unknown').upper()
-                online_devices_html += f"""
-                <li>
-                    <strong>{device.get('ip', 'Unknown')}</strong> - {device_mode}
-                    {f" ({device.get('hostname', '')})" if device.get('hostname') else ""}
-                </li>
-                """
-            online_devices_html += "</ul>"
-        else:
-            online_devices_html = "<h3>Network Devices</h3><p>No other devices discovered</p>"
-
-        # Build recent transfers HTML
-        transfers_html = ""
-        if recent_transfers:
-            transfers_html = "<h3>Recent File Transfers</h3><table><tr><th>Time</th><th>Operation</th><th>File</th><th>Size</th><th>Status</th></tr>"
-            for transfer in recent_transfers:
-                size_mb = transfer['file_size'] / (1024 * 1024)
-                transfers_html += f"""
-                <tr>
-                    <td>{transfer['timestamp']}</td>
-                    <td>{transfer['operation']}</td>
-                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">{transfer['file_path']}</td>
-                    <td>{size_mb:.2f} MB</td>
-                    <td class="status-{transfer['status']}">{transfer['status']}</td>
-                </tr>
-                """
-            transfers_html += "</table>"
-        else:
-            transfers_html = "<h3>Recent File Transfers</h3><p>No transfers recorded</p>"
-
-        # Build recent scans HTML
-        scans_html = ""
-        if recent_scans:
-            scans_html = "<h3>Recent Scans</h3><table><tr><th>Time</th><th>Files Found</th><th>Duration</th><th>Scan node_modules</th></tr>"
-            for scan in recent_scans:
-                scans_html += f"""
-                <tr>
-                    <td>{scan['timestamp']}</td>
-                    <td>{scan['files_found']}</td>
-                    <td>{scan['duration_seconds']:.2f}s</td>
-                    <td>{'Yes' if scan['scan_node_modules'] else 'No'}</td>
-                </tr>
-                """
-            scans_html += "</table>"
-
-        html = f"""<!DOCTYPE html>
-<html>
-<head>
-    <title>Device Sync - PRIMARY Server Dashboard</title>
-    <meta http-equiv="refresh" content="30">
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f7fa; }}
-        .container {{ max-width: 1200px; margin: 0 auto; }}
-        h1 {{ color: #2c3e50; margin-bottom: 10px; }}
-        .subtitle {{ color: #7f8c8d; margin-bottom: 30px; }}
-        .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }}
-        .card {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        .card h2 {{ margin-top: 0; color: #34495e; font-size: 18px; border-bottom: 2px solid #3498db; padding-bottom: 10px; }}
-        .card h3 {{ color: #2c3e50; font-size: 16px; margin-top: 20px; margin-bottom: 10px; }}
-        .info {{ margin: 8px 0; line-height: 1.6; }}
-        .label {{ font-weight: 600; color: #555; display: inline-block; min-width: 140px; }}
-        .value {{ color: #2c3e50; }}
-        .status-badge {{ display: inline-block; padding: 3px 8px; border-radius: 3px; font-size: 12px; font-weight: 600; }}
-        .status-badge.active {{ background: #d4edda; color: #155724; }}
-        .status-badge.enabled {{ background: #cce5ff; color: #004085; }}
-        .status-badge.disabled {{ background: #f8d7da; color: #721c24; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }}
-        th {{ background: #ecf0f1; padding: 8px; text-align: left; font-weight: 600; color: #2c3e50; }}
-        td {{ padding: 8px; border-bottom: 1px solid #ecf0f1; }}
-        tr:hover {{ background: #f8f9fa; }}
-        .status-success {{ color: #27ae60; font-weight: 600; }}
-        .status-failed {{ color: #e74c3c; font-weight: 600; }}
-        ul {{ margin: 10px 0; padding-left: 20px; }}
-        li {{ margin: 5px 0; }}
-        a {{ color: #3498db; text-decoration: none; }}
-        a:hover {{ text-decoration: underline; }}
-        .stats-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 15px 0; }}
-        .stat-box {{ text-align: center; padding: 15px; background: #f8f9fa; border-radius: 5px; }}
-        .stat-number {{ font-size: 24px; font-weight: bold; color: #3498db; }}
-        .stat-label {{ font-size: 12px; color: #7f8c8d; margin-top: 5px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔄 Device Sync - PRIMARY Server</h1>
-        <div class="subtitle">Monitoring Dashboard (Auto-refresh every 30s)</div>
-
-        <div class="grid">
-            <div class="card">
-                <h2>📊 Server Status</h2>
-                <div class="info"><span class="label">Mode:</span> <span class="status-badge active">PRIMARY</span></div>
-                <div class="info"><span class="label">Hostname:</span> <span class="value">{config.hostname}</span></div>
-                <div class="info"><span class="label">IP Address:</span> <span class="value">{config.local_ip or 'Unknown'}</span></div>
-                <div class="info"><span class="label">Port:</span> <span class="value">{config.http_port}</span></div>
-                <div class="info"><span class="label">Root Dir:</span> <span class="value">{DEFAULT_ROOT_DIR}</span></div>
-                <div class="info"><span class="label">Device ID:</span> <span class="value">{config.device_id[:16] if config.device_id else 'N/A'}...</span></div>
-                <div class="info"><span class="label">API Access:</span> <span class="status-badge {'enabled' if config.api_enabled else 'disabled'}">{('Enabled' if config.api_enabled else 'Disabled').upper()}</span></div>
-                <div class="info"><span class="label">Scan node_modules:</span> <span class="value">{'Yes' if config.scan_node_modules else 'No'}</span></div>
-            </div>
-
-            <div class="card">
-                <h2>📈 Statistics</h2>
-                <div class="stats-grid">
-                    <div class="stat-box">
-                        <div class="stat-number">{config.file_cache_count}</div>
-                        <div class="stat-label">Files Cached</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">{config.total_scans}</div>
-                        <div class="stat-label">Total Scans</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">{sync_stats['total_transfers']}</div>
-                        <div class="stat-label">Transfers</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">{len(config.connected_clients)}</div>
-                        <div class="stat-label">Clients</div>
-                    </div>
-                </div>
-                <div class="info"><span class="label">Last Scan:</span> <span class="value">{config.last_scan_time or 'Never'}</span></div>
-            </div>
-        </div>
-
-        <div class="grid">
-            <div class="card">
-                {connected_clients_html}
-                {online_devices_html}
-            </div>
-
-            <div class="card">
-                <h2>🔗 API Endpoints</h2>
-                <ul>
-                    <li><a href="{routes.STATUS_PATH}">{routes.STATUS_PATH}</a> - Server status (always accessible)</li>
-                    <li><a href="{routes.FILES_PATH}">{routes.FILES_PATH}</a> - File list (requires API access)</li>
-                    <li><a href="{routes.DEVICES_PATH}">{routes.DEVICES_PATH}</a> - Online devices</li>
-                </ul>
-            </div>
-        </div>
-
-        <div class="card">
-            {transfers_html}
-        </div>
-
-        <div class="card">
-            {scans_html}
-        </div>
-    </div>
-</body>
-</html>"""
-
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/html; charset=utf-8')
-        self.end_headers()
-        self.wfile.write(html.encode('utf-8'))
+        serve_device_sync_asset(self, routes.ROOT_PATH)
 
     def _handle_status(self):
         """Handle /api/status"""
@@ -502,3 +321,4 @@ class SimplePrimaryServer:
     def is_running(self) -> bool:
         """Check if server is running"""
         return bool(THREAD_BUS.get_signal(self._running_signal, False))
+

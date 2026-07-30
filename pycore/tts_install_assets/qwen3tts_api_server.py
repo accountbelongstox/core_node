@@ -86,6 +86,10 @@ StreamingResponse = fastapi.responses.StreamingResponse
 _DEFAULT_HOST = "0.0.0.0"
 _PYCORE_MODULE_NAME = "pycore"
 _PYFOUNDATIONS_MODULE_NAME = "pycore.pyfoundations"
+_NETWORK_CONSTANTS_MODULE_NAME = "pycore.pyfoundations.network_constants"
+_NETWORK_CONSTANTS_MODULE_PATH = (
+    Path(__file__).resolve().parents[1] / "pyfoundations" / "network_constants.py"
+)
 _HTTP_SSE_MODULE_NAME = "pycore.pyfoundations.http_sse"
 _HTTP_SSE_MODULE_PATH = (
     Path(__file__).resolve().parents[1] / "pyfoundations" / "http_sse.py"
@@ -128,6 +132,7 @@ def _register_pycore_namespace() -> None:
 
 
 _register_pycore_namespace()
+_load_source_module(_NETWORK_CONSTANTS_MODULE_NAME, _NETWORK_CONSTANTS_MODULE_PATH)
 http_sse = _load_source_module(_HTTP_SSE_MODULE_NAME, _HTTP_SSE_MODULE_PATH)
 http_event = _load_source_module(_HTTP_EVENT_MODULE_NAME, _HTTP_EVENT_MODULE_PATH)
 http_service = http_event.HttpEventService(

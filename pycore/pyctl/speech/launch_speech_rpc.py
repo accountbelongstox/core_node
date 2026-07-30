@@ -20,7 +20,7 @@ import argparse
 from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pygvar import (
+from pycore.pyfoundations.network_constants import (
     HTTP_API_PREFIX,
     HTTP_STATUS_PATH,
 )

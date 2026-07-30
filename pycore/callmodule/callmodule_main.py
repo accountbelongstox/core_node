@@ -9,7 +9,7 @@ import pycore.pylauncher.register_providers  # noqa: F401
 from pycore.pyctl.runtime.callmodule_config import Config
 from pycore.pyctl.runtime.event_handlers import register_runtime_workers
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pygvar import HTTP_BIND_HOST, PYCORE_HTTP_PORT
+from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
 from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step2_port_url.port_allocator import register_port_range

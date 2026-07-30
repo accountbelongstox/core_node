@@ -4,7 +4,7 @@
 
 import { buildPycoreHttpUrl, normalizePycorePath } from './pycoreEndpoints';
 import { directPycoreHost, rewritePycoreEndpoint } from './pycoreTarget';
-import { requestPycoreHttp, isHttpConnected } from './PycoreHttp';
+import { requestPycoreHttp, requestPycoreStatus, isHttpConnected } from './PycoreHttp';
 import { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
 
 function guardPycoreReachability(): void {
@@ -25,6 +25,7 @@ export {
   guardPycoreReachability,
   fileToBase64,
   requestPycoreHttp,
+  requestPycoreStatus,
   isHttpConnected,
   PYCORE_HTTP_ROUTES,
   rewritePycoreEndpoint,

@@ -13,10 +13,13 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
-from pycore.pyfoundations.pygvar import (
+from pycore.pyfoundations.network_constants import (
     HTTP_API_PREFIX,
     HTTP_BIND_HOST,
     HTTP_EVENTS_PATH,
+    HTTP_EXPECTED_DISCONNECT_ERRNOS,
+    HTTP_EXPECTED_DISCONNECT_MESSAGES,
+    HTTP_EXPECTED_DISCONNECT_WINERRORS,
     HTTP_INFO_PATH,
     HTTP_PROTOCOL_VERSION,
     HTTP_ROUTES_PATH,
@@ -38,8 +41,6 @@ RouteRegistration = Union[
     Tuple[str, Callable],
     Tuple[str, Callable, Optional[str]],
 ]
-
-
 class _PrivateNetworkAccessMiddleware:
     def __init__(self, app: Any) -> None:
         self.app = app
@@ -162,13 +163,26 @@ class HttpServer:
     ) -> None:
         exception = context.get("exception")
         message = str(context.get("message") or "")
+        errno = getattr(exception, "errno", None)
         winerror = getattr(exception, "winerror", None)
-        expected_reset = (
-            isinstance(exception, ConnectionResetError)
-            and winerror == 10054
+        connection_error = isinstance(
+            exception,
+            (BrokenPipeError, ConnectionAbortedError, ConnectionResetError),
+        ) or (
+            isinstance(exception, OSError)
+            and (
+                errno in HTTP_EXPECTED_DISCONNECT_ERRNOS
+                or winerror in HTTP_EXPECTED_DISCONNECT_WINERRORS
+            )
+        )
+        expected_disconnect = (
+            message in HTTP_EXPECTED_DISCONNECT_MESSAGES
+            and (exception is None or connection_error)
+        ) or (
+            connection_error
             and "ProactorBasePipeTransport._call_connection_lost" in message
         )
-        if expected_reset:
+        if expected_disconnect:
             return
         if self._previous_loop_exception_handler is not None:
             self._previous_loop_exception_handler(event_loop, context)

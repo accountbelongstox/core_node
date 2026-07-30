@@ -23,7 +23,7 @@ import json
 import sys
 
 from pycore.pyutils.common.http_client import build_http_base_url
-from pycore.pyfoundations.pygvar import (
+from pycore.pyfoundations.network_constants import (
     HTTP_BIND_HOST,
     HTTP_LOOPBACK_HOST,
     PYCORE_HTTP_PORT,

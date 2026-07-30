@@ -11,8 +11,22 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from pycore.pyfoundations.http_sse import HTTP_EVENTS_PATH
 from pycore.pyfoundations.machine_id import get_machine_id
+from pycore.pyfoundations.network_constants import (
+    HTTP_API_PREFIX,
+    HTTP_BIND_HOST,
+    HTTP_DEFAULT_TIMEOUT_SECONDS,
+    HTTP_EVENTS_PATH,
+    HTTP_INFO_PATH,
+    HTTP_JSON_CONTENT_TYPE,
+    HTTP_LOOPBACK_HOST,
+    HTTP_PROTOCOL_VERSION,
+    HTTP_ROUTES_PATH,
+    HTTP_STATUS_PATH,
+    PYCORE_HTTP_PORT,
+    QWEN3TTS_HTTP_PORT,
+    QWEN3TTS_HTTP_TIMEOUT_SECONDS,
+)
 from pycore.pyfoundations.system_info import (
     DISK_INFO,
     MEMORY_INFO,
@@ -89,19 +103,6 @@ BACKUP_METADATA_FILENAME = "backup_metadata.json"
 BACKUP_INDEX_FILENAME = "backup_index.json"
 WIN10_IDENTIFIER = "10.0"
 WIN11_IDENTIFIER = "10.0.22000"
-
-HTTP_BIND_HOST = "0.0.0.0"
-HTTP_LOOPBACK_HOST = "127.0.0.1"
-HTTP_DEFAULT_TIMEOUT_SECONDS = 10.0
-HTTP_JSON_CONTENT_TYPE = "application/json"
-PYCORE_HTTP_PORT = 59000
-QWEN3TTS_HTTP_PORT = 57210
-QWEN3TTS_HTTP_TIMEOUT_SECONDS = 900.0
-HTTP_PROTOCOL_VERSION = "2.0"
-HTTP_STATUS_PATH = "/api/status"
-HTTP_INFO_PATH = "/api/info"
-HTTP_ROUTES_PATH = "/api/routes"
-HTTP_API_PREFIX = "/api"
 
 _SYSTEM_KEY = SYSTEM_NAME.lower()
 _HOME_PATH = Path(USER_HOME_DIR)

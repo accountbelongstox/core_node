@@ -2,8 +2,8 @@
 """
 Code Sync DEV-side push sender (stdlib only).
 
-Each CLIENT holds an SSE connection to the DEV, which pushes file changes: a
-full manifest reconcile on every (re)connect, then
+Each DEV opens a persistent SSE reply stream on a reachable CLIENT and sends
+file frames over HTTP: a full manifest reconcile on every (re)connect, then
 incremental deltas. A supervisor thread (outliving individual push threads)
 owns persistent per-client state so an offline client resumes the deltas it
 missed, and a dead peer is retried with exponential backoff.
@@ -20,7 +20,7 @@ import time
 import uuid
 from pathlib import Path
 
-from pycore.pyfoundations.pygvar import PYCORE_HTTP_PORT
+from pycore.pyfoundations.network_constants import PYCORE_HTTP_PORT
 
 from pycore.pyutils.codesync.runtime import (
     log as ColorPrint, is_shutdown_requested, register_shutdown_handler,
@@ -42,7 +42,7 @@ from pycore.pyutils.codesync.watcher import get_watch_manager
 # DEV side -- dial each client and push deltas                                #
 # --------------------------------------------------------------------------- #
 class PushSender:
-    """Maintains one SSE push worker per client peer.
+    """Maintains one HTTP/SSE push worker per client peer.
 
     The supervisor owns persistent per-client state that survives an individual
     push thread dying, so an offline client resumes with the deltas it missed:
@@ -59,6 +59,7 @@ class PushSender:
         self._client_sent = {}    # client_id -> last_sent snapshot
         self._client_seen = {}    # client_id -> bool
         self._peer_retry = {}     # peer_id -> retry state
+        self._connected_peers = set()
         self._index_wait_logged = False  # one-shot "waiting for first scan" log
         self._running_signal = f"codesync.push_sender.running.{uuid.uuid4().hex}"
         init_serialized_owner(self, "codesync.push_sender.state", "CodeSyncPushState")
@@ -164,6 +165,15 @@ class PushSender:
             )
         except Exception:
             pass
+        if info["should_log"]:
+            self.m.log_sync(
+                "connection",
+                "",
+                "HTTP SSE connection failed",
+                details=info["error"],
+                peer=info["name"],
+                direction="push",
+            )
 
     @serialized_method
     def _note_failure_state(self, peer: dict, exc, mid_sync: bool = False):
@@ -193,6 +203,8 @@ class PushSender:
             "pid": pid,
             "name": name,
             "attempt": min(attempt + 1, 16),
+            "should_log": first,
+            "error": str(exc),
         }
 
     @serialized_method
@@ -202,12 +214,33 @@ class PushSender:
         self._peer_retry[pid] = {"attempt": 0, "next_retry_at": 0.0,
                                  "logged": False}
 
+    @serialized_method
+    def _set_peer_connected(self, peer_id: str, connected: bool) -> None:
+        normalized = str(peer_id or "").strip()
+        if connected:
+            self._connected_peers.add(normalized)
+        else:
+            self._connected_peers.discard(normalized)
+
+    @serialized_method
+    def get_status(self) -> dict:
+        return {
+            "running": self._running,
+            "connected_clients": len(self._connected_peers),
+            "clients": sorted(self._connected_peers),
+        }
+
     # ----- one peer connection -------------------------------------------- #
     def _push_to(self, peer: dict) -> None:
         host = peer.get("host")
         port = int(peer.get("port", PYCORE_HTTP_PORT))
         client_id = peer.get("id")
-        client = HttpFrameClient(host, port, client_id)
+        client = HttpFrameClient(
+            host,
+            port,
+            client_id,
+            self.m.config.machine_id,
+        )
         connected = False
         try:
             client.connect()
@@ -223,6 +256,7 @@ class PushSender:
             # advertised it (older clients omit caps -> plain base64, unchanged).
             gzip_ok = bool((wj.get("caps") or {}).get("gzip"))
             connected = True
+            self._set_peer_connected(peer.get("id"), True)
             self._note_success(peer)
 
             wm = get_watch_manager()
@@ -255,6 +289,7 @@ class PushSender:
             # persisted up to the last ack so the next connect resumes cleanly.
             self._note_failure(peer, exc, mid_sync=connected)
         finally:
+            self._set_peer_connected(peer.get("id"), False)
             client.close()
             self._remove_peer_worker(peer.get("id"))
 

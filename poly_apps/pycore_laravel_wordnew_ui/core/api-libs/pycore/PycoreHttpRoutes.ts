@@ -36,7 +36,6 @@ export const PYCORE_HTTP_ROUTES = {
   booksSubmit: 'ui/books/submit',
   booksList: 'ui/books/list',
   booksAnalyzeUpload: 'ui/books/analyze_upload',
-  ping: 'ui/ping',
   corebookList: 'ui/corebook/list',
   corebookConvert: 'ui/corebook/convert',
   corebookGet: 'ui/corebook/get',

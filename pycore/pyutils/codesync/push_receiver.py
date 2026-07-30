@@ -49,7 +49,7 @@ def _restore_exec_bit(target, content: bytes) -> None:
 # CLIENT side -- apply pushed files                                           #
 # --------------------------------------------------------------------------- #
 class PushReceiver:
-    """Stateless handler for one SSE-delivered text frame."""
+    """Stateless handler for one HTTP frame with its reply sent over SSE."""
 
     def __init__(self, manager):
         self.m = manager
@@ -73,6 +73,8 @@ class PushReceiver:
             # payloads. Older devs ignore `caps` and keep sending plain base64.
             send(json.dumps({"type": "welcome", "client_id": self.m.config.machine_id,
                              "name": me.get("name"), "caps": {"gzip": True}}))
+        elif t == "ping":
+            send(json.dumps({"type": "pong"}))
         elif t == "manifest":
             self._handle_manifest(msg, send)
         elif t == "batch":
