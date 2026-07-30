@@ -27,13 +27,11 @@ class HttpFrameClient:
         self,
         host: str,
         port: int,
-        client_id: str,
         sender_id: str,
         io_timeout: float = 120.0,
     ) -> None:
         self.host = str(host or "").strip()
         self.port = int(port)
-        self.client_id = str(client_id or "").strip()
         self.sender_id = str(sender_id or "").strip()
         self.io_timeout = float(io_timeout)
         self._response: Optional[Any] = None

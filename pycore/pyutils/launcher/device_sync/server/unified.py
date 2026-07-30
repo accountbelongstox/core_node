@@ -42,6 +42,12 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
         path = parsed_path.path
         config = get_global_config()
 
+        if path == routes.ROUTES_PATH:
+            self._send_json(routes.PUBLIC_ROUTES)
+            return
+        if path.startswith(routes.ASSETS_PATH_PREFIX) and serve_device_sync_asset(self, path):
+            return
+
         # ===== Public Endpoints (available in both modes) =====
         if path == routes.ROOT_PATH:
             self._handle_dashboard()
@@ -394,5 +400,4 @@ class UnifiedHTTPServer:
     def is_running(self) -> bool:
         """Check if server is running"""
         return self.running
-
 

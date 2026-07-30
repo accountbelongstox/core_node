@@ -238,7 +238,6 @@ class PushSender:
         client = HttpFrameClient(
             host,
             port,
-            client_id,
             self.m.config.machine_id,
         )
         connected = False

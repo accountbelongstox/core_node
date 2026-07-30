@@ -216,12 +216,11 @@ class PushReceiver:
         # Persist the confirmed-present files; needed ones are added by _apply_batch
         # as they are actually written.
         self._save_received(new_table)
-        if need:
-            self.m.log_sync("reconnect", "", "full sync",
-                            details=f"{len(need)} to fetch, "
-                                    f"{len(files) - len(need)} up-to-date "
-                                    f"({hashed} re-hashed); update-only, 0 deleted",
-                            peer=peer, direction="receive")
+        self.m.log_sync("reconnect", "", "full sync",
+                        details=f"{len(need)} to fetch, "
+                                f"{len(files) - len(need)} up-to-date "
+                                f"({hashed} re-hashed); update-only, 0 deleted",
+                        peer=peer, direction="receive")
         send(json.dumps({"type": "need", "need": need}))
 
     def _apply_one(self, msg: dict, peer: str = "") -> dict:

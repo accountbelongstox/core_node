@@ -40,7 +40,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
         if path == routes.ROUTES_PATH:
             self._send_json(routes.PUBLIC_ROUTES)
             return
-        if serve_device_sync_asset(self, path):
+        if path.startswith(routes.ASSETS_PATH_PREFIX) and serve_device_sync_asset(self, path):
             return
 
         # Check API access control (except for root and status)
@@ -321,4 +321,3 @@ class SimplePrimaryServer:
     def is_running(self) -> bool:
         """Check if server is running"""
         return bool(THREAD_BUS.get_signal(self._running_signal, False))
-
